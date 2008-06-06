@@ -1,0 +1,31 @@
+/*
+   Copyright 2008 Gemius SA.
+
+   This file is part of MooseFS.
+
+   MooseFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   MooseFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _CSSERV_H_
+#define _CSSERV_H_
+#include <inttypes.h>
+
+void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *opr,uint32_t *opw);
+void csserv_cstocs_connected(void *e,void *cptr);
+void csserv_cstocs_gotstatus(void *e,uint64_t chunkid,uint32_t writeid,uint8_t s);
+void csserv_cstocs_disconnected(void *e);
+uint32_t csserv_getlistenip();
+uint16_t csserv_getlistenport();
+int csserv_init(void);
+
+#endif

@@ -1,0 +1,114 @@
+.TH MFSTOOLS "1" "February 2008" "MooseFS 1.5"
+.SH NAME
+mfstools \- perform MFS\-specific operations
+.SH SYNOPSIS
+.B mfsgetgoal
+\fIOBJECT\fP...
+.PP
+.B mfsrgetgoal
+\fIOBJECT\fP...
+.PP
+.B mfssetgoal
+[\fB+\fP|\fB-\fP]N \fIOBJECT\fP...
+.PP
+.B mfsrsetgoal
+[\fB+\fP|\fB-\fP]N \fIOBJECT\fP...
+.PP
+.B mfsgettrashtime
+\fIOBJECT\fP...
+.PP
+.B mfsrgettrashtime
+\fIOBJECT\fP...
+.PP
+.B mfssettrashtime
+[\fB+\fP|\fB-\fP]SECONDS \fIOBJECT\fP...
+.PP
+.B mfsrsettrashtime
+[\fB+\fP|\fB-\fP]SECONDS \fIOBJECT\fP...
+.PP
+.B mfscheckfile
+\fIFILE\fP...
+.PP
+.B mfsfileinfo
+\fIFILE\fP...
+.PP
+.B mfsdirinfo
+\fIOBJECT\fP...
+.PP
+.B mfssnapshot
+\fISNAPSHOT_FILE\fP \fIOBJECT\fP...
+.PP
+.SH DESCRIPTION
+\fBmfsgetgoal\fP, \fBmfsrgetgoal\fP, \fBmfssetgoal\fP, \fBmfsrsetgoal\fP
+operate on object's \fIgoal\fP value, i.e. the number of copies in which all
+file data are stored. It means that file should survive failure of one less
+chunkservers than its \fIgoal\fP value. \fIGoal\fP must be set between 1 and
+9 (note that 1 is strongly unadvised).
+\fBmfsgetgoal\fP prints current \fIgoal\fP value of given object(s).
+\fBmfsrgetgoal\fP is recursive variant \- works just like \fBmfsgetgoal\fP
+for every given file, but for every given directory additionally prints
+current \fIgoal\fP value of all contained objects (files and directories).
+\fBmfssetgoal\fP changes current \fIgoal\fP value of given object(s). If new
+value is specified in \fB+\fP\fIN\fP form, \fIgoal\fP value is increased to
+\fIN\fP for objects with lower \fIgoal\fP value and unchanged for the rest.
+Similarly, if new value is specified as \fB\-\fP\fIN\fP, \fIgoal\fP value is
+decreased to \fIN\fP for objects with higher \fIgoal\fP value and unchanged
+for the rest. \fBmfsrsetgoal\fP is resursive variant.
+These tools can be used on any file, directory or deleted (\fItrash\fP) file.
+.PP
+\fBmfsgettrashtime\fP, \fBmfsrgettrashtime\fP, \fBmfssettrashtime\fP,
+\fBmfsrsettrashtime\fP operate on object's \fItrashtime\fP value, i.e. the
+number of seconds the file is preserved in special \fItrash\fP directory
+before it's finally removed from filesystem. \fITrashtime\fP must be
+non\-negative integer value.
+\fBmfsgettrashtime\fP prints current \fItrashtime\fP value of given object(s).
+\fBmfsrgettrashtime\fP is recursive variant \- works just like
+\fBmfsgettrashtime\fP for every given file, but for every given directory
+additionally prints current \fItrashtime\fP value of all contained objects
+(files and directories). \fBmfssettrashtime\fP changes current \fItrashtime\fP
+value of given object(s). If new value is specified in \fB+\fP\fIN\fP form,
+\fItrashtime\fP value is increased to \fIN\fP for objects with lower
+\fItrashtime\fP value and unchanged for the rest. Similarly, if new value is
+specified as \fB\-\fP\fIN\fP, \fItrashtime\fP value is decreased to \fIN\fP for
+objects with higher \fItrashtime\fP value and unchanged for the rest.
+\fBmfsrsettrashtime\fP is resursive variant.
+These tools can be used on any file, directory or deleted (\fItrash\fP) file.
+.PP
+\fBmfscheckfile\fP checks and prints number of chunks and number of chunk
+copies belonging to specified file(s).
+It can be used on any file, included deleted (\fItrash\fP).
+.PP
+\fBmfsfileinfo\fP prints location (\fIchunkserver\fP host and port) of each
+chunk copy belonging to specified file(s).
+It can be used on any file, included deleted (\fItrash\fP).
+.PP
+\fBmfsdirinfo\fP is extended, MFS-specific equivalent of \fBdu -s\fP
+command. It prints summary for each specified object (single file or
+directory tree).
+.PP
+\fBmfssnapshot\fP creates snapshot file as a lazy copy of specified file(s)
+- i.e. creation of new chunks is deferred to the moment one copy is modified.
+If multiple files are given, they are merged into one target file in the way
+that each file begins at \fIchunk\fP (64MB) boundary; padding space is left
+empty.
+.SH BUGS
+\fBmfstools\fP currently don't work on read-only filesystem.
+.SH "REPORTING BUGS"
+Report bugs to <bugs@moosefs.com>.
+.SH COPYRIGHT
+Copyright 2008 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmount (8),
+.BR moosefs (7)

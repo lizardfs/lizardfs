@@ -1,0 +1,19 @@
+if BUILD_MASTER
+MASTERDIR=mfsmaster mfsmetarestore
+else
+MASTERDIR=
+endif
+
+if BUILD_CHUNKSERVER
+CHUNKSERVERDIR=mfschunkserver
+else
+CHUNKSERVERDIR=
+endif
+
+if BUILD_MOUNT
+MOUNTDIR=mfsmount
+else
+MOUNTDIR=
+endif
+
+SUBDIRS=mfsdata doc $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR)
