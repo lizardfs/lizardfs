@@ -238,8 +238,8 @@ void hdd_diskinfo_data(uint8_t *buff) {
 
 void hdd_refresh_usage(folder *f) {
 	struct statvfs fsinfo;
-	if (statvfs(f->path,&fsinfo)<0) {
 
+	if (statvfs(f->path,&fsinfo)<0) {
 		f->avail = 0ULL;
 		f->total = 0ULL;
 	}

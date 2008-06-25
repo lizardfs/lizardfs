@@ -127,7 +127,11 @@ void masterconn_sendregister(masterconn *eptr) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT8BIT(2,buff);	// reg version
+	if (Timeout==60) {
+		PUT8BIT(2,buff);	// reg version
+	} else {
+		PUT8BIT(3,buff);	// reg version
+	}
 	PUT32BIT(myip,buff);
 	PUT16BIT(myport,buff);
 	if (Timeout!=60) {
