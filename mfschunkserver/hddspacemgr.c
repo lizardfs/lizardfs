@@ -1949,6 +1949,10 @@ int hdd_init(void) {
 			folderhead = f;
 		}
 	}
+	if (folderhead==NULL) {
+		syslog(LOG_ERR,"no hdd space !!!");
+		return -1;
+	}
 	main_timeregister(1,0,hdd_send_space);
 	main_timeregister(60,0,hdd_time_refresh);
 	return 0;

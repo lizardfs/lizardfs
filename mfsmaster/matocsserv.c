@@ -353,6 +353,15 @@ void matocsserv_status(void) {
 	syslog(LOG_NOTICE,"total: usedspace: %lld (%u GB), totalspace: %lld (%u GB), usage: %.2f%%",uspace,(uint32_t)(uspace>>30),tspace,(uint32_t)(tspace>>30),(tspace>0)?(100.0*uspace)/tspace:0.0);
 }
 
+char* matocsserv_getstrip(void *e) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	static char *empty="???";
+	if (eptr->mode!=KILL && eptr->servstrip) {
+		return eptr->servstrip;
+	}
+	return empty;
+}
+
 int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport) {
 	matocsserventry *eptr = (matocsserventry *)e;
 	if (eptr->mode!=KILL) {

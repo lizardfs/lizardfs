@@ -24,7 +24,8 @@ void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usab
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
-int matocsserv_getlocation(void *a,uint32_t *servip,uint16_t *servport);
+char* matocsserv_getstrip(void *e);
+int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport);
 uint32_t matocsserv_cservlist_size(void);
 void matocsserv_cservlist_data(uint8_t *ptr);
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *from);

@@ -1468,6 +1468,9 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 // step 2. check number of copies
 	if (tdc+vc+bc==0 && ivc>0 && c->flisthead) {
 		syslog(LOG_WARNING,"chunk %llu has only invalid copies (%u) - please repair it manually\n",c->chunkid,ivc);
+		for (s=c->slisthead ; s ; s=s->next) {
+			syslog(LOG_NOTICE,"chunk %llu (%016llX:%08X) - invalid copy on (%s)",c->chunkid,c->chunkid,c->version,matocsserv_getstrip(s->ptr));
+		}
 		return ;
 	}
 
