@@ -1423,39 +1423,42 @@ void fsnodes_get_file_stats(fsnode *node,uint32_t *undergoalfiles,uint32_t *miss
 	uint32_t i,ug,m,lastchunk,lastchunksize;
 	uint8_t cnt;
 	//assert(node->type==TYPE_FILE);
+	(*length)+=node->data.fdata.length;
 	if (node->data.fdata.length>0) {
-		(*length)+=node->data.fdata.length;
 		lastchunk = (node->data.fdata.length-1)>>26;
 		lastchunksize = ((((node->data.fdata.length-1)&0x3FFFFFF)+0x10000)&0x7FFF0000)+0x1400;
-		ug=0;
-		m=0;
-		for (i=0 ; i<node->data.fdata.chunks ; i++) {
-			if (node->data.fdata.chunktab[i]>0) {
-				chunk_get_validcopies(node->data.fdata.chunktab[i],&cnt);
-				if (cnt<node->goal) {
-					if (cnt==0) {
-						m=1;
-						(*missingchunks)++;
-					} else {
-						ug=1;
-						//(*undergoalchunks)+=((node->goal)-cnt);
-						(*undergoalchunks)++;
-					}
-				}
-				if (i<lastchunk) {
-					(*size)+=0x4001400UL;
-					(*gsize)+=cnt*0x4001400UL;
-				} else if (i==lastchunk) {
-					(*size)+=lastchunksize;
-					(*gsize)+=cnt*lastchunksize;
-				}
-				//(*chunks)+=cnt;
-				(*chunks)++;
-			}
-		}
-		(*undergoalfiles) += ug;
-		(*missingfiles) += m;
+	} else {
+		lastchunk = 0;
+		lastchunksize = 0x1400;
 	}
+	ug=0;
+	m=0;
+	for (i=0 ; i<node->data.fdata.chunks ; i++) {
+		if (node->data.fdata.chunktab[i]>0) {
+			chunk_get_validcopies(node->data.fdata.chunktab[i],&cnt);
+			if (cnt<node->goal) {
+				if (cnt==0) {
+					m=1;
+					(*missingchunks)++;
+				} else {
+					ug=1;
+					//(*undergoalchunks)+=((node->goal)-cnt);
+					(*undergoalchunks)++;
+				}
+			}
+			if (i<lastchunk) {
+				(*size)+=0x4001400UL;
+				(*gsize)+=cnt*0x4001400UL;
+			} else if (i==lastchunk) {
+				(*size)+=lastchunksize;
+				(*gsize)+=cnt*lastchunksize;
+			}
+			//(*chunks)+=cnt;
+			(*chunks)++;
+		}
+	}
+	(*undergoalfiles) += ug;
+	(*missingfiles) += m;
 }
 
 void fsnodes_get_dir_stats(fsnode *node,uint32_t *inodes,uint32_t *dirs,uint32_t *files,uint32_t *undergoalfiles,uint32_t *missingfiles,uint32_t *chunks,uint32_t *undergoalchunks,uint32_t *missingchunks,uint64_t *length,uint64_t *size,uint64_t *gsize) {
@@ -1468,39 +1471,42 @@ void fsnodes_get_dir_stats(fsnode *node,uint32_t *inodes,uint32_t *dirs,uint32_t
 		n=e->child;
 		(*inodes)++;
 		if (n->type==TYPE_FILE) {
+			(*length)+=n->data.fdata.length;
 			if (n->data.fdata.length>0) {
-				(*length)+=n->data.fdata.length;
 				lastchunk = (n->data.fdata.length-1)>>26;
 				lastchunksize = ((((n->data.fdata.length-1)&0x3FFFFFF)+0x10000)&0x7FFF0000)+0x1400;
-				ug=0;
-				m=0;
-				for (i=0 ; i<n->data.fdata.chunks ; i++) {
-					if (n->data.fdata.chunktab[i]>0) {
-						chunk_get_validcopies(n->data.fdata.chunktab[i],&cnt);
-						if (cnt<n->goal) {
-							if (cnt==0) {
-								m=1;
-								(*missingchunks)++;
-							} else {
-								ug=1;
-								//(*undergoalchunks)+=((ptr->goal)-cnt);
-								(*undergoalchunks)++;
-							}
-						}
-						if (i<lastchunk) {
-							(*size)+=0x4001400UL;
-							(*gsize)+=cnt*0x4001400UL;
-						} else if (i==lastchunk) {
-							(*size)+=lastchunksize;
-							(*gsize)+=cnt*lastchunksize;
-						}
-						//(*chunks)+=cnt;
-						(*chunks)++;
-					}
-				}
-				(*undergoalfiles) += ug;
-				(*missingfiles) += m;
+			} else {
+				lastchunk = 0;
+				lastchunksize = 0x1400;
 			}
+			ug=0;
+			m=0;
+			for (i=0 ; i<n->data.fdata.chunks ; i++) {
+				if (n->data.fdata.chunktab[i]>0) {
+					chunk_get_validcopies(n->data.fdata.chunktab[i],&cnt);
+					if (cnt<n->goal) {
+						if (cnt==0) {
+							m=1;
+							(*missingchunks)++;
+						} else {
+							ug=1;
+							//(*undergoalchunks)+=((ptr->goal)-cnt);
+							(*undergoalchunks)++;
+						}
+					}
+					if (i<lastchunk) {
+						(*size)+=0x4001400UL;
+						(*gsize)+=cnt*0x4001400UL;
+					} else if (i==lastchunk) {
+						(*size)+=lastchunksize;
+						(*gsize)+=cnt*lastchunksize;
+					}
+					//(*chunks)+=cnt;
+					(*chunks)++;
+				}
+			}
+			(*undergoalfiles) += ug;
+			(*missingfiles) += m;
 			(*files)++;
 		} else if (n->type==TYPE_DIRECTORY) {
 			fsnodes_get_dir_stats(n,inodes,dirs,files,undergoalfiles,missingfiles,chunks,undergoalchunks,missingchunks,length,size,gsize);
