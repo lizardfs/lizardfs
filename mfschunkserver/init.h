@@ -22,7 +22,7 @@
 #include "cstocsconn.h"
 #include "stats.h"
 
-static const char id1[]="@(#) version: 1.5.2 release , written by Jakub Kruszona-Zawadzki";
+static const char id1[]="@(#) version: 1.5.3 release , written by Jakub Kruszona-Zawadzki";
 static const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 void init_use_id_and_satisfy_stupid_compiler(void) {
 	static const char *id;

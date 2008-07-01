@@ -1651,6 +1651,9 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 	}
 
+	if (chunksinfo.notdone.copy_undergoal>0) {
+		return;
+	}
 
 // step 9. if there is too big difference between chunkservers then make copy on server with lowest disk usage
 	if (jobscopycount<MaxRepl && c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>MAXDIFFERENCE) {
