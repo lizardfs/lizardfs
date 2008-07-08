@@ -484,6 +484,7 @@ void makedaemon() {
 		exit(0);
 	}
 	set_signal_handlers();
+#ifdef HAVE_DUP2
 	if ((nd = open("/dev/null", O_RDWR, 0)) != -1) {
 		dup2(nd, STDIN_FILENO);
 		dup2(nd, STDOUT_FILENO);
@@ -495,7 +496,7 @@ void makedaemon() {
 		syslog(LOG_ERR,"can't open /dev/null (%m)");
 		exit(1);
 	}
-/* no dup2 ?
+#else
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	close(STDERR_FILENO);
@@ -509,7 +510,7 @@ void makedaemon() {
 	if (dup(nd)!=STDERR_FILENO) {
 		exit(1);
 	}
-*/
+#endif
 }
 
 int main(int argc,char **argv) {
