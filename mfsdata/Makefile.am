@@ -17,6 +17,12 @@ if BUILD_CHUNKSERVER
 			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(RUN_PATH) ; \
 		fi ; \
 	fi
+	if [ ! -d $(DESTDIR)$(DATA_PATH) ]; then \
+		$(MKDIR_P) $(DESTDIR)$(DATA_PATH) ; \
+		if [ "`id -u`" = "0" ]; then \
+			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(DATA_PATH) ; \
+		fi ; \
+	fi
 endif
 if BUILD_MASTER
 	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsmaster.cfg ]; then \
