@@ -37,7 +37,7 @@
 #include <errno.h>
 
 #include "MFSCommunication.h"
-#include "config.h"
+#include "cfg.h"
 #include "datapack.h"
 #include "crc.h"
 #include "main.h"

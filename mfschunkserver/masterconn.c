@@ -30,7 +30,7 @@
 #include "MFSCommunication.h"
 #include "datapack.h"
 #include "masterconn.h"
-#include "config.h"
+#include "cfg.h"
 #include "main.h"
 #include "sockets.h"
 #include "replicator.h"

@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-#include "config.h"
+#include "cfg.h"
 
 typedef struct paramsstr {
 	char *name;

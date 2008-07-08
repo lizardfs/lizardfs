@@ -30,7 +30,7 @@
 
 #include "datapack.h"
 #include "matocsserv.h"
-#include "config.h"
+#include "cfg.h"
 #include "main.h"
 #include "sockets.h"
 #include "chunks.h"

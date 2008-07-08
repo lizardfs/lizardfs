@@ -24,7 +24,7 @@
 #include "main.h"
 #include "changelog.h"
 #include "matocsserv.h"
-#include "config.h"
+#include "cfg.h"
 
 #define MAXLOGLINESIZE 10000
 static uint32_t BackLogsNumber;

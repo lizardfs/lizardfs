@@ -33,7 +33,7 @@
 
 #ifndef METARESTORE
 #include "main.h"
-#include "config.h"
+#include "cfg.h"
 #include "matocsserv.h"
 #include "matocuserv.h"
 #include "random.h"

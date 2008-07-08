@@ -36,7 +36,7 @@
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
-#include "config.h"
+#include "cfg.h"
 #include "main.h"
 #include "init.h"
 

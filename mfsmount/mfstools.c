@@ -1043,7 +1043,7 @@ int main(int argc,char **argv) {
 	l = strlen(argv[0]);
 	f=0;
 	if (l>=8 && strcmp((argv[0])+(l-8),"mfstools")==0) {
-		if (argc==2 && strcmp(argv[1],"create")) {
+		if (argc==2 && strcmp(argv[1],"create")==0) {
 			fprintf(stderr,"create symlinks\n");
 			symlink(argv[0],"mfsgetgoal");
 			symlink(argv[0],"mfssetgoal");

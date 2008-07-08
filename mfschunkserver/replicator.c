@@ -21,7 +21,7 @@
 
 #include "MFSCommunication.h"
 
-#include "config.h"
+#include "cfg.h"
 #include "hddspacemgr.h"
 #include "cstocsconn.h"
 #include "masterconn.h"
