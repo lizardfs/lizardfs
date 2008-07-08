@@ -23,13 +23,12 @@
 #include "changelog.h"
 #include "stats.h"
 
-static const char id1[]="@(#) version: 1.5.3 release , written by Jakub Kruszona-Zawadzki";
-static const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
-void init_use_id_and_satisfy_stupid_compiler(void) {
-	static const char *id;
-	id = id1;
-	id = id2;
-}
+#include "config.h"
+
+#define STR_AUX(x) #x
+#define STR(x) STR_AUX(x)
+const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
 /* Run Tab */
 typedef int (*runfn)(void);

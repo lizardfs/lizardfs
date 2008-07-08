@@ -27,6 +27,11 @@
 #include "restore.h"
 #include "config.h"
 
+#define STR_AUX(x) #x
+#define STR(x) STR_AUX(x)
+const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
+
 int lognamecmp(const void *a,const void *b) {
 	const char **aa = (const char**)a;
 	const char **bb = (const char**)b;

@@ -45,7 +45,7 @@
 //#define VERSMAJ 1
 //#define VERSMID 3
 //#define VERSMIN 2
-#define VERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
+#define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
 
 #define MASTER_NAME ".master"
 #define MASTER_INODE 0x7FFFFFFF
@@ -299,9 +299,9 @@ void mfs_statfs(fuse_req_t req) {
 	stfsbuf.f_blocks = totalspace/bsize;
 	stfsbuf.f_bfree = availspace/bsize;
 	stfsbuf.f_bavail = availspace/bsize;
-	stfsbuf.f_files = 1000000000+VERSION+inodes;
-	stfsbuf.f_ffree = 1000000000+VERSION;
-	stfsbuf.f_favail = 1000000000+VERSION;
+	stfsbuf.f_files = 1000000000+PKGVERSION+inodes;
+	stfsbuf.f_ffree = 1000000000+PKGVERSION;
+	stfsbuf.f_favail = 1000000000+PKGVERSION;
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
 }

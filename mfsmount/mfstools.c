@@ -30,6 +30,12 @@
 
 #include "datapack.h"
 #include "MFSCommunication.h"
+#include "config.h"
+
+#define STR_AUX(x) #x
+#define STR(x) STR_AUX(x)
+const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
 #define INODE_VALUE_MASK 0x1FFFFFFF
 #define INODE_TYPE_MASK 0x60000000

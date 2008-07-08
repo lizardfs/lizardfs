@@ -86,7 +86,7 @@ static uint8_t masterattr[35]={'f', 0x01,0xB6, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,
 //#define META_INFO_INODE 0x7FFFFFFD
 //#define META_INFO_NAME "info"
 
-#define VERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
+#define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
 
 static int debug_mode;
 static int local_mode;
@@ -225,9 +225,9 @@ void mfs_meta_statfs(fuse_req_t req) {
 	stfsbuf.f_blocks = trashspace/512+reservedspace/512;
 	stfsbuf.f_bfree = reservedspace/512;
 	stfsbuf.f_bavail = reservedspace/512;
-	stfsbuf.f_files = 1000000000+VERSION;
-	stfsbuf.f_ffree = 1000000000+VERSION;
-	stfsbuf.f_favail = 1000000000+VERSION;
+	stfsbuf.f_files = 1000000000+PKGVERSION;
+	stfsbuf.f_ffree = 1000000000+PKGVERSION;
+	stfsbuf.f_favail = 1000000000+PKGVERSION;
 
 	fuse_reply_statfs(req,&stfsbuf);
 }
