@@ -3,11 +3,18 @@
 
 AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.5], [bugs@moosefs.com])
+AC_INIT([MFS], [1.5.4], [bugs@moosefs.com])
 AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([1.6 foreign])
+
+versmaj=$(echo $PACKAGE_VERSION | cut -d. -f1)
+versmid=$(echo $PACKAGE_VERSION | cut -d. -f2)
+versmin=$(echo $PACKAGE_VERSION | cut -d. -f3)
+AC_DEFINE_UNQUOTED([VERSMAJ], [$versmaj], [Major MFS version])
+AC_DEFINE_UNQUOTED([VERSMID], [$versmid], [Middle MFS version])
+AC_DEFINE_UNQUOTED([VERSMIN], [$versmin], [Minor MFS version])
 
 # Checks for programs.
 AC_PROG_CC

@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <syslog.h>
 
+#include "config.h"
 #include "mfs_fuse.h"
 #include "mfs_meta_fuse.h"
 

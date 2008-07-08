@@ -25,6 +25,7 @@
 #include <time.h>
 #include <pthread.h>
 
+#include "config.h"
 #include "datapack.h"
 #include "mastercomm.h"
 #include "MFSCommunication.h"
