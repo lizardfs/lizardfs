@@ -548,7 +548,7 @@ int main(int argc,char **argv) {
 
 	if (config_load(cfgfile)==0) {
 		fprintf(stderr,"can't load config file: %s\n",cfgfile);
-		return -1;
+		return 1;
 	}
 
 	config_getnewstr("SYSLOG_IDENT",STR(APPNAME),&logappname);
@@ -578,14 +578,16 @@ int main(int argc,char **argv) {
 
 	changeugid();
 
-	if (rundaemon) {
-		makedaemon();
-	}
-
 	config_getnewstr("DATA_PATH",DATA_PATH,&wrkdir);
 
 	if (chdir(wrkdir)<0) {
-		chdir("/");
+		fprintf(stderr,"can't set working directory to %s",wrkdir);
+		syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
+		return 1;
+	}
+
+	if (rundaemon) {
+		makedaemon();
 	}
 
 	umask(027);

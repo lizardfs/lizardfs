@@ -429,7 +429,7 @@ void masterconn_structure_log_rotate(masterconn *eptr,uint8_t *data,uint32_t len
 		eptr->mode = KILL;
 		return;
 	}
-	if (logfd==NULL) {
+	if (logfd!=NULL) {
 		fclose(logfd);
 		logfd=NULL;
 	}
