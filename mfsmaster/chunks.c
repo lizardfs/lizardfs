@@ -38,7 +38,7 @@
 #include "matocuserv.h"
 #include "random.h"
 
-#include "conf.h"
+#include "config.h"
 #endif
 
 #include "chunks.h"

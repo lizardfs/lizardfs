@@ -25,7 +25,7 @@
 #include "filesystem.h"
 #include "chunks.h"
 #include "restore.h"
-#include "conf.h"
+#include "config.h"
 
 int lognamecmp(const void *a,const void *b) {
 	const char **aa = (const char**)a;

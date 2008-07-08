@@ -32,7 +32,7 @@
 #include <grp.h>
 #include <pwd.h>
 
-#include "conf.h"
+#include "config.h"
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 

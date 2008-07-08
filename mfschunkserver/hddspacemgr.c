@@ -43,7 +43,7 @@
 #include "main.h"
 #include "masterconn.h"
 
-#include "conf.h"
+#include "config.h"
 
 #define CHUNKHDRSIZE (1024+4*1024)
 #define CHUNKHDRCRC 1024

@@ -5,7 +5,7 @@ AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
 AC_INIT([MFS], [1.5], [bugs@moosefs.com])
 AC_CONFIG_SRCDIR([MFSCommunication.h])
-AC_CONFIG_HEADER([conf.h])
+AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([1.6 foreign])
 
