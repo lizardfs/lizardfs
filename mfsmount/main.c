@@ -46,10 +46,11 @@ const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 #else
 #  define OPTDEFPERM ",default_permissions"
 #endif
-#ifdef __sun
-#  define OPTDEV ""
-#else
+/* "dev" only on Linux and MacOS X */
+#if defined(linux) || defined(__APPLE__)
 #  define OPTDEV ",dev"
+#else
+#  define OPTDEV ""
 #endif
 #define MAINOPT "allow_other" OPTDEV ",suid" OPTDEFPERM ",fsname=MFS"
 
