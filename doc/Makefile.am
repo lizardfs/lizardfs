@@ -16,7 +16,7 @@ if BUILD_MASTER
 man_MANS+=$(master_mans)
 endif
 if BUILD_CHUNKSERVER
-man_MANS+=$(mount_chunkserver)
+man_MANS+=$(chunkserver_mans)
 endif
 if BUILD_MOUNT
 man_MANS+=$(mount_mans)
