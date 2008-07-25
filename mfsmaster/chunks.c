@@ -593,7 +593,7 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
 		}
 	}
 	if (i==0) {
-		f = (flist*)malloc(sizeof(flist*));
+		f = (flist*)malloc(sizeof(flist));
 		f->inode = inode;
 		f->indx = indx;
 		f->goal = goal;
