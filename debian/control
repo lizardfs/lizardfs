@@ -1,0 +1,25 @@
+Source: mfs
+Section: admin
+Priority: extra
+Maintainer: Jakub Bogusz <contact@moosefs.com>
+Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-config
+Standards-Version: 3.7.3
+Homepage: http://moosefs.com/
+
+Package: mfs-master
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MooseFS master server
+ MooseFS master server.
+
+Package: mfs-chunkserver
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MooseFS data server
+ MooseFS data server.
+
+Package: mfs-client
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MooseFS client
+ MooseFS client: mfsmount and mfstools.

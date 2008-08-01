@@ -1,0 +1,11 @@
+mfs (1.5.7) unstable; urgency=medium
+
+  * New MooseFS version (memory allocation fixes).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 31 Jul 2008 15:26:00 +0200
+
+mfs (1.5.5) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 11 Jul 2008 13:05:21 +0200
