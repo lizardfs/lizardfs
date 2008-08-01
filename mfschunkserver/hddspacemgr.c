@@ -1868,7 +1868,7 @@ int hdd_init(void) {
 	memset(blockbuffer,0,0x10000);
 	emptyblockcrc = crc32(0,blockbuffer,0x10000);
 
-	config_getnewstr("HDD_CONFIG",ETC_PATH "/mfshdd.cfg",&hddfname);
+	config_getnewstr("HDD_CONF_FILENAME",ETC_PATH "/mfshdd.cfg",&hddfname);
 
 	fd = fopen(hddfname,"r");
 	free(hddfname);

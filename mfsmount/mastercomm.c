@@ -281,7 +281,7 @@ int fs_direct_read(int rfd,uint8_t *buff,uint32_t size) {
 
 void fs_connect() {
 	uint32_t i,ver;
-	uint8_t *ptr,regbuff[12+64];
+	uint8_t *ptr,regbuff[16+64];
 
 	fd = tcpsocket();
 //	if (tcpnodelay(fd)<0) {
