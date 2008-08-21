@@ -1,0 +1,24 @@
+This file lists noteworthy changes in MooseFS.
+
+* MooseFS 1.5.7 (2008-08-01)
+
+ - Fix for stack buffer overrun (by 4 bytes) in mfsmount.
+
+* MooseFS 1.5.6 (2008-07-25)
+
+ - Memory allocation fix in mfsmaster.
+
+* MooseFS 1.5.5 (2008-07-10)
+
+ - Mounting options fix for FreeBSD in mfsmount.
+
+* MooseFS 1.5.4 (2008-07-08)
+
+ - Blocking rebalance replications when undergoal chunks exist.
+ - Minor bugfixes.
+ - Build system improvements.
+ - MooseFS and mfsmount version numbers synchronized.
+
+* MooseFS 1.5 (2008-05-30)
+
+ - First version released as Open Source.
