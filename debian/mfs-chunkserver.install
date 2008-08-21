@@ -1,6 +1,6 @@
 etc/mfschunkserver.cfg
 etc/mfshdd.cfg
 usr/sbin/mfschunkserver
-usr/share/man/man7/mfs.7
-usr/share/man/man7/moosefs.7
+#usr/share/man/man7/mfs.7
+#usr/share/man/man7/moosefs.7
 usr/share/man/man8/mfschunkserver.8
