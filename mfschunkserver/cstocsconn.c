@@ -235,7 +235,7 @@ void cstocsconn_writestatus(cstocsconnentry *eptr,uint8_t *data,uint32_t length)
 	GET64BIT(chunkid,data);
 	GET32BIT(writeid,data);
 	GET8BIT(s,data);
-	syslog(LOG_NOTICE,"%llu,%d",(unsigned long long int)chunkid,s);
+//	syslog(LOG_NOTICE,"%llu,%d",(unsigned long long int)chunkid,s);
 	csserv_cstocs_gotstatus(eptr->ptr,chunkid,writeid,s);
 }
 
