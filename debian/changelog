@@ -1,3 +1,10 @@
+mfs (1.5.8) unstable; urgency=low
+
+  * New MooseFS version (better memory allocation in master, lower syslog
+    verbosity).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 26 Aug 2008 09:49:00 +0200
+
 mfs (1.5.7-2) unstable; urgency=low
 
   * Packaging fix: dpkg doesn't allow the same file in several subpackages,
