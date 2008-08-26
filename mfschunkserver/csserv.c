@@ -776,7 +776,7 @@ void csserv_read(csserventry *eptr) {
 
 	i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 	if (i==0) {
-		syslog(LOG_INFO,"connection lost");
+//		syslog(LOG_INFO,"connection lost");
 		eptr->mode = KILL;
 		return;
 	}

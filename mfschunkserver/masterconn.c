@@ -642,12 +642,12 @@ void masterconn_read(masterconn *eptr) {
 	uint8_t *ptr;
 	i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 	if (i==0) {
-		syslog(LOG_INFO,"connection lost");
+		syslog(LOG_INFO,"Master connection lost");
 		eptr->mode = KILL;
 		return;
 	}
 	if (i<0) {
-		syslog(LOG_INFO,"read error: %m");
+		syslog(LOG_INFO,"read from Master error: %m");
 		eptr->mode = KILL;
 		return;
 	}
@@ -665,13 +665,13 @@ void masterconn_read(masterconn *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"packet too long (%u/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"Master packet too long (%u/%u)",size,MaxPacketSize);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->inputpacket.packet = malloc(size);
 			if (eptr->inputpacket.packet==NULL) {
-				syslog(LOG_WARNING,"out of memory");
+				syslog(LOG_WARNING,"Master packet: out of memory");
 				eptr->mode = KILL;
 				return;
 			}
@@ -712,7 +712,7 @@ void masterconn_write(masterconn *eptr) {
 	}
 	i=write(eptr->sock,pack->startptr,pack->bytesleft);
 	if (i<0) {
-		syslog(LOG_INFO,"write error: %m");
+		syslog(LOG_INFO,"write to Master error: %m");
 		eptr->mode = KILL;
 		return;
 	}

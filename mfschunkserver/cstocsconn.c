@@ -223,7 +223,7 @@ void cstocsconn_writestatus(cstocsconnentry *eptr,uint8_t *data,uint32_t length)
 	uint64_t chunkid;
 	uint32_t writeid;
 	uint8_t s;
-	syslog(LOG_NOTICE,"write-status");
+//	syslog(LOG_NOTICE,"write-status");
 	if (eptr->type != SERVER) {
 		return;
 	}
@@ -370,7 +370,7 @@ void cstocsconn_connected(cstocsconnentry *eptr) {
 
 int cstocsconn_initconnect(cstocsconnentry *eptr,uint32_t ip,uint16_t port) {
 	int status;
-	syslog(LOG_NOTICE,"connecting to: %08X:%d",ip,port);
+//	syslog(LOG_NOTICE,"connecting to: %08X:%d",ip,port);
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
 		syslog(LOG_WARNING,"create socket, error: %m");
@@ -390,11 +390,11 @@ int cstocsconn_initconnect(cstocsconnentry *eptr,uint32_t ip,uint16_t port) {
 		return -1;
 	}
 	if (status==0) {
-		syslog(LOG_NOTICE,"connected to ChunkServer immediately");
+//		syslog(LOG_NOTICE,"connected to ChunkServer immediately");
 		cstocsconn_connected(eptr);
 	} else {
 		eptr->mode=CONNECTING;
-		syslog(LOG_NOTICE,"connecting ...");
+//		syslog(LOG_NOTICE,"connecting ...");
 	}
 	return 0;
 }
@@ -409,7 +409,7 @@ void cstocsconn_connecttest(cstocsconnentry *eptr) {
 		eptr->sock=-1;
 		eptr->mode=KILL;
 	} else {
-		syslog(LOG_NOTICE,"connected to ChunkServer");
+//		syslog(LOG_NOTICE,"connected to ChunkServer");
 		cstocsconn_connected(eptr);
 	}
 }
@@ -420,7 +420,7 @@ void cstocsconn_read(cstocsconnentry *eptr) {
 	uint8_t *ptr;
 	i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 	if (i==0) {
-		syslog(LOG_INFO,"connection lost");
+//		syslog(LOG_INFO,"connection lost");
 		eptr->mode = KILL;
 		return;
 	}

@@ -45,6 +45,10 @@
 #include "filesystem.h"
 #include "datapack.h"
 
+#define USE_SLIST_BUCKETS 1
+#define USE_FLIST_BUCKETS 1
+#define USE_CHUNK_BUCKETS 1
+
 #define HASHSIZE 65536
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFF)
 
@@ -67,7 +71,21 @@ typedef struct _slist {
 //	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
 	struct _slist *next;
 } slist;
-#endif
+
+#ifdef USE_SLIST_BUCKETS
+#define SLIST_BUCKET_SIZE 5000
+
+typedef struct _slist_bucket {
+	slist bucket[SLIST_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _slist_bucket *next;
+} slist_bucket;
+
+static slist_bucket *sbhead = NULL;
+static slist *slfreehead = NULL;
+#endif /* USE_SLIST_BUCKET */
+
+#endif /* METARESTORE */
 
 typedef struct _flist {
 	uint32_t inode;
@@ -75,6 +93,18 @@ typedef struct _flist {
 	uint8_t goal;
 	struct _flist *next;
 } flist;
+
+#ifdef USE_FLIST_BUCKETS
+#define FLIST_BUCKET_SIZE 5000
+typedef struct _flist_bucket {
+	flist bucket[FLIST_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _flist_bucket *next;
+} flist_bucket;
+
+static flist_bucket *fbhead = NULL;
+static flist *flfreehead = NULL;
+#endif /* USE_FLIST_BUCKET */
 
 typedef struct chunk {
 	uint64_t chunkid;
@@ -92,6 +122,18 @@ typedef struct chunk {
 	flist *flisthead;
 	struct chunk *next;
 } chunk;
+
+#ifdef USE_CHUNK_BUCKETS
+#define CHUNK_BUCKET_SIZE 20000
+typedef struct _chunk_bucket {
+	chunk bucket[CHUNK_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _chunk_bucket *next;
+} chunk_bucket;
+
+static chunk_bucket *cbhead = NULL;
+static chunk *chfreehead = NULL;
+#endif /* USE_CHUNK_BUCKETS */
 
 static chunk *chunkhash[HASHSIZE];
 static uint64_t nextchunkid=1;
@@ -172,6 +214,116 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 
 #endif
 
+#ifndef METARESTORE
+#ifdef USE_SLIST_BUCKETS
+inline slist* slist_malloc() {
+	slist_bucket *sb;
+	slist *ret;
+	if (slfreehead) {
+		ret = slfreehead;
+		slfreehead = ret->next;
+		return ret;
+	}
+	if (sbhead==NULL || sbhead->firstfree==SLIST_BUCKET_SIZE) {
+		sb = (slist_bucket*)malloc(sizeof(slist_bucket));
+		sb->next = sbhead;
+		sb->firstfree = 0;
+		sbhead = sb;
+	}
+	ret = (sbhead->bucket)+(sbhead->firstfree);
+	sbhead->firstfree++;
+	return ret;
+}
+
+inline void slist_free(slist *p) {
+	p->next = slfreehead;
+	slfreehead = p;
+}
+#else /* USE_SLIST_BUCKETS */
+
+inline slist* slist_malloc() {
+	return (slist*)malloc(sizeof(slist));
+}
+
+inline void slist_free(slist* p) {
+	free(p);
+}
+
+#endif /* USE_SLIST_BUCKETS */
+#endif /* !METARESTORE */
+
+#ifdef USE_FLIST_BUCKETS
+inline flist* flist_malloc() {
+	flist_bucket *fb;
+	flist *ret;
+	if (flfreehead) {
+		ret = flfreehead;
+		flfreehead = ret->next;
+		return ret;
+	}
+	if (fbhead==NULL || fbhead->firstfree==FLIST_BUCKET_SIZE) {
+		fb = (flist_bucket*)malloc(sizeof(flist_bucket));
+		fb->next = fbhead;
+		fb->firstfree = 0;
+		fbhead = fb;
+	}
+	ret = (fbhead->bucket)+(fbhead->firstfree);
+	fbhead->firstfree++;
+	return ret;
+}
+
+inline void flist_free(flist *p) {
+	p->next = flfreehead;
+	flfreehead = p;
+}
+#else /* USE_FLIST_BUCKETS */
+
+inline flist* flist_malloc() {
+	return (flist*)malloc(sizeof(flist));
+}
+
+inline void flist_free(flist* p) {
+	free(p);
+}
+
+#endif /* USE_FLIST_BUCKETS */
+
+#ifdef USE_CHUNK_BUCKETS
+inline chunk* chunk_malloc() {
+	chunk_bucket *cb;
+	chunk *ret;
+	if (chfreehead) {
+		ret = chfreehead;
+		chfreehead = ret->next;
+		return ret;
+	}
+	if (cbhead==NULL || cbhead->firstfree==CHUNK_BUCKET_SIZE) {
+		cb = (chunk_bucket*)malloc(sizeof(chunk_bucket));
+		cb->next = cbhead;
+		cb->firstfree = 0;
+		cbhead = cb;
+	}
+	ret = (cbhead->bucket)+(cbhead->firstfree);
+	cbhead->firstfree++;
+	return ret;
+}
+
+inline void chunk_free(chunk *p) {
+	p->next = chfreehead;
+	chfreehead = p;
+}
+#else /* USE_CHUNK_BUCKETS */
+
+inline chunk* chunk_malloc() {
+	return (chunk*)malloc(sizeof(chunk));
+}
+
+inline void chunk_free(chunk* p) {
+	free(p);
+}
+
+#endif /* USE_CHUNK_BUCKETS */
+
 /*
 #ifndef METARESTORE
 int chunk_cfg_load() {
@@ -224,7 +376,7 @@ void chunk_cfg_check() {
 chunk* chunk_new(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
-	newchunk = malloc(sizeof(chunk));
+	newchunk = chunk_malloc();
 #ifndef METARESTORE
 	chunks++;
 #endif
@@ -264,17 +416,25 @@ chunk* chunk_find(uint64_t chunkid) {
 
 #ifndef METARESTORE
 void chunk_delete(chunk* c) {
-	slist *s;
+//	slist *s;
+//	flist *f;
 	if (lastchunkptr==c) {
 		lastchunkid=0;
 		lastchunkptr=NULL;
 	}
+/* not needed - function called only if slisthead==NULL and flisthead==NULL
 	while ((s=c->slisthead)) {
 		s = c->slisthead;
 		c->slisthead = s->next;
-		free(s);
+		slist_free(s);
 	}
-	free(c);
+	while ((f=c->flisthead)) {
+		f = c->flisthead;
+		c->flisthead = f->next;
+		flist_free(f);
+	}
+*/
+	chunk_free(c);
 	chunks--;
 }
 
@@ -320,7 +480,7 @@ int chunk_create(uint64_t *chunkid,uint8_t goal) {
 		g = goal;
 	}
 	for (i=0 ; i<g ; i++) {
-		s = (slist*)malloc(sizeof(slist));
+		s = slist_malloc();
 		s->ptr = ptrs[i];
 		s->valid = BUSY;
 		s->next = c->slisthead;
@@ -359,7 +519,7 @@ int chunk_reinitialize(uint64_t chunkid) {
 	}
 	c->version++;
 	for (i=0 ; i<g ; i++) {
-		s = (slist*)malloc(sizeof(slist));
+		s = slist_malloc();
 		s->ptr = ptrs[i];
 		s->valid = BUSY;
 		s->next = c->slisthead;
@@ -396,7 +556,7 @@ int chunk_duplicate(uint64_t *chunkid,uint64_t oldchunkid,uint8_t goal) {
 				c->tgoal = goal;
 				c->operation = DUPLICATE;
 			}
-			s = (slist*)malloc(sizeof(slist));
+			s = slist_malloc();
 			s->ptr = os->ptr;
 			s->valid = BUSY;
 			s->next = c->slisthead;
@@ -495,7 +655,7 @@ int chunk_duptrunc(uint64_t *chunkid,uint64_t oldchunkid,uint32_t length,uint8_t
 				c->tgoal = goal;
 				c->operation = DUPTRUNC;
 			}
-			s = (slist*)malloc(sizeof(slist));
+			s = slist_malloc();
 			s->ptr = os->ptr;
 			s->valid = BUSY;
 			s->next = c->slisthead;
@@ -558,7 +718,7 @@ int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx) {
 	while ((f=*fp)) {
 		if (f->inode == inode && f->indx == indx) {
 			*fp = f->next;
-			free(f);
+			flist_free(f);
 			i=1;
 		} else {
 			if (f->goal > c->goal) {
@@ -593,7 +753,7 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
 		}
 	}
 	if (i==0) {
-		f = (flist*)malloc(sizeof(flist));
+		f = flist_malloc();
 		f->inode = inode;
 		f->indx = indx;
 		f->goal = goal;
@@ -707,7 +867,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 		c->interrupted = 0;
 		c->operation = CREATE;
 #endif
-		c->flisthead = (flist*)malloc(sizeof(flist));
+		c->flisthead = flist_malloc();
 		c->flisthead->inode = inode;
 		c->flisthead->indx = indx;
 		c->flisthead->goal = goal;
@@ -719,7 +879,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			g = goal;
 		}
 		for (i=0 ; i<g ; i++) {
-			s = (slist*)malloc(sizeof(slist));
+			s = slist_malloc();
 			s->ptr = ptrs[i];
 			s->valid = BUSY;
 			s->next = c->slisthead;
@@ -816,7 +976,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 						f->next = NULL;
 #ifndef METARESTORE
 					}
-					s = (slist*)malloc(sizeof(slist));
+					s = slist_malloc();
 					s->ptr = os->ptr;
 					s->valid = BUSY;
 					s->next = c->slisthead;
@@ -937,7 +1097,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 					f->next = NULL;
 #ifndef METARESTORE
 				}
-				s = (slist*)malloc(sizeof(slist));
+				s = slist_malloc();
 				s->ptr = os->ptr;
 				s->valid = BUSY;
 				s->next = c->slisthead;
@@ -1003,7 +1163,7 @@ int chunk_multi_reinitialize(uint64_t chunkid) {
 	}
 	c->version++;
 	for (i=0 ; i<g ; i++) {
-		s = (slist*)malloc(sizeof(slist));
+		s = slist_malloc();
 		s->ptr = ptrs[i];
 		s->valid = BUSY;
 		s->next = c->slisthead;
@@ -1106,7 +1266,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk, so create it for future deletion");
+		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%llu:%u), so create it for future deletion",chunkid,version);
 		c = chunk_new(chunkid);
 		c->version = version;
 	}
@@ -1115,7 +1275,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 			return;
 		}
 	}
-	s = (slist*)malloc(sizeof(slist));
+	s = slist_malloc();
 	s->ptr = ptr;
 	if (c->version!=(version&0x7FFFFFFF)) {
 		s->valid=INVALID;
@@ -1136,7 +1296,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk, so create it for future deletion");
+		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%llu), so create it for future deletion",chunkid);
 		c = chunk_new(chunkid);
 		c->version = 0;
 	}
@@ -1149,7 +1309,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 			return;
 		}
 	}
-	s = (slist*)malloc(sizeof(slist));
+	s = slist_malloc();
 	s->ptr = ptr;
 	s->valid = INVALID;
 	s->next = c->slisthead;
@@ -1167,7 +1327,7 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 	while ((s=*sptr)) {
 		if (s->ptr==ptr) {
 			*sptr = s->next;
-			free(s);
+			slist_free(s);
 		} else {
 			sptr = &(s->next);
 		}
@@ -1198,7 +1358,7 @@ void chunk_server_disconnected(void *ptr) {
 						todelchunks--;
 					}
 					*st = s->next;
-					free(s);
+					slist_free(s);
 				} else {
 					st = &(s->next);
 				}
@@ -1250,7 +1410,7 @@ void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
 				syslog(LOG_WARNING,"got unexpected delete status");
 			}
 			*st = s->next;
-			free(s);
+			slist_free(s);
 		} else {
 			st = &(s->next);
 		}
@@ -1281,7 +1441,7 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 			return;
 		}
 	}
-	s = (slist*)malloc(sizeof(slist));
+	s = slist_malloc();
 	s->ptr = ptr;
 	if (c->lockedto>=(uint32_t)main_time() || version!=c->version) {
 		s->valid = INVALID;
@@ -1304,7 +1464,7 @@ void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 			s = *st;
 			if (s->ptr == ptr) {
 				*st = s->next;
-				free(s);
+				slist_free(s);
 			} else {
 				st = &(s->next);
 			}

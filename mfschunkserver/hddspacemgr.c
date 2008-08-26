@@ -654,7 +654,7 @@ int chunk_writecrc(chunk *c) {
 
 int chunk_before_io_int(chunk *c) {
 	int status;
-	syslog(LOG_NOTICE,"chunk: %llu - before io",(unsigned long long int)(c->chunkid));
+//	syslog(LOG_NOTICE,"chunk: %llu - before io",(unsigned long long int)(c->chunkid));
 	if (c->crcrefcount==0) {
 		c->fd = open(c->filename,O_RDWR);
 		if (c->fd<0) {
@@ -675,7 +675,7 @@ int chunk_before_io_int(chunk *c) {
 
 int chunk_after_io_int(chunk *c) {
 	int status;
-	syslog(LOG_NOTICE,"chunk: %llu - after io",(unsigned long long int)(c->chunkid));
+//	syslog(LOG_NOTICE,"chunk: %llu - after io",(unsigned long long int)(c->chunkid));
 	c->crcrefcount--;
 	if (c->crcrefcount==0) {
 		if (c->crcchanged) {

@@ -447,7 +447,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,uint8_t *data,uint3
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_create_status(eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld creation status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld creation status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version) {
@@ -476,7 +476,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,uint8_t *data,uint3
 	GET64BIT(chunkid,data)
 	GET8BIT(status,data)
 	chunk_got_delete_status(eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld deletion status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld deletion status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *from) {
@@ -512,7 +512,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,uint8_t *data,ui
 	GET32BIT(version,data);
 	GET8BIT(status,data);
 	chunk_got_replicate_status(eptr,chunkid,version,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld replication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld replication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,uint32_t oldversion) {
@@ -542,7 +542,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,uint8_t *data,u
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_setversion_status(eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld set version status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld set version status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 
@@ -574,7 +574,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,uint8_t *data,ui
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_duplicate_status(eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion) {
@@ -606,7 +606,7 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,uint8_t *data,uin
 	GET8BIT(status,data);
 	chunk_got_truncate_status(eptr,chunkid,status);
 //	matocsserv_notify(&(eptr->duplication),eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length) {
@@ -639,7 +639,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,uint8_t *data,uin
 	GET8BIT(status,data);
 	chunk_got_duptrunc_status(eptr,chunkid,status);
 //	matocsserv_notify(&(eptr->duplication),eptr,chunkid,status);
-	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication with truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication with truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
 }
 
 void matocsserv_register(matocsserventry *eptr,uint8_t *data,uint32_t length) {
@@ -721,12 +721,20 @@ void matocsserv_register(matocsserventry *eptr,uint8_t *data,uint32_t length) {
 	if (eptr->servip==0) {
 		tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
 	}
+	if (eptr->servstrip) {
+		free(eptr->servstrip);
+	}
 	eptr->servstrip = matocsserv_makestrip(eptr->servip);
+	if (((eptr->servip)&0x7F000000) == 0x7F000000) {
+		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP:%s) - you cannot use localhost for communication between chunkserver and master");
+		eptr->mode=KILL;
+		return;
+	}
 	syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %u, usedspace: %lld (%u GB), totalspace: %lld (%u GB)",eptr->servstrip,eptr->servport,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30));
 	for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
 			syslog(LOG_WARNING,"chunk-server already connected !!!");
-			eptr->mode = KILL;
+			eptr->mode=KILL;
 			return;
 		}
 	}
@@ -905,12 +913,12 @@ void matocsserv_read(matocsserventry *eptr) {
 	uint8_t *ptr;
 	i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 	if (i==0) {
-		syslog(LOG_INFO,"matocs: connection lost");
+		syslog(LOG_INFO,"connection with CS(%s) lost",eptr->servstrip);
 		eptr->mode = KILL;
 		return;
 	}
 	if (i<0) {
-		syslog(LOG_INFO,"matocs: read error: %m");
+		syslog(LOG_INFO,"read from CS(%s) error: %m",eptr->servstrip);
 		eptr->mode = KILL;
 		return;
 	}
@@ -927,13 +935,13 @@ void matocsserv_read(matocsserventry *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"matocs: packet too long (%u/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"CS(%s) packet too long (%u/%u)",eptr->servstrip,size,MaxPacketSize);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->inputpacket.packet = malloc(size);
 			if (eptr->inputpacket.packet==NULL) {
-				syslog(LOG_WARNING,"matocs: out of memory");
+				syslog(LOG_WARNING,"CS(%s) packet: out of memory",eptr->servstrip);
 				eptr->mode = KILL;
 				return;
 			}
@@ -973,7 +981,7 @@ void matocsserv_write(matocsserventry *eptr) {
 	}
 	i=write(eptr->sock,pack->startptr,pack->bytesleft);
 	if (i<0) {
-		syslog(LOG_INFO,"matocs: write error: %m");
+		syslog(LOG_INFO,"write to CS(%s) error: %m",eptr->servstrip);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1006,6 +1014,7 @@ int matocsserv_desc(fd_set *rset,fd_set *wset) {
 
 void matocsserv_serve(fd_set *rset,fd_set *wset) {
 	uint32_t now=main_time();
+	uint32_t peerip;
 	matocsserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
@@ -1013,7 +1022,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			syslog(LOG_INFO,"matocs: accept error: %m");
+			syslog(LOG_INFO,"Master<->CS socket: accept error: %m");
 		} else {
 			tcpnonblock(ns);
 			eptr = malloc(sizeof(matocsserventry));
@@ -1030,7 +1039,8 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->outputhead = NULL;
 			eptr->outputtail = &(eptr->outputhead);
 
-			eptr->servstrip=NULL;
+			tcpgetpeer(eptr->sock,&peerip,NULL);
+			eptr->servstrip = matocsserv_makestrip(peerip);
 			eptr->servip=0;
 			eptr->servport=0;
 			eptr->timeout=60;

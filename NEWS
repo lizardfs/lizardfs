@@ -1,5 +1,10 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.5.8 (2008-08-26)
+
+ - Better memory allocation in Master's chunks module.
+ - Syslog messages used only for debugging purposes were commented out.
+
 * MooseFS 1.5.7 (2008-08-01)
 
  - Fix for stack buffer overrun (by 4 bytes) in mfsmount.
