@@ -1,8 +1,9 @@
-# DATA_PATH = @DATA_PATH@
-# LOCK_FILE = @RUN_PATH@/mfschunkserver.pid
-
 # WORKING_USER = @DEFAULT_USER@
 # WORKING_GROUP = @DEFAULT_GROUP@
+
+# DATA_PATH = @DATA_PATH@
+# LOCK_FILE = @RUN_PATH@/mfschunkserver.pid
+# SYSLOG_IDENT = mfschunkserver
 
 # BACK_LOGS = 50
 
