@@ -16,4 +16,6 @@ else
 MOUNTDIR=
 endif
 
+ACLOCAL_AMFLAGS = $(shell test -d /opt/local/share/aclocal && echo -I/opt/local/share/aclocal)
+
 SUBDIRS=mfsdata doc $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR)
