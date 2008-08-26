@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -ex
 
 # MacOS
 if [ -d /opt/local/share/aclocal ]; then
@@ -12,4 +12,4 @@ fi
 aclocal $MACROSINC
 autoconf
 autoheader
-automake -a -c
+automake -a -c --foreign
