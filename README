@@ -45,5 +45,5 @@ FreeBSD 7.x (i386+amd64):		YES	YES	YES
 MacOS X 10.3 (Panther, ppc):		NO	YES	YES
 MacOS X 10.4 (Tiger, ppc+i386):		YES	YES	YES
 MacOS X 10.5 (Leopard, ppc+i386):	YES	YES	YES
-Solaris 10 (sparc, ppc+i386):		NO	YES	YES
-OpenSolaris (i386)			YES?	YES	YES
+Solaris 10 (sparc):			NO	YES	YES
+OpenSolaris (i386):			YES	YES	YES
