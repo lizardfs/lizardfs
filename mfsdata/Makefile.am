@@ -40,7 +40,7 @@ if BUILD_MASTER
 			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(DATA_PATH) ; \
 		fi ; \
 	fi
-	if [ ! -f $(DESTDIR)$(DATA_PATH)/metadata.mfs ]; then \
+	if [ ! -f $(DESTDIR)$(DATA_PATH)/metadata.mfs -a ! -f $(DESTDIR)$(DATA_PATH)/metadata.mfs.back ]; then \
 		$(INSTALL_DATA) $(srcdir)/metadata.mfs $(DESTDIR)$(DATA_PATH) ; \
 	fi
 endif
