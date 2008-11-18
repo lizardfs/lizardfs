@@ -728,7 +728,7 @@ void matocsserv_register(matocsserventry *eptr,uint8_t *data,uint32_t length) {
 	}
 	eptr->servstrip = matocsserv_makestrip(eptr->servip);
 	if (((eptr->servip)&0x7F000000) == 0x7F000000) {
-		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP:%s) - you cannot use localhost for communication between chunkserver and master");
+		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
 		eptr->mode=KILL;
 		return;
 	}
