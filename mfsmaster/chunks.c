@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -37,8 +39,6 @@
 #include "matocsserv.h"
 #include "matocuserv.h"
 #include "random.h"
-
-#include "config.h"
 #endif
 
 #include "chunks.h"

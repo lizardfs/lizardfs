@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,7 +27,6 @@
 #include "filesystem.h"
 #include "chunks.h"
 #include "restore.h"
-#include "config.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

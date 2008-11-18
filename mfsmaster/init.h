@@ -16,14 +16,14 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include "matocsserv.h"
 #include "matocuserv.h"
 #include "filesystem.h"
 #include "random.h"
 #include "changelog.h"
 #include "stats.h"
-
-#include "config.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

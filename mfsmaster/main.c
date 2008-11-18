@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -32,7 +34,6 @@
 #include <grp.h>
 #include <pwd.h>
 
-#include "config.h"
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
