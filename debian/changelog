@@ -1,3 +1,9 @@
+mfs (1.5.9) unstable; urgency=medium
+
+  * New MooseFS version (refer to NEWS file).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 19 Nov 2008 11:42:00 +0100
+
 mfs (1.5.8) unstable; urgency=low
 
   * New MooseFS version (better memory allocation in master, lower syslog

@@ -1,5 +1,14 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.5.9 (2008-11-19)
+
+ - Improved rebalancing algorithm.
+ - Protections against overriding metadata.mfs.back by older metadata.mfs.
+ - Fixes to build mfstools, mfsmaster and mfsmetarestore with Large File
+   Support on Linux (previously only mfsmount had LFS enabled).
+ - Less verbose logging in mfsmaster.
+ - Log chunkserver disconnections in mfsmaster.
+
 * MooseFS 1.5.8 (2008-08-26)
 
  - Better memory allocation in Master's chunks module.
