@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.5.8], [bugs@moosefs.com])
+AC_INIT([MFS], [1.5.9], [bugs@moosefs.com])
 AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -119,7 +119,7 @@ test "$prefix" = "NONE" && prefix=$ac_default_prefix
 eval DATA_PATH=${localstatedir}/mfs
 eval ETC_PATH=${sysconfdir}
 # use system /var/run when using system-wide installation prefix
-if test "${prefix//usr}" != "${prefix}" -o "${prefix//opt}" != "${prefix}"; then
+if test "${prefix#/usr}" != "${prefix}" -o "${prefix#/opt}" != "${prefix}"; then
 	RUN_PATH=/var/run/mfs
 else
 	RUN_PATH=${prefix}/var/run/mfs

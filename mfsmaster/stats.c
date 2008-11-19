@@ -566,8 +566,8 @@ int stats_init (void) {
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
 	main_destructregister(stats_term);
-	main_timeregister(60,0,stats_refresh);
-	main_timeregister(3600,0,stats_store);
+	main_timeregister(TIMEMODE_RUNONCE,60,0,stats_refresh);
+	main_timeregister(TIMEMODE_RUNONCE,3600,0,stats_store);
 	return 0;
 }
 

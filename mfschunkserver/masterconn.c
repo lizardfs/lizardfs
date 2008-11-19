@@ -821,7 +821,7 @@ int masterconn_init(void) {
 	eptr->mode = FREE;
 
 	masterconn_initconnect(eptr);
-	main_timeregister(ReconnectionDelay,0,masterconn_reconnect);
+	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_selectregister(masterconn_desc,masterconn_serve);
 

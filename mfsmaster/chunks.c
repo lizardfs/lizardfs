@@ -150,9 +150,9 @@ static uint32_t ReplicationsDelayInit=300;
 // L:(LOOP TIME)
 
 // static char* CfgFileName;
-// static uint32_t MaxRepl=10;
-// static uint32_t MaxDel=30;
-// static uint32_t LoopTime=3600;
+// static uint32_t MaxRepl=1;
+// static uint32_t MaxDel=100;
+// static uint32_t LoopTime=300;
 // static uint32_t HashSteps=1+((HASHSIZE)/3600);
 static uint32_t MaxRepl;
 static uint32_t MaxDel;
@@ -170,7 +170,7 @@ static uint32_t HashSteps;
 static uint32_t jobshpos;
 //static chunk **jobscptr;
 static uint32_t jobsrebalancecount;
-static uint32_t jobscopycount;
+//static uint32_t jobscopycount;
 static uint32_t jobsdelcount;
 //static uint32_t jobsloopstart;
 static uint32_t jobsnorepbefore;
@@ -1344,7 +1344,7 @@ void chunk_server_disconnected(void *ptr) {
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next ) {
 			if (ptr==c->replserv) {
-				jobscopycount--;
+//				jobscopycount--;
 				c->replserv=NULL;
 			}
 			st = &(c->slisthead);
@@ -1431,8 +1431,9 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 		syslog(LOG_WARNING,"got unexpected replicate status");
 		return ;
 	}
+	matocsserv_replication_end(ptr);
 	c->replserv = NULL;
-	jobscopycount--;
+//	jobscopycount--;
 	if (status!=0) {
 		return ;
 	}
@@ -1584,6 +1585,8 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	static void* ptrs[65535];
 	static uint16_t servcount;
 	static uint32_t min,max;
+	void* rptrs[65536];
+	uint16_t rservcount;
 	void *srcptr;
 	uint16_t i;
 	uint32_t vc,tdc,ivc,bc,dc;
@@ -1767,7 +1770,50 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 //		return ;
 //	}
 
+//step 8. if chunk has number of copies less than goal then make another copy of this chunk
+	if (c->goal > vc && vc+tdc > 0) {
+		if (c->replserv==NULL && maxusage<=0.99 && jobsnorepbefore<(uint32_t)main_time()) {
+			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxRepl);
+			for (i=0 ; i<rservcount ; i++) {
+				for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
+				if (!s) {
+					uint32_t r;
+					if (vc>0) {	// if there are VALID copies then make copy of one VALID chunk
+						r = 1+(rndu32()%vc);
+						srcptr = NULL;
+						for (s=c->slisthead ; s && r>0 ; s=s->next) {
+							if (s->valid==VALID) {
+								r--;
+								srcptr = s->ptr;
+							}
+						}
+					} else {	// if not then use TDVALID chunks.
+						r = 1+(rndu32()%tdc);
+						srcptr = NULL;
+						for (s=c->slisthead ; s && r>0 ; s=s->next) {
+							if (s->valid==TDVALID) {
+								r--;
+								srcptr = s->ptr;
+							}
+						}
+					}
+					if (srcptr) {
+						stats_replications++;
+						matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
+//						jobscopycount++;
+						inforec.done.copy_undergoal++;
+						c->replserv=rptrs[i];
+						matocsserv_replication_begin(rptrs[i]);
+					}
+					return;
+				}
+			}
+		}
+		inforec.notdone.copy_undergoal++;
+	}
+
 // step 8. if chunk has number of copies less than goal then make another copy of this chunk
+/*
 	if (c->goal > vc && vc+tdc > 0) {
 		if (jobscopycount<MaxRepl && c->replserv==NULL && maxusage<=0.99 && jobsnorepbefore<(uint32_t)main_time()) {
 			if (servcount==0) {
@@ -1802,6 +1848,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 						jobscopycount++;
 						inforec.done.copy_undergoal++;
 						c->replserv=ptrs[i];
+						matocsserv_replication_begin(ptrs[i]);
 					}
 					return;
 				}
@@ -1810,12 +1857,48 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			inforec.notdone.copy_undergoal++;
 		}
 	}
-
+*/
 	if (chunksinfo.notdone.copy_undergoal>0) {
 		return;
 	}
 
+// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
+	if (c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>MAXDIFFERENCE) {
+		if (servcount==0) {
+			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
+		}
+		if (min>0 && max>0) {
+			void *srcserv=NULL;
+			void *dstserv=NULL;
+			for (i=0 ; i<max && srcserv==NULL ; i++) {
+				for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+				if (s && (s->valid==VALID || s->valid==TDVALID)) {
+					srcserv=s->ptr;
+				}
+			}
+			if (srcserv!=NULL) {
+				for (i=0 ; i<min && dstserv==NULL ; i++) {
+					if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
+						for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
+						if (s==NULL) {
+							dstserv=ptrs[i];
+						}
+					}
+				}
+				if (dstserv!=NULL) {
+					stats_replications++;
+					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
+//					jobscopycount++;
+					inforec.copy_rebalance++;
+					c->replserv=dstserv;
+					matocsserv_replication_begin(dstserv);
+				}
+			}
+		}
+	}
+
 // step 9. if there is too big difference between chunkservers then make copy on server with lowest disk usage
+/*
 	if (jobscopycount<MaxRepl && c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>MAXDIFFERENCE) {
 		if (servcount==0) {
 			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
@@ -1842,10 +1925,12 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					jobscopycount++;
 					inforec.copy_rebalance++;
 					c->replserv=dstserv;
+					matocsserv_replication_begin(dstserv);
 				}
 			}
 		}
 	}
+*/
 }
 
 void chunk_jobs_main(void) {
@@ -2113,7 +2198,7 @@ void chunk_strinit(void) {
 	config_getuint32("REPLICATIONS_DELAY_INIT",300,&ReplicationsDelayInit);
 	config_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600,&ReplicationsDelayDisconnect);
 	config_getuint32("CHUNKS_DEL_LIMIT",100,&MaxDel);
-	config_getuint32("CHUNKS_REP_LIMIT",15,&MaxRepl);
+	config_getuint32("CHUNKS_REP_LIMIT",1,&MaxRepl);
 	config_getuint32("CHUNKS_LOOP_TIME",300,&LoopTime);
 	HashSteps = 1+((HASHSIZE)/LoopTime);
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
@@ -2124,14 +2209,14 @@ void chunk_strinit(void) {
 #ifndef METARESTORE
 	jobshpos = 0;
 	jobsrebalancecount = 0;
-	jobscopycount = 0;
+//	jobscopycount = 0;
 	jobsdelcount = 0;
 	jobsnorepbefore = main_time()+ReplicationsDelayInit;
 	//jobslastdisconnect = 0;
 /*
 	chunk_cfg_check();
-	main_timeregister(30,0,chunk_cfg_check);
+	main_timeregister(TIMEMODE_RUNONCE,30,0,chunk_cfg_check);
 */
-	main_timeregister(1,0,chunk_jobs_main);
+	main_timeregister(TIMEMODE_RUNONCE,1,0,chunk_jobs_main);
 #endif
 }

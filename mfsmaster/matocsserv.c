@@ -69,6 +69,7 @@ typedef struct matocsserventry {
 	uint64_t todeltotalspace;
 	uint32_t todelchunkscount;
 	uint32_t errorcounter;
+	uint16_t repcounter;
 
 	uint32_t rndcarry;
 
@@ -250,7 +251,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand) {
 	if (demand>j) {
 		demand=j;
 	}
-	// pouk³adaæ servtab tak by na pocz±tku by³y serwery z rndcarry>0
+	// place servers with rndcarry>0 on the beginning of srvtab
 	i = 0;
 	k = j-1;
 	while (i<k) {
@@ -265,16 +266,16 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand) {
 	for (k=0 ; k<demand ; k++) {
 		if (servtab[k].ptr->rndcarry>0) {
 			servtab[k].ptr->rndcarry--;
-			// serwer wybrany bez losowania - przeniesienie z poprzednich losowañ
+			// found server with carry (previously choosen at least once) - so use it
 		} else {
 			do {
 				// r = random <0,psum)
 				r = rndu32()%psum;
-				// losuje jeden z 'j' serwerów z prawdopodobieñstwem servtab[i].p/psum (dla i od 0 do j-1) 
+				// choose randomly one of 'j' servers with propability servtab[i].p/psum (for i from 0 to j-1) 
 				for (i=0 ; i<j && r>=servtab[i].p ; i++) {
 					r-=servtab[i].p;
 				}
-				if (i<k) {	// serwer ju¿ zosta³ wybrany wcze¶niej
+				if (i<k) {	// server was choosen before
 					servtab[i].ptr->rndcarry++;
 					r = 1;
 				} else {
@@ -290,6 +291,31 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand) {
 		ptrs[k] = servtab[k].ptr;
 	}
 	return demand;
+}
+
+uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
+	matocsserventry *eptr;
+	uint32_t j,k,r;
+	void *x;
+	j=0;
+	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(1<<30) && eptr->repcounter<replimit) {
+			ptrs[j] = (void*)eptr;
+			j++;
+		}
+	}
+	if (j==0) {
+		return 0;
+	}
+	for (k=0 ; k<j-1 ; k++) {
+		r = k + rndu32()%(j-k);
+		if (r!=k) {
+			x = ptrs[k];
+			ptrs[k] = ptrs[r];
+			ptrs[r] = x;
+		}
+	}
+	return j;
 }
 
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
@@ -374,6 +400,21 @@ int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport) {
 	return -1;
 }
 
+void matocsserv_replication_begin(void *e) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	eptr->repcounter++;
+}
+
+void matocsserv_replication_end(void *e) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	eptr->repcounter--;
+}
+
+uint16_t matocsserv_replication_counter(void *e) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	return eptr->repcounter;
+}
+
 char* matocsserv_makestrip(uint32_t ip) {
 	uint8_t *ptr,pt[4];
 	uint32_t l,i;
@@ -422,6 +463,43 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	eptr->outputtail = &(outpacket->next);
 	return ptr;
 }
+/* for future use */
+int matocsserv_send_chunk_checksum(void *e,uint64_t chunkid,uint32_t version) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	uint8_t *data;
+
+	if (eptr->mode!=KILL) {
+		data = matocsserv_createpacket(eptr,ANTOCS_CHUNK_CHECKSUM,8+4);
+		if (data==NULL) {
+			return -1;
+		}
+		PUT64BIT(chunkid,data);
+		PUT32BIT(version,data);
+	}
+	return 0;
+}
+/* for future use */
+void matocsserv_got_chunk_checksum(matocsserventry *eptr,uint8_t *data,uint32_t length) {
+	uint64_t chunkid;
+	uint32_t version,checksum;
+	uint8_t status;
+	if (length!=8+4+1 && length!=8+4+4) {
+		syslog(LOG_NOTICE,"CSTOAN_CHUNK_CHECKSUM - wrong size (%d/13|16)",length);
+		eptr->mode=KILL;
+		return ;
+	}
+	GET64BIT(chunkid,data);
+	GET32BIT(version,data);
+	if (length==8+4+1) {
+		GET8BIT(status,data);
+//		chunk_got_checksum_status(eptr,chunkid,version,status);
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld calculate checksum status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	} else {
+		GET32BIT(checksum,data);
+//		chunk_got_checksum(eptr,chunkid,version,checksum);
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld calculate checksum: %08X",eptr->servstrip,eptr->servport,chunkid,checksum);
+	}
+}
 
 int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version) {
 	matocsserventry *eptr = (matocsserventry *)e;
@@ -449,7 +527,9 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,uint8_t *data,uint3
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_create_status(eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld creation status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld creation status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version) {
@@ -478,7 +558,9 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,uint8_t *data,uint3
 	GET64BIT(chunkid,data)
 	GET8BIT(status,data)
 	chunk_got_delete_status(eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld deletion status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld deletion status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *from) {
@@ -514,7 +596,9 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,uint8_t *data,ui
 	GET32BIT(version,data);
 	GET8BIT(status,data);
 	chunk_got_replicate_status(eptr,chunkid,version,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld replication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld replication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,uint32_t oldversion) {
@@ -544,7 +628,9 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,uint8_t *data,u
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_setversion_status(eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld set version status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld set version status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 
@@ -576,7 +662,9 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,uint8_t *data,ui
 	GET64BIT(chunkid,data);
 	GET8BIT(status,data);
 	chunk_got_duplicate_status(eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion) {
@@ -608,7 +696,9 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,uint8_t *data,uin
 	GET8BIT(status,data);
 	chunk_got_truncate_status(eptr,chunkid,status);
 //	matocsserv_notify(&(eptr->duplication),eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length) {
@@ -641,7 +731,9 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,uint8_t *data,uin
 	GET8BIT(status,data);
 	chunk_got_duptrunc_status(eptr,chunkid,status);
 //	matocsserv_notify(&(eptr->duplication),eptr,chunkid,status);
-//	syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication with truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld duplication with truncate status: %d",eptr->servstrip,eptr->servport,chunkid,status);
+	}
 }
 
 void matocsserv_register(matocsserventry *eptr,uint8_t *data,uint32_t length) {
@@ -782,7 +874,7 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,uint8_t *data,uint32_t lengt
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		GET64BIT(chunkid,data);
-		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld is damaged",eptr->servstrip,eptr->servport,chunkid);
+//		syslog(LOG_NOTICE,"(%s:%u) chunk: %lld is damaged",eptr->servstrip,eptr->servport,chunkid);
 		chunk_damaged(eptr,chunkid);
 	}
 }
@@ -798,7 +890,7 @@ void matocsserv_chunks_lost(matocsserventry *eptr,uint8_t *data,uint32_t length)
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		GET64BIT(chunkid,data);
-		syslog(LOG_NOTICE,"(%s:%u) chunk lost: %lld",eptr->servstrip,eptr->servport,chunkid);
+//		syslog(LOG_NOTICE,"(%s:%u) chunk lost: %lld",eptr->servstrip,eptr->servport,chunkid);
 		chunk_lost(eptr,chunkid);
 	}
 }
@@ -854,6 +946,9 @@ void matocsserv_gotpacket(matocsserventry *eptr,uint32_t type,uint8_t *data,uint
 			break;
 		case CSTOMA_ERROR_OCCURRED:
 			matocsserv_error_occurred(eptr,data,length);
+			break;
+		case CSTOAN_CHUNK_CHECKSUM:
+			matocsserv_got_chunk_checksum(eptr,data,length);
 			break;
 		case CSTOMA_CREATE:
 			matocsserv_got_createchunk_status(eptr,data,length);
@@ -1053,6 +1148,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->todeltotalspace=0;
 			eptr->todelchunkscount=0;
 			eptr->errorcounter=0;
+			eptr->repcounter=0;
 
 			eptr->rndcarry=0;
 //				eptr->creation=NULL;
@@ -1081,6 +1177,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 	kptr = &matocsservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
+			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %u, usedspace: %lld (%u GB), totalspace: %lld (%u GB)",eptr->servstrip,eptr->servport,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30));
 			chunk_server_disconnected(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -1123,6 +1220,6 @@ int matocsserv_init(void) {
 	matocsservhead = NULL;
 	main_destructregister(matocsserv_term);
 	main_selectregister(matocsserv_desc,matocsserv_serve);
-	main_timeregister(60,0,matocsserv_status);
+	main_timeregister(TIMEMODE_SKIP,60,0,matocsserv_status);
 	return 0;
 }

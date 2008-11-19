@@ -2728,8 +2728,8 @@ int matocuserv_init(void) {
 	curechead = NULL;
 	matocuservhead = NULL;
 
-	main_timeregister(10,0,matocu_customer_check);
-	main_timeregister(3600,0,matocu_customer_statsmove);
+	main_timeregister(TIMEMODE_RUNONCE,10,0,matocu_customer_check);
+	main_timeregister(TIMEMODE_RUNONCE,3600,0,matocu_customer_statsmove);
 
 	main_destructregister(matocuserv_term);
 	main_selectregister(matocuserv_desc,matocuserv_serve);

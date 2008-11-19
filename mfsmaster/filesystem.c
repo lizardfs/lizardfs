@@ -44,6 +44,8 @@
 #include "changelog.h"
 #endif
 
+#define USE_FREENODE_BUCKETS 1
+#define USE_CUIDREC_BUCKETS 1
 #define EDGEHASH 1
 #define BACKGROUND_METASTORE 1
 
@@ -232,6 +234,100 @@ void fs_stats(uint32_t stats[16]) {
 
 #endif
 
+#ifdef USE_FREENODE_BUCKETS
+#define FREENODE_BUCKET_SIZE 5000
+
+typedef struct _freenode_bucket {
+	freenode bucket[FREENODE_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _freenode_bucket *next;
+} freenode_bucket;
+
+static freenode_bucket *fnbhead = NULL;
+static freenode *fnfreehead = NULL;
+
+inline freenode* freenode_malloc() {
+	freenode_bucket *fnb;
+	freenode *ret;
+	if (fnfreehead) {
+		ret = fnfreehead;
+		fnfreehead = ret->next;
+		return ret;
+	}
+	if (fnbhead==NULL || fnbhead->firstfree==FREENODE_BUCKET_SIZE) {
+		fnb = (freenode_bucket*)malloc(sizeof(freenode_bucket));
+		fnb->next = fnbhead;
+		fnb->firstfree = 0;
+		fnbhead = fnb;
+	}
+	ret = (fnbhead->bucket)+(fnbhead->firstfree);
+	fnbhead->firstfree++;
+	return ret;
+}
+
+inline void freenode_free(freenode *p) {
+	p->next = fnfreehead;
+	fnfreehead = p;
+}
+#else /* USE_FREENODE_BUCKETS */
+
+inline freenode* freenode_malloc() {
+	return (freenode*)malloc(sizeof(freenode));
+}
+
+inline void freenode_free(freenode* p) {
+	free(p);
+}
+
+#endif /* USE_FREENODE_BUCKETS */
+
+#ifdef USE_CUIDREC_BUCKETS
+#define CUIDREC_BUCKET_SIZE 1000
+
+typedef struct _cuidrec_bucket {
+	cuidrec bucket[CUIDREC_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _cuidrec_bucket *next;
+} cuidrec_bucket;
+
+static cuidrec_bucket *crbhead = NULL;
+static cuidrec *crfreehead = NULL;
+
+inline cuidrec* cuidrec_malloc() {
+	cuidrec_bucket *crb;
+	cuidrec *ret;
+	if (crfreehead) {
+		ret = crfreehead;
+		crfreehead = ret->next;
+		return ret;
+	}
+	if (crbhead==NULL || crbhead->firstfree==CUIDREC_BUCKET_SIZE) {
+		crb = (cuidrec_bucket*)malloc(sizeof(cuidrec_bucket));
+		crb->next = crbhead;
+		crb->firstfree = 0;
+		crbhead = crb;
+	}
+	ret = (crbhead->bucket)+(crbhead->firstfree);
+	crbhead->firstfree++;
+	return ret;
+}
+
+inline void cuidrec_free(cuidrec *p) {
+	p->next = crfreehead;
+	crfreehead = p;
+}
+#else /* USE_CUIDREC_BUCKETS */
+
+inline cuidrec* cuidrec_malloc() {
+	return (cuidrec*)malloc(sizeof(cuidrec));
+}
+
+inline void cuidrec_free(cuidrec* p) {
+	free(p);
+}
+
+#endif /* USE_CUIDREC_BUCKETS */
+
 uint32_t fsnodes_get_next_id() {
 	uint32_t i,mask;
 	while (searchpos<bitmasksize && freebitmask[searchpos]==0xFFFFFFFF) {
@@ -259,7 +355,7 @@ uint32_t fsnodes_get_next_id() {
 
 void fsnodes_free_id(uint32_t id,uint32_t ts) {
 	freenode *n;
-	n = (freenode*)malloc(sizeof(freenode));
+	n = freenode_malloc();
 	n->id = id;
 	n->ftime = ts;
 	n->next = NULL;
@@ -290,7 +386,7 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 			searchpos = pos;
 		}
 		an = n->next;
-		free(n);
+		freenode_free(n);
 		n = an;
 	}
 	if (n) {
@@ -2983,7 +3079,7 @@ uint8_t fs_aquire(uint32_t inode,uint32_t cuid) {
 			return ERROR_EINVAL;
 		}
 	}
-	cr = (cuidrec*)malloc(sizeof(cuidrec));
+	cr = cuidrec_malloc();
 	cr->cuid = cuid;
 	cr->next = p->data.fdata.cuids;
 	p->data.fdata.cuids = cr;
@@ -3009,7 +3105,7 @@ uint8_t fs_release(uint32_t inode,uint32_t cuid) {
 	while ((cr=*crp)) {
 		if (cr->cuid==cuid) {
 			*crp = cr->next;
-			free(cr);
+			cuidrec_free(cr);
 #ifndef METARESTORE
 			changelog(version++,"%u|RELEASE(%u,%u)",main_time(),inode,cuid);
 #else
@@ -4519,7 +4615,7 @@ int fs_loadnode(FILE *fd) {
 		p->data.fdata.cuids=NULL;
 		while (t16) {
 			GET32BIT(t32,ptr);
-			cuidptr = malloc(sizeof(cuidrec));
+			cuidptr = cuidrec_malloc();
 			if (cuidptr==NULL) {
 #ifdef METARESTORE
 				fprintf(stderr,"loading node: cuidrec alloc: out of memory\n");
@@ -4530,6 +4626,7 @@ int fs_loadnode(FILE *fd) {
 					free(p->data.fdata.chunktab);
 				}
 				free(p);
+				return -1;
 			}
 			cuidptr->cuid = t32;
 			cuidptr->next = p->data.fdata.cuids;
@@ -4879,7 +4976,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 		p->data.fdata.cuids=NULL;
 		while (t16) {
 			GET32BIT(t32,ptr);
-			cuidptr = malloc(sizeof(cuidrec));
+			cuidptr = cuidrec_malloc();
 			cuidptr->cuid = t32;
 			cuidptr->next = p->data.fdata.cuids;
 			p->data.fdata.cuids = cuidptr;
@@ -5490,7 +5587,7 @@ int fs_loadfree(FILE *fd) {
 			}
 			ptr = rbuff;
 		}
-		n = (freenode*)malloc(sizeof(freenode));
+		n = freenode_malloc();
 		if (n==NULL) {
 			return -1;
 		}
@@ -5517,6 +5614,21 @@ void fs_store(FILE *fd) {
 	fs_storenodes(fd);
 	fs_storeedges(fd);
 	fs_storefree(fd);
+}
+
+uint64_t fs_loadversion(FILE *fd) {
+	uint8_t hdr[12];
+	uint8_t *ptr;
+	uint64_t fversion;
+
+	if (fread(hdr,1,12,fd)!=12) {
+		return 0;
+	}
+	ptr = hdr+4;
+//	GET32BIT(maxnodeid,ptr);
+	GET64BIT(fversion,ptr);
+//	GET32BIT(nextcuid,ptr);
+	return fversion;
 }
 
 int fs_load(FILE *fd) {
@@ -5569,6 +5681,20 @@ int fs_load(FILE *fd) {
 	return 0;
 }
 
+uint64_t fs_loadversion_1_4(FILE *fd) {
+	uint8_t hdr[12];
+	uint8_t *ptr;
+	uint64_t fversion;
+
+	if (fread(hdr,1,12,fd)!=12) {
+		return 0;
+	}
+	ptr = hdr+4;
+//	GET32BIT(maxnodeid,ptr);
+	GET64BIT(fversion,ptr);
+//	GET32BIT(nextcuid,ptr);
+	return fversion;
+}
 
 int fs_load_1_4(FILE *fd) {
 	uint8_t hdr[16];
@@ -5708,6 +5834,11 @@ int fs_storeall(int bg) {
 #endif
 		if (rename("metadata.mfs.back","metadata.mfs.back.tmp")<0) {
 			syslog(LOG_ERR,"can't rename metadata.mfs.back -> metadata.mfs.back.tmp (%m)");
+#ifdef BACKGROUND_METASTORE
+			if (i==0) {
+				exit(0);
+			}
+#endif
 			return 0;
 		}
 		fd = fopen("metadata.mfs.back","w");
@@ -5728,6 +5859,7 @@ int fs_storeall(int bg) {
 		}
 		fclose(fd);
 		unlink("metadata.mfs.back.tmp");
+		unlink("metadata.mfs");
 #ifdef BACKGROUND_METASTORE
 		if (i==0) {
 			exit(0);
@@ -5784,12 +5916,27 @@ int fs_loadall(const char *fname) {
 	FILE *fd;
 	uint8_t hdr[8];
 #ifndef METARESTORE
+	uint8_t bhdr[8];
+	uint64_t backversion;
 	int converted=0;
 #endif
 
 #ifdef METARESTORE
 	fd = fopen(fname,"r");
 #else
+	backversion = 0;
+	fd = fopen("metadata.mfs.back","r");
+	if (fd!=NULL) {
+		if (fread(bhdr,1,8,fd)==8) {
+			if (memcmp(bhdr,"MFSM 1.4",8)==0) {
+				backversion = fs_loadversion_1_4(fd);
+			} else if (memcmp(bhdr,"MFSM 1.5",8)==0) {
+				backversion = fs_loadversion(fd);
+			}
+		}
+		fclose(fd);
+	}
+
 	fd = fopen("metadata.mfs","r");
 #endif
 	if (fd==NULL) {
@@ -5800,10 +5947,21 @@ int fs_loadall(const char *fname) {
 #endif
 		return -1;
 	}
-	fread(hdr,1,8,fd);
+	if (fread(hdr,1,8,fd)!=8) {
+#ifdef METARESTORE
+		printf("can't read metadata header\n");
+#else
+		syslog(LOG_ERR,"can't read metadata header");
+#endif
+		return -1;
+	}
 #ifndef METARESTORE
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
 		fclose(fd);
+		if (backversion>0) {
+			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
+			return -1;
+		}
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
 			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back (%m)");
 			return -1;
@@ -5865,6 +6023,10 @@ int fs_loadall(const char *fname) {
 	}
 	fclose(fd);
 #ifndef METARESTORE
+	if (backversion>version) {
+		syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
+		return -1;
+	}
 	if (converted==1) {
 		if (rename("metadata.mfs","metadata.mfs.back.1.4")<0) {
 			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4 (%m)");
@@ -5912,12 +6074,12 @@ int fs_init(void) {
 	if (fs_loadall()<0) {
 		return -1;
 	}
-	main_timeregister(1,0,fs_test_files);
-	main_timeregister(3600,0,fs_dostoreall);
-	main_timeregister(300,0,fs_emptytrash);
-	main_timeregister(60,0,fs_emptyreserved);
-	main_timeregister(60,0,fs_show_counts);
-	main_timeregister(60,0,fsnodes_freeinodes);
+	main_timeregister(TIMEMODE_RUNONCE,1,0,fs_test_files);
+	main_timeregister(TIMEMODE_RUNONCE,3600,0,fs_dostoreall);
+	main_timeregister(TIMEMODE_RUNONCE,300,0,fs_emptytrash);
+	main_timeregister(TIMEMODE_RUNONCE,60,0,fs_emptyreserved);
+	main_timeregister(TIMEMODE_SKIP,60,0,fs_show_counts);
+	main_timeregister(TIMEMODE_RUNONCE,60,0,fsnodes_freeinodes);
 	main_destructregister(fs_term);
 	return 0;
 }

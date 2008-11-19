@@ -99,8 +99,8 @@ static struct fuse_lowlevel_ops mfs_oper = {
 
 void usage(const char *name) {
 	fprintf(stderr,"mfsmount v. %d.%d.%d\n",VERSMAJ,VERSMID,VERSMIN);
-	fprintf(stderr,"usage: %s [-r][-m][-d] [-h master host] [-p master port] [-l path] [-w mount point]\n",name);
-	fprintf(stderr,"\nr: readonly mode\nm: mount metadata\nd: fuse debug mode\n");
+	fprintf(stderr,"usage: %s [-r][-m][-c] [-v 0..2] [-h master host] [-p master port] [-l path] [-w mount point]\n",name);
+	fprintf(stderr,"\nr: readonly mode\nm: mount metadata\nc: allow using cache\nv: verbose level\n");
 	fprintf(stderr,"\ndefaults:\n\th: mfsmaster\n\tp: 9421\n\tl: /\n\tw: /mnt/mfs\n");
 }
 

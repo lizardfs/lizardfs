@@ -21,13 +21,16 @@
 
 #include <sys/types.h>
 
+#define TIMEMODE_SKIP 0
+#define TIMEMODE_RUNONCE 1
+#define TIMEMODE_RUNALL 2
 void main_destructregister (void (*fun)(void));
 void main_canexitregister (int (*fun)(void));
 void main_wantexitregister (void (*fun)(void));
 void main_reloadregister (void (*fun)(void));
 void main_selectregister (int (*desc)(fd_set *,fd_set *),void (*serve)(fd_set *,fd_set *));
 void main_eachloopregister (void (*fun)(void));
-void main_timeregister (int seconds,int offset,void (*fun)(void));
+void main_timeregister (int mode,int seconds,int offset,void (*fun)(void));
 int main_time(void);
 
 #endif

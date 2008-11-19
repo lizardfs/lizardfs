@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -32,7 +34,6 @@
 #include <grp.h>
 #include <pwd.h>
 
-#include "config.h"
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
@@ -92,6 +93,7 @@ static eloopentry *eloophead=NULL;
 typedef struct timeentry {
 	time_t nextevent;
 	int seconds;
+	int mode;
 //	int offset;
 	void (*fun)(void);
 	struct timeentry *next;
@@ -151,13 +153,14 @@ void main_eachloopregister (void (*fun)(void)) {
 	eloophead = aux;
 }
 
-void main_timeregister (int seconds,int offset,void (*fun)(void)) {
+void main_timeregister (int mode,int seconds,int offset,void (*fun)(void)) {
 	timeentry *aux;
 	if (seconds<1) return;
 	if (offset>=seconds || offset<0) return;
 	aux = (timeentry*)malloc(sizeof(timeentry));
 	aux->nextevent = ((now / seconds) * seconds) + offset + seconds;
 	aux->seconds = seconds;
+	aux->mode = mode;
 	aux->fun = fun;
 	aux->next = timehead;
 	timehead = aux;
@@ -207,7 +210,7 @@ void mainloop() {
 	selentry *selit;
 	eloopentry *eloopit;
 	timeentry *timeit;
-	deentry *deit;
+//	deentry *deit;
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
@@ -229,7 +232,8 @@ void mainloop() {
 //			terminate=1;
 //		}
 		i=select(max+1,&rset,&wset,NULL,&tv);
-		now = time(NULL);
+		gettimeofday(&tv,NULL);
+		now = tv.tv_sec;
 		if (i<0) {
 			if (errno!=EINTR) {
 				syslog(LOG_WARNING,"select error: %m");
@@ -244,10 +248,27 @@ void mainloop() {
 			eloopit->fun();
 		}
 		for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
-			while (now>=timeit->nextevent) {
-				// syslog(LOG_INFO,"cyk (%d)",timeit->seconds);
-				timeit->nextevent += timeit->seconds;
-				timeit->fun();
+			if (timeit->mode==TIMEMODE_RUNALL) {
+				while (now>=timeit->nextevent) {
+					timeit->nextevent += timeit->seconds;
+					timeit->fun();
+				}
+			} else if (timeit->mode==TIMEMODE_RUNONCE) {
+				if (now>=timeit->nextevent) {
+					while (now>=timeit->nextevent) {
+						timeit->nextevent += timeit->seconds;
+					}
+					timeit->fun();
+				}
+			} else { /* timeit->mode == TIMEMODE_SKIP */
+				if (now>=timeit->nextevent) {
+					if (now==timeit->nextevent) {
+						timeit->fun();
+					}
+					while (now>=timeit->nextevent) {
+						timeit->nextevent += timeit->seconds;
+					}
+				}
 			}
 		}
 		if (terminate==0 && reload) {
@@ -273,9 +294,6 @@ void mainloop() {
 				terminate=3;
 			}
 		}
-	}
-	for (deit = dehead ; deit!=NULL ; deit=deit->next ) {
-		deit->fun();
 	}
 }
 
@@ -607,9 +625,8 @@ int main(int argc,char **argv) {
 
 	if  (initialize()) {
 		mainloop();
-	} else {
-		destruct();
 	}
+	destruct();
 
 	closelog();
 	return 0;
