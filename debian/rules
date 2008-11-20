@@ -110,7 +110,7 @@ binary-common:
 	dh_installexamples
 	dh_installdebconf	
 #	dh_installinit
-#	dh_installman
+	dh_installman
 	dh_link
 	dh_strip
 	dh_compress

@@ -1,8 +1,14 @@
+mfs (1.5.9-2) unstable; urgency=low
+
+  * Man links compatible with Debian man-db.
+
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 20 Nov 2008 10:03:00 +0100
+
 mfs (1.5.9) unstable; urgency=medium
 
   * New MooseFS version (refer to NEWS file).
 
- -- Jakub Bogusz <contact@moosefs.com>  Thu, 19 Nov 2008 11:42:00 +0100
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 19 Nov 2008 11:42:00 +0100
 
 mfs (1.5.8) unstable; urgency=low
 
