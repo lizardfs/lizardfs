@@ -492,7 +492,7 @@
 // msgid:32 inode:32
 #define MATOCU_FUSE_GETDIRSTATS 463
 // msgid:32 status:8
-// msgid:32 inodes:32 length:64 bsize:64
+// msgid:32 inodes:32 dirs:32 files:32 ugfiles:32 mfiles:32 chunks:32 ugchunks:32 mchunks32 length:64 size:64 gsize:64
 
 #define CUTOMA_FUSE_TRUNCATE 464
 // msgid:32 inode:32 uid:32 gid:32 opened:8 length:64

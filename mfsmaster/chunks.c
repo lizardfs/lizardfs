@@ -1772,7 +1772,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 //step 8. if chunk has number of copies less than goal then make another copy of this chunk
 	if (c->goal > vc && vc+tdc > 0) {
-		if (c->replserv==NULL && maxusage<=0.99 && jobsnorepbefore<(uint32_t)main_time()) {
+		if (c->replserv==NULL && jobsnorepbefore<(uint32_t)main_time()) {
 			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxRepl);
 			for (i=0 ; i<rservcount ; i++) {
 				for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}

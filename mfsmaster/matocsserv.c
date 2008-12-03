@@ -299,7 +299,7 @@ uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
 	void *x;
 	j=0;
 	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(1<<30) && eptr->repcounter<replimit) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(eptr->totalspace/100) && eptr->repcounter<replimit) {
 			ptrs[j] = (void*)eptr;
 			j++;
 		}
