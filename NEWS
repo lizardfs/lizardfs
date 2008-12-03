@@ -1,5 +1,9 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.5.10 (2008-12-03)
+
+ - Fixed replication algorithm.
+
 * MooseFS 1.5.9 (2008-11-19)
 
  - Improved rebalancing algorithm.
