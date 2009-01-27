@@ -168,7 +168,7 @@ static int mfs_errorconv(int status) {
 		break;
 	}
 	if (debug_mode) {
-		fprintf(stderr,"status conv: %u->%d\n",status,ret);
+		fprintf(stderr,"status conv: %d->%d\n",status,ret);
 	}
 	return ret;
 }
@@ -507,7 +507,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	uint8_t setmask = 0;
 
 	if (debug_mode) {
-		fprintf(stderr,"setattr (%lu,%u,(%04o,%u,%u,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,stbuf->st_mode & 07777,stbuf->st_uid,stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),stbuf->st_size);
+		fprintf(stderr,"setattr (%lu,%u,(%04o,%u,%u,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,stbuf->st_mode & 07777,stbuf->st_uid,stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
 	}
 	if (ino==FUSE_ROOT_ID) {
 		ino = root_inode;
@@ -1257,7 +1257,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	int err;
 
 	if (debug_mode) {
-		fprintf(stderr,"read from inode %lu up to %lu bytes from position %llu\n",ino,(unsigned long int)size,(unsigned long long int)off);
+		fprintf(stderr,"read from inode %lu up to %llu bytes from position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
@@ -1270,7 +1270,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			buff = malloc(size);
 			rsize = fs_direct_read(masterinfo->sd,buff,size);
 			fuse_reply_buf(req,(char*)buff,rsize);
-			//syslog(LOG_WARNING,"master received: %d/%d",rsize,size);
+			//syslog(LOG_WARNING,"master received: %d/%llu",rsize,(unsigned long long int)size);
 			free(buff);
 		} else {
 			syslog(LOG_WARNING,"master: read before write");
@@ -1301,7 +1301,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 				fuse_reply_err(req,EIO);
 			}
 			if (debug_mode) {
-				fprintf(stderr,"IO error occured while writting inode %lu\n",ino);
+				fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 			}
 			return;
 		}
@@ -1325,12 +1325,12 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			fuse_reply_err(req,EIO);
 		}
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while reading inode %lu\n",ino);
+			fprintf(stderr,"IO error occured while reading inode %lu\n",(unsigned long int)ino);
 		}
 	} else {
 		fuse_reply_buf(req,(char*)buff,ssize);
 		if (debug_mode) {
-			fprintf(stderr,"%lu bytes have been read from inode %lu\n",(unsigned long int)ssize,ino);
+			fprintf(stderr,"%"PRIu32" bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
 		}
 	}
 	read_data_freebuff(fileinfo->data);
@@ -1342,7 +1342,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	int err;
 
 	if (debug_mode) {
-		fprintf(stderr,"write to inode %lu %lu bytes at position %llu\n",ino,(unsigned long int)size,(unsigned long long int)off);
+		fprintf(stderr,"write to inode %lu %llu bytes at position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
@@ -1353,7 +1353,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		int wsize;
 		masterinfo->sent=1;
 		wsize = fs_direct_write(masterinfo->sd,(const uint8_t*)buf,size);
-		//syslog(LOG_WARNING,"master sent: %d/%d",wsize,size);
+		//syslog(LOG_WARNING,"master sent: %d/%llu",wsize,(unsigned long long int)size);
 		fuse_reply_write(req,wsize);
 		return;
 	}
@@ -1386,13 +1386,13 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 			fuse_reply_err(req,EIO);
 		}
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while writting inode %lu\n",ino);
+			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 		}
 	} else {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_write(req,size);
 		if (debug_mode) {
-			fprintf(stderr,"%lu bytes have been written to inode %lu\n",(unsigned long int)size,ino);
+			fprintf(stderr,"%llu bytes have been written to inode %lu\n",(unsigned long long int)size,(unsigned long int)ino);
 		}
 	}
 }

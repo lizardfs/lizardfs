@@ -1,5 +1,12 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.5.11 (2008-12-18)
+
+ - Added CRC-block and file descriptor cache in chunkserver.
+ - Removed compilation warnings on 64-bit machines.
+ - Optimized chunkserver choice in mfsmount.
+ - Better replication algorithm.
+
 * MooseFS 1.5.10 (2008-12-03)
 
  - Fixed replication algorithm.

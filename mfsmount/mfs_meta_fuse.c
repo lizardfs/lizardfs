@@ -103,7 +103,7 @@ uint32_t mfs_meta_nametoinode(const char *name) {
 }
 
 void mfs_meta_inodetoname(char newname[256],uint8_t nleng,const char *origname,uint32_t inode) {
-	sprintf(newname,"%08X|",inode);
+	sprintf(newname,"%08"PRIX32"|",inode);
 	if (nleng>255-9) {
 		memcpy(newname+9,origname,255-9);
 		newname[255]=0;
@@ -790,7 +790,7 @@ void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struc
 			buff = malloc(size);
 			rsize = fs_direct_read(masterinfo->sd,buff,size);
 			fuse_reply_buf(req,(char*)buff,rsize);
-			//syslog(LOG_WARNING,"master received: %d/%d",rsize,size);
+			//syslog(LOG_WARNING,"master received: %d/%u",rsize,size);
 			free(buff);
 		} else {
 			syslog(LOG_WARNING,"master: read before write");
@@ -825,7 +825,7 @@ void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size
 		int wsize;
 		masterinfo->sent=1;
 		wsize = fs_direct_write(masterinfo->sd,(const uint8_t*)buf,size);
-		//syslog(LOG_WARNING,"master sent: %d/%d",wsize,size);
+		//syslog(LOG_WARNING,"master sent: %d/%u",wsize,size);
 		fuse_reply_write(req,wsize);
 		return;
 	}

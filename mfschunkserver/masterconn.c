@@ -116,7 +116,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = csserv_getlistenip();
 	myport =  csserv_getlistenport();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-//	syslog(LOG_NOTICE,"%llu,%llu",(unsigned long long int)usedspace,(unsigned long long int)totalspace);
+//	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
 	chunks = get_chunkscount();
 	if (Timeout==60) {
 		buff = masterconn_createpacket(eptr,CSTOMA_REGISTER,1+4+2+8+8+4+8+8+4+chunks*(8+4));
@@ -152,7 +152,7 @@ void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunk
 	uint8_t *buff;
 	masterconn *eptr = masterconnsingleton;
 
-//	syslog(LOG_NOTICE,"%llu,%llu",(unsigned long long int)usedspace,(unsigned long long int)totalspace);
+//	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		buff = masterconn_createpacket(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
 		if (buff) {
@@ -202,7 +202,7 @@ void masterconn_create(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_CREATE - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"MATOCS_CREATE - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -225,7 +225,7 @@ void masterconn_delete(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DELETE - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"MATOCS_DELETE - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -249,7 +249,7 @@ void masterconn_setversion(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 	
 	if (length!=8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%d/16)",length);
+		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%"PRIu32"/16)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -275,7 +275,7 @@ void masterconn_duplicate(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%d/24)",length);
+		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%"PRIu32"/24)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -302,7 +302,7 @@ void masterconn_truncate(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_TRUNCATE - wrong size (%d/20)",length);
+		syslog(LOG_NOTICE,"MATOCS_TRUNCATE - wrong size (%"PRIu32"/20)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -330,7 +330,7 @@ void masterconn_duptrunc(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%d/28)",length);
+		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%"PRIu32"/28)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -356,7 +356,7 @@ void masterconn_replicate(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint16_t port;
 
 	if (length!=8+4+4+2) {
-		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%d/18)",length);
+		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%"PRIu32"/18)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -384,12 +384,12 @@ void masterconn_replicate_status(uint64_t chunkid,uint32_t version,uint8_t statu
 
 void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
 	if (length<5) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%d/4+data)",length);
+		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%"PRIu32"/4+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	if (data[0]==0xFF && length<10) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%d/9+data)",length);
+		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%"PRIu32"/9+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -404,17 +404,17 @@ void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
 		data++;
 		GET64BIT(version,data);
 		if (logfd) {
-			fprintf(logfd,"%llu: %s\n",(unsigned long long int)version,data);
+			fprintf(logfd,"%"PRIu64": %s\n",version,data);
 		} else {
-			syslog(LOG_NOTICE,"lost MFS change %llu: %s",(unsigned long long int)version,data);
+			syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,data);
 		}
 	} else {	// old version
 		uint32_t version;
 		GET32BIT(version,data);
 		if (logfd) {
-			fprintf(logfd,"%u: %s\n",version,data);
+			fprintf(logfd,"%"PRIu32": %s\n",version,data);
 		} else {
-			syslog(LOG_NOTICE,"lost MFS change %u: %s",version,data);
+			syslog(LOG_NOTICE,"lost MFS change %"PRIu32": %s",version,data);
 		}
 	}
 
@@ -425,7 +425,7 @@ void masterconn_structure_log_rotate(masterconn *eptr,uint8_t *data,uint32_t len
 	uint32_t i;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG_ROTATE - wrong size (%d/0)",length);
+		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG_ROTATE - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -435,8 +435,8 @@ void masterconn_structure_log_rotate(masterconn *eptr,uint8_t *data,uint32_t len
 	}
 	if (BackLogsNumber>0) {
 		for (i=BackLogsNumber ; i>0 ; i--) {
-			snprintf(logname1,100,"changelog_csback.%d.mfs",i);
-			snprintf(logname2,100,"changelog_csback.%d.mfs",i-1);
+			snprintf(logname1,100,"changelog_csback.%"PRIu32".mfs",i);
+			snprintf(logname2,100,"changelog_csback.%"PRIu32".mfs",i-1);
 			rename(logname2,logname1);
 		}
 	} else {
@@ -453,7 +453,7 @@ void masterconn_chunk_checksum(masterconn *eptr,uint8_t *data,uint32_t length) {
 	uint32_t checksum;
 	
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -486,7 +486,7 @@ void masterconn_chunk_checksum_tab(masterconn *eptr,uint8_t *data,uint32_t lengt
 	uint8_t crctab[4096];
 	
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -549,7 +549,7 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,uint8_t *data,uint32_t 
 			masterconn_chunk_checksum_tab(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%d)",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
 			eptr->mode = KILL;
 	}
 }
@@ -665,7 +665,7 @@ void masterconn_read(masterconn *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"Master packet too long (%u/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"Master packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
 				eptr->mode = KILL;
 				return;
 			}

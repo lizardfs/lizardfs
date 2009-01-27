@@ -390,7 +390,7 @@ int check_file(const char* fname) {
 	for (cmd=0 ; cmd<leng ; cmd+=3) {
 		GET8BIT(copies,ptr);
 		GET16BIT(chunks,ptr);
-		printf("%u copies: %u chunks\n",copies,chunks);
+		printf("%"PRIu8" copies: %"PRIu16" chunks\n",copies,chunks);
 	}
 	free(buff);
 	return 0;
@@ -476,7 +476,7 @@ int get_goal(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		printf("%s: %u\n",fname,goal);
+		printf("%s: %"PRIu8"\n",fname,goal);
 	} else {
 		GET8BIT(fn,ptr);
 		GET8BIT(dn,ptr);
@@ -485,13 +485,13 @@ int get_goal(const char *fname,uint8_t mode) {
 			GET8BIT(goal,ptr);
 			GET32BIT(cnt,ptr);
 			bsd_humanize_number(hbuf, sizeof(hbuf), cnt, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-			printf(" files with goal        %u : %4s (%u)\n",goal,hbuf,cnt);
+			printf(" files with goal        %"PRIu8" : %4s (%"PRIu32")\n",goal,hbuf,cnt);
 		}
 		for (i=0 ; i<dn ; i++) {
 			GET8BIT(goal,ptr);
 			GET32BIT(cnt,ptr);
 			bsd_humanize_number(hbuf, sizeof(hbuf), cnt, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-			printf(" directories with goal  %u : %4s (%u)\n",goal,hbuf,cnt);
+			printf(" directories with goal  %"PRIu8" : %4s (%"PRIu32")\n",goal,hbuf,cnt);
 		}
 	}
 	free(buff);
@@ -578,7 +578,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		printf("%s: %u\n",fname,trashtime);
+		printf("%s: %"PRIu32"\n",fname,trashtime);
 	} else {
 		GET32BIT(fn,ptr);
 		GET32BIT(dn,ptr);
@@ -587,13 +587,13 @@ int get_trashtime(const char *fname,uint8_t mode) {
 			GET32BIT(trashtime,ptr);
 			GET32BIT(cnt,ptr);
 			bsd_humanize_number(hbuf, sizeof(hbuf), cnt, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-			printf(" files with trashtime        %10u : %4s (%u)\n",trashtime,hbuf,cnt);
+			printf(" files with trashtime        %10"PRIu32" : %4s (%"PRIu32")\n",trashtime,hbuf,cnt);
 		}
 		for (i=0 ; i<dn ; i++) {
 			GET32BIT(trashtime,ptr);
 			GET32BIT(cnt,ptr);
 			bsd_humanize_number(hbuf, sizeof(hbuf), cnt, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-			printf(" directories with trashtime  %10u : %4s (%u)\n",trashtime,hbuf,cnt);
+			printf(" directories with trashtime  %10"PRIu32" : %4s (%"PRIu32")\n",trashtime,hbuf,cnt);
 		}
 	}
 	free(buff);
@@ -667,18 +667,18 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	GET32BIT(notpermitted,ptr);
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			printf("%s: %d\n",fname,goal);
+			printf("%s: %"PRIu8"\n",fname,goal);
 		} else {
 			printf("%s: goal not changed\n",fname);
 		}
 	} else {
 		printf("%s:\n",fname);
 		bsd_humanize_number(hbuf, sizeof(hbuf), changed, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with goal changed:      %4s (%u)\n",hbuf,changed);
+		printf(" inodes with goal changed:      %4s (%"PRIu32")\n",hbuf,changed);
 		bsd_humanize_number(hbuf, sizeof(hbuf), notchanged, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with goal not changed:  %4s (%u)\n",hbuf,notchanged);
+		printf(" inodes with goal not changed:  %4s (%"PRIu32")\n",hbuf,notchanged);
 		bsd_humanize_number(hbuf, sizeof(hbuf), notpermitted, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with permission denied: %4s (%u)\n",hbuf,notpermitted);
+		printf(" inodes with permission denied: %4s (%"PRIu32")\n",hbuf,notpermitted);
 	}
 	free(buff);
 	return 0;
@@ -751,18 +751,18 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	GET32BIT(notpermitted,ptr);
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			printf("%s: %u\n",fname,trashtime);
+			printf("%s: %"PRIu32"\n",fname,trashtime);
 		} else {
 			printf("%s: trashtime not changed\n",fname);
 		}
 	} else {
 		printf("%s:\n",fname);
 		bsd_humanize_number(hbuf, sizeof(hbuf), changed, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with trashtime changed:      %4s (%u)\n",hbuf,changed);
+		printf(" inodes with trashtime changed:      %4s (%"PRIu32")\n",hbuf,changed);
 		bsd_humanize_number(hbuf, sizeof(hbuf), notchanged, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with trashtime not changed:  %4s (%u)\n",hbuf,notchanged);
+		printf(" inodes with trashtime not changed:  %4s (%"PRIu32")\n",hbuf,notchanged);
 		bsd_humanize_number(hbuf, sizeof(hbuf), notpermitted, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		printf(" inodes with permission denied:      %4s (%u)\n",hbuf,notpermitted);
+		printf(" inodes with permission denied:      %4s (%"PRIu32")\n",hbuf,notpermitted);
 	}
 	free(buff);
 	return 0;
@@ -792,12 +792,12 @@ int file_info(const char *fname) {
 		PUT32BIT(inode,ptr);
 		PUT32BIT(indx,ptr);
 		if (socket_write(fd,reqbuff,20)!=20) {
-			printf("%s [%u]: master query: send error\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: send error\n",fname,indx);
 			close(fd);
 			return -1;
 		}
 		if (socket_read(fd,reqbuff,8)!=8) {
-			printf("%s [%u]: master query: receive error\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: receive error\n",fname,indx);
 			close(fd);
 			return -1;
 		}
@@ -805,13 +805,13 @@ int file_info(const char *fname) {
 		GET32BIT(cmd,ptr);
 		GET32BIT(leng,ptr);
 		if (cmd!=MATOCU_FUSE_READ_CHUNK) {
-			printf("%s [%u]: master query: wrong answer (type)\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: wrong answer (type)\n",fname,indx);
 			close(fd);
 			return -1;
 		}
 		buff = malloc(leng);
 		if (socket_read(fd,buff,leng)!=(int32_t)leng) {
-			printf("%s [%u]: master query: receive error\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: receive error\n",fname,indx);
 			free(buff);
 			close(fd);
 			return -1;
@@ -819,19 +819,19 @@ int file_info(const char *fname) {
 		ptr = buff;
 		GET32BIT(cmd,ptr);	// queryid
 		if (cmd!=0) {
-			printf("%s [%u]: master query: wrong answer (queryid)\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: wrong answer (queryid)\n",fname,indx);
 			free(buff);
 			close(fd);
 			return -1;
 		}
 		leng-=4;
 		if (leng==1) {
-			printf("%s [%u]: %s\n",fname,indx,errtab[*ptr]);
+			printf("%s [%"PRIu32"]: %s\n",fname,indx,errtab[*ptr]);
 			free(buff);
 			close(fd);
 			return -1;
 		} else if (leng<20 || ((leng-20)%6)!=0) {
-			printf("%s [%u]: master query: wrong answer (leng)\n",fname,indx);
+			printf("%s [%"PRIu32"]: master query: wrong answer (leng)\n",fname,indx);
 			free(buff);
 			close(fd);
 			return -1;
@@ -844,9 +844,9 @@ int file_info(const char *fname) {
 		GET32BIT(version,ptr);
 		if (fleng>0) {
 			if (chunkid==0 && version==0) {
-				printf("\tchunk %u: empty\n",indx);
+				printf("\tchunk %"PRIu32": empty\n",indx);
 			} else {
-				printf("\tchunk %u: %016llX_%08X / (id:%llu ver:%u)\n",indx,(unsigned long long int)chunkid,version,(unsigned long long int)chunkid,version);
+				printf("\tchunk %"PRIu32": %016"PRIX64"_%08"PRIX32" / (id:%"PRIu64" ver:%"PRIu32")\n",indx,chunkid,version,chunkid,version);
 				leng-=20;
 				leng/=6;
 				if (leng>0) {
@@ -858,7 +858,7 @@ int file_info(const char *fname) {
 						ip4 = ptr[3];
 						ptr+=4;
 						GET16BIT(port,ptr);
-						printf("\t\tcopy %u: %u.%u.%u.%u:%u\n",cmd+1,ip1,ip2,ip3,ip4,port);
+						printf("\t\tcopy %"PRIu32": %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8":%"PRIu16"\n",cmd+1,ip1,ip2,ip3,ip4,port);
 					}
 				} else {
 					printf("\t\tno valid copies !!!\n");
@@ -1011,31 +1011,31 @@ int dir_info(const char *fname) {
 	GET64BIT(gsize,ptr);
 	printf("%s:\n",fname);
 	bsd_humanize_number(hbuf, sizeof(hbuf), inodes, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf(" inodes:                %4s (%u)\n",hbuf,inodes);
+	printf(" inodes:                %4s (%"PRIu32")\n",hbuf,inodes);
 	bsd_humanize_number(hbuf, sizeof(hbuf), dirs, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("  directories:          %4s (%u)\n",hbuf,dirs);
+	printf("  directories:          %4s (%"PRIu32")\n",hbuf,dirs);
 	bsd_humanize_number(hbuf, sizeof(hbuf), files, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("  files:                %4s (%u)\n",hbuf,files);
+	printf("  files:                %4s (%"PRIu32")\n",hbuf,files);
 	bsd_humanize_number(hbuf, sizeof(hbuf), files-ugfiles-mfiles, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("   good files:          %4s (%u)\n",hbuf,files-ugfiles-mfiles);
+	printf("   good files:          %4s (%"PRIu32")\n",hbuf,files-ugfiles-mfiles);
 	bsd_humanize_number(hbuf, sizeof(hbuf), ugfiles, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("   under goal files:    %4s (%u)\n",hbuf,ugfiles);
+	printf("   under goal files:    %4s (%"PRIu32")\n",hbuf,ugfiles);
 	bsd_humanize_number(hbuf, sizeof(hbuf), mfiles, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("   missing files:       %4s (%u)\n",hbuf,mfiles);
+	printf("   missing files:       %4s (%"PRIu32")\n",hbuf,mfiles);
 	bsd_humanize_number(hbuf, sizeof(hbuf), chunks, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf(" chunks:                %4s (%u)\n",hbuf,chunks);
+	printf(" chunks:                %4s (%"PRIu32")\n",hbuf,chunks);
 	bsd_humanize_number(hbuf, sizeof(hbuf), chunks-ugchunks-mchunks, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("  good chunks:          %4s (%u)\n",hbuf,chunks-ugchunks-mchunks);
+	printf("  good chunks:          %4s (%"PRIu32")\n",hbuf,chunks-ugchunks-mchunks);
 	bsd_humanize_number(hbuf, sizeof(hbuf), ugchunks, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("  under goal chunks:    %4s (%u)\n",hbuf,ugchunks);
+	printf("  under goal chunks:    %4s (%"PRIu32")\n",hbuf,ugchunks);
 	bsd_humanize_number(hbuf, sizeof(hbuf), mchunks, "", HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-	printf("  missing chunks:       %4s (%u)\n",hbuf,mchunks);
+	printf("  missing chunks:       %4s (%"PRIu32")\n",hbuf,mchunks);
 	bsd_humanize_number(hbuf, sizeof(hbuf), length, "", HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-	printf(" length:                %4s (%llu)\n",hbuf,(unsigned long long int)length);
+	printf(" length:                %4s (%"PRIu64")\n",hbuf,length);
 	bsd_humanize_number(hbuf, sizeof(hbuf), size, "", HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-	printf(" size:                  %4s (%llu)\n",hbuf,(unsigned long long int)size);
+	printf(" size:                  %4s (%"PRIu64")\n",hbuf,size);
 	bsd_humanize_number(hbuf, sizeof(hbuf), gsize, "", HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-	printf(" hdd usage:             %4s (%llu)\n",hbuf,(unsigned long long int)gsize);
+	printf(" hdd usage:             %4s (%"PRIu64")\n",hbuf,gsize);
 	free(buff);
 	close(fd);
 	return 0;

@@ -396,7 +396,7 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 		freetail = &(freelist);
 	}
 #ifndef METARESTORE
-	changelog(version++,"%u|FREEINODES():%u",main_time(),fi);
+	changelog(version++,"%"PRIu32"|FREEINODES():%"PRIu32,(uint32_t)main_time(),fi);
 #else
 	version++;
 	if (freeinodes!=fi) {
@@ -1184,7 +1184,7 @@ uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *srcobj) {
 		dstobj->data.fdata.chunktab[i+dstchunks] = chunkid;
 		if (chunkid>0) {
 			if (chunk_add_file(chunkid,dstobj->id,i+dstchunks,dstobj->goal)!=STATUS_OK) {
-				syslog(LOG_ERR,"structure error - chunk %llu not found (file: %u ; index: %u)",chunkid,srcobj->id,i);
+				syslog(LOG_ERR,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")",chunkid,srcobj->id,i);
 			}
 		}
 	}
@@ -1233,7 +1233,7 @@ void fsnodes_setlength(fsnode *obj,uint64_t length) {
 		chunkid = obj->data.fdata.chunktab[i];
 		if (chunkid>0) {
 			if (chunk_delete_file(chunkid,obj->id,i)!=STATUS_OK) {
-				syslog(LOG_ERR,"structure error - chunk %llu not found (file: %u ; index: %u)",chunkid,obj->id,i);
+				syslog(LOG_ERR,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")",chunkid,obj->id,i);
 			}
 		}
 		obj->data.fdata.chunktab[i]=0;	// raczej zbedne bo ponizej jest realloc, ale na wszelki wypadek niech bedzie
@@ -1297,7 +1297,7 @@ void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 			chunkid = toremove->data.fdata.chunktab[i];
 			if (chunkid>0) {
 				if (chunk_delete_file(chunkid,toremove->id,i)!=STATUS_OK) {
-					syslog(LOG_ERR,"structure error - chunk %llu not found (file: %u ; index: %u)",chunkid,toremove->id,i);
+					syslog(LOG_ERR,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")",chunkid,toremove->id,i);
 				}
 			}
 		}
@@ -1618,10 +1618,10 @@ void fsnodes_getgoal_recursive(fsnode *node,uint32_t fgtab[10],uint32_t dgtab[10
 	fsnode *n;
 	// assert (node->type==TYPE_DIRECTORY);
 	if (node->goal>9) {
-		syslog(LOG_WARNING,"inode %u: goal>9 !!! - fixing",node->id);
+		syslog(LOG_WARNING,"inode %"PRIu32": goal>9 !!! - fixing",node->id);
 		node->goal=9;
 	} else if (node->goal<1) {
-		syslog(LOG_WARNING,"inode %u: goal<1 !!! - fixing",node->id);
+		syslog(LOG_WARNING,"inode %"PRIu32": goal<1 !!! - fixing",node->id);
 		node->goal=1;
 	}
 	dgtab[node->goal]++;
@@ -1629,11 +1629,11 @@ void fsnodes_getgoal_recursive(fsnode *node,uint32_t fgtab[10],uint32_t dgtab[10
 		n = e->child;
 		if (n->type==TYPE_FILE) {
 			if (n->goal>9) {
-				syslog(LOG_WARNING,"inode %u: goal>9 !!! - fixing",n->id);
+				syslog(LOG_WARNING,"inode %"PRIu32": goal>9 !!! - fixing",n->id);
 				n->goal=9;
 				fsnodes_setchunksgoal(n);
 			} else if (n->goal<1) {
-				syslog(LOG_WARNING,"inode %u: goal<1 !!! - fixing",n->id);
+				syslog(LOG_WARNING,"inode %"PRIu32": goal<1 !!! - fixing",n->id);
 				n->goal=1;
 				fsnodes_setchunksgoal(n);
 			}
@@ -1652,11 +1652,11 @@ void fsnodes_getgoal_recursive(fsnode *node,uint32_t gtab[10]) {
 		n = e->child;
 		if (n->type==TYPE_FILE) {
 			if (n->goal>9) {
-				syslog(LOG_WARNING,"inode %u: goal>9 !!! - fixing",n->id);
+				syslog(LOG_WARNING,"inode %"PRIu32": goal>9 !!! - fixing",n->id);
 				n->goal=9;
 				fsnodes_setchunksgoal(n);
 			} else if (n->goal<1) {
-				syslog(LOG_WARNING,"inode %u: goal<1 !!! - fixing",n->id);
+				syslog(LOG_WARNING,"inode %"PRIu32": goal<1 !!! - fixing",n->id);
 				n->goal=1;
 				fsnodes_setchunksgoal(n);
 			}
@@ -1931,6 +1931,23 @@ fsnode* fsnodes_id_to_node(uint32_t id) {
 	return NULL;
 }
 
+#ifdef IGNORE_GROUP_PRIVILEGES
+int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,int modemask) {
+	if (uid==0) {
+		return 1;
+	}
+	(void)gid;
+	if (uid==node->uid) {
+		nodemode = ((node->mode)>>6) & 7;
+	} else {
+		nodemode = (((node->mode)>>3) | (node->mode)) & 7;
+	}
+	if ((nodemode & modemask) == modemask) {
+		return 1;
+	}
+	return 0;
+}
+#else
 int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,int modemask) {
 	int nodemode;
 	if (uid==0) {
@@ -1948,7 +1965,7 @@ int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,int modemask) {
 	}
 	return 0;
 }
-
+#endif
 
 /* master <-> fuse operations */
 
@@ -2061,7 +2078,7 @@ uint8_t fs_setpath(uint32_t inode,const uint8_t *path) {
 	p->parents->name = newpath;
 	p->parents->nleng = pleng;
 #ifndef METARESTORE
-	changelog(version++,"%u|SETPATH(%u,%s)",main_time(),inode,fsnodes_escape_name(pleng,newpath));
+	changelog(version++,"%"PRIu32"|SETPATH(%"PRIu32",%s)",(uint32_t)main_time(),inode,fsnodes_escape_name(pleng,newpath));
 #else
 	version++;
 #endif
@@ -2089,7 +2106,7 @@ uint8_t fs_undel(uint32_t ts,uint32_t inode) {
 	status = fsnodes_undel(ts,p);
 #ifndef METARESTORE
 	if (status==STATUS_OK) {
-		changelog(version++,"%u|UNDEL(%u)",ts,inode);
+		changelog(version++,"%"PRIu32"|UNDEL(%"PRIu32")",ts,inode);
 	}
 #else
 	version++;
@@ -2116,7 +2133,7 @@ uint8_t fs_purge(uint32_t ts,uint32_t inode) {
 	}
 	fsnodes_purge(ts,p);
 #ifndef METARESTORE
-	changelog(version++,"%u|PURGE(%u)",ts,inode);
+	changelog(version++,"%"PRIu32"|PURGE(%"PRIu32")",ts,inode);
 #else
 	version++;
 #endif
@@ -2275,7 +2292,7 @@ int fs_try_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint16_t setmask,uin
 /*
 					status = chunk_locked(ochunkid,&l);
 					if (status!=STATUS_OK) {
-						syslog(LOG_ERR,"structure error - chunk %llu not found (file: %u ; index: %u)",ochunkid,inode,indx);
+						syslog(LOG_ERR,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")",ochunkid,inode,indx);
 						return status;
 					}
 					if (l) {
@@ -2303,7 +2320,7 @@ int fs_try_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint16_t setmask,uin
 					p->data.fdata.chunktab[indx] = nchunkid;
 					*chunkid = nchunkid;
 //					chunk_writelock(nchunkid); // can ignore status (ERROR_NOCHUNK - impossible after previous functions)
-					changelog(version++,"%u|TRUNC(%u,%u):%llu",main_time(),inode,indx,nchunkid);
+					changelog(version++,"%"PRIu32"|TRUNC(%"PRIu32",%"PRIu32"):%"PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
 					return ERROR_DELAYED;
 				}
 			}
@@ -2343,7 +2360,7 @@ uint8_t fs_try_setlength(uint32_t inode,uint32_t uid,uint32_t gid,uint64_t lengt
 				}
 				p->data.fdata.chunktab[indx] = nchunkid;
 				*chunkid = nchunkid;
-				changelog(version++,"%u|TRUNC(%u,%u):%llu",main_time(),inode,indx,nchunkid);
+				changelog(version++,"%"PRIu32"|TRUNC(%"PRIu32",%"PRIu32"):%"PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
 				return ERROR_DELAYED;
 			}
 		}
@@ -2388,7 +2405,7 @@ uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
 
 #ifndef METARESTORE
 uint8_t fs_end_setlength(uint64_t chunkid) {
-	changelog(version++,"%u|UNLOCK(%llu)",main_time(),chunkid);
+	changelog(version++,"%"PRIu32"|UNLOCK(%"PRIu64")",(uint32_t)main_time(),chunkid);
 	return chunk_unlock(chunkid);
 }
 #else
@@ -2407,7 +2424,7 @@ uint8_t fs_do_setlength(uint32_t inode,uint64_t length,uint8_t attr[35]) {
 		return ERROR_ENOENT;
 	}
 	fsnodes_setlength(p,length);
-	changelog(version++,"%u|LENGTH(%u,%llu)",main_time(),inode,p->data.fdata.length);
+	changelog(version++,"%"PRIu32"|LENGTH(%"PRIu32",%"PRIu64")",(uint32_t)main_time(),inode,p->data.fdata.length);
 	p->ctime = p->mtime = main_time();
 	fsnodes_fill_attr(p,attr);
 	stats_setattr++;
@@ -2438,10 +2455,14 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 		memset(attr,0,35);
 		return ERROR_EPERM;
 	}
+#ifdef IGNORE_GROUP_PRIVILEGES
+	(void)gid;
+#else
 	if (uid!=0 && gid!=attrgid && (setmask&SET_GID_FLAG)) {
 		memset(attr,0,35);
 		return ERROR_EPERM;
 	}
+#endif
 	if (setmask&SET_MODE_FLAG) {
 		p->mode = attrmode & 07777;
 	}
@@ -2457,7 +2478,7 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	if (setmask&SET_MTIME_FLAG) {
 		p->mtime = attrmtime;
 	}
-	changelog(version++,"%u|ATTR(%u,%u,%u,%u,%u,%u)",main_time(),inode,p->mode,p->uid,p->gid,p->atime,p->mtime);
+	changelog(version++,"%"PRIu32"|ATTR(%"PRIu32",%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32")",main_time(),inode,p->mode,p->uid,p->gid,p->atime,p->mtime);
 	p->ctime = main_time();
 	fsnodes_fill_attr(p,attr);
 	stats_setattr++;
@@ -2538,7 +2559,7 @@ uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t trashto) {
 	p->trashtime = trashto;
 	p->ctime = ts;
 #ifndef METARESTORE
-	changelog(version++,"%u|SETTRASHTIME(%u,%u)",ts,inode,p->trashtime);
+	changelog(version++,"%"PRIu32"|SETTRASHTIME(%"PRIu32",%"PRIu32")",ts,inode,p->trashtime);
 #else
 	version++;
 #endif
@@ -2561,7 +2582,7 @@ uint8_t fs_readlink(uint32_t inode,uint32_t *pleng,uint8_t **path) {
 	*pleng = p->data.sdata.pleng;
 	*path = p->data.sdata.path;
 	p->atime = main_time();
-	changelog(version++,"%u|ACCESS(%u)",main_time(),inode);
+	changelog(version++,"%"PRIu32"|ACCESS(%"PRIu32")",(uint32_t)main_time(),inode);
 	stats_readlink++;
 	return STATUS_OK;
 }
@@ -2623,7 +2644,7 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 #ifndef METARESTORE
 	*inode = p->id;
 	fsnodes_fill_attr(p,attr);
-	changelog(version++,"%u|SYMLINK(%u,%s,%s,%u,%u):%u",main_time(),parent,fsnodes_escape_name(nleng,name),fsnodes_escape_name(pleng,newpath),uid,gid,p->id);
+	changelog(version++,"%"PRIu32"|SYMLINK(%"PRIu32",%s,%s,%"PRIu32",%"PRIu32"):%"PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),fsnodes_escape_name(pleng,newpath),uid,gid,p->id);
 	stats_symlink++;
 #else
 	if (inode!=p->id) {
@@ -2664,7 +2685,7 @@ uint8_t fs_mknod(uint32_t parent,uint16_t nleng,uint8_t *name,uint8_t type,uint1
 	}
 	*inode = p->id;
 	fsnodes_fill_attr(p,attr);
-	changelog(version++,"%u|CREATE(%u,%s,%c,%u,%u,%u,%u):%u",main_time(),parent,fsnodes_escape_name(nleng,name),type,mode,uid,gid,rdev,p->id);
+	changelog(version++,"%"PRIu32"|CREATE(%"PRIu32",%s,%c,%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32"):%"PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),type,mode,uid,gid,rdev,p->id);
 	stats_mknod++;
 	return STATUS_OK;
 }
@@ -2692,7 +2713,7 @@ uint8_t fs_mkdir(uint32_t parent,uint16_t nleng,uint8_t *name,uint16_t mode,uint
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,uid,gid);
 	*inode = p->id;
 	fsnodes_fill_attr(p,attr);
-	changelog(version++,"%u|CREATE(%u,%s,%c,%u,%u,%u,%u):%u",main_time(),parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,mode,uid,gid,0,p->id);
+	changelog(version++,"%"PRIu32"|CREATE(%"PRIu32",%s,%c,%"PRIu16",%"PRIu32",%"PRIu32",%"PRIu32"):%"PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,mode,uid,gid,0,p->id);
 	stats_mkdir++;
 	return STATUS_OK;
 }
@@ -2750,7 +2771,7 @@ uint8_t fs_unlink(uint32_t parent,uint16_t nleng,uint8_t *name,uint32_t uid,uint
 	if (e->child->type==TYPE_DIRECTORY) {
 		return ERROR_EPERM;
 	}
-	changelog(version++,"%u|UNLINK(%u,%s):%u",ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
+	changelog(version++,"%"PRIu32"|UNLINK(%"PRIu32",%s):%"PRIu32,ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
 	fsnodes_unlink(ts,e);
 	stats_unlink++;
 	return STATUS_OK;
@@ -2785,7 +2806,7 @@ uint8_t fs_rmdir(uint32_t parent,uint16_t nleng,uint8_t *name,uint32_t uid,uint3
 	if (e->child->data.ddata.children!=NULL) {
 		return ERROR_ENOTEMPTY;
 	}
-	changelog(version++,"%u|UNLINK(%u,%s):%u",ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
+	changelog(version++,"%"PRIu32"|UNLINK(%"PRIu32",%s):%"PRIu32,ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
 	fsnodes_unlink(ts,e);
 	stats_rmdir++;
 	return STATUS_OK;
@@ -2887,7 +2908,7 @@ uint8_t fs_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t
 	fsnodes_remove_edge(ts,se);
 	fsnodes_link(ts,dwd,node,nleng_dst,name_dst);
 #ifndef METARESTORE
-	changelog(version++,"%u|MOVE(%u,%s,%u,%s):%u",main_time(),parent_src,fsnodes_escape_name(nleng_src,name_src),parent_dst,fsnodes_escape_name(nleng_dst,name_dst),node->id);
+	changelog(version++,"%"PRIu32"|MOVE(%"PRIu32",%s,%"PRIu32",%s):%"PRIu32,(uint32_t)main_time(),parent_src,fsnodes_escape_name(nleng_src,name_src),parent_dst,fsnodes_escape_name(nleng_dst,name_dst),node->id);
 	stats_rename++;
 #else
 	version++;
@@ -2940,7 +2961,7 @@ uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nlen
 #ifndef METARESTORE
 	*inode = inode_src;
 	fsnodes_fill_attr(sp,attr);
-	changelog(version++,"%u|LINK(%u,%u,%s)",main_time(),inode_src,parent_dst,fsnodes_escape_name(nleng_dst,name_dst));
+	changelog(version++,"%"PRIu32"|LINK(%"PRIu32",%"PRIu32",%s)",(uint32_t)main_time(),inode_src,parent_dst,fsnodes_escape_name(nleng_dst,name_dst));
 #else
 	version++;
 #endif
@@ -2989,7 +3010,7 @@ uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src) {
 		return status;
 	}
 #ifndef METARESTORE
-	changelog(version++,"%u|APPEND(%u,%u)",ts,inode,inode_src);
+	changelog(version++,"%"PRIu32"|APPEND(%"PRIu32",%"PRIu32")",ts,inode,inode_src);
 #else
 	version++;
 #endif
@@ -3018,7 +3039,7 @@ uint8_t fs_readdir_size(uint32_t inode,uint32_t uid,uint32_t gid,void **dnode,ui
 
 void fs_readdir_data(void *dnode,uint8_t *dbuff,uint8_t packed) {
 	fsnode *p = (fsnode*)dnode;
-	changelog(version++,"%u|ACCESS(%u)",main_time(),p->id);
+	changelog(version++,"%"PRIu32"|ACCESS(%"PRIu32")",(uint32_t)main_time(),p->id);
 	fsnodes_getdirdata(main_time(),p,dbuff,packed);
 	stats_readdir++;
 }
@@ -3084,7 +3105,7 @@ uint8_t fs_aquire(uint32_t inode,uint32_t cuid) {
 	cr->next = p->data.fdata.cuids;
 	p->data.fdata.cuids = cr;
 #ifndef METARESTORE
-	changelog(version++,"%u|AQUIRE(%u,%u)",main_time(),inode,cuid);
+	changelog(version++,"%"PRIu32"|AQUIRE(%"PRIu32",%"PRIu32")",(uint32_t)main_time(),inode,cuid);
 #else
 	version++;
 #endif
@@ -3107,7 +3128,7 @@ uint8_t fs_release(uint32_t inode,uint32_t cuid) {
 			*crp = cr->next;
 			cuidrec_free(cr);
 #ifndef METARESTORE
-			changelog(version++,"%u|RELEASE(%u,%u)",main_time(),inode,cuid);
+			changelog(version++,"%"PRIu32"|RELEASE(%"PRIu32",%"PRIu32")",(uint32_t)main_time(),inode,cuid);
 #else
 			version++;
 #endif
@@ -3124,7 +3145,7 @@ uint8_t fs_release(uint32_t inode,uint32_t cuid) {
 
 #ifndef METARESTORE
 uint32_t fs_newcuid(void) {
-	changelog(version++,"%u|CUSTOMER():%u",main_time(),nextcuid);
+	changelog(version++,"%"PRIu32"|CUSTOMER():%"PRIu32,(uint32_t)main_time(),nextcuid);
 	return nextcuid++;
 }
 #else
@@ -3158,7 +3179,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 	}
 	*length = p->data.fdata.length;
 	p->atime = main_time();
-	changelog(version++,"%u|ACCESS(%u)",main_time(),inode);
+	changelog(version++,"%"PRIu32"|ACCESS(%"PRIu32")",(uint32_t)main_time(),inode);
 	stats_read++;
 	return STATUS_OK;
 }
@@ -3218,7 +3239,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 	p->data.fdata.chunktab[indx] = nchunkid;
 	*chunkid = nchunkid;
 	*length = p->data.fdata.length;
-	changelog(version++,"%u|WRITE(%u,%u):%llu",main_time(),inode,indx,nchunkid);
+	changelog(version++,"%"PRIu32"|WRITE(%"PRIu32",%"PRIu32"):%"PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
 	p->mtime = p->ctime = main_time();
 	stats_write++;
 	return STATUS_OK;
@@ -3301,7 +3322,7 @@ uint8_t fs_reinitchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid) {
 	if (status!=STATUS_OK) {
 		return status;
 	}
-	changelog(version++,"%u|REINIT(%u,%u):%llu",main_time(),inode,indx,nchunkid);
+	changelog(version++,"%"PRIu32"|REINIT(%"PRIu32",%"PRIu32"):%"PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
 	*chunkid = nchunkid;
 	p->mtime = p->ctime = main_time();
 	return STATUS_OK;
@@ -3356,17 +3377,17 @@ uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid) {
 		if (length>p->data.fdata.length) {
 			fsnodes_setlength(p,length);
 			p->mtime = p->ctime = main_time();
-			changelog(version++,"%u|LENGTH(%u,%llu)",main_time(),inode,length);
+			changelog(version++,"%"PRIu32"|LENGTH(%"PRIu32",%"PRIu64")",(uint32_t)main_time(),inode,length);
 		}
 	}
-	changelog(version++,"%u|UNLOCK(%llu)",main_time(),chunkid);
+	changelog(version++,"%"PRIu32"|UNLOCK(%"PRIu64")",(uint32_t)main_time(),chunkid);
 	return chunk_unlock(chunkid);
 }
 #endif
 
 #ifndef METARESTORE
 void fs_incversion(uint64_t chunkid) {
-	changelog(version++,"%u|INCVERSION(%llu)",main_time(),chunkid);
+	changelog(version++,"%"PRIu32"|INCVERSION(%"PRIu64")",(uint32_t)main_time(),chunkid);
 }
 #else
 uint8_t fs_incversion(uint64_t chunkid) {
@@ -3392,13 +3413,13 @@ uint8_t fs_getgoal(uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgta
 	}
 	if (p->type!=TYPE_DIRECTORY || gmode==GMODE_NORMAL) {
 		if (p->goal>9) {
-			syslog(LOG_WARNING,"inode %u: goal>9 !!! - fixing",inode);
+			syslog(LOG_WARNING,"inode %"PRIu32": goal>9 !!! - fixing",inode);
 			p->goal=9;
 			if (p->type!=TYPE_DIRECTORY) {
 				fsnodes_setchunksgoal(p);
 			}
 		} else if (p->goal<1) {
-			syslog(LOG_WARNING,"inode %u: goal<1 !!! - fixing",inode);
+			syslog(LOG_WARNING,"inode %"PRIu32": goal<1 !!! - fixing",inode);
 			p->goal=1;
 			if (p->type!=TYPE_DIRECTORY) {
 				fsnodes_setchunksgoal(p);
@@ -3544,7 +3565,7 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 	}
 	
 #ifndef METARESTORE
-	changelog(version++,"%u|SETGOAL(%u,%u,%u,%u):%u,%u,%u",ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes);
+	changelog(version++,"%"PRIu32"|SETGOAL(%"PRIu32",%"PRIu32",%"PRIu8",%"PRIu8"):%"PRIu32",%"PRIu32",%"PRIu32,ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes);
 	return STATUS_OK;
 #else
 	version++;
@@ -3634,7 +3655,7 @@ uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashti
 	}
 	
 #ifndef METARESTORE
-	changelog(version++,"%u|SETTRASHTIME(%u,%u,%u,%u):%u,%u,%u",ts,inode,uid,trashtime,smode,*sinodes,*ncinodes,*nsinodes);
+	changelog(version++,"%"PRIu32"|SETTRASHTIME(%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu8"):%"PRIu32",%"PRIu32",%"PRIu32,ts,inode,uid,trashtime,smode,*sinodes,*ncinodes,*nsinodes);
 	return STATUS_OK;
 #else
 	version++;
@@ -3685,10 +3706,10 @@ void fs_add_files_to_chunks() {
 	uint64_t chunkid;
 	fsnode *f;
 #ifndef METARESTORE
-	syslog(LOG_NOTICE,"inodes: %u",nodes);
-	syslog(LOG_NOTICE,"dirnodes: %u",dirnodes);
-	syslog(LOG_NOTICE,"filenodes: %u",filenodes);
-	syslog(LOG_NOTICE,"chunks: %u",chunk_count());
+	syslog(LOG_NOTICE,"inodes: %"PRIu32,nodes);
+	syslog(LOG_NOTICE,"dirnodes: %"PRIu32,dirnodes);
+	syslog(LOG_NOTICE,"filenodes: %"PRIu32,filenodes);
+	syslog(LOG_NOTICE,"chunks: %"PRIu32,chunk_count());
 #endif
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		for (f=nodehash[i] ; f ; f=f->next) {
@@ -3707,11 +3728,11 @@ void fs_add_files_to_chunks() {
 #ifndef METARESTORE
 
 void fs_show_counts() {
-	syslog(LOG_NOTICE,"inodes: %u",nodes);
-	syslog(LOG_NOTICE,"dirnodes: %u",dirnodes);
-	syslog(LOG_NOTICE,"filenodes: %u",filenodes);
-	syslog(LOG_NOTICE,"chunks: %u",chunk_count());
-	syslog(LOG_NOTICE,"chunks to delete: %u",chunk_todel_count());
+	syslog(LOG_NOTICE,"inodes: %"PRIu32,nodes);
+	syslog(LOG_NOTICE,"dirnodes: %"PRIu32,dirnodes);
+	syslog(LOG_NOTICE,"filenodes: %"PRIu32,filenodes);
+	syslog(LOG_NOTICE,"chunks: %"PRIu32,chunk_count());
+	syslog(LOG_NOTICE,"chunks to delete: %"PRIu32,chunk_todel_count());
 }
 
 void fs_test_getdata(uint32_t *loopstart,uint32_t *loopend,uint32_t *files,uint32_t *ugfiles,uint32_t *mfiles,uint32_t *chunks,uint32_t *ugchunks,uint32_t *mchunks,char **msgbuff,uint32_t *msgbuffleng) {
@@ -3731,25 +3752,25 @@ uint32_t fs_test_log_inconsistency(fsedge *e,const char *iname,char *buff,uint32
 	uint32_t leng;
 	leng=0;
 	if (e->parent) {
-		syslog(LOG_ERR,"structure error - %s inconsistency (edge: %u,%s -> %u)",iname,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+		syslog(LOG_ERR,"structure error - %s inconsistency (edge: %"PRIu32",%s -> %"PRIu32")",iname,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 		if (leng<size) {
-			leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: %u,%s -> %u)\n",iname,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+			leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: %"PRIu32",%s -> %"PRIu32")\n",iname,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 		}
 	} else {
 		if (e->child->type==TYPE_TRASH) {
-			syslog(LOG_ERR,"structure error - %s inconsistency (edge: TRASH,%s -> %u)",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+			syslog(LOG_ERR,"structure error - %s inconsistency (edge: TRASH,%s -> %"PRIu32")",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			if (leng<size) {
-				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: TRASH,%s -> %u)\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: TRASH,%s -> %"PRIu32")\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			}
 		} else if (e->child->type==TYPE_RESERVED) {
-			syslog(LOG_ERR,"structure error - %s inconsistency (edge: RESERVED,%s -> %u)",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+			syslog(LOG_ERR,"structure error - %s inconsistency (edge: RESERVED,%s -> %"PRIu32")",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			if (leng<size) {
-				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: RESERVED,%s -> %u)\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: RESERVED,%s -> %"PRIu32")\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			}
 		} else {
-			syslog(LOG_ERR,"structure error - %s inconsistency (edge: NULL,%s -> %u)",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+			syslog(LOG_ERR,"structure error - %s inconsistency (edge: NULL,%s -> %"PRIu32")",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			if (leng<size) {
-				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: NULL,%s -> %u)\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+				leng += snprintf(buff+leng,size-leng,"structure error - %s inconsistency (edge: NULL,%s -> %"PRIu32")\n",iname,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 			}
 		}
 	}
@@ -3819,16 +3840,16 @@ void fs_test_files() {
 					chunkid = f->data.fdata.chunktab[j];
 					if (chunkid>0) {
 						if (chunk_get_validcopies(chunkid,&vc)!=STATUS_OK) {
-							syslog(LOG_ERR,"structure error - chunk %llu not found (file: %u ; index: %u)",chunkid,f->id,j);
+							syslog(LOG_ERR,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - chunk %llu not found (file: %u ; index: %u)\n",chunkid,f->id,j);
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - chunk %"PRIu64" not found (file: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
 							}
 							valid =0;
 							mchunks++;
 						} else if (vc==0) {
-							syslog(LOG_ERR,"damaged chunk %llu (file: %u ; index: %u)",chunkid,f->id,j);
+							syslog(LOG_ERR,"damaged chunk %"PRIu64" (file: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged chunk %llu (file: %u ; index: %u)\n",chunkid,f->id,j);
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged chunk %"PRIu64" (file: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
 							}
 							valid = 0;
 							mchunks++;
@@ -3842,23 +3863,23 @@ void fs_test_files() {
 				if (valid==0) {
 					mfiles++;
 					if (f->type==TYPE_TRASH) {
-						syslog(LOG_ERR,"damaged file in trash %08X: %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+						syslog(LOG_ERR,"- damaged file in trash %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged file in trash %08X: %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"- damaged file in trash %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						}
 					} else if (f->type==TYPE_RESERVED) {
-						syslog(LOG_ERR,"damaged reserved file %08X: %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+						syslog(LOG_ERR,"+ damaged reserved file %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged reserved file %08X: %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"+ damaged reserved file %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						}
 					} else {
 						uint8_t *path;
 						uint16_t pleng;
 						for (e=f->parents ; e ; e=e->nextparent) {
 							fsnodes_getpath(e,&pleng,&path);
-							syslog(LOG_ERR,"damaged file %08X: %s",f->id,fsnodes_escape_name(pleng,path));
+							syslog(LOG_ERR,"* damaged file %"PRIu32": %s",f->id,fsnodes_escape_name(pleng,path));
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged file %08X: %s\n",f->id,fsnodes_escape_name(pleng,path));
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"* damaged file %"PRIu32": %s\n",f->id,fsnodes_escape_name(pleng,path));
 							}
 							free(path);
 						}
@@ -3871,14 +3892,14 @@ void fs_test_files() {
 			for (e=f->parents ; e ; e=e->nextparent) {
 				if (e->child != f) {
 					if (e->parent) {
-						syslog(LOG_ERR,"structure error - edge->child/child->edges (node: %u ; edge: %u,%s -> %u)",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+						syslog(LOG_ERR,"structure error - edge->child/child->edges (node: %"PRIu32" ; edge: %"PRIu32",%s -> %"PRIu32")",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->child/child->edges (node: %u ; edge: %u,%s -> %u)\n",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->child/child->edges (node: %"PRIu32" ; edge: %"PRIu32",%s -> %"PRIu32")\n",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 						}
 					} else {
-						syslog(LOG_ERR,"structure error - edge->child/child->edges (node: %u ; edge: NULL,%s -> %u)",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+						syslog(LOG_ERR,"structure error - edge->child/child->edges (node: %"PRIu32" ; edge: NULL,%s -> %"PRIu32")",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->child/child->edges (node: %u ; edge: NULL,%s -> %u)\n",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->child/child->edges (node: %"PRIu32" ; edge: NULL,%s -> %"PRIu32")\n",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 						}
 					}
 				} else if (e->nextchild) {
@@ -3913,14 +3934,14 @@ void fs_test_files() {
 				for (e=f->data.ddata.children ; e ; e=e->nextchild) {
 					if (e->parent != f) {
 						if (e->parent) {
-							syslog(LOG_ERR,"structure error - edge->parent/parent->edges (node: %u ; edge: %u,%s -> %u)",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+							syslog(LOG_ERR,"structure error - edge->parent/parent->edges (node: %"PRIu32" ; edge: %"PRIu32",%s -> %"PRIu32")",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->parent/parent->edges (node: %u ; edge: %u,%s -> %u)\n",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->parent/parent->edges (node: %"PRIu32" ; edge: %"PRIu32",%s -> %"PRIu32")\n",f->id,e->parent->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 							}
 						} else {
-							syslog(LOG_ERR,"structure error - edge->parent/parent->edges (node: %u ; edge: NULL,%s -> %u)",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+							syslog(LOG_ERR,"structure error - edge->parent/parent->edges (node: %"PRIu32" ; edge: NULL,%s -> %"PRIu32")",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->parent/parent->edges (node: %u ; edge: NULL,%s -> %u)\n",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"structure error - edge->parent/parent->edges (node: %"PRIu32" ; edge: NULL,%s -> %"PRIu32")\n",f->id,fsnodes_escape_name(e->nleng,e->name),e->child->id);
 							}
 						}
 					} else if (e->nextchild) {
@@ -3985,7 +4006,7 @@ uint8_t fs_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes) {
 		}
 	}
 #ifndef METARESTORE
-	changelog(version++,"%u|EMPTYTRASH():%u,%u",ts,fi,ri);
+	changelog(version++,"%"PRIu32"|EMPTYTRASH():%"PRIu32",%"PRIu32,ts,fi,ri);
 #else
 	version++;
 	if (freeinodes!=fi || reservedinodes!=ri) {
@@ -4018,7 +4039,7 @@ uint8_t fs_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 		}
 	}
 #ifndef METARESTORE
-	changelog(version++,"%u|EMPTYRESERVED():%u",ts,fi);
+	changelog(version++,"%"PRIu32"|EMPTYRESERVED():%"PRIu32,ts,fi);
 #else
 	version++;
 	if (freeinodes!=fi) {
@@ -4045,14 +4066,14 @@ enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 void fs_dumpedge(fsedge *e) {
 	if (e->parent==NULL) {
 		if (e->child->type==TYPE_TRASH) {
-			printf("E|p:   TRASH|c:%08X|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			printf("E|p:     TRASH|c:%10"PRIu32"|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		} else if (e->child->type==TYPE_RESERVED) {
-			printf("E|p:RESERVED|c:%08X|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			printf("E|p:  RESERVED|c:%10"PRIu32"|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		} else {
-			printf("E|p:    NULL|c:%08X|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			printf("E|p:      NULL|c:%10"PRIu32"|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		}
 	} else {
-		printf("E|p:%08X|c:%08X|n:%s\n",e->parent->id,e->child->id,fsnodes_escape_name(e->nleng,e->name));
+		printf("E|p:%10"PRIu32"|c:%10"PRIu32"|n:%s\n",e->parent->id,e->child->id,fsnodes_escape_name(e->nleng,e->name));
 	}
 }
 
@@ -4097,14 +4118,14 @@ void fs_dumpnode(fsnode *f) {
 //		c='R';
 //	}
 
-	printf("%c|i:%08X|#:%d|m:%05o|u:%10u|g:%10u|a:%10u,m:%10u,c:%10u|t:%10u",c,f->id,f->goal,f->mode,f->uid,f->gid,f->atime,f->mtime,f->ctime,f->trashtime);
+	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|m:%05"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,f->id,f->goal,f->mode,f->uid,f->gid,f->atime,f->mtime,f->ctime,f->trashtime);
 
 	if (f->type==TYPE_BLOCKDEV || f->type==TYPE_CHARDEV) {
-		printf("|d:%5u,%5u\n",f->data.rdev>>16,f->data.rdev&0xFFFF);
+		printf("|d:%5"PRIu32",%5"PRIu32"\n",f->data.rdev>>16,f->data.rdev&0xFFFF);
 	} else if (f->type==TYPE_SYMLINK) {
 		printf("|p:%s\n",fsnodes_escape_name(f->data.sdata.pleng,f->data.sdata.path));
 	} else if (f->type==TYPE_FILE || f->type==TYPE_TRASH || f->type==TYPE_RESERVED) {
-		printf("|l:%20llu|c:(",f->data.fdata.length);
+		printf("|l:%20"PRIu64"|c:(",f->data.fdata.length);
 		ch = 0;
 		for (i=0 ; i<f->data.fdata.chunks ; i++) {
 			if (f->data.fdata.chunktab[i]!=0) {
@@ -4113,7 +4134,7 @@ void fs_dumpnode(fsnode *f) {
 		}
 		for (i=0 ; i<ch ; i++) {
 			if (f->data.fdata.chunktab[i]!=0) {
-				printf("%016llX",f->data.fdata.chunktab[i]);
+				printf("%016"PRIX64,f->data.fdata.chunktab[i]);
 			} else {
 				printf("N");
 			}
@@ -4123,7 +4144,7 @@ void fs_dumpnode(fsnode *f) {
 		}
 		printf(")|r:(");
 		for (cuidptr=f->data.fdata.cuids ; cuidptr ; cuidptr=cuidptr->next) {
-			printf("%u",cuidptr->cuid);
+			printf("%"PRIu32,cuidptr->cuid);
 			if (cuidptr->next) {
 				printf(",");
 			}
@@ -4164,7 +4185,7 @@ void fs_dumpedges(fsnode *f) {
 void fs_dumpfree() {
 	freenode *n;
 	for (n=freelist ; n ; n=n->next) {
-		printf("I|i:%08X|f:%10u\n",n->id,n->ftime);
+		printf("I|i:%10"PRIu32"|f:%10"PRIu32"\n",n->id,n->ftime);
 	}
 }
 
@@ -4258,9 +4279,9 @@ int fs_loadedge(FILE *fd) {
 	e->child = fsnodes_id_to_node(child_id);
 	if (e->child==NULL) {
 #ifdef METARESTORE
-		fprintf(stderr,"loading edge: %u,%s->%u error: child not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+		fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #else
-		syslog(LOG_ERR,"loading edge: %u,%s->%u error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+		syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 		free(e->name);
 		free(e);
@@ -4297,9 +4318,9 @@ int fs_loadedge(FILE *fd) {
 			reservednodes++;
 		} else {
 #ifdef METARESTORE
-			fprintf(stderr,"loading edge: %u,%s->%u error: bad child type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
+			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad child type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
 #else
-			syslog(LOG_ERR,"loading edge: %u,%s->%u error: bad child type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
+			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad child type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
 #endif
 			free(e->name);
 			free(e);
@@ -4309,9 +4330,9 @@ int fs_loadedge(FILE *fd) {
 		e->parent = fsnodes_id_to_node(parent_id);
 		if (e->parent==NULL) {
 #ifdef METARESTORE
-			fprintf(stderr,"loading edge: %u,%s->%u error: parent not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #else
-			syslog(LOG_ERR,"loading edge: %u,%s->%u error: parent not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 			free(e->name);
 			free(e);
@@ -4319,9 +4340,9 @@ int fs_loadedge(FILE *fd) {
 		}
 		if (e->parent->type!=TYPE_DIRECTORY) {
 #ifdef METARESTORE
-			fprintf(stderr,"loading edge: %u,%s->%u error: bad parent type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
+			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad parent type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
 #else
-			syslog(LOG_ERR,"loading edge: %u,%s->%u error: bad parent type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
+			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad parent type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
 #endif
 			free(e->name);
 			free(e);
@@ -4693,9 +4714,9 @@ int fs_lostnode(fsnode *p) {
 	i=0;
 	do {
 		if (i==0) {
-			l = snprintf((char*)artname,40,"lost_node_%u",p->id);
+			l = snprintf((char*)artname,40,"lost_node_%"PRIu32,p->id);
 		} else {
-			l = snprintf((char*)artname,40,"lost_node_%u.%u",p->id,i);
+			l = snprintf((char*)artname,40,"lost_node_%"PRIu32".%"PRIu32,p->id,i);
 		}
 		if (!fsnodes_nameisused(root,l,artname)) {
 			fsnodes_link(0,root,p,l,artname);
@@ -4713,9 +4734,9 @@ int fs_checknodes() {
 		for (p=nodehash[i] ; p ; p=p->next) {
 			if (p->parents==NULL && p!=root) {
 #ifdef METARESTORE
-				fprintf(stderr,"fschk: found lost inode: %08X\n",p->id);
+				fprintf(stderr,"fschk: found lost inode: %"PRIu32"\n",p->id);
 #else
-				syslog(LOG_ERR,"fschk: found lost inode: %08X",p->id);
+				syslog(LOG_ERR,"fschk: found lost inode: %"PRIu32,p->id);
 #endif
 				if (fs_lostnode(p)<0) {
 					return -1;

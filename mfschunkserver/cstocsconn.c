@@ -130,7 +130,7 @@ void cstocsconn_got_chunk_blocks(cstocsconnentry *eptr,uint8_t *data,uint32_t le
 		return;
 	}
 	if (length!=8+4+2+1) {
-		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS_STATUS - wrong size (%d/15)",length);
+		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS_STATUS - wrong size (%"PRIu32"/15)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -138,7 +138,7 @@ void cstocsconn_got_chunk_blocks(cstocsconnentry *eptr,uint8_t *data,uint32_t le
 	GET32BIT(version,data);
 	GET16BIT(blocks,data);
 	GET8BIT(status,data);
-	//syslog(LOG_NOTICE,"got chunk length: %llu,%u,%u,%u",chunkid,version,length,status);
+	//syslog(LOG_NOTICE,"got chunk length: %"PRIu64",%"PRIu32",%"PRIu32",%"PRIu8,chunkid,version,length,status);
 	if (status!=STATUS_OK) {
 		replicator_cstocs_gotstatus(eptr->ptr,chunkid,status);
 		return;
@@ -186,7 +186,7 @@ void cstocsconn_readdata(cstocsconnentry *eptr,uint8_t *data,uint32_t length) {
 		return;
 	}
 	if (length<8+2+2+4+4) {
-		syslog(LOG_NOTICE,"CSTOCU_READ_DATA - wrong size (%d/20+size)",length);
+		syslog(LOG_NOTICE,"CSTOCU_READ_DATA - wrong size (%"PRIu32"/20+size)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -196,7 +196,7 @@ void cstocsconn_readdata(cstocsconnentry *eptr,uint8_t *data,uint32_t length) {
 	GET32BIT(size,data);
 	GET32BIT(crc,data);
 	if (length!=8+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CSTOCU_READ_DATA - wrong size (%d/20+%d)",length,size);
+		syslog(LOG_NOTICE,"CSTOCU_READ_DATA - wrong size (%"PRIu32"/20+%"PRIu32")",length,size);
 		eptr->mode = KILL;
 		return;
 	}
@@ -210,7 +210,7 @@ void cstocsconn_readstatus(cstocsconnentry *eptr,uint8_t *data,uint32_t length) 
 		return;
 	}
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOCU_READ_STATUS - wrong size (%d/9)",length);
+		syslog(LOG_NOTICE,"CSTOCU_READ_STATUS - wrong size (%"PRIu32"/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -228,14 +228,14 @@ void cstocsconn_writestatus(cstocsconnentry *eptr,uint8_t *data,uint32_t length)
 		return;
 	}
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCU_WRITE_STATUS - wrong size (%d/13)",length);
+		syslog(LOG_NOTICE,"CSTOCU_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	GET64BIT(chunkid,data);
 	GET32BIT(writeid,data);
 	GET8BIT(s,data);
-//	syslog(LOG_NOTICE,"%llu,%d",(unsigned long long int)chunkid,s);
+//	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu8,chunkid,s);
 	csserv_cstocs_gotstatus(eptr->ptr,chunkid,writeid,s);
 }
 
@@ -322,7 +322,7 @@ void cstocsconn_gotpacket(cstocsconnentry *eptr,uint32_t type,uint8_t *data,uint
 			cstocsconn_writestatus(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%d)",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
 	}
 }
 
@@ -370,7 +370,7 @@ void cstocsconn_connected(cstocsconnentry *eptr) {
 
 int cstocsconn_initconnect(cstocsconnentry *eptr,uint32_t ip,uint16_t port) {
 	int status;
-//	syslog(LOG_NOTICE,"connecting to: %08X:%d",ip,port);
+//	syslog(LOG_NOTICE,"connecting to: %08"PRIX32":%"PRIu16"",ip,port);
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
 		syslog(LOG_WARNING,"create socket, error: %m");
@@ -443,7 +443,7 @@ void cstocsconn_read(cstocsconnentry *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"packet too long (%u/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
 				eptr->mode = KILL;
 				return;
 			}

@@ -164,8 +164,7 @@ static uint32_t HashSteps;
 //#define LOOPTIME 3600
 //#define HASHSTEPS (1+((HASHSIZE)/(LOOPTIME)))
 
-#define MAXDIFFERENCE 0.02
-#define MINMAXRND 0.01
+#define ACCEPTABLE_DIFFERENCE 0.01
 
 static uint32_t jobshpos;
 //static chunk **jobscptr;
@@ -353,7 +352,7 @@ int chunk_cfg_load() {
 		}
 	}
 	fclose(fd);
-	syslog(LOG_NOTICE,"chunks: new cfg loaded - (%u,%u,%u,%u)",MaxDel,MaxRepl,LoopTime,HashSteps);
+	syslog(LOG_NOTICE,"chunks: new cfg loaded - (%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32")",MaxDel,MaxRepl,LoopTime,HashSteps);
 	return 0;
 }
 
@@ -728,7 +727,7 @@ int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx) {
 		}
 	}
 	if (i==0) {
-		syslog(LOG_WARNING,"(delete file) serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)",chunkid,inode,indx);
+		syslog(LOG_WARNING,"(delete file) serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
 	}
 	return STATUS_OK;
 }
@@ -763,7 +762,7 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
 			c->goal = goal;
 		}
 	} else {
-		syslog(LOG_WARNING,"(add file) serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)",chunkid,inode,indx);
+		syslog(LOG_WARNING,"(add file) serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
 	}
 	return STATUS_OK;
 }
@@ -951,9 +950,9 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 		} else {
 			if (f==NULL) {	// it's serious structure error
 #ifndef METARESTORE
-				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)",ochunkid,inode,indx);
+				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
 #else
-				printf("serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)\n",ochunkid,inode,indx);
+				printf("serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
 #endif
 				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 			}
@@ -1072,9 +1071,9 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 	} else {
 		if (f==NULL) {	// it's serious structure error
 #ifndef METARESTORE
-				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)",ochunkid,inode,indx);
+				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
 #else
-				printf("serious structure inconsistency: (chunkid:%llu ; inode:%u ; index:%u)\n",ochunkid,inode,indx);
+				printf("serious structure inconsistency: (chunkid:%"PRIu64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
 #endif
 			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 		}
@@ -1266,7 +1265,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%llu:%u), so create it for future deletion",chunkid,version);
+		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%"PRIu64":%"PRIu32"), so create it for future deletion",chunkid,version);
 		c = chunk_new(chunkid);
 		c->version = version;
 	}
@@ -1296,7 +1295,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%llu), so create it for future deletion",chunkid);
+		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%"PRIu64"), so create it for future deletion",chunkid);
 		c = chunk_new(chunkid);
 		c->version = 0;
 	}
@@ -1626,13 +1625,13 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 	}
 
-//	syslog(LOG_WARNING,"chunk %016llX: ivc=%u , tdc=%u , vc=%u , bc=%u , dc=%u , goal=%u",c->chunkid,ivc,tdc,vc,bc,dc,c->goal); 
+//	syslog(LOG_WARNING,"chunk %016"PRIX64": ivc=%"PRIu32" , tdc=%"PRIu32" , vc=%"PRIu32" , bc=%"PRIu32" , dc=%"PRIu32" , goal=%"PRIu8,c->chunkid,ivc,tdc,vc,bc,dc,c->goal); 
 
 // step 2. check number of copies
 	if (tdc+vc+bc==0 && ivc>0 && c->flisthead) {
-		syslog(LOG_WARNING,"chunk %llu has only invalid copies (%u) - please repair it manually\n",c->chunkid,ivc);
+		syslog(LOG_WARNING,"chunk %"PRIu64" has only invalid copies (%"PRIu32") - please repair it manually\n",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
-			syslog(LOG_NOTICE,"chunk %llu (%016llX:%08X) - invalid copy on (%s)",c->chunkid,c->chunkid,c->version,matocsserv_getstrip(s->ptr));
+			syslog(LOG_NOTICE,"chunk %"PRIu64" (%016"PRIX64":%08"PRIX32") - invalid copy on (%s)",c->chunkid,c->chunkid,c->version,matocsserv_getstrip(s->ptr));
 		}
 		return ;
 	}
@@ -1665,7 +1664,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 5. check busy count
 	if (bc>0) {
-		syslog(LOG_WARNING,"chunk %llu has unexpected BUSY copies",c->chunkid);
+		syslog(LOG_WARNING,"chunk %"PRIu64" has unexpected BUSY copies",c->chunkid);
 		return ;
 	}
 
@@ -1723,7 +1722,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	if (vc > c->goal) {
 		if (jobsdelcount<MaxDel) {
 			if (servcount==0) {
-				servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
+				servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
 			}
 			for (i=0 ; i<servcount && vc>c->goal ; i++) {
 				for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
@@ -1863,25 +1862,45 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 // step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>MAXDIFFERENCE) {
+	if (c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>ACCEPTABLE_DIFFERENCE) {
 		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
+			servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
 		}
-		if (min>0 && max>0) {
+		if (min>0 || max>0) {
 			void *srcserv=NULL;
 			void *dstserv=NULL;
-			for (i=0 ; i<max && srcserv==NULL ; i++) {
-				for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
-				if (s && (s->valid==VALID || s->valid==TDVALID)) {
-					srcserv=s->ptr;
+			if (max>0) {
+				for (i=0 ; i<max && srcserv==NULL ; i++) {
+					for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+					if (s && (s->valid==VALID || s->valid==TDVALID)) {
+						srcserv=s->ptr;
+					}
+				}
+			} else {
+				for (i=0 ; i<(servcount-min) && srcserv==NULL ; i++) {
+					for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+					if (s && (s->valid==VALID || s->valid==TDVALID)) {
+						srcserv=s->ptr;
+					}
 				}
 			}
 			if (srcserv!=NULL) {
-				for (i=0 ; i<min && dstserv==NULL ; i++) {
-					if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
-						if (s==NULL) {
-							dstserv=ptrs[i];
+				if (min>0) {
+					for (i=0 ; i<min && dstserv==NULL ; i++) {
+						if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
+							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
+							if (s==NULL) {
+								dstserv=ptrs[i];
+							}
+						}
+					}
+				} else {
+					for (i=0 ; i<servcount-max && dstserv==NULL ; i++) {
+						if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
+							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
+							if (s==NULL) {
+								dstserv=ptrs[i];
+							}
 						}
 					}
 				}
@@ -1899,7 +1918,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 9. if there is too big difference between chunkservers then make copy on server with lowest disk usage
 /*
-	if (jobscopycount<MaxRepl && c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>MAXDIFFERENCE) {
+	if (jobscopycount<MaxRepl && c->replserv==NULL && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>ACCEPTABLE_DIFFERENCE) {
 		if (servcount==0) {
 			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
 		}
@@ -2072,7 +2091,7 @@ void chunk_dump(void) {
 			if (lockedto<now) {
 				lockedto = 0;
 			}
-			printf("*|i:%016llX|v:%08X|g:%u|t:%10u\n",c->chunkid,c->version,c->goal,c->lockedto);
+			printf("*|i:%016"PRIX64"|v:%08"PRIX32"|g:%"PRIu8"|t:%10"PRIu32"\n",c->chunkid,c->version,c->goal,c->lockedto);
 		}
 	}
 }

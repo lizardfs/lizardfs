@@ -7,9 +7,9 @@ mfsmount_CFLAGS=$(FUSE_CFLAGS)
 
 mfsmount_SOURCES=\
 	mfs_fuse.c mfs_meta_fuse.c mastercomm.c cscomm.c crc.c sockets.c \
-	readdata.c writedata.c main.c \
+	readdata.c writedata.c csdb.c main.c \
 	crc.h cscomm.h datapack.h mastercomm.h mfs_fuse.h mfs_meta_fuse.h \
-	readdata.h sockets.h writedata.h \
+	readdata.h sockets.h writedata.h csdb.h \
 	../MFSCommunication.h
 
 mfstools_SOURCES=\

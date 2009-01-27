@@ -221,7 +221,7 @@ void csserv_read_init(csserventry *eptr,uint8_t *data,uint32_t length) {
 		return;
 	}
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_READ - wrong size (%d/20)",length);
+		syslog(LOG_NOTICE,"CUTOCS_READ - wrong size (%"PRIu32"/20)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -289,7 +289,7 @@ void csserv_write_init(csserventry *eptr,uint8_t *data,uint32_t length) {
 		return;
 	}
 	if (length<8+4 || (((length-(8+4))%(4+2))!=0)) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE - wrong size (%d/12+N*6)",length);
+		syslog(LOG_NOTICE,"CUTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -405,7 +405,7 @@ void csserv_write_data(csserventry *eptr,uint8_t *data,uint32_t length) {
 		return; // just ignore this packet
 	}
 	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%d/24+size)",length);
+		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -416,7 +416,7 @@ void csserv_write_data(csserventry *eptr,uint8_t *data,uint32_t length) {
 	GET32BIT(size,data);
 	GET32BIT(crc,data);
 	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%d/24+%d)",length,size);
+		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
 		eptr->mode = KILL;
 		return;
 	}
@@ -519,7 +519,7 @@ void csserv_get_chunk_blocks(csserventry *eptr,uint8_t *data,uint32_t length) {
 	uint16_t blocks;
 	
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -545,7 +545,7 @@ void csserv_chunk_checksum(csserventry *eptr,uint8_t *data,uint32_t length) {
 	uint32_t checksum;
 	
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -578,7 +578,7 @@ void csserv_chunk_checksum_tab(csserventry *eptr,uint8_t *data,uint32_t length) 
 	uint8_t crctab[4096];
 	
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%d/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -609,7 +609,7 @@ void csserv_hdd_list(csserventry *eptr,uint8_t *data,uint32_t length) {
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST - wrong size (%d/0)",length);
+		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -628,7 +628,7 @@ void csserv_chart(csserventry *eptr,uint8_t *data,uint32_t length) {
 	uint32_t l;
 	
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART - wrong size (%d/4)",length);
+		syslog(LOG_NOTICE,"CUTOAN_CHART - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -650,7 +650,7 @@ void csserv_chart_data(csserventry *eptr,uint8_t *data,uint32_t length) {
 	uint32_t l;
 	
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART_DATA - wrong size (%d/4)",length);
+		syslog(LOG_NOTICE,"CUTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -722,7 +722,7 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,uint8_t *data,uint32_t len
 			csserv_chart_data(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%d)",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
 			eptr->mode = KILL;
 	}
 }
@@ -799,7 +799,7 @@ void csserv_read(csserventry *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"packet too long (%u/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
 				eptr->mode = KILL;
 				return;
 			}

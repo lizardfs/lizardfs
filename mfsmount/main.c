@@ -34,6 +34,7 @@
 #include "mastercomm.h"
 #include "readdata.h"
 #include "writedata.h"
+#include "csdb.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -98,7 +99,7 @@ static struct fuse_lowlevel_ops mfs_oper = {
 };
 
 void usage(const char *name) {
-	fprintf(stderr,"mfsmount v. %d.%d.%d\n",VERSMAJ,VERSMID,VERSMIN);
+	fprintf(stderr,"mfsmount v. %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
 	fprintf(stderr,"usage: %s [-r][-m][-c] [-v 0..2] [-h master host] [-p master port] [-l path] [-w mount point]\n",name);
 	fprintf(stderr,"\nr: readonly mode\nm: mount metadata\nc: allow using cache\nv: verbose level\n");
 	fprintf(stderr,"\ndefaults:\n\th: mfsmaster\n\tp: 9421\n\tl: /\n\tw: /mnt/mfs\n");
@@ -293,6 +294,7 @@ int main(int argc, char *argv[]) {
 	if (meta_mode==0) {
 		read_data_init();
 		write_data_init();
+		csdb_init();
 	}
 
 	err = fuse_session_loop_mt(se);

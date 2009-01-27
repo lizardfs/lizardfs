@@ -45,6 +45,8 @@
 
 #include "config.h"
 
+#define CLOSEDELAY 60
+
 #define CHUNKHDRSIZE (1024+4*1024)
 #define CHUNKHDRCRC 1024
 
@@ -53,6 +55,11 @@
 
 #define HASHSIZE 32768
 #define HASHPOS(chunkid) ((chunkid)&0x7FFF)
+
+typedef struct chunkwcrc {
+	uint64_t chunkid;
+	struct chunkwcrc *next;
+} chunkwcrc;
 
 struct folder;
 
@@ -68,6 +75,7 @@ typedef struct chunk {
 	uint32_t version;
 	uint16_t blocks;
 	uint16_t crcrefcount;
+	uint32_t lastactivity;
 	uint8_t crcchanged;
 	uint8_t *crc;
 	int fd;
@@ -108,6 +116,8 @@ typedef struct damaged {
 static folder *damagedhead=NULL;
 static folder *folderhead=NULL;
 static chunk* hashtab[HASHSIZE];
+
+static chunkwcrc *chunkswithcrc;
 
 static uint8_t hdrbuffer[CHUNKHDRSIZE];
 static uint8_t blockbuffer[0x10000];
@@ -273,7 +283,7 @@ void hdd_send_space() {
 			}
 		}
 		if (err) {
-			syslog(LOG_WARNING,"%d errors occurred in %d seconds on folder: %s",LASTERRSIZE,LASTERRTIME,f->path);
+			syslog(LOG_WARNING,"%u errors occurred in %u seconds on folder: %s",LASTERRSIZE,LASTERRTIME,f->path);
 			for (i=0 ; i<HASHSIZE ; i++) {
 				cptr = &(hashtab[i]);
 				while ((c=*cptr)) {
@@ -357,7 +367,7 @@ chunk* chunk_new(folder *f,uint64_t chunkid,uint32_t version) {
 		c-=10;
 		c+='A';
 	}
-	sprintf(new->filename+leng,"%c/chunk_%016llX_%08X.mfs",c,(unsigned long long int)chunkid,version);
+	sprintf(new->filename+leng,"%c/chunk_%016"PRIX64"_%08"PRIX32".mfs",c,chunkid,version);
 	new->chunkid = chunkid;
 	new->version = version;
 	new->blocks = 0;
@@ -426,24 +436,6 @@ folder* find_best_folder() {
 	}
 	return result;
 }
-
-/*
-char* make_folder_chunkid_filename(folder *f,uint64_t chunkid) {
-	char *name;
-	uint32_t leng;
-
-	leng = strlen(f->path);
-	name = (char*)malloc(leng+28);
-	memcpy(name,f->path,leng);
-	sprintf(name+leng,"/chunk_%16llu.mfs",chunkid);
-	return name;
-}
-
-char* make_chunk_filename(chunk *c) {
-	folder *f;
-	return make_folder_chunkid_filename(c->owner,c->chunkid);
-}
-*/
 
 /* interface */
 
@@ -622,6 +614,8 @@ int chunk_readcrc(chunk *c) {
 	stats_opr++;
 	stats_bytesr+=4096;
 	if (ret!=4096) {
+		free(c->crc);
+		c->crc = NULL;
 		return ERROR_IO;
 	}
 	return STATUS_OK;
@@ -651,33 +645,99 @@ int chunk_writecrc(chunk *c) {
 	return STATUS_OK;
 }
 
+void hdd_flush_crc() {
+	chunkwcrc **ccp,*cc;
+	chunk *c;
+	ccp = &chunkswithcrc;
+	while ((cc=*ccp)) {
+		c = chunk_find(cc->chunkid);
+		if (c) {
+			if (c->crcchanged) {
+				chunk_writecrc(c);
+			} else {
+				chunk_freecrc(c);
+			}
+			close(c->fd);
+			c->fd=-1;
+			*ccp = cc->next;
+			free(cc);
+		}
+	}
+}
+
+void hdd_check_crc() {
+	chunkwcrc **ccp,*cc;
+	chunk *c;
+	int status;
+	uint32_t now = main_time();
+	ccp = &chunkswithcrc;
+	while ((cc=*ccp)) {
+		c = chunk_find(cc->chunkid);
+		if (c && c->crcrefcount==0 && c->lastactivity+CLOSEDELAY<now) {
+			if (c->crcchanged) {
+				status = chunk_writecrc(c);
+				if (status!=STATUS_OK) {
+					syslog(LOG_WARNING,"hdd_check_crc: file:%s - write error (%d:%s)",c->filename,errno,strerror(errno));
+					hdd_error_occured(c);
+					masterconn_send_chunk_damaged(c->chunkid);
+				}
+			} else {
+				chunk_freecrc(c);
+			}
+			if (close(c->fd)<0) {
+				syslog(LOG_WARNING,"hdd_check_crc: file:%s - close error (%d:%s)",c->filename,errno,strerror(errno));
+				c->fd = -1;
+				hdd_error_occured(c);
+				masterconn_send_chunk_damaged(c->chunkid);
+			}
+			c->fd = -1;
+			*ccp = cc->next;
+			free(cc);
+		} else if (c==NULL) {
+			*ccp = cc->next;
+			free(cc);
+		} else {
+			ccp = &(cc->next);
+		}
+	}
+}
 
 int chunk_before_io_int(chunk *c) {
+	chunkwcrc *cc;
 	int status;
-//	syslog(LOG_NOTICE,"chunk: %llu - before io",(unsigned long long int)(c->chunkid));
+//	syslog(LOG_NOTICE,"chunk: %"PRIu64" - before io",c->chunkid);
 	if (c->crcrefcount==0) {
-		c->fd = open(c->filename,O_RDWR);
-		if (c->fd<0) {
-			syslog(LOG_WARNING,"chunk_before_io_int: file:%s - open error (%d:%s)",c->filename,errno,strerror(errno));
-			return ERROR_IO;	//read error - mark chunk as bad
+		if (c->crc==NULL) {
+			c->fd = open(c->filename,O_RDWR);
+			if (c->fd<0) {
+				syslog(LOG_WARNING,"chunk_before_io_int: file:%s - open error (%d:%s)",c->filename,errno,strerror(errno));
+				return ERROR_IO;	//read error - mark chunk as bad
+			}
+			status = chunk_readcrc(c);
+			if (status!=STATUS_OK) {
+				close(c->fd);
+				c->fd=-1;
+				syslog(LOG_WARNING,"chunk_before_io_int: file:%s - read error (%d:%s)",c->filename,errno,strerror(errno));
+				return status;
+			}
+			c->crcchanged=0;
+			cc = malloc(sizeof(chunkwcrc));
+			cc->chunkid = c->chunkid;
+			cc->next = chunkswithcrc;
+			chunkswithcrc = cc;
 		}
-		status = chunk_readcrc(c);
-		if (status!=STATUS_OK) {
-			close(c->fd);
-			syslog(LOG_WARNING,"chunk_before_io_int: file:%s - read error (%d:%s)",c->filename,errno,strerror(errno));
-			return status;
-		}
-		c->crcchanged=0;
 	}
 	c->crcrefcount++;
 	return STATUS_OK;
 }
 
 int chunk_after_io_int(chunk *c) {
-	int status;
-//	syslog(LOG_NOTICE,"chunk: %llu - after io",(unsigned long long int)(c->chunkid));
+//	int status;
+//	syslog(LOG_NOTICE,"chunk: %"PRIu64" - after io",c->chunkid);
 	c->crcrefcount--;
 	if (c->crcrefcount==0) {
+		c->lastactivity = main_time();
+/*
 		if (c->crcchanged) {
 			status = chunk_writecrc(c);
 			if (status!=STATUS_OK) {
@@ -693,6 +753,7 @@ int chunk_after_io_int(chunk *c) {
 			return ERROR_IO;
 		}
 		c->fd = -1;
+*/
 	}
 	return STATUS_OK;
 }
@@ -1257,7 +1318,7 @@ int set_chunk_version(uint64_t chunkid,uint32_t version,uint32_t oldversion) {
 			return ERROR_OUTOFMEMORY;
 		}
 		memcpy(newfilename,c->filename,filenameleng+1);
-		sprintf(newfilename+filenameleng-12,"%08X.mfs",version);
+		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",version);
 		if (rename(c->filename,newfilename)<0) {
 			syslog(LOG_WARNING,"set_chunk_version: file:%s - rename error (%d:%s)",c->filename,errno,strerror(errno));
 			hdd_error_occured(c);
@@ -1324,7 +1385,7 @@ int truncate_chunk(uint64_t chunkid,uint32_t length,uint32_t version,uint32_t ol
 			return ERROR_OUTOFMEMORY;
 		}
 		memcpy(newfilename,c->filename,filenameleng+1);
-		sprintf(newfilename+filenameleng-12,"%08X.mfs",version);
+		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",version);
 		if (rename(c->filename,newfilename)<0) {
 			syslog(LOG_WARNING,"truncate_chunk: file:%s - rename error (%d:%s)",c->filename,errno,strerror(errno));
 			free(newfilename);
@@ -1798,7 +1859,7 @@ static void hdd_folder_scan(folder *f) {
 					unlink(fullname);
 					continue;
 				}
-				sprintf(fullname+plen,"chunk_%016llX_%08X.mfs",(unsigned long long int)namechunkid,nameversion);
+				sprintf(fullname+plen,"chunk_%016"PRIX64"_%08"PRIX32".mfs",namechunkid,nameversion);
 				if (rename(oldfullname,fullname)<0) {
 					syslog(LOG_WARNING,"can't rename %s to %s: %m",oldfullname,fullname);
 					memcpy(fullname+plen,oldfullname+plen,27);
@@ -1820,7 +1881,7 @@ static void hdd_folder_scan(folder *f) {
 			c=NULL;
 			for (c=hashtab[hashpos] ; c && c->chunkid != namechunkid ; c=c->hashnext) {}
 			if (c!=NULL) {
-				syslog(LOG_WARNING,"repeated chunk: %016llX",(unsigned long long int)namechunkid);
+				syslog(LOG_WARNING,"repeated chunk: %016"PRIX64,namechunkid);
 				if (nameversion < c->chunkid) {
 					unlink(fullname);
 					continue;
@@ -1954,6 +2015,8 @@ int hdd_init(void) {
 		return -1;
 	}
 	main_timeregister(TIMEMODE_RUNONCE,1,0,hdd_send_space);
+	main_timeregister(TIMEMODE_RUNONCE,10,0,hdd_check_crc);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,hdd_time_refresh);
+	main_destructregister(hdd_flush_crc);
 	return 0;
 }

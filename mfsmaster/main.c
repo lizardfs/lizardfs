@@ -414,9 +414,9 @@ void changeugid(void) {
 		free(wgroup);
 
 		setgid(wrk_gid);
-		syslog(LOG_NOTICE,"set gid to %d",wrk_gid);
+		syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
 		setuid(wrk_uid);
-		syslog(LOG_NOTICE,"set uid to %d",wrk_uid);
+		syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
 	}
 }
 
@@ -472,7 +472,7 @@ void killprevious(const char *lockfname) {
 		sleep(1);
 		l++;
 		if (l%10==0) {
-			syslog(LOG_WARNING,"about %u seconds passed and '%s' is still locked",l,lockfname);
+			syslog(LOG_WARNING,"about %"PRIu32" seconds passed and '%s' is still locked",l,lockfname);
 		}
 	}
 	sprintf(str,"%d\n",(int)getpid());

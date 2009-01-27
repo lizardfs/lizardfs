@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -85,7 +87,7 @@ int config_load (const char *configfname) {
 	l = strlen(configfname);
 	varconfigfname = malloc(l+5);
 	if (varconfigfname==NULL) {
-		syslog(LOG_ERR,"cannot allocate memory (new config fname leng : %d)",l+5);
+		syslog(LOG_ERR,"cannot allocate memory (new config fname leng : %"PRIu32")",l+5);
 		return 0;
 	}
 	strcpy(varconfigfname,configfname);
@@ -147,25 +149,25 @@ int config_get##fname(const char *name,type def,type *val) { \
 
 _CONFIG_GET_FUNCTION(newstr,char*,charptr,"%s",LOGLINE)
 _CONFIG_GET_FUNCTION(num,int,int,"%d",LOGLINE)
-_CONFIG_GET_FUNCTION(int8,int8_t,int32,"%d",LOGLINE)
-_CONFIG_GET_FUNCTION(uint8,uint8_t,uint32,"%u",LOGLINE)
-_CONFIG_GET_FUNCTION(int16,int16_t,int32,"%d",LOGLINE)
-_CONFIG_GET_FUNCTION(uint16,uint16_t,uint32,"%u",LOGLINE)
-_CONFIG_GET_FUNCTION(int32,int32_t,int32,"%d",LOGLINE)
-_CONFIG_GET_FUNCTION(uint32,uint32_t,uint32,"%u",LOGLINE)
-_CONFIG_GET_FUNCTION(int64,int64_t,int64,"%lld",LOGLINE)
-_CONFIG_GET_FUNCTION(uint64,uint64_t,uint64,"%llu",LOGLINE)
+_CONFIG_GET_FUNCTION(int8,int8_t,int32,"%"PRId8,LOGLINE)
+_CONFIG_GET_FUNCTION(uint8,uint8_t,uint32,"%"PRIu8,LOGLINE)
+_CONFIG_GET_FUNCTION(int16,int16_t,int32,"%"PRId16,LOGLINE)
+_CONFIG_GET_FUNCTION(uint16,uint16_t,uint32,"%"PRIu16,LOGLINE)
+_CONFIG_GET_FUNCTION(int32,int32_t,int32,"%"PRId32,LOGLINE)
+_CONFIG_GET_FUNCTION(uint32,uint32_t,uint32,"%"PRIu32,LOGLINE)
+_CONFIG_GET_FUNCTION(int64,int64_t,int64,"%"PRId64,LOGLINE)
+_CONFIG_GET_FUNCTION(uint64,uint64_t,uint64,"%"PRIu64,LOGLINE)
 _CONFIG_GET_FUNCTION(double,double,double,"%lf",LOGLINE)
 
 _CONFIG_GET_FUNCTION(newstr_nolog,char*,charptr,"%s",NOLOGLINE)
 _CONFIG_GET_FUNCTION(num_nolog,int,int,"%d",NOLOGLINE)
-_CONFIG_GET_FUNCTION(int8_nolog,int8_t,int32,"%d",NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint8_nolog,uint8_t,uint32,"%u",NOLOGLINE)
-_CONFIG_GET_FUNCTION(int16_nolog,int16_t,int32,"%d",NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint16_nolog,uint16_t,uint32,"%u",NOLOGLINE)
-_CONFIG_GET_FUNCTION(int32_nolog,int32_t,int32,"%d",NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint32_nolog,uint32_t,uint32,"%u",NOLOGLINE)
-_CONFIG_GET_FUNCTION(int64_nolog,int64_t,int64,"%lld",NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint64_nolog,uint64_t,uint64,"%llu",NOLOGLINE)
+_CONFIG_GET_FUNCTION(int8_nolog,int8_t,int32,"%"PRId8,NOLOGLINE)
+_CONFIG_GET_FUNCTION(uint8_nolog,uint8_t,uint32,"%"PRIu8,NOLOGLINE)
+_CONFIG_GET_FUNCTION(int16_nolog,int16_t,int32,"%"PRId16,NOLOGLINE)
+_CONFIG_GET_FUNCTION(uint16_nolog,uint16_t,uint32,"%"PRIu16,NOLOGLINE)
+_CONFIG_GET_FUNCTION(int32_nolog,int32_t,int32,"%"PRId32,NOLOGLINE)
+_CONFIG_GET_FUNCTION(uint32_nolog,uint32_t,uint32,"%"PRIu32,NOLOGLINE)
+_CONFIG_GET_FUNCTION(int64_nolog,int64_t,int64,"%"PRId64,NOLOGLINE)
+_CONFIG_GET_FUNCTION(uint64_nolog,uint64_t,uint64,"%"PRIu64,NOLOGLINE)
 _CONFIG_GET_FUNCTION(double_nolog,double,double,"%lf",NOLOGLINE)
 

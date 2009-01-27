@@ -28,7 +28,7 @@
 
 #define EAT(clptr,vno,c) { \
 	if (*(clptr)!=(c)) { \
-		printf("%llu: '%c' expected\n",(vno),(c)); \
+		printf("%"PRIu64": '%c' expected\n",(vno),(c)); \
 		return 1; \
 	} \
 	(clptr)++; \
@@ -48,7 +48,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				printf("%llu: hex expected\n",(vno)); \
+				printf("%"PRIu64": hex expected\n",(vno)); \
 				return 1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -56,7 +56,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				printf("%llu: hex expected\n",(vno)); \
+				printf("%"PRIu64": hex expected\n",(vno)); \
 				return 1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -80,7 +80,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				printf("%llu: hex expected\n",(vno)); \
+				printf("%"PRIu64": hex expected\n",(vno)); \
 				return 1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -88,7 +88,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				printf("%llu: hex expected\n",(vno)); \
+				printf("%"PRIu64": hex expected\n",(vno)); \
 				return 1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -478,7 +478,7 @@ int restore(const char *rfname) {
 	v = fs_getversion();
 	lv = 0;
 
-	printf("meta data version: %llu\n",v);
+	printf("meta data version: %"PRIu64"\n",v);
 
 	fd = fopen(rfname,"r");
 	if (fd==NULL) {
@@ -507,7 +507,7 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"AQUIRE",6)==0) {
 					status = do_aquire(lv,ts,ptr+6);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'C':
@@ -516,7 +516,7 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"CUSTOMER",8)==0) {
 					status = do_customer(lv,ts,ptr+8);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'E':
@@ -525,21 +525,21 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 					status = do_emptyreserved(lv,ts,ptr+13);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'F':
 				if (strncmp(ptr,"FREEINODES",10)==0) {
 					status = do_freeinodes(lv,ts,ptr+10);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'I':
 				if (strncmp(ptr,"INCVERSION",10)==0) {
 					status = do_incversion(lv,ts,ptr+10);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'L':
@@ -548,21 +548,21 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"LINK",4)==0) {
 					status = do_link(lv,ts,ptr+4);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'M':
 				if (strncmp(ptr,"MOVE",4)==0) {
 					status = do_move(lv,ts,ptr+4);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'P':
 				if (strncmp(ptr,"PURGE",5)==0) {
 					status = do_purge(lv,ts,ptr+5);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'R':
@@ -571,7 +571,7 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"RELEASE",7)==0) {
 					status = do_release(lv,ts,ptr+7);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'S':
@@ -584,14 +584,14 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"SYMLINK",7)==0) {
 					status = do_symlink(lv,ts,ptr+7);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'T':
 				if (strncmp(ptr,"TRUNC",5)==0) {
 					status = do_trunc(lv,ts,ptr+5);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'U':
@@ -602,31 +602,31 @@ int restore(const char *rfname) {
 				} else if (strncmp(ptr,"UNLOCK",6)==0) {
 					status = do_unlock(lv,ts,ptr+6);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'W':
 				if (strncmp(ptr,"WRITE",5)==0) {
 					status = do_write(lv,ts,ptr+5);
 				} else {
-					printf("%llu: unknown entry '%s'\n",lv,ptr);
+					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			default:
-				printf("%llu: unknown entry '%s'\n",lv,ptr);
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 			}
 			if (status!=STATUS_OK) {
-				printf("%llu: error: %u (%s)\n",lv,status,errormsgs[status]);
+				printf("%"PRIu64": error: %"PRIu8" (%s)\n",lv,status,errormsgs[status]);
 				return 1;
 			}
 			v = fs_getversion();
 			if (lv+1!=v) {
-				printf("%llu: version mismatch\n",lv);
+				printf("%"PRIu64": version mismatch\n",lv);
 				return 1;
 			}
 		}
 	}
 	fclose(fd);
-	printf("version after applying changelog: %llu\n",v);
+	printf("version after applying changelog: %"PRIu64"\n",v);
 	return 0;
 }

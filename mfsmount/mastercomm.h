@@ -47,8 +47,8 @@ uint8_t fs_check(uint32_t inode,uint8_t dbuff[22]);
 uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags);
 void fs_release(uint32_t inode);
 
-uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint32_t *ip,uint16_t *port);
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint32_t *csip,uint16_t *csport,uint8_t **chain,uint32_t *chainsize);
+uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint8_t **csdata,uint32_t *csdatasize);
+uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint8_t **csdata,uint32_t *csdatasize);
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length);
 
 //int fs_reinitchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid);

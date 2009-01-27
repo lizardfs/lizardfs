@@ -31,6 +31,7 @@
 #include "datapack.h"
 #include "mastercomm.h"
 #include "cscomm.h"
+#include "csdb.h"
 
 #define RETRIES 30
 #define REFRESHTIMEOUT 5000000
@@ -49,6 +50,8 @@ typedef struct _readrec {
 	uint32_t indx;
 	uint64_t chunkid;
 	uint32_t version;
+	uint32_t ip;
+	uint16_t port;
 	int fd;
 	struct timeval vtime;
 	struct timeval atime;
@@ -92,6 +95,7 @@ void* read_data_delayed_ops(void *arg) {
 				pthread_mutex_lock(&(rrec->lock));
 				gettimeofday(&now,NULL);
 				if (rrec->fd>=0 && (TIMEDIFF(now,rrec->atime)>READDELAY || TIMEDIFF(now,rrec->vtime)>REFRESHTIMEOUT)) {
+					csdb_readdec(rrec->ip,rrec->port);
 					tcpclose(rrec->fd);
 					rrec->fd=-1;
 				}
@@ -115,6 +119,8 @@ void* read_data_new(uint32_t inode) {
 	rrec->chunkid = 0;
 	rrec->version = 0;
 	rrec->fd = -1;
+	rrec->ip = 0;
+	rrec->port = 0;
 	rrec->atime.tv_sec = 0;
 	rrec->atime.tv_usec = 0;
 	rrec->vtime.tv_sec = 0;
@@ -136,6 +142,7 @@ void read_data_end(void* rr) {
 //	fprintf(stderr,"read_data_end (%p)\n",rr);
 	pthread_mutex_lock(&(rrec->lock));
 	if (rrec->fd>=0) {
+		csdb_readdec(rrec->ip,rrec->port);
 		tcpclose(rrec->fd);
 		rrec->fd=-1;
 	}
@@ -157,31 +164,56 @@ void read_data_init(void) {
 }
 
 static int read_data_refresh_connection(readrec *rrec) {
-	uint32_t ip;
-	uint16_t port;
+	uint32_t ip,tmpip;
+	uint16_t port,tmpport;
+	uint32_t cnt,bestcnt;
+	uint8_t *csdata;
+	uint32_t csdatasize;
 	uint8_t status;
 //	fprintf(stderr,"read_data_refresh_connection (%p)\n",rrec);
 	if (rrec->fd>=0) {
+		csdb_readdec(rrec->ip,rrec->port);
 		tcpclose(rrec->fd);
 		rrec->fd = -1;
 	}
-	status = fs_readchunk(rrec->inode,rrec->indx,&(rrec->fleng),&(rrec->chunkid),&(rrec->version),&ip,&port);
+	status = fs_readchunk(rrec->inode,rrec->indx,&(rrec->fleng),&(rrec->chunkid),&(rrec->version),&csdata,&csdatasize);
 	if (status!=0) {
-		syslog(LOG_WARNING,"file: %u, index: %u, chunk: %llu, version: %u - fs_readchunk returns status %u",rrec->inode,rrec->indx,(unsigned long long int)(rrec->chunkid),rrec->version,status);
+		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_readchunk returns status %"PRIu8,rrec->inode,rrec->indx,rrec->chunkid,rrec->version,status);
 		if (status==ERROR_ENOENT) {
 			return -2;	// stale handle
 		}
 		return -1;
 	}
-//	fprintf(stderr,"(%u,%u,%llu,%llu,%u,%u,%u)\n",rrec->inode,rrec->indx,rrec->fleng,rrec->chunkid,rrec->version,ip,port);
-	if (rrec->chunkid==0 && ip==0 && port==0) {
+//	fprintf(stderr,"(%"PRIu32",%"PRIu32",%"PRIu64",%"PRIu64",%"PRIu32",%"PRIu32",%"PRIu16")\n",rrec->inode,rrec->indx,rrec->fleng,rrec->chunkid,rrec->version,ip,port);
+	if (rrec->chunkid==0 && csdata==NULL && csdatasize==0) {
 		return 0;
 	}
-	if (ip==0 || port==0) {
-		syslog(LOG_WARNING,"file: %u, index: %u, chunk: %llu, version: %u - there are no valid copies",rrec->inode,rrec->indx,(unsigned long long int)(rrec->chunkid),rrec->version);
+	if (csdata==NULL || csdatasize==0) {
+		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
+		return -3;
+	}
+	ip = 0;
+	port = 0;
+	// choose cs
+	bestcnt = 0xFFFFFFFF;
+	while (csdatasize>=6 && bestcnt>0) {
+		GET32BIT(tmpip,csdata);
+		GET16BIT(tmpport,csdata);
+		csdatasize-=6;
+		cnt = csdb_getopcnt(tmpip,tmpport);
+		if (cnt<bestcnt) {
+			ip = tmpip;
+			port = tmpport;
+			bestcnt = cnt;
+		}
+	}
+	if (ip==0 || port==0) {	// this always should be false
+		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
 		return -3;
 	}
 	gettimeofday(&(rrec->vtime),NULL);
+	rrec->ip = ip;
+	rrec->port = port;
 	rrec->fd = tcpsocket();
 	if (rrec->fd<0) {
 		syslog(LOG_WARNING,"can't create tcp socket: %m");
@@ -191,11 +223,12 @@ static int read_data_refresh_connection(readrec *rrec) {
 		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
 	}
 	if (tcpnumconnect(rrec->fd,ip,port)<0) {
-		syslog(LOG_WARNING,"can't connect to (%08X:%u)",ip,port);
+		syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16")",ip,port);
 		tcpclose(rrec->fd);
 		rrec->fd = -1;
 		return -1;
 	}
+	csdb_readinc(rrec->ip,rrec->port);
 	return 0;
 }
 
@@ -206,6 +239,7 @@ void read_inode_ops(uint32_t inode) {	// other operations such as truncate or wr
 		if (rrec->inode==inode) {
 			pthread_mutex_lock(&(rrec->lock));
 			if (rrec->fd>=0) {
+				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);
 				rrec->fd = -1;
 			}
@@ -226,7 +260,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	int err;
 	readrec *rrec = (readrec*)rr;
 
-//	fprintf(stderr,"read_data (%p,%llu,%u)\n",rrec,offset,*size);
+//	fprintf(stderr,"read_data (%p,%"PRIu64",%"PRIu32")\n",rrec,offset,*size);
 	pthread_mutex_lock(&(rrec->lock));
 	if (*size==0) {
 		*buff = NULL;
@@ -241,7 +275,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		rrec->rbuff = malloc(rrec->rbuffsize);
 		if (rrec->rbuff==NULL) {
 			rrec->rbuffsize = 0;
-			syslog(LOG_WARNING,"file: %u, index: %u - out of memory",rrec->inode,rrec->indx);
+			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - out of memory",rrec->inode,rrec->indx);
 			return -4;	// out of memory
 		}
 	}
@@ -261,7 +295,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				if (err==0) {
 					break;
 				}
-				syslog(LOG_WARNING,"file: %u, index: %u - can't connect to proper chunkserver (try counter: %u)",rrec->inode,rrec->indx,cnt);
+				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - can't connect to proper chunkserver (try counter: %"PRIu32")",rrec->inode,rrec->indx,cnt);
 				if (err==-2) {	// no such inode - it's unrecoverable error
 					return err;
 				}
@@ -289,9 +323,10 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			chunksize = currsize;
 		}
 		if (rrec->chunkid>0) {
-			// fprintf(stderr,"(%d,%llu,%u,%u,%u,%p)\n",rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr);
+			// fprintf(stderr,"(%d,%"PRIu64",%"PRIu32",%"PRIu32",%"PRIu32",%p)\n",rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr);
 			if (cs_readblock(rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr)<0) {
-				syslog(LOG_WARNING,"file: %u, index: %u, chunk: %llu, version: %u - readblock error (try counter: %u)",rrec->inode,rrec->indx,(unsigned long long int)(rrec->chunkid),rrec->version,cnt);
+				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32", cs: %08"PRIX32":%"PRIu16" - readblock error (try counter: %"PRIu32")",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,rrec->ip,rrec->port,cnt);
+				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);
 				rrec->fd = -1;
 				sleep(1+cnt/5);

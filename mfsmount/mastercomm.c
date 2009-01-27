@@ -166,7 +166,7 @@ threc* fs_get_my_threc() {
 	rec->cmd = 0;
 	rec->size = 0;
 	rec->next = threchead;
-	//syslog(LOG_NOTICE,"mastercomm: create new threc (%d)",rec->packetid);
+	//syslog(LOG_NOTICE,"mastercomm: create new threc (%"PRIu32")",rec->packetid);
 	threchead = rec;
 	pthread_mutex_unlock(&reclock);
 	return rec;
@@ -221,7 +221,7 @@ uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info_lengt
 			sleep(1);
 			continue;
 		}
-		//syslog(LOG_NOTICE,"threc(%d) - sending ...",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
 		rec->release=0;
 		if (tcptowrite(fd,rec->buff,size,1000)!=(int32_t)(size)) {
 			syslog(LOG_WARNING,"tcp send error: %m");
@@ -233,12 +233,12 @@ uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info_lengt
 		rec->sent = 1;
 		lastwrite = time(NULL);
 		pthread_mutex_unlock(&fdlock);
-		// syslog(LOG_NOTICE,"master: lock: %u",rec->packetid);
+		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		while (rec->release==0) { pthread_cond_wait(&(rec->cond),&(rec->mutex)); }
 		pthread_mutex_unlock(&(rec->mutex));
-		// syslog(LOG_NOTICE,"master: unlocked: %u",rec->packetid);
-		// syslog(LOG_NOTICE,"master: command_info: %u ; reccmd: %u",command_info,rec->cmd);
+		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
 		if (rec->status!=0) {
 			sleep(1);
 			continue;
@@ -250,7 +250,7 @@ uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info_lengt
 			sleep(1);
 			continue;
 		}
-		//syslog(LOG_NOTICE,"threc(%d) - received",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
 		*info_length = rec->size;
 		return rec->buff+size;
 	}
@@ -316,14 +316,14 @@ void fs_connect() {
 	ptr = regbuff;
 	GET32BIT(i,ptr);
 	if (i!=MATOCU_FUSE_REGISTER) {
-		syslog(LOG_WARNING,"master: register error (bad answer: %u)",i);
+		syslog(LOG_WARNING,"master: register error (bad answer: %"PRIu32")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
 	}
 	GET32BIT(i,ptr);
 	if (i!=1 && i!=4) {
-		syslog(LOG_WARNING,"master: register error (bad length: %u)",i);
+		syslog(LOG_WARNING,"master: register error (bad length: %"PRIu32")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -336,7 +336,7 @@ void fs_connect() {
 	}
 	ptr = regbuff;
 	if (i==1 && ptr[0]!=0) {
-		syslog(LOG_WARNING,"master: register status: %u",ptr[0]);
+		syslog(LOG_WARNING,"master: register status: %"PRIu8,ptr[0]);
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -373,7 +373,7 @@ void* fs_nop_thread(void *arg) {
 				pthread_mutex_lock(&aflock);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
-					//syslog(LOG_NOTICE,"reserved inode: %u",afptr->inode);
+					//syslog(LOG_NOTICE,"reserved inode: %"PRIu32,afptr->inode);
 					inodesleng+=4;
 				}
 				inodespacket = malloc(inodesleng);
@@ -432,7 +432,7 @@ void* fs_receive_thread(void *arg) {
 		}
 		pthread_mutex_unlock(&fdlock);
 		r = tcptoread(fd,hdr,12,RECEIVE_TIMEOUT*1000);	// read timeout - 4 seconds
-		// syslog(LOG_NOTICE,"master: header size: %u",r);
+		// syslog(LOG_NOTICE,"master: header size: %d",r);
 		if (r==0) {
 			syslog(LOG_WARNING,"master: connection lost (1)");
 			disconnect=1;
@@ -469,10 +469,10 @@ void* fs_receive_thread(void *arg) {
 			disconnect=1;
 			continue;
 		}
-		// syslog(LOG_NOTICE,"master: expected data size: %u",size);
+		// syslog(LOG_NOTICE,"master: expected data size: %"PRIu32,size);
 		if (size>0) {
 			r = tcptoread(fd,rec->buff+rec->size,size,1000);
-			// syslog(LOG_NOTICE,"master: data size: %u",r);
+			// syslog(LOG_NOTICE,"master: data size: %d",r);
 			if (r==0) {
 				syslog(LOG_WARNING,"master: connection lost (2)");
 				disconnect=1;
@@ -488,7 +488,7 @@ void* fs_receive_thread(void *arg) {
 		rec->status=0;
 		rec->size = size;
 		rec->cmd = cmd;
-		// syslog(LOG_NOTICE,"master: unlock: %u",rec->packetid);
+		// syslog(LOG_NOTICE,"master: unlock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		rec->release = 1;
 		pthread_mutex_unlock(&(rec->mutex));
@@ -1050,14 +1050,15 @@ uint8_t fs_release(uint32_t inode) {
 }
 */
 
-uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint32_t *csip,uint16_t *csport) {
+uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint8_t **csdata,uint32_t *csdatasize) {
 	uint8_t *ptr;
 	uint32_t i;
 	uint8_t ret;
 	uint64_t t64;
 	uint32_t t32;
-	uint16_t t16;
 	threc *rec = fs_get_my_threc();
+	*csdata=NULL;
+	*csdatasize=0;
 	ptr = fs_createpacket(rec,CUTOMA_FUSE_READ_CHUNK,8);
 	PUT32BIT(inode,ptr);
 	PUT32BIT(indx,ptr);
@@ -1078,30 +1079,24 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 		*chunkid = t64;
 		GET32BIT(t32,ptr);
 		*version = t32;
-		if (i==20) {
-			*csip = 0;
-			*csport = 0;
-		} else {
-			GET32BIT(t32,ptr);
-			*csip = t32;
-			GET16BIT(t16,ptr);
-			*csport = t16;
+		if (i>20) {
+			*csdata = ptr;
+			*csdatasize = i-20;
 		}
 		ret = STATUS_OK;
 	}
 	return ret;
 }
 
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint32_t *csip,uint16_t *csport,uint8_t **chain,uint32_t *chainsize) {
+uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,uint8_t **csdata,uint32_t *csdatasize) {
 	uint8_t *ptr;
 	uint32_t i;
 	uint8_t ret;
 	uint64_t t64;
 	uint32_t t32;
-	uint16_t t16;
 	threc *rec = fs_get_my_threc();
-	*chain=NULL;
-	*chainsize = 0;
+	*csdata=NULL;
+	*csdatasize=0;
 	ptr = fs_createpacket(rec,CUTOMA_FUSE_WRITE_CHUNK,8);
 	PUT32BIT(inode,ptr);
 	PUT32BIT(indx,ptr);
@@ -1122,25 +1117,9 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 		*chunkid = t64;
 		GET32BIT(t32,ptr);
 		*version = t32;
-		if (i==20) {
-			*csip = 0;
-			*csport = 0;
-			*chain = NULL;
-			*chainsize = 0;
-		} else {
-			GET32BIT(t32,ptr);
-			*csip = t32;
-			GET16BIT(t16,ptr);
-			*csport = t16;
-			if (i>26) {
-				*chain = ptr;
-				//*chain = malloc(i-26);
-				*chainsize = i-26;
-				//memcpy(*chain,ptr,i-26);
-			} else {
-				*chain = NULL;
-				*chainsize = 0;
-			}
+		if (i>20) {
+			*csdata = ptr;
+			*csdatasize = i-20;
 		}
 		ret = STATUS_OK;
 	}
