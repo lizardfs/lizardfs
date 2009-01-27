@@ -1,3 +1,9 @@
+mfs (1.5.11) unstable; urgency=low
+
+  * New MooseFS version (refer to NEWS file).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 27 Jan 2009 13:52:00 +0100
+
 mfs (1.5.10) unstable; urgency=medium
 
   * New MooseFS version (refer to NEWS file).
