@@ -1,3 +1,9 @@
+mfs (1.5.12) unstable; urgency=high
+
+  * New MooseFS version (fixes CRC cache bug introduced in 1.5.11).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 28 Jan 2009 10:03:00 +0100
+
 mfs (1.5.11) unstable; urgency=low
 
   * New MooseFS version (refer to NEWS file).
