@@ -46,6 +46,8 @@
 #include "config.h"
 
 #define CLOSEDELAY 60
+#define EMERGENCYCLOSEDELAY 5
+#define EMERGENCYCOUNT 500
 
 #define CHUNKHDRSIZE (1024+4*1024)
 #define CHUNKHDRCRC 1024
@@ -117,7 +119,8 @@ static folder *damagedhead=NULL;
 static folder *folderhead=NULL;
 static chunk* hashtab[HASHSIZE];
 
-static chunkwcrc *chunkswithcrc;
+static chunkwcrc *chunkswithcrc=NULL;
+static uint32_t chunkswithcrccount=0;
 
 static uint8_t hdrbuffer[CHUNKHDRSIZE];
 static uint8_t blockbuffer[0x10000];
@@ -659,8 +662,34 @@ void hdd_flush_crc() {
 			}
 			close(c->fd);
 			c->fd=-1;
+		}
+		*ccp = cc->next;
+		free(cc);
+		chunkswithcrccount--;
+	}
+}
+
+void hdd_flush_chunk_crc(uint64_t chunkid) {
+	chunkwcrc **ccp,*cc;
+	chunk *c;
+	ccp = &chunkswithcrc;
+	while ((cc=*ccp)) {
+		if (cc->chunkid==chunkid) {
+			c = chunk_find(cc->chunkid);
+			if (c) {
+				if (c->crcchanged) {
+					chunk_writecrc(c);
+				} else {
+					chunk_freecrc(c);
+				}
+				close(c->fd);
+				c->fd=-1;
+			}
 			*ccp = cc->next;
 			free(cc);
+			chunkswithcrccount--;
+		} else {
+			ccp = &(cc->next);
 		}
 	}
 }
@@ -670,10 +699,16 @@ void hdd_check_crc() {
 	chunk *c;
 	int status;
 	uint32_t now = main_time();
+	uint32_t closedelay;
+	if (chunkswithcrccount<EMERGENCYCOUNT) {
+		closedelay = CLOSEDELAY;
+	} else {
+		closedelay = EMERGENCYCLOSEDELAY;
+	}
 	ccp = &chunkswithcrc;
 	while ((cc=*ccp)) {
 		c = chunk_find(cc->chunkid);
-		if (c && c->crcrefcount==0 && c->lastactivity+CLOSEDELAY<now) {
+		if (c && c->crcrefcount==0 && c->lastactivity+closedelay<now) {
 			if (c->crcchanged) {
 				status = chunk_writecrc(c);
 				if (status!=STATUS_OK) {
@@ -693,9 +728,11 @@ void hdd_check_crc() {
 			c->fd = -1;
 			*ccp = cc->next;
 			free(cc);
+			chunkswithcrccount--;
 		} else if (c==NULL) {
 			*ccp = cc->next;
 			free(cc);
+			chunkswithcrccount--;
 		} else {
 			ccp = &(cc->next);
 		}
@@ -725,6 +762,7 @@ int chunk_before_io_int(chunk *c) {
 			cc->chunkid = c->chunkid;
 			cc->next = chunkswithcrc;
 			chunkswithcrc = cc;
+			chunkswithcrccount++;
 		}
 	}
 	c->crcrefcount++;
@@ -1204,6 +1242,7 @@ int duplicate_chunk(uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32
 		return ERROR_NOSPACE;
 	}
 	c = chunk_new(bestfolder,chunkid,version);
+	hdd_flush_chunk_crc(oldchunkid);
 	fd = open(c->filename,O_CREAT | O_TRUNC | O_WRONLY,0666);
 	if (fd<0) {
 		syslog(LOG_WARNING,"duplicate_chunk: file:%s - open error (%d:%s)",c->filename,errno,strerror(errno));
@@ -1519,6 +1558,7 @@ int duptrunc_chunk(uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_
 		return ERROR_NOSPACE;
 	}
 	c = chunk_new(bestfolder,chunkid,version);
+	hdd_flush_chunk_crc(oldchunkid);
 	fd = open(c->filename,O_CREAT | O_TRUNC | O_WRONLY,0666);
 	if (fd<0) {
 		syslog(LOG_WARNING,"duptrunc_chunk: file:%s - open error (%d:%s)",c->filename,errno,strerror(errno));
@@ -2015,7 +2055,7 @@ int hdd_init(void) {
 		return -1;
 	}
 	main_timeregister(TIMEMODE_RUNONCE,1,0,hdd_send_space);
-	main_timeregister(TIMEMODE_RUNONCE,10,0,hdd_check_crc);
+	main_timeregister(TIMEMODE_RUNONCE,5,0,hdd_check_crc);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,hdd_time_refresh);
 	main_destructregister(hdd_flush_crc);
 	return 0;

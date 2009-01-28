@@ -1,5 +1,9 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.5.12 (2009-01-28)
+
+ - Fixed CRC cache in chunkserver
+
 * MooseFS 1.5.11 (2008-12-18)
 
  - Added CRC-block and file descriptor cache in chunkserver.
