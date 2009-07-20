@@ -9,8 +9,10 @@ else
 	MACROSINC=
 fi
 
-if [ -x /usr/bin/glibtoolize ]; then
-	glibtoolize --copy --force
+if [ -x /opt/local/bin/glibtoolize ]; then
+	/opt/local/bin/glibtoolize --copy --force
+elif [ -x /usr/bin/glibtoolize ]; then
+	/usr/bin/glibtoolize --copy --force
 else
 	libtoolize --copy --force
 fi
