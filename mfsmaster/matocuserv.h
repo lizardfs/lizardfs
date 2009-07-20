@@ -21,7 +21,7 @@
 #include <inttypes.h>
 
 void matocuserv_chunk_status(uint64_t chunkid,uint8_t status);
-void matocuserv_init_customers(uint32_t cuid,uint32_t inode);
+void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode);
 int matocuserv_init(void);
 
 #endif

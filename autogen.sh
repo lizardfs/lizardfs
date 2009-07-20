@@ -9,6 +9,11 @@ else
 	MACROSINC=
 fi
 
+if [ -x /usr/bin/glibtoolize ]; then
+	glibtoolize --copy --force
+else
+	libtoolize --copy --force
+fi
 aclocal $MACROSINC
 autoconf
 autoheader

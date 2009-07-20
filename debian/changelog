@@ -1,3 +1,9 @@
+mfs (1.5.14-0.1) unstable; urgency=medium
+
+  * New MooseFS version (1.5.14-beta6; refer to NEWS file).
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 01 Jul 2009 14:01:00 +0200
+
 mfs (1.5.12) unstable; urgency=high
 
   * New MooseFS version (fixes CRC cache bug introduced in 1.5.11).

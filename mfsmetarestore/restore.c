@@ -204,14 +204,24 @@ uint8_t do_create(uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_create(ts,parent,strlen((char*)name),name,type,mode,uid,gid,rdev,inode);
 }
 
-uint8_t do_customer(uint64_t lv,uint32_t ts,char *ptr) {
+uint8_t do_session(uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t cuid;
 	(void)ts;
 	EAT(ptr,lv,'(');
 	EAT(ptr,lv,')');
 	EAT(ptr,lv,':');
 	GETU32(cuid,ptr);
-	return fs_customer(cuid);
+	return fs_session(cuid);
+}
+
+uint8_t do_eattr(uint64_t lv,uint32_t ts,char *ptr) {
+	uint32_t inode,eattr;
+	EAT(ptr,lv,'(');
+	GETU32(inode,ptr);
+	EAT(ptr,lv,',');
+	GETU32(eattr,ptr);
+	EAT(ptr,lv,')');
+	return fs_eattr(ts,inode,eattr);
 }
 
 uint8_t do_emptytrash(uint64_t lv,uint32_t ts,char *ptr) {
@@ -301,6 +311,7 @@ uint8_t do_purge(uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_purge(ts,inode);
 }
 
+/*
 uint8_t do_reinit(uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,indx;
 	uint64_t chunkid;
@@ -313,7 +324,7 @@ uint8_t do_reinit(uint64_t lv,uint32_t ts,char *ptr) {
 	GETU64(chunkid,ptr);
 	return fs_reinit(ts,inode,indx,chunkid);
 }
-
+*/
 uint8_t do_release(uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,cuid;
 	(void)ts;
@@ -323,6 +334,19 @@ uint8_t do_release(uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(cuid,ptr);
 	EAT(ptr,lv,')');
 	return fs_release(inode,cuid);
+}
+
+uint8_t do_repair(uint64_t lv,uint32_t ts,char *ptr) {
+	uint32_t inode,indx;
+	uint32_t version;
+	EAT(ptr,lv,'(');
+	GETU32(inode,ptr);
+	EAT(ptr,lv,',');
+	GETU32(indx,ptr);
+	EAT(ptr,lv,')');
+	EAT(ptr,lv,':');
+	GETU32(version,ptr);
+	return fs_repair(ts,inode,indx,version);
 }
 /*
 int do_remove(uint64_t lv,uint32_t ts,char *ptr) {
@@ -387,6 +411,20 @@ uint8_t do_settrashtime(uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,lv,',');
 	GETU32(npi,ptr);
 	return fs_settrashtime(ts,inode,uid,trashtime,smode,ci,nci,npi);
+}
+
+uint8_t do_snapshot(uint64_t lv,uint32_t ts,char *ptr) {
+	uint32_t inode,parent,canoverwrite;
+	uint8_t name[256];
+	EAT(ptr,lv,'(');
+	GETU32(inode,ptr);
+	EAT(ptr,lv,',');
+	GETU32(parent,ptr);
+	EAT(ptr,lv,',');
+	GETNAME(name,ptr,lv,',');
+	GETU32(canoverwrite,ptr);
+	EAT(ptr,lv,')');
+	return fs_snapshot(ts,inode,parent,strlen((char*)name),name,canoverwrite);
 }
 
 uint8_t do_symlink(uint64_t lv,uint32_t ts,char *ptr) {
@@ -513,14 +551,16 @@ int restore(const char *rfname) {
 			case 'C':
 				if (strncmp(ptr,"CREATE",6)==0) {
 					status = do_create(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"CUSTOMER",8)==0) {
-					status = do_customer(lv,ts,ptr+8);
+				} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
+					status = do_session(lv,ts,ptr+8);
 				} else {
 					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
 				break;
 			case 'E':
-				if (strncmp(ptr,"EMPTYTRASH",10)==0) {
+				if (strncmp(ptr,"EATTR",5)==0) {
+					status = do_eattr(lv,ts,ptr+5);
+				} else if (strncmp(ptr,"EMPTYTRASH",10)==0) {
 					status = do_emptytrash(lv,ts,ptr+10);
 				} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 					status = do_emptyreserved(lv,ts,ptr+13);
@@ -566,10 +606,10 @@ int restore(const char *rfname) {
 				}
 				break;
 			case 'R':
-				if (strncmp(ptr,"REINIT",6)==0) {
-					status = do_reinit(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"RELEASE",7)==0) {
+				if (strncmp(ptr,"RELEASE",7)==0) {
 					status = do_release(lv,ts,ptr+7);
+				} else if (strncmp(ptr,"REPAIR",6)==0) {
+					status = do_repair(lv,ts,ptr+6);
 				} else {
 					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}
@@ -581,8 +621,12 @@ int restore(const char *rfname) {
 					status = do_setpath(lv,ts,ptr+7);
 				} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
 					status = do_settrashtime(lv,ts,ptr+12);
+				} else if (strncmp(ptr,"SNAPSHOT",8)==0) {
+					status = do_snapshot(lv,ts,ptr+8);
 				} else if (strncmp(ptr,"SYMLINK",7)==0) {
 					status = do_symlink(lv,ts,ptr+7);
+				} else if (strncmp(ptr,"SESSION",7)==0) {
+					status = do_session(lv,ts,ptr+7);
 				} else {
 					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
 				}

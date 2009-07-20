@@ -1,4 +1,4 @@
-EXTRA_DIST=metadata.mfs mfschunkserver.cfg.in mfsmaster.cfg.in mfshdd.cfg
+EXTRA_DIST=metadata.mfs mfschunkserver.cfg.in mfsexports.cfg mfsmaster.cfg.in mfshdd.cfg
 
 install-data-hook:
 	if [ ! -d $(DESTDIR)$(sysconfdir) ]; then \
@@ -27,6 +27,9 @@ endif
 if BUILD_MASTER
 	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsmaster.cfg ]; then \
 		$(INSTALL_DATA) $(builddir)/mfsmaster.cfg $(DESTDIR)$(sysconfdir) ; \
+	fi
+	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsexports.cfg ]; then \
+		$(INSTALL_DATA) $(builddir)/mfsexports.cfg $(DESTDIR)$(sysconfdir) ; \
 	fi
 	if [ ! -d $(DESTDIR)$(RUN_PATH) ]; then \
 		$(MKDIR_P) $(DESTDIR)$(RUN_PATH) ; \

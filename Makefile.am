@@ -16,6 +16,14 @@ else
 MOUNTDIR=
 endif
 
+if INSTALL_CGI
+CGISUBDIR=mfscgi
+else
+CGISUBDIR=
+endif
+
 ACLOCAL_AMFLAGS = $(shell test -d /opt/local/share/aclocal && echo -I/opt/local/share/aclocal)
 
-SUBDIRS=mfsdata doc $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR)
+SUBDIRS=mfsdata doc mfscommon $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR) $(CGISUBDIR)
+
+EXTRA_DIST=UPGRADE

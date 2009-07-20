@@ -19,7 +19,6 @@
 #include "hddspacemgr.h"
 #include "masterconn.h"
 #include "csserv.h"
-#include "cstocsconn.h"
 #include "stats.h"
 
 #include "config.h"
@@ -37,7 +36,6 @@ struct {
 } RunTab[]={
 	{hdd_init,"hdd space manager"},
 	{csserv_init,"chunkserver server"},	/* heve to be before "masterconn" */
-	{cstocsconn_init,"connection with chunkserver"},
 	{masterconn_init,"connection with master"},
 	{stats_init,"statistics/charts module"},
 	{(runfn)0,"****"}

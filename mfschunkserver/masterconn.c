@@ -16,6 +16,10 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
+#define BGJOBS 1
+
 #include <time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -24,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
 
@@ -33,8 +38,10 @@
 #include "cfg.h"
 #include "main.h"
 #include "sockets.h"
-#include "replicator.h"
 #include "hddspacemgr.h"
+#ifdef BGJOBS
+#include "bgjobs.h"
+#endif
 #include "csserv.h"
 
 #define MaxPacketSize 10000
@@ -56,7 +63,14 @@ typedef struct masterconn {
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
-	uint32_t masteraddr;
+	uint32_t masterip;
+	uint16_t masterport;
+	uint8_t masteraddrvalid;
+	time_t lastregister;
+#ifdef BGJOBS
+	void *jpool;
+	int jobfd;
+#endif
 } masterconn;
 
 static masterconn *masterconnsingleton=NULL;
@@ -79,7 +93,7 @@ void masterconn_stats(uint32_t *bin,uint32_t *bout) {
 	stats_bytesout = 0;
 }
 
-uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
+void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
 	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
@@ -96,8 +110,49 @@ uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
 		return NULL;
 	}
 	ptr = outpacket->packet;
-	PUT32BIT(type,ptr);
-	PUT32BIT(size,ptr);
+	put32bit(&ptr,type);
+	put32bit(&ptr,size);
+	outpacket->startptr = (uint8_t*)(outpacket->packet);
+	outpacket->next = NULL;
+	return outpacket;
+}
+
+uint8_t* masterconn_get_packet_data(void *packet) {
+	packetstruct *outpacket = (packetstruct*)packet;
+	return outpacket->packet+8;
+}
+
+void masterconn_delete_packet(void *packet) {
+	packetstruct *outpacket = (packetstruct*)packet;
+	free(outpacket->packet);
+	free(outpacket);
+}
+
+void masterconn_attach_packet(masterconn *eptr,void *packet) {
+	packetstruct *outpacket = (packetstruct*)packet;
+	*(eptr->outputtail) = outpacket;
+	eptr->outputtail = &(outpacket->next);
+}
+
+uint8_t* masterconn_create_attached_packet(masterconn *eptr,uint32_t type,uint32_t size) {
+	packetstruct *outpacket;
+	uint8_t *ptr;
+	uint32_t psize;
+
+	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
+	if (outpacket==NULL) {
+		return NULL;
+	}
+	psize = size+8;
+	outpacket->packet=malloc(psize);
+	outpacket->bytesleft = psize;
+	if (outpacket->packet==NULL) {
+		free(outpacket);
+		return NULL;
+	}
+	ptr = outpacket->packet;
+	put32bit(&ptr,type);
+	put32bit(&ptr,size);
 	outpacket->startptr = (uint8_t*)(outpacket->packet);
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
@@ -112,67 +167,95 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint64_t usedspace,totalspace;
 	uint64_t tdusedspace,tdtotalspace;
 	uint32_t chunkcount,tdchunkcount;
+	uint8_t oldregister;
 
 	myip = csserv_getlistenip();
 	myport =  csserv_getlistenport();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
 //	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
-	chunks = get_chunkscount();
-	if (Timeout==60) {
-		buff = masterconn_createpacket(eptr,CSTOMA_REGISTER,1+4+2+8+8+4+8+8+4+chunks*(8+4));
+	chunks = hdd_get_chunks_count();
+	if (eptr->lastregister+60>main_time()) { // connection was broken less than minute ago - use old registration method
+		oldregister=1;
 	} else {
-		buff = masterconn_createpacket(eptr,CSTOMA_REGISTER,1+4+2+2+8+8+4+8+8+4+chunks*(8+4));
+		oldregister=0;
+	}
+	if (oldregister) {
+		if (Timeout==60) {
+			syslog(LOG_NOTICE,"register to master (packet version 2)");
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+8+8+4+8+8+4+chunks*(8+4));
+		} else {
+			syslog(LOG_NOTICE,"register to master (packet version 3)");
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+2+8+8+4+8+8+4+chunks*(8+4));
+		}
+	} else {
+		syslog(LOG_NOTICE,"register to master (packet version 4)");
+		buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2+8+8+4+8+8+4+chunks*(8+4));
 	}
 	if (buff==NULL) {
 		eptr->mode=KILL;
+		hdd_get_chunks_data(NULL);	// unlock
 		return;
 	}
-	if (Timeout==60) {
-		PUT8BIT(2,buff);	// reg version
+	if (oldregister) {
+		if (Timeout==60) {
+			put8bit(&buff,2);	// reg version
+		} else {
+			put8bit(&buff,3);	// reg version
+		}
 	} else {
-		PUT8BIT(3,buff);	// reg version
+		put8bit(&buff,4);
+		/* put32bit(&buff,VERSION): */
+		put16bit(&buff,VERSMAJ);
+		put8bit(&buff,VERSMID);
+		put8bit(&buff,VERSMIN);
+		/* --- */
 	}
-	PUT32BIT(myip,buff);
-	PUT16BIT(myport,buff);
-	if (Timeout!=60) {
-		PUT16BIT(Timeout,buff);
+	put32bit(&buff,myip);
+	put16bit(&buff,myport);
+	if (Timeout!=60 || oldregister==0) {
+		put16bit(&buff,Timeout);
 	}
-	PUT64BIT(usedspace,buff);
-	PUT64BIT(totalspace,buff);
-	PUT32BIT(chunkcount,buff);
-	PUT64BIT(tdusedspace,buff);
-	PUT64BIT(tdtotalspace,buff);
-	PUT32BIT(tdchunkcount,buff);
+	put64bit(&buff,usedspace);
+	put64bit(&buff,totalspace);
+	put32bit(&buff,chunkcount);
+	put64bit(&buff,tdusedspace);
+	put64bit(&buff,tdtotalspace);
+	put32bit(&buff,tdchunkcount);
 	if (chunks>0) {
-		fill_chunksinfo(buff);
+		hdd_get_chunks_data(buff);
+	} else {
+		hdd_get_chunks_data(NULL);	// unlock
 	}
+	eptr->lastregister = main_time();
 }
 
+/*
 void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunkcount,uint64_t tdusedspace,uint64_t tdtotalspace,uint32_t tdchunkcount) {
 	uint8_t *buff;
 	masterconn *eptr = masterconnsingleton;
 
 //	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_createpacket(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
+		buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
 		if (buff) {
-			PUT64BIT(usedspace,buff);
-			PUT64BIT(totalspace,buff);
-			PUT32BIT(chunkcount,buff);
-			PUT64BIT(tdusedspace,buff);
-			PUT64BIT(tdtotalspace,buff);
-			PUT32BIT(tdchunkcount,buff);
+			put64bit(&buff,usedspace);
+			put64bit(&buff,totalspace);
+			put32bit(&buff,chunkcount);
+			put64bit(&buff,tdusedspace);
+			put64bit(&buff,tdtotalspace);
+			put32bit(&buff,tdchunkcount);
 		}
 	}
 }
-
+*/
+/*
 void masterconn_send_chunk_damaged(uint64_t chunkid) {
 	uint8_t *buff;
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_createpacket(eptr,CSTOMA_CHUNK_DAMAGED,8);
+		buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_DAMAGED,8);
 		if (buff) {
-			PUT64BIT(chunkid,buff);
+			put64bit(&buff,chunkid);
 		}
 	}
 }
@@ -181,9 +264,9 @@ void masterconn_send_chunk_lost(uint64_t chunkid) {
 	uint8_t *buff;
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_createpacket(eptr,CSTOMA_CHUNK_LOST,8);
+		buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8);
 		if (buff) {
-			PUT64BIT(chunkid,buff);
+			put64bit(&buff,chunkid);
 		}
 	}
 }
@@ -191,198 +274,466 @@ void masterconn_send_chunk_lost(uint64_t chunkid) {
 void masterconn_send_error_occurred() {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		masterconn_createpacket(eptr,CSTOMA_ERROR_OCCURRED,0);
+		masterconn_create_attached_packet(eptr,CSTOMA_ERROR_OCCURRED,0);
+	}
+}
+*/
+
+void masterconn_check_hdd_reports() {
+	masterconn *eptr = masterconnsingleton;
+	uint32_t errorcounter;
+	uint32_t chunkcounter;
+	uint8_t *buff;
+	if (eptr->mode==DATA || eptr->mode==HEADER) {
+		if (hdd_spacechanged()) {
+			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
+			uint32_t chunkcount,tdchunkcount;
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
+			if (buff) {
+				hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+				put64bit(&buff,usedspace);
+				put64bit(&buff,totalspace);
+				put32bit(&buff,chunkcount);
+				put64bit(&buff,tdusedspace);
+				put64bit(&buff,tdtotalspace);
+				put32bit(&buff,tdchunkcount);
+			}
+		}
+		errorcounter = hdd_errorcounter();
+		while (errorcounter) {
+			masterconn_create_attached_packet(eptr,CSTOMA_ERROR_OCCURRED,0);
+			errorcounter--;
+		}
+		chunkcounter = hdd_get_damaged_chunk_count();	// lock
+		if (chunkcounter) {
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_DAMAGED,8*chunkcounter);
+			if (buff) {
+				hdd_get_damaged_chunk_data(buff);	// unlock
+			} else {
+				hdd_get_damaged_chunk_data(NULL);	// unlock
+			}
+		} else {
+			hdd_get_damaged_chunk_data(NULL);
+		}
+		chunkcounter = hdd_get_lost_chunk_count();	// lock
+		if (chunkcounter) {
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8*chunkcounter);
+			if (buff) {
+				hdd_get_lost_chunk_data(buff);	// unlock
+			} else {
+				hdd_get_lost_chunk_data(NULL);	// unlock
+			}
+		} else {
+			hdd_get_lost_chunk_data(NULL);
+		}
 	}
 }
 
-void masterconn_create(masterconn *eptr,uint8_t *data,uint32_t length) {
+#ifdef BGJOBS
+void masterconn_jobfinished(uint8_t status,void *packet) {
+	uint8_t *ptr;
+	masterconn *eptr = masterconnsingleton;
+	if (eptr->mode==DATA || eptr->mode==HEADER) {
+		ptr = masterconn_get_packet_data(packet);
+		ptr[8]=status;
+		masterconn_attach_packet(eptr,packet);
+	} else {
+		masterconn_delete_packet(packet);
+	}
+}
+
+void masterconn_chunkopfinished(uint8_t status,void *packet) {
+	uint8_t *ptr;
+	masterconn *eptr = masterconnsingleton;
+	if (eptr->mode==DATA || eptr->mode==HEADER) {
+		ptr = masterconn_get_packet_data(packet);
+		ptr[32]=status;
+		masterconn_attach_packet(eptr,packet);
+	} else {
+		masterconn_delete_packet(packet);
+	}
+}
+
+void masterconn_replicationfinished(uint8_t status,void *packet) {
+	uint8_t *ptr;
+	masterconn *eptr = masterconnsingleton;
+//	syslog(LOG_NOTICE,"job replication status: %"PRIu8,status);
+	if (eptr->mode==DATA || eptr->mode==HEADER) {
+		ptr = masterconn_get_packet_data(packet);
+		ptr[12]=status;
+		masterconn_attach_packet(eptr,packet);
+	} else {
+		masterconn_delete_packet(packet);
+	}
+}
+#endif /* BGJOBS */
+
+void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"MATOCS_CREATE - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	status = create_newchunk(chunkid,version);
-	ptr = masterconn_createpacket(eptr,CSTOMA_CREATE,8+1);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_CREATE,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	job_create(eptr->jpool,masterconn_jobfinished,packet,chunkid,version);
+#else /* BGJOBS */
+	status = hdd_create(chunkid,version);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CREATE,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,chunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_delete(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_delete(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"MATOCS_DELETE - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	status = delete_chunk(chunkid,version);
-	ptr = masterconn_createpacket(eptr,CSTOMA_DELETE,8+1);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_DELETE,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	job_delete(eptr->jpool,masterconn_jobfinished,packet,chunkid,version);
+#else /* BGJOBS */
+	status = hdd_delete(chunkid,version);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DELETE,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,chunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_setversion(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_setversion(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
-	uint32_t oldversion;
+	uint32_t newversion;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 	
 	if (length!=8+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%"PRIu32"/16)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	GET32BIT(oldversion,data);
-	status = set_chunk_version(chunkid,version,oldversion);
-	ptr = masterconn_createpacket(eptr,CSTOMA_SET_VERSION,8+1);
+	chunkid = get64bit(&data);
+	newversion = get32bit(&data);
+	version = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_SET_VERSION,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	job_version(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,newversion);
+#else /* BGJOBS */
+	status = hdd_version(chunkid,version,newversion);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_SET_VERSION,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,chunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_duplicate(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
-	uint64_t oldchunkid;
-	uint32_t oldversion;
+	uint64_t copychunkid;
+	uint32_t copyversion;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 
 	if (length!=8+4+8+4) {
 		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%"PRIu32"/24)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	GET64BIT(oldchunkid,data);
-	GET32BIT(oldversion,data);
-	status = duplicate_chunk(chunkid,version,oldchunkid,oldversion);
-	ptr = masterconn_createpacket(eptr,CSTOMA_DUPLICATE,8+1);
+	copychunkid = get64bit(&data);
+	copyversion = get32bit(&data);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_DUPLICATE,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,copychunkid);
+	job_duplicate(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
+#else /* BGJOBS */
+	status = hdd_duplicate(chunkid,version,version,copychunkid,copyversion);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPLICATE,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,copychunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_truncate(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_truncate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t leng;
-	uint32_t oldversion;
+	uint32_t newversion;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 
 	if (length!=8+4+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_TRUNCATE - wrong size (%"PRIu32"/20)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(leng,data);
-	GET32BIT(version,data);
-	GET32BIT(oldversion,data);
-	status = truncate_chunk(chunkid,leng,version,oldversion);
-	ptr = masterconn_createpacket(eptr,CSTOMA_TRUNCATE,8+1);
+	chunkid = get64bit(&data);
+	leng = get32bit(&data);
+	newversion = get32bit(&data);
+	version = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_TRUNCATE,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	job_truncate(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,newversion,leng);
+#else /* BGJOBS */
+	status = hdd_truncate(chunkid,version,newversion,leng);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_TRUNCATE,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,chunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_duptrunc(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
-	uint64_t oldchunkid;
-	uint32_t oldversion;
+	uint64_t copychunkid;
+	uint32_t copyversion;
 	uint32_t leng;
 	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
 	uint8_t status;
+#endif /* BGJOBS */
 
 	if (length!=8+4+8+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%"PRIu32"/28)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	GET64BIT(oldchunkid,data);
-	GET32BIT(oldversion,data);
-	GET32BIT(leng,data);
-	status = duptrunc_chunk(chunkid,version,oldchunkid,oldversion,leng);
-	ptr = masterconn_createpacket(eptr,CSTOMA_DUPTRUNC,8+1);
+	copychunkid = get64bit(&data);
+	copyversion = get32bit(&data);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+	leng = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_DUPTRUNC,8+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,copychunkid);
+	job_duptrunc(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
+#else /* BGJOBS */
+	status = hdd_duptrunc(chunkid,version,version,copychunkid,copyversion,leng);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPTRUNC,8+1);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT8BIT(status,ptr);
+	put64bit(&ptr,copychunkid);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
 }
 
-void masterconn_replicate(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
+	uint64_t chunkid;
+	uint32_t version,newversion;
+	uint64_t copychunkid;
+	uint32_t copyversion;
+	uint32_t leng;
+	uint8_t *ptr;
+#ifdef BGJOBS
+	void *packet;
+#else /* BGJOBS */
+	uint8_t status;
+#endif /* BGJOBS */
+
+	if (length!=8+4+8+4+4+4) {
+		syslog(LOG_NOTICE,"MATOCS_CHUNKOP - wrong size (%"PRIu32"/32)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+	newversion = get32bit(&data);
+	copychunkid = get64bit(&data);
+	copyversion = get32bit(&data);
+	leng = get32bit(&data);
+#ifdef BGJOBS
+	packet = masterconn_create_detached_packet(CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
+	put32bit(&ptr,newversion);
+	put64bit(&ptr,copychunkid);
+	put32bit(&ptr,copyversion);
+	put32bit(&ptr,leng);
+	job_chunkop(eptr->jpool,masterconn_chunkopfinished,packet,chunkid,version,newversion,copychunkid,copyversion,leng);
+#else /* BGJOBS */
+	status = hdd_chunkop(chunkid,version,newversion,copychunkid,copyversion,leng);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
+	if (ptr==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
+	put32bit(&ptr,newversion);
+	put64bit(&ptr,copychunkid);
+	put32bit(&ptr,copyversion);
+	put32bit(&ptr,leng);
+	put8bit(&ptr,status);
+#endif /* BGJOBS */
+}
+
+#ifdef BGJOBS
+void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t ip;
 	uint16_t port;
+	uint8_t *ptr;
+	void *packet;
+
+	if (length!=8+4+4+2 && (length<12+18 || length>12+18*100 || (length-12)%18!=0)) {
+		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%"PRIu32"/18|12+n*18[n:1..100])",length);
+		eptr->mode = KILL;
+		return;
+	}
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
+	if (packet==NULL) {
+		eptr->mode=KILL;
+		return;
+	}
+	ptr = masterconn_get_packet_data(packet);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
+	if (length==8+4+4+2) {
+		ip = get32bit(&data);
+		port = get16bit(&data);
+//		syslog(LOG_NOTICE,"start job replication (%08"PRIX64":%04"PRIX32":%04"PRIX32":%02"PRIX16")",chunkid,version,ip,port);
+		job_replicate_simple(eptr->jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
+	} else {
+		job_replicate(eptr->jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
+	}
+}
+
+#else /* BGJOBS */
+
+void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
+	uint64_t chunkid;
+	uint32_t version;
+//	uint32_t ip;
+//	uint16_t port;
+	uint8_t *ptr;
+
+	syslog(LOG_WARNING,"This version of chunkserver can perform replication only in background, but was compiled without bgjobs");
 
 	if (length!=8+4+4+2) {
 		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%"PRIu32"/18)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	GET32BIT(ip,data);
-	GET16BIT(port,data);
-	replicator_new(chunkid,version,ip,port);
-}
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+//	ip = get32bit(&data);
+//	port = get16bit(&data);
 
-void masterconn_replicate_status(uint64_t chunkid,uint32_t version,uint8_t status) {
-	uint8_t *ptr;
-	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		ptr = masterconn_createpacket(eptr,CSTOMA_REPLICATE,8+4+1);
-		if (ptr==NULL) {
-			eptr->mode=KILL;
-			return;
-		}
-		PUT64BIT(chunkid,ptr);
-		PUT32BIT(version,ptr);
-		PUT8BIT(status,ptr);
+	ptr = masterconn_create_attached_packet(eptr,CSTOMA_REPLICATE,8+4+1);
+	if (ptr==NULL) {
+		eptr->mode=KILL;
+		return;
 	}
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
+	put8bit(&ptr,ERROR_CANTCONNECT);	// any error
 }
+#endif
 
-void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	if (length<5) {
 		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%"PRIu32"/4+data)",length);
 		eptr->mode = KILL;
@@ -393,16 +744,20 @@ void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
 		eptr->mode = KILL;
 		return;
 	}
+	if (data[length-1]!='\0') {
+		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - invalid string");
+		eptr->mode = KILL;
+		return;
+	}
 
 	if (logfd==NULL) {
 		logfd = fopen("changelog_csback.0.mfs","a");
 	}
 
-	data[length-1]='\0';
 	if (data[0]==0xFF) {	// new version
 		uint64_t version;
 		data++;
-		GET64BIT(version,data);
+		version = get64bit(&data);
 		if (logfd) {
 			fprintf(logfd,"%"PRIu64": %s\n",version,data);
 		} else {
@@ -410,7 +765,7 @@ void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
 		}
 	} else {	// old version
 		uint32_t version;
-		GET32BIT(version,data);
+		version = get32bit(&data);
 		if (logfd) {
 			fprintf(logfd,"%"PRIu32": %s\n",version,data);
 		} else {
@@ -420,7 +775,7 @@ void masterconn_structure_log(masterconn *eptr,uint8_t *data,uint32_t length) {
 
 }
 
-void masterconn_structure_log_rotate(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	char logname1[100],logname2[100];
 	uint32_t i;
 	(void)data;
@@ -445,7 +800,7 @@ void masterconn_structure_log_rotate(masterconn *eptr,uint8_t *data,uint32_t len
 }
 
 
-void masterconn_chunk_checksum(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t *ptr;
@@ -457,28 +812,28 @@ void masterconn_chunk_checksum(masterconn *eptr,uint8_t *data,uint32_t length) {
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	status = get_chunk_checksum(chunkid,version,&checksum);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+	status = hdd_get_checksum(chunkid,version,&checksum);
 	if (status!=STATUS_OK) {
-		ptr = masterconn_createpacket(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
+		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
 	} else {
-		ptr = masterconn_createpacket(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
+		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
 	}
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT32BIT(version,ptr);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
 	if (status!=STATUS_OK) {
-		PUT8BIT(status,ptr);
+		put8bit(&ptr,status);
 	} else {
-		PUT32BIT(checksum,ptr);
+		put32bit(&ptr,checksum);
 	}
 }
 
-void masterconn_chunk_checksum_tab(masterconn *eptr,uint8_t *data,uint32_t length) {
+void masterconn_chunk_checksum_tab(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t *ptr;
@@ -490,28 +845,28 @@ void masterconn_chunk_checksum_tab(masterconn *eptr,uint8_t *data,uint32_t lengt
 		eptr->mode = KILL;
 		return;
 	}
-	GET64BIT(chunkid,data);
-	GET32BIT(version,data);
-	status = get_chunk_checksum_tab(chunkid,version,crctab);
+	chunkid = get64bit(&data);
+	version = get32bit(&data);
+	status = hdd_get_checksum_tab(chunkid,version,crctab);
 	if (status!=STATUS_OK) {
-		ptr = masterconn_createpacket(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
+		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
 	} else {
-		ptr = masterconn_createpacket(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
+		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
 	}
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
-	PUT64BIT(chunkid,ptr);
-	PUT32BIT(version,ptr);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
 	if (status!=STATUS_OK) {
-		PUT8BIT(status,ptr);
+		put8bit(&ptr,status);
 	} else {
 		memcpy(ptr,crctab,4096);
 	}
 }
 
-void masterconn_gotpacket(masterconn *eptr,uint32_t type,uint8_t *data,uint32_t length) {
+void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
 			break;
@@ -529,6 +884,9 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,uint8_t *data,uint32_t 
 			break;
 		case MATOCS_REPLICATE:
 			masterconn_replicate(eptr,data,length);
+			break;
+		case MATOCS_CHUNKOP:
+			masterconn_chunkop(eptr,data,length);
 			break;
 		case MATOCS_TRUNCATE:
 			masterconn_truncate(eptr,data,length);
@@ -560,7 +918,7 @@ void masterconn_term(void) {
 //	syslog(LOG_INFO,"closing %s:%s",MasterHost,MasterPort);
 	masterconn *eptr = masterconnsingleton;
 
-	if (eptr->mode!=FREE) {
+	if (eptr->mode!=FREE && eptr->mode!=CONNECTING) {
 		tcpclose(eptr->sock);
 
 		if (eptr->inputpacket.packet) {
@@ -582,6 +940,10 @@ void masterconn_term(void) {
 }
 
 void masterconn_connected(masterconn *eptr) {
+#ifdef BGJOBS
+	eptr->jpool = job_pool_new(10,10000,&(eptr->jobfd));
+#endif
+	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
 	eptr->inputpacket.next = NULL;
 	eptr->inputpacket.bytesleft = 8;
@@ -596,6 +958,19 @@ void masterconn_connected(masterconn *eptr) {
 
 void masterconn_initconnect(masterconn *eptr) {
 	int status;
+	if (eptr->masteraddrvalid==0) {
+		uint32_t mip;
+		uint16_t mport;
+		if (sockaddrconvert(MasterHost,MasterPort,"tcp",&mip,&mport)>=0) {
+			eptr->masterip = mip;
+			eptr->masterport = mport;
+			eptr->masteraddrvalid = 1;
+		}
+		if (eptr->masteraddrvalid==0) {
+			syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			return;
+		}
+	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
 		syslog(LOG_WARNING,"create socket, error: %m");
@@ -607,7 +982,7 @@ void masterconn_initconnect(masterconn *eptr) {
 		eptr->sock=-1;
 		return ;
 	}
-	status = tcpaddrconnect(eptr->sock,eptr->masteraddr);
+	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
 		syslog(LOG_WARNING,"connect failed, error: %m");
 		tcpclose(eptr->sock);
@@ -639,95 +1014,106 @@ void masterconn_connecttest(masterconn *eptr) {
 void masterconn_read(masterconn *eptr) {
 	int32_t i;
 	uint32_t type,size;
-	uint8_t *ptr;
-	i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
-	if (i==0) {
-		syslog(LOG_INFO,"Master connection lost");
-		eptr->mode = KILL;
-		return;
-	}
-	if (i<0) {
-		syslog(LOG_INFO,"read from Master error: %m");
-		eptr->mode = KILL;
-		return;
-	}
-	stats_bytesin+=i;
-	eptr->inputpacket.startptr+=i;
-	eptr->inputpacket.bytesleft-=i;
-
-	if (eptr->inputpacket.bytesleft>0) {
-		return;
-	}
-
-	if (eptr->mode==HEADER) {
-		ptr = eptr->hdrbuff+4;
-		GET32BIT(size,ptr);
-
-		if (size>0) {
-			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"Master packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
-				eptr->mode = KILL;
-				return;
-			}
-			eptr->inputpacket.packet = malloc(size);
-			if (eptr->inputpacket.packet==NULL) {
-				syslog(LOG_WARNING,"Master packet: out of memory");
-				eptr->mode = KILL;
-				return;
-			}
-			eptr->inputpacket.bytesleft = size;
-			eptr->inputpacket.startptr = eptr->inputpacket.packet;
-			eptr->mode = DATA;
+	const uint8_t *ptr;
+	for (;;) {
+#ifdef BGJOBS
+		if (job_pool_can_add(eptr->jpool)==0) {
 			return;
 		}
-		eptr->mode = DATA;
-	}
-
-	if (eptr->mode==DATA) {
-		ptr = eptr->hdrbuff;
-		GET32BIT(type,ptr);
-		GET32BIT(size,ptr);
-
-		eptr->mode=HEADER;
-		eptr->inputpacket.bytesleft = 8;
-		eptr->inputpacket.startptr = eptr->hdrbuff;
-
-		masterconn_gotpacket(eptr,type,eptr->inputpacket.packet,size);
-
-		if (eptr->inputpacket.packet) {
-			free(eptr->inputpacket.packet);
+#endif
+		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
+		if (i==0) {
+			syslog(LOG_INFO,"Master connection lost");
+			eptr->mode = KILL;
+			return;
 		}
-		eptr->inputpacket.packet=NULL;
-		return;
-	}
+		if (i<0) {
+			if (errno!=EAGAIN) {
+				syslog(LOG_INFO,"read from Master error: %m");
+				eptr->mode = KILL;
+			}
+			return;
+		}
+		stats_bytesin+=i;
+		eptr->inputpacket.startptr+=i;
+		eptr->inputpacket.bytesleft-=i;
 
+		if (eptr->inputpacket.bytesleft>0) {
+			return;
+		}
+
+		if (eptr->mode==HEADER) {
+			ptr = eptr->hdrbuff+4;
+			size = get32bit(&ptr);
+
+			if (size>0) {
+				if (size>MaxPacketSize) {
+					syslog(LOG_WARNING,"Master packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+					eptr->mode = KILL;
+					return;
+				}
+				eptr->inputpacket.packet = malloc(size);
+				if (eptr->inputpacket.packet==NULL) {
+					syslog(LOG_WARNING,"Master packet: out of memory");
+					eptr->mode = KILL;
+					return;
+				}
+				eptr->inputpacket.bytesleft = size;
+				eptr->inputpacket.startptr = eptr->inputpacket.packet;
+				eptr->mode = DATA;
+				continue;
+			}
+			eptr->mode = DATA;
+		}
+
+		if (eptr->mode==DATA) {
+			ptr = eptr->hdrbuff;
+			type = get32bit(&ptr);
+			size = get32bit(&ptr);
+
+			eptr->mode=HEADER;
+			eptr->inputpacket.bytesleft = 8;
+			eptr->inputpacket.startptr = eptr->hdrbuff;
+
+			masterconn_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+
+			if (eptr->inputpacket.packet) {
+				free(eptr->inputpacket.packet);
+			}
+			eptr->inputpacket.packet=NULL;
+		}
+	}
 }
 
 void masterconn_write(masterconn *eptr) {
 	packetstruct *pack;
 	int32_t i;
-	pack = eptr->outputhead;
-	if (pack==NULL) {
-		return;
+	for (;;) {
+		pack = eptr->outputhead;
+		if (pack==NULL) {
+			return;
+		}
+		i=write(eptr->sock,pack->startptr,pack->bytesleft);
+		if (i<0) {
+			if (errno!=EAGAIN) {
+				syslog(LOG_INFO,"write to Master error: %m");
+				eptr->mode = KILL;
+			}
+			return;
+		}
+		stats_bytesout+=i;
+		pack->startptr+=i;
+		pack->bytesleft-=i;
+		if (pack->bytesleft>0) {
+			return;
+		}
+		free(pack->packet);
+		eptr->outputhead = pack->next;
+		if (eptr->outputhead==NULL) {
+			eptr->outputtail = &(eptr->outputhead);
+		}
+		free(pack);
 	}
-	i=write(eptr->sock,pack->startptr,pack->bytesleft);
-	if (i<0) {
-		syslog(LOG_INFO,"write to Master error: %m");
-		eptr->mode = KILL;
-		return;
-	}
-	stats_bytesout+=i;
-	pack->startptr+=i;
-	pack->bytesleft-=i;
-	if (pack->bytesleft>0) {
-		return;
-	}
-	free(pack->packet);
-	eptr->outputhead = pack->next;
-	if (eptr->outputhead==NULL) {
-		eptr->outputtail = &(eptr->outputhead);
-	}
-	free(pack);
 }
 
 
@@ -739,12 +1125,29 @@ int masterconn_desc(fd_set *rset,fd_set *wset) {
 		return 0;
 	}
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
+#ifdef BGJOBS
+		FD_SET(eptr->jobfd,rset);
+		ret = eptr->jobfd;
+		if (job_pool_can_add(eptr->jpool)) {
+			FD_SET(eptr->sock,rset);
+			if (eptr->sock>ret) {
+				ret=eptr->sock;
+			}
+		}
+#else /* BGJOBS */
 		FD_SET(eptr->sock,rset);
 		ret=eptr->sock;
+#endif /* BGJOBS */
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
 		FD_SET(eptr->sock,wset);
+#ifdef BGJOBS
+		if (eptr->sock>ret) {
+			ret=eptr->sock;
+		}
+#else /* BGJOBS */
 		ret=eptr->sock;
+#endif /* BGJOBS */
 	}
 	return ret;
 }
@@ -759,6 +1162,11 @@ void masterconn_serve(fd_set *rset,fd_set *wset) {
 			masterconn_connecttest(eptr);
 		}
 	} else {
+#ifdef BGJOBS
+		if ((eptr->mode==HEADER || eptr->mode==DATA) && FD_ISSET(eptr->jobfd,rset)) {
+			job_pool_check_jobs(eptr->jpool);
+		}
+#endif /* BGJOBS */
 		if ((eptr->mode==HEADER || eptr->mode==DATA) && FD_ISSET(eptr->sock,rset)) {
 			eptr->lastread = now;
 			masterconn_read(eptr);
@@ -771,10 +1179,13 @@ void masterconn_serve(fd_set *rset,fd_set *wset) {
 			eptr->mode = KILL;
 		}
 		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/2)<now && eptr->outputhead==NULL) {
-			masterconn_createpacket(eptr,ANTOAN_NOP,0);
+			masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
 		}
 	}
 	if (eptr->mode == KILL) {
+#ifdef BGJOBS
+		job_pool_delete(eptr->jpool);	// finish all pending jobs
+#endif /* BGJOBS */
 		tcpclose(eptr->sock);
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
@@ -792,11 +1203,16 @@ void masterconn_serve(fd_set *rset,fd_set *wset) {
 	}
 }
 
-void masterconn_reconnect() {
+void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
+}
+
+void masterconn_reload(void) {
+	masterconn *eptr = masterconnsingleton;
+	eptr->masteraddrvalid=0;
 }
 
 int masterconn_init(void) {
@@ -817,13 +1233,16 @@ int masterconn_init(void) {
 	}
 	eptr = masterconnsingleton = malloc(sizeof(masterconn));
 
-	eptr->masteraddr = sockaddrnew(MasterHost,MasterPort,"tcp");
+	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
+	eptr->lastregister = 0;
 
 	masterconn_initconnect(eptr);
+	main_eachloopregister(masterconn_check_hdd_reports);
 	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_selectregister(masterconn_desc,masterconn_serve);
+	main_reloadregister(masterconn_reload);
 
 	logfd = NULL;
 

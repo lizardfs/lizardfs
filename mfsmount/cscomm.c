@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,15 +33,16 @@
 #define CSMSECTIMEOUT 5000
 
 int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32_t size,uint8_t *buff) {
-	uint8_t *ptr,ibuff[28];
+	uint8_t *wptr,ibuff[28];
+	const uint8_t *rptr;
 
-	ptr = ibuff;
-	PUT32BIT(CUTOCS_READ,ptr);
-	PUT32BIT(20,ptr);
-	PUT64BIT(chunkid,ptr);
-	PUT32BIT(version,ptr);
-	PUT32BIT(offset,ptr);
-	PUT32BIT(size,ptr);
+	wptr = ibuff;
+	put32bit(&wptr,CUTOCS_READ);
+	put32bit(&wptr,20);
+	put64bit(&wptr,chunkid);
+	put32bit(&wptr,version);
+	put32bit(&wptr,offset);
+	put32bit(&wptr,size);
 	if (tcptowrite(fd,ibuff,28,CSMSECTIMEOUT)!=28) {
 		syslog(LOG_NOTICE,"readblock; tcpwrite error: %m");
 		return -1;
@@ -53,9 +56,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			syslog(LOG_NOTICE,"readblock; tcpread error: %m");
 			return -1;
 		}
-		ptr = ibuff;
-		GET32BIT(cmd,ptr);
-		GET32BIT(l,ptr);
+		rptr = ibuff;
+		cmd = get32bit(&rptr);
+		l = get32bit(&rptr);
 		if (cmd==CSTOCU_READ_STATUS) {
 			if (l!=9) {
 				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect message size (%"PRIu32"/9)",l);
@@ -65,10 +68,10 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				syslog(LOG_NOTICE,"readblock; READ_STATUS tcpread error: %m");
 				return -1;
 			}
-			ptr = ibuff;
-			GET64BIT(t64,ptr);
-			if (*ptr!=0) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %"PRIu8,*ptr);
+			rptr = ibuff;
+			t64 = get64bit(&rptr);
+			if (*rptr!=0) {
+				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %"PRIu8,*rptr);
 				return -1;
 			}
 			if (t64!=chunkid) {
@@ -89,16 +92,16 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %m");
 				return -1;
 			}
-			ptr = ibuff;
-			GET64BIT(t64,ptr);
+			rptr = ibuff;
+			t64 = get64bit(&rptr);
 			if (t64!=chunkid) {
 				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect chunkid (got:%"PRIu64" expected:%"PRIu64")",t64,chunkid);
 				return -1;
 			}
-			GET16BIT(blockno,ptr);
-			GET16BIT(blockoffset,ptr);
-			GET32BIT(blocksize,ptr);
-			GET32BIT(blockcrc,ptr);
+			blockno = get16bit(&rptr);
+			blockoffset = get16bit(&rptr);
+			blocksize = get32bit(&rptr);
+			blockcrc = get32bit(&rptr);
 			if (l!=20+blocksize) {
 				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%"PRIu32"/%"PRIu32")",l,20+blocksize);
 				return -1;
@@ -127,7 +130,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %m");
 				return -1;
 			}
-			if (blockcrc!=crc32(0,buff,blocksize)) {
+			if (blockcrc!=mycrc32(0,buff,blocksize)) {
 				syslog(LOG_NOTICE,"readblock; READ_DATA crc checksum error");
 				return -1;
 			}
@@ -143,7 +146,8 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 }
 
 int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
-	uint8_t *ptr,ibuff[21];
+	uint8_t ibuff[21];
+	const uint8_t *ptr;
 	uint32_t t32;
 	uint64_t t64;
 	if (tcptoread(fd,ibuff,21,CSMSECTIMEOUT)!=21) {
@@ -151,18 +155,18 @@ int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 		return -1;
 	}
 	ptr = ibuff;
-	GET32BIT(t32,ptr);
+	t32 = get32bit(&ptr);
 	if (t32!=CSTOCU_WRITE_STATUS) {
 		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS unknown message (%"PRIu32")",t32);
 		return -1;
 	}
-	GET32BIT(t32,ptr);
+	t32 = get32bit(&ptr);
 	if (t32!=13) {
 		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS incorrect message size (%"PRIu32"/13)",t32);
 		return -1;
 	}
-	GET64BIT(t64,ptr);
-	GET32BIT(t32,ptr);
+	t64 = get64bit(&ptr);
+	t32 = get32bit(&ptr);
 	if (*ptr!=0) {
 		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS status: %"PRIu8,*ptr);
 		return -1;
@@ -178,7 +182,7 @@ int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 	return 0;
 }
 
-int cs_writeinit(int fd,uint8_t *chain,uint32_t chainsize,uint64_t chunkid,uint32_t version) {
+int cs_writeinit(int fd,const uint8_t *chain,uint32_t chainsize,uint64_t chunkid,uint32_t version) {
 	uint8_t *ptr,*ibuff;
 	uint32_t psize;
 	psize = 12+chainsize;
@@ -188,10 +192,10 @@ int cs_writeinit(int fd,uint8_t *chain,uint32_t chainsize,uint64_t chunkid,uint3
 		return -1;
 	}
 	ptr = ibuff;
-	PUT32BIT(CUTOCS_WRITE,ptr);
-	PUT32BIT(psize,ptr);
-	PUT64BIT(chunkid,ptr);
-	PUT32BIT(version,ptr);
+	put32bit(&ptr,CUTOCS_WRITE);
+	put32bit(&ptr,psize);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,version);
 	memcpy(ptr,chain,chainsize);
 	psize+=8;
 	if (tcptowrite(fd,ibuff,psize,CSMSECTIMEOUT)!=(int32_t)psize) {
@@ -207,16 +211,16 @@ int cs_writeblock(int fd,uint64_t chunkid,uint32_t writeid,uint16_t blockno,uint
 	uint8_t *ptr,ibuff[32];
 	uint32_t crc,psize;
 	ptr = ibuff;
-	PUT32BIT(CUTOCS_WRITE_DATA,ptr);
+	put32bit(&ptr,CUTOCS_WRITE_DATA);
 	psize = 24+size;
-	PUT32BIT(psize,ptr);
-	PUT64BIT(chunkid,ptr);
-	PUT32BIT(writeid,ptr);
-	PUT16BIT(blockno,ptr);
-	PUT16BIT(offset,ptr);
-	PUT32BIT(size,ptr);
-	crc = crc32(0,buff,size);
-	PUT32BIT(crc,ptr);
+	put32bit(&ptr,psize);
+	put64bit(&ptr,chunkid);
+	put32bit(&ptr,writeid);
+	put16bit(&ptr,blockno);
+	put16bit(&ptr,offset);
+	put32bit(&ptr,size);
+	crc = mycrc32(0,buff,size);
+	put32bit(&ptr,crc);
 	if (tcptowrite(fd,ibuff,32,CSMSECTIMEOUT)!=32) {
 		syslog(LOG_NOTICE,"writestatus; WRITE_DATA tcpwrite error: %m");
 		return -1;

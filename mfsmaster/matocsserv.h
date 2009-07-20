@@ -27,12 +27,15 @@ uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit);
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
 char* matocsserv_getstrip(void *e);
 int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport);
-void matocsserv_replication_begin(void *e);
-void matocsserv_replication_end(void *e);
+//void matocsserv_replication_begin(void *e);
+//void matocsserv_replication_end(void *e);
 uint16_t matocsserv_replication_counter(void *e);
 uint32_t matocsserv_cservlist_size(void);
 void matocsserv_cservlist_data(uint8_t *ptr);
-int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *from);
+int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port);
+// fromdata: cnt*(chunkid:64 version:32 ip:32 port:16)
+int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,uint8_t *fromdata);
+int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng);
 int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version);
 int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version);
 int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,uint32_t oldversion);

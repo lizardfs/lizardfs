@@ -22,7 +22,7 @@
 #include <inttypes.h>
 
 void write_data_init();
-void write_data_flush_inode(uint32_t inode);
+int write_data_flush_inode(uint32_t inode);
 void* write_data_new(uint32_t inode);
 void write_data_end(void *wr);
 int write_data_flush(void *wr);

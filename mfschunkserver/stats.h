@@ -23,8 +23,8 @@
 
 uint32_t stats_datasize(uint32_t number);
 void stats_makedata(uint8_t *buff,uint32_t number);
-uint32_t stats_gifsize(uint32_t number);
-void stats_makegif(uint8_t *buff);
+uint32_t stats_make_png(uint32_t number);
+void stats_get_png(uint8_t *buff);
 
 int stats_init (void);
 

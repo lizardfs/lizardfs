@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include "acl.h"
 #include "matocsserv.h"
 #include "matocuserv.h"
 #include "filesystem.h"
@@ -38,8 +39,9 @@ struct {
 } RunTab[]={
 	{changelog_init,"change log"},
 	{rndinit,"random generator"},
+	{acl_init,"access control list"},
 	{matocsserv_init,"communication with chunkserver"},
-	{matocuserv_init,"communication with customer"},
+	{matocuserv_init,"communication with clients"},
 	{fs_init,"file system manager"},
 	{stats_init,"statistics module"},
 	{(runfn)0,"****"}

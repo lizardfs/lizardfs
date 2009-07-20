@@ -1,27 +1,42 @@
 bin_PROGRAMS=mfsmount mfstools
 
-AM_CPPFLAGS=-I$(top_srcdir) -D_REENTRANT -D_THREAD_SAFE -DFUSE_USE_VERSION=25
+AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -D_GNU_SOURCE -D_REENTRANT -D_THREAD_SAFE -DFUSE_USE_VERSION=26
 
-mfsmount_LDADD=$(FUSE_LIBS)
+
+
+mfsmount_LDADD=$(FUSE_LIBS) ../mfscommon/libmfscommon.a
 mfsmount_CFLAGS=$(FUSE_CFLAGS)
 
 mfsmount_SOURCES=\
-	mfs_fuse.c mfs_meta_fuse.c mastercomm.c cscomm.c crc.c sockets.c \
-	readdata.c writedata.c csdb.c main.c \
-	crc.h cscomm.h datapack.h mastercomm.h mfs_fuse.h mfs_meta_fuse.h \
-	readdata.h sockets.h writedata.h csdb.h \
-	../MFSCommunication.h
+	dirattrcache.c dirattrcache.h \
+	mfs_fuse.c mfs_fuse.h \
+	mfs_meta_fuse.c mfs_meta_fuse.h \
+	mastercomm.c mastercomm.h \
+	cscomm.c cscomm.h \
+	readdata.c readdata.h \
+	writedata.c writedata.h \
+	csdb.c csdb.h \
+	stats.c stats.h \
+	main.c \
+	../mfscommon/sockets.c ../mfscommon/sockets.h \
+	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/datapack.h \
+	../mfscommon/MFSCommunication.h
+
+mfstools_LDADD=-lm ../mfscommon/libmfscommon.a
 
 mfstools_SOURCES=\
 	mfstools.c \
-	datapack.h \
-	../MFSCommunication.h
+	../mfscommon/sockets.c ../mfscommon/sockets.h \
+	../mfscommon/datapack.h \
+	../mfscommon/MFSCommunication.h
 
 mfstools_links=\
-	mfscheckfile mfsdirinfo mfsfileinfo \
+	mfscheckfile mfsdirinfo mfsfileinfo mfsfilerepair \
 	mfsgetgoal mfsgettrashtime mfsrgetgoal mfsrgettrashtime \
 	mfsrsetgoal mfsrsettrashtime mfssetgoal mfssettrashtime \
-	mfssnapshot
+	mfsgetnoownerflag mfssetnoownerflag mfsdelnoownerflag \
+	mfsmakesnapshot mfsappendchunks
 
 install-exec-hook:
 	for l in $(mfstools_links) ; do \

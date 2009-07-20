@@ -3,8 +3,8 @@
 
 AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.5.12], [bugs@moosefs.com])
-AC_CONFIG_SRCDIR([MFSCommunication.h])
+AC_INIT([MFS], [1.6.0], [bugs@moosefs.com])
+dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([1.6 foreign])
@@ -19,10 +19,13 @@ AC_DEFINE_UNQUOTED([VERSMIN], [$versmin], [Minor MFS version])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_LN_S
+AC_PROG_LIBTOOL
 
 if test "$GCC" = "yes"; then
 	CFLAGS="$CFLAGS -W -Wall -Wshadow"
 fi
+
+CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 
 # Checks for libraries.
 AC_SEARCH_LIBS([socket], [socket])
@@ -36,12 +39,13 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h s
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
+AC_C_BIGENDIAN
 AC_HEADER_STDBOOL
-AC_TYPE_UID_T
 dnl AC_TYPE_INT16_T
 dnl AC_TYPE_INT32_T
 dnl AC_TYPE_INT64_T
 dnl AC_TYPE_INT8_T
+AC_TYPE_UID_T
 AC_TYPE_MODE_T
 AC_TYPE_OFF_T
 AC_TYPE_PID_T
@@ -65,6 +69,7 @@ dnl AC_TYPE_UINT8_T
 AC_SYS_LARGEFILE
 
 # Checks for library functions.
+AC_FUNC_STRERROR_R
 AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_FORK
 AC_FUNC_LSTAT
@@ -73,7 +78,14 @@ AC_FUNC_MEMCMP
 AC_FUNC_REALLOC
 AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_STAT
+# required functions
 AC_CHECK_FUNCS([bzero dup2 ftruncate gethostbyname gettimeofday memset mkdir realpath select socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+
+# optional functions
+AC_CHECK_FUNCS([pread pwrite readv writev perror])
+
+dnl optional interfaces (Linux, FreeBSD)
+AC_CHECK_FUNCS([fopencookie funopen])
 
 case $target_os in
   *linux*)
@@ -103,17 +115,73 @@ esac
 AC_ARG_ENABLE([mfsmaster], [AS_HELP_STRING([--disable-mfsmaster], [Don't build mfsmaster])])
 AC_ARG_ENABLE([mfschunkserver], [AS_HELP_STRING([--disable-mfschunkserver], [Don't build mfschunkserver])])
 AC_ARG_ENABLE([mfsmount], [AS_HELP_STRING([--disable-mfsmount], [Don't build mfsmount])])
+AC_ARG_ENABLE([mfscgi], [AS_HELP_STRING([--disable-mfscgi], [Don't install CGI scripts])])
+AC_ARG_ENABLE([mfscgiserv], [AS_HELP_STRING([--disable-mfscgiserv], [Don't install CGI server])])
+AC_ARG_WITH([mfscgi-dir], [AC_HELP_STRING([--with-mfscgi-dir=CGIDIR], [Choose CGI directory (default=DATADIR/mfscgi)])],
+	[CGIDIR=$withval], [CGIDIR=$datadir/mfscgi])
+AC_ARG_WITH([mfscgiserv-dir], [AC_HELP_STRING([--with-mfscgiserv-dir=CGISERVDIR], [Choose CGI directory (default=SBINDIR)])],
+	[CGISERVDIR=$withval], [CGISERVDIR=$sbindir])
+
+if test "$enable_mfscgi" != "no"; then
+	AM_PATH_PYTHON([2.0],,[:])
+	if test "$PYTHON" = ":"; then
+		enable_mfscgi=no
+	fi
+fi
+if test "enable_$mfscgi" = "no"; then
+	enable_mfscgiserv=no
+fi
+AM_CONDITIONAL([INSTALL_CGI], [test "$enable_mfscgi" != "no"])
+AM_CONDITIONAL([INSTALL_CGISERV], [test "$enable_mfscgiserv" != "no"])
+AC_SUBST([CGIDIR])
+AC_SUBST([CGISERVDIR])
 
 AM_CONDITIONAL([BUILD_MASTER], [test "$enable_mfsmaster" != "no"])
 AM_CONDITIONAL([BUILD_CHUNKSERVER], [test "$enable_mfschunkserver" != "no"])
 if test "$fuse" != "no" -a "enable_mfsmount" != "no"; then
 	PKG_PROG_PKG_CONFIG
-	PKG_CHECK_MODULES([FUSE], [fuse],, [fuse=no])
+	if test -n "$PKG_CONFIG"; then
+		PKG_CHECK_MODULES([FUSE], [fuse >= 2.6], , [fuse=no])
+	else
+		echo "no pkg-config - can't check FUSE version"
+		fuse=no
+	fi
 fi
-if test "$enable_mfsmount" = "yes" -a "$fuse" = "no"; then
-	AC_MSG_ERROR([mfsmount build was forced, but fuse development package is not installed])
+if test "$fuse" = "no"; then
+	if test "$enable_mfsmount" = "yes"; then
+		if test -n "$PKG_CONFIG"; then
+			AC_MSG_ERROR([mfsmount build was forced, but fuse library is too old or not installed])
+		else
+			AC_MSG_ERROR([mfsmount build was forced, but pkg-config not installed])
+		fi
+	else 
+		if test "$enable_mfsmount" != "no"; then
+			if test -n "$PKG_CONFIG"; then
+				echo "******************************** mfsmount disabled ********************************"
+				echo "* fuse library is too old or not installed - mfsmount needs version 2.6 or higher *"
+				echo "***********************************************************************************"
+			else
+				echo "**** mfsmount disabled *****"
+				echo "* pkg-config not installed *"
+				echo "****************************"
+			fi
+		fi
+	fi
 fi
 AM_CONDITIONAL([BUILD_MOUNT], [test "$fuse" != "no" -a "$enable_mfsmount" != "no"])
+
+zlib=no
+AC_CHECK_LIB(z, zlibVersion, [ AC_CHECK_HEADERS(zlib.h,[zlib=yes]) ])
+
+if test "$zlib" = "no"; then
+	ZLIB_LIBS=
+	echo "************************************"
+	echo "* zlib not found - charts disabled *"
+	echo "************************************"
+else
+	ZLIB_LIBS=-lz
+fi
+AC_SUBST([ZLIB_LIBS])
 
 test "$prefix" = "NONE" && prefix=$ac_default_prefix
 eval DATA_PATH=${localstatedir}/mfs
@@ -147,7 +215,9 @@ AC_SUBST([DEFAULT_GROUP])
 
 AC_CONFIG_FILES([Makefile
 		doc/Makefile
+		mfscommon/Makefile
 		mfschunkserver/Makefile
+		mfscgi/Makefile
 		mfsdata/Makefile
 		mfsmaster/Makefile
 		mfsmetarestore/Makefile

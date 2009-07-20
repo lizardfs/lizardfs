@@ -1,4 +1,4 @@
-.TH MFSCHUNKSERVER "8" "February 2008" "MooseFS 1.5"
+.TH MFSCHUNKSERVER "8" "July 2009" "MooseFS 1.6.0"
 .SH NAME
 mfschunkserver \- start, restart or stop Moose File System chunkserver process
 .SH SYNOPSIS
@@ -6,15 +6,22 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 [\fB\-f\fP]
 [\fB\-c\fP \fICFGFILE\fP]
 .PP
-.B mfschunkserver
-[\fB\-s\fP]
+.B mfschunkserver \-s
 [\fB\-c\fP \fICFGFILE\fP]
+.PP
+.B mfschunkserver \-v
 .SH DESCRIPTION
 .PP
 \fBmfschunkserver\fP is the data server of Moose File System. Depending on
 parameters it can start, restart or stop MFS chunkserver process. Without
 any options it starts MFS chunkserver, killing previously run process if
 PID file exists.
+.PP
+Starting with version 1.6.0 chunkserver periodically tests stored chunks
+(see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
+.TP
+\fB\-v\fP
+print version information and exit
 .TP
 \fB\-f\fP
 forcily run MFS chunkserver process, without trying to kill previous instance
@@ -29,7 +36,8 @@ specify alternative path of configuration file (default is
 .SH FILES
 .TP
 \fBmfschunkserver.cfg\fP
-configuration file for MFS chunkserver process
+configuration file for MFS chunkserver process; refer to
+\fBmfschunkserver.cfg\fI\|(5) manual for defails
 .TP
 \fBmfshdd.cfg\fP
 list of directories (mountpoints) used for MFS storage (one per line;
@@ -44,54 +52,10 @@ MFS filesystem metadata change logs (backup of master change log files)
 .TP
 \fBdata.csstats\fP
 Chunkserver charts state
-.SH CONFIGURATION
-\fBmfschunkserver.cfg\fP configuration options:
-.TP
-\fBDATA_PATH\fP
-where to store metadata files
-.TP
-\fBLOCK_FILE\fP
-daemon lock/pid file
-.TP
-\fBWORKING_USER\fP
-user to run daemon as
-.TP
-\fBWORKING_GROUP\fP
-group to run daemon as
-.TP
-\fBBACK_LOGS\fP
-number of metadata change log files (default is 10)
-.TP
-\fBMASTER_RECONNECTION_DELAY\fP
-delay in seconds before trying to reconnect to master after disconnection (default is 30)
-.TP
-\fBMASTER_HOST\fP
-address of MFS master host to connect with (default is mfsmaster)
-.TP
-\fBMASTER_PORT\fP
-number of MFS master port to connect with (default is 9420)
-.TP
-\fBMASTER_TIMEOUT\fP
-timeout (in seconds) for master connections (default is 60)
-.TP
-\fBCSSERV_LISTEN_HOST\fP
-IP address to listen on for client (mount) connections (\fB*\fP means any)
-.TP
-\fBCSSERV_LISTEN_PORT\fP
-port to listen on for client (mount) connections (default is 9422)
-.TP
-\fBCSSERV_TIMEOUT\fP
-timeout (in seconds) for client (mount) connections (default is 60)
-.TP
-\fBCSTOCS_TIMEOUT\fP
-timeout (in seconds) for chunkserver (replication) connections (default is 60)
-.TP
-\fBHDD_CONF_FILENAME\fP
-alternative name of \fBmfshdd.cfg\fP file
 .SH "REPORTING BUGS"
 Report bugs to <bugs@moosefs.com>.
 .SH COPYRIGHT
-Copyright 2008 Gemius SA.
+Copyright 2008-2009 Gemius SA.
 
 MooseFS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -107,4 +71,6 @@ along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
 .SH "SEE ALSO"
 .BR mfsmaster (8),
 .BR mfsmount (8),
+.BR mfschunkserver.cfg (5),
+.BR mfshdd.cfg (5),
 .BR moosefs (7)

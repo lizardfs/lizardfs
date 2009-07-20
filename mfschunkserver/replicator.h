@@ -18,13 +18,11 @@
 
 #ifndef _REPLICATOR_H_
 #define _REPLICATOR_H_
+
 #include <inttypes.h>
 
 void replicator_stats(uint32_t *repl);
-void replicator_new(uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port);
-void replicator_cstocs_gotdata(void *e,uint64_t chunkid,uint16_t blocknum,uint16_t offset,uint32_t size,uint32_t crc,uint8_t *ptr);
-void replicator_cstocs_gotstatus(void *e,uint64_t chunkid,uint8_t s);
-void replicator_cstocs_connected(void *e,void *cptr);
-void replicator_cstocs_disconnected(void *e);
+/* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
+uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs);
 
 #endif

@@ -21,9 +21,13 @@
 
 #include <fuse_lowlevel.h>
 
-int mfs_rootnode_setup(char *path);
+// int mfs_rootnode_setup(char *path);
 
+#if FUSE_USE_VERSION >= 26
+void mfs_statfs(fuse_req_t req, fuse_ino_t ino);
+#else
 void mfs_statfs(fuse_req_t req);
+#endif
 void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask);
 void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name);
 void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
@@ -46,6 +50,11 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi);
-void mfs_init(int debug_mode,int local_mode);
+#if FUSE_USE_VERSION >= 26
+//void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock);
+//void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl);
+#endif
+void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
+// void mfs_init(int debug_mode_in,int keep_cache_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
 
 #endif

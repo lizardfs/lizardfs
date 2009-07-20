@@ -40,7 +40,7 @@ int lognamecmp(const void *a,const void *b) {
 }
 
 void usage(const char* appname) {
-	fprintf(stderr,"restore metadata:\n\t%s -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s -a [-d <data path>]\n",appname,appname,appname);
+	fprintf(stderr,"restore metadata:\n\t%s -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s -a [-d <data path>]\nprint version:\n\t%s -v\n",appname,appname,appname,appname);
 }
 
 int main(int argc,char **argv) {
@@ -54,8 +54,11 @@ int main(int argc,char **argv) {
 	char *appname = argv[0];
 	uint32_t dplen = 0;
 
-	while ((ch = getopt(argc, argv, "m:o:d:a?")) != -1) {
+	while ((ch = getopt(argc, argv, "vm:o:d:a?")) != -1) {
 		switch (ch) {
+			case 'v':
+				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
+				return 0;
 			case 'o':
 				metaout = strdup(optarg);
 				break;

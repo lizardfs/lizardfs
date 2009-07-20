@@ -1,49 +1,112 @@
-.TH MFSMOUNT "8" "February 2008" "MooseFS 1.5"
+.TH MFSMOUNT "8" "July 2009" "MooseFS 1.6.0"
 .SH NAME
 mfsmount \- mount Moose File System
 .SH SYNOPSIS
 .B mfsmount
-[\fB\-d\fP] 
-[\fB\-m\fP] 
-[\fB\-r\fP]
-[\fB\-h\fP \fIHOST\fP]
-[\fB\-p\fP \fIPORT\fP]
-[\fB\-l\fP \fIDIR\fP]
-[\fB\-w\fP \fIDIR\fP]
+\fImountpoint\fP
+[\fB\-d\fP]
+[\fB\-f\fP]
+[\fB\-s\fP]
+[\fB\-m\fP]
+[\fB\-n\fP]
+[\fB\-p\fP]
+[\fB\-H\fP \fIHOST\fP]
+[\fB\-P\fP \fIPORT\fP]
+[\fB\-S\fP \fIPATH\fP]
+[\fB\-o\fP \fIopt\fP[,\fIopt\fP]...]
 .PP
-.B mfsmount \-?
+.B mfsmount
+\fB\-h\fP|\fB\-\-help\fP
+.PP
+.B mfsmount
+\fB\-V\fP|\fB\-\-version\fP
 .SH DESCRIPTION
 .PP
 Mount Moose File System.
+.PP
+General options:
 .TP
-\fB\-?\fP
+\fB\-h\fP, \fB\-\-help
 display help and exit
 .TP
-\fB\-d\fP
-enable debug mode
+\fB\-V\fP
+display version information and exit
+.PP
+FUSE options:
 .TP
-\fB\-m\fP
+\fB\-d\fP, \fB-o debug\fP
+enable debug mode (implies \fB\-f\fP)
+.TP
+\fB\-f\fP
+foreground operation
+.TP
+\fB\-s\fP
+disable multi-threaded operation
+.PP
+MFS options:
+.TP
+\fB\-m\fP, \fB\-\-meta\fP, \fB\-o mfsmeta\fP
 mount MFSMETA companion filesystem instead of primary MFS
 .TP
-\fB\-r\fP
-mount as read-only filesystem
+\fB\-n\fP
+omit default mount options (\fB-o allow_other,default_permissions\fP)
 .TP
-\fB\-h\fP \fIHOST\fP
-connect with MFS master on HOST (default is mfsmaster)
+\fB\-p\fP
+prompt for password (interactive version of \fB\-o mfspassword=\fP\fIPASS\fP)
 .TP
-\fB\-p\fP \fIPORT\fP
-connect with MFS master on PORT (default is 9421)
+\fB\-H\fP \fIHOST\fP, \fB\-o mfsmaster=\fP\fIHOST\fP
+connect with MFS master on \fIHOST\fP (default is mfsmaster)
 .TP
-\fB\-l\fP \fIMFS_DIRECTORY\fP
+\fB\-P\fP \fIPORT\fP, \fB\-o mfsport=\fP\fIPORT\fP
+connect with MFS master on \fIPORT\fP (default is 9421)
+.TP
+\fB\-S\fP \fIPATH\fP, \fB-o mfssubfolder=\fP\fIPATH\fP
 mount specified MFS directory (default is /, i.e. whole filesystem)
 .TP
-\fB\-w\fP \fILOCAL_DIRECTORY\fP
-mount MFS into specified local directory (default is /mnt/mfs for MFS,
-/mnt/mfsmeta for MFSMETA)
+\fB\-o mfspassword=\fP\fIPASSWORD\fP
+authenticate to MFS master with \fIPASSWORD\fP
+.TP
+\fB\-o mfsmd5pass=\fP\fIMD5\fP
+authenticate to MFS master using directly given \fIMD5\fP (only if
+\fBmfspassword\fP option is not specified)
+.TP
+\fB\-o mfsdebug\fP
+print some MFS-specific debugging information
+.TP
+\fB\-o mfscachefiles\fP
+preserve file data in cache (default is not to use data cache)
+.TP
+\fB\-o mfsattrcacheto=\fP\fISEC\fP
+set attributes cache timeout in seconds (default: 1.0)
+.TP
+\fB\-o mfsentrycacheto=\fP\fISEC\fP
+set file entry cache timeout in seconds (default: 0.0, i.e. no cache)
+.TP
+\fB\-o mfsdirentrycacheto=\fP\fISEC\fP
+set directory entry cache timeout in seconds (default: 1.0)
+.TP
+\fB\-o mfsrlimitnofile=\fP\fISEC\fP
+try to change limit of simultaneously opened file descriptors on startup
+(default: 100000)
+.PP
+General mount options (see \fBmount\fP\|(8) manual):
+.TP
+\fB\-o rw\fP|\fB-o ro\fP
+Mount file-system in read-write (default) or read-only mode respectively.
+.TP
+\fB\-o suid\fP|\fB-o nosuid\fP
+Enable or disable suid/sgid attributes to work.
+.TP
+\fB\-o dev\fP|\fB-o nodev\fP
+Enable or disable character or block special device files interpretation.
+.TP
+\fB\-o exec\fP|\fB-o noexec\fP
+Allow or disallow execution of binaries.
+.TP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@moosefs.com>.
 .SH COPYRIGHT
-Copyright 2008 Gemius SA.
+Copyright 2008-2009 Gemius SA.
 
 MooseFS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,4 +122,5 @@ along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
 .SH "SEE ALSO"
 .BR mfsmaster (8),
 .BR mfstools (1),
-.BR moosefs (7)
+.BR moosefs (7),
+.BR mount (8)

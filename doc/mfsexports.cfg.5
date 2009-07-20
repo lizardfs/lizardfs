@@ -1,0 +1,79 @@
+.TH MFSEXPORTS.CFG "5" "July 2009" "MooseFS 1.6.0"
+.SH NAME
+mfsexports.cfg \- MFS access control for \fBmfsmount\fPs
+.SH DESCRIPTION
+The file \fBmfsexports.cfg\fP contains MFS access list for \fBmfsmount\fP
+clients.
+.SH SYNTAX
+.PP
+Syntax is:
+.TP
+\fIADDRESS\fP \fIDIRECTORY\fP [\fIOPTIONS\fP]
+.PP
+Lines starting with \fB#\fP character are ignored as comments.
+.PP
+\fIADDRESS\fP can be specified in several forms:
+.PP
+.nf
+.ta +2i
+\fB*\fP	all addresses
+\fBn.n.n.n\fP	single IP address
+\fBn.n.n.n/b\fP	IP class specified by network address and bits number
+\fBn.n.n.n/m.m.m.m\fP	IP class specified by network address and mask
+\fBf.f.f.f-t.t.t.t\fP	IP range specified by from-to addresses (inclusive)
+.fi
+.PP
+\fIDIRECTORY\fP could be \fB/\fP or path relative to MFS root; special
+value \fB.\fP means MFSMETA companion filesystem.
+.PP
+\fIOPTIONS\fP list:
+.TP
+\fBro\fP, \fBreadonly\fP
+export tree in read-only mode (default)
+.TP
+\fBrw\fP, \fBreadwrite\fP
+export tree in read-write mode
+.TP
+\fBignoregid\fP
+disable testing of group access at \fBmfsmaster\fP level (it's still done
+at \fBmfsmount\fP level) - in this case "group" and "other" permissions are
+logically added; needed for supplementary groups to work (\fBmfsmaster\fP
+receives only user primary group information)
+.TP
+\fBdynamicip\fP
+allows reconnecting of already authenticated client from any IP address
+(the default is to check IP address on reconnect)
+.TP
+\fBmaproot=\fP\fIUSER\fP[\fB:\fP\fIGROUP\fP]
+maps root (uid=0) accesses to given user and group (similarly to maproot
+option in NFS mounts); \fIUSER\fP and \fIGROUP\fP can be given either as
+name or number; if no group is specified, \fIUSER\fP's primary group is
+used
+.TP
+\fBminversion=\fP\fIVER\fP
+rejects access from clients older than specified
+.TP
+\fBpassword=\fP\fIPASS\fP, \fBmd5pass=\fP\fIMD5\fP
+requires password authentication in order to access specified resource
+.TP
+\fBalldirs\fP
+allows to mount any subdirectory of specified directory (similarly to NFS)
+.PP
+Default options are: \fBro,maproot=999:999\fP.
+.SH COPYRIGHT
+Copyright 2008-2009 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmaster (8),
+.BR mfsmaster.cfg (5)

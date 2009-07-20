@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -167,7 +169,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	uint32_t ip,tmpip;
 	uint16_t port,tmpport;
 	uint32_t cnt,bestcnt;
-	uint8_t *csdata;
+	const uint8_t *csdata;
 	uint32_t csdatasize;
 	uint8_t status;
 //	fprintf(stderr,"read_data_refresh_connection (%p)\n",rrec);
@@ -197,8 +199,8 @@ static int read_data_refresh_connection(readrec *rrec) {
 	// choose cs
 	bestcnt = 0xFFFFFFFF;
 	while (csdatasize>=6 && bestcnt>0) {
-		GET32BIT(tmpip,csdata);
-		GET16BIT(tmpport,csdata);
+		tmpip = get32bit(&csdata);
+		tmpport = get16bit(&csdata);
 		csdatasize-=6;
 		cnt = csdb_getopcnt(tmpip,tmpport);
 		if (cnt<bestcnt) {
@@ -254,7 +256,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	uint64_t curroff;
 	uint32_t currsize;
 	uint32_t indx;
-	uint8_t cnt;
+	uint8_t cnt,eb;
 	uint32_t chunkoffset;
 	uint32_t chunksize;
 	int err;
@@ -263,26 +265,36 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 //	fprintf(stderr,"read_data (%p,%"PRIu64",%"PRIu32")\n",rrec,offset,*size);
 	pthread_mutex_lock(&(rrec->lock));
 	if (*size==0) {
-		*buff = NULL;
+		if (*buff!=NULL) {
+			pthread_mutex_unlock(&(rrec->lock));
+		}
 		return 0;
 	}
 
-	if (*size>rrec->rbuffsize) {
-		if (rrec->rbuff!=NULL) {
-			free(rrec->rbuff);
-		}
-		rrec->rbuffsize = *size;
-		rrec->rbuff = malloc(rrec->rbuffsize);
-		if (rrec->rbuff==NULL) {
-			rrec->rbuffsize = 0;
-			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - out of memory",rrec->inode,rrec->indx);
-			return -4;	// out of memory
+	eb=1;
+	if (*buff==NULL) {	// use internal buffer
+		eb=0;
+		if (*size>rrec->rbuffsize) {
+			if (rrec->rbuff!=NULL) {
+				free(rrec->rbuff);
+			}
+			rrec->rbuffsize = *size;
+			rrec->rbuff = malloc(rrec->rbuffsize);
+			if (rrec->rbuff==NULL) {
+				rrec->rbuffsize = 0;
+				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - out of memory",rrec->inode,rrec->indx);
+				return -4;	// out of memory
+			}
 		}
 	}
 
 	err = -1;
 	cnt = 0;
-	buffptr = rrec->rbuff;
+	if (*buff==NULL) {
+		buffptr = rrec->rbuff;
+	} else {
+		buffptr = *buff;
+	}
 	curroff = offset;
 	currsize = *size;
 	while (currsize>0) {
@@ -297,6 +309,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				}
 				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - can't connect to proper chunkserver (try counter: %"PRIu32")",rrec->inode,rrec->indx,cnt);
 				if (err==-2) {	// no such inode - it's unrecoverable error
+					if (eb) {
+						pthread_mutex_unlock(&(rrec->lock));
+					}
 					return err;
 				}
 				if (err==-3) {	// chunk not available - unrecoverable, but wait longer, and make less retries
@@ -307,6 +322,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				}
 			}
 			if (cnt>=RETRIES) {
+				if (eb) {
+					pthread_mutex_unlock(&(rrec->lock));
+				}
 				return err;
 			}
 		}
@@ -344,15 +362,21 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	}
 
 	if (rrec->fleng<=offset) {
-		*buff = NULL;
 		*size = 0;
 	} else if (rrec->fleng<(offset+(*size))) {
-		*buff = rrec->rbuff;
+		if (*buff==NULL) {
+			*buff = rrec->rbuff;
+		}
 		*size = rrec->fleng - offset;
 	} else {
-		*buff = rrec->rbuff;
+		if (*buff==NULL) {
+			*buff = rrec->rbuff;
+		}
 	}
 	gettimeofday(&(rrec->atime),NULL);
+	if (eb) {
+		pthread_mutex_unlock(&(rrec->lock));
+	}
 	return 0;
 }
 

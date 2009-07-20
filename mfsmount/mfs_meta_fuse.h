@@ -21,7 +21,11 @@
 
 #include <fuse_lowlevel.h>
 
+#if FUSE_USE_VERSION >= 26
+void mfs_meta_statfs(fuse_req_t req, fuse_ino_t ino);
+#else
 void mfs_meta_statfs(fuse_req_t req);
+#endif
 //void mfs_meta_access(fuse_req_t req, fuse_ino_t ino, int mask);
 void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name);
 void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
@@ -35,6 +39,6 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
-void mfs_meta_init(int debug_mode,int local_mode);
+void mfs_meta_init(int debug_mode_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
 
 #endif

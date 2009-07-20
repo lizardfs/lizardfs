@@ -1,5 +1,68 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.0 (????-??-??)
+
+ Common:
+ - Removed duplicate source files.
+ - Strip whitespace at the end of configuration file lines.
+
+ Chunkserver:
+ - Rewritten in multi-threaded model.
+ - Added periodical chunk testing functionality (HDD_TEST_FREQ option).
+ - New -v option (prints version and exits).
+
+ Master:
+ - Added "noowner" objects flag (causes objects to belong to current user).
+ - Maintaining `mfsdirinfo` data online, so it doesn't need to be calculated
+   on every request.
+ - Filesystem access authorization system (NFS-like mfsexports.cfg file,
+   REJECT_OLD_CLIENTS option) with ro/rw, password and maproot
+   functionality.
+ - New -v option (prints version and exits).
+
+ Mount:
+ - Rewritten options parsing in mount-like way, making possible to use
+   standard FUSE mount utilities (see mfsmount(8) manual for new syntax).
+   Note: old syntax is no longer accepted and mountpoint is mandatory now
+   (there is no default).
+ - Updated for FUSE 2.6+.
+ - Added password, file data cache, attribute cache and entry cache options.
+   By default attribute cache and directory entry cache are enabled,
+   file data cache and file entry cache are disabled.
+ - opendir() no longer reads directory contents - it's done on first
+   readdir() now; fixes "rm -r" on recent Linux/glibc/coreutils combo.
+ - Fixed mtime setting just before close() (by flushing file on mtime
+   change); fixes mtime preserving on "cp -p".
+ - Added statistics accessible through MFSROOT/.stats pseudo-file.
+ - Changed master access method for mfstools (direct .master pseudo-file
+   replaced by .masterinfo redirection); fixes possible mfstools race
+   condition and allows to use mfstools on read-only filesystem.
+
+ Tools:
+ - Units cleanup in values display (exact values, IEC-60027/binary prefixes,
+   SI/decimal prefixes); new options: -n, -h, -H and MFSHRFORMAT environment
+   variable - refer to mfstools(8) manual for details).
+ - mfsrgetgoal, mfsrsetgoal, mfsrgettrashtime, mfsrsettrashtime have been
+   deprecated in favour of new "-r" option for mfsgetgoal, mfssetgoal,
+   mfsgettrashtime, mfssettrashtime tools.
+ - mfssnapshot utility replaced by mfsappendchunks (direct descendant of
+   old utility) and mfsmakesnapshot (which creates "real" recursive
+   snapshots and behaves similar to "cp -r").
+ - New mfsfilerepair utility, which allows partial recovery of file with
+   some missing or broken chunks.
+
+ CGI scripts:
+ - First public version of CGI scripts allowing to monitor MFS installation
+   from WWW browser.
+
+* MooseFS 1.5.14
+
+   Not released to public.
+
+* MooseFS 1.5.13
+
+   Not released to public.
+
 * MooseFS 1.5.12 (2009-01-28)
 
  - Fixed CRC cache in chunkserver

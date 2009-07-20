@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <fuse_lowlevel.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,38 +30,82 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "config.h"
+#include "stats.h"
 #include "datapack.h"
 #include "mastercomm.h"
 #include "readdata.h"
 #include "writedata.h"
 #include "MFSCommunication.h"
 
-#define LOCAL_MODE_INODE_TIMEOUT 60.0
-#define LOCAL_MODE_ATTR_TIMEOUT 60.0
+#include "dirattrcache.h"
 
-#define NAME_MAX 255
-#define MAX_FILE_SIZE 0x20000000000LL
+#define READDIR_BUFFSIZE 50000
 
-// version 1.3.2 (x.y.z -> x*1000000+y*1000+z)
-//#define VERSMAJ 1
-//#define VERSMID 3
-//#define VERSMIN 2
+#define NAME_MAX MFS_NAME_MAX
+#define MAX_FILE_SIZE MFS_MAX_FILE_SIZE
+
 #define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
 
-#define MASTER_NAME ".master"
-#define MASTER_INODE 0x7FFFFFFF
-static uint8_t masterattr[35]={'f', 0x01,0xB6, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
+// #define MASTER_NAME ".master"
+// #define MASTER_INODE 0x7FFFFFFF
+// 0x01b6 == 0666
+// static uint8_t masterattr[35]={'f', 0x01,0xB6, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
-typedef struct _minfo {
-	int sd;
-	int sent;
-} minfo;
+#define MASTERINFO_NAME ".masterinfo"
+#define MASTERINFO_INODE 0x7FFFFFFF
+// 0x0124 == 0b100100100 == 0444
+static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10};
+
+#define STATS_NAME ".stats"
+#define STATS_INODE 0x7FFFFFF0
+// 0x01A4 == 0b110100100 == 0644
+static uint8_t statsattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
+/*
+static char statsfile[]=
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.getattr              : %20"PRIu64"\n"
+"fuseop.setattr              : %20"PRIu64"\n"
+"fuseop.lookup               : %20"PRIu64"\n"
+"fuseop.access               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"fuseop.statfs               : %20"PRIu64"\n"
+"master.reconnections        : %20"PRIu64"\n"
+"master.datasent             : %20"PRIu64"\n"
+"master.datareceived         : %20"PRIu64"\n"
+"master.packetssent          : %20"PRIu64"\n"
+"master.packetreceived       : %20"PRIu64"\n"
+"chunkservers.connections    : %20"PRIu64"\n"
+"chunkservers.datasent       : %20"PRIu64"\n"
+"chunkservers.datareceived   : %20"PRIu64"\n"
+"chunkservers.packetsent     : %20"PRIu64"\n"
+"chunkservers.packetreceived : %20"PRIu64"\n";
+*/
+
+//typedef struct _minfo {
+//	int sd;
+//	int sent;
+//} minfo;
+
+typedef struct _sinfo {
+	char *buff;
+	uint32_t leng;
+	uint8_t reset;
+} sinfo;
 
 typedef struct _dirbuf {
 	int wasread;
-	char *p;
+	uid_t uid;
+	gid_t gid;
+	uint8_t *p;
 	size_t size;
+	void *dcache;
 	pthread_mutex_t lock;
 } dirbuf;
 
@@ -72,66 +118,94 @@ typedef struct _finfo {
 } finfo;
 
 static int debug_mode = 0;
-static int local_mode = 0;
+static int usedircache = 1;
+static int keep_cache = 0;
+static double direntry_cache_timeout = 0.1;
+static double entry_cache_timeout = 0.0;
+static double attr_cache_timeout = 0.1;
 
-static uint32_t root_inode;
+//static int local_mode = 0;
+//static int no_attr_cache = 0;
 
-static void mfs_rootinode_lookup(const char *name) {
-	uint32_t inode;
-	uint32_t nleng;
-	uint8_t attr[35];
-	int status;
-	int cnt;
+static uint32_t root_inode = 1;
 
-	if (root_inode==0) {
-		return;
+enum {
+	OP_STATFS = 0,
+	OP_ACCESS,
+	OP_LOOKUP,
+	OP_DIRCACHE_LOOKUP,
+	OP_GETATTR,
+	OP_DIRCACHE_GETATTR,
+	OP_SETATTR,
+	OP_MKNOD,
+	OP_UNLINK,
+	OP_MKDIR,
+	OP_RMDIR,
+	OP_SYMLINK,
+	OP_READLINK,
+	OP_RENAME,
+	OP_LINK,
+	OP_OPENDIR,
+	OP_READDIR,
+	OP_RELEASEDIR,
+	OP_CREATE,
+	OP_OPEN,
+	OP_RELEASE,
+	OP_READ,
+	OP_WRITE,
+	OP_FLUSH,
+	OP_FSYNC,
+	STATNODES
+};
+
+static uint64_t *statsptr[STATNODES];
+static pthread_mutex_t statsptrlock = PTHREAD_MUTEX_INITIALIZER;
+
+void mfs_statsptr_init(void) {
+	void *s;
+	s = stats_get_subnode(NULL,"fuse_ops");
+	statsptr[OP_FSYNC] = stats_get_counterptr(stats_get_subnode(s,"fsync"));
+	statsptr[OP_FLUSH] = stats_get_counterptr(stats_get_subnode(s,"flush"));
+	statsptr[OP_WRITE] = stats_get_counterptr(stats_get_subnode(s,"write"));
+	statsptr[OP_READ] = stats_get_counterptr(stats_get_subnode(s,"read"));
+	statsptr[OP_RELEASE] = stats_get_counterptr(stats_get_subnode(s,"release"));
+	statsptr[OP_OPEN] = stats_get_counterptr(stats_get_subnode(s,"open"));
+	statsptr[OP_CREATE] = stats_get_counterptr(stats_get_subnode(s,"create"));
+	statsptr[OP_RELEASEDIR] = stats_get_counterptr(stats_get_subnode(s,"releasedir"));
+	statsptr[OP_READDIR] = stats_get_counterptr(stats_get_subnode(s,"readdir"));
+	statsptr[OP_OPENDIR] = stats_get_counterptr(stats_get_subnode(s,"opendir"));
+	statsptr[OP_LINK] = stats_get_counterptr(stats_get_subnode(s,"link"));
+	statsptr[OP_RENAME] = stats_get_counterptr(stats_get_subnode(s,"rename"));
+	statsptr[OP_READLINK] = stats_get_counterptr(stats_get_subnode(s,"readlink"));
+	statsptr[OP_SYMLINK] = stats_get_counterptr(stats_get_subnode(s,"symlink"));
+	statsptr[OP_RMDIR] = stats_get_counterptr(stats_get_subnode(s,"rmdir"));
+	statsptr[OP_MKDIR] = stats_get_counterptr(stats_get_subnode(s,"mkdir"));
+	statsptr[OP_UNLINK] = stats_get_counterptr(stats_get_subnode(s,"unlink"));
+	statsptr[OP_MKNOD] = stats_get_counterptr(stats_get_subnode(s,"mknod"));
+	statsptr[OP_SETATTR] = stats_get_counterptr(stats_get_subnode(s,"setattr"));
+	statsptr[OP_GETATTR] = stats_get_counterptr(stats_get_subnode(s,"getattr"));
+	if (usedircache) {
+		statsptr[OP_DIRCACHE_GETATTR] = stats_get_counterptr(stats_get_subnode(s,"getattr-cached"));
 	}
-	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
-		root_inode=0;
-		return;
+	statsptr[OP_LOOKUP] = stats_get_counterptr(stats_get_subnode(s,"lookup"));
+	if (usedircache) {
+		statsptr[OP_DIRCACHE_LOOKUP] = stats_get_counterptr(stats_get_subnode(s,"lookup-cached"));
 	}
-	// this trick with cnt should be unnecessary after rebuild masterconn.h
-	for (cnt=0 ; cnt<40 ; cnt++) {
-		status = fs_lookup(root_inode,nleng,(const uint8_t *)name,0,0,&inode,attr);
-		if (status==0) {
-			if (attr[0]==TYPE_DIRECTORY) {
-				root_inode=inode;
-			} else {
-				root_inode=0;
-			}
-			return;
-		} else if (status==ERROR_IO) {
-			sleep(1);
-		} else {
-			root_inode=0;
-			return;
-		}
-	}
-	root_inode=0;
+	statsptr[OP_ACCESS] = stats_get_counterptr(stats_get_subnode(s,"access"));
+	statsptr[OP_STATFS] = stats_get_counterptr(stats_get_subnode(s,"statfs"));
 }
 
-int mfs_rootnode_setup(char *path) {
-	root_inode = 1;
-	while (path) {
-		char *n;
-		while (*path=='/') {
-			path++;
-		}
-		n = path;
-		path = strchr(n,'/');
-		if (path!=NULL) {
-			*path++=0;
-		}
-		if (*n) {
-			mfs_rootinode_lookup(n);
-		}
+void mfs_stats_inc(uint8_t id) {
+	if (id<STATNODES) {
+		pthread_mutex_lock(&statsptrlock);
+		(*statsptr[id])++;
+		pthread_mutex_unlock(&statsptrlock);
 	}
-	if (root_inode==0) {
-		return -1;
-	}
-	return 0;
 }
+
+#ifndef EDQUOT
+#define EDQUOT ENOSPC
+#endif
 
 static int mfs_errorconv(int status) {
 	int ret;
@@ -163,12 +237,33 @@ static int mfs_errorconv(int status) {
 	case ERROR_IO:
 		ret=EIO;
 		break;
+	case ERROR_EROFS:
+		ret=EROFS;
+		break;
+	case ERROR_QUOTA:
+		ret=EDQUOT;
+		break;
 	default:
 		ret=EINVAL;
 		break;
 	}
-	if (debug_mode) {
-		fprintf(stderr,"status conv: %d->%d\n",status,ret);
+	if (debug_mode && ret!=0) {
+#ifdef HAVE_STRERROR_R
+		char errorbuff[500];
+# ifdef STRERROR_R_CHAR_P
+		fprintf(stderr,"status: %s\n",strerror_r(ret,errorbuff,500));
+# else
+		strerror_r(ret,errorbuff,500);
+		fprintf(stderr,"status: %s\n",errorbuff);
+# endif
+#else
+# ifdef HAVE_PERROR
+		errno=ret;
+		perror("status: ");
+# else
+		fprintf(stderr,"status: %d\n",ret);
+# endif
+#endif
 	}
 	return ret;
 }
@@ -206,21 +301,21 @@ static void mfs_type_to_stat(uint32_t inode,uint8_t type, struct stat *stbuf) {
 	}
 }
 
-static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf) {
+static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	uint16_t attrmode;
 	uint8_t attrtype;
 	uint32_t attruid,attrgid,attratime,attrmtime,attrctime,attrnlink,attrrdev;
 	uint64_t attrlength;
-	uint8_t *ptr;
+	const uint8_t *ptr;
 	ptr = attr;
-	GET8BIT(attrtype,ptr);
-	GET16BIT(attrmode,ptr);
-	GET32BIT(attruid,ptr);
-	GET32BIT(attrgid,ptr);
-	GET32BIT(attratime,ptr);
-	GET32BIT(attrmtime,ptr);
-	GET32BIT(attrctime,ptr);
-	GET32BIT(attrnlink,ptr);
+	attrtype = get8bit(&ptr);
+	attrmode = get16bit(&ptr);
+	attruid = get32bit(&ptr);
+	attrgid = get32bit(&ptr);
+	attratime = get32bit(&ptr);
+	attrmtime = get32bit(&ptr);
+	attrctime = get32bit(&ptr);
+	attrnlink = get32bit(&ptr);
 	if (inode==root_inode) {
 		inode=FUSE_ROOT_ID;
 	}
@@ -228,19 +323,19 @@ static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
 		stbuf->st_mode = S_IFDIR | ( attrmode & 07777);
-		GET64BIT(attrlength,ptr);
+		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 		stbuf->st_blocks = (attrlength+511)/512;
 		break;
 	case TYPE_SYMLINK:
 		stbuf->st_mode = S_IFLNK | ( attrmode & 07777);
-		GET64BIT(attrlength,ptr);
+		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 		stbuf->st_blocks = (attrlength+511)/512;
 		break;
 	case TYPE_FILE:
 		stbuf->st_mode = S_IFREG | ( attrmode & 07777);
-		GET64BIT(attrlength,ptr);
+		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 		stbuf->st_blocks = (attrlength+511)/512;
 		break;
@@ -256,14 +351,14 @@ static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf
 		break;
 	case TYPE_BLOCKDEV:
 		stbuf->st_mode = S_IFBLK | ( attrmode & 07777);
-		GET32BIT(attrrdev,ptr);
+		attrrdev = get32bit(&ptr);
 		stbuf->st_rdev = attrrdev;
 		stbuf->st_size = 0;
 		stbuf->st_blocks = 0;
 		break;
 	case TYPE_CHARDEV:
 		stbuf->st_mode = S_IFCHR | ( attrmode & 07777);
-		GET32BIT(attrrdev,ptr);
+		attrrdev = get32bit(&ptr);
 		stbuf->st_rdev = attrrdev;
 		stbuf->st_size = 0;
 		stbuf->st_blocks = 0;
@@ -279,26 +374,57 @@ static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf
 	stbuf->st_nlink = attrnlink;
 }
 
+#if FUSE_USE_VERSION >= 26
+void mfs_statfs(fuse_req_t req,fuse_ino_t ino) {
+#else
 void mfs_statfs(fuse_req_t req) {
+#endif
 	uint64_t totalspace,availspace,trashspace,reservedspace;
 	uint32_t inodes;
 	uint32_t bsize;
 	struct statvfs stfsbuf;
 	memset(&stfsbuf,0,sizeof(stfsbuf));
 
+	mfs_stats_inc(OP_STATFS);
+#if FUSE_USE_VERSION >= 26
+	(void)ino;
+#endif
 	fs_statfs(&totalspace,&availspace,&trashspace,&reservedspace,&inodes);
 
-	if (totalspace<0x0000800000000000ULL) {
-		bsize = 0x10000;
+#if defined(__APPLE__)
+	if (totalspace>0x0001000000000000ULL) {
+		bsize = 0x20000;
 	} else {
-		bsize = 0x4000000;
+		bsize = 0x10000;
 	}
+#else
+	bsize = 0x10000;
+#endif
+
 	stfsbuf.f_namemax = NAME_MAX;
 	stfsbuf.f_frsize = bsize;
 	stfsbuf.f_bsize = bsize;
+#if defined(__APPLE__)
+	// FUSE on apple (or other parts of kernel) expects 32-bit values, so it's better to saturate this values than let being cut on 32-bit
+	// can't change bsize also because 64k seems to be the biggest acceptable value for bsize
+
+	if (totalspace/bsize>0xFFFFFFFFU) {
+		stfsbuf.f_blocks = 0xFFFFFFFFU;
+	} else {
+		stfsbuf.f_blocks = totalspace/bsize;
+	}
+	if (availspace/bsize>0xFFFFFFFFU) {
+		stfsbuf.f_bfree = 0xFFFFFFFFU;
+		stfsbuf.f_bavail = 0xFFFFFFFFU;
+	} else {
+		stfsbuf.f_bfree = availspace/bsize;
+		stfsbuf.f_bavail = availspace/bsize;
+	}
+#else
 	stfsbuf.f_blocks = totalspace/bsize;
 	stfsbuf.f_bfree = availspace/bsize;
 	stfsbuf.f_bavail = availspace/bsize;
+#endif
 	stfsbuf.f_files = 1000000000+PKGVERSION+inodes;
 	stfsbuf.f_ffree = 1000000000+PKGVERSION;
 	stfsbuf.f_favail = 1000000000+PKGVERSION;
@@ -316,9 +442,9 @@ static int mfs_node_access(uint8_t attr[32],uint32_t uid,uint32_t gid,int mask) 
 		return 1;
 	}
 	ptr = attr+2;
-	GET16BIT(attrmode,ptr);
-	GET32BIT(attruid,ptr);
-	GET32BIT(attrgid,ptr);
+	attrmode = get16bit(&ptr);
+	attruid = get32bit(&ptr);
+	attrgid = get32bit(&ptr);
 	if (uid == attruid) {
 		emode = (attrmode & 0700) >> 6;
 	} else if (gid == attrgid) {
@@ -348,6 +474,7 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 	const struct fuse_ctx *ctx;
 	int mmode;
 
+	mfs_stats_inc(OP_ACCESS);
 #if (R_OK==MODE_MASK_R) && (W_OK==MODE_MASK_W) && (X_OK==MODE_MASK_X)
 	mmode = mask & (MODE_MASK_R | MODE_MASK_W | MODE_MASK_X);
 #else
@@ -366,8 +493,17 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 	if (ino==FUSE_ROOT_ID) {
 		ino=root_inode;
 	}
-	if (ino==MASTER_INODE) {
-		fuse_reply_err(req,0);
+//	if (ino==MASTER_INODE) {
+//		fuse_reply_err(req,0);
+//		return;
+//	}
+	if (ino==MASTERINFO_INODE || ino==STATS_INODE) {
+		if (mask & (W_OK | X_OK)) {
+			fuse_reply_err(req,EACCES);
+		} else {
+			fuse_reply_err(req,0);
+		}
+		return;
 	}
 	status = fs_access(ino,ctx->uid,ctx->gid,mmode);
 	status = mfs_errorconv(status);
@@ -391,6 +527,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 	nleng = strlen(name);
 	if (nleng>NAME_MAX) {
+		mfs_stats_inc(OP_LOOKUP);
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -399,31 +536,56 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		if (nleng==2 && name[0]=='.' && name[1]=='.') {
 			nleng=1;
 		}
-		if (strcmp(name,MASTER_NAME)==0) {
+//		if (strcmp(name,MASTER_NAME)==0) {
+//			memset(&e, 0, sizeof(e));
+//			e.ino = MASTER_INODE;
+//			e.attr_timeout = 3600.0;
+//			e.entry_timeout = 3600.0;
+//			mfs_attr_to_stat(MASTER_INODE,masterattr,&e.attr);
+//			fuse_reply_entry(req, &e);
+//			mfs_stats_inc(OP_LOOKUP);
+//			return ;
+//		}
+		if (strcmp(name,MASTERINFO_NAME)==0) {
 			memset(&e, 0, sizeof(e));
-			e.ino = MASTER_INODE;
-			if (local_mode) {
-				e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-				e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-			} else {
-				e.attr_timeout = 0.0;
-				e.entry_timeout = 0.0;
-			}
-			mfs_attr_to_stat(MASTER_INODE,masterattr,&e.attr);
+			e.ino = MASTERINFO_INODE;
+			e.attr_timeout = 3600.0;
+			e.entry_timeout = 3600.0;
+			mfs_attr_to_stat(MASTERINFO_INODE,masterinfoattr,&e.attr);
 			fuse_reply_entry(req, &e);
+			mfs_stats_inc(OP_LOOKUP);
+			return ;
+		}
+		if (strcmp(name,STATS_NAME)==0) {
+			memset(&e, 0, sizeof(e));
+			e.ino = STATS_INODE;
+			e.attr_timeout = 3600.0;
+			e.entry_timeout = 3600.0;
+			mfs_attr_to_stat(STATS_INODE,statsattr,&e.attr);
+			fuse_reply_entry(req, &e);
+			mfs_stats_inc(OP_LOOKUP);
 			return ;
 		}
 	}
 	ctx = fuse_req_ctx(req);
-	status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
-	status = mfs_errorconv(status);
+	if (usedircache && dcache_lookup(ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
+		if (debug_mode) {
+			fprintf(stderr,"lookup: sending data from dircache\n");
+		}
+		mfs_stats_inc(OP_DIRCACHE_LOOKUP);
+		status = 0;
+	} else {
+		mfs_stats_inc(OP_LOOKUP);
+		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
+		status = mfs_errorconv(status);
+	}
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		return;
 	}
 	if (inode==root_inode) {
 		inode=FUSE_ROOT_ID;
-		status = fs_getattr(inode,attr);
+		status = fs_getattr(inode,ctx->uid,ctx->gid,attr);
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
@@ -431,23 +593,19 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		}
 	}
 	if (attr[0]==TYPE_FILE) {
-		write_data_flush_inode(inode);
-		status = fs_getattr(inode,attr);
-		status = mfs_errorconv(status);
-		if (status!=0) {
-			fuse_reply_err(req, status);
-			return;
+		if (write_data_flush_inode(inode)) {
+			status = fs_getattr(inode,ctx->uid,ctx->gid,attr);
+			status = mfs_errorconv(status);
+			if (status!=0) {
+				fuse_reply_err(req, status);
+				return;
+			}
 		}
 	}
 	memset(&e, 0, sizeof(e));
 	e.ino = inode;
-	if (local_mode) {
-		e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-		e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-	} else {
-		e.attr_timeout = 0.0;
-		e.entry_timeout = 0.0;
-	}
+	e.attr_timeout = attr_cache_timeout;
+	e.entry_timeout = (attr[0]==TYPE_DIRECTORY)?direntry_cache_timeout:entry_cache_timeout;
 	mfs_attr_to_stat(inode,attr,&e.attr);
 //	if (attr[0]==TYPE_FILE && debug_mode) {
 //		fprintf(stderr,"lookup inode %lu - file size: %llu\n",(unsigned long int)inode,(unsigned long long int)e.attr.st_size);
@@ -459,27 +617,53 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	struct stat o_stbuf;
 	uint8_t attr[35];
 	int status;
+	const struct fuse_ctx *ctx;
 	(void)fi;
 
+//	mfs_stats_inc(OP_GETATTR);
 	if (debug_mode) {
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
 	}
 	if (ino==FUSE_ROOT_ID) {
 		ino = root_inode;
 	}
-	if (ino==MASTER_INODE) {
+//	if (ino==MASTER_INODE) {
+//		memset(&o_stbuf, 0, sizeof(struct stat));
+//		mfs_attr_to_stat(ino,masterattr,&o_stbuf);
+//		fuse_reply_attr(req, &o_stbuf, 3600.0);
+//		mfs_stats_inc(OP_GETATTR);
+//		return;
+//	}
+	if (ino==MASTERINFO_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
-		mfs_attr_to_stat(ino,masterattr,&o_stbuf);
-		if (local_mode) {
-			fuse_reply_attr(req, &o_stbuf, LOCAL_MODE_ATTR_TIMEOUT);
-		} else {
-			fuse_reply_attr(req, &o_stbuf, 0.0);
-		}
+		mfs_attr_to_stat(ino,masterinfoattr,&o_stbuf);
+		fuse_reply_attr(req, &o_stbuf, 3600.0);
+		mfs_stats_inc(OP_GETATTR);
 		return;
 	}
-	write_data_flush_inode(ino);
-	status = fs_getattr(ino,attr);
-	status = mfs_errorconv(status);
+	if (ino==STATS_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		mfs_attr_to_stat(ino,statsattr,&o_stbuf);
+		fuse_reply_attr(req, &o_stbuf, 3600.0);
+		mfs_stats_inc(OP_GETATTR);
+		return;
+	}
+	ctx = fuse_req_ctx(req);
+	if (write_data_flush_inode(ino)) {
+		mfs_stats_inc(OP_GETATTR);
+		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+		status = mfs_errorconv(status);
+	} else if (usedircache && dcache_getattr(ctx,ino,attr)) {
+		if (debug_mode) {
+			fprintf(stderr,"getattr: sending data from dircache\n");
+		}
+		mfs_stats_inc(OP_DIRCACHE_GETATTR);
+		status = 0;
+	} else {
+		mfs_stats_inc(OP_GETATTR);
+		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+		status = mfs_errorconv(status);
+	}
 	if (status!=0) {
 		fuse_reply_err(req, status);
 	} else {
@@ -491,11 +675,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 //		if (attr[0]==TYPE_FILE && debug_mode) {
 //			fprintf(stderr,"getattr inode %lu - file size: %llu\n",(unsigned long int)ino,(unsigned long long int)o_stbuf.st_size);
 //		}
-		if (local_mode) {
-			fuse_reply_attr(req, &o_stbuf, LOCAL_MODE_ATTR_TIMEOUT);
-		} else {
-			fuse_reply_attr(req, &o_stbuf, 0.0);
-		}
+		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
 	}
 }
 
@@ -506,23 +686,33 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	const struct fuse_ctx *ctx;
 	uint8_t setmask = 0;
 
+	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
 		fprintf(stderr,"setattr (%lu,%u,(%04o,%u,%u,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,stbuf->st_mode & 07777,stbuf->st_uid,stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
 	}
 	if (ino==FUSE_ROOT_ID) {
 		ino = root_inode;
 	}
-	if (ino==MASTER_INODE) {
+	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE) {
+		fuse_reply_err(req, EPERM);
+		return;
+	}
+	if (ino==STATS_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
-		mfs_attr_to_stat(ino,masterattr,&o_stbuf);
-		if (local_mode) {
-			fuse_reply_attr(req, &o_stbuf, LOCAL_MODE_ATTR_TIMEOUT);
-		} else {
-			fuse_reply_attr(req, &o_stbuf, 0.0);
-		}
+		mfs_attr_to_stat(ino,statsattr,&o_stbuf);
+		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		return;
 	}
 	status = EINVAL;
+	ctx = fuse_req_ctx(req);
+	if ((to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME|FUSE_SET_ATTR_SIZE)) == 0) {	// change other flags or change nothing
+		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+		status = mfs_errorconv(status);
+		if (status!=0) {
+			fuse_reply_err(req, status);
+			return;
+		}
+	}
 	if (to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME)) {
 		setmask = 0;
 		if (to_set & FUSE_SET_ATTR_MODE) {
@@ -539,8 +729,8 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		}
 		if (to_set & FUSE_SET_ATTR_MTIME) {
 			setmask |= SET_MTIME_FLAG;
+			write_data_flush_inode(ino);	// in this case we want flush all pending writes because they could overwrite mtime
 		}
-		ctx = fuse_req_ctx(req);
 		status = fs_setattr(ino,ctx->uid,ctx->gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,attr);
 		status = mfs_errorconv(status);
 		if (status!=0) {
@@ -558,11 +748,10 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 		write_data_flush_inode(ino);
-		ctx = fuse_req_ctx(req);
-		status = fs_truncate(ino,(fi!=NULL)?0:ctx->uid,ctx->gid,stbuf->st_size,attr);
+		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx->uid,ctx->gid,stbuf->st_size,attr);
 		while (status==ERROR_LOCKED) {
 			sleep(1);
-			status = fs_truncate(ino,(fi!=NULL)?0:ctx->uid,ctx->gid,stbuf->st_size,attr);
+			status = fs_truncate(ino,(fi!=NULL)?1:0,ctx->uid,ctx->gid,stbuf->st_size,attr);
 		}
 		status = mfs_errorconv(status);
 		read_inode_ops(ino);
@@ -571,7 +760,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 	}
-	if (status!=0) {	// other flags or no flags - return EINVAL
+	if (status!=0) {	// should never happend but ...
 		fuse_reply_err(req, status);
 	} else {
 		if (ino==root_inode) {
@@ -579,11 +768,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		}
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,attr,&o_stbuf);
-		if (local_mode) {
-			fuse_reply_attr(req, &o_stbuf, LOCAL_MODE_ATTR_TIMEOUT);
-		} else {
-			fuse_reply_attr(req, &o_stbuf, 0.0);
-		}
+		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
 	}
 }
 
@@ -596,6 +781,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	uint8_t type;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_MKNOD);
 	if (debug_mode) {
 		fprintf(stderr,"mknod (%lu,%s,%04o,%08lX)\n",(unsigned long int)parent,name,mode,(unsigned long int)rdev);
 	}
@@ -621,7 +807,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -635,13 +821,8 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		if (local_mode) {
-			e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-			e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-		} else {
-			e.attr_timeout = 0.0;
-			e.entry_timeout = 0.0;
-		}
+		e.attr_timeout = attr_cache_timeout;
+		e.entry_timeout = entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -652,12 +833,13 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	int status;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_UNLINK);
 	if (debug_mode) {
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -687,12 +869,13 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	int status;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_MKDIR);
 	if (debug_mode) {
 		fprintf(stderr,"mkdir (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -711,13 +894,8 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		if (local_mode) {
-			e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-			e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-		} else {
-			e.attr_timeout = 0.0;
-			e.entry_timeout = 0.0;
-		}
+		e.attr_timeout = attr_cache_timeout;
+		e.entry_timeout = direntry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -728,12 +906,13 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	int status;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_RMDIR);
 	if (debug_mode) {
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -762,12 +941,13 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	int status;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_SYMLINK);
 	if (debug_mode) {
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -786,13 +966,8 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		if (local_mode) {
-			e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-			e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-		} else {
-			e.attr_timeout = 0.0;
-			e.entry_timeout = 0.0;
-		}
+		e.attr_timeout = attr_cache_timeout;
+		e.entry_timeout = entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -800,8 +975,9 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 
 void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 	int status;
-	uint8_t *path;
+	const uint8_t *path;
 
+	mfs_stats_inc(OP_READLINK);
 	if (debug_mode) {
 		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
 	}
@@ -822,19 +998,20 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 	int status;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_RENAME);
 	if (debug_mode) {
 		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
 	}
 	if (newparent==FUSE_ROOT_ID) {
 		newparent = root_inode;
-		if (strcmp(newname,MASTER_NAME)==0) {
+		if (/*strcmp(newname,MASTER_NAME)==0 || */strcmp(newname,MASTERINFO_NAME)==0 || strcmp(newname,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -868,20 +1045,20 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	uint8_t attr[35];
 	const struct fuse_ctx *ctx;
 
-
+	mfs_stats_inc(OP_LINK);
 	if (debug_mode) {
 		fprintf(stderr,"link (%lu,%lu,%s)\n",(unsigned long int)ino,(unsigned long int)newparent,newname);
 	}
 	if (ino==FUSE_ROOT_ID) {
 		ino = root_inode;
 	}
-	if (ino==MASTER_INODE) {
+	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
 		fuse_reply_err(req, EACCES);
 		return;
 	}
 	if (newparent==FUSE_ROOT_ID) {
 		newparent = root_inode;
-		if (strcmp(newname,MASTER_NAME)==0) {
+		if (/*strcmp(newname,MASTER_NAME)==0 || */strcmp(newname,MASTERINFO_NAME)==0 || strcmp(newname,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
@@ -901,106 +1078,44 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		if (local_mode) {
-			e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-			e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-		} else {
-			e.attr_timeout = 0.0;
-			e.entry_timeout = 0.0;
-		}
+		e.attr_timeout = attr_cache_timeout;
+		e.entry_timeout = entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
 }
 
-static int dirbuf_fill(dirbuf *b, uint32_t ino,uint8_t *buffer, uint32_t size) {
-	uint8_t *ptr,*eptr;
-	uint8_t nleng;
-	char *name;
-	uint32_t inode;
-	uint8_t type;
-	uint32_t off,next;
-	struct stat stbuf;
-
-	b->p = NULL;
-	b->size = 0;
-	ptr = buffer;
-	eptr = buffer+size;
-	while (ptr<eptr) {
-		nleng = ptr[0];
-		b->size += fuse_dirent_size(nleng);
-		ptr += 6+nleng;
-	}
-	if (ptr!=eptr) {	// data misaligned
-		return -1;
-	}
-//	if (ino==root_inode) {
-//		b->size += fuse_dirent_size(strlen(MASTER_NAME));
-//	}
-	b->p = malloc(b->size);
-	if (b->p==NULL) {
-		return -1;	// out of memory
-	}
-	ptr = buffer;
-	off = 0;
-	while (ptr<eptr) {
-		nleng = ptr[0];
-		ptr++;
-		name = (char*)ptr;
-		ptr+=nleng;
-		if (ptr+5<=eptr) {
-			GET32BIT(inode,ptr);
-			if (ino==root_inode && name[0]=='.' && name[1]=='.' && name[2]==0) {
-				inode = FUSE_ROOT_ID;
-			}
-			if (inode==root_inode) {
-				inode = FUSE_ROOT_ID;
-			}
-			GET8BIT(type,ptr);
-			mfs_type_to_stat(inode,type,&stbuf);
-			name[nleng]=0;	// ugly hack
-			next = off+fuse_dirent_size(nleng);
-			fuse_add_dirent(b->p + off, name, &stbuf, next);
-			off = next;
-		}
-	}
-//	if (ino==root_inode) {
-//		mfs_attr_to_stat(MASTER_INODE,masterattr,&stbuf);
-//		fuse_add_dirent(b->p + off,MASTER_NAME, &stbuf, off + fuse_dirent_size(strlen(MASTER_NAME)));
-//	}
-	return 0;
-}
-
 void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	dirbuf *dirinfo;
 	int status;
-	uint8_t *dbuff;
-	uint32_t dsize;
 	const struct fuse_ctx *ctx;
 
+	mfs_stats_inc(OP_OPENDIR);
 	if (debug_mode) {
 		fprintf(stderr,"opendir (%lu)\n",(unsigned long int)ino);
 	}
 	if (ino==FUSE_ROOT_ID) {
 		ino = root_inode;
 	}
-	if (ino==MASTER_INODE) {
+	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
 		fuse_reply_err(req, ENOTDIR);
 	}
 	ctx = fuse_req_ctx(req);
-	status = fs_getdir(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
+	status = fs_access(ino,ctx->uid,ctx->gid,MODE_MASK_R);	// at least test rights
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 	} else {
 		dirinfo = malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
-		dirbuf_fill(dirinfo,ino,dbuff,dsize);
+		dirinfo->p = NULL;
+		dirinfo->size = 0;
+		dirinfo->dcache = NULL;
+		dirinfo->wasread = 0;
 		fi->fh = (unsigned long)dirinfo;
 		if (fuse_reply_open(req,fi) == -ENOENT) {
 			fi->fh = 0;
 			pthread_mutex_destroy(&(dirinfo->lock));
-			free(dirinfo->p);
 			free(dirinfo);
 		}
 	}
@@ -1009,6 +1124,18 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	int status;
         dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+	char buffer[READDIR_BUFFSIZE];
+	char name[NAME_MAX+1];
+	const uint8_t *ptr,*eptr;
+	uint8_t end;
+	size_t opos,oleng;
+	uint8_t nleng;
+	uint32_t inode;
+	uint8_t type;
+	struct stat stbuf;
+	const struct fuse_ctx *ctx;
+
+	mfs_stats_inc(OP_READDIR);
 	if (debug_mode) {
 		fprintf(stderr,"readdir (%lu,%llu,%llu)\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
@@ -1017,44 +1144,108 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		return;
 	}
 	pthread_mutex_lock(&(dirinfo->lock));
-	if (dirinfo->wasread==1 && off==0) {
-		uint8_t *dbuff;
+	if (dirinfo->wasread==0 || (dirinfo->wasread==1 && off==0)) {
+		const uint8_t *dbuff;
 		uint32_t dsize;
+		ctx = fuse_req_ctx(req);
 		if (ino==FUSE_ROOT_ID) {
 			ino = root_inode;
 		}
-		status = fs_getdir(ino,0,0,&dbuff,&dsize);
+		if (usedircache) {
+			status = fs_getdir_plus(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
+		} else {
+			status = fs_getdir(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
+		}
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
+			pthread_mutex_unlock(&(dirinfo->lock));
 			return;
 		}
-		free(dirinfo->p);
-		dirbuf_fill(dirinfo,ino,dbuff,dsize);
-	}
-	if ((size_t)off < dirinfo->size) {
-		if (off + size > dirinfo->size) {
-			fuse_reply_buf(req, dirinfo->p + off, dirinfo->size - off);
-		} else {
-			fuse_reply_buf(req, dirinfo->p + off, size);
+		if (dirinfo->dcache) {
+			dcache_release(dirinfo->dcache);
 		}
-	} else {
-		fuse_reply_buf(req, NULL, 0);
+		if (dirinfo->p) {
+			free(dirinfo->p);
+		}
+		dirinfo->p = malloc(dsize);
+		if (dirinfo->p == NULL) {
+			fuse_reply_err(req,EINVAL);
+			pthread_mutex_unlock(&(dirinfo->lock));
+			return;
+		}
+		memcpy(dirinfo->p,dbuff,dsize);
+		dirinfo->size = dsize;
+		if (usedircache) {
+			dirinfo->dcache = dcache_new(ctx,ino,dirinfo->p,dirinfo->size);
+		}
 	}
 	dirinfo->wasread=1;
+
+	if (off>=(off_t)(dirinfo->size)) {
+		fuse_reply_buf(req, NULL, 0);
+	} else {
+		if (size>READDIR_BUFFSIZE) {
+			size=READDIR_BUFFSIZE;
+		}
+		ptr = dirinfo->p+off;
+		eptr = dirinfo->p+dirinfo->size;
+		opos = 0;
+		end = 0;
+
+		while (ptr<eptr && end==0) {
+			nleng = ptr[0];
+			ptr++;
+			memcpy(name,ptr,nleng);
+			name[nleng]=0;
+			ptr+=nleng;
+			off+=nleng+(usedircache?40:6);
+			if (ptr+5<=eptr) {
+				inode = get32bit(&ptr);
+				if (ino==root_inode && name[0]=='.' && name[1]=='.' && name[2]==0) {
+					inode = FUSE_ROOT_ID;
+				}
+				if (inode==root_inode) {
+					inode = FUSE_ROOT_ID;
+				}
+				if (usedircache) {
+					mfs_attr_to_stat(inode,ptr,&stbuf);
+					ptr+=35;
+				} else {
+					type = get8bit(&ptr);
+					mfs_type_to_stat(inode,type,&stbuf);
+				}
+				oleng = fuse_add_direntry(req, buffer + opos, size - opos, name, &stbuf, off);
+				if (opos+oleng>size) {
+					end=1;
+				} else {
+					opos+=oleng;
+				}
+			}
+		}
+
+		fuse_reply_buf(req,buffer,opos);
+	}
 	pthread_mutex_unlock(&(dirinfo->lock));
 }
 
 void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	(void)ino;
 	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+
+	mfs_stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
 		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
 	pthread_mutex_lock(&(dirinfo->lock));
 	pthread_mutex_unlock(&(dirinfo->lock));
 	pthread_mutex_destroy(&(dirinfo->lock));
-	free(dirinfo->p);
+	if (dirinfo->dcache) {
+		dcache_release(dirinfo->dcache);
+	}
+	if (dirinfo->p) {
+		free(dirinfo->p);
+	}
 	free(dirinfo);
 	fi->fh = 0;
 	fuse_reply_err(req,0);
@@ -1110,12 +1301,13 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	const struct fuse_ctx *ctx;
 	finfo *fileinfo;
 
+	mfs_stats_inc(OP_CREATE);
 	if (debug_mode) {
 		fprintf(stderr,"create (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		parent = root_inode;
-		if (strcmp(name,MASTER_NAME)==0) {
+		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req,EACCES);
 			return;
 		}
@@ -1153,16 +1345,11 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 
 	fileinfo = mfs_newfileinfo(fi->flags & O_ACCMODE,inode);
 	fi->fh = (unsigned long)fileinfo;
-	fi->keep_cache = local_mode;
+	fi->keep_cache = keep_cache;
 	memset(&e, 0, sizeof(e));
 	e.ino = inode;
-	if (local_mode) {
-		e.attr_timeout = LOCAL_MODE_ATTR_TIMEOUT;
-		e.entry_timeout = LOCAL_MODE_INODE_TIMEOUT;
-	} else {
-		e.attr_timeout = 0.0;
-		e.entry_timeout = 0.0;
-	}
+	e.attr_timeout = attr_cache_timeout;
+	e.entry_timeout = entry_cache_timeout;
 	mfs_attr_to_stat(inode,attr,&e.attr);
 	if (fuse_reply_create(req, &e, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);
@@ -1175,6 +1362,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	const struct fuse_ctx *ctx;
 	finfo *fileinfo;
 
+	mfs_stats_inc(OP_OPEN);
 	if (debug_mode) {
 		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
 	}
@@ -1182,22 +1370,54 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		ino = root_inode;
 	}
 
-	if (ino==MASTER_INODE) {
-		minfo *masterinfo;
-		status = fs_direct_connect();
-		if (status<0) {
-			fuse_reply_err(req,EIO);
+//	if (ino==MASTER_INODE) {
+//		minfo *masterinfo;
+//		status = fs_direct_connect();
+//		if (status<0) {
+//			fuse_reply_err(req,EIO);
+//			return;
+//		}
+//		masterinfo = malloc(sizeof(minfo));
+//		if (masterinfo==NULL) {
+//			fuse_reply_err(req,ENOMEM);
+//			return;
+//		}
+//		masterinfo->sd = status;
+//		masterinfo->sent = 0;
+//		fi->direct_io = 1;
+//		fi->fh = (unsigned long)masterinfo;
+//		fuse_reply_open(req, fi);
+//		return;
+//	}
+
+	if (ino==MASTERINFO_INODE) {
+		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+			fuse_reply_err(req,EACCES);
 			return;
 		}
-		masterinfo = malloc(sizeof(minfo));
-		if (masterinfo==NULL) {
+		fi->fh = 0;
+		fi->direct_io = 0;
+		fi->keep_cache = 1;
+		fuse_reply_open(req, fi);
+		return;
+	}
+
+	if (ino==STATS_INODE) {
+		sinfo *statsinfo;
+//		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+//			stats_reset_all();
+//			fuse_reply_err(req,EACCES);
+//			return;
+//		}
+		statsinfo = malloc(sizeof(sinfo));
+		if (statsinfo==NULL) {
 			fuse_reply_err(req,ENOMEM);
 			return;
 		}
-		masterinfo->sd = status;
-		masterinfo->sent = 0;
+		stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
+		statsinfo->reset = 0;
 		fi->direct_io = 1;
-		fi->fh = (unsigned long)masterinfo;
+		fi->fh = (unsigned long)statsinfo;
 		fuse_reply_open(req, fi);
 		return;
 	}
@@ -1220,7 +1440,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 	fileinfo = mfs_newfileinfo(fi->flags & O_ACCMODE,ino);
 	fi->fh = (unsigned long)fileinfo;
-	fi->keep_cache = local_mode;
+	fi->keep_cache = keep_cache;
 //	fi->direct_io = 1;
 	if (fuse_reply_open(req, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);
@@ -1230,14 +1450,33 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 
+	mfs_stats_inc(OP_RELEASE);
 	if (debug_mode) {
 		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
 	}
-	if (ino==MASTER_INODE) {
-		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-		if (masterinfo!=NULL) {
-			fs_direct_close(masterinfo->sd);
-			free(masterinfo);
+//	if (ino==MASTER_INODE) {
+//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
+//		if (masterinfo!=NULL) {
+//			fs_direct_close(masterinfo->sd);
+//			free(masterinfo);
+//		}
+//		fuse_reply_err(req,0);
+//		return;
+//	}
+	if (ino==MASTERINFO_INODE) {
+		fuse_reply_err(req,0);
+		return;
+	}
+	if (ino==STATS_INODE) {
+		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		if (statsinfo!=NULL) {
+			if (statsinfo->buff!=NULL) {
+				free(statsinfo->buff);
+			}
+			if (statsinfo->reset) {
+				stats_reset_all();
+			}
+			free(statsinfo);
 		}
 		fuse_reply_err(req,0);
 		return;
@@ -1256,34 +1495,58 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	uint32_t ssize;
 	int err;
 
+	mfs_stats_inc(OP_READ);
 	if (debug_mode) {
 		fprintf(stderr,"read from inode %lu up to %llu bytes from position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+	}
+	if (ino==MASTERINFO_INODE) {
+		uint8_t masterinfo[10];
+		fs_getmasterlocation(masterinfo);
+		if (off>=10) {
+			fuse_reply_buf(req,NULL,0);
+		} else if (off+size>10) {
+			fuse_reply_buf(req,(char*)(masterinfo+off),10-off);
+		} else {
+			fuse_reply_buf(req,(char*)(masterinfo+off),size);
+		}
+		return;
+	}
+	if (ino==STATS_INODE) {
+		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		if (off>=statsinfo->leng) {
+			fuse_reply_buf(req,NULL,0);
+		} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
+			fuse_reply_buf(req,statsinfo->buff+off,statsinfo->leng-off);
+		} else {
+			fuse_reply_buf(req,statsinfo->buff+off,size);
+		}
+		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-	if (ino==MASTER_INODE) {
-		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-		if (masterinfo->sent) {
-			int rsize;
-			buff = malloc(size);
-			rsize = fs_direct_read(masterinfo->sd,buff,size);
-			fuse_reply_buf(req,(char*)buff,rsize);
-			//syslog(LOG_WARNING,"master received: %d/%llu",rsize,(unsigned long long int)size);
-			free(buff);
-		} else {
-			syslog(LOG_WARNING,"master: read before write");
-			fuse_reply_buf(req,NULL,0);
-		}
-		return;
-	}
+//	if (ino==MASTER_INODE) {
+//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
+//		if (masterinfo->sent) {
+//			int rsize;
+//			buff = malloc(size);
+//			rsize = fs_direct_read(masterinfo->sd,buff,size);
+//			fuse_reply_buf(req,(char*)buff,rsize);
+//			//syslog(LOG_WARNING,"master received: %d/%llu",rsize,(unsigned long long int)size);
+//			free(buff);
+//		} else {
+//			syslog(LOG_WARNING,"master: read before write");
+//			fuse_reply_buf(req,NULL,0);
+//		}
+//		return;
+//	}
 	if (fileinfo->mode==IO_WRITEONLY) {
 		fuse_reply_err(req,EACCES);
 		return;
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
-		fuse_reply_err(req, EFBIG);
+		fuse_reply_err(req,EFBIG);
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
@@ -1297,6 +1560,10 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 				fuse_reply_err(req,ENXIO);
 			} else if (err==-4) {	// out of memory
 				fuse_reply_err(req,ENOMEM);
+			} else if (err==-5) {	// can't create new chunk
+				fuse_reply_err(req,ENOSPC);
+			} else if (err==-6) {
+				fuse_reply_err(req,EDQUOT);
 			} else {
 				fuse_reply_err(req,EIO);
 			}
@@ -1313,6 +1580,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	}
 	write_data_flush_inode(ino);
 	ssize = size;
+	buff = NULL;	// use internal 'readdata' buffer
 	err = read_data(fileinfo->data,off,&ssize,&buff);
 	if (err<0) {
 		if (err==-2) {	// stale descriptor
@@ -1341,22 +1609,35 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
 
+	mfs_stats_inc(OP_WRITE);
 	if (debug_mode) {
 		fprintf(stderr,"write to inode %lu %llu bytes at position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+	}
+	if (ino==MASTERINFO_INODE) {
+		fuse_reply_err(req,EACCES);
+		return;
+	}
+	if (ino==STATS_INODE) {
+		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		if (statsinfo!=NULL) {
+			statsinfo->reset=1;
+		}
+		fuse_reply_write(req,size);
+		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-	if (ino==MASTER_INODE) {
-		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-		int wsize;
-		masterinfo->sent=1;
-		wsize = fs_direct_write(masterinfo->sd,(const uint8_t*)buf,size);
-		//syslog(LOG_WARNING,"master sent: %d/%llu",wsize,(unsigned long long int)size);
-		fuse_reply_write(req,wsize);
-		return;
-	}
+//	if (ino==MASTER_INODE) {
+//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
+//		int wsize;
+//		masterinfo->sent=1;
+//		wsize = fs_direct_write(masterinfo->sd,(const uint8_t*)buf,size);
+//		//syslog(LOG_WARNING,"master sent: %d/%llu",wsize,(unsigned long long int)size);
+//		fuse_reply_write(req,wsize);
+//		return;
+//	}
 	if (fileinfo->mode==IO_READONLY) {
 		fuse_reply_err(req,EACCES);
 		return;
@@ -1382,6 +1663,10 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 			fuse_reply_err(req,ENXIO);
 		} else if (err==-4) {	// out of memory
 			fuse_reply_err(req,ENOMEM);
+		} else if (err==-5) {	// can't create new chunk
+			fuse_reply_err(req,ENOSPC);
+		} else if (err==-6) {
+			fuse_reply_err(req,EDQUOT);
 		} else {
 			fuse_reply_err(req,EIO);
 		}
@@ -1401,31 +1686,43 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
 
+	mfs_stats_inc(OP_FLUSH);
 	if (debug_mode) {
 		fprintf(stderr,"flush (%lu)\n",(unsigned long int)ino);
+	}
+	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
+		fuse_reply_err(req,0);
+		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-	if (ino==MASTER_INODE) {
-		fuse_reply_err(req,0);
-		return;
-	}
+//	syslog(LOG_NOTICE,"remove_locks inode:%u owner:%llu",ino,fi->lock_owner);
+	err = 0;
+	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
-		if (err<0) {
-			if (err==-2) {	// stale descriptor
-				fuse_reply_err(req,EBADF);
-			} else if (err==-3) {	// chunk missing
-				fuse_reply_err(req,ENXIO);
-			} else if (err==-4) {	// out of memory
-				fuse_reply_err(req,ENOMEM);
-			} else {
-				fuse_reply_err(req,EIO);
-			}
-			return ;
+	}
+	pthread_mutex_unlock(&(fileinfo->lock));
+	if (err<0) {
+//		if (debug_mode) {
+//			fprintf(stderr,"error: %d\n",err);
+//		}
+		if (err==-2) {	// stale descriptor
+			fuse_reply_err(req,EBADF);
+		} else if (err==-3) {	// chunk missing
+			fuse_reply_err(req,ENXIO);
+		} else if (err==-4) {	// out of memory
+			fuse_reply_err(req,ENOMEM);
+		} else if (err==-5) {	// can't crete new chunk
+			fuse_reply_err(req,ENOSPC);
+		} else if (err==-6) {
+			fuse_reply_err(req,EDQUOT);
+		} else {
+			fuse_reply_err(req,EIO);
 		}
+		return ;
 	}
 	fuse_reply_err(req,0);
 }
@@ -1434,37 +1731,76 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
 	(void)datasync;
-	
+
+	mfs_stats_inc(OP_FSYNC);
 	if (debug_mode) {
 		fprintf(stderr,"fsync (%lu)\n",(unsigned long int)ino);
+	}
+	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
+		fuse_reply_err(req,0);
+		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-	if (ino==MASTER_INODE) {
-		fuse_reply_err(req,0);
-		return;
-	}
+	err = 0;
+	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
-		if (err<0) {
-			if (err==-2) {	// stale descriptor
-				fuse_reply_err(req,EBADF);
-			} else if (err==-3) {	// chunk missing
-				fuse_reply_err(req,ENXIO);
-			} else if (err==-4) {	// out of memory
-				fuse_reply_err(req,ENOMEM);
-			} else {
-				fuse_reply_err(req,EIO);
-			}
-			return ;
+	}
+	pthread_mutex_unlock(&(fileinfo->lock));
+	if (err<0) {
+//		if (debug_mode) {
+//			fprintf(stderr,"error: %d\n",err);
+//		}
+		if (err==-2) {	// stale descriptor
+			fuse_reply_err(req,EBADF);
+		} else if (err==-3) {	// chunk missing
+			fuse_reply_err(req,ENXIO);
+		} else if (err==-4) {	// out of memory
+			fuse_reply_err(req,ENOMEM);
+		} else if (err==-5) {	// can't create new chunk
+			fuse_reply_err(req,ENOSPC);
+		} else if (err==-6) {
+			fuse_reply_err(req,EDQUOT);
+		} else {
+			fuse_reply_err(req,EIO);
 		}
+		return ;
 	}
 	fuse_reply_err(req,0);
 }
 
-void mfs_init(int debug_mode_in,int local_mode_in) {
+#if FUSE_USE_VERSION >= 26
+/*
+void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock) {
+	if (debug_mode) {
+		fprintf(stderr,"getlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u)\n",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type);
+	}
+	syslog(LOG_NOTICE,"get lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type);
+	lock->l_type = F_UNLCK;
+	fuse_reply_lock(req,lock);
+}
+
+void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl) {
+	if (debug_mode) {
+		fprintf(stderr,"setlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u)\n",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type,sl);
+	}
+	syslog(LOG_NOTICE,"set lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type,sl);
+	fuse_reply_err(req,0);
+}
+*/
+#endif
+
+void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in) {
 	debug_mode = debug_mode_in;
-	local_mode = local_mode_in;
+	keep_cache = keep_cache_in;
+	direntry_cache_timeout = direntry_cache_timeout_in;
+	entry_cache_timeout = entry_cache_timeout_in;
+	attr_cache_timeout = attr_cache_timeout_in;
+	if (debug_mode) {
+		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2lf entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",keep_cache?"on":"off",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
+	}
+	mfs_statsptr_init();
 }

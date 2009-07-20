@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,29 +26,29 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/time.h>
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
 
-//#include "httpuniserv.h"
 #include "main.h"
 #include "stats.h"
-#include "lempelziv.h"
+#include "crc.h"
 #include "datapack.h"
 
 #include "csserv.h"
-#include "cstocsconn.h"
 #include "masterconn.h"
 #include "hddspacemgr.h"
 #include "replicator.h"
 
 #define LENG 950
+#ifdef HAVE_ZLIB_H
 #define DATA 100
 #define XPOS 43
 #define YPOS 6
 #define XSIZE (LENG+50)
 #define YSIZE (DATA+20)
-
+#endif /* HAVE_ZLIB_H */
 //#define LONGRATIO 6
-
-#define COMPLENG 50000
 
 #define SHORTRANGE 0
 #define MEDIUMRANGE 1
@@ -77,8 +79,15 @@
 #define STATS_RTIME 18
 #define STATS_WTIME 19
 #define STATS_REPL 20
+#define STATS_CREATE 21
+#define STATS_DELETE 22
+#define STATS_VERSION 23
+#define STATS_DUPLICATE 24
+#define STATS_TRUNCATE 25
+#define STATS_DUPTRUNC 26
+#define STATS_TEST 27
 
-#define SERIES 21
+#define SERIES 28
 
 #define CSMIN 100
 #define CSMAX 106
@@ -112,43 +121,81 @@ static uint32_t medhour,medmin;
 static uint32_t lnghalfhour,lngmday,lngmonth,lngyear;
 static uint32_t vlngmday,vlngmonth,vlngyear;
 
+#define RAWSIZE ((1+(((XSIZE)+1)>>1))*(YSIZE))
+#define CBUFFSIZE (((RAWSIZE)*1001)/1000+16)
+
+#ifdef HAVE_ZLIB_H
 static uint8_t chart[(XSIZE)*(YSIZE)];
-static uint8_t compressbuff[COMPLENG];
+static uint8_t rawchart[RAWSIZE];
+static uint8_t compbuff[CBUFFSIZE];
 static uint32_t compsize;
+static z_stream zstr;
 
-#define COLOR_BKG 0
-#define COLOR_AXIS 7
+#define COLOR_TRANSPARENT 0
+#define COLOR_BKG 1
+#define COLOR_AXIS 2
+#define COLOR_AUX 3
 #define COLOR_TEXT 4
-#define COLOR_AUX 2
-#define COLOR_DATA 1
-#define COLOR_EXTDATA 3
-#define COLOR_MIDDATA 5
-#define COLOR_TRANSPARENT 6
+#define COLOR_DATA1 5
+#define COLOR_DATA2 6
+#define COLOR_DATA3 7
 
-//56 bytes
-static uint8_t gifheader[]={'G','I','F','8','9','a',	//  0: header
-						0,0,0,0,					//  6: xsize,ysize
-						0xc2,						// 10: global control byte
-						0,0,						// 11: background index
-						0xff,0xff,0xff,				// 13: color map 0
-						0x00,0xff,0x00,				// 16: color map 1
-						0x00,0x00,0x7f,				// 19: color map 2
-						0x00,0x96,0x00,				// 22: color map 3
-						0x5f,0x20,0x00,				// 25: color map 4
-						0x00,0x00,0x00,				// 28: color map 5
-						0x00,0x00,0x00,				// 31: color map 6
-						0x00,0x00,0x00,				// 34: color map 7
-						0x21,0xf9,0x04,				// 37: graphics extension header (21f9 - magic, 04 - size)
-						0x01,						// 40: flags - transparency enabled
-						0x00,0x00,					// 41: delay
-						0x06,						// 43: transparency index
-						0x00,						// 44: separator
-						0x2c,						// 45: image header
-						0,0,0,0,					// 46: image position
-						0,0,0,0,					// 50: image size (xsize,ysize)
-						0x00,						// 54: control byte
-						3};							// 55: bits per pixel
+static uint8_t png_header[] = {
+	137, 80, 78, 71, 13, 10, 26, 10,        // signature
 
+	0, 0, 0, 13, 'I', 'H', 'D', 'R',        // IHDR chunk
+	((XSIZE)>>24)&0xFF, ((XSIZE)>>16)&0xFF, ((XSIZE)>>8)&0xFF, (XSIZE)&0xFF, // width
+	((YSIZE)>>24)&0xFF, ((YSIZE)>>16)&0xFF, ((YSIZE)>>8)&0xFF, (YSIZE)&0xFF, // height
+	4, 3, 0, 0, 0,                          // 4bits, indexed color mode, default compression, default filters, no interlace
+	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
+
+	0, 0, 0, 0x18, 'P', 'L', 'T', 'E',      // PLTE chunk
+	0xff,0xff,0xff,                         // color map 0 - tło (przezroczysty)
+	0xff,0xff,0xff,                         // color map 1 - tło wykresu (biały)
+	0x00,0x00,0x00,                         // color map 2 - osie (czarny)
+	0x00,0x00,0x7f,                         // color map 3 - linie podziałki (granatowy)
+	0x5f,0x20,0x00,                         // color map 4 - napisy (brązowy)
+	0x00,0xff,0x00,                         // color map 5 - dane (jasny zielony)
+	0x00,0x96,0x00,                         // color map 6 - dane (ciemny zielony)
+	0x00,0x60,0x00,                         // color map 7 - dane (ciemniejszy zielony)
+	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
+
+	0, 0, 0, 1, 't', 'R', 'N', 'S',         // tRNS chunk
+	0,                                      // color 0 transparency - alpha = 0
+	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
+
+	0, 0, 0, 1, 'b', 'K', 'G', 'D',         // bKGD chunk
+	0,                                      // color 0 = background
+	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
+
+	0, 0, 0, 0, 'I', 'D', 'A', 'T'          // IDAT chunk
+};
+
+static uint8_t png_tailer[] = {
+	0, 0, 0, 0, 'I', 'E', 'N', 'D',         // IEND chunk
+	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
+};
+#endif /* HAVE_ZLIB_H */
+
+static uint8_t png_1x1[] = {
+	137, 80, 78, 71, 13, 10, 26, 10,        // signature
+
+	0, 0, 0, 13, 'I', 'H', 'D', 'R',        // IHDR chunk
+	0, 0, 0, 1,				// width
+	0, 0, 0, 1,				// height
+	8, 4, 0, 0, 0,                          // 8bits, grayscale with alpha color mode, default compression, default filters, no interlace
+	0xb5, 0x1c, 0x0c, 0x02,			// CRC
+
+	0, 0, 0, 11, 'I', 'D', 'A', 'T',	// IDAT chunk
+	0x08, 0xd7, 0x63, 0x60, 0x60, 0x00,
+	0x00, 0x00, 0x03, 0x00, 0x01,
+	0x20, 0xd5, 0x94, 0xc7,			// CRC
+
+	0, 0, 0, 0, 'I', 'E', 'N', 'D',		// IEND chunk
+	0xae, 0x42, 0x60, 0x82			// CRC
+};
+
+#ifdef HAVE_ZLIB_H
 static uint8_t font[18][7]={
 	{0x0E,0x11,0x11,0x11,0x11,0x11,0x0E},
 	{0x04,0x0C,0x14,0x04,0x04,0x04,0x1F},
@@ -202,58 +249,84 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	}
 	return 0;
 }
+#endif /* HAVE_ZLIB_H */
 
 void stats_store (void) {
 	int fd;
+	uint32_t s;
 	uint32_t hdr[3]={RANGES,SERIES,LENG};
 	fd = open("csstats.mfs",O_WRONLY | O_TRUNC | O_CREAT,0666);
-	if (fd<0) return;
-	write(fd,(char*)&hdr,sizeof(uint32_t)*3);
-	write(fd,(char*)&shhour,sizeof(uint32_t));
-	write(fd,(char*)&shmin,sizeof(uint32_t));
-	write(fd,(char*)&medhour,sizeof(uint32_t));
-	write(fd,(char*)&medmin,sizeof(uint32_t));
-	write(fd,(char*)&lnghalfhour,sizeof(uint32_t));
-	write(fd,(char*)&lngmday,sizeof(uint32_t));
-	write(fd,(char*)&lngmonth,sizeof(uint32_t));
-	write(fd,(char*)&lngyear,sizeof(uint32_t));
-	write(fd,(char*)&vlngmday,sizeof(uint32_t));
-	write(fd,(char*)&vlngmonth,sizeof(uint32_t));
-	write(fd,(char*)&vlngyear,sizeof(uint32_t));
-	write(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
-	write(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
-	write(fd,(char*)series,sizeof(uint64_t)*RANGES*SERIES*LENG);
+	if (fd<0) {
+		syslog(LOG_WARNING,"write stats error: %m");
+		return;
+	}
+	s=0;
+	s+=write(fd,(char*)&hdr,sizeof(uint32_t)*3);
+	s+=write(fd,(char*)&shhour,sizeof(uint32_t));
+	s+=write(fd,(char*)&shmin,sizeof(uint32_t));
+	s+=write(fd,(char*)&medhour,sizeof(uint32_t));
+	s+=write(fd,(char*)&medmin,sizeof(uint32_t));
+	s+=write(fd,(char*)&lnghalfhour,sizeof(uint32_t));
+	s+=write(fd,(char*)&lngmday,sizeof(uint32_t));
+	s+=write(fd,(char*)&lngmonth,sizeof(uint32_t));
+	s+=write(fd,(char*)&lngyear,sizeof(uint32_t));
+	s+=write(fd,(char*)&vlngmday,sizeof(uint32_t));
+	s+=write(fd,(char*)&vlngmonth,sizeof(uint32_t));
+	s+=write(fd,(char*)&vlngyear,sizeof(uint32_t));
+	s+=write(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
+	s+=write(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
+	s+=write(fd,(char*)series,sizeof(uint64_t)*RANGES*SERIES*LENG);
+	if (s!=(14+2*RANGES)*sizeof(uint32_t)+sizeof(uint64_t)*RANGES*SERIES*LENG) {
+		syslog(LOG_WARNING,"write stats error: %m");
+	}
 	close(fd);
 }
 
 void stats_load() {
 	int fd;
-	uint32_t hdr[3];
+	uint32_t s,hdr[3];
 	fd = open("csstats.mfs",O_RDONLY);
-	if (fd<0) return;
-	read(fd,(char*)&hdr,sizeof(uint32_t)*3);
+	if (fd<0) {
+		syslog(LOG_WARNING,"read stats error: %m");
+		return;
+	}
+	if (read(fd,(char*)&hdr,sizeof(uint32_t)*3)!=sizeof(uint32_t)*3) {
+		syslog(LOG_WARNING,"read stats error: %m");
+		close(fd);
+		return;
+	}
 	if (hdr[0]!=RANGES || hdr[1]!=SERIES || hdr[2]!=LENG) {
 		if (hdr[0]==RANGES && hdr[2]==LENG) {
 			uint32_t i,j,l;
 			uint64_t ld[LENG];
 			syslog(LOG_NOTICE,"import charts data from old format");
-			read(fd,(char*)&shhour,sizeof(uint32_t));
-			read(fd,(char*)&shmin,sizeof(uint32_t));
-			read(fd,(char*)&medhour,sizeof(uint32_t));
-			read(fd,(char*)&medmin,sizeof(uint32_t));
-			read(fd,(char*)&lnghalfhour,sizeof(uint32_t));
-			read(fd,(char*)&lngmday,sizeof(uint32_t));
-			read(fd,(char*)&lngmonth,sizeof(uint32_t));
-			read(fd,(char*)&lngyear,sizeof(uint32_t));
-			read(fd,(char*)&vlngmday,sizeof(uint32_t));
-			read(fd,(char*)&vlngmonth,sizeof(uint32_t));
-			read(fd,(char*)&vlngyear,sizeof(uint32_t));
-			read(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
-			read(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
+			s=0;
+			s+=read(fd,(char*)&shhour,sizeof(uint32_t));
+			s+=read(fd,(char*)&shmin,sizeof(uint32_t));
+			s+=read(fd,(char*)&medhour,sizeof(uint32_t));
+			s+=read(fd,(char*)&medmin,sizeof(uint32_t));
+			s+=read(fd,(char*)&lnghalfhour,sizeof(uint32_t));
+			s+=read(fd,(char*)&lngmday,sizeof(uint32_t));
+			s+=read(fd,(char*)&lngmonth,sizeof(uint32_t));
+			s+=read(fd,(char*)&lngyear,sizeof(uint32_t));
+			s+=read(fd,(char*)&vlngmday,sizeof(uint32_t));
+			s+=read(fd,(char*)&vlngmonth,sizeof(uint32_t));
+			s+=read(fd,(char*)&vlngyear,sizeof(uint32_t));
+			s+=read(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
+			s+=read(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
+			if (s!=(11+2*RANGES)*sizeof(uint32_t)) {
+				syslog(LOG_WARNING,"read stats error: %m");
+				close(fd);
+				return;
+			}
 			for (i=0 ; i<RANGES ; i++) {
 				l=0;
 				for (j=0 ; j<hdr[1] ; j++) {
-					read(fd,(char*)&ld,sizeof(uint64_t)*LENG);
+					if (read(fd,(char*)&ld,sizeof(uint64_t)*LENG)!=sizeof(uint64_t)*LENG) {
+						syslog(LOG_WARNING,"read stats error: %m");
+						close(fd);
+						return;
+					}
 					if (l<SERIES) {
 						memcpy((char*)series[i][l++],(char*)ld,sizeof(uint64_t)*LENG);
 					}
@@ -263,20 +336,24 @@ void stats_load() {
 		close(fd);
 		return;
 	}
-	read(fd,(char*)&shhour,sizeof(uint32_t));
-	read(fd,(char*)&shmin,sizeof(uint32_t));
-	read(fd,(char*)&medhour,sizeof(uint32_t));
-	read(fd,(char*)&medmin,sizeof(uint32_t));
-	read(fd,(char*)&lnghalfhour,sizeof(uint32_t));
-	read(fd,(char*)&lngmday,sizeof(uint32_t));
-	read(fd,(char*)&lngmonth,sizeof(uint32_t));
-	read(fd,(char*)&lngyear,sizeof(uint32_t));
-	read(fd,(char*)&vlngmday,sizeof(uint32_t));
-	read(fd,(char*)&vlngmonth,sizeof(uint32_t));
-	read(fd,(char*)&vlngyear,sizeof(uint32_t));
-	read(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
-	read(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
-	read(fd,(char*)series,sizeof(uint64_t)*RANGES*SERIES*LENG);
+	s=0;
+	s+=read(fd,(char*)&shhour,sizeof(uint32_t));
+	s+=read(fd,(char*)&shmin,sizeof(uint32_t));
+	s+=read(fd,(char*)&medhour,sizeof(uint32_t));
+	s+=read(fd,(char*)&medmin,sizeof(uint32_t));
+	s+=read(fd,(char*)&lnghalfhour,sizeof(uint32_t));
+	s+=read(fd,(char*)&lngmday,sizeof(uint32_t));
+	s+=read(fd,(char*)&lngmonth,sizeof(uint32_t));
+	s+=read(fd,(char*)&lngyear,sizeof(uint32_t));
+	s+=read(fd,(char*)&vlngmday,sizeof(uint32_t));
+	s+=read(fd,(char*)&vlngmonth,sizeof(uint32_t));
+	s+=read(fd,(char*)&vlngyear,sizeof(uint32_t));
+	s+=read(fd,(char*)pointers,sizeof(uint32_t)*RANGES);
+	s+=read(fd,(char*)timepoint,sizeof(uint32_t)*RANGES);
+	s+=read(fd,(char*)series,sizeof(uint64_t)*RANGES*SERIES*LENG);
+	if (s!=(11+2*RANGES)*sizeof(uint32_t)+sizeof(uint64_t)*RANGES*SERIES*LENG) {
+		syslog(LOG_WARNING,"read stats error: %m");
+	}
 	close(fd);
 	return;
 }
@@ -434,6 +511,7 @@ void stats_add (uint64_t *data) {
 void stats_refresh(void) {
 	uint64_t data[SERIES];
 	uint32_t i,bin,bout,opr,opw,dbr,dbw,dopr,dopw,repl;
+	uint32_t op_cr,op_de,op_ve,op_du,op_tr,op_dt,op_te;
 	struct itimerval uc,pc;
 	uint32_t ucusec,pcusec;
 
@@ -473,9 +551,11 @@ void stats_refresh(void) {
 	masterconn_stats(&bin,&bout);
 	data[STATS_MASTERIN]=bin;
 	data[STATS_MASTEROUT]=bout;
-	cstocsconn_stats(&bin,&bout);
-	data[STATS_CSCONNIN]=bin;
-	data[STATS_CSCONNOUT]=bout;
+//	cstocsconn_stats(&bin,&bout);
+//	data[STATS_CSCONNIN]=bin;
+//	data[STATS_CSCONNOUT]=bout;
+	data[STATS_CSCONNIN]=0;
+	data[STATS_CSCONNOUT]=0;
 	csserv_stats(&bin,&bout,&opr,&opw);
 	data[STATS_CSSERVIN]=bin;
 	data[STATS_CSSERVOUT]=bout;
@@ -492,6 +572,14 @@ void stats_refresh(void) {
 	data[STATS_DATALLOPW]=dopw;
 	replicator_stats(&repl);
 	data[STATS_REPL]=repl;
+	hdd_op_stats(&op_cr,&op_de,&op_ve,&op_du,&op_tr,&op_dt,&op_te);
+	data[STATS_CREATE]=op_cr;
+	data[STATS_DELETE]=op_de;
+	data[STATS_VERSION]=op_ve;
+	data[STATS_DUPLICATE]=op_du;
+	data[STATS_TRUNCATE]=op_tr;
+	data[STATS_DUPTRUNC]=op_dt;
+	data[STATS_TEST]=op_te;
 
 	stats_add(data);
 }
@@ -519,14 +607,14 @@ int stats_init (void) {
 	stats_load();
 	stats_add(data);
 
-	gifheader[6] = (XSIZE)%256;
-	gifheader[7] = (XSIZE)/256;
-	gifheader[8] = (YSIZE)%256;
-	gifheader[9] = (YSIZE)/256;
-	gifheader[50] = (XSIZE)%256;
-	gifheader[51] = (XSIZE)/256;
-	gifheader[52] = (YSIZE)%256;
-	gifheader[53] = (YSIZE)/256;
+#ifdef HAVE_ZLIB_H
+	zstr.zalloc = NULL;
+	zstr.zfree = NULL;
+	zstr.opaque = NULL;
+	if (deflateInit(&zstr,Z_DEFAULT_COMPRESSION)!=Z_OK) {
+		return -1;
+	}
+#endif /* HAVE_ZLIB_H */
 
 	it_set.it_interval.tv_sec = 0;
 	it_set.it_interval.tv_usec = 0;
@@ -541,6 +629,7 @@ int stats_init (void) {
 	return 0;
 }
 
+#ifdef HAVE_ZLIB_H
 void stats_puttext(int32_t posx,int32_t posy,uint8_t color,uint8_t *data,uint32_t leng,int32_t minx,int32_t maxx,int32_t miny,int32_t maxy) {
 	uint32_t i,fx,fy;
 	uint8_t fp,fbits;
@@ -784,9 +873,9 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		for (j=0 ; j<DATA ; j++) {
 			if (DATA<d+j) {
 				if (DATA<ed+j) {
-					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_EXTDATA;
+					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA2;
 				} else {
-					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA;
+					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA1;
 				}
 			} else {
 				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_BKG;
@@ -1079,8 +1168,7 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		}
 	}
 }
-
-// compsize - common for makechart and makegif
+#endif /* HAVE_ZLIB_H */
 
 uint32_t stats_datasize(uint32_t number) {
 	uint32_t chtype,chrange;
@@ -1119,108 +1207,112 @@ void stats_makedata(uint8_t *buff,uint32_t number) {
 			ts *= 60*60*24;
 			break;
 	}
-	PUT32BIT(ts,buff);
+	put32bit(&buff,ts);
 	for (i=0 ; i<LENG ; i++) {
 		j = (LENG+1+pointer+i)%LENG;
-		PUT64BIT(tab[j],buff);
+		put64bit(&buff,tab[j]);
 	}
 }
 
-uint32_t stats_gifsize(uint32_t number) {
-	uint32_t size;
-	uint32_t chtype,chrange;
+#ifdef HAVE_ZLIB_H
+void stats_chart_to_rawchart() {
+	uint32_t y;
+	uint32_t x;
+	uint8_t *cp,*rp;
+	cp = chart;
+	rp = rawchart;
+	for (y=0 ; y<(YSIZE) ; y++) {
+		*rp=0;
+		rp++;
+		for (x=0 ; x<(XSIZE) ; x+=2) {
+			if (x+1<(XSIZE)) {
+				*rp = ((*cp)<<4) | ((cp[1])&0x0F);
+			} else {
+				*rp = ((*cp)<<4);
+			}
+			rp++;
+			cp+=2;
+		}
+	}
+}
 
+void stats_fill_crc(uint8_t *buff,uint32_t leng) {
+	uint8_t *ptr,*eptr;
+	uint32_t crc,chleng;
+	ptr = buff+8;
+	eptr = buff+leng;
+	while (ptr+4<=eptr) {
+		chleng = get32bit((const uint8_t **)&ptr);
+		if (ptr+8+chleng<=eptr) {
+			crc = mycrc32(0,ptr,chleng+4);
+			ptr += chleng+4;
+			put32bit(&ptr,crc);
+		}
+	}
+}
+
+uint32_t stats_make_png(uint32_t number) {
+	uint32_t chtype,chrange;
 	chtype = number / 10;
 	chrange = number % 10;
 	if (chrange>=RANGES) {
-		return 0;
+		compsize = 0;
+		return sizeof(png_1x1);
 	}
 	if (!(chtype<SERIES || (chtype>=CSMIN && chtype<=CSMAX))) {
-		return 0;
+		compsize = 0;
+		return sizeof(png_1x1);
 	}
 
 	stats_makechart(chtype,chrange);
 
-	compsize = COMPLENG;
-	if (lzw_encode(3,chart,(XSIZE)*(YSIZE),compressbuff,&compsize)==0) {
-		return 0;
+	if (deflateReset(&zstr)!=Z_OK) {
+		compsize = 0;
+		return sizeof(png_1x1);
 	}
-	if ((compsize%254)>0) {
-		size = 56 + 255*(compsize/254)+((compsize%254)+1) + 2;
+
+	stats_chart_to_rawchart();
+
+	zstr.next_in = rawchart;
+	zstr.avail_in = RAWSIZE;
+	zstr.total_in = 0;
+	zstr.next_out = compbuff;
+	zstr.avail_out = CBUFFSIZE;
+	zstr.total_out = 0;
+
+	if (deflate(&zstr,Z_FINISH)!=Z_STREAM_END) {
+		compsize = 0;
+		return sizeof(png_1x1);
+	}
+
+	compsize = zstr.total_out;
+
+	return sizeof(png_header)+compsize+4+sizeof(png_tailer);
+}
+
+void stats_get_png(uint8_t *buff) {
+	uint8_t *ptr;
+	if (compsize==0) {
+		memcpy(buff,png_1x1,sizeof(png_1x1));
 	} else {
-		size = 56 + 255*(compsize/254) + 2;
+		memcpy(buff,png_header,sizeof(png_header));
+		ptr = buff+(sizeof(png_header)-8);
+		put32bit(&ptr,compsize);
+		memcpy(buff+sizeof(png_header),compbuff,compsize);
+		memcpy(buff+sizeof(png_header)+compsize+4,png_tailer,sizeof(png_tailer));
+		stats_fill_crc(buff,sizeof(png_header)+compsize+4+sizeof(png_tailer));
 	}
-	return size;
 }
 
-void stats_makegif(uint8_t *buff) {
-	uint8_t *cbuff = compressbuff;
-	memcpy(buff,gifheader,56);
-	buff+=56;
-	while (compsize>254) {
-		*buff++ = 254;
-		memcpy(buff,cbuff,254);
-		buff+=254;
-		cbuff+=254;
-		compsize-=254;
-	}
-	if (compsize>0) {
-		*buff++ = compsize;
-		memcpy(buff,cbuff,compsize);
-		buff+=compsize;
-	}
-	*buff++ = 0;
-	*buff++ = ';';
+#else /* HAVE_ZLIB_H */
+
+uint32_t stats_make_png(uint32_t number) {
+	(void)number;
+	return sizeof(png_1x1);
 }
 
-/*
-uint32_t stats_makegif(uint32_t number,uint8_t *buff,uint32_t maxleng) {
-	uint32_t size;
-	uint32_t compsize;
-	uint8_t *cbuff = compressbuff;
-	uint32_t chtype,chrange;
-
-	chtype = number / 10;
-	chrange = number % 10;
-	if (chrange>=RANGES) {
-		return 0;
-	}
-	if (!(chtype<SERIES || (chtype>=CSMIN && chtype<=CSMAX))) {
-		return 0;
-	}
-
-	stats_makechart(chtype,chrange);
-
-	compsize = COMPLENG;
-	if (lzw_encode(3,chart,(XSIZE)*(YSIZE),cbuff,&compsize)==0) {
-		return 0;
-	}
-	if (compsize%254>0) {
-		size = 56 + 255*(compsize/254)+((compsize%254)+1) + 2;
-	} else {
-		size = 56 + 255*(compsize/254) + 2;
-	}
-	if (maxleng<size) {
-		return 0;
-	}
-	memcpy(buff,gifheader,56);
-	buff+=56;
-	while (compsize>254) {
-		*buff++ = 254;
-		memcpy(buff,cbuff,254);
-		buff+=254;
-		cbuff+=254;
-		compsize-=254;
-	}
-	if (compsize>0) {
-		*buff++ = compsize;
-		memcpy(buff,cbuff,compsize);
-		buff+=compsize;
-//		cbuff+=compsize;
-//		compsize-=compsize;
-	}
-	*buff++ = 0;
-	*buff++ = ';';
-	return size;
+void stats_get_png(uint8_t *buff) {
+	memcpy(buff,png_1x1,sizeof(png_1x1));
 }
-*/
+
+#endif /* HAVE_ZLIB_H */

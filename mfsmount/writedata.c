@@ -16,6 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -86,35 +88,50 @@ static pthread_mutex_t *mainlock;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
-static void write_data_close_connection(writerec *wrec) {
+static int write_data_close_connection(writerec *wrec) {
 	uint32_t tmpip;
 	uint16_t tmpport;
-	uint8_t *csdata;
+	const uint8_t *csdata;
 	uint32_t csdatasize;
+	uint8_t cnt;
+	int status;
 	if (wrec->fd>=0) {
 //		fprintf(stderr,"close connection: %d (chunkid:%"PRIu64" ; inode:%"PRIu32" ; fleng:%"PRIu64")\n",wrec->fd,wrec->chunkid,wrec->inode,wrec->fleng);
-		fs_writeend(wrec->chunkid,wrec->inode,wrec->fleng);
 		tcpclose(wrec->fd);
 		csdata = wrec->csdata;
 		csdatasize = wrec->csdatasize;
 		while (csdatasize>=6) {
-			GET32BIT(tmpip,csdata);
-			GET16BIT(tmpport,csdata);
+			tmpip = get32bit(&csdata);
+			tmpport = get16bit(&csdata);
 			csdatasize-=6;
 			csdb_writedec(tmpip,tmpport);
 		}
 		wrec->csdatasize = 0;
 		wrec->fd = -1;
+
+		cnt=0;
+		do {
+			status = fs_writeend(wrec->chunkid,wrec->inode,wrec->fleng);
+			if (status!=STATUS_OK) {
+				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_writeend returns status %d (try:%u/%u)",wrec->inode,wrec->indx,wrec->chunkid,wrec->version,status,cnt,RETRIES);
+				sleep(1+cnt/5);	// try again
+				cnt++;
+			}
+		} while (status!=STATUS_OK && cnt<RETRIES);
+		if (status!=STATUS_OK) {
+			return -1;
+		}
 		read_inode_ops(wrec->inode);
 	}
+	return 0;
 }
 
 static int write_data_new_connection(writerec *wrec) {
 	uint32_t ip,tmpip;
 	uint16_t port,tmpport;
-	uint8_t *chain;
+	const uint8_t *chain;
 	uint32_t chainsize;
-	uint8_t *csdata;
+	const uint8_t *csdata;
 	uint32_t csdatasize;
 //	uint32_t version;
 	int status;
@@ -129,6 +146,12 @@ static int write_data_new_connection(writerec *wrec) {
 			if (status==ERROR_ENOENT) {
 				return -2;
 			}
+			if (status==ERROR_NOSPACE) {
+				return -5;
+			}
+			if (status==ERROR_QUOTA) {
+				return -6;
+			}
 			return -1;
 		}
 		if (status==ERROR_LOCKED) {
@@ -141,8 +164,8 @@ static int write_data_new_connection(writerec *wrec) {
 		return -3;
 	}
 	chain = csdata;
-	GET32BIT(ip,chain);
-	GET16BIT(port,chain);
+	ip = get32bit(&chain);
+	port = get16bit(&chain);
 	chainsize = csdatasize-6;
 	gettimeofday(&(wrec->vtime),NULL);
 	wrec->fd = tcpsocket();
@@ -160,8 +183,8 @@ static int write_data_new_connection(writerec *wrec) {
 	memcpy(wrec->csdata,csdata,csdatasize);
 	wrec->csdatasize=csdatasize;
 	while (csdatasize>=6) {
-		GET32BIT(tmpip,csdata);
-		GET16BIT(tmpport,csdata);
+		tmpip = get32bit(&csdata);
+		tmpport = get16bit(&csdata);
 		csdatasize-=6;
 		csdb_writeinc(tmpip,tmpport);
 	}
@@ -289,7 +312,7 @@ static void write_data_do_flush(writerec *wrec) {
 			err = write_data_buffer_send(wrec,wrec->buffid);
 		}
 	}
-	if (err==-2) {	// no such inode - unrecoverable error
+	if (err==-2 || err==-6) {	// no such inode / quota exceeded - unrecoverable error
 		wrec->err = err;
 		return;
 	}
@@ -297,14 +320,16 @@ static void write_data_do_flush(writerec *wrec) {
 		if (err==0) {
 			err = write_data_wait_for_all(wrec);
 			if (err==0) {
-				write_data_close_connection(wrec);
+				if (write_data_close_connection(wrec)<0) {
+					wrec->err = -1;
+				}
 				return;
 			}
 		}
 		err = write_data_error_reconnect(wrec);
 		if (err<0) {
 			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - write(flush) error (try counter: %"PRIu32")",wrec->inode,wrec->indx,wrec->chunkid,wrec->version,cnt);
-			if (err==-2) {	// no such inode - unrecoverable error
+			if (err==-2 || err==-6) {	// no such inode / quota exceeded - unrecoverable error
 				wrec->err = err;
 				return;
 			}
@@ -319,8 +344,10 @@ static void write_data_do_flush(writerec *wrec) {
 	if (err==0) {
 		err = write_data_wait_for_all(wrec);
 		if (err==0) {
-			write_data_close_connection(wrec);
-			return;
+			err = write_data_close_connection(wrec);
+			if (err==0) {
+				return;
+			}
 		}
 	}
 	wrec->err = err;
@@ -337,7 +364,7 @@ static void write_data_next_buffer(writerec *wrec) {
 	} else {
 		err = 0;
 	}
-	if (err==-2) {	// no such inode - unrecoverable error
+	if (err==-2 || err==-6) {	// no such inode / quota exceeded - unrecoverable error
 		wrec->err = err;
 		return;
 	}
@@ -357,7 +384,7 @@ static void write_data_next_buffer(writerec *wrec) {
 		err = write_data_error_reconnect(wrec);
 		if (err<0) {
 			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - writedata error (try counter: %"PRIu32")",wrec->inode,wrec->indx,wrec->chunkid,wrec->version,cnt);
-			if (err==-2) {	// no such inode - unrecoverable error
+			if (err==-2 || err==-6) {	// no such inode / quota exceeded - unrecoverable error
 				wrec->err = err;
 				return;
 			}
@@ -523,7 +550,8 @@ void* write_data_new(uint32_t inode) {
 	return wrec;
 }
 
-void write_data_flush_inode(uint32_t inode) {
+int write_data_flush_inode(uint32_t inode) {
+	int ret=0;
 	writerec *wrec;
 	pthread_mutex_lock(mainlock);
 	for (wrec = wrinodemap[MAPINDX(inode)]; wrec ; wrec=wrec->mapnext) {
@@ -531,11 +559,13 @@ void write_data_flush_inode(uint32_t inode) {
 			pthread_mutex_lock(&(wrec->lock));
 			if (wrec->valid>0 && wrec->err==0) {
 				write_data_do_flush(wrec);
+				ret=1;
 			}
 			pthread_mutex_unlock(&(wrec->lock));
 		}
 	}
 	pthread_mutex_unlock(mainlock);
+	return ret;
 }
 
 int write_data_flush(void *wr) {
