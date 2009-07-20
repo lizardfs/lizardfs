@@ -398,7 +398,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 	if (mfsopts.meta==0) {
 		read_data_init();
-		write_data_init();
+//		write_data_init();
+		write_data_init(256*1024*1024);
 		csdb_init();
 	}
 

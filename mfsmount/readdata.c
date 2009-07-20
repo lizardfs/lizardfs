@@ -26,6 +26,7 @@
 #include <time.h>
 #include <syslog.h>
 #include <inttypes.h>
+#include <errno.h>
 #include <pthread.h>
 
 #include "MFSCommunication.h"
@@ -182,9 +183,9 @@ static int read_data_refresh_connection(readrec *rrec) {
 	if (status!=0) {
 		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_readchunk returns status %"PRIu8,rrec->inode,rrec->indx,rrec->chunkid,rrec->version,status);
 		if (status==ERROR_ENOENT) {
-			return -2;	// stale handle
+			return EBADF;	// stale handle
 		}
-		return -1;
+		return EIO;
 	}
 //	fprintf(stderr,"(%"PRIu32",%"PRIu32",%"PRIu64",%"PRIu64",%"PRIu32",%"PRIu32",%"PRIu16")\n",rrec->inode,rrec->indx,rrec->fleng,rrec->chunkid,rrec->version,ip,port);
 	if (rrec->chunkid==0 && csdata==NULL && csdatasize==0) {
@@ -192,7 +193,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 	if (csdata==NULL || csdatasize==0) {
 		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
-		return -3;
+		return ENXIO;
 	}
 	ip = 0;
 	port = 0;
@@ -211,7 +212,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 	if (ip==0 || port==0) {	// this always should be false
 		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
-		return -3;
+		return ENXIO;
 	}
 	gettimeofday(&(rrec->vtime),NULL);
 	rrec->ip = ip;
@@ -219,7 +220,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	rrec->fd = tcpsocket();
 	if (rrec->fd<0) {
 		syslog(LOG_WARNING,"can't create tcp socket: %m");
-		return -1;
+		return EIO;
 	}
 	if (tcpnodelay(rrec->fd)<0) {
 		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
@@ -228,7 +229,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 		syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16")",ip,port);
 		tcpclose(rrec->fd);
 		rrec->fd = -1;
-		return -1;
+		return EIO;
 	}
 	csdb_readinc(rrec->ip,rrec->port);
 	return 0;
@@ -283,12 +284,12 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			if (rrec->rbuff==NULL) {
 				rrec->rbuffsize = 0;
 				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - out of memory",rrec->inode,rrec->indx);
-				return -4;	// out of memory
+				return ENOMEM;	// out of memory
 			}
 		}
 	}
 
-	err = -1;
+	err = EIO;
 	cnt = 0;
 	if (*buff==NULL) {
 		buffptr = rrec->rbuff;
@@ -308,13 +309,13 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					break;
 				}
 				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - can't connect to proper chunkserver (try counter: %"PRIu32")",rrec->inode,rrec->indx,cnt);
-				if (err==-2) {	// no such inode - it's unrecoverable error
+				if (err==EBADF) {	// no such inode - it's unrecoverable error
 					if (eb) {
 						pthread_mutex_unlock(&(rrec->lock));
 					}
 					return err;
 				}
-				if (err==-3) {	// chunk not available - unrecoverable, but wait longer, and make less retries
+				if (err==ENXIO) {	// chunk not available - unrecoverable, but wait longer, and make less retries
 					sleep(60);
 					cnt+=9;
 				} else {

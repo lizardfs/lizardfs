@@ -16,16 +16,18 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _WRITEDATA_H_
-#define _WRITEDATA_H_
+#ifndef _WRITEDATAALT_H_
+#define _WRITEDATAALT_H_
 
 #include <inttypes.h>
 
-void write_data_init();
-int write_data_flush_inode(uint32_t inode);
+void write_data_init(uint32_t cachesize);
 void* write_data_new(uint32_t inode);
-void write_data_end(void *wr);
-int write_data_flush(void *wr);
-int write_data(void *wr,uint64_t offset,uint32_t size,const uint8_t *buff);
+int write_data_end(void *vid);
+int write_data_flush(void *vid);
+uint64_t write_data_getmaxfleng(uint32_t inode);
+int write_data_flush_inode(uint32_t inode);
+int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *buff);
+// uint64_t write_data_get_maxfleng(uint32_t inode);
 
 #endif
