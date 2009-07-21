@@ -942,7 +942,7 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 
 #ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip) {
 	void* ptrs[65536];
 	uint16_t servcount;
 	slist *os,*s;
@@ -957,7 +957,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 	if (ochunkid==0) {	// new chunk
 //		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
 #ifndef METARESTORE
-		servcount = matocsserv_getservers_wrandom(ptrs,goal);
+		servcount = matocsserv_getservers_wrandom(ptrs,goal,cuip);
 		if (servcount==0) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
@@ -1445,10 +1445,36 @@ int chunk_increase_version(uint64_t chunkid) {
 
 #ifndef METARESTORE
 
-int chunk_getversionandlocations(uint64_t chunkid,uint32_t *version,uint8_t *count,void *sptr[256]) {
+typedef struct locsort {
+	uint32_t ip;
+	uint16_t port;
+	uint32_t dist;
+	uint32_t rnd;
+} locsort;
+
+int chunk_locsort_cmp(const void *aa,const void *bb) {
+	const locsort *a = (const locsort*)aa;
+	const locsort *b = (const locsort*)bb;
+	if (a->dist<b->dist) {
+		return -1;
+	} else if (a->dist>b->dist) {
+		return 1;
+	} else if (a->rnd<b->rnd) {
+		return -1;
+	} else if (a->rnd>b->rnd) {
+		return 1;
+	}
+	return 0;
+}
+
+int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[100*6]) {
 	chunk *c;
 	slist *s;
-	uint8_t i,k,cnt;
+	uint8_t i;
+	uint8_t cnt;
+	uint8_t *wptr;
+	locsort lstab[100];
+
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
@@ -1457,20 +1483,31 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t *version,uint8_t *cou
 	cnt=0;
 	for (s=c->slisthead ;s ; s=s->next) {
 		if (s->valid!=INVALID && s->valid!=DEL) {
-			sptr[cnt++]=s->ptr;
+			if (cnt<100 && matocsserv_getlocation(s->ptr,&(lstab[cnt].ip),&(lstab[cnt].port))==0) {
+				lstab[cnt].dist = (lstab[cnt].ip==cuip)?0:1;	// in the future prepare more sofisticated distance function
+				lstab[cnt].rnd = rndu32();
+				cnt++;
+			}
+//			sptr[cnt++]=s->ptr;
 		}
 	}
-	// make random permutation
+	qsort(lstab,cnt,sizeof(locsort),chunk_locsort_cmp);
+	wptr = loc;
 	for (i=0 ; i<cnt ; i++) {
-		// k = random <i,j)
-		k = i+(rndu32()%(cnt-i));
-		// swap (i,k)
-		if (i!=k) {
-			void* p = sptr[i];
-			sptr[i] = sptr[k];
-			sptr[k] = p;
-		}
+		put32bit(&wptr,lstab[i].ip);
+		put16bit(&wptr,lstab[i].port);
 	}
+//	// make random permutation
+//	for (i=0 ; i<cnt ; i++) {
+//		// k = random <i,j)
+//		k = i+(rndu32()%(cnt-i));
+//		// swap (i,k)
+//		if (i!=k) {
+//			void* p = sptr[i];
+//			sptr[i] = sptr[k];
+//			sptr[k] = p;
+//		}
+//	}
 	*count = cnt;
 	return STATUS_OK;
 }

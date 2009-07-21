@@ -242,7 +242,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 
 
 
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand) {
+uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip) {
 	static struct servsort {
 		uint32_t p;
 		matocsserventry *ptr;

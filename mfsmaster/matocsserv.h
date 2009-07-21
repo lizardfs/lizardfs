@@ -22,7 +22,7 @@
 
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);
+uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip);
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit);
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
 char* matocsserv_getstrip(void *e);

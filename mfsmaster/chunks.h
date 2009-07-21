@@ -62,13 +62,13 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
 //int chunk_writelock(uint64_t chunkid);
 int chunk_unlock(uint64_t chunkid);
 
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal);
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip);
 int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint32_t inode,uint16_t indx,uint8_t goal);
 //int chunk_multi_reinitialize(uint64_t chunkid);
 int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversion);
 
 /* ---- */
-int chunk_getversionandlocations(uint64_t chunkid,uint32_t *version,uint8_t *count,void *sptr[256]);
+int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);
 /* ---- */
 void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version);
 void chunk_damaged(void *ptr,uint64_t chunkid);

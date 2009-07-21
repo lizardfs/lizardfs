@@ -467,11 +467,11 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint8_t type,attr[35];
 	uint32_t version;
 //	uint8_t rstat;
-	uint32_t ip;
-	uint16_t port;
+//	uint32_t ip;
+//	uint16_t port;
 	uint8_t *ptr;
-	uint8_t i,count;
-	void *sptr[256];
+	uint8_t count;
+	uint8_t loc[100*6];
 	chunklist *cl,**acl;
 	matocuserventry *eptr,*eaptr;
 
@@ -516,7 +516,7 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	switch (type) {
 	case FUSE_WRITE:
 		if (status==STATUS_OK) {
-			status=chunk_getversionandlocations(chunkid,&version,&count,sptr);
+			status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 			//syslog(LOG_NOTICE,"get version for chunk %"PRIu64" -> %"PRIu32,chunkid,version);
 		}
 		if (status!=STATUS_OK) {
@@ -541,15 +541,16 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,version);
-		for (i=0 ; i<count ; i++) {
-			if (matocsserv_getlocation(sptr[i],&ip,&port)<0) {
-				put32bit(&ptr,0);
-				put16bit(&ptr,0);
-			} else {
-				put32bit(&ptr,ip);
-				put16bit(&ptr,port);
-			}
-		}
+		memcpy(ptr,loc,count*6);
+//		for (i=0 ; i<count ; i++) {
+//			if (matocsserv_getlocation(sptr[i],&ip,&port)<0) {
+//				put32bit(&ptr,0);
+//				put16bit(&ptr,0);
+//			} else {
+//				put32bit(&ptr,ip);
+//				put16bit(&ptr,port);
+//			}
+//		}
 		return;
 	case FUSE_SETATTR:
 	case FUSE_TRUNCATE:
@@ -2123,10 +2124,10 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 	uint64_t chunkid;
 	uint64_t fleng;
 	uint32_t version;
-	uint32_t ip;
-	uint16_t port;
-	uint8_t i,count;
-	void *sptr[256];
+//	uint32_t ip;
+//	uint16_t port;
+	uint8_t count;
+	uint8_t loc[100*6];
 	uint32_t msgid;
 	if (length!=12) {
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_READ_CHUNK - wrong size (%"PRIu32"/12)",length);
@@ -2143,7 +2144,7 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 //	}
 	if (status==STATUS_OK) {
 		if (chunkid>0) {
-			status = chunk_getversionandlocations(chunkid,&version,&count,sptr);
+			status = chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 		} else {
 			version = 0;
 			count = 0;
@@ -2170,15 +2171,7 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 	put64bit(&ptr,fleng);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	for (i=0 ; i<count ; i++) {
-		if (matocsserv_getlocation(sptr[i],&ip,&port)<0) {
-			put32bit(&ptr,0);
-			put16bit(&ptr,0);
-		} else {
-			put32bit(&ptr,ip);
-			put16bit(&ptr,port);
-		}
-	}
+	memcpy(ptr,loc,count*6);
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[14]++;
 	}
@@ -2204,7 +2197,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writechunk(inode,indx,&chunkid,&fleng);
+		status = fs_writechunk(inode,indx,eptr->peerip,&chunkid,&fleng);
 	}
 /* zapis bez zwiekszania wersji
 	if (status==255) {

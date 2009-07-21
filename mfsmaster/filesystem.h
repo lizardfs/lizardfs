@@ -106,7 +106,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint16_t
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
+uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunkid,uint64_t *length);
 // uint8_t fs_reinitchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
 
