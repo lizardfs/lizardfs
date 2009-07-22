@@ -73,7 +73,7 @@ typedef struct matocsserventry {
 	uint32_t errorcounter;
 	uint16_t repcounter;
 
-	uint32_t rndcarry;
+	double rndcarry;
 
 	struct matocsserventry *next;
 } matocsserventry;
@@ -85,7 +85,7 @@ static int lsock;
 static char *ListenHost;
 static char *ListenPort;
 
-int matocsserv_compare(const void *a,const void *b) {
+int matocsserv_space_compare(const void *a,const void *b) {
 	const struct servsort {
 		double space;
 		void *ptr;
@@ -222,7 +222,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 
 	// sort <min-max)
 	if (mid>0) {
-		qsort(servsorttab,mid,sizeof(struct servsort),matocsserv_compare);
+		qsort(servsorttab,mid,sizeof(struct servsort),matocsserv_space_compare);
 	}
 	for (i=0 ; i<mid ; i++) {
 		ptrs[min+i]=servsorttab[i].ptr;
@@ -241,21 +241,48 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 }
 
 
+int matocsserv_rndcarry_compare(const void *a,const void *b) {
+	const struct rservsort {
+		uint32_t p;
+		double rndcarry;
+		matocsserventry *ptr;
+	} *aa=a,*bb=b;
+	if (aa->rndcarry > bb->rndcarry) {
+		return 1;
+	}
+	if (aa->rndcarry < bb->rndcarry) {
+		return -1;
+	}
+	return 0;
+}
+
 
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip) {
-	static struct servsort {
+	static struct rservsort {
 		uint32_t p;
+		double rndcarry;
 		matocsserventry *ptr;
 	} servtab[65536],x;
 	matocsserventry *eptr;
+	double maxrndcarry;
+	int32_t local;
 	uint32_t psum;
 	uint32_t r,j,i,k;
 	j = 0;
 	psum = 0;
+	maxrndcarry = 0.0;
+	local = -1;
 	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
 		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(1<<30)) {
-			servtab[j].ptr=eptr;
+			if (eptr->rndcarry>maxrndcarry) {
+				maxrndcarry = eptr->rndcarry;
+			}
+			if (eptr->servip==cuip) {
+				local=j;
+			}
 			servtab[j].p = eptr->totalspace>>30;
+			servtab[j].rndcarry = eptr->rndcarry;
+			servtab[j].ptr=eptr;
 			psum += servtab[j].p;
 			j++;
 		}
@@ -266,21 +293,37 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 	if (demand>j) {
 		demand=j;
 	}
-	// place servers with rndcarry>0 on the beginning of srvtab
-	i = 0;
-	k = j-1;
-	while (i<k) {
-		while (i<k && servtab[i].ptr->rndcarry>0) i++;
-		while (i<k && servtab[k].ptr->rndcarry==0) k--;
-		if (i<k) {
-			x = servtab[i];
-			servtab[i] = servtab[k];
-			servtab[k] = x;
+	if (maxrndcarry<10.0 && local>=0) { // localhost can be used
+		// bias rndcarry
+		for (i=0 ; i<j ; i++) {
+			servtab[i].rndcarry = (servtab[i].ptr->rndcarry += (double)(servtab[i].p)/(double)(servtab[local].p));
 		}
+		// place localhost in the first place
+		if (local!=0) {
+			x = servtab[0];
+			servtab[0] = servtab[local];
+			servtab[local] = x;
+		}
+		// sort the rest
+		if (j>1) {
+			qsort(servtab+1,j-1,sizeof(struct rservsort),matocsserv_rndcarry_compare);
+		}
+	} else {
+		qsort(servtab,j,sizeof(struct rservsort),matocsserv_rndcarry_compare);
 	}
+//	k = j-1;
+//	while (i<k) {
+//		while (i<k && servtab[i].ptr->rndcarry>=1.0) i++;
+//		while (i<k && servtab[k].ptr->rndcarry<1.0) k--;
+//		if (i<k) {
+//			x = servtab[i];
+//			servtab[i] = servtab[k];
+//			servtab[k] = x;
+//		}
+//	}
 	for (k=0 ; k<demand ; k++) {
-		if (servtab[k].ptr->rndcarry>0) {
-			servtab[k].ptr->rndcarry--;
+		if (servtab[k].ptr->rndcarry>=1.0) {
+			servtab[k].ptr->rndcarry-=1.0;
 			// found server with carry (previously choosen at least once) - so use it
 		} else {
 			do {
@@ -291,7 +334,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 					r-=servtab[i].p;
 				}
 				if (i<k) {	// server was choosen before
-					servtab[i].ptr->rndcarry++;
+					servtab[i].ptr->rndcarry+=1.0;
 					r = 1;
 				} else {
 					r = 0;
@@ -1301,7 +1344,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->errorcounter=0;
 			eptr->repcounter=0;
 
-			eptr->rndcarry=0;
+			eptr->rndcarry=0.0;
 //				eptr->creation=NULL;
 //				eptr->deletion=NULL;
 //				eptr->setversion=NULL;
