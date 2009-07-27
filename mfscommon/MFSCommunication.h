@@ -179,16 +179,31 @@
 #define GMODE_ISVALID(x)       (((uint32_t)(x))<=1)
 
 // extraattr:
+
+#define EATTR_BITS             4
+
 #define EATTR_NOOWNER          0x01
-#define EATTR_UNDEFINED_1      0x02
-#define EATTR_UNDEFINED_2      0x04
-#define EATTR_UNDEFINED_3      0x08
+#define EATTR_NOACACHE         0x02
+#define EATTR_NOECACHE         0x04
+#define EATTR_UNDEFINED        0x08
 
 #define EATTR_STRINGS \
 	"noowner", \
-	"undefined", \
-	"undefined", \
-	"undefined"
+	"noattrcache", \
+	"noentrycache", \
+	""
+
+#define EATTR_DESCRIPTIONS \
+	"every user (except root) sees object as his (her) own", \
+	"prevent standard object attributes from being stored in kernel cache", \
+	"prevent directory entries from being stored in kernel cache", \
+	"(not defined)"
+
+// mode attr (higher 4 bits of mode in node attr)
+#define MATTR_NOACACHE         0x01
+#define MATTR_NOECACHE         0x02
+#define MATTR_UNDEFINED_1      0x04
+#define MATTR_UNDEFINED_2      0x08
 
 // quota:
 #define QUOTA_FLAG_SINODES     0x01
@@ -372,6 +387,11 @@
 // new attr record:
 //   type:8 mode:16 uid:32 gid:32 atime:32 mtime:32 ctime:32 nlink:32 length:64
 //   total: 35B
+//
+//   mode: FFFFMMMMMMMMMMMM
+//         \--/\----------/
+//           \       \------- mode
+//            \-------------- flags
 //
 //   in case of BLOCKDEV and CHARDEV instead of 'length:64' on the end there is 'mojor:16 minor:16 empty:32'
 
@@ -627,18 +647,25 @@
 // msgid:32 status:8
 // msgid:32 N*[ name:NAME inode:32 ]
 
-#define CUTOMA_FUSE_QUOTACONTROL 472
+#define CUTOMA_FUSE_GETEATTR 472
+// msgid:32 inode:32 gmode:8
+#define MATOCU_FUSE_GETEATTR 473
+// msgid:32 status:8
+// msgid:32 eattrdirs:8 eattrfiles:8 eattrdirs*[ eattr:8 dirs:32 ] eattrfiles*[ eattr:8 files:32 ]
+
+#define CUTOMA_FUSE_SETEATTR 474
+// msgid:32 inode:32 uid:32 eattr:8 smode:8
+#define MATOCU_FUSE_SETEATTR 475
+// msgid:32 status:8
+// msgid:32 changed:32 notchanged:32 notpermitted:32
+
+#define CUTOMA_FUSE_QUOTACONTROL 476
 // msgid:32 inode:32 qflags:8 - delete quota
 // msgid:32 inode:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 - set quota
-#define MATOCU_FUSE_QUOTACONTROL 473
+#define MATOCU_FUSE_QUOTACONTROL 477
 // msgid:32 status:8
 // msgid:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 curinodes:32 curlength:64 cursize:64 currealsize:64
 
-#define CUTOMA_FUSE_EATTR 474
-// msgid:32 inode:32 uid:32 mode:8 nodeeattr:8
-#define MATOCU_FUSE_EATTR 475
-// msgid:32 status:8
-// msgid:32 nodeeattr:8 functioneattr:8
 
 // special - reserved (opened) inodes - keep opened files.
 #define CUTOMA_FUSE_RESERVED_INODES 499

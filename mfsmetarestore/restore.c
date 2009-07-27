@@ -214,16 +214,6 @@ uint8_t do_session(uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_session(cuid);
 }
 
-uint8_t do_eattr(uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,eattr;
-	EAT(ptr,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,lv,',');
-	GETU32(eattr,ptr);
-	EAT(ptr,lv,')');
-	return fs_eattr(ts,inode,eattr);
-}
-
 uint8_t do_emptytrash(uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t reservedinodes,freeinodes;
 	EAT(ptr,lv,'(');
@@ -357,6 +347,27 @@ int do_remove(uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_remove(ts,inode);
 }
 */
+uint8_t do_seteattr(uint64_t lv,uint32_t ts,char *ptr) {
+	uint32_t inode,uid,ci,nci,npi;
+	uint8_t eattr,smode;
+	EAT(ptr,lv,'(');
+	GETU32(inode,ptr);
+	EAT(ptr,lv,',');
+	GETU32(uid,ptr);
+	EAT(ptr,lv,',');
+	GETU32(eattr,ptr);
+	EAT(ptr,lv,',');
+	GETU32(smode,ptr);
+	EAT(ptr,lv,')');
+	EAT(ptr,lv,':');
+	GETU32(ci,ptr);
+	EAT(ptr,lv,',');
+	GETU32(nci,ptr);
+	EAT(ptr,lv,',');
+	GETU32(npi,ptr);
+	return fs_seteattr(ts,inode,uid,eattr,smode,ci,nci,npi);
+}
+
 uint8_t do_setgoal(uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,uid,ci,nci,npi;
 	uint8_t goal,smode;
@@ -558,9 +569,7 @@ int restore(const char *rfname) {
 				}
 				break;
 			case 'E':
-				if (strncmp(ptr,"EATTR",5)==0) {
-					status = do_eattr(lv,ts,ptr+5);
-				} else if (strncmp(ptr,"EMPTYTRASH",10)==0) {
+				if (strncmp(ptr,"EMPTYTRASH",10)==0) {
 					status = do_emptytrash(lv,ts,ptr+10);
 				} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 					status = do_emptyreserved(lv,ts,ptr+13);
@@ -615,7 +624,9 @@ int restore(const char *rfname) {
 				}
 				break;
 			case 'S':
-				if (strncmp(ptr,"SETGOAL",7)==0) {
+				if (strncmp(ptr,"SETEATTR",8)==0) {
+					status = do_seteattr(lv,ts,ptr+8);
+				} else if (strncmp(ptr,"SETGOAL",7)==0) {
 					status = do_setgoal(lv,ts,ptr+7);
 				} else if (strncmp(ptr,"SETPATH",7)==0) {
 					status = do_setpath(lv,ts,ptr+7);

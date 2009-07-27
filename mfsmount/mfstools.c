@@ -47,6 +47,8 @@ const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 #define INODE_TYPE_RESERVED 0x40000000
 #define INODE_TYPE_SPECIAL 0x00000000
 
+static const char* eattrtab[EATTR_BITS]={EATTR_STRINGS};
+static const char* eattrdesc[EATTR_BITS]={EATTR_DESCRIPTIONS};
 
 static inline const char* mfs_strerror(uint8_t status) {
 	static const char* errtab[]={ERROR_STRINGS};
@@ -971,6 +973,157 @@ int get_trashtime(const char *fname,uint8_t mode) {
 	return 0;
 }
 
+int get_eattr(const char *fname,uint8_t mode) {
+	uint8_t reqbuff[17],*wptr,*buff;
+	const uint8_t *rptr;
+	uint32_t cmd,leng,inode;
+	uint8_t fn,dn,i,j;
+	uint32_t fcnt[EATTR_BITS];
+	uint32_t dcnt[EATTR_BITS];
+	uint8_t eattr;
+	uint32_t cnt;
+	int fd;
+	fd = open_master_conn(fname,&inode,NULL,0,0);
+	if (fd<0) {
+		return -1;
+	}
+	wptr = reqbuff;
+	put32bit(&wptr,CUTOMA_FUSE_GETEATTR);
+	put32bit(&wptr,9);
+	put32bit(&wptr,0);
+	put32bit(&wptr,inode);
+	put8bit(&wptr,mode);
+	if (tcpwrite(fd,reqbuff,17)!=17) {
+		printf("%s: master query: send error\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	if (tcpread(fd,reqbuff,8)!=8) {
+		printf("%s: master query: receive error\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	rptr = reqbuff;
+	cmd = get32bit(&rptr);
+	leng = get32bit(&rptr);
+	if (cmd!=MATOCU_FUSE_GETEATTR) {
+		printf("%s: master query: wrong answer (type)\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	buff = malloc(leng);
+	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
+		printf("%s: master query: receive error\n",fname);
+		free(buff);
+		close_master_conn(1);
+		return -1;
+	}
+	close_master_conn(0);
+	rptr = buff;
+	cmd = get32bit(&rptr);	// queryid
+	if (cmd!=0) {
+		printf("%s: master query: wrong answer (queryid)\n",fname);
+		free(buff);
+		return -1;
+	}
+	leng-=4;
+	if (leng==1) {
+		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		free(buff);
+		return -1;
+	} else if (leng%5!=2) {
+		printf("%s: master query: wrong answer (leng)\n",fname);
+		free(buff);
+		return -1;
+	} else if (mode==GMODE_NORMAL && leng!=7) {
+		printf("%s: master query: wrong answer (leng)\n",fname);
+		free(buff);
+		return -1;
+	}
+	if (mode==GMODE_NORMAL) {
+		fn = get8bit(&rptr);
+		dn = get8bit(&rptr);
+		eattr = get8bit(&rptr);
+		cnt = get32bit(&rptr);
+		if ((fn!=0 || dn!=1) && (fn!=1 || dn!=0)) {
+			printf("%s: master query: wrong answer (fn,dn)\n",fname);
+			free(buff);
+			return -1;
+		}
+		if (cnt!=1) {
+			printf("%s: master query: wrong answer (cnt)\n",fname);
+			free(buff);
+			return -1;
+		}
+		printf("%s: ",fname);
+		if (eattr>0) {
+			cnt=0;
+			for (j=0 ; j<EATTR_BITS ; j++) {
+				if (eattr & (1<<j)) {
+					printf("%s%s",(cnt)?",":"",eattrtab[j]);
+					cnt=1;
+				}
+			}
+			printf("\n");
+		} else {
+			printf("-\n");
+		}
+//		printf("%s: %"PRIX8"\n",fname,eattr);
+	} else {
+		for (j=0 ; j<EATTR_BITS ; j++) {
+			fcnt[j]=0;
+			dcnt[j]=0;
+		}
+		fn = get8bit(&rptr);
+		dn = get8bit(&rptr);
+		for (i=0 ; i<fn ; i++) {
+			eattr = get8bit(&rptr);
+			cnt = get32bit(&rptr);
+			for (j=0 ; j<EATTR_BITS ; j++) {
+				if (eattr & (1<<j)) {
+					fcnt[j]+=cnt;
+				}
+			}
+		}
+		for (i=0 ; i<dn ; i++) {
+			eattr = get8bit(&rptr);
+			cnt = get32bit(&rptr);
+			for (j=0 ; j<EATTR_BITS ; j++) {
+				if (eattr & (1<<j)) {
+					dcnt[j]+=cnt;
+				}
+			}
+		}
+		printf("%s:\n",fname);
+		for (j=0 ; j<EATTR_BITS ; j++) {
+			if (fcnt[j]>0) {
+				printf(" not directory nodes with attribute %16s :",eattrtab[j]);
+				print_number(" ","\n",fcnt[j],0,1);
+			}
+			if (dcnt[j]>0) {
+				printf(" directories with attribute         %16s :",eattrtab[j]);
+				print_number(" ","\n",dcnt[j],0,1);
+			}
+		}
+/*
+		for (i=0 ; i<fn ; i++) {
+			eattr = get8bit(&rptr);
+			cnt = get32bit(&rptr);
+			printf(" files with eattr        %"PRIX8" :",eattr);
+			print_number(" ","\n",cnt,0,1);
+		}
+		for (i=0 ; i<dn ; i++) {
+			eattr = get8bit(&rptr);
+			cnt = get32bit(&rptr);
+			printf(" directories with eattr  %"PRIX8" :",eattr);
+			print_number(" ","\n",cnt,0,1);
+		}
+*/
+	}
+	free(buff);
+	return 0;
+}
+
 int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	uint8_t reqbuff[22],*wptr,*buff;
 	const uint8_t *rptr;
@@ -1128,6 +1281,87 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 		print_number(" inodes with trashtime changed:     ","\n",changed,0,1);
 		print_number(" inodes with trashtime not changed: ","\n",notchanged,0,1);
 		print_number(" inodes with permission denied:     ","\n",notpermitted,0,1);
+	}
+	free(buff);
+	return 0;
+}
+
+int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
+	uint8_t reqbuff[22],*wptr,*buff;
+	const uint8_t *rptr;
+	uint32_t cmd,leng,inode,uid;
+	uint32_t changed,notchanged,notpermitted;
+	int fd;
+	fd = open_master_conn(fname,&inode,NULL,0,1);
+	if (fd<0) {
+		return -1;
+	}
+	uid = getuid();
+	wptr = reqbuff;
+	put32bit(&wptr,CUTOMA_FUSE_SETEATTR);
+	put32bit(&wptr,14);
+	put32bit(&wptr,0);
+	put32bit(&wptr,inode);
+	put32bit(&wptr,uid);
+	put8bit(&wptr,eattr);
+	put8bit(&wptr,mode);
+	if (tcpwrite(fd,reqbuff,22)!=22) {
+		printf("%s: master query: send error\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	if (tcpread(fd,reqbuff,8)!=8) {
+		printf("%s: master query: receive error\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	rptr = reqbuff;
+	cmd = get32bit(&rptr);
+	leng = get32bit(&rptr);
+	if (cmd!=MATOCU_FUSE_SETEATTR) {
+		printf("%s: master query: wrong answer (type)\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	buff = malloc(leng);
+	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
+		printf("%s: master query: receive error\n",fname);
+		free(buff);
+		close_master_conn(1);
+		return -1;
+	}
+	close_master_conn(0);
+	rptr = buff;
+	cmd = get32bit(&rptr);	// queryid
+	if (cmd!=0) {
+		printf("%s: master query: wrong answer (queryid)\n",fname);
+		free(buff);
+		return -1;
+	}
+	leng-=4;
+	if (leng==1) {
+		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		free(buff);
+		return -1;
+	} else if (leng!=12) {
+		printf("%s: master query: wrong answer (leng)\n",fname);
+		free(buff);
+		return -1;
+	}
+	changed = get32bit(&rptr);
+	notchanged = get32bit(&rptr);
+	notpermitted = get32bit(&rptr);
+	if ((mode&SMODE_RMASK)==0) {
+		if (changed) {
+			printf("%s: attribute(s) changed\n",fname);
+		} else {
+			printf("%s: attribute(s) not changed\n",fname);
+		}
+	} else {
+		printf("%s:\n",fname);
+		print_number(" inodes with attributes changed:     ","\n",changed,0,1);
+		print_number(" inodes with attributes not changed: ","\n",notchanged,0,1);
+		print_number(" inodes with permission denied:      ","\n",notpermitted,0,1);
 	}
 	free(buff);
 	return 0;
@@ -1479,6 +1713,7 @@ int file_repair(const char *fname) {
 	return 0;
 }
 
+/*
 int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
 	uint8_t reqbuff[22],*wptr,*buff;
 	const uint8_t *rptr;
@@ -1574,6 +1809,7 @@ int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
 	printf("\n");
 	return 0;
 }
+*/
 
 int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,uint64_t slength,uint64_t ssize,uint64_t srealsize,uint32_t hinodes,uint64_t hlength,uint64_t hsize,uint64_t hrealsize) {
 	uint8_t reqbuff[73],*wptr,*buff;
@@ -1925,9 +2161,9 @@ enum {
 	MFSDIRINFO,
 	MFSFILEREPAIR,
 	MFSMAKESNAPSHOT,
-	MFSGETNOOWNERFLAG,
-	MFSSETNOOWNERFLAG,
-	MFSDELNOOWNERFLAG,
+	MFSGETEATTR,
+	MFSSETEATTR,
+	MFSDELEATTR,
 	MFSGETQUOTA,
 	MFSSETQUOTA,
 	MFSDELQUOTA
@@ -1939,17 +2175,31 @@ static inline void print_numberformat_options() {
 	fprintf(stderr," -H - \"human-readable\" numbers using base 10 prefixes (SI)\n");
 }
 
+static inline void print_recursive_option() {
+	fprintf(stderr," -r - do it recursively\n");
+}
+
+static inline void print_extra_attributes() {
+	int j;
+	fprintf(stderr,"\nattributes:\n");
+	for (j=0 ; j<EATTR_BITS ; j++) {
+		if (eattrtab[j][0]) {
+			fprintf(stderr," %s - %s\n",eattrtab[j],eattrdesc[j]);
+		}
+	}
+}
+
 void usage(int f) {
 	switch (f) {
 		case MFSGETGOAL:
 			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name ...]\n");
 			print_numberformat_options();
-			fprintf(stderr," -r - do it recursively\n");
+			print_recursive_option();
 			break;
 		case MFSSETGOAL:
 			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
 			print_numberformat_options();
-			fprintf(stderr," -r - do it recursively\n");
+			print_recursive_option();
 			fprintf(stderr," GOAL+ - increase goal to given value\n");
 			fprintf(stderr," GOAL- - decrease goal to given value\n");
 			fprintf(stderr," GOAL - just set goal to given value\n");
@@ -1957,12 +2207,12 @@ void usage(int f) {
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
 			print_numberformat_options();
-			fprintf(stderr," -r - do it recursively\n");
+			print_recursive_option();
 			break;
 		case MFSSETTRASHTIME:
 			fprintf(stderr,"set objects trashtime (how many seconds file should be left in trash)\n\nusage: mfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
 			print_numberformat_options();
-			fprintf(stderr," -r - do it recursively\n");
+			print_recursive_option();
 			fprintf(stderr," SECONDS+ - increase trashtime to given value\n");
 			fprintf(stderr," SECONDS- - decrease trashtime to given value\n");
 			fprintf(stderr," SECONDS - just set trashtime to given value\n");
@@ -1988,6 +2238,25 @@ void usage(int f) {
 		case MFSMAKESNAPSHOT:
 			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-o] src [src ...] dst\n");
 			fprintf(stderr,"-o - allow to overwrite existing objects\n");
+			break;
+		case MFSGETEATTR:
+			fprintf(stderr,"get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
+			print_numberformat_options();
+			print_recursive_option();
+			break;
+		case MFSSETEATTR:
+			fprintf(stderr,"set objects extra attributes\n\nusage: mfsseteattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," -f attrname - specify attribute to set\n");
+			print_extra_attributes();
+			break;
+		case MFSDELEATTR:
+			fprintf(stderr,"delete objects extra attributes\n\nusage: mfsdeleattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," -f attrname - specify attribute to delete\n");
+			print_extra_attributes();
 			break;
 		case MFSGETQUOTA:
 			fprintf(stderr,"get quota for given directory (directories)\n\nusage: mfsgetquota [-nhH] dirname [dirname ...]\n");
@@ -2017,11 +2286,12 @@ void usage(int f) {
 
 int main(int argc,char **argv) {
 	int l,f,status;
+	int i,found;
 	char ch;
 	int oflag=0;
 	int rflag=0;
 	uint64_t v;
-	uint32_t goal=1,smode=SMODE_SET;
+	uint8_t eattr=0,goal=1,smode=SMODE_SET;
 	uint32_t trashtime=86400;
 	uint32_t sinodes=0,hinodes=0;
 	uint64_t slength=0,hlength=0,ssize=0,hsize=0,srealsize=0,hrealsize=0;
@@ -2048,9 +2318,9 @@ int main(int argc,char **argv) {
 			SYMLINK("mfsdirinfo")
 			SYMLINK("mfsfilerepair")
 			SYMLINK("mfsmakesnapshot")
-			SYMLINK("mfsgetnoownerflag")
-			SYMLINK("mfssetnoownerflag")
-			SYMLINK("mfsdelnoownerflag")
+			SYMLINK("mfsgeteattr")
+			SYMLINK("mfsseteattr")
+			SYMLINK("mfsdeleattr")
 #if VERSMID>=7
 			SYMLINK("mfsgetquota")
 			SYMLINK("mfssetquota")
@@ -2068,7 +2338,7 @@ int main(int argc,char **argv) {
 			fprintf(stderr,"\tmfsgetgoal\n\tmfssetgoal\n\tmfsgettrashtime\n\tmfssettrashtime\n");
 			fprintf(stderr,"\tmfscheckfile\n\tmfsfileinfo\n\tmfsappendchunks\n\tmfsdirinfo\n\tmfsfilerepair\n");
 			fprintf(stderr,"\tmfsmakesnapshot\n");
-			fprintf(stderr,"\tmfsgetnoownerflag\n\tmfssetnoownerflag\n\tmfsdelnoownerflag\n");
+			fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
 #if VERSMID>=7
 			fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
 #endif
@@ -2111,12 +2381,12 @@ int main(int argc,char **argv) {
 		f=MFSAPPENDCHUNKS;
 	} else if (CHECKNAME("mfsdirinfo")) {
 		f=MFSDIRINFO;
-	} else if (CHECKNAME("mfsgetnoownerflag")) {
-		f=MFSGETNOOWNERFLAG;
-	} else if (CHECKNAME("mfssetnoownerflag")) {
-		f=MFSSETNOOWNERFLAG;
-	} else if (CHECKNAME("mfsdelnoownerflag")) {
-		f=MFSDELNOOWNERFLAG;
+	} else if (CHECKNAME("mfsgeteattr")) {
+		f=MFSGETEATTR;
+	} else if (CHECKNAME("mfsseteattr")) {
+		f=MFSSETEATTR;
+	} else if (CHECKNAME("mfsdeleattr")) {
+		f=MFSDELEATTR;
 	} else if (CHECKNAME("mfsgetquota")) {
 		f=MFSGETQUOTA;
 	} else if (CHECKNAME("mfssetquota")) {
@@ -2232,6 +2502,68 @@ int main(int argc,char **argv) {
 			}
 			argc--;
 			argv++;
+		}
+		break;
+	case MFSGETEATTR:
+		while ((ch=getopt(argc,argv,"rnhH"))!=-1) {
+			switch(ch) {
+			case 'n':
+				humode=0;
+				break;
+			case 'h':
+				humode=1;
+				break;
+			case 'H':
+				humode=2;
+				break;
+			case 'r':
+				rflag=1;
+				break;
+			}
+		}
+		argc -= optind;
+		argv += optind;
+		break;
+	case MFSSETEATTR:
+	case MFSDELEATTR:
+		while ((ch=getopt(argc,argv,"rnhHf:"))!=-1) {
+			switch(ch) {
+			case 'n':
+				humode=0;
+				break;
+			case 'h':
+				humode=1;
+				break;
+			case 'H':
+				humode=2;
+				break;
+			case 'r':
+				rflag=1;
+				break;
+			case 'f':
+				found=0;
+				for (i=0 ; found==0 && i<EATTR_BITS ; i++) {
+					if (strcmp(optarg,eattrtab[i])==0) {
+						found=1;
+						eattr|=1<<i;
+					}
+				}
+				if (!found) {
+					fprintf(stderr,"unknown flag\n");
+					usage(f);
+				}
+				break;
+			}
+		}
+		argc -= optind;
+		argv += optind;
+		if (eattr==0 && argc>=1) {
+			if (f==MFSSETEATTR) {
+				fprintf(stderr,"no attribute(s) to set\n");
+			} else {
+				fprintf(stderr,"no attribute(s) to delete\n");
+			}
+			usage(f);
 		}
 		break;
 	case MFSFILEREPAIR:
@@ -2478,7 +2810,6 @@ int main(int argc,char **argv) {
 	}
 
 	if (f==MFSAPPENDCHUNKS) {
-		int i;
 		if (argc<=1) {
 			usage(f);
 		}
@@ -2544,18 +2875,18 @@ int main(int argc,char **argv) {
 				status=1;
 			}
 			break;
-		case MFSGETNOOWNERFLAG:
-			if (eattr_control(*argv,2,EATTR_NOOWNER)<0) {
+		case MFSGETEATTR:
+			if (get_eattr(*argv,(rflag)?GMODE_RECURSIVE:GMODE_NORMAL)<0) {
 				status=1;
 			}
 			break;
-		case MFSSETNOOWNERFLAG:
-			if (eattr_control(*argv,0,EATTR_NOOWNER)<0) {
+		case MFSSETEATTR:
+			if (set_eattr(*argv,eattr,(rflag)?(SMODE_RMASK | SMODE_INCREASE):SMODE_INCREASE)<0) {
 				status=1;
 			}
 			break;
-		case MFSDELNOOWNERFLAG:
-			if (eattr_control(*argv,1,EATTR_NOOWNER)<0) {
+		case MFSDELEATTR:
+			if (set_eattr(*argv,eattr,(rflag)?(SMODE_RMASK | SMODE_DECREASE):SMODE_DECREASE)<0) {
 				status=1;
 			}
 			break;

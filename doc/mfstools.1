@@ -26,14 +26,14 @@ mfstools \- perform MFS\-specific operations
 .B mfsrsettrashtime
 [\fB-n\fP|\fB-h\fP|\fB-H\fP] [\fB+\fP|\fB-\fP]SECONDS \fIOBJECT\fP...
 .PP
-.B mfsgetnoownerflag
-\fIOBJECT\fP...
+.B mfsgeteattr
+[\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fIOBJECT\fP...
 .PP
-.B mfssetnoownerflag
-\fIOBJECT\fP...
+.B mfsseteattr
+[\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fB-f\fP \fIATTRNAME\fP [\fB-f\fP \fIATTRNAME\fP ...] \fIOBJECT\fP...
 .PP
-.B mfsdelnoownerflag
-\fIOBJECT\fP...
+.B mfsdeleattr
+[\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fB-f\fP \fIATTRNAME\fP [\fB-f\fP \fIATTRNAME\fP ...] \fIOBJECT\fP...
 .PP
 .B mfscheckfile
 \fIFILE\fP...
@@ -94,12 +94,9 @@ These tools can be used on any file, directory or deleted (\fItrash\fP) file.
 \fBmfsrgettrashtime\fP and \fBmfsrsettrashtime\fP are deprecated aliases for
 \fBmfsgettrashtime -r\fP and \fBmfssettrashtime -r\fP respectively.
 .PP
-\fBmfsgetnoownerflag\fP, \fBmfssetnoownerflag\fP and \fBmfsdelnoownerflag\fP
-tools are used to get, set or delete \fInoowner\fP flag. This flag means,
-that particular object or all descendant objects (in case of directory)
-belong to current user (\fIuid\fP and \fIgid\fP are equal to \fIuid\fP and
-\fIgid\fP values of accessing process). Only root (\fIuid\fP=0) sees the real
-\fIuid\fP and \fIgid\fP.
+\fBmfsgeteattr\fP, \fBmfsseteattr\fP and \fBmfsdeleattr\fP
+tools are used to get, set or delete some extra attributes. Attributes are
+described below.
 .PP
 \fBmfscheckfile\fP checks and prints number of chunks and number of chunk
 copies belonging to specified file(s).
@@ -117,13 +114,13 @@ directory tree).
 read operations) to make them partially readable. In case of missing chunk
 it fills missing parts of file with zeros; in case of chunk version mismatch
 it sets chunk version known to \fBmfsmaster\fP to highest one found on
-chunkservers. Note: because in the second case there could occur content
-mismatch in chunks with the same version, it's advised to make a copy (not
-a snapshot!) and delete original file after "repairing".
+chunkservers. Note: because in the second case content mismatch can occur in
+chunks with the same version, it's advised to make a copy (not a snapshot!)
+and delete original file after "repairing".
 .PP
 \fBmfsappendchunks\fP (equivalent of \fBmfssnapshot\fP from MFS 1.5)
 appends a lazy copy of specified file(s) to specified snapshot file ("lazy"
-means that creation of new chunks is deferred to the moment one copy is
+means that creation of new chunks is delayed to the moment one copy is
 modified).
 If multiple files are given, they are merged into one target file in the way
 that each file begins at \fIchunk\fP (64MB) boundary; padding space is left
@@ -135,7 +132,7 @@ command). It's atomic with respect to each \fISOURCE\fP argument separately.
 If \fIDESTINATION\fP points to already existing file, error will be reported
 unless \fB-o\fP (overwrite) option is given. Note: if \fISOURCE\fP is
 a directory, it's copied as a whole; but if it's followed by trailing slash,
-only directory contents are copied.
+only directory content is copied.
 .SH GENERAL OPTIONS
 Most of \fBmfstools\fP use \fB-n\fP, \fB-h\fP and \fB-H\fP options to select
 format of printed numbers. \fB-n\fP causes to print exact numbers, \fB-h\fP
@@ -146,6 +143,28 @@ The same can be achieved by setting
 or \fBh\fP (binary prefixes), \fB2\fP or \fBH\fP (SI prefixes), \fB3\fP or
 \fBh+\fP (exact numbers and binary prefixes), \fB4\fP or \fBH+\fP (exact
 numbers and SI prefixes). The default is to print just exact numbers.
+.SH EXTRA ATTRIBUTES
+\fBnoowner\fP This flag means,
+that particular object belongs to current user (\fIuid\fP and \fIgid\fP are equal
+to \fIuid\fP and \fIgid\fP values of accessing process). Only root (\fIuid\fP=0)
+sees the real \fIuid\fP and \fIgid\fP.
+.PP
+\fBnoattrcache\fP This flag means, that standard file attributes such as uid, gid,
+mode, length and so on won't be stored in kernel cache. In MFS 1.5 this was the
+only behaviour, and mfsmount always prevented attributes from being stored in
+kernel cache, but in MFS 1.6 attributes can be cached, so in very rare ocassions
+it could be useful to turn it off.
+.PP
+\fBnoentrycache\fP This flag is similar to above. It prevents directory entries
+from being cached in kernel.
+.SH INHERITANCE
+When new object is created in MFS, attributes such as goal, trashtime and extra
+attributes are inherited from parent directory. So if you set i.e. "noowner"
+attribute and goal to 3 in a directory then every new object created in
+this directory will have goal set to 3 and "noowner" flag set. A newly created
+object inherits always the current set of its parent's attributes. Changing a
+directory attribute does not affect its already created children. To change
+an attribute for a directory and all of its children use "-r" option.
 .SH NOTES
 \fBmfstools\fP require MFS (\fBmfsmaster\fP and \fBmfsmount\fP) >= 1.6.0 to
 work on read-only filesystem.

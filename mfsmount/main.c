@@ -223,7 +223,7 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 		if (mfsopts.password!=NULL) {
 			free(mfsopts.password);
 		}
-		mfsopts.password = getpass("Password:");
+		mfsopts.password = getpass("MFS Password:");
 		return 0;
 	case KEY_META:
 		mfsopts.meta = 1;

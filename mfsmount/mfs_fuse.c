@@ -301,6 +301,10 @@ static void mfs_type_to_stat(uint32_t inode,uint8_t type, struct stat *stbuf) {
 	}
 }
 
+static uint8_t mfs_attr_get_mattr(const uint8_t attr[35]) {
+	return (attr[1]>>4);	// higher 4 bits of mode
+}
+
 static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	uint16_t attrmode;
 	uint8_t attrtype;
@@ -519,6 +523,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	uint32_t inode;
 	uint32_t nleng;
 	uint8_t attr[35];
+	uint8_t mattr;
 	int status;
 	const struct fuse_ctx *ctx;
 
@@ -604,8 +609,9 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 	memset(&e, 0, sizeof(e));
 	e.ino = inode;
-	e.attr_timeout = attr_cache_timeout;
-	e.entry_timeout = (attr[0]==TYPE_DIRECTORY)?direntry_cache_timeout:entry_cache_timeout;
+	mattr = mfs_attr_get_mattr(attr);
+	e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+	e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:((attr[0]==TYPE_DIRECTORY)?direntry_cache_timeout:entry_cache_timeout);
 	mfs_attr_to_stat(inode,attr,&e.attr);
 //	if (attr[0]==TYPE_FILE && debug_mode) {
 //		fprintf(stderr,"lookup inode %lu - file size: %llu\n",(unsigned long int)inode,(unsigned long long int)e.attr.st_size);
@@ -675,7 +681,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 //		if (attr[0]==TYPE_FILE && debug_mode) {
 //			fprintf(stderr,"getattr inode %lu - file size: %llu\n",(unsigned long int)ino,(unsigned long long int)o_stbuf.st_size);
 //		}
-		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
+		fuse_reply_attr(req, &o_stbuf, (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout);
 	}
 }
 
@@ -768,7 +774,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		}
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,attr,&o_stbuf);
-		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
+		fuse_reply_attr(req, &o_stbuf, (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout);
 	}
 }
 
@@ -776,6 +782,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	uint8_t type;
@@ -821,8 +828,9 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		e.attr_timeout = attr_cache_timeout;
-		e.entry_timeout = entry_cache_timeout;
+		mattr = mfs_attr_get_mattr(attr);
+		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -865,6 +873,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	const struct fuse_ctx *ctx;
@@ -894,8 +903,9 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		e.attr_timeout = attr_cache_timeout;
-		e.entry_timeout = direntry_cache_timeout;
+		mattr = mfs_attr_get_mattr(attr);
+		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:direntry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -937,6 +947,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	const struct fuse_ctx *ctx;
@@ -966,8 +977,9 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		e.attr_timeout = attr_cache_timeout;
-		e.entry_timeout = entry_cache_timeout;
+		mattr = mfs_attr_get_mattr(attr);
+		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -1043,6 +1055,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	uint8_t mattr;
 	const struct fuse_ctx *ctx;
 
 	mfs_stats_inc(OP_LINK);
@@ -1078,8 +1091,9 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	} else {
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
-		e.attr_timeout = attr_cache_timeout;
-		e.entry_timeout = entry_cache_timeout;
+		mattr = mfs_attr_get_mattr(attr);
+		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 	}
@@ -1296,6 +1310,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	uint32_t inode;
 	uint8_t oflags;
 	uint8_t attr[35];
+	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	const struct fuse_ctx *ctx;
@@ -1348,8 +1363,9 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	fi->keep_cache = keep_cache;
 	memset(&e, 0, sizeof(e));
 	e.ino = inode;
-	e.attr_timeout = attr_cache_timeout;
-	e.entry_timeout = entry_cache_timeout;
+	mattr = mfs_attr_get_mattr(attr);
+	e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+	e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 	mfs_attr_to_stat(inode,attr,&e.attr);
 	if (fuse_reply_create(req, &e, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);

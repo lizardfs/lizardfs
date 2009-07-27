@@ -2474,6 +2474,96 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
+void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t inode;
+	uint32_t msgid;
+	uint32_t feattrtab[16],deattrtab[16];
+	uint8_t i,fn,dn,gmode;
+	uint8_t *ptr;
+	uint8_t status;
+	if (length!=9) {
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETEATTR - wrong size (%"PRIu32"/9)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	msgid = get32bit(&data);
+	inode = get32bit(&data);
+	gmode = get8bit(&data);
+	status = fs_geteattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,feattrtab,deattrtab);
+	fn=0;
+	dn=0;
+	if (status==STATUS_OK) {
+		for (i=0 ; i<16 ; i++) {
+			if (feattrtab[i]) {
+				fn++;
+			}
+			if (deattrtab[i]) {
+				dn++;
+			}
+		}
+	}
+	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETEATTR,(status!=STATUS_OK)?5:6+5*(fn+dn));
+	if (ptr==NULL) {
+		syslog(LOG_NOTICE,"can't allocate memory for packet");
+		eptr->mode = KILL;
+		return;
+	}
+	put32bit(&ptr,msgid);
+	if (status!=STATUS_OK) {
+		put8bit(&ptr,status);
+	} else {
+		put8bit(&ptr,fn);
+		put8bit(&ptr,dn);
+		for (i=0 ; i<16 ; i++) {
+			if (feattrtab[i]) {
+				put8bit(&ptr,i);
+				put32bit(&ptr,feattrtab[i]);
+			}
+		}
+		for (i=0 ; i<16 ; i++) {
+			if (deattrtab[i]) {
+				put8bit(&ptr,i);
+				put32bit(&ptr,deattrtab[i]);
+			}
+		}
+	}
+}
+
+void matocuserv_fuse_seteattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t inode,uid;
+	uint32_t msgid;
+	uint8_t eattr,smode;
+	uint32_t changed,notchanged,notpermitted;
+	uint8_t *ptr;
+	uint8_t status;
+	if (length!=14) {
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETEATTR - wrong size (%"PRIu32"/14)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	msgid = get32bit(&data);
+	inode = get32bit(&data);
+	uid = get32bit(&data);
+	matocuserv_ugid_remap(eptr,&uid,NULL);
+	eattr = get8bit(&data);
+	smode = get8bit(&data);
+	status = fs_seteattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,eattr,smode,&changed,&notchanged,&notpermitted);
+	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETEATTR,(status!=STATUS_OK)?5:16);
+	if (ptr==NULL) {
+		syslog(LOG_NOTICE,"can't allocate memory for packet");
+		eptr->mode = KILL;
+		return;
+	}
+	put32bit(&ptr,msgid);
+	if (status!=STATUS_OK) {
+		put8bit(&ptr,status);
+	} else {
+		put32bit(&ptr,changed);
+		put32bit(&ptr,notchanged);
+		put32bit(&ptr,notpermitted);
+	}
+}
+
 void matocuserv_fuse_append(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_src,uid,gid;
 	uint32_t msgid;
@@ -2600,6 +2690,7 @@ void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint
 	}
 }
 
+/*
 void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t mode,eattr,fneattr;
 	uint32_t msgid,inode,uid;
@@ -2630,6 +2721,7 @@ void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		put8bit(&ptr,fneattr);
 	}
 }
+*/
 
 void matocuserv_fuse_getdirstats_old(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inodes,files,dirs,chunks;
@@ -3179,14 +3271,17 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			case CUTOMA_FUSE_SNAPSHOT:
 				matocuserv_fuse_snapshot(eptr,data,length);
 				break;
+			case CUTOMA_FUSE_GETEATTR:
+				matocuserv_fuse_geteattr(eptr,data,length);
+				break;
+			case CUTOMA_FUSE_SETEATTR:
+				matocuserv_fuse_seteattr(eptr,data,length);
+				break;
 /* do not use in version before 1.7.x */
 			case CUTOMA_FUSE_QUOTACONTROL:
 				matocuserv_fuse_quotacontrol(eptr,data,length);
 				break;
 /* ------ */
-			case CUTOMA_FUSE_EATTR:
-				matocuserv_fuse_eattr(eptr,data,length);
-				break;
 			default:
 				syslog(LOG_NOTICE,"matocu: got unknown message from mfstools (type:%"PRIu32")",type);
 				eptr->mode=KILL;

@@ -54,7 +54,7 @@ uint8_t fs_unlock(uint64_t chunkid);
 uint8_t fs_incversion(uint64_t chunkid);
 uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashtime,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
-uint8_t fs_eattr(uint32_t ts,uint32_t inode,uint8_t extraattr);
+uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 
 void fs_dump(void);
 void fs_term(const char *fname);
@@ -118,7 +118,9 @@ uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
 void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
 uint8_t fs_settrashtime(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t trashtime,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes);
-uint8_t fs_eattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t delflag,uint8_t *nodeeattr,uint8_t *functioneattr);
+
+uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t feattrtab[16],uint32_t deattrtab[16]);
+uint8_t fs_seteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes);
 
 // RESERVED
 uint8_t fs_aquire(uint32_t inode,uint32_t sessionid);

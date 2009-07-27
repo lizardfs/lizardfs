@@ -6,7 +6,7 @@ mount_mans=\
 	mfscheckfile.1 mfsdirinfo.1 mfsfileinfo.1 mfsfilerepair.1 \
 	mfsgetgoal.1 mfsgettrashtime.1 mfsrgetgoal.1 mfsrgettrashtime.1 \
 	mfsrsetgoal.1 mfsrsettrashtime.1 mfssetgoal.1 mfssettrashtime.1 \
-	mfsgetnoownerflag.1 mfssetnoownerflag.1 mfsdelnoownerflag.1 \
+	mfsgeteattr.1 mfsseteattr.1 mfsdeleattr.1 \
 	mfsappendchunks.1 mfsmakesnapshot.1
 all_mans=$(general_mans) $(chunkserver_mans) $(master_mans) $(mount_mans)
 

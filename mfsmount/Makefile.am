@@ -35,7 +35,7 @@ mfstools_links=\
 	mfscheckfile mfsdirinfo mfsfileinfo mfsfilerepair \
 	mfsgetgoal mfsgettrashtime mfsrgetgoal mfsrgettrashtime \
 	mfsrsetgoal mfsrsettrashtime mfssetgoal mfssettrashtime \
-	mfsgetnoownerflag mfssetnoownerflag mfsdelnoownerflag \
+	mfsgeteattr mfsseteattr mfsdeleattr \
 	mfsmakesnapshot mfsappendchunks
 
 install-exec-hook:
