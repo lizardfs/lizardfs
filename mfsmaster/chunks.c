@@ -1555,6 +1555,12 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 	sptr=&(c->slisthead);
 	while ((s=*sptr)) {
 		if (s->ptr==ptr) {
+			if (s->valid==DEL) {
+				jobsdelcount--;
+			}
+			if (s->valid==TDBUSY || s->valid==TDVALID) {
+				todelchunks--;
+			}
 			if (s->valid!=INVALID && s->valid!=DEL) {
 				chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 				c->validcopies--;
