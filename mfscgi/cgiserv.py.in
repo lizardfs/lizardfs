@@ -163,7 +163,6 @@ def loop(server,handler,timeout=30):
 class HTTP(ClientHandler):
 	# parameters to override if necessary
 	root = os.getcwd()				# the directory to serve files from
-	cgi_directories = ['/cgi']			# subdirectories for cgi scripts
 	index_files = ['index.cgi','index.html']	# index files for directories
 	logging = True					# print logging info for each request ?
 	blocksize = 2 << 16				# size of blocks to read from files and send
@@ -271,12 +270,9 @@ class HTTP(ClientHandler):
 		return False
 
 	def is_cgi(self):
-		"""Test if url in a cgi directory"""
-		for path in self.cgi_directories:
-			if self.path.startswith(path):
-				rest = self.path[len(path):]
-				if not rest or rest.startswith('/'):
-					return True
+		"""Test if url points to cgi script"""
+		if self.path.endswith(".cgi"):
+			return True
 		return False
 
 	def run_cgi(self):

@@ -2,18 +2,17 @@ cgibindir = $(CGIDIR)
 cgidatadir = $(CGIDIR)
 cgiservdir = $(CGISERVDIR)
 
-cgibin_DATA = \
-	cgi/chart.cgi \
-	cgi/mfs.cgi
+cgibin_SCRIPTS = \
+	chart.cgi \
+	mfs.cgi
 
 cgidata_DATA = \
-	config.ini \
 	err.gif \
 	index.html \
 	logomini.png \
 	mfs.css
 
-EXTRA_DIST = cgiserv.py.in $(cgibin_DATA) $(cgidata_DATA)
+EXTRA_DIST = cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_DATA)
 
 if INSTALL_CGISERV
 cgiserv_SCRIPTS = \

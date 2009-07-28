@@ -9,12 +9,26 @@ import sys
 
 cgitb.enable()
 
-import ConfigParser
-cp = ConfigParser.ConfigParser()
-cp.read('config.ini')
-masterhost = cp.get('master','host')
-masterport = cp.getint('master','port')
-mastername = cp.get('master','name')
+fields = cgi.FieldStorage()
+
+try:
+	if fields.has_key("masterhost"):
+		masterhost = fields.getvalue("masterhost")
+	else:
+		masterhost = '127.0.0.1'
+except Exception:
+	masterhost = '127.0.0.1'
+try:
+	masterport = int(fields.getvalue("masterport"))
+except Exception:
+	masterport = 9421
+try:
+	if fields.has_key("mastername"):
+		mastername = fields.getvalue("mastername")
+	else:
+		mastername = 'MooseFS'
+except Exception:
+	mastername = 'MooseFS'
 
 thsep = ''
 html_thsep = ''
@@ -89,7 +103,7 @@ except Exception:
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
-	print """<h1 align="center">Can't connect to MFS master</h1>"""
+	print """<h1 align="center">Can't connect to MFS master (IP:%s ; PORT:%u)</h1>""" % (masterhost,masterport)
 	print """</body>"""
 	print """</html>"""
 	exit()
@@ -110,7 +124,6 @@ if masterversion==(0,0,0):
 	print """</html>"""
 	exit()
 
-fields = cgi.FieldStorage()
 
 def createlink(update):
 	global fields
