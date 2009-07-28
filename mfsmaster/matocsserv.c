@@ -414,6 +414,7 @@ void matocsserv_status(void) {
 	matocsserventry *eptr;
 	uint32_t n;
 	uint64_t tspace,uspace;
+	double us,ts;
 	tspace = 0;
 	uspace = 0;
 	n=0;
@@ -423,10 +424,15 @@ void matocsserv_status(void) {
 			tspace += eptr->totalspace;
 			uspace += eptr->usedspace;
 			n++;
-			syslog(LOG_NOTICE,"server %"PRIu32" (%s): usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB), usage: %.2f%%",n,eptr->servstrip,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30),(eptr->totalspace>0)?(100.0*eptr->usedspace)/eptr->totalspace:0.0);
+			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
+			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
+			syslog(LOG_NOTICE,"server %"PRIu32" (ip: %s, port: %"PRIu16"): usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB), usage: %.2lf%%",n,eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts,(ts>0.0)?100.0*us/ts:0.0);
+//			syslog(LOG_NOTICE,"server %"PRIu32" (%s): usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB), usage: %.2f%%",n,eptr->servstrip,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30),(eptr->totalspace>0)?(100.0*eptr->usedspace)/eptr->totalspace:0.0);
 		}
 	}
-	syslog(LOG_NOTICE,"total: usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB), usage: %.2f%%",uspace,(uint32_t)(uspace>>30),tspace,(uint32_t)(tspace>>30),(tspace>0)?(100.0*uspace)/tspace:0.0);
+	us = (double)(uspace)/(double)(1024*1024*1024);
+	ts = (double)(tspace)/(double)(1024*1024*1024);
+	syslog(LOG_NOTICE,"total: usedspace: %"PRIu64" (%.2lf GB), totalspace: %"PRIu64" (%.2lf GB), usage: %.2lf%%",uspace,us,tspace,ts,(ts>0.0)?100.0*us/ts:0.0);
 }
 
 char* matocsserv_getstrip(void *e) {
@@ -857,6 +863,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 	matocsserventry *eaptr;
 	uint32_t i,chunkcount;
 	uint8_t rversion;
+	double us,ts;
 
 	if (eptr->servip>0 || eptr->servport>0) {
 		syslog(LOG_WARNING,"got register message from registered chunk-server !!!");
@@ -957,7 +964,9 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->mode=KILL;
 		return;
 	}
-	syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB)",eptr->servstrip,eptr->servport,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30));
+	us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
+	ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
+	syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 	for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
 			syslog(LOG_WARNING,"chunk-server already connected !!!");
@@ -1319,7 +1328,10 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 	kptr = &matocsservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
-			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB)",eptr->servstrip,eptr->servport,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30));
+			double us,ts;
+			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
+			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
+			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			chunk_server_disconnected(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
