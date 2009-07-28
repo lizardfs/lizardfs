@@ -201,7 +201,7 @@ AC_DEFINE_UNQUOTED([DATA_PATH], ["$DATA_PATH"], [Data directory])
 AC_DEFINE_UNQUOTED([RUN_PATH], ["$RUN_PATH"], [PID file directory])
 
 DEFAULT_USER=nobody
-DEFAULT_GROUP=nogroup
+DEFAULT_GROUP=
 AC_ARG_WITH([default-user],
 	[AS_HELP_STRING([--with-default-user=USER], [Choose default user to run daemons as])],
 	[DEFAULT_USER=$withval])

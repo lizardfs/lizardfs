@@ -380,35 +380,54 @@ void changeugid(void) {
 	char *wgroup;
 	uid_t wrk_uid;
 	gid_t wrk_gid;
+	int gidok;
 
 	if (geteuid()==0) {
 		config_getnewstr("WORKING_USER",DEFAULT_USER,&wuser);
 		config_getnewstr("WORKING_GROUP",DEFAULT_GROUP,&wgroup);
 
+		gidok = 0;
+		wrk_gid = -1;
 		if (wgroup[0]=='#') {
 			wrk_gid = strtol(wgroup+1,NULL,10);
-		} else {
+			gidok = 1;
+		} else if (wgroup[0]) {
 			struct group *gr;
 			gr = getgrnam(wgroup);
 			if (gr==NULL) {
 				fprintf(stderr,"%s: no such group !!!\n",wgroup);
-				syslog(LOG_WARNING,"%s: no such group !!!\n",wgroup);
+				syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
 				exit(1);
+			} else {
+				wrk_gid = gr->gr_gid;
+				gidok = 1;
 			}
-			wrk_gid = gr->gr_gid;
 		}
 
 		if (wuser[0]=='#') {
+			struct passwd *pw;
 			wrk_uid = strtol(wuser+1,NULL,10);
+			if (gidok==0) {
+				pw = getpwuid(wrk_uid);
+				if (pw==NULL) {
+					fprintf(stderr,"%s: no such user id - can't obtain group id\n",wuser+1);
+					syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
+					exit(1);
+				}
+				wrk_gid = pw->pw_gid;
+			}
 		} else {
 			struct passwd *pw;
 			pw = getpwnam(wuser);
 			if (pw==NULL) {
 				fprintf(stderr,"%s: no such user !!!\n",wuser);
-				syslog(LOG_WARNING,"%s: no such user !!!\n",wuser);
+				syslog(LOG_ERR,"%s: no such user !!!",wuser);
 				exit(1);
 			}
 			wrk_uid = pw->pw_uid;
+			if (gidok==0) {
+				wrk_gid = pw->pw_gid;
+			}
 		}
 		free(wuser);
 		free(wgroup);
