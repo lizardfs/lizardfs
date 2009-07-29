@@ -3997,6 +3997,7 @@ uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nlen
 	*inode = inode_src;
 	fsnodes_fill_attr(sp,CHIDS_AUTO,uid,gid,sesflags,attr);
 	changelog(version++,"%"PRIu32"|LINK(%"PRIu32",%"PRIu32",%s)",(uint32_t)main_time(),inode_src,parent_dst,fsnodes_escape_name(nleng_dst,name_dst));
+	stats_link++;
 #else
 	version++;
 #endif
