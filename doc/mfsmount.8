@@ -85,7 +85,10 @@ set file entry cache timeout in seconds (default: 0.0, i.e. no cache)
 \fB\-o mfsdirentrycacheto=\fP\fISEC\fP
 set directory entry cache timeout in seconds (default: 1.0)
 .TP
-\fB\-o mfsrlimitnofile=\fP\fISEC\fP
+\fB\-o mfswritecachesize=\fP\fIN\fP
+specify write cache size in MiB (in range: 16..2048 - default: 250)
+.TP
+\fB\-o mfsrlimitnofile=\fP\fIN\fP
 try to change limit of simultaneously opened file descriptors on startup
 (default: 100000)
 .PP

@@ -84,7 +84,7 @@ static wchunk **wchash;
 
 static pthread_mutex_t glock;
 
-static pthread_t info_worker_th;
+// static pthread_t info_worker_th;
 static pthread_t dqueue_worker_th;
 static pthread_t write_worker_th[WORKERS];
 
@@ -92,6 +92,7 @@ static void *jqueue,*dqueue;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
+/*
 void* write_info_worker(void *arg) {
 	(void)arg;
 	for (;;) {
@@ -102,6 +103,7 @@ void* write_info_worker(void *arg) {
 	}
 
 }
+*/
 
 /* glock: LOCKED */
 void write_cb_release (cblock *cb) {
@@ -714,7 +716,7 @@ void write_data_init (uint32_t cachesize) {
 	jqueue = queue_new(0);
 
 	pthread_create(&dqueue_worker_th,NULL,write_dqueue_worker,NULL);
-	pthread_create(&info_worker_th,NULL,write_info_worker,NULL);
+//	pthread_create(&info_worker_th,NULL,write_info_worker,NULL);
 	for (i=0 ; i<WORKERS ; i++) {
 		pthread_create(write_worker_th+i,NULL,write_worker,NULL);
 	}

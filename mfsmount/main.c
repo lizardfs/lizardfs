@@ -112,6 +112,8 @@ struct mfsopts {
 	int meta;
 	int debug;
 	int cachefiles;
+	int passwordask;
+	int writecachesize;
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
@@ -139,6 +141,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfspassword=%s", password, 0),
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
+	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
@@ -185,6 +188,7 @@ static void usage(const char *progname) {
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
+"    -o mfswritecachesize=N      define size of write cache in MiB (default: 250)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
@@ -220,10 +224,7 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 		}
 		return 0;
 	case KEY_PASSWORDASK:
-		if (mfsopts.password!=NULL) {
-			free(mfsopts.password);
-		}
-		mfsopts.password = getpass("MFS Password:");
+		mfsopts.passwordask = 1;
 		return 0;
 	case KEY_META:
 		mfsopts.meta = 1;
@@ -278,6 +279,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	md5ctx ctx;
 	uint8_t md5pass[16];
 
+	if (mfsopts.passwordask && mfsopts.password==NULL && mfsopts.md5pass==NULL) {
+		mfsopts.password = getpass("MFS Password:");
+	}
 	if (mfsopts.password) {
 		md5_init(&ctx);
 		md5_update(&ctx,(uint8_t*)(mfsopts.password),strlen(mfsopts.password));
@@ -399,7 +403,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	if (mfsopts.meta==0) {
 		read_data_init();
 //		write_data_init();
-		write_data_init(256*1024*1024);
+		write_data_init(mfsopts.writecachesize*1024*1024);
 		csdb_init();
 	}
 
@@ -616,6 +620,8 @@ int main(int argc, char *argv[]) {
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
 	mfsopts.cachefiles = 0;
+	mfsopts.writecachesize = 0;
+	mfsopts.passwordask = 0;
 	mfsopts.attrcacheto = 1.0;
 	mfsopts.entrycacheto = 0.0;
 	mfsopts.direntrycacheto = 1.0;
@@ -635,6 +641,17 @@ int main(int argc, char *argv[]) {
 	}
 	if (mfsopts.nofile==0) {
 		mfsopts.nofile=100000;
+	}
+	if (mfsopts.writecachesize==0) {
+		mfsopts.writecachesize=250;
+	}
+	if (mfsopts.writecachesize<16) {
+		fprintf(stderr,"write cache size to low (%u MiB) - increased to 16 MiB\n",mfsopts.writecachesize);
+		mfsopts.writecachesize=16;
+	}
+	if (mfsopts.writecachesize>2048) {
+		fprintf(stderr,"write cache size to big (%u MiB) - decresed to 2048 MiB\n",mfsopts.writecachesize);
+		mfsopts.writecachesize=2048;
 	}
 
 	if (mfsopts.nostdmountoptions==0) {
