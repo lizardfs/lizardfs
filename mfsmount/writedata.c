@@ -282,7 +282,7 @@ void write_job_end(wchunk *wc,int status) {
 
 		// decrease job counter
 		wc->id->jcnt--;
-		syslog(LOG_NOTICE,"job end: jcnt:%"PRIu32",flushwaiting:%"PRIu32,wc->id->jcnt,wc->id->flushwaiting);
+//		syslog(LOG_NOTICE,"job end: jcnt:%"PRIu32",flushwaiting:%"PRIu32,wc->id->jcnt,wc->id->flushwaiting);
 		if (wc->id->jcnt==0 && wc->id->flushwaiting>0) {
 			pthread_cond_broadcast(&(wc->id->flushcond));
 		}
@@ -646,7 +646,7 @@ void* write_worker(void *arg) {
 		wc->waitingworker=0;
 
 		tcpclose(fd);
-		syslog(LOG_NOTICE,"worker wrote %"PRIu32" blocks (%"PRIu32" partial)",nextwriteid-1,partialblocks);
+//		syslog(LOG_NOTICE,"worker wrote %"PRIu32" blocks (%"PRIu32" partial)",nextwriteid-1,partialblocks);
 
 		pthread_mutex_lock(&glock);
 		if (wc->id->maxfleng>mfleng) {
@@ -924,9 +924,9 @@ int write_data_flush(void *vid) {
 //	id = write_get_inodedata(inode);
 	id->flushwaiting++;
 	while (id->jcnt>0) {
-		syslog(LOG_NOTICE,"flush: wait ...");
+//		syslog(LOG_NOTICE,"flush: wait ...");
 		pthread_cond_wait(&(id->flushcond),&glock);
-		syslog(LOG_NOTICE,"flush: woken up");
+//		syslog(LOG_NOTICE,"flush: woken up");
 	}
 	id->flushwaiting--;
 	if (id->flushwaiting==0 && id->writewaiting>0) {
@@ -961,9 +961,9 @@ int write_data_flush_inode(uint32_t inode) {
 	id = write_get_inodedata(inode);
 	id->flushwaiting++;
 	while (id->jcnt>0) {
-		syslog(LOG_NOTICE,"flush_inode: wait ...");
+//		syslog(LOG_NOTICE,"flush_inode: wait ...");
 		pthread_cond_wait(&(id->flushcond),&glock);
-		syslog(LOG_NOTICE,"flush_inode: woken up");
+//		syslog(LOG_NOTICE,"flush_inode: woken up");
 	}
 	id->flushwaiting--;
 	if (id->flushwaiting==0 && id->writewaiting>0) {
@@ -982,9 +982,9 @@ int write_data_end(void *vid) {
 //	id = write_get_inodedata(inode);
 	id->flushwaiting++;
 	while (id->jcnt>0) {
-		syslog(LOG_NOTICE,"write_end: wait ...");
+//		syslog(LOG_NOTICE,"write_end: wait ...");
 		pthread_cond_wait(&(id->flushcond),&glock);
-		syslog(LOG_NOTICE,"write_end: woken up");
+//		syslog(LOG_NOTICE,"write_end: woken up");
 	}
 	id->flushwaiting--;
 	if (id->flushwaiting==0 && id->writewaiting>0) {
