@@ -434,7 +434,7 @@ void fs_reconnect() {
 	syslog(LOG_NOTICE,"registered to master");
 }
 
-int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid) {
+int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	uint32_t i;
 	uint8_t *wptr,*regbuff;
 	md5ctx ctx;
@@ -581,7 +581,7 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 		return -1;
 	}
 	i = get32bit(&rptr);
-	if (i!=1 && i!=(meta?5:13)) {
+	if ( !(i==1 || (meta && i==5) || (meta==0 && (i==13 || i==21)))) {
 //		syslog(LOG_WARNING,"master: register error (bad length: %"PRIu32")",i);
 		fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		tcpclose(fd);
@@ -622,6 +622,25 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 			*rootgid = get32bit(&rptr);
 		} else {
 			rptr+=4;
+		}
+		if (i==21) {
+			if (mapalluid) {
+				*mapalluid = get32bit(&rptr);
+			} else {
+				rptr+=4;
+			}
+			if (mapallgid) {
+				*mapallgid = get32bit(&rptr);
+			} else {
+				rptr+=4;
+			}
+		} else {
+			if (mapalluid) {
+				*mapalluid = 0;
+			}
+			if (mapallgid) {
+				*mapallgid = 0;
+			}
 		}
 	}
 	free(regbuff);
@@ -791,7 +810,7 @@ void* fs_receive_thread(void *arg) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid) {
+int fs_init_master_connection(const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	master_statsptr_init();
 	if (sockaddrconvert(masterhostname,masterportname,"tcp",&masterip,&masterport)<0) {
 		return -1;
@@ -802,7 +821,7 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 	sessionlost = 0;
 	sessionid = 0;
 	disconnect = 0;
-	return fs_connect(meta,info,subfolder,passworddigest,flags,rootuid,rootgid);
+	return fs_connect(meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
 }
 
 // called after fork

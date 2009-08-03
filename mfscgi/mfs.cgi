@@ -923,9 +923,9 @@ if "EX" in sectionset:
 	try:
 		out.append("""<table class="CR" cellspacing="0">""")
 		if masterversion>=(1,7,0):
-			out.append("""<tr><th colspan="13">Exports</th></tr>""")
+			out.append("""<tr><th colspan="15">Exports</th></tr>""")
 		else:
-			out.append("""<tr><th colspan="12">Exports</th></tr>""")
+			out.append("""<tr><th colspan="14">Exports</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th>#</th>""")
 		if EXorder==1 and EXrev==0:
@@ -969,6 +969,10 @@ if "EX" in sectionset:
 			out.append("""		<th colspan="2"><a href="%s">root&nbsp;uid:gid</a></th>""" % (createlink({"EXrev":"1"})))
 		else:
 			out.append("""		<th colspan="2"><a href="%s">root&nbsp;uid:gid</a></th>""" % (createlink({"EXorder":"10","EXrev":"0"})))
+		if EXorder==11 and EXrev==0:
+			out.append("""		<th colspan="2"><a href="%s">all&nbsp;users&nbsp;uid:gid</a></th>""" % (createlink({"EXrev":"1"})))
+		else:
+			out.append("""		<th colspan="2"><a href="%s">all&nbsp;users&nbsp;uid:gid</a></th>""" % (createlink({"EXorder":"11","EXrev":"0"})))
 		out.append("""	</tr>""")
 
 		s = socket.socket()
@@ -987,9 +991,15 @@ if "EX" in sectionset:
 				pos+=12
 				path = data[pos:pos+pleng]
 				pos+=pleng
-				v1,v2,v3,exportflags,sesflags,rootuid,rootgid = struct.unpack(">HBBBBLL",data[pos:pos+14])
+				if masterversion>=(1,6,1):
+					v1,v2,v3,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid = struct.unpack(">HBBBBLLLL",data[pos:pos+22])
+					pos+=22
+				else:
+					v1,v2,v3,exportflags,sesflags,rootuid,rootgid = struct.unpack(">HBBBBLL",data[pos:pos+14])
+					mapalluid = 0
+					mapallgid = 0
+					pos+=14
 				ver = "%d.%d.%d" % (v1,v2,v3)
-				pos+=14
 				if path=='.':
 					meta=1
 				else:
@@ -1026,14 +1036,19 @@ if "EX" in sectionset:
 						sf = None
 					else:
 						sf = (rootuid,rootgid)
+				elif EXorder==11:
+					if meta or (sesflags&16)==0:
+						sf = None
+					else:
+						sf = (mapalluid,mapallgid)
 				else:
 					sf = 0
-				servers.append((sf,ipfrom,ipto,path,meta,ver,exportflags,sesflags,rootuid,rootgid))
+				servers.append((sf,ipfrom,ipto,path,meta,ver,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid))
 			servers.sort()
 			if EXrev:
 				servers.reverse()
 			i = 1
-			for sf,ipfrom,tpto,path,meta,ver,exportflags,sesflags,rootuid,rootgid in servers:
+			for sf,ipfrom,tpto,path,meta,ver,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
 				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="center">%s</td>""" % ipfrom)
@@ -1080,6 +1095,12 @@ if "EX" in sectionset:
 				else:
 					out.append("""       <td align="right">%u</td>""" % rootuid)
 					out.append("""       <td align="right">%u</td>""" % rootgid)
+				if meta or (sesflags&16)==0:
+					out.append("""	<td align="center">-</td>""")
+					out.append("""	<td align="center">-</td>""")
+				else:
+					out.append("""       <td align="right">%u</td>""" % mapalluid)
+					out.append("""       <td align="right">%u</td>""" % mapallgid)
 				out.append("""</tr>""")
 				i+=1
 		out.append("""</table>""")
@@ -1280,9 +1301,9 @@ if "MS" in sectionset:
 	try:
 		out.append("""<table class="CR" cellspacing="0">""")
 		if masterversion>=(1,7,0):
-			out.append("""<tr><th colspan="13">Active mounts (parameters)</th></tr>""")
+			out.append("""<tr><th colspan="15">Active mounts (parameters)</th></tr>""")
 		else:
-			out.append("""<tr><th colspan="12">Active mounts (parameters)</th></tr>""")
+			out.append("""<tr><th colspan="14">Active mounts (parameters)</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th>#</th>""")
 		if MSorder==11 and MSrev==0:
@@ -1330,6 +1351,10 @@ if "MS" in sectionset:
 			out.append("""		<th colspan="2"><a href="%s">root&nbsp;uid:gid</a></th>""" % (createlink({"MSrev":"1"})))
 		else:
 			out.append("""		<th colspan="2"><a href="%s">root&nbsp;uid:gid</a></th>""" % (createlink({"MSorder":"10","MSrev":"0"})))
+		if MSorder==12 and MSrev==0:
+			out.append("""		<th colspan="2"><a href="%s">all&nbsp;users&nbsp;uid:gid</a></th>""" % (createlink({"MSrev":"1"})))
+		else:
+			out.append("""		<th colspan="2"><a href="%s">all&nbsp;users&nbsp;uid:gid</a></th>""" % (createlink({"MSorder":"12","MSrev":"0"})))
 		out.append("""	</tr>""")
 
 		s = socket.socket()
@@ -1352,13 +1377,14 @@ if "MS" in sectionset:
 				pos+=4
 				path = data[pos:pos+pleng]
 				pos+=pleng
-				sesflags,rootuid,rootgid = struct.unpack(">BLL",data[pos:pos+9])
-#				pos+=9
-#				stats_c = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
-#				pos+=64
-#				stats_l = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
-#				pos+=64
-				pos+=137  # 9+64+64 - skip stats
+				if masterversion>=(1,6,1):
+					sesflags,rootuid,rootgid,mapalluid,mapallgid = struct.unpack(">BLLLL",data[pos:pos+17])
+					pos+=145  # 17+64+64 - skip stats
+				else:
+					sesflags,rootuid,rootgid = struct.unpack(">BLL",data[pos:pos+9])
+					mapalluid = 0
+					mapallgid = 0
+					pos+=137  # 9+64+64 - skip stats
 				if path=='.':
 					meta=1
 				else:
@@ -1400,14 +1426,19 @@ if "MS" in sectionset:
 						sf = (rootuid,rootgid)
 				elif MSorder==11:
 					sf = sessionid
+				elif MSorder==12:
+					if meta or (sesflags&16)==0:
+						sf = None
+					else:
+						sf = (mapalluid,mapallgid)
 				else:
 					sf = 0
-				servers.append((sf,sessionid,host,ipnum,info,ver,meta,path,sesflags,rootuid,rootgid))
+				servers.append((sf,sessionid,host,ipnum,info,ver,meta,path,sesflags,rootuid,rootgid,mapalluid,mapallgid))
 			servers.sort()
 			if MSrev:
 				servers.reverse()
 			i = 1
-			for sf,sessionid,host,ipnum,info,ver,meta,path,sesflags,rootuid,rootgid in servers:
+			for sf,sessionid,host,ipnum,info,ver,meta,path,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
 				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="center">%u</td>""" % sessionid)
@@ -1446,6 +1477,12 @@ if "MS" in sectionset:
 				else:
 					out.append("""       <td align="right">%u</td>""" % rootuid)
 					out.append("""       <td align="right">%u</td>""" % rootgid)
+				if meta or (sesflags&16)==0:
+					out.append("""       <td align="center">-</td>""")
+					out.append("""       <td align="center">-</td>""")
+				else:
+					out.append("""       <td align="right">%u</td>""" % mapalluid)
+					out.append("""       <td align="right">%u</td>""" % mapallgid)
 				out.append("""</tr>""")
 				i+=1
 		out.append("""</table>""")
@@ -1578,8 +1615,11 @@ if "MO" in sectionset:
 				pos+=4
 				path = data[pos:pos+pleng]
 				pos+=pleng
-				sesflags,rootuid,rootgid = struct.unpack(">BLL",data[pos:pos+9])
-				pos+=9
+				# sesflags,rootuid,rootgid,mapalluid,mapallgid = struct.unpack(">BLLLL",data[pos:pos+17])
+				if masterversion>=(1,6,0):
+					pos+=17
+				else:
+					pos+=9
 				stats_c = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
 				pos+=64
 				stats_l = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])

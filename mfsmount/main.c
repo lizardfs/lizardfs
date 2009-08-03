@@ -269,6 +269,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	int err;
 	uint8_t sesflags;
 	uint32_t rootuid,rootgid;
+	uint32_t mapalluid,mapallgid;
 	int i,j;
 	const char *sesflagposstrtab[]={SESFLAG_POS_STRINGS};
 	const char *sesflagnegstrtab[]={SESFLAG_NEG_STRINGS};
@@ -316,7 +317,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 
 
-	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,&sesflags,&rootuid,&rootgid)<0) {
+	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
 		return 1;
 	}
 	memset(md5pass,0,16);
@@ -340,7 +341,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		fprintf(stderr,"-");
 	}
 	if (mfsopts.meta==0) {
-		fprintf(stderr,"; root mapped to ");
+		fprintf(stderr," ; root mapped to ");
 		pw = getpwuid(rootuid);
 		if (pw) {
 			fprintf(stderr,"%s:",pw->pw_name);
@@ -349,13 +350,27 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 		gr = getgrgid(rootgid);
 		if (gr) {
-			fprintf(stderr,"%s\n",gr->gr_name);
+			fprintf(stderr,"%s",gr->gr_name);
 		} else {
-			fprintf(stderr,"%"PRIu32"\n",rootgid);
+			fprintf(stderr,"%"PRIu32,rootgid);
 		}
-	} else {
-		fprintf(stderr,"\n");
+		if (sesflags&SESFLAG_MAPALL) {
+			fprintf(stderr," ; users mapped to ");
+			pw = getpwuid(mapalluid);
+			if (pw) {
+				fprintf(stderr,"%s:",pw->pw_name);
+			} else {
+				fprintf(stderr,"%"PRIu32":",mapalluid);
+			}
+			gr = getgrgid(mapallgid);
+			if (gr) {
+				fprintf(stderr,"%s",gr->gr_name);
+			} else {
+				fprintf(stderr,"%"PRIu32,mapallgid);
+			}
+		}
 	}
+	fprintf(stderr,"\n");
 
 	piped[0] = piped[1] = -1;
 	if (fg==0) {

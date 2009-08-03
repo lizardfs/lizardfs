@@ -29,6 +29,8 @@ typedef struct _acl {
 	uint8_t sesflags;
 	uint32_t rootuid;
 	uint32_t rootgid;
+	uint32_t mapalluid;
+	uint32_t mapallgid;
 	struct _acl *next;
 } acl;
 
@@ -40,9 +42,9 @@ uint32_t acl_info_size(void) {
 	uint32_t size=0;
 	for (e=acl_records ; e ; e=e->next) {
 		if (e->meta) {
-			size+=27;
+			size+=35;
 		} else {
-			size+=27+e->pleng;
+			size+=35+e->pleng;
 		}
 	}
 	return size;
@@ -69,10 +71,12 @@ void acl_info_data(uint8_t *buff) {
 		put8bit(&buff,e->sesflags);
 		put32bit(&buff,e->rootuid);
 		put32bit(&buff,e->rootgid);
+		put32bit(&buff,e->mapalluid);
+		put32bit(&buff,e->mapallgid);
 	}
 }
 
-uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid) {
+uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	const uint8_t *p;
 	uint32_t pleng,i;
 	uint8_t rndstate;
@@ -109,23 +113,22 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 	f=NULL;
 	for (e=acl_records ; e ; e=e->next) {
 		ok = 0;
-//		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
-		if (ip>=e->fromip && ip<=e->toip && version>=e->minversion) {
-//			syslog(LOG_NOTICE,"ip ok");
-			if (meta) {
-				if (e->meta) {
-					ok=1;
-				}
+		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
+		if (ip>=e->fromip && ip<=e->toip && version>=e->minversion && meta==e->meta) {
+			syslog(LOG_NOTICE,"ip and version ok");
+			// path check
+			if (meta) {	// no path in META
+				ok=1;
 			} else {
 				if (e->pleng==0) {	// root dir
-//					syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
+					syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
 					if (pleng==0) {
 						ok=1;
 					} else if (e->alldirs) {
 						ok=1;
 					}
 				} else {
-//					syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
+					syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
 					if (pleng==e->pleng && memcmp(p,e->path,pleng)==0) {
 						ok=1;
 					} else if (e->alldirs && pleng>e->pleng && p[e->pleng]=='/' && memcmp(p,e->path,e->pleng)==0) {
@@ -133,9 +136,9 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 					}
 				}
 			}
-//			if (ok) {
-//				syslog(LOG_NOTICE,"path ok");
-//			}
+			if (ok) {
+				syslog(LOG_NOTICE,"path ok");
+			}
 			if (ok && e->needpassword) {
 				if (rndstate==0 || rndcode==NULL || passcode==NULL) {
 					ok=0;
@@ -154,7 +157,7 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 			}
 		}
 		if (ok) {
-//			syslog(LOG_NOTICE,"entry accepted");
+			syslog(LOG_NOTICE,"entry accepted");
 			if (f==NULL) {
 				f=e;
 			} else {
@@ -185,6 +188,8 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 	*sesflags = f->sesflags;
 	*rootuid = f->rootuid;
 	*rootgid = f->rootgid;
+	*mapalluid = f->mapalluid;
+	*mapallgid = f->mapallgid;
 	return STATUS_OK;
 }
 
@@ -381,7 +386,7 @@ int acl_parseversion(char *verstr,uint32_t *version) {
 	return 0;
 }
 
-int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *rootuid,uint32_t *rootgid) {
+int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid) {
 	char *uptr,*gptr,*eptr;
 	struct group *grrec;
 	struct passwd *pwrec;
@@ -431,16 +436,16 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *rootuid,uint32_t *ro
 			syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %"PRIu32,uptr,lineno);
 			return -1;
 		}
-		*rootuid = pwrec->pw_uid;
+		*ruid = pwrec->pw_uid;
 		if (gidok==0) {
-			*rootgid = pwrec->pw_gid;
+			*rgid = pwrec->pw_gid;
 		} else {
-			*rootgid = gid;
+			*rgid = gid;
 		}
 		return 0;
 	} else if (gidok==1) {
-		*rootuid = uid;
-		*rootgid = gid;
+		*ruid = uid;
+		*rgid = gid;
 		return 0;
 	} else {
 		pwrec = getpwuid(uid);
@@ -448,8 +453,8 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *rootuid,uint32_t *ro
 			syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %"PRIu32" defined in line: %"PRIu32,uid,lineno);
 			return -1;
 		}
-		*rootuid = pwrec->pw_uid;
-		*rootgid = pwrec->pw_gid;
+		*ruid = pwrec->pw_uid;
+		*rgid = pwrec->pw_gid;
 		return 0;
 	}
 	return -1;
@@ -525,6 +530,16 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 						return -1;
 					}
 				}
+			} else if (strncmp(p,"mapall=",7)==0) {
+				o=1;
+				if (arec->meta) {
+					syslog(LOG_WARNING,"meta option ignored: %s",p);
+				} else {
+					if (acl_parseuidgid(p+7,lineno,&arec->mapalluid,&arec->mapallgid)<0) {
+						return -1;
+					}
+					arec->sesflags |= SESFLAG_MAPALL;
+				}
 			} else if (strncmp(p,"md5pass=",8)==0) {
 				char *ptr = p+8;
 				uint32_t i=0;
@@ -599,6 +614,8 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 	arec->sesflags = SESFLAG_READONLY;
 	arec->rootuid = 999;
 	arec->rootgid = 999;
+	arec->mapalluid = 999;
+	arec->mapallgid = 999;
 	arec->next = NULL;
 
 	p = line;
@@ -699,6 +716,8 @@ void acl_loadexports(void) {
 				acl_records->sesflags = 0;
 				acl_records->rootuid = 0;
 				acl_records->rootgid = 0;
+				acl_records->mapalluid = 0;
+				acl_records->mapallgid = 0;
 				acl_records->next = NULL;
 			} else {
 				syslog(LOG_WARNING,"no mfsexports file - using previous settings");

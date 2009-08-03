@@ -1,6 +1,13 @@
-mfs (1.5.14-0.1) unstable; urgency=medium
+mfs (1.6.1) unstable; urgency=low
 
-  * New MooseFS version (1.5.14-beta6; refer to NEWS file).
+  * New MooseFS version (added 'mapall' to exports and new object
+    attributes - 'noattrcache' and 'noentrycache')
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 31 Jul 2009 06:40:00 +0200
+
+mfs (1.6.0) unstable; urgency=medium
+
+  * New MooseFS version (1.6.0; refer to NEWS file).
 
  -- Jakub Bogusz <contact@moosefs.com>  Wed, 01 Jul 2009 14:01:00 +0200
 

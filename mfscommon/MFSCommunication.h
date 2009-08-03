@@ -225,13 +225,14 @@
 #define SESFLAG_DYNAMICIP      0x02	// sessionid can be used by any IP - dangerous for high privileged sessions - one could connect from different computer using stolen session id
 #define SESFLAG_IGNOREGID      0x04	// gid is ignored during access testing (when user id is different from object's uid then or'ed 'group' and 'other' rights are used)
 #define SESFLAG_CANCHANGEQUOTA 0x08	// quota can be set and deleted
+#define SESFLAG_MAPALL         0x10	// all users (except root) are mapped to specific uid and gid
 
 #define SESFLAG_POS_STRINGS \
 	"read-only", \
 	"not_restricted_ip", \
 	"ignore_gid", \
 	"can_change_quota", \
-	"undefined_flag_4", \
+	"map_all", \
 	"undefined_flag_5", \
 	"undefined_flag_6", \
 	"undefined_flag_7"

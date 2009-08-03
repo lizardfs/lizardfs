@@ -1,6 +1,11 @@
 This file lists noteworthy changes in MooseFS.
 
-* MooseFS 1.6.0 (????-??-??)
+* MooseFS 1.6.1 (????-??-??)
+
+ - Added 'mapall' option to exports
+ - Added flags 'noattrcache' and 'noentrycache'
+
+* MooseFS 1.6.0 (not released - only available in public repository)
 
  Common:
  - Removed duplicate source files.
