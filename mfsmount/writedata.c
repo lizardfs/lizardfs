@@ -516,7 +516,7 @@ void* write_worker(void *arg) {
 				break;
 			}
 			if (pfd[1].revents&POLLIN) {	// used just to break poll - so just read all data from pipe to empty it
-				read(wc->pipe[0],pipebuff,1024);
+				i = read(wc->pipe[0],pipebuff,1024);
 			}
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
