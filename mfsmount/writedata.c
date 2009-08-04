@@ -19,6 +19,7 @@
 #include "th_queue.h"
 #include "sockets.h"
 #include "mastercomm.h"
+#include "readdata.h"
 #include "MFSCommunication.h"
 
 #ifndef EDQUOT
@@ -680,6 +681,7 @@ void* write_worker(void *arg) {
 				write_job_end(wc,0);
 			}
 		} else {
+			read_inode_ops(wc->inode);
 			write_job_end(wc,0);
 		}
 	}
