@@ -48,11 +48,11 @@ allows reconnecting of already authenticated client from any IP address
 maps root (uid=0) accesses to given user and group (similarly to maproot
 option in NFS mounts); \fIUSER\fP and \fIGROUP\fP can be given either as
 name or number; if no group is specified, \fIUSER\fP's primary group is
-used
+used. Names are resolved on \fBmfsmaster\fP side (see note below).
 .TP
 \fBmapall=\fP\fIUSER\fP[\fB:\fP\fIGROUP\fP]
 like above but maps all non privileged users (uid!=0) accesses to given
-user and group
+user and group (see notes below).
 .TP
 \fBminversion=\fP\fIVER\fP
 rejects access from clients older than specified
@@ -64,7 +64,10 @@ requires password authentication in order to access specified resource
 allows to mount any subdirectory of specified directory (similarly to NFS)
 .PP
 Default options are: \fBro,maproot=999:999\fP.
-.SH NOTICE
+.SH NOTES
+\fIUSER\fP and \fIGROUP\fP names (if not specified by explicit uid/gid
+number) are resolved on \fBmfsmaster\fP host.
+.PP
 Option \fBmapall\fP works in MFS in different way than in NFS, because of
 using FUSE's "default_permissions" option. When mapall option is used, users
 see all objects with uid equal to mapped uid as their own and all other as
