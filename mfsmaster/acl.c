@@ -262,6 +262,7 @@ int acl_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	if (*net=='/') {	// ip/bits and ip/mask
 		*fromip = ip;
 		ip=0;
+		net++;
 		for (i=0 ; i<4; i++) {
 			if (*net>='0' && *net<='9') {
 				octet=0;
@@ -302,6 +303,7 @@ int acl_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	if (*net=='-') {	// ip1-ip2
 		*fromip = ip;
 		ip=0;
+		net++;
 		for (i=0 ; i<4; i++) {
 			if (*net>='0' && *net<='9') {
 				octet=0;
