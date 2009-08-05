@@ -25,6 +25,7 @@ typedef struct _acl {
 	unsigned alldirs:1;
 	unsigned needpassword:1;
 	unsigned meta:1;
+	unsigned rootredefined:1;
 //	unsigned old:1;
 	uint8_t sesflags;
 	uint32_t rootuid;
@@ -531,6 +532,7 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 					if (acl_parseuidgid(p+8,lineno,&arec->rootuid,&arec->rootgid)<0) {
 						return -1;
 					}
+					arec->rootredefined = 1;
 				}
 			} else if (strncmp(p,"mapall=",7)==0) {
 				o=1;
@@ -613,6 +615,7 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 	arec->alldirs = 0;
 	arec->needpassword = 0;
 	arec->meta = 0;
+	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
 	arec->rootuid = 999;
 	arec->rootgid = 999;
@@ -684,6 +687,11 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 		return -1;
 	}
 
+	if ((arec->sesflags&SESFLAG_MAPALL) && (arec->rootredefined==0)) {
+		arec->rootuid = arec->mapalluid;
+		arec->rootgid = arec->mapallgid;
+	}
+
 	arec->pleng = pleng;
 	if (pleng>0) {
 		arec->path = malloc(pleng+1);
@@ -704,6 +712,7 @@ void acl_loadexports(void) {
 
 	fd = fopen(ExportsFileName,"r");
 	if (fd==NULL) {
+/*
 		if (errno==ENOENT) {
 			if (acl_records==NULL) {
 				syslog(LOG_WARNING,"no mfsexports file - using default");
@@ -727,6 +736,10 @@ void acl_loadexports(void) {
 		} else {
 			syslog(LOG_WARNING,"can't open mfsexports file: %m");
 		}
+*/
+		syslog(LOG_WARNING,"can't open mfsexports file: %m");
+		acl_freelist(acl_records);
+		acl_records = NULL;
 		return;
 	}
 	newexports = NULL;
