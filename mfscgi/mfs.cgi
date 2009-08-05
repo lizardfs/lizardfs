@@ -1048,7 +1048,7 @@ if "EX" in sectionset:
 			if EXrev:
 				servers.reverse()
 			i = 1
-			for sf,ipfrom,tpto,path,meta,ver,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
+			for sf,ipfrom,ipto,path,meta,ver,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
 				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="center">%s</td>""" % ipfrom)
