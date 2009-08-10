@@ -114,22 +114,22 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 	f=NULL;
 	for (e=acl_records ; e ; e=e->next) {
 		ok = 0;
-		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
+//		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
 		if (ip>=e->fromip && ip<=e->toip && version>=e->minversion && meta==e->meta) {
-			syslog(LOG_NOTICE,"ip and version ok");
+//			syslog(LOG_NOTICE,"ip and version ok");
 			// path check
 			if (meta) {	// no path in META
 				ok=1;
 			} else {
 				if (e->pleng==0) {	// root dir
-					syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
+//					syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
 					if (pleng==0) {
 						ok=1;
 					} else if (e->alldirs) {
 						ok=1;
 					}
 				} else {
-					syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
+//					syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
 					if (pleng==e->pleng && memcmp(p,e->path,pleng)==0) {
 						ok=1;
 					} else if (e->alldirs && pleng>e->pleng && p[e->pleng]=='/' && memcmp(p,e->path,e->pleng)==0) {
@@ -137,9 +137,9 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 					}
 				}
 			}
-			if (ok) {
-				syslog(LOG_NOTICE,"path ok");
-			}
+//			if (ok) {
+//				syslog(LOG_NOTICE,"path ok");
+//			}
 			if (ok && e->needpassword) {
 				if (rndstate==0 || rndcode==NULL || passcode==NULL) {
 					ok=0;
@@ -158,7 +158,7 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 			}
 		}
 		if (ok) {
-			syslog(LOG_NOTICE,"entry accepted");
+//			syslog(LOG_NOTICE,"entry accepted");
 			if (f==NULL) {
 				f=e;
 			} else {
@@ -737,9 +737,7 @@ void acl_loadexports(void) {
 			syslog(LOG_WARNING,"can't open mfsexports file: %m");
 		}
 */
-		syslog(LOG_WARNING,"can't open mfsexports file: %m");
-		acl_freelist(acl_records);
-		acl_records = NULL;
+		syslog(LOG_WARNING,"can't open mfsexports file: %m - exports not changed");
 		return;
 	}
 	newexports = NULL;
@@ -765,7 +763,7 @@ void acl_loadexports(void) {
 	free(arec);
 	if (ferror(fd)) {
 		fclose(fd);
-		syslog(LOG_WARNING,"error reading mfsexports file");
+		syslog(LOG_WARNING,"error reading mfsexports file - exports not changed");
 		acl_freelist(newexports);
 		return;
 	}
