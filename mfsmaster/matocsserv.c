@@ -470,12 +470,11 @@ void matocsserv_status(void) {
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 			syslog(LOG_NOTICE,"server %"PRIu32" (ip: %s, port: %"PRIu16"): usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB), usage: %.2lf%%",n,eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts,(ts>0.0)?100.0*us/ts:0.0);
-//			syslog(LOG_NOTICE,"server %"PRIu32" (%s): usedspace: %"PRIu64" (%"PRIu32" GB), totalspace: %"PRIu64" (%"PRIu32" GB), usage: %.2f%%",n,eptr->servstrip,eptr->usedspace,(uint32_t)(eptr->usedspace>>30),eptr->totalspace,(uint32_t)(eptr->totalspace>>30),(eptr->totalspace>0)?(100.0*eptr->usedspace)/eptr->totalspace:0.0);
 		}
 	}
 	us = (double)(uspace)/(double)(1024*1024*1024);
 	ts = (double)(tspace)/(double)(1024*1024*1024);
-	syslog(LOG_NOTICE,"total: usedspace: %"PRIu64" (%.2lf GB), totalspace: %"PRIu64" (%.2lf GB), usage: %.2lf%%",uspace,us,tspace,ts,(ts>0.0)?100.0*us/ts:0.0);
+	syslog(LOG_NOTICE,"total: usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB), usage: %.2lf%%",uspace,us,tspace,ts,(ts>0.0)?100.0*us/ts:0.0);
 }
 
 char* matocsserv_getstrip(void *e) {
