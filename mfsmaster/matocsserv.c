@@ -248,10 +248,10 @@ int matocsserv_rndcarry_compare(const void *a,const void *b) {
 		matocsserventry *ptr;
 	} *aa=a,*bb=b;
 	if (aa->rndcarry > bb->rndcarry) {
-		return 1;
+		return -1;
 	}
 	if (aa->rndcarry < bb->rndcarry) {
-		return -1;
+		return 1;
 	}
 	return 0;
 }
