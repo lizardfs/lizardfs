@@ -3,6 +3,8 @@
 import socket
 import struct
 import time
+import traceback
+import urllib
 import cgi
 import cgitb
 import sys
@@ -32,6 +34,12 @@ except Exception:
 
 thsep = ''
 html_thsep = ''
+
+def htmlentities(str):
+	return str.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace("'",'&apos;').replace('"','&quot;')
+
+def urlescape(str):
+	return urllib.quote_plus(str)
 
 def mysend(socket,msg):
 	totalsent = 0
@@ -99,11 +107,11 @@ except Exception:
 	print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-	print """<title>MFS Info (%s)</title>""" % (mastername)
+	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
-	print """<h1 align="center">Can't connect to MFS master (IP:%s ; PORT:%u)</h1>""" % (masterhost,masterport)
+	print """<h1 align="center">Can't connect to MFS master (IP:%s ; PORT:%u)</h1>""" % (htmlentities(masterhost),masterport)
 	print """</body>"""
 	print """</html>"""
 	exit()
@@ -115,7 +123,7 @@ if masterversion==(0,0,0):
 	print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-	print """<title>MFS Info (%s)</title>""" % (mastername)
+	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
@@ -130,10 +138,10 @@ def createlink(update):
 	c = []
 	for k in fields:
 		if k not in update:
-			c.append("%s=%s" % (k,fields.getvalue(k)))
+			c.append("%s=%s" % (k,urlescape(fields.getvalue(k))))
 	for k,v in update.iteritems():
 		if v!="":
-			c.append("%s=%s" % (k,v))
+			c.append("%s=%s" % (k,urlescape(v)))
 	return "mfs.cgi?%s" % ("&amp;".join(c))
 
 
@@ -186,7 +194,7 @@ print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3
 print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 print """<head>"""
 print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-print """<title>MFS Info (%s)</title>""" % (mastername)
+print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
 print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 print """</head>"""
 print """<body>"""
@@ -1969,7 +1977,7 @@ if "MC" in sectionset:
 		out.append("""			var vid = ma_vids[i];""")
 		out.append("""			var id = vid*10+j;""")
 		out.append("""			ma_imgs[id] = new Image();""")
-		out.append("""			ma_imgs[id].src = "chart.cgi?host=%s&amp;port=%s&amp;id="+id;""" % (masterhost,masterport))
+		out.append("""			ma_imgs[id].src = "chart.cgi?host=%s&amp;port=%u&amp;id="+id;""" % (urlescape(masterhost),masterport))
 		out.append("""		}""")
 		out.append("""	}""")
 		out.append("""	function ma_change(num) {""")
@@ -2017,7 +2025,7 @@ if "MC" in sectionset:
 			out.append("""<tr class="C2">""")
 			out.append("""	<td align="center" colspan="4">""")
 			out.append("""		%s:<br/>""" % (desc))
-			out.append("""		<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="ma_%s" alt="%s" />""" % (masterhost,masterport,id*10,name,name))
+			out.append("""		<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_%s" alt="%s" />""" % (urlescape(masterhost),masterport,id*10,name,name))
 			out.append("""	</td>""")
 			out.append("""</tr>""")
 		out.append("""</table>""")
@@ -2036,7 +2044,7 @@ if "MC" in sectionset:
 			out.append("""<tr>""")
 			out.append("""	<td align="center" colspan="4">""")
 			out.append("""		<div id="ma_desc%u">%s</div>""" % (i,charts[0][2]))
-			out.append("""		<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="ma_chart%u" alt="chart" />""" % (masterhost,masterport,10*charts[0][0],i))
+			out.append("""		<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_chart%u" alt="chart" />""" % (urlescape(masterhost),masterport,10*charts[0][0],i))
 			out.append("""		<table class="BOTMENU" cellspacing="0">""")
 			out.append("""		<tr>""")
 			no=0
