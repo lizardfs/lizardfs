@@ -921,7 +921,7 @@ if "EX" in sectionset:
 		EXrev = 0
 
 	try:
-		out.append("""<table class="CR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0">""")
 		if masterversion>=(1,7,0):
 			out.append("""<tr><th colspan="15">Exports</th></tr>""")
 		else:
@@ -1049,7 +1049,7 @@ if "EX" in sectionset:
 				servers.reverse()
 			i = 1
 			for sf,ipfrom,ipto,path,meta,ver,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
-				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
+				out.append("""<tr class="C%u">""" % (((i-1)%2)+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="center">%s</td>""" % ipfrom)
 				out.append("""	<td align="center">%s</td>""" % ipto)
@@ -1299,7 +1299,7 @@ if "MS" in sectionset:
 		MSrev = 0
 
 	try:
-		out.append("""<table class="CR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0">""")
 		if masterversion>=(1,7,0):
 			out.append("""<tr><th colspan="15">Active mounts (parameters)</th></tr>""")
 		else:
@@ -1439,7 +1439,7 @@ if "MS" in sectionset:
 				servers.reverse()
 			i = 1
 			for sf,sessionid,host,ipnum,info,ver,meta,path,sesflags,rootuid,rootgid,mapalluid,mapallgid in servers:
-				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
+				out.append("""<tr class="C%u">""" % (((i-1)%2)+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="center">%u</td>""" % sessionid)
 				out.append("""	<td align="left">%s</td>""" % host)
@@ -1683,7 +1683,7 @@ if "QU" in sectionset:
 		QUrev = 0
 
 	try:
-		out.append("""<table class="CR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0">""")
 		out.append("""<tr><th colspan="16">Active quotas</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -1814,7 +1814,7 @@ if "QU" in sectionset:
 				quotas.reverse()
 			i = 1
 			for sf,path,exceeded,qflags,timetoblock,sinodes,slength,ssize,srealsize,hinodes,hlength,hsize,hrealsize,cinodes,clength,csize,crealsize in quotas:
-				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+1))
+				out.append("""<tr class="C%u">""" % (((i-1)%2)+1))
 				out.append("""	<td align="right">%u</td>""" % i)
 				out.append("""	<td align="left">%s</td>""" % path)
 				if exceeded:

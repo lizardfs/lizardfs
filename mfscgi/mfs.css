@@ -101,7 +101,7 @@ table.MENU td.LSS {border-bottom: 1px solid #888; border-right: 1px solid #FFF; 
 
 table.FR {width: 1010px; margin-left:auto; margin-right:auto;}
 table.FR td, table.FR tr.C1 td {background-color: #E8E8E8;}
-table.FR tr.C2 td {background-color: #D8D8D8;}
+table.FR tr.C2 td {background-color: #D6D6D6;}
 table.FR tr:first-child th {background-color: #A0A0A0;}
 table.FR th {background-color: #C0C0C0;}
 table.FR th.PROGBAR {width: 202px;}
