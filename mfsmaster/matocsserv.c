@@ -293,7 +293,18 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 	if (demand>j) {
 		demand=j;
 	}
-	if (maxrndcarry<10.0 && local>=0) { // localhost can be used
+	if (local>=0 && servtab[local].rndcarry>=1.0) {	// localhost can be used
+		// place localhost in the first place
+		if (local!=0) {
+			x = servtab[0];
+			servtab[0] = servtab[local];
+			servtab[local] = x;
+		}
+		// sort the rest
+		if (j>1) {
+			qsort(servtab+1,j-1,sizeof(struct rservsort),matocsserv_rndcarry_compare);
+		}
+	} else if (local>=0 && maxrndcarry<100.0) { // localhost can be forced
 		// bias rndcarry
 		for (i=0 ; i<j ; i++) {
 			servtab[i].rndcarry = (servtab[i].ptr->rndcarry += (double)(servtab[i].p)/(double)(servtab[local].p));
@@ -308,7 +319,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 		if (j>1) {
 			qsort(servtab+1,j-1,sizeof(struct rservsort),matocsserv_rndcarry_compare);
 		}
-	} else {
+	} else { // localhost can't be used
 		qsort(servtab,j,sizeof(struct rservsort),matocsserv_rndcarry_compare);
 	}
 //	k = j-1;
