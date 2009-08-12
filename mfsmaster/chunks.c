@@ -164,7 +164,8 @@ static uint32_t ReplicationsDelayInit=300;
 // static uint32_t MaxDel=100;
 // static uint32_t LoopTime=300;
 // static uint32_t HashSteps=1+((HASHSIZE)/3600);
-static uint32_t MaxRepl;
+static uint32_t MaxWriteRepl;
+static uint32_t MaxReadRepl;
 static uint32_t MaxDel;
 static double TmpMaxDelFrac;
 static uint32_t TmpMaxDel;
@@ -1874,8 +1875,8 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	void* rptrs[65536];
 	uint16_t rservcount;
 	void *srcptr;
-	uint32_t ip;
-	uint16_t port;
+//	uint32_t ip;
+//	uint16_t port;
 	uint16_t i;
 	uint32_t vc,tdc,ivc,bc,dc;
 	static loop_info inforec;
@@ -2092,37 +2093,51 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 //step 8. if chunk has number of copies less than goal then make another copy of this chunk
 	if (c->goal > vc && vc+tdc > 0) {
 		if (jobsnorepbefore<(uint32_t)main_time()) {
-			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxRepl);
-			for (i=0 ; i<rservcount ; i++) {
-				for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
-				if (!s) {
-					uint32_t r;
-					if (vc>0) {	// if there are VALID copies then make copy of one VALID chunk
-						r = 1+(rndu32()%vc);
-						srcptr = NULL;
-						for (s=c->slisthead ; s && r>0 ; s=s->next) {
-							if (s->valid==VALID) {
-								r--;
-								srcptr = s->ptr;
+			uint32_t rgvc,rgtdc;
+			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
+			rgvc=0;
+			rgtdc=0;
+			for (s=c->slisthead ; s ; s=s->next) {
+				if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl) {
+					if (s->valid==VALID) {
+						rgvc++;
+					} else if (s->valid==TDVALID) {
+						rgtdc++;
+					}
+				}
+			}
+			if (rgvc+rgtdc>0 && rservcount>0) { // have at least one server to read from and at least one to write to
+				for (i=0 ; i<rservcount ; i++) {
+					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
+					if (!s) {
+						uint32_t r;
+						if (rgvc>0) {	// if there are VALID copies then make copy of one VALID chunk
+							r = 1+(rndu32()%rgvc);
+							srcptr = NULL;
+							for (s=c->slisthead ; s && r>0 ; s=s->next) {
+								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
+									r--;
+									srcptr = s->ptr;
+								}
+							}
+						} else {	// if not then use TDVALID chunks.
+							r = 1+(rndu32()%rgtdc);
+							srcptr = NULL;
+							for (s=c->slisthead ; s && r>0 ; s=s->next) {
+								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
+									r--;
+									srcptr = s->ptr;
+								}
 							}
 						}
-					} else {	// if not then use TDVALID chunks.
-						r = 1+(rndu32()%tdc);
-						srcptr = NULL;
-						for (s=c->slisthead ; s && r>0 ; s=s->next) {
-							if (s->valid==TDVALID) {
-								r--;
-								srcptr = s->ptr;
-							}
+						if (srcptr) {
+							stats_replications++;
+	//						matocsserv_getlocation(srcptr,&ip,&port);
+							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
+							inforec.done.copy_undergoal++;
 						}
+						return;
 					}
-					if (srcptr) {
-						stats_replications++;
-						matocsserv_getlocation(srcptr,&ip,&port);
-						matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,ip,port);
-						inforec.done.copy_undergoal++;
-					}
-					return;
 				}
 			}
 		}
@@ -2187,23 +2202,27 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			void *dstserv=NULL;
 			if (max>0) {
 				for (i=0 ; i<max && srcserv==NULL ; i++) {
-					for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
-					if (s && (s->valid==VALID || s->valid==TDVALID)) {
-						srcserv=s->ptr;
+					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
+						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+						if (s && (s->valid==VALID || s->valid==TDVALID)) {
+							srcserv=s->ptr;
+						}
 					}
 				}
 			} else {
 				for (i=0 ; i<(servcount-min) && srcserv==NULL ; i++) {
-					for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
-					if (s && (s->valid==VALID || s->valid==TDVALID)) {
-						srcserv=s->ptr;
+					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
+						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+						if (s && (s->valid==VALID || s->valid==TDVALID)) {
+							srcserv=s->ptr;
+						}
 					}
 				}
 			}
 			if (srcserv!=NULL) {
 				if (min>0) {
 					for (i=0 ; i<min && dstserv==NULL ; i++) {
-						if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
+						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
 							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
 							if (s==NULL) {
 								dstserv=ptrs[i];
@@ -2212,7 +2231,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					}
 				} else {
 					for (i=0 ; i<servcount-max && dstserv==NULL ; i++) {
-						if (matocsserv_replication_counter(ptrs[i])<MaxRepl) {
+						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
 							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
 							if (s==NULL) {
 								dstserv=ptrs[i];
@@ -2222,8 +2241,8 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				}
 				if (dstserv!=NULL) {
 					stats_replications++;
-					matocsserv_getlocation(srcserv,&ip,&port);
-					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,ip,port);
+//					matocsserv_getlocation(srcserv,&ip,&port);
+					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
 					inforec.copy_rebalance++;
 				}
 			}
@@ -2530,7 +2549,8 @@ void chunk_strinit(void) {
 	config_getuint32("CHUNKS_DEL_LIMIT",100,&MaxDel);
 	TmpMaxDelFrac = MaxDel;
 	TmpMaxDel = MaxDel;
-	config_getuint32("CHUNKS_REP_LIMIT",1,&MaxRepl);
+	config_getuint32("CHUNKS_WRITE_REP_LIMIT",1,&MaxWriteRepl);
+	config_getuint32("CHUNKS_READ_REP_LIMIT",3,&MaxReadRepl);
 	config_getuint32("CHUNKS_LOOP_TIME",300,&LoopTime);
 	HashSteps = 1+((HASHSIZE)/LoopTime);
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);

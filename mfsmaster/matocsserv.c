@@ -71,7 +71,8 @@ typedef struct matocsserventry {
 	uint64_t todeltotalspace;
 	uint32_t todelchunkscount;
 	uint32_t errorcounter;
-	uint16_t repcounter;
+	uint16_t rrepcounter;
+	uint16_t wrepcounter;
 
 	double rndcarry;
 
@@ -84,6 +85,173 @@ static int lsock;
 // from config
 static char *ListenHost;
 static char *ListenPort;
+
+
+
+
+/* replications DB */
+
+#define REPHASHSIZE 256
+#define REPHASHFN(chid,ver) (((chid)^(ver)^((chid)>>8))%(REPHASHSIZE))
+
+typedef struct _repsrc {
+	void *src;
+	struct _repsrc *next;
+} repsrc;
+
+typedef struct _repdst {
+	uint64_t chunkid;
+	uint32_t version;
+	void *dst;
+	repsrc *srchead;
+	struct _repdst *next;
+} repdst;
+
+static repdst* rephash[REPHASHSIZE];
+static repsrc *repsrcfreehead=NULL;
+static repdst *repdstfreehead=NULL;
+
+repsrc* matocsserv_repsrc_malloc() {
+	repsrc *r;
+	if (repsrcfreehead) {
+		r = repsrcfreehead;
+		repsrcfreehead = r->next;
+	} else {
+		r = (repsrc*)malloc(sizeof(repsrc));
+	}
+	return r;
+}
+
+void matocsserv_repsrc_free(repsrc *r) {
+	r->next = repsrcfreehead;
+	repsrcfreehead = r;
+}
+
+repdst* matocsserv_repdst_malloc() {
+	repdst *r;
+	if (repdstfreehead) {
+		r = repdstfreehead;
+		repdstfreehead = r->next;
+	} else {
+		r = (repdst*)malloc(sizeof(repdst));
+	}
+	return r;
+}
+
+void matocsserv_repdst_free(repdst *r) {
+	r->next = repdstfreehead;
+	repdstfreehead = r;
+}
+
+void matocsserv_replication_init(void) {
+	uint32_t hash;
+	for (hash=0 ; hash<REPHASHSIZE ; hash++) {
+		rephash[hash]=NULL;
+	}
+	repsrcfreehead=NULL;
+	repdstfreehead=NULL;
+}
+
+int matocsserv_replication_find(uint64_t chunkid,uint32_t version,void *dst) {
+	uint32_t hash = REPHASHFN(chunkid,version);
+	repdst *r;
+	for (r=rephash[hash] ; r ; r=r->next) {
+		if (r->chunkid==chunkid && r->version==version && r->dst==dst) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void matocsserv_replication_begin(uint64_t chunkid,uint32_t version,void *dst,uint8_t srccnt,void **src) {
+	uint32_t hash = REPHASHFN(chunkid,version);
+	uint8_t i;
+	repdst *r;
+	repsrc *rs;
+
+	if (srccnt>0) {
+		r = matocsserv_repdst_malloc();
+		r->chunkid = chunkid;
+		r->version = version;
+		r->dst = dst;
+		r->srchead = NULL;
+		r->next = rephash[hash];
+		rephash[hash] = r;
+		for (i=0 ; i<srccnt ; i++) {
+			rs = matocsserv_repsrc_malloc();
+			rs->src = src[i];
+			rs->next = r->srchead;
+			r->srchead = rs;
+			((matocsserventry *)(src[i]))->rrepcounter++;
+		}
+		((matocsserventry *)(dst))->wrepcounter++;
+	}
+}
+
+void matocsserv_replication_end(uint64_t chunkid,uint32_t version,void *dst) {
+	uint32_t hash = REPHASHFN(chunkid,version);
+	repdst *r,**rp;
+	repsrc *rs,*rsdel;
+
+	rp = &(rephash[hash]);
+	while ((r=*rp)!=NULL) {
+		if (r->chunkid==chunkid && r->version==version && r->dst==dst) {
+			rs = r->srchead;
+			while (rs) {
+				rsdel = rs;
+				rs = rs->next;
+				((matocsserventry *)(rsdel->src))->rrepcounter--;
+				matocsserv_repsrc_free(rsdel);
+			}
+			((matocsserventry *)(dst))->wrepcounter--;
+			*rp = r->next;
+			matocsserv_repdst_free(r);
+		} else {
+			rp = &(r->next);
+		}
+	}
+}
+
+void matocsserv_replication_disconnected(void *srv) {
+	uint32_t hash;
+	repdst *r,**rp;
+	repsrc *rs,*rsdel,**rsp;
+
+	for (hash=0 ; hash<REPHASHSIZE ; hash++) {
+		rp = &(rephash[hash]);
+		while ((r=*rp)!=NULL) {
+			if (r->dst==srv) {
+				rs = r->srchead;
+				while (rs) {
+					rsdel = rs;
+					rs = rs->next;
+					((matocsserventry *)(rsdel->src))->rrepcounter--;
+					matocsserv_repsrc_free(rsdel);
+				}
+				((matocsserventry *)(srv))->wrepcounter--;
+				*rp = r->next;
+				matocsserv_repdst_free(r);
+			} else {
+				rsp = &(r->srchead);
+				while ((rs=*rsp)!=NULL) {
+					if (rs->src==srv) {
+						((matocsserventry *)(srv))->rrepcounter--;
+						*rsp = rs->next;
+						matocsserv_repsrc_free(rs);
+					} else {
+						rsp = &(rs->next);
+					}
+				}
+				rp = &(r->next);
+			}
+		}
+	}
+}
+
+/* replication DB END */
+
+
+
 
 int matocsserv_space_compare(const void *a,const void *b) {
 	const struct servsort {
@@ -368,7 +536,7 @@ uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
 	void *x;
 	j=0;
 	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(eptr->totalspace/100) && eptr->repcounter<replimit) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(eptr->totalspace/100) && eptr->wrepcounter<replimit) {
 			ptrs[j] = (void*)eptr;
 			j++;
 		}
@@ -507,22 +675,15 @@ int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport) {
 	return -1;
 }
 
-/*
-void matocsserv_replication_begin(void *e) {
+
+uint16_t matocsserv_replication_write_counter(void *e) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	eptr->repcounter++;
+	return eptr->wrepcounter;
 }
 
-void matocsserv_replication_end(void *e) {
+uint16_t matocsserv_replication_read_counter(void *e) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	if (eptr->repcounter>0) {
-		eptr->repcounter--;
-	}
-}
-*/
-uint16_t matocsserv_replication_counter(void *e) {
-	matocsserventry *eptr = (matocsserventry *)e;
-	return eptr->repcounter;
+	return eptr->rrepcounter;
 }
 
 char* matocsserv_makestrip(uint32_t ip) {
@@ -673,6 +834,63 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 	}
 }
 
+int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *src) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	matocsserventry *srceptr = (matocsserventry *)src;
+	uint8_t *data;
+
+	if (matocsserv_replication_find(chunkid,version,eptr)) {
+		return -1;
+	}
+	if (eptr->mode!=KILL && srceptr->mode!=KILL) {
+		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+4+2);
+		if (data==NULL) {
+			return -1;
+		}
+		put64bit(&data,chunkid);
+		put32bit(&data,version);
+		put32bit(&data,srceptr->servip);
+		put16bit(&data,srceptr->servport);
+		matocsserv_replication_begin(chunkid,version,eptr,1,&src);
+	}
+	return 0;
+}
+
+int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,void **src,uint64_t *srcchunkid,uint32_t *srcversion) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	matocsserventry *srceptr;
+	uint8_t i;
+	uint8_t *data;
+
+	if (matocsserv_replication_find(chunkid,version,eptr)) {
+		return -1;
+	}
+	if (eptr->mode!=KILL) {
+		for (i=0 ; i<cnt ; i++) {
+			srceptr = (matocsserventry *)(src[i]);
+			if (srceptr->mode==KILL) {
+				return 0;
+			}
+		}
+		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+cnt*(8+4+4+2));
+		if (data==NULL) {
+			return -1;
+		}
+		put64bit(&data,chunkid);
+		put32bit(&data,version);
+		for (i=0 ; i<cnt ; i++) {
+			srceptr = (matocsserventry *)(src[i]);
+			put64bit(&data,srcchunkid[i]);
+			put32bit(&data,srcversion[i]);
+			put32bit(&data,srceptr->servip);
+			put16bit(&data,srceptr->servport);
+		}
+		matocsserv_replication_begin(chunkid,version,eptr,cnt,src);
+	}
+	return 0;
+}
+
+/*
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
 	matocsserventry *eptr = (matocsserventry *)e;
 	uint8_t *data;
@@ -707,6 +925,7 @@ int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version
 	}
 	return 0;
 }
+*/
 
 void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
@@ -717,11 +936,12 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 		eptr->mode=KILL;
 		return;
 	}
-	if (eptr->repcounter>0) {
-		eptr->repcounter--;
-	}
+//	if (eptr->repcounter>0) {
+//		eptr->repcounter--;
+//	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
+	matocsserv_replication_end(chunkid,version,eptr);
 	status = get8bit(&data);
 	chunk_got_replicate_status(eptr,chunkid,version,status);
 	if (status!=0) {
@@ -1352,7 +1572,8 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->todeltotalspace=0;
 			eptr->todelchunkscount=0;
 			eptr->errorcounter=0;
-			eptr->repcounter=0;
+			eptr->rrepcounter=0;
+			eptr->wrepcounter=0;
 
 			eptr->rndcarry=0.0;
 //				eptr->creation=NULL;
@@ -1385,6 +1606,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -1425,6 +1647,7 @@ int matocsserv_init(void) {
 	}
 	syslog(LOG_NOTICE,"matocs: listen on %s:%s",ListenHost,ListenPort);
 
+	matocsserv_replication_init();
 	matocsservhead = NULL;
 	main_destructregister(matocsserv_term);
 	main_selectregister(matocsserv_desc,matocsserv_serve);
