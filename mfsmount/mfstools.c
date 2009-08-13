@@ -1709,7 +1709,7 @@ int file_repair(const char *fname) {
 	printf("%s:\n",fname);
 	print_number(" chunks not changed: ","\n",notchanged,0,1);
 	print_number(" chunks erased:      ","\n",erased,0,1);
-	print_number(" chunks repair:      ","\n",repaired,0,1);
+	print_number(" chunks repaired:    ","\n",repaired,0,1);
 	return 0;
 }
 
