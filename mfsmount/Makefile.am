@@ -33,6 +33,11 @@ mfstools_SOURCES=\
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 
+EXTRA_DIST = $(bin_SCRIPTS)
+
+bin_SCRIPTS=\
+	mfssnapshot
+
 mfstools_links=\
 	mfscheckfile mfsdirinfo mfsfileinfo mfsfilerepair \
 	mfsgetgoal mfsgettrashtime mfsrgetgoal mfsrgettrashtime \

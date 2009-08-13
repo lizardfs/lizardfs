@@ -1,4 +1,12 @@
-mfs (1.6.1) unstable; urgency=low
+mfs (1.6.1-5) unstable; urgency=low
+
+  * Fixed replication algorithm, security issues in mfs.cgi,
+    added mfssnapshot (simple script for backward compatibility),
+    some typos, etc.
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 13 Apr 2009 13:50:00 +0200
+
+mfs (1.6.1-4) unstable; urgency=low
 
   * New MooseFS version (added 'mapall' to exports and new object
     attributes - 'noattrcache' and 'noentrycache')
