@@ -1096,13 +1096,20 @@ int get_eattr(const char *fname,uint8_t mode) {
 		}
 		printf("%s:\n",fname);
 		for (j=0 ; j<EATTR_BITS ; j++) {
-			if (fcnt[j]>0) {
+			if (eattrtab[j][0]) {
 				printf(" not directory nodes with attribute %16s :",eattrtab[j]);
 				print_number(" ","\n",fcnt[j],0,1);
-			}
-			if (dcnt[j]>0) {
 				printf(" directories with attribute         %16s :",eattrtab[j]);
 				print_number(" ","\n",dcnt[j],0,1);
+			} else {
+				if (fcnt[j]>0) {
+					printf(" not directory nodes with attribute      'unknown-%u' :",j);
+					print_number(" ","\n",fcnt[j],0,1);
+				}
+				if (dcnt[j]>0) {
+					printf(" directories with attribute              'unknown-%u' :",j);
+					print_number(" ","\n",dcnt[j],0,1);
+				}
 			}
 		}
 /*
