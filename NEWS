@@ -1,10 +1,12 @@
 This file lists noteworthy changes in MooseFS.
 
-* MooseFS 1.6.1 (????-??-??)
+* MooseFS 1.6.1 (2009-08-14)
 
  - Added 'mapall' option to exports
  - Added flags 'noattrcache' and 'noentrycache'
  - Rewritten "Writedata" module in mfsmount
+ - Added source (read) limit to replications
+ - Prefer localhost during some operations (reduce network usage)
 
 * MooseFS 1.6.0 (not released - only available in public repository)
 
