@@ -1,3 +1,10 @@
+mfs (1.6.1-6) unstable; urgency=low
+
+  * Fixed small error in mfschunkserver and little compatibility
+    issue in mfs.cgi
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 18 Apr 2009 08:00:00 +0200
+
 mfs (1.6.1-5) unstable; urgency=low
 
   * Fixed replication algorithm, security issues in mfs.cgi,
