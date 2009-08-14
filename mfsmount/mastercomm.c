@@ -813,6 +813,7 @@ void* fs_receive_thread(void *arg) {
 int fs_init_master_connection(const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	master_statsptr_init();
 	if (sockaddrconvert(masterhostname,masterportname,"tcp",&masterip,&masterport)<0) {
+		fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
 		return -1;
 	}
 	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
