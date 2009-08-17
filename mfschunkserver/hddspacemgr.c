@@ -3546,7 +3546,8 @@ int hdd_init(void) {
 				f->lasterrtab[l].chunkid = 0ULL;
 				f->lasterrtab[l].timestamp = 0;
 			}
-			f->lasterrindx=0;
+			f->lasterrindx = 0;
+			f->lastrefresh = 0;
 			f->needrefresh = 1;
 			f->devid = sb.st_dev;
 			f->lockinode = sb.st_ino;
