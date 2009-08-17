@@ -357,89 +357,90 @@ if "IN" in sectionset:
 
 	print """<br/>"""
 
-	try:
-		out = []
-		s = socket.socket()
-		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",516,0))
-		header = myrecv(s,8)
-		cmd,length = struct.unpack(">LL",header)
-		if cmd==517 and length==484:
-			matrix = []
-			for i in xrange(11):
-				data = myrecv(s,44)
-				matrix.append(list(struct.unpack(">LLLLLLLLLLL",data)))
-			out.append("""<table class="FR" cellspacing="0">""")
-			out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
-			out.append("""	<tr>""")
-			out.append("""		<th rowspan="2" class="PERC4">goal</th>""")
-			out.append("""		<th colspan="12" class="PERC96">valid copies</th>""")
-			out.append("""	</tr>""")
-			out.append("""	<tr>""")
-			out.append("""		<th class="PERC8">0</th>""")
-			out.append("""		<th class="PERC8">1</th>""")
-			out.append("""		<th class="PERC8">2</th>""")
-			out.append("""		<th class="PERC8">3</th>""")
-			out.append("""		<th class="PERC8">4</th>""")
-			out.append("""		<th class="PERC8">5</th>""")
-			out.append("""		<th class="PERC8">6</th>""")
-			out.append("""		<th class="PERC8">7</th>""")
-			out.append("""		<th class="PERC8">8</th>""")
-			out.append("""		<th class="PERC8">9</th>""")
-			out.append("""		<th class="PERC8">10+</th>""")
-			out.append("""		<th class="PERC8">all</th>""")
-			out.append("""	</tr>""")
-			sumlist = 11*[0]
-			for goal in xrange(11):
-				out.append("""<tr>""")
-				if goal==10:
-					out.append("""	<td align="center">10+</td>""")
-				else:
-					out.append("""	<td align="center">%u</td>""" % goal)
-				for vc in xrange(11):
+	if masterversion>=(1,5,13):
+		try:
+			out = []
+			s = socket.socket()
+			s.connect((masterhost,masterport))
+			mysend(s,struct.pack(">LL",516,0))
+			header = myrecv(s,8)
+			cmd,length = struct.unpack(">LL",header)
+			if cmd==517 and length==484:
+				matrix = []
+				for i in xrange(11):
+					data = myrecv(s,44)
+					matrix.append(list(struct.unpack(">LLLLLLLLLLL",data)))
+				out.append("""<table class="FR" cellspacing="0">""")
+				out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
+				out.append("""	<tr>""")
+				out.append("""		<th rowspan="2" class="PERC4">goal</th>""")
+				out.append("""		<th colspan="12" class="PERC96">valid copies</th>""")
+				out.append("""	</tr>""")
+				out.append("""	<tr>""")
+				out.append("""		<th class="PERC8">0</th>""")
+				out.append("""		<th class="PERC8">1</th>""")
+				out.append("""		<th class="PERC8">2</th>""")
+				out.append("""		<th class="PERC8">3</th>""")
+				out.append("""		<th class="PERC8">4</th>""")
+				out.append("""		<th class="PERC8">5</th>""")
+				out.append("""		<th class="PERC8">6</th>""")
+				out.append("""		<th class="PERC8">7</th>""")
+				out.append("""		<th class="PERC8">8</th>""")
+				out.append("""		<th class="PERC8">9</th>""")
+				out.append("""		<th class="PERC8">10+</th>""")
+				out.append("""		<th class="PERC8">all</th>""")
+				out.append("""	</tr>""")
+				sumlist = 11*[0]
+				for goal in xrange(11):
+					out.append("""<tr>""")
+					if goal==10:
+						out.append("""	<td align="center">10+</td>""")
+					else:
+						out.append("""	<td align="center">%u</td>""" % goal)
+					for vc in xrange(11):
+						if goal==0:
+							cl="IGNORE"
+						elif vc==0:
+							cl="MISSING"
+						elif vc>goal:
+							cl="OVERGOAL"
+						elif vc<goal:
+							cl="UNDERGOAL"
+						else:
+							cl="NORMAL"
+						if matrix[goal][vc]>0:
+							out.append("""	<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[goal][vc]))
+						else:
+							out.append("""	<td align="center">-</td>""")
 					if goal==0:
-						cl="IGNORE"
-					elif vc==0:
-						cl="MISSING"
-					elif vc>goal:
-						cl="OVERGOAL"
-					elif vc<goal:
-						cl="UNDERGOAL"
+						out.append("""	<td align="right"><span class="IGNORE">%u</span></td>""" % sum(matrix[goal]))
 					else:
-						cl="NORMAL"
-					if matrix[goal][vc]>0:
-						out.append("""	<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[goal][vc]))
+						out.append("""	<td align="right">%u</td>""" % sum(matrix[goal]))
+					out.append("""</tr>""")
+					if goal>0:
+						sumlist = [ a + b for (a,b) in zip(sumlist,matrix[goal])]
+				out.append("""<tr>""")
+				out.append("""	<td align="center">all 1+</td>""")
+				for vc in xrange(11):
+					if vc==0 and sumlist[vc]>0:
+						out.append("""	<td align="right"><span class="MISSING">%u</span></td>""" % sumlist[vc])
+					elif vc==1 and sumlist[vc]>0:
+						out.append("""	<td align="right"><span class="UNDERGOAL">%u</span></td>""" % sumlist[vc])
 					else:
-						out.append("""	<td align="center">-</td>""")
-				if goal==0:
-					out.append("""	<td align="right"><span class="IGNORE">%u</span></td>""" % sum(matrix[goal]))
-				else:
-					out.append("""	<td align="right">%u</td>""" % sum(matrix[goal]))
+						out.append("""	<td align="right">%u</td>""" % sumlist[vc])
+				out.append("""	<td align="right">%u</td>""" % sum(sumlist))
 				out.append("""</tr>""")
-				if goal>0:
-					sumlist = [ a + b for (a,b) in zip(sumlist,matrix[goal])]
-			out.append("""<tr>""")
-			out.append("""	<td align="center">all 1+</td>""")
-			for vc in xrange(11):
-				if vc==0 and sumlist[vc]>0:
-					out.append("""	<td align="right"><span class="MISSING">%u</span></td>""" % sumlist[vc])
-				elif vc==1 and sumlist[vc]>0:
-					out.append("""	<td align="right"><span class="UNDERGOAL">%u</span></td>""" % sumlist[vc])
-				else:
-					out.append("""	<td align="right">%u</td>""" % sumlist[vc])
-			out.append("""	<td align="right">%u</td>""" % sum(sumlist))
-			out.append("""</tr>""")
-			out.append("""</table>""")
-		s.close()
-		print "\n".join(out)
-	except Exception:
-		print """<table class="FR" cellspacing="0">"""
-		print """<tr><td align="left"><pre>"""
-		traceback.print_exc(file=sys.stdout)
-		print """</pre></td></tr>"""
-		print """</table>"""
+				out.append("""</table>""")
+			s.close()
+			print "\n".join(out)
+		except Exception:
+			print """<table class="FR" cellspacing="0">"""
+			print """<tr><td align="left"><pre>"""
+			traceback.print_exc(file=sys.stdout)
+			print """</pre></td></tr>"""
+			print """</table>"""
 
-	print """<br/>"""
+		print """<br/>"""
 
 	try:
 		out = []
