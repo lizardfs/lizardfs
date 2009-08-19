@@ -51,7 +51,8 @@ enum {KILL,HEADER,DATA};
 // chunklis.type
 enum {FUSE_WRITE,FUSE_SETATTR,FUSE_TRUNCATE};
 
-#define SESSION_TIMEOUT 7200
+#define NEWSESSION_TIMEOUT (7*86400)
+#define OLDSESSION_TIMEOUT 7200
 
 // locked chunks
 typedef struct chunklist {
@@ -3091,7 +3092,7 @@ void matocu_session_check(void) {
 	now = main_time();
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
-		if (asesdata->nsocks==0 && asesdata->disconnected+SESSION_TIMEOUT<now) {
+		if (asesdata->nsocks==0 && ((asesdata->newsession && asesdata->disconnected+NEWSESSION_TIMEOUT<now) || (asesdata->newsession==0 && asesdata->disconnected+OLDSESSION_TIMEOUT<now))) {
 			matocu_session_timedout(asesdata);
 			*sesdata = asesdata->next;
 			free(asesdata);
