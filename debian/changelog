@@ -1,3 +1,10 @@
+mfs (1.6.2) unstable; urgency=medium
+
+  * Fixed "race" in writedata in mfsmount module, increased session
+    timeout in mfsmaster for new sessions
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 19 Apr 2009 07:35:00 +0200
+
 mfs (1.6.1-6) unstable; urgency=low
 
   * Fixed small error in mfschunkserver and little compatibility

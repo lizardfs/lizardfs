@@ -935,6 +935,9 @@ int write_data_flush(void *vid) {
 		pthread_cond_broadcast(&(id->writecond));
 	}
 	ret = id->status;
+	if (id->lcnt==0 && id->jcnt==0 && id->flushwaiting==0 && id->writewaiting==0) {
+		write_free_inodedata(id);
+	}
 	pthread_mutex_unlock(&glock);
 //	gettimeofday(&e,NULL);
 //	syslog(LOG_NOTICE,"write_data_flush time: %"PRId64,TIMEDIFF(e,s));
@@ -972,6 +975,9 @@ int write_data_flush_inode(uint32_t inode) {
 		pthread_cond_broadcast(&(id->writecond));
 	}
 	ret = id->status;
+	if (id->lcnt==0 && id->jcnt==0 && id->flushwaiting==0 && id->writewaiting==0) {
+		write_free_inodedata(id);
+	}
 	pthread_mutex_unlock(&glock);
 	return ret;
 }
@@ -994,11 +1000,7 @@ int write_data_end(void *vid) {
 	}
 	ret = id->status;
 	id->lcnt--;
-	if (id->lcnt==0 && id->jcnt==0) {
-		if (id->flushwaiting>0 || id->writewaiting>0) {
-			syslog(LOG_ERR,"last 'write_end' detected pending operations !!!");
-			abort();
-		}
+	if (id->lcnt==0 && id->jcnt==0 && id->flushwaiting==0 && id->writewaiting==0) {
 		write_free_inodedata(id);
 	}
 	pthread_mutex_unlock(&glock);

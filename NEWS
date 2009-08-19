@@ -1,5 +1,10 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.2 (2009-08-19)
+
+ - fixed "race" in writedata module
+ - increased session timeout in mfsmaster for new sessions
+
 * MooseFS 1.6.1 (2009-08-14)
 
  - Added 'mapall' option to exports
