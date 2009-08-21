@@ -412,13 +412,13 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 int matocsserv_rndcarry_compare(const void *a,const void *b) {
 	const struct rservsort {
 		uint32_t p;
-		double rndcarry;
+		uint32_t srt;
 		matocsserventry *ptr;
 	} *aa=a,*bb=b;
-	if (aa->rndcarry > bb->rndcarry) {
+	if (aa->srt > bb->srt) {
 		return -1;
 	}
-	if (aa->rndcarry < bb->rndcarry) {
+	if (aa->srt < bb->srt) {
 		return 1;
 	}
 	return 0;
@@ -428,7 +428,8 @@ int matocsserv_rndcarry_compare(const void *a,const void *b) {
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip) {
 	static struct rservsort {
 		uint32_t p;
-		double rndcarry;
+		uint32_t srt;
+//		double rndcarry;
 		matocsserventry *ptr;
 	} servtab[65536],x;
 	matocsserventry *eptr;
@@ -449,7 +450,12 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 				local=j;
 			}
 			servtab[j].p = eptr->totalspace>>30;
-			servtab[j].rndcarry = eptr->rndcarry;
+			if (eptr->rndcarry>=1.0) {
+				servtab[j].srt = rndu32()|0x80000000;
+			} else {
+				servtab[j].srt = rndu32()&0x7FFFFFFF;
+			}
+//			servtab[j].rndcarry = eptr->rndcarry;
 			servtab[j].ptr=eptr;
 			psum += servtab[j].p;
 			j++;
@@ -461,7 +467,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 	if (demand>j) {
 		demand=j;
 	}
-	if (local>=0 && servtab[local].rndcarry>=1.0) {	// localhost can be used
+	if (local>=0 && servtab[local].ptr->rndcarry>=1.0) {	// localhost can be used
 		// place localhost in the first place
 		if (local!=0) {
 			x = servtab[0];
@@ -472,10 +478,14 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 		if (j>1) {
 			qsort(servtab+1,j-1,sizeof(struct rservsort),matocsserv_rndcarry_compare);
 		}
-	} else if (local>=0 && maxrndcarry<100.0) { // localhost can be forced
+	} else if (local>=0 && maxrndcarry<10.0) { // localhost can be forced
 		// bias rndcarry
 		for (i=0 ; i<j ; i++) {
-			servtab[i].rndcarry = (servtab[i].ptr->rndcarry += (double)(servtab[i].p)/(double)(servtab[local].p));
+			if ((servtab[i].ptr->rndcarry += (double)(servtab[i].p)/(double)(servtab[local].p))>=1.0) {
+				servtab[i].srt |= 0x80000000;
+			} else {
+				servtab[i].srt &= 0x7FFFFFFF;
+			}
 		}
 		// place localhost in the first place
 		if (local!=0) {
