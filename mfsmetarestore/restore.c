@@ -503,16 +503,22 @@ uint8_t do_trunc(uint64_t lv,uint32_t ts,char *ptr) {
 }
 
 uint8_t do_write(uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,indx;
+	uint32_t inode,indx,opflag;
 	uint64_t chunkid;
 	EAT(ptr,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,lv,',');
 	GETU32(indx,ptr);
+	if (*ptr==',') {
+		EAT(ptr,lv,',');
+		GETU32(opflag,ptr);
+	} else {
+		opflag=1;
+	}
 	EAT(ptr,lv,')');
 	EAT(ptr,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_write(ts,inode,indx,chunkid);
+	return fs_write(ts,inode,indx,opflag,chunkid);
 }
 
 int restore(const char *rfname) {

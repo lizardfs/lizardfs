@@ -35,7 +35,7 @@ void chunk_load_goal(void);
 int chunk_set_file_goal(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
 int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx);
 int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal);
+int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t opflag);
 int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal);
 //int chunk_multi_reinitialize(uint32_t ts,uint64_t chunkid);
 int chunk_unlock(uint64_t chunkid);
@@ -62,7 +62,7 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
 //int chunk_writelock(uint64_t chunkid);
 int chunk_unlock(uint64_t chunkid);
 
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip);
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip,uint8_t *opflag);
 int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint32_t inode,uint16_t indx,uint8_t goal);
 //int chunk_multi_reinitialize(uint64_t chunkid);
 int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversion);

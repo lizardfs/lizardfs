@@ -2186,7 +2186,12 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	uint64_t fleng;
 	uint64_t chunkid;
 	uint32_t msgid;
+	uint8_t opflag;
 	chunklist *cl;
+	uint32_t version;
+	uint8_t count;
+	uint8_t loc[100*6];
+
 	if (length!=12) {
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_WRITE_CHUNK - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
@@ -2198,16 +2203,29 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writechunk(inode,indx,eptr->peerip,&chunkid,&fleng);
+		status = fs_writechunk(inode,indx,eptr->peerip,&chunkid,&fleng,&opflag);
 	}
-/* zapis bez zwiekszania wersji
-	if (status==255) {
-		uint32_t version;
-		uint32_t ip;
-		uint16_t port;
-		uint8_t i,count;
-		void *sptr[256];
-		status=chunk_getversionandlocations(chunkid,&version,&count,sptr);
+	if (status!=STATUS_OK) {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
+		if (ptr==NULL) {
+			syslog(LOG_NOTICE,"can't allocate memory for packet");
+			eptr->mode = KILL;
+			return;
+		}
+		put32bit(&ptr,msgid);
+		put8bit(&ptr,status);
+		return;
+	}
+	if (opflag) {	// wait for operation end
+		cl = (chunklist*)malloc(sizeof(chunklist));
+		cl->chunkid = chunkid;
+		cl->qid = msgid;
+		cl->fleng = fleng;
+		cl->type = FUSE_WRITE;
+		cl->next = eptr->chunkdelayedops;
+		eptr->chunkdelayedops = cl;
+	} else {	// return status immediately
+		status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 		if (status!=STATUS_OK) {
 			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
 			if (ptr==NULL) {
@@ -2230,36 +2248,8 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,version);
-		for (i=0 ; i<count ; i++) {
-			if (matocsserv_getlocation(sptr[i],&ip,&port)<0) {
-				put32bit(&ptr,0);
-				put16bit(&ptr,0);
-			} else {
-				put32bit(&ptr,ip);
-				put16bit(&ptr,port);
-			}
-		}
-		return;
+		memcpy(ptr,loc,count*6);
 	}
-*/
-	if (status!=STATUS_OK) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
-		put32bit(&ptr,msgid);
-		put8bit(&ptr,status);
-		return;
-	}
-	cl = (chunklist*)malloc(sizeof(chunklist));
-	cl->chunkid = chunkid;
-	cl->qid = msgid;
-	cl->fleng = fleng;
-	cl->type = FUSE_WRITE;
-	cl->next = eptr->chunkdelayedops;
-	eptr->chunkdelayedops = cl;
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[15]++;
 	}

@@ -4348,7 +4348,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 #endif
 
 #ifndef METARESTORE
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunkid,uint64_t *length) {
+uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunkid,uint64_t *length,uint8_t *opflag) {
 	int status;
 	uint32_t i;
 	uint64_t ochunkid,nchunkid;
@@ -4393,7 +4393,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunk
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,inode,indx,p->goal,cuip);
+	status = chunk_multi_modify(&nchunkid,ochunkid,inode,indx,p->goal,cuip,opflag);
 /* zapis bez zwiekszania wersji
 	if (nchunkid==ochunkid && status==255) {
 		*chunkid = nchunkid;
@@ -4412,13 +4412,13 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunk
 	}
 	*chunkid = nchunkid;
 	*length = p->data.fdata.length;
-	changelog(version++,"%"PRIu32"|WRITE(%"PRIu32",%"PRIu32"):%"PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
+	changelog(version++,"%"PRIu32"|WRITE(%"PRIu32",%"PRIu32",%"PRIu8"):%"PRIu64,(uint32_t)main_time(),inode,indx,*opflag,nchunkid);
 	p->mtime = p->ctime = main_time();
 	stats_write++;
 	return STATUS_OK;
 }
 #else
-uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
+uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid) {
 	int status;
 	uint32_t i;
 	uint64_t ochunkid,nchunkid;
@@ -4454,7 +4454,7 @@ uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(ts,&nchunkid,ochunkid,inode,indx,p->goal);
+	status = chunk_multi_modify(ts,&nchunkid,ochunkid,inode,indx,p->goal,opflag);
 	if (status!=STATUS_OK) {
 		return status;
 	}

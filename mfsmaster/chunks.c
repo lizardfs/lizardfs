@@ -120,6 +120,7 @@ typedef struct chunk {
 	uint8_t goal;
 #ifndef METARESTORE
 	uint8_t validcopies;
+	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
 #endif
@@ -403,6 +404,7 @@ chunk* chunk_new(uint64_t chunkid) {
 	newchunk->lockedto = 0;
 #ifndef METARESTORE
 	newchunk->validcopies = 0;
+	newchunk->needverincrease = 1;
 	newchunk->interrupted = 0;
 	newchunk->operation = NONE;
 	newchunk->slisthead = NULL;
@@ -943,13 +945,13 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 
 #ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip) {
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip,uint8_t *opflag) {
 	void* ptrs[65536];
 	uint16_t servcount;
 	slist *os,*s;
 	uint8_t oldgoal;
 #else
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
+int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t opflag) {
 #endif
 	uint32_t i;
 	chunk *oc,*c;
@@ -998,6 +1000,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
 		}
 		chunk_state_change(0,c->goal,0,c->validcopies);
+		*opflag=1;
 #endif
 		*nchunkid = c->chunkid;
 	} else {
@@ -1024,42 +1027,40 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 		if (i && f && f->next==NULL) {	// refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
-/*zapis bez zwiekszania wersji
-#ifndef METARESTORE
-	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-#else
-	c->lockedto=ts+LOCKTIMEOUT;
-#endif
-	return 255;
-*/
 #ifndef METARESTORE
 
 			if (c->operation!=NONE) {
 				return ERROR_CHUNKBUSY;
 			}
-			i=0;
-			for (s=c->slisthead ;s ; s=s->next) {
-				if (s->valid!=INVALID && s->valid!=DEL) {
-					if (s->valid==TDVALID || s->valid==TDBUSY) {
-						s->valid = TDBUSY;
-					} else {
-						s->valid = BUSY;
+			if (c->needverincrease) {
+				i=0;
+				for (s=c->slisthead ;s ; s=s->next) {
+					if (s->valid!=INVALID && s->valid!=DEL) {
+						if (s->valid==TDVALID || s->valid==TDBUSY) {
+							s->valid = TDBUSY;
+						} else {
+							s->valid = BUSY;
+						}
+						s->version = c->version+1;
+						matocsserv_send_setchunkversion(s->ptr,ochunkid,c->version+1,c->version);
+						i++;
 					}
-					s->version = c->version+1;
-					matocsserv_send_setchunkversion(s->ptr,ochunkid,c->version+1,c->version);
-					i++;
 				}
-			}
-			if (i>0) {
-				c->interrupted = 0;
-				c->operation = SET_VERSION;
-				c->version++;
+				if (i>0) {
+					c->interrupted = 0;
+					c->operation = SET_VERSION;
+					c->version++;
+					*opflag=1;
+				} else {
+					return ERROR_CHUNKLOST;
+				}
 			} else {
-				return ERROR_CHUNKLOST;
+				*opflag=0;
 			}
-
 #else
-			c->version++;
+			if (opflag) {
+				c->version++;
+			}
 #endif
 		} else {
 			if (f==NULL) {	// it's serious structure error
@@ -1119,6 +1120,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 				if (oldgoal!=oc->goal) {
 					chunk_state_change(oldgoal,oc->goal,oc->validcopies,oc->validcopies);
 				}
+				*opflag=1;
 			} else {
 				return ERROR_CHUNKLOST;
 			}
@@ -1390,6 +1392,7 @@ int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversi
 	if (oldvc!=c->validcopies) {	// should be true
 		chunk_state_change(c->goal,c->goal,oldvc,c->validcopies);
 	}
+	c->needverincrease=1;
 	return 1;
 }
 #else
@@ -1570,6 +1573,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 			}
 			s->valid = INVALID;
 			s->version = 0;
+			c->needverincrease=1;
 			return;
 		}
 	}
@@ -1578,6 +1582,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	s->valid = INVALID;
 	s->version = 0;
 	s->next = c->slisthead;
+	c->needverincrease=1;
 	c->slisthead = s;
 }
 
@@ -1598,6 +1603,7 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 				chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 				c->validcopies--;
 			}
+			c->needverincrease=1;
 			*sptr = s->next;
 			slist_free(s);
 		} else {
@@ -1626,6 +1632,7 @@ void chunk_server_disconnected(void *ptr) {
 						chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 						c->validcopies--;
 					}
+					c->needverincrease=1;
 					*st = s->next;
 					slist_free(s);
 				} else {
@@ -1783,6 +1790,7 @@ void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 			} else {
 				matocuserv_chunk_status(c->chunkid,STATUS_OK);
 				c->operation=NONE;
+				c->needverincrease = 0;
 			}
 		} else {
 			matocuserv_chunk_status(c->chunkid,ERROR_NOTDONE);
@@ -1996,6 +2004,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					}
 					chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 					c->validcopies--;
+					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,c->version);
@@ -2021,6 +2030,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					todelchunks--;
 					chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 					c->validcopies--;
+					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
@@ -2051,6 +2061,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				if (s && s->valid==VALID) {
 					chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 					c->validcopies--;
+					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
@@ -2074,6 +2085,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					todelchunks--;
 					chunk_state_change(c->goal,c->goal,c->validcopies,c->validcopies-1);
 					c->validcopies--;
+					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
@@ -2134,6 +2146,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 							stats_replications++;
 	//						matocsserv_getlocation(srcptr,&ip,&port);
 							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
+							c->needverincrease=1;
 							inforec.done.copy_undergoal++;
 						}
 						return;
@@ -2243,6 +2256,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					stats_replications++;
 //					matocsserv_getlocation(srcserv,&ip,&port);
 					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
+					c->needverincrease=1;
 					inforec.copy_rebalance++;
 				}
 			}
