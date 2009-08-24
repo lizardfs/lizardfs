@@ -31,6 +31,7 @@
 #include <syslog.h>
 #include <string.h>
 #include <time.h>
+#include <sys/resource.h>
 #include <grp.h>
 #include <pwd.h>
 
@@ -604,6 +605,7 @@ int main(int argc,char **argv) {
 	char *cfgfile;
 	char ch;
 	int run,killold,rundaemon;
+	struct rlimit rls;
 	
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
 	rundaemon=1;
@@ -664,13 +666,19 @@ int main(int argc,char **argv) {
 #endif
 	}
 
+	rls.rlim_cur = FD_SETSIZE;
+	rls.rlim_max = FD_SETSIZE;
+	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
+		fprintf(stderr,"can't change open files limit\n");
+		syslog(LOG_WARNING,"can't change open files limit");
+	}
 
 	changeugid();
 
 	config_getnewstr("DATA_PATH",DATA_PATH,&wrkdir);
 
 	if (chdir(wrkdir)<0) {
-		fprintf(stderr,"can't set working directory to %s",wrkdir);
+		fprintf(stderr,"can't set working directory to %s\n",wrkdir);
 		syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
 		return 1;
 	}
@@ -695,6 +703,9 @@ int main(int argc,char **argv) {
 	}
 
 	if  (initialize()) {
+		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
+			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
+		}
 		mainloop();
 	}
 	destruct();
