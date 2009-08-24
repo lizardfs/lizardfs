@@ -66,7 +66,7 @@ typedef struct masterconn {
 	uint32_t masterip;
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
-	time_t lastregister;
+//	time_t lastregister;
 #ifdef BGJOBS
 	void *jpool;
 	int jobfd;
@@ -167,54 +167,54 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint64_t usedspace,totalspace;
 	uint64_t tdusedspace,tdtotalspace;
 	uint32_t chunkcount,tdchunkcount;
-	uint8_t oldregister;
+//	uint8_t oldregister;
 
 	myip = csserv_getlistenip();
 	myport =  csserv_getlistenport();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
 //	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
 	chunks = hdd_get_chunks_count();
-	if (eptr->lastregister+60>main_time()) { // connection was broken less than minute ago - use old registration method
-		oldregister=1;
-	} else {
-		oldregister=0;
-	}
-	if (oldregister) {
-		if (Timeout==60) {
-			syslog(LOG_NOTICE,"register to master (packet version 2)");
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+8+8+4+8+8+4+chunks*(8+4));
-		} else {
-			syslog(LOG_NOTICE,"register to master (packet version 3)");
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+2+8+8+4+8+8+4+chunks*(8+4));
-		}
-	} else {
+//	if (eptr->lastregister+60>main_time()) { // connection was broken less than minute ago - use old registration method
+//		oldregister=1;
+//	} else {
+//		oldregister=0;
+//	}
+//	if (oldregister) {
+//		if (Timeout==60) {
+//			syslog(LOG_NOTICE,"register to master (packet version 2)");
+//			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+8+8+4+8+8+4+chunks*(8+4));
+//		} else {
+//			syslog(LOG_NOTICE,"register to master (packet version 3)");
+//			buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+2+2+8+8+4+8+8+4+chunks*(8+4));
+//		}
+//	} else {
 		syslog(LOG_NOTICE,"register to master (packet version 4)");
 		buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2+8+8+4+8+8+4+chunks*(8+4));
-	}
+//	}
 	if (buff==NULL) {
 		eptr->mode=KILL;
 		hdd_get_chunks_data(NULL);	// unlock
 		return;
 	}
-	if (oldregister) {
-		if (Timeout==60) {
-			put8bit(&buff,2);	// reg version
-		} else {
-			put8bit(&buff,3);	// reg version
-		}
-	} else {
+//	if (oldregister) {
+//		if (Timeout==60) {
+//			put8bit(&buff,2);	// reg version
+//		} else {
+//			put8bit(&buff,3);	// reg version
+//		}
+//	} else {
 		put8bit(&buff,4);
 		/* put32bit(&buff,VERSION): */
 		put16bit(&buff,VERSMAJ);
 		put8bit(&buff,VERSMID);
 		put8bit(&buff,VERSMIN);
 		/* --- */
-	}
+//	}
 	put32bit(&buff,myip);
 	put16bit(&buff,myport);
-	if (Timeout!=60 || oldregister==0) {
+//	if (Timeout!=60 || oldregister==0) {
 		put16bit(&buff,Timeout);
-	}
+//	}
 	put64bit(&buff,usedspace);
 	put64bit(&buff,totalspace);
 	put32bit(&buff,chunkcount);
@@ -226,7 +226,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	} else {
 		hdd_get_chunks_data(NULL);	// unlock
 	}
-	eptr->lastregister = main_time();
+//	eptr->lastregister = main_time();
 }
 
 /*
@@ -1235,7 +1235,7 @@ int masterconn_init(void) {
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
-	eptr->lastregister = 0;
+//	eptr->lastregister = 0;
 
 	masterconn_initconnect(eptr);
 	main_eachloopregister(masterconn_check_hdd_reports);
