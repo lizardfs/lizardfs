@@ -1,5 +1,11 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.3 (2009-08-24)
+
+ - reduced version increasing
+ - increased open files limit in chunkserver
+ - decreased time window in damage disk detection
+
 * MooseFS 1.6.2 (2009-08-19)
 
  - fixed "race" in writedata module

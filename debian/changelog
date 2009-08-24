@@ -1,16 +1,23 @@
+mfs (1.6.3) unstable; urgency=low
+
+  * reduced version increasing, increased open files limit in
+    chunkserver, decreased time window in damage disk detection
+
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 24 Aug 2009 12:20:00 +0200
+
 mfs (1.6.2) unstable; urgency=medium
 
   * Fixed "race" in writedata in mfsmount module, increased session
     timeout in mfsmaster for new sessions
 
- -- Jakub Bogusz <contact@moosefs.com>  Wed, 19 Apr 2009 07:35:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 19 Aug 2009 07:35:00 +0200
 
 mfs (1.6.1-6) unstable; urgency=low
 
   * Fixed small error in mfschunkserver and little compatibility
     issue in mfs.cgi
 
- -- Jakub Bogusz <contact@moosefs.com>  Wed, 18 Apr 2009 08:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 18 Aug 2009 08:00:00 +0200
 
 mfs (1.6.1-5) unstable; urgency=low
 
@@ -18,14 +25,14 @@ mfs (1.6.1-5) unstable; urgency=low
     added mfssnapshot (simple script for backward compatibility),
     some typos, etc.
 
- -- Jakub Bogusz <contact@moosefs.com>  Wed, 13 Apr 2009 13:50:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 13 Aug 2009 13:50:00 +0200
 
 mfs (1.6.1-4) unstable; urgency=low
 
   * New MooseFS version (added 'mapall' to exports and new object
     attributes - 'noattrcache' and 'noentrycache')
 
- -- Jakub Bogusz <contact@moosefs.com>  Wed, 31 Jul 2009 06:40:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 31 Jul 2009 06:40:00 +0200
 
 mfs (1.6.0) unstable; urgency=medium
 
