@@ -71,7 +71,7 @@
 #define CHUNKHDRCRC 1024
 
 #define LASTERRSIZE 3
-#define LASTERRTIME 3600
+#define LASTERRTIME 60
 
 #define HASHSIZE 32768
 #define HASHPOS(chunkid) ((chunkid)&0x7FFF)
@@ -918,7 +918,7 @@ void hdd_check_folders() {
 	while ((f=*fptr)) {
 		err=1;
 		for (i=0 ; err && i<LASTERRSIZE ; i++) {
-			if (f->lasterrtab[i].timestamp+3600<now) {
+			if (f->lasterrtab[i].timestamp+LASTERRTIME<now) {
 				err=0;
 			}
 		}
