@@ -1,5 +1,11 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.4 (2009-08-25)
+
+ - rewrite mfs to use poll instead of select
+ - fixed some errors in new write module
+ - limit cache usage by inode in write module
+
 * MooseFS 1.6.3 (2009-08-24)
 
  - reduced version increasing

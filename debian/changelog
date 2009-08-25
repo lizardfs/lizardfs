@@ -1,3 +1,10 @@
+mfs (1.6.4) unstable; urgency=medium
+
+  * rewrite mfs to use poll instead of select, fixed some errors
+    in new write module, limit cache usage by inode in write module
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 25 Aug 2009 19:25:00 +0200
+
 mfs (1.6.3) unstable; urgency=low
 
   * reduced version increasing, increased open files limit in
