@@ -194,7 +194,7 @@ static void usage(const char *progname) {
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
-"    -o mfswritecachesize=N      define size of write cache in MiB (default: 250)\n"
+"    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
@@ -649,7 +649,7 @@ int main(int argc, char *argv[]) {
 		mfsopts.nofile=100000;
 	}
 	if (mfsopts.writecachesize==0) {
-		mfsopts.writecachesize=250;
+		mfsopts.writecachesize=128;
 	}
 	if (mfsopts.writecachesize<16) {
 		fprintf(stderr,"write cache size to low (%u MiB) - increased to 16 MiB\n",mfsopts.writecachesize);
