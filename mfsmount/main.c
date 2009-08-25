@@ -48,6 +48,12 @@
 const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 const char id2[]="@(#) Copyright by Gemius S.A.";
 
+#if defined(__APPLE__)
+#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=300,iosize=65536"
+#else
+#define DEFAULT_OPTIONS "allow_other,default_permissions"
+#endif
+
 static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn);
 
 static struct fuse_lowlevel_ops mfs_meta_oper = {
@@ -180,7 +186,7 @@ static void usage(const char *progname) {
 "    -P PORT                     equivalent to '-o mfsport=PORT'\n"
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
-"    -n   --nostdopts            do not add standard MFS mount options: '-o allow_other,default_permissions,fsname=MFS'\n"
+"    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfscachefiles            preserve files data in cache\n"
@@ -655,7 +661,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (mfsopts.nostdmountoptions==0) {
-		fuse_opt_add_arg(&args, "-oallow_other,default_permissions");
+		fuse_opt_add_arg(&args, "-o" DEFAULT_OPTIONS);
 	}
 
 

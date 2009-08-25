@@ -51,10 +51,12 @@ typedef struct inodedata_s {
 	int status;
 	uint16_t flushwaiting;
 	uint16_t writewaiting;
+	uint16_t cachewaiting;
 	uint16_t lcnt;
 	uint16_t jcnt;
 	pthread_cond_t flushcond;	// wait for jcnt==0 (flush)
 	pthread_cond_t writecond;	// wait for flushwaiting==0 (write)
+	pthread_cond_t cachecond;	// wait for cache blocks
 	struct inodedata_s *next;
 } inodedata;
 
@@ -76,6 +78,7 @@ static pthread_cond_t fcbcond;
 static uint8_t fcbwaiting;
 static cblock *freecblockshead;
 static uint32_t usedblocks;
+static uint32_t maxinodecacheblocks;
 
 static inodedata **idhash;
 // static pthread_mutex_t idhashlock;
@@ -122,7 +125,6 @@ void write_cb_release (cblock *cb) {
 cblock* write_cb_acquire(uint8_t *waited) {
 	cblock *ret;
 //	pthread_mutex_lock(&fcblock);
-	*waited=0;
 	fcbwaiting++;
 	while (freecblockshead==NULL) {
 		*waited=1;
@@ -173,10 +175,12 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	id->status = 0;
 	id->flushwaiting = 0;
 	id->writewaiting = 0;
+	id->cachewaiting = 0;
 	id->lcnt = 0;
 	id->jcnt = 0;
 	pthread_cond_init(&(id->flushcond),NULL);
 	pthread_cond_init(&(id->writecond),NULL);
+	pthread_cond_init(&(id->cachecond),NULL);
 	id->next = idhash[idh];
 	idhash[idh] = id;
 	return id;
@@ -192,6 +196,7 @@ void write_free_inodedata(inodedata *fid) {
 			*idp = id->next;
 			pthread_cond_destroy(&(id->flushcond));
 			pthread_cond_destroy(&(id->writecond));
+			pthread_cond_destroy(&(id->cachecond));
 			free(id);
 			return;
 		}
@@ -239,7 +244,7 @@ void* write_dqueue_worker(void *arg) {
 }
 
 /* glock: UNLOCKED */
-void write_job_end(wchunk *wc,int status) {
+void write_job_end(wchunk *wc,int status,int delay) {
 	uint32_t wch;
 	wchunk **wcp;
 	cblock *cb,*fcb;
@@ -255,7 +260,11 @@ void write_job_end(wchunk *wc,int status) {
 		for (cb=wc->datachainhead ; cb ; cb=cb->next) {
 			cb->writeid = 0;
 		}
-		write_enqueue(wc);
+		if (delay) {
+			write_delayed_enqueue(wc);
+		} else {
+			write_enqueue(wc);
+		}
 	} else {
 
 		// release left blocks (only when status!=STATUS_OK)
@@ -264,6 +273,10 @@ void write_job_end(wchunk *wc,int status) {
 			fcb = cb;
 			cb = cb->next;
 			write_cb_release(fcb);
+			wc->id->cacheblocks--;
+		}
+		if (wc->id->cachewaiting>0) {
+			pthread_cond_broadcast(&(wc->id->cachecond));
 		}
 
 		// remove wchunk entry
@@ -351,7 +364,7 @@ void* write_worker(void *arg) {
 		pthread_mutex_unlock(&glock);
 
 		if (status) {
-			write_job_end(wc,status);
+			write_job_end(wc,status,0);
 			continue;
 		}
 
@@ -361,18 +374,18 @@ void* write_worker(void *arg) {
 			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_writechunk returns status %d",wc->inode,wc->chindx,chunkid,version,wrstatus);
 			if (wrstatus!=ERROR_LOCKED) {
 				if (wrstatus==ERROR_ENOENT) {
-					write_job_end(wc,EBADF);
+					write_job_end(wc,EBADF,0);
 				} else if (wrstatus==ERROR_QUOTA) {
-					write_job_end(wc,EDQUOT);
+					write_job_end(wc,EDQUOT,0);
 				} else if (wrstatus==ERROR_NOSPACE) {
-					write_job_end(wc,ENOSPC);
+					write_job_end(wc,ENOSPC,0);
 				} else {
 					wc->trycnt++;
 					if (wc->trycnt>=MAXRETRIES) {
 						if (wrstatus==ERROR_NOCHUNKSERVERS) {
-							write_job_end(wc,ENOSPC);
+							write_job_end(wc,ENOSPC,0);
 						} else {
-							write_job_end(wc,EIO);
+							write_job_end(wc,EIO,0);
 						}
 					} else {
 						write_delayed_enqueue(wc);
@@ -387,8 +400,7 @@ void* write_worker(void *arg) {
 			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",wc->inode,wc->chindx,chunkid,version);
 			wc->trycnt++;
 			if (wc->trycnt>=MAXRETRIES) {
-				pthread_mutex_lock(&glock);
-				write_job_end(wc,ENXIO);
+				write_job_end(wc,ENXIO,0);
 			} else {
 				write_delayed_enqueue(wc);
 			}
@@ -407,8 +419,7 @@ void* write_worker(void *arg) {
 			fs_writeend(chunkid,wc->inode,mfleng);
 			wc->trycnt++;
 			if (wc->trycnt>=MAXRETRIES) {
-				pthread_mutex_lock(&glock);
-				write_job_end(wc,EIO);
+				write_job_end(wc,EIO,0);
 			} else {
 				write_delayed_enqueue(wc);
 			}
@@ -436,8 +447,7 @@ void* write_worker(void *arg) {
 			fs_writeend(chunkid,wc->inode,mfleng);
 			wc->trycnt++;
 			if (wc->trycnt>=MAXRETRIES) {
-				pthread_mutex_lock(&glock);
-				write_job_end(wc,EIO);
+				write_job_end(wc,EIO,0);
 			} else {
 				write_delayed_enqueue(wc);
 			}
@@ -583,6 +593,10 @@ void* write_worker(void *arg) {
 							wc->datachaintail = rcb->prev;
 						}
 						write_cb_release(rcb);
+						wc->id->cacheblocks--;
+						if (wc->id->cachewaiting>0) {
+							pthread_cond_broadcast(&(wc->id->cachecond));
+						}
 						pthread_mutex_unlock(&glock);
 					}
 					waitforstatus--;
@@ -665,7 +679,7 @@ void* write_worker(void *arg) {
 		}
 
 		if (westatus!=STATUS_OK) {
-			write_job_end(wc,ENXIO);
+			write_job_end(wc,ENXIO,0);
 		} else if (status!=0 || wrstatus!=STATUS_OK) {
 			if (wrstatus!=STATUS_OK) {	// convert MFS status to OS errno
 				if (wrstatus==ERROR_NOSPACE) {
@@ -676,13 +690,13 @@ void* write_worker(void *arg) {
 			}
 			wc->trycnt++;
 			if (wc->trycnt>=MAXRETRIES) {
-				write_job_end(wc,status);
+				write_job_end(wc,status,0);
 			} else {
-				write_job_end(wc,0);
+				write_job_end(wc,0,1);
 			}
 		} else {
 			read_inode_ops(wc->inode);
-			write_job_end(wc,0);
+			write_job_end(wc,0,0);
 		}
 	}
 }
@@ -694,6 +708,7 @@ void write_data_init (uint32_t cachesize) {
 	if (cacheblocks<10) {
 		cacheblocks=10;
 	}
+	maxinodecacheblocks = cacheblocks/20;
 	pthread_mutex_init(&glock,0);
 
 	pthread_cond_init(&fcbcond,0);
@@ -814,13 +829,26 @@ int write_block(inodedata *id,uint16_t chindx,uint16_t pos,uint32_t from,uint32_
 		}
 	}
 
+	waited=0;
+	id->cachewaiting++;
+	while (id->cacheblocks>=maxinodecacheblocks) {
+		waited=1;	// during waiting on cond 'wc' can be changed
+		pthread_cond_wait(&(id->cachecond),&glock);
+	}
+	id->cachewaiting--;
+	id->cacheblocks++;
 //	while (wc->id->cacheblocks*100>cacheblocks*CACHE_PERC_PER_FILE) {
 //		pthread_mutex_wait((&wc->id->cbcond),&glock);
 //	}
-	cb = write_cb_acquire(&waited);	// on wait wc could be changed
+	cb = write_cb_acquire(&waited);	// during waiting on cond 'wc' can be changed
 	if (waited) {
 		wc = write_get_wchunk(id,chindx);
 		if (wc==NULL) {
+			write_cb_release(cb);
+			id->cacheblocks--;
+			if (id->cachewaiting>0) {
+				pthread_cond_signal(&(id->cachecond));
+			}
 			return -1;
 		}
 	}
