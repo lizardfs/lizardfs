@@ -73,6 +73,8 @@ typedef struct csserventry {
 
 	int sock;
 	int fwdsock;			// forwarding socket for writing
+	int32_t pdescpos;
+	int32_t fwdpdescpos;
 	time_t activity;
 	uint8_t hdrbuff[8];
 	uint8_t fwdhdrbuff[8];
@@ -119,10 +121,12 @@ typedef struct csserventry {
 
 static csserventry *csservhead=NULL;
 static int lsock;
+static int32_t lsockpdescpos;
 
 #ifdef BGJOBS
 static void *jpool;
 static int jobfd;
+static int32_t jobfdpdescpos;
 #endif
 
 static uint32_t mylistenip;
@@ -1764,90 +1768,132 @@ void csserv_write(csserventry *eptr) {
 	}
 }
 
-int csserv_desc(fd_set *rset,fd_set *wset) {
-	int max=lsock;
+void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	uint32_t pos = *ndesc;
+//	int max=lsock;
 	csserventry *eptr;
-	int i;
-	FD_SET(lsock,rset);
+//	int i;
+	pdesc[pos].fd = lsock;
+	pdesc[pos].events = POLLIN;
+	lsockpdescpos = pos;
+	pos++;
+//	FD_SET(lsock,rset);
 #ifdef BGJOBS
-	FD_SET(jobfd,rset);
-	if (jobfd>max) {
-		max=jobfd;
-	}
+	pdesc[pos].fd = jobfd;
+	pdesc[pos].events = POLLIN;
+	jobfdpdescpos = pos;
+	pos++;
+//	FD_SET(jobfd,rset);
+//	if (jobfd>max) {
+//		max=jobfd;
+//	}
 #endif
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
+		eptr->pdescpos = -1;
+		eptr->fwdpdescpos = -1;
 		switch (eptr->state) {
 			case IDLE:
 			case READ:
 			case WRITELAST:
-				i=eptr->sock;
+				pdesc[pos].fd = eptr->sock;
+				pdesc[pos].events = 0;
+				eptr->pdescpos = pos;
+//				i=eptr->sock;
 				if (eptr->inputpacket.bytesleft>0) {
-					FD_SET(i,rset);
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].events |= POLLIN;
+//					FD_SET(i,rset);
+//					if (i>max) {
+//						max=i;
+//					}
 				}
 				if (eptr->outputhead!=NULL) {
-					FD_SET(i,wset);
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].events |= POLLOUT;
+//					FD_SET(i,wset);
+//					if (i>max) {
+//						max=i;
+//					}
 				}
+				pos++;
 				break;
 			case CONNECTING:
-				i=eptr->fwdsock;
-				FD_SET(i,wset);
-				if (i>max) {
-					max=i;
-				}
+				pdesc[pos].fd = eptr->fwdsock;
+				pdesc[pos].events = POLLOUT;
+				eptr->fwdpdescpos = pos;
+				pos++;
+//				i=eptr->fwdsock;
+//				FD_SET(i,wset);
+//				if (i>max) {
+//					max=i;
+//				}
 				break;
 			case WRITEINIT:
 				if (eptr->fwdbytesleft>0) {
-					i=eptr->fwdsock;
-					FD_SET(i,wset);
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].fd = eptr->fwdsock;
+					pdesc[pos].events = POLLOUT;
+					eptr->fwdpdescpos = pos;
+					pos++;
+//					i=eptr->fwdsock;
+//					FD_SET(i,wset);
+//					if (i>max) {
+//						max=i;
+//					}
 				}
 				break;
 			case WRITEFWD:
-				i=eptr->fwdsock;
-				FD_SET(i,rset); // fwdsock
-				if (i>max) {
-					max=i;
-				}
+				pdesc[pos].fd = eptr->fwdsock;
+				pdesc[pos].events = POLLIN;
+				eptr->fwdpdescpos = pos;
+//				i=eptr->fwdsock;
+//				FD_SET(i,rset); // fwdsock
+//				if (i>max) {
+//					max=i;
+//				}
 				if (eptr->fwdbytesleft>0) {
-					FD_SET(i,wset);	// fwdsock
+					pdesc[pos].events |= POLLOUT;
+//					FD_SET(i,wset);	// fwdsock
 				}
-				i=eptr->sock;
+				pos++;
+
+				pdesc[pos].fd = eptr->sock;
+				pdesc[pos].events = 0;
+				eptr->pdescpos = pos;
+//				i=eptr->sock;
 				if (eptr->inputpacket.bytesleft>0) {
-					FD_SET(i,rset); // sock
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].events |= POLLIN;
+//					FD_SET(i,rset); // sock
+//					if (i>max) {
+//						max=i;
+//					}
 				}
 				if (eptr->outputhead!=NULL) {
-					FD_SET(i,wset); // sock
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].events |= POLLOUT;
+//					FD_SET(i,wset); // sock
+//					if (i>max) {
+//						max=i;
+//					}
 				}
+				pos++;
 				break;
 			case WRITEFINISH:
 				if (eptr->outputhead!=NULL) {
-					i=eptr->sock;
-					FD_SET(i,wset);
-					if (i>max) {
-						max=i;
-					}
+					pdesc[pos].fd = eptr->sock;
+					pdesc[pos].events = POLLOUT;
+					eptr->pdescpos = pos;
+					pos++;
+//					i=eptr->sock;
+//					FD_SET(i,wset);
+//					if (i>max) {
+//						max=i;
+//					}
 				}
 				break;
 		}
 	}
-	return max;
+	*ndesc = pos;
+//	return max;
 }
 
-void csserv_serve(fd_set *rset,fd_set *wset) {
+void csserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	csserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
@@ -1857,7 +1903,8 @@ void csserv_serve(fd_set *rset,fd_set *wset) {
 	int ns;
 	uint8_t lstate;
 
-	if (FD_ISSET(lsock,rset)) {
+	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
+//	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			syslog(LOG_NOTICE,"accept error: %m");
@@ -1872,6 +1919,8 @@ void csserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->fwdmode = HEADER;
 			eptr->sock = ns;
 			eptr->fwdsock = -1;
+			eptr->pdescpos = -1;
+			eptr->fwdpdescpos = -1;
 			eptr->activity = now;
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
@@ -1896,22 +1945,30 @@ void csserv_serve(fd_set *rset,fd_set *wset) {
 		}
 	}
 #ifdef BGJOBS
-	if (FD_ISSET(jobfd,rset)) {
+	if (jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) {
+//	if (FD_ISSET(jobfd,rset)) {
 		job_pool_check_jobs(jpool);
 	}
 #endif
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
+		if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP))) {
+			eptr->state = CLOSE;
+		} else if (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & (POLLERR|POLLHUP))) {
+			csserv_fwderror(eptr);
+		}
 		lstate = eptr->state;
 		if (lstate==IDLE || lstate==READ || lstate==WRITELAST || lstate==WRITEFINISH) {
-			if (FD_ISSET(eptr->sock,rset)) {
+			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
+//			if (FD_ISSET(eptr->sock,rset)) {
 				eptr->activity = now;
 				csserv_read(eptr);
 			}
-			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
+			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
+//			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}
-		} else if (lstate==CONNECTING && FD_ISSET(eptr->fwdsock,wset)) {
+		} else if (lstate==CONNECTING && eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
 			eptr->activity = now;
 			csserv_fwdconnected(eptr);
 			if (eptr->state==WRITEINIT) {
@@ -1920,22 +1977,25 @@ void csserv_serve(fd_set *rset,fd_set *wset) {
 			if (eptr->state==WRITEFWD) {
 				csserv_forward(eptr); // and also some data can be forwarded
 			}
-		} else if (eptr->state==WRITEINIT && FD_ISSET(eptr->fwdsock,wset)) {
+		} else if (eptr->state==WRITEINIT && eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
 			eptr->activity = now;
 			csserv_fwdwrite(eptr); // after sending init packet
 			if (eptr->state==WRITEFWD) {
 				csserv_forward(eptr); // likely some data can be forwarded
 			}
 		} else if (eptr->state==WRITEFWD) {
-			if (FD_ISSET(eptr->fwdsock,wset) || FD_ISSET(eptr->sock,rset)) {
+			if ((eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) || (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT))) {
+//			if (FD_ISSET(eptr->fwdsock,wset) || FD_ISSET(eptr->sock,rset)) {
 				eptr->activity = now;
 				csserv_forward(eptr);
 			}
-			if (FD_ISSET(eptr->fwdsock,rset) && eptr->state==lstate) {
+			if (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLIN) && eptr->state==lstate) {
+//			if (FD_ISSET(eptr->fwdsock,rset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_fwdread(eptr);
 			}
-			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
+			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
+//			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}
@@ -1944,6 +2004,7 @@ void csserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->state = CLOSE;
 		}
 		if (eptr->activity+Timeout<now) {
+			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
 		if (eptr->state == CLOSE) {
@@ -2018,7 +2079,7 @@ int csserv_init(void) {
 
 	csservhead = NULL;
 	main_destructregister(csserv_term);
-	main_selectregister(csserv_desc,csserv_serve);
+	main_pollregister(csserv_desc,csserv_serve);
 
 #ifdef BGJOBS
 	jpool = job_pool_new(10,5000,&jobfd);

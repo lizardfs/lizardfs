@@ -18,6 +18,10 @@
 
 #include "config.h"
 
+#ifndef MFSMAXFILES
+#define MFSMAXFILES 5000
+#endif
+
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -74,13 +78,13 @@ typedef struct rlentry {
 static rlentry *rlhead=NULL;
 
 
-typedef struct selentry {
-	int (*desc)(fd_set *,fd_set *);
-	void (*serve)(fd_set *,fd_set *);
-	struct selentry *next;
-} selentry;
+typedef struct pollentry {
+	void (*desc)(struct pollfd *,uint32_t *);
+	void (*serve)(struct pollfd *);
+	struct pollentry *next;
+} pollentry;
 
-static selentry *selhead=NULL;
+static pollentry *pollhead=NULL;
 
 
 typedef struct eloopentry {
@@ -93,7 +97,7 @@ static eloopentry *eloophead=NULL;
 
 typedef struct timeentry {
 	time_t nextevent;
-	int seconds;
+	uint32_t seconds;
 	int mode;
 //	int offset;
 	void (*fun)(void);
@@ -139,12 +143,12 @@ void main_reloadregister (void (*fun)(void)) {
 	rlhead = aux;
 }
 
-void main_selectregister (int (*desc)(fd_set *,fd_set *),void (*serve)(fd_set *,fd_set *)) {
-	selentry *aux=(selentry*)malloc(sizeof(selentry));
+void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *)) {
+	pollentry *aux=(pollentry*)malloc(sizeof(pollentry));
 	aux->desc = desc;
 	aux->serve = serve;
-	aux->next = selhead;
-	selhead = aux;
+	aux->next = pollhead;
+	pollhead = aux;
 }
 
 void main_eachloopregister (void (*fun)(void)) {
@@ -154,10 +158,9 @@ void main_eachloopregister (void (*fun)(void)) {
 	eloophead = aux;
 }
 
-void main_timeregister (int mode,int seconds,int offset,void (*fun)(void)) {
+void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void)) {
 	timeentry *aux;
-	if (seconds<1) return;
-	if (offset>=seconds || offset<0) return;
+	if (seconds==0 || offset>=seconds) return;
 	aux = (timeentry*)malloc(sizeof(timeentry));
 	aux->nextevent = ((now / seconds) * seconds) + offset + seconds;
 	aux->seconds = seconds;
@@ -208,41 +211,48 @@ void destruct() {
 
 void mainloop() {
 	struct timeval tv;
-	selentry *selit;
+	pollentry *pollit;
 	eloopentry *eloopit;
 	timeentry *timeit;
 //	deentry *deit;
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
-	fd_set rset,wset;
-	int max;
+	struct pollfd pdesc[MFSMAXFILES];
+	uint32_t ndesc;
+//	fd_set rset,wset;
+//	int max;
 	int i;
 
 	while (terminate!=3) {
 		tv.tv_sec=0;
 		tv.tv_usec=300000;
-		FD_ZERO(&rset);
-		FD_ZERO(&wset);
-		max = -1;
-		for (selit = selhead ; selit != NULL ; selit = selit->next) {
-			i = selit->desc(&rset,&wset);
-			if (i>max) max=i;
+//		FD_ZERO(&rset);
+//		FD_ZERO(&wset);
+		ndesc=0;
+		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
+			pollit->desc(pdesc,&ndesc);
 		}
 //		if (max==-1 && terminate==0) {
 //			terminate=1;
 //		}
-		i=select(max+1,&rset,&wset,NULL,&tv);
+		i = poll(pdesc,ndesc,300);
+//		i=select(max+1,&rset,&wset,NULL,&tv);
 		gettimeofday(&tv,NULL);
 		now = tv.tv_sec;
 		if (i<0) {
+			if (errno==EAGAIN) {
+				syslog(LOG_WARNING,"poll returned EAGAIN");
+				usleep(100000);
+				continue;
+			}
 			if (errno!=EINTR) {
-				syslog(LOG_WARNING,"select error: %m");
+				syslog(LOG_WARNING,"poll error: %m");
 				break;
 			}
 		} else {
-			for (selit = selhead ; selit != NULL ; selit = selit->next) {
-				selit->serve(&rset,&wset);
+			for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
+				pollit->serve(pdesc);
 			}
 		}
 		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
@@ -666,8 +676,8 @@ int main(int argc,char **argv) {
 #endif
 	}
 
-	rls.rlim_cur = FD_SETSIZE;
-	rls.rlim_max = FD_SETSIZE;
+	rls.rlim_cur = MFSMAXFILES;
+	rls.rlim_max = MFSMAXFILES;
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
 		fprintf(stderr,"can't change open files limit\n");
 		syslog(LOG_WARNING,"can't change open files limit");

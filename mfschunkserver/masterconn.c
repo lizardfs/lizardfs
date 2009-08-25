@@ -59,6 +59,7 @@ typedef struct packetstruct {
 typedef struct masterconn {
 	int mode;
 	int sock;
+	int32_t pdescpos;
 	time_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
@@ -70,6 +71,7 @@ typedef struct masterconn {
 #ifdef BGJOBS
 	void *jpool;
 	int jobfd;
+	int32_t jobfdpdescpos;
 #endif
 } masterconn;
 
@@ -1117,69 +1119,96 @@ void masterconn_write(masterconn *eptr) {
 }
 
 
-int masterconn_desc(fd_set *rset,fd_set *wset) {
-	int ret=0;
+void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
 	if (eptr->mode==FREE || eptr->sock<0) {
-		return 0;
+		return;
 	}
+	eptr->pdescpos = -1;
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
 #ifdef BGJOBS
-		FD_SET(eptr->jobfd,rset);
-		ret = eptr->jobfd;
+		pdesc[pos].fd = eptr->jobfd;
+		pdesc[pos].events = POLLIN;
+		eptr->jobfdpdescpos = pos;
+		pos++;
+//		FD_SET(eptr->jobfd,rset);
+//		ret = eptr->jobfd;
 		if (job_pool_can_add(eptr->jpool)) {
-			FD_SET(eptr->sock,rset);
-			if (eptr->sock>ret) {
-				ret=eptr->sock;
-			}
+			pdesc[pos].fd = eptr->sock;
+			pdesc[pos].events = POLLIN;
+			eptr->pdescpos = pos;
+			pos++;
+//			FD_SET(eptr->sock,rset);
+//			if (eptr->sock>ret) {
+//				ret=eptr->sock;
+//			}
 		}
 #else /* BGJOBS */
-		FD_SET(eptr->sock,rset);
-		ret=eptr->sock;
+		pdesc[pos].fd = eptr->sock;
+		pdesc[pos].events = POLLIN;
+		eptr->pdescpos = pos;
+		pos++;
+//		FD_SET(eptr->sock,rset);
+//		ret=eptr->sock;
 #endif /* BGJOBS */
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
-		FD_SET(eptr->sock,wset);
-#ifdef BGJOBS
-		if (eptr->sock>ret) {
-			ret=eptr->sock;
+		if (eptr->pdescpos>=0) {
+			pdesc[eptr->pdescpos].events |= POLLOUT;
+		} else {
+			pdesc[pos].fd = eptr->sock;
+			pdesc[pos].events = POLLOUT;
+			eptr->pdescpos = pos;
+			pos++;
 		}
-#else /* BGJOBS */
-		ret=eptr->sock;
-#endif /* BGJOBS */
+//		FD_SET(eptr->sock,wset);
+//#ifdef BGJOBS
+//		if (eptr->sock>ret) {
+//			ret=eptr->sock;
+//		}
+//#else /* BGJOBS */
+//		ret=eptr->sock;
+//#endif /* BGJOBS */
 	}
-	return ret;
+	*ndesc = pos;
+//	return ret;
 }
 
-void masterconn_serve(fd_set *rset,fd_set *wset) {
+void masterconn_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	packetstruct *pptr,*paptr;
 	masterconn *eptr = masterconnsingleton;
 
+	if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLHUP | POLLERR))) {
+		eptr->mode = KILL;
+	}
 	if (eptr->mode==CONNECTING) {
-		if (eptr->sock>=0 && FD_ISSET(eptr->sock,wset)) {
+		if (eptr->sock>=0 && eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
 			masterconn_connecttest(eptr);
 		}
 	} else {
 #ifdef BGJOBS
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && FD_ISSET(eptr->jobfd,rset)) {
+		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->jobfdpdescpos>=0 && (pdesc[eptr->jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(eptr->jobfd,rset)) {
 			job_pool_check_jobs(eptr->jpool);
 		}
 #endif /* BGJOBS */
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && FD_ISSET(eptr->sock,rset)) {
-			eptr->lastread = now;
-			masterconn_read(eptr);
-		}
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && FD_ISSET(eptr->sock,wset)) {
-			eptr->lastwrite = now;
-			masterconn_write(eptr);
-		}
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
-			eptr->mode = KILL;
-		}
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/2)<now && eptr->outputhead==NULL) {
-			masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
+		if (eptr->pdescpos>=0) {
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
+				eptr->lastread = now;
+				masterconn_read(eptr);
+			}
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
+				eptr->lastwrite = now;
+				masterconn_write(eptr);
+			}
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
+				eptr->mode = KILL;
+			}
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/2)<now && eptr->outputhead==NULL) {
+				masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
+			}
 		}
 	}
 	if (eptr->mode == KILL) {
@@ -1235,13 +1264,14 @@ int masterconn_init(void) {
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
+	eptr->pdescpos = -1;
 //	eptr->lastregister = 0;
 
 	masterconn_initconnect(eptr);
 	main_eachloopregister(masterconn_check_hdd_reports);
 	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
-	main_selectregister(masterconn_desc,masterconn_serve);
+	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
 
 	logfd = NULL;

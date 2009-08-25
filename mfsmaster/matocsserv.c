@@ -54,6 +54,7 @@ typedef struct packetstruct {
 typedef struct matocsserventry {
 	uint8_t mode;
 	int sock;
+	int32_t pdescpos;
 	time_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
@@ -81,6 +82,7 @@ typedef struct matocsserventry {
 
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
+static int32_t lsockpdescpos;
 
 // from config
 static char *ListenHost;
@@ -1527,28 +1529,42 @@ void matocsserv_write(matocsserventry *eptr) {
 	}
 }
 
-int matocsserv_desc(fd_set *rset,fd_set *wset) {
-	int max=lsock;
+void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	uint32_t pos = *ndesc;
+//	int max=lsock;
 	matocsserventry *eptr;
-	int i;
-	FD_SET(lsock,rset);
+//	int i;
+	pdesc[pos].fd = lsock;
+	pdesc[pos].events = POLLIN;
+	lsockpdescpos = pos;
+	pos++;
+//	FD_SET(lsock,rset);
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		i=eptr->sock;
-		FD_SET(i,rset);
-		if (eptr->outputhead!=NULL) FD_SET(i,wset);
-		if (i>max) max=i;
+		pdesc[pos].fd = eptr->sock;
+		pdesc[pos].events = POLLIN;
+		eptr->pdescpos = pos;
+//		i=eptr->sock;
+//		FD_SET(i,rset);
+		if (eptr->outputhead!=NULL) {
+			pdesc[pos].events = POLLOUT;
+//			FD_SET(i,wset);
+		}
+		pos++;
+//		if (i>max) max=i;
 	}
-	return max;
+	*ndesc = pos;
+//	return max;
 }
 
-void matocsserv_serve(fd_set *rset,fd_set *wset) {
+void matocsserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	uint32_t peerip;
 	matocsserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
 
-	if (FD_ISSET(lsock,rset)) {
+	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
+//	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			syslog(LOG_INFO,"Master<->CS socket: accept error: %m");
@@ -1559,6 +1575,7 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->next = matocsservhead;
 			matocsservhead = eptr;
 			eptr->sock = ns;
+			eptr->pdescpos = -1;
 			eptr->mode = HEADER;
 			eptr->lastread = now;
 			eptr->lastwrite = now;
@@ -1594,13 +1611,20 @@ void matocsserv_serve(fd_set *rset,fd_set *wset) {
 		}
 	}
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
-			eptr->lastread = now;
-			matocsserv_read(eptr);
-		}
-		if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
-			eptr->lastwrite = now;
-			matocsserv_write(eptr);
+		if (eptr->pdescpos>=0) {
+			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
+				eptr->mode = KILL;
+			}
+			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
+//			if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
+				eptr->lastread = now;
+				matocsserv_read(eptr);
+			}
+			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
+//			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
+				eptr->lastwrite = now;
+				matocsserv_write(eptr);
+			}
 		}
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
@@ -1660,7 +1684,7 @@ int matocsserv_init(void) {
 	matocsserv_replication_init();
 	matocsservhead = NULL;
 	main_destructregister(matocsserv_term);
-	main_selectregister(matocsserv_desc,matocsserv_serve);
+	main_pollregister(matocsserv_desc,matocsserv_serve);
 	main_timeregister(TIMEMODE_SKIP,60,0,matocsserv_status);
 	return 0;
 }

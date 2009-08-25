@@ -1,6 +1,6 @@
 sbin_PROGRAMS=mfschunkserver
 
-AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DFD_SETSIZE=10000 -D_GNU_SOURCE -D_THREAD_SAFE -D_REENTRANT -DAPPNAME=mfschunkserver
+AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DMFSMAXFILES=10000 -D_GNU_SOURCE -D_THREAD_SAFE -D_REENTRANT -DAPPNAME=mfschunkserver
 AM_LDFLAGS=-lpthread $(ZLIB_LIBS)
 
 mfschunkserver_SOURCES= \

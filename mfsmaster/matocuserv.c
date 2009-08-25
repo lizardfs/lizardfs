@@ -104,6 +104,7 @@ typedef struct matocuserventry {
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
 	int sock;				//socket number
+	int32_t pdescpos;
 	uint32_t lastread,lastwrite;		//time of last activity
 	uint32_t version;
 	uint32_t peerip;
@@ -122,6 +123,7 @@ typedef struct matocuserventry {
 static session *sessionshead=NULL;
 static matocuserventry *matocuservhead=NULL;
 static int lsock;
+static int32_t lsockpdescpos;
 static int exiting;
 
 // from config
@@ -3490,43 +3492,55 @@ int matocuserv_canexit(void) {
 	return 1;
 }
 
-int matocuserv_desc(fd_set *rset,fd_set *wset) {
-	int max;
+void matocuserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	uint32_t pos = *ndesc;
 	matocuserventry *eptr;
-	int i;
 
 	if (exiting==0) {
-		FD_SET(lsock,rset);
-		max = lsock;
+		pdesc[pos].fd = lsock;
+		pdesc[pos].events = POLLIN;
+		lsockpdescpos = pos;
+		pos++;
+//		FD_SET(lsock,rset);
+//		max = lsock;
 	} else {
-		max = -1;
+		lsockpdescpos = -1;
+//		max = -1;
 	}
 	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
-		i=eptr->sock;
+		pdesc[pos].fd = eptr->sock;
+		pdesc[pos].events = 0;
+		eptr->pdescpos = pos;
+//		i=eptr->sock;
 		if (exiting==0) {
-			FD_SET(i,rset);
-			if (i>max) {
-				max=i;
-			}
+			pdesc[pos].events |= POLLIN;
+//			FD_SET(i,rset);
+//			if (i>max) {
+//				max=i;
+//			}
 		}
 		if (eptr->outputhead!=NULL) {
-			FD_SET(i,wset);
-			if (i>max) {
-				max=i;
-			}
+			pdesc[pos].events |= POLLOUT;
+//			FD_SET(i,wset);
+//			if (i>max) {
+//				max=i;
+//			}
 		}
+		pos++;
 	}
-	return max;
+	*ndesc = pos;
+//	return max;
 }
 
 
-void matocuserv_serve(fd_set *rset,fd_set *wset) {
+void matocuserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	matocuserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
 
-	if (FD_ISSET(lsock,rset)) {
+	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
+//	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			syslog(LOG_INFO,"matocu: accept error: %m");
@@ -3537,6 +3551,7 @@ void matocuserv_serve(fd_set *rset,fd_set *wset) {
 			eptr->next = matocuservhead;
 			matocuservhead = eptr;
 			eptr->sock = ns;
+			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
 			eptr->registered = 0;
 			eptr->version = 0;
@@ -3558,13 +3573,20 @@ void matocuserv_serve(fd_set *rset,fd_set *wset) {
 	}
 
 	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
-		if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
-			eptr->lastread = now;
-			matocuserv_read(eptr);
-		}
-		if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
-			eptr->lastwrite = now;
-			matocuserv_write(eptr);
+		if (eptr->pdescpos>=0) {
+			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
+				eptr->mode = KILL;
+			}
+			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
+//			if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
+				eptr->lastread = now;
+				matocuserv_read(eptr);
+			}
+			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
+//			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
+				eptr->lastwrite = now;
+				matocuserv_write(eptr);
+			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
 			eptr->mode = KILL;
@@ -3625,7 +3647,7 @@ int matocuserv_init(void) {
 	main_timeregister(TIMEMODE_RUNONCE,10,0,matocu_session_check);
 	main_timeregister(TIMEMODE_RUNONCE,3600,0,matocu_session_statsmove);
 	main_destructregister(matocuserv_term);
-	main_selectregister(matocuserv_desc,matocuserv_serve);
+	main_pollregister(matocuserv_desc,matocuserv_serve);
 	main_wantexitregister(matocuserv_wantexit);
 	main_canexitregister(matocuserv_canexit);
 	return 0;
