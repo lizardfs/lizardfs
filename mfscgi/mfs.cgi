@@ -134,7 +134,7 @@ if masterversion==(0,0,0):
 
 
 def createlink(update):
-	global fields
+	global fields,urlescape
 	c = []
 	for k in fields:
 		if k not in update:
