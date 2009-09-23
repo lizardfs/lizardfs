@@ -16,16 +16,9 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#include "masterconn.h"
 
-#include "acl.h"
-#include "matomlserv.h"
-#include "matocsserv.h"
-#include "matocuserv.h"
-#include "filesystem.h"
-#include "random.h"
-#include "changelog.h"
-#include "stats.h"
+#include "config.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -38,13 +31,6 @@ struct {
 	runfn fn;
 	char *name;
 } RunTab[]={
-	{changelog_init,"change log"},
-	{rndinit,"random generator"},
-	{acl_init,"access control list"},
-	{matomlserv_init,"communication with metalogger"},
-	{matocsserv_init,"communication with chunkserver"},
-	{matocuserv_init,"communication with clients"},
-	{fs_init,"file system manager"},
-	{stats_init,"statistics module"},
+	{masterconn_init,"connection with master"},
 	{(runfn)0,"****"}
 };

@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
@@ -75,11 +76,12 @@ typedef struct matocsserventry {
 	uint16_t rrepcounter;
 	uint16_t wrepcounter;
 
-	double rndcarry;
+	double carry;
 
 	struct matocsserventry *next;
 } matocsserventry;
 
+static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
@@ -411,22 +413,71 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 }
 
 
-int matocsserv_rndcarry_compare(const void *a,const void *b) {
+int matocsserv_carry_compare(const void *a,const void *b) {
 	const struct rservsort {
-		uint32_t p;
-		uint32_t srt;
+		double w;
+		double carry;
 		matocsserventry *ptr;
 	} *aa=a,*bb=b;
-	if (aa->srt > bb->srt) {
+	if (aa->carry > bb->carry) {
 		return -1;
 	}
-	if (aa->srt < bb->srt) {
+	if (aa->carry < bb->carry) {
 		return 1;
 	}
 	return 0;
 }
 
+uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
+	static struct rservsort {
+		double w;
+		double carry;
+		matocsserventry *ptr;
+	} servtab[65536];
+	matocsserventry *eptr;
+	double carry;
+	uint32_t i;
+	uint32_t allcnt;
+	uint32_t availcnt;
+	if (maxtotalspace==0) {
+		return 0;
+	}
+	allcnt=0;
+	availcnt=0;
+	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(1<<30)) {
+			servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
+			servtab[allcnt].carry = eptr->carry;
+			servtab[allcnt].ptr = eptr;
+			allcnt++;
+			if (eptr->carry>=1.0) {
+				availcnt++;
+			}
+		}
+	}
+	if (demand>allcnt) {
+		demand=allcnt;
+	}
+	while (availcnt<demand) {
+		availcnt=0;
+		for (i=0 ; i<allcnt ; i++) {
+			carry = servtab[i].carry + servtab[i].w;
+			servtab[i].carry = carry;
+			servtab[i].ptr->carry = carry;
+			if (carry>=1.0) {
+				availcnt++;
+			}
+		}
+	}
+	qsort(servtab,allcnt,sizeof(struct rservsort),matocsserv_carry_compare);
+	for (i=0 ; i<demand ; i++) {
+		ptrs[i] = servtab[i].ptr;
+		servtab[i].ptr->carry-=1.0;
+	}
+	return demand;
+}
 
+/*
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip) {
 	static struct rservsort {
 		uint32_t p;
@@ -541,6 +592,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 	}
 	return demand;
 }
+*/
 
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
 	matocsserventry *eptr;
@@ -652,9 +704,13 @@ void matocsserv_status(void) {
 	tspace = 0;
 	uspace = 0;
 	n=0;
+	maxtotalspace=0;
 	syslog(LOG_NOTICE,"chunkservers status:");
 	for (eptr = matocsservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->mode!=KILL && eptr->totalspace>0) {
+			if (eptr->totalspace>maxtotalspace) {
+				maxtotalspace=eptr->totalspace;
+			}
 			tspace += eptr->totalspace;
 			uspace += eptr->usedspace;
 			n++;
@@ -1169,11 +1225,6 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 	} else {
 		rversion = get8bit(&data);
 		syslog(LOG_NOTICE,"register packet version: %u",rversion);
-		if (rversion<1 || rversion>4) {
-			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%"PRIu8"/1..4)",rversion);
-			eptr->mode=KILL;
-			return;
-		}
 		if (rversion==1) {
 			if (length<39 || ((length-39)%12)!=0) {
 				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 1) - wrong size (%"PRIu32"/39+N*12)",length);
@@ -1218,7 +1269,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todeltotalspace = get64bit(&data);
 			eptr->todelchunkscount = get32bit(&data);
 			length-=49;
-		} else {
+		} else if (rversion==4) {
 			if (length<53 || ((length-53)%12)!=0) {
 				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 4) - wrong size (%"PRIu32"/53+N*12)",length);
 				eptr->mode=KILL;
@@ -1235,6 +1286,10 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todeltotalspace = get64bit(&data);
 			eptr->todelchunkscount = get32bit(&data);
 			length-=53;
+		} else {
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%"PRIu8"/1..4)",rversion);
+			eptr->mode=KILL;
+			return;
 		}
 	}
 	if (eptr->servip==0) {
@@ -1248,6 +1303,9 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
 		eptr->mode=KILL;
 		return;
+	}
+	if (eptr->totalspace>maxtotalspace) {
+		maxtotalspace=eptr->totalspace;
 	}
 	us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 	ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
@@ -1278,6 +1336,9 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	}
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
+	if (eptr->totalspace>maxtotalspace) {
+		maxtotalspace=eptr->totalspace;
+	}
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
@@ -1332,6 +1393,7 @@ void matocsserv_error_occurred(matocsserventry *eptr,const uint8_t *data,uint32_
 	eptr->errorcounter++;
 }
 
+/*
 void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize) {
 	matocsserventry *eptr;
 	uint8_t *data;
@@ -1354,7 +1416,7 @@ void matocsserv_broadcast_logrotate() {
 		matocsserv_createpacket(eptr,MATOCS_STRUCTURE_LOG_ROTATE,0);
 	}
 }
-
+*/
 void matocsserv_gotpacket(matocsserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
@@ -1602,7 +1664,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->rrepcounter=0;
 			eptr->wrepcounter=0;
 
-			eptr->rndcarry=0.0;
+			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
 //				eptr->creation=NULL;
 //				eptr->deletion=NULL;
 //				eptr->setversion=NULL;
@@ -1674,7 +1736,7 @@ int matocsserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	tcplisten(lsock,ListenHost,ListenPort,5);
+	tcpstrlisten(lsock,ListenHost,ListenPort,5);
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocs: listen error: %m");
 		return -1;

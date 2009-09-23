@@ -217,20 +217,33 @@ static int read_data_refresh_connection(readrec *rrec) {
 	gettimeofday(&(rrec->vtime),NULL);
 	rrec->ip = ip;
 	rrec->port = port;
-	rrec->fd = tcpsocket();
+
+	cnt=5;
+	while (cnt>0) {
+		rrec->fd = tcpsocket();
+		if (rrec->fd<0) {
+			syslog(LOG_WARNING,"can't create tcp socket: %m");
+			cnt=0;
+		}
+		if (tcpnumtoconnect(rrec->fd,ip,port,200)<0) {
+			cnt--;
+			if (cnt==0) {
+				syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %m",ip,port);
+			}
+			tcpclose(rrec->fd);
+			rrec->fd=-1;
+		} else {
+			cnt=0;
+		}
+	}
 	if (rrec->fd<0) {
-		syslog(LOG_WARNING,"can't create tcp socket: %m");
 		return EIO;
 	}
+
 	if (tcpnodelay(rrec->fd)<0) {
 		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
 	}
-	if (tcpnumconnect(rrec->fd,ip,port)<0) {
-		syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16")",ip,port);
-		tcpclose(rrec->fd);
-		rrec->fd = -1;
-		return EIO;
-	}
+
 	csdb_readinc(rrec->ip,rrec->port);
 	return 0;
 }

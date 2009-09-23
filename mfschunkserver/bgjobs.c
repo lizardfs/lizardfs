@@ -198,30 +198,6 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 	return jobid;
 }
 
-#if 0
-int job_setnonblock(int fd) {
-# ifdef O_NONBLOCK
-	int flags = fcntl(sock, F_GETFL, 0);
-	if (flags == -1) return -1;
-	return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-# else /* O_NONBLOCK */
-#  ifdef FIONBIO
-	int yes = 1;
-	return ioctl(sock, FIONBIO, &yes);
-#  else /* FIONBIO */
-#   ifdef ENOTSUP
-	errno = ENOTSUP;
-#   else /* ENOTSUP */
-#    ifdef ENODEV
-	errno = ENODEV;
-#    endif /* ENODEV */
-#   endif /* ENOTSUP */
-	return -1;
-#  endif /* FIONBIO */
-# endif /* O_NONBLOCK */
-}
-#endif
-
 /* interface */
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
@@ -231,9 +207,6 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	if (pipe(fd)<0) {
 		return NULL;
 	}
-//	if (job_setnonblock(fd[0])<0) {
-//		return NULL;
-//	}
        	jp=malloc(sizeof(jobpool));
 	*wakeupdesc = fd[0];
 	jp->rpipe = fd[0];

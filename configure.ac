@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.4], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.5], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -18,6 +18,7 @@ AC_DEFINE_UNQUOTED([VERSMIN], [$versmin], [Minor MFS version])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
@@ -35,16 +36,26 @@ AC_SEARCH_LIBS([gethostbyname], [nsl])
 AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stdlib.h string.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h],, [AC_MSG_ERROR([One of required headers was not found])])
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h],, [AC_MSG_ERROR([One of required headers was not found])])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_BIGENDIAN
+AC_C_INLINE
+AC_C_VOLATILE
 AC_HEADER_STDBOOL
 dnl AC_TYPE_INT16_T
 dnl AC_TYPE_INT32_T
 dnl AC_TYPE_INT64_T
 dnl AC_TYPE_INT8_T
+AC_TYPE_INT8_T
+AC_TYPE_UINT8_T
+AC_TYPE_INT16_T
+AC_TYPE_UINT16_T
+AC_TYPE_INT32_T
+AC_TYPE_UINT32_T
+AC_TYPE_INT64_T
+AC_TYPE_UINT64_T
 AC_TYPE_UID_T
 AC_TYPE_MODE_T
 AC_TYPE_OFF_T
@@ -76,10 +87,10 @@ AC_FUNC_LSTAT
 AC_FUNC_MALLOC
 AC_FUNC_MEMCMP
 AC_FUNC_REALLOC
-AC_FUNC_SELECT_ARGTYPES
+dnl AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_STAT
 # required functions
-AC_CHECK_FUNCS([bzero dup2 ftruncate gethostbyname gettimeofday memset mkdir realpath select socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+AC_CHECK_FUNCS([atexit bzero dup2 ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
 
 # optional functions
 AC_CHECK_FUNCS([pread pwrite readv writev perror])
@@ -221,7 +232,9 @@ AC_CONFIG_FILES([Makefile
 		mfsdata/Makefile
 		mfsmaster/Makefile
 		mfsmetarestore/Makefile
+		mfsmetalogger/Makefile
 		mfsmount/Makefile
 		mfsdata/mfschunkserver.cfg
-		mfsdata/mfsmaster.cfg])
+		mfsdata/mfsmaster.cfg
+		mfsdata/mfsmetalogger.cfg])
 AC_OUTPUT

@@ -22,7 +22,7 @@
 
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_t cuip);
+uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit);
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
 char* matocsserv_getstrip(void *e);
@@ -43,8 +43,8 @@ int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,ui
 int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion);
 int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion);
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
-void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
-void matocsserv_broadcast_logrotate();
+//void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
+//void matocsserv_broadcast_logrotate();
 int matocsserv_init(void);
 
 #endif

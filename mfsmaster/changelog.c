@@ -25,7 +25,7 @@
 
 #include "main.h"
 #include "changelog.h"
-#include "matocsserv.h"
+#include "matomlserv.h"
 #include "cfg.h"
 
 #define MAXLOGLINESIZE 10000
@@ -48,7 +48,7 @@ void rotatelog() {
 	} else {
 		unlink("changelog.0.mfs");
 	}
-	matocsserv_broadcast_logrotate();
+	matomlserv_broadcast_logrotate();
 }
 
 void changelog(uint64_t version,const char *format,...) {
@@ -77,7 +77,7 @@ void changelog(uint64_t version,const char *format,...) {
 		fprintf(fd,"%"PRIu64": %s\n",version,printbuff);
 		fflush(fd);
 	}
-	matocsserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
+	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
 
 int changelog_init(void) {

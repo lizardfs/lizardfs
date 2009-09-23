@@ -1,4 +1,5 @@
 *.[oa]
+*~
 .DS_Store
 .deps
 Makefile
@@ -12,6 +13,8 @@ Makefile.in
 /config.status
 /config.sub
 /configure
+/configure.scan
+/autoscan.log
 /depcomp
 /install-sh
 /libtool
@@ -20,7 +23,9 @@ Makefile.in
 /mfschunkserver/mfschunkserver
 /mfsdata/mfschunkserver.cfg
 /mfsdata/mfsmaster.cfg
+/mfsdata/mfsmetalogger.cfg
 /mfsmaster/mfsmaster
+/mfsmetalogger/mfsmetalogger
 /mfsmetarestore/mfsmetarestore
 /mfsmount/mfsmount
 /mfsmount/mfstools

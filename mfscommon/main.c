@@ -107,6 +107,7 @@ typedef struct timeentry {
 static timeentry *timehead=NULL;
 
 static int now;
+static uint64_t usecnow;
 //static int alcnt=0;
 
 static int terminate=0;
@@ -162,7 +163,10 @@ void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(vo
 	timeentry *aux;
 	if (seconds==0 || offset>=seconds) return;
 	aux = (timeentry*)malloc(sizeof(timeentry));
-	aux->nextevent = ((now / seconds) * seconds) + offset + seconds;
+	aux->nextevent = ((now / seconds) * seconds) + offset;
+	while (aux->nextevent<now) {
+		aux->nextevent+=seconds;
+	}
 	aux->seconds = seconds;
 	aux->mode = mode;
 	aux->fun = fun;
@@ -202,6 +206,10 @@ int main_time() {
 	return now;
 }
 
+uint64_t main_utime() {
+	return usecnow;
+}
+
 void destruct() {
 	deentry *deit;
 	for (deit = dehead ; deit!=NULL ; deit=deit->next ) {
@@ -214,31 +222,25 @@ void mainloop() {
 	pollentry *pollit;
 	eloopentry *eloopit;
 	timeentry *timeit;
-//	deentry *deit;
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
 	struct pollfd pdesc[MFSMAXFILES];
 	uint32_t ndesc;
-//	fd_set rset,wset;
-//	int max;
 	int i;
 
 	while (terminate!=3) {
 		tv.tv_sec=0;
 		tv.tv_usec=300000;
-//		FD_ZERO(&rset);
-//		FD_ZERO(&wset);
 		ndesc=0;
 		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
 			pollit->desc(pdesc,&ndesc);
 		}
-//		if (max==-1 && terminate==0) {
-//			terminate=1;
-//		}
-		i = poll(pdesc,ndesc,300);
-//		i=select(max+1,&rset,&wset,NULL,&tv);
+		i = poll(pdesc,ndesc,50);
 		gettimeofday(&tv,NULL);
+		usecnow = tv.tv_sec;
+		usecnow *= 1000000;
+		usecnow += tv.tv_usec;
 		now = tv.tv_sec;
 		if (i<0) {
 			if (errno==EAGAIN) {
@@ -448,6 +450,29 @@ void changeugid(void) {
 		setuid(wrk_uid);
 		syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
 	}
+}
+
+int wdlock() {
+	int lfp;
+	struct stat sb;
+	lfp=open(".lock_" STR(APPNAME),O_RDWR|O_CREAT|O_TRUNC,0640);
+	if (lfp<0) {
+		syslog(LOG_ERR,"can't create lock file in working directory: %m");
+		return -1;
+	}
+	if (lockf(lfp,F_TLOCK,0)<0) {
+		if (errno==EAGAIN) {
+			syslog(LOG_ERR,"working directory already locked (used by another instance of the same mfs process)");
+		} else {
+			syslog(LOG_NOTICE,"lockf error: %m");
+		}
+		return -1;
+	}
+	if (fstat(lfp,&sb)<0) {
+		syslog(LOG_NOTICE,"working direcotry lock file fstat error: %m");
+		return -1;
+	}
+	return 0;
 }
 
 void justlock(const char *lockfname) {
@@ -706,6 +731,10 @@ int main(int argc,char **argv) {
 		killprevious(lockfname);
 	} else {
 		justlock(lockfname);
+	}
+
+	if (wdlock()<0) {
+		return 1;
 	}
 
 	if (run==0) {

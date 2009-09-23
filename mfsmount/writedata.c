@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <poll.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
@@ -18,6 +19,7 @@
 #include "crc.h"
 #include "th_queue.h"
 #include "sockets.h"
+#include "csdb.h"
 #include "mastercomm.h"
 #include "readdata.h"
 #include "MFSCommunication.h"
@@ -77,7 +79,9 @@ typedef struct wchunk_s {
 static pthread_cond_t fcbcond;
 static uint8_t fcbwaiting;
 static cblock *freecblockshead;
+#ifdef BUFFER_DEBUG
 static uint32_t usedblocks;
+#endif
 static uint32_t maxinodecacheblocks;
 
 static inodedata **idhash;
@@ -88,7 +92,10 @@ static wchunk **wchash;
 
 static pthread_mutex_t glock;
 
-// static pthread_t info_worker_th;
+#ifdef BUFFER_DEBUG
+static pthread_t info_worker_th;
+#endif
+
 static pthread_t dqueue_worker_th;
 static pthread_t write_worker_th[WORKERS];
 
@@ -96,7 +103,7 @@ static void *jqueue,*dqueue;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
-/*
+#ifdef BUFFER_DEBUG
 void* write_info_worker(void *arg) {
 	(void)arg;
 	for (;;) {
@@ -107,7 +114,7 @@ void* write_info_worker(void *arg) {
 	}
 
 }
-*/
+#endif
 
 /* glock: LOCKED */
 void write_cb_release (cblock *cb) {
@@ -117,7 +124,9 @@ void write_cb_release (cblock *cb) {
 	if (fcbwaiting) {
 		pthread_cond_signal(&fcbcond);
 	}
+#ifdef BUFFER_DEBUG
 	usedblocks--;
+#endif
 //	pthread_mutex_unlock(&fcblock);
 }
 
@@ -139,7 +148,9 @@ cblock* write_cb_acquire(uint8_t *waited) {
 	ret->to = 0;
 	ret->next = NULL;
 	ret->prev = NULL;
+#ifdef BUFFER_DEBUG
 	usedblocks++;
+#endif
 //	pthread_mutex_unlock(&fcblock);
 	return ret;
 }
@@ -328,11 +339,22 @@ void* write_worker(void *arg) {
 	uint32_t recwriteid;
 	uint8_t recstatus;
 
+#ifdef WORKER_DEBUG
 	uint32_t partialblocks;
+	uint32_t bytessent;
+	char debugchain[200];
+	uint32_t cl;
+#endif
+
+	const uint8_t *cp,*cpe;
+	uint32_t chainip[10];
+	uint16_t chainport[10];
+	uint16_t chainelements;
 
 	uint32_t ip;
 	uint16_t port;
 	uint64_t mfleng;
+	uint64_t maxwroffset;
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t nextwriteid;
@@ -345,7 +367,7 @@ void* write_worker(void *arg) {
 	int status;
 	uint8_t waitforstatus;
 	uint8_t havedata;
-	struct timeval start,now;
+	struct timeval start,now,lastrcvd,lrdiff;
 
 	uint8_t cnt;
 
@@ -353,8 +375,15 @@ void* write_worker(void *arg) {
 	cblock *cb,*rcb;
 //	inodedata *id;
 
+	chainelements = 0;
+
 	(void)arg;
 	for (;;) {
+		for (cnt=0 ; cnt<chainelements ; cnt++) {
+			csdb_writedec(chainip[cnt],chainport[cnt]);
+		}
+		chainelements=0;
+
 		// get next job
 		queue_get(jqueue,&z1,&z2,&data,&z3);
 		wc = (wchunk*)data;
@@ -406,28 +435,21 @@ void* write_worker(void *arg) {
 			}
 			continue;
 		}
+		cp = csdata;
+		cpe = csdata+csdatasize;
+		while (cp<cpe && chainelements<10) {
+			chainip[chainelements] = get32bit(&cp);
+			chainport[chainelements] = get16bit(&cp);
+			csdb_writeinc(chainip[chainelements],chainport[chainelements]);
+			chainelements++;
+		}
+
 		chain = csdata;
 		ip = get32bit(&chain);
 		port = get16bit(&chain);
 		chainsize = csdatasize-6;
 		gettimeofday(&start,NULL);
 
-		// make connection to cs
-		fd = tcpsocket();
-		if (fd<0) {
-			syslog(LOG_WARNING,"can't create tcp socket: %m");
-			fs_writeend(chunkid,wc->inode,mfleng);
-			wc->trycnt++;
-			if (wc->trycnt>=MAXRETRIES) {
-				write_job_end(wc,EIO,0);
-			} else {
-				write_delayed_enqueue(wc);
-			}
-			continue;
-		}
-		if (tcpnodelay(fd)<0) {
-			syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
-		}
 /*
 		if (csdatasize>CSDATARESERVE) {
 			csdatasize = CSDATARESERVE;
@@ -441,9 +463,27 @@ void* write_worker(void *arg) {
 			csdb_writeinc(tmpip,tmpport);
 		}
 */
-		if (tcpnumconnect(fd,ip,port)<0) {
-			syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16")",ip,port);
-			tcpclose(fd);
+
+		// make connection to cs
+		cnt=5;
+		while (cnt>0) {
+			fd = tcpsocket();
+			if (fd<0) {
+				syslog(LOG_WARNING,"can't create tcp socket: %m");
+				cnt=0;
+			}
+			if (tcpnumtoconnect(fd,ip,port,200)<0) {
+				cnt--;
+				if (cnt==0) {
+					syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %m",ip,port);
+				}
+				tcpclose(fd);
+				fd=-1;
+			} else {
+				cnt=0;
+			}
+		}
+		if (fd<0) {
 			fs_writeend(chunkid,wc->inode,mfleng);
 			wc->trycnt++;
 			if (wc->trycnt>=MAXRETRIES) {
@@ -453,8 +493,14 @@ void* write_worker(void *arg) {
 			}
 			continue;
 		}
+		if (tcpnodelay(fd)<0) {
+			syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+		}
 
+#ifdef WORKER_DEBUG
 		partialblocks=0;
+		bytessent=0;
+#endif
 		nextwriteid=1;
 
 		pfd[0].fd = fd;
@@ -474,8 +520,27 @@ void* write_worker(void *arg) {
 		status = 0;
 		wrstatus = STATUS_OK;
 
+		lastrcvd.tv_sec = 0;
+
 		do {
 			gettimeofday(&now,NULL);
+
+			if (lastrcvd.tv_sec==0) {
+				lastrcvd = now;
+			} else {
+				lrdiff = now;
+				if (lrdiff.tv_usec<lastrcvd.tv_usec) {
+					lrdiff.tv_sec--;
+					lrdiff.tv_usec+=1000000;
+				}
+				lrdiff.tv_sec -= lastrcvd.tv_sec;
+				lrdiff.tv_usec -= lastrcvd.tv_usec;
+				if (lrdiff.tv_sec>=1) {
+					syslog(LOG_NOTICE,"writeworker: connection timed out");
+					break;
+				}
+			}
+
 			if (now.tv_usec<start.tv_usec) {
 				now.tv_sec--;
 				now.tv_usec+=1000000;
@@ -483,17 +548,21 @@ void* write_worker(void *arg) {
 			now.tv_sec -= start.tv_sec;
 			now.tv_usec -= start.tv_usec;
 
-			if (havedata==0 && now.tv_sec<2) {
+			if (havedata==0 && now.tv_sec<5 && waitforstatus<5) {
 				pthread_mutex_lock(&glock);
 				if (cb==NULL) {
 					if (wc->datachainhead) {
-						cb = wc->datachainhead;
-						havedata=1;
+						if (wc->datachainhead->to-wc->datachainhead->from==65536 || waitforstatus<=1) {
+							cb = wc->datachainhead;
+							havedata=1;
+						}
 					}
 				} else {
 					if (cb->next) {
-						cb = cb->next;
-						havedata=1;
+						if (cb->next->to-cb->next->from==65536 || waitforstatus<=1) {
+							cb = cb->next;
+							havedata=1;
+						}
 					} else {
 						wc->waitingworker=1;
 					}
@@ -511,9 +580,12 @@ void* write_worker(void *arg) {
 					put16bit(&wptr,cb->from);
 					put32bit(&wptr,cb->to-cb->from);
 					put32bit(&wptr,mycrc32(0,cb->data+cb->from,cb->to-cb->from));
+#ifdef WORKER_DEBUG
 					if (cb->to-cb->from<65536) {
 						partialblocks++;
 					}
+					bytessent+=(cb->to-cb->from);
+#endif
 					sent=0;
 				}
 				pthread_mutex_unlock(&glock);
@@ -538,6 +610,7 @@ void* write_worker(void *arg) {
 					status=EIO;
 					break;
 				}
+				gettimeofday(&lastrcvd,NULL);
 				rcvd+=i;
 				if (rcvd==21) {
 					rptr = recvbuff;
@@ -592,6 +665,10 @@ void* write_worker(void *arg) {
 						} else {
 							wc->datachaintail = rcb->prev;
 						}
+						maxwroffset = (((uint64_t)(wc->chindx))<<26)+(((uint32_t)(rcb->pos))<<16)+rcb->to;
+						if (maxwroffset>mfleng) {
+							mfleng=maxwroffset;
+						}
 						write_cb_release(rcb);
 						wc->id->cacheblocks--;
 						if (wc->id->cachewaiting>0) {
@@ -603,7 +680,7 @@ void* write_worker(void *arg) {
 					rcvd=0;
 				}
 			}
-			if (havedata && pfd[0].revents&POLLOUT) {
+			if (havedata && (pfd[0].revents&POLLOUT)) {
 				if (cb==NULL) {	// havedata==1 && cb==NULL means sending first packet (CUTOCS_WRITE)
 					if (sent<20) {
 #ifdef HAVE_WRITEV
@@ -656,18 +733,37 @@ void* write_worker(void *arg) {
 					}
 				}
 			}
-		} while (waitforstatus>0 && now.tv_sec<3);
+		} while (waitforstatus>0 && now.tv_sec<10);
+
 
 		wc->waitingworker=0;
 
 		tcpclose(fd);
-//		syslog(LOG_NOTICE,"worker wrote %"PRIu32" blocks (%"PRIu32" partial)",nextwriteid-1,partialblocks);
 
-		pthread_mutex_lock(&glock);
-		if (wc->id->maxfleng>mfleng) {
-			mfleng=wc->id->maxfleng;
+#ifdef WORKER_DEBUG
+		gettimeofday(&now,NULL);
+		if (now.tv_usec<start.tv_usec) {
+			now.tv_sec--;
+			now.tv_usec+=1000000;
 		}
-		pthread_mutex_unlock(&glock);
+		now.tv_sec -= start.tv_sec;
+		now.tv_usec -= start.tv_usec;
+
+		cl=0;
+		for (cnt=0 ; cnt<chainelements ; cnt++) {
+			cl+=snprintf(debugchain+cl,200-cl,"%u.%u.%u.%u:%u->",(chainip[cnt]>>24)&255,(chainip[cnt]>>16)&255,(chainip[cnt]>>8)&255,chainip[cnt]&255,chainport[cnt]);
+		}
+		if (cl>=2) {
+			debugchain[cl-2]='\0';
+		}
+		syslog(LOG_NOTICE,"worker %lu sent %"PRIu32" blocks (%"PRIu32" partial) of chunk %016"PRIX64"_%08"PRIX32", received status for %"PRIu32" blocks (%"PRIu32" lost), bw: %.6lfMB ( %"PRIu32" B / %.0lf us ), chain: %s",(unsigned long)arg,nextwriteid-1,partialblocks,chunkid,version,nextwriteid-1-waitforstatus,waitforstatus,(double)bytessent/((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),bytessent,((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),debugchain);
+#endif
+
+//		pthread_mutex_lock(&glock);
+//		if (wc->id->maxfleng>mfleng) {
+//			mfleng=wc->id->maxfleng;
+//		}
+//		pthread_mutex_unlock(&glock);
 
 		for (cnt=0 ; cnt<10 ; cnt++) {
 			westatus = fs_writeend(chunkid,wc->inode,mfleng);
@@ -733,9 +829,11 @@ void write_data_init (uint32_t cachesize) {
 	jqueue = queue_new(0);
 
 	pthread_create(&dqueue_worker_th,NULL,write_dqueue_worker,NULL);
-//	pthread_create(&info_worker_th,NULL,write_info_worker,NULL);
+#ifdef BUFFER_DEBUG
+	pthread_create(&info_worker_th,NULL,write_info_worker,NULL);
+#endif
 	for (i=0 ; i<WORKERS ; i++) {
-		pthread_create(write_worker_th+i,NULL,write_worker,NULL);
+		pthread_create(write_worker_th+i,NULL,write_worker,(void*)(unsigned long)(i));
 	}
 }
 

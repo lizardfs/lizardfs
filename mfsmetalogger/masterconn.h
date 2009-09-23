@@ -16,23 +16,15 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MAIN_H_
-#define _MAIN_H_
+#ifndef _MASTERCONN_H_
+#define _MASTERCONN_H_
 
-#include <poll.h>
-#include <inttypes.h>
-
-#define TIMEMODE_SKIP 0
-#define TIMEMODE_RUNONCE 1
-#define TIMEMODE_RUNALL 2
-void main_destructregister (void (*fun)(void));
-void main_canexitregister (int (*fun)(void));
-void main_wantexitregister (void (*fun)(void));
-void main_reloadregister (void (*fun)(void));
-void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *));
-void main_eachloopregister (void (*fun)(void));
-void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
-int main_time(void);
-uint64_t main_utime(void);
+void masterconn_stats(uint32_t *bin,uint32_t *bout);
+void masterconn_replicate_status(uint64_t chunkid,uint32_t version,uint8_t status);
+// void masterconn_send_chunk_damaged(uint64_t chunkid);
+// void masterconn_send_chunk_lost(uint64_t chunkid);
+// void masterconn_send_error_occurred();
+// void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunkcount,uint64_t tdusedspace,uint64_t tdtotalspace,uint32_t tdchunkcount);
+int masterconn_init(void);
 
 #endif

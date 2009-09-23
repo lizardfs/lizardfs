@@ -1,3 +1,9 @@
+mfs (1.6.5) unstable; urgency=medium
+
+  * fixed some performance issues, added new module "mfsmetalogger"
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 23 Sep 2009 12:30:00 +0200
+
 mfs (1.6.4) unstable; urgency=medium
 
   * rewrite mfs to use poll instead of select, fixed some errors

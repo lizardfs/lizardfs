@@ -23,6 +23,8 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include "filesystem.h"
 #include "chunks.h"
@@ -33,10 +35,25 @@
 const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
-int lognamecmp(const void *a,const void *b) {
-	const char **aa = (const char**)a;
-	const char **bb = (const char**)b;
-	return strtoul((*bb)+10,NULL,10)-strtoul((*aa)+10,NULL,10);
+typedef struct _chlogfile {
+	char *fname;
+	uint16_t setid;
+	uint16_t filenum;
+} chlogfile;
+
+int chlogfile_cmp(const void *a,const void *b) {
+	const chlogfile *aa = (const chlogfile*)a;
+	const chlogfile *bb = (const chlogfile*)b;
+	if (aa->setid<bb->setid) {
+		return -1;
+	} else if (aa->setid>bb->setid) {
+		return 1;
+	} else if (aa->filenum<bb->filenum) {
+		return 1;
+	} else if (aa->filenum>bb->filenum) {
+		return -1;
+	}
+	return 0;
 }
 
 void usage(const char* appname) {
@@ -86,6 +103,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (autorestore) {
+		struct stat metast;
 		if (datapath==NULL) {
 			datapath=strdup(DATA_PATH);
 		}
@@ -93,6 +111,20 @@ int main(int argc,char **argv) {
 		metadata = malloc(dplen+sizeof("/metadata.mfs.back"));
 		memcpy(metadata,datapath,dplen);
 		memcpy(metadata+dplen,"/metadata.mfs.back",sizeof("/metadata.mfs.back"));
+		if (stat(metadata,&metast)<0) {
+			if (errno==ENOENT) {
+				free(metadata);
+				metadata = malloc(dplen+sizeof("/metadata_ml.mfs.back"));
+				memcpy(metadata,datapath,dplen);
+				memcpy(metadata+dplen,"/metadata_ml.mfs.back",sizeof("/metadata_ml.mfs.back"));
+				if (stat(metadata,&metast)==0) {
+					printf("file 'metadata.mfs.back' not found - will try 'metadata_ml.mfs.back' instead\n");
+				} else {
+					printf("can't find backed up metadata file !!!\n");
+					return 1;
+				}
+			}
+		}
 		metaout = malloc(dplen+sizeof("/metadata.mfs"));
 		memcpy(metaout,datapath,dplen);
 		memcpy(metaout+dplen,"/metadata.mfs",sizeof("/metadata.mfs"));
@@ -106,8 +138,8 @@ int main(int argc,char **argv) {
 	if (autorestore) {
 		DIR *dd;
 		struct dirent *dp;
-		uint32_t files,pos;
-		char **fnames;
+		uint32_t files,pos,filenum;
+		chlogfile *logfiles;
 		char *ptr;
 		dd = opendir(datapath);
 		if (!dd) {
@@ -127,9 +159,23 @@ int main(int argc,char **argv) {
 						files++;
 					}
 				}
+			} else if (strncmp(ptr,"changelog_ml.",13)==0) {
+				ptr+=13;
+				if (*ptr>='0' && *ptr<='9') {
+					while (*ptr>='0' && *ptr<='9') {
+						ptr++;
+					}
+					if (strcmp(ptr,".mfs")==0) {
+						files++;
+					}
+				}
 			}
 		}
-		fnames = (char**)malloc(sizeof(char*)*files);
+		if (files==0) {
+			printf("changelog files not found\n");
+			return 1;
+		}
+		logfiles = (chlogfile*)malloc(sizeof(chlogfile)*files);
 		pos = 0;
 		rewinddir(dd);
 		while ((dp = readdir(dd)) != NULL) {
@@ -137,25 +183,38 @@ int main(int argc,char **argv) {
 			if (strncmp(ptr,"changelog.",10)==0) {
 				ptr+=10;
 				if (*ptr>='0' && *ptr<='9') {
-					while (*ptr>='0' && *ptr<='9') {
-						ptr++;
-					}
+					filenum = strtoul(ptr,&ptr,10);
 					if (strcmp(ptr,".mfs")==0) {
 						if (pos<files) {
-							fnames[pos]=strdup(dp->d_name);
+							logfiles[pos].fname=strdup(dp->d_name);
+							logfiles[pos].setid=0;
+							logfiles[pos].filenum = filenum;
+							pos++;
 						}
-						pos++;
+					}
+				}
+			} else if (strncmp(ptr,"changelog_ml.",13)==0) {
+				ptr+=13;
+				if (*ptr>='0' && *ptr<='9') {
+					filenum = strtoul(ptr,&ptr,10);
+					if (strcmp(ptr,".mfs")==0) {
+						if (pos<files) {
+							logfiles[pos].fname=strdup(dp->d_name);
+							logfiles[pos].setid=1;
+							logfiles[pos].filenum = filenum;
+							pos++;
+						}
 					}
 				}
 			}
 		}
 		closedir(dd);
-		qsort(fnames,files,sizeof(char*),lognamecmp);
+		qsort(logfiles,files,sizeof(chlogfile),chlogfile_cmp);
 		for (pos=0 ; pos<files ; pos++) {
-			chgdata = malloc(dplen+1+strlen(fnames[pos])+1);
+			chgdata = malloc(dplen+1+strlen(logfiles[pos].fname)+1);
 			memcpy(chgdata,datapath,dplen);
 			chgdata[dplen]='/';
-			memcpy(chgdata+dplen+1,fnames[pos],strlen(fnames[pos])+1);
+			memcpy(chgdata+dplen+1,logfiles[pos].fname,strlen(logfiles[pos].fname)+1);
 			printf("applying changes from file: %s\n",chgdata);
 			if (restore(chgdata)!=0) {
 				return 1;

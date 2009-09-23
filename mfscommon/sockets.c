@@ -32,73 +32,66 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
-#ifdef _THREAD_SAFE
-#include <pthread.h>
+//#ifdef _THREAD_SAFE
+//#include <pthread.h>
+//static pthread_mutex_t hmutex = PTHREAD_MUTEX_INITIALIZER;
+//#endif
 
-static pthread_mutex_t hmutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t amutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t gmutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
-#ifndef INADDR_NONE
-#define INADDR_NONE (in_addr_t)(-1)
-#endif
+//#ifndef INADDR_NONE
+//#define INADDR_NONE (in_addr_t)(-1)
+//#endif
 
 #include "sockets.h"
-/* Acid's simple socket library - ver 1.9 */
-
-// amutex:
-static struct sockaddr_in *addrtab=NULL;
-static uint32_t addrlen = 0;
-static uint32_t addrmax = 0;
-
-// gmutex:
-static int32_t globaladdr = -1;
+/* Acid's simple socket library - ver 2.0 */
 
 /* ---------------SOCK ADDR--------------- */
 
-int32_t sockaddrnewempty() {
-	uint32_t r;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&amutex);
-#endif
-	if (addrlen == addrmax) {
-		if (addrmax==0) {
-			addrmax=50;
-		} else {
-			addrmax*=2;
-		}
-		addrtab = (struct sockaddr_in *)realloc((void*)addrtab,addrmax*sizeof(struct sockaddr_in));
-		if (addrtab==NULL) {
-#ifdef _THREAD_SAFE
-			pthread_mutex_unlock(&amutex);
-#endif
-			return -1;
-		}
-	}
-	r = addrlen++;
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&amutex);
-#endif
-	return r;
-}
-
-int sockaddrnumchange(uint32_t i,uint32_t ip,uint16_t port) {
-	if (i>=addrlen) return -1;
-	memset((char *)(addrtab+i),0,sizeof(struct sockaddr_in));
-	addrtab[i].sin_family = AF_INET;
-	addrtab[i].sin_port = htons(port);
-	addrtab[i].sin_addr.s_addr = htonl(ip);
+static inline int sockaddrnumfill(struct sockaddr_in *sa,uint32_t ip,uint16_t port) {
+	memset(sa,0,sizeof(struct sockaddr_in));
+	sa->sin_family = AF_INET;
+	sa->sin_port = htons(port);
+	sa->sin_addr.s_addr = htonl(ip);
 	return 0;
 }
 
-int sockaddrchange(uint32_t i,const char *hostname,const char *service,const char *proto) {
+static inline int sockaddrfill(struct sockaddr_in *sa,const char *hostname,const char *service,int family,int socktype,int passive) {
+	struct addrinfo hints, *res, *reshead;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = family;
+	hints.ai_socktype = socktype;
+	if (passive) {
+		hints.ai_flags = AI_PASSIVE;
+	}
+	if (hostname && hostname[0]=='*') {
+		hostname=NULL;
+	}
+	if (service && service[0]=='*') {
+		service=NULL;
+	}
+	if (getaddrinfo(hostname,service,&hints,&reshead)) {
+		return -1;
+	}
+	for (res = reshead ; res ; res=res->ai_next) {
+		if (res->ai_family==family && res->ai_socktype==socktype && res->ai_addrlen==sizeof(struct sockaddr_in)) {
+			*sa = *((struct sockaddr_in*)(res->ai_addr));
+			freeaddrinfo(reshead);
+			return 0;
+		}
+	}
+	freeaddrinfo(reshead);
+	return -1;
+}
+
+/*
+static inline int sockaddrfill(struct sockaddr_in *sa,const char *hostname,const char *service,int family,int socktype) {
 	uint16_t port;
 	struct in_addr addr;
 	char *endp;
 	uint32_t temp;
 
-	if (!hostname || !service || !proto || i>=addrlen) return -1;
+	if (!hostname || !service) {
+		return -1;
+	}
 
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&hmutex);
@@ -109,7 +102,14 @@ int sockaddrchange(uint32_t i,const char *hostname,const char *service,const cha
 		if (*endp == '\0' && temp > 0 && temp < 65536) {
 			port = htons((uint16_t) temp);
 		} else {
-			struct servent *serv = getservbyname(service, proto);
+			struct servent *serv;
+			if (family==AF_INET || family==PF_UNSPEC) {
+				if (socktype==SOCK_STREAM) {
+					serv = getservbyname(service, "tcp");
+				} else if (socktype==SOCK_DGRAM);
+					serv = getservbyname(service, "udp");
+				}
+			}
 			if (serv) {
 				port = serv->s_port;
 			} else {
@@ -136,55 +136,34 @@ int sockaddrchange(uint32_t i,const char *hostname,const char *service,const cha
 	pthread_mutex_unlock(&hmutex);
 #endif
 
-	memset((char *)(addrtab+i),0,sizeof(struct sockaddr_in));
-	addrtab[i].sin_family = AF_INET;
-	addrtab[i].sin_port = port;
-	addrtab[i].sin_addr = addr;
+	memset(sa,0,sizeof(struct sockaddr_in));
+	sa->sin_family = AF_INET;
+	sa->sin_port = port;
+	sa->sin_addr = addr;
 	return 0;
 }
+*/
 
-int32_t sockaddrnew(const char *hostname,const char *service,const char *proto) {
-	uint32_t i;
-	i = sockaddrnewempty();
-	if (sockaddrchange(i,hostname,service,proto)<0) return -1;
-	return i;
-}
-
-
-int sockaddrget(uint32_t i,uint32_t *ip,uint16_t *port) {
-	if (i>=addrlen) return -1;
-	if (ip!=(void *)0) {
-		*ip = ntohl(addrtab[i].sin_addr.s_addr);
-	}
-	if (port!=(void *)0) {
-		*port = ntohs(addrtab[i].sin_port);
-	}
-	return 0;
-}
-
-int sockaddrconvert(const char *hostname,const char *service,const char *proto,uint32_t *ip,uint16_t *port) {
-	int r;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	if (sockaddrchange(globaladdr,hostname,service,proto)<0) {
-#ifdef _THREAD_SAFE
-		pthread_mutex_unlock(&gmutex);
-#endif
+static inline int sockresolve(const char *hostname,const char *service,uint32_t *ip,uint16_t *port,int family,int socktype,int passive) {
+	struct sockaddr_in sa;
+	if (sockaddrfill(&sa,hostname,service,family,socktype,passive)<0) {
 		return -1;
 	}
-	r = sockaddrget(globaladdr,ip,port);
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	return r;
+	if (ip!=(void *)0) {
+		*ip = ntohl(sa.sin_addr.s_addr);
+	}
+	if (port!=(void *)0) {
+		*port = ntohs(sa.sin_port);
+	}
+	return 0;
 }
 
-int socknonblock(int sock) {
+static inline int socknonblock(int sock) {
 #ifdef O_NONBLOCK
 	int flags = fcntl(sock, F_GETFL, 0);
-	if (flags == -1) return -1;
+	if (flags == -1) {
+		return -1;
+	}
 	return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 #else
 	int yes = 1;
@@ -196,6 +175,14 @@ int socknonblock(int sock) {
 
 int tcpsocket(void) {
 	return socket(AF_INET,SOCK_STREAM,0);
+}
+
+int tcpnonblock(int sock) {
+	return socknonblock(sock);
+}
+
+int tcpresolve(const char *hostname,const char *service,uint32_t *ip,uint16_t *port,int passive) {
+	return sockresolve(hostname,service,ip,port,AF_INET,SOCK_STREAM,passive);
 }
 
 int tcpreuseaddr(int sock) {
@@ -236,73 +223,96 @@ int tcpaccfdata(int sock) {
 #endif
 }
 
-int tcpconnect(int sock,const char *hostname,const char *service) {
-	int rc;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	if (sockaddrchange(globaladdr,hostname,service,"tcp")<0) {
-#ifdef _THREAD_SAFE
-		pthread_mutex_unlock(&gmutex);
-#endif
+int tcpstrconnect(int sock,const char *hostname,const char *service) {
+	struct sockaddr_in sa;
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,0)<0) {
 		return -1;
 	}
-	rc = connect(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	if (rc >= 0) return 0;
-	if (errno == EINPROGRESS) return 1;
+	if (connect(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) >= 0) {
+		return 0;
+	}
+	if (errno == EINPROGRESS) {
+		return 1;
+	}
 	return -1;
 }
 
 int tcpnumconnect(int sock,uint32_t ip,uint16_t port) {
-	int rc;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	sockaddrnumchange(globaladdr,ip,port);
-	rc = connect(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	if (rc >= 0) return 0;
-	if (errno == EINPROGRESS) return 1;
+	struct sockaddr_in sa;
+	sockaddrnumfill(&sa,ip,port);
+	if (connect(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) >= 0) {
+		return 0;
+	}
+	if (errno == EINPROGRESS) {
+		return 1;
+	}
 	return -1;
 }
 
-int tcpaddrconnect(int sock,uint32_t addr) {
-	int rc;
+int tcpstrtoconnect(int sock,const char *hostname,const char *service,uint32_t msecto) {
+	struct sockaddr_in sa;
+	if (socknonblock(sock)<0) {
+		return -1;
+	}
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,0)<0) {
+		return -1;
+	}
+	if (connect(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) >= 0) {
+		return 0;
+	}
+	if (errno == EINPROGRESS) {
+		struct pollfd pfd;
+		pfd.fd = sock;
+		pfd.events = POLLOUT;
+		pfd.revents = 0;
+		if (poll(&pfd,1,msecto)<0) {
+			return -1;
+		}
+		if (pfd.revents & POLLOUT) {
+			return tcpgetstatus(sock);
+		}
+	}
+	return -1;
+}
 
-	if (addr>addrlen) return -1;
-	rc = connect(sock, (struct sockaddr *)(addrtab+addr),sizeof(struct sockaddr_in));
-	if (rc >= 0) return 0;
-	if (errno == EINPROGRESS) return 1;
+int tcpnumtoconnect(int sock,uint32_t ip,uint16_t port,uint32_t msecto) {
+	struct sockaddr_in sa;
+	if (socknonblock(sock)<0) {
+		return -1;
+	}
+	sockaddrnumfill(&sa,ip,port);
+	if (connect(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) >= 0) {
+		return 0;
+	}
+	if (errno == EINPROGRESS) {
+		struct pollfd pfd;
+		pfd.fd = sock;
+		pfd.events = POLLOUT;
+		pfd.revents = 0;
+		if (poll(&pfd,1,msecto)<0) {
+			return -1;
+		}
+		if (pfd.revents & POLLOUT) {
+			return tcpgetstatus(sock);
+		}
+	}
 	return -1;
 }
 
 int tcpgetstatus(int sock) {
 	socklen_t arglen = sizeof(int);
 	int rc = 0;
-	if (getsockopt(sock,SOL_SOCKET,SO_ERROR,(void *)&rc,&arglen) < 0) rc=errno;
+	if (getsockopt(sock,SOL_SOCKET,SO_ERROR,(void *)&rc,&arglen) < 0) {
+		rc=errno;
+	}
 	errno=rc;
 	return rc;
 }
 
 int tcpnumlisten(int sock,uint32_t ip,uint16_t port,uint16_t queue) {
-	int r;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	sockaddrnumchange(globaladdr,ip,port);
-	r = bind(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	if (r<0) {
+	struct sockaddr_in sa;
+	sockaddrnumfill(&sa,ip,port);
+	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
 		return -1;
 	}
 	if (listen(sock,queue)<0) {
@@ -311,34 +321,12 @@ int tcpnumlisten(int sock,uint32_t ip,uint16_t port,uint16_t queue) {
 	return 0;
 }
 
-int tcplisten(int sock,const char *hostname,const char *service,uint16_t queue) {
-	int r;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	if (sockaddrchange(globaladdr,hostname,service,"tcp")<0) {
-#ifdef _THREAD_SAFE
-		pthread_mutex_unlock(&gmutex);
-#endif
+int tcpstrlisten(int sock,const char *hostname,const char *service,uint16_t queue) {
+	struct sockaddr_in sa;
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,1)<0) {
 		return -1;
 	}
-	r = bind(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	if (r<0) {
-		return -1;
-	}
-	if (listen(sock,queue)<0) {
-		return -1;
-	}
-	return 0;
-}
-
-int tcpaddrlisten(int sock,uint32_t addr,uint16_t queue) {
-	if (addr>addrlen) return -1;
-	if (bind(sock, (struct sockaddr *)(addrtab+addr),sizeof(struct sockaddr_in))<0) {
+	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
 		return -1;
 	}
 	if (listen(sock,queue)<0) {
@@ -350,29 +338,43 @@ int tcpaddrlisten(int sock,uint32_t addr,uint16_t queue) {
 int tcpaccept(int lsock) {
 	int sock;
 	sock=accept(lsock,(struct sockaddr *)NULL,0);
-	if (sock<0) return -1;
+	if (sock<0) {
+		return -1;
+	}
 	return sock;
 }
 
 int tcpgetpeer(int sock,uint32_t *ip,uint16_t *port) {
-	struct sockaddr_in	iaddr;
+	struct sockaddr_in sa;
 	socklen_t leng;
-	leng=sizeof(iaddr);
-	if (getpeername(sock,(struct sockaddr *)&iaddr,&leng)<0) return -1;
+	leng=sizeof(sa);
+	if (getpeername(sock,(struct sockaddr *)&sa,&leng)<0) {
+		return -1;
+	}
 	if (ip!=(void *)0) {
-		*ip = ntohl(iaddr.sin_addr.s_addr);
+		*ip = ntohl(sa.sin_addr.s_addr);
 	}
 	if (port!=(void *)0) {
-		*port = ntohs(iaddr.sin_port);
+		*port = ntohs(sa.sin_port);
 	}
 	return 0;
 }
 
-/*
-int tcpdisconnect(int sock) {
-	return close(sock);
+int tcpgetmyaddr(int sock,uint32_t *ip,uint16_t *port) {
+	struct sockaddr_in sa;
+	socklen_t leng;
+	leng=sizeof(sa);
+	if (getsockname(sock,(struct sockaddr *)&sa,&leng)<0) {
+		return -1;
+	}
+	if (ip!=(void *)0) {
+		*ip = ntohl(sa.sin_addr.s_addr);
+	}
+	if (port!=(void *)0) {
+		*port = ntohs(sa.sin_port);
+	}
+	return 0;
 }
-*/
 
 int tcpclose(int sock) {
 	return close(sock);
@@ -383,7 +385,9 @@ int32_t tcpread(int sock,void *buff,uint32_t leng) {
 	int i;
 	while (rcvd<leng) {
 		i = read(sock,((uint8_t*)buff)+rcvd,leng-rcvd);
-		if (i<=0) return i;
+		if (i<=0) {
+			return i;
+		}
 		rcvd+=i;
 	}
 	return rcvd;
@@ -394,7 +398,9 @@ int32_t tcpwrite(int sock,const void *buff,uint32_t leng) {
 	int i;
 	while (sent<leng) {
 		i = write(sock,((const uint8_t*)buff)+sent,leng-sent);
-		if (i<=0) return i;
+		if (i<=0) {
+			return i;
+		}
 		sent+=i;
 	}
 	return sent;
@@ -413,7 +419,9 @@ int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto) {
 		}
 		if (pfd.revents & POLLIN) {
 			i = read(sock,((uint8_t*)buff)+rcvd,leng-rcvd);
-			if (i<=0) return i;
+			if (i<=0) {
+				return i;
+			}
 			rcvd+=i;
 		} else {
 			errno = ETIMEDOUT;
@@ -436,7 +444,9 @@ int32_t tcptowrite(int sock,const void *buff,uint32_t leng,uint32_t msecto) {
 		}
 		if (pfd.revents & POLLOUT) {
 			i = write(sock,((uint8_t*)buff)+sent,leng-sent);
-			if (i<=0) return i;
+			if (i<=0) {
+				return i;
+			}
 			sent+=i;
 		} else {
 			errno = ETIMEDOUT;
@@ -447,79 +457,60 @@ int32_t tcptowrite(int sock,const void *buff,uint32_t leng,uint32_t msecto) {
 }
 
 /* ----------------- UDP ----------------- */
-/*
-int udpaddrsocket(int addr) {
-	int sock;
-	if ((sock = socket(AF_INET,SOCK_DGRAM,0))<0)
-		return -1;
-	if (bind(sock, (struct sockaddr *)addrtab+addr,sizeof(struct sockaddr_in)))
-		return -1;
-	return sock;
-}
-*/
 
 int udpsocket(void) {
 	return socket(AF_INET,SOCK_DGRAM,0);
 }
 
-int udpnumlisten(int sock,uint32_t ip,uint16_t port) {
-	int r;
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	sockaddrnumchange(globaladdr,ip,port);
-	r = bind(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	return r;
+int udpnonblock(int sock) {
+	return socknonblock(sock);
 }
 
-int udplisten(int sock,const char *hostname,const char *service) {
-	int r;
-#ifdef _THREAD_SAFE
-	    pthread_mutex_lock(&gmutex);
-#endif
-	if (globaladdr<0) globaladdr = sockaddrnewempty();
-	if (sockaddrchange(globaladdr,hostname,service,"udp")<0) {
-#ifdef _THREAD_SAFE
-		pthread_mutex_unlock(&gmutex);
-#endif
+int udpresolve(const char *hostname,const char *service,uint32_t *ip,uint16_t *port,int passive) {
+	return sockresolve(hostname,service,ip,port,AF_INET,SOCK_DGRAM,passive);
+}
+
+int udpnumlisten(int sock,uint32_t ip,uint16_t port) {
+	struct sockaddr_in sa;
+	sockaddrnumfill(&sa,ip,port);
+	return bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in));
+}
+
+int udpstrlisten(int sock,const char *hostname,const char *service) {
+	struct sockaddr_in sa;
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_DGRAM,1)<0) {
 		return -1;
 	}
-	r = bind(sock, (struct sockaddr *)(addrtab+globaladdr),sizeof(struct sockaddr_in));
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&gmutex);
-#endif
-	return r;
+	return bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in));
 }
 
-int udpaddrlisten(int sock,uint32_t addr) {
-	if (addr>addrlen) return -1;
-	return bind(sock, (struct sockaddr *)(addrtab+addr),sizeof(struct sockaddr_in));
+int udpwrite(int sock,uint32_t ip,uint16_t port,const void *buff,uint16_t leng) {
+	struct sockaddr_in sa;
+	if (leng>512) {
+		return -1;
+	}
+	sockaddrnumfill(&sa,ip,port);
+	return sendto(sock,buff,leng,0,(struct sockaddr *)&sa,sizeof(struct sockaddr_in));
 }
 
-int udpwrite(int sock,uint32_t addr,const void *buff,uint16_t leng) {
-	if (addr>addrlen || leng>512) return -1;
-	return sendto(sock,buff,leng,0,(struct sockaddr *)(addrtab+addr),sizeof(struct sockaddr_in));
-}
-
-int udpread(int sock,uint32_t addr,void *buff,uint16_t leng) {
-	if (addr>addrlen) return -1;
-	if (addr==0xffffffff) {	// ignore peer name
-		return recvfrom(sock,buff,leng,0,(struct sockaddr *)NULL,0);
-	} else {
-		socklen_t templeng;
-		struct sockaddr tempaddr;
-		return recvfrom(sock,buff,leng,0,&tempaddr,&templeng);
-		if (templeng==sizeof(struct sockaddr_in)) {
-			addrtab[addr] = *((struct sockaddr_in*)&tempaddr);
+int udpread(int sock,uint32_t *ip,uint16_t *port,void *buff,uint16_t leng) {
+	socklen_t templeng;
+	struct sockaddr tempaddr;
+	struct sockaddr_in *saptr;
+	int ret;
+	ret = recvfrom(sock,buff,leng,0,&tempaddr,&templeng);
+	if (templeng==sizeof(struct sockaddr_in)) {
+		saptr = ((struct sockaddr_in*)&tempaddr);
+		if (ip!=(void *)0) {
+			*ip = ntohl(saptr->sin_addr.s_addr);
+		}
+		if (port!=(void *)0) {
+			*port = ntohs(saptr->sin_port);
 		}
 	}
+	return ret;
 }
 
 int udpclose(int sock) {
 	return close(sock);
 }
-

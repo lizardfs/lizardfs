@@ -945,7 +945,7 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 
 #ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint32_t cuip,uint8_t *opflag) {
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t *opflag) {
 	void* ptrs[65536];
 	uint16_t servcount;
 	slist *os,*s;
@@ -960,7 +960,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 	if (ochunkid==0) {	// new chunk
 //		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
 #ifndef METARESTORE
-		servcount = matocsserv_getservers_wrandom(ptrs,goal,cuip);
+		servcount = matocsserv_getservers_wrandom(ptrs,goal);
 		if (servcount==0) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;

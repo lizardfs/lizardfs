@@ -45,12 +45,15 @@
 #include "bgjobs.h"
 #endif
 
+#define CONNECT_RETRIES 5
+#define CONNECT_TIMEOUT 200
+
 #define MaxPacketSize 100000
 
 //csserventry.mode
 enum {HEADER,DATA};
 //csserventry.state
-enum {IDLE,READ,WRITELAST,CONNECTING,WRITEINIT,WRITEFWD,WRITEFINISH,CLOSE,CLOSED};
+enum {IDLE,READ,WRITELAST,CONNECTING,WRITEINIT,WRITEFWD,WRITEFINISH,CLOSE,CLOSEWAIT,CLOSED};
 
 #ifdef BGJOBS
 typedef struct writestatus {
@@ -73,6 +76,10 @@ typedef struct csserventry {
 
 	int sock;
 	int fwdsock;			// forwarding socket for writing
+	uint64_t connstart;		// 'connect' start time in usec (for timeout and retry)
+	uint32_t fwdip;			// 'connect' IP
+	uint16_t fwdport;		// 'connect' port number
+	uint8_t connretrycnt;		// 'connect' retry counter
 	int32_t pdescpos;
 	int32_t fwdpdescpos;
 	time_t activity;
@@ -234,7 +241,7 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr,uint32_t type,uint32_t 
 }
 
 // initialize connection to another CS
-int csserv_initconnect(csserventry *eptr,uint32_t ip,uint16_t port) {
+int csserv_initconnect(csserventry *eptr) {
 	int status;
 	eptr->fwdsock=tcpsocket();
 	if (eptr->fwdsock<0) {
@@ -247,7 +254,7 @@ int csserv_initconnect(csserventry *eptr,uint32_t ip,uint16_t port) {
 		eptr->fwdsock=-1;
 		return -1;
 	}
-	status = tcpnumconnect(eptr->fwdsock,ip,port);
+	status = tcpnumconnect(eptr->fwdsock,eptr->fwdip,eptr->fwdport);
 	if (status<0) {
 		syslog(LOG_WARNING,"connect failed, error: %m");
 		tcpclose(eptr->fwdsock);
@@ -259,10 +266,44 @@ int csserv_initconnect(csserventry *eptr,uint32_t ip,uint16_t port) {
 		tcpnodelay(eptr->fwdsock);
 		eptr->state=WRITEINIT;
 	} else {
+//		gettimeofday(&(eptr->conninittime),NULL);
 //		syslog(LOG_NOTICE,"connecting ...");
 		eptr->state=CONNECTING;
+		eptr->connstart=main_utime();
 	}
 	return 0;
+}
+
+void csserv_retryconnect(csserventry *eptr) {
+	uint8_t *ptr;
+	tcpclose(eptr->fwdsock);
+	eptr->fwdsock=-1;
+	eptr->connretrycnt++;
+	if (eptr->connretrycnt<CONNECT_RETRIES) {
+		if (csserv_initconnect(eptr)<0) {
+			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			if (ptr==NULL) {
+				eptr->state = CLOSE;
+				return;
+			}
+			put64bit(&ptr,eptr->chunkid);
+			put32bit(&ptr,0);
+			put8bit(&ptr,ERROR_CANTCONNECT);
+			eptr->state = WRITEFINISH;
+			return;
+		}
+	} else {
+		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		if (ptr==NULL) {
+			eptr->state = CLOSE;
+			return;
+		}
+		put64bit(&ptr,eptr->chunkid);
+		put32bit(&ptr,0);
+		put8bit(&ptr,ERROR_CANTCONNECT);
+		eptr->state = WRITEFINISH;
+		return;
+	}
 }
 
 int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -528,8 +569,6 @@ void csserv_write_finished(uint8_t status,void *e) {
 }
 
 void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t ip;
-	uint16_t port;
 	uint8_t *ptr;
 	uint8_t status;
 
@@ -555,8 +594,9 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 
 	if (length>(8+4)) {	// connect to another cs
-		ip = get32bit(&data);
-		port = get16bit(&data);
+		eptr->fwdip = get32bit(&data);
+		eptr->fwdport = get16bit(&data);
+		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
 			if (ptr==NULL) {
@@ -569,7 +609,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			eptr->state = WRITEFINISH;
 			return;
 		}
-		if (csserv_initconnect(eptr,ip,port)<0) {
+		if (csserv_initconnect(eptr)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
 			if (ptr==NULL) {
 				eptr->state = CLOSE;
@@ -850,8 +890,6 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 // fg writing
 
 void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t ip;
-	uint16_t port;
 	uint8_t *ptr;
 	uint8_t status,ver;
 	uint64_t chunkid,copychunkid;
@@ -879,8 +917,9 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 	if (length>(8+4)) {	// connect to another cs
-		ip = get32bit(&data);
-		port = get16bit(&data);
+		eptr->fwdip = get32bit(&data);
+		eptr->fwdport = get16bit(&data);
+		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
 			if (ptr==NULL) {
@@ -893,7 +932,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			eptr->state = WRITEFINISH;
 			return;
 		}
-		if (csserv_initconnect(eptr,ip,port)<0) {
+		if (csserv_initconnect(eptr)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
 			if (ptr==NULL) {
 				eptr->state = CLOSE;
@@ -1222,8 +1261,10 @@ void csserv_close(csserventry *eptr) {
 #ifdef BGJOBS
 	if (eptr->rjobid>0) {
 		job_pool_change_callback(jpool,eptr->rjobid,csserv_delayed_close,eptr);
+		eptr->state = CLOSEWAIT;
 	} else if (eptr->wjobid>0) {
 		job_pool_change_callback(jpool,eptr->wjobid,csserv_delayed_close,eptr);
+		eptr->state = CLOSEWAIT;
 	} else {
 		if (eptr->chunkisopen) {
 			job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -1236,6 +1277,7 @@ void csserv_close(csserventry *eptr) {
 		hdd_close(eptr->chunkid);
 		eptr->chunkisopen=0;
 	}
+	eptr->state = CLOSED;
 #endif /* BGJOBS */
 }
 
@@ -1895,6 +1937,7 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 
 void csserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
+	uint64_t usecnow=main_utime();
 	csserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 #ifdef BGJOBS
@@ -2003,7 +2046,10 @@ void csserv_serve(struct pollfd *pdesc) {
 		if (eptr->state==WRITEFINISH && eptr->outputhead==NULL) {
 			eptr->state = CLOSE;
 		}
-		if (eptr->activity+Timeout<now) {
+		if (eptr->state==CONNECTING && eptr->connstart+CONNECT_TIMEOUT<usecnow) {
+			csserv_retryconnect(eptr);
+		}
+		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+Timeout<now) {
 			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
@@ -2069,7 +2115,7 @@ int csserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	tcpaddrconvert(ListenHost,ListenPort,&mylistenip,&mylistenport);
+	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	tcpnumlisten(lsock,mylistenip,mylistenport,5);
 	if (lsock<0) {
 		syslog(LOG_ERR,"listen error: %m");

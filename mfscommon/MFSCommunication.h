@@ -252,11 +252,42 @@
 #define WANT_WRITE 2
 #define AFTER_CREATE 4
 
-//ANY <-> ANY
+
+
+
+// ANY <-> ANY
 
 #define ANTOAN_NOP 0
 
-//CHUNKSERVER <-> MASTER
+
+
+
+// METALOGGER <-> MASTER
+
+#define MLTOMA_REGISTER 50
+// rver:8
+// 	rver==1:
+// 		version:32 timeout:16
+#define MATOML_METACHANGES_LOG 51
+// 0xFF:8 version:64 logdata:string ( N*[ char:8 ] ) = LOG_DATA
+// 0x55:8 = LOG_ROTATE
+#define MLTOMA_DOWNLOAD_START 60
+// -
+#define MATOML_DOWNLOAD_START 61
+// status:8
+// length:64
+#define MLTOMA_DOWNLOAD_DATA 62
+// offset:64 leng:32
+#define MATOML_DOWNLOAD_DATA 63
+// offset:64 leng:32 crc:32 data:lengB
+#define MLTOMA_DOWNLOAD_END 64
+// -
+
+
+
+
+
+// CHUNKSERVER <-> MASTER
 
 #define CSTOMA_REGISTER 100
 // myip:32 myport:16 usedspace:64 totalspace:64 N*[ chunkid:64 version:32 ]
@@ -277,6 +308,7 @@
 // N*[chunkid:64]	- now N is always 1
 #define MATOCS_STRUCTURE_LOG 103
 // version:32 logdata:string ( N*[ char:8 ] )
+// 0xFF:8 version:64 logdata:string ( N*[ char:8 ] )
 #define MATOCS_STRUCTURE_LOG_ROTATE 104
 // -
 #define CSTOMA_CHUNK_LOST 105
@@ -335,7 +367,11 @@
 #define CSTOMA_DUPTRUNC 171
 // chunkid:64 status:8
 
-//CHUNKSERVER <-> CLIENT/CHUNKSERVER
+
+
+
+
+// CHUNKSERVER <-> CLIENT/CHUNKSERVER
 
 #define CUTOCS_READ 200
 // chunkid:64 version:32 offset:32 size:32
@@ -374,7 +410,11 @@
 // chunkid:64 version:32 1024*[checksum:32]
 // chunkid:64 version:32 status:8
 
-//CLIENT <-> MASTER
+
+
+
+
+// CLIENT <-> MASTER
 
 // old attr record:
 //   type:8 flags:8 mode:16 uid:32 gid:32 atime:32 mtime:32 ctime:32 length:64
@@ -673,6 +713,9 @@
 // N*[inode:32]
 
 
+
+
+
 // CLIENT <-> MASTER (stats - unregistered)
 
 #define CUTOMA_CSERV_LIST 500
@@ -735,5 +778,10 @@
 // -
 #define MATOCU_EXPORTS_INFO 521
 // N * [ fromip:32 toip:32 pleng:32 path:plengB extraflags:8 sesflags:8 rootuid:32 rootgid:32 ]
+
+#define CUTOMA_MLOG_LIST 522
+// -
+#define MATOCU_MLOG_LIST 523
+// N * [ version:32 ip:32 ]
 
 #endif

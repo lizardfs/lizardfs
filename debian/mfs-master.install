@@ -1,7 +1,9 @@
 etc/mfsexports.cfg
 etc/mfsmaster.cfg
+etc/mfsmetalogger.cfg
 usr/sbin/mfsmaster
 usr/sbin/mfsmetarestore
+usr/sbin/mfsmetalogger
 #usr/share/man/man7/mfs.7
 #usr/share/man/man7/moosefs.7
 usr/share/man/man5/mfsexports.cfg.5

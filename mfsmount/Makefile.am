@@ -20,7 +20,6 @@ mfsmount_SOURCES=\
 	th_sem.c th_sem.h \
 	th_queue.c th_queue.h \
 	main.c \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h

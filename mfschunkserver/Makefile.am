@@ -15,7 +15,6 @@ mfschunkserver_SOURCES= \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 

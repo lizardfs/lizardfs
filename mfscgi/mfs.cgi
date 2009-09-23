@@ -766,6 +766,81 @@ if "CS" in sectionset:
 
 	print """<br/>"""
 
+	if masterversion>=(1,6,5):
+		out = []
+
+		try:
+			MBorder = int(fields.getvalue("MBorder"))
+		except Exception:
+			MBorder = 0
+		try:
+			MBrev = int(fields.getvalue("MBrev"))
+		except Exception:
+			MBrev = 0
+
+		try:
+			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""	<tr><th colspan="4">Metadata Backup Loggers</th></tr>""")
+			out.append("""	<tr>""")
+			out.append("""		<th>#</th>""")
+			if MBorder==1 and MBrev==0:
+				out.append("""		<th><a href="%s">host</a></th>""" % (createlink({"MBrev":"1"})))
+			else:
+				out.append("""		<th><a href="%s">host</a></th>""" % (createlink({"MBorder":"1","MBrev":"0"})))
+			if MBorder==2 and MBrev==0:
+				out.append("""		<th><a href="%s">ip</a></th>""" % (createlink({"MBrev":"1"})))
+			else:
+				out.append("""		<th><a href="%s">ip</a></th>""" % (createlink({"MBorder":"2","MBrev":"0"})))
+			if MBorder==3 and MBrev==0:
+				out.append("""		<th><a href="%s">version</a></th>""" % (createlink({"MBrev":"1"})))
+			else:
+				out.append("""		<th><a href="%s">version</a></th>""" % (createlink({"MBorder":"3","MBrev":"0"})))
+			out.append("""	</tr>""")
+
+			s = socket.socket()
+			s.connect((masterhost,masterport))
+			mysend(s,struct.pack(">LL",522,0))
+			header = myrecv(s,8)
+			cmd,length = struct.unpack(">LL",header)
+			if cmd==523 and (length%8)==0:
+				data = myrecv(s,length)
+				n = length/8
+				servers = []
+				for i in xrange(n):
+					d = data[i*8:(i+1)*8]
+					v1,v2,v3,ip1,ip2,ip3,ip4 = struct.unpack(">HBBBBBB",d)
+					try:
+						host = (socket.gethostbyaddr("%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)))[0]
+					except Exception:
+						host = "(unresolved)"
+					if MBorder==1:
+						sf = host
+					elif MBorder==2 or MBorder==0:
+						sf = (ip1,ip2,ip3,ip4)
+					elif MBorder==3:
+						sf = (v1,v2,v3)
+					servers.append((sf,host,ip1,ip2,ip3,ip4,v1,v2,v3))
+				servers.sort()
+				if MBrev:
+					servers.reverse()
+				i = 1
+				for sf,host,ip1,ip2,ip3,ip4,v1,v2,v3 in servers:
+					out.append("""<tr class="C%u">""" % (((i-1)%2)+1))
+					out.append("""	<td align="right">%u</td><td align="left">%s</td><td align="center">%u.%u.%u.%u</td><td align="center">%u.%u.%u</td>""" % (i,host,ip1,ip2,ip3,ip4,v1,v2,v3))
+					out.append("""</tr>""")
+					i+=1
+			out.append("""</table>""")
+			s.close()
+			print "\n".join(out)
+		except Exception:
+			print """<table class="FR" cellspacing="0">"""
+			print """<tr><td align="left"><pre>"""
+			traceback.print_exc(file=sys.stdout)
+			print """</pre></td></tr>"""
+			print """</table>"""
+
+		print """<br/>"""
+
 if "HD" in sectionset:
 	out = []
 

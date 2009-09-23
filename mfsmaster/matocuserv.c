@@ -35,6 +35,7 @@
 #include "datapack.h"
 #include "matocuserv.h"
 #include "matocsserv.h"
+#include "matomlserv.h"
 #include "chunks.h"
 #include "filesystem.h"
 #include "random.h"
@@ -864,6 +865,23 @@ void matocuserv_exports_info(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		return;
 	}
 	acl_info_data(ptr);
+}
+
+void matocuserv_mlog_list(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint8_t *ptr;
+	(void)data;
+	if (length!=0) {
+		syslog(LOG_NOTICE,"CUTOMA_MLOG_LIST - wrong size (%"PRIu32"/0)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	ptr = matocuserv_createpacket(eptr,MATOCU_MLOG_LIST,matomlserv_mloglist_size());
+	if (ptr==NULL) {
+		syslog(LOG_NOTICE,"can't allocate memory for packet");
+		eptr->mode = KILL;
+		return;
+	}
+	matomlserv_mloglist_data(ptr);
 }
 
 void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2205,7 +2223,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writechunk(inode,indx,eptr->peerip,&chunkid,&fleng,&opflag);
+		status = fs_writechunk(inode,indx,&chunkid,&fleng,&opflag);
 	}
 	if (status!=STATUS_OK) {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
@@ -3165,6 +3183,9 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			case CUTOMA_EXPORTS_INFO:
 				matocuserv_exports_info(eptr,data,length);
 				break;
+			case CUTOMA_MLOG_LIST:
+				matocuserv_mlog_list(eptr,data,length);
+				break;
 			default:
 				syslog(LOG_NOTICE,"matocu: got unknown message from unregistered (type:%"PRIu32")",type);
 				eptr->mode=KILL;
@@ -3632,7 +3653,7 @@ int matocuserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	tcplisten(lsock,ListenHost,ListenPort,5);
+	tcpstrlisten(lsock,ListenHost,ListenPort,5);
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocu: listen error: %m");
 		return -1;

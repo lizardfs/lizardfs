@@ -10,12 +10,12 @@ mfsmaster_SOURCES=\
 	filesystem.c filesystem.h \
 	matocsserv.c matocsserv.h \
 	matocuserv.c matocuserv.h \
+	matomlserv.c matomlserv.h \
 	random.c random.h \
 	stats.c stats.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 

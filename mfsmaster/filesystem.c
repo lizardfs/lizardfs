@@ -4348,7 +4348,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 #endif
 
 #ifndef METARESTORE
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunkid,uint64_t *length,uint8_t *opflag) {
+uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag) {
 	int status;
 	uint32_t i;
 	uint64_t ochunkid,nchunkid;
@@ -4393,7 +4393,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint32_t cuip,uint64_t *chunk
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,inode,indx,p->goal,cuip,opflag);
+	status = chunk_multi_modify(&nchunkid,ochunkid,inode,indx,p->goal,opflag);
 /* zapis bez zwiekszania wersji
 	if (nchunkid==ochunkid && status==255) {
 		*chunkid = nchunkid;

@@ -394,7 +394,7 @@ void stats_add (uint64_t *data) {
 
 	int32_t nowtime,delta;
 
-	now--;
+	now-=60;	// back time to the beginning of previous minute - because we have data for the prevoius minute not the current one
 
 	ts = localtime(&now);
 #ifdef HAVE_STRUCT_TM_TM_GMTOFF
@@ -668,8 +668,8 @@ void stats_makechart(uint32_t type,uint32_t range) {
 	int32_t i,j,k,l;
 	uint32_t xy,xm,xd,xh,xs,xoff,xbold,ys;
 	uint32_t nexp;
-	uint64_t ymax,ymin;
-	uint64_t max,min;
+	uint64_t ymax;
+	uint64_t max;
 	uint64_t d,ed;
 	uint64_t *tab;
 	uint64_t dispdata[LENG];
@@ -782,40 +782,21 @@ void stats_makechart(uint32_t type,uint32_t range) {
 	}
 #endif
 
-	max = min = tab[0];
-//	max = tab[0];	// min scale : 1
-//	min = tab[0];
+	max = 0;
 	for (i=0 ; i<LENG ; i++) {
 		d = tab[i];
 		if (d>max) max=d;
-		if ((uint32_t)i!=pointer && d<min) min=d;
 	}
-//	if (type!=CALC_DELAY && type!=CALC_GOODPERCENT) {
-//	if (type==EXT_CPU) {
-//		min=0;
-//	}
-//	if (type!=6) min=0;
-	if (max-min < 1) {
-		max=min+1;
+	if (max==0) {
+		max = 1;
 	}
 
 #ifdef INTERPOLATION
 	for (i=0 ; i<LENG ; i++) {
 		md = middata[i];
-		if (md<min) {
-			md=DATA;
-		} else {
-			md -= min;
-			md *= DATA;
-			md /= (max-min);
-			md = DATA-md;
-		}
-//		if (j<0) {
-//			j = 0;
-//		}
-//		if (j>=DATA) {
-//			j = DATA-1;
-//		}
+		md *= DATA;
+		md /= max;
+		md = DATA-md;
 		cmiddata[i] = md;
 	}
 #endif
@@ -825,45 +806,14 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		j = (LENG+1+pointer+i)%LENG;
 		if (type==EXT_CPU) {
 			ed = series[range][STATS_SCPU][j];
-/*
-		} else if (type==NET_DATA_IN) {
-			ed = series[range][STATS_CSCONNIN][j];
-		} else if (type==NET_DATA_OUT) {
-			ed = series[range][STATS_CSCONNOUT][j];
-		} else if (type==HDD_BYTESR) {
-			ed = series[range][STATS_DATABYTESR][j];
-		} else if (type==HDD_BYTESW) {
-			ed = series[range][STATS_DATABYTESW][j];
-		} else if (type==HDD_OPR) {
-			ed = series[range][STATS_DATALLOPR][j];
-		} else if (type==HDD_OPW) {
-			ed = series[range][STATS_DATALLOPW][j];
-
-		} else if (type==EST_BW_IN) {
-			ed = series[range][STATS_HTTPIN][j];
-		} else if (type==EST_BW_OUT) {
-			ed = series[range][STATS_HTTPOUT][j];
-		} else if (type==EXT_CONNS) {
-			ed = series[range][STATS_CONNS][j];
-*/
 		} else {
-			ed = min;
+			ed = 0;
 		}
 		d = tab[j];
-		if (d<min) {
-			d=0;
-		} else {
-			d -= min;
-			d *= DATA;
-			d /= (max-min);
-		}
-		if (ed<min) {
-			ed=0;
-		} else {
-			ed -= min;
-			ed *= DATA;
-			ed /= (max-min);
-		}
+		d *= DATA;
+		d /= max;
+		ed *= DATA;
+		ed /= max;
 #ifdef INTERPOLATION
 		if (i==0) {
 			k = cmiddata[i];
@@ -896,18 +846,12 @@ void stats_makechart(uint32_t type,uint32_t range) {
 			}
 #ifdef INTERPOLATION
 			if (j>=k && j<l) {
-//				if (m) {
 				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_MIDDATA;
-//				}
-//				m = 1-m;
 			}
 #endif
 		}
-//		for (j=3 ; j<YPOS ; j++) {
-//			chart[(XSIZE)*j+(i+XPOS)] = COLOR_BKG;
-//		}
 	}
-	// osie
+	// axis
 	for (i=-3 ; i<LENG+3 ; i++) {
 		chart[(XSIZE)*(DATA+YPOS)+(i+XPOS)] = COLOR_AXIS;
 	}
@@ -915,7 +859,7 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		chart[(XSIZE)*(DATA-i+YPOS)+(XPOS-1)] = COLOR_AXIS;
 		chart[(XSIZE)*(DATA-i+YPOS)+(XPOS+LENG)] = COLOR_AXIS;
 	}
-	// podzialka x
+	// x scale
 	xy = xm = xd = xh = xs = 0;
 	if (range<3) {
 		if (range==2) {
@@ -1034,35 +978,25 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		text[1]=xm%10;
 		stats_puttext(XPOS+i+(getmonleng(xy,xm)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 	}
-	// podzialka y
+	// y scale
 
 	// range scale
-//	if (type==CALC_DELAY || type==CALC_GOODPERCENT) {
-//		ymax = max;
-//		ymin = min;
-//	} else {
-		switch (range) {
+	switch (range) {
 		case SHORTRANGE:
 			ymax = max;
-			ymin = min;
 			break;
 		case MEDIUMRANGE:
 			ymax = max/6;
-			ymin = min/6;
 			break;
 		case LONGRANGE:
 			ymax = max/30;
-			ymin = min/30;
 			break;
 		case VERYLONGRANGE:
 			ymax = max/(24*60);
-			ymin = min/(24*60);
 			break;
 		default:
 			ymax=0;
-			ymin=0;
-		}
-//	}
+	}
 
 	// chart scale
 	switch (type) {
@@ -1078,8 +1012,6 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		scale = 1;		// micro
 		ymax *= 8000;		// bytes -> bits (*1000 - scale = micro)
 		ymax /= 60;		// per min -> per sec
-		ymin *= 8000;		// bytes -> bits
-		ymin /= 60;		// per min -> per sec
 		break;
 	case STATS_BYTESR:
 	case STATS_BYTESW:
@@ -1090,8 +1022,6 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		scale = 1;		// micro
 		ymax *= 1000;		// scale micro
 		ymax /= 60;		// per min -> per sec
-		ymin *= 1000;		// scale micro
-		ymin /= 60;		// per min -> per sec
 		break;
 	case STATS_LLOPR:
 	case STATS_LLOPW:
@@ -1109,13 +1039,11 @@ void stats_makechart(uint32_t type,uint32_t range) {
 //	case EXT_CONNS:
 //		scale = 2;		// normal
 //		ymax /= 60;		// per min -> per sec
-//		ymin /= 60;		// per min -> per sec
 //		break;
 	case STATS_RTIME:
 	case STATS_WTIME:
 		scale = 0;		// micro
 		ymax /= 60;
-		ymin /= 60;
 		break;
 */
 //	case CALC_GOODPERCENT:
@@ -1145,8 +1073,6 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		scale = 0;		// micro
 		ymax *= 100;	// -> per cent
 		ymax /= 60;	// min -> sec
-		ymin *= 100;	// -> per cent
-		ymin /= 60;	// min -> sec
 	}
 
 //	for (i=0 ; i<LENG ; i+=2) {
@@ -1165,7 +1091,7 @@ void stats_makechart(uint32_t type,uint32_t range) {
 		nexp=0;
 	}
 	for (i=0 ; i<=5 ; i++) {
-		d = (10*(ymax-ymin)*i)/5 + (ymin*10);
+		d = (10*ymax*i)/5;
 		switch(nexp) {
 		case 3:
 			d/=1000000000;

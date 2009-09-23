@@ -152,8 +152,9 @@ typedef struct chunk {
 
 typedef struct folder {
 	char *path;
-	int needrefresh;
-	int todel;
+	unsigned int needrefresh:1;
+	unsigned int todel:1;
+	unsigned int damaged:1;
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
@@ -163,9 +164,9 @@ typedef struct folder {
 	uint32_t lastrefresh;
 	dev_t devid;
 	ino_t lockinode;
+	double carry;
 #ifdef _THREAD_SAFE
 	pthread_t scanthread;
-	uint8_t testid;
 	struct chunk *testhead,**testtail;
 #endif
 	struct folder *next;
@@ -185,9 +186,7 @@ typedef struct damaged {
 static uint32_t HDDTestFreq=10;
 
 /* folders data */
-static folder *damagedhead=NULL;
 static folder *folderhead=NULL;
-static folder *bestfolder=NULL;
 
 /* chunk hash */
 static chunk* hashtab[HASHSIZE];
@@ -221,7 +220,7 @@ static pthread_mutex_t dclock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t hashlock = PTHREAD_MUTEX_INITIALIZER;
 static cntcond *cclist = NULL;
 
-// damagedhead + folderhead + all data in structures
+// folderhead + all data in structures
 static pthread_mutex_t folderlock = PTHREAD_MUTEX_INITIALIZER;
 
 // chunk tester
@@ -507,13 +506,6 @@ uint32_t hdd_diskinfo_size() {
 		}
 		s+=34+sl;
 	}
-	for (f=damagedhead ; f ; f=f->next ) {
-		sl = strlen(f->path);
-		if (sl>255) {
-			sl=255;
-		}
-		s+=34+sl;
-	}
 	return s;
 }
 
@@ -536,37 +528,7 @@ void hdd_diskinfo_data(uint8_t *buff) {
 					buff+=sl;
 				}
 			}
-			if (f->todel) {
-				put8bit(&buff,1);
-			} else {
-				put8bit(&buff,0);
-			}
-			ei = (f->lasterrindx+(LASTERRSIZE-1))%LASTERRSIZE;
-			put64bit(&buff,f->lasterrtab[ei].chunkid);
-			put32bit(&buff,f->lasterrtab[ei].timestamp);
-			put64bit(&buff,f->total-f->avail);
-			put64bit(&buff,f->total);
-			put32bit(&buff,f->chunkcount);
-		}
-		for (f=damagedhead ; f ; f=f->next ) {
-			sl = strlen(f->path);
-			if (sl>255) {
-				put8bit(&buff,255);
-				memcpy(buff,"(...)",5);
-				memcpy(buff+5,f->path+(sl-250),250);
-				buff+=255;
-			} else {
-				put8bit(&buff,sl);
-				if (sl>0) {
-					memcpy(buff,f->path,sl);
-					buff+=sl;
-				}
-			}
-			if (f->todel) {
-				put8bit(&buff,3);
-			} else {
-				put8bit(&buff,2);
-			}
+			put8bit(&buff,((f->todel)?1:0)+((f->damaged)?2:0));
 			ei = (f->lasterrindx+(LASTERRSIZE-1))%LASTERRSIZE;
 			put64bit(&buff,f->lasterrtab[ei].chunkid);
 			put32bit(&buff,f->lasterrtab[ei].timestamp);
@@ -900,22 +862,82 @@ static inline void hdd_refresh_usage(folder *f) {
 	}
 }
 
+static inline folder* hdd_getfolder() {
+	folder *f,*bf;
+	double maxcarry;
+	double minavail,maxavail;
+	double s,d;
+	double pavail;
+	int ok;
+//	uint64_t minavail;
+
+	minavail=0.0;
+	maxavail=0.0;
+	maxcarry=1.0;
+	bf=NULL;
+	ok=0;
+	for (f=folderhead ; f ; f=f->next) {
+		if (f->damaged || f->todel || f->total==0 || f->avail==0) {
+			continue;
+		}
+		if (f->carry >= maxcarry) {
+			maxcarry = f->carry;
+			bf=f;
+		}
+		pavail = (double)(f->avail)/(double)(f->total);
+		if (ok==0 || minavail<pavail) {
+			minavail=pavail;
+			ok=1;
+		}
+		if (pavail>maxavail) {
+			maxavail=pavail;
+		}
+	}
+	if (bf) {
+		return bf;
+	}
+	if (maxavail==0.0) {	// no space
+		return NULL;
+	}
+	if (maxavail<0.01) {
+		s=0.0;
+	} else {
+		s=minavail*0.8;
+		if (s<0.01) {
+			s=0.01;
+		}
+	}
+	d = maxavail-s;
+	maxcarry=1.0;
+	for (f=folderhead ; f ; f=f->next) {
+		pavail = (double)(f->avail)/(double)(f->total);
+		if (pavail>s) {
+			f->carry += ((pavail-s)/d);
+		}
+		if (f->carry >= maxcarry) {
+			maxcarry = f->carry;
+			bf=f;
+		}
+	}
+	return bf;
+}
+
 void hdd_check_folders() {
-	folder **fptr,*f;
+	folder *f;
 	chunk **cptr,*c;
 	uint32_t i;
 	uint32_t now;
 	int changed=0,err;
-	double avail,bestavail=0.0;
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
 	now = tv.tv_sec;
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&folderlock);
 #endif
-	bestfolder=NULL;
-	fptr = &(folderhead);
-	while ((f=*fptr)) {
+	for (f=folderhead ; f ; f=f->next) {
+		if (f->damaged) {
+			continue;
+		}
 		err=1;
 		for (i=0 ; err && i<LASTERRSIZE ; i++) {
 			if (f->lasterrtab[i].timestamp+LASTERRTIME<now) {
@@ -972,11 +994,7 @@ void hdd_check_folders() {
 #ifdef _THREAD_SAFE
 			pthread_mutex_unlock(&hashlock);
 #endif
-			(*fptr)=f->next;
-//			free(f->path);
-//			free(f);
-			f->next = damagedhead;
-			damagedhead = f;
+			f->damaged=1;
 			changed=1;
 		} else {
 			if (f->needrefresh || f->lastrefresh+60<now) {
@@ -985,14 +1003,6 @@ void hdd_check_folders() {
 				f->lastrefresh = now;
 				changed=1;
 			}
-			if (f->total>0 && f->avail>0 && f->todel==0) {
-				avail = (double)(f->avail)/(double)(f->total);
-				if (avail>bestavail) {
-					bestavail = avail;
-					bestfolder = f;
-				}
-			}
-			fptr = &(f->next);
 		}
 	}
 #ifdef _THREAD_SAFE
@@ -1120,6 +1130,9 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 	avail = total = tdavail = tdtotal = 0ULL;
 	chunks = tdchunks = 0;
 	for (f = folderhead ; f ; f=f->next) {
+		if (f->damaged) {
+			continue;
+		}
 		if (f->todel==0) {
 			avail+=f->avail;
 			total+=f->total;
@@ -2037,6 +2050,7 @@ int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab
 /* chunk operations */
 
 static int hdd_int_create(uint64_t chunkid,uint32_t version) {
+	folder *f;
 	chunk *c;
 	int status;
 	uint8_t *ptr;
@@ -2051,13 +2065,14 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&folderlock);
 #endif
-	if (bestfolder==NULL) {
+	f=hdd_getfolder();
+	if (f==NULL) {
 #ifdef _THREAD_SAFE
 		pthread_mutex_unlock(&folderlock);
 		return ERROR_NOSPACE;
 #endif
 	}
-	c = hdd_chunk_create(bestfolder,chunkid,version);
+	c = hdd_chunk_create(f,chunkid,version);
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&folderlock);
 #endif
@@ -2180,6 +2195,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 }
 
 static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion) {
+	folder *f;
 	uint32_t filenameleng;
 	char *newfilename;
 	uint8_t *ptr,vbuff[4];
@@ -2219,14 +2235,15 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&folderlock);
 #endif
-	if (bestfolder==NULL) {
+	f=hdd_getfolder();
+	if (f==NULL) {
 #ifdef _THREAD_SAFE
 		pthread_mutex_unlock(&folderlock);
 #endif
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(bestfolder,copychunkid,copyversion);
+	c = hdd_chunk_create(f,copychunkid,copyversion);
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&folderlock);
 #endif
@@ -2630,6 +2647,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 }
 
 static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+	folder *f;
 	uint32_t filenameleng;
 	char *newfilename;
 	uint8_t *ptr,vbuff[4];
@@ -2674,14 +2692,15 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&folderlock);
 #endif
-	if (bestfolder==NULL) {
+	f=hdd_getfolder();
+	if (f==NULL) {
 #ifdef _THREAD_SAFE
 		pthread_mutex_unlock(&folderlock);
 #endif
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(bestfolder,copychunkid,copyversion);
+	c = hdd_chunk_create(f,copychunkid,copyversion);
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&folderlock);
 #endif
@@ -3130,15 +3149,18 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 
 #ifdef _THREAD_SAFE
 void* hdd_tester_thread(void* arg) {
-	uint8_t foldersno = (unsigned long)arg;
-	uint8_t nexttestid = 0;
-	folder *f;
+	folder *f,*nf;
 	chunk *c;
 	uint64_t chunkid;
 	uint32_t version;
 	char *path;
 
+	(void)arg;
 	sleep(5);
+	f=folderhead;
+	if (f==NULL) {
+		return NULL;
+	}
 	for (;;) {
 		path=NULL;
 		chunkid=0;
@@ -3146,20 +3168,29 @@ void* hdd_tester_thread(void* arg) {
 		pthread_mutex_lock(&folderlock);
 		pthread_mutex_lock(&hashlock);
 		pthread_mutex_lock(&testlock);
-		for (f=folderhead ; f ; f=f->next) {
-			if (f->testid==nexttestid) {
-				c = f->testhead;
-				if (c && c->state==CH_AVAIL) {
-					chunkid = c->chunkid;
-					version = c->version;
-					path = strdup(c->filename);
-				}
+		nf = f->next;
+		while (nf!=f) {
+			if (nf==NULL) {
+				nf=folderhead;
 			}
+			if (nf->damaged==0) {
+				break;
+			}
+			nf=nf->next;
+		}
+		if (nf==f && nf->damaged) {
+			return NULL;
+		}
+		f = nf;
+		c = f->testhead;
+		if (c && c->state==CH_AVAIL) {
+			chunkid = c->chunkid;
+			version = c->version;
+			path = strdup(c->filename);
 		}
 		pthread_mutex_unlock(&testlock);
 		pthread_mutex_unlock(&hashlock);
 		pthread_mutex_unlock(&folderlock);
-		nexttestid = (nexttestid+1)%foldersno;
 		if (path) {
 			syslog(LOG_NOTICE,"testing chunk: %s",path);
 			if (hdd_int_test(chunkid,version)!=STATUS_OK) {
@@ -3446,9 +3477,6 @@ int hdd_init(void) {
 	char *hddfname;
 	struct stat sb;
 	folder *f,*sf;
-#ifdef _THREAD_SAFE
-	uint8_t testid;
-#endif
 
 	// this routine is called at the beginning from the main thread so no locks are necessary here
 	for (hp=0 ; hp<HASHSIZE ; hp++) {
@@ -3537,6 +3565,7 @@ int hdd_init(void) {
 			}
 			f = (folder*)malloc(sizeof(folder));
 			f->todel = td;
+			f->damaged = 0;
 			f->path = strdup(pptr);
 			f->leavefree = 0x10000000; // about 256MB  -  future: (uint64_t)as*0x40000000;
 			f->avail = 0ULL;
@@ -3555,6 +3584,7 @@ int hdd_init(void) {
 			f->testhead = NULL;
 			f->testtail = &(f->testhead);
 #endif
+			f->carry = (double)(random()&0x7FFFFFFF)/(double)(0x7FFFFFFF);
 			f->next = folderhead;
 			folderhead = f;
 		}
@@ -3567,9 +3597,7 @@ int hdd_init(void) {
 
 #ifdef _THREAD_SAFE
 	/* make advantage from thread safety and scan folders in separate threads */
-	testid=0;
 	for (f=folderhead ; f ; f=f->next) {
-		f->testid = testid++;
 		pthread_create(&(f->scanthread),NULL,hdd_folder_scan,f);
 	}
 	for (f=folderhead ; f ; f=f->next) {
@@ -3582,7 +3610,7 @@ int hdd_init(void) {
 		for (f=folderhead ; f ; f=f->next) {
 			hdd_testsort(f);
 		}
-		pthread_create(&testerthread,NULL,hdd_tester_thread,(void*)(unsigned long)(testid));
+		pthread_create(&testerthread,NULL,hdd_tester_thread,NULL);
 	}
 #else
 	for (f=folderhead ; f ; f=f->next) {
