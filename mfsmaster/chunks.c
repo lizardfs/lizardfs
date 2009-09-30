@@ -2564,7 +2564,7 @@ void chunk_strinit(void) {
 	TmpMaxDelFrac = MaxDel;
 	TmpMaxDel = MaxDel;
 	config_getuint32("CHUNKS_WRITE_REP_LIMIT",1,&MaxWriteRepl);
-	config_getuint32("CHUNKS_READ_REP_LIMIT",3,&MaxReadRepl);
+	config_getuint32("CHUNKS_READ_REP_LIMIT",5,&MaxReadRepl);
 	config_getuint32("CHUNKS_LOOP_TIME",300,&LoopTime);
 	HashSteps = 1+((HASHSIZE)/LoopTime);
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
