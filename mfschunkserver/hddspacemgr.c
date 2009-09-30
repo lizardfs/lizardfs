@@ -894,6 +894,7 @@ static inline folder* hdd_getfolder() {
 		}
 	}
 	if (bf) {
+		bf->carry-=1.0;
 		return bf;
 	}
 	if (maxavail==0.0) {	// no space
@@ -918,6 +919,9 @@ static inline folder* hdd_getfolder() {
 			maxcarry = f->carry;
 			bf=f;
 		}
+	}
+	if (bf) {	// should be always true
+		bf->carry-=1.0;
 	}
 	return bf;
 }
@@ -3241,27 +3245,142 @@ void hdd_testsort(folder *f) {
 
 /* initialization */
 
+static inline int hdd_check_filename(const char *fname,uint64_t *chunkid,uint32_t *version) {
+	uint64_t namechunkid;
+	uint32_t nameversion;
+	char ch;
+	uint32_t i;
+
+	if (strncmp(fname,"chunk_",6)!=0) {
+		return -1;
+	}
+	namechunkid = 0;
+	nameversion = 0;
+	for (i=6 ; i<22 ; i++) {
+		ch = fname[i];
+		if (ch>='0' && ch<='9') {
+			ch-='0';
+		} else if (ch>='A' && ch<='F') {
+			ch-='A'-10;
+		} else {
+			return -1;
+		}
+		namechunkid*=16;
+		namechunkid+=ch;
+	}
+	if (fname[22]!='_') {
+		return -1;
+	}
+	for (i=23 ; i<31 ; i++) {
+		ch = fname[i];
+		if (ch>='0' && ch<='9') {
+			ch-='0';
+		} else if (ch>='A' && ch<='F') {
+			ch-='A'-10;
+		} else {
+			return -1;
+		}
+		nameversion*=16;
+		nameversion+=ch;
+	}
+	if (strcmp(fname+31,".mfs")!=0) {
+		return -1;
+	}
+	*chunkid = namechunkid;
+	*version = nameversion;
+	return 0;
+}
+
+static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid,uint32_t version) {
+	struct stat sb;
+	folder *prevf;
+	chunk *c;
+
+	if (stat(fullname,&sb)<0) {
+		unlink(fullname);
+		return;
+	}
+	if ((sb.st_mode & S_IFMT) != S_IFREG) {
+		syslog(LOG_WARNING,"%s: is not regular file",fullname);
+		return;
+	}
+	if (access(fullname,R_OK | W_OK)<0) {
+		syslog(LOG_WARNING,"access to file: %s: %m",fullname);
+		return;
+	}
+	if (sb.st_size<CHUNKHDRSIZE || sb.st_size>(CHUNKHDRSIZE+0x4000000) || ((sb.st_size-CHUNKHDRSIZE)&0xFFFF)!=0) {
+		unlink(fullname);	// remove wrong chunk
+		return;
+	}
+	prevf = NULL;
+	c = hdd_chunk_get(chunkid,CH_NEW_AUTO);
+	if (c->filename!=NULL) {	// already have this chunk
+		if (version <= c->version) {	// current chunk is older
+			unlink(fullname);
+		} else {
+			unlink(c->filename);
+			free(c->filename);
+			prevf = c->owner;
+			c->filename = strdup(fullname);
+			c->version = version;
+			c->blocks = (sb.st_size - CHUNKHDRSIZE) / 0x10000;
+			c->owner = f;
+			c->testtime = (sb.st_atime>sb.st_mtime)?sb.st_atime:sb.st_mtime;
+#ifdef _THREAD_SAFE
+			pthread_mutex_lock(&testlock);
+			// remove from previous chain
+			*(c->testprev) = c->testnext;
+			if (c->testnext) {
+				c->testnext->testprev = c->testprev;
+			} else {
+				prevf->testtail = c->testprev;
+			}
+			// add to new one
+			c->testprev = f->testtail;
+			*(c->testprev) = c;
+			f->testtail = &(c->testnext);
+			pthread_mutex_unlock(&testlock);
+#endif
+		}
+	} else {
+		c->filename = strdup(fullname);
+		c->version = version;
+		c->blocks = (sb.st_size - CHUNKHDRSIZE) / 0x10000;
+		c->owner = f;
+		c->testtime = (sb.st_atime>sb.st_mtime)?sb.st_atime:sb.st_mtime;
+#ifdef _THREAD_SAFE
+		pthread_mutex_lock(&testlock);
+		c->testprev = f->testtail;
+		*(c->testprev) = c;
+		f->testtail = &(c->testnext);
+		pthread_mutex_unlock(&testlock);
+#endif
+	}
+	hdd_chunk_release(c);
+#ifdef _THREAD_SAFE
+	pthread_mutex_lock(&folderlock);
+#endif
+	if (prevf) {
+		prevf->chunkcount--;
+	}
+	f->chunkcount++;
+#ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&folderlock);
+#endif
+}
+
 static void* hdd_folder_scan(void *arg) {
 	folder *f = (folder*)arg;
 	DIR *dd;
 	struct dirent *de;
-	struct stat sb;
-	int fd;
 	uint8_t subf;
-	chunk *c;
-	char *fullname,*oldfullname;
-	int nameok;
-	char ch;
-	uint32_t i;
+	char *fullname;
 	uint8_t plen;
-//	uint8_t *ptr,buff[1024];
 	uint64_t namechunkid;
 	uint32_t nameversion;
-	folder *prevf;
 
 	plen = strlen(f->path);
 	fullname = malloc(plen+38);
-	oldfullname = malloc(plen+29);
 
 	memcpy(fullname,f->path,plen);
 	fullname[plen]='\0';
@@ -3270,6 +3389,7 @@ static void* hdd_folder_scan(void *arg) {
 	fullname[plen++]='_';
 	fullname[plen++]='/';
 	fullname[plen]='\0';
+
 	for (subf=0 ; subf<16 ; subf++) {
 		if (subf<10) {
 			fullname[plen-2]='0'+subf;
@@ -3288,165 +3408,15 @@ static void* hdd_folder_scan(void *arg) {
 				continue;
 			}
 #endif
-			// old name format: "chunk_XXXXXXXXXXXXXXXX.mfs"
-			// new name format: "chunk_XXXXXXXXXXXXXXXX_YYYYYYYY.mfs" (X - chunkid ; Y - version)
-			if (strncmp(de->d_name,"chunk_",6)!=0) {
+			if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
 				continue;
 			}
-			namechunkid = 0;
-			nameversion = 0;
-			nameok=1;
-			for (i=6 ; i<22 && nameok==1 ; i++) {
-				ch = de->d_name[i];
-				if (ch>='0' && ch<='9') {
-					ch-='0';
-				} else if (ch>='A' && ch<='F') {
-					ch-='A'-10;
-				} else {
-					ch=0;
-					nameok=0;
-				}
-				namechunkid*=16;
-				namechunkid+=ch;
-			}
-			if (nameok==0) {
-				continue;
-			}
-			if (de->d_name[22]=='_') {	// new name
-				for (i=23 ; i<31 && nameok==1 ; i++) {
-					ch = de->d_name[i];
-					if (ch>='0' && ch<='9') {
-						ch-='0';
-					} else if (ch>='A' && ch<='F') {
-						ch-='A'-10;
-					} else {
-						ch=0;
-						nameok=0;
-					}
-					nameversion*=16;
-					nameversion+=ch;
-				}
-				if (nameok==0) {
-					continue;
-				}
-				if (strcmp(de->d_name+31,".mfs")!=0) {
-					continue;
-				}
-				nameok = 2;
-			} else if (de->d_name[22]=='.') {	// old name
-				if (strcmp(de->d_name+23,"mfs")!=0) {
-					continue;
-				}
-			} else {
-				continue;
-			}
-			if (nameok==2) {
-				memcpy(fullname+plen,de->d_name,36);
-			} else {
-				const uint8_t *ptr;
-				uint8_t hdr[20];
-				uint64_t hdrchunkid;
-				memcpy(oldfullname,fullname,plen);
-				memcpy(oldfullname+plen,de->d_name,27);
-				fd = open(oldfullname,O_RDONLY);
-				if (fd<0) {
-					continue;
-				}
-				if (read(fd,hdr,20)!=20) {
-					close(fd);
-					unlink(oldfullname);
-					continue;
-				}
-				close(fd);
-				if (memcmp(hdr,"MFSC 1.0",8)!=0) {
-					unlink(oldfullname);
-					continue;
-				}
-				ptr = hdr+8;
-				hdrchunkid = get64bit(&ptr);
-				nameversion = get32bit(&ptr);
-				if (hdrchunkid!=namechunkid) {
-					unlink(fullname);
-					continue;
-				}
-				sprintf(fullname+plen,"chunk_%016"PRIX64"_%08"PRIX32".mfs",namechunkid,nameversion);
-				if (rename(oldfullname,fullname)<0) {
-					syslog(LOG_WARNING,"can't rename %s to %s: %m",oldfullname,fullname);
-					memcpy(fullname+plen,oldfullname+plen,27);
-				}
-			}
-			if (stat(fullname,&sb)<0) {
-				unlink(fullname);
-				continue;
-			}
-			if (access(fullname,R_OK | W_OK)<0) {
-				syslog(LOG_WARNING,"access to file: %s: %m",fullname);
-				continue;
-			}
-			if (sb.st_size<CHUNKHDRSIZE || sb.st_size>(CHUNKHDRSIZE+0x4000000) || ((sb.st_size-CHUNKHDRSIZE)&0xFFFF)!=0) {
-				unlink(fullname);	// remove wrong chunk
-				continue;
-			}
-			prevf = NULL;
-			c = hdd_chunk_get(namechunkid,CH_NEW_AUTO);
-			if (c->filename!=NULL) {	// already have this chunk
-				if (nameversion <= c->version) {	// current chunk is older
-					unlink(fullname);
-				} else {
-					unlink(c->filename);
-					free(c->filename);
-					prevf = c->owner;
-					c->filename = strdup(fullname);
-					c->version = nameversion;
-					c->blocks = (sb.st_size - CHUNKHDRSIZE) / 0x10000;
-					c->owner = f;
-					c->testtime = (sb.st_atime>sb.st_mtime)?sb.st_atime:sb.st_mtime;
-#ifdef _THREAD_SAFE
-					pthread_mutex_lock(&testlock);
-					// remove from previous chain
-					*(c->testprev) = c->testnext;
-					if (c->testnext) {
-						c->testnext->testprev = c->testprev;
-					} else {
-						prevf->testtail = c->testprev;
-					}
-					// add to new one
-					c->testprev = f->testtail;
-					*(c->testprev) = c;
-					f->testtail = &(c->testnext);
-					pthread_mutex_unlock(&testlock);
-#endif
-				}
-			} else {
-				c->filename = strdup(fullname);
-				c->version = nameversion;
-				c->blocks = (sb.st_size - CHUNKHDRSIZE) / 0x10000;
-				c->owner = f;
-				c->testtime = (sb.st_atime>sb.st_mtime)?sb.st_atime:sb.st_mtime;
-#ifdef _THREAD_SAFE
-				pthread_mutex_lock(&testlock);
-				c->testprev = f->testtail;
-				*(c->testprev) = c;
-				f->testtail = &(c->testnext);
-				pthread_mutex_unlock(&testlock);
-#endif
-			}
-			hdd_chunk_release(c);
-#ifdef _THREAD_SAFE
-			pthread_mutex_lock(&folderlock);
-#endif
-			if (prevf) {
-				prevf->chunkcount--;
-			}
-			f->chunkcount++;
-#ifdef _THREAD_SAFE
-			pthread_mutex_unlock(&folderlock);
-#endif
+			memcpy(fullname+plen,de->d_name,36);
+			hdd_add_chunk(f,fullname,namechunkid,nameversion);
 		}
 		closedir(dd);
 	}
 	free(fullname);
-	free(oldfullname);
 	return NULL;
 }
 
