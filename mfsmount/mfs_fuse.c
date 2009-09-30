@@ -41,7 +41,6 @@
 
 #define READDIR_BUFFSIZE 50000
 
-#define NAME_MAX MFS_NAME_MAX
 #define MAX_FILE_SIZE MFS_MAX_FILE_SIZE
 
 #define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
@@ -405,7 +404,7 @@ void mfs_statfs(fuse_req_t req) {
 	bsize = 0x10000;
 #endif
 
-	stfsbuf.f_namemax = NAME_MAX;
+	stfsbuf.f_namemax = MFS_NAME_MAX;
 	stfsbuf.f_frsize = bsize;
 	stfsbuf.f_bsize = bsize;
 #if defined(__APPLE__)
@@ -532,7 +531,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		mfs_stats_inc(OP_LOOKUP);
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
@@ -807,7 +806,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		fprintf(stderr,"mknod (%lu,%s,%04o,%08lX)\n",(unsigned long int)parent,name,mode,(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -868,7 +867,7 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -904,7 +903,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -942,7 +941,7 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -978,7 +977,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -1043,12 +1042,12 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
 	newnleng = strlen(newname);
-	if (newnleng>NAME_MAX) {
+	if (newnleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -1091,7 +1090,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 		}
 	}
 	newnleng = strlen(newname);
-	if (newnleng>NAME_MAX) {
+	if (newnleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
@@ -1153,7 +1152,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 	int status;
         dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char buffer[READDIR_BUFFSIZE];
-	char name[NAME_MAX+1];
+	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
 	uint8_t end;
 	size_t opos,oleng;
@@ -1342,7 +1341,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>NAME_MAX) {
+	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
 		return;
 	}
