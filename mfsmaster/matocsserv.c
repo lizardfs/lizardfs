@@ -920,6 +920,7 @@ int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,voi
 		put32bit(&data,srceptr->servip);
 		put16bit(&data,srceptr->servport);
 		matocsserv_replication_begin(chunkid,version,eptr,1,&src);
+		eptr->carry = 0;
 	}
 	return 0;
 }
@@ -954,6 +955,7 @@ int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version
 			put16bit(&data,srceptr->servport);
 		}
 		matocsserv_replication_begin(chunkid,version,eptr,cnt,src);
+		eptr->carry = 0;
 	}
 	return 0;
 }
