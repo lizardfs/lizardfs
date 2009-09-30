@@ -454,22 +454,28 @@ void changeugid(void) {
 
 int wdlock() {
 	int lfp;
+	uint8_t l;
 	struct stat sb;
 	lfp=open(".lock_" STR(APPNAME),O_RDWR|O_CREAT|O_TRUNC,0640);
 	if (lfp<0) {
 		syslog(LOG_ERR,"can't create lock file in working directory: %m");
 		return -1;
 	}
-	if (lockf(lfp,F_TLOCK,0)<0) {
-		if (errno==EAGAIN) {
-			syslog(LOG_ERR,"working directory already locked (used by another instance of the same mfs process)");
-		} else {
-			syslog(LOG_NOTICE,"lockf error: %m");
+	l=0;
+	while (lockf(lfp,F_TLOCK,0)<0) {
+		if (errno!=EAGAIN) {
+			syslog(LOG_ERR,"lock error: %m");
+			exit(1);
 		}
-		return -1;
+		sleep(1);
+		l++;
+		if (l>3) {
+			syslog(LOG_ERR,"working directory already locked (used by another instance of the same mfs process)");
+			exit(1);
+		}
 	}
 	if (fstat(lfp,&sb)<0) {
-		syslog(LOG_NOTICE,"working direcotry lock file fstat error: %m");
+		syslog(LOG_NOTICE,"working directory lock file fstat error: %m");
 		return -1;
 	}
 	return 0;
@@ -517,29 +523,34 @@ void killprevious(const char *lockfname) {
 		}       
 		syslog(LOG_ERR,"open %s error: %m",lockfname);
 		exit(1);
-	}       
-	l=read(lfp,str,13);
-	if (l==0 || l>=13) {
-		syslog(LOG_ERR,"wrong pid in lockfile %s",lockfname);
-		exit(1);
 	}
-	str[l]=0;
-	ptk = strtol(str,NULL,10);
-	if (kill(ptk,SIGTERM)<0) {
-		syslog(LOG_WARNING,"can't kill previous process (%m).");
-		justlock(lockfname);     // so make new lock file
-		return;
-	}       
-	l=0;
-	while (lockf(lfp,F_TLOCK,0)<0) {
+	if (lockf(lfp,F_TLOCK,0)<0) {
 		if (errno!=EAGAIN) {
 			syslog(LOG_ERR,"lock %s error: %m",lockfname);
 			exit(1);
 		}
-		sleep(1);
-		l++;
-		if (l%10==0) {
-			syslog(LOG_WARNING,"about %"PRIu32" seconds passed and '%s' is still locked",l,lockfname);
+		l=read(lfp,str,13);
+		if (l==0 || l>=13) {
+			syslog(LOG_ERR,"wrong pid in lockfile %s",lockfname);
+			exit(1);
+		}
+		str[l]=0;
+		ptk = strtol(str,NULL,10);
+		if (kill(ptk,SIGTERM)<0) {
+			syslog(LOG_WARNING,"can't kill previous process (%m).");
+			exit(1);
+		}
+		l=0;
+		while (lockf(lfp,F_TLOCK,0)<0) {
+			if (errno!=EAGAIN) {
+				syslog(LOG_ERR,"lock %s error: %m",lockfname);
+				exit(1);
+			}
+			sleep(1);
+			l++;
+			if (l%10==0) {
+				syslog(LOG_WARNING,"about %"PRIu32" seconds passed and '%s' is still locked",l,lockfname);
+			}
 		}
 	}
 	s = snprintf(str,13,"%d\n",(int)getpid());
