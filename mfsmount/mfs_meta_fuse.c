@@ -758,7 +758,7 @@ void mfs_meta_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, st
 			free(dirinfo->p);
 		}
 		dirbuf_meta_fill(dirinfo,ino);
-		syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
+//		syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
 	}
 	dirinfo->wasread=1;
 
