@@ -526,7 +526,7 @@ static unsigned int strncpy_remove_commas(char *dstbuff, unsigned int dstsize,ch
 	return l;
 }
 
-#if FUSE_VERSION >= 27
+#if HAVE_FUSE_VERSION
 static unsigned int strncpy_escape_commas(char *dstbuff, unsigned int dstsize,char *src) {
 	char c;
 	unsigned int l;
@@ -554,27 +554,45 @@ static unsigned int strncpy_escape_commas(char *dstbuff, unsigned int dstsize,ch
 void make_fsname(struct fuse_args *args) {
 	char fsnamearg[256];
 	unsigned int l;
+#if HAVE_FUSE_VERSION
 	int libver;
-#if FUSE_VERSION >= 27
 	libver = fuse_version();
-//	assert(libver >= 27);
-	l = snprintf(fsnamearg,256,"-osubtype=mfs%s,fsname=",(mfsopts.meta)?"meta":"");
-	if (libver >= 28) {
-		l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterhost);
-		if (l<255) {
-			fsnamearg[l++]=':';
-		}
-		l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterport);
-		if (mfsopts.subfolder[0]!='/') {
+	if (libver >= 27) {
+		l = snprintf(fsnamearg,256,"-osubtype=mfs%s,fsname=",(mfsopts.meta)?"meta":"");
+		if (libver >= 28) {
+			l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterhost);
 			if (l<255) {
-				fsnamearg[l++]='/';
+				fsnamearg[l++]=':';
 			}
+			l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterport);
+			if (mfsopts.subfolder[0]!='/') {
+				if (l<255) {
+					fsnamearg[l++]='/';
+				}
+			}
+			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
+				l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.subfolder);
+			}
+			fsnamearg[255]=0;
+		} else {
+			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
+			if (l<255) {
+				fsnamearg[l++]=':';
+			}
+			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterport);
+			if (mfsopts.subfolder[0]!='/') {
+				if (l<255) {
+					fsnamearg[l++]='/';
+				}
+			}
+			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
+				l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
+			}
+			fsnamearg[255]=0;
 		}
-		if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
-			l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.subfolder);
-		}
-		fsnamearg[255]=0;
 	} else {
+#else
+		l = snprintf(fsnamearg,256,"-ofsname=mfs%s#",(mfsopts.meta)?"meta":"");
 		l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
 		if (l<255) {
 			fsnamearg[l++]=':';
@@ -589,23 +607,9 @@ void make_fsname(struct fuse_args *args) {
 			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
 		}
 		fsnamearg[255]=0;
+#endif
+#if HAVE_FUSE_VERSION
 	}
-#else
-	l = snprintf(fsnamearg,256,"-ofsname=mfs%s#",(mfsopts.meta)?"meta":"");
-	l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
-	if (l<255) {
-		fsnamearg[l++]=':';
-	}
-	l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterport);
-	if (mfsopts.subfolder[0]!='/') {
-		if (l<255) {
-			fsnamearg[l++]='/';
-		}
-	}
-	if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
-		l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
-	}
-	fsnamearg[255]=0;
 #endif
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }

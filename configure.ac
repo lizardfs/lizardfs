@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.50)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.5], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.6], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -30,7 +30,7 @@ CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 
 # Checks for libraries.
 AC_SEARCH_LIBS([socket], [socket])
-AC_SEARCH_LIBS([gethostbyname], [nsl])
+AC_SEARCH_LIBS([getaddrinfo], [nsl])
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -116,7 +116,6 @@ case $target_os in
 	;;
   *bsd*)
 	fuse=maybe
-	AC_DEFINE([NODEFPERM], [1], [Do not use default_permissions for fuse])
 	;;
   *)
 	fuse=no
@@ -179,6 +178,22 @@ if test "$fuse" = "no"; then
 		fi
 	fi
 fi
+if test "$fuse" != "no" ; then
+	case $target_os in
+		freebsd6*)
+		echo "*************************************************************************"
+		echo "* Dynamic linker in FreeBSD 6.x doesn't support symbol versioning.      *"
+		echo "* It causes calling wrong functions from libfuse and crashing mfsmount. *"
+		echo "* Due to above switching libfuse from dynamic linking to static.        *"
+		echo "*************************************************************************"
+		FUSE_LIBS="-pthread /usr/local/lib/libfuse.a /usr/local/lib/libiconv.a"
+		AC_SUBST(FUSE_LIBS)
+		;;
+	esac
+fi
+
+AC_CHECK_LIB(fuse, fuse_version, [AC_DEFINE([HAVE_FUSE_VERSION],[1],[libfuse has function fuse_version])])
+
 AM_CONDITIONAL([BUILD_MOUNT], [test "$fuse" != "no" -a "$enable_mfsmount" != "no"])
 
 zlib=no
