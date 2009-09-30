@@ -203,6 +203,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 	}
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
+		eptr->metafd=-1;
 	}
 	filenum = get8bit(&data);
 	if (filenum==1) {
@@ -281,6 +282,7 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 	}
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
+		eptr->metafd=-1;
 	}
 }
 
@@ -321,6 +323,7 @@ void matomlserv_broadcast_logrotate() {
 void matomlserv_beforeclose(matomlserventry *eptr) {
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
+		eptr->metafd=-1;
 	}
 }
 
