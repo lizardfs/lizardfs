@@ -810,9 +810,13 @@ static chunk* hdd_chunk_create(folder *f,uint64_t chunkid,uint32_t version) {
 	}
 	c->version = version;
 	leng = strlen(f->path);
-	c->filename = malloc(leng+38);
+	c->filename = malloc(leng+39);
 	memcpy(c->filename,f->path,leng);
-	sprintf(c->filename+leng,"%1X/chunk_%016"PRIX64"_%08"PRIX32".mfs",(unsigned int)(chunkid&0xF),chunkid,version);
+//	memcpy(c->filename+leng,"__/chunk_XXXXXXXXXXXXXXXX_XXXXXXXX.mfs");
+//	c->filename[leng]="0123456789ABCDEF"[(chunkid>>4)&15];
+//	c->filename[leng+1]="0123456789ABCDEF"[chunkid&15];
+//	sprintf(c->filename+leng,"%c%c/chunk_%016"PRIX64"_%08"PRIX32".mfs","0123456789ABCDEF"[(chunkid>>4)&15],"0123456789ABCDEF"[chunkid&15],chunkid,version);
+	sprintf(c->filename+leng,"%02X/chunk_%016"PRIX64"_%08"PRIX32".mfs",(unsigned int)(chunkid&255),chunkid,version);
 	f->needrefresh = 1;
 	f->chunkcount++;
 	c->owner = f;
@@ -3373,31 +3377,73 @@ static void* hdd_folder_scan(void *arg) {
 	folder *f = (folder*)arg;
 	DIR *dd;
 	struct dirent *de;
-	uint8_t subf;
-	char *fullname;
-	uint8_t plen;
+	uint16_t subf;
+	char *fullname,*oldfullname;
+	uint8_t plen,oldplen;
 	uint64_t namechunkid;
 	uint32_t nameversion;
 
 	plen = strlen(f->path);
-	fullname = malloc(plen+38);
+	oldplen = plen;
+
+	fullname = malloc(plen+39);
 
 	memcpy(fullname,f->path,plen);
 	fullname[plen]='\0';
 	mkdir(fullname,0755);
 
 	fullname[plen++]='_';
+	fullname[plen++]='_';
 	fullname[plen++]='/';
 	fullname[plen]='\0';
 
-	for (subf=0 ; subf<16 ; subf++) {
-		if (subf<10) {
-			fullname[plen-2]='0'+subf;
-		} else {
-			fullname[plen-2]='A'+(subf-10);
-		}
-		fullname[plen]='\0';
+	for (subf=0 ; subf<256 ; subf++) {
+		fullname[plen-3]="0123456789ABCDEF"[subf>>4];
+		fullname[plen-2]="0123456789ABCDEF"[subf&15];
 		mkdir(fullname,0755);
+	}
+
+/* move chunks from "X/name" to "XX/name" */
+
+	oldfullname = malloc(plen+38);
+	memcpy(oldfullname,f->path,plen);
+	oldfullname[oldplen++]='_';
+	oldfullname[oldplen++]='/';
+	oldfullname[oldplen]='\0';
+
+	for (subf=0 ; subf<16 ; subf++) {
+		oldfullname[oldplen-2]="0123456789ABCDEF"[subf];
+		oldfullname[oldplen]='\0';
+		dd = opendir(oldfullname);
+		if (dd==NULL) {
+			continue;
+		}
+		while ((de = readdir(dd)) != NULL) {
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+			if (de->d_type != DT_REG) {
+				continue;
+			}
+#endif
+			if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
+				continue;
+			}
+			memcpy(oldfullname+oldplen,de->d_name,36);
+			memcpy(fullname+plen,de->d_name,36);
+			fullname[plen-3]="0123456789ABCDEF"[(namechunkid>>4)&15];
+			fullname[plen-2]="0123456789ABCDEF"[namechunkid&15];
+			rename(oldfullname,fullname);
+		}
+		oldfullname[oldplen]='\0';
+		rmdir(oldfullname);
+	}
+
+/* scan new file names */
+
+	for (subf=0 ; subf<256 ; subf++) {
+		fullname[plen-3]="0123456789ABCDEF"[subf>>4];
+		fullname[plen-2]="0123456789ABCDEF"[subf&15];
+		fullname[plen]='\0';
+//		mkdir(fullname,0755);
 		dd = opendir(fullname);
 		if (dd==NULL) {
 			continue;
@@ -3417,6 +3463,8 @@ static void* hdd_folder_scan(void *arg) {
 		closedir(dd);
 	}
 	free(fullname);
+	free(oldfullname);
+
 	return NULL;
 }
 
