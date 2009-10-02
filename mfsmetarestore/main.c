@@ -61,7 +61,7 @@ void usage(const char* appname) {
 }
 
 int main(int argc,char **argv) {
-	char ch;
+	int ch;
 	int i;
 	int autorestore = 0;
 	char *metaout = NULL;

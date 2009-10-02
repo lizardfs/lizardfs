@@ -649,7 +649,7 @@ int main(int argc,char **argv) {
 	char *lockfname;
 	char *wrkdir;
 	char *cfgfile;
-	char ch;
+	int ch;
 	int run,killold,rundaemon;
 	struct rlimit rls;
 	

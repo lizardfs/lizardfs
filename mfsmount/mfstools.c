@@ -2294,7 +2294,7 @@ void usage(int f) {
 int main(int argc,char **argv) {
 	int l,f,status;
 	int i,found;
-	char ch;
+	int ch;
 	int oflag=0;
 	int rflag=0;
 	uint64_t v;
