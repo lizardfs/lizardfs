@@ -49,7 +49,7 @@ void* queue_new(uint32_t size) {
 		q->semfull = sem_new(size);
 	}
 	q->semfree = sem_new(0);
-	pthread_mutex_init(&(q->lock), 0);
+	pthread_mutex_init(&(q->lock),NULL);
 	return q;
 }
 

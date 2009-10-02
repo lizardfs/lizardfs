@@ -17,9 +17,9 @@ mfsmount_SOURCES=\
 	writedata.c writedata.h \
 	csdb.c csdb.h \
 	stats.c stats.h \
-	th_sem.c th_sem.h \
-	th_queue.c th_queue.h \
 	main.c \
+	../mfscommon/th_sem.c ../mfscommon/th_sem.h \
+	../mfscommon/th_queue.c ../mfscommon/th_queue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h

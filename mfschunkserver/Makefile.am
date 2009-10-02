@@ -10,10 +10,10 @@ mfschunkserver_SOURCES= \
 	masterconn.c masterconn.h \
 	replicator.c replicator.h \
 	stats.c stats.h \
-	th_sem.c th_sem.h \
-	th_queue.c th_queue.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
+	../mfscommon/th_sem.c ../mfscommon/th_sem.h \
+	../mfscommon/th_queue.c ../mfscommon/th_queue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h

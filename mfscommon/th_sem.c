@@ -33,8 +33,8 @@ void* sem_new(uint32_t resources) {
 	semaphore *s;
 	s = (semaphore*)malloc(sizeof(semaphore));
 	s->count = resources;
-	pthread_mutex_init(&(s->lock), 0);
-	pthread_cond_init(&(s->cond), 0);
+	pthread_mutex_init(&(s->lock),NULL);
+	pthread_cond_init(&(s->cond),NULL);
 	return s;
 }
 
