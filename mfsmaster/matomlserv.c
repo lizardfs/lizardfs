@@ -585,6 +585,9 @@ int matomlserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
+	if (tcpsetacceptfilter(lsock)<0) {
+		syslog(LOG_NOTICE,"matoml: can't set accept filter: %m");
+	}
 	tcpstrlisten(lsock,ListenHost,ListenPort,5);
 	if (lsock<0) {
 		syslog(LOG_ERR,"matoml: listen error: %m");

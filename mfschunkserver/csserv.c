@@ -2115,6 +2115,9 @@ int csserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
+	if (tcpsetacceptfilter(lsock)<0) {
+		syslog(LOG_NOTICE,"can't set accept filter: %m");
+	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	tcpnumlisten(lsock,mylistenip,mylistenport,5);
 	if (lsock<0) {

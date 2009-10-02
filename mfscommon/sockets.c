@@ -173,6 +173,24 @@ static inline int socknonblock(int sock) {
 
 /* ----------------- TCP ----------------- */
 
+int tcpsetacceptfilter(int sock) {
+#ifdef SO_ACCEPTFILTER
+	struct accept_filter_arg afa;
+
+	bzero(&afa, sizeof(afa));
+	strcpy(afa.af_name, "dataready");
+	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
+#elif TCP_DEFER_ACCEPT
+	int v = 1;
+
+	return setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &v, sizeof(v));
+#else
+	(void)sock;
+	errno=ENOTSUP;
+	return -1;
+#endif
+}
+
 int tcpsocket(void) {
 	return socket(AF_INET,SOCK_STREAM,0);
 }

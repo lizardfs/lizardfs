@@ -1738,6 +1738,9 @@ int matocsserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
+	if (tcpsetacceptfilter(lsock)<0) {
+		syslog(LOG_NOTICE,"matocs: can't set accept filter: %m");
+	}
 	tcpstrlisten(lsock,ListenHost,ListenPort,5);
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocs: listen error: %m");

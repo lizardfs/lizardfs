@@ -26,6 +26,7 @@
 int tcpsocket(void);
 int tcpresolve(const char *hostname,const char *service,uint32_t *ip,uint16_t *port,int passiveflag);
 int tcpnonblock(int sock);
+int tcpsetacceptfilter(int sock);
 int tcpreuseaddr(int sock);
 int tcpnodelay(int sock);
 int tcpaccfhttp(int sock);
