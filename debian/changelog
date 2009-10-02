@@ -1,3 +1,10 @@
+mfs (1.6.6) unstable; urgency=high
+
+  * fixed errors introduced in 1.6.5, changed directory structure in CS (from
+    16 subfolders to 256 subfolders)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 02 Oct 2009 11:20:00 +0200
+
 mfs (1.6.5) unstable; urgency=medium
 
   * fixed some performance issues, added new module "mfsmetalogger"
