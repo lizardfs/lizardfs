@@ -915,6 +915,9 @@ static inline folder* hdd_getfolder() {
 	d = maxavail-s;
 	maxcarry=1.0;
 	for (f=folderhead ; f ; f=f->next) {
+		if (f->damaged || f->todel || f->total==0 || f->avail==0) {
+			continue;
+		}
 		pavail = (double)(f->avail)/(double)(f->total);
 		if (pavail>s) {
 			f->carry += ((pavail-s)/d);
@@ -955,11 +958,8 @@ void hdd_check_folders() {
 		if (err) {
 			syslog(LOG_WARNING,"%u errors occurred in %u seconds on folder: %s",LASTERRSIZE,LASTERRTIME,f->path);
 #ifdef _THREAD_SAFE
-			pthread_mutex_lock(&testlock);
-			f->testhead = NULL;
-			f->testtail = NULL;
-			pthread_mutex_unlock(&testlock);
 			pthread_mutex_lock(&hashlock);
+			pthread_mutex_lock(&testlock);
 #endif
 			for (i=0 ; i<HASHSIZE ; i++) {
 				cptr = &(hashtab[i]);
@@ -984,13 +984,18 @@ void hdd_check_folders() {
 							if (c->filename) {
 								free(c->filename);
 							}
+#ifdef _THREAD_SAFE
+							if (c->testnext) {
+								c->testnext->testprev = c->testprev;
+							} else {
+								c->owner->testtail = c->testprev;
+							}
+							*(c->testprev) = c->testnext;
+#endif
 							free(c);
 #ifdef _THREAD_SAFE
 						} else if (c->state==CH_LOCKED) {
 							cptr = &(c->next);
-							c->testnext = NULL;
-							c->testprev = NULL;
-							c->owner = NULL;
 							c->state=CH_TOBEDELETED;
 						}
 #endif
@@ -1000,8 +1005,10 @@ void hdd_check_folders() {
 				}
 			}
 #ifdef _THREAD_SAFE
+			pthread_mutex_unlock(&testlock);
 			pthread_mutex_unlock(&hashlock);
 #endif
+
 			f->damaged=1;
 			changed=1;
 		} else {
@@ -3157,7 +3164,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 
 #ifdef _THREAD_SAFE
 void* hdd_tester_thread(void* arg) {
-	folder *f,*nf;
+	folder *f,*of;
 	chunk *c;
 	uint64_t chunkid;
 	uint32_t version;
@@ -3176,20 +3183,16 @@ void* hdd_tester_thread(void* arg) {
 		pthread_mutex_lock(&folderlock);
 		pthread_mutex_lock(&hashlock);
 		pthread_mutex_lock(&testlock);
-		nf = f->next;
-		while (nf!=f) {
-			if (nf==NULL) {
-				nf=folderhead;
+		of = f;
+		do {
+			f = f->next;
+			if (f==NULL) {
+				f=folderhead;
 			}
-			if (nf->damaged==0) {
-				break;
-			}
-			nf=nf->next;
-		}
-		if (nf==f && nf->damaged) {
+		} while (f->damaged && of!=f);
+		if (of==f && f->damaged) {	// all folders have status "damaged", so no more work to do.
 			return NULL;
 		}
-		f = nf;
 		c = f->testhead;
 		if (c && c->state==CH_AVAIL) {
 			chunkid = c->chunkid;
@@ -3435,6 +3438,7 @@ static void* hdd_folder_scan(void *arg) {
 		}
 		oldfullname[oldplen]='\0';
 		rmdir(oldfullname);
+		closedir(dd);
 	}
 
 /* scan new file names */
