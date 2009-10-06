@@ -2218,7 +2218,7 @@ if "CC" in sectionset:
 				(106,'hddopw','number of low-level write operations per minute'),
 				(16,'hlopr','number of high-level read operations per minute'),
 				(17,'hlopw','number of high-level write operations per minute'),
-				(20,'repl','number of replacations per minute'),
+				(20,'repl','number of replications per minute'),
 				(18,'rtime','time of data read operations'),
 				(19,'wtime','time of data write operations'),
 			)
