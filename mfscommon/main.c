@@ -715,8 +715,7 @@ int main(int argc,char **argv) {
 	rls.rlim_cur = MFSMAXFILES;
 	rls.rlim_max = MFSMAXFILES;
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
-		fprintf(stderr,"can't change open files limit\n");
-		syslog(LOG_WARNING,"can't change open files limit");
+		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
 	}
 
 	changeugid();

@@ -2112,6 +2112,10 @@ int csserv_init(void) {
 	config_getuint32("CSSERV_TIMEOUT",5,&Timeout);
 
 	lsock = tcpsocket();
+	if (lsock<0) {
+		syslog(LOG_ERR,"socket error: %m");
+		return -1;
+	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
@@ -2119,8 +2123,7 @@ int csserv_init(void) {
 		syslog(LOG_NOTICE,"can't set accept filter: %m");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
-	tcpnumlisten(lsock,mylistenip,mylistenport,5);
-	if (lsock<0) {
+	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
 		syslog(LOG_ERR,"listen error: %m");
 		return -1;
 	}

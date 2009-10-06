@@ -1735,14 +1735,17 @@ int matocsserv_init(void) {
 	config_getnewstr("MATOCS_LISTEN_PORT","9420",&ListenPort);
 
 	lsock = tcpsocket();
+	if (lsock<0) {
+		syslog(LOG_ERR,"matocs: socket error: %m");
+		return -1;
+	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
 		syslog(LOG_NOTICE,"matocs: can't set accept filter: %m");
 	}
-	tcpstrlisten(lsock,ListenHost,ListenPort,5);
-	if (lsock<0) {
+	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocs: listen error: %m");
 		return -1;
 	}

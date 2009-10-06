@@ -3650,14 +3650,17 @@ int matocuserv_init(void) {
 
 	exiting = 0;
 	lsock = tcpsocket();
+	if (lsock<0) {
+		syslog(LOG_ERR,"matocu: socket error: %m");
+		return -1;
+	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
 		syslog(LOG_NOTICE,"matocu: can't set accept filter: %m");
 	}
-	tcpstrlisten(lsock,ListenHost,ListenPort,5);
-	if (lsock<0) {
+	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocu: listen error: %m");
 		return -1;
 	}
