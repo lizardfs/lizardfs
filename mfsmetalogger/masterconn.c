@@ -207,9 +207,9 @@ int masterconn_download_end(masterconn *eptr) {
 
 void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 	uint8_t *ptr;
-	syslog(LOG_NOTICE,"download_init %d",filenum);
+//	syslog(LOG_NOTICE,"download_init %d",filenum);
 	if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->downloading==0) {
-		syslog(LOG_NOTICE,"sending packet");
+//		syslog(LOG_NOTICE,"sending packet");
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_START,1);
 		if (ptr==NULL) {
 			eptr->mode=KILL;
