@@ -289,6 +289,7 @@ int tcpstrtoconnect(int sock,const char *hostname,const char *service,uint32_t m
 		if (pfd.revents & POLLOUT) {
 			return tcpgetstatus(sock);
 		}
+		errno=ETIMEDOUT;
 	}
 	return -1;
 }
@@ -313,6 +314,7 @@ int tcpnumtoconnect(int sock,uint32_t ip,uint16_t port,uint32_t msecto) {
 		if (pfd.revents & POLLOUT) {
 			return tcpgetstatus(sock);
 		}
+		errno=ETIMEDOUT;
 	}
 	return -1;
 }
