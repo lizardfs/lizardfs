@@ -46,7 +46,7 @@
 #endif
 
 #define CONNECT_RETRIES 5
-#define CONNECT_TIMEOUT 200
+#define CONNECT_TIMEOUT 200000
 
 #define MaxPacketSize 100000
 
