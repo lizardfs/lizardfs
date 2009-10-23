@@ -2148,8 +2148,8 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
 							c->needverincrease=1;
 							inforec.done.copy_undergoal++;
+							return;
 						}
-						return;
 					}
 				}
 			}
