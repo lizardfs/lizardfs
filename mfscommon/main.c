@@ -651,6 +651,7 @@ int main(int argc,char **argv) {
 	char *cfgfile;
 	int ch;
 	int run,killold,rundaemon;
+	int32_t nicelevel;
 	struct rlimit rls;
 	
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
@@ -717,6 +718,8 @@ int main(int argc,char **argv) {
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
 		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
 	}
+	config_getint32("NICE_LEVEL",-19,&nicelevel);
+	setpriority(PRIO_PROCESS,getpid(),nicelevel);
 
 	changeugid();
 

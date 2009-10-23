@@ -114,12 +114,13 @@ struct mfsopts {
 	char *password;
 	char *md5pass;
 	unsigned nofile;
+	signed nice;
 	int nostdmountoptions;
 	int meta;
 	int debug;
 	int cachefiles;
 	int passwordask;
-	int writecachesize;
+	unsigned writecachesize;
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
@@ -147,6 +148,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfspassword=%s", password, 0),
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
+	MFS_OPT("mfsnice=%d", nice, 0),
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
@@ -194,6 +196,7 @@ static void usage(const char *progname) {
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
+"    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
@@ -382,6 +385,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 	fprintf(stderr,"\n");
 
+	rls.rlim_cur = mfsopts.nofile;
+	rls.rlim_max = mfsopts.nofile;
+	setrlimit(RLIMIT_NOFILE,&rls);
+
+	setpriority(PRIO_PROCESS,getpid(),mfsopts.nice);
+
 	piped[0] = piped[1] = -1;
 	if (fg==0) {
 		if (pipe(piped)<0) {
@@ -447,10 +456,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 //	fprintf(stderr,"check\n");
 	fuse_session_add_chan(se, ch);
-
-	rls.rlim_cur = mfsopts.nofile;
-	rls.rlim_max = mfsopts.nofile;
-	setrlimit(RLIMIT_NOFILE,&rls);
 
 	if (fuse_set_signal_handlers(se)<0) {
 		fprintf(stderr,"error in fuse_set_signal_handlers\n");
@@ -626,6 +631,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.password = NULL;
 	mfsopts.md5pass = NULL;
 	mfsopts.nofile = 0;
+	mfsopts.nice = -19;
 	mfsopts.nostdmountoptions = 0;
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
