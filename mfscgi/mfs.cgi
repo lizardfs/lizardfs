@@ -405,7 +405,10 @@ if "IN" in sectionset:
 						elif vc>goal:
 							cl="OVERGOAL"
 						elif vc<goal:
-							cl="UNDERGOAL"
+							if vc==1:
+								cl="ENDANGERED"
+							else:
+								cl="UNDERGOAL"
 						else:
 							cl="NORMAL"
 						if matrix[goal][vc]>0:
@@ -425,7 +428,7 @@ if "IN" in sectionset:
 					if vc==0 and sumlist[vc]>0:
 						out.append("""	<td align="right"><span class="MISSING">%u</span></td>""" % sumlist[vc])
 					elif vc==1 and sumlist[vc]>0:
-						out.append("""	<td align="right"><span class="UNDERGOAL">%u</span></td>""" % sumlist[vc])
+						out.append("""	<td align="right"><span class="ENDANGERED">%u</span></td>""" % sumlist[vc])
 					else:
 						out.append("""	<td align="right">%u</td>""" % sumlist[vc])
 				out.append("""	<td align="right">%u</td>""" % sum(sumlist))

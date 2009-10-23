@@ -69,7 +69,8 @@ a:visited {color: #000;}
 span.IGNORE {color: #888;}
 span.OVERGOAL {color: #00E;}
 span.NORMAL {color: #080;}
-span.UNDERGOAL {color: #E80;}
+span.UNDERGOAL {color: #EA0;}
+span.ENDANGERED {color: #F50;}
 span.MISSING {color: #F00;}
 
 span.NOTEXCEEDED {color: #080;}
