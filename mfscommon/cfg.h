@@ -16,8 +16,8 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
+#ifndef _CFG_H_
+#define _CFG_H_
 
 #include <inttypes.h>
 

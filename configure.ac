@@ -1,13 +1,13 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.50)
+AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.7], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.8], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([1.6 foreign])
+AM_INIT_AUTOMAKE([1.10 foreign])
 
 versmaj=$(echo $PACKAGE_VERSION | cut -d. -f1)
 versmid=$(echo $PACKAGE_VERSION | cut -d. -f2)
@@ -44,10 +44,6 @@ AC_C_BIGENDIAN
 AC_C_INLINE
 AC_C_VOLATILE
 AC_HEADER_STDBOOL
-dnl AC_TYPE_INT16_T
-dnl AC_TYPE_INT32_T
-dnl AC_TYPE_INT64_T
-dnl AC_TYPE_INT8_T
 AC_TYPE_INT8_T
 AC_TYPE_UINT8_T
 AC_TYPE_INT16_T
