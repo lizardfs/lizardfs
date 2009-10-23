@@ -78,10 +78,14 @@ void* read_data_delayed_ops(void *arg) {
 	(void)arg;
 	for (;;) {
 		pthread_mutex_lock(mainlock);
+		gettimeofday(&now,NULL);
 		rrecp = &rdhead;
 		while ((rrec=*rrecp)!=NULL) {
 			if (rrec->valid==0) {
-				pthread_mutex_lock(&(rrec->lock));
+				if (pthread_mutex_trylock(&(rrec->lock))) {	// can't lock
+					pthread_mutex_lock(&(rrec->lock));	// wait
+					gettimeofday(&now,NULL);		// and refresh time
+				}
 				pthread_mutex_unlock(&(rrec->lock));
 				pthread_mutex_destroy(&(rrec->lock));
 				*rrecp = rrec->next;
@@ -95,8 +99,10 @@ void* read_data_delayed_ops(void *arg) {
 				}
 				free(rrec);
 			} else {
-				pthread_mutex_lock(&(rrec->lock));
-				gettimeofday(&now,NULL);
+				if (pthread_mutex_trylock(&(rrec->lock))) {	// can't lock
+					pthread_mutex_lock(&(rrec->lock));	// wait
+					gettimeofday(&now,NULL);		// and refresh time
+				}
 				if (rrec->fd>=0 && (TIMEDIFF(now,rrec->atime)>READDELAY || TIMEDIFF(now,rrec->vtime)>REFRESHTIMEOUT)) {
 					csdb_readdec(rrec->ip,rrec->port);
 					tcpclose(rrec->fd);
