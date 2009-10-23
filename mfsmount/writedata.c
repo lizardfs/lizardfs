@@ -531,7 +531,7 @@ void* write_worker(void *arg) {
 				lrdiff.tv_sec -= lastrcvd.tv_sec;
 				lrdiff.tv_usec -= lastrcvd.tv_usec;
 				if (lrdiff.tv_sec>=1) {
-					syslog(LOG_NOTICE,"writeworker: connection timed out");
+					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") timed out (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
 					break;
 				}
 			}
@@ -603,7 +603,7 @@ void* write_worker(void *arg) {
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
 				if (i==0) { 	// connection reset by peer
-					syslog(LOG_WARNING,"writeworker: connection reset by peer");
+					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
 					status=EIO;
 					break;
 				}
@@ -697,7 +697,7 @@ void* write_worker(void *arg) {
 						i = write(fd,chain+(sent-20),chainsize-(sent-20));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"writeworker: connection reset by peer");
+						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
 						status=EIO;
 						break;
 					}
@@ -720,7 +720,7 @@ void* write_worker(void *arg) {
 						i = write(fd,cb->data+cb->from+(sent-32),cb->to-cb->from-(sent-32));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"writeworker: connection reset by peer");
+						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
 						status=EIO;
 						break;
 					}
