@@ -32,7 +32,6 @@
 #endif
 
 #define WORKERS 10
-#define MAXRETRIES 30
 
 #define WCHASHSIZE 256
 #define WCHASH(inode,indx) (((inode)*0xB239FB71+(indx)*193)%WCHASHSIZE)
@@ -59,7 +58,7 @@ typedef struct inodedata_s {
 	uint16_t writewaiting;
 	uint16_t cachewaiting;
 	uint16_t lcnt;
-	uint8_t trycnt;
+	uint32_t trycnt;
 	uint8_t waitingworker;
 	uint8_t inqueue;
 	int pipe[2];
@@ -76,6 +75,8 @@ static pthread_cond_t fcbcond;
 static uint8_t fcbwaiting;
 static cblock *freecblockshead;
 static uint32_t maxinodecacheblocks;
+
+static uint32_t maxretries;
 
 static inodedata **idhash;
 
@@ -224,10 +225,14 @@ void write_free_inodedata(inodedata *fid) {
 /* queues */
 
 /* glock: UNUSED */
-void write_delayed_enqueue(inodedata *id) {
+void write_delayed_enqueue(inodedata *id,uint32_t cnt) {
 	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,0);
+	if (cnt>0) {
+		gettimeofday(&tv,NULL);
+		queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
+	} else {
+		queue_put(jqueue,0,0,(uint8_t*)id,0);
+	}
 }
 
 /* glock: UNUSED */
@@ -238,11 +243,11 @@ void write_enqueue(inodedata *id) {
 /* worker thread | glock: UNUSED */
 void* write_dqueue_worker(void *arg) {
 	struct timeval tv;
-	uint32_t sec,usec,zero;
+	uint32_t sec,usec,cnt;
 	uint8_t *id;
 	(void)arg;
 	for (;;) {
-		queue_get(dqueue,&sec,&usec,&id,&zero);
+		queue_get(dqueue,&sec,&usec,&id,&cnt);
 		gettimeofday(&tv,NULL);
 		if ((uint32_t)(tv.tv_usec) < usec) {
 			tv.tv_sec--;
@@ -254,17 +259,25 @@ void* write_dqueue_worker(void *arg) {
 		} else if ((uint32_t)(tv.tv_sec) == sec) {
 			usleep(1000000-(tv.tv_usec-usec));
 		}
-		queue_put(jqueue,0,0,id,0);
+		cnt--;
+		if (cnt>0) {
+			gettimeofday(&tv,NULL);
+			queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
+		} else {
+			queue_put(jqueue,0,0,id,0);
+		}
 	}
 	return NULL;
 }
 
 /* glock: UNLOCKED */
-void write_job_end(inodedata *id,int status,int delay) {
+void write_job_end(inodedata *id,int status,uint32_t delay) {
 	cblock *cb,*fcb;
 
 	pthread_mutex_lock(&glock);
 	if (status) {
+		errno = status;
+		syslog(LOG_WARNING,"error writing file number %"PRIu32": %m",id->inode);
 		id->status = status;
 	}
 	status = id->status;
@@ -275,11 +288,7 @@ void write_job_end(inodedata *id,int status,int delay) {
 			cb->writeid = 0;
 		}
 		id->trycnt=0;	// on good write reset try counter
-		if (delay) {
-			write_delayed_enqueue(id);
-		} else {
-			write_enqueue(id);
-		}
+		write_delayed_enqueue(id,delay);
 	} else {	// no more work or error occured
 		// if this is an error then release all data blocks
 		cb = id->datachainhead;
@@ -405,28 +414,28 @@ void* write_worker(void *arg) {
 					write_job_end(id,ENOSPC,0);
 				} else {
 					id->trycnt++;
-					if (id->trycnt>=MAXRETRIES) {
+					if (id->trycnt>=maxretries) {
 						if (wrstatus==ERROR_NOCHUNKSERVERS) {
 							write_job_end(id,ENOSPC,0);
 						} else {
 							write_job_end(id,EIO,0);
 						}
 					} else {
-						write_delayed_enqueue(id);
+						write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
 					}
 				}
 			} else {
-				write_delayed_enqueue(id);
+				write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
 			}
 			continue;	// get next job
 		}
 		if (csdata==NULL || csdatasize==0) {
 			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",id->inode,chindx,chunkid,version);
-			id->trycnt++;
-			if (id->trycnt>=MAXRETRIES) {
+			id->trycnt+=6;
+			if (id->trycnt>=maxretries) {
 				write_job_end(id,ENXIO,0);
 			} else {
-				write_delayed_enqueue(id);
+				write_delayed_enqueue(id,60);
 			}
 			continue;
 		}
@@ -481,10 +490,10 @@ void* write_worker(void *arg) {
 		if (fd<0) {
 			fs_writeend(chunkid,id->inode,0);
 			id->trycnt++;
-			if (id->trycnt>=MAXRETRIES) {
+			if (id->trycnt>=maxretries) {
 				write_job_end(id,EIO,0);
 			} else {
-				write_delayed_enqueue(id);
+				write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
 			}
 			continue;
 		}
@@ -530,8 +539,8 @@ void* write_worker(void *arg) {
 				}
 				lrdiff.tv_sec -= lastrcvd.tv_sec;
 				lrdiff.tv_usec -= lastrcvd.tv_usec;
-				if (lrdiff.tv_sec>=1) {
-					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") timed out (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
+				if (lrdiff.tv_sec>=2) {
+					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was timed out (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 					break;
 				}
 			}
@@ -603,7 +612,7 @@ void* write_worker(void *arg) {
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
 				if (i==0) { 	// connection reset by peer
-					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
+					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 					status=EIO;
 					break;
 				}
@@ -697,7 +706,7 @@ void* write_worker(void *arg) {
 						i = write(fd,chain+(sent-20),chainsize-(sent-20));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
+						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 						status=EIO;
 						break;
 					}
@@ -720,7 +729,7 @@ void* write_worker(void *arg) {
 						i = write(fd,cb->data+cb->from+(sent-32),cb->to-cb->from-(sent-32));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %u)",id->inode,chindx,chunkid,version,ip,port,waitforstatus);
+						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 						status=EIO;
 						break;
 					}
@@ -776,10 +785,10 @@ void* write_worker(void *arg) {
 				}
 			}
 			id->trycnt++;
-			if (id->trycnt>=MAXRETRIES) {
+			if (id->trycnt>=maxretries) {
 				write_job_end(id,status,0);
 			} else {
-				write_job_end(id,0,1);
+				write_job_end(id,0,1+(id->trycnt<30)?(id->trycnt/3):10);
 			}
 		} else {
 			read_inode_ops(id->inode);
@@ -789,9 +798,11 @@ void* write_worker(void *arg) {
 }
 
 /* API | glock: INITIALIZED,UNLOCKED */
-void write_data_init (uint32_t cachesize) {
+void write_data_init (uint32_t cachesize,uint32_t retries) {
 	uint32_t cacheblocks = (cachesize/65536);
 	uint32_t i;
+
+	maxretries = retries;
 	if (cacheblocks<10) {
 		cacheblocks=10;
 	}

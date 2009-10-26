@@ -36,7 +36,6 @@
 #include "cscomm.h"
 #include "csdb.h"
 
-#define RETRIES 30
 #define REFRESHTIMEOUT 5000000
 #define READDELAY 1000000
 
@@ -68,6 +67,8 @@ static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t pthid;
 static pthread_mutex_t *mainlock;
+
+static uint32_t maxretries;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
@@ -162,11 +163,12 @@ void read_data_end(void* rr) {
 	pthread_mutex_unlock(&(rrec->lock));
 }
 
-void read_data_init(void) {
+void read_data_init(uint32_t retries) {
 	uint32_t i;
 	for (i=0 ; i<MAPSIZE ; i++) {
 		rdinodemap[i]=NULL;
 	}
+	maxretries=retries;
 	mainlock = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(mainlock,NULL);
 	pthread_create(&pthid,NULL,read_data_delayed_ops,NULL);
@@ -321,7 +323,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		indx = (curroff>>26);
 		if (rrec->fd<0 || rrec->indx != indx) {
 			rrec->indx = indx;
-			while (cnt<RETRIES) {
+			while (cnt<maxretries) {
 				cnt++;
 				err = read_data_refresh_connection(rrec);
 				if (err==0) {
@@ -336,12 +338,12 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				}
 				if (err==ENXIO) {	// chunk not available - unrecoverable, but wait longer, and make less retries
 					sleep(60);
-					cnt+=9;
+					cnt+=6;
 				} else {
-					sleep(1+cnt/5);
+					sleep(1+(cnt<30)?(cnt/3):10);
 				}
 			}
-			if (cnt>=RETRIES) {
+			if (cnt>=maxretries) {
 				if (eb) {
 					pthread_mutex_unlock(&(rrec->lock));
 				}
@@ -367,7 +369,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);
 				rrec->fd = -1;
-				sleep(1+cnt/5);
+				sleep(1+(cnt<30)?(cnt/3):10);
 			} else {
 				curroff+=chunksize;
 				currsize-=chunksize;

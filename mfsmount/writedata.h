@@ -21,7 +21,7 @@
 
 #include <inttypes.h>
 
-void write_data_init(uint32_t cachesize);
+void write_data_init(uint32_t cachesize,uint32_t retries);
 void* write_data_new(uint32_t inode);
 int write_data_end(void *vid);
 int write_data_flush(void *vid);

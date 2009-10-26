@@ -57,7 +57,6 @@ typedef struct _aquired_file {
 
 #define DEFAULT_BUFFSIZE 10000
 #define RECEIVE_TIMEOUT 10
-#define RETRIES 30
 
 static threc *threchead=NULL;
 
@@ -67,6 +66,8 @@ static int fd;
 static int disconnect;
 static time_t lastwrite;
 static int sessionlost;
+
+static uint32_t maxretries;
 
 static pthread_t rpthid,npthid;
 static pthread_mutex_t fdlock,reclock,aflock;
@@ -272,7 +273,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 	uint32_t cnt;
 	uint32_t size = rec->size;
 
-	for (cnt=0 ; cnt<RETRIES ; cnt++) {
+	for (cnt=0 ; cnt<maxretries ; cnt++) {
 		pthread_mutex_lock(&fdlock);
 		if (sessionlost) {
 			pthread_mutex_unlock(&fdlock);
@@ -280,7 +281,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 		}
 		if (fd==-1) {
 			pthread_mutex_unlock(&fdlock);
-			sleep(1);
+			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
 		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
@@ -289,7 +290,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 			syslog(LOG_WARNING,"tcp send error: %m");
 			disconnect = 1;
 			pthread_mutex_unlock(&fdlock);
-			sleep(1);
+			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
 		master_stats_add(MASTER_BYTESSENT,size);
@@ -299,19 +300,21 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 		pthread_mutex_unlock(&fdlock);
 		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
-		while (rec->release==0) { pthread_cond_wait(&(rec->cond),&(rec->mutex)); }
+		while (rec->release==0) {
+			pthread_cond_wait(&(rec->cond),&(rec->mutex));
+		}
 		pthread_mutex_unlock(&(rec->mutex));
 		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
 		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
 		if (rec->status!=0) {
-			sleep(1);
+			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
 		if (rec->cmd!=command_info) {
 			pthread_mutex_lock(&fdlock);
 			disconnect = 1;
 			pthread_mutex_unlock(&fdlock);
-			sleep(1);
+			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
 		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
@@ -826,7 +829,8 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 }
 
 // called after fork
-void fs_init_threads(void) {
+void fs_init_threads(uint32_t retries) {
+	maxretries = retries;
 	pthread_mutex_init(&reclock,NULL);
 	pthread_mutex_init(&fdlock,NULL);
 	pthread_mutex_init(&aflock,NULL);

@@ -26,6 +26,6 @@ void* read_data_new(uint32_t inode);
 void read_data_end(void *rr);
 int read_data(void *rr,uint64_t offset,uint32_t *size,uint8_t **buff);
 void read_data_freebuff(void *rr);
-void read_data_init(void);
+void read_data_init(uint32_t retries);
 
 #endif

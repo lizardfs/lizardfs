@@ -121,6 +121,7 @@ struct mfsopts {
 	int cachefiles;
 	int passwordask;
 	unsigned writecachesize;
+	unsigned ioretries;
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
@@ -150,6 +151,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
 	MFS_OPT("mfsnice=%d", nice, 0),
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
+	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
@@ -198,6 +200,7 @@ static void usage(const char *progname) {
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
+"    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
@@ -413,12 +416,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		s=1;
 	}
 
-	fs_init_threads();
+	fs_init_threads(mfsopts.ioretries);
 
 	if (mfsopts.meta==0) {
-		read_data_init();
+		read_data_init(mfsopts.ioretries);
 //		write_data_init();
-		write_data_init(mfsopts.writecachesize*1024*1024);
+		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
 		csdb_init();
 	}
 
@@ -637,6 +640,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.debug = 0;
 	mfsopts.cachefiles = 0;
 	mfsopts.writecachesize = 0;
+	mfsopts.ioretries = 30;
 	mfsopts.passwordask = 0;
 	mfsopts.attrcacheto = 1.0;
 	mfsopts.entrycacheto = 0.0;
