@@ -255,6 +255,12 @@ static uint8_t* rep_create_packet(repsrc *rs,uint32_t type,uint32_t size) {
 	return ptr;
 }
 
+static void rep_no_packet(repsrc *rs) {
+	rs->packet=NULL;
+	rs->startptr=NULL;
+	rs->bytesleft=0;
+}
+
 static int rep_write(repsrc *rs) {
 	int i;
 	i = write(rs->sock,rs->startptr,rs->bytesleft);
@@ -579,18 +585,22 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	}
 // create read request
 	for (i=0 ; i<srccnt ; i++) {
-		uint32_t leng;
-		wptr = rep_create_packet(r.repsources+i,CUTOCS_READ,8+4+4+4);
-		if (wptr==NULL) {
-			syslog(LOG_NOTICE,"replicator: out of memory");
-			rep_cleanup(&r);
-			return ERROR_OUTOFMEMORY;
+		if (r.repsources[i].blocks>0) {
+			uint32_t leng;
+			wptr = rep_create_packet(r.repsources+i,CUTOCS_READ,8+4+4+4);
+			if (wptr==NULL) {
+				syslog(LOG_NOTICE,"replicator: out of memory");
+				rep_cleanup(&r);
+				return ERROR_OUTOFMEMORY;
+			}
+			leng = r.repsources[i].blocks*0x10000;
+			put64bit(&wptr,r.repsources[i].chunkid);
+			put32bit(&wptr,r.repsources[i].version);
+			put32bit(&wptr,0);
+			put32bit(&wptr,leng);
+		} else {
+			rep_no_packet(r.repsources+i);
 		}
-		leng = r.repsources[i].blocks*0x10000;
-		put64bit(&wptr,r.repsources[i].chunkid);
-		put32bit(&wptr,r.repsources[i].version);
-		put32bit(&wptr,0);
-		put32bit(&wptr,leng);
 	}
 // send read request
 	if (rep_send_all_packets(&r,SENDMSECTO)<0) {
@@ -739,42 +749,49 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	}
 // receive status
 	for (i=0 ; i<srccnt ; i++) {
-		if (r.repsources[i].packet) {
-			free(r.repsources[i].packet);
-			r.repsources[i].packet=NULL;
+		if (r.repsources[i].blocks>0) {
+			if (r.repsources[i].packet) {
+				free(r.repsources[i].packet);
+				r.repsources[i].packet=NULL;
+			}
+			r.repsources[i].mode = HEADER;
+			r.repsources[i].startptr = r.repsources[i].hdrbuff;
+			r.repsources[i].bytesleft = 8;
+		} else {
+			r.repsources[i].mode = IDLE;
+			r.repsources[i].bytesleft = 0;
 		}
-		r.repsources[i].mode = HEADER;
-		r.repsources[i].startptr = r.repsources[i].hdrbuff;
-		r.repsources[i].bytesleft = 8;
 	}
 	if (rep_receive_all_packets(&r,RECVMSECTO)<0) {
 		rep_cleanup(&r);
 		return ERROR_DISCONNECTED;
 	}
 	for (i=0 ; i<srccnt ; i++) {
-		uint32_t type,size;
-		uint64_t pchid;
-		uint8_t pstatus;
-		rptr = r.repsources[i].hdrbuff;
-		type = get32bit(&rptr);
-		size = get32bit(&rptr);
-		rptr = r.repsources[i].packet;
-		if (rptr==NULL || type!=CSTOCU_READ_STATUS || size!=9) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
-			rep_cleanup(&r);
-			return ERROR_DISCONNECTED;
-		}
-		pchid = get64bit(&rptr);
-		pstatus = get8bit(&rptr);
-		if (pchid!=r.repsources[i].chunkid) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
-			rep_cleanup(&r);
-			return ERROR_WRONGCHUNKID;
-		}
-		if (pstatus!=STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
-			rep_cleanup(&r);
-			return pstatus;
+		if (r.repsources[i].blocks>0) {
+			uint32_t type,size;
+			uint64_t pchid;
+			uint8_t pstatus;
+			rptr = r.repsources[i].hdrbuff;
+			type = get32bit(&rptr);
+			size = get32bit(&rptr);
+			rptr = r.repsources[i].packet;
+			if (rptr==NULL || type!=CSTOCU_READ_STATUS || size!=9) {
+				syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+				rep_cleanup(&r);
+				return ERROR_DISCONNECTED;
+			}
+			pchid = get64bit(&rptr);
+			pstatus = get8bit(&rptr);
+			if (pchid!=r.repsources[i].chunkid) {
+				syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+				rep_cleanup(&r);
+				return ERROR_WRONGCHUNKID;
+			}
+			if (pstatus!=STATUS_OK) {
+				syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
+				rep_cleanup(&r);
+				return pstatus;
+			}
 		}
 	}
 // close chunk and change version

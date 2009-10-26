@@ -466,7 +466,17 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put8bit(&ptr,status);
 		return;
 	}
-	if (eptr->size>0x4000000 || eptr->size==0) {
+	if (eptr->size==0) {
+		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		if (ptr==NULL) {
+			eptr->state = CLOSE;
+			return ;
+		}
+		put64bit(&ptr,eptr->chunkid);
+		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
+		return;
+	}
+	if (eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		if (ptr==NULL) {
 			eptr->state = CLOSE;
@@ -850,7 +860,17 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put8bit(&ptr,status);
 		return;
 	}
-	if (eptr->size>0x4000000 || eptr->size==0) {
+	if (eptr->size==0) {
+		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		if (ptr==NULL) {
+			eptr->state = CLOSE;
+			return ;
+		}
+		put64bit(&ptr,eptr->chunkid);
+		put8bit(&ptr,STATUS_OK);
+		return;
+	}
+	if (eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		if (ptr==NULL) {
 			eptr->state = CLOSE;
