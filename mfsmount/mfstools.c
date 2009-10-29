@@ -440,6 +440,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 	int sd;
 	uint8_t masterinfo[10];
 	const uint8_t *miptr;
+	uint8_t cnt;
 	uint32_t masterip;
 	uint16_t masterport;
 	uint32_t mastercuid;
@@ -509,14 +510,23 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 						printf("%s: incorrect '.masterinfo'\n",name);
 						return -1;
 					}
-					sd = tcpsocket();
-					if (sd<0) {
-						printf("%s: can't create connection socket\n",name);
-						return -1;
-					}
-					if (tcpnumconnect(sd,masterip,masterport)<0) {
-						printf("%s: can't connect to master (.masterinfo)\n",name);
-						return -1;
+					cnt=5;
+					while (cnt>0) {
+						sd = tcpsocket();
+						if (sd<0) {
+							printf("%s: can't create connection socket\n",name);
+							return -1;
+						}
+						if (tcpnumtoconnect(sd,masterip,masterport,200)<0) {
+							cnt--;
+							if (cnt==0) {
+								printf("%s: can't connect to master (.masterinfo)\n",name);
+								return -1;
+							}
+							tcpclose(sd);
+						} else {
+							cnt=0;
+						}
 					}
 					if (master_register(sd,mastercuid)<0) {
 						printf("%s: can't register to master (.masterinfo)\n",name);
