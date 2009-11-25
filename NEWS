@@ -1,5 +1,33 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.9 (2009-11-24)
+
+ - updated manpages
+ - added support for mlockall (prevent from swapping)
+ - redesigned charts module
+ - redesigned locking mechanizm (daemons)
+ - added HDD I/O stats
+ - removing unfinished jobs from queue on socket close
+ - added 'cache file' flag
+
+* MooseFS 1.6.8 (2009-10-26)
+
+ - added options to set nice level and number of I/O retries in mfsmount
+
+* MooseFS 1.6.7 (2009-10-05)
+
+ - fixed error: damaged disk caused SIGSEGV in mfschunkserver
+
+* MooseFS 1.6.6 (2009-10-02)
+
+ - fixed errors introduced in 1.6.5
+ - changed directory structure in CS (from 16 subfolders to 256 subfolders)
+
+* MooseFS 1.6.5 (2009-09-23)
+
+ - fixed some performance issues
+ - added new module "mfsmetalogger"
+
 * MooseFS 1.6.4 (2009-08-25)
 
  - rewrite mfs to use poll instead of select

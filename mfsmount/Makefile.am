@@ -5,7 +5,7 @@ AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -D_GNU_SOURCE -D_REENTRANT -D_THREAD_SAFE 
 
 
 mfsmount_LDADD=$(FUSE_LIBS) ../mfscommon/libmfscommon.a
-mfsmount_CFLAGS=$(FUSE_CFLAGS)
+mfsmount_CFLAGS=$(FUSE_CFLAGS) -DAPPNAME=mfsmount
 
 mfsmount_SOURCES=\
 	dirattrcache.c dirattrcache.h \

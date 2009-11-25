@@ -25,6 +25,7 @@
 #include <sys/poll.h>
 #include <syslog.h>
 #include <time.h>
+#include <limits.h>
 #include <pthread.h>
 
 #include "MFSCommunication.h"
@@ -830,12 +831,16 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 
 // called after fork
 void fs_init_threads(uint32_t retries) {
+	pthread_attr_t thattr;
 	maxretries = retries;
 	pthread_mutex_init(&reclock,NULL);
 	pthread_mutex_init(&fdlock,NULL);
 	pthread_mutex_init(&aflock,NULL);
-	pthread_create(&rpthid,NULL,fs_receive_thread,NULL);
-	pthread_create(&npthid,NULL,fs_nop_thread,NULL);
+	pthread_attr_init(&thattr);
+	pthread_attr_setstacksize(&thattr,0x100000);
+	pthread_create(&rpthid,&thattr,fs_receive_thread,NULL);
+	pthread_create(&npthid,&thattr,fs_nop_thread,NULL);
+	pthread_attr_destroy(&thattr);
 }
 
 
@@ -1416,7 +1421,7 @@ uint8_t fs_check(uint32_t inode,uint8_t dbuff[22]) {
 */
 // FUSE - I/O
 
-uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags) {
+uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint8_t attr[35]) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1435,7 +1440,15 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags) {
 	if (rptr==NULL) {
 		ret = ERROR_IO;
 	} else if (i==1) {
+		if (attr) {
+			memset(attr,0,35);
+		}
 		ret = rptr[0];
+	} else if (i==35) {
+		if (attr) {
+			memcpy(attr,rptr,35);
+		}
+		ret = STATUS_OK;
 	} else {
 		pthread_mutex_lock(&fdlock);
 		disconnect = 1;

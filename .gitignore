@@ -26,6 +26,7 @@ Makefile.in
 /mfsdata/mfsmetalogger.cfg
 /mfsmaster/mfsmaster
 /mfsmetalogger/mfsmetalogger
+/mfsmetadump/mfsmetadump
 /mfsmetarestore/mfsmetarestore
 /mfsmount/mfsmount
 /mfsmount/mfstools

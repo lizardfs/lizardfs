@@ -31,14 +31,17 @@ typedef struct paramsstr {
 	struct paramsstr *next;
 } paramstr;
 
-static paramstr *paramhead;
+static paramstr *paramhead=NULL;
+static int logundefined=0;
 
-int config_load (const char *configfname) {
+int cfg_load (const char *configfname,int _lu) {
 	FILE *fd;
 	char linebuff[1000];
 	uint32_t nps,npe,vps,vpe,i;
+
 	paramstr *tmp;
 	paramhead = NULL;
+	logundefined = _lu;
 
 	fd = fopen(configfname,"r");
 	if (fd==NULL) {
@@ -107,44 +110,28 @@ int config_load (const char *configfname) {
 #define COPY_double(x) x
 #define COPY_charptr(x) strdup(x)
 
-#define LOGLINE(name,format,defval) syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,defval);
-#define NOLOGLINE(name,format,defval)
-
-#define _CONFIG_GET_FUNCTION(fname,type,convname,format,x) \
-int config_get##fname(const char *name,type def,type *val) { \
+#define _CONFIG_GEN_FUNCTION(fname,type,convname,format) \
+type cfg_get##fname(const char *name,type def) { \
 	paramstr *tmp; \
 	for (tmp = paramhead ; tmp ; tmp=tmp->next) { \
 		if (strcmp(name,tmp->name)==0) { \
-			*val = STR_TO_##convname(tmp->value); \
-			return 1; \
+			return STR_TO_##convname(tmp->value); \
 		} \
 	} \
-	x(name,format,def) \
-	*val = COPY_##convname(def); \
-	return 0; \
+	if (logundefined) { \
+		syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,def); \
+	} \
+	return COPY_##convname(def); \
 }
 
-_CONFIG_GET_FUNCTION(newstr,char*,charptr,"%s",LOGLINE)
-_CONFIG_GET_FUNCTION(num,int,int,"%d",LOGLINE)
-_CONFIG_GET_FUNCTION(int8,int8_t,int32,"%"PRId8,LOGLINE)
-_CONFIG_GET_FUNCTION(uint8,uint8_t,uint32,"%"PRIu8,LOGLINE)
-_CONFIG_GET_FUNCTION(int16,int16_t,int32,"%"PRId16,LOGLINE)
-_CONFIG_GET_FUNCTION(uint16,uint16_t,uint32,"%"PRIu16,LOGLINE)
-_CONFIG_GET_FUNCTION(int32,int32_t,int32,"%"PRId32,LOGLINE)
-_CONFIG_GET_FUNCTION(uint32,uint32_t,uint32,"%"PRIu32,LOGLINE)
-_CONFIG_GET_FUNCTION(int64,int64_t,int64,"%"PRId64,LOGLINE)
-_CONFIG_GET_FUNCTION(uint64,uint64_t,uint64,"%"PRIu64,LOGLINE)
-_CONFIG_GET_FUNCTION(double,double,double,"%lf",LOGLINE)
-
-_CONFIG_GET_FUNCTION(newstr_nolog,char*,charptr,"%s",NOLOGLINE)
-_CONFIG_GET_FUNCTION(num_nolog,int,int,"%d",NOLOGLINE)
-_CONFIG_GET_FUNCTION(int8_nolog,int8_t,int32,"%"PRId8,NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint8_nolog,uint8_t,uint32,"%"PRIu8,NOLOGLINE)
-_CONFIG_GET_FUNCTION(int16_nolog,int16_t,int32,"%"PRId16,NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint16_nolog,uint16_t,uint32,"%"PRIu16,NOLOGLINE)
-_CONFIG_GET_FUNCTION(int32_nolog,int32_t,int32,"%"PRId32,NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint32_nolog,uint32_t,uint32,"%"PRIu32,NOLOGLINE)
-_CONFIG_GET_FUNCTION(int64_nolog,int64_t,int64,"%"PRId64,NOLOGLINE)
-_CONFIG_GET_FUNCTION(uint64_nolog,uint64_t,uint64,"%"PRIu64,NOLOGLINE)
-_CONFIG_GET_FUNCTION(double_nolog,double,double,"%lf",NOLOGLINE)
-
+_CONFIG_GEN_FUNCTION(str,char*,charptr,"%s")
+_CONFIG_GEN_FUNCTION(num,int,int,"%d")
+_CONFIG_GEN_FUNCTION(int8,int8_t,int32,"%"PRId8)
+_CONFIG_GEN_FUNCTION(uint8,uint8_t,uint32,"%"PRIu8)
+_CONFIG_GEN_FUNCTION(int16,int16_t,int32,"%"PRId16)
+_CONFIG_GEN_FUNCTION(uint16,uint16_t,uint32,"%"PRIu16)
+_CONFIG_GEN_FUNCTION(int32,int32_t,int32,"%"PRId32)
+_CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%"PRIu32)
+_CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%"PRId64)
+_CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%"PRIu64)
+_CONFIG_GEN_FUNCTION(double,double,double,"%lf")

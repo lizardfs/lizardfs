@@ -34,6 +34,7 @@
 #include <dirent.h>
 #include <errno.h>
 #ifdef _THREAD_SAFE
+#include <limits.h>
 #include <pthread.h>
 #endif
 
@@ -41,9 +42,7 @@
 #include "cfg.h"
 #include "datapack.h"
 #include "crc.h"
-#ifndef _THREAD_SAFE
 #include "main.h"
-#endif
 
 
 #define PRESERVE_BLOCK 1
@@ -69,6 +68,8 @@
 
 #define CHUNKHDRSIZE (1024+4*1024)
 #define CHUNKHDRCRC 1024
+
+#define STATSHISTORY (24*60)
 
 #define LASTERRSIZE 3
 #define LASTERRTIME 60
@@ -150,6 +151,17 @@ typedef struct chunk {
 	struct chunk *next;
 } chunk;
 
+typedef struct hddstats {
+	uint64_t rbytes;
+	uint64_t wbytes;
+	uint64_t usecreadsum;
+	uint64_t usecwritesum;
+	uint32_t rops;
+	uint32_t wops;
+	uint32_t usecreadmax;
+	uint32_t usecwritemax;
+} hddstats;
+
 typedef struct folder {
 	char *path;
 	unsigned int needrefresh:1;
@@ -158,6 +170,9 @@ typedef struct folder {
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
+	hddstats cstat;
+	hddstats stats[STATSHISTORY];
+	uint32_t statspos;
 	ioerror lasterrtab[LASTERRSIZE];
 	uint32_t chunkcount;
 	uint32_t lasterrindx;
@@ -257,6 +272,36 @@ static uint32_t stats_version=0;
 static uint32_t stats_duplicate=0;
 static uint32_t stats_truncate=0;
 static uint32_t stats_duptrunc=0;
+
+static inline void hdd_stats_clear(hddstats *r) {
+	memset(r,0,sizeof(hddstats));
+}
+
+static inline void hdd_stats_add(hddstats *dst,hddstats *src) {
+	dst->rbytes += src->rbytes;
+	dst->wbytes += src->wbytes;
+	dst->usecreadsum += src->usecreadsum;
+	dst->usecwritesum += src->usecwritesum;
+	dst->rops += src->rops;
+	dst->wops += src->wops;
+	if (src->usecreadmax>dst->usecreadmax) {
+		dst->usecreadmax = src->usecreadmax;
+	}
+	if (src->usecwritemax>dst->usecwritemax) {
+		dst->usecwritemax = src->usecwritemax;
+	}
+}
+
+static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
+	put64bit(buff,r->rbytes);
+	put64bit(buff,r->wbytes);
+	put64bit(buff,r->usecreadsum);
+	put64bit(buff,r->usecwritesum);
+	put32bit(buff,r->rops);
+	put32bit(buff,r->wops);
+	put32bit(buff,r->usecreadmax);
+	put32bit(buff,r->usecwritemax);
+}
 
 /*
 void printbacktrace(void) {
@@ -469,31 +514,43 @@ static inline void hdd_stats_write(uint32_t size) {
 #endif
 }
 
-static inline void hdd_stats_dataread(uint32_t size,uint64_t rtime) {
+static inline void hdd_stats_dataread(folder *f,uint32_t size,uint64_t rtime) {
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&statslock);
 #endif
 	stats_dataopr++;
 	stats_databytesr += size;
 	stats_rtime += rtime;
+	f->cstat.rops++;
+	f->cstat.rbytes += size;
+	f->cstat.usecreadsum += rtime;
+	if (rtime>f->cstat.usecreadmax) {
+		f->cstat.usecreadmax=rtime;
+	}
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&statslock);
 #endif
 }
 
-static inline void hdd_stats_datawrite(uint32_t size,uint64_t wtime) {
+static inline void hdd_stats_datawrite(folder *f,uint32_t size,uint64_t wtime) {
 #ifdef _THREAD_SAFE
 	pthread_mutex_lock(&statslock);
 #endif
 	stats_dataopw++;
 	stats_databytesw += size;
 	stats_wtime += wtime;
+	f->cstat.wops++;
+	f->cstat.wbytes += size;
+	f->cstat.usecwritesum += wtime;
+	if (wtime>f->cstat.usecwritemax) {
+		f->cstat.usecwritemax=wtime;
+	}
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&statslock);
 #endif
 }
 
-uint32_t hdd_diskinfo_size() {
+uint32_t hdd_diskinfo_v1_size() {
 	folder *f;
 	uint32_t s=0,sl;
 #ifdef _THREAD_SAFE
@@ -509,7 +566,7 @@ uint32_t hdd_diskinfo_size() {
 	return s;
 }
 
-void hdd_diskinfo_data(uint8_t *buff) {
+void hdd_diskinfo_v1_data(uint8_t *buff) {
 	folder *f;
 	uint32_t sl;
 	uint32_t ei;
@@ -538,6 +595,98 @@ void hdd_diskinfo_data(uint8_t *buff) {
 		}
 	}
 #ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&folderlock);
+#endif
+}
+
+uint32_t hdd_diskinfo_v2_size() {
+	folder *f;
+	uint32_t s=0,sl;
+#ifdef _THREAD_SAFE
+	pthread_mutex_lock(&folderlock);
+#endif
+	for (f=folderhead ; f ; f=f->next ) {
+		sl = strlen(f->path);
+		if (sl>255) {
+			sl=255;
+		}
+		s+=2+178+sl;
+	}
+	return s;
+}
+
+void hdd_diskinfo_v2_data(uint8_t *buff) {
+	folder *f;
+	hddstats s;
+	uint32_t sl;
+	uint32_t ei;
+	uint32_t pos;
+	if (buff) {
+#ifdef _THREAD_SAFE
+		pthread_mutex_lock(&statslock);
+#endif
+		for (f=folderhead ; f ; f=f->next ) {
+			sl = strlen(f->path);
+			if (sl>255) {
+				put16bit(&buff,178+255);	// size of this entry
+				put8bit(&buff,255);
+				memcpy(buff,"(...)",5);
+				memcpy(buff+5,f->path+(sl-250),250);
+				buff+=255;
+			} else {
+				put16bit(&buff,178+sl);	// size of this entry
+				put8bit(&buff,sl);
+				if (sl>0) {
+					memcpy(buff,f->path,sl);
+					buff+=sl;
+				}
+			}
+			put8bit(&buff,((f->todel)?1:0)+((f->damaged)?2:0));
+			ei = (f->lasterrindx+(LASTERRSIZE-1))%LASTERRSIZE;
+			put64bit(&buff,f->lasterrtab[ei].chunkid);
+			put32bit(&buff,f->lasterrtab[ei].timestamp);
+			put64bit(&buff,f->total-f->avail);
+			put64bit(&buff,f->total);
+			put32bit(&buff,f->chunkcount);
+			s = f->stats[f->statspos];
+			hdd_stats_binary_pack(&buff,&s);	// 48B
+			for (pos=1 ; pos<60 ; pos++) {
+				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
+			}
+			hdd_stats_binary_pack(&buff,&s);	// 48B
+			for (pos=60 ; pos<24*60 ; pos++) {
+				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
+			}
+			hdd_stats_binary_pack(&buff,&s);	// 48B
+		}
+#ifdef _THREAD_SAFE
+		pthread_mutex_unlock(&statslock);
+#endif
+	}
+#ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&folderlock);
+#endif
+}
+
+void hdd_diskinfo_movestats(void) {
+	folder *f;
+#ifdef _THREAD_SAFE
+	pthread_mutex_lock(&folderlock);
+	pthread_mutex_lock(&statslock);
+#endif
+	for (f=folderhead ; f ; f=f->next ) {
+		if (f->statspos==0) {
+			f->statspos=STATSHISTORY-1;
+		} else {
+			f->statspos--;
+		}
+		syslog(LOG_NOTICE,"cstat.rbytes: %"PRIu64,f->cstat.rbytes);
+		f->stats[f->statspos]=f->cstat;
+		hdd_stats_clear(&(f->cstat));
+		syslog(LOG_NOTICE,"stats[statspos].rbytes: %"PRIu64,f->stats[f->statspos].rbytes);
+	}
+#ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&statslock);
 	pthread_mutex_unlock(&folderlock);
 #endif
 }
@@ -1539,7 +1688,7 @@ static int hdd_io_end(chunk *c) {
 	return STATUS_OK;
 }
 
-static inline uint64_t get_msectime() {
+static inline uint64_t get_usectime() {
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
 	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
@@ -1641,15 +1790,15 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			ret = 0x10000;
 		} else {
 #endif /* PRESERVE_BLOCK */
-		ts = get_msectime();
+		ts = get_usectime();
 #ifdef USE_PIO
 		ret = pread(c->fd,buffer,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 		ret = read(c->fd,buffer,0x10000);
 #endif /* USE_PIO */
-		te = get_msectime();
-		hdd_stats_dataread(0x10000,te-ts);
+		te = get_usectime();
+		hdd_stats_dataread(c->owner,0x10000,te-ts);
 #ifdef PRESERVE_BLOCK
 			c->blockno = blocknum;
 			memcpy(c->block,buffer,0x10000);
@@ -1675,15 +1824,15 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 	} else {
 #ifdef PRESERVE_BLOCK
 		if (c->blockno != blocknum) {
-			ts = get_msectime();
+			ts = get_usectime();
 #ifdef USE_PIO
 			ret = pread(c->fd,c->block,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 			ret = read(c->fd,c->block,0x10000);
 #endif /* USE_PIO */
-			te = get_msectime();
-			hdd_stats_dataread(0x10000,te-ts);
+			te = get_usectime();
+			hdd_stats_dataread(c->owner,0x10000,te-ts);
 			c->blockno = blocknum;
 		} else {
 			ret = 0x10000;
@@ -1692,15 +1841,15 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 		crc = mycrc32(0,c->block+offset,size);
 		postcrc = mycrc32(0,c->block+offset+size,0x10000-(offset+size));
 #else /* PRESERVE_BLOCK */
-		ts = get_msectime();
+		ts = get_usectime();
 #ifdef USE_PIO
 		ret = pread(c->fd,blockbuffer,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 		ret = read(c->fd,blockbuffer,0x10000);
 #endif /* USE_PIO */
-		te = get_msectime();
-		hdd_stats_dataread(0x10000,te-ts);
+		te = get_usectime();
+		hdd_stats_dataread(c->owner,0x10000,te-ts);
 //		crc = mycrc32(0,blockbuffer+offset,size);	// first calc crc for piece
 		precrc = mycrc32(0,blockbuffer,offset);
 		crc = mycrc32(0,blockbuffer+offset,size);
@@ -1793,15 +1942,15 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			}
 			c->blocks=blocknum+1;
 		}
-		ts = get_msectime();
+		ts = get_usectime();
 #ifdef USE_PIO
 		ret = pwrite(c->fd,buffer,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 		ret = write(c->fd,buffer,0x10000);
 #endif /* USE_PIO */
-		te = get_msectime();
-		hdd_stats_datawrite(0x10000,te-ts);
+		te = get_usectime();
+		hdd_stats_datawrite(c->owner,0x10000,te-ts);
 		if (crc!=mycrc32(0,buffer,0x10000)) {
 			syslog(LOG_WARNING,"write_block_to_chunk: file:%s - crc error",c->filename);
 			hdd_error_occured(c);
@@ -1827,29 +1976,29 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		if (blocknum<c->blocks) {
 #ifdef PRESERVE_BLOCK
 			if (c->blockno != blocknum) {
-				ts = get_msectime();
+				ts = get_usectime();
 #ifdef USE_PIO
 				ret = pread(c->fd,c->block,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 				lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 				ret = read(c->fd,c->block,0x10000);
 #endif /* USE_PIO */
-				te = get_msectime();
-				hdd_stats_dataread(0x10000,te-ts);
+				te = get_usectime();
+				hdd_stats_dataread(c->owner,0x10000,te-ts);
 				c->blockno = blocknum;
 			} else {
 				ret = 0x10000;
 			}
 #else /* PRESERVE_BLOCK */
-			ts = get_msectime();
+			ts = get_usectime();
 #ifdef USE_PIO
 			ret = pread(c->fd,blockbuffer,0x10000,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16));
 #else /* USE_PIO */
 			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16),SEEK_SET);
 			ret = read(c->fd,blockbuffer,0x10000);
 #endif /* USE_PIO */
-			te = get_msectime();
-			hdd_stats_dataread(0x10000,te-ts);
+			te = get_usectime();
+			hdd_stats_dataread(c->owner,0x10000,te-ts);
 #endif /* PRESERVE_BLOCK */
 			if (ret!=0x10000) {
 				syslog(LOG_WARNING,"write_block_to_chunk: file:%s - read error (%d:%s)",c->filename,errno,strerror(errno));
@@ -1909,27 +2058,27 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		}
 #ifdef PRESERVE_BLOCK
 		memcpy(c->block+offset,buffer,size);
-		ts = get_msectime();
+		ts = get_usectime();
 #ifdef USE_PIO
 		ret = pwrite(c->fd,c->block+offset,size,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16)+offset);
 #else /* USE_PIO */
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16)+offset,SEEK_SET);
 		ret = write(c->fd,c->block+offset,size);
 #endif /* USE_PIO */
-		te = get_msectime();
-		hdd_stats_datawrite(size,te-ts);
+		te = get_usectime();
+		hdd_stats_datawrite(c->owner,size,te-ts);
 		chcrc = mycrc32(0,c->block+offset,size);
 #else /* PRESERVE_BLOCK */
 		memcpy(blockbuffer+offset,buffer,size);
-		ts = get_msectime();
+		ts = get_usectime();
 #ifdef USE_PIO
 		ret = pwrite(c->fd,blockbuffer+offset,size,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16)+offset);
 #else /* USE_PIO */
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<16)+offset,SEEK_SET);
 		ret = write(c->fd,blockbuffer+offset,size);
 #endif /* USE_PIO */
-		te = get_msectime();
-		hdd_stats_datawrite(size,te-ts);
+		te = get_usectime();
+		hdd_stats_datawrite(c->owner,size,te-ts);
 		chcrc = mycrc32(0,blockbuffer+offset,size);
 #endif /* PRESERVE_BLOCK */
 		if (offset==0) {
@@ -3491,7 +3640,7 @@ void* hdd_delayed_thread(void *arg) {
 }
 #endif
 
-int hdd_init(void) {
+int hdd_init(FILE *msgfd) {
 	uint32_t l;
 	int lfp,td;
 	uint32_t hp;
@@ -3502,6 +3651,9 @@ int hdd_init(void) {
 	char *hddfname;
 	struct stat sb;
 	folder *f,*sf;
+#ifdef _THREAD_SAFE
+	pthread_attr_t thattr;
+#endif
 
 	// this routine is called at the beginning from the main thread so no locks are necessary here
 	for (hp=0 ; hp<HASHSIZE ; hp++) {
@@ -3522,7 +3674,7 @@ int hdd_init(void) {
 //	emptyblockcrc = mycrc32(0,blockbuffer,0x10000);
 	emptyblockcrc = mycrc32_zeroblock(0,0x10000);
 
-	config_getnewstr("HDD_CONF_FILENAME",ETC_PATH "/mfshdd.cfg",&hddfname);
+	hddfname = cfg_getstr("HDD_CONF_FILENAME",ETC_PATH "/mfshdd.cfg");
 
 	fd = fopen(hddfname,"r");
 	free(hddfname);
@@ -3596,6 +3748,11 @@ int hdd_init(void) {
 			f->avail = 0ULL;
 			f->total = 0ULL;
 			f->chunkcount = 0;
+			hdd_stats_clear(&(f->cstat));
+			for (l=0 ; l<STATSHISTORY ; l++) {
+				hdd_stats_clear(&(f->stats[l]));
+			}
+			f->statspos=0;
 			for (l=0 ; l<LASTERRSIZE ; l++) {
 				f->lasterrtab[l].chunkid = 0ULL;
 				f->lasterrtab[l].timestamp = 0;
@@ -3621,39 +3778,52 @@ int hdd_init(void) {
 	}
 
 #ifdef _THREAD_SAFE
+	pthread_attr_init(&thattr);
+	pthread_attr_setstacksize(&thattr,0x100000);
+
 	/* make advantage from thread safety and scan folders in separate threads */
 	for (f=folderhead ; f ; f=f->next) {
-		pthread_create(&(f->scanthread),NULL,hdd_folder_scan,f);
+		fprintf(msgfd,"starting scanning thread for folder %s ...\n",f->path);
+		pthread_create(&(f->scanthread),&thattr,hdd_folder_scan,f);
 	}
 	for (f=folderhead ; f ; f=f->next) {
 		pthread_join(f->scanthread,NULL);
 		hdd_refresh_usage(f);
 		f->needrefresh = 0;
 	}
-	config_getuint32("HDD_TEST_FREQ",10,&HDDTestFreq);
+	fprintf(msgfd,"scanning complete\n");
+	for (f=folderhead ; f ; f=f->next) {
+		fprintf(msgfd,"%s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
+	}
+	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	if (HDDTestFreq>0) {
 		for (f=folderhead ; f ; f=f->next) {
 			hdd_testsort(f);
 		}
-		pthread_create(&testerthread,NULL,hdd_tester_thread,NULL);
+		pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL);
 	}
 #else
 	for (f=folderhead ; f ; f=f->next) {
+		fprintf(msgfd,"scanning folder %s ...\n",f->path);
 		hdd_folder_scan(f);
 		hdd_refresh_usage(f);
 		f->needrefresh = 0;
+		fprintf(msgfd,"%s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
 	}
+	fprintf(msgfd,"scanning complete\n");
 #endif
 	hdd_check_folders();
 
 #ifdef _THREAD_SAFE
-	pthread_create(&foldersthread,NULL,hdd_folders_thread,(void*)1);
-	pthread_create(&delayedthread,NULL,hdd_delayed_thread,(void*)DELAYEDSTEP);
+	pthread_create(&foldersthread,&thattr,hdd_folders_thread,(void*)1);
+	pthread_create(&delayedthread,&thattr,hdd_delayed_thread,(void*)DELAYEDSTEP);
+	pthread_attr_destroy(&thattr);
 //	atexit(hdd_flush_crc);
 #else
 	main_timeregister(TIMEMODE_RUNONCE,1,0,hdd_check_folders);
 	main_timeregister(TIMEMODE_RUNONCE,DELAYEDSTEP,0,hdd_delayed_ops);
 //	main_destructregister(hdd_flush_crc);
 #endif
+	main_timeregister(TIMEMODE_RUNONCE,60,0,hdd_diskinfo_movestats);
 	return 0;
 }

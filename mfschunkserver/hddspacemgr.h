@@ -18,7 +18,10 @@
 
 #ifndef _HDDSPACEMGR_H_
 #define _HDDSPACEMGR_H_
+
 #include <inttypes.h>
+#include <stdio.h>
+
 #include "MFSCommunication.h"
 
 void hdd_stats(uint32_t *br,uint32_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
@@ -32,8 +35,10 @@ void hdd_get_damaged_chunk_data(uint8_t *buff);
 uint32_t hdd_get_lost_chunk_count(void);
 void hdd_get_lost_chunk_data(uint8_t *buff);
 /* lock/unlock pair */
-uint32_t hdd_diskinfo_size();
-void hdd_diskinfo_data(uint8_t *buff);
+uint32_t hdd_diskinfo_v1_size();
+void hdd_diskinfo_v1_data(uint8_t *buff);
+uint32_t hdd_diskinfo_v2_size();
+void hdd_diskinfo_v2_data(uint8_t *buff);
 /* lock/unlock pair */
 uint32_t hdd_get_chunks_count();
 void hdd_get_chunks_data(uint8_t *buff);
@@ -76,7 +81,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 #define hdd_duptrunc(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):ERROR_EINVAL)
 
 /* initialization */
-int hdd_init(void);
+int hdd_init(FILE *msgfd);
 
 /* debug only */
 void hdd_test_show_chunks(void);

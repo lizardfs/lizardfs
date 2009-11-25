@@ -18,6 +18,8 @@
 
 #ifndef _MATOMLSERV_H_
 #define _MATOMLSERV_H_
+
+#include <stdio.h>
 #include <inttypes.h>
 
 uint32_t matomlserv_mloglist_size(void);
@@ -25,6 +27,6 @@ void matomlserv_mloglist_data(uint8_t *ptr);
 
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 void matomlserv_broadcast_logrotate();
-int matomlserv_init(void);
+int matomlserv_init(FILE *msgfd);
 
 #endif

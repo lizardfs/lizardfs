@@ -686,17 +686,17 @@ void masterconn_reload(void) {
 	eptr->masteraddrvalid=0;
 }
 
-int masterconn_init(void) {
+int masterconn_init(FILE *msgfd) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 	masterconn *eptr;
 
-	config_getuint32("MASTER_RECONNECTION_DELAY",5,&ReconnectionDelay);
-	config_getnewstr("MASTER_HOST","mfsmaster",&MasterHost);
-	config_getnewstr("MASTER_PORT","9419",&MasterPort);
-	config_getuint32("MASTER_TIMEOUT",60,&Timeout);
-	config_getuint32("BACK_LOGS",50,&BackLogsNumber);
-	config_getuint32("META_DOWNLOAD_FREQ",24,&MetaDLFreq);
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstr("MASTER_PORT","9419");
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -728,5 +728,6 @@ int masterconn_init(void) {
 	main_reloadregister(masterconn_reload);
 	main_timeregister(TIMEMODE_RUNONCE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,masterconn_sessionsdownloadinit);
+	(void)msgfd;
 	return 0;
 }

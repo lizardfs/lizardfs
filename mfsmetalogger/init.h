@@ -16,9 +16,11 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "masterconn.h"
-
 #include "config.h"
+
+#include <stdio.h>
+
+#include "masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -26,7 +28,7 @@ const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN)
 const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
 /* Run Tab */
-typedef int (*runfn)(void);
+typedef int (*runfn)(FILE *msgfd);
 struct {
 	runfn fn;
 	char *name;

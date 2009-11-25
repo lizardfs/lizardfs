@@ -12,6 +12,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <inttypes.h>
 
@@ -401,10 +402,11 @@ void* write_worker(void *arg) {
 			continue;
 		}
 
+		// syslog(LOG_NOTICE,"file: %"PRIu32", index: %"PRIu16" - debug1",id->inode,chindx);
 		// get chunk data from master
 		wrstatus = fs_writechunk(id->inode,chindx,&mfleng,&chunkid,&version,&csdata,&csdatasize);
 		if (wrstatus!=STATUS_OK) {
-			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16", chunk: %"PRIu64", version: %"PRIu32" - fs_writechunk returns status %d",id->inode,chindx,chunkid,version,wrstatus);
+			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu16" - fs_writechunk returns status %d",id->inode,chindx,wrstatus);
 			if (wrstatus!=ERROR_LOCKED) {
 				if (wrstatus==ERROR_ENOENT) {
 					write_job_end(id,EBADF,0);
@@ -801,6 +803,7 @@ void* write_worker(void *arg) {
 void write_data_init (uint32_t cachesize,uint32_t retries) {
 	uint32_t cacheblocks = (cachesize/65536);
 	uint32_t i;
+	pthread_attr_t thattr;
 
 	maxretries = retries;
 	if (cacheblocks<10) {
@@ -825,13 +828,16 @@ void write_data_init (uint32_t cachesize,uint32_t retries) {
 	dqueue = queue_new(0);
 	jqueue = queue_new(0);
 
-	pthread_create(&dqueue_worker_th,NULL,write_dqueue_worker,NULL);
+	pthread_attr_init(&thattr);
+	pthread_attr_setstacksize(&thattr,0x100000);
+	pthread_create(&dqueue_worker_th,&thattr,write_dqueue_worker,NULL);
 #ifdef BUFFER_DEBUG
-	pthread_create(&info_worker_th,NULL,write_info_worker,NULL);
+	pthread_create(&info_worker_th,&thattr,write_info_worker,NULL);
 #endif
 	for (i=0 ; i<WORKERS ; i++) {
-		pthread_create(write_worker_th+i,NULL,write_worker,(void*)(unsigned long)(i));
+		pthread_create(write_worker_th+i,&thattr,write_worker,(void*)(unsigned long)(i));
 	}
+	pthread_attr_destroy(&thattr);
 }
 
 

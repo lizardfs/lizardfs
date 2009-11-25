@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -26,11 +27,12 @@ static uint8_t i,j;
 static uint8_t p[256];
 
 
-int rndinit() {
+int rndinit(FILE *msgfd) {
 	uint8_t key[64],vkey[64];
 	register uint8_t x;
 	uint16_t l;
 
+	(void)msgfd;
 	srandom(time(NULL));
 	for (l=0 ; l<64 ; l++) {
 		key[l] = random();

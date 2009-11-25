@@ -27,6 +27,7 @@
 #include <syslog.h>
 #include <inttypes.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 
 #include "MFSCommunication.h"
@@ -165,13 +166,18 @@ void read_data_end(void* rr) {
 
 void read_data_init(uint32_t retries) {
 	uint32_t i;
+	pthread_attr_t thattr;
+
 	for (i=0 ; i<MAPSIZE ; i++) {
 		rdinodemap[i]=NULL;
 	}
 	maxretries=retries;
 	mainlock = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(mainlock,NULL);
-	pthread_create(&pthid,NULL,read_data_delayed_ops,NULL);
+	pthread_attr_init(&thattr);
+	pthread_attr_setstacksize(&thattr,0x100000);
+	pthread_create(&pthid,&thattr,read_data_delayed_ops,NULL);
+	pthread_attr_destroy(&thattr);
 }
 
 static int read_data_refresh_connection(readrec *rrec) {

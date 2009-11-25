@@ -577,13 +577,14 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matomlserv_init(void) {
-	config_getnewstr("MATOML_LISTEN_HOST","*",&ListenHost);
-	config_getnewstr("MATOML_LISTEN_PORT","9419",&ListenPort);
+int matomlserv_init(FILE *msgfd) {
+	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
 
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matoml: socket error: %m");
+		fprintf(msgfd,"master <-> metaloggers module error: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -594,9 +595,11 @@ int matomlserv_init(void) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matoml: listen error: %m");
+		fprintf(msgfd,"master <-> metaloggers module error: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matoml: listen on %s:%s",ListenHost,ListenPort);
+	fprintf(msgfd,"master <-> metaloggers module: listen on %s:%s\n",ListenHost,ListenPort);
 
 	matomlservhead = NULL;
 	main_destructregister(matomlserv_term);

@@ -1,5 +1,5 @@
 if BUILD_MASTER
-MASTERDIR=mfsmaster mfsmetarestore mfsmetalogger
+MASTERDIR=mfsmaster mfsmetarestore mfsmetadump mfsmetalogger
 else
 MASTERDIR=
 endif

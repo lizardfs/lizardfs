@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <stdio.h>
+
 #include "acl.h"
 #include "matomlserv.h"
 #include "matocsserv.h"
@@ -25,7 +27,7 @@
 #include "filesystem.h"
 #include "random.h"
 #include "changelog.h"
-#include "stats.h"
+#include "chartsdata.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -33,7 +35,7 @@ const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN)
 const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
 /* Run Tab */
-typedef int (*runfn)(void);
+typedef int (*runfn)(FILE *msgfd);
 struct {
 	runfn fn;
 	char *name;
@@ -41,10 +43,10 @@ struct {
 	{changelog_init,"change log"},
 	{rndinit,"random generator"},
 	{acl_init,"access control list"},
+	{fs_init,"file system manager"},
+	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
 	{matocuserv_init,"communication with clients"},
-	{fs_init,"file system manager"},
-	{stats_init,"statistics module"},
 	{(runfn)0,"****"}
 };

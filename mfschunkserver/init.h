@@ -16,12 +16,14 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
+#include <stdio.h>
+
 #include "hddspacemgr.h"
 #include "masterconn.h"
 #include "csserv.h"
-#include "stats.h"
-
-#include "config.h"
+#include "chartsdata.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -29,7 +31,7 @@ const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN)
 const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
 
 /* Run Tab */
-typedef int (*runfn)(void);
+typedef int (*runfn)(FILE *msgfd);
 struct {
 	runfn fn;
 	char *name;
@@ -37,6 +39,6 @@ struct {
 	{hdd_init,"hdd space manager"},
 	{csserv_init,"chunkserver server"},	/* heve to be before "masterconn" */
 	{masterconn_init,"connection with master"},
-	{stats_init,"statistics/charts module"},
+	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}
 };

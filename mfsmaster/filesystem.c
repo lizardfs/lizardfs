@@ -1249,6 +1249,9 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 	if ((node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
 		mode |= (MATTR_NOACACHE<<12);
 	}
+	if (node->mode&(EATTR_ALLOWDATACACHE<<12)) {
+		mode |= (MATTR_ALLOWDATACACHE<<12);
+	}
 	put16bit(&ptr,mode);
 	if ((node->mode&(EATTR_NOOWNER<<12)) && uid!=0) {
 		if (sesflags&SESFLAG_MAPALL) {
@@ -2156,7 +2159,7 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 	fsedge *e;
 
 	if (node->type!=TYPE_DIRECTORY) {
-		feattrtab[(node->mode>>12)&(EATTR_NOOWNER|EATTR_NOACACHE)]++;
+		feattrtab[(node->mode>>12)&(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_ALLOWDATACACHE)]++;
 	} else {
 		deattrtab[(node->mode>>12)]++;
 		if (gmode==GMODE_RECURSIVE) {
@@ -4198,7 +4201,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint16_t
 	return STATUS_OK;
 }
 
-uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags) {
+uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,uint8_t attr[35]) {
 	fsnode *p,*rn;
 	if ((sesflags&SESFLAG_READONLY) && (flags&WANT_WRITE)) {
 		return ERROR_EROFS;
@@ -4241,6 +4244,7 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 			return ERROR_EACCES;
 		}
 	}
+	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
 	stats_open++;
 	return STATUS_OK;
 }
@@ -5007,7 +5011,7 @@ uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_
 	nci = 0;
 	nsi = 0;
 #endif
-	if (!SMODE_ISVALID(smode) || (eattr&(~(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_NOECACHE)))) {
+	if (!SMODE_ISVALID(smode) || (eattr&(~(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_NOECACHE|EATTR_ALLOWDATACACHE)))) {
 		return ERROR_EINVAL;
 	}
 #ifndef METARESTORE
@@ -7211,7 +7215,7 @@ int fs_storeall(int bg) {
 #else
 	(void)bg;
 #endif
-	rotatelog();
+	changelog_rotate();
 #ifdef BACKGROUND_METASTORE
 	if (bg) {
 		i = fork();
@@ -7304,7 +7308,7 @@ void fs_term(const char *fname) {
 #endif
 
 #ifndef METARESTORE
-int fs_loadall(void) {
+int fs_loadall(FILE *msgfd) {
 #else
 int fs_loadall(const char *fname) {
 #endif
@@ -7338,6 +7342,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 		printf("can't open metadata file\n");
 #else
+		fprintf(msgfd,"can't open metadata file\n");
 		syslog(LOG_ERR,"can't open metadata file");
 #endif
 		return -1;
@@ -7346,6 +7351,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 		printf("can't read metadata header\n");
 #else
+		fprintf(msgfd,"can't read metadata header\n");
 		syslog(LOG_ERR,"can't read metadata header");
 #endif
 		return -1;
@@ -7354,13 +7360,16 @@ int fs_loadall(const char *fname) {
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
 		fclose(fd);
 		if (backversion>0) {
+			fprintf(msgfd,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
 			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
 			return -1;
 		}
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
+			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back\n");
 			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back (%m)");
 			return -1;
 		}
+		fprintf(msgfd,"create new empty filesystem");
 		syslog(LOG_NOTICE,"create new empty filesystem");
 		fs_new();
 		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
@@ -7369,11 +7378,13 @@ int fs_loadall(const char *fname) {
 	if (memcmp(hdr,"MFSM 1.4",8)==0) {
 		converted=1;
 		if (fs_load_1_4(fd)<0) {
+			fprintf(msgfd,"error reading metadata (structure)\n");
 			syslog(LOG_ERR,"error reading metadata (structure)");
 			fclose(fd);
 			return -1;
 		}
 		if (chunk_load(fd)<0) {
+			fprintf(msgfd,"error reading metadata (chunks)\n");
 			syslog(LOG_ERR,"error reading metadata (chunks)");
 			fclose(fd);
 			return -1;
@@ -7385,6 +7396,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 			printf("error reading metadata (structure)\n");
 #else
+			fprintf(msgfd,"error reading metadata (structure)\n");
 			syslog(LOG_ERR,"error reading metadata (structure)");
 #endif
 			fclose(fd);
@@ -7394,6 +7406,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 			printf("error reading metadata (chunks)\n");
 #else
+			fprintf(msgfd,"error reading metadata (chunks)\n");
 			syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
 			fclose(fd);
@@ -7403,6 +7416,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 		printf("wrong metadata header (old version ?)\n");
 #else
+		fprintf(msgfd,"wrong metadata header\n");
 		syslog(LOG_ERR,"wrong metadata header");
 #endif
 		fclose(fd);
@@ -7412,6 +7426,7 @@ int fs_loadall(const char *fname) {
 #ifdef METARESTORE
 		printf("error reading metadata\n");
 #else
+		fprintf(msgfd,"error reading metadata\n");
 		syslog(LOG_ERR,"error reading metadata");
 #endif
 		fclose(fd);
@@ -7420,11 +7435,13 @@ int fs_loadall(const char *fname) {
 	fclose(fd);
 #ifndef METARESTORE
 	if (backversion>version) {
+		fprintf(msgfd,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
 		syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
 		return -1;
 	}
 	if (converted==1) {
 		if (rename("metadata.mfs","metadata.mfs.back.1.4")<0) {
+			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back.1.4\n");
 			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4 (%m)");
 			return -1;
 		}
@@ -7434,6 +7451,7 @@ int fs_loadall(const char *fname) {
 //		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
 	} else {
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
+			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back\n");
 			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back (%m)");
 			return -1;
 		}
@@ -7466,13 +7484,15 @@ void fs_strinit(void) {
 }
 
 #ifndef METARESTORE
-int fs_init(void) {
+int fs_init(FILE *msgfd) {
+	fprintf(msgfd,"loading metadata ...\n");
 	fs_strinit();
 	chunk_strinit();
 	starttime = main_time();
-	if (fs_loadall()<0) {
+	if (fs_loadall(msgfd)<0) {
 		return -1;
 	}
+	fprintf(msgfd,"metadata file has been loaded\n");
 #if VERSMID==7
 #warning uncomment quota time limit
 #endif

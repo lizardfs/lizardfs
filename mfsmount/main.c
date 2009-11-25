@@ -22,6 +22,9 @@
 #include <fuse_opt.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#ifdef HAVE_MLOCKALL
+#include <sys/mman.h>
+#endif
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -115,10 +118,15 @@ struct mfsopts {
 	char *md5pass;
 	unsigned nofile;
 	signed nice;
+#ifdef HAVE_MLOCKALL
+	int memlock;
+#endif
 	int nostdmountoptions;
 	int meta;
 	int debug;
+	char *cachemode;
 	int cachefiles;
+	int keepcache;
 	int passwordask;
 	unsigned writecachesize;
 	unsigned ioretries;
@@ -150,11 +158,15 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
 	MFS_OPT("mfsnice=%d", nice, 0),
+#ifdef HAVE_MLOCKALL
+	MFS_OPT("mfsmemlock", memlock, 1),
+#endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
-	MFS_OPT("mfscachefiles", cachefiles, 1),
+	MFS_OPT("mfscachefiles", cachefiles, 0),
+	MFS_OPT("mfscachemode=%s", cachemode, 0),
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
@@ -193,12 +205,16 @@ static void usage(const char *progname) {
 "    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
-"    -o mfscachefiles            preserve files data in cache\n"
+"    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
+"    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
+#ifdef HAVE_MLOCKALL
+"    -o mfsmemlock               try to lock memory\n"
+#endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
@@ -206,6 +222,11 @@ static void usage(const char *progname) {
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
+"\n"
+"CACHEMODE can be set to:\n"
+"    NO,NONE or NEVER            never allow files data to be kept in cache\n"
+"    YES or ALWAYS               always allow files data to be kept in cache\n"
+"    AUTO,OBEY or EATTR          obey eattr flag 'allowdatacache' and allow only files with this flag set to be kept in cache\n"
 "\n", progname);
 }
 
@@ -388,11 +409,30 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 	fprintf(stderr,"\n");
 
+	if (fg==0) {
+		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY , LOG_DAEMON);
+	} else {
+#if defined(LOG_PERROR)
+		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
+#else
+		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY, LOG_USER);
+#endif
+	}
+
 	rls.rlim_cur = mfsopts.nofile;
 	rls.rlim_max = mfsopts.nofile;
 	setrlimit(RLIMIT_NOFILE,&rls);
 
 	setpriority(PRIO_PROCESS,getpid(),mfsopts.nice);
+#ifdef HAVE_MLOCKALL
+	if (mfsopts.memlock) {
+		rls.rlim_cur = RLIM_INFINITY;
+		rls.rlim_max = RLIM_INFINITY;
+		if (setrlimit(RLIMIT_MEMLOCK,&rls)<0) {
+			mfsopts.memlock=0;
+		}
+	}
+#endif
 
 	piped[0] = piped[1] = -1;
 	if (fg==0) {
@@ -415,6 +455,15 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		close(piped[0]);
 		s=1;
 	}
+
+
+#ifdef HAVE_MLOCKALL
+	if (mfsopts.memlock) {
+		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
+			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+		}
+	}
+#endif
 
 	fs_init_threads(mfsopts.ioretries);
 
@@ -441,7 +490,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		mfs_meta_init(mfsopts.debug,mfsopts.entrycacheto,mfsopts.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(mfsopts.debug,mfsopts.cachefiles,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto);
+		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -635,10 +684,14 @@ int main(int argc, char *argv[]) {
 	mfsopts.md5pass = NULL;
 	mfsopts.nofile = 0;
 	mfsopts.nice = -19;
+#ifdef HAVE_MLOCKALL
+	mfsopts.memlock = 0;
+#endif
 	mfsopts.nostdmountoptions = 0;
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
 	mfsopts.cachefiles = 0;
+	mfsopts.cachemode = NULL;
 	mfsopts.writecachesize = 0;
 	mfsopts.ioretries = 30;
 	mfsopts.passwordask = 0;
@@ -650,6 +703,23 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	if (mfsopts.cachemode!=NULL && mfsopts.cachefiles) {
+		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);
+		return 1;
+	}
+
+	if (mfsopts.cachemode==NULL) {
+		mfsopts.keepcache=(mfsopts.cachefiles)?1:0;
+	} else if (strcasecmp(mfsopts.cachemode,"AUTO")==0 || strcasecmp(mfsopts.cachemode,"EATTR")==0 || strcasecmp(mfsopts.cachemode,"OBEY")==0) {
+		mfsopts.keepcache=0;
+	} else if (strcasecmp(mfsopts.cachemode,"YES")==0 || strcasecmp(mfsopts.cachemode,"ALWAYS")==0) {
+		mfsopts.keepcache=1;
+	} else if (strcasecmp(mfsopts.cachemode,"NO")==0 || strcasecmp(mfsopts.cachemode,"NONE")==0 || strcasecmp(mfsopts.cachemode,"NEVER")==0) {
+		mfsopts.keepcache=2;
+	} else {
+		fprintf(stderr,"unrecognized cachemode option\nsee: %s -h for help\n",argv[0]);
+		return 1;
+	}
 	if (mfsopts.masterhost==NULL) {
 		mfsopts.masterhost = strdup("mfsmaster");
 	}

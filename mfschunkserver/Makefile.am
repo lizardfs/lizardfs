@@ -9,12 +9,13 @@ mfschunkserver_SOURCES= \
 	hddspacemgr.c hddspacemgr.h \
 	masterconn.c masterconn.h \
 	replicator.c replicator.h \
-	stats.c stats.h \
+	chartsdata.c chartsdata.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/th_sem.c ../mfscommon/th_sem.h \
 	../mfscommon/th_queue.c ../mfscommon/th_queue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/charts.c ../mfscommon/charts.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 

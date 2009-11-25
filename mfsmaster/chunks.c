@@ -2558,14 +2558,14 @@ void chunk_strinit(void) {
 	uint32_t i;
 #ifndef METARESTORE
 	uint32_t j;
-	config_getuint32("REPLICATIONS_DELAY_INIT",300,&ReplicationsDelayInit);
-	config_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600,&ReplicationsDelayDisconnect);
-	config_getuint32("CHUNKS_DEL_LIMIT",100,&MaxDel);
+	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
+	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
+	MaxDel = cfg_getuint32("CHUNKS_DEL_LIMIT",100);
 	TmpMaxDelFrac = MaxDel;
 	TmpMaxDel = MaxDel;
-	config_getuint32("CHUNKS_WRITE_REP_LIMIT",1,&MaxWriteRepl);
-	config_getuint32("CHUNKS_READ_REP_LIMIT",5,&MaxReadRepl);
-	config_getuint32("CHUNKS_LOOP_TIME",300,&LoopTime);
+	MaxWriteRepl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",1);
+	MaxReadRepl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",5);
+	LoopTime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
 	HashSteps = 1+((HASHSIZE)/LoopTime);
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
 #endif

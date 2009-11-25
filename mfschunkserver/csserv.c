@@ -19,6 +19,7 @@
 #include "config.h"
 
 #define BGJOBS 1
+#define BGJOBSCNT 1000
 
 #include <time.h>
 #include <sys/types.h>
@@ -40,7 +41,7 @@
 #include "sockets.h"
 #include "hddspacemgr.h"
 // #include "cstocsconn.h"
-#include "stats.h"
+#include "charts.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
@@ -143,21 +144,24 @@ static uint32_t stats_bytesin=0;
 static uint32_t stats_bytesout=0;
 static uint32_t stats_hlopr=0;
 static uint32_t stats_hlopw=0;
+static uint32_t stats_maxjobscnt=0;
 
 // from config
 static char *ListenHost;
 static char *ListenPort;
 static uint32_t Timeout;
 
-void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *hlopr,uint32_t *hlopw) {
+void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
 	*bout = stats_bytesout;
 	*hlopr = stats_hlopr;
 	*hlopw = stats_hlopw;
+	*maxjobscnt = stats_maxjobscnt;
 	stats_bytesin = 0;
 	stats_bytesout = 0;
 	stats_hlopr = 0;
 	stats_hlopw = 0;
+	stats_maxjobscnt = 0;
 }
 
 void* csserv_create_detached_packet(uint32_t type,uint32_t size) {
@@ -1202,24 +1206,44 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
-void csserv_hdd_list(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t l;
 	uint8_t *ptr;
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST(1) - wrong size (%"PRIu32"/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
-	l = hdd_diskinfo_size();	// lock
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST,l);
+	l = hdd_diskinfo_v1_size();	// lock
+	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V1,l);
 	if (ptr==NULL) {
-		hdd_diskinfo_size(NULL);	// unlock
+		hdd_diskinfo_v1_size(NULL);	// unlock
 		eptr->state = CLOSE;
 		return;
 	}
-	hdd_diskinfo_data(ptr);	// unlock
+	hdd_diskinfo_v1_data(ptr);	// unlock
+}
+
+void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t l;
+	uint8_t *ptr;
+
+	(void)data;
+	if (length!=0) {
+		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST(2) - wrong size (%"PRIu32"/0)",length);
+		eptr->state = CLOSE;
+		return;
+	}
+	l = hdd_diskinfo_v2_size();	// lock
+	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V2,l);
+	if (ptr==NULL) {
+		hdd_diskinfo_v2_size(NULL);	// unlock
+		eptr->state = CLOSE;
+		return;
+	}
+	hdd_diskinfo_v2_data(ptr);	// unlock
 }
 
 void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1233,14 +1257,14 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 	chartid = get32bit(&data);
-	l = stats_make_png(chartid);
+	l = charts_make_png(chartid);
 	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART,l);
 	if (ptr==NULL) {
 		eptr->state = CLOSE;
 		return;
 	}
 	if (l>0) {
-		stats_get_png(ptr);
+		charts_get_png(ptr);
 	}
 }
 
@@ -1255,14 +1279,14 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 	chartid = get32bit(&data);
-	l = stats_datasize(chartid);
+	l = charts_datasize(chartid);
 	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART_DATA,l);
 	if (ptr==NULL) {
 		eptr->state = CLOSE;
 		return;
 	}
 	if (l>0) {
-		stats_makedata(ptr,chartid);
+		charts_makedata(ptr,chartid);
 	}
 }
 
@@ -1280,9 +1304,11 @@ void csserv_outputcheck(csserventry *eptr) {
 void csserv_close(csserventry *eptr) {
 #ifdef BGJOBS
 	if (eptr->rjobid>0) {
+		job_pool_disable_job(jpool,eptr->rjobid);
 		job_pool_change_callback(jpool,eptr->rjobid,csserv_delayed_close,eptr);
 		eptr->state = CLOSEWAIT;
 	} else if (eptr->wjobid>0) {
+		job_pool_disable_job(jpool,eptr->wjobid);
 		job_pool_change_callback(jpool,eptr->wjobid,csserv_delayed_close,eptr);
 		eptr->state = CLOSEWAIT;
 	} else {
@@ -1329,8 +1355,11 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 		case ANTOCS_CHUNK_CHECKSUM_TAB:
 			csserv_chunk_checksum_tab(eptr,data,length);
 			break;
-		case CUTOCS_HDD_LIST:
-			csserv_hdd_list(eptr,data,length);
+		case CUTOCS_HDD_LIST_V1:
+			csserv_hdd_list_v1(eptr,data,length);
+			break;
+		case CUTOCS_HDD_LIST_V2:
+			csserv_hdd_list_v2(eptr,data,length);
 			break;
 		case CUTOAN_CHART:
 			csserv_chart(eptr,data,length);
@@ -1962,6 +1991,7 @@ void csserv_serve(struct pollfd *pdesc) {
 	packetstruct *pptr,*paptr;
 #ifdef BGJOBS
 	writestatus *wptr,*waptr;
+	uint32_t jobscnt;
 #endif
 	int ns;
 	uint8_t lstate;
@@ -1972,38 +2002,45 @@ void csserv_serve(struct pollfd *pdesc) {
 		if (ns<0) {
 			syslog(LOG_NOTICE,"accept error: %m");
 		} else {
-			tcpnonblock(ns);
-			tcpnodelay(ns);
-			eptr = malloc(sizeof(csserventry));
-			eptr->next = csservhead;
-			csservhead = eptr;
-			eptr->state = IDLE;
-			eptr->mode = HEADER;
-			eptr->fwdmode = HEADER;
-			eptr->sock = ns;
-			eptr->fwdsock = -1;
-			eptr->pdescpos = -1;
-			eptr->fwdpdescpos = -1;
-			eptr->activity = now;
-			eptr->inputpacket.bytesleft = 8;
-			eptr->inputpacket.startptr = eptr->hdrbuff;
-			eptr->inputpacket.packet = NULL;
-			eptr->fwdstartptr = NULL;
-			eptr->fwdbytesleft = 0;
-			eptr->fwdinputpacket.packet = NULL;
-			eptr->fwdinitpacket = NULL;
-			eptr->outputhead = NULL;
-			eptr->outputtail = &(eptr->outputhead);
-			eptr->chunkisopen = 0;
 #ifdef BGJOBS
-			eptr->wjobid = 0;
-			eptr->wjobwriteid = 0;
-			eptr->todolist = NULL;
+			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
+				syslog(LOG_WARNING,"jobs queue is full !!!");
+				tcpclose(ns);
+			} else {
+#endif
+				tcpnonblock(ns);
+				tcpnodelay(ns);
+				eptr = malloc(sizeof(csserventry));
+				eptr->next = csservhead;
+				csservhead = eptr;
+				eptr->state = IDLE;
+				eptr->mode = HEADER;
+				eptr->fwdmode = HEADER;
+				eptr->sock = ns;
+				eptr->fwdsock = -1;
+				eptr->pdescpos = -1;
+				eptr->fwdpdescpos = -1;
+				eptr->activity = now;
+				eptr->inputpacket.bytesleft = 8;
+				eptr->inputpacket.startptr = eptr->hdrbuff;
+				eptr->inputpacket.packet = NULL;
+				eptr->fwdstartptr = NULL;
+				eptr->fwdbytesleft = 0;
+				eptr->fwdinputpacket.packet = NULL;
+				eptr->fwdinitpacket = NULL;
+				eptr->outputhead = NULL;
+				eptr->outputtail = &(eptr->outputhead);
+				eptr->chunkisopen = 0;
+#ifdef BGJOBS
+				eptr->wjobid = 0;
+				eptr->wjobwriteid = 0;
+				eptr->todolist = NULL;
 
-			eptr->rjobid = 0;
-			eptr->todocnt = 0;
+				eptr->rjobid = 0;
+				eptr->todocnt = 0;
 
-			eptr->packet = NULL;
+				eptr->packet = NULL;
+			}
 #endif
 		}
 	}
@@ -2077,6 +2114,12 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_close(eptr);
 		}
 	}
+#ifdef BGJOBS
+	jobscnt = job_pool_jobs_count(jpool);
+	if (jobscnt>=stats_maxjobscnt) {
+		stats_maxjobscnt=jobscnt;
+	}
+#endif
 	kptr = &csservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->state == CLOSED) {
@@ -2126,35 +2169,38 @@ uint16_t csserv_getlistenport() {
 	return mylistenport;
 }
 
-int csserv_init(void) {
-	config_getnewstr("CSSERV_LISTEN_HOST","*",&ListenHost);
-	config_getnewstr("CSSERV_LISTEN_PORT","9422",&ListenPort);
-	config_getuint32("CSSERV_TIMEOUT",5,&Timeout);
+int csserv_init(FILE *msgfd) {
+	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
+	Timeout = cfg_getuint32("CSSERV_TIMEOUT",5);
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		syslog(LOG_ERR,"socket error: %m");
+		syslog(LOG_ERR,"csserv: socket error: %m");
+		fprintf(msgfd,"main server module error: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
-		syslog(LOG_NOTICE,"can't set accept filter: %m");
+		syslog(LOG_NOTICE,"csserv: can't set accept filter: %m");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		syslog(LOG_ERR,"listen error: %m");
+		syslog(LOG_ERR,"csserv: listen error: %m");
+		fprintf(msgfd,"main server module error: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"listen on %s:%s",ListenHost,ListenPort);
+	fprintf(msgfd,"main server module: listen on %s:%s\n",ListenHost,ListenPort);
 
 	csservhead = NULL;
 	main_destructregister(csserv_term);
 	main_pollregister(csserv_desc,csserv_serve);
 
 #ifdef BGJOBS
-	jpool = job_pool_new(10,5000,&jobfd);
+	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
 #endif
 
 	return 0;

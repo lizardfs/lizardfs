@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.8], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.9], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -86,9 +86,12 @@ AC_FUNC_REALLOC
 dnl AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_STAT
 # required functions
-AC_CHECK_FUNCS([atexit bzero dup2 ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
 
-# optional functions
+#optional system functions
+AC_CHECK_FUNCS([dup2 mlockall])
+
+# optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev perror])
 
 dnl optional interfaces (Linux, FreeBSD)
@@ -243,6 +246,7 @@ AC_CONFIG_FILES([Makefile
 		mfsdata/Makefile
 		mfsmaster/Makefile
 		mfsmetarestore/Makefile
+		mfsmetadump/Makefile
 		mfsmetalogger/Makefile
 		mfsmount/Makefile
 		mfsdata/mfschunkserver.cfg

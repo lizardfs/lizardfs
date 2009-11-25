@@ -25,6 +25,7 @@
 #include <inttypes.h>
 //#include <fcntl.h>
 //#include <sys/ioctl.h>
+#include <limits.h>
 #include <pthread.h>
 #include "th_queue.h"
 #include "datapack.h"
@@ -34,6 +35,12 @@
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)
+
+enum {
+	JSTATE_DISABLED,
+	JSTATE_ENABLED,
+	JSTATE_INPROGRESS
+};
 
 enum {
 	OP_EXIT,
@@ -88,6 +95,8 @@ typedef struct _job {
 	uint32_t jobid;
 	void (*callback)(uint8_t status,void *extra);
 	void *extra;
+	void *args;
+	uint8_t jstate;
 	struct _job *next;
 } job;
 
@@ -131,47 +140,61 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	return 1;	// not last
 }
 
-#define opargs ((chunk_op_args*)args)
-#define ocargs ((chunk_oc_args*)args)
-#define rdargs ((chunk_rd_args*)args)
-#define wrargs ((chunk_wr_args*)args)
-#define rpargs ((chunk_rp_args*)args)
+#define opargs ((chunk_op_args*)(jptr->args))
+#define ocargs ((chunk_oc_args*)(jptr->args))
+#define rdargs ((chunk_rd_args*)(jptr->args))
+#define wrargs ((chunk_wr_args*)(jptr->args))
+#define rpargs ((chunk_rp_args*)(jptr->args))
 void* job_worker(void *th_arg) {
 	jobpool *jp = (jobpool*)th_arg;
-	uint8_t *args,status;
+	job *jptr;
+	uint8_t *jptrarg;
+	uint8_t status,jstate;
 	uint32_t jobid;
 	uint32_t op;
 	for (;;) {
-		queue_get(jp->jobqueue,&jobid,&op,&args,NULL);
-		switch (op) {
-		case OP_INVAL:
-			status = ERROR_EINVAL;
-			break;
-		case OP_CHUNKOP:
-			status = hdd_chunkop(opargs->chunkid,opargs->version,opargs->newversion,opargs->copychunkid,opargs->copyversion,opargs->length);
-			break;
-		case OP_OPEN:
-			status = hdd_open(ocargs->chunkid);
-			break;
-		case OP_CLOSE:
-			status = hdd_close(ocargs->chunkid);
-			break;
-		case OP_READ:
-			status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->blocknum,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
-			break;
-		case OP_WRITE:
-			status = hdd_write(wrargs->chunkid,wrargs->version,wrargs->blocknum,wrargs->buffer,wrargs->offset,wrargs->size,wrargs->crcbuff);
-			break;
-		case OP_REPLICATE:
-			status = replicate(rpargs->chunkid,rpargs->version,rpargs->srccnt,((uint8_t*)args)+sizeof(chunk_rp_args));
-			break;
-		default: // OP_EXIT
-			pthread_exit(NULL);
-			return NULL;
+		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
+		jptr = (job*)jptrarg;
+		pthread_mutex_lock(&(jp->jobslock));
+		if (jptr!=NULL) {
+			jstate=jptr->jstate;
+			if (jptr->jstate==JSTATE_ENABLED) {
+				jptr->jstate=JSTATE_INPROGRESS;
+			}
+		} else {
+			jstate=JSTATE_ENABLED;
 		}
-		job_send_status(jp,jobid,status);
-		if (args!=NULL) {
-			free(args);
+		pthread_mutex_unlock(&(jp->jobslock));
+		if (jstate==JSTATE_DISABLED) {
+			job_send_status(jp,jobid,STATUS_OK);
+		} else {
+			switch (op) {
+				case OP_INVAL:
+					status = ERROR_EINVAL;
+					break;
+				case OP_CHUNKOP:
+					status = hdd_chunkop(opargs->chunkid,opargs->version,opargs->newversion,opargs->copychunkid,opargs->copyversion,opargs->length);
+					break;
+				case OP_OPEN:
+					status = hdd_open(ocargs->chunkid);
+					break;
+				case OP_CLOSE:
+					status = hdd_close(ocargs->chunkid);
+					break;
+				case OP_READ:
+					status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->blocknum,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
+					break;
+				case OP_WRITE:
+					status = hdd_write(wrargs->chunkid,wrargs->version,wrargs->blocknum,wrargs->buffer,wrargs->offset,wrargs->size,wrargs->crcbuff);
+					break;
+				case OP_REPLICATE:
+					status = replicate(rpargs->chunkid,rpargs->version,rpargs->srccnt,((uint8_t*)(jptr->args))+sizeof(chunk_rp_args));
+					break;
+				default: // OP_EXIT
+					pthread_exit(NULL);
+					return NULL;
+			}
+			job_send_status(jp,jobid,status);
 		}
 	}
 }
@@ -188,9 +211,11 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 	jptr->jobid = jobid;
 	jptr->callback = callback;
 	jptr->extra = extra;
+	jptr->args = args;
+	jptr->jstate = JSTATE_ENABLED;
 	jptr->next = jp->jobhash[jhpos];
 	jp->jobhash[jhpos] = jptr;
-	queue_put(jp->jobqueue,jobid,op,args,1);
+	queue_put(jp->jobqueue,jobid,op,(uint8_t*)jptr,1);
 	jp->nextjobid++;
 	if (jp->nextjobid==0) {
 		jp->nextjobid=1;
@@ -203,7 +228,9 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	int fd[2];
 	uint32_t i;
+	pthread_attr_t thattr;
 	jobpool* jp;
+
 	if (pipe(fd)<0) {
 		return NULL;
 	}
@@ -221,17 +248,34 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 		jp->jobhash[i]=NULL;
 	}
 	jp->nextjobid = 1;
+	pthread_attr_init(&thattr);
+	pthread_attr_setstacksize(&thattr,0x100000);
 	for (i=0 ; i<workers ; i++) {
-		pthread_create(jp->workerthreads+i,NULL,job_worker,jp);
+		pthread_create(jp->workerthreads+i,&thattr,job_worker,jp);
 	}
+	pthread_attr_destroy(&thattr);
 	return jp;
 }
 
-int job_pool_can_add(void *jpool) {
+uint32_t job_pool_jobs_count(void *jpool) {
 	jobpool* jp = (jobpool*)jpool;
-	return queue_isfull(jp->jobqueue)?0:1;
+	return queue_elements(jp->jobqueue);
 }
 
+void job_pool_disable_job(void *jpool,uint32_t jobid) {
+	jobpool* jp = (jobpool*)jpool;
+	uint32_t jhpos = JHASHPOS(jobid);
+	job *jptr;
+	for (jptr = jp->jobhash[jhpos] ; jptr ; jptr=jptr->next) {
+		if (jptr->jobid==jobid) {
+			pthread_mutex_lock(&(jp->jobslock));
+			if (jptr->jstate==JSTATE_ENABLED) {
+				jptr->jstate=JSTATE_DISABLED;
+			}
+			pthread_mutex_unlock(&(jp->jobslock));
+		}
+	}
+}
 
 void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_t status,void *extra),void *extra) {
 	jobpool* jp = (jobpool*)jpool;
@@ -261,6 +305,9 @@ void job_pool_check_jobs(void *jpool) {
 					jptr->callback(status,jptr->extra);
 				}
 				*jhandle = jptr->next;
+				if (jptr->args) {
+					free(jptr->args);
+				}
 				free(jptr);
 				break;
 			} else {

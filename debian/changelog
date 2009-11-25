@@ -1,3 +1,15 @@
+mfs (1.6.9) unstable; urgency=medium
+
+  * updated manpages
+  * added support for mlockall (prevent from swapping)
+  * redesigned charts module
+  * redesigned locking mechanizm (daemons)
+  * added HDD I/O stats
+  * removing unfinished jobs from queue on socket close
+  * added 'cache file' flag
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 24 Nov 2009 14:00:00 +0200
+
 mfs (1.6.8) unstable; urgency=low
 
   * added options to set nice level and number of I/O retries in mfsmount

@@ -1,4 +1,4 @@
-.TH MFSCHUNKSERVER "8" "July 2009" "MooseFS 1.6.0"
+.TH MFSCHUNKSERVER "8" "November 2009" "MooseFS 1.6.7"
 .SH NAME
 mfschunkserver \- start, restart or stop Moose File System chunkserver process
 .SH SYNOPSIS
@@ -10,6 +10,8 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 [\fB\-c\fP \fICFGFILE\fP]
 .PP
 .B mfschunkserver \-v
+.PP
+.B mfschunkserver \-h
 .SH DESCRIPTION
 .PP
 \fBmfschunkserver\fP is the data server of Moose File System. Depending on
@@ -19,9 +21,16 @@ PID file exists.
 .PP
 Starting with version 1.6.0 chunkserver periodically tests stored chunks
 (see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
+.PP
+Starting with version 1.6.5 MFS master doesn't send metadata change logs
+to chunkserver and expect at least one \fBmfsmetalogger\fP\|(8) daemon
+to connect.
 .TP
 \fB\-v\fP
 print version information and exit
+.TP
+\fB\-h\fP
+print usage information and exit
 .TP
 \fB\-f\fP
 forcily run MFS chunkserver process, without trying to kill previous instance
@@ -44,11 +53,12 @@ list of directories (mountpoints) used for MFS storage (one per line;
 directory prefixed by \fB*\fP character causes given directory to be freed
 by replicating all data already stored there to another locations)
 .TP
-\fBchunkserver.pid\fP
+\fBmfschunkserver.pid\fP
 PID file of running MFS chunkserver process
 .TP
 \fBchangelog_csback.\fP*\fB.mfs\fP
-MFS filesystem metadata change logs (backup of master change log files)
+MFS filesystem metadata change logs (backup of master change log files;
+used only with MFS master < 1.6.5)
 .TP
 \fBdata.csstats\fP
 Chunkserver charts state

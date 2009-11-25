@@ -12,10 +12,11 @@ mfsmaster_SOURCES=\
 	matocuserv.c matocuserv.h \
 	matomlserv.c matomlserv.h \
 	random.c random.h \
-	stats.c stats.h \
+	chartsdata.c chartsdata.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/charts.c ../mfscommon/charts.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 

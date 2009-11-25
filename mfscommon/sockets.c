@@ -400,6 +400,7 @@ int tcpclose(int sock) {
 	return close(sock);
 }
 
+/*
 int32_t tcpread(int sock,void *buff,uint32_t leng) {
 	uint32_t rcvd=0;
 	int i;
@@ -425,6 +426,7 @@ int32_t tcpwrite(int sock,const void *buff,uint32_t leng) {
 	}
 	return sent;
 }
+*/
 
 int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto) {
 	uint32_t rcvd=0;

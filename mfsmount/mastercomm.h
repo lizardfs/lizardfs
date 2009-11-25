@@ -47,7 +47,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **
 
 // uint8_t fs_check(uint32_t inode,uint8_t dbuff[22]);
 
-uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags);
+uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint8_t attr[35]);
 void fs_release(uint32_t inode);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);

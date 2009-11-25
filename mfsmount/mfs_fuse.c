@@ -1364,19 +1364,25 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		fuse_reply_err(req, status);
 		return;
 	}
-	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags);
+	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		return;
 	}
 
+	mattr = mfs_attr_get_mattr(attr);
 	fileinfo = mfs_newfileinfo(fi->flags & O_ACCMODE,inode);
 	fi->fh = (unsigned long)fileinfo;
-	fi->keep_cache = keep_cache;
+	if (keep_cache==1) {
+		fi->keep_cache=1;
+	} else if (keep_cache==2) {
+		fi->keep_cache=0;
+	} else {
+		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
+	}
 	memset(&e, 0, sizeof(e));
 	e.ino = inode;
-	mattr = mfs_attr_get_mattr(attr);
 	e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 	mfs_attr_to_stat(inode,attr,&e.attr);
@@ -1387,6 +1393,8 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 
 void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint8_t oflags;
+	uint8_t attr[35];
+	uint8_t mattr;
 	int status;
 	const struct fuse_ctx *ctx;
 	finfo *fileinfo;
@@ -1460,16 +1468,26 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
 	ctx = fuse_req_ctx(req);
-	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags);
+	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		return ;
 	}
 
+	mattr = mfs_attr_get_mattr(attr);
 	fileinfo = mfs_newfileinfo(fi->flags & O_ACCMODE,ino);
 	fi->fh = (unsigned long)fileinfo;
-	fi->keep_cache = keep_cache;
+	if (keep_cache==1) {
+		fi->keep_cache=1;
+	} else if (keep_cache==2) {
+		fi->keep_cache=0;
+	} else {
+		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
+	}
+//	if (debug_mode) {
+//		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",(unsigned long int)ino,(unsigned long int)fi->keep_cache);
+//	}
 //	fi->direct_io = 1;
 	if (fuse_reply_open(req, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);
@@ -1759,7 +1777,7 @@ void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_
 	entry_cache_timeout = entry_cache_timeout_in;
 	attr_cache_timeout = attr_cache_timeout_in;
 	if (debug_mode) {
-		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2lf entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",keep_cache?"on":"off",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
+		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2lf entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 	}
 	mfs_statsptr_init();
 }

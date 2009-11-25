@@ -26,6 +26,9 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#ifdef HAVE_MLOCKALL
+#include <sys/mman.h>
+#endif
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -45,6 +48,10 @@
 #include "cfg.h"
 #include "main.h"
 #include "init.h"
+
+#define RM_RESTART 0
+#define RM_START 1
+#define RM_STOP 2
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -310,17 +317,15 @@ void mainloop() {
 	}
 }
 
-int initialize() {
+int initialize(FILE *msgfd) {
 	uint32_t i;
 	int ok;
 	ok = 1;
 	now = time(NULL);
 	for (i=0 ; (long int)(RunTab[i].fn)!=0 && ok ; i++) {
-		if (RunTab[i].fn()<0) {
+		if (RunTab[i].fn(msgfd)<0) {
 			syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
-#ifndef NODAEMON
-			fprintf(stderr,"init: %s failed !!!",RunTab[i].name);
-#endif
+			fprintf(msgfd,"init: %s failed !!!\n",RunTab[i].name);
 			ok=0;
 		}
 	}
@@ -388,6 +393,22 @@ void set_signal_handlers(void) {
 	}
 }
 
+static inline const char* errno_to_str() {
+#ifdef HAVE_STRERROR_R
+	static char errorbuff[500];
+# ifdef STRERROR_R_CHAR_P
+	return strerror_r(errno,errorbuff,500);
+# else
+	strerror_r(errno,errorbuff,500);
+	return errorbuff;
+# endif
+#else
+	snprintf(errorbuff,500,"(errno:%d)",errno);
+	errorbuff[499]=0;
+	return errorbuff;
+#endif
+}
+
 void changeugid(void) {
 	char *wuser;
 	char *wgroup;
@@ -396,8 +417,8 @@ void changeugid(void) {
 	int gidok;
 
 	if (geteuid()==0) {
-		config_getnewstr("WORKING_USER",DEFAULT_USER,&wuser);
-		config_getnewstr("WORKING_GROUP",DEFAULT_GROUP,&wgroup);
+		wuser = cfg_getstr("WORKING_USER",DEFAULT_USER);
+		wgroup = cfg_getstr("WORKING_GROUP",DEFAULT_GROUP);
 
 		gidok = 0;
 		wrk_gid = -1;
@@ -452,132 +473,219 @@ void changeugid(void) {
 	}
 }
 
-int wdlock() {
+pid_t mylock(int fd) {
+	struct flock fl;
+	fl.l_start = 0;
+	fl.l_len = 0;
+	fl.l_pid = getpid();
+	fl.l_type = F_WRLCK;
+	fl.l_whence = SEEK_SET;
+	for (;;) {
+		if (fcntl(fd,F_SETLK,&fl)>=0) {	// lock set
+			return 0;	// ok
+		}
+		if (errno!=EAGAIN) {	// error other than "already locked"
+			return -1;	// error
+		}
+		if (fcntl(fd,F_GETLK,&fl)<0) {	// get lock owner
+			return -1;	// error getting lock
+		}
+		if (fl.l_type!=F_UNLCK) {	// found lock
+			return fl.l_pid;	// return lock owner
+		}
+	}
+	return -1;	// pro forma
+}
+
+int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
+	pid_t ownerpid;
+	pid_t newownerpid;
 	int lfp;
-	uint8_t l;
-	struct stat sb;
-	lfp=open(".lock_" STR(APPNAME),O_RDWR|O_CREAT|O_TRUNC,0640);
+	uint32_t l;
+
+	lfp = open("." STR(APPNAME) ".lock",O_WRONLY|O_CREAT,0666);
 	if (lfp<0) {
-		syslog(LOG_ERR,"can't create lock file in working directory: %m");
+		syslog(LOG_ERR,"can't create lockfile in working directory: %m");
+		fprintf(msgfd,"can't create lockfile in working directory: %s\n",errno_to_str());
 		return -1;
 	}
-	l=0;
-	while (lockf(lfp,F_TLOCK,0)<0) {
-		if (errno!=EAGAIN) {
-			syslog(LOG_ERR,"lock error: %m");
-			exit(1);
-		}
-		sleep(1);
-		l++;
-		if (l>3) {
-			syslog(LOG_ERR,"working directory already locked (used by another instance of the same mfs process)");
-			exit(1);
-		}
-	}
-	if (fstat(lfp,&sb)<0) {
-		syslog(LOG_NOTICE,"working directory lock file fstat error: %m");
+	ownerpid = mylock(lfp);
+	if (ownerpid<0) {
+		syslog(LOG_ERR,"fcntl error: %m");
+		fprintf(msgfd,"fcntl error: %s\n",errno_to_str());
 		return -1;
+	}
+	if (ownerpid>0) {
+		if (runmode==RM_START) {
+			fprintf(msgfd,"can't start: lockfile is already locked by another process\n");
+			return -1;
+		}
+		fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
+		if (kill(ownerpid,SIGTERM)<0) {
+			syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
+			fprintf(msgfd,"can't kill lock owner (error: %s)\n",errno_to_str());
+			return -1;
+		}
+		l=0;
+		fprintf(msgfd,"waiting for termination ...\n");
+		do {
+			newownerpid = mylock(lfp);
+			if (newownerpid<0) {
+				syslog(LOG_ERR,"fcntl error: %m");
+				fprintf(msgfd,"fcntl error: %s\n",errno_to_str());
+				return -1;
+			}
+			if (newownerpid>0) {
+				l++;
+				if (l>=timeout) {
+					syslog(LOG_ERR,"about %"PRIu32" seconds passed and lockfile is still locked - giving up",l);
+					fprintf(msgfd,"about %"PRIu32" seconds passed and lockfile is still locked - giving up\n",l);
+					return -1;
+				}
+				if (l%10==0) {
+					syslog(LOG_WARNING,"about %"PRIu32" seconds passed and lock still exists",l);
+					fprintf(msgfd,"about %"PRIu32" seconds passed and lock still exists\n",l);
+				}
+				if (newownerpid!=ownerpid) {
+					fprintf(msgfd,"new lock owner detected\n");
+					fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld) ...\n",(long int)newownerpid);
+					if (kill(newownerpid,SIGTERM)<0) {
+						syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
+						fprintf(msgfd,"can't kill lock owner (error: %s)\n",errno_to_str());
+						return -1;
+					}
+					ownerpid = newownerpid;
+				}
+			}
+			sleep(1);
+		} while (newownerpid!=0);
+		fprintf(msgfd,"lock owner has been terminated\n");
+		return 0;
+	}
+	if (runmode==RM_START || runmode==RM_RESTART) {
+		fprintf(msgfd,"lockfile created and locked\n");
+	} else {
+		fprintf(msgfd,"can't find process to terminate\n");
 	}
 	return 0;
 }
 
-void justlock(const char *lockfname) {
-	int lfp,s;
-	char str[13];
-	lfp=open(lockfname,O_RDWR|O_CREAT|O_TRUNC,0640);
-	if (lfp<0) {
-		syslog(LOG_ERR,"open %s error: %m",lockfname);
-		exit(1); /* can not open */
-	}
-	if (lockf(lfp,F_TLOCK,0)<0) {
-		if (errno==EAGAIN) {
-			syslog(LOG_NOTICE,"'%s' is locked",lockfname);
-			exit(0);
-		}
-		syslog(LOG_ERR,"lock %s error: %m",lockfname);
-		exit(1); /* can not lock */ 
-	}
-	/* first instance continues */
-	s = snprintf(str,13,"%d\n",(int)getpid());
-	if (s>=13) {
-		syslog(LOG_ERR,"can't write pid to lockfile %s: %m",lockfname);
-		exit(1); /* can not write */
-	}
-	/* record pid to lockfile */ 
-	if (write(lfp,str,s)!=s) {
-		syslog(LOG_ERR,"can't write pid to lockfile %s: %m",lockfname);
-		exit(1); /* can not write */
-	}
-}
-
-void killprevious(const char *lockfname) {
-	int lfp,s;
+int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
+	int lfp;
 	char str[13];
 	uint32_t l;
 	pid_t ptk;
+	char *lockfname;
+
+	lockfname = cfg_getstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock");
 	lfp=open(lockfname,O_RDWR);
 	if (lfp<0) {
-		if (errno==ENOENT) {    // no lock file ?
-			justlock(lockfname);     // so make new one
-			return;
+		free(lockfname);
+		if (errno==ENOENT) {    // no old lock file
+			return 0;	// ok
 		}       
 		syslog(LOG_ERR,"open %s error: %m",lockfname);
-		exit(1);
+		fprintf(msgfd,"open %s error: %s\n",lockfname,errno_to_str());
+		free(lockfname);
+		return -1;
 	}
 	if (lockf(lfp,F_TLOCK,0)<0) {
 		if (errno!=EAGAIN) {
 			syslog(LOG_ERR,"lock %s error: %m",lockfname);
-			exit(1);
+			fprintf(msgfd,"lock %s error: %s\n",lockfname,errno_to_str());
+			free(lockfname);
+			return -1;
 		}
+		if (runmode==RM_START) {
+			syslog(LOG_ERR,"old lockfile is locked - can't start");
+			fprintf(msgfd,"old lockfile is locked - can't start\n");
+			free(lockfname);
+			return -1;
+		}
+		fprintf(msgfd,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
 		l=read(lfp,str,13);
 		if (l==0 || l>=13) {
-			syslog(LOG_ERR,"wrong pid in lockfile %s",lockfname);
-			exit(1);
+			syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
+			fprintf(msgfd,"wrong pid in old lockfile %s\n",lockfname);
+			free(lockfname);
+			return -1;
 		}
 		str[l]=0;
 		ptk = strtol(str,NULL,10);
+		fprintf(msgfd,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
 		if (kill(ptk,SIGTERM)<0) {
-			syslog(LOG_WARNING,"can't kill previous process (%m).");
-			exit(1);
+			syslog(LOG_WARNING,"can't kill previous process (error: %m)");
+			fprintf(msgfd,"can't kill previous process (error: %s)\n",errno_to_str());
+			free(lockfname);
+			return -1;
 		}
 		l=0;
+		fprintf(msgfd,"waiting for termination ...\n");
 		while (lockf(lfp,F_TLOCK,0)<0) {
 			if (errno!=EAGAIN) {
 				syslog(LOG_ERR,"lock %s error: %m",lockfname);
-				exit(1);
+				fprintf(msgfd,"lock %s error: %s\n",lockfname,errno_to_str());
+				free(lockfname);
+				return -1;
 			}
 			sleep(1);
 			l++;
+			if (l>=timeout) {
+				syslog(LOG_ERR,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up",l);
+				fprintf(msgfd,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up\n",l);
+				free(lockfname);
+				return -1;
+			}
 			if (l%10==0) {
-				syslog(LOG_WARNING,"about %"PRIu32" seconds passed and '%s' is still locked",l,lockfname);
+				syslog(LOG_WARNING,"about %"PRIu32" seconds passed and old lockfile is still locked",l);
+				fprintf(msgfd,"about %"PRIu32" seconds passed and old lockfile is still locked\n",l);
 			}
 		}
+		fprintf(msgfd,"terminated\n");
+	} else {
+		fprintf(msgfd,"found unlocked old lockfile\n");
 	}
-	s = snprintf(str,13,"%d\n",(int)getpid());
-	if (s>=13) {
-		syslog(LOG_ERR,"can't write pid to lockfile %s: %m",lockfname);
-		exit(1); /* can not write */
-	}
-	/* record pid to lockfile */ 
-	lseek(lfp,0,SEEK_SET);
-	if (ftruncate(lfp,0)!=0) {
-		syslog(LOG_ERR,"can't write pid to lockfile %s: %m",lockfname);
-		exit(1); /* can not write */
-	}
-	if (write(lfp,str,s)!=s) {
-		syslog(LOG_ERR,"can't write pid to lockfile %s: %m",lockfname);
-		exit(1); /* can not write */
-	}
+	fprintf(msgfd,"removing old lockfile\n");
+	close(lfp);
+	unlink(lockfname);
+	free(lockfname);
+	return 0;
 }
 
-void makedaemon() {
+void remove_old_wdlock(void) {
+	unlink(".lock_" STR(APPNAME));
+}
+
+FILE* makedaemon() {
 	int nd,f;
+#ifndef HAVE_DUP2
+	int dd;
+#endif
+	uint8_t pipebuff[1000];
+	ssize_t r;
+	int piped[2];
+	FILE *msgfd;
+
+	if (pipe(piped)<0) {
+		fprintf(stderr,"pipe error\n");
+		exit(1);
+	}
 	f = fork();
 	if (f<0) {
 		syslog(LOG_ERR,"first fork error: %m");
 		exit(1);
 	}
 	if (f>0) {
+		close(piped[1]);
+//		printf("Starting daemon ...\n");
+		while ((r=read(piped[0],pipebuff,1000))) {
+			if (r>0) {
+				fwrite(pipebuff,1,r,stderr);
+			} else {
+				fprintf(stderr,"Error reading pipe: %s\n",errno_to_str());
+				exit(1);
+			}
+		}
 		exit(0);
 	}
 	setsid();
@@ -585,12 +693,19 @@ void makedaemon() {
 	f = fork();
 	if (f<0) {
 		syslog(LOG_ERR,"second fork error: %m");
+		if (write(piped[1],"fork error\n",11)!=11) {
+			syslog(LOG_ERR,"pipe write error: %m");
+		}
+		close(piped[1]);
 		exit(1);
 	}
 	if (f>0) {
 		exit(0);
 	}
 	set_signal_handlers();
+	msgfd = fdopen(piped[1],"w");
+	setvbuf(msgfd,(char *)NULL,_IOLBF,0);
+
 #ifdef HAVE_DUP2
 	if ((nd = open("/dev/null", O_RDWR, 0)) != -1) {
 		dup2(nd, STDIN_FILENO);
@@ -600,7 +715,8 @@ void makedaemon() {
 			close (nd);
 		}
 	} else {
-		syslog(LOG_ERR,"can't open /dev/null (%m)");
+		syslog(LOG_ERR,"can't open /dev/null (error: %m)");
+		fprintf(msgfd,"can't open /dev/null (error: %s)\n",errno_to_str());
 		exit(1);
 	}
 #else
@@ -609,18 +725,24 @@ void makedaemon() {
 	close(STDERR_FILENO);
 	nd = open("/dev/null", O_RDWR, 0);
 	if (nd!=STDIN_FILENO) {
+		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",nd,STDIN_FILENO);
 		exit(1);
 	}
-	if (dup(nd)!=STDOUT_FILENO) {
+	dd = dup(nd);
+	if (dd!=STDOUT_FILENO) {
+		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",dd,STDOUT_FILENO);
 		exit(1);
 	}
-	if (dup(nd)!=STDERR_FILENO) {
+	dd = dup(nd);
+	if (dd!=STDERR_FILENO) {
+		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",dd,STDERR_FILENO);
 		exit(1);
 	}
 #endif
+	return msgfd;
 }
 
-void createpath(const char *filename) {
+void createpath(const char *filename,FILE *msgfd) {
 	char pathbuff[1024];
 	const char *src = filename;
 	char *dst = pathbuff;
@@ -635,31 +757,52 @@ void createpath(const char *filename) {
 			if (mkdir(pathbuff,(mode_t)0777)<0) {
 				if (errno!=EEXIST) {
 					syslog(LOG_NOTICE,"creating directory %s: %m",pathbuff);
+					fprintf(msgfd,"error creating directory %s\n",pathbuff);
 				}
 			} else {
-				syslog(LOG_NOTICE,"created directory %s",pathbuff);
+				syslog(LOG_NOTICE,"directory %s has been created",pathbuff);
+				fprintf(msgfd,"directory %s has been created\n",pathbuff);
 			}
 			*dst++=*src++;
 		}
 	}
 }
 
+void usage(const char *appname) {
+	printf(
+"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart]\n"
+"\n"
+"-v : print version number and exit\n"
+"-d : run in foreground\n"
+"-u : log undefined config variables\n"
+"-t locktimeout : how long wait for lockfile\n"
+"-c cfgfile : use given config file\n"
+	,appname);
+	exit(1);
+}
+
 int main(int argc,char **argv) {
 	char *logappname;
-	char *lockfname;
+//	char *lockfname;
 	char *wrkdir;
 	char *cfgfile;
+	char *appname;
 	int ch;
-	int run,killold,rundaemon;
+	uint8_t runmode;
+	int rundaemon,logundefined,lockmemory;
 	int32_t nicelevel;
+	uint32_t locktimeout;
 	struct rlimit rls;
+	FILE *msgfd;
 	
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
+	locktimeout=60;
 	rundaemon=1;
-	killold=1;
-	run=1;
+	runmode = RM_RESTART;
+	logundefined=0;
+	appname = strdup(argv[0]);
 
-	while ((ch = getopt(argc, argv, "vdfsc:h?")) != -1) {
+	while ((ch = getopt(argc, argv, "uvdfsc:t:h?")) != -1) {
 		switch(ch) {
 			case 'v':
 				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
@@ -668,28 +811,51 @@ int main(int argc,char **argv) {
 				rundaemon=0;
 				break;
 			case 'f':
-				killold=0;
+				runmode=RM_START;
 				break;
 			case 's':
-				run=0;
+				runmode=RM_STOP;
+				break;
+			case 't':
+				locktimeout=strtoul(optarg,NULL,10);
 				break;
 			case 'c':
 				free(cfgfile);
 				cfgfile = strdup(optarg);
 				break;
+			case 'u':
+				logundefined=1;
+				break;
 			default:
-				printf("usage: %s [-f] [-s] [-c cfgfile]\n\n-f : run without killing old process (exit if lock exists)\n-s : kill old process only\n-c cfgfile : use given config file\n",argv[0]);
-				return 0;
+				usage(appname);
+				return 1;
 		}
 	}
+	argc -= optind;
+	argv += optind;
+	if (argc==1) {
+		if (strcasecmp(argv[0],"start")==0) {
+			runmode = RM_START;
+		} else if (strcasecmp(argv[0],"stop")==0) {
+			runmode = RM_STOP;
+		} else if (strcasecmp(argv[0],"restart")==0) {
+			runmode = RM_RESTART;
+		} else {
+			usage(appname);
+			return 1;
+		}
+	} else if (argc!=0) {
+		usage(appname);
+		return 1;
+	}
 
-	if (config_load(cfgfile)==0) {
+	if (cfg_load(cfgfile,logundefined)==0) {
 		fprintf(stderr,"can't load config file: %s\n",cfgfile);
 		return 1;
 	}
 	free(cfgfile);
 
-	config_getnewstr("SYSLOG_IDENT",STR(APPNAME),&logappname);
+	logappname = cfg_getstr("SYSLOG_IDENT",STR(APPNAME));
 
 	if (rundaemon) {
 		if (logappname[0]) {
@@ -718,12 +884,20 @@ int main(int argc,char **argv) {
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
 		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
 	}
-	config_getint32("NICE_LEVEL",-19,&nicelevel);
+#ifdef HAVE_MLOCKALL
+	lockmemory = cfg_getnum("LOCK_MEMORY",0);
+	if (lockmemory) {
+		rls.rlim_cur = RLIM_INFINITY;
+		rls.rlim_max = RLIM_INFINITY;
+		setrlimit(RLIMIT_MEMLOCK,&rls);
+	}
+#endif
+	nicelevel = cfg_getint32("NICE_LEVEL",-19);
 	setpriority(PRIO_PROCESS,getpid(),nicelevel);
 
 	changeugid();
 
-	config_getnewstr("DATA_PATH",DATA_PATH,&wrkdir);
+	wrkdir = cfg_getstr("DATA_PATH",DATA_PATH);
 
 	if (chdir(wrkdir)<0) {
 		fprintf(stderr,"can't set working directory to %s\n",wrkdir);
@@ -731,37 +905,55 @@ int main(int argc,char **argv) {
 		return 1;
 	}
 
-	if (rundaemon) {
-		makedaemon();
+	if (runmode!=RM_STOP && rundaemon) {
+		msgfd = makedaemon();
+	} else {
+		if (runmode!=RM_STOP) {
+			set_signal_handlers();
+		}
+		msgfd = fdopen(dup(STDERR_FILENO),"w");
+		setvbuf(msgfd,(char *)NULL,_IOLBF,0);
 	}
 
 	umask(027);
 
-	config_getnewstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock",&lockfname);
-	createpath(lockfname);
-
-	if (killold) {
-		killprevious(lockfname);
-	} else {
-		justlock(lockfname);
-	}
-
-	if (wdlock()<0) {
+	/* for upgrading from previous versions of MFS */
+	if (check_old_locks(msgfd,runmode,locktimeout)<0) {
 		return 1;
 	}
 
-	if (run==0) {
+	if (wdlock(msgfd,runmode,locktimeout)<0) {
+		return 1;
+	}
+
+	remove_old_wdlock();
+
+	if (runmode==RM_STOP) {
 		return 0;
 	}
 
-	if  (initialize()) {
+#ifdef HAVE_MLOCKALL
+	if (lockmemory) {
+		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
+			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+			fprintf(msgfd,"process memory was successfully locked in RAM\n");
+		}
+	}
+#endif
+	fprintf(msgfd,"initializing %s modules ...\n",logappname);
+
+	if (initialize(msgfd)) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
 		}
+		fprintf(msgfd,"%s daemon initialized properly\n",logappname);
+		fclose(msgfd);
 		mainloop();
+	} else {
+		fprintf(msgfd,"error occured during initialization - exiting\n");
+		fclose(msgfd);
 	}
 	destruct();
-
 	closelog();
 	return 0;
 }

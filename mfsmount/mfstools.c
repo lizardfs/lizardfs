@@ -36,6 +36,9 @@
 #include "sockets.h"
 #include "MFSCommunication.h"
 
+#define tcpread(s,b,l) tcptoread(s,b,l,10000)
+#define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
+
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";

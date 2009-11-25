@@ -32,7 +32,7 @@
 static uint32_t BackLogsNumber;
 static FILE *fd;
 
-void rotatelog() {
+void changelog_rotate() {
 	char logname1[100],logname2[100];
 	uint32_t i;
 	if (fd) {
@@ -80,8 +80,9 @@ void changelog(uint64_t version,const char *format,...) {
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
 
-int changelog_init(void) {
-	config_getuint32("BACK_LOGS",50,&BackLogsNumber);
+int changelog_init(FILE *msgfd) {
+	(void)msgfd;
+	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	fd = NULL;
 	return 0;
 }

@@ -704,7 +704,7 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 	return 0;
 }
 
-void acl_loadexports(void) {
+void acl_loadexports(FILE *msgfd) {
 	FILE *fd;
 	char linebuff[10000];
 	uint32_t s,lineno;
@@ -738,6 +738,9 @@ void acl_loadexports(void) {
 		}
 */
 		syslog(LOG_WARNING,"can't open mfsexports file: %m - exports not changed");
+		if (msgfd) {
+			fprintf(msgfd,"can't open mfsexports file - using defaults\n");
+		}
 		return;
 	}
 	newexports = NULL;
@@ -765,18 +768,28 @@ void acl_loadexports(void) {
 		fclose(fd);
 		syslog(LOG_WARNING,"error reading mfsexports file - exports not changed");
 		acl_freelist(newexports);
+		if (msgfd) {
+			fprintf(msgfd,"error reading mfsexports file - using defaults\n");
+		}
 		return;
 	}
 	fclose(fd);
 	acl_freelist(acl_records);
 	acl_records = newexports;
 	syslog(LOG_NOTICE,"exports file has been loaded");
+	if (msgfd) {
+		fprintf(msgfd,"exports file has been loaded\n");
+	}
 }
 
-int acl_init(void) {
-	config_getnewstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg",&ExportsFileName);
+void acl_reloadexports(void) {
+	acl_loadexports(NULL);
+}
+
+int acl_init(FILE *msgfd) {
+	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
 	acl_records = NULL;
-	acl_loadexports();
-	main_reloadregister(acl_loadexports);
+	acl_loadexports(msgfd);
+	main_reloadregister(acl_reloadexports);
 	return 0;
 }

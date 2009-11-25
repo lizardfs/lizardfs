@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -1730,13 +1731,14 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matocsserv_init(void) {
-	config_getnewstr("MATOCS_LISTEN_HOST","*",&ListenHost);
-	config_getnewstr("MATOCS_LISTEN_PORT","9420",&ListenPort);
+int matocsserv_init(FILE *msgfd) {
+	ListenHost = cfg_getstr("MATOCS_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("MATOCS_LISTEN_PORT","9420");
 
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocs: socket error: %m");
+		fprintf(msgfd,"master <-> chunkservers module error: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -1747,9 +1749,11 @@ int matocsserv_init(void) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocs: listen error: %m");
+		fprintf(msgfd,"master <-> chunkservers module error: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matocs: listen on %s:%s",ListenHost,ListenPort);
+	fprintf(msgfd,"master <-> chunkservers module: listen on %s:%s\n",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
 	matocsservhead = NULL;

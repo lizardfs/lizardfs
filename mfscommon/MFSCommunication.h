@@ -185,24 +185,24 @@
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
 #define EATTR_NOECACHE         0x04
-#define EATTR_UNDEFINED        0x08
+#define EATTR_ALLOWDATACACHE   0x08
 
 #define EATTR_STRINGS \
 	"noowner", \
 	"noattrcache", \
 	"noentrycache", \
-	""
+	"allowdatacache"
 
 #define EATTR_DESCRIPTIONS \
 	"every user (except root) sees object as his (her) own", \
 	"prevent standard object attributes from being stored in kernel cache", \
 	"prevent directory entries from being stored in kernel cache", \
-	"(not defined)"
+	"allow file data to be kept in cache"
 
 // mode attr (higher 4 bits of mode in node attr)
 #define MATTR_NOACACHE         0x01
 #define MATTR_NOECACHE         0x02
-#define MATTR_UNDEFINED_1      0x04
+#define MATTR_ALLOWDATACACHE   0x04
 #define MATTR_UNDEFINED_2      0x08
 
 // quota:
@@ -572,6 +572,8 @@
 // msgid:32 inode:32 uid:32 gid:32 flags:8
 #define MATOCU_FUSE_OPEN 431
 // msgid:32 status:8
+// since 1.6.9 if no error:
+// msgid:32 attr:35B
 
 #define CUTOMA_FUSE_READ_CHUNK 432
 // msgid:32 inode:32 chunkindx:32
@@ -716,7 +718,7 @@
 
 
 
-// CLIENT <-> MASTER (stats - unregistered)
+// MASTER STATS (stats - unregistered)
 
 #define CUTOMA_CSERV_LIST 500
 // -
@@ -725,9 +727,9 @@
 // since version 1.5.13:
 // 	N*[version:32 ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32 ]
 
-#define CUTOCS_HDD_LIST 502
+#define CUTOCS_HDD_LIST_V1 502
 // -
-#define CSTOCU_HDD_LIST 503
+#define CSTOCU_HDD_LIST_V1 503
 // N*[ path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 ]
 
 #define CUTOAN_CHART 504
@@ -783,5 +785,13 @@
 // -
 #define MATOCU_MLOG_LIST 523
 // N * [ version:32 ip:32 ]
+
+
+// CHUNKSERVER STATS
+
+#define CUTOCS_HDD_LIST_V2 600
+// -
+#define CSTOCU_HDD_LIST_V2 601
+// N*[ entrysize:16 path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 bytesread:64 usecread:64 usecreadmax:64 byteswriten:64 usecwrite:64 usecwritemax:64]
 
 #endif

@@ -19,6 +19,7 @@
 #include "config.h"
 
 #define BGJOBS 1
+#define BGJOBSCNT 1000
 
 #include <time.h>
 #include <sys/types.h>
@@ -84,14 +85,17 @@ static uint32_t Timeout;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
+static uint32_t stats_maxjobscnt=0;
 
 static FILE *logfd;
 
-void masterconn_stats(uint32_t *bin,uint32_t *bout) {
+void masterconn_stats(uint32_t *bin,uint32_t *bout,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
 	*bout = stats_bytesout;
+	*maxjobscnt = stats_maxjobscnt;
 	stats_bytesin = 0;
 	stats_bytesout = 0;
+	stats_maxjobscnt = 0;
 }
 
 void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
@@ -912,7 +916,7 @@ void masterconn_term(void) {
 
 void masterconn_connected(masterconn *eptr) {
 #ifdef BGJOBS
-	eptr->jpool = job_pool_new(10,10000,&(eptr->jobfd));
+	eptr->jpool = job_pool_new(10,BGJOBSCNT,&(eptr->jobfd));
 #endif
 	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
@@ -988,7 +992,7 @@ void masterconn_read(masterconn *eptr) {
 	const uint8_t *ptr;
 	for (;;) {
 #ifdef BGJOBS
-		if (job_pool_can_add(eptr->jpool)==0) {
+		if (job_pool_jobs_count(eptr->jpool)>=(BGJOBSCNT*9)/10) {
 			return;
 		}
 #endif
@@ -1104,7 +1108,7 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		pos++;
 //		FD_SET(eptr->jobfd,rset);
 //		ret = eptr->jobfd;
-		if (job_pool_can_add(eptr->jpool)) {
+		if (job_pool_jobs_count(eptr->jpool)<(BGJOBSCNT*9)/10) {
 			pdesc[pos].fd = eptr->sock;
 			pdesc[pos].events = POLLIN;
 			eptr->pdescpos = pos;
@@ -1184,6 +1188,14 @@ void masterconn_serve(struct pollfd *pdesc) {
 			}
 		}
 	}
+#ifdef BGJOBS
+	if (eptr->mode==HEADER || eptr->mode==DATA) {
+		uint32_t jobscnt = job_pool_jobs_count(eptr->jpool);
+		if (jobscnt>=stats_maxjobscnt) {
+			stats_maxjobscnt=jobscnt;
+		}
+	}
+#endif
 	if (eptr->mode == KILL) {
 #ifdef BGJOBS
 		job_pool_delete(eptr->jpool);	// finish all pending jobs
@@ -1217,15 +1229,15 @@ void masterconn_reload(void) {
 	eptr->masteraddrvalid=0;
 }
 
-int masterconn_init(void) {
+int masterconn_init(FILE *msgfd) {
 	uint32_t ReconnectionDelay;
 	masterconn *eptr;
 
-	config_getuint32("MASTER_RECONNECTION_DELAY",5,&ReconnectionDelay);
-	config_getnewstr("MASTER_HOST","mfsmaster",&MasterHost);
-	config_getnewstr("MASTER_PORT","9420",&MasterPort);
-	config_getuint32("MASTER_TIMEOUT",60,&Timeout);
-	config_getuint32("BACK_LOGS",50,&BackLogsNumber);
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstr("MASTER_PORT","9420");
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -1248,5 +1260,6 @@ int masterconn_init(void) {
 
 	logfd = NULL;
 
+	(void)msgfd;
 	return 0;
 }

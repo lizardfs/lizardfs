@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -40,7 +41,7 @@
 #include "filesystem.h"
 #include "random.h"
 #include "acl.h"
-#include "stats.h"
+#include "charts.h"
 #include "cfg.h"
 #include "main.h"
 #include "sockets.h"
@@ -697,14 +698,14 @@ void matocuserv_chart(matocuserventry *eptr,const uint8_t *data,uint32_t length)
 		return;
 	}
 	chartid = get32bit(&data);
-	l = stats_make_png(chartid);
+	l = charts_make_png(chartid);
 	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART,l);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
 	if (l>0) {
-		stats_get_png(ptr);
+		charts_get_png(ptr);
 	}
 }
 
@@ -719,14 +720,14 @@ void matocuserv_chart_data(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 	chartid = get32bit(&data);
-	l = stats_datasize(chartid);
+	l = charts_datasize(chartid);
 	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART_DATA,l);
 	if (ptr==NULL) {
 		eptr->mode=KILL;
 		return;
 	}
 	if (l>0) {
-		stats_makedata(ptr,chartid);
+		charts_makedata(ptr,chartid);
 	}
 }
 
@@ -2104,8 +2105,9 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 }
 
 void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid,gid;
+	uint32_t inode,uid,gid,auid,agid;
 	uint8_t flags;
+	uint8_t attr[35];
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -2116,22 +2118,30 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
-	uid = get32bit(&data);
-	gid = get32bit(&data);
+	auid = uid = get32bit(&data);
+	agid = gid = get32bit(&data);
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	flags = get8bit(&data);
 	status = matocuserv_insert_openfile(eptr->sesdata,inode);
 	if (status==STATUS_OK) {
-		status = fs_opencheck(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,flags);
+		status = fs_opencheck(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,flags,attr);
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,5);
+	if (eptr->version>=0x010609 && status==STATUS_OK) {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,39);
+	} else {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,5);
+	}
 	if (ptr==NULL) {
 		syslog(LOG_NOTICE,"can't allocate memory for packet");
 		eptr->mode = KILL;
 		return;
 	}
 	put32bit(&ptr,msgid);
-	put8bit(&ptr,status);
+	if (eptr->version>=0x010609 && status==STATUS_OK) {
+		memcpy(ptr,attr,35);
+	} else {
+		put8bit(&ptr,status);
+	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[13]++;
 	}
@@ -3642,16 +3652,16 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matocuserv_init(void) {
-	config_getnewstr("MATOCU_LISTEN_HOST","*",&ListenHost);
-	config_getnewstr("MATOCU_LISTEN_PORT","9421",&ListenPort);
-	config_getuint32("REJECT_OLD_CLIENTS",0,&RejectOld);
-//	config_getuint32("MATOCU_TIMEOUT",4,&Timeout);
+int matocuserv_init(FILE *msgfd) {
+	ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
+	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 
 	exiting = 0;
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocu: socket error: %m");
+		fprintf(msgfd,"main master server module error: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -3662,9 +3672,11 @@ int matocuserv_init(void) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocu: listen error: %m");
+		fprintf(msgfd,"main master server module error: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matocu: listen on %s:%s",ListenHost,ListenPort);
+	fprintf(msgfd,"main master server module: listen on %s:%s\n",ListenHost,ListenPort);
 
 	sessionshead = NULL;
 	matocuservhead = NULL;

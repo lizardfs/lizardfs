@@ -20,6 +20,7 @@
 #define _FILESYSTEM_H_
 
 #include <inttypes.h>
+#include <stdio.h>
 
 #ifdef METARESTORE
 
@@ -103,7 +104,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 
 uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint16_t chunkcount[256]);
 
-uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags);
+uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,uint8_t attr[35]);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag);
@@ -155,7 +156,7 @@ void fs_getquotainfo_data(uint8_t *buff);
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);
 
-int fs_init(void);
+int fs_init(FILE *msgfd);
 #endif
 
 

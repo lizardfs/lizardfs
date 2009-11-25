@@ -378,6 +378,10 @@ if __name__=="__main__":
 		elif opt=='-v':
 			verbose = 1
 
+	print "starting simple cgi server (host: %s , port: %u , rootpath: %s)" % (host,port,rootpath)
+
+	server = Server(host, port)
+
 	if daemonize:
 # daemonize
 		try:
@@ -407,7 +411,6 @@ if __name__=="__main__":
 			print "Asynchronous HTTP server running on %s:%s" % (host,port)
 		else:
 			print "Asynchronous HTTP server running on port %s" % port
-	server = Server(host, port)
 	if not daemonize and verbose:
 		HTTP.logging = True
 	else:

@@ -18,6 +18,8 @@
 
 #ifndef _MATOCSSERV_H_
 #define _MATOCSSERV_H_
+
+#include <stdio.h>
 #include <inttypes.h>
 
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
@@ -45,6 +47,6 @@ int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint3
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
 //void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 //void matocsserv_broadcast_logrotate();
-int matocsserv_init(void);
+int matocsserv_init(FILE *msgfd);
 
 #endif

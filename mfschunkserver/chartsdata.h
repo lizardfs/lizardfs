@@ -16,16 +16,12 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STATS_H_
-#define _STATS_H_
+#ifndef _CHARTSDATA_H_
+#define _CHARTSDATA_H_
 
+#include <stdio.h>
 #include <inttypes.h>
 
-uint32_t stats_datasize(uint32_t number);
-void stats_makedata(uint8_t *buff,uint32_t number);
-uint32_t stats_make_png(uint32_t number);
-void stats_get_png(uint8_t *buff);
-
-int stats_init (void);
+int chartsdata_init (FILE *msgfd);
 
 #endif
