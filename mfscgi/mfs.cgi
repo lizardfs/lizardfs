@@ -1088,7 +1088,7 @@ if "HD" in sectionset:
 			if HDrev:
 				hdd.reverse()
 			i = 1
-			for sf,path,flags,errchunkid,errtime,used,total,chunkscnti,rbw,wbw,rtime,wtime,rops,wops,rbytes,wbytes,rsum,wsum in hdd:
+			for sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,rops,wops,rbytes,wbytes,rsum,wsum in hdd:
 				if flags==1:
 					status = 'to be empty'
 				elif flags==2:

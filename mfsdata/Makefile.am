@@ -5,18 +5,8 @@ install-data-hook:
 		$(MKDIR_P) $(DESTDIR)$(sysconfdir) ; \
 	fi
 if BUILD_CHUNKSERVER
-	if [ ! -f $(DESTDIR)$(sysconfdir)/mfschunkserver.cfg ]; then \
-		$(INSTALL_DATA) $(builddir)/mfschunkserver.cfg $(DESTDIR)$(sysconfdir) ; \
-	fi
-	if [ ! -f $(DESTDIR)$(sysconfdir)/mfshdd.cfg ]; then \
-		$(INSTALL_DATA) $(srcdir)/mfshdd.cfg $(DESTDIR)$(sysconfdir) ; \
-	fi
-	if [ ! -d $(DESTDIR)$(RUN_PATH) ]; then \
-		$(MKDIR_P) $(DESTDIR)$(RUN_PATH) ; \
-		if [ "`id -u`" = "0" ]; then \
-			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(RUN_PATH) ; \
-		fi ; \
-	fi
+	$(INSTALL_DATA) $(builddir)/mfschunkserver.cfg $(DESTDIR)$(sysconfdir)/mfschunkserver.cfg.dist
+	$(INSTALL_DATA) $(srcdir)/mfshdd.cfg $(DESTDIR)$(sysconfdir)/mfshdd.cfg.dist
 	if [ ! -d $(DESTDIR)$(DATA_PATH) ]; then \
 		$(MKDIR_P) $(DESTDIR)$(DATA_PATH) ; \
 		if [ "`id -u`" = "0" ]; then \
@@ -25,28 +15,14 @@ if BUILD_CHUNKSERVER
 	fi
 endif
 if BUILD_MASTER
-	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsmaster.cfg ]; then \
-		$(INSTALL_DATA) $(builddir)/mfsmaster.cfg $(DESTDIR)$(sysconfdir) ; \
-	fi
-	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsexports.cfg ]; then \
-		$(INSTALL_DATA) $(builddir)/mfsexports.cfg $(DESTDIR)$(sysconfdir) ; \
-	fi
-	if [ ! -d $(DESTDIR)$(RUN_PATH) ]; then \
-		$(MKDIR_P) $(DESTDIR)$(RUN_PATH) ; \
-		if [ "`id -u`" = "0" ]; then \
-			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(RUN_PATH) ; \
-		fi ; \
-	fi
+	$(INSTALL_DATA) $(builddir)/mfsmetalogger.cfg $(DESTDIR)$(sysconfdir)/mfsmetalogger.cfg.dist
+	$(INSTALL_DATA) $(builddir)/mfsmaster.cfg $(DESTDIR)$(sysconfdir)/mfsmaster.cfg.dist
+	$(INSTALL_DATA) $(builddir)/mfsexports.cfg $(DESTDIR)$(sysconfdir)/mfsexports.cfg.dist
 	if [ ! -d $(DESTDIR)$(DATA_PATH) ]; then \
 		$(MKDIR_P) $(DESTDIR)$(DATA_PATH) ; \
 		if [ "`id -u`" = "0" ]; then \
 			chown $(DEFAULT_USER):$(DEFAULT_GROUP) $(DESTDIR)$(DATA_PATH) ; \
 		fi ; \
 	fi
-	if [ ! -f $(DESTDIR)$(DATA_PATH)/metadata.mfs -a ! -f $(DESTDIR)$(DATA_PATH)/metadata.mfs.back ]; then \
-		$(INSTALL_DATA) $(srcdir)/metadata.mfs $(DESTDIR)$(DATA_PATH) ; \
-	fi
-	if [ ! -f $(DESTDIR)$(sysconfdir)/mfsmetalogger.cfg ]; then \
-		$(INSTALL_DATA) $(builddir)/mfsmetalogger.cfg $(DESTDIR)$(sysconfdir) ; \
-	fi
+	$(INSTALL_DATA) $(srcdir)/metadata.mfs $(DESTDIR)$(DATA_PATH)/metadata.mfs.empty
 endif

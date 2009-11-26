@@ -1,5 +1,5 @@
-etc/mfschunkserver.cfg
-etc/mfshdd.cfg
+etc/mfschunkserver.cfg.dist
+etc/mfshdd.cfg.dist
 usr/sbin/mfschunkserver
 #usr/share/man/man7/mfs.7
 #usr/share/man/man7/moosefs.7

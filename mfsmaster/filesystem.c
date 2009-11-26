@@ -7343,6 +7343,7 @@ int fs_loadall(const char *fname) {
 		printf("can't open metadata file\n");
 #else
 		fprintf(msgfd,"can't open metadata file\n");
+		fprintf(msgfd,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs\n");
 		syslog(LOG_ERR,"can't open metadata file");
 #endif
 		return -1;

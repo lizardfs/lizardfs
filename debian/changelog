@@ -7,6 +7,7 @@ mfs (1.6.9) unstable; urgency=medium
   * added HDD I/O stats
   * removing unfinished jobs from queue on socket close
   * added 'cache file' flag
+  * added simple application "mfsmetadump"
 
  -- Jakub Bogusz <contact@moosefs.com>  Tue, 24 Nov 2009 14:00:00 +0200
 

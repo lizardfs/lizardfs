@@ -217,6 +217,8 @@ static lostchunk *lostchunks=NULL;
 static uint32_t errorcounter=0;
 static int hddspacechanged=0;
 
+static FILE *init_msgfd;
+
 #ifdef _THREAD_SAFE
 
 static pthread_t foldersthread,delayedthread,testerthread;
@@ -1580,6 +1582,12 @@ void hdd_delayed_ops() {
 //	printf("delayed ops: after unlock\n");
 }
 
+static inline uint64_t get_usectime() {
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
+}
+
 static int hdd_io_begin(chunk *c,int newflag) {
 	dopchunk *cc;
 	int status;
@@ -1646,6 +1654,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 
 static int hdd_io_end(chunk *c) {
 	int status;
+	uint64_t ts,te;
 //	syslog(LOG_NOTICE,"chunk: %"PRIu64" - after io",c->chunkid);
 	if (c->crcchanged) {
 		status = chunk_writecrc(c);
@@ -1665,6 +1674,7 @@ static int hdd_io_end(chunk *c) {
 			}
 			c->fd = -1;
 		} else {
+			ts = get_usectime();
 #ifdef F_FULLFSYNC
 //			printf("afterio - FULLFSYNC (desc: %d)\n",c->fd);
 			if (fcntl(c->fd,F_FULLFSYNC)<0) {
@@ -1678,6 +1688,8 @@ static int hdd_io_end(chunk *c) {
 				return ERROR_IO;
 			}
 #endif
+			te = get_usectime();
+			hdd_stats_datawrite(c->owner,0,te-ts);
 			c->opensteps = OPENSTEPS;
 		}
 		c->crcsteps = CRCSTEPS;
@@ -1688,11 +1700,6 @@ static int hdd_io_end(chunk *c) {
 	return STATUS_OK;
 }
 
-static inline uint64_t get_usectime() {
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
-}
 
 
 
@@ -3621,6 +3628,14 @@ static void* hdd_folder_scan(void *arg) {
 	free(fullname);
 	free(oldfullname);
 
+#ifdef _THREAD_SAFE
+	pthread_mutex_lock(&folderlock);
+#endif
+	fprintf(init_msgfd,"%s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
+#ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&folderlock);
+#endif
+
 	return NULL;
 }
 
@@ -3777,6 +3792,7 @@ int hdd_init(FILE *msgfd) {
 		return -1;
 	}
 
+	init_msgfd = msgfd;
 #ifdef _THREAD_SAFE
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr,0x100000);
@@ -3792,9 +3808,6 @@ int hdd_init(FILE *msgfd) {
 		f->needrefresh = 0;
 	}
 	fprintf(msgfd,"scanning complete\n");
-	for (f=folderhead ; f ; f=f->next) {
-		fprintf(msgfd,"%s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
-	}
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	if (HDDTestFreq>0) {
 		for (f=folderhead ; f ; f=f->next) {
