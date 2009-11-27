@@ -527,7 +527,8 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			return -1;
 		}
 		l=0;
-		fprintf(msgfd,"waiting for termination ...\n");
+		fprintf(msgfd,"waiting for termination ... ");
+		fflush(msgfd);
 		do {
 			newownerpid = mylock(lfp);
 			if (newownerpid<0) {
@@ -539,16 +540,18 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 				l++;
 				if (l>=timeout) {
 					syslog(LOG_ERR,"about %"PRIu32" seconds passed and lockfile is still locked - giving up",l);
-					fprintf(msgfd,"about %"PRIu32" seconds passed and lockfile is still locked - giving up\n",l);
+					fprintf(msgfd,"give up\n");
 					return -1;
 				}
 				if (l%10==0) {
 					syslog(LOG_WARNING,"about %"PRIu32" seconds passed and lock still exists",l);
-					fprintf(msgfd,"about %"PRIu32" seconds passed and lock still exists\n",l);
+					fprintf(msgfd,"%"PRIu32"s ",l);
+					fflush(msgfd);
 				}
 				if (newownerpid!=ownerpid) {
-					fprintf(msgfd,"new lock owner detected\n");
-					fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld) ...\n",(long int)newownerpid);
+					fprintf(msgfd,"\nnew lock owner detected\n");
+					fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
+					fflush(msgfd);
 					if (kill(newownerpid,SIGTERM)<0) {
 						syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
 						fprintf(msgfd,"can't kill lock owner (error: %s)\n",errno_to_str());
@@ -559,7 +562,7 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			}
 			sleep(1);
 		} while (newownerpid!=0);
-		fprintf(msgfd,"lock owner has been terminated\n");
+		fprintf(msgfd,"terminated\n");
 		return 0;
 	}
 	if (runmode==RM_START || runmode==RM_RESTART) {

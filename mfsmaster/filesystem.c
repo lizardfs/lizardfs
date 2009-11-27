@@ -1138,95 +1138,6 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 
 
 #ifndef METARESTORE
-void fs_attr_to_attr32(const uint8_t attr[35],uint8_t attr32[32]) {
-	uint8_t type;
-	type = attr[0];
-	attr32[0] = type;
-	attr32[1] = 0;	// goal
-	memcpy(attr32+2,attr+1,22);	// copy mode,uid,gid,times
-	if (type==TYPE_DIRECTORY) {
-		memcpy(attr32+24,attr+23,4);
-		memcpy(attr32+28,attr+31,4);
-	} else if (type==TYPE_SYMLINK) {
-		memcpy(attr32+24,attr+31,4);
-		attr32[28]=0;
-		attr32[29]=0;
-		attr32[30]=0;
-		attr32[31]=0;
-	} else {
-		memcpy(attr32+24,attr+27,8);
-	}
-}
-
-void fs_attr32_to_attrvalues(const uint8_t attr32[32],uint16_t *attrmode,uint32_t *attruid,uint32_t *attrgid,uint32_t *attratime,uint32_t *attrmtime,uint64_t *attrlength) {
-	const uint8_t *ptr;
-	ptr = attr32+2;
-	*attrmode = get16bit(&ptr);
-	ptr = attr32+4;
-	*attruid = get32bit(&ptr);
-	ptr = attr32+8;
-	*attrgid = get32bit(&ptr);
-	ptr = attr32+12;
-	*attratime = get32bit(&ptr);
-	ptr = attr32+16;
-	*attrmtime = get32bit(&ptr);
-	ptr = attr32+24;
-	*attrlength = get64bit(&ptr);
-}
-
-/*
-void fsnodes_fill_attr32(fsnode *node,uint8_t attr[32]) {
-	uint8_t *ptr;
-	ptr = attr;
-	if (node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		put8bit(&ptr,TYPE_FILE);
-	} else {
-		put8bit(&ptr,node->type);
-	}
-	put8bit(&ptr,((node->goal)&0xF)+((node->trashtime==0)?0x10:0));
-	put16bit(&ptr,node->mode);
-	put32bit(&ptr,node->uid);
-	put32bit(&ptr,node->gid);
-	put32bit(&ptr,node->atime);
-	put32bit(&ptr,node->mtime);
-	put32bit(&ptr,node->ctime);
-	switch (node->type) {
-	case TYPE_FILE:
-	case TYPE_TRASH:
-	case TYPE_RESERVED:
-		put64bit(&ptr,node->data.fdata.length);
-		break;
-	case TYPE_DIRECTORY:
-		put32bit(&ptr,node->data.ddata.nlink);
-		put32bit(&ptr,node->data.ddata.elements);
-		break;
-	case TYPE_SYMLINK:
-		put32bit(&ptr,node->data.sdata.pleng);
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		break;
-	case TYPE_BLOCKDEV:
-	case TYPE_CHARDEV:
-		put32bit(&ptr,node->data.rdev);
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		break;
-	default:
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-		*ptr++=0;
-	}
-}
-*/
 
 static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t sesflags,uint8_t attr[35]) {
 	uint8_t *ptr;
@@ -6481,6 +6392,7 @@ int fs_loadedges(FILE *fd) {
 	return 0;
 }
 
+/*
 fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 	uint8_t unodebuff[4+2+MAXFNAMELENG+1+2+4+4+4+4+4+4+8+4+2+8*MAX_CHUNKS_PER_FILE+4*65536+4];
 	const uint8_t *ptr;
@@ -6874,6 +6786,7 @@ int fs_loadreserved_1_4(FILE *fd) {
 		}
 	}
 }
+*/
 
 void fs_storefree(FILE *fd) {
 	uint8_t wbuff[8*1024],*ptr;
@@ -6975,10 +6888,11 @@ uint64_t fs_loadversion(FILE *fd) {
 	return fversion;
 }
 
-int fs_load(FILE *fd) {
+int fs_load(FILE *fd,FILE *msgfd) {
 	uint8_t hdr[16];
 	const uint8_t *ptr;
 	if (fread(hdr,1,16,fd)!=16) {
+		fprintf(msgfd,"error loading header\n");
 		return -1;
 	}
 	ptr = hdr;
@@ -6986,45 +6900,55 @@ int fs_load(FILE *fd) {
 	version = get64bit(&ptr);
 	nextsessionid = get32bit(&ptr);
 	fsnodes_init_freebitmask();
+	fprintf(msgfd,"loading objects (files,directories,etc.) ... ");
+	fflush(msgfd);
 	if (fs_loadnodes(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (node)\n");
-#else
+		fprintf(msgfd,"error\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (node)");
 #endif
 		return -1;
 	}
+	fprintf(msgfd,"ok\n");
+	fprintf(msgfd,"loading names ... ");
+	fflush(msgfd);
 	if (fs_loadedges(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (edge)\n");
-#else
+		fprintf(msgfd,"error\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (edge)");
 #endif
 		return -1;
 	}
+	fprintf(msgfd,"ok\n");
+	fprintf(msgfd,"loading deletion timestamps ... ");
+	fflush(msgfd);
 	if (fs_loadfree(fd)<0) {
-#ifdef METARESTORE
-		printf("error reading metadata (free)\n");
-#else
+		fprintf(msgfd,"error\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (free)");
 #endif
 		return -1;
 	}
+	fprintf(msgfd,"ok\n");
+	fprintf(msgfd,"checking filesystem consistency ... ");
+	fflush(msgfd);
 	root = fsnodes_id_to_node(MFS_ROOT_ID);
 	if (root==NULL) {
-#ifdef METARESTORE
-		printf("error reading metadata (no root)\n");
-#else
+		fprintf(msgfd,"error\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (no root)");
 #endif
 		return -1;
 	}
 	if (fs_checknodes()<0) {
+		fprintf(msgfd,"error\n");
 		return -1;
 	}
+	fprintf(msgfd,"ok\n");
 	return 0;
 }
 
+/*
 uint64_t fs_loadversion_1_4(FILE *fd) {
 	uint8_t hdr[12];
 	const uint8_t *ptr;
@@ -7090,6 +7014,7 @@ int fs_load_1_4(FILE *fd) {
 	}
 	return 0;
 }
+*/
 
 #ifndef METARESTORE
 void fs_new(void) {
@@ -7310,7 +7235,7 @@ void fs_term(const char *fname) {
 #ifndef METARESTORE
 int fs_loadall(FILE *msgfd) {
 #else
-int fs_loadall(const char *fname) {
+int fs_loadall(const char *fname,FILE *msgfd) {
 #endif
 	FILE *fd;
 	uint8_t hdr[8];
@@ -7327,9 +7252,10 @@ int fs_loadall(const char *fname) {
 	fd = fopen("metadata.mfs.back","r");
 	if (fd!=NULL) {
 		if (fread(bhdr,1,8,fd)==8) {
-			if (memcmp(bhdr,"MFSM 1.4",8)==0) {
-				backversion = fs_loadversion_1_4(fd);
-			} else if (memcmp(bhdr,"MFSM 1.5",8)==0) {
+//			if (memcmp(bhdr,"MFSM 1.4",8)==0) {
+//				backversion = fs_loadversion_1_4(fd);
+//			} else
+			if (memcmp(bhdr,"MFSM 1.5",8)==0) {
 				backversion = fs_loadversion(fd);
 			}
 		}
@@ -7339,20 +7265,16 @@ int fs_loadall(const char *fname) {
 	fd = fopen("metadata.mfs","r");
 #endif
 	if (fd==NULL) {
-#ifdef METARESTORE
-		printf("can't open metadata file\n");
-#else
 		fprintf(msgfd,"can't open metadata file\n");
+#ifndef METARESTORE
 		fprintf(msgfd,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs\n");
 		syslog(LOG_ERR,"can't open metadata file");
 #endif
 		return -1;
 	}
 	if (fread(hdr,1,8,fd)!=8) {
-#ifdef METARESTORE
-		printf("can't read metadata header\n");
-#else
 		fprintf(msgfd,"can't read metadata header\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"can't read metadata header");
 #endif
 		return -1;
@@ -7376,6 +7298,7 @@ int fs_loadall(const char *fname) {
 		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
 		return 0;
 	}
+/*
 	if (memcmp(hdr,"MFSM 1.4",8)==0) {
 		converted=1;
 		if (fs_load_1_4(fd)<0) {
@@ -7391,43 +7314,38 @@ int fs_loadall(const char *fname) {
 			return -1;
 		}
 	} else 
+*/
 #endif
 	if (memcmp(hdr,"MFSM 1.5",8)==0) {
-		if (fs_load(fd)<0) {
-#ifdef METARESTORE
-			printf("error reading metadata (structure)\n");
-#else
-			fprintf(msgfd,"error reading metadata (structure)\n");
+		if (fs_load(fd,msgfd)<0) {
+#ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (structure)");
 #endif
 			fclose(fd);
 			return -1;
 		}
+		fprintf(msgfd,"loading chunks data ... ");
+		fflush(msgfd);
 		if (chunk_load(fd)<0) {
-#ifdef METARESTORE
-			printf("error reading metadata (chunks)\n");
-#else
-			fprintf(msgfd,"error reading metadata (chunks)\n");
+			fprintf(msgfd,"error\n");
+#ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
 			fclose(fd);
 			return -1;
 		}
+		fprintf(msgfd,"ok\n");
 	} else {
-#ifdef METARESTORE
-		printf("wrong metadata header (old version ?)\n");
-#else
 		fprintf(msgfd,"wrong metadata header\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"wrong metadata header");
 #endif
 		fclose(fd);
 		return -1;
 	}
 	if (ferror(fd)!=0) {
-#ifdef METARESTORE
-		printf("error reading metadata\n");
-#else
 		fprintf(msgfd,"error reading metadata\n");
+#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata");
 #endif
 		fclose(fd);
@@ -7458,7 +7376,10 @@ int fs_loadall(const char *fname) {
 		}
 	}
 #endif
+	fprintf(msgfd,"connecting files and chunks ... ");
+	fflush(msgfd);
 	fs_add_files_to_chunks();
+	fprintf(msgfd,"ok\n");
 	return 0;
 }
 
@@ -7513,7 +7434,7 @@ int fs_init(FILE *msgfd) {
 int fs_init(const char *fname) {
 	fs_strinit();
 	chunk_strinit();
-	if (fs_loadall(fname)<0) {
+	if (fs_loadall(fname,stdout)<0) {
 		return -1;
 	}
 	return 0;

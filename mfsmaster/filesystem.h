@@ -62,10 +62,6 @@ void fs_term(const char *fname);
 int fs_init(const char *fname);
 
 #else
-/* old mfsmount compatibility */
-void fs_attr_to_attr32(const uint8_t attr[35],uint8_t attr32[32]);
-void fs_attr32_to_attrvalues(const uint8_t attr32[32],uint16_t *attrmode,uint32_t *attruid,uint32_t *attrgid,uint32_t *attratime,uint32_t *attrmtime,uint64_t *attrlength);
-/* -------------------------- */
 
 // attr blob: [ type:8 goal:8 mode:16 uid:32 gid:32 atime:32 mtime:32 ctime:32 length:64 ]
 void fs_stats(uint32_t stats[16]);

@@ -105,6 +105,7 @@ table.FR td, table.FR tr.C1 td {background-color: #E8E8E8;}
 table.FR tr.C2 td {background-color: #D6D6D6;}
 table.FR tr:first-child th {background-color: #A0A0A0;}
 table.FR th {background-color: #C0C0C0;}
+table.FR th.SMPROGBAR {width: 102px;}
 table.FR th.PROGBAR {width: 202px;}
 table.FR th.PERC4 {width: 4%;}
 table.FR th.PERC96 {width: 96%;}
@@ -121,6 +122,10 @@ table.CR tr:first-child th {background-color: #A0A0A0;}
 table.CR th {background-color: #C0C0C0;}
 
 table.BOTMENU {width: 1000px; margin-left:auto; margin-right:auto;}
+
+.smbox {position:relative; border:1px solid #000; width:100px; background:#fff; height:14px;}
+.smbox .progress {background:#0F0; float:left; height:14px;}
+.smbox .value {width:100%; position:absolute; left:0; top:0; text-align:center;}
 
 .box {position:relative; border:1px solid #000; width:200px; background:#fff; height:14px;}
 .box .progress {background:#0F0; float:left; height:14px;}

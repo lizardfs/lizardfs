@@ -156,10 +156,13 @@ typedef struct hddstats {
 	uint64_t wbytes;
 	uint64_t usecreadsum;
 	uint64_t usecwritesum;
+	uint64_t usecfsyncsum;
 	uint32_t rops;
 	uint32_t wops;
+	uint32_t fsyncops;
 	uint32_t usecreadmax;
 	uint32_t usecwritemax;
+	uint32_t usecfsyncmax;
 } hddstats;
 
 typedef struct folder {
@@ -284,25 +287,34 @@ static inline void hdd_stats_add(hddstats *dst,hddstats *src) {
 	dst->wbytes += src->wbytes;
 	dst->usecreadsum += src->usecreadsum;
 	dst->usecwritesum += src->usecwritesum;
+	dst->usecfsyncsum += src->usecfsyncsum;
 	dst->rops += src->rops;
 	dst->wops += src->wops;
+	dst->fsyncops += src->fsyncops;
 	if (src->usecreadmax>dst->usecreadmax) {
 		dst->usecreadmax = src->usecreadmax;
 	}
 	if (src->usecwritemax>dst->usecwritemax) {
 		dst->usecwritemax = src->usecwritemax;
 	}
+	if (src->usecfsyncmax>dst->usecfsyncmax) {
+		dst->usecfsyncmax = src->usecfsyncmax;
+	}
 }
 
+/* size: 64 */
 static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
 	put64bit(buff,r->rbytes);
 	put64bit(buff,r->wbytes);
 	put64bit(buff,r->usecreadsum);
 	put64bit(buff,r->usecwritesum);
+	put64bit(buff,r->usecfsyncsum);
 	put32bit(buff,r->rops);
 	put32bit(buff,r->wops);
+	put32bit(buff,r->fsyncops);
 	put32bit(buff,r->usecreadmax);
 	put32bit(buff,r->usecwritemax);
+	put32bit(buff,r->usecfsyncmax);
 }
 
 /*
@@ -552,6 +564,21 @@ static inline void hdd_stats_datawrite(folder *f,uint32_t size,uint64_t wtime) {
 #endif
 }
 
+static inline void hdd_stats_datafsync(folder *f,uint64_t fsynctime) {
+#ifdef _THREAD_SAFE
+	pthread_mutex_lock(&statslock);
+#endif
+	stats_wtime += fsynctime;
+	f->cstat.fsyncops++;
+	f->cstat.usecfsyncsum += fsynctime;
+	if (fsynctime>f->cstat.usecfsyncmax) {
+		f->cstat.usecfsyncmax=fsynctime;
+	}
+#ifdef _THREAD_SAFE
+	pthread_mutex_unlock(&statslock);
+#endif
+}
+
 uint32_t hdd_diskinfo_v1_size() {
 	folder *f;
 	uint32_t s=0,sl;
@@ -612,7 +639,7 @@ uint32_t hdd_diskinfo_v2_size() {
 		if (sl>255) {
 			sl=255;
 		}
-		s+=2+178+sl;
+		s+=2+226+sl;
 	}
 	return s;
 }
@@ -630,13 +657,13 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 		for (f=folderhead ; f ; f=f->next ) {
 			sl = strlen(f->path);
 			if (sl>255) {
-				put16bit(&buff,178+255);	// size of this entry
+				put16bit(&buff,226+255);	// size of this entry
 				put8bit(&buff,255);
 				memcpy(buff,"(...)",5);
 				memcpy(buff+5,f->path+(sl-250),250);
 				buff+=255;
 			} else {
-				put16bit(&buff,178+sl);	// size of this entry
+				put16bit(&buff,226+sl);	// size of this entry
 				put8bit(&buff,sl);
 				if (sl>0) {
 					memcpy(buff,f->path,sl);
@@ -682,10 +709,8 @@ void hdd_diskinfo_movestats(void) {
 		} else {
 			f->statspos--;
 		}
-		syslog(LOG_NOTICE,"cstat.rbytes: %"PRIu64,f->cstat.rbytes);
 		f->stats[f->statspos]=f->cstat;
 		hdd_stats_clear(&(f->cstat));
-		syslog(LOG_NOTICE,"stats[statspos].rbytes: %"PRIu64,f->stats[f->statspos].rbytes);
 	}
 #ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&statslock);
@@ -1663,6 +1688,20 @@ static int hdd_io_end(chunk *c) {
 			syslog(LOG_WARNING,"hdd_io_end: file:%s - write error (%d:%s)",c->filename,errno,strerror(errno));
 			return status;
 		}
+		ts = get_usectime();
+#ifdef F_FULLFSYNC
+		if (fcntl(c->fd,F_FULLFSYNC)<0) {
+			syslog(LOG_WARNING,"hdd_io_end: file:%s - fsync (via fcntl) error (%d:%s)",c->filename,errno,strerror(errno));
+			return ERROR_IO;
+		}
+#else
+		if (fsync(c->fd)<0) {
+			syslog(LOG_WARNING,"hdd_io_end: file:%s - fsync (direct call) error (%d:%s)",c->filename,errno,strerror(errno));
+			return ERROR_IO;
+		}
+#endif
+		te = get_usectime();
+		hdd_stats_datafsync(c->owner,te-ts);
 	}
 	c->crcrefcount--;
 	if (c->crcrefcount==0) {
@@ -1674,22 +1713,6 @@ static int hdd_io_end(chunk *c) {
 			}
 			c->fd = -1;
 		} else {
-			ts = get_usectime();
-#ifdef F_FULLFSYNC
-//			printf("afterio - FULLFSYNC (desc: %d)\n",c->fd);
-			if (fcntl(c->fd,F_FULLFSYNC)<0) {
-				syslog(LOG_WARNING,"hdd_io_end: file:%s - fsync (via fcntl) error (%d:%s)",c->filename,errno,strerror(errno));
-				return ERROR_IO;
-			}
-//			printf("afterio - synced (desc: %d)\n",c->fd);
-#else
-			if (fsync(c->fd)<0) {
-				syslog(LOG_WARNING,"hdd_io_end: file:%s - fsync (direct call) error (%d:%s)",c->filename,errno,strerror(errno));
-				return ERROR_IO;
-			}
-#endif
-			te = get_usectime();
-			hdd_stats_datawrite(c->owner,0,te-ts);
 			c->opensteps = OPENSTEPS;
 		}
 		c->crcsteps = CRCSTEPS;
@@ -3799,7 +3822,7 @@ int hdd_init(FILE *msgfd) {
 
 	/* make advantage from thread safety and scan folders in separate threads */
 	for (f=folderhead ; f ; f=f->next) {
-		fprintf(msgfd,"starting scanning thread for folder %s ...\n",f->path);
+		fprintf(msgfd,"scanning folder %s ...\n",f->path);
 		pthread_create(&(f->scanthread),&thattr,hdd_folder_scan,f);
 	}
 	for (f=folderhead ; f ; f=f->next) {

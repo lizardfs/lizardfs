@@ -2023,6 +2023,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 // step 7a. if chunk has too many copies and some of them have status TODEL then delete them
+/* Do not delete TDVALID copies ; td no longer means 'to delete', it's more like 'to disconnect', so replicate those chunks, but do no delete them afterwards
 	if (vc+tdc>c->goal && tdc>0) {
 		if (delcount<TmpMaxDel) {
 			for (s=c->slisthead ; s && vc+tdc>c->goal && tdc>0 ; s=s->next) {
@@ -2049,6 +2050,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 		return;
 	}
+*/
 
 // step 7b. if chunk has too many copies then delete some of them
 	if (vc > c->goal) {

@@ -928,7 +928,7 @@ if "HD" in sectionset:
 									sf = 0
 							else:
 								sf = 0
-							hdd.append((sf,path,flags,errchunkid,errtime,used,total,chunkscnt,0,0,0,0,0,0,0,0,0,0))
+							hdd.append((sf,path,flags,errchunkid,errtime,used,total,chunkscnt,0,0,0,0,0,0,0,0,0,0,0,0))
 					s.close()
 				else:
 					s = socket.socket()
@@ -947,20 +947,27 @@ if "HD" in sectionset:
 							plen = ord(entry[0])
 							path = "%s:%u:%s" % (host,port,entry[1:plen+1])
 							flags,errchunkid,errtime,used,total,chunkscnt = struct.unpack(">BQLQQL",entry[plen+1:plen+34])
-							if HDperiod==0 and entrysize>=34+48:
-								rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34:plen+34+48])
-							elif HDperiod==1 and entrysize>=34+96:
-								rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34+48:plen+34+96])
-							elif HDperiod==2 and entrysize>=34+144:
-								rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34+96:plen+34+144])
-							else:
-								rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = (0,0,0,0,0,0,0,0)
+							rbytes,wbytes,usecreadsum,usecwritesum,usecfsyncsum,rops,wops,fsyncops,usecreadmax,usecwritemax,usecfsyncmax = (0,0,0,0,0,0,0,0,0,0,0)
+							if entrysize==plen+34+144:
+								if HDperiod==0:
+									rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34:plen+34+48])
+								elif HDperiod==1:
+									rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34+48:plen+34+96])
+								elif HDperiod==2:
+									rbytes,wbytes,usecreadsum,usecwritesum,rops,wops,usecreadmax,usecwritemax = struct.unpack(">QQQQLLLL",entry[plen+34+96:plen+34+144])
+							elif entrysize==plen+34+192:
+								if HDperiod==0:
+									rbytes,wbytes,usecreadsum,usecwritesum,usecfsyncsum,rops,wops,fsyncops,usecreadmax,usecwritemax,usecfsyncmax = struct.unpack(">QQQQQLLLLLL",entry[plen+34:plen+34+64])
+								elif HDperiod==1:
+									rbytes,wbytes,usecreadsum,usecwritesum,usecfsyncsum,rops,wops,fsyncops,usecreadmax,usecwritemax,usecfsyncmax = struct.unpack(">QQQQQLLLLLL",entry[plen+34+64:plen+34+128])
+								elif HDperiod==2:
+									rbytes,wbytes,usecreadsum,usecwritesum,usecfsyncsum,rops,wops,fsyncops,usecreadmax,usecwritemax,usecfsyncmax = struct.unpack(">QQQQQLLLLLL",entry[plen+34+128:plen+34+192])
 							if usecreadsum>0:
 								rbw = rbytes*1000000/usecreadsum
 							else:
 								rbw = 0
-							if usecwritesum>0:
-								wbw = wbytes*1000000/usecwritesum
+							if usecwritesum+usecfsyncsum>0:
+								wbw = wbytes*1000000/(usecwritesum+usecfsyncsum)
 							else:
 								wbw = 0
 							if HDtime==1:
@@ -972,9 +979,14 @@ if "HD" in sectionset:
 									wtime = usecwritesum/wops
 								else:
 									wtime = 0
+								if fsyncops>0:
+									fsynctime = usecfsyncsum/fsyncops
+								else:
+									fsynctime = 0
 							else:
 								rtime = usecreadmax
 								wtime = usecwritemax
+								fsynctime = usecfsyncmax
 							if HDorder==1 or HDorder==0:
 								sf = (ip1,ip2,ip3,ip4,port,data[1:plen+1])
 							elif HDorder==2:
@@ -992,9 +1004,13 @@ if "HD" in sectionset:
 							elif HDorder==8:
 								sf = wtime
 							elif HDorder==9:
-								sf = rops
+								sf = fsynctime
 							elif HDorder==10:
+								sf = rops
+							elif HDorder==11:
 								sf = wops
+							elif HDorder==12:
+								sf = fsyncops
 							elif HDorder==20:
 								sf = used
 							elif HDorder==21:
@@ -1006,30 +1022,30 @@ if "HD" in sectionset:
 									sf = 0
 							else:
 								sf = 0
-							hdd.append((sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,rops,wops,rbytes,wbytes,usecreadsum,usecwritesum))
+							hdd.append((sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,fsynctime,rops,wops,fsyncops,rbytes,wbytes,usecreadsum,usecwritesum))
 					s.close()
 
 		if len(hdd)>0:
 			out.append("""<table class="FR" cellspacing="0">""")
-			out.append("""	<tr><th colspan="14">Disks</th></tr>""")
+			out.append("""	<tr><th colspan="16">Disks</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th rowspan="3">#</th>""")
 			out.append("""		<th colspan="4" rowspan="2">info</th>""")
 			if HDperiod==2:
-				out.append("""		<th colspan="6">I/O stats last day (<a href="%s">min</a>,<a href="%s">hour</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"1"})))
+				out.append("""		<th colspan="8">I/O stats last day (<a href="%s">min</a>,<a href="%s">hour</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"1"})))
 			elif HDperiod==1:
-				out.append("""		<th colspan="6">I/O stats last hour (<a href="%s">min</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"2"})))
+				out.append("""		<th colspan="8">I/O stats last hour (<a href="%s">min</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"2"})))
 			else:
-				out.append("""		<th colspan="6">I/O stats last min (<a href="%s">hour</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"1"}),createlink({"HDperiod":"2"})))
+				out.append("""		<th colspan="8">I/O stats last min (<a href="%s">hour</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"1"}),createlink({"HDperiod":"2"})))
 			out.append("""		<th colspan="3" rowspan="2">space</th>""")
 			out.append("""	</tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th colspan="2"><a style="cursor:default" title="average data transfer speed">transfer</a></th>""")
 			if HDtime==1:
-				out.append("""		<th colspan="2"><a style="cursor:default" title="average time of read or write chunk block (up to 64kB)">avg time</a> (<a href="%s">max</a>)</th>""" % (createlink({"HDtime":"0"})))
+				out.append("""		<th colspan="3"><a style="cursor:default" title="average time of read or write chunk block (up to 64kB)">avg time</a> (<a href="%s">max</a>)</th>""" % (createlink({"HDtime":"0"})))
 			else:
-				out.append("""		<th colspan="2"><a style="cursor:default" title="max time of read or write one chunk block (up to 64kB)">max time</a> (<a href="%s">avg</a>)</th>""" % (createlink({"HDtime":"1"})))
-			out.append("""		<th colspan="2"><a style="cursor:default" title="number of chunk block operations"># of ops</a></th></tr>""")
+				out.append("""		<th colspan="3"><a style="cursor:default" title="max time of read or write one chunk block (up to 64kB)">max time</a> (<a href="%s">avg</a>)</th>""" % (createlink({"HDtime":"1"})))
+			out.append("""		<th colspan="3"><a style="cursor:default" title="number of chunk block operations / chunk fsyncs"># of ops</a></th></tr>""")
 			out.append("""	<tr>""")
 			if HDorder==1 and HDrev==0:
 				out.append("""		<th><a href="%s">path</a></th>""" % (createlink({"HDrev":"1"})))
@@ -1064,13 +1080,21 @@ if "HD" in sectionset:
 			else:
 				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"8","HDrev":"0"})))
 			if HDorder==9 and HDrev==0:
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDrev":"1"})))
+			else:
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDorder":"9","HDrev":"0"})))
+			if HDorder==10 and HDrev==0:
 				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
-				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDorder":"9","HDrev":"0"})))
-			if HDorder==10 and HDrev==0:
+				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDorder":"10","HDrev":"0"})))
+			if HDorder==11 and HDrev==0:
 				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
-				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"10","HDrev":"0"})))
+				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"11","HDrev":"0"})))
+			if HDorder==12 and HDrev==0:
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDrev":"1"})))
+			else:
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDorder":"12","HDrev":"0"})))
 			if HDorder==20 and HDrev==0:
 				out.append("""		<th><a href="%s">used</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
@@ -1080,15 +1104,15 @@ if "HD" in sectionset:
 			else:
 				out.append("""		<th><a href="%s">total</a></th>""" % (createlink({"HDorder":"21","HDrev":"0"})))
 			if HDorder==22 and HDrev==0:
-				out.append("""		<th class="PROGBAR"><a href="%s">used (%%)</a></th>""" % (createlink({"HDrev":"1"})))
+				out.append("""		<th class="SMPROGBAR"><a href="%s">used (%%)</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
-				out.append("""		<th class="PROGBAR"><a href="%s">used (%%)</a></th>""" % (createlink({"HDorder":"22","HDrev":"0"})))
+				out.append("""		<th class="SMPROGBAR"><a href="%s">used (%%)</a></th>""" % (createlink({"HDorder":"22","HDrev":"0"})))
 			out.append("""	</tr>""")
 			hdd.sort()
 			if HDrev:
 				hdd.reverse()
 			i = 1
-			for sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,rops,wops,rbytes,wbytes,rsum,wsum in hdd:
+			for sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,fsynctime,rops,wops,fsyncops,rbytes,wbytes,rsum,wsum in hdd:
 				if flags==1:
 					status = 'to be empty'
 				elif flags==2:
@@ -1105,7 +1129,7 @@ if "HD" in sectionset:
 				out.append("""<tr class="C%u">""" % (((i-1)%2)+1))
 				out.append("""	<td align="right">%u</td><td align="left">%s</td><td align="right">%u</td><td align="right">%s</td><td align="right">%s</td>""" % (i,path,chunkscnt,lerror,status))
 				if rbw==0 and wbw==0 and rtime==0 and wtime==0 and rops==0 and wops==0:
-					out.append("""  <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>""")
+					out.append("""  <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>""")
 				else:
 					if rops>0:
 						rbsize = rbytes/rops
@@ -1116,12 +1140,14 @@ if "HD" in sectionset:
 					else:
 						wbsize = 0
 					out.append("""	<td align="right"><a style="cursor:default" title="%s B/s">%sB/s</a></td><td align="right"><a style="cursor:default" title="%s B">%sB/s</a></td>""" % (decimal_number(rbw),humanize_number(rbw,"&nbsp;"),decimal_number(wbw),humanize_number(wbw,"&nbsp;")))
-					out.append("""	<td align="right">%u us</td><td align="right">%u us</td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td>""" % (rtime,wtime,rbsize,rops,wbsize,wops))
+					out.append("""	<td align="right">%u us</td><td align="right">%u us</td><td align="right">%u us</td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td><td align="right">%u</td>""" % (rtime,wtime,fsynctime,rbsize,rops,wbsize,wops,fsyncops))
 				out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
+#				out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(total),humanize_number(total,"&nbsp;")))
 				if (total>0):
-					out.append("""	<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
+#					out.append("""	<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f&nbsp;(%sB&nbsp;/&nbsp;%sB)</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total,humanize_number(used,"&nbsp;"),humanize_number(total,"&nbsp;")))
+					out.append("""	<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*100.0)/total),(used*100.0)/total))
 				else:
-					out.append("""	<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (0,0.0))
+					out.append("""	<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">-</div></div></td>""" % (0))
 				out.append("""</tr>""")
 				i+=1
 			out.append("""</table>""")
