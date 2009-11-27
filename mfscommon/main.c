@@ -853,8 +853,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (cfg_load(cfgfile,logundefined)==0) {
-		fprintf(stderr,"can't load config file: %s\n",cfgfile);
-		return 1;
+		fprintf(stderr,"can't load config file: %s - using defaults\n",cfgfile);
 	}
 	free(cfgfile);
 
@@ -901,6 +900,7 @@ int main(int argc,char **argv) {
 	changeugid();
 
 	wrkdir = cfg_getstr("DATA_PATH",DATA_PATH);
+	fprintf(stderr,"working directory: %s\n",wrkdir);
 
 	if (chdir(wrkdir)<0) {
 		fprintf(stderr,"can't set working directory to %s\n",wrkdir);
