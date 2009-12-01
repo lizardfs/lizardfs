@@ -1,6 +1,6 @@
 .TH MFSMETARESTORE "8" "February 2008" "MooseFS 1.5"
 .SH NAME
-mfsmetarestore - replay MFS metadata change logs or dump MFS metadata image
+mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata image
 .SH SYNOPSIS
 .B mfsmetarestore
 \fB\-m\fP \fIOLDMETADATAFILE\fP \fB\-o\fP \fINEWMETADATAFILE\fP [\fICHANGELOGFILE\fP...]
@@ -16,7 +16,7 @@ When \fBmfsmetarestore\fP is called with both \fB-m\fP and \fB-o\fP options,
 it replays given \fICHANGELOGFILE\fPs on \fIOLDMETADATAFILE\fP and writes result
 to \fINEWMETADATAFILE\fP. Multiple change log files can be given.
 .PP
-\fBmfsmetarestore\fP with just \fB-m\fP \fIMETADATAFILE\fP option dumps MFS
+\fBmfsmetarestore\fP with just \fB-m\fP \fIMETADATAFILE\fP option dumps MooseFS
 metadata image file in human readable form.
 .PP
 \fBmfsmetarestore\fP called with -a option automatically performs all operations

@@ -2,7 +2,7 @@
 .SH NAME
 mfschunkserver.cfg \- main configuration file for \fBmfschunkserver\fP
 .SH DESCRIPTION
-The file \fBmfschunkserver.cfg\fP contains configuration of MFS
+The file \fBmfschunkserver.cfg\fP contains configuration of MooseFS
 chunkserver process.
 .SH SYNTAX
 .PP
@@ -33,13 +33,13 @@ nice level to run daemon with (default is -19 if possible; note: process must be
 name of process to place in syslog messages (default is mfschunkserver)
 .TP
 \fBBACK_LOGS\fP
-number of metadata change log files (default is 50; used only when connected with MFS master < 1.6.5)
+number of metadata change log files (default is 50; used only when connected with MooseFS master < 1.6.5)
 .TP
 \fBMASTER_HOST\fP
-address of MFS master host to connect with (default is mfsmaster)
+address of MooseFS master host to connect with (default is mfsmaster)
 .TP
 \fBMASTER_PORT\fP
-number of MFS master port to connect with (default is 9419)
+number of MooseFS master port to connect with (default is 9419)
 .TP
 \fBMASTER_RECONNECTION_DELAY\fP
 delay in seconds before trying to reconnect to master after disconnection (default is 5)

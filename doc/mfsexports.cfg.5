@@ -1,8 +1,8 @@
 .TH MFSEXPORTS.CFG "5" "July 2009" "MooseFS 1.6.0"
 .SH NAME
-mfsexports.cfg \- MFS access control for \fBmfsmount\fPs
+mfsexports.cfg \- MooseFS access control for \fBmfsmount\fPs
 .SH DESCRIPTION
-The file \fBmfsexports.cfg\fP contains MFS access list for \fBmfsmount\fP
+The file \fBmfsexports.cfg\fP contains MooseFS access list for \fBmfsmount\fP
 clients.
 .SH SYNTAX
 .PP
@@ -23,7 +23,7 @@ Lines starting with \fB#\fP character are ignored as comments.
 \fBf.f.f.f-t.t.t.t\fP	IP range specified by from-to addresses (inclusive)
 .fi
 .PP
-\fIDIRECTORY\fP could be \fB/\fP or path relative to MFS root; special
+\fIDIRECTORY\fP could be \fB/\fP or path relative to MooseFS root; special
 value \fB.\fP means MFSMETA companion filesystem.
 .PP
 \fIOPTIONS\fP list:
@@ -68,7 +68,7 @@ Default options are: \fBro,maproot=999:999\fP.
 \fIUSER\fP and \fIGROUP\fP names (if not specified by explicit uid/gid
 number) are resolved on \fBmfsmaster\fP host.
 .PP
-Option \fBmapall\fP works in MFS in different way than in NFS, because of
+Option \fBmapall\fP works in MooseFS in different way than in NFS, because of
 using FUSE's "default_permissions" option. When mapall option is used, users
 see all objects with uid equal to mapped uid as their own and all other as
 root's objects. Similarly objects with gid equal to mapped gid are seen as

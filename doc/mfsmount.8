@@ -43,10 +43,10 @@ foreground operation
 \fB\-s\fP
 disable multi-threaded operation
 .PP
-MFS options:
+MooseFS options:
 .TP
 \fB\-m\fP, \fB\-\-meta\fP, \fB\-o mfsmeta\fP
-mount MFSMETA companion filesystem instead of primary MFS
+mount MFSMETA companion filesystem instead of primary MooseFS
 .TP
 \fB\-n\fP
 omit default mount options (\fB-o allow_other,default_permissions\fP)
@@ -55,23 +55,23 @@ omit default mount options (\fB-o allow_other,default_permissions\fP)
 prompt for password (interactive version of \fB\-o mfspassword=\fP\fIPASS\fP)
 .TP
 \fB\-H\fP \fIHOST\fP, \fB\-o mfsmaster=\fP\fIHOST\fP
-connect with MFS master on \fIHOST\fP (default is mfsmaster)
+connect with MooseFS master on \fIHOST\fP (default is mfsmaster)
 .TP
 \fB\-P\fP \fIPORT\fP, \fB\-o mfsport=\fP\fIPORT\fP
-connect with MFS master on \fIPORT\fP (default is 9421)
+connect with MooseFS master on \fIPORT\fP (default is 9421)
 .TP
 \fB\-S\fP \fIPATH\fP, \fB-o mfssubfolder=\fP\fIPATH\fP
-mount specified MFS directory (default is /, i.e. whole filesystem)
+mount specified MooseFS directory (default is /, i.e. whole filesystem)
 .TP
 \fB\-o mfspassword=\fP\fIPASSWORD\fP
-authenticate to MFS master with \fIPASSWORD\fP
+authenticate to MooseFS master with \fIPASSWORD\fP
 .TP
 \fB\-o mfsmd5pass=\fP\fIMD5\fP
-authenticate to MFS master using directly given \fIMD5\fP (only if
+authenticate to MooseFS master using directly given \fIMD5\fP (only if
 \fBmfspassword\fP option is not specified)
 .TP
 \fB\-o mfsdebug\fP
-print some MFS-specific debugging information
+print some MooseFS-specific debugging information
 .TP
 \fB\-o mfscachefiles\fP
 preserve file data in cache (default is not to use data cache)

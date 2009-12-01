@@ -1,5 +1,5 @@
-MooseFS (abbrev. MFS) is an Open Source, easy to deploy and maintain,
-distributed, fault tolerant file system for POSIX compliant OSes.
+MooseFS is an Open Source, easy to deploy and maintain, distributed,
+fault tolerant file system for POSIX compliant OSes.
 
 MooseFS uses FUSE (http://fuse.sourceforge.net/).
 
@@ -8,7 +8,7 @@ MooseFS v1.5
 Release date: 2008-05-30
 
 Project web site: http://www.moosefs.com/
-Installation and using MFS: http://www.moosefs.com/pages/userguides
+Installation and using MooseFS: http://www.moosefs.com/pages/userguides
 
 Sourceforge project site with source repository:
 http://sourceforge.net/projects/moosefs/

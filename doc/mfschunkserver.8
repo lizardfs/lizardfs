@@ -15,14 +15,14 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 .SH DESCRIPTION
 .PP
 \fBmfschunkserver\fP is the data server of Moose File System. Depending on
-parameters it can start, restart or stop MFS chunkserver process. Without
-any options it starts MFS chunkserver, killing previously run process if
+parameters it can start, restart or stop MooseFS chunkserver process. Without
+any options it starts MooseFS chunkserver, killing previously run process if
 PID file exists.
 .PP
 Starting with version 1.6.0 chunkserver periodically tests stored chunks
 (see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
 .PP
-Starting with version 1.6.5 MFS master doesn't send metadata change logs
+Starting with version 1.6.5 MooseFS master doesn't send metadata change logs
 to chunkserver and expect at least one \fBmfsmetalogger\fP\|(8) daemon
 to connect.
 .TP
@@ -33,11 +33,11 @@ print version information and exit
 print usage information and exit
 .TP
 \fB\-f\fP
-forcily run MFS chunkserver process, without trying to kill previous instance
-(this option allows to run MFS chunkserver if stale PID file exists)
+forcily run MooseFS chunkserver process, without trying to kill previous instance
+(this option allows to run MooseFS chunkserver if stale PID file exists)
 .TP
 \fB\-s\fP
-stop MFS chunkserver process
+stop MooseFS chunkserver process
 .TP
 \fB\-c\fP \fICFGFILE\fP
 specify alternative path of configuration file (default is
@@ -45,20 +45,20 @@ specify alternative path of configuration file (default is
 .SH FILES
 .TP
 \fBmfschunkserver.cfg\fP
-configuration file for MFS chunkserver process; refer to
+configuration file for MooseFS chunkserver process; refer to
 \fBmfschunkserver.cfg\fI\|(5) manual for defails
 .TP
 \fBmfshdd.cfg\fP
-list of directories (mountpoints) used for MFS storage (one per line;
+list of directories (mountpoints) used for MooseFS storage (one per line;
 directory prefixed by \fB*\fP character causes given directory to be freed
 by replicating all data already stored there to another locations)
 .TP
 \fBmfschunkserver.pid\fP
-PID file of running MFS chunkserver process
+PID file of running MooseFS chunkserver process
 .TP
 \fBchangelog_csback.\fP*\fB.mfs\fP
-MFS filesystem metadata change logs (backup of master change log files;
-used only with MFS master < 1.6.5)
+MooseFS filesystem metadata change logs (backup of master change log files;
+used only with MooseFS master < 1.6.5)
 .TP
 \fBdata.csstats\fP
 Chunkserver charts state

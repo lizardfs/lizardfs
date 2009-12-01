@@ -1,6 +1,6 @@
 .TH MFSTOOLS "1" "July 2009" "MooseFS 1.6.0"
 .SH NAME
-mfstools \- perform MFS\-specific operations
+mfstools \- perform MooseFS\-specific operations
 .SH SYNOPSIS
 .B mfsgetgoal
 [\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fIOBJECT\fP...
@@ -106,7 +106,7 @@ It can be used on any file, included deleted (\fItrash\fP).
 chunk copy belonging to specified file(s).
 It can be used on any file, included deleted (\fItrash\fP).
 .PP
-\fBmfsdirinfo\fP is extended, MFS-specific equivalent of \fBdu -s\fP
+\fBmfsdirinfo\fP is extended, MooseFS-specific equivalent of \fBdu -s\fP
 command. It prints summary for each specified object (single file or
 directory tree).
 .PP
@@ -118,7 +118,7 @@ chunkservers. Note: because in the second case content mismatch can occur in
 chunks with the same version, it's advised to make a copy (not a snapshot!)
 and delete original file after "repairing".
 .PP
-\fBmfsappendchunks\fP (equivalent of \fBmfssnapshot\fP from MFS 1.5)
+\fBmfsappendchunks\fP (equivalent of \fBmfssnapshot\fP from MooseFS 1.5)
 appends a lazy copy of specified file(s) to specified snapshot file ("lazy"
 means that creation of new chunks is delayed to the moment one copy is
 modified).
@@ -150,15 +150,15 @@ to \fIuid\fP and \fIgid\fP values of accessing process). Only root (\fIuid\fP=0)
 sees the real \fIuid\fP and \fIgid\fP.
 .PP
 \fBnoattrcache\fP This flag means, that standard file attributes such as uid, gid,
-mode, length and so on won't be stored in kernel cache. In MFS 1.5 this was the
+mode, length and so on won't be stored in kernel cache. In MooseFS 1.5 this was the
 only behaviour, and mfsmount always prevented attributes from being stored in
-kernel cache, but in MFS 1.6 attributes can be cached, so in very rare ocassions
+kernel cache, but in MooseFS 1.6 attributes can be cached, so in very rare ocassions
 it could be useful to turn it off.
 .PP
 \fBnoentrycache\fP This flag is similar to above. It prevents directory entries
 from being cached in kernel.
 .SH INHERITANCE
-When new object is created in MFS, attributes such as goal, trashtime and extra
+When new object is created in MooseFS, attributes such as goal, trashtime and extra
 attributes are inherited from parent directory. So if you set i.e. "noowner"
 attribute and goal to 3 in a directory then every new object created in
 this directory will have goal set to 3 and "noowner" flag set. A newly created
@@ -166,7 +166,7 @@ object inherits always the current set of its parent's attributes. Changing a
 directory attribute does not affect its already created children. To change
 an attribute for a directory and all of its children use "-r" option.
 .SH NOTES
-\fBmfstools\fP require MFS (\fBmfsmaster\fP and \fBmfsmount\fP) >= 1.6.0 to
+\fBmfstools\fP require MooseFS (\fBmfsmaster\fP and \fBmfsmount\fP) >= 1.6.0 to
 work on read-only filesystem.
 .SH "REPORTING BUGS"
 Report bugs to <bugs@moosefs.com>.

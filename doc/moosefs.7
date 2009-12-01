@@ -3,17 +3,17 @@
 MooseFS \- networking, distributed, fault-tolerant file system
 .SH DESCRIPTION
 .PP
-MFS is a networking, distributed file system. It spreads data over several
+MooseFS is a networking, distributed file system. It spreads data over several
 physical localisations (servers), which are visible to a user as one resource.
-For standard file operations MFS acts as other Unix-alike file systems. It has
+For standard file operations MooseFS acts as other Unix-alike file systems. It has
 hierarchical structure (directory tree), stores files' attributes (permissions,
 last access and modification times) as well as makes it possible to create
 special files (block and character devices, pipes and sockets), symbolic links
 (file names pointing to another files accessible locally, not necessarily on
-MFS) and hard links (different names of files which refer to the same data on
-MFS).
+MooseFS) and hard links (different names of files which refer to the same data on
+MooseFS).
 .PP
-Distinctive features of MFS are:
+Distinctive features of MooseFS are:
 .TP
  - higher reliability (data can be stored in several copies on separate computers)
 .TP
@@ -26,7 +26,7 @@ Distinctive features of MFS are:
    whole file, even while the file is being written.
 .SH ARCHITECTURE
 .PP
-MFS installation consists of three types of machines:
+MooseFS installation consists of three types of machines:
 .TP
  - managing server (\fBmfsmaster\fR(8)) - single computer managing the whole filesystem,
    storing metadata for every file (information on size, attributes and file
@@ -37,7 +37,7 @@ MFS installation consists of three types of machines:
    data and replicating it among themselves (if a certain file is supposed to
    exist in more than one copy).
 .TP
- - client computers referring to MFS stored files - any number of machines with
+ - client computers referring to MooseFS stored files - any number of machines with
    working \fBmfsmount\fR(8) process that communicates with the managing server to
    receive and modify file information and with chunkservers to exchange actual
    file data.
