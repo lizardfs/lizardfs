@@ -1,10 +1,12 @@
-.TH MFSMETALOGGER "8" "November 2009" "MooseFS 1.6.7"
+.TH MFSMETALOGGER "8" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfsmetalogger \- start, restart or stop Moose File System metalogger process
 .SH SYNOPSIS
 .B mfsmetalogger
 [\fB\-f\fP]
-[\fB\-c\fP \fICFGFILE\fP]
+[\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
+[\fB\-d\fP]
+[\fB\-t\fP\fI LOCKTIMEOUT\fP]
 .PP
 .B mfsmetalogger \-s
 [\fB\-c\fP \fICFGFILE\fP]
@@ -38,6 +40,15 @@ stop MooseFS metalogger process
 \fB\-c\fP \fICFGFILE\fP
 specify alternative path of configuration file (default is
 \fBmfsmetalogger.cfg\fP in system configuration directory)
+.TP
+\fB\-u\fP
+log undefined configuration values (when default is assumed)
+.TP
+\fB\-d\fP
+run in foreground, don't daemonize
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
 .SH FILES
 .TP
 \fBmfsmetalogger.cfg\fP

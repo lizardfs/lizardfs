@@ -1,10 +1,12 @@
-.TH MFSCHUNKSERVER "8" "November 2009" "MooseFS 1.6.7"
+.TH MFSCHUNKSERVER "8" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfschunkserver \- start, restart or stop Moose File System chunkserver process
 .SH SYNOPSIS
 .B mfschunkserver
 [\fB\-f\fP]
-[\fB\-c\fP \fICFGFILE\fP]
+[\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
+[\fB\-d\fP]
+[\fB\-t\fP\fI LOCKTIMEOUT\fP]
 .PP
 .B mfschunkserver \-s
 [\fB\-c\fP \fICFGFILE\fP]
@@ -42,6 +44,15 @@ stop MooseFS chunkserver process
 \fB\-c\fP \fICFGFILE\fP
 specify alternative path of configuration file (default is
 \fBmfschunkserver.cfg\fP in system configuration directory)
+.TP
+\fB\-u\fP
+log undefined configuration values (when default is assumed)
+.TP
+\fB\-d\fP
+run in foreground, don't daemonize
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
 .SH FILES
 .TP
 \fBmfschunkserver.cfg\fP

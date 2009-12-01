@@ -1,4 +1,4 @@
-.TH MFSMETARESTORE "8" "February 2008" "MooseFS 1.5"
+.TH MFSMETARESTORE "8" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata image
 .SH SYNOPSIS
@@ -10,6 +10,10 @@ mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata im
 .PP
 .B mfsmetarestore
 \fB\-a\fP [\fB\-d\fP \fIDIRECTORY\fP]
+.PP
+.B mfsmetarestore \-v
+.PP
+.B mfsmetarestore \-?
 .SH DESCRIPTION
 .PP
 When \fBmfsmetarestore\fP is called with both \fB-m\fP and \fB-o\fP options,
@@ -23,14 +27,23 @@ metadata image file in human readable form.
 needed to merge change log files. Master data directory can be specified using
 \-d \fIDIRECTORY\fP option.
 .TP
+\fB\-v\fP
+print version information and exit
+.TP
+\fB\-?\fP
+print version information and exit
+.TP
+\fB\-a\fP
+autorestore mode (see above)
+.TP
+\fB\-d\fP \fIDATAPATH\fP
+master data directory (for autorestore mode)
+.TP
 \fB\-m\fP \fIMETADATAFILE\fP
 specify input metadata image file
 .TP
 \fB\-o\fP \fINEWMETADATAFILE\fP
 specify output metadata image file
-.TP
-\fB\-?\fP
-display help and exit
 .SH FILES
 .TP
 \fBmetadata.mfs\fP

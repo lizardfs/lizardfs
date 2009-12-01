@@ -1,15 +1,19 @@
-.TH MFSMASTER "8" "July 2009" "MooseFS 1.6.0"
+.TH MFSMASTER "8" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfsmaster \- start, restart or stop Moose File System master process
 .SH SYNOPSIS
 .B mfsmaster
 [\fB\-f\fP]
-[\fB\-c\fP \fICFGFILE\fP]
+[\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
+[\fB\-d\fP]
+[\fB\-t\fP\fI LOCKTIMEOUT\fP]
 .PP
 .B mfsmaster \-s
 [\fB\-c\fP \fICFGFILE\fP]
 .PP
 .B mfsmaster \-v
+.PP
+.B mfsmaster \-h
 .SH DESCRIPTION
 .PP
 \fBmfsmaster\fP is the master program of Moose File System. Depending on
@@ -23,6 +27,9 @@ doesn't affect already active connections.
 \fB\-v\fP
 print version information and exit
 .TP
+\fB\-h\fP
+print usage information and exit
+.TP
 \fB\-f\fP
 forcily run MooseFS master process, without trying to kill previous instance
 (this option allows to run MooseFS master if stale PID file exists)
@@ -33,6 +40,15 @@ stop MooseFS master process
 \fB\-c\fP \fICFGFILE\fP
 specify alternative path of configuration file (default is
 \fBmfsmaster.cfg\fP in system configuration directory)
+.TP
+\fB\-u\fP
+log undefined configuration values (when default is assumed)
+.TP
+\fB\-d\fP
+run in foreground, don't daemonize
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
 .SH FILES
 .TP
 \fBmfsmaster.cfg\fP
