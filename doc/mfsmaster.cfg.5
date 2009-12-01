@@ -1,4 +1,4 @@
-.TH MFSMASTER.CFG "5" "July 2009" "MooseFS 1.6.0"
+.TH MFSMASTER.CFG "5" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfsmaster.cfg \- main configuration file for \fBmfsmaster\fP
 .SH DESCRIPTION
@@ -13,23 +13,29 @@ Lines starting with \fB#\fP character are ignored as comments.
 .SH OPTIONS
 Configuration options:
 .TP
+\fBDATA_PATH\fP
+where to store metadata files
+.TP
+\fBLOCK_FILE\fP
+daemon lock/pid file
+.TP
 \fBWORKING_USER\fP
 user to run daemon as
 .TP
 \fBWORKING_GROUP\fP
 group to run daemon as (optional - if empty then default user group will be used)
 .TP
-\fBLOCK_FILE\fP
-daemon lock/pid file
-.TP
-\fBDATA_PATH\fP
-where to store metadata files
-.TP
 \fBSYSLOG_IDENT\fP
 name of process to place in syslog messages (default is mfsmaster)
 .TP
+\fBLOCK_MEMORY\fP
+whether to perform mlockall() to avoid swapping out mfsmaster process (default is 0, i.e. no)
+.TP
+\fBNICE_LEVEL\fP
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
+.TP
 \fBBACK_LOGS\fP
-number of metadata change log files (default is 10)
+number of metadata change log files (default is 50)
 .TP
 \fBREPLICATIONS_DELAY_INIT\fP
 initial delay in seconds before starting replications (default is 300)

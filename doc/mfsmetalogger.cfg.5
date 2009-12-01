@@ -1,4 +1,4 @@
-.TH MFSMETALOGGER.CFG "5" "November 2009" "MooseFS 1.6.7"
+.TH MFSMETALOGGER.CFG "5" "November 2009" "MooseFS 1.6.9"
 .SH NAME
 mfsmetalogger.cfg \- configuration file for \fBmfsmetalogger\fP
 .SH DESCRIPTION
@@ -24,13 +24,16 @@ daemon lock/pid file
 user to run daemon as
 .TP
 \fBWORKING_GROUP\fP
-group to run daemon as
-.TP
-\fBNICE_LEVEL\fP
-nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
+group to run daemon as (optional - if empty then default user group will be used)
 .TP
 \fBSYSLOG_IDENT\fP
 name of process to place in syslog messages (default is mfsmetalogger)
+.TP
+\fBLOCK_MEMORY\fP
+whether to perform mlockall() to avoid swapping out mfsmetalogger process (default is 0, i.e. no)
+.TP
+\fBNICE_LEVEL\fP
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
 .TP
 \fBBACK_LOGS\fP
 number of metadata change log files (default is 50)
