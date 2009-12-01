@@ -34,6 +34,9 @@ whether to perform mlockall() to avoid swapping out mfsmaster process (default i
 \fBNICE_LEVEL\fP
 nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
 .TP
+\fBEXPORTS_FILENAME\fP
+alternative name of \fBmfsexports.cfg\fP file
+.TP
 \fBBACK_LOGS\fP
 number of metadata change log files (default is 50)
 .TP
@@ -41,7 +44,13 @@ number of metadata change log files (default is 50)
 initial delay in seconds before starting replications (default is 300)
 .TP
 \fBREPLICATIONS_DELAY_DISCONNECT\fP
-replication delay in seconds after chunkserver disconnection (default is 7200)
+replication delay in seconds after chunkserver disconnection (default is 3600)
+.TP
+\fBMATOML_LISTEN_HOST\fP
+IP address to listen on for metalogger connections (\fB*\fP means any)
+.TP
+\fBMATOML_LISTEN_PORT\fP
+port to listen on for metalogger connections (default is 9419)
 .TP
 \fBMATOCS_LISTEN_HOST\fP
 IP address to listen on for chunkserver connections (\fB*\fP means any)
@@ -61,8 +70,11 @@ Chunks loop frequency in seconds (default is 300)
 \fBCHUNKS_DEL_LIMIT\fP
 Maximum number of chunks to delete in one loop (default is 100)
 .TP
-\fBCHUNKS_REP_LIMIT\fP
-Maximum number of chunks to replicate in one loop (default is 15)
+\fBCHUNKS_WRITE_REP_LIMIT\fP
+Maximum number of chunks to replicate to one chunkserver in one loop (default is 1)
+.TP
+\fBCHUNKS_READ_REP_LIMIT\fP
+Maximum number of chunks to replicate from one chunkserver in one loop (default is 5)
 .TP
 \fBREJECT_OLD_CLIENTS\fP
 Reject \fBmfsmount\fPs older than 1.6.0 (0 or 1, default is 0).
