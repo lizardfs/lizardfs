@@ -7,6 +7,7 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 [\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
 [\fB\-d\fP]
 [\fB\-t\fP\fI LOCKTIMEOUT\fP]
+[\fIACTION\fP]
 .PP
 .B mfschunkserver \-s
 [\fB\-c\fP \fICFGFILE\fP]
@@ -19,7 +20,7 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 \fBmfschunkserver\fP is the data server of Moose File System. Depending on
 parameters it can start, restart or stop MooseFS chunkserver process. Without
 any options it starts MooseFS chunkserver, killing previously run process if
-PID file exists.
+lock file exists.
 .PP
 Starting with version 1.6.0 chunkserver periodically tests stored chunks
 (see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
@@ -35,10 +36,12 @@ print version information and exit
 print usage information and exit
 .TP
 \fB\-f\fP
+(deprecated, use \fBstart\fP action instead)
 forcily run MooseFS chunkserver process, without trying to kill previous instance
 (this option allows to run MooseFS chunkserver if stale PID file exists)
 .TP
 \fB\-s\fP
+(deprecated, use \fBstop\fP action instead)
 stop MooseFS chunkserver process
 .TP
 \fB\-c\fP \fICFGFILE\fP
@@ -53,6 +56,12 @@ run in foreground, don't daemonize
 .TP
 \fB\-t\fP \fILOCKTIMEOUT\fP
 how long to wait for lockfile (default is 60 seconds)
+.TP
+\fIACTION\fP
+is the one of \fBstart\fP, \fBstop\fP or \fBrestart\fP. Default action is
+\fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
+Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
+and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.
 .SH FILES
 .TP
 \fBmfschunkserver.cfg\fP
@@ -64,8 +73,13 @@ list of directories (mountpoints) used for MooseFS storage (one per line;
 directory prefixed by \fB*\fP character causes given directory to be freed
 by replicating all data already stored there to another locations)
 .TP
-\fBmfschunkserver.pid\fP
+\fBmfschunkserver.lock\fP
 PID file of running MooseFS chunkserver process
+(created in RUN_PATH by MooseFS < 1.6.9)
+.TP
+\fB.mfschunkserver.lock\fP
+lock file of running MooseFS chunkserver process
+(created in data directory since MooseFS 1.6.9)
 .TP
 \fBchangelog_csback.\fP*\fB.mfs\fP
 MooseFS filesystem metadata change logs (backup of master change log files;

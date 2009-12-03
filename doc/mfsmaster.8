@@ -7,6 +7,7 @@ mfsmaster \- start, restart or stop Moose File System master process
 [\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
 [\fB\-d\fP]
 [\fB\-t\fP\fI LOCKTIMEOUT\fP]
+[\fIACTION\fP]
 .PP
 .B mfsmaster \-s
 [\fB\-c\fP \fICFGFILE\fP]
@@ -18,7 +19,7 @@ mfsmaster \- start, restart or stop Moose File System master process
 .PP
 \fBmfsmaster\fP is the master program of Moose File System. Depending on
 parameters it can start, restart or stop MooseFS master process. Without any
-options it starts MooseFS master, killing previously run process if PID
+options it starts MooseFS master, killing previously run process if lock
 file exists.
 .PP
 SIGHUP forces \fBmfsmaster\fP to reload \fBmfsexports.cfg\fP file. It
@@ -31,10 +32,12 @@ print version information and exit
 print usage information and exit
 .TP
 \fB\-f\fP
+(deprecated, use \fBstart\fP action instead)
 forcily run MooseFS master process, without trying to kill previous instance
 (this option allows to run MooseFS master if stale PID file exists)
 .TP
 \fB\-s\fP
+(deprecated, use \fBstop\fP action instead)
 stop MooseFS master process
 .TP
 \fB\-c\fP \fICFGFILE\fP
@@ -49,6 +52,12 @@ run in foreground, don't daemonize
 .TP
 \fB\-t\fP \fILOCKTIMEOUT\fP
 how long to wait for lockfile (default is 60 seconds)
+.TP
+\fIACTION\fP
+is the one of \fBstart\fP, \fBstop\fP or \fBrestart\fP. Default action is
+\fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
+Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
+and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.
 .SH FILES
 .TP
 \fBmfsmaster.cfg\fP
@@ -58,8 +67,13 @@ configuration file for MooseFS master process (see \fBmfsmaster.cfg\fP\|(5) manu
 MooseFS access control file (used with \fBmfsmount\fPs 1.6.0 or later, see
 \fBmfsexports.cfg\fP\|(5) manual)
 .TP
-\fBmaster.pid\fP
+\fBmfsmaster.lock\fP
 PID file of running MooseFS master process
+(created in RUN_PATH by MooseFS < 1.6.9)
+.TP
+\fB.mfsmaster.lock\fP
+lock file of running MooseFS master process
+(created in data directory since MooseFS 1.6.9)
 .TP
 \fBmetadata.mfs\fP, \fBmetadata\.mfs\.back\fP
 MooseFS filesystem metadata image

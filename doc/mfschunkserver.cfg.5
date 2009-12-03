@@ -15,9 +15,10 @@ Lines starting with \fB#\fP character are ignored as comments.
 Configuration options:
 .TP
 \fBDATA_PATH\fP
-where to store metadata files
+where to store metadata files and daemon lock file
 .TP
 \fBLOCK_FILE\fP
+(deprecated)
 daemon lock/pid file
 .TP
 \fBWORKING_USER\fP
@@ -36,6 +37,7 @@ whether to perform mlockall() to avoid swapping out mfschunkserver process (defa
 nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
 .TP
 \fBBACK_LOGS\fP
+(deprecated)
 number of metadata change log files (default is 50; used only when connected with MooseFS master < 1.6.5)
 .TP
 \fBMASTER_HOST\fP
