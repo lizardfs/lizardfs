@@ -1,10 +1,10 @@
 # WORKING_USER = @DEFAULT_USER@
 # WORKING_GROUP = @DEFAULT_GROUP@
+# SYSLOG_IDENT = mfsmetalogger
+# LOCK_MEMORY = 0
 # NICE_LEVEL = -19
 
 # DATA_PATH = @DATA_PATH@
-# LOCK_FILE = @RUN_PATH@/mfsmetalogger.pid
-# SYSLOG_IDENT = mfsmetalogger
 
 # BACK_LOGS = 50
 # META_DOWNLOAD_FREQ = 24
@@ -15,3 +15,6 @@
 # MASTER_PORT = 9419
 
 # MASTER_TIMEOUT = 60
+
+# deprecated, to be removed in MooseFS 1.7
+# LOCK_FILE = @RUN_PATH@/mfsmetalogger.lock
