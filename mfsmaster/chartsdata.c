@@ -148,12 +148,16 @@ void chartsdata_refresh(void) {
 		data[CHARTS_STATFS+i]=fsdata[i];
 	}
 
-	charts_add(data);
+	charts_add(data,main_time()-60);
 }
 
 void chartsdata_term(void) {
 	chartsdata_refresh();
-	charts_store();
+	charts_store(NULL);
+}
+
+void chartsdata_store(void) {
+	charts_store(NULL);
 }
 
 int chartsdata_init (FILE *msgfd) {
@@ -167,7 +171,7 @@ int chartsdata_init (FILE *msgfd) {
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
 	main_timeregister(TIMEMODE_RUNONCE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUNONCE,3600,0,charts_store);
+	main_timeregister(TIMEMODE_RUNONCE,3600,0,chartsdata_store);
 	main_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME,msgfd);
 }

@@ -678,15 +678,15 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 			put64bit(&buff,f->total);
 			put32bit(&buff,f->chunkcount);
 			s = f->stats[f->statspos];
-			hdd_stats_binary_pack(&buff,&s);	// 48B
+			hdd_stats_binary_pack(&buff,&s);	// 64B
 			for (pos=1 ; pos<60 ; pos++) {
 				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
 			}
-			hdd_stats_binary_pack(&buff,&s);	// 48B
+			hdd_stats_binary_pack(&buff,&s);	// 64B
 			for (pos=60 ; pos<24*60 ; pos++) {
 				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
 			}
-			hdd_stats_binary_pack(&buff,&s);	// 48B
+			hdd_stats_binary_pack(&buff,&s);	// 64B
 		}
 #ifdef _THREAD_SAFE
 		pthread_mutex_unlock(&statslock);

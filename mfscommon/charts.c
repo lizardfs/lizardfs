@@ -16,7 +16,12 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#define HAVE_ZLIB_H 1
+#define HAVE_STRUCT_TM_TM_GMTOFF 1
+#endif
 
 #include <time.h>
 #include <stdlib.h>
@@ -32,7 +37,6 @@
 #include <zlib.h>
 #endif
 
-#include "main.h"
 #include "charts.h"
 #include "crc.h"
 #include "datapack.h"
@@ -458,7 +462,7 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 
 #define CHARTS_FILE_VERSION 0x00010000
 
-void charts_store (void) {
+void charts_store (FILE *msgfd) {
 	int fd;
 	uint32_t s,i,j,p;
 	uint64_t *tab;
@@ -472,7 +476,11 @@ void charts_store (void) {
 	char namehdr[100];
 	fd = open(statsfilename,O_WRONLY | O_TRUNC | O_CREAT,0666);
 	if (fd<0) {
-		syslog(LOG_WARNING,"error creating charts data file: %m");
+		if (msgfd) {
+			fprintf(msgfd,"error creating charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error creating charts data file: %m");
+		}
 		return;
 	}
 #ifdef USE_NET_ORDER
@@ -482,7 +490,11 @@ void charts_store (void) {
 	put32bit(&ptr,statdefscount);
 	put32bit(&ptr,timepoint[SHORTRANGE]);
 	if (write(fd,(void*)hdr,16)!=16) {
-		syslog(LOG_WARNING,"error writing charts data file: %m");
+		if (msgfd) {
+			fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error writing charts data file: %m");
+		}
 		close(fd);
 		return;
 	}
@@ -492,7 +504,11 @@ void charts_store (void) {
 	hdr[2]=statdefscount;
 	hdr[3]=timepoint[SHORTRANGE];
 	if (write(fd,(void*)hdr,sizeof(uint32_t)*4)!=sizeof(uint32_t)*4) {
-		syslog(LOG_WARNING,"error writing charts data file: %m");
+		if (msgfd) {
+			fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error writing charts data file: %m");
+		}
 		close(fd);
 		return;
 	}
@@ -502,7 +518,11 @@ void charts_store (void) {
 		memset(namehdr,0,100);
 		memcpy(namehdr,statdefs[i].name,(s>100)?100:s);
 		if (write(fd,(void*)namehdr,100)!=100) {
-			syslog(LOG_WARNING,"error writing charts data file: %m");
+			if (msgfd) {
+				fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+			} else {
+				syslog(LOG_WARNING,"error writing charts data file: %m");
+			}
 			close(fd);
 			return;
 		}
@@ -515,20 +535,32 @@ void charts_store (void) {
 				put64bit(&ptr,tab[(p+s)%LENG]);
 			}
 			if (write(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-				syslog(LOG_WARNING,"error writing charts data file: %m");
+				if (msgfd) {
+					fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+				} else {
+					syslog(LOG_WARNING,"error writing charts data file: %m");
+				}
 				close(fd);
 				return;
 			}
 #else
 			if (p<LENG) {
 				if (write(fd,(void*)(tab+p),sizeof(uint64_t)*(LENG-p))!=(ssize_t)(sizeof(uint64_t)*(LENG-p))) {
-					syslog(LOG_WARNING,"error writing charts data file: %m");
+					if (msgfd) {
+						fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+					} else {
+						syslog(LOG_WARNING,"error writing charts data file: %m");
+					}
 					close(fd);
 					return;
 				}
 			}
 			if (write(fd,(void*)tab,sizeof(uint64_t)*p)!=(ssize_t)(sizeof(uint64_t)*p)) {
-				syslog(LOG_WARNING,"error writing charts data file: %m");
+				if (msgfd) {
+					fprintf(msgfd,"error writing charts data file (errno=%d)\n",(int)errno);
+				} else {
+					syslog(LOG_WARNING,"error writing charts data file: %m");
+				}
 				close(fd);
 				return;
 			}
@@ -569,9 +601,9 @@ int charts_import_from_old_4ranges_format(int fd) {
 	fcharts = hdr[0];
 	fleng = hdr[1];
 	timepoint[SHORTRANGE]=hdr[17];
-	timepoint[MEDIUMRANGE]=hdr[17]/6;
-	timepoint[LONGRANGE]=hdr[17]/30;
-	timepoint[VERYLONGRANGE]=hdr[17]/(60*24);
+//	timepoint[MEDIUMRANGE]=hdr[17]/6;
+//	timepoint[LONGRANGE]=hdr[17]/30;
+//	timepoint[VERYLONGRANGE]=hdr[17]/(60*24);
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
 	pointers[LONGRANGE]=LENG-1;
@@ -646,9 +678,9 @@ int charts_import_from_old_3ranges_format(int fd) {
 	fcharts = hdr[0];
 	fleng = hdr[1];
 	timepoint[SHORTRANGE]=hdr[12];
-	timepoint[MEDIUMRANGE]=hdr[12]/6;
-	timepoint[LONGRANGE]=hdr[12]/30;
-	timepoint[VERYLONGRANGE]=hdr[12]/(60*24);
+//	timepoint[MEDIUMRANGE]=hdr[12]/6;
+//	timepoint[LONGRANGE]=hdr[12]/30;
+//	timepoint[VERYLONGRANGE]=hdr[12]/(60*24);
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
 	pointers[LONGRANGE]=LENG-1;
@@ -720,18 +752,24 @@ void charts_load(FILE *msgfd) {
 	char namehdr[101];
 	fd = open(statsfilename,O_RDONLY);
 	if (fd<0) {
-		syslog(LOG_WARNING,"error opening charts data file: %m");
-		if (errno!=ENOENT) {
-			fprintf(msgfd,"error reading charts data file\n");
+		if (msgfd) {
+			if (errno!=ENOENT) {
+				fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+			} else {
+				fprintf(msgfd,"no charts data file - initializing empty charts\n");
+			}
 		} else {
-			fprintf(msgfd,"no charts data file - initializing empty charts\n");
+			syslog(LOG_WARNING,"error opening charts data file: %m");
 		}
 		return;
 	}
 #ifdef USE_NET_ORDER
 	if (read(fd,(void*)hdr,16)!=16) {
-		syslog(LOG_WARNING,"error reading charts data file: %m");
-		fprintf(msgfd,"error reading charts data file\n");
+		if (msgfd) {
+			fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error reading charts data file: %m");
+		}
 		close(fd);
 		return;
 	}
@@ -742,14 +780,26 @@ void charts_load(FILE *msgfd) {
 		memcpy((void*)&j,hdr,4);	// get first 4 bytes of hdr as a 32-bit number in "natural" order
 		if (j==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
-				fprintf(msgfd,"error importing charts data from 4-ranges format\n");
+				if (msgfd) {
+					fprintf(msgfd,"error importing charts data from 4-ranges format\n");
+				} else {
+					syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
+				}
 			}
 		} else if (j==3) {
 			if (charts_import_from_old_3ranges_format(fd)<0) {
-				fprintf(msgfd,"error importing charts data from 3-ranges format\n");
+				if (msgfd) {
+					fprintf(msgfd,"error importing charts data from 3-ranges format\n");
+				} else {
+					syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
+				}
 			}
 		} else {
-			fprintf(msgfd,"unrecognized charts data file format - initializing empty charts\n");
+			if (msgfd) {
+				fprintf(msgfd,"unrecognized charts data file format - initializing empty charts\n");
+			} else {
+				syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
+			}
 		}
 		close(fd);
 		return;
@@ -758,43 +808,61 @@ void charts_load(FILE *msgfd) {
 	fcharts = get32bit(&ptr);
 	i = get32bit(&ptr);
 	timepoint[SHORTRANGE]=i;
-	timepoint[MEDIUMRANGE]=i/6;
-	timepoint[LONGRANGE]=i/30;
-	timepoint[VERYLONGRANGE]=i/(24*60);
+//	timepoint[MEDIUMRANGE]=i/6;
+//	timepoint[LONGRANGE]=i/30;
+//	timepoint[VERYLONGRANGE]=i/(24*60);
 #else
 	if (read(fd,(void*)hdr,sizeof(uint32_t))!=sizeof(uint32_t)) {
-		syslog(LOG_WARNING,"error reading charts data file: %m");
-		fprintf(msgfd,"error reading charts data file\n");
+		if (msgfd) {
+			fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error reading charts data file: %m");
+		}
 		close(fd);
 		return;
 	}
 	if (hdr[0]!=CHARTS_FILE_VERSION) {
 		if (hdr[0]==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
-				fprintf(msgfd,"error importing charts data from 4-ranges format\n");
+				if (msgfd) {
+					fprintf(msgfd,"error importing charts data from 4-ranges format\n");
+				} else {
+					syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
+				}
 			}
 		} else if (hdr[0]==3) {
 			if (charts_import_from_old_3ranges_format(fd)<0) {
-				fprintf(msgfd,"error importing charts data from 3-ranges format\n");
+				if (msgfd) {
+					fprintf(msgfd,"error importing charts data from 3-ranges format\n");
+				} else {
+					syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
+				}
 			}
 		} else {
-			fprintf(msgfd,"unrecognized charts data file format - initializing empty charts\n");
+			if (msgfd) {
+				fprintf(msgfd,"unrecognized charts data file format - initializing empty charts\n");
+			} else {
+				syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
+			}
 		}
 		close(fd);
 		return;
 	}
 	if (read(fd,(void*)hdr,sizeof(uint32_t)*3)!=sizeof(uint32_t)*3) {
-		syslog(LOG_WARNING,"error reading charts data file: %m");
-		fprintf(msgfd,"error reading charts data file\n");
+		if (msgfd) {
+			fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+		} else {
+			syslog(LOG_WARNING,"error reading charts data file: %m");
+		}
 		close(fd);
 		return;
 	}
 	fleng = hdr[0];
 	fcharts = hdr[1];
 	timepoint[SHORTRANGE]=hdr[2];
-	timepoint[MEDIUMRANGE]=hdr[2]/6;
-	timepoint[LONGRANGE]=hdr[2]/30;
-	timepoint[VERYLONGRANGE]=hdr[2]/(24*60);
+//	timepoint[MEDIUMRANGE]=hdr[2]/6;
+//	timepoint[LONGRANGE]=hdr[2]/30;
+//	timepoint[VERYLONGRANGE]=hdr[2]/(24*60);
 #endif
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
@@ -802,8 +870,11 @@ void charts_load(FILE *msgfd) {
 	pointers[VERYLONGRANGE]=LENG-1;
 	for (i=0 ; i<fcharts ; i++) {
 		if (read(fd,namehdr,100)!=100) {
-			syslog(LOG_WARNING,"error reading charts data file: %m");
-			fprintf(msgfd,"error reading charts data file\n");
+			if (msgfd) {
+				fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+			} else {
+				syslog(LOG_WARNING,"error reading charts data file: %m");
+			}
 			close(fd);
 			return;
 		}
@@ -821,8 +892,11 @@ void charts_load(FILE *msgfd) {
 #ifdef USE_NET_ORDER
 				if (fleng<LENG) {
 					if (read(fd,(void*)data,8*fleng)!=(ssize_t)(8*fleng)) {
-						syslog(LOG_WARNING,"error reading charts data file: %m");
-						fprintf(msgfd,"error reading charts data file\n");
+						if (msgfd) {
+							fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+						} else {
+							syslog(LOG_WARNING,"error reading charts data file: %m");
+						}
 						close(fd);
 						return;
 					}
@@ -832,8 +906,11 @@ void charts_load(FILE *msgfd) {
 					}
 				} else {
 					if (read(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-						syslog(LOG_WARNING,"error reading charts data file: %m");
-						fprintf(msgfd,"error reading charts data file\n");
+						if (msgfd) {
+							fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+						} else {
+							syslog(LOG_WARNING,"error reading charts data file: %m");
+						}
 						close(fd);
 						return;
 					}
@@ -845,15 +922,21 @@ void charts_load(FILE *msgfd) {
 #else
 				if (fleng<LENG) {
 					if (read(fd,(void*)(tab+(LENG-fleng)),sizeof(uint64_t)*fleng)!=(ssize_t)(sizeof(uint64_t)*fleng)) {
-						syslog(LOG_WARNING,"error reading charts data file: %m");
-						fprintf(msgfd,"error reading charts data file\n");
+						if (msgfd) {
+							fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+						} else {
+							syslog(LOG_WARNING,"error reading charts data file: %m");
+						}
 						close(fd);
 						return;
 					}
 				} else {
 					if (read(fd,(void*)tab,sizeof(uint64_t)*LENG)!=(ssize_t)(sizeof(uint64_t)*LENG)) {
-						syslog(LOG_WARNING,"error reading charts data file: %m");
-						fprintf(msgfd,"error reading charts data file\n");
+						if (msgfd) {
+							fprintf(msgfd,"error reading charts data file (errno=%d)\n",(int)errno);
+						} else {
+							syslog(LOG_WARNING,"error reading charts data file: %m");
+						}
 						close(fd);
 						return;
 					}
@@ -863,7 +946,11 @@ void charts_load(FILE *msgfd) {
 		}
 	}
 	close(fd);
-	fprintf(msgfd,"stats file has been loaded\n");
+	if (msgfd) {
+		fprintf(msgfd,"stats file has been loaded\n");
+	} else {
+		syslog(LOG_NOTICE,"stats file has been loaded");
+	}
 	return;
 }
 
@@ -901,9 +988,9 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 				datatab[i] = series[CHARTS_DIRECT_POS(src)][range][i];
 			}
 		} else if (CHARTS_DEF_IS_CALC(src)) {
-			ops = calcstartpos[CHARTS_CALC_POS(src)];
 			for (i=0 ; i<LENG ; i++) {
 				sp=0;
+				ops = calcstartpos[CHARTS_CALC_POS(src)];
 				while (*ops!=CHARTS_OP_END) {
 					if (CHARTS_IS_DIRECT_STAT(*ops)) {
 						if (sp<50) {
@@ -937,6 +1024,7 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 					} else if (*ops==CHARTS_OP_MUL) {
 						if (sp>=2) {
 							stack[sp-2]*=stack[sp-1];
+							sp--;
 						}
 					} else if (*ops==CHARTS_OP_DIV) {
 						if (sp>=2) {
@@ -951,7 +1039,7 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 						if (sp>=1) {
 							stack[sp-1]=-stack[sp-1];
 						}
-					} else if (*ops==CHARTS_CONST) {
+					} else if (*ops==CHARTS_OP_CONST) {
 						ops++;
 						if (sp<50) {
 							stack[sp]=*ops;
@@ -1002,15 +1090,52 @@ uint64_t charts_get (uint32_t type,uint32_t numb) {
 	return result;
 }
 
-void charts_add (uint64_t *data) {
+void charts_inittimepointers (void) {
+	time_t now;
+	int32_t local;
+	struct tm *ts;
+
+	if (timepoint[SHORTRANGE]==0) {
+		now = time(NULL);
+		ts = localtime(&now);
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+		local = now+ts->tm_gmtoff;
+#else
+		local = now;
+#endif
+	} else {
+		now = timepoint[SHORTRANGE]*60;
+		ts = gmtime(&now);
+		local = now;
+	}
+
+	timepoint[SHORTRANGE] = local / 60;
+	shmin = ts->tm_min;
+	shhour = ts->tm_hour;
+	timepoint[MEDIUMRANGE] = local / (60 * 6);
+	medmin = ts->tm_min;
+	medhour = ts->tm_hour;
+	timepoint[LONGRANGE] = local / (60 * 30);
+	lnghalfhour = ts->tm_hour*2;
+	if (ts->tm_min>=30) {
+		lnghalfhour++;
+	}
+	lngmday = ts->tm_mday;
+	lngmonth = ts->tm_mon + 1;
+	lngyear = ts->tm_year + 1900;
+	timepoint[VERYLONGRANGE] = local / (60 * 60 * 24);
+	vlngmday = ts->tm_mday;
+	vlngmonth = ts->tm_mon + 1;
+	vlngyear = ts->tm_year + 1900;
+}
+
+void charts_add (uint64_t *data,uint32_t datats) {
 	uint32_t i,j;
 	struct tm *ts;
-	time_t now = main_time();
+	time_t now = datats;
 	int32_t local;
 
 	int32_t nowtime,delta;
-
-	now -= 60;	// back time to the beginning of previous minute - because we have data for the prevoius minute not the current one
 
 	ts = localtime(&now);
 #ifdef HAVE_STRUCT_TM_TM_GMTOFF
@@ -1025,7 +1150,7 @@ void charts_add (uint64_t *data) {
 
 	delta = nowtime - timepoint[SHORTRANGE];
 
-	if (delta>=0) {
+	if (delta>0) {
 		if (delta>LENG) delta=LENG;
 		while (delta>0) {
 			pointers[SHORTRANGE]++;
@@ -1058,7 +1183,7 @@ void charts_add (uint64_t *data) {
 
 	delta = nowtime - timepoint[MEDIUMRANGE];
 
-	if (delta>=0) {
+	if (delta>0) {
 		if (delta>LENG) delta=LENG;
 		while (delta>0) {
 			pointers[MEDIUMRANGE]++;
@@ -1092,7 +1217,7 @@ void charts_add (uint64_t *data) {
 
 	delta = nowtime - timepoint[LONGRANGE];
 
-	if (delta>=0) {
+	if (delta>0) {
 		if (delta>LENG) delta=LENG;
 		while (delta>0) {
 			pointers[LONGRANGE]++;
@@ -1129,7 +1254,7 @@ void charts_add (uint64_t *data) {
 
 	delta = nowtime - timepoint[VERYLONGRANGE];
 
-	if (delta>=0) {
+	if (delta>0) {
 		if (delta>LENG) delta=LENG;
 		while (delta>0) {
 			pointers[VERYLONGRANGE]++;
@@ -1216,7 +1341,8 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 	}
 
 	charts_load(msgfd);
-	charts_add(NULL);
+	charts_inittimepointers();
+	charts_add(NULL,time(NULL));
 
 #ifdef HAVE_ZLIB_H
 	zstr.zalloc = NULL;
@@ -1360,7 +1486,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			max=d;
 		}
 	}
-	if (max>1000000000000000000) {	// arithmetic overflow protection
+	if (max>1000000000000000000ULL) {	// arithmetic overflow protection
 		for (i=0 ; i<LENG ; i++) {
 			c1dispdata[i]/=1000;
 			c2dispdata[i]/=1000;

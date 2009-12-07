@@ -120,6 +120,7 @@
 	{CHARTS_DIRECT(CHARTS_BYTESW)      ,CHARTS_DIRECT(CHARTS_DATABYTESW)  ,CHARTS_NONE                       ,CHARTS_MODE_ADD,0,CHARTS_SCALE_MILI ,1000,60}, \
 	{CHARTS_DIRECT(CHARTS_LLOPR)       ,CHARTS_DIRECT(CHARTS_DATALLOPR)   ,CHARTS_NONE                       ,CHARTS_MODE_ADD,0,CHARTS_SCALE_NONE ,   1, 1}, \
 	{CHARTS_DIRECT(CHARTS_LLOPW)       ,CHARTS_DIRECT(CHARTS_DATALLOPW)   ,CHARTS_NONE                       ,CHARTS_MODE_ADD,0,CHARTS_SCALE_NONE ,   1, 1}, \
+	{CHARTS_DIRECT(CHARTS_CHUNKOPJOBS) ,CHARTS_DIRECT(CHARTS_CHUNKIOJOBS) ,CHARTS_NONE                       ,CHARTS_MODE_ADD,0,CHARTS_SCALE_NONE ,   1, 1}, \
 	{CHARTS_NONE                       ,CHARTS_NONE                       ,CHARTS_NONE                       ,0              ,0,0                 ,   0, 0}  \
 };
 
@@ -233,12 +234,16 @@ void chartsdata_refresh(void) {
 	data[CHARTS_DUPTRUNC]=op_dt;
 	data[CHARTS_TEST]=op_te;
 
-	charts_add(data);
+	charts_add(data,main_time()-60);
 }
 
 void chartsdata_term(void) {
 	chartsdata_refresh();
-	charts_store();
+	charts_store(NULL);
+}
+
+void chartsdata_store(void) {
+	charts_store(NULL);
 }
 
 int chartsdata_init (FILE *msgfd) {
@@ -252,7 +257,7 @@ int chartsdata_init (FILE *msgfd) {
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
 	main_timeregister(TIMEMODE_RUNONCE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUNONCE,3600,0,charts_store);
+	main_timeregister(TIMEMODE_RUNONCE,3600,0,chartsdata_store);
 	main_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME,msgfd);
 }

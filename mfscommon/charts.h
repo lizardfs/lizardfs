@@ -32,7 +32,7 @@
 #define CHARTS_SCALE_MEGA 4
 #define CHARTS_SCALE_GIGA 5
 
-#define CHARTS_CONST 1000
+#define CHARTS_OP_CONST 1000
 #define CHARTS_OP_ADD 1001
 #define CHARTS_OP_SUB 1002
 #define CHARTS_OP_MIN 1003
@@ -43,6 +43,16 @@
 
 #define CHARTS_OP_END 1999
 #define CHARTS_DEFS_END 2000
+
+#define CHARTS_CONST(x) CHARTS_OP_CONST, x
+#define CHARTS_ADD(x,y) x, y, CHARTS_OP_ADD
+#define CHARTS_SUB(x,y) x, y, CHARTS_OP_ADD
+#define CHARTS_MIN(x,y) x, y, CHARTS_OP_MIN
+#define CHARTS_MAX(x,y) x, y, CHARTS_OP_MAX
+#define CHARTS_MUL(x,y) x, y, CHARTS_OP_MUL
+#define CHARTS_DIV(x,y) x, y, CHARTS_OP_DIV
+#define CHARTS_NEG(x) x, CHARTS_OP_NEG
+#define CHARTS_CALCDEF(x) x, CHARTS_OP_END
 
 #define CHARTS_NONE 0
 #define CHARTS_DIRECT_START 1
@@ -85,29 +95,18 @@ typedef struct _estatdef {
 	{NULL                               ,0              ,0,0                 ,   0, 0}  \
 };
 
-// data calculations (simple stack machine with signed 64-bit numbers)
-//
-//  values from 0 to number of charts: push given chart to stack
-//  operators CHART_OP_XXX: pull arguments from stack, calculate and push result to stack
-//  const folowed by number: push given number to stack
-//
-//  for example:
-//
-//  0 , 1 , CHARTS_OP_ADD , CHARTS_OP_END
-//   = sum of data from charts "0" and "1"  =  (chart[0]+chart[1])
-//  2 , 3 , CHARTS_CONST , 50 , CHARTS_OP_MUL , CHARTS_OP_ADD , CHARTS_OP_END
-//   = (chart[2]+(chart[3]*50))
-//
-
 #define CALCDEFS { \
-	CHARTS_TOADD1 , CHARTS_TOADD2 , CHARTS_OP_ADD , CHARTS_OP_END, \
-	CHARTS_TOADD1 , CHARTS_TOADD2 , CHARTS_TOADD3 , CHARTS_OP_ADD , CHARTS_OP_ADD , CHARTS_OP_END, \
-	CHARTS_TODIVIDE , CHARTS_DIVISOR , CHART_OP_DIV , CHARTS_OP_END, \
-	CHARTS_TOADD , CHARTS_TOADDMULTIPLIED , CHARTS_CONST , 300 , CHARTS_OP_MUL , CHARTS_OP_ADD , CHARTS_OP_END , \
+	CHARTS_CALCDEF(CHARTS_ADD(CHARTS_TOADD1,CHARTS_TOADD2)), \
+	CHARTS_CALCDEF(CHARTS_ADD(CHARTS_TOADD1,CHARTS_ADD(CHARTS_TOADD2,CHARTS_TOADD3))), \
+	CHARTS_CALCDEF(CHARTS_DIV(CHARTS_TODIVIDE,CHARTS_DIVISOR)), \
+	CHARTS_CALCDEF(CHARTS_ADD(CHARTS_TOADD,CHARTS_MUL(CHARTS_CONST(300),CHARTS_TOADDMULTIPLIED))), \
 	CHARTS_DEFS_END \
 };
 
 // enchanced data charts (up to 3 counters on one chart represented by three colors)
+// c1_def - green
+// c2_def - dark green
+// c3_def - very dark green
 // source data for given color can be defined as simple chart or calculation from above definitions
 
 /* c1_def , c2_def , c3_def , join mode , percent , scale , multiplier , divisor */
@@ -120,13 +119,15 @@ typedef struct _estatdef {
 
 #endif
 
-uint32_t charts_datasize(uint32_t number);
-void charts_makedata(uint8_t *buff,uint32_t number);
-uint32_t charts_make_png(uint32_t number);
+uint64_t charts_get (uint32_t chartnumber,uint32_t count);
+
+uint32_t charts_datasize(uint32_t chartid);
+void charts_makedata(uint8_t *buff,uint32_t chartid);
+uint32_t charts_make_png(uint32_t chartid);
 void charts_get_png(uint8_t *buff);
 
-void charts_add (uint64_t *data);
-void charts_store (void);
+void charts_add (uint64_t *data,uint32_t datats);
+void charts_store (FILE *msgfd);
 int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *estats,const char *filename,FILE *msgfd);
 
 #endif
