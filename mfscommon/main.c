@@ -52,6 +52,7 @@
 #define RM_RESTART 0
 #define RM_START 1
 #define RM_STOP 2
+#define RM_RELOAD 3
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -520,6 +521,15 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			fprintf(msgfd,"can't start: lockfile is already locked by another process\n");
 			return -1;
 		}
+		if (runmode==RM_RELOAD) {
+			if (kill(ownerpid,SIGHUP)<0) {
+				syslog(LOG_WARNING,"can't send reload signal to lock owner (error: %m)");
+				fprintf(msgfd,"can't send reload signal to lock owner (error: %s)\n",errno_to_str());
+				return -1;
+			}
+			fprintf(msgfd,"reload signal has beed sent\n");
+			return 0;
+		}
 		fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
 		if (kill(ownerpid,SIGTERM)<0) {
 			syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
@@ -567,8 +577,10 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 	}
 	if (runmode==RM_START || runmode==RM_RESTART) {
 		fprintf(msgfd,"lockfile created and locked\n");
-	} else {
+	} else if (runmode==RM_STOP) {
 		fprintf(msgfd,"can't find process to terminate\n");
+	} else if (runmode==RM_RELOAD) {
+		fprintf(msgfd,"can't find process to send reload signal\n");
 	}
 	return 0;
 }
@@ -605,7 +617,11 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			free(lockfname);
 			return -1;
 		}
-		fprintf(msgfd,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
+		if (runmode==RM_STOP || runmode==RM_RESTART) {
+			fprintf(msgfd,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
+		} else if (runmode==RM_RELOAD) {
+			fprintf(msgfd,"old lockfile found - sending reload signal using data from old lockfile\n");
+		}
 		l=read(lfp,str,13);
 		if (l==0 || l>=13) {
 			syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
@@ -615,6 +631,16 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 		}
 		str[l]=0;
 		ptk = strtol(str,NULL,10);
+		if (runmode==RM_RELOAD) {
+			if (kill(ptk,SIGHUP)<0) {
+				syslog(LOG_WARNING,"can't send reload signal (error: %m)");
+				fprintf(msgfd,"can't send reload signal (error: %s)\n",errno_to_str());
+				free(lockfname);
+				return -1;
+			}
+			fprintf(msgfd,"reload signal has beed sent\n");
+			return 0;
+		}
 		fprintf(msgfd,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
 		if (kill(ptk,SIGTERM)<0) {
 			syslog(LOG_WARNING,"can't kill previous process (error: %m)");
@@ -647,6 +673,10 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 		fprintf(msgfd,"terminated\n");
 	} else {
 		fprintf(msgfd,"found unlocked old lockfile\n");
+		if (runmode==RM_RELOAD) {
+			fprintf(msgfd,"can't obtain process id using old lockfile\n");
+			return 0;
+		}
 	}
 	fprintf(msgfd,"removing old lockfile\n");
 	close(lfp);
@@ -773,7 +803,7 @@ void createpath(const char *filename,FILE *msgfd) {
 
 void usage(const char *appname) {
 	printf(
-"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart]\n"
+"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart|reload]\n"
 "\n"
 "-v : print version number and exit\n"
 "-d : run in foreground\n"
@@ -843,6 +873,8 @@ int main(int argc,char **argv) {
 			runmode = RM_STOP;
 		} else if (strcasecmp(argv[0],"restart")==0) {
 			runmode = RM_RESTART;
+		} else if (strcasecmp(argv[0],"reload")==0) {
+			runmode = RM_RELOAD;
 		} else {
 			usage(appname);
 			return 1;
@@ -908,10 +940,10 @@ int main(int argc,char **argv) {
 		return 1;
 	}
 
-	if (runmode!=RM_STOP && rundaemon) {
+	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
 		msgfd = makedaemon();
 	} else {
-		if (runmode!=RM_STOP) {
+		if (runmode==RM_START || runmode==RM_RESTART) {
 			set_signal_handlers();
 		}
 		msgfd = fdopen(dup(STDERR_FILENO),"w");
@@ -931,7 +963,7 @@ int main(int argc,char **argv) {
 
 	remove_old_wdlock();
 
-	if (runmode==RM_STOP) {
+	if (runmode==RM_STOP || runmode==RM_RELOAD) {
 		return 0;
 	}
 
