@@ -767,7 +767,7 @@
 // loopstart:32 loopend:32 del_invalid:32 nodel_invalid:32 del_unused:32 nodel_unused:32 del_diskclean:32 nodel_diskclean:32 del_overgoal:32 nodel_overgoal:32 copy_undergoal:32 nocopy_undergoal:32 copy_rebalance:32
 
 #define CUTOMA_CHUNKS_MATRIX 516
-// -
+// [matrix_id:8]
 #define MATOCU_CHUNKS_MATRIX 517
 // 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
 

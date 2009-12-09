@@ -5339,12 +5339,6 @@ void fs_add_files_to_chunks() {
 	uint32_t i,j;
 	uint64_t chunkid;
 	fsnode *f;
-#ifndef METARESTORE
-	syslog(LOG_NOTICE,"inodes: %"PRIu32,nodes);
-	syslog(LOG_NOTICE,"dirnodes: %"PRIu32,dirnodes);
-	syslog(LOG_NOTICE,"filenodes: %"PRIu32,filenodes);
-	syslog(LOG_NOTICE,"chunks: %"PRIu32,chunk_count());
-#endif
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		for (f=nodehash[i] ; f ; f=f->next) {
 			if (f->type==TYPE_FILE || f->type==TYPE_TRASH || f->type==TYPE_RESERVED) {
@@ -5360,18 +5354,6 @@ void fs_add_files_to_chunks() {
 }
 
 #ifndef METARESTORE
-
-void fs_show_counts() {
-	uint32_t tdcopies;
-	syslog(LOG_NOTICE,"inodes: %"PRIu32,nodes);
-	syslog(LOG_NOTICE,"dirnodes: %"PRIu32,dirnodes);
-	syslog(LOG_NOTICE,"filenodes: %"PRIu32,filenodes);
-	syslog(LOG_NOTICE,"chunks: %"PRIu32,chunk_count());
-	tdcopies = chunk_todel_count();
-	if (tdcopies>0) {
-		syslog(LOG_NOTICE,"erasing disks: chunk copies to delete: %"PRIu32,tdcopies);
-	}
-}
 
 void fs_test_getdata(uint32_t *loopstart,uint32_t *loopend,uint32_t *files,uint32_t *ugfiles,uint32_t *mfiles,uint32_t *chunks,uint32_t *ugchunks,uint32_t *mchunks,char **msgbuff,uint32_t *msgbuffleng) {
 	*loopstart = fsinfo_loopstart;
@@ -7380,6 +7362,12 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	fflush(msgfd);
 	fs_add_files_to_chunks();
 	fprintf(msgfd,"ok\n");
+#ifndef METARESTORE
+	fprintf(msgfd,"all inodes: %"PRIu32"\n",nodes);
+	fprintf(msgfd,"directory inodes: %"PRIu32"\n",dirnodes);
+	fprintf(msgfd,"file inodes: %"PRIu32"\n",filenodes);
+	fprintf(msgfd,"chunks: %"PRIu32"\n",chunk_count());
+#endif
 	return 0;
 }
 
@@ -7425,7 +7413,6 @@ int fs_init(FILE *msgfd) {
 	main_timeregister(TIMEMODE_RUNONCE,3600,0,fs_dostoreall);
 	main_timeregister(TIMEMODE_RUNONCE,300,0,fs_emptytrash);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,fs_emptyreserved);
-	main_timeregister(TIMEMODE_SKIP,60,0,fs_show_counts);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,fsnodes_freeinodes);
 	main_destructregister(fs_term);
 	return 0;

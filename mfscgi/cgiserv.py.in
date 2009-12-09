@@ -358,14 +358,14 @@ if __name__=="__main__":
 	daemonize = 1
 	verbose = 0
 	host = 'any'
-	port = 80
+	port = 9425
 	rootpath="@CGIDIR@"
 
 	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:fv")
 	for opt,val in opts:
 		if opt=='-h':
 			print "Usage:\n\t%s -h - help\n\t%s [-H bind_host] [-P bind_port] [-R rootpath ] [-f [-v]] - run http server (-f = run in foreground ; -v = log requests on stderr)" % (sys.argv[0],sys.argv[0])
-			print "Defaults:\n\tbind_host: any\n\tbind_port: 80\n\trootpath: @CGIDIR@"
+			print "Defaults:\n\tbind_host: any\n\tbind_port: 9425\n\trootpath: @CGIDIR@"
 			exit()
 		elif opt=='-H':
 			host = val

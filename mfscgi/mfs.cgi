@@ -238,6 +238,10 @@ print """<div id="container">"""
 
 if "IN" in sectionset:
 	try:
+		INmatrix = int(fields.getvalue("INmatrix"))
+	except Exception:
+		INmatrix = 0
+	try:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
@@ -321,8 +325,12 @@ if "IN" in sectionset:
 			out.append("""	<th>directories</th>""")
 			out.append("""	<th>files</th>""")
 			out.append("""	<th>chunks</th>""")
-			out.append("""	<th>chunk copies</th>""")
-			out.append("""	<th>copies to delete</th>""")
+			if masterversion>=(1,6,10):
+				out.append("""	<th><a style="cursor:default" title="chunks from 'regular' hdd space and 'marked for removal' hdd space">all chunk copies</a></th>""")
+				out.append("""	<th><a style="cursor:default" title="only chunks from 'regular' hdd space">regular chunk copies</a></th>""")
+			else:
+				out.append("""	<th>chunk copies</th>""")
+				out.append("""	<th>copies to delete</th>""")
 			out.append("""</tr>""")
 			out.append("""<tr>""")
 			out.append("""	<td align="center">%u.%u.%u</td>""" % (v1,v2,v3))
@@ -362,7 +370,10 @@ if "IN" in sectionset:
 			out = []
 			s = socket.socket()
 			s.connect((masterhost,masterport))
-			mysend(s,struct.pack(">LL",516,0))
+			if masterversion>=(1,6,10):
+				mysend(s,struct.pack(">LLB",516,1,INmatrix))
+			else:
+				mysend(s,struct.pack(">LL",516,0))
 			header = myrecv(s,8)
 			cmd,length = struct.unpack(">LL",header)
 			if cmd==517 and length==484:
@@ -371,7 +382,13 @@ if "IN" in sectionset:
 					data = myrecv(s,44)
 					matrix.append(list(struct.unpack(">LLLLLLLLLLL",data)))
 				out.append("""<table class="FR" cellspacing="0">""")
-				out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
+				if masterversion>=(1,6,10):
+					if INmatrix==0:
+						out.append("""	<tr><th colspan="13">All chunks state matrix (counts 'regular' hdd space and 'marked for removal' hdd space : <a href="%s" class="VISIBLELINK">switch to 'regular'</a>)</th></tr>""" % (createlink({"INmatrix":"1"})))
+					else:
+						out.append("""	<tr><th colspan="13">Regular chunks state matrix (counts only 'regular' hdd space : <a href="%s" class="VISIBLELINK">switch to 'all'</a>)</th></tr>""" % (createlink({"INmatrix":"0"})))
+				else:
+					out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
 				out.append("""	<tr>""")
 				out.append("""		<th rowspan="2" class="PERC4">goal</th>""")
 				out.append("""		<th colspan="12" class="PERC96">valid copies</th>""")
@@ -590,8 +607,11 @@ if "CS" in sectionset:
 			out.append("""		<th rowspan="2"><a href="%s">version</a></th>""" % (createlink({"CSrev":"1"})))
 		else:
 			out.append("""		<th rowspan="2"><a href="%s">version</a></th>""" % (createlink({"CSorder":"4","CSrev":"0"})))
-		out.append("""		<th colspan="4">normal hdd space</th>""")
-		out.append("""		<th colspan="4">'to be empty' hdd space</th>""")
+		out.append("""		<th colspan="4">'regular' hdd space</th>""")
+		if masterversion>=(1,6,10):
+			out.append("""		<th colspan="4">'marked for removal' hdd space</th>""")
+		else:
+			out.append("""		<th colspan="4">'to be empty' hdd space</th>""")
 		out.append("""	</tr>""")
 		out.append("""	<tr>""")
 		if CSorder==10 and CSrev==0:
@@ -1032,19 +1052,19 @@ if "HD" in sectionset:
 			out.append("""		<th rowspan="3">#</th>""")
 			out.append("""		<th colspan="4" rowspan="2">info</th>""")
 			if HDperiod==2:
-				out.append("""		<th colspan="8">I/O stats last day (<a href="%s">min</a>,<a href="%s">hour</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"1"})))
+				out.append("""		<th colspan="8">I/O stats last day (switch to <a href="%s" class="VISIBLELINK">min</a>,<a href="%s" class="VISIBLELINK">hour</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"1"})))
 			elif HDperiod==1:
-				out.append("""		<th colspan="8">I/O stats last hour (<a href="%s">min</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"2"})))
+				out.append("""		<th colspan="8">I/O stats last hour (switch to <a href="%s" class="VISIBLELINK">min</a>,<a href="%s" class="VISIBLELINK">day</a>)</th>""" % (createlink({"HDperiod":"0"}),createlink({"HDperiod":"2"})))
 			else:
-				out.append("""		<th colspan="8">I/O stats last min (<a href="%s">hour</a>,<a href="%s">day</a>)</th>""" % (createlink({"HDperiod":"1"}),createlink({"HDperiod":"2"})))
+				out.append("""		<th colspan="8">I/O stats last min (switch to <a href="%s" class="VISIBLELINK">hour</a>,<a href="%s" class="VISIBLELINK">day</a>)</th>""" % (createlink({"HDperiod":"1"}),createlink({"HDperiod":"2"})))
 			out.append("""		<th colspan="3" rowspan="2">space</th>""")
 			out.append("""	</tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th colspan="2"><a style="cursor:default" title="average data transfer speed">transfer</a></th>""")
 			if HDtime==1:
-				out.append("""		<th colspan="3"><a style="cursor:default" title="average time of read or write chunk block (up to 64kB)">avg time</a> (<a href="%s">max</a>)</th>""" % (createlink({"HDtime":"0"})))
+				out.append("""		<th colspan="3"><a style="cursor:default" title="average time of read or write chunk block (up to 64kB)">avg time</a> (<a href="%s" class="VISIBLELINK">switch to max</a>)</th>""" % (createlink({"HDtime":"0"})))
 			else:
-				out.append("""		<th colspan="3"><a style="cursor:default" title="max time of read or write one chunk block (up to 64kB)">max time</a> (<a href="%s">avg</a>)</th>""" % (createlink({"HDtime":"1"})))
+				out.append("""		<th colspan="3"><a style="cursor:default" title="max time of read or write one chunk block (up to 64kB)">max time</a> (<a href="%s" class="VISIBLELINK">switch to avg</a>)</th>""" % (createlink({"HDtime":"1"})))
 			out.append("""		<th colspan="3"><a style="cursor:default" title="number of chunk block operations / chunk fsyncs"># of ops</a></th></tr>""")
 			out.append("""	<tr>""")
 			if HDorder==1 and HDrev==0:
@@ -1114,11 +1134,17 @@ if "HD" in sectionset:
 			i = 1
 			for sf,path,flags,errchunkid,errtime,used,total,chunkscnt,rbw,wbw,rtime,wtime,fsynctime,rops,wops,fsyncops,rbytes,wbytes,rsum,wsum in hdd:
 				if flags==1:
-					status = 'to be empty'
+					if masterversion>=(1,6,10):
+						status = 'marked for removal'
+					else:
+						status = 'to be empty'
 				elif flags==2:
 					status = 'damaged'
 				elif flags==3:
-					status = 'damaged, to be empty'
+					if masterversion>=(1,6,10):
+						status = 'damaged, marked for removal'
+					else:
+						status = 'damaged, to be empty'
 				else:
 					status = 'ok'
 				if errtime==0 and errchunkid==0:

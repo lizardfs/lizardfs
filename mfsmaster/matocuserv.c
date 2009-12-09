@@ -811,11 +811,17 @@ void matocuserv_chunkstest_info(matocuserventry *eptr,const uint8_t *data,uint32
 
 void matocuserv_chunks_matrix(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
+	uint8_t matrixid;
 	(void)data;
-	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_CHUNKS_MATRIX - wrong size (%"PRIu32"/0)",length);
+	if (length>1) {
+		syslog(LOG_NOTICE,"CUTOMA_CHUNKS_MATRIX - wrong size (%"PRIu32"/0|1)",length);
 		eptr->mode = KILL;
 		return;
+	}
+	if (length==1) {
+		matrixid = get8bit(&data);
+	} else {
+		matrixid = 0;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_CHUNKS_MATRIX,484);
 	if (ptr==NULL) {
@@ -823,7 +829,7 @@ void matocuserv_chunks_matrix(matocuserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode = KILL;
 		return;
 	}
-	chunk_store_chunkcounters(ptr);
+	chunk_store_chunkcounters(ptr,matrixid);
 }
 
 void matocuserv_quota_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {

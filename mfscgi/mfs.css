@@ -66,6 +66,8 @@ a:link {color: #000;}
 a:active {color: #000;}
 a:visited {color: #000;}
 
+a.VISIBLELINK {color: #008;}
+
 span.IGNORE {color: #888;}
 span.OVERGOAL {color: #00E;}
 span.NORMAL {color: #080;}

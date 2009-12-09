@@ -47,10 +47,9 @@ void chunk_dump(void);
 #else
 void chunk_stats(uint32_t *del,uint32_t *repl);
 void chunk_store_info(uint8_t *buff);
-void chunk_store_chunkcounters(uint8_t *buff);
+void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid);
 uint32_t chunk_count(void);
-uint32_t chunk_todel_count(void);
-void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *tdcopies);
+void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 

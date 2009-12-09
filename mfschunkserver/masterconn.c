@@ -1199,6 +1199,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 	if (eptr->mode == KILL) {
 #ifdef BGJOBS
 		job_pool_delete(eptr->jpool);	// finish all pending jobs
+		eptr->jpool = NULL;
 #endif /* BGJOBS */
 		tcpclose(eptr->sock);
 		if (eptr->inputpacket.packet) {
@@ -1250,6 +1251,7 @@ int masterconn_init(FILE *msgfd) {
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
+	eptr->jpool = NULL;
 
 	masterconn_initconnect(eptr);
 	main_eachloopregister(masterconn_check_hdd_reports);
