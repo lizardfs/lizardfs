@@ -24,6 +24,7 @@
 
 void matocuserv_chunk_status(uint64_t chunkid,uint8_t status);
 void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode);
-int matocuserv_init(FILE *msgfd);
+int matocuserv_sessionsinit(FILE *msgfd);
+int matocuserv_networkinit(FILE *msgfd);
 
 #endif

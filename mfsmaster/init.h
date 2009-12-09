@@ -42,11 +42,12 @@ struct {
 } RunTab[]={
 	{changelog_init,"change log"},
 	{rndinit,"random generator"},
+	{matocuserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
 	{acl_init,"access control list"},
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
-	{matocuserv_init,"communication with clients"},
+	{matocuserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
 };

@@ -242,7 +242,7 @@ void matocuserv_store_sessions() {
 	}
 }
 
-void matocuserv_load_sessions() {
+int matocuserv_load_sessions() {
 	session *asesdata;
 	uint32_t ileng;
 	uint8_t fsesrecord[161];	// 153 = 4+4+4+4+1+4+4+4+4+16*4+16*4
@@ -254,12 +254,16 @@ void matocuserv_load_sessions() {
 	fd = fopen("sessions.mfs","r");
 	if (fd==NULL) {
 		syslog(LOG_WARNING,"can't load sessions, fopen error: %m");
-		return;
+		if (errno==ENOENT) {	// it's ok if file does not exist
+			return 0;
+		} else {
+			return -1;
+		}
 	}
 	if (fread(fsesrecord,8,1,fd)!=1) {
 		syslog(LOG_WARNING,"can't load sessions, fread error");
 		fclose(fd);
-		return;
+		return -1;
 	}
 	if (memcmp(fsesrecord,"MFSS 1.5",8)==0) {
 		imp15=1;
@@ -268,7 +272,7 @@ void matocuserv_load_sessions() {
 	} else {
 		syslog(LOG_WARNING,"can't load sessions, bad header");
 		fclose(fd);
-		return;
+		return -1;
 	}
 
 	while (!feof(fd)) {
@@ -312,7 +316,7 @@ void matocuserv_load_sessions() {
 					free(asesdata);
 					syslog(LOG_WARNING,"can't load sessions, fread error");
 					fclose(fd);
-					return;
+					return -1;
 				}
 				asesdata->info[ileng]=0;
 			}
@@ -322,11 +326,12 @@ void matocuserv_load_sessions() {
 		if (ferror(fd)) {
 			syslog(LOG_WARNING,"can't load sessions, fread error");
 			fclose(fd);
-			return;
+			return -1;
 		}
 	}
 	syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
+	return 0;
 }
 
 /* old registration procedure */
@@ -3526,7 +3531,21 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matocuserv_init(FILE *msgfd) {
+int matocuserv_sessionsinit(FILE *msgfd) {
+	fprintf(msgfd,"loading sessions ... ");
+	fflush(msgfd);
+	sessionshead = NULL;
+	if (matocuserv_load_sessions()<0) {
+		fprintf(msgfd,"error\n");
+		fprintf(msgfd,"due to missing sessions you have to restart all active mounts !!!\n");
+	} else {
+		fprintf(msgfd,"ok\n");
+		fprintf(msgfd,"sessions file has been loaded\n");
+	}
+	return 0;
+}
+
+int matocuserv_networkinit(FILE *msgfd) {
 	ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
@@ -3552,10 +3571,7 @@ int matocuserv_init(FILE *msgfd) {
 	syslog(LOG_NOTICE,"matocu: listen on %s:%s",ListenHost,ListenPort);
 	fprintf(msgfd,"main master server module: listen on %s:%s\n",ListenHost,ListenPort);
 
-	sessionshead = NULL;
 	matocuservhead = NULL;
-
-	matocuserv_load_sessions();
 
 	main_timeregister(TIMEMODE_RUNONCE,10,0,matocu_session_check);
 	main_timeregister(TIMEMODE_RUNONCE,3600,0,matocu_session_statsmove);
