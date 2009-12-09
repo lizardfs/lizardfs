@@ -1,3 +1,13 @@
+mfs (1.6.10) unstable; urgency=high
+
+  * fixed errors introduced in 1.6.9
+  * added 'reload' command to master
+  * split chunk counters into 'all' and 'regular' (new approach to disks
+    removal - since this version chunks on 'marked for removal' disks are not
+    deleted)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 09 Dec 2009 08:10:00 +0200
+
 mfs (1.6.9) unstable; urgency=medium
 
   * updated manpages

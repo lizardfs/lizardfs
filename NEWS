@@ -1,5 +1,13 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.10 (2009-12-09)
+
+ - fixed errors introduced in 1.6.9
+ - added 'reload' command to master
+ - split chunk counters into 'all' and 'regular' (new approach to disks
+   removal - since this version chunks on 'marked for removal' disks are not
+   deleted)
+
 * MooseFS 1.6.9 (2009-11-24)
 
  - updated manpages
