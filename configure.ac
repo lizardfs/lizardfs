@@ -59,7 +59,6 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_STRUCT_ST_BLOCKS
 AC_CHECK_MEMBERS([struct stat.st_rdev])
-AC_CHECK_MEMBERS([struct dirent.d_type],,, [#include <dirent.h>])
 AC_HEADER_TIME
 AC_STRUCT_TM
 AC_CHECK_MEMBERS([struct tm.tm_gmtoff],,, [
@@ -68,10 +67,6 @@ AC_CHECK_MEMBERS([struct tm.tm_gmtoff],,, [
 #else
 #  include <time.h>
 #endif])
-dnl AC_TYPE_UINT16_T
-dnl AC_TYPE_UINT32_T
-dnl AC_TYPE_UINT64_T
-dnl AC_TYPE_UINT8_T
 
 AC_SYS_LARGEFILE
 

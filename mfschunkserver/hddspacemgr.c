@@ -3604,11 +3604,6 @@ static void* hdd_folder_scan(void *arg) {
 			continue;
 		}
 		while ((de = readdir(dd)) != NULL) {
-#ifdef HAVE_STRUCT_DIRENT_D_TYPE
-			if (de->d_type != DT_REG) {
-				continue;
-			}
-#endif
 			if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
 				continue;
 			}
@@ -3635,11 +3630,6 @@ static void* hdd_folder_scan(void *arg) {
 			continue;
 		}
 		while ((de = readdir(dd)) != NULL) {
-#ifdef HAVE_STRUCT_DIRENT_D_TYPE
-			if (de->d_type != DT_REG) {
-				continue;
-			}
-#endif
 			if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
 				continue;
 			}
