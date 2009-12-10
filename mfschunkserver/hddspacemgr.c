@@ -1065,7 +1065,7 @@ static inline folder* hdd_getfolder() {
 			bf=f;
 		}
 		pavail = (double)(f->avail)/(double)(f->total);
-		if (ok==0 || minavail<pavail) {
+		if (ok==0 || minavail>pavail) {
 			minavail=pavail;
 			ok=1;
 		}
