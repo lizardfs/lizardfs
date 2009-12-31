@@ -1,5 +1,11 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.11 (2009-12-31)
+
+ - (cs) removed dirent.d_type test
+ - (cs) fixed some memory leaks
+ - (mount) improved attribute cache
+
 * MooseFS 1.6.10 (2009-12-09)
 
  - fixed errors introduced in 1.6.9
