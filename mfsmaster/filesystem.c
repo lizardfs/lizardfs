@@ -5467,9 +5467,9 @@ void fs_test_files() {
 							valid =0;
 							mchunks++;
 						} else if (vc==0) {
-							syslog(LOG_ERR,"damaged chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
+							syslog(LOG_ERR,"currently unavailable chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,f->id,j);
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"damaged chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"currently unavailable chunk %016"PRIX64" (inode: %"PRIu32" ; index: %"PRIu32")\n",chunkid,f->id,j);
 							}
 							valid = 0;
 							mchunks++;
@@ -5483,23 +5483,23 @@ void fs_test_files() {
 				if (valid==0) {
 					mfiles++;
 					if (f->type==TYPE_TRASH) {
-						syslog(LOG_ERR,"- damaged file in trash %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+						syslog(LOG_ERR,"- currently unavailable file in trash %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"- damaged file in trash %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"- currently unavailable file in trash %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						}
 					} else if (f->type==TYPE_RESERVED) {
-						syslog(LOG_ERR,"+ damaged reserved file %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+						syslog(LOG_ERR,"+ currently unavailable reserved file %"PRIu32": %s",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						if (leng<MSGBUFFSIZE) {
-							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"+ damaged reserved file %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
+							leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"+ currently unavailable reserved file %"PRIu32": %s\n",f->id,fsnodes_escape_name(f->parents->nleng,f->parents->name));
 						}
 					} else {
 						uint8_t *path;
 						uint16_t pleng;
 						for (e=f->parents ; e ; e=e->nextparent) {
 							fsnodes_getpath(e,&pleng,&path);
-							syslog(LOG_ERR,"* damaged file %"PRIu32": %s",f->id,fsnodes_escape_name(pleng,path));
+							syslog(LOG_ERR,"* currently unavailable file %"PRIu32": %s",f->id,fsnodes_escape_name(pleng,path));
 							if (leng<MSGBUFFSIZE) {
-								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"* damaged file %"PRIu32": %s\n",f->id,fsnodes_escape_name(pleng,path));
+								leng += snprintf(msgbuff+leng,MSGBUFFSIZE-leng,"* currently unavailable file %"PRIu32": %s\n",f->id,fsnodes_escape_name(pleng,path));
 							}
 							free(path);
 						}
