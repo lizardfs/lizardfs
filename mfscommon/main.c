@@ -833,7 +833,7 @@ int main(int argc,char **argv) {
 	rundaemon=1;
 	runmode = RM_RESTART;
 	logundefined=0;
-	appname = strdup(argv[0]);
+	appname = argv[0];
 
 	while ((ch = getopt(argc, argv, "uvdfsc:t:h?")) != -1) {
 		switch(ch) {
@@ -939,6 +939,7 @@ int main(int argc,char **argv) {
 		syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
 		return 1;
 	}
+	free(wrkdir);
 
 	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
 		msgfd = makedaemon();
@@ -988,6 +989,7 @@ int main(int argc,char **argv) {
 		fprintf(msgfd,"error occured during initialization - exiting\n");
 		fclose(msgfd);
 	}
+	free(logappname);
 	destruct();
 	closelog();
 	return 0;

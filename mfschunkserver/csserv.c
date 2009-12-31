@@ -105,7 +105,8 @@ typedef struct csserventry {
 	uint8_t todocnt;		// R (read finished + send finished)
 
 	/* common for read and write but meaning is different !!! */
-	void *packet;
+	void *rpacket;
+	void *wpacket;
 #endif
 
 	uint8_t chunkisopen;
@@ -338,18 +339,8 @@ void csserv_check_nextpacket(csserventry *eptr);
 // common - delayed close
 void csserv_delayed_close(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
-	(void)status;
-	if (eptr->rjobid>0) {
-		csserv_delete_packet(eptr->packet);
-		eptr->rjobid=0;
-	}
-	if (eptr->wjobid>0) {
-		if (eptr->wjobwriteid!=0) {
-			csserv_delete_preserved(eptr->packet);
-		} else if (status==STATUS_OK) {
-			eptr->chunkisopen = 1;
-		}
-		eptr->wjobid=0;
+	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==STATUS_OK) {	// this was job_open
+		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
 		job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -373,7 +364,10 @@ void csserv_read_finished(uint8_t status,void *e) {
 			csserv_read_continue(eptr);
 		}
 	} else {
-		csserv_delete_packet(eptr->packet);
+		if (eptr->rpacket) {
+			csserv_delete_packet(eptr->rpacket);
+			eptr->rpacket = NULL;
+		}
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		if (ptr==NULL) {
 			eptr->state = CLOSE;
@@ -381,7 +375,7 @@ void csserv_read_finished(uint8_t status,void *e) {
 		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
-		hdd_close(eptr->chunkid);
+		job_close(jpool,NULL,NULL,eptr->chunkid);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;	// after sending status even if there was an error it's possible to receive new requests on the same connection
 	}
@@ -400,12 +394,12 @@ void csserv_read_continue(csserventry *eptr) {
 	uint32_t size;
 	uint8_t *ptr;
 
-	if (eptr->packet) {
-		csserv_attach_packet(eptr,eptr->packet);
-		eptr->packet=NULL;
+	if (eptr->rpacket) {
+		csserv_attach_packet(eptr,eptr->rpacket);
+		eptr->rpacket=NULL;
 		eptr->todocnt++;
 	}
-	if (eptr->size==0) {	// read everything
+	if (eptr->size==0) {	// everything have been read
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		if (ptr==NULL) {
 			eptr->state = CLOSE;
@@ -413,7 +407,7 @@ void csserv_read_continue(csserventry *eptr) {
 		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
-		hdd_close(eptr->chunkid);
+		job_close(jpool,NULL,NULL,eptr->chunkid);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;	// no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
@@ -424,19 +418,18 @@ void csserv_read_continue(csserventry *eptr) {
 		} else {
 			size = 0x10000-blockoffset;
 		}
-		eptr->packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
-		if (eptr->packet==NULL) {
+		eptr->rpacket = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
+		if (eptr->rpacket==NULL) {
 			eptr->state = CLOSE;
 			return;
 		}
-		ptr = csserv_get_packet_data(eptr->packet);
+		ptr = csserv_get_packet_data(eptr->rpacket);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
 		put16bit(&ptr,blockoffset);
 		put32bit(&ptr,size);
 		eptr->rjobid = job_read(jpool,csserv_read_finished,eptr,eptr->chunkid,eptr->version,blocknum,ptr+4,blockoffset,size,ptr);
 		if (eptr->rjobid==0) {
-			csserv_delete_packet(eptr->packet);
 			eptr->state = CLOSE;
 			return;
 		}
@@ -516,7 +509,6 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->state = READ;
 	eptr->todocnt = 0;
 	eptr->rjobid = 0;
-	eptr->packet = NULL;
 	csserv_read_continue(eptr);
 }
 
@@ -528,9 +520,6 @@ void csserv_write_finished(uint8_t status,void *e) {
 	writestatus **wpptr,*wptr;
 //	syslog(LOG_NOTICE,"write job finished (jobid:%"PRIu32",chunkid:%"PRIu64",writeid:%"PRIu32",status:%"PRIu8")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
-	if (eptr->wjobwriteid!=0) {
-		csserv_delete_preserved(eptr->packet);
-	}
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
 		if (ptr==NULL) {
@@ -679,7 +668,10 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->state = WRITEFINISH;
 		return;
 	}
-	eptr->packet = csserv_preserve_inputpacket(eptr);
+	if (eptr->wpacket) {
+		csserv_delete_preserved(eptr->wpacket);
+	}
+	eptr->wpacket = csserv_preserve_inputpacket(eptr);
 	eptr->wjobwriteid = writeid;
 	eptr->wjobid = job_write(jpool,csserv_write_finished,eptr,chunkid,eptr->version,blocknum,data+4,offset,size,data);
 //	syslog(LOG_NOTICE,"add write job (jobid:%"PRIu32",chunkid:%"PRIu64",writeid:%"PRIu32")",eptr->wjobid,chunkid,eptr->wjobwriteid);
@@ -765,7 +757,8 @@ void csserv_fwderror(csserventry *eptr) {
 	eptr->state = WRITEFINISH;
 }
 
-#else /* BGJOBS */
+#endif
+#if 0 /* not BGJOBS (#else) */
 
 // fg reading
 
@@ -2039,7 +2032,8 @@ void csserv_serve(struct pollfd *pdesc) {
 				eptr->rjobid = 0;
 				eptr->todocnt = 0;
 
-				eptr->packet = NULL;
+				eptr->rpacket = NULL;
+				eptr->wpacket = NULL;
 			}
 #endif
 		}
@@ -2107,7 +2101,7 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_retryconnect(eptr);
 		}
 		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+Timeout<now) {
-			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
+//			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
 		if (eptr->state == CLOSE) {
@@ -2124,6 +2118,12 @@ void csserv_serve(struct pollfd *pdesc) {
 	while ((eptr=*kptr)) {
 		if (eptr->state == CLOSED) {
 			tcpclose(eptr->sock);
+			if (eptr->rpacket) {
+				csserv_delete_packet(eptr->rpacket);
+			}
+			if (eptr->wpacket) {
+				csserv_delete_preserved(eptr->wpacket);
+			}
 			if (eptr->fwdsock>=0) {
 				tcpclose(eptr->fwdsock);
 			}

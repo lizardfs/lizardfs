@@ -40,9 +40,9 @@
 
 #include "replicator.h"
 
-#define CONNMSECTO 4000
-#define SENDMSECTO 1000
-#define RECVMSECTO 1000
+#define CONNMSECTO 5000
+#define SENDMSECTO 5000
+#define RECVMSECTO 5000
 
 #define MAX_RECV_PACKET_SIZE (20+65536)
 
@@ -171,6 +171,9 @@ static int rep_read(repsrc *rs) {
 			ptr = rs->hdrbuff+4;
 			size = get32bit(&ptr);
 
+			if (rs->packet) {
+				free(rs->packet);
+			}
 			if (size>0) {
 				if (size>MAX_RECV_PACKET_SIZE) {
 					syslog(LOG_WARNING,"replicator: packet too long (%"PRIu32"/%u)",size,MAX_RECV_PACKET_SIZE);
@@ -182,6 +185,8 @@ static int rep_read(repsrc *rs) {
 					return -1;
 				}
 				rs->startptr = rs->packet;
+			} else {
+				rs->packet = NULL;
 			}
 			rs->bytesleft = size;
 			rs->mode = DATA;
@@ -243,6 +248,9 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 
 static uint8_t* rep_create_packet(repsrc *rs,uint32_t type,uint32_t size) {
 	uint8_t *ptr;
+	if (rs->packet) {
+		free(rs->packet);
+	}
 	rs->packet = malloc(size+8);
 	if (rs->packet==NULL) {
 		return NULL;
@@ -256,6 +264,9 @@ static uint8_t* rep_create_packet(repsrc *rs,uint32_t type,uint32_t size) {
 }
 
 static void rep_no_packet(repsrc *rs) {
+	if (rs->packet) {
+		free(rs->packet);
+	}
 	rs->packet=NULL;
 	rs->startptr=NULL;
 	rs->bytesleft=0;
@@ -359,7 +370,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		tv.tv_usec-=tvb.tv_usec;
 		msec = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 		if (msec>=msecto) {
-			syslog(LOG_NOTICE,"replicator: send timed out");
+			syslog(LOG_NOTICE,"replicator: connect timed out");
 			return -1; // timed out
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
@@ -530,10 +541,6 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	}
 // receive answers
 	for (i=0 ; i<srccnt ; i++) {
-		if (r.repsources[i].packet) {
-			free(r.repsources[i].packet);
-			r.repsources[i].packet=NULL;
-		}
 		r.repsources[i].mode = HEADER;
 		r.repsources[i].startptr = r.repsources[i].hdrbuff;
 		r.repsources[i].bytesleft = 8;
@@ -612,10 +619,6 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // prepare receive
 		for (i=0 ; i<srccnt ; i++) {
 			if (b<r.repsources[i].blocks) {
-				if (r.repsources[i].packet) {
-					free(r.repsources[i].packet);
-					r.repsources[i].packet=NULL;
-				}
 				r.repsources[i].mode = HEADER;
 				r.repsources[i].startptr = r.repsources[i].hdrbuff;
 				r.repsources[i].bytesleft = 8;
@@ -750,10 +753,10 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // receive status
 	for (i=0 ; i<srccnt ; i++) {
 		if (r.repsources[i].blocks>0) {
-			if (r.repsources[i].packet) {
-				free(r.repsources[i].packet);
-				r.repsources[i].packet=NULL;
-			}
+//			if (r.repsources[i].packet) {
+//				free(r.repsources[i].packet);
+//				r.repsources[i].packet=NULL;
+//			}
 			r.repsources[i].mode = HEADER;
 			r.repsources[i].startptr = r.repsources[i].hdrbuff;
 			r.repsources[i].bytesleft = 8;
