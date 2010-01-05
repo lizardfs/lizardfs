@@ -751,7 +751,10 @@ int main(int argc, char *argv[]) {
 
 	make_fsname(&args);
 
-	fuse_parse_cmdline(&args,&mountpoint,&mt,&fg);
+	if (fuse_parse_cmdline(&args,&mountpoint,&mt,&fg)<0) {
+		fprintf(stderr,"see: %s -h for help\n",argv[0]);
+		return 1;
+	}
 
 	if (!mountpoint) {
 		fprintf(stderr,"no mount point\nsee: %s -h for help\n",argv[0]);

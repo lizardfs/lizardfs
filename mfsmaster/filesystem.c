@@ -522,7 +522,7 @@ static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8
 	uint32_t hash,i;
 	hash = ((parentid * 0x5F2318BD) + nleng);
 	for (i=0 ; i<nleng ; i++) {
-		hash = hash*13+name[i];
+		hash = hash*33+name[i];
 	}
 	return hash;
 }
