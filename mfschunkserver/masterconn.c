@@ -65,6 +65,7 @@ typedef struct masterconn {
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
+	uint32_t bindip;
 	uint32_t masterip;
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
@@ -81,6 +82,7 @@ static masterconn *masterconnsingleton=NULL;
 static uint32_t BackLogsNumber;
 static char *MasterHost;
 static char *MasterPort;
+static char *BindHost;
 static uint32_t Timeout;
 
 static uint32_t stats_bytesout=0;
@@ -934,8 +936,13 @@ void masterconn_connected(masterconn *eptr) {
 void masterconn_initconnect(masterconn *eptr) {
 	int status;
 	if (eptr->masteraddrvalid==0) {
-		uint32_t mip;
+		uint32_t mip,bip;
 		uint16_t mport;
+		if (tcpresolve(BindHost,NULL,&bip,NULL,1)>=0) {
+			eptr->bindip = bip;
+		} else {
+			eptr->bindip = 0;
+		}
 		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
 			eptr->masterip = mip;
 			eptr->masterport = mport;
@@ -956,6 +963,14 @@ void masterconn_initconnect(masterconn *eptr) {
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		return ;
+	}
+	if (eptr->bindip>0) {
+		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
+			syslog(LOG_WARNING,"can't bind socket to given ip: %m");
+			tcpclose(eptr->sock);
+			eptr->sock=-1;
+			return ;
+		}
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
@@ -1239,6 +1254,7 @@ int masterconn_init(FILE *msgfd) {
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
+	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 

@@ -22,11 +22,12 @@
 #include <inttypes.h>
 
 void fs_getmasterlocation(uint8_t loc[10]);
+uint32_t fs_getsrcip(void);
 
-int fs_direct_connect(void);
-void fs_direct_close(int rfd);
-int fs_direct_write(int rfd,const uint8_t *buff,uint32_t size);
-int fs_direct_read(int rfd,uint8_t *buff,uint32_t size);
+//int fs_direct_connect(void);
+//void fs_direct_close(int rfd);
+//int fs_direct_write(int rfd,const uint8_t *buff,uint32_t size);
+//int fs_direct_read(int rfd,uint8_t *buff,uint32_t size);
 
 void fs_statfs(uint64_t *totalspace,uint64_t *availspace,uint64_t *trashspace,uint64_t *reservedspace,uint32_t *inodes);
 uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask);
@@ -68,7 +69,7 @@ uint8_t fs_purge(uint32_t inode);
 // uint8_t fs_append(uint32_t inode,uint32_t ainode,uint32_t uid,uint32_t gid);
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid);
+int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid);
 // called after fork
 void fs_init_threads(uint32_t retries);
 

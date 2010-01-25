@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.11], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.12], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -24,6 +24,7 @@ AC_PROG_LIBTOOL
 
 if test "$GCC" = "yes"; then
 	CFLAGS="$CFLAGS -W -Wall -Wshadow"
+dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
 CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
@@ -83,14 +84,14 @@ AC_FUNC_STAT
 # required functions
 AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
 
-#optional system functions
+# optional system functions
 AC_CHECK_FUNCS([dup2 mlockall])
 
 # optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev perror])
 
 dnl optional interfaces (Linux, FreeBSD)
-AC_CHECK_FUNCS([fopencookie funopen])
+dnl AC_CHECK_FUNCS([fopencookie funopen])
 
 case $target_os in
   *linux*)
@@ -195,9 +196,9 @@ AC_CHECK_LIB(z, zlibVersion, [ AC_CHECK_HEADERS(zlib.h,[zlib=yes]) ])
 
 if test "$zlib" = "no"; then
 	ZLIB_LIBS=
-	echo "************************************"
-	echo "* zlib not found - charts disabled *"
-	echo "************************************"
+	if test "$enable_mfsmaster" != "no" -o "$enable_mfschunkserver" != "no"; then
+		AC_MSG_ERROR([zlib not found])
+	fi
 else
 	ZLIB_LIBS=-lz
 fi

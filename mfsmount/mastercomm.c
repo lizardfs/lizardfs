@@ -43,6 +43,7 @@ typedef struct _threc {
 	uint8_t sent;
 	uint8_t status;
 	uint8_t release;	// cond variable
+	uint8_t waiting;
 	uint32_t size;
 	uint32_t cmd;
 	uint32_t packetid;
@@ -78,11 +79,17 @@ static uint32_t sessionid;
 static char masterstrip[17];
 static uint32_t masterip=0;
 static uint16_t masterport=0;
+static char srcstrip[17];
+static uint32_t srcip=0;
 
 void fs_getmasterlocation(uint8_t loc[10]) {
 	put32bit(&loc,masterip);
 	put16bit(&loc,masterport);
 	put32bit(&loc,sessionid);
+}
+
+uint32_t fs_getsrcip() {
+	return srcip;
 }
 
 enum {
@@ -302,8 +309,10 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		while (rec->release==0) {
+			rec->waiting=1;
 			pthread_cond_wait(&(rec->cond),&(rec->mutex));
 		}
+		rec->waiting=0;
 		pthread_mutex_unlock(&(rec->mutex));
 		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
 		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
@@ -370,6 +379,14 @@ void fs_reconnect() {
 	fd = tcpsocket();
 	if (tcpnodelay(fd)<0) {
 		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+	}
+	if (srcip>0) {
+		if (tcpnumbind(fd,srcip,0)<0) {
+			syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
+			tcpclose(fd);
+			fd=-1;
+			return;
+		}
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
 		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
@@ -461,6 +478,15 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 	if (tcpnodelay(fd)<0) {
 //		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
 		fprintf(stderr,"can't set RCP_NODELAY\n");
+	}
+	if (srcip>0) {
+		if (tcpnumbind(fd,srcip,0)<0) {
+			fprintf(stderr,"can't bind socket to given ip (\"%s\")\n",srcstrip);
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
 //		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
@@ -729,8 +755,10 @@ void* fs_receive_thread(void *arg) {
 					rec->status = 1;
 					pthread_mutex_lock(&(rec->mutex));
 					rec->release = 1;
+					if (rec->waiting) {
+						pthread_cond_signal(&(rec->cond));
+					}
 					pthread_mutex_unlock(&(rec->mutex));
-					pthread_cond_signal(&(rec->cond));
 				}
 			}
 			pthread_mutex_unlock(&reclock);
@@ -808,18 +836,30 @@ void* fs_receive_thread(void *arg) {
 		// syslog(LOG_NOTICE,"master: unlock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		rec->release = 1;
+		if (rec->waiting) {
+			pthread_cond_signal(&(rec->cond));
+		}
 		pthread_mutex_unlock(&(rec->mutex));
-		pthread_cond_signal(&(rec->cond));
 	}
 }
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	master_statsptr_init();
+	if (bindhost) {
+		if (tcpresolve(bindhost,NULL,&srcip,NULL,1)<0) {
+			fprintf(stderr,"can't resolve source hostname (%s)\n",bindhost);
+			return -1;
+		}
+	} else {
+		srcip=0;
+	}
 	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
 		fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
 		return -1;
 	}
+	snprintf(srcstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
+	srcstrip[16]=0;
 	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
 	masterstrip[16]=0;
 	fd = -1;

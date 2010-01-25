@@ -241,6 +241,26 @@ int tcpaccfdata(int sock) {
 #endif
 }
 
+int tcpstrbind(int sock,const char *hostname,const char *service) {
+	struct sockaddr_in sa;
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,1)<0) {
+		return -1;
+	}
+	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
+int tcpnumbind(int sock,uint32_t ip,uint16_t port) {
+	struct sockaddr_in sa;
+	sockaddrnumfill(&sa,ip,port);
+	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
 int tcpstrconnect(int sock,const char *hostname,const char *service) {
 	struct sockaddr_in sa;
 	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,0)<0) {
@@ -329,9 +349,11 @@ int tcpgetstatus(int sock) {
 	return rc;
 }
 
-int tcpnumlisten(int sock,uint32_t ip,uint16_t port,uint16_t queue) {
+int tcpstrlisten(int sock,const char *hostname,const char *service,uint16_t queue) {
 	struct sockaddr_in sa;
-	sockaddrnumfill(&sa,ip,port);
+	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,1)<0) {
+		return -1;
+	}
 	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
 		return -1;
 	}
@@ -341,11 +363,9 @@ int tcpnumlisten(int sock,uint32_t ip,uint16_t port,uint16_t queue) {
 	return 0;
 }
 
-int tcpstrlisten(int sock,const char *hostname,const char *service,uint16_t queue) {
+int tcpnumlisten(int sock,uint32_t ip,uint16_t port,uint16_t queue) {
 	struct sockaddr_in sa;
-	if (sockaddrfill(&sa,hostname,service,AF_INET,SOCK_STREAM,1)<0) {
-		return -1;
-	}
+	sockaddrnumfill(&sa,ip,port);
 	if (bind(sock,(struct sockaddr *)&sa,sizeof(struct sockaddr_in)) < 0) {
 		return -1;
 	}

@@ -52,7 +52,7 @@ const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN)
 const char id2[]="@(#) Copyright by Gemius S.A.";
 
 #if defined(__APPLE__)
-#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=300,iosize=65536"
+#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=15,iosize=65536"
 #else
 #define DEFAULT_OPTIONS "allow_other,default_permissions"
 #endif
@@ -113,6 +113,7 @@ static struct fuse_lowlevel_ops mfs_oper = {
 struct mfsopts {
 	char *masterhost;
 	char *masterport;
+	char *bindhost;
 	char *subfolder;
 	char *password;
 	char *md5pass;
@@ -141,6 +142,7 @@ enum {
 	KEY_META,
 	KEY_HOST,
 	KEY_PORT,
+	KEY_BIND,
 	KEY_PATH,
 	KEY_PASSWORDASK,
 	KEY_NOSTDMOUNTOPTIONS,
@@ -153,6 +155,7 @@ enum {
 static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsmaster=%s", masterhost, 0),
 	MFS_OPT("mfsport=%s", masterport, 0),
+	MFS_OPT("mfsbind=%s", bindhost, 0),
 	MFS_OPT("mfssubfolder=%s", subfolder, 0),
 	MFS_OPT("mfspassword=%s", password, 0),
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
@@ -175,6 +178,7 @@ static struct fuse_opt mfs_opts[] = {
 	FUSE_OPT_KEY("--meta",         KEY_META),
 	FUSE_OPT_KEY("-H ",            KEY_HOST),
 	FUSE_OPT_KEY("-P ",            KEY_PORT),
+	FUSE_OPT_KEY("-B ",            KEY_BIND),
 	FUSE_OPT_KEY("-S ",            KEY_PATH),
 	FUSE_OPT_KEY("-p",             KEY_PASSWORDASK),
 	FUSE_OPT_KEY("--password",     KEY_PASSWORDASK),
@@ -200,6 +204,7 @@ static void usage(const char *progname) {
 "    -m   --meta                 equivalent to '-o mfsmeta'\n"
 "    -H HOST                     equivalent to '-o mfsmaster=HOST'\n"
 "    -P PORT                     equivalent to '-o mfsport=PORT'\n"
+"    -B IP                       equivalent to '-o mfsbind=IP'\n"
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
@@ -219,6 +224,7 @@ static void usage(const char *progname) {
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
+"    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - choosen automatically by OS)\n"
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
@@ -249,6 +255,11 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 	case KEY_PORT:
 		if (mfsopts.masterport==NULL) {
 			mfsopts.masterport = strdup(arg+2);
+		}
+		return 0;
+	case KEY_BIND:
+		if (mfsopts.bindhost==NULL) {
+			mfsopts.bindhost = strdup(arg+2);
 		}
 		return 0;
 	case KEY_PATH:
@@ -354,7 +365,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 
 
-	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
+	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.bindhost,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
 		return 1;
 	}
 	memset(md5pass,0,16);
@@ -679,6 +690,7 @@ int main(int argc, char *argv[]) {
 
 	mfsopts.masterhost = NULL;
 	mfsopts.masterport = NULL;
+	mfsopts.bindhost = NULL;
 	mfsopts.subfolder = NULL;
 	mfsopts.password = NULL;
 	mfsopts.md5pass = NULL;
@@ -765,6 +777,9 @@ int main(int argc, char *argv[]) {
 	fuse_opt_free_args(&args);
 	free(mfsopts.masterhost);
 	free(mfsopts.masterport);
+	if (mfsopts.bindhost) {
+		free(mfsopts.bindhost);
+	}
 	free(mfsopts.subfolder);
 	return res;
 }

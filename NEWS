@@ -1,5 +1,10 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.12 (2009-01-25)
+
+ - (mount) fixed locking in read module
+ - (mount,cs) added ability to bind outgoing sockets to specific IP
+
 * MooseFS 1.6.11 (2009-12-31)
 
  - (cs) removed dirent.d_type test

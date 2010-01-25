@@ -8,6 +8,7 @@
 
 # MASTER_RECONNECTION_DELAY = 5
 
+# BIND_HOST = *
 # MASTER_HOST = mfsmaster
 # MASTER_PORT = 9420
 

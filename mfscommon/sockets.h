@@ -31,6 +31,8 @@ int tcpreuseaddr(int sock);
 int tcpnodelay(int sock);
 int tcpaccfhttp(int sock);
 int tcpaccfdata(int sock);
+int tcpnumbind(int sock,uint32_t ip,uint16_t port);
+int tcpstrbind(int sock,const char *hostname,const char *service);
 int tcpnumconnect(int sock,uint32_t ip,uint16_t port);
 int tcpnumtoconnect(int sock,uint32_t ip,uint16_t port,uint32_t msecto);
 int tcpstrconnect(int sock,const char *hostname,const char *service);

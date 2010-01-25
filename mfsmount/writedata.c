@@ -351,6 +351,7 @@ void* write_worker(void *arg) {
 	uint16_t chindx;
 	uint32_t ip;
 	uint16_t port;
+	uint32_t srcip;
 	uint64_t mfleng;
 	uint64_t maxwroffset;
 	uint64_t chunkid;
@@ -471,12 +472,21 @@ void* write_worker(void *arg) {
 */
 
 		// make connection to cs
+		srcip = fs_getsrcip();
 		cnt=5;
 		while (cnt>0) {
 			fd = tcpsocket();
 			if (fd<0) {
 				syslog(LOG_WARNING,"can't create tcp socket: %m");
 				cnt=0;
+			}
+			if (srcip) {
+				if (tcpnumbind(fd,srcip,0)<0) {
+					syslog(LOG_WARNING,"can't bind socket to given ip: %m");
+					tcpclose(fd);
+					fd=-1;
+					break;
+				}
 			}
 			if (tcpnumtoconnect(fd,ip,port,200)<0) {
 				cnt--;

@@ -37,8 +37,10 @@
 #include "cscomm.h"
 #include "csdb.h"
 
-#define REFRESHTIMEOUT 5000000
-#define READDELAY 1000000
+#define USECTICK 333333
+
+#define REFRESHTICKS 15
+#define CLOSEDELAYTICKS 3
 
 #define MAPBITS 10
 #define MAPSIZE (1<<(MAPBITS))
@@ -46,76 +48,77 @@
 #define MAPINDX(inode) (inode&MAPMASK)
 
 typedef struct _readrec {
-	uint8_t *rbuff;
-	uint32_t rbuffsize;
-	uint32_t inode;
-	uint64_t fleng;
-	uint32_t indx;
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t ip;
-	uint16_t port;
-	int fd;
-	struct timeval vtime;
-	struct timeval atime;
-	int valid;
-	pthread_mutex_t lock;
-	struct _readrec *next;
-	struct _readrec *mapnext;
+	uint8_t *rbuff;			// this->locked
+	uint32_t rbuffsize;		// this->locked
+	uint32_t inode;			// this->locked
+	uint64_t fleng;			// this->locked
+	uint32_t indx;			// this->locked
+	uint64_t chunkid;		// this->locked
+	uint32_t version;		// this->locked
+	uint32_t ip;			// this->locked
+	uint16_t port;			// this->locked
+	int fd;				// this->locked
+	uint8_t refcnt;			// glock
+	uint8_t noaccesscnt;		// glock
+	uint8_t valid;			// glock
+	uint8_t locked;			// glock
+	uint16_t waiting;		// glock
+	pthread_cond_t cond;		// glock
+	struct _readrec *next;		// glock
+	struct _readrec *mapnext;	// glock
 } readrec;
 
 static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t pthid;
-static pthread_mutex_t *mainlock;
+static pthread_mutex_t glock;
 
 static uint32_t maxretries;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
 void* read_data_delayed_ops(void *arg) {
-	struct timeval now;
 	readrec *rrec,**rrecp;
 	readrec **rrecmap;
 	(void)arg;
 	for (;;) {
-		pthread_mutex_lock(mainlock);
-		gettimeofday(&now,NULL);
+		pthread_mutex_lock(&glock);
 		rrecp = &rdhead;
 		while ((rrec=*rrecp)!=NULL) {
-			if (rrec->valid==0) {
-				if (pthread_mutex_trylock(&(rrec->lock))) {	// can't lock
-					pthread_mutex_lock(&(rrec->lock));	// wait
-					gettimeofday(&now,NULL);		// and refresh time
-				}
-				pthread_mutex_unlock(&(rrec->lock));
-				pthread_mutex_destroy(&(rrec->lock));
-				*rrecp = rrec->next;
-				rrecmap = &(rdinodemap[MAPINDX(rrec->inode)]);
-				while (*rrecmap) {
-					if ((*rrecmap)==rrec) {
-						*rrecmap = rrec->mapnext;
-					} else {
-						rrecmap = &((*rrecmap)->mapnext);
+			if (rrec->refcnt<REFRESHTICKS) {
+				rrec->refcnt++;
+			}
+			if (rrec->locked==0) {
+				if (rrec->valid==0) {
+					pthread_cond_destroy(&(rrec->cond));
+					*rrecp = rrec->next;
+					rrecmap = &(rdinodemap[MAPINDX(rrec->inode)]);
+					while (*rrecmap) {
+						if ((*rrecmap)==rrec) {
+							*rrecmap = rrec->mapnext;
+						} else {
+							rrecmap = &((*rrecmap)->mapnext);
+						}
 					}
+					free(rrec);
+				} else {
+					if (rrec->fd>=0) {
+						if (rrec->noaccesscnt==CLOSEDELAYTICKS) {
+							csdb_readdec(rrec->ip,rrec->port);
+							tcpclose(rrec->fd);
+							rrec->fd=-1;
+						} else {
+							rrec->noaccesscnt++;
+						}
+					}
+					rrecp = &(rrec->next);
 				}
-				free(rrec);
 			} else {
-				if (pthread_mutex_trylock(&(rrec->lock))) {	// can't lock
-					pthread_mutex_lock(&(rrec->lock));	// wait
-					gettimeofday(&now,NULL);		// and refresh time
-				}
-				if (rrec->fd>=0 && (TIMEDIFF(now,rrec->atime)>READDELAY || TIMEDIFF(now,rrec->vtime)>REFRESHTIMEOUT)) {
-					csdb_readdec(rrec->ip,rrec->port);
-					tcpclose(rrec->fd);
-					rrec->fd=-1;
-				}
-				pthread_mutex_unlock(&(rrec->lock));
 				rrecp = &(rrec->next);
 			}
 		}
-		pthread_mutex_unlock(mainlock);
-		usleep(READDELAY/2);
+		pthread_mutex_unlock(&glock);
+		usleep(USECTICK);
 	}
 }
 
@@ -132,18 +135,18 @@ void* read_data_new(uint32_t inode) {
 	rrec->fd = -1;
 	rrec->ip = 0;
 	rrec->port = 0;
-	rrec->atime.tv_sec = 0;
-	rrec->atime.tv_usec = 0;
-	rrec->vtime.tv_sec = 0;
-	rrec->vtime.tv_usec = 0;
+	rrec->refcnt = 0;
+	rrec->noaccesscnt = 0;
 	rrec->valid = 1;
-	pthread_mutex_init(&(rrec->lock),NULL);
-	pthread_mutex_lock(mainlock);
+	rrec->waiting = 0;
+	rrec->locked = 0;
+	pthread_cond_init(&(rrec->cond),NULL);
+	pthread_mutex_lock(&glock);
 	rrec->next = rdhead;
 	rdhead = rrec;
 	rrec->mapnext = rdinodemap[MAPINDX(inode)];
 	rdinodemap[MAPINDX(inode)] = rrec;
-	pthread_mutex_unlock(mainlock);
+	pthread_mutex_unlock(&glock);
 //	fprintf(stderr,"read_data_new (%p)\n",rrec);
 	return rrec;
 }
@@ -151,7 +154,17 @@ void* read_data_new(uint32_t inode) {
 void read_data_end(void* rr) {
 	readrec *rrec = (readrec*)rr;
 //	fprintf(stderr,"read_data_end (%p)\n",rr);
-	pthread_mutex_lock(&(rrec->lock));
+
+	pthread_mutex_lock(&glock);
+	rrec->waiting++;
+	while (rrec->locked) {
+		pthread_cond_wait(&(rrec->cond),&glock);
+	}
+	rrec->waiting--;
+	rrec->locked = 1;
+	rrec->valid = 0;
+	pthread_mutex_unlock(&glock);
+
 	if (rrec->fd>=0) {
 		csdb_readdec(rrec->ip,rrec->port);
 		tcpclose(rrec->fd);
@@ -160,8 +173,13 @@ void read_data_end(void* rr) {
 	if (rrec->rbuff!=NULL) {
 		free(rrec->rbuff);
 	}
-	rrec->valid = 0;
-	pthread_mutex_unlock(&(rrec->lock));
+
+	pthread_mutex_lock(&glock);
+	if (rrec->waiting) {
+		pthread_cond_signal(&(rrec->cond));
+	}
+	rrec->locked = 0;
+	pthread_mutex_unlock(&glock);
 }
 
 void read_data_init(uint32_t retries) {
@@ -172,8 +190,7 @@ void read_data_init(uint32_t retries) {
 		rdinodemap[i]=NULL;
 	}
 	maxretries=retries;
-	mainlock = malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(mainlock,NULL);
+	pthread_mutex_init(&glock,NULL);
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&pthid,&thattr,read_data_delayed_ops,NULL);
@@ -187,6 +204,8 @@ static int read_data_refresh_connection(readrec *rrec) {
 	const uint8_t *csdata;
 	uint32_t csdatasize;
 	uint8_t status;
+	uint32_t srcip;
+
 //	fprintf(stderr,"read_data_refresh_connection (%p)\n",rrec);
 	if (rrec->fd>=0) {
 		csdb_readdec(rrec->ip,rrec->port);
@@ -228,16 +247,25 @@ static int read_data_refresh_connection(readrec *rrec) {
 		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
 		return ENXIO;
 	}
-	gettimeofday(&(rrec->vtime),NULL);
 	rrec->ip = ip;
 	rrec->port = port;
 
+	srcip = fs_getsrcip();
 	cnt=5;
 	while (cnt>0) {
 		rrec->fd = tcpsocket();
 		if (rrec->fd<0) {
 			syslog(LOG_WARNING,"can't create tcp socket: %m");
 			cnt=0;
+		}
+		if (srcip) {
+			if (tcpnumbind(rrec->fd,srcip,0)<0) {
+				syslog(LOG_WARNING,"can't bind to given ip: %m");
+				tcpclose(rrec->fd);
+				rrec->fd=-1;
+				cnt=0;
+				break;
+			}
 		}
 		if (tcpnumtoconnect(rrec->fd,ip,port,200)<0) {
 			cnt--;
@@ -259,24 +287,22 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 
 	csdb_readinc(rrec->ip,rrec->port);
+	pthread_mutex_lock(&glock);
+	rrec->refcnt = 0;
+	pthread_mutex_unlock(&glock);
 	return 0;
 }
 
-void read_inode_ops(uint32_t inode) {	// other operations such as truncate or write can change something (especially file length), so close connections (force fs_readchunk)
+void read_inode_ops(uint32_t inode) {	// attributes of inode have been changed - force reconnect
 	readrec *rrec;
-	pthread_mutex_lock(mainlock);
+	pthread_mutex_lock(&glock);
 	for (rrec = rdinodemap[MAPINDX(inode)] ; rrec ; rrec=rrec->mapnext) {
 		if (rrec->inode==inode) {
-			pthread_mutex_lock(&(rrec->lock));
-			if (rrec->fd>=0) {
-				csdb_readdec(rrec->ip,rrec->port);
-				tcpclose(rrec->fd);
-				rrec->fd = -1;
-			}
-			pthread_mutex_unlock(&(rrec->lock));
+			rrec->noaccesscnt=CLOSEDELAYTICKS;	// if no access then close socket as soon as possible
+			rrec->refcnt=REFRESHTICKS;		// force reconnect on forthcoming access
 		}
 	}
-	pthread_mutex_unlock(mainlock);
+	pthread_mutex_unlock(&glock);
 }
 
 int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
@@ -284,18 +310,33 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	uint64_t curroff;
 	uint32_t currsize;
 	uint32_t indx;
-	uint8_t cnt,eb;
+	uint8_t cnt,eb,forcereconnect;
 	uint32_t chunkoffset;
 	uint32_t chunksize;
 	int err;
 	readrec *rrec = (readrec*)rr;
 
-//	fprintf(stderr,"read_data (%p,%"PRIu64",%"PRIu32")\n",rrec,offset,*size);
-	pthread_mutex_lock(&(rrec->lock));
+	if (*size==0 && *buff!=NULL) {
+		return 0;
+	}
+
+	pthread_mutex_lock(&glock);
+	rrec->waiting++;
+	while (rrec->locked) {
+		pthread_cond_wait(&(rrec->cond),&glock);
+	}
+	rrec->waiting--;
+	rrec->locked=1;
+	forcereconnect = (rrec->fd>=0 && rrec->refcnt==REFRESHTICKS)?1:0;
+	pthread_mutex_unlock(&glock);
+
+	if (forcereconnect) {
+		csdb_readdec(rrec->ip,rrec->port);
+		tcpclose(rrec->fd);
+		rrec->fd=-1;
+	}
+
 	if (*size==0) {
-		if (*buff!=NULL) {
-			pthread_mutex_unlock(&(rrec->lock));
-		}
 		return 0;
 	}
 
@@ -338,7 +379,13 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - can't connect to proper chunkserver (try counter: %"PRIu32")",rrec->inode,rrec->indx,cnt);
 				if (err==EBADF) {	// no such inode - it's unrecoverable error
 					if (eb) {
-						pthread_mutex_unlock(&(rrec->lock));
+						pthread_mutex_lock(&glock);
+						if (rrec->waiting) {
+							pthread_cond_signal(&(rrec->cond));
+						}
+						rrec->locked = 0;
+						pthread_mutex_unlock(&glock);
+//						pthread_mutex_unlock(&(rrec->lock));
 					}
 					return err;
 				}
@@ -351,7 +398,13 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			}
 			if (cnt>=maxretries) {
 				if (eb) {
-					pthread_mutex_unlock(&(rrec->lock));
+					pthread_mutex_lock(&glock);
+					if (rrec->waiting) {
+						pthread_cond_signal(&(rrec->cond));
+					}
+					rrec->locked=0;
+					pthread_mutex_unlock(&glock);
+//					pthread_mutex_unlock(&(rrec->lock));
 				}
 				return err;
 			}
@@ -401,14 +454,26 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			*buff = rrec->rbuff;
 		}
 	}
-	gettimeofday(&(rrec->atime),NULL);
+	pthread_mutex_lock(&glock);
+	rrec->noaccesscnt=0;
 	if (eb) {
-		pthread_mutex_unlock(&(rrec->lock));
+		if (rrec->waiting) {
+			pthread_cond_signal(&(rrec->cond));
+		}
+		rrec->locked = 0;
+//		pthread_mutex_unlock(&(rrec->lock));
 	}
+	pthread_mutex_unlock(&glock);
 	return 0;
 }
 
 void read_data_freebuff(void *rr) {
 	readrec *rrec = (readrec*)rr;
-	pthread_mutex_unlock(&(rrec->lock));
+	pthread_mutex_lock(&glock);
+	if (rrec->waiting) {
+		pthread_cond_signal(&(rrec->cond));
+	}
+	rrec->locked = 0;
+	pthread_mutex_unlock(&glock);
+//	pthread_mutex_unlock(&(rrec->lock));
 }
