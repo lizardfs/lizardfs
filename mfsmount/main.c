@@ -52,7 +52,7 @@ const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN)
 const char id2[]="@(#) Copyright by Gemius S.A.";
 
 #if defined(__APPLE__)
-#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=15,iosize=65536"
+#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=600,iosize=65536"
 #else
 #define DEFAULT_OPTIONS "allow_other,default_permissions"
 #endif
