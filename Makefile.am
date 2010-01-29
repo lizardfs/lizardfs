@@ -22,8 +22,8 @@ else
 CGISUBDIR=
 endif
 
-ACLOCAL_AMFLAGS = $(shell test -d /opt/local/share/aclocal && echo -I/opt/local/share/aclocal)
+ACLOCAL_AMFLAGS = -I m4 $(shell test -d /opt/local/share/aclocal && echo -I/opt/local/share/aclocal)
 
 SUBDIRS=mfsdata doc mfscommon $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR) $(CGISUBDIR)
 
-EXTRA_DIST=UPGRADE
+EXTRA_DIST=UPGRADE m4/ax_pthread.m4

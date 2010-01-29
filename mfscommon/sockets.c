@@ -32,14 +32,6 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
-//#ifdef _THREAD_SAFE
-//#include <pthread.h>
-//static pthread_mutex_t hmutex = PTHREAD_MUTEX_INITIALIZER;
-//#endif
-
-//#ifndef INADDR_NONE
-//#define INADDR_NONE (in_addr_t)(-1)
-//#endif
 
 #include "sockets.h"
 /* Acid's simple socket library - ver 2.0 */
@@ -81,68 +73,6 @@ static inline int sockaddrfill(struct sockaddr_in *sa,const char *hostname,const
 	freeaddrinfo(reshead);
 	return -1;
 }
-
-/*
-static inline int sockaddrfill(struct sockaddr_in *sa,const char *hostname,const char *service,int family,int socktype) {
-	uint16_t port;
-	struct in_addr addr;
-	char *endp;
-	uint32_t temp;
-
-	if (!hostname || !service) {
-		return -1;
-	}
-
-#ifdef _THREAD_SAFE
-	pthread_mutex_lock(&hmutex);
-#endif
-	port=0;
-	if (service[0]!='*') {
-		temp = strtol(service, &endp, 0);
-		if (*endp == '\0' && temp > 0 && temp < 65536) {
-			port = htons((uint16_t) temp);
-		} else {
-			struct servent *serv;
-			if (family==AF_INET || family==PF_UNSPEC) {
-				if (socktype==SOCK_STREAM) {
-					serv = getservbyname(service, "tcp");
-				} else if (socktype==SOCK_DGRAM);
-					serv = getservbyname(service, "udp");
-				}
-			}
-			if (serv) {
-				port = serv->s_port;
-			} else {
-				return -1;
-			}
-		}
-	}
-
-	addr.s_addr = INADDR_ANY;
-	if (hostname[0]!='*') {
-		temp = (uint32_t)inet_addr(hostname);
-		if (temp==INADDR_NONE) {
-			struct hostent *host = gethostbyname(hostname);
-			if (host) {
-				addr = *((struct in_addr *)(host->h_addr_list[0]));
-			} else {
-				return -1;
-			}
-		} else {
-			addr.s_addr = temp;
-		}
-	}
-#ifdef _THREAD_SAFE
-	pthread_mutex_unlock(&hmutex);
-#endif
-
-	memset(sa,0,sizeof(struct sockaddr_in));
-	sa->sin_family = AF_INET;
-	sa->sin_port = port;
-	sa->sin_addr = addr;
-	return 0;
-}
-*/
 
 static inline int sockresolve(const char *hostname,const char *service,uint32_t *ip,uint16_t *port,int family,int socktype,int passive) {
 	struct sockaddr_in sa;

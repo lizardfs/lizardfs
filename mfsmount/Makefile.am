@@ -1,11 +1,12 @@
 bin_PROGRAMS=mfsmount mfstools
 
-AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -D_GNU_SOURCE -D_REENTRANT -D_THREAD_SAFE -DFUSE_USE_VERSION=26 -D__DARWIN_64_BIT_INO_T=0
+AM_CPPFLAGS=-I$(top_srcdir)/mfscommon
 
 
 
-mfsmount_LDADD=$(FUSE_LIBS) ../mfscommon/libmfscommon.a
-mfsmount_CFLAGS=$(FUSE_CFLAGS) -DAPPNAME=mfsmount
+mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS) ../mfscommon/libmfscommon.a
+mfsmount_CFLAGS=$(PTHREAD_CFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -D__DARWIN_64_BIT_INO_T=0 -DAPPNAME=mfsmount
+mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -I$(top_srcdir)/mfscommon
 
 mfsmount_SOURCES=\
 	dirattrcache.c dirattrcache.h \

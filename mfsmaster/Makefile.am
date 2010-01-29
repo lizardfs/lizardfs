@@ -1,6 +1,6 @@
 sbin_PROGRAMS=mfsmaster
 
-AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -D_GNU_SOURCE -DAPPNAME=mfsmaster
+AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DAPPNAME=mfsmaster
 AM_LDFLAGS=$(ZLIB_LIBS)
 
 mfsmaster_SOURCES=\

@@ -20,7 +20,7 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
 #include <pthread.h>
 #endif
 #include "MFSCommunication.h"
@@ -66,7 +66,7 @@ uint32_t crc32(uint32_t crc,uint8_t *block,uint32_t leng) {
 
 #define FASTCRC 1
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
 static pthread_once_t maintables_once_control = PTHREAD_ONCE_INIT;
 #else
 static volatile int crc_table_empty = 1;
@@ -145,7 +145,7 @@ uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
 	const uint32_t *block4;
 #endif
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
 	pthread_once(&maintables_once_control,crc_generate_main_tables);
 #else
 	if (crc_table_empty) {
@@ -214,7 +214,7 @@ uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
 
 /* crc_combine */
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
 static pthread_once_t combinetables_once_control = PTHREAD_ONCE_INIT;
 #else
 static volatile int crc_combine_table_empty = 1;
@@ -274,7 +274,7 @@ static void crc_generate_combine_tables(void) {
 uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2) {
 	uint8_t i;
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
 	pthread_once(&combinetables_once_control,crc_generate_combine_tables);
 #else
 	if (crc_combine_table_empty) {

@@ -16,7 +16,7 @@ elif [ -x /usr/bin/glibtoolize ]; then
 else
 	libtoolize --copy --force
 fi
-aclocal $MACROSINC
+aclocal -I m4 $MACROSINC
 autoconf
 autoheader
 automake -a -c --foreign

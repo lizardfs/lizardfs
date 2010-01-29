@@ -19,6 +19,7 @@ Makefile.in
 /install-sh
 /libtool
 /ltmain.sh
+/m4
 /mfscgi/mfscgiserv
 /mfschunkserver/mfschunkserver
 /mfsdata/mfschunkserver.cfg

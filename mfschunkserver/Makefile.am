@@ -1,7 +1,7 @@
 sbin_PROGRAMS=mfschunkserver
 
-AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DMFSMAXFILES=10000 -D_GNU_SOURCE -D_THREAD_SAFE -D_REENTRANT -DAPPNAME=mfschunkserver
-AM_LDFLAGS=-lpthread $(ZLIB_LIBS)
+AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DMFSMAXFILES=10000 -D_USE_PTHREADS $(PTHREAD_CPPFLAGS) -DAPPNAME=mfschunkserver
+AM_LDFLAGS=$(PTHREAD_LIBS) $(ZLIB_LIBS)
 
 mfschunkserver_SOURCES= \
 	bgjobs.c bgjobs.h \
@@ -20,3 +20,4 @@ mfschunkserver_SOURCES= \
 	../mfscommon/MFSCommunication.h
 
 mfschunkserver_LDADD=../mfscommon/libmfscommon.a
+mfschunkserver_CFLAGS=$(PTHREAD_CFLAGS)

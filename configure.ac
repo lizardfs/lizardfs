@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.12], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.13], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -28,6 +28,9 @@ dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
 CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
+
+AX_PTHREAD(, [AC_MSG_ERROR([Posix threads not found])])
+dnl AC_CHECK_LIB([pthread], [pthread_create])
 
 # Checks for libraries.
 AC_SEARCH_LIBS([socket], [socket])
@@ -89,6 +92,9 @@ AC_CHECK_FUNCS([dup2 mlockall])
 
 # optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev perror])
+
+dnl optional thread functions
+dnl AC_CHECK_FUNCS([pthread_spin_lock])
 
 dnl optional interfaces (Linux, FreeBSD)
 dnl AC_CHECK_FUNCS([fopencookie funopen])

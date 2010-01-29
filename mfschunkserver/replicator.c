@@ -28,9 +28,7 @@
 #include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
-#ifdef _THREAD_SAFE
 #include <pthread.h>
-#endif
 
 #include "MFSCommunication.h"
 #include "hddspacemgr.h"
@@ -77,19 +75,13 @@ typedef struct _replication {
 } replication;
 
 static uint32_t stats_repl=0;
-#ifdef _THREAD_SAFE
 static pthread_mutex_t statslock = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
 void replicator_stats(uint32_t *repl) {
-#ifdef _THREAD_SAFE
 	pthread_mutex_lock(&statslock);
-#endif
 	*repl = stats_repl;
 	stats_repl=0;
-#ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&statslock);
-#endif
 }
 
 static void xordata(uint8_t *dst,const uint8_t *src,uint32_t leng) {
@@ -435,13 +427,9 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 
 //	syslog(LOG_NOTICE,"replication begin (chunkid:%08"PRIX64",version:%04"PRIX32",srccnt:%"PRIu8")",chunkid,version,srccnt);
 
-#ifdef _THREAD_SAFE
 	pthread_mutex_lock(&statslock);
-#endif
 	stats_repl++;
-#ifdef _THREAD_SAFE
 	pthread_mutex_unlock(&statslock);
-#endif
 
 // init replication structure
 	r.chunkid = chunkid;
