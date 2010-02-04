@@ -1611,7 +1611,7 @@ void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 //		i=eptr->sock;
 //		FD_SET(i,rset);
 		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events = POLLOUT;
+			pdesc[pos].events |= POLLOUT;
 //			FD_SET(i,wset);
 		}
 		pos++;

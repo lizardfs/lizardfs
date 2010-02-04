@@ -486,7 +486,7 @@ void matomlserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		pdesc[pos].events = POLLIN;
 		eptr->pdescpos = pos;
 		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events = POLLOUT;
+			pdesc[pos].events |= POLLOUT;
 		}
 		pos++;
 	}
