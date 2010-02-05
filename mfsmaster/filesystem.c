@@ -1160,9 +1160,10 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 	if ((node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
 		mode |= (MATTR_NOACACHE<<12);
 	}
-	if (node->mode&(EATTR_ALLOWDATACACHE<<12)) {
-		mode |= (MATTR_ALLOWDATACACHE<<12);
-	}
+// in the future it will be done automatically
+//	if (node->mode&(EATTR_ALLOWDATACACHE<<12)) {
+//		mode |= (MATTR_ALLOWDATACACHE<<12);
+//	}
 	put16bit(&ptr,mode);
 	if ((node->mode&(EATTR_NOOWNER<<12)) && uid!=0) {
 		if (sesflags&SESFLAG_MAPALL) {
@@ -2070,7 +2071,7 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 	fsedge *e;
 
 	if (node->type!=TYPE_DIRECTORY) {
-		feattrtab[(node->mode>>12)&(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_ALLOWDATACACHE)]++;
+		feattrtab[(node->mode>>12)&(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_NODATACACHE)]++;
 	} else {
 		deattrtab[(node->mode>>12)]++;
 		if (gmode==GMODE_RECURSIVE) {
@@ -4922,7 +4923,7 @@ uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_
 	nci = 0;
 	nsi = 0;
 #endif
-	if (!SMODE_ISVALID(smode) || (eattr&(~(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_NOECACHE|EATTR_ALLOWDATACACHE)))) {
+	if (!SMODE_ISVALID(smode) || (eattr&(~(EATTR_NOOWNER|EATTR_NOACACHE|EATTR_NOECACHE|EATTR_NODATACACHE)))) {
 		return ERROR_EINVAL;
 	}
 #ifndef METARESTORE
@@ -6150,6 +6151,8 @@ int fs_loadnode(FILE *fd) {
 	p->id = get32bit(&ptr);
 	p->goal = get8bit(&ptr);
 	p->mode = get16bit(&ptr);
+// clear most significant bit (allowdatacache)
+	p->mode&=0x7FFF;
 	p->uid = get32bit(&ptr);
 	p->gid = get32bit(&ptr);
 	p->atime = get32bit(&ptr);

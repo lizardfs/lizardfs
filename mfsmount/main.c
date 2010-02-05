@@ -210,8 +210,9 @@ static void usage(const char *progname) {
 "    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
-"    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
-"    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
+// "    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
+// "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
+"    -o mfscachefiles            allow files data to be kept in cache (dangerous in network environment)\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
@@ -228,11 +229,11 @@ static void usage(const char *progname) {
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
-"\n"
-"CACHEMODE can be set to:\n"
-"    NO,NONE or NEVER            never allow files data to be kept in cache\n"
-"    YES or ALWAYS               always allow files data to be kept in cache\n"
-"    AUTO,OBEY or EATTR          obey eattr flag 'allowdatacache' and allow only files with this flag set to be kept in cache\n"
+//"\n"
+//"CACHEMODE can be set to:\n"
+//"    NO,NONE or NEVER            never allow files data to be kept in cache\n"
+//"    YES or ALWAYS               always allow files data to be kept in cache\n"
+//"    AUTO                        if flag 'nodatacache' is not set then allow files data to be kept in cache automatically\n"
 "\n", progname);
 }
 
@@ -722,7 +723,7 @@ int main(int argc, char *argv[]) {
 
 	if (mfsopts.cachemode==NULL) {
 		mfsopts.keepcache=(mfsopts.cachefiles)?1:0;
-	} else if (strcasecmp(mfsopts.cachemode,"AUTO")==0 || strcasecmp(mfsopts.cachemode,"EATTR")==0 || strcasecmp(mfsopts.cachemode,"OBEY")==0) {
+	} else if (strcasecmp(mfsopts.cachemode,"AUTO")==0) {
 		mfsopts.keepcache=0;
 	} else if (strcasecmp(mfsopts.cachemode,"YES")==0 || strcasecmp(mfsopts.cachemode,"ALWAYS")==0) {
 		mfsopts.keepcache=1;

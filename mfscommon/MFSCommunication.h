@@ -185,25 +185,25 @@
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
 #define EATTR_NOECACHE         0x04
-#define EATTR_ALLOWDATACACHE   0x08
+#define EATTR_NODATACACHE      0x08
 
 #define EATTR_STRINGS \
 	"noowner", \
 	"noattrcache", \
 	"noentrycache", \
-	"allowdatacache"
+	""
 
 #define EATTR_DESCRIPTIONS \
 	"every user (except root) sees object as his (her) own", \
 	"prevent standard object attributes from being stored in kernel cache", \
 	"prevent directory entries from being stored in kernel cache", \
-	"allow file data to be kept in cache"
+	"prevent file data from being kept in kernel cache"
 
 // mode attr (higher 4 bits of mode in node attr)
 #define MATTR_NOACACHE         0x01
 #define MATTR_NOECACHE         0x02
 #define MATTR_ALLOWDATACACHE   0x04
-#define MATTR_UNDEFINED_2      0x08
+#define MATTR_UNDEFINED        0x08
 
 // quota:
 #define QUOTA_FLAG_SINODES     0x01
