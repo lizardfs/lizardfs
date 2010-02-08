@@ -431,7 +431,7 @@ void masterconn_setversion(masterconn *eptr,const uint8_t *data,uint32_t length)
 #else /* BGJOBS */
 	uint8_t status;
 #endif /* BGJOBS */
-	
+
 	if (length!=8+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%"PRIu32"/16)",length);
 		eptr->mode = KILL;
@@ -783,7 +783,7 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t checksum;
-	
+
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
@@ -816,7 +816,7 @@ void masterconn_chunk_checksum_tab(masterconn *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	uint8_t crctab[4096];
-	
+
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
@@ -983,8 +983,8 @@ void masterconn_initconnect(masterconn *eptr) {
 	} else {
 		eptr->mode = CONNECTING;
 		syslog(LOG_NOTICE,"connecting ...");
-	}   
-}   
+	}
+}
 
 void masterconn_connecttest(masterconn *eptr) {
 	int status;

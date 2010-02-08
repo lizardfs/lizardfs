@@ -44,13 +44,11 @@
 #define USE_NET_ORDER 1
 
 #define LENG 950
-#ifdef HAVE_ZLIB_H
 #define DATA 100
 #define XPOS 43
 #define YPOS 6
 #define XSIZE (LENG+50)
 #define YSIZE (DATA+20)
-#endif /* HAVE_ZLIB_H */
 //#define LONGRATIO 6
 
 #define SHORTRANGE 0
@@ -94,12 +92,21 @@ static uint32_t vlngmday,vlngmonth,vlngyear;
 #define RAWSIZE ((1+(((XSIZE)+1)>>1))*(YSIZE))
 #define CBUFFSIZE (((RAWSIZE)*1001)/1000+16)
 
-#ifdef HAVE_ZLIB_H
 static uint8_t chart[(XSIZE)*(YSIZE)];
 static uint8_t rawchart[RAWSIZE];
 static uint8_t compbuff[CBUFFSIZE];
 static uint32_t compsize;
+#ifdef HAVE_ZLIB_H
 static z_stream zstr;
+#else
+static uint8_t warning[50] = {
+	0x89,0xCF,0x83,0x8E,0x45,0xE7,0x9F,0x3C,0xF7,0xDE,    /* 10001001 11001111 10000011 10001110 01000101 11100111 10011111 00111100 11110111 11011110 */
+	0xCA,0x22,0x04,0x51,0x6D,0x14,0x50,0x41,0x04,0x11,    /* 11001010 00100010 00000100 01010001 01101101 00010100 01010000 01000001 00000100 00010001 */
+	0xAA,0x22,0x04,0x11,0x55,0xE7,0x9C,0x38,0xE7,0x11,    /* 10101010 00100010 00000100 00010001 01010101 11100111 10011100 00111000 11100111 00010001 */
+	0x9A,0x22,0x04,0x51,0x45,0x04,0x50,0x04,0x14,0x11,    /* 10011010 00100010 00000100 01010001 01000101 00000100 01010000 00000100 00010100 00010001 */
+	0x89,0xC2,0x03,0x8E,0x45,0x04,0x5F,0x79,0xE7,0xDE     /* 10001001 11000010 00000011 10001110 01000101 00000100 01011111 01111001 11100111 11011110 */
+};
+#endif
 
 #define COLOR_TRANSPARENT 0
 #define COLOR_BKG 1
@@ -120,14 +127,14 @@ static uint8_t png_header[] = {
 	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
 
 	0, 0, 0, 0x18, 'P', 'L', 'T', 'E',      // PLTE chunk
-	0xff,0xff,0xff,                         // color map 0 - tło (przezroczysty)
-	0xff,0xff,0xff,                         // color map 1 - tło wykresu (biały)
-	0x00,0x00,0x00,                         // color map 2 - osie (czarny)
-	0x00,0x00,0x7f,                         // color map 3 - linie podziałki (granatowy)
-	0x5f,0x20,0x00,                         // color map 4 - napisy (brązowy)
-	0x00,0xff,0x00,                         // color map 5 - dane (jasny zielony)
-	0x00,0x96,0x00,                         // color map 6 - dane (ciemny zielony)
-	0x00,0x60,0x00,                         // color map 7 - dane (ciemniejszy zielony)
+	0xff,0xff,0xff,                         // color map 0 - background (transparent)
+	0xff,0xff,0xff,                         // color map 1 - chart background (white)
+	0x00,0x00,0x00,                         // color map 2 - axes (black)
+	0x00,0x00,0x7f,                         // color map 3 - auxiliary lines (dark blue)
+	0x5f,0x20,0x00,                         // color map 4 - texts (brown)
+	0x00,0xff,0x00,                         // color map 5 - data1 (light green)
+	0x00,0x96,0x00,                         // color map 6 - data2 (green)
+	0x00,0x60,0x00,                         // color map 7 - dane3 (dark green)
 	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
 
 	0, 0, 0, 1, 't', 'R', 'N', 'S',         // tRNS chunk
@@ -145,7 +152,6 @@ static uint8_t png_tailer[] = {
 	0, 0, 0, 0, 'I', 'E', 'N', 'D',         // IEND chunk
 	'C', 'R', 'C', 0x32,                    // CRC32 placeholder
 };
-#endif /* HAVE_ZLIB_H */
 
 static uint8_t png_1x1[] = {
 	137, 80, 78, 71, 13, 10, 26, 10,        // signature
@@ -165,7 +171,6 @@ static uint8_t png_1x1[] = {
 	0xae, 0x42, 0x60, 0x82			// CRC
 };
 
-#ifdef HAVE_ZLIB_H
 static uint8_t font[25][9]={
 	/* 01110 */
 	/* 10001 */
@@ -458,7 +463,6 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	}
 	return 0;
 }
-#endif /* HAVE_ZLIB_H */
 
 #define CHARTS_FILE_VERSION 0x00010000
 
@@ -1355,7 +1359,30 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 	return 0;
 }
 
-#ifdef HAVE_ZLIB_H
+#ifndef HAVE_ZLIB_H
+static inline void charts_putwarning(uint32_t posx,uint32_t posy,uint8_t color) {
+	uint8_t *w,c,fx,fy,b;
+	uint32_t x,y;
+	w = warning;
+	y = posy;
+	for (fy=0 ; fy<5 ; fy++) {
+		x = posx;
+		for (b=0 ; b<10 ; b++) {
+			c = *w;
+			w++;
+			for (fx=0 ; fx<8 ; fx++) {
+				if (c&0x80 && x<XSIZE && y<YSIZE) {
+					chart[(XSIZE)*y+x] = color;
+				}
+				c<<=1;
+				x++;
+			}
+		}
+		y++;
+	}
+}
+#endif
+
 static inline void charts_puttext(int32_t posx,int32_t posy,uint8_t color,uint8_t *data,uint32_t leng,int32_t minx,int32_t maxx,int32_t miny,int32_t maxy) {
 	uint32_t i,fx,fy;
 	uint8_t fp,fbits;
@@ -1581,7 +1608,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			j++;
 		}
 	}
-	// axis
+	// axes
 	for (i=-3 ; i<LENG+3 ; i++) {
 		chart[(XSIZE)*(DATA+YPOS)+(i+XPOS)] = COLOR_AXIS;
 	}
@@ -1793,7 +1820,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		}
 	}
 }
-#endif /* HAVE_ZLIB_H */
 
 uint32_t charts_datasize(uint32_t number) {
 	uint32_t chtype,chrange;
@@ -1835,7 +1861,6 @@ void charts_makedata(uint8_t *buff,uint32_t number) {
 	}
 }
 
-#ifdef HAVE_ZLIB_H
 void charts_chart_to_rawchart() {
 	uint32_t y;
 	uint32_t x;
@@ -1872,6 +1897,63 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 	}
 }
 
+#ifndef HAVE_ZLIB_H
+
+#define MOD_ADLER 65521
+
+static uint32_t charts_adler32(uint8_t *data,uint32_t len) {
+	uint32_t a = 1, b = 0;
+	uint32_t i;
+
+	for (i=0 ; i<len ; i++) {
+		a = (a + data[i]) % MOD_ADLER;
+		b = (b + a) % MOD_ADLER;
+	}
+
+	return (b << 16) | a;
+}
+
+int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *dstsize) {
+	uint32_t edstsize,adler;
+	edstsize = 6+(65535+5)*(srcsize/65535);
+	if (srcsize%65535) {
+		edstsize+=5+(srcsize%65535);
+	}
+	if (edstsize>*dstsize) {
+		return -1;
+	}
+	adler = charts_adler32(src,srcsize);
+	*dst++=0x78;
+	*dst++=0x9C;
+	while (srcsize>65535) {
+		*dst++ = 0x00;
+		*dst++ = 0xFF;
+		*dst++ = 0xFF;
+		*dst++ = 0x00;
+		*dst++ = 0x00;
+		memcpy(dst,src,65535);
+		dst+=65535;
+		src+=65535;
+		srcsize-=65535;
+	}
+	if (srcsize>0) {
+		*dst++ = 0x01;
+		*dst++ = srcsize&0xFF;
+		*dst++ = srcsize>>8;
+		*dst++ = (srcsize&0xFF)^0xFF;
+		*dst++ = (srcsize>>8)^0xFF;
+		memcpy(dst,src,srcsize);
+		dst+=srcsize;
+	}
+	*dst++ = (adler>>24) & 0xFF;
+	*dst++ = (adler>>16) & 0xFF;
+	*dst++ = (adler>>8) & 0xFF;
+	*dst++ = adler & 0xFF;
+	*dstsize = edstsize;
+	return 0;
+}
+#endif /* ! HAVE_ZLIB_H */
+
 uint32_t charts_make_png(uint32_t number) {
 	uint32_t chtype,chrange;
 	chtype = number / 10;
@@ -1886,14 +1968,20 @@ uint32_t charts_make_png(uint32_t number) {
 	}
 
 	charts_makechart(chtype,chrange);
+#ifndef HAVE_ZLIB_H
+	charts_putwarning(47,0,COLOR_TEXT);
+#endif
 
+#ifdef HAVE_ZLIB_H
 	if (deflateReset(&zstr)!=Z_OK) {
 		compsize = 0;
 		return sizeof(png_1x1);
 	}
+#endif /* HAVE_ZLIB_H */
 
 	charts_chart_to_rawchart();
 
+#ifdef HAVE_ZLIB_H
 	zstr.next_in = rawchart;
 	zstr.avail_in = RAWSIZE;
 	zstr.total_in = 0;
@@ -1907,6 +1995,13 @@ uint32_t charts_make_png(uint32_t number) {
 	}
 
 	compsize = zstr.total_out;
+#else /* HAVE_ZLIB_H */
+	compsize = CBUFFSIZE;
+	if (charts_fake_compress(rawchart,RAWSIZE,compbuff,&compsize)<0) {
+		compsize = 0;
+		return sizeof(png_1x1);
+	}
+#endif /* HAVE_ZLIB_H */
 
 	return sizeof(png_header)+compsize+4+sizeof(png_tailer);
 }
@@ -1924,16 +2019,3 @@ void charts_get_png(uint8_t *buff) {
 		charts_fill_crc(buff,sizeof(png_header)+compsize+4+sizeof(png_tailer));
 	}
 }
-
-#else /* HAVE_ZLIB_H */
-
-uint32_t charts_make_png(uint32_t number) {
-	(void)number;
-	return sizeof(png_1x1);
-}
-
-void charts_get_png(uint8_t *buff) {
-	memcpy(buff,png_1x1,sizeof(png_1x1));
-}
-
-#endif /* HAVE_ZLIB_H */

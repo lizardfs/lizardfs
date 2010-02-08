@@ -2626,7 +2626,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	char *newfilename;
 	uint8_t *ptr,vbuff[4];
 	uint16_t block;
-	uint16_t blocks; 
+	uint16_t blocks;
 	int32_t retsize;
 	uint32_t crc;
 	int status;

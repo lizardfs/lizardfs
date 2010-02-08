@@ -358,7 +358,7 @@
 // chunkid:64 version:32 newversion:32 copychunkid:64 copyversion:32 length:32 status:8
 
 #define MATOCS_TRUNCATE 160
-// chunkid:64 length:32 version:32 oldversion:32 
+// chunkid:64 length:32 version:32 oldversion:32
 #define CSTOMA_TRUNCATE 161
 // chunkid:64 status:8
 
@@ -498,7 +498,7 @@
 #define MATOCU_FUSE_REGISTER 401
 // depends on blob - see blob descriptions above
 #define CUTOMA_FUSE_STATFS 402
-// msgid:32 - 
+// msgid:32 -
 #define MATOCU_FUSE_STATFS 403
 // msgid:32 totalspace:64 availspace:64 trashspace:64 inodes:32
 #define CUTOMA_FUSE_ACCESS 404
@@ -537,7 +537,7 @@
 // msgid:32 inode:32 name:NAME type:8 mode:16 uid:32 gid:32 rdev:32
 #define MATOCU_FUSE_MKNOD 417
 // msgid:32 status:8
-// msgid:32 inode:32 attr:35B 
+// msgid:32 inode:32 attr:35B
 #define CUTOMA_FUSE_MKDIR 418
 // msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32
 #define MATOCU_FUSE_MKDIR 419
@@ -635,7 +635,7 @@
 // msgid:32 N*[ name:NAME inode:32 ]
 
 #define CUTOMA_FUSE_GETDETACHEDATTR 452
-// msgid:32 inode:32 dtype:8 
+// msgid:32 inode:32 dtype:8
 #define MATOCU_FUSE_GETDETACHEDATTR 453
 // msgid:32 status:8
 // msgid:32 attr:35B

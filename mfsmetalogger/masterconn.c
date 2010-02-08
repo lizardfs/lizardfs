@@ -475,8 +475,8 @@ void masterconn_initconnect(masterconn *eptr) {
 	} else {
 		eptr->mode = CONNECTING;
 		syslog(LOG_NOTICE,"connecting ...");
-	}   
-}   
+	}
+}
 
 void masterconn_connecttest(masterconn *eptr) {
 	int status;

@@ -201,7 +201,7 @@ int fs_loadnode(FILE *fd) {
 		uint64_t length,chunkid;
 		uint32_t ch,sessionid;
 		uint16_t sessionids;
-	
+
 		length = get64bit(&ptr);
 		ch = get32bit(&ptr);
 		sessionids = get16bit(&ptr);

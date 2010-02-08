@@ -411,7 +411,7 @@ void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 //		memset(&o_stbuf, 0, sizeof(struct stat));
 //		mfs_attr_to_stat(ino,masterattr,&o_stbuf);
 //		fuse_reply_attr(req, &o_stbuf, 3600.0);
-//	} else 
+//	} else
 	if (ino==MASTERINFO_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,masterinfoattr,&o_stbuf);

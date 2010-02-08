@@ -445,7 +445,7 @@ void matomlserv_read(matomlserventry *eptr) {
 }
 
 void matomlserv_write(matomlserventry *eptr) {
-	packetstruct *pack; 
+	packetstruct *pack;
 	int32_t i;
 	for (;;) {
 		pack = eptr->outputhead;

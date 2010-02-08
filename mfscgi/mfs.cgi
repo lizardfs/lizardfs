@@ -557,7 +557,6 @@ if "IN" in sectionset:
 					out.append("""<tr>""")
 					out.append("""	<td colspan="8" align="left"><pre>%s</pre></td>""" % (data[36:].replace("&","&amp;").replace(">","&gt;").replace("<","&lt;")))
 					out.append("""</tr>""")
-					
 			else:
 				out.append("""<tr>""")
 				out.append("""	<td colspan="8" align="center">no data</td>""")

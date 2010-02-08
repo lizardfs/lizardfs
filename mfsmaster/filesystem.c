@@ -4889,7 +4889,7 @@ uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashti
 #else
 	fsnodes_settrashtime_recursive(p,ts,uid,trashtime,smode,&si,&nci,&nsi);
 #endif
-	
+
 #ifndef METARESTORE
 	changelog(version++,"%"PRIu32"|SETTRASHTIME(%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu8"):%"PRIu32",%"PRIu32",%"PRIu32,ts,inode,uid,trashtime,smode,*sinodes,*ncinodes,*nsinodes);
 	return STATUS_OK;
@@ -5591,7 +5591,7 @@ void fs_test_files() {
 							}
 						}
 #endif
-					} 
+					}
 				}
 			}
 		}
@@ -6200,7 +6200,7 @@ int fs_loadnode(FILE *fd) {
 				free(p->data.sdata.path);
 				free(p);
 				return -1;
-			}	
+			}
 		} else {
 			p->data.sdata.path = NULL;
 		}
@@ -7298,7 +7298,7 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 			fclose(fd);
 			return -1;
 		}
-	} else 
+	} else
 */
 #endif
 	if (memcmp(hdr,"MFSM 1.5",8)==0) {

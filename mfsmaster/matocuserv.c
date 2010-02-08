@@ -970,7 +970,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				status = STATUS_OK;
 			} else {
 				status = ERROR_EACCES;
-			} 
+			}
 		}
 		if (tools) {
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,1);
@@ -2971,7 +2971,7 @@ void matocuserv_fuse_getreserved(matocuserventry *eptr,const uint8_t *data,uint3
 
 void matocu_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
-	fl=sesdata->openedfiles; 
+	fl=sesdata->openedfiles;
 	while (fl) {
 		afl = fl;
 		fl=fl->next;
@@ -3013,7 +3013,7 @@ void matocu_session_statsmove(void) {
 void matocu_beforedisconnect(matocuserventry *eptr) {
 	chunklist *cl,*acl;
 // unlock locked chunks
-	cl=eptr->chunkdelayedops; 
+	cl=eptr->chunkdelayedops;
 	while (cl) {
 		acl = cl;
 		cl=cl->next;

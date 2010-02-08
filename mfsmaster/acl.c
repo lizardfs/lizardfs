@@ -220,7 +220,7 @@ void acl_freelist(acl *arec) {
 //  canchangequota
 //
 // ip[/bits] can be '*' (same as 0.0.0.0/0)
-// 
+//
 // default:
 // *	/	alldirs,maproot=0
 

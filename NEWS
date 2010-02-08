@@ -1,6 +1,14 @@
 This file lists noteworthy changes in MooseFS.
 
-* MooseFS 1.6.12 (2009-01-25)
+* MooseFS 1.6.13 (2010-02-08)
+
+ - (master) fixed poll events bug
+ - (autotools) added m4 module for posix threads detection
+ - (master) added exporting "meta" to default mfsexports.cfg
+ - (master,tools) removed "allowdatacache" flag (will be managed automatically in the future)
+ - (master,cs) added support for not compressed PNG images in chart module (when build without zlib)
+
+* MooseFS 1.6.12 (2010-01-25)
 
  - (mount) fixed locking in read module
  - (mount,cs) added ability to bind outgoing sockets to specific IP

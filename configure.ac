@@ -132,6 +132,7 @@ AC_ARG_WITH([mfscgi-dir], [AC_HELP_STRING([--with-mfscgi-dir=CGIDIR], [Choose CG
 	[CGIDIR=$withval], [CGIDIR=$datadir/mfscgi])
 AC_ARG_WITH([mfscgiserv-dir], [AC_HELP_STRING([--with-mfscgiserv-dir=CGISERVDIR], [Choose CGI directory (default=SBINDIR)])],
 	[CGISERVDIR=$withval], [CGISERVDIR=$sbindir])
+AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib], [Don't use zlib for PNG compression])], [use_zlib=$withval], [use_zlib=yes])
 
 if test "$enable_mfscgi" != "no"; then
 	AM_PATH_PYTHON([2.0],,[:])
@@ -139,7 +140,7 @@ if test "$enable_mfscgi" != "no"; then
 		enable_mfscgi=no
 	fi
 fi
-if test "enable_$mfscgi" = "no"; then
+if test "$enable_mfscgi" = "no"; then
 	enable_mfscgiserv=no
 fi
 AM_CONDITIONAL([INSTALL_CGI], [test "$enable_mfscgi" != "no"])
@@ -197,18 +198,21 @@ AC_CHECK_LIB(fuse, fuse_version, [AC_DEFINE([HAVE_FUSE_VERSION],[1],[libfuse has
 
 AM_CONDITIONAL([BUILD_MOUNT], [test "$fuse" != "no" -a "$enable_mfsmount" != "no"])
 
-zlib=no
-AC_CHECK_LIB(z, zlibVersion, [ AC_CHECK_HEADERS(zlib.h,[zlib=yes]) ])
+if test "$use_zlib" = "yes"; then
 
-if test "$zlib" = "no"; then
-	ZLIB_LIBS=
-	if test "$enable_mfsmaster" != "no" -o "$enable_mfschunkserver" != "no"; then
-		AC_MSG_ERROR([zlib not found])
+	zlib=no
+	AC_CHECK_LIB(z, zlibVersion, [ AC_CHECK_HEADERS(zlib.h,[zlib=yes]) ])
+
+	if test "$zlib" = "no"; then
+		ZLIB_LIBS=
+		if test "$enable_mfsmaster" != "no" -o "$enable_mfschunkserver" != "no"; then
+			AC_MSG_ERROR([zlib development library not found])
+		fi
+	else
+		ZLIB_LIBS=-lz
 	fi
-else
-	ZLIB_LIBS=-lz
+	AC_SUBST([ZLIB_LIBS])
 fi
-AC_SUBST([ZLIB_LIBS])
 
 test "$prefix" = "NONE" && prefix=$ac_default_prefix
 eval DATA_PATH=${localstatedir}/mfs

@@ -598,7 +598,7 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 		free(lockfname);
 		if (errno==ENOENT) {    // no old lock file
 			return 0;	// ok
-		}       
+		}
 		syslog(LOG_ERR,"open %s error: %m",lockfname);
 		fprintf(msgfd,"open %s error: %s\n",lockfname,errno_to_str());
 		free(lockfname);
@@ -827,7 +827,7 @@ int main(int argc,char **argv) {
 	uint32_t locktimeout;
 	struct rlimit rls;
 	FILE *msgfd;
-	
+
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
 	locktimeout=60;
 	rundaemon=1;

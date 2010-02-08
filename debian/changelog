@@ -1,9 +1,19 @@
+mfs (1.6.13) unstable; urgency=low
+
+  * (master) fixed poll events bug
+  * (autotools) added m4 module for posix threads detection
+  * (master) added exporting "meta" to default mfsexports.cfg
+  * (master,tools) removed "allowdatacache" flag (will be managed automatically in the future)
+  * (master,cs) added support for not compressed PNG images in chart module (when build without zlib)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 08 Feb 2010 07:15:00 +0200
+
 mfs (1.6.12) unstable; urgency=medium
 
   * (mount) fixed locking in read module
   * (mount,cs) added ability to bind outgoing sockets to specific IP
 
- -- Jakub Bogusz <contact@moosefs.com>  Thu, 25 Jan 2010 13:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 25 Jan 2010 13:00:00 +0200
 
 mfs (1.6.11) unstable; urgency=medium
 

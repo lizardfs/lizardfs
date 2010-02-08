@@ -572,7 +572,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 			do {
 				// r = random <0,psum)
 				r = rndu32()%psum;
-				// choose randomly one of 'j' servers with propability servtab[i].p/psum (for i from 0 to j-1) 
+				// choose randomly one of 'j' servers with propability servtab[i].p/psum (for i from 0 to j-1)
 				for (i=0 ; i<j && r>=servtab[i].p ; i++) {
 					r-=servtab[i].p;
 				}
@@ -1565,7 +1565,7 @@ void matocsserv_read(matocsserventry *eptr) {
 }
 
 void matocsserv_write(matocsserventry *eptr) {
-	packetstruct *pack; 
+	packetstruct *pack;
 	int32_t i;
 	for (;;) {
 		pack = eptr->outputhead;

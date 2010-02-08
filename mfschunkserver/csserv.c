@@ -1139,7 +1139,7 @@ void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t checksum;
-	
+
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%"PRIu32"/12)",length);
 		eptr->state = CLOSE;
@@ -1172,7 +1172,7 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	uint8_t crctab[4096];
-	
+
 	if (length!=8+4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%"PRIu32"/12)",length);
 		eptr->state = CLOSE;
@@ -1243,7 +1243,7 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
-	
+
 	if (length!=4) {
 		syslog(LOG_NOTICE,"CUTOAN_CHART - wrong size (%"PRIu32"/4)",length);
 		eptr->state = CLOSE;
@@ -1265,7 +1265,7 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
-	
+
 	if (length!=4) {
 		syslog(LOG_NOTICE,"CUTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
 		eptr->state = CLOSE;
@@ -1325,7 +1325,7 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 	if (type==ANTOAN_NOP) {
 		return;
 	}
-	if (eptr->state==IDLE) {	
+	if (eptr->state==IDLE) {
 		switch (type) {
 		case CUTOCS_READ:
 			csserv_read_init(eptr,data,length);
