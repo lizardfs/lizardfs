@@ -191,7 +191,7 @@
 	"noowner", \
 	"noattrcache", \
 	"noentrycache", \
-	""
+	"nodatacache"
 
 #define EATTR_DESCRIPTIONS \
 	"every user (except root) sees object as his (her) own", \

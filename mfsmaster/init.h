@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 #include "acl.h"
+#include "datacachemgr.h"
 #include "matomlserv.h"
 #include "matocsserv.h"
 #include "matocuserv.h"
@@ -41,6 +42,7 @@ struct {
 } RunTab[]={
 	{changelog_init,"change log"},
 	{rndinit,"random generator"},
+	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matocuserv_networkinit'
 	{matocuserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
 	{acl_init,"access control list"},
 	{fs_init,"file system manager"},

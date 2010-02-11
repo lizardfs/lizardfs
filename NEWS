@@ -1,5 +1,10 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.17 (2010-07-20)
+
+ - (master,tools) added automatic data cache management
+ - (master,tools) new flag "nodatacache"
+
 * MooseFS 1.6.16 (2010-07-19)
 
  - (master) added clearing suid/sgid bits

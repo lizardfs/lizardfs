@@ -41,6 +41,7 @@
 #include "filesystem.h"
 #include "random.h"
 #include "acl.h"
+#include "datacachemgr.h"
 #include "charts.h"
 #include "cfg.h"
 #include "main.h"
@@ -51,7 +52,7 @@
 // matocuserventry.mode
 enum {KILL,HEADER,DATA};
 // chunklis.type
-enum {FUSE_WRITE,FUSE_SETATTR,FUSE_TRUNCATE};
+enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define NEWSESSION_TIMEOUT (7*86400)
 #define OLDSESSION_TIMEOUT 7200
@@ -523,6 +524,9 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		syslog(LOG_WARNING,"got chunk status, but don't want it");
 		return;
 	}
+	if (status==STATUS_OK) {
+		dcm_modify(inode,eptr->sesdata->sessionid);
+	}
 	switch (type) {
 	case FUSE_WRITE:
 		if (status==STATUS_OK) {
@@ -562,12 +566,11 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 //			}
 //		}
 		return;
-	case FUSE_SETATTR:
 	case FUSE_TRUNCATE:
 		fs_end_setlength(chunkid);
 
 		if (status!=STATUS_OK) {
-			ptr = matocuserv_createpacket(eptr,(type==FUSE_SETATTR)?MATOCU_FUSE_SETATTR:MATOCU_FUSE_TRUNCATE,5);
+			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,5);
 			if (ptr==NULL) {
 				syslog(LOG_NOTICE,"can't allocate memory for packet");
 				eptr->mode = KILL;
@@ -578,7 +581,7 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 			return;
 		}
 		fs_do_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,fleng,attr);
-		ptr = matocuserv_createpacket(eptr,(type==FUSE_SETATTR)?MATOCU_FUSE_SETATTR:MATOCU_FUSE_TRUNCATE,39);
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,39);
 		if (ptr==NULL) {
 			syslog(LOG_NOTICE,"can't allocate memory for packet");
 			eptr->mode = KILL;
@@ -1563,6 +1566,9 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 	if (status==STATUS_OK) {
 		status = fs_do_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,attrlength,attr);
 	}
+	if (status==STATUS_OK) {
+		dcm_modify(inode,eptr->sesdata->sessionid);
+	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,(status!=STATUS_OK)?5:39);
 	if (ptr==NULL) {
 		syslog(LOG_NOTICE,"can't allocate memory for packet");
@@ -1998,6 +2004,7 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
+	int allowcache;
 	if (length!=17) {
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_OPEN - wrong size (%"PRIu32"/17)",length);
 		eptr->mode = KILL;
@@ -2014,6 +2021,10 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 		status = fs_opencheck(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,flags,attr);
 	}
 	if (eptr->version>=0x010609 && status==STATUS_OK) {
+		allowcache = dcm_open(inode,eptr->sesdata->sessionid);
+		if (allowcache==0) {
+			attr[1]&=(0xFF^(MATTR_ALLOWDATACACHE<<4));
+		}
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,39);
 	} else {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,5);
@@ -2135,6 +2146,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	}
 	if (opflag) {	// wait for operation end
 		cl = (chunklist*)malloc(sizeof(chunklist));
+		cl->inode = inode;
 		cl->chunkid = chunkid;
 		cl->qid = msgid;
 		cl->fleng = fleng;
@@ -2142,6 +2154,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 		cl->next = eptr->chunkdelayedops;
 		eptr->chunkdelayedops = cl;
 	} else {	// return status immediately
+		dcm_modify(inode,eptr->sesdata->sessionid);
 		status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 		if (status!=STATUS_OK) {
 			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
@@ -3017,7 +3030,7 @@ void matocu_beforedisconnect(matocuserventry *eptr) {
 	while (cl) {
 		acl = cl;
 		cl=cl->next;
-		if (acl->type == FUSE_SETATTR || acl->type == FUSE_TRUNCATE) {
+		if (acl->type == FUSE_TRUNCATE) {
 			fs_end_setlength(acl->chunkid);
 		}
 		free(acl);

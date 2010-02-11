@@ -1,3 +1,10 @@
+mfs (1.6.17) unstable; urgency=low
+
+  * (master,tools) added automatic data cache management
+  * (master,tools) new flag "nodatacache"
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 20 Jul 2010 10:30:00 +0200
+
 mfs (1.6.16) unstable; urgency=low
 
   * (master) added clearing suid/sgid bits
