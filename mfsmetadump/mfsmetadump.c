@@ -111,7 +111,7 @@ int fs_loadnode(FILE *fd) {
 	uint8_t unodebuff[4+1+2+4+4+4+4+4+4+8+4+2+8*MAX_CHUNKS_PER_FILE+4*65536+4];
 	const uint8_t *ptr;
 	uint8_t type,goal;
-	uint32_t id,uid,gid,atime,mtime,ctime,trashtime;
+	uint32_t nodeid,uid,gid,atime,mtime,ctime,trashtime;
 	uint16_t mode;
 	char c;
 
@@ -179,7 +179,7 @@ int fs_loadnode(FILE *fd) {
 		break;
 	}
 	ptr = unodebuff;
-	id = get32bit(&ptr);
+	nodeid = get32bit(&ptr);
 	goal = get8bit(&ptr);
 	mode = get16bit(&ptr);
 	uid = get32bit(&ptr);
@@ -189,7 +189,7 @@ int fs_loadnode(FILE *fd) {
 	ctime = get32bit(&ptr);
 	trashtime = get32bit(&ptr);
 
-	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|e:%1"PRIX16"|m:%04"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,id,goal,mode>>12,mode&0xFFF,uid,gid,atime,mtime,ctime,trashtime);
+	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|e:%1"PRIX16"|m:%04"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,nodeid,goal,mode>>12,mode&0xFFF,uid,gid,atime,mtime,ctime,trashtime);
 
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		uint32_t rdev;
@@ -270,7 +270,7 @@ int fs_loadedges(FILE *fd) {
 int fs_loadfree(FILE *fd) {
 	uint8_t rbuff[8];
 	const uint8_t *ptr;
-	uint32_t t,id,ftime;
+	uint32_t t,nodeid,ftime;
 	if (fread(rbuff,1,4,fd)!=4) {
 		return -1;
 	}
@@ -282,9 +282,9 @@ int fs_loadfree(FILE *fd) {
 			return -1;
 		}
 		ptr = rbuff;
-		id = get32bit(&ptr);
+		nodeid = get32bit(&ptr);
 		ftime = get32bit(&ptr);
-		printf("I|i:%10"PRIu32"|f:%10"PRIu32"\n",id,ftime);
+		printf("I|i:%10"PRIu32"|f:%10"PRIu32"\n",nodeid,ftime);
 		t--;
 	}
 	return 0;
