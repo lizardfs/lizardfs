@@ -1,5 +1,5 @@
 /*
-   Copyright 2008 Gemius SA.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
 
    This file is part of MooseFS.
 
@@ -24,8 +24,7 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
-const char id2[]="@(#) Copyright 2005 by Gemius S.A.";
+const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
 /* Run Tab */
 typedef int (*runfn)(FILE *msgfd);

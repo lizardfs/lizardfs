@@ -1,5 +1,5 @@
 /*
-   Copyright 2008 Gemius SA.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
 
    This file is part of MooseFS.
 
@@ -24,6 +24,10 @@
 
 #include "MFSCommunication.h"
 #include "datapack.h"
+
+#define STR_AUX(x) #x
+#define STR(x) STR_AUX(x)
+const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
 #define MAX_INDEX 0x7FFF
 #define MAX_CHUNKS_PER_FILE (MAX_INDEX+1)

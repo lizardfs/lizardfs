@@ -1,5 +1,5 @@
 /*
-   Copyright 2008 Gemius SA.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
 
    This file is part of MooseFS.
 
@@ -48,8 +48,7 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id1[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
-const char id2[]="@(#) Copyright by Gemius S.A.";
+const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
 #if defined(__APPLE__)
 #define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=600,iosize=65536"

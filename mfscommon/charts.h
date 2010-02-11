@@ -1,5 +1,5 @@
 /*
-   Copyright 2008 Gemius SA.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
 
    This file is part of MooseFS.
 
