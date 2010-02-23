@@ -285,6 +285,7 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 		usage(outargs->argv[0]);
 		fuse_opt_add_arg(outargs, "-ho");
 		fuse_parse_cmdline(outargs,NULL,NULL,NULL);
+		fuse_mount(NULL,outargs);
 		exit(1);
 	default:
 		fprintf(stderr, "internal error\n");
