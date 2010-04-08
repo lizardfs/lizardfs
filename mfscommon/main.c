@@ -604,8 +604,8 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 	lockfname = cfg_getstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock");
 	lfp=open(lockfname,O_RDWR);
 	if (lfp<0) {
-		free(lockfname);
 		if (errno==ENOENT) {    // no old lock file
+			free(lockfname);
 			return 0;	// ok
 		}
 		syslog(LOG_ERR,"open %s error: %m",lockfname);
