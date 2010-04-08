@@ -61,6 +61,7 @@ typedef struct masterconn {
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
+	uint32_t bindip;
 	uint32_t masterip;
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
@@ -80,6 +81,7 @@ static masterconn *masterconnsingleton=NULL;
 static uint32_t BackLogsNumber;
 static char *MasterHost;
 static char *MasterPort;
+static char *BindHost;
 static uint32_t Timeout;
 
 static uint32_t stats_bytesout=0;
@@ -438,44 +440,79 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->lastread = eptr->lastwrite = main_time();
 }
 
-void masterconn_initconnect(masterconn *eptr) {
+int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
 	int status;
 	if (eptr->masteraddrvalid==0) {
-		uint32_t mip;
+		uint32_t mip,bip;
 		uint16_t mport;
+		if (tcpresolve(BindHost,NULL,&bip,NULL,1)>=0) {
+			eptr->bindip = bip;
+		} else {
+			eptr->bindip = 0;
+		}
 		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
 			eptr->masterip = mip;
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
-		}
-		if (eptr->masteraddrvalid==0) {
-			syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
-			return;
+		} else {
+			if (msgfd) {
+				fprintf(msgfd,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			} else {
+				syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			}
+			return -1;
 		}
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		syslog(LOG_WARNING,"create socket, error: %m");
-		return ;
+		if (msgfd) {
+			fprintf(msgfd,"create socket error (errno:%d)\n",errno);
+		} else {
+			syslog(LOG_WARNING,"create socket, error: %m");
+		}
+		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		syslog(LOG_WARNING,"set nonblock, error: %m");
+		if (msgfd) {
+			fprintf(msgfd,"set nonblock error (errno:%d)\n",errno);
+		} else {
+			syslog(LOG_WARNING,"set nonblock, error: %m");
+		}
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
-		return ;
+		return -1;
+	}
+	if (eptr->bindip>0) {
+		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
+			if (msgfd) {
+				fprintf(msgfd,"can't bind socket to given ip (errno:%d)\n",errno);
+			} else {
+				syslog(LOG_WARNING,"can't bind socket to given ip: %m");
+			}
+			tcpclose(eptr->sock);
+			eptr->sock=-1;
+			return -1;
+		}
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		syslog(LOG_WARNING,"connect failed, error: %m");
+		if (msgfd) {
+			fprintf(msgfd,"connect failed (errno:%d)\n",errno);
+		} else {
+			syslog(LOG_WARNING,"connect failed, error: %m");
+		}
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
-	} else if (status==0) {
+		return -1;
+	}
+	if (status==0) {
 		syslog(LOG_NOTICE,"connected to Master immediately");
 		masterconn_connected(eptr);
 	} else {
 		eptr->mode = CONNECTING;
 		syslog(LOG_NOTICE,"connecting ...");
 	}
+	return 0;
 }
 
 void masterconn_connecttest(masterconn *eptr) {
@@ -677,7 +714,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==FREE) {
-		masterconn_initconnect(eptr);
+		masterconn_initconnect(NULL,eptr);
 	}
 }
 
@@ -694,6 +731,7 @@ int masterconn_init(FILE *msgfd) {
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9419");
+	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
@@ -721,7 +759,9 @@ int masterconn_init(FILE *msgfd) {
 	eptr->logfd = NULL;
 	eptr->metafd = -1;
 
-	masterconn_initconnect(eptr);
+	if (masterconn_initconnect(msgfd,eptr)<0) {
+		return -1;
+	}
 	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);

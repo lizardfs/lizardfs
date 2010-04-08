@@ -1302,7 +1302,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		free(eptr->servstrip);
 	}
 	eptr->servstrip = matocsserv_makestrip(eptr->servip);
-	if (((eptr->servip)&0x7F000000) == 0x7F000000) {
+	if (((eptr->servip)&0xFF000000) == 0x7F000000) {
 		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
 		eptr->mode=KILL;
 		return;
@@ -1738,7 +1738,7 @@ int matocsserv_init(FILE *msgfd) {
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocs: socket error: %m");
-		fprintf(msgfd,"master <-> chunkservers module error: can't create socket\n");
+		fprintf(msgfd,"master <-> chunkservers module: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -1749,7 +1749,7 @@ int matocsserv_init(FILE *msgfd) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocs: listen error: %m");
-		fprintf(msgfd,"master <-> chunkservers module error: can't listen on socket\n");
+		fprintf(msgfd,"master <-> chunkservers module: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matocs: listen on %s:%s",ListenHost,ListenPort);

@@ -584,7 +584,7 @@ int matomlserv_init(FILE *msgfd) {
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matoml: socket error: %m");
-		fprintf(msgfd,"master <-> metaloggers module error: can't create socket\n");
+		fprintf(msgfd,"master <-> metaloggers module: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -595,7 +595,7 @@ int matomlserv_init(FILE *msgfd) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matoml: listen error: %m");
-		fprintf(msgfd,"master <-> metaloggers module error: can't listen on socket\n");
+		fprintf(msgfd,"master <-> metaloggers module: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matoml: listen on %s:%s",ListenHost,ListenPort);

@@ -3554,7 +3554,7 @@ int matocuserv_networkinit(FILE *msgfd) {
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"matocu: socket error: %m");
-		fprintf(msgfd,"main master server module error: can't create socket\n");
+		fprintf(msgfd,"main master server module: can't create socket\n");
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -3565,7 +3565,7 @@ int matocuserv_networkinit(FILE *msgfd) {
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		syslog(LOG_ERR,"matocu: listen error: %m");
-		fprintf(msgfd,"main master server module error: can't listen on socket\n");
+		fprintf(msgfd,"main master server module: can't listen on socket\n");
 		return -1;
 	}
 	syslog(LOG_NOTICE,"matocu: listen on %s:%s",ListenHost,ListenPort);

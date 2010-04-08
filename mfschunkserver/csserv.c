@@ -2177,7 +2177,7 @@ int csserv_init(FILE *msgfd) {
 	lsock = tcpsocket();
 	if (lsock<0) {
 		syslog(LOG_ERR,"csserv: socket error: %m");
-		fprintf(msgfd,"main server module error: can't create socket\n");
+		fprintf(msgfd,"main server module error: can't create socket (errno:%d)\n",errno);
 		return -1;
 	}
 	tcpnonblock(lsock);
@@ -2189,7 +2189,7 @@ int csserv_init(FILE *msgfd) {
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
 		syslog(LOG_ERR,"csserv: listen error: %m");
-		fprintf(msgfd,"main server module error: can't listen on socket\n");
+		fprintf(msgfd,"main server module error: can't listen on socket (errno:%d)\n",errno);
 		return -1;
 	}
 	syslog(LOG_NOTICE,"listen on %s:%s",ListenHost,ListenPort);

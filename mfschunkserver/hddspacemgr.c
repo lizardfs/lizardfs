@@ -3396,7 +3396,7 @@ static void* hdd_folder_scan(void *arg) {
 	free(oldfullname);
 
 	pthread_mutex_lock(&folderlock);
-	fprintf(init_msgfd,"%s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
+	fprintf(init_msgfd,"hdd space manager: %s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
 	pthread_mutex_unlock(&folderlock);
 
 	return NULL;
@@ -3449,8 +3449,8 @@ int hdd_init(FILE *msgfd) {
 	hddfname = cfg_getstr("HDD_CONF_FILENAME",ETC_PATH "/mfshdd.cfg");
 
 	fd = fopen(hddfname,"r");
-	free(hddfname);
 	if (!fd) {
+		free(hddfname);
 		return -1;
 	}
 	while (fgets(buff,999,fd)) {
@@ -3483,31 +3483,41 @@ int hdd_init(FILE *msgfd) {
 			memcpy(lockfname+l,".lock",6);
 			lfp=open(lockfname,O_RDWR|O_CREAT|O_TRUNC,0640);
 			if (lfp<0) {
+				fprintf(msgfd,"hdd space manager: can't create lock file '%s' (errno:%d)\n",lockfname,errno);
 				syslog(LOG_ERR,"can't create lock file '%s': %m",lockfname);
 				free(lockfname);
+				free(hddfname);
 				return -1;
 			}
 			if (lockf(lfp,F_TLOCK,0)<0) {
 				if (errno==EAGAIN) {
+					fprintf(msgfd,"hdd space manager: data folder '%s' already locked (used by another process)\n",pptr);
 					syslog(LOG_ERR,"data folder '%s' already locked (used by another process)",pptr);
 				} else {
+					fprintf(msgfd,"hdd space manager: lockf '%s' error (errno:%d)\n",lockfname,errno);
 					syslog(LOG_NOTICE,"lockf '%s' error: %m",lockfname);
 				}
 				free(lockfname);
+				free(hddfname);
 				return -1;
 			}
 			if (fstat(lfp,&sb)<0) {
+				fprintf(msgfd,"hdd space manager: fstat '%s' error (errno:%d)\n",lockfname,errno);
 				syslog(LOG_NOTICE,"fstat '%s' error: %m",lockfname);
 				free(lockfname);
+				free(hddfname);
 				return -1;
 			}
 			free(lockfname);
 			for (sf=folderhead ; sf ; sf=sf->next) {
 				if (sf->devid==sb.st_dev) {
 					if (sf->lockinode==sb.st_ino) {
+						fprintf(msgfd,"hdd space manager: data folder '%s' already locked (used by another process)\n",pptr);
 						syslog(LOG_ERR,"data folder '%s' already locked (used by this process)",pptr);
+						free(hddfname);
 						return -1;
 					} else {
+						fprintf(msgfd,"hdd space manager: data folders '%s' and '%s' are on the same physical device (could lead to unexpected behaviours)\n",pptr,sf->path);
 						syslog(LOG_WARNING,"data folders '%s' and '%s' are on the same physical device (could lead to unexpected behaviours)",pptr,sf->path);
 					}
 				}
@@ -3543,9 +3553,12 @@ int hdd_init(FILE *msgfd) {
 	}
 
 	if (folderhead==NULL) {
+		fprintf(msgfd,"hdd space manager: no hdd space defined in %s file\n",hddfname);
 		syslog(LOG_ERR,"no hdd space !!!");
+		free(hddfname);
 		return -1;
 	}
+	free(hddfname);
 
 	init_msgfd = msgfd;
 	pthread_attr_init(&thattr);
@@ -3553,7 +3566,7 @@ int hdd_init(FILE *msgfd) {
 
 	/* make advantage from thread safety and scan folders in separate threads */
 	for (f=folderhead ; f ; f=f->next) {
-		fprintf(msgfd,"scanning folder %s ...\n",f->path);
+		fprintf(msgfd,"hdd space manager: scanning folder %s ...\n",f->path);
 		pthread_create(&(f->scanthread),&thattr,hdd_folder_scan,f);
 	}
 	for (f=folderhead ; f ; f=f->next) {
@@ -3561,7 +3574,7 @@ int hdd_init(FILE *msgfd) {
 		hdd_refresh_usage(f);
 		f->needrefresh = 0;
 	}
-	fprintf(msgfd,"scanning complete\n");
+	fprintf(msgfd,"hdd space manager: scanning complete\n");
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	if (HDDTestFreq>0) {
 		for (f=folderhead ; f ; f=f->next) {

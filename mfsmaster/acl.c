@@ -56,6 +56,36 @@ typedef struct _acl {
 static acl *acl_records;
 static char *ExportsFileName;
 
+char* acl_strsep(char **stringp, const char *delim) {
+	char *s;
+	const char *spanp;
+	int c, sc;
+	char *tok;
+
+	s = *stringp;
+	if (s==NULL) {
+		return NULL;
+	}
+	tok = s;
+	while (1) {
+		c = *s++;
+		spanp = delim;
+		do {
+			if ((sc=*spanp++)==c) {
+				if (c==0) {
+					s = NULL;
+				} else {
+					s[-1] = 0;
+				}
+				*stringp = s;
+				return tok;
+			}
+		} while (sc!=0);
+	}
+	return NULL;	// unreachable
+}
+
+
 uint32_t acl_info_size(void) {
 	acl *e;
 	uint32_t size=0;
@@ -486,7 +516,7 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 	int o;
 	md5ctx ctx;
 
-	while ((p=strsep(&opts,","))) {
+	while ((p=acl_strsep(&opts,","))) {
 		o=0;
 //		syslog(LOG_WARNING,"option: %s",p);
 		switch (*p) {
@@ -755,9 +785,24 @@ void acl_loadexports(FILE *msgfd) {
 			syslog(LOG_WARNING,"can't open mfsexports file: %m");
 		}
 */
-		syslog(LOG_WARNING,"can't open mfsexports file: %m - exports not changed");
-		if (msgfd) {
-			fprintf(msgfd,"can't open mfsexports file - using defaults\n");
+		if (errno==ENOENT) {
+			if (acl_records) {
+				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - exports not changed",ExportsFileName);
+			} else {
+				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - no exports !!!",ExportsFileName);
+			}
+			if (msgfd) {
+				fprintf(msgfd,"mfsexports configuration file (%s) not found - please create one (you can copy %s.dist to get a base configuration)\n",ExportsFileName,ExportsFileName);
+			}
+		} else {
+			if (acl_records) {
+				syslog(LOG_WARNING,"can't open mfsexports configuration file (%s): %m - exports not changed",ExportsFileName);
+			} else {
+				syslog(LOG_WARNING,"can't open mfsexports configuration file (%s): %m - no exports !!!",ExportsFileName);
+			}
+			if (msgfd) {
+				fprintf(msgfd,"can't open mfsexports configuration file (%s)\n",ExportsFileName);
+			}
 		}
 		return;
 	}
@@ -808,6 +853,10 @@ int acl_init(FILE *msgfd) {
 	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
 	acl_records = NULL;
 	acl_loadexports(msgfd);
+	if (acl_records==NULL) {
+		fprintf(msgfd,"no exports defined !!!\n");
+		return -1;
+	}
 	main_reloadregister(acl_reloadexports);
 	return 0;
 }

@@ -18,11 +18,15 @@
 
 #include "config.h"
 
+#if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
+#define MFS_USE_MEMLOCK
+#endif
+
 #include <fuse_lowlevel.h>
 #include <fuse_opt.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 #include <sys/mman.h>
 #endif
 #include <unistd.h>
@@ -30,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -118,7 +123,7 @@ struct mfsopts {
 	char *md5pass;
 	unsigned nofile;
 	signed nice;
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	int memlock;
 #endif
 	int nostdmountoptions;
@@ -160,7 +165,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
 	MFS_OPT("mfsnice=%d", nice, 0),
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	MFS_OPT("mfsmemlock", memlock, 1),
 #endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
@@ -217,7 +222,7 @@ static void usage(const char *progname) {
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 "    -o mfsmemlock               try to lock memory\n"
 #endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
@@ -436,7 +441,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	setrlimit(RLIMIT_NOFILE,&rls);
 
 	setpriority(PRIO_PROCESS,getpid(),mfsopts.nice);
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	if (mfsopts.memlock) {
 		rls.rlim_cur = RLIM_INFINITY;
 		rls.rlim_max = RLIM_INFINITY;
@@ -469,7 +474,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 
 
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	if (mfsopts.memlock) {
 		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
 			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
@@ -697,7 +702,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.md5pass = NULL;
 	mfsopts.nofile = 0;
 	mfsopts.nice = -19;
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	mfsopts.memlock = 0;
 #endif
 	mfsopts.nostdmountoptions = 0;

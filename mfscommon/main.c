@@ -22,11 +22,15 @@
 #define MFSMAXFILES 5000
 #endif
 
+#if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
+#define MFS_USE_MEMLOCK
+#endif
+
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 #include <sys/mman.h>
 #endif
 #include <signal.h>
@@ -37,6 +41,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <sys/resource.h>
 #include <grp.h>
@@ -377,7 +382,11 @@ void set_signal_handlers(void) {
 	struct sigaction sa;
 	uint32_t i;
 
+#ifdef SA_RESTART
 	sa.sa_flags = SA_RESTART;
+#else
+	sa.sa_flags = 0;
+#endif
 	sigemptyset(&sa.sa_mask);
 
 	sa.sa_handler = termhandle;
@@ -822,7 +831,10 @@ int main(int argc,char **argv) {
 	char *appname;
 	int ch;
 	uint8_t runmode;
-	int rundaemon,logundefined,lockmemory;
+	int rundaemon,logundefined;
+#ifdef MFS_USE_MEMLOCK
+	int lockmemory;
+#endif
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
@@ -918,7 +930,7 @@ int main(int argc,char **argv) {
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
 		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
 	}
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	lockmemory = cfg_getnum("LOCK_MEMORY",0);
 	if (lockmemory) {
 		rls.rlim_cur = RLIM_INFINITY;
@@ -968,7 +980,7 @@ int main(int argc,char **argv) {
 		return 0;
 	}
 
-#ifdef HAVE_MLOCKALL
+#ifdef MFS_USE_MEMLOCK
 	if (lockmemory) {
 		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
 			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");

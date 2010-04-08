@@ -36,8 +36,8 @@ struct {
 	char *name;
 } RunTab[]={
 	{hdd_init,"hdd space manager"},
-	{csserv_init,"chunkserver server"},	/* heve to be before "masterconn" */
-	{masterconn_init,"connection with master"},
+	{csserv_init,"main server module"},	/* heve to be before "masterconn" */
+	{masterconn_init,"master connection module"},
 	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}
 };
