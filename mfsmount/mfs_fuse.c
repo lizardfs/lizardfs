@@ -39,6 +39,10 @@
 
 #include "dirattrcache.h"
 
+#if MFS_ROOT_ID != FUSE_ROOT_ID
+#error FUSE_ROOT_ID is not equal to MFS_ROOT_ID
+#endif
+
 #define READDIR_BUFFSIZE 50000
 
 #define MAX_FILE_SIZE MFS_MAX_FILE_SIZE
@@ -59,38 +63,6 @@ static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,
 #define STATS_INODE 0x7FFFFFF0
 // 0x01A4 == 0b110100100 == 0644
 static uint8_t statsattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
-/*
-static char statsfile[]=
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.getattr              : %20"PRIu64"\n"
-"fuseop.setattr              : %20"PRIu64"\n"
-"fuseop.lookup               : %20"PRIu64"\n"
-"fuseop.access               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"fuseop.statfs               : %20"PRIu64"\n"
-"master.reconnections        : %20"PRIu64"\n"
-"master.datasent             : %20"PRIu64"\n"
-"master.datareceived         : %20"PRIu64"\n"
-"master.packetssent          : %20"PRIu64"\n"
-"master.packetreceived       : %20"PRIu64"\n"
-"chunkservers.connections    : %20"PRIu64"\n"
-"chunkservers.datasent       : %20"PRIu64"\n"
-"chunkservers.datareceived   : %20"PRIu64"\n"
-"chunkservers.packetsent     : %20"PRIu64"\n"
-"chunkservers.packetreceived : %20"PRIu64"\n";
-*/
-
-//typedef struct _minfo {
-//	int sd;
-//	int sent;
-//} minfo;
 
 typedef struct _sinfo {
 	char *buff;
@@ -125,8 +97,6 @@ static double attr_cache_timeout = 0.1;
 
 //static int local_mode = 0;
 //static int no_attr_cache = 0;
-
-static uint32_t root_inode = 1;
 
 enum {
 	OP_STATFS = 0,
@@ -268,9 +238,6 @@ static int mfs_errorconv(int status) {
 }
 
 static void mfs_type_to_stat(uint32_t inode,uint8_t type, struct stat *stbuf) {
-	if (inode==root_inode) {
-		inode=FUSE_ROOT_ID;
-	}
 	memset(stbuf,0,sizeof(struct stat));
 	stbuf->st_ino = inode;
 	switch (type) {
@@ -319,9 +286,6 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 	attrmtime = get32bit(&ptr);
 	attrctime = get32bit(&ptr);
 	attrnlink = get32bit(&ptr);
-	if (inode==root_inode) {
-		inode=FUSE_ROOT_ID;
-	}
 	stbuf->st_ino = inode;
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
@@ -493,9 +457,6 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 	}
 #endif
 	ctx = fuse_req_ctx(req);
-	if (ino==FUSE_ROOT_ID) {
-		ino=root_inode;
-	}
 //	if (ino==MASTER_INODE) {
 //		fuse_reply_err(req,0);
 //		return;
@@ -537,7 +498,6 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		return;
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (nleng==2 && name[0]=='.' && name[1]=='.') {
 			nleng=1;
 		}
@@ -588,15 +548,6 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		fuse_reply_err(req, status);
 		return;
 	}
-	if (inode==root_inode) {
-		inode=FUSE_ROOT_ID;
-		status = fs_getattr(inode,ctx->uid,ctx->gid,attr);
-		status = mfs_errorconv(status);
-		if (status!=0) {
-			fuse_reply_err(req, status);
-			return;
-		}
-	}
 	if (attr[0]==TYPE_FILE) {
 		maxfleng = write_data_getmaxfleng(inode);
 	} else {
@@ -628,9 +579,6 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 //	mfs_stats_inc(OP_GETATTR);
 	if (debug_mode) {
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
-	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
 	}
 //	if (ino==MASTER_INODE) {
 //		memset(&o_stbuf, 0, sizeof(struct stat));
@@ -673,9 +621,6 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		fuse_reply_err(req, status);
 		return;
 	}
-	if (ino==root_inode) {
-		ino=FUSE_ROOT_ID;
-	}
 	if (attr[0]==TYPE_FILE) {
 		maxfleng = write_data_getmaxfleng(ino);
 	} else {
@@ -700,9 +645,6 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
 		fprintf(stderr,"setattr (%lu,%u,(%04o,%u,%u,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,stbuf->st_mode & 07777,stbuf->st_uid,stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
-	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
 	}
 	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE) {
 		fuse_reply_err(req, EPERM);
@@ -775,9 +717,6 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		fuse_reply_err(req, status);
 		return;
 	}
-	if (ino==root_inode) {
-		ino = FUSE_ROOT_ID;
-	}
 	if (attr[0]==TYPE_FILE) {
 		maxfleng = write_data_getmaxfleng(ino);
 	} else {
@@ -826,7 +765,6 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	}
 
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -859,7 +797,6 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -896,7 +833,6 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		fprintf(stderr,"mkdir (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -934,7 +870,6 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -970,7 +905,6 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -1006,9 +940,6 @@ void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 	if (debug_mode) {
 		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
 	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
-	}
 	status = fs_readlink(ino,&path);
 	status = mfs_errorconv(status);
 	if (status!=0) {
@@ -1028,14 +959,12 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
 		}
 	}
 	if (newparent==FUSE_ROOT_ID) {
-		newparent = root_inode;
 		if (/*strcmp(newname,MASTER_NAME)==0 || */strcmp(newname,MASTERINFO_NAME)==0 || strcmp(newname,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -1075,15 +1004,11 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	if (debug_mode) {
 		fprintf(stderr,"link (%lu,%lu,%s)\n",(unsigned long int)ino,(unsigned long int)newparent,newname);
 	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
-	}
 	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
 		fuse_reply_err(req, EACCES);
 		return;
 	}
 	if (newparent==FUSE_ROOT_ID) {
-		newparent = root_inode;
 		if (/*strcmp(newname,MASTER_NAME)==0 || */strcmp(newname,MASTERINFO_NAME)==0 || strcmp(newname,STATS_NAME)==0) {
 			fuse_reply_err(req, EACCES);
 			return;
@@ -1120,9 +1045,6 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	mfs_stats_inc(OP_OPENDIR);
 	if (debug_mode) {
 		fprintf(stderr,"opendir (%lu)\n",(unsigned long int)ino);
-	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
 	}
 	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE || ino==STATS_INODE) {
 		fuse_reply_err(req, ENOTDIR);
@@ -1175,9 +1097,6 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		const uint8_t *dbuff;
 		uint32_t dsize;
 		ctx = fuse_req_ctx(req);
-		if (ino==FUSE_ROOT_ID) {
-			ino = root_inode;
-		}
 		if (usedircache) {
 			status = fs_getdir_plus(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
 		} else {
@@ -1229,12 +1148,6 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			off+=nleng+(usedircache?40:6);
 			if (ptr+5<=eptr) {
 				inode = get32bit(&ptr);
-				if (ino==root_inode && name[0]=='.' && name[1]=='.' && name[2]==0) {
-					inode = FUSE_ROOT_ID;
-				}
-				if (inode==root_inode) {
-					inode = FUSE_ROOT_ID;
-				}
 				if (usedircache) {
 					mfs_attr_to_stat(inode,ptr,&stbuf);
 					ptr+=35;
@@ -1334,7 +1247,6 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		fprintf(stderr,"create (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
-		parent = root_inode;
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
 			fuse_reply_err(req,EACCES);
 			return;
@@ -1403,10 +1315,6 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (debug_mode) {
 		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
 	}
-	if (ino==FUSE_ROOT_ID) {
-		ino = root_inode;
-	}
-
 //	if (ino==MASTER_INODE) {
 //		minfo *masterinfo;
 //		status = fs_direct_connect();

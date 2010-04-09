@@ -2224,7 +2224,7 @@ static inline void fsnodes_seteattr_recursive(fsnode *node,uint32_t ts,uint32_t 
 	}
 }
 
-static void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint32_t nleng,const uint8_t *name) {
+static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint32_t nleng,const uint8_t *name) {
 	fsedge *e;
 	fsnode *dstnode;
 	uint32_t i;
@@ -2258,7 +2258,9 @@ static void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint
 #endif
 				dstnode->goal = srcnode->goal;
 				dstnode->trashtime = srcnode->trashtime;
-				dstnode->mode = srcnode->mode;
+//				dstnode->mode = srcnode->mode;
+//				dstnode->atime = srcnode->atime;
+//				dstnode->mtime = srcnode->mtime;
 				dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
 				dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
 				for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
@@ -2303,6 +2305,12 @@ static void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint
 		} else if (srcnode->type==TYPE_BLOCKDEV || srcnode->type==TYPE_CHARDEV) {
 			dstnode->data.rdev = srcnode->data.rdev;
 		}
+		dstnode->mode = srcnode->mode;
+		dstnode->uid = srcnode->uid;
+		dstnode->gid = srcnode->gid;
+		dstnode->atime = srcnode->atime;
+		dstnode->mtime = srcnode->mtime;
+		dstnode->ctime = ts;
 	} else {
 		if (srcnode->type==TYPE_FILE || srcnode->type==TYPE_DIRECTORY || srcnode->type==TYPE_SYMLINK || srcnode->type==TYPE_BLOCKDEV || srcnode->type==TYPE_CHARDEV || srcnode->type==TYPE_SOCKET || srcnode->type==TYPE_FIFO) {
 #ifndef METARESTORE
@@ -2315,6 +2323,8 @@ static void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint
 			dstnode->goal = srcnode->goal;
 			dstnode->trashtime = srcnode->trashtime;
 			dstnode->mode = srcnode->mode;
+			dstnode->atime = srcnode->atime;
+			dstnode->mtime = srcnode->mtime;
 			if (srcnode->type==TYPE_DIRECTORY) {
 				for (e = srcnode->data.ddata.children ; e ; e=e->nextchild) {
 					fsnodes_snapshot(ts,e->child,dstnode,e->nleng,e->name);
@@ -2355,7 +2365,7 @@ static void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentnode,uint
 	}
 }
 
-static uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,fsnode *parentnode,uint32_t nleng,const uint8_t *name,uint8_t canoverwrite) {
+static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,fsnode *parentnode,uint32_t nleng,const uint8_t *name,uint8_t canoverwrite) {
 	fsedge *e;
 	fsnode *dstnode;
 	uint8_t status;
@@ -3905,7 +3915,7 @@ uint8_t fs_snapshot(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint16_t 
 		return ERROR_EPERM;
 	}
 	if (sp->type==TYPE_DIRECTORY) {
-		if (fsnodes_isancestor(sp,dwd)) {
+		if (sp==dwd || fsnodes_isancestor(sp,dwd)) {
 			return ERROR_EINVAL;
 		}
 	}
@@ -4579,6 +4589,7 @@ uint8_t fs_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion) {
 	} else {
 		status = chunk_set_version(p->data.fdata.chunktab[indx],nversion);
 	}
+	version++;
 	p->mtime = p->ctime = ts;
 	return status;
 }
@@ -7252,7 +7263,35 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	if (fd==NULL) {
 		fprintf(msgfd,"can't open metadata file\n");
 #ifndef METARESTORE
-		fprintf(msgfd,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs\n");
+		{
+#if defined(HAVE_GETCWD)
+#ifndef PATH_MAX
+#define PATH_MAX 10000
+#endif
+			char cwdbuf[PATH_MAX+1];
+			int cwdlen;
+			if (getcwd(cwdbuf,PATH_MAX)==NULL) {
+				cwdbuf[0]=0;
+			} else {
+				cwdlen = strlen(cwdbuf);
+				if (cwdlen>0 && cwdlen<PATH_MAX-1 && cwdbuf[cwdlen-1]!='/') {
+					cwdbuf[cwdlen]='/';
+					cwdbuf[cwdlen+1]=0;
+				} else {
+					cwdbuf[0]=0;
+				}
+			}
+
+#else
+			char cwdbuf[1];
+			cwdbuf[0]=0;
+#endif
+			if (cwdbuf[0]) {
+				fprintf(msgfd,"if this is new instalation then rename %smetadata.mfs.empty as %smetadata.mfs\n",cwdbuf,cwdbuf);
+			} else {
+				fprintf(msgfd,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs (in current working directory)\n");
+			}
+		}
 		syslog(LOG_ERR,"can't open metadata file");
 #endif
 		return -1;

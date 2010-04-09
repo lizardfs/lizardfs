@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.14], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.15], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -88,7 +88,7 @@ AC_FUNC_STAT
 AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
 
 # optional system functions
-AC_CHECK_FUNCS([dup2 mlockall])
+AC_CHECK_FUNCS([dup2 mlockall getcwd])
 
 # optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev perror])
@@ -128,11 +128,22 @@ AC_ARG_ENABLE([mfschunkserver], [AS_HELP_STRING([--disable-mfschunkserver], [Don
 AC_ARG_ENABLE([mfsmount], [AS_HELP_STRING([--disable-mfsmount], [Don't build mfsmount])])
 AC_ARG_ENABLE([mfscgi], [AS_HELP_STRING([--disable-mfscgi], [Don't install CGI scripts])])
 AC_ARG_ENABLE([mfscgiserv], [AS_HELP_STRING([--disable-mfscgiserv], [Don't install CGI server])])
-AC_ARG_WITH([mfscgi-dir], [AC_HELP_STRING([--with-mfscgi-dir=CGIDIR], [Choose CGI directory (default=DATADIR/mfscgi)])],
+AC_ARG_WITH([mfscgi-dir], [AS_HELP_STRING([--with-mfscgi-dir=CGIDIR], [Choose CGI directory (default=DATADIR/mfscgi)])],
 	[CGIDIR=$withval], [CGIDIR=$datadir/mfscgi])
-AC_ARG_WITH([mfscgiserv-dir], [AC_HELP_STRING([--with-mfscgiserv-dir=CGISERVDIR], [Choose CGI directory (default=SBINDIR)])],
+AC_ARG_WITH([mfscgiserv-dir], [AS_HELP_STRING([--with-mfscgiserv-dir=CGISERVDIR], [Choose CGI directory (default=SBINDIR)])],
 	[CGISERVDIR=$withval], [CGISERVDIR=$sbindir])
 AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib], [Don't use zlib for PNG compression])], [use_zlib=$withval], [use_zlib=yes])
+
+dnl if test "$enable_mfsmaster" = "no" -a "$enable_mfschunkserver" = "no" -a "$enable_mfsmount" = "no" -a "$enable_mfscgi" = "no" -a "$enable_mfscgiserv" = "no"; then
+dnl	echo "**********************************"
+dnl	echo "* no modules choosen - build all *"
+dnl	echo "**********************************"
+dnl	enable_mfsmaster=yes
+dnl	enable_mfschunkserver=yes
+dnl	enable_mfsmount=yes
+dnl	enable_mfscgi=yes
+dnl	enable_mfscgiserv=yes
+dnl fi
 
 if test "$enable_mfscgi" != "no"; then
 	AM_PATH_PYTHON([2.0],,[:])

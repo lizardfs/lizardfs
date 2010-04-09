@@ -1,5 +1,20 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.15 (2010-04-09)
+
+ - (daemons) fixed "double free" error
+ - (metarestore) fixed bugs in "REPAIR" and "SNAPSHOT" entries
+ - (master) fixed bug in "snapshot" command ("mfsmakesnapshot dir dir/" caused master to hung-up)
+ - (master) preserving atime and mtime during "snapshot" operation (makes "snapshot" to work more like "cp -Rp" than "cp -R")
+ - (cs) ommit "market for removal" disks during chunk test loop
+
+* MooseFS 1.6.14 (2010-03-19)
+
+ - (all) improved messages
+ - (cs) prevent from using localhost as a master IP address
+ - (all) remove some BSDisms from code
+ - (metalogger) added BIND_HOST option (as in mount and cs)
+
 * MooseFS 1.6.13 (2010-02-08)
 
  - (master) fixed poll events bug

@@ -3131,8 +3131,8 @@ void* hdd_tester_thread(void* arg) {
 			if (f==NULL) {
 				f=folderhead;
 			}
-		} while (f->damaged && of!=f);
-		if (of==f && f->damaged) {	// all folders have status "damaged", so no more work to do.
+		} while ((f->damaged || f->todel) && of!=f);
+		if (of==f && (f->damaged || f->todel)) {	// all folders have status "damaged" and or "marked for removal", so no more work to do.
 			pthread_mutex_unlock(&testlock);
 			pthread_mutex_unlock(&hashlock);
 			pthread_mutex_unlock(&folderlock);

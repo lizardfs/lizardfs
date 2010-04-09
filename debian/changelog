@@ -1,10 +1,33 @@
+mfs (1.6.15) unstable; urgency=medium
+
+  * (daemons) fixed "double free" error
+  * (metarestore) fixed bugs in "REPAIR" and "SNAPSHOT" entries
+  * (master) fixed bug in "snapshot" command ("mfsmakesnapshot dir dir/"
+    caused master to hung-up)
+  * (master) preserving atime and mtime during "snapshot" operation (makes
+    "snapshot" to work more like "cp -Rp" than "cp -R")
+  * (cs) ommit "market for removal" disks during chunk test loop
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 09 Apr 2010 12:00:00 +0200
+
+mfs (1.6.14) unstable; urgency=low
+
+  * (all) improved messages
+  * (cs) prevent from using localhost as a master IP address
+  * (all) remove some BSDisms from code
+  * (metalogger) added BIND_HOST option (as in mount and cs)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 19 Mar 2010 12:00:00 +0200
+
 mfs (1.6.13) unstable; urgency=low
 
   * (master) fixed poll events bug
   * (autotools) added m4 module for posix threads detection
   * (master) added exporting "meta" to default mfsexports.cfg
-  * (master,tools) removed "allowdatacache" flag (will be managed automatically in the future)
-  * (master,cs) added support for not compressed PNG images in chart module (when build without zlib)
+  * (master,tools) removed "allowdatacache" flag (will be managed
+    automatically in the future)
+  * (master,cs) added support for not compressed PNG images in chart module
+    (when build without zlib)
 
  -- Jakub Bogusz <contact@moosefs.com>  Mon, 08 Feb 2010 07:15:00 +0200
 

@@ -433,6 +433,7 @@ uint8_t do_snapshot(uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(parent,ptr);
 	EAT(ptr,lv,',');
 	GETNAME(name,ptr,lv,',');
+	EAT(ptr,lv,',');
 	GETU32(canoverwrite,ptr);
 	EAT(ptr,lv,')');
 	return fs_snapshot(ts,inode,parent,strlen((char*)name),name,canoverwrite);
