@@ -15,9 +15,10 @@ mfsmaster_SOURCES=\
 	chartsdata.c chartsdata.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
+	../mfscommon/cfg.c ../mfscommon/cfg.h \
+	../mfscommon/md5.c ../mfscommon/md5.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/charts.c ../mfscommon/charts.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
-
-mfsmaster_LDADD=../mfscommon/libmfscommon.a

@@ -4,7 +4,7 @@ AM_CPPFLAGS=-I$(top_srcdir)/mfscommon
 
 
 
-mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS) ../mfscommon/libmfscommon.a
+mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS)
 mfsmount_CFLAGS=$(PTHREAD_CFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -D__DARWIN_64_BIT_INO_T=0 -DAPPNAME=mfsmount
 mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -I$(top_srcdir)/mfscommon
 
@@ -22,10 +22,12 @@ mfsmount_SOURCES=\
 	../mfscommon/th_sem.c ../mfscommon/th_sem.h \
 	../mfscommon/th_queue.c ../mfscommon/th_queue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/md5.c ../mfscommon/md5.h \
+	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 
-mfstools_LDADD=-lm ../mfscommon/libmfscommon.a
+mfstools_LDADD=-lm
 
 mfstools_SOURCES=\
 	mfstools.c \

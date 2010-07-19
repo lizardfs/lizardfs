@@ -469,7 +469,10 @@ static inline void hdd_stats_write(uint32_t size) {
 	pthread_mutex_unlock(&statslock);
 }
 
-static inline void hdd_stats_dataread(folder *f,uint32_t size,uint64_t rtime) {
+static inline void hdd_stats_dataread(folder *f,uint32_t size,int64_t rtime) {
+	if (rtime<=0) {
+		return;
+	}
 	pthread_mutex_lock(&statslock);
 	stats_dataopr++;
 	stats_databytesr += size;
@@ -483,7 +486,10 @@ static inline void hdd_stats_dataread(folder *f,uint32_t size,uint64_t rtime) {
 	pthread_mutex_unlock(&statslock);
 }
 
-static inline void hdd_stats_datawrite(folder *f,uint32_t size,uint64_t wtime) {
+static inline void hdd_stats_datawrite(folder *f,uint32_t size,int64_t wtime) {
+	if (wtime<=0) {
+		return;
+	}
 	pthread_mutex_lock(&statslock);
 	stats_dataopw++;
 	stats_databytesw += size;
@@ -497,7 +503,10 @@ static inline void hdd_stats_datawrite(folder *f,uint32_t size,uint64_t wtime) {
 	pthread_mutex_unlock(&statslock);
 }
 
-static inline void hdd_stats_datafsync(folder *f,uint64_t fsynctime) {
+static inline void hdd_stats_datafsync(folder *f,int64_t fsynctime) {
+	if (fsynctime<=0) {
+		return;
+	}
 	pthread_mutex_lock(&statslock);
 	stats_wtime += fsynctime;
 	f->cstat.fsyncops++;

@@ -644,7 +644,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 
 	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
-		fprintf(stderr,"setattr (%lu,%u,(%04o,%u,%u,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,stbuf->st_mode & 07777,stbuf->st_uid,stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
+		fprintf(stderr,"setattr (%lu,%u,(%04o,%ld,%ld,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
 	}
 	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE) {
 		fuse_reply_err(req, EPERM);
@@ -659,7 +659,8 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	status = EINVAL;
 	ctx = fuse_req_ctx(req);
 	if ((to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME|FUSE_SET_ATTR_SIZE)) == 0) {	// change other flags or change nothing
-		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+//		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+		status = fs_setattr(ino,ctx->uid,ctx->gid,0,0,0,0,0,0,attr);	// ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
@@ -742,7 +743,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 
 	mfs_stats_inc(OP_MKNOD);
 	if (debug_mode) {
-		fprintf(stderr,"mknod (%lu,%s,%04o,%08lX)\n",(unsigned long int)parent,name,mode,(unsigned long int)rdev);
+		fprintf(stderr,"mknod (%lu,%s,%04o,%08lX)\n",(unsigned long int)parent,name,(unsigned int)mode,(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
@@ -830,7 +831,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 
 	mfs_stats_inc(OP_MKDIR);
 	if (debug_mode) {
-		fprintf(stderr,"mkdir (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
+		fprintf(stderr,"mkdir (%lu,%s,%04o)\n",(unsigned long int)parent,name,(unsigned int)mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {
@@ -1244,7 +1245,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 
 	mfs_stats_inc(OP_CREATE);
 	if (debug_mode) {
-		fprintf(stderr,"create (%lu,%s,%04o)\n",(unsigned long int)parent,name,mode);
+		fprintf(stderr,"create (%lu,%s,%04o)\n",(unsigned long int)parent,name,(unsigned int)mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (/*strcmp(name,MASTER_NAME)==0 || */strcmp(name,MASTERINFO_NAME)==0 || strcmp(name,STATS_NAME)==0) {

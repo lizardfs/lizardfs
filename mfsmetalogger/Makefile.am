@@ -7,8 +7,8 @@ mfsmetalogger_SOURCES= \
 	masterconn.c masterconn.h \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
+	../mfscommon/cfg.c ../mfscommon/cfg.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
-
-mfsmetalogger_LDADD=../mfscommon/libmfscommon.a

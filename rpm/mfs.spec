@@ -1,6 +1,6 @@
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.15
+Version:	1.6.16
 Release:	1
 License:	GPL v3
 Group:		System Environment/Daemons
@@ -143,9 +143,13 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_sbindir}/mfscgiserv
+%{_mandir}/man8/mfscgiserv.8*
 %{_datadir}/mfscgi
 
 %changelog
+* Mon Jul 19 2010 Jakub Kruszona-Zawadzki <contact@moosefs.com> - 1.6.16-1
+- added mfscgiserv man page
+
 * Fri Jun 11 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.15-1
 - initial spec file, based on Debian packaging;
   partially inspired by spec file by Kirby Zhou

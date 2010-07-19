@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.15], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.16], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -27,7 +27,31 @@ if test "$GCC" = "yes"; then
 dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
-CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
+case $target_os in
+  *linux*)
+	fuse=maybe
+	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
+	;;
+  *solaris*)
+	# OpenSolaris has fuse available and is still identified as "solaris"
+	fuse=maybe
+	CPPFLAGS="$CPPFLAGS -D__EXTENSIONS__"
+	;;
+  *darwin*)
+	fuse=maybe
+	# MacFUSE installs to different prefix than pkgconfig
+	if test -f /usr/local/lib/pkgconfig/fuse.pc ; then
+		PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+		export PKG_CONFIG_PATH
+	fi
+	;;
+  *bsd*)
+	fuse=maybe
+	;;
+  *)
+	fuse=no
+	;;
+esac
 
 AX_PTHREAD(, [AC_MSG_ERROR([Posix threads not found])])
 dnl AC_CHECK_LIB([pthread], [pthread_create])
@@ -98,30 +122,6 @@ dnl AC_CHECK_FUNCS([pthread_spin_lock])
 
 dnl optional interfaces (Linux, FreeBSD)
 dnl AC_CHECK_FUNCS([fopencookie funopen])
-
-case $target_os in
-  *linux*)
-	fuse=maybe
-	;;
-  *solaris*)
-	# OpenSolaris has fuse available and is still identified as "solaris"
-	fuse=maybe
-	;;
-  *darwin*)
-	fuse=maybe
-	# MacFUSE installs to different prefix than pkgconfig
-	if test -f /usr/local/lib/pkgconfig/fuse.pc ; then
-		PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
-		export PKG_CONFIG_PATH
-	fi
-	;;
-  *bsd*)
-	fuse=maybe
-	;;
-  *)
-	fuse=no
-	;;
-esac
 
 AC_ARG_ENABLE([mfsmaster], [AS_HELP_STRING([--disable-mfsmaster], [Don't build mfsmaster])])
 AC_ARG_ENABLE([mfschunkserver], [AS_HELP_STRING([--disable-mfschunkserver], [Don't build mfschunkserver])])
@@ -257,7 +257,6 @@ AC_SUBST([DEFAULT_GROUP])
 
 AC_CONFIG_FILES([Makefile
 		doc/Makefile
-		mfscommon/Makefile
 		mfschunkserver/Makefile
 		mfscgi/Makefile
 		mfsdata/Makefile

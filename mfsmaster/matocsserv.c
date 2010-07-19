@@ -41,7 +41,7 @@
 #include "chunks.h"
 #include "random.h"
 
-#define MaxPacketSize 50000000
+#define MaxPacketSize 500000000
 
 // matocsserventry.mode
 enum{KILL,HEADER,DATA};

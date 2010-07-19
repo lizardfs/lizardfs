@@ -1,3 +1,23 @@
+mfs (1.6.16) unstable; urgency=low
+
+  * (master) added clearing suid/sgid bits
+  * (master) added check for "sticky" flag during rename and unlink operations
+  * (master) fixed posix compatibility (removing empty directory on rename)
+  * (master) fixed posix compatibility (proper changing ctime)
+  * (master) fixed some constants (better support for larger systems - with
+    millions of files and chunks)
+  * (master) fixed error logging (logging is turning off when there are too
+    many messages)
+  * (all) fixed some OpenSolaris compile issues (mainly added -D__EXTENSIONS__
+    to compile flags)
+  * (all) fixed OpenSolaris pthreads issue (errno doesn't work correctly
+    without proper compiler flags)
+  * (man) added mfscgiserv man page, added "BIND" options descriptions to man
+    pages
+  * (cs) fixed hdd stats (overflow on negative time difference)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 19 Jul 2010 12:00:00 +0200
+
 mfs (1.6.15) unstable; urgency=medium
 
   * (daemons) fixed "double free" error
@@ -17,7 +37,7 @@ mfs (1.6.14) unstable; urgency=low
   * (all) remove some BSDisms from code
   * (metalogger) added BIND_HOST option (as in mount and cs)
 
- -- Jakub Bogusz <contact@moosefs.com>  Fri, 19 Mar 2010 12:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 19 Mar 2010 12:00:00 +0100
 
 mfs (1.6.13) unstable; urgency=low
 
@@ -29,14 +49,14 @@ mfs (1.6.13) unstable; urgency=low
   * (master,cs) added support for not compressed PNG images in chart module
     (when build without zlib)
 
- -- Jakub Bogusz <contact@moosefs.com>  Mon, 08 Feb 2010 07:15:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 08 Feb 2010 07:15:00 +0100
 
 mfs (1.6.12) unstable; urgency=medium
 
   * (mount) fixed locking in read module
   * (mount,cs) added ability to bind outgoing sockets to specific IP
 
- -- Jakub Bogusz <contact@moosefs.com>  Mon, 25 Jan 2010 13:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 25 Jan 2010 13:00:00 +0100
 
 mfs (1.6.11) unstable; urgency=medium
 
@@ -44,7 +64,7 @@ mfs (1.6.11) unstable; urgency=medium
   * (cs) fixed some memory leaks
   * (mount) improved attribute cache
 
- -- Jakub Bogusz <contact@moosefs.com>  Thu, 31 Dec 2009 12:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 31 Dec 2009 12:00:00 +0100
 
 mfs (1.6.10) unstable; urgency=high
 
@@ -54,7 +74,7 @@ mfs (1.6.10) unstable; urgency=high
     removal - since this version chunks on 'marked for removal' disks are not
     deleted)
 
- -- Jakub Bogusz <contact@moosefs.com>  Wed, 09 Dec 2009 08:10:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 09 Dec 2009 08:10:00 +0100
 
 mfs (1.6.9) unstable; urgency=medium
 
@@ -67,7 +87,7 @@ mfs (1.6.9) unstable; urgency=medium
   * added 'cache file' flag
   * added simple application "mfsmetadump"
 
- -- Jakub Bogusz <contact@moosefs.com>  Tue, 24 Nov 2009 14:00:00 +0200
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 24 Nov 2009 14:00:00 +0100
 
 mfs (1.6.8) unstable; urgency=low
 
