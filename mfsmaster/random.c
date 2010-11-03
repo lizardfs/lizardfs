@@ -27,12 +27,11 @@ static uint8_t i,j;
 static uint8_t p[256];
 
 
-int rndinit(FILE *msgfd) {
+int rndinit(void) {
 	uint8_t key[64],vkey[64];
 	register uint8_t x;
 	uint16_t l;
 
-	(void)msgfd;
 	srandom(time(NULL));
 	for (l=0 ; l<64 ; l++) {
 		key[l] = random();
@@ -77,47 +76,50 @@ uint8_t rndu8() {
 
 uint32_t rndu32() {
 	register uint8_t x;
-	uint8_t r[4];
+	uint32_t r;
 
 	x = j+p[i];
 	j = p[x];
 	x = p[j];
 	x = p[x]+1;
-	r[0] = p[x];
+	r = p[x];
 	x = p[i];
 	p[i] = p[j];
 	p[j] = x;
 	i++;
+	r<<=8;
 
 	x = j+p[i];
 	j = p[x];
 	x = p[j];
 	x = p[x]+1;
-	r[1] = p[x];
+	r |= p[x];
 	x = p[i];
 	p[i] = p[j];
 	p[j] = x;
 	i++;
+	r<<=8;
 
 	x = j+p[i];
 	j = p[x];
 	x = p[j];
 	x = p[x]+1;
-	r[2] = p[x];
+	r |= p[x];
 	x = p[i];
 	p[i] = p[j];
 	p[j] = x;
 	i++;
+	r<<=8;
 
 	x = j+p[i];
 	j = p[x];
 	x = p[j];
 	x = p[x]+1;
-	r[3] = p[x];
+	r |= p[x];
 	x = p[i];
 	p[i] = p[j];
 	p[j] = x;
 	i++;
 
-	return *((uint32_t*)(r));
+	return r;
 }

@@ -522,6 +522,197 @@ uint8_t do_write(uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_write(ts,inode,indx,opflag,chunkid);
 }
 
+
+uint8_t restore_line(uint64_t lv,char *line) {
+	char *ptr;
+	uint32_t ts;
+	uint8_t status;
+	char* errormsgs[]={ ERROR_STRINGS };
+
+	status = ERROR_MISMATCH;
+	ptr = line;
+
+	EAT(ptr,lv,':');
+	EAT(ptr,lv,' ');
+	GETU32(ts,ptr);
+	EAT(ptr,lv,'|');
+	switch (*ptr) {
+		case 'A':
+			if (strncmp(ptr,"ACCESS",6)==0) {
+				status = do_access(lv,ts,ptr+6);
+			} else if (strncmp(ptr,"ATTR",4)==0) {
+				status = do_attr(lv,ts,ptr+4);
+			} else if (strncmp(ptr,"APPEND",6)==0) {
+				status = do_append(lv,ts,ptr+6);
+			} else if (strncmp(ptr,"AQUIRE",6)==0) {
+				status = do_aquire(lv,ts,ptr+6);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'C':
+			if (strncmp(ptr,"CREATE",6)==0) {
+				status = do_create(lv,ts,ptr+6);
+			} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
+				status = do_session(lv,ts,ptr+8);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'E':
+			if (strncmp(ptr,"EMPTYTRASH",10)==0) {
+				status = do_emptytrash(lv,ts,ptr+10);
+			} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
+				status = do_emptyreserved(lv,ts,ptr+13);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'F':
+			if (strncmp(ptr,"FREEINODES",10)==0) {
+				status = do_freeinodes(lv,ts,ptr+10);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'I':
+			if (strncmp(ptr,"INCVERSION",10)==0) {
+				status = do_incversion(lv,ts,ptr+10);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'L':
+			if (strncmp(ptr,"LENGTH",6)==0) {
+				status = do_length(lv,ts,ptr+6);
+			} else if (strncmp(ptr,"LINK",4)==0) {
+				status = do_link(lv,ts,ptr+4);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'M':
+			if (strncmp(ptr,"MOVE",4)==0) {
+				status = do_move(lv,ts,ptr+4);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'P':
+			if (strncmp(ptr,"PURGE",5)==0) {
+				status = do_purge(lv,ts,ptr+5);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'R':
+			if (strncmp(ptr,"RELEASE",7)==0) {
+				status = do_release(lv,ts,ptr+7);
+			} else if (strncmp(ptr,"REPAIR",6)==0) {
+				status = do_repair(lv,ts,ptr+6);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'S':
+			if (strncmp(ptr,"SETEATTR",8)==0) {
+				status = do_seteattr(lv,ts,ptr+8);
+			} else if (strncmp(ptr,"SETGOAL",7)==0) {
+				status = do_setgoal(lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETPATH",7)==0) {
+				status = do_setpath(lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
+				status = do_settrashtime(lv,ts,ptr+12);
+			} else if (strncmp(ptr,"SNAPSHOT",8)==0) {
+				status = do_snapshot(lv,ts,ptr+8);
+			} else if (strncmp(ptr,"SYMLINK",7)==0) {
+				status = do_symlink(lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SESSION",7)==0) {
+				status = do_session(lv,ts,ptr+7);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'T':
+			if (strncmp(ptr,"TRUNC",5)==0) {
+				status = do_trunc(lv,ts,ptr+5);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'U':
+			if (strncmp(ptr,"UNLINK",6)==0) {
+				status = do_unlink(lv,ts,ptr+6);
+			} else if (strncmp(ptr,"UNDEL",5)==0) {
+				status = do_undel(lv,ts,ptr+5);
+			} else if (strncmp(ptr,"UNLOCK",6)==0) {
+				status = do_unlock(lv,ts,ptr+6);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		case 'W':
+			if (strncmp(ptr,"WRITE",5)==0) {
+				status = do_write(lv,ts,ptr+5);
+			} else {
+				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+			}
+			break;
+		default:
+			printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
+	}
+	if (status!=STATUS_OK) {
+		printf("%"PRIu64": error: %"PRIu8" (%s)\n",lv,status,errormsgs[status]);
+	}
+	return status;
+}
+
+static uint64_t v=0,lastv=0;
+static uint8_t vlevel;
+
+int restore(uint64_t lv,char *ptr) {
+	if (lastv==0 || v==0) {
+		v = fs_getversion();
+		lastv = lv-1;
+	}
+	if (vlevel>1) {
+		printf("current meta version: %"PRIu64" ; previous changeid: %"PRIu64" ; current changeid: %"PRIu64" ; change data%s",v,lastv,lv,ptr);
+	}
+	if (lv<lastv) {
+		printf("merge error - possibly corrupted input file - ignore entry\n");
+		return 0;
+	} else if (lv>=v) {
+		if (lv==lastv) {
+			if (vlevel>1) {
+				printf("duplicated entry: %"PRIu64"\n",lv);
+			}
+		} else if (lv>lastv+1) {
+			printf("hole in change files (entries from %"PRIu64" to %"PRIu64" are missing) - add more files\n",lastv+1,lv-1);
+			return -1;
+		} else {
+			if (vlevel>0) {
+				printf("change%s",ptr);
+			}
+			if (restore_line(lv,ptr)!=STATUS_OK) {
+				return -1;
+			}
+			v = fs_getversion();
+			if (lv+1!=v) {
+				printf("%"PRIu64": version mismatch\n",lv);
+				return -1;
+			}
+		}
+	}
+	lastv = lv;
+	return 0;
+}
+
+void restore_setverblevel(uint8_t _vlevel) {
+	vlevel = _vlevel;
+}
+
+/*
+
 int restore(const char *rfname) {
 	FILE *fd;
 	char buff[10000];
@@ -547,137 +738,7 @@ int restore(const char *rfname) {
 		if (lv<v) {
 			// skip
 		} else {
-			status = ERROR_MISMATCH;
-			EAT(ptr,lv,':');
-			EAT(ptr,lv,' ');
-			GETU32(ts,ptr);
-			EAT(ptr,lv,'|');
-			switch (*ptr) {
-			case 'A':
-				if (strncmp(ptr,"ACCESS",6)==0) {
-					status = do_access(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"ATTR",4)==0) {
-					status = do_attr(lv,ts,ptr+4);
-				} else if (strncmp(ptr,"APPEND",6)==0) {
-					status = do_append(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"AQUIRE",6)==0) {
-					status = do_aquire(lv,ts,ptr+6);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'C':
-				if (strncmp(ptr,"CREATE",6)==0) {
-					status = do_create(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
-					status = do_session(lv,ts,ptr+8);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'E':
-				if (strncmp(ptr,"EMPTYTRASH",10)==0) {
-					status = do_emptytrash(lv,ts,ptr+10);
-				} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
-					status = do_emptyreserved(lv,ts,ptr+13);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'F':
-				if (strncmp(ptr,"FREEINODES",10)==0) {
-					status = do_freeinodes(lv,ts,ptr+10);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'I':
-				if (strncmp(ptr,"INCVERSION",10)==0) {
-					status = do_incversion(lv,ts,ptr+10);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'L':
-				if (strncmp(ptr,"LENGTH",6)==0) {
-					status = do_length(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"LINK",4)==0) {
-					status = do_link(lv,ts,ptr+4);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'M':
-				if (strncmp(ptr,"MOVE",4)==0) {
-					status = do_move(lv,ts,ptr+4);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'P':
-				if (strncmp(ptr,"PURGE",5)==0) {
-					status = do_purge(lv,ts,ptr+5);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'R':
-				if (strncmp(ptr,"RELEASE",7)==0) {
-					status = do_release(lv,ts,ptr+7);
-				} else if (strncmp(ptr,"REPAIR",6)==0) {
-					status = do_repair(lv,ts,ptr+6);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'S':
-				if (strncmp(ptr,"SETEATTR",8)==0) {
-					status = do_seteattr(lv,ts,ptr+8);
-				} else if (strncmp(ptr,"SETGOAL",7)==0) {
-					status = do_setgoal(lv,ts,ptr+7);
-				} else if (strncmp(ptr,"SETPATH",7)==0) {
-					status = do_setpath(lv,ts,ptr+7);
-				} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
-					status = do_settrashtime(lv,ts,ptr+12);
-				} else if (strncmp(ptr,"SNAPSHOT",8)==0) {
-					status = do_snapshot(lv,ts,ptr+8);
-				} else if (strncmp(ptr,"SYMLINK",7)==0) {
-					status = do_symlink(lv,ts,ptr+7);
-				} else if (strncmp(ptr,"SESSION",7)==0) {
-					status = do_session(lv,ts,ptr+7);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'T':
-				if (strncmp(ptr,"TRUNC",5)==0) {
-					status = do_trunc(lv,ts,ptr+5);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'U':
-				if (strncmp(ptr,"UNLINK",6)==0) {
-					status = do_unlink(lv,ts,ptr+6);
-				} else if (strncmp(ptr,"UNDEL",5)==0) {
-					status = do_undel(lv,ts,ptr+5);
-				} else if (strncmp(ptr,"UNLOCK",6)==0) {
-					status = do_unlock(lv,ts,ptr+6);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			case 'W':
-				if (strncmp(ptr,"WRITE",5)==0) {
-					status = do_write(lv,ts,ptr+5);
-				} else {
-					printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-				}
-				break;
-			default:
-				printf("%"PRIu64": unknown entry '%s'\n",lv,ptr);
-			}
-			if (status!=STATUS_OK) {
+			if (restore_line(lv,ptr)!=STATUS_OK) {
 				printf("%"PRIu64": error: %"PRIu8" (%s)\n",lv,status,errormsgs[status]);
 				return 1;
 			}
@@ -692,3 +753,5 @@ int restore(const char *rfname) {
 	printf("version after applying changelog: %"PRIu64"\n",v);
 	return 0;
 }
+
+*/

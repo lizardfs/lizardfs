@@ -127,7 +127,8 @@ uint32_t charts_make_png(uint32_t chartid);
 void charts_get_png(uint8_t *buff);
 
 void charts_add (uint64_t *data,uint32_t datats);
-void charts_store (FILE *msgfd);
-int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *estats,const char *filename,FILE *msgfd);
+void charts_store (void);
+int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *estats,const char *filename);
+void charts_term (void);
 
 #endif

@@ -23,11 +23,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 #include <syslog.h>
 
 #include "MFSCommunication.h"
 #include "sockets.h"
 #include "datapack.h"
+#include "strerr.h"
 #include "crc.h"
 
 #define CSMSECTIMEOUT 5000
@@ -44,7 +46,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 	put32bit(&wptr,offset);
 	put32bit(&wptr,size);
 	if (tcptowrite(fd,ibuff,28,CSMSECTIMEOUT)!=28) {
-		syslog(LOG_NOTICE,"readblock; tcpwrite error: %m");
+		syslog(LOG_NOTICE,"readblock; tcpwrite error: %s",strerr(errno));
 		return -1;
 	}
 	for (;;) {
@@ -53,7 +55,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 		uint16_t blockno,blockoffset;
 		uint32_t breq,blocksize,blockcrc;
 		if (tcptoread(fd,ibuff,8,CSMSECTIMEOUT)!=8) {
-			syslog(LOG_NOTICE,"readblock; tcpread error: %m");
+			syslog(LOG_NOTICE,"readblock; tcpread error: %s",strerr(errno));
 			return -1;
 		}
 		rptr = ibuff;
@@ -65,7 +67,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,9,CSMSECTIMEOUT)!=9) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS tcpread error: %m");
+				syslog(LOG_NOTICE,"readblock; READ_STATUS tcpread error: %s",strerr(errno));
 				return -1;
 			}
 			rptr = ibuff;
@@ -89,7 +91,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,20,CSMSECTIMEOUT)!=20) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %m");
+				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %s",strerr(errno));
 				return -1;
 			}
 			rptr = ibuff;
@@ -127,7 +129,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,buff,blocksize,CSMSECTIMEOUT)!=(int32_t)blocksize) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %m");
+				syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %s",strerr(errno));
 				return -1;
 			}
 			if (blockcrc!=mycrc32(0,buff,blocksize)) {
@@ -151,7 +153,7 @@ int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 	uint32_t t32;
 	uint64_t t64;
 	if (tcptoread(fd,ibuff,21,CSMSECTIMEOUT)!=21) {
-		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS tcpread error: %m");
+		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS tcpread error: %s",strerr(errno));
 		return -1;
 	}
 	ptr = ibuff;
@@ -200,7 +202,7 @@ int cs_writeinit(int fd,const uint8_t *chain,uint32_t chainsize,uint64_t chunkid
 	psize+=8;
 	if (tcptowrite(fd,ibuff,psize,CSMSECTIMEOUT)!=(int32_t)psize) {
 		free(ibuff);
-		syslog(LOG_NOTICE,"writestatus; WRITE_INIT tcpwrite error: %m");
+		syslog(LOG_NOTICE,"writestatus; WRITE_INIT tcpwrite error: %s",strerr(errno));
 		return -1;
 	}
 	free(ibuff);
@@ -222,11 +224,11 @@ int cs_writeblock(int fd,uint64_t chunkid,uint32_t writeid,uint16_t blockno,uint
 	crc = mycrc32(0,buff,size);
 	put32bit(&ptr,crc);
 	if (tcptowrite(fd,ibuff,32,CSMSECTIMEOUT)!=32) {
-		syslog(LOG_NOTICE,"writestatus; WRITE_DATA tcpwrite error: %m");
+		syslog(LOG_NOTICE,"writestatus; WRITE_DATA tcpwrite error: %s",strerr(errno));
 		return -1;
 	}
 	if (tcptowrite(fd,buff,size,CSMSECTIMEOUT)!=(int32_t)size) {
-		syslog(LOG_NOTICE,"writestatus; WRITE_DATA tcpwrite error: %m");
+		syslog(LOG_NOTICE,"writestatus; WRITE_DATA tcpwrite error: %s",strerr(errno));
 		return -1;
 	}
 	return 0;

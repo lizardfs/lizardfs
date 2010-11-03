@@ -44,6 +44,7 @@
 #include "chunks.h"
 #include "filesystem.h"
 #include "datapack.h"
+#include "massert.h"
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1
@@ -121,9 +122,9 @@ typedef struct chunk {
 #ifndef METARESTORE
 	uint8_t allvalidcopies;
 	uint8_t regularvalidcopies;
-	uint8_t needverincrease:1;
-	uint8_t interrupted:1;
-	uint8_t operation:4;
+	unsigned needverincrease:1;
+	unsigned interrupted:1;
+	unsigned operation:4;
 #endif
 	uint32_t lockedto;
 #ifndef METARESTORE
@@ -242,6 +243,7 @@ static inline slist* slist_malloc() {
 	}
 	if (sbhead==NULL || sbhead->firstfree==SLIST_BUCKET_SIZE) {
 		sb = (slist_bucket*)malloc(sizeof(slist_bucket));
+		passert(sb);
 		sb->next = sbhead;
 		sb->firstfree = 0;
 		sbhead = sb;
@@ -258,7 +260,10 @@ static inline void slist_free(slist *p) {
 #else /* USE_SLIST_BUCKETS */
 
 static inline slist* slist_malloc() {
-	return (slist*)malloc(sizeof(slist));
+	slist *sl;
+	sl = (slist*)malloc(sizeof(slist));
+	passert(sl);
+	return sl;
 }
 
 static inline void slist_free(slist* p) {
@@ -279,6 +284,7 @@ static inline flist* flist_malloc() {
 	}
 	if (fbhead==NULL || fbhead->firstfree==FLIST_BUCKET_SIZE) {
 		fb = (flist_bucket*)malloc(sizeof(flist_bucket));
+		passert(fb);
 		fb->next = fbhead;
 		fb->firstfree = 0;
 		fbhead = fb;
@@ -295,7 +301,10 @@ static inline void flist_free(flist *p) {
 #else /* USE_FLIST_BUCKETS */
 
 static inline flist* flist_malloc() {
-	return (flist*)malloc(sizeof(flist));
+	flist *fl;
+	fl = (flist*)malloc(sizeof(flist));
+	passert(fl);
+	return fl;
 }
 
 static inline void flist_free(flist* p) {
@@ -315,6 +324,7 @@ static inline chunk* chunk_malloc() {
 	}
 	if (cbhead==NULL || cbhead->firstfree==CHUNK_BUCKET_SIZE) {
 		cb = (chunk_bucket*)malloc(sizeof(chunk_bucket));
+		passert(cb);
 		cb->next = cbhead;
 		cb->firstfree = 0;
 		cbhead = cb;
@@ -331,7 +341,10 @@ static inline void chunk_free(chunk *p) {
 #else /* USE_CHUNK_BUCKETS */
 
 static inline chunk* chunk_malloc() {
-	return (chunk*)malloc(sizeof(chunk));
+	chunk *cu;
+	cu = (chunk*)malloc(sizeof(chunk));
+	passert(cu);
+	return cu;
 }
 
 static inline void chunk_free(chunk* p) {
@@ -1705,6 +1718,7 @@ void chunk_server_disconnected(void *ptr) {
 			}
 		}
 	}
+	fs_cs_disconnected();
 }
 
 void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -2006,7 +2020,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 2. check number of copies
 	if (tdc+vc+tdb+bc==0 && ivc>0 && c->flisthead) {
-		syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually\n",c->chunkid,ivc);
+		syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
 			syslog(LOG_NOTICE,"chunk %016"PRIX64"_%08"PRIX32" - invalid copy on (%s - ver:%08"PRIX32")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
 		}
@@ -2604,6 +2618,81 @@ void chunk_store(FILE *fd) {
 	memset(ptr,0,CHUNKFSIZE);
 	j++;
 	fwrite(storebuff,1,CHUNKFSIZE*j,fd);
+}
+
+void chunk_term(void) {
+#ifndef METARESTORE
+# ifdef USE_SLIST_BUCKETS
+	slist_bucket *sb,*sbn;
+# else
+	slist *sl,*sln;
+# endif
+# ifdef USE_FLIST_BUCKETS
+	flist_bucket *fb,*fbn;
+# else
+	flist *fl,*fln;
+# endif
+# ifdef USE_CHUNK_BUCKETS
+	chunk_bucket *cb,*cbn;
+# endif
+# if !defined(USE_SLIST_BUCKETS) || !defined(USE_FLIST_BUCKETS) || !defined(USE_CHUNK_BUCKETS)
+	uint32_t i;
+	chunk *ch,*chn;
+# endif
+#else
+# ifdef USE_CHUNK_BUCKETS
+	chunk_bucket *cb,*cbn;
+# else
+	uint32_t i;
+	chunk *ch,*chn;
+# endif
+#endif
+
+#ifndef METARESTORE
+# ifdef USE_SLIST_BUCKETS
+	for (sb = sbhead ; sb ; sb = sbn) {
+		sbn = sb->next;
+		free(sb);
+	}
+# else
+	for (i=0 ; i<HASHSIZE ; i++) {
+		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
+			for (sl = ch->slisthead ; sl ; sl = sln) {
+				sln = sl->next;
+				free(sl);
+			}
+		}
+	}
+# endif
+# ifdef USE_FLIST_BUCKETS
+	for (fb = fbhead ; fb ; fb = fbn) {
+		fbn = fb->next;
+		free(fb);
+	}
+# else
+	for (i=0 ; i<HASHSIZE ; i++) {
+		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
+			for (fl = ch->flisthead ; fl ; fl = fln) {
+				fln = fl->next;
+				free(fl);
+			}
+		}
+	}
+# endif
+#endif
+#ifdef USE_CHUNK_BUCKETS
+	for (cb = cbhead ; cb ; cb = cbn) {
+		cbn = cb->next;
+		free(cb);
+	}
+#else
+	for (i=0 ; i<HASHSIZE ; i++) {
+		for (ch = chunkhash[i] ; ch ; ch = chn) {
+			chn = ch->next;
+			free(ch);
+		}
+	}
+#endif
 }
 
 void chunk_newfs(void) {

@@ -20,9 +20,6 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-#include <pthread.h>
-#endif
 #include "MFSCommunication.h"
 
 /* original crc32 code
@@ -65,12 +62,6 @@ uint32_t crc32(uint32_t crc,uint8_t *block,uint32_t leng) {
 */
 
 #define FASTCRC 1
-
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-static pthread_once_t maintables_once_control = PTHREAD_ONCE_INIT;
-#else
-static volatile int crc_table_empty = 1;
-#endif
 
 #ifdef FASTCRC
 #define BYTEREV(w) (((w)>>24)+(((w)>>8)&0xff00)+(((w)&0xff00)<<8)+(((w)&0xff)<<24))
@@ -145,15 +136,6 @@ uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
 	const uint32_t *block4;
 #endif
 
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-	pthread_once(&maintables_once_control,crc_generate_main_tables);
-#else
-	if (crc_table_empty) {
-		crc_generate_main_tables();
-		crc_table_empty=0;
-	}
-#endif
-
 #ifdef FASTCRC
 #ifdef WORDS_BIGENDIAN
 #define CRC_REORDER crc=(BYTEREV(crc))^0xFFFFFFFF
@@ -214,11 +196,6 @@ uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
 
 /* crc_combine */
 
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-static pthread_once_t combinetables_once_control = PTHREAD_ONCE_INIT;
-#else
-static volatile int crc_combine_table_empty = 1;
-#endif
 static uint32_t crc_combine_table[32][4][256];
 
 static void crc_matrix_square(uint32_t sqr[32], uint32_t m[32]) {
@@ -274,14 +251,6 @@ static void crc_generate_combine_tables(void) {
 uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2) {
 	uint8_t i;
 
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-	pthread_once(&combinetables_once_control,crc_generate_combine_tables);
-#else
-	if (crc_combine_table_empty) {
-		crc_generate_combine_tables();
-		crc_combine_table_empty=0;
-	}
-#endif
 	/* add leng2 zeros to crc1 */
 	i=0;
 	while (leng2) {
@@ -296,4 +265,9 @@ uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2) {
 	};
 	/* then combine crc1 and crc2 as output */
 	return crc1^crc2;
+}
+
+void mycrc32_init(void) {
+	crc_generate_main_tables();
+	crc_generate_combine_tables();
 }

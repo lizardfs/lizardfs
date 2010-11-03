@@ -28,49 +28,69 @@
 
 #include "filesystem.h"
 #include "chunks.h"
+#include "merger.h"
 #include "restore.h"
+#include "strerr.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
-typedef struct _chlogfile {
-	char *fname;
-	uint16_t setid;
-	uint16_t filenum;
-} chlogfile;
-
-int chlogfile_cmp(const void *a,const void *b) {
-	const chlogfile *aa = (const chlogfile*)a;
-	const chlogfile *bb = (const chlogfile*)b;
-	if (aa->setid<bb->setid) {
-		return -1;
-	} else if (aa->setid>bb->setid) {
-		return 1;
-	} else if (aa->filenum<bb->filenum) {
-		return 1;
-	} else if (aa->filenum>bb->filenum) {
-		return -1;
+int changelog_checkname(const char *fname) {
+	const char *ptr = fname;
+	if (strncmp(ptr,"changelog.",10)==0) {
+		ptr+=10;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
+	} else if (strncmp(ptr,"changelog_ml.",13)==0) {
+		ptr+=13;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
+	} else if (strncmp(ptr,"changelog_ml_back.",18)==0) {
+		ptr+=18;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
 	}
 	return 0;
 }
 
 void usage(const char* appname) {
-	fprintf(stderr,"restore metadata:\n\t%s -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s -a [-d <data path>]\nprint version:\n\t%s -v\n",appname,appname,appname,appname);
+	fprintf(stderr,"restore metadata:\n\t%s [-x [-x ]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n",appname,appname,appname,appname);
 }
 
 int main(int argc,char **argv) {
 	int ch;
-	int i;
+	uint8_t vl=0;
+//	int i;
 	int autorestore = 0;
 	char *metaout = NULL;
 	char *metadata = NULL;
 	char *datapath = NULL;
-	char *chgdata = NULL;
+//	char *chgdata = NULL;
 	char *appname = argv[0];
 	uint32_t dplen = 0;
 
-	while ((ch = getopt(argc, argv, "vm:o:d:a?")) != -1) {
+	strerr_init();
+
+	while ((ch = getopt(argc, argv, "vm:o:d:ax?")) != -1) {
 		switch (ch) {
 			case 'v':
 				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
@@ -83,6 +103,10 @@ int main(int argc,char **argv) {
 				break;
 			case 'd':
 				datapath = strdup(optarg);
+				break;
+			case 'x':
+				vl++;
+//				vl = strtoul(optarg,NULL,10);
 				break;
 			case 'a':
 				autorestore=1;
@@ -100,6 +124,8 @@ int main(int argc,char **argv) {
 		usage(appname);
 		return 1;
 	}
+
+	restore_setverblevel(vl);
 
 	if (autorestore) {
 		struct stat metast;
@@ -137,9 +163,9 @@ int main(int argc,char **argv) {
 	if (autorestore) {
 		DIR *dd;
 		struct dirent *dp;
-		uint32_t files,pos,filenum;
-		chlogfile *logfiles;
-		char *ptr;
+		uint32_t files,pos,nlen;
+		char **filenames;
+
 		dd = opendir(datapath);
 		if (!dd) {
 			printf("can't open data directory\n");
@@ -147,86 +173,41 @@ int main(int argc,char **argv) {
 		}
 		files = 0;
 		while ((dp = readdir(dd)) != NULL) {
-			ptr = dp->d_name;
-			if (strncmp(ptr,"changelog.",10)==0) {
-				ptr+=10;
-				if (*ptr>='0' && *ptr<='9') {
-					while (*ptr>='0' && *ptr<='9') {
-						ptr++;
-					}
-					if (strcmp(ptr,".mfs")==0) {
-						files++;
-					}
-				}
-			} else if (strncmp(ptr,"changelog_ml.",13)==0) {
-				ptr+=13;
-				if (*ptr>='0' && *ptr<='9') {
-					while (*ptr>='0' && *ptr<='9') {
-						ptr++;
-					}
-					if (strcmp(ptr,".mfs")==0) {
-						files++;
-					}
-				}
-			}
+			files += changelog_checkname(dp->d_name);
 		}
 		if (files==0) {
 			printf("changelog files not found\n");
 			return 1;
 		}
-		logfiles = (chlogfile*)malloc(sizeof(chlogfile)*files);
+		filenames = (char**)malloc(sizeof(char*)*files);
 		pos = 0;
 		rewinddir(dd);
 		while ((dp = readdir(dd)) != NULL) {
-			ptr = dp->d_name;
-			if (strncmp(ptr,"changelog.",10)==0) {
-				ptr+=10;
-				if (*ptr>='0' && *ptr<='9') {
-					filenum = strtoul(ptr,&ptr,10);
-					if (strcmp(ptr,".mfs")==0) {
-						if (pos<files) {
-							logfiles[pos].fname=strdup(dp->d_name);
-							logfiles[pos].setid=0;
-							logfiles[pos].filenum = filenum;
-							pos++;
-						}
-					}
+			if (changelog_checkname(dp->d_name)) {
+				nlen = strlen(dp->d_name);
+				filenames[pos] = malloc(dplen+1+nlen+1);
+				memcpy(filenames[pos],datapath,dplen);
+				filenames[pos][dplen]='/';
+				memcpy(filenames[pos]+dplen+1,dp->d_name,nlen);
+				filenames[pos][dplen+nlen+1]=0;
+				if (vl>0) {
+					printf("found changelog file %"PRIu32": %s\n",pos+1,filenames[pos]);
 				}
-			} else if (strncmp(ptr,"changelog_ml.",13)==0) {
-				ptr+=13;
-				if (*ptr>='0' && *ptr<='9') {
-					filenum = strtoul(ptr,&ptr,10);
-					if (strcmp(ptr,".mfs")==0) {
-						if (pos<files) {
-							logfiles[pos].fname=strdup(dp->d_name);
-							logfiles[pos].setid=1;
-							logfiles[pos].filenum = filenum;
-							pos++;
-						}
-					}
-				}
+				pos++;
 			}
 		}
 		closedir(dd);
-		qsort(logfiles,files,sizeof(chlogfile),chlogfile_cmp);
-		for (pos=0 ; pos<files ; pos++) {
-			chgdata = malloc(dplen+1+strlen(logfiles[pos].fname)+1);
-			memcpy(chgdata,datapath,dplen);
-			chgdata[dplen]='/';
-			memcpy(chgdata+dplen+1,logfiles[pos].fname,strlen(logfiles[pos].fname)+1);
-			printf("applying changes from file: %s\n",chgdata);
-			if (restore(chgdata)!=0) {
-				return 1;
-			}
-			free(chgdata);
+		merger_start(files,filenames);
+		for (pos = 0 ; pos<files ; pos++) {
+			free(filenames[pos]);
 		}
+		free(filenames);
 	} else {
-		for (i=0 ; i<argc ; i++) {
-			printf("applying changes from file: %s\n",argv[i]);
-			if (restore(argv[i])!=0) {
-				return 1;
-			}
-		}
+		merger_start(argc,argv);
+	}
+
+	if (merger_loop()<0) {
+		return 1;
 	}
 
 	if (metaout==NULL) {

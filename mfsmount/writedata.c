@@ -36,7 +36,8 @@
 
 #include "datapack.h"
 #include "crc.h"
-#include "th_queue.h"
+#include "strerr.h"
+#include "pcqueue.h"
 #include "sockets.h"
 #include "csdb.h"
 #include "mastercomm.h"
@@ -193,7 +194,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	}
 
 	if (pipe(pfd)<0) {
-		syslog(LOG_WARNING,"pipe error: %m");
+		syslog(LOG_WARNING,"pipe error: %s",strerr(errno));
 		return NULL;
 	}
 	id = malloc(sizeof(inodedata));
@@ -267,6 +268,9 @@ void* write_dqueue_worker(void *arg) {
 	(void)arg;
 	for (;;) {
 		queue_get(dqueue,&sec,&usec,&id,&cnt);
+		if (id==NULL) {
+			return NULL;
+		}
 		gettimeofday(&tv,NULL);
 		if ((uint32_t)(tv.tv_usec) < usec) {
 			tv.tv_sec--;
@@ -296,7 +300,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 	pthread_mutex_lock(&glock);
 	if (status) {
 		errno = status;
-		syslog(LOG_WARNING,"error writing file number %"PRIu32": %m",id->inode);
+		syslog(LOG_WARNING,"error writing file number %"PRIu32": %s",id->inode,strerr(errno));
 		id->status = status;
 	}
 	status = id->status;
@@ -306,7 +310,9 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 		for (cb=id->datachainhead ; cb ; cb=cb->next) {
 			cb->writeid = 0;
 		}
-		id->trycnt=0;	// on good write reset try counter
+		if (delay==0) {
+			id->trycnt=0;	// on good write reset try counter
+		}
 		write_delayed_enqueue(id,delay);
 	} else {	// no more work or error occured
 		// if this is an error then release all data blocks
@@ -403,6 +409,9 @@ void* write_worker(void *arg) {
 
 		// get next job
 		queue_get(jqueue,&z1,&z2,&data,&z3);
+		if (data==NULL) {
+			return NULL;
+		}
 		id = (inodedata*)data;
 
 		pthread_mutex_lock(&glock);
@@ -495,12 +504,12 @@ void* write_worker(void *arg) {
 		while (cnt>0) {
 			fd = tcpsocket();
 			if (fd<0) {
-				syslog(LOG_WARNING,"can't create tcp socket: %m");
+				syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
 				cnt=0;
 			}
 			if (srcip) {
 				if (tcpnumbind(fd,srcip,0)<0) {
-					syslog(LOG_WARNING,"can't bind socket to given ip: %m");
+					syslog(LOG_WARNING,"can't bind socket to given ip: %s",strerr(errno));
 					tcpclose(fd);
 					fd=-1;
 					break;
@@ -509,7 +518,7 @@ void* write_worker(void *arg) {
 			if (tcpnumtoconnect(fd,ip,port,200)<0) {
 				cnt--;
 				if (cnt==0) {
-					syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %m",ip,port);
+					syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %s",ip,port,strerr(errno));
 				}
 				tcpclose(fd);
 				fd=-1;
@@ -528,7 +537,7 @@ void* write_worker(void *arg) {
 			continue;
 		}
 		if (tcpnodelay(fd)<0) {
-			syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+			syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 		}
 
 #ifdef WORKER_DEBUG
@@ -632,10 +641,13 @@ void* write_worker(void *arg) {
 			pfd[1].events = POLLIN;
 			pfd[1].revents = 0;
 			if (poll(pfd,2,100)<0) { /* correct timeout - in msec */
-				syslog(LOG_WARNING,"writeworker: poll error: %m");
+				syslog(LOG_WARNING,"writeworker: poll error: %s",strerr(errno));
 				status=EIO;
 				break;
 			}
+			pthread_mutex_lock(&glock);	// make helgrind happy
+			id->waitingworker=0;
+			pthread_mutex_unlock(&glock);	// make helgrind happy
 			if (pfd[1].revents&POLLIN) {	// used just to break poll - so just read all data from pipe to empty it
 				i = read(id->pipe[0],pipebuff,1024);
 			}
@@ -771,9 +783,6 @@ void* write_worker(void *arg) {
 			}
 		} while (waitforstatus>0 && now.tv_sec<10);
 
-
-		id->waitingworker=0;
-
 		tcpclose(fd);
 
 #ifdef WORKER_DEBUG
@@ -868,6 +877,36 @@ void write_data_init (uint32_t cachesize,uint32_t retries) {
 	pthread_attr_destroy(&thattr);
 }
 
+void write_data_term(void) {
+	uint32_t i;
+	inodedata *id,*idn;
+
+	queue_put(dqueue,0,0,NULL,0);
+	for (i=0 ; i<WORKERS ; i++) {
+		queue_put(jqueue,0,0,NULL,0);
+	}
+	for (i=0 ; i<WORKERS ; i++) {
+		pthread_join(write_worker_th[i],NULL);
+	}
+	pthread_join(dqueue_worker_th,NULL);
+	queue_delete(dqueue);
+	queue_delete(jqueue);
+	for (i=0 ; i<IDHASHSIZE ; i++) {
+		for (id = idhash[i] ; id ; id = idn) {
+			idn = id->next;
+			pthread_cond_destroy(&(id->flushcond));
+			pthread_cond_destroy(&(id->writecond));
+			pthread_cond_destroy(&(id->cachecond));
+			close(id->pipe[0]);
+			close(id->pipe[1]);
+			free(id);
+		}
+	}
+	free(idhash);
+	free(freecblockshead);
+	pthread_cond_destroy(&fcbcond);
+	pthread_mutex_destroy(&glock);
+}
 
 /* glock: LOCKED */
 int write_cb_expand(cblock *cb,uint32_t from,uint32_t to,const uint8_t *data) {

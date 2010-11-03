@@ -153,14 +153,15 @@ void chartsdata_refresh(void) {
 
 void chartsdata_term(void) {
 	chartsdata_refresh();
-	charts_store(NULL);
+	charts_store();
+	charts_term();
 }
 
 void chartsdata_store(void) {
-	charts_store(NULL);
+	charts_store();
 }
 
-int chartsdata_init (FILE *msgfd) {
+int chartsdata_init (void) {
 	struct itimerval uc,pc;
 
 	it_set.it_interval.tv_sec = 0;
@@ -173,5 +174,5 @@ int chartsdata_init (FILE *msgfd) {
 	main_timeregister(TIMEMODE_RUNONCE,60,0,chartsdata_refresh);
 	main_timeregister(TIMEMODE_RUNONCE,3600,0,chartsdata_store);
 	main_destructregister(chartsdata_term);
-	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME,msgfd);
+	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }

@@ -40,6 +40,8 @@
 #include "main.h"
 #include "sockets.h"
 #include "hddspacemgr.h"
+#include "slogger.h"
+#include "massert.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
@@ -69,14 +71,14 @@ typedef struct masterconn {
 	uint32_t masterip;
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
-#ifdef BGJOBS
-	void *jpool;
-	int jobfd;
-	int32_t jobfdpdescpos;
-#endif
 } masterconn;
 
 static masterconn *masterconnsingleton=NULL;
+#ifdef BGJOBS
+static void *jpool;
+static int jobfd;
+static int32_t jobfdpdescpos;
+#endif
 
 // from config
 static uint32_t BackLogsNumber;
@@ -106,16 +108,11 @@ void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -147,16 +144,11 @@ uint8_t* masterconn_create_attached_packet(masterconn *eptr,uint32_t type,uint32
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -180,11 +172,6 @@ void masterconn_sendregister(masterconn *eptr) {
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
 	chunks = hdd_get_chunks_count();
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2+8+8+4+8+8+4+chunks*(8+4));
-	if (buff==NULL) {
-		eptr->mode=KILL;
-		hdd_get_chunks_data(NULL);	// unlock
-		return;
-	}
 	put8bit(&buff,4);
 	/* put32bit(&buff,VERSION): */
 	put16bit(&buff,VERSMAJ);
@@ -266,15 +253,13 @@ void masterconn_check_hdd_reports() {
 			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
 			uint32_t chunkcount,tdchunkcount;
 			buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-			if (buff) {
-				hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-				put64bit(&buff,usedspace);
-				put64bit(&buff,totalspace);
-				put32bit(&buff,chunkcount);
-				put64bit(&buff,tdusedspace);
-				put64bit(&buff,tdtotalspace);
-				put32bit(&buff,tdchunkcount);
-			}
+			hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+			put64bit(&buff,usedspace);
+			put64bit(&buff,totalspace);
+			put32bit(&buff,chunkcount);
+			put64bit(&buff,tdusedspace);
+			put64bit(&buff,tdtotalspace);
+			put32bit(&buff,tdchunkcount);
 		}
 		errorcounter = hdd_errorcounter();
 		while (errorcounter) {
@@ -284,22 +269,14 @@ void masterconn_check_hdd_reports() {
 		chunkcounter = hdd_get_damaged_chunk_count();	// lock
 		if (chunkcounter) {
 			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_DAMAGED,8*chunkcounter);
-			if (buff) {
-				hdd_get_damaged_chunk_data(buff);	// unlock
-			} else {
-				hdd_get_damaged_chunk_data(NULL);	// unlock
-			}
+			hdd_get_damaged_chunk_data(buff);	// unlock
 		} else {
 			hdd_get_damaged_chunk_data(NULL);
 		}
 		chunkcounter = hdd_get_lost_chunk_count();	// lock
 		if (chunkcounter) {
 			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8*chunkcounter);
-			if (buff) {
-				hdd_get_lost_chunk_data(buff);	// unlock
-			} else {
-				hdd_get_lost_chunk_data(NULL);	// unlock
-			}
+			hdd_get_lost_chunk_data(buff);	// unlock
 		} else {
 			hdd_get_lost_chunk_data(NULL);
 		}
@@ -343,6 +320,12 @@ void masterconn_replicationfinished(uint8_t status,void *packet) {
 		masterconn_delete_packet(packet);
 	}
 }
+
+void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
+	(void)status;
+	masterconn_delete_packet(packet);
+}
+
 #endif /* BGJOBS */
 
 void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -364,20 +347,12 @@ void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	version = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_CREATE,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
-	job_create(eptr->jpool,masterconn_jobfinished,packet,chunkid,version);
+	job_create(jpool,masterconn_jobfinished,packet,chunkid,version);
 #else /* BGJOBS */
 	status = hdd_create(chunkid,version);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CREATE,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -402,20 +377,12 @@ void masterconn_delete(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	version = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_DELETE,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
-	job_delete(eptr->jpool,masterconn_jobfinished,packet,chunkid,version);
+	job_delete(jpool,masterconn_jobfinished,packet,chunkid,version);
 #else /* BGJOBS */
 	status = hdd_delete(chunkid,version);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DELETE,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -442,20 +409,12 @@ void masterconn_setversion(masterconn *eptr,const uint8_t *data,uint32_t length)
 	version = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_SET_VERSION,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
-	job_version(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,newversion);
+	job_version(jpool,masterconn_jobfinished,packet,chunkid,version,newversion);
 #else /* BGJOBS */
 	status = hdd_version(chunkid,version,newversion);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_SET_VERSION,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -484,20 +443,12 @@ void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	version = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_DUPLICATE,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,copychunkid);
-	job_duplicate(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
+	job_duplicate(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
 #else /* BGJOBS */
 	status = hdd_duplicate(chunkid,version,version,copychunkid,copyversion);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPLICATE,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,copychunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -526,20 +477,12 @@ void masterconn_truncate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	version = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_TRUNCATE,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
-	job_truncate(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,newversion,leng);
+	job_truncate(jpool,masterconn_jobfinished,packet,chunkid,version,newversion,leng);
 #else /* BGJOBS */
 	status = hdd_truncate(chunkid,version,newversion,leng);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_TRUNCATE,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -570,20 +513,12 @@ void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	leng = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_DUPTRUNC,8+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,copychunkid);
-	job_duptrunc(eptr->jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
+	job_duptrunc(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
 #else /* BGJOBS */
 	status = hdd_duptrunc(chunkid,version,version,copychunkid,copyversion,leng);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPTRUNC,8+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,copychunkid);
 	put8bit(&ptr,status);
 #endif /* BGJOBS */
@@ -615,10 +550,6 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	leng = get32bit(&data);
 #ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
@@ -626,14 +557,10 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	put64bit(&ptr,copychunkid);
 	put32bit(&ptr,copyversion);
 	put32bit(&ptr,leng);
-	job_chunkop(eptr->jpool,masterconn_chunkopfinished,packet,chunkid,version,newversion,copychunkid,copyversion,leng);
+	job_chunkop(jpool,masterconn_chunkopfinished,packet,chunkid,version,newversion,copychunkid,copyversion,leng);
 #else /* BGJOBS */
 	status = hdd_chunkop(chunkid,version,newversion,copychunkid,copyversion,leng);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
 	put32bit(&ptr,newversion);
@@ -661,10 +588,6 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
-	if (packet==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
@@ -672,9 +595,9 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 		ip = get32bit(&data);
 		port = get16bit(&data);
 //		syslog(LOG_NOTICE,"start job replication (%08"PRIX64":%04"PRIX32":%04"PRIX32":%02"PRIX16")",chunkid,version,ip,port);
-		job_replicate_simple(eptr->jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
+		job_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
 	} else {
-		job_replicate(eptr->jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
+		job_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
 	}
 }
 
@@ -700,10 +623,6 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 //	port = get16bit(&data);
 
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_REPLICATE,8+4+1);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
 	put8bit(&ptr,ERROR_CANTCONNECT);	// any error
@@ -797,10 +716,6 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	} else {
 		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
 	}
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
 	if (status!=STATUS_OK) {
@@ -829,10 +744,6 @@ void masterconn_chunk_checksum_tab(masterconn *eptr,const uint8_t *data,uint32_t
 		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
 	} else {
 		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
-	}
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
 	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
@@ -914,12 +825,13 @@ void masterconn_term(void) {
 
 	free(eptr);
 	masterconnsingleton = NULL;
+	job_pool_delete(jpool);
+	free(MasterHost);
+	free(MasterPort);
+	free(BindHost);
 }
 
 void masterconn_connected(masterconn *eptr) {
-#ifdef BGJOBS
-	eptr->jpool = job_pool_new(10,BGJOBSCNT,&(eptr->jobfd));
-#endif
 	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
 	eptr->inputpacket.next = NULL;
@@ -933,7 +845,7 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->lastread = eptr->lastwrite = main_time();
 }
 
-int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
+int masterconn_initconnect(masterconn *eptr) {
 	int status;
 	if (eptr->masteraddrvalid==0) {
 		uint32_t mip,bip;
@@ -949,48 +861,28 @@ int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
 				eptr->masterport = mport;
 				eptr->masteraddrvalid = 1;
 			} else {
-				if (msgfd) {
-					fprintf(msgfd,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)\n",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
-				} else {
-					syslog(LOG_WARNING,"localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
-				}
+				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
 				return -1;
 			}
 		} else {
-			if (msgfd) {
-				fprintf(msgfd,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
-			} else {
-				syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
-			}
+			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 			return -1;
 		}
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		if (msgfd) {
-			fprintf(msgfd,"master connection module: create socket error (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"create socket, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"master connection module: create socket error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		if (msgfd) {
-			fprintf(msgfd,"master connection module: set nonblock error (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"set nonblock, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"master connection module: set nonblock error");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			if (msgfd) {
-				fprintf(msgfd,"master connection module: can't bind socket to given ip (errno:%d)\n",errno);
-			} else {
-				syslog(LOG_WARNING,"can't bind socket to given ip: %m");
-			}
+			mfs_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock=-1;
 			return -1;
@@ -998,11 +890,7 @@ int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		if (msgfd) {
-			fprintf(msgfd,"master connection module: connect failed (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"connect failed, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"master connection module: connect failed");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		return -1;
@@ -1022,7 +910,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		syslog(LOG_WARNING,"connection failed, error: %m");
+		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		eptr->mode=FREE;
@@ -1038,19 +926,19 @@ void masterconn_read(masterconn *eptr) {
 	const uint8_t *ptr;
 	for (;;) {
 #ifdef BGJOBS
-		if (job_pool_jobs_count(eptr->jpool)>=(BGJOBSCNT*9)/10) {
+		if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
 			return;
 		}
 #endif
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_INFO,"Master connection lost");
+			syslog(LOG_NOTICE,"connection reset by Master");
 			eptr->mode = KILL;
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"read from Master error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -1074,11 +962,7 @@ void masterconn_read(masterconn *eptr) {
 					return;
 				}
 				eptr->inputpacket.packet = malloc(size);
-				if (eptr->inputpacket.packet==NULL) {
-					syslog(LOG_WARNING,"Master packet: out of memory");
-					eptr->mode = KILL;
-					return;
-				}
+				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
@@ -1117,7 +1001,7 @@ void masterconn_write(masterconn *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"write to Master error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -1142,19 +1026,21 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
+	eptr->pdescpos = -1;
+	jobfdpdescpos = -1;
+
 	if (eptr->mode==FREE || eptr->sock<0) {
 		return;
 	}
-	eptr->pdescpos = -1;
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
 #ifdef BGJOBS
-		pdesc[pos].fd = eptr->jobfd;
+		pdesc[pos].fd = jobfd;
 		pdesc[pos].events = POLLIN;
-		eptr->jobfdpdescpos = pos;
+		jobfdpdescpos = pos;
 		pos++;
-//		FD_SET(eptr->jobfd,rset);
-//		ret = eptr->jobfd;
-		if (job_pool_jobs_count(eptr->jpool)<(BGJOBSCNT*9)/10) {
+//		FD_SET(jobfd,rset);
+//		ret = jobfd;
+		if (job_pool_jobs_count(jpool)<(BGJOBSCNT*9)/10) {
 			pdesc[pos].fd = eptr->sock;
 			pdesc[pos].events = POLLIN;
 			eptr->pdescpos = pos;
@@ -1213,8 +1099,8 @@ void masterconn_serve(struct pollfd *pdesc) {
 		}
 	} else {
 #ifdef BGJOBS
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->jobfdpdescpos>=0 && (pdesc[eptr->jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(eptr->jobfd,rset)) {
-			job_pool_check_jobs(eptr->jpool);
+		if ((eptr->mode==HEADER || eptr->mode==DATA) && jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
+			job_pool_check_jobs(jpool);
 		}
 #endif /* BGJOBS */
 		if (eptr->pdescpos>=0) {
@@ -1236,7 +1122,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 	}
 #ifdef BGJOBS
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
-		uint32_t jobscnt = job_pool_jobs_count(eptr->jpool);
+		uint32_t jobscnt = job_pool_jobs_count(jpool);
 		if (jobscnt>=stats_maxjobscnt) {
 			stats_maxjobscnt=jobscnt;
 		}
@@ -1244,10 +1130,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 #endif
 	if (eptr->mode == KILL) {
 #ifdef BGJOBS
-		if (eptr->jpool) {
-			job_pool_delete(eptr->jpool);	// finish all pending jobs
-			eptr->jpool = NULL;
-		}
+		job_pool_disable_and_change_callback_all(jpool,masterconn_unwantedjobfinished);
 #endif /* BGJOBS */
 		tcpclose(eptr->sock);
 		if (eptr->inputpacket.packet) {
@@ -1269,7 +1152,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==FREE) {
-		masterconn_initconnect(NULL,eptr);
+		masterconn_initconnect(eptr);
 	}
 }
 
@@ -1278,7 +1161,7 @@ void masterconn_reload(void) {
 	eptr->masteraddrvalid=0;
 }
 
-int masterconn_init(FILE *msgfd) {
+int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
 	masterconn *eptr;
 
@@ -1296,17 +1179,22 @@ int masterconn_init(FILE *msgfd) {
 		Timeout=2;
 	}
 	eptr = masterconnsingleton = malloc(sizeof(masterconn));
+	passert(eptr);
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
-#ifdef BGJOBS
-	eptr->jpool = NULL;
-#endif
 
-	if (masterconn_initconnect(msgfd,eptr)<0) {
+	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
+
+#ifdef BGJOBS
+	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
+	if (jpool==NULL) {
+		return -1;
+	}
+#endif
 
 	main_eachloopregister(masterconn_check_hdd_reports);
 	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);

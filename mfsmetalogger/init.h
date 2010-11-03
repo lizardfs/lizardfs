@@ -27,7 +27,7 @@
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
 /* Run Tab */
-typedef int (*runfn)(FILE *msgfd);
+typedef int (*runfn)(void);
 struct {
 	runfn fn;
 	char *name;

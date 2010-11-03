@@ -20,10 +20,9 @@
 #define _DATACACHEMGR_H_
 
 #include <inttypes.h>
-#include <stdio.h>
 
 int dcm_open(uint32_t inode,uint32_t sessionid);
 int dcm_modify(uint32_t inode,uint32_t sessionid);
-int dcm_init(FILE *msg);
+int dcm_init(void);
 
 #endif

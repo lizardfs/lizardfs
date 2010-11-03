@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.17], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.18], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -23,7 +23,7 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
 if test "$GCC" = "yes"; then
-	CFLAGS="$CFLAGS -W -Wall -Wshadow"
+	CFLAGS="-std=c99 $CFLAGS -W -Wall -Wshadow -pedantic"
 dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
@@ -109,13 +109,16 @@ AC_FUNC_REALLOC
 dnl AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_STAT
 # required functions
-AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strerror strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+
+# optional error conversion functions
+AC_CHECK_FUNCS([strerror perror])
 
 # optional system functions
 AC_CHECK_FUNCS([dup2 mlockall getcwd])
 
 # optional I/O functions
-AC_CHECK_FUNCS([pread pwrite readv writev perror])
+AC_CHECK_FUNCS([pread pwrite readv writev])
 
 dnl optional thread functions
 dnl AC_CHECK_FUNCS([pthread_spin_lock])

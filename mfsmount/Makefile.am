@@ -19,12 +19,12 @@ mfsmount_SOURCES=\
 	csdb.c csdb.h \
 	stats.c stats.h \
 	main.c \
-	../mfscommon/th_sem.c ../mfscommon/th_sem.h \
-	../mfscommon/th_queue.c ../mfscommon/th_queue.h \
+	../mfscommon/pcqueue.c ../mfscommon/pcqueue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/md5.c ../mfscommon/md5.h \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
-	../mfscommon/datapack.h \
+	../mfscommon/strerr.c ../mfscommon/strerr.h \
+	../mfscommon/datapack.h ../mfscommon/massert.h \
 	../mfscommon/MFSCommunication.h
 
 mfstools_LDADD=-lm
@@ -32,6 +32,7 @@ mfstools_LDADD=-lm
 mfstools_SOURCES=\
 	mfstools.c \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
+	../mfscommon/strerr.c ../mfscommon/strerr.h \
 	../mfscommon/datapack.h \
 	../mfscommon/MFSCommunication.h
 

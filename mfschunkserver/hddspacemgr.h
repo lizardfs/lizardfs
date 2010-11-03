@@ -20,7 +20,6 @@
 #define _HDDSPACEMGR_H_
 
 #include <inttypes.h>
-#include <stdio.h>
 
 #include "MFSCommunication.h"
 
@@ -81,7 +80,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 #define hdd_duptrunc(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):ERROR_EINVAL)
 
 /* initialization */
-int hdd_init(FILE *msgfd);
+int hdd_init(void);
 
 /* debug only */
 void hdd_test_show_chunks(void);

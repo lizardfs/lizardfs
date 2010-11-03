@@ -19,6 +19,9 @@
 #ifndef _RESTORE_H_
 #define _RESTORE_H_
 
-int restore(const char *rfname);
+#include <inttypes.h>
+
+int restore(uint64_t lv,char *ptr);
+void restore_setverblevel(uint8_t _vlevel);
 
 #endif

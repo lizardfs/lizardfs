@@ -178,9 +178,9 @@ void dcm_modify(uint32_t inode,uint32_t sessionid) {
 	}
 }
 
-int dcm_init(FILE *msg) {
+int dcm_init(void) {
 	uint32_t i;
-	(void)msg;
+
 	for (i=0 ; i<DCM_INODEHASH_LENG ; i++) {
 		dcm_inodehash[i]=DCM_NIL;
 	}

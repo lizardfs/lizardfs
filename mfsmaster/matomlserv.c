@@ -39,6 +39,8 @@
 #include "cfg.h"
 #include "main.h"
 #include "sockets.h"
+#include "slogger.h"
+#include "massert.h"
 
 #define MaxPacketSize 1500000
 
@@ -67,7 +69,7 @@ typedef struct matomlserventry {
 	uint32_t version;
 	uint32_t servip;
 
-	int metafd;
+	int metafd,chain1fd,chain2fd;
 
 	struct matomlserventry *next;
 } matomlserventry;
@@ -131,6 +133,7 @@ char* matomlserv_makestrip(uint32_t ip) {
 	}
 	l+=4;
 	optr = malloc(l);
+	passert(optr);
 	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
 	return optr;
@@ -142,16 +145,11 @@ uint8_t* matomlserv_createpacket(matomlserventry *eptr,uint32_t type,uint32_t si
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -201,34 +199,56 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		eptr->mode=KILL;
 		return;
 	}
-	if (eptr->metafd>=0) {
-		close(eptr->metafd);
-		eptr->metafd=-1;
-	}
 	filenum = get8bit(&data);
+	if (filenum==1 || filenum==2) {
+		if (eptr->metafd>=0) {
+			close(eptr->metafd);
+			eptr->metafd=-1;
+		}
+		if (eptr->chain1fd>=0) {
+			close(eptr->chain1fd);
+			eptr->chain1fd=-1;
+		}
+		if (eptr->chain2fd>=0) {
+			close(eptr->chain2fd);
+			eptr->chain2fd=-1;
+		}
+	}
 	if (filenum==1) {
 		eptr->metafd = open("metadata.mfs.back",O_RDONLY);
+		eptr->chain1fd = open("changelog.0.mfs",O_RDONLY);
+		eptr->chain2fd = open("changelog.1.mfs",O_RDONLY);
 	} else if (filenum==2) {
 		eptr->metafd = open("sessions.mfs",O_RDONLY);
+	} else if (filenum==11) {
+		if (eptr->metafd>=0) {
+			close(eptr->metafd);
+		}
+		eptr->metafd = eptr->chain1fd;
+		eptr->chain1fd = -1;
+	} else if (filenum==12) {
+		if (eptr->metafd>=0) {
+			close(eptr->metafd);
+		}
+		eptr->metafd = eptr->chain2fd;
+		eptr->chain2fd = -1;
 	} else {
 		eptr->mode=KILL;
 		return;
 	}
 	if (eptr->metafd<0) {
-		ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,1);
-		if (ptr==NULL) {
-			eptr->mode=KILL;
+		if (filenum==11 || filenum==12) {
+			ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,8);
+			put64bit(&ptr,0);
+			return;
+		} else {
+			ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,1);
+			put8bit(&ptr,0xff);	// error
 			return;
 		}
-		put8bit(&ptr,0xff);	// error
-		return;
 	}
 	size = lseek(eptr->metafd,0,SEEK_END);
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,8);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,size);	// ok
 }
 
@@ -252,10 +272,6 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	offset = get64bit(&data);
 	leng = get32bit(&data);
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_DATA,16+leng);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put64bit(&ptr,offset);
 	put32bit(&ptr,leng);
 #ifdef HAVE_PREAD
@@ -265,7 +281,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ret = read(eptr->metafd,ptr+4,leng);
 #endif /* HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
-		syslog(LOG_NOTICE,"error reading metafile: %m");
+		mfs_errlog_silent(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;
 		return;
 	}
@@ -293,13 +309,9 @@ void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t lo
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->version>0) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+logstrsize);
-			if (data!=NULL) {
-				put8bit(&data,0xFF);
-				put64bit(&data,version);
-				memcpy(data,logstr,logstrsize);
-			} else {
-				eptr->mode = KILL;
-			}
+			put8bit(&data,0xFF);
+			put64bit(&data,version);
+			memcpy(data,logstr,logstrsize);
 		}
 	}
 }
@@ -311,11 +323,7 @@ void matomlserv_broadcast_logrotate() {
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->version>0) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,1);
-			if (data!=NULL) {
-				put8bit(&data,0x55);
-			} else {
-				eptr->mode = KILL;
-			}
+			put8bit(&data,0x55);
 		}
 	}
 }
@@ -324,6 +332,14 @@ void matomlserv_beforeclose(matomlserventry *eptr) {
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
 		eptr->metafd=-1;
+	}
+	if (eptr->chain1fd>=0) {
+		close(eptr->chain1fd);
+		eptr->chain1fd=-1;
+	}
+	if (eptr->chain2fd>=0) {
+		close(eptr->chain2fd);
+		eptr->chain2fd=-1;
 	}
 }
 
@@ -374,6 +390,9 @@ void matomlserv_term(void) {
 		free(eaptr);
 	}
 	matomlservhead=NULL;
+
+	free(ListenHost);
+	free(ListenPort);
 }
 
 void matomlserv_read(matomlserventry *eptr) {
@@ -383,13 +402,13 @@ void matomlserv_read(matomlserventry *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_INFO,"connection with ML(%s) lost",eptr->servstrip);
+			syslog(LOG_NOTICE,"connection with ML(%s) has been closed by peer",eptr->servstrip);
 			eptr->mode = KILL;
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"read from ML(%s) error: %m",eptr->servstrip);
+				mfs_arg_errlog_silent(LOG_NOTICE,"read from ML(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -412,11 +431,7 @@ void matomlserv_read(matomlserventry *eptr) {
 					return;
 				}
 				eptr->inputpacket.packet = malloc(size);
-				if (eptr->inputpacket.packet==NULL) {
-					syslog(LOG_WARNING,"ML(%s) packet: out of memory",eptr->servstrip);
-					eptr->mode = KILL;
-					return;
-				}
+				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
@@ -455,7 +470,7 @@ void matomlserv_write(matomlserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"write to ML(%s) error: %m",eptr->servstrip);
+				mfs_arg_errlog_silent(LOG_NOTICE,"write to ML(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -502,11 +517,12 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			syslog(LOG_INFO,"Master<->ML socket: accept error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"Master<->ML socket: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = malloc(sizeof(matomlserventry));
+			passert(eptr);
 			eptr->next = matomlservhead;
 			matomlservhead = eptr;
 			eptr->sock = ns;
@@ -526,6 +542,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->servstrip = matomlserv_makestrip(eptr->servip);
 			eptr->version=0;
 			eptr->metafd=-1;
+			eptr->chain1fd=-1;
+			eptr->chain2fd=-1;
 		}
 	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
@@ -577,29 +595,26 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matomlserv_init(FILE *msgfd) {
+int matomlserv_init(void) {
 	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		syslog(LOG_ERR,"matoml: socket error: %m");
-		fprintf(msgfd,"master <-> metaloggers module: can't create socket\n");
+		mfs_errlog(LOG_ERR,"master <-> metaloggers module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
-		syslog(LOG_NOTICE,"matoml: can't set accept filter: %m");
+		mfs_errlog_silent(LOG_NOTICE,"matoml: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		syslog(LOG_ERR,"matoml: listen error: %m");
-		fprintf(msgfd,"master <-> metaloggers module: can't listen on socket\n");
+		mfs_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on socket");
 		return -1;
 	}
-	syslog(LOG_NOTICE,"matoml: listen on %s:%s",ListenHost,ListenPort);
-	fprintf(msgfd,"master <-> metaloggers module: listen on %s:%s\n",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matomlservhead = NULL;
 	main_destructregister(matomlserv_term);

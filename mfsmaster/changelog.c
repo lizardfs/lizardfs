@@ -80,8 +80,7 @@ void changelog(uint64_t version,const char *format,...) {
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
 
-int changelog_init(FILE *msgfd) {
-	(void)msgfd;
+int changelog_init(void) {
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	fd = NULL;
 	return 0;

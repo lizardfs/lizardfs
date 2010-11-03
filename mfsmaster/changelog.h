@@ -19,11 +19,10 @@
 #ifndef _CHANGELOG_H_
 #define _CHANGELOG_H_
 
-#include <stdio.h>
 #include <inttypes.h>
 
 void changelog_rotate(void);
 void changelog(uint64_t version,const char *format,...);
-int changelog_init(FILE *msgfd);
+int changelog_init(void);
 
 #endif

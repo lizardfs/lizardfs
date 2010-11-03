@@ -22,6 +22,7 @@
 #include <inttypes.h>
 
 void csdb_init(void);
+void csdb_term(void);
 uint32_t csdb_getreadcnt(uint32_t ip,uint16_t port);
 uint32_t csdb_getwritecnt(uint32_t ip,uint16_t port);
 uint32_t csdb_getopcnt(uint32_t ip,uint16_t port);

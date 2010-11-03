@@ -20,7 +20,6 @@
 #define _FILESYSTEM_H_
 
 #include <inttypes.h>
-#include <stdio.h>
 
 #ifdef METARESTORE
 
@@ -152,7 +151,9 @@ void fs_getquotainfo_data(uint8_t *buff);
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);
 
-int fs_init(FILE *msgfd);
+void fs_cs_disconnected(void);
+
+int fs_init(void);
 #endif
 
 

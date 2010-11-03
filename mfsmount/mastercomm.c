@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#define MMAP_ALLOC 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,14 +28,43 @@
 #include <syslog.h>
 #include <time.h>
 #include <limits.h>
+#include <errno.h>
 #include <pthread.h>
+#ifdef MMAP_ALLOC
+#include <sys/types.h>
+#include <sys/mman.h>
+#endif
 
 #include "MFSCommunication.h"
 #include "stats.h"
 #include "sockets.h"
+#include "strerr.h"
 #include "md5.h"
 #include "datapack.h"
 
+typedef struct _threc {
+	pthread_t thid;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	uint8_t *obuff;
+	uint32_t obuffsize;
+	uint32_t odataleng;
+	uint8_t *ibuff;
+	uint32_t ibuffsize;
+	uint32_t idataleng;
+
+	uint8_t sent;		// packet was sent
+	uint8_t status;		// receive status
+	uint8_t rcvd;		// packet was received
+	uint8_t waiting;	// thread is waiting for answer
+
+	uint32_t rcvd_cmd;
+
+	uint32_t packetid;	// thread number
+	struct _threc *next;
+} threc;
+
+/*
 typedef struct _threc {
 	pthread_t thid;
 	pthread_mutex_t mutex;
@@ -49,6 +80,8 @@ typedef struct _threc {
 	uint32_t packetid;
 	struct _threc *next;
 } threc;
+*/
+
 
 typedef struct _aquired_file {
 	uint32_t inode;
@@ -57,7 +90,9 @@ typedef struct _aquired_file {
 } aquired_file;
 
 
-#define DEFAULT_BUFFSIZE 10000
+#define DEFAULT_OUTPUT_BUFFSIZE 0x1000
+#define DEFAULT_INPUT_BUFFSIZE 0x10000
+
 #define RECEIVE_TIMEOUT 10
 
 static threc *threchead=NULL;
@@ -82,6 +117,8 @@ static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
 
+static uint8_t fterm;
+
 void fs_getmasterlocation(uint8_t loc[10]) {
 	put32bit(&loc,masterip);
 	put16bit(&loc,masterport);
@@ -102,7 +139,6 @@ enum {
 };
 
 static uint64_t *statsptr[STATNODES];
-static pthread_mutex_t statsptrlock = PTHREAD_MUTEX_INITIALIZER;
 
 void master_statsptr_init(void) {
 	void *s;
@@ -116,17 +152,17 @@ void master_statsptr_init(void) {
 
 void master_stats_inc(uint8_t id) {
 	if (id<STATNODES) {
-		pthread_mutex_lock(&statsptrlock);
+		stats_lock();
 		(*statsptr[id])++;
-		pthread_mutex_unlock(&statsptrlock);
+		stats_unlock();
 	}
 }
 
 void master_stats_add(uint8_t id,uint64_t s) {
 	if (id<STATNODES) {
-		pthread_mutex_lock(&statsptrlock);
+		stats_lock();
 		(*statsptr[id])+=s;
-		pthread_mutex_unlock(&statsptrlock);
+		stats_unlock();
 	}
 }
 
@@ -213,25 +249,49 @@ threc* fs_get_my_threc() {
 	}
 	rec = malloc(sizeof(threc));
 	rec->thid = mythid;
+#ifdef MMAP_ALLOC
+	rec->obuff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+	rec->ibuff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+	rec->obuff = malloc(DEFAULT_OUTPUT_BUFFSIZE);
+	rec->ibuff = malloc(DEFAULT_INPUT_BUFFSIZE);
+#endif
+	if (rec->obuff==NULL || rec->ibuff==NULL) {
+#ifdef MMAP_ALLOC
+		if (rec->obuff) {
+			munmap(rec->obuff,DEFAULT_OUTPUT_BUFFSIZE);
+		}
+		if (rec->ibuff) {
+			munmap(rec->ibuff,DEFAULT_INPUT_BUFFSIZE);
+		}
+#else
+		if (rec->obuff) {
+			free(rec->obuff);
+		}
+		if (rec->ibuff) {
+			free(rec->ibuff);
+		}
+#endif
+		free(rec);
+		pthread_mutex_unlock(&reclock);
+		return NULL;
+	}
+	pthread_mutex_init(&(rec->mutex),NULL);
+	pthread_cond_init(&(rec->cond),NULL);
+	rec->obuffsize = DEFAULT_OUTPUT_BUFFSIZE;
+	rec->ibuffsize = DEFAULT_INPUT_BUFFSIZE;
+	rec->odataleng = 0;
+	rec->idataleng = 0;
+	rec->sent = 0;
+	rec->status = 0;
+	rec->rcvd = 0;
+	rec->waiting = 0;
+	rec->rcvd_cmd = 0;
 	if (threchead==NULL) {
 		rec->packetid = 1;
 	} else {
 		rec->packetid = threchead->packetid+1;
 	}
-	pthread_mutex_init(&(rec->mutex),NULL);
-	pthread_cond_init(&(rec->cond),NULL);
-	rec->buff = malloc(DEFAULT_BUFFSIZE);
-	if (rec->buff==NULL) {
-		free(rec);
-		pthread_mutex_unlock(&reclock);
-		return NULL;
-	}
-	rec->buffsize = DEFAULT_BUFFSIZE;
-	rec->sent = 0;
-	rec->status = 0;
-	rec->release = 0;
-	rec->cmd = 0;
-	rec->size = 0;
 	rec->next = threchead;
 	//syslog(LOG_NOTICE,"mastercomm: create new threc (%"PRIu32")",rec->packetid);
 	threchead = rec;
@@ -252,34 +312,70 @@ threc* fs_get_threc_by_id(uint32_t packetid) {
 	return NULL;
 }
 
-void fs_buffer_init(threc *rec,uint32_t size) {
-	if (size>DEFAULT_BUFFSIZE) {
-		rec->buff = realloc(rec->buff,size);
-		rec->buffsize = size;
-	} else if (rec->buffsize>DEFAULT_BUFFSIZE) {
-		rec->buff = realloc(rec->buff,DEFAULT_BUFFSIZE);
-		rec->buffsize = DEFAULT_BUFFSIZE;
+void fs_output_buffer_init(threc *rec,uint32_t size) {
+	if (size>DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		munmap(rec->obuff,rec->obuffsize);
+		rec->obuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		free(rec->obuff);
+		rec->obuff = malloc(size);
+#endif
+		rec->obuffsize = size;
+	} else if (rec->obuffsize>DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		munmap(rec->obuff,rec->obuffsize);
+		rec->obuff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		free(rec->obuff);
+		rec->obuff = malloc(DEFAULT_OUTPUT_BUFFSIZE);
+#endif
+		rec->obuffsize = DEFAULT_OUTPUT_BUFFSIZE;
+	}
+}
+
+void fs_input_buffer_init(threc *rec,uint32_t size) {
+	if (size>DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		munmap(rec->ibuff,rec->ibuffsize);
+		rec->ibuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		free(rec->ibuff);
+		rec->ibuff = malloc(size);
+#endif
+		rec->ibuffsize = size;
+	} else if (rec->ibuffsize>DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		munmap(rec->ibuff,rec->ibuffsize);
+		rec->ibuff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		free(rec->ibuff);
+		rec->ibuff = malloc(DEFAULT_INPUT_BUFFSIZE);
+#endif
+		rec->ibuffsize = DEFAULT_INPUT_BUFFSIZE;
 	}
 }
 
 uint8_t* fs_createpacket(threc *rec,uint32_t cmd,uint32_t size) {
 	uint8_t *ptr;
 	uint32_t hdrsize = size+4;
-	fs_buffer_init(rec,size+12);
-	if (rec->buff==NULL) {
+	pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
+	fs_output_buffer_init(rec,size+12);
+	if (rec->obuff==NULL) {
 		return NULL;
 	}
-	ptr = rec->buff;
+	ptr = rec->obuff;
 	put32bit(&ptr,cmd);
 	put32bit(&ptr,hdrsize);
 	put32bit(&ptr,rec->packetid);
-	rec->size = size+12;
-	return rec->buff+12;
+	rec->odataleng = size+12;
+	pthread_mutex_unlock(&(rec->mutex));	// make helgrind happy
+	return ptr;
 }
 
-const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info_length) {
+const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answer_leng) {
 	uint32_t cnt;
-	uint32_t size = rec->size;
+//	uint32_t size = rec->size;
 
 	for (cnt=0 ; cnt<maxretries ; cnt++) {
 		pthread_mutex_lock(&fdlock);
@@ -293,43 +389,48 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t command_info,uint32_t *info
 			continue;
 		}
 		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
-		rec->release=0;
-		if (tcptowrite(fd,rec->buff,size,1000)!=(int32_t)(size)) {
-			syslog(LOG_WARNING,"tcp send error: %m");
+		pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
+		if (tcptowrite(fd,rec->obuff,rec->odataleng,1000)!=(int32_t)(rec->odataleng)) {
+			syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
 			disconnect = 1;
+			pthread_mutex_unlock(&(rec->mutex));
 			pthread_mutex_unlock(&fdlock);
 			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
-		master_stats_add(MASTER_BYTESSENT,size);
-		master_stats_inc(MASTER_PACKETSSENT);
+		rec->rcvd = 0;
 		rec->sent = 1;
+		pthread_mutex_unlock(&(rec->mutex));	// make helgrind happy
+		master_stats_add(MASTER_BYTESSENT,rec->odataleng);
+		master_stats_inc(MASTER_PACKETSSENT);
 		lastwrite = time(NULL);
 		pthread_mutex_unlock(&fdlock);
 		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
-		while (rec->release==0) {
-			rec->waiting=1;
+		while (rec->rcvd==0) {
+			rec->waiting = 1;
 			pthread_cond_wait(&(rec->cond),&(rec->mutex));
+			rec->waiting = 0;
 		}
-		rec->waiting=0;
-		pthread_mutex_unlock(&(rec->mutex));
+		*answer_leng = rec->idataleng;
 		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
 		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
 		if (rec->status!=0) {
+			pthread_mutex_unlock(&(rec->mutex));
 			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
-		if (rec->cmd!=command_info) {
+		if (rec->rcvd_cmd!=expected_cmd) {
+			pthread_mutex_unlock(&(rec->mutex));
 			pthread_mutex_lock(&fdlock);
 			disconnect = 1;
 			pthread_mutex_unlock(&fdlock);
 			sleep(1+(cnt<30)?(cnt/3):10);
 			continue;
 		}
+		pthread_mutex_unlock(&(rec->mutex));
 		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
-		*info_length = rec->size;
-		return rec->buff+size;
+		return rec->ibuff;
 	}
 	return NULL;
 }
@@ -378,7 +479,7 @@ void fs_reconnect() {
 	}
 	fd = tcpsocket();
 	if (tcpnodelay(fd)<0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 	if (srcip>0) {
 		if (tcpnumbind(fd,srcip,0)<0) {
@@ -406,7 +507,7 @@ void fs_reconnect() {
 	put8bit(&wptr,VERSMID);
 	put8bit(&wptr,VERSMIN);
 	if (tcptowrite(fd,regbuff,8+64+9,1000)!=8+64+9) {
-		syslog(LOG_WARNING,"master: register error (write: %m)");
+		syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -414,7 +515,7 @@ void fs_reconnect() {
 	master_stats_add(MASTER_BYTESSENT,16+64);
 	master_stats_inc(MASTER_PACKETSSENT);
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
-		syslog(LOG_WARNING,"master: register error (read header: %m)");
+		syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -436,7 +537,7 @@ void fs_reconnect() {
 		return;
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-		syslog(LOG_WARNING,"master: register error (read data: %m)");
+		syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -476,7 +577,7 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 
 	fd = tcpsocket();
 	if (tcpnodelay(fd)<0) {
-//		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+//		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 		fprintf(stderr,"can't set RCP_NODELAY\n");
 	}
 	if (srcip>0) {
@@ -504,7 +605,7 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 		wptr+=64;
 		put8bit(&wptr,REGISTER_GETRANDOM);
 		if (tcptowrite(fd,regbuff,8+65,1000)!=8+65) {
-//			syslog(LOG_WARNING,"master: register error (write: %m)");
+//			syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
 			fprintf(stderr,"error sending data to mfsmaster\n");
 			tcpclose(fd);
 			fd=-1;
@@ -512,7 +613,7 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 			return -1;
 		}
 		if (tcptoread(fd,regbuff,8,1000)!=8) {
-//			syslog(LOG_WARNING,"master: register error (read header: %m)");
+//			syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
 			fprintf(stderr,"error receiving data from mfsmaster\n");
 			tcpclose(fd);
 			fd=-1;
@@ -538,7 +639,7 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 			return -1;
 		}
 		if (tcptoread(fd,regbuff,32,1000)!=32) {
-//			syslog(LOG_WARNING,"master: register error (read header: %m)");
+//			syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
 			fprintf(stderr,"error receiving data from mfsmaster\n");
 			tcpclose(fd);
 			fd=-1;
@@ -585,16 +686,16 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 		memcpy(wptr+pleng,digest,16);
 	}
 	if (tcptowrite(fd,regbuff,8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0))) {
-//		syslog(LOG_WARNING,"master: register error (write: %m)");
-		fprintf(stderr,"error sending data to mfsmaster\n");
+//		syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
+		fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		free(regbuff);
 		return -1;
 	}
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
-//		syslog(LOG_WARNING,"master: register error (read header: %m)");
-		fprintf(stderr,"error receiving data from mfsmaster\n");
+//		syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
+		fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		free(regbuff);
@@ -620,8 +721,8 @@ int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t
 		return -1;
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-//		syslog(LOG_WARNING,"master: register error (read data: %m)");
-		fprintf(stderr,"error receiving data from mfsmaster\n");
+//		syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
+		fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		free(regbuff);
@@ -690,6 +791,10 @@ void* fs_nop_thread(void *arg) {
 	for (;;) {
 		now = time(NULL);
 		pthread_mutex_lock(&fdlock);
+		if (fterm) {
+			pthread_mutex_unlock(&fdlock);
+			return NULL;
+		}
 		if (disconnect==0 && fd>=0) {
 			if (lastwrite+2<now) {	// NOP
 				ptr = hdr;
@@ -744,6 +849,10 @@ void* fs_receive_thread(void *arg) {
 	(void)arg;
 	for (;;) {
 		pthread_mutex_lock(&fdlock);
+		if (fterm) {
+			pthread_mutex_unlock(&fdlock);
+			return NULL;
+		}
 		if (disconnect) {
 			tcpclose(fd);
 			fd=-1;
@@ -751,15 +860,15 @@ void* fs_receive_thread(void *arg) {
 			// send to any threc status error and unlock them
 			pthread_mutex_lock(&reclock);
 			for (rec=threchead ; rec ; rec=rec->next) {
+				pthread_mutex_lock(&(rec->mutex));
 				if (rec->sent) {
 					rec->status = 1;
-					pthread_mutex_lock(&(rec->mutex));
-					rec->release = 1;
+					rec->rcvd = 1;
 					if (rec->waiting) {
 						pthread_cond_signal(&(rec->cond));
 					}
-					pthread_mutex_unlock(&(rec->mutex));
 				}
+				pthread_mutex_unlock(&(rec->mutex));
 			}
 			pthread_mutex_unlock(&reclock);
 		}
@@ -780,7 +889,7 @@ void* fs_receive_thread(void *arg) {
 			continue;
 		}
 		if (r!=12) {
-			syslog(LOG_WARNING,"master: tcp recv error: %m (1)");
+			syslog(LOG_WARNING,"master: tcp recv error: %s (1)",strerr(errno));
 			disconnect=1;
 			continue;
 		}
@@ -807,35 +916,38 @@ void* fs_receive_thread(void *arg) {
 			disconnect=1;
 			continue;
 		}
-		fs_buffer_init(rec,rec->size+size);
-		if (rec->buff==NULL) {
+		pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
+		fs_input_buffer_init(rec,size);
+		if (rec->ibuff==NULL) {
+			pthread_mutex_unlock(&(rec->mutex));
 			disconnect=1;
 			continue;
 		}
 		// syslog(LOG_NOTICE,"master: expected data size: %"PRIu32,size);
 		if (size>0) {
-			r = tcptoread(fd,rec->buff+rec->size,size,1000);
+			r = tcptoread(fd,rec->ibuff,size,1000);
 			// syslog(LOG_NOTICE,"master: data size: %d",r);
 			if (r==0) {
 				syslog(LOG_WARNING,"master: connection lost (2)");
+				pthread_mutex_unlock(&(rec->mutex));
 				disconnect=1;
 				continue;
 			}
 			if (r!=(int32_t)(size)) {
-				syslog(LOG_WARNING,"master: tcp recv error: %m (2)");
+				syslog(LOG_WARNING,"master: tcp recv error: %s (2)",strerr(errno));
+				pthread_mutex_unlock(&(rec->mutex));
 				disconnect=1;
 				continue;
 			}
 			master_stats_add(MASTER_BYTESRCVD,size);
 		}
 		master_stats_inc(MASTER_PACKETSRCVD);
-		rec->sent=0;
-		rec->status=0;
-		rec->size = size;
-		rec->cmd = cmd;
+		rec->sent = 0;
+		rec->status = 0;
+		rec->idataleng = size;
+		rec->rcvd_cmd = cmd;
 		// syslog(LOG_NOTICE,"master: unlock: %"PRIu32,rec->packetid);
-		pthread_mutex_lock(&(rec->mutex));
-		rec->release = 1;
+		rec->rcvd = 1;
 		if (rec->waiting) {
 			pthread_cond_signal(&(rec->cond));
 		}
@@ -873,6 +985,7 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 void fs_init_threads(uint32_t retries) {
 	pthread_attr_t thattr;
 	maxretries = retries;
+	fterm = 0;
 	pthread_mutex_init(&reclock,NULL);
 	pthread_mutex_init(&fdlock,NULL);
 	pthread_mutex_init(&aflock,NULL);
@@ -883,6 +996,45 @@ void fs_init_threads(uint32_t retries) {
 	pthread_attr_destroy(&thattr);
 }
 
+void fs_term(void) {
+	threc *tr,*trn;
+	aquired_file *af,*afn;
+	pthread_mutex_lock(&fdlock);
+	fterm = 1;
+	pthread_mutex_unlock(&fdlock);
+	pthread_join(npthid,NULL);
+	pthread_join(rpthid,NULL);
+	pthread_mutex_destroy(&aflock);
+	pthread_mutex_destroy(&fdlock);
+	pthread_mutex_destroy(&reclock);
+	for (tr = threchead ; tr ; tr = trn) {
+		trn = tr->next;
+		if (tr->obuff) {
+#ifdef MMAP_ALLOC
+			munmap(tr->obuff,tr->obuffsize);
+#else
+			free(tr->obuff);
+#endif
+		}
+		if (tr->ibuff) {
+#ifdef MMAP_ALLOC
+			munmap(tr->ibuff,tr->ibuffsize);
+#else
+			free(tr->ibuff);
+#endif
+		}
+		pthread_mutex_destroy(&(tr->mutex));
+		pthread_cond_destroy(&(tr->cond));
+		free(tr);
+	}
+	for (af = afhead ; af ; af = afn) {
+		afn = af->next;
+		free(af);
+	}
+	if (fd>=0) {
+		tcpclose(fd);
+	}
+}
 
 void fs_statfs(uint64_t *totalspace,uint64_t *availspace,uint64_t *trashspace,uint64_t *reservedspace,uint32_t *inodes) {
 	uint8_t *wptr;

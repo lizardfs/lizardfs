@@ -1,5 +1,18 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.18 (2010-11-03)
+
+ - (metalogger) added sending metadata after metalogger startup
+ - (master,metalogger) added sending two change logs together with metadata
+ - (metarestore) imporved merging change logs
+ - (all) added a lot of assertions (mainly NULL pointers, and unsuccessful thread functions)
+ - (all) fixed some minor bugs and potential race conditions (makes valgrind happy)
+ - (cs) added ability to use read-only disks in "marked for removal" mode (to retrieve missing chunks from damaged disks)
+ - (all/master) added releasing used resources at the end.
+ - (all) changed some malloc/free allocations into mmap/munmap
+ - (all) new error messages routines
+ - (daemons) added proper handling SIGINT in "foreground" mode
+
 * MooseFS 1.6.17 (2010-07-20)
 
  - (master,tools) added automatic data cache management
@@ -24,7 +37,7 @@ This file lists noteworthy changes in MooseFS.
  - (metarestore) fixed bugs in "REPAIR" and "SNAPSHOT" entries
  - (master) fixed bug in "snapshot" command ("mfsmakesnapshot dir dir/" caused master to hung-up)
  - (master) preserving atime and mtime during "snapshot" operation (makes "snapshot" to work more like "cp -Rp" than "cp -R")
- - (cs) ommit "market for removal" disks during chunk test loop
+ - (cs) ommit "marked for removal" disks during chunk test loop
 
 * MooseFS 1.6.14 (2010-03-19)
 

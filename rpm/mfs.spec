@@ -1,7 +1,13 @@
+# build with "--define 'distro XXX' diset to:
+# "rh" for Fedora/RHEL/CentOS
+# ... (other awaiting contribution)
+
+#define	distro	rh
+
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.16
-Release:	1
+Version:	1.6.18
+Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
 URL:		http://www.moosefs.com/
@@ -12,6 +18,7 @@ BuildRequires:	zlib-devel
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %define		_localstatedir	/var/lib
+%define		mfsconfdir	%{_sysconfdir}
 
 %description
 MooseFS is an Open Source, easy to deploy and maintain, distributed,
@@ -60,6 +67,15 @@ rm -rf $RPM_BUILD_ROOT
 make install \
 	DESTDIR=$RPM_BUILD_ROOT
 
+%if "%{distro}" == "rh"
+install -d $RPM_BUILD_ROOT%{_initrddir}
+for f in rpm/rh/*.init ; do
+	sed -e 's,@sysconfdir@,%{mfsconfdir},;
+		s,@sbindir@,%{_sbindir},;
+		s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
+done
+%endif
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 
@@ -78,11 +94,15 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/mfsmaster.8*
 %{_mandir}/man8/mfsmetalogger.8*
 %{_mandir}/man8/mfsmetarestore.8*
-%{_sysconfdir}/mfsexports.cfg.dist
-%{_sysconfdir}/mfsmaster.cfg.dist
-%{_sysconfdir}/mfsmetalogger.cfg.dist
+%{mfsconfdir}/mfsexports.cfg.dist
+%{mfsconfdir}/mfsmaster.cfg.dist
+%{mfsconfdir}/mfsmetalogger.cfg.dist
 %dir %{_localstatedir}/mfs
 %{_localstatedir}/mfs/metadata.mfs.empty
+%if "%{distro}" == "rh"
+%attr(754,root,root) %{_initrddir}/mfsmaster
+%attr(754,root,root) %{_initrddir}/mfsmetalogger
+%endif
 
 %files chunkserver
 %defattr(644,root,root,755)
@@ -91,8 +111,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man5/mfschunkserver.cfg.5*
 %{_mandir}/man5/mfshdd.cfg.5*
 %{_mandir}/man8/mfschunkserver.8*
-%{_sysconfdir}/mfschunkserver.cfg.dist
-%{_sysconfdir}/mfshdd.cfg.dist
+%{mfsconfdir}/mfschunkserver.cfg.dist
+%{mfsconfdir}/mfshdd.cfg.dist
+%if "%{distro}" == "rh"
+%attr(754,root,root) %{_initrddir}/mfschunkserver
+%endif
 
 %files client
 %defattr(644,root,root,755)
@@ -147,6 +170,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_datadir}/mfscgi
 
 %changelog
+* Fri Oct  8 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.17-1
+- added init scripts based on work of Steve Huff (Dag Apt Repository)
+  (included in RPMs when building with --define "distro rh")
+
 * Mon Jul 19 2010 Jakub Kruszona-Zawadzki <contact@moosefs.com> - 1.6.16-1
 - added mfscgiserv man page
 

@@ -45,6 +45,20 @@ void csdb_init(void) {
 	pthread_mutex_init(csdblock,NULL);
 }
 
+void csdb_term(void) {
+	uint32_t i;
+	csdbentry *cs,*csn;
+
+	pthread_mutex_destroy(csdblock);
+	free(csdblock);
+	for (i=0 ; i<CSDB_HASHSIZE ; i++) {
+		for (cs = csdbhtab[i] ; cs ; cs = csn) {
+			csn = cs->next;
+			free(cs);
+		}
+	}
+}
+
 uint32_t csdb_getreadcnt(uint32_t ip,uint16_t port) {
 	uint32_t hash = CSDB_HASH(ip,port);
 	uint32_t result = 0;

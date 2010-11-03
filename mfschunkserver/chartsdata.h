@@ -19,9 +19,8 @@
 #ifndef _CHARTSDATA_H_
 #define _CHARTSDATA_H_
 
-#include <stdio.h>
 #include <inttypes.h>
 
-int chartsdata_init (FILE *msgfd);
+int chartsdata_init (void);
 
 #endif

@@ -23,7 +23,11 @@
 #endif
 
 #if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
-#define MFS_USE_MEMLOCK
+#define MFS_USE_MEMLOCK 1
+#endif
+
+#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
+#define USE_PTHREADS 1
 #endif
 
 #include <sys/stat.h>
@@ -46,13 +50,20 @@
 #include <sys/resource.h>
 #include <grp.h>
 #include <pwd.h>
+#ifdef USE_PTHREADS
+#include <pthread.h>
+#endif
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
 #include "cfg.h"
 #include "main.h"
+#include "strerr.h"
+#include "crc.h"
 #include "init.h"
+#include "massert.h"
+#include "slogger.h"
 
 #define RM_RESTART 0
 #define RM_START 1
@@ -123,14 +134,17 @@ static int now;
 static uint64_t usecnow;
 //static int alcnt=0;
 
+#ifdef USE_PTHREADS
+static pthread_mutex_t signal_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 static int terminate=0;
-static int sigchld=0;
 static int reload=0;
 
 /* interface */
 
 void main_destructregister (void (*fun)(void)) {
 	deentry *aux=(deentry*)malloc(sizeof(deentry));
+	passert(aux);
 	aux->fun = fun;
 	aux->next = dehead;
 	dehead = aux;
@@ -138,6 +152,7 @@ void main_destructregister (void (*fun)(void)) {
 
 void main_canexitregister (int (*fun)(void)) {
 	ceentry *aux=(ceentry*)malloc(sizeof(ceentry));
+	passert(aux);
 	aux->fun = fun;
 	aux->next = cehead;
 	cehead = aux;
@@ -145,6 +160,7 @@ void main_canexitregister (int (*fun)(void)) {
 
 void main_wantexitregister (void (*fun)(void)) {
 	weentry *aux=(weentry*)malloc(sizeof(weentry));
+	passert(aux);
 	aux->fun = fun;
 	aux->next = wehead;
 	wehead = aux;
@@ -152,6 +168,7 @@ void main_wantexitregister (void (*fun)(void)) {
 
 void main_reloadregister (void (*fun)(void)) {
 	rlentry *aux=(rlentry*)malloc(sizeof(rlentry));
+	passert(aux);
 	aux->fun = fun;
 	aux->next = rlhead;
 	rlhead = aux;
@@ -159,6 +176,7 @@ void main_reloadregister (void (*fun)(void)) {
 
 void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *)) {
 	pollentry *aux=(pollentry*)malloc(sizeof(pollentry));
+	passert(aux);
 	aux->desc = desc;
 	aux->serve = serve;
 	aux->next = pollhead;
@@ -167,6 +185,7 @@ void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(s
 
 void main_eachloopregister (void (*fun)(void)) {
 	eloopentry *aux=(eloopentry*)malloc(sizeof(eloopentry));
+	passert(aux);
 	aux->fun = fun;
 	aux->next = eloophead;
 	eloophead = aux;
@@ -176,6 +195,7 @@ void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(vo
 	timeentry *aux;
 	if (seconds==0 || offset>=seconds) return;
 	aux = (timeentry*)malloc(sizeof(timeentry));
+	passert(aux);
 	aux->nextevent = ((now / seconds) * seconds) + offset;
 	while (aux->nextevent<now) {
 		aux->nextevent+=seconds;
@@ -189,6 +209,50 @@ void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(vo
 
 /* internal */
 
+void free_all_registered_entries(void) {
+	deentry *de,*den;
+	ceentry *ce,*cen;
+	weentry *we,*wen;
+	rlentry *re,*ren;
+	pollentry *pe,*pen;
+	eloopentry *ee,*een;
+	timeentry *te,*ten;
+
+	for (de = dehead ; de ; de = den) {
+		den = de->next;
+		free(de);
+	}
+
+	for (ce = cehead ; ce ; ce = cen) {
+		cen = ce->next;
+		free(ce);
+	}
+
+	for (we = wehead ; we ; we = wen) {
+		wen = we->next;
+		free(we);
+	}
+
+	for (re = rlhead ; re ; re = ren) {
+		ren = re->next;
+		free(re);
+	}
+
+	for (pe = pollhead ; pe ; pe = pen) {
+		pen = pe->next;
+		free(pe);
+	}
+
+	for (ee = eloophead ; ee ; ee = een) {
+		een = ee->next;
+		free(ee);
+	}
+
+	for (te = timehead ; te ; te = ten) {
+		ten = te->next;
+		free(te);
+	}
+}
 
 int canexit() {
 	ceentry *aux;
@@ -202,17 +266,26 @@ int canexit() {
 
 void termhandle(int signo) {
 	(void)signo;
-	terminate=1;
+#ifdef USE_PTHREADS
+	pthread_mutex_lock(&signal_lock);
+#endif
+	if (terminate==0) {
+		terminate=1;
+	}
+#ifdef USE_PTHREADS
+	pthread_mutex_unlock(&signal_lock);
+#endif
 }
 
 void reloadhandle(int signo) {
 	(void)signo;
+#ifdef USE_PTHREADS
+	pthread_mutex_lock(&signal_lock);
+#endif
 	reload=1;
-}
-
-void sigchldhandle(int signo) {
-	(void)signo;
-	sigchld=1;
+#ifdef USE_PTHREADS
+	pthread_mutex_unlock(&signal_lock);
+#endif
 }
 
 int main_time() {
@@ -241,8 +314,10 @@ void mainloop() {
 	struct pollfd pdesc[MFSMAXFILES];
 	uint32_t ndesc;
 	int i;
+	int t,r;
 
-	while (terminate!=3) {
+	t = 0;
+	while (t!=3) {
 		tv.tv_sec=0;
 		tv.tv_usec=300000;
 		ndesc=0;
@@ -262,7 +337,7 @@ void mainloop() {
 				continue;
 			}
 			if (errno!=EINTR) {
-				syslog(LOG_WARNING,"poll error: %m");
+				syslog(LOG_WARNING,"poll error: %s",strerr(errno));
 				break;
 			}
 		} else {
@@ -297,19 +372,39 @@ void mainloop() {
 				}
 			}
 		}
-		if (terminate==0 && reload) {
+#ifdef USE_PTHREADS
+		pthread_mutex_lock(&signal_lock);
+#endif
+		t = terminate;
+		r = reload;
+#ifdef USE_PTHREADS
+		pthread_mutex_unlock(&signal_lock);
+#endif
+		if (t==0 && r) {
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next ) {
 				rlit->fun();
 			}
-			reload=0;
+#ifdef USE_PTHREADS
+			pthread_mutex_lock(&signal_lock);
+#endif
+			r = reload = 0;
+#ifdef USE_PTHREADS
+			pthread_mutex_unlock(&signal_lock);
+#endif
 		}
-		if (terminate==1) {
+		if (t==1) {
 			for (weit = wehead ; weit!=NULL ; weit=weit->next ) {
 				weit->fun();
 			}
-			terminate=2;
+#ifdef USE_PTHREADS
+			pthread_mutex_lock(&signal_lock);
+#endif
+			t = terminate = 2;
+#ifdef USE_PTHREADS
+			pthread_mutex_unlock(&signal_lock);
+#endif
 		}
-		if (terminate==2) {
+		if (t==2) {
 			i = 1;
 			for (ceit = cehead ; ceit!=NULL && i ; ceit=ceit->next ) {
 				if (ceit->fun()==0) {
@@ -317,21 +412,26 @@ void mainloop() {
 				}
 			}
 			if (i) {
-				terminate=3;
+#ifdef USE_PTHREADS
+				pthread_mutex_lock(&signal_lock);
+#endif
+				t = terminate = 3;
+#ifdef USE_PTHREADS
+				pthread_mutex_unlock(&signal_lock);
+#endif
 			}
 		}
 	}
 }
 
-int initialize(FILE *msgfd) {
+int initialize(void) {
 	uint32_t i;
 	int ok;
 	ok = 1;
 	now = time(NULL);
 	for (i=0 ; (long int)(RunTab[i].fn)!=0 && ok ; i++) {
-		if (RunTab[i].fn(msgfd)<0) {
-			syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
-			fprintf(msgfd,"init: %s failed !!!\n",RunTab[i].name);
+		if (RunTab[i].fn()<0) {
+			mfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
 			ok=0;
 		}
 	}
@@ -340,14 +440,15 @@ int initialize(FILE *msgfd) {
 
 static int termsignal[]={
 	SIGTERM,
-	-1};
+	-1
+};
 
 static int reloadsignal[]={
 	SIGHUP,
-	-1};
+	-1
+};
 
 static int ignoresignal[]={
-	SIGINT,
 	SIGQUIT,
 #ifdef SIGPIPE
 	SIGPIPE,
@@ -376,9 +477,15 @@ static int ignoresignal[]={
 #ifdef SIGCLD
 	SIGCLD,
 #endif
-	-1};
+	-1
+};
 
-void set_signal_handlers(void) {
+static int daemonignoresignal[]={
+	SIGINT,
+	-1
+};
+
+void set_signal_handlers(int daemonflag) {
 	struct sigaction sa;
 	uint32_t i;
 
@@ -401,25 +508,16 @@ void set_signal_handlers(void) {
 	for (i=0 ; ignoresignal[i]>0 ; i++) {
 		sigaction(ignoresignal[i],&sa,(struct sigaction *)0);
 	}
-}
-
-static inline const char* errno_to_str() {
-#ifdef HAVE_STRERROR_R
-	static char errorbuff[500];
-# ifdef STRERROR_R_CHAR_P
-	return strerror_r(errno,errorbuff,500);
-# else
-	strerror_r(errno,errorbuff,500);
-	return errorbuff;
-# endif
-#else
-	snprintf(errorbuff,500,"(errno:%d)",errno);
-	errorbuff[499]=0;
-	return errorbuff;
-#endif
+	sa.sa_handler = daemonflag?SIG_IGN:termhandle;
+	for (i=0 ; daemonignoresignal[i]>0 ; i++) {
+		sigaction(daemonignoresignal[i],&sa,(struct sigaction *)0);
+	}
 }
 
 void changeugid(void) {
+	char pwdgrpbuff[16384];
+	struct passwd pwd,*pw;
+	struct group grp,*gr;
 	char *wuser;
 	char *wgroup;
 	uid_t wrk_uid;
@@ -436,11 +534,9 @@ void changeugid(void) {
 			wrk_gid = strtol(wgroup+1,NULL,10);
 			gidok = 1;
 		} else if (wgroup[0]) {
-			struct group *gr;
-			gr = getgrnam(wgroup);
+			getgrnam_r(wgroup,&grp,pwdgrpbuff,16384,&gr);
 			if (gr==NULL) {
-				fprintf(stderr,"%s: no such group !!!\n",wgroup);
-				syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
+				mfs_arg_syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
 				exit(1);
 			} else {
 				wrk_gid = gr->gr_gid;
@@ -449,23 +545,19 @@ void changeugid(void) {
 		}
 
 		if (wuser[0]=='#') {
-			struct passwd *pw;
 			wrk_uid = strtol(wuser+1,NULL,10);
 			if (gidok==0) {
-				pw = getpwuid(wrk_uid);
+				getpwuid_r(wrk_uid,&pwd,pwdgrpbuff,16384,&pw);
 				if (pw==NULL) {
-					fprintf(stderr,"%s: no such user id - can't obtain group id\n",wuser+1);
-					syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
+					mfs_arg_syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
 					exit(1);
 				}
 				wrk_gid = pw->pw_gid;
 			}
 		} else {
-			struct passwd *pw;
-			pw = getpwnam(wuser);
+			getpwnam_r(wuser,&pwd,pwdgrpbuff,16384,&pw);
 			if (pw==NULL) {
-				fprintf(stderr,"%s: no such user !!!\n",wuser);
-				syslog(LOG_ERR,"%s: no such user !!!",wuser);
+				mfs_arg_syslog(LOG_ERR,"%s: no such user !!!",wuser);
 				exit(1);
 			}
 			wrk_uid = pw->pw_uid;
@@ -507,7 +599,7 @@ pid_t mylock(int fd) {
 	return -1;	// pro forma
 }
 
-int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
+int wdlock(uint8_t runmode,uint32_t timeout) {
 	pid_t ownerpid;
 	pid_t newownerpid;
 	int lfp;
@@ -515,65 +607,59 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 
 	lfp = open("." STR(APPNAME) ".lock",O_WRONLY|O_CREAT,0666);
 	if (lfp<0) {
-		syslog(LOG_ERR,"can't create lockfile in working directory: %m");
-		fprintf(msgfd,"can't create lockfile in working directory: %s\n",errno_to_str());
+		mfs_errlog(LOG_ERR,"can't create lockfile in working directory");
 		return -1;
 	}
 	ownerpid = mylock(lfp);
 	if (ownerpid<0) {
-		syslog(LOG_ERR,"fcntl error: %m");
-		fprintf(msgfd,"fcntl error: %s\n",errno_to_str());
+		mfs_errlog(LOG_ERR,"fcntl error");
 		return -1;
 	}
 	if (ownerpid>0) {
 		if (runmode==RM_START) {
-			fprintf(msgfd,"can't start: lockfile is already locked by another process\n");
+			fprintf(stderr,"can't start: lockfile is already locked by another process\n");
 			return -1;
 		}
 		if (runmode==RM_RELOAD) {
 			if (kill(ownerpid,SIGHUP)<0) {
-				syslog(LOG_WARNING,"can't send reload signal to lock owner (error: %m)");
-				fprintf(msgfd,"can't send reload signal to lock owner (error: %s)\n",errno_to_str());
+				mfs_errlog(LOG_WARNING,"can't send reload signal to lock owner");
 				return -1;
 			}
-			fprintf(msgfd,"reload signal has beed sent\n");
+			fprintf(stderr,"reload signal has beed sent\n");
 			return 0;
 		}
-		fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
+		fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
 		if (kill(ownerpid,SIGTERM)<0) {
-			syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
-			fprintf(msgfd,"can't kill lock owner (error: %s)\n",errno_to_str());
+			mfs_errlog(LOG_WARNING,"can't kill lock owner");
 			return -1;
 		}
 		l=0;
-		fprintf(msgfd,"waiting for termination ... ");
-		fflush(msgfd);
+		fprintf(stderr,"waiting for termination ... ");
+		fflush(stderr);
 		do {
 			newownerpid = mylock(lfp);
 			if (newownerpid<0) {
-				syslog(LOG_ERR,"fcntl error: %m");
-				fprintf(msgfd,"fcntl error: %s\n",errno_to_str());
+				mfs_errlog(LOG_ERR,"fcntl error");
 				return -1;
 			}
 			if (newownerpid>0) {
 				l++;
 				if (l>=timeout) {
 					syslog(LOG_ERR,"about %"PRIu32" seconds passed and lockfile is still locked - giving up",l);
-					fprintf(msgfd,"give up\n");
+					fprintf(stderr,"giving up\n");
 					return -1;
 				}
 				if (l%10==0) {
 					syslog(LOG_WARNING,"about %"PRIu32" seconds passed and lock still exists",l);
-					fprintf(msgfd,"%"PRIu32"s ",l);
-					fflush(msgfd);
+					fprintf(stderr,"%"PRIu32"s ",l);
+					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
-					fprintf(msgfd,"\nnew lock owner detected\n");
-					fprintf(msgfd,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
-					fflush(msgfd);
+					fprintf(stderr,"\nnew lock owner detected\n");
+					fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
+					fflush(stderr);
 					if (kill(newownerpid,SIGTERM)<0) {
-						syslog(LOG_WARNING,"can't kill lock owner (error: %m)");
-						fprintf(msgfd,"can't kill lock owner (error: %s)\n",errno_to_str());
+						mfs_errlog(LOG_WARNING,"can't kill lock owner");
 						return -1;
 					}
 					ownerpid = newownerpid;
@@ -581,20 +667,20 @@ int wdlock(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			}
 			sleep(1);
 		} while (newownerpid!=0);
-		fprintf(msgfd,"terminated\n");
+		fprintf(stderr,"terminated\n");
 		return 0;
 	}
 	if (runmode==RM_START || runmode==RM_RESTART) {
-		fprintf(msgfd,"lockfile created and locked\n");
+		fprintf(stderr,"lockfile created and locked\n");
 	} else if (runmode==RM_STOP) {
-		fprintf(msgfd,"can't find process to terminate\n");
+		fprintf(stderr,"can't find process to terminate\n");
 	} else if (runmode==RM_RELOAD) {
-		fprintf(msgfd,"can't find process to send reload signal\n");
+		fprintf(stderr,"can't find process to send reload signal\n");
 	}
 	return 0;
 }
 
-int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
+int check_old_locks(uint8_t runmode,uint32_t timeout) {
 	int lfp;
 	char str[13];
 	uint32_t l;
@@ -608,33 +694,29 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 			free(lockfname);
 			return 0;	// ok
 		}
-		syslog(LOG_ERR,"open %s error: %m",lockfname);
-		fprintf(msgfd,"open %s error: %s\n",lockfname,errno_to_str());
+		mfs_arg_errlog(LOG_ERR,"open %s error",lockfname);
 		free(lockfname);
 		return -1;
 	}
 	if (lockf(lfp,F_TLOCK,0)<0) {
 		if (errno!=EAGAIN) {
-			syslog(LOG_ERR,"lock %s error: %m",lockfname);
-			fprintf(msgfd,"lock %s error: %s\n",lockfname,errno_to_str());
+			mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
 			free(lockfname);
 			return -1;
 		}
 		if (runmode==RM_START) {
-			syslog(LOG_ERR,"old lockfile is locked - can't start");
-			fprintf(msgfd,"old lockfile is locked - can't start\n");
+			mfs_syslog(LOG_ERR,"old lockfile is locked - can't start");
 			free(lockfname);
 			return -1;
 		}
 		if (runmode==RM_STOP || runmode==RM_RESTART) {
-			fprintf(msgfd,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
+			fprintf(stderr,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
 		} else if (runmode==RM_RELOAD) {
-			fprintf(msgfd,"old lockfile found - sending reload signal using data from old lockfile\n");
+			fprintf(stderr,"old lockfile found - sending reload signal using data from old lockfile\n");
 		}
 		l=read(lfp,str,13);
 		if (l==0 || l>=13) {
-			syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
-			fprintf(msgfd,"wrong pid in old lockfile %s\n",lockfname);
+			mfs_arg_syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
 			free(lockfname);
 			return -1;
 		}
@@ -642,52 +724,47 @@ int check_old_locks(FILE *msgfd,uint8_t runmode,uint32_t timeout) {
 		ptk = strtol(str,NULL,10);
 		if (runmode==RM_RELOAD) {
 			if (kill(ptk,SIGHUP)<0) {
-				syslog(LOG_WARNING,"can't send reload signal (error: %m)");
-				fprintf(msgfd,"can't send reload signal (error: %s)\n",errno_to_str());
+				mfs_errlog(LOG_WARNING,"can't send reload signal");
 				free(lockfname);
 				return -1;
 			}
-			fprintf(msgfd,"reload signal has beed sent\n");
+			fprintf(stderr,"reload signal has beed sent\n");
 			return 0;
 		}
-		fprintf(msgfd,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
+		fprintf(stderr,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
 		if (kill(ptk,SIGTERM)<0) {
-			syslog(LOG_WARNING,"can't kill previous process (error: %m)");
-			fprintf(msgfd,"can't kill previous process (error: %s)\n",errno_to_str());
+			mfs_errlog(LOG_WARNING,"can't kill previous process");
 			free(lockfname);
 			return -1;
 		}
 		l=0;
-		fprintf(msgfd,"waiting for termination ...\n");
+		fprintf(stderr,"waiting for termination ...\n");
 		while (lockf(lfp,F_TLOCK,0)<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_ERR,"lock %s error: %m",lockfname);
-				fprintf(msgfd,"lock %s error: %s\n",lockfname,errno_to_str());
+				mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
 				free(lockfname);
 				return -1;
 			}
 			sleep(1);
 			l++;
 			if (l>=timeout) {
-				syslog(LOG_ERR,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up",l);
-				fprintf(msgfd,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up\n",l);
+				mfs_arg_syslog(LOG_ERR,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up",l);
 				free(lockfname);
 				return -1;
 			}
 			if (l%10==0) {
-				syslog(LOG_WARNING,"about %"PRIu32" seconds passed and old lockfile is still locked",l);
-				fprintf(msgfd,"about %"PRIu32" seconds passed and old lockfile is still locked\n",l);
+				mfs_arg_syslog(LOG_WARNING,"about %"PRIu32" seconds passed and old lockfile is still locked",l);
 			}
 		}
-		fprintf(msgfd,"terminated\n");
+		fprintf(stderr,"terminated\n");
 	} else {
-		fprintf(msgfd,"found unlocked old lockfile\n");
+		fprintf(stderr,"found unlocked old lockfile\n");
 		if (runmode==RM_RELOAD) {
-			fprintf(msgfd,"can't obtain process id using old lockfile\n");
+			fprintf(stderr,"can't obtain process id using old lockfile\n");
 			return 0;
 		}
 	}
-	fprintf(msgfd,"removing old lockfile\n");
+	fprintf(stderr,"removing old lockfile\n");
 	close(lfp);
 	unlink(lockfname);
 	free(lockfname);
@@ -698,23 +775,21 @@ void remove_old_wdlock(void) {
 	unlink(".lock_" STR(APPNAME));
 }
 
-FILE* makedaemon() {
-	int nd,f;
-#ifndef HAVE_DUP2
-	int dd;
-#endif
+void makedaemon() {
+	int f;
 	uint8_t pipebuff[1000];
 	ssize_t r;
 	int piped[2];
-	FILE *msgfd;
 
+	fflush(stdout);
+	fflush(stderr);
 	if (pipe(piped)<0) {
 		fprintf(stderr,"pipe error\n");
 		exit(1);
 	}
 	f = fork();
 	if (f<0) {
-		syslog(LOG_ERR,"first fork error: %m");
+		syslog(LOG_ERR,"first fork error: %s",strerr(errno));
 		exit(1);
 	}
 	if (f>0) {
@@ -724,7 +799,7 @@ FILE* makedaemon() {
 			if (r>0) {
 				fwrite(pipebuff,1,r,stderr);
 			} else {
-				fprintf(stderr,"Error reading pipe: %s\n",errno_to_str());
+				fprintf(stderr,"Error reading pipe: %s\n",strerr(errno));
 				exit(1);
 			}
 		}
@@ -734,9 +809,9 @@ FILE* makedaemon() {
 	setpgid(0,getpid());
 	f = fork();
 	if (f<0) {
-		syslog(LOG_ERR,"second fork error: %m");
+		syslog(LOG_ERR,"second fork error: %s",strerr(errno));
 		if (write(piped[1],"fork error\n",11)!=11) {
-			syslog(LOG_ERR,"pipe write error: %m");
+			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}
 		close(piped[1]);
 		exit(1);
@@ -744,47 +819,25 @@ FILE* makedaemon() {
 	if (f>0) {
 		exit(0);
 	}
-	set_signal_handlers();
-	msgfd = fdopen(piped[1],"w");
-	setvbuf(msgfd,(char *)NULL,_IOLBF,0);
+	set_signal_handlers(1);
 
-#ifdef HAVE_DUP2
-	if ((nd = open("/dev/null", O_RDWR, 0)) != -1) {
-		dup2(nd, STDIN_FILENO);
-		dup2(nd, STDOUT_FILENO);
-		dup2(nd, STDERR_FILENO);
-		if (nd!=STDIN_FILENO && nd!=STDOUT_FILENO && nd!=STDERR_FILENO) {
-			close (nd);
-		}
-	} else {
-		syslog(LOG_ERR,"can't open /dev/null (error: %m)");
-		fprintf(msgfd,"can't open /dev/null (error: %s)\n",errno_to_str());
-		exit(1);
-	}
-#else
 	close(STDIN_FILENO);
+	sassert(open("/dev/null", O_RDWR, 0)==STDIN_FILENO);
 	close(STDOUT_FILENO);
+	sassert(dup(STDIN_FILENO)==STDOUT_FILENO);
 	close(STDERR_FILENO);
-	nd = open("/dev/null", O_RDWR, 0);
-	if (nd!=STDIN_FILENO) {
-		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",nd,STDIN_FILENO);
-		exit(1);
-	}
-	dd = dup(nd);
-	if (dd!=STDOUT_FILENO) {
-		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",dd,STDOUT_FILENO);
-		exit(1);
-	}
-	dd = dup(nd);
-	if (dd!=STDERR_FILENO) {
-		fprintf(msgfd,"unexpected descriptor number (got: %d,expected: %d)\n",dd,STDERR_FILENO);
-		exit(1);
-	}
-#endif
-	return msgfd;
+	sassert(dup(piped[1])==STDERR_FILENO);
+	close(piped[1]);
+//	setvbuf(stderr,(char *)NULL,_IOLBF,0);
 }
 
-void createpath(const char *filename,FILE *msgfd) {
+void close_msg_channel() {
+	fflush(stderr);
+	close(STDERR_FILENO);
+	sassert(open("/dev/null", O_RDWR, 0)==STDERR_FILENO);
+}
+
+void createpath(const char *filename) {
 	char pathbuff[1024];
 	const char *src = filename;
 	char *dst = pathbuff;
@@ -798,12 +851,10 @@ void createpath(const char *filename,FILE *msgfd) {
 			*dst='\0';
 			if (mkdir(pathbuff,(mode_t)0777)<0) {
 				if (errno!=EEXIST) {
-					syslog(LOG_NOTICE,"creating directory %s: %m",pathbuff);
-					fprintf(msgfd,"error creating directory %s\n",pathbuff);
+					mfs_arg_errlog(LOG_NOTICE,"creating directory %s",pathbuff);
 				}
 			} else {
-				syslog(LOG_NOTICE,"directory %s has been created",pathbuff);
-				fprintf(msgfd,"directory %s has been created\n",pathbuff);
+				mfs_arg_syslog(LOG_NOTICE,"directory %s has been created",pathbuff);
 			}
 			*dst++=*src++;
 		}
@@ -838,9 +889,12 @@ int main(int argc,char **argv) {
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
-	FILE *msgfd;
+
+	strerr_init();
+	mycrc32_init();
 
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
+	passert(cfgfile);
 	locktimeout=60;
 	rundaemon=1;
 	runmode = RM_RESTART;
@@ -867,6 +921,7 @@ int main(int argc,char **argv) {
 			case 'c':
 				free(cfgfile);
 				cfgfile = strdup(optarg);
+				passert(cfgfile);
 				break;
 			case 'u':
 				logundefined=1;
@@ -894,6 +949,14 @@ int main(int argc,char **argv) {
 	} else if (argc!=0) {
 		usage(appname);
 		return 1;
+	}
+
+	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
+		makedaemon();
+	} else {
+		if (runmode==RM_START || runmode==RM_RESTART) {
+			set_signal_handlers(0);
+		}
 	}
 
 	if (cfg_load(cfgfile,logundefined)==0) {
@@ -930,6 +993,7 @@ int main(int argc,char **argv) {
 	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
 		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
 	}
+
 #ifdef MFS_USE_MEMLOCK
 	lockmemory = cfg_getnum("LOCK_MEMORY",0);
 	if (lockmemory) {
@@ -947,62 +1011,77 @@ int main(int argc,char **argv) {
 	fprintf(stderr,"working directory: %s\n",wrkdir);
 
 	if (chdir(wrkdir)<0) {
-		fprintf(stderr,"can't set working directory to %s\n",wrkdir);
-		syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
+		mfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
+		if (rundaemon) {
+			close_msg_channel();
+		}
+		closelog();
+		free(logappname);
 		return 1;
 	}
 	free(wrkdir);
 
-	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
-		msgfd = makedaemon();
-	} else {
-		if (runmode==RM_START || runmode==RM_RESTART) {
-			set_signal_handlers();
-		}
-		msgfd = fdopen(dup(STDERR_FILENO),"w");
-		setvbuf(msgfd,(char *)NULL,_IOLBF,0);
-	}
-
-	umask(027);
+	umask(cfg_getuint32("FILE_UMASK",027)&077);
 
 	/* for upgrading from previous versions of MFS */
-	if (check_old_locks(msgfd,runmode,locktimeout)<0) {
+	if (check_old_locks(runmode,locktimeout)<0) {
+		if (rundaemon) {
+			close_msg_channel();
+		}
+		closelog();
+		free(logappname);
 		return 1;
 	}
 
-	if (wdlock(msgfd,runmode,locktimeout)<0) {
+	if (wdlock(runmode,locktimeout)<0) {
+		if (rundaemon) {
+			close_msg_channel();
+		}
+		closelog();
+		free(logappname);
 		return 1;
 	}
 
 	remove_old_wdlock();
 
 	if (runmode==RM_STOP || runmode==RM_RELOAD) {
+		if (rundaemon) {
+			close_msg_channel();
+		}
+		closelog();
+		free(logappname);
 		return 0;
 	}
 
 #ifdef MFS_USE_MEMLOCK
 	if (lockmemory) {
 		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
-			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
-			fprintf(msgfd,"process memory was successfully locked in RAM\n");
+			mfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
 		}
 	}
 #endif
-	fprintf(msgfd,"initializing %s modules ...\n",logappname);
+	fprintf(stderr,"initializing %s modules ...\n",logappname);
 
-	if (initialize(msgfd)) {
+	if (initialize()) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
 		}
-		fprintf(msgfd,"%s daemon initialized properly\n",logappname);
-		fclose(msgfd);
+		fprintf(stderr,"%s daemon initialized properly\n",logappname);
+		if (rundaemon) {
+			close_msg_channel();
+		}
 		mainloop();
 	} else {
-		fprintf(msgfd,"error occured during initialization - exiting\n");
-		fclose(msgfd);
+		fprintf(stderr,"error occured during initialization - exiting\n");
+		if (rundaemon) {
+			close_msg_channel();
+		}
 	}
-	free(logappname);
 	destruct();
+	free_all_registered_entries();
+	cfg_term();
+	strerr_term();
 	closelog();
+	free(logappname);
 	return 0;
 }

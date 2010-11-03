@@ -40,12 +40,14 @@
 #include "chunks.h"
 #include "filesystem.h"
 #include "random.h"
-#include "acl.h"
+#include "exports.h"
 #include "datacachemgr.h"
 #include "charts.h"
 #include "cfg.h"
 #include "main.h"
 #include "sockets.h"
+#include "slogger.h"
+#include "massert.h"
 
 #define MaxPacketSize 1000000
 
@@ -139,6 +141,7 @@ static uint32_t RejectOld;
 session* matocuserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	session *asesdata;
 	asesdata = (session*)malloc(sizeof(session));
+	passert(asesdata);
 	if (newsession==0 && nonewid) {
 		asesdata->sessionid = 0;
 	} else {
@@ -188,7 +191,7 @@ void matocuserv_store_sessions() {
 
 	fd = fopen("sessions.mfs.tmp","w");
 	if (fd==NULL) {
-		syslog(LOG_WARNING,"can't store sessions, open error: %m");
+		mfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
 		return;
 	}
 	if (fwrite("MFSS \001\006\001",8,1,fd)!=1) {
@@ -235,11 +238,11 @@ void matocuserv_store_sessions() {
 		}
 	}
 	if (fclose(fd)!=0) {
-		syslog(LOG_WARNING,"can't store sessions, fclose error: %m");
+		mfs_errlog_silent(LOG_WARNING,"can't store sessions, fclose error");
 		return;
 	}
 	if (rename("sessions.mfs.tmp","sessions.mfs")<0) {
-		syslog(LOG_WARNING,"can't store sessions, rename error: %m");
+		mfs_errlog_silent(LOG_WARNING,"can't store sessions, rename error");
 	}
 }
 
@@ -254,7 +257,7 @@ int matocuserv_load_sessions() {
 
 	fd = fopen("sessions.mfs","r");
 	if (fd==NULL) {
-		syslog(LOG_WARNING,"can't load sessions, fopen error: %m");
+		mfs_errlog_silent(LOG_WARNING,"can't load sessions, fopen error");
 		if (errno==ENOENT) {	// it's ok if file does not exist
 			return 0;
 		} else {
@@ -285,6 +288,7 @@ int matocuserv_load_sessions() {
 		if (r==1) {
 			ptr = fsesrecord;
 			asesdata = (session*)malloc(sizeof(session));
+			passert(asesdata);
 			asesdata->sessionid = get32bit(&ptr);
 			ileng = get32bit(&ptr);
 			asesdata->peerip = get32bit(&ptr);
@@ -312,6 +316,7 @@ int matocuserv_load_sessions() {
 			}
 			if (ileng>0) {
 				asesdata->info = malloc(ileng+1);
+				passert(asesdata->info);
 				if (fread(asesdata->info,ileng,1,fd)!=1) {
 					free(asesdata->info);
 					free(asesdata);
@@ -332,7 +337,7 @@ int matocuserv_load_sessions() {
 	}
 	syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
-	return 0;
+	return 1;
 }
 
 /* old registration procedure */
@@ -351,6 +356,7 @@ session* matocuserv_get_session(uint32_t sessionid) {
 		}
 	}
 	asesdata = (session*)malloc(sizeof(session));
+	passert(asesdata);
 	if (sessionid==0) {
 		asesdata->sessionid = fs_newsessionid();
 	} else {
@@ -384,6 +390,7 @@ int matocuserv_insert_openfile(session* cr,uint32_t inode) {
 	status = fs_aquire(inode,cr->sessionid);
 	if (status==STATUS_OK) {
 		ofptr = (filelist*)malloc(sizeof(filelist));
+		passert(ofptr);
 		ofptr->inode = inode;
 		ofptr->next = *ofpptr;
 		*ofpptr = ofptr;
@@ -398,6 +405,7 @@ void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	for (asesdata = sessionshead ; asesdata && asesdata->sessionid!=sessionid; asesdata=asesdata->next) ;
 	if (asesdata==NULL) {
 		asesdata = (session*)malloc(sizeof(session));
+		passert(asesdata);
 		asesdata->sessionid = sessionid;
 /* session created by filesystem - only for old clients (pre 1.5.13) */
 		asesdata->info = NULL;
@@ -429,6 +437,7 @@ void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 		ofpptr = &(ofptr->next);
 	}
 	ofptr = (filelist*)malloc(sizeof(filelist));
+	passert(ofptr);
 	ofptr->inode = inode;
 	ofptr->next = *ofpptr;
 	*ofpptr = ofptr;
@@ -440,16 +449,11 @@ uint8_t* matocuserv_createpacket(matocuserventry *eptr,uint32_t type,uint32_t si
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -535,22 +539,12 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		}
 		if (status!=STATUS_OK) {
 			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
-			if (ptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			put32bit(&ptr,qid);
 			put8bit(&ptr,status);
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,24+count*6);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,qid);
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
@@ -571,22 +565,12 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 
 		if (status!=STATUS_OK) {
 			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,5);
-			if (ptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			put32bit(&ptr,qid);
 			put8bit(&ptr,status);
 			return;
 		}
 		fs_do_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,fleng,attr);
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,39);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,qid);
 		memcpy(ptr,attr,35);
 		return;
@@ -604,11 +588,6 @@ void matocuserv_cserv_list(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_CSERV_LIST,matocsserv_cservlist_size());
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	matocsserv_cservlist_data(ptr);
 }
 
@@ -637,11 +616,6 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		}
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_SESSION_LIST,size);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	for (eaptr = matocuservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
 //			tcpgetpeer(eaptr->sock,&ip,NULL);
@@ -700,10 +674,6 @@ void matocuserv_chart(matocuserventry *eptr,const uint8_t *data,uint32_t length)
 	chartid = get32bit(&data);
 	l = charts_make_png(chartid);
 	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART,l);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	if (l>0) {
 		charts_get_png(ptr);
 	}
@@ -722,10 +692,6 @@ void matocuserv_chart_data(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	chartid = get32bit(&data);
 	l = charts_datasize(chartid);
 	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART_DATA,l);
-	if (ptr==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	if (l>0) {
 		charts_makedata(ptr,chartid);
 	}
@@ -736,20 +702,22 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
 	uint32_t chunks,chunkcopies,tdcopies;
 	uint8_t *ptr;
+#ifdef RUSAGE_SELF
+	struct rusage r;
+#endif
 	(void)data;
 	if (length!=0) {
 		syslog(LOG_NOTICE,"CUTOMA_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
+#ifdef RUSAGE_SELF
+	getrusage(RUSAGE_SELF,&r);
+	syslog(LOG_NOTICE,"%lu",r.ru_maxrss);
+#endif
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
 	ptr = matocuserv_createpacket(eptr,MATOCU_INFO,68);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	/* put32bit(&buff,VERSION): */
 	put16bit(&ptr,VERSMAJ);
 	put8bit(&ptr,VERSMID);
@@ -781,11 +749,6 @@ void matocuserv_fstest_info(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	fs_test_getdata(&loopstart,&loopend,&files,&ugfiles,&mfiles,&chunks,&ugchunks,&mchunks,&msgbuff,&msgbuffleng);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FSTEST_INFO,msgbuffleng+36);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,loopstart);
 	put32bit(&ptr,loopend);
 	put32bit(&ptr,files);
@@ -809,11 +772,6 @@ void matocuserv_chunkstest_info(matocuserventry *eptr,const uint8_t *data,uint32
 		return;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_CHUNKSTEST_INFO,52);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	chunk_store_info(ptr);
 }
 
@@ -832,11 +790,6 @@ void matocuserv_chunks_matrix(matocuserventry *eptr,const uint8_t *data,uint32_t
 		matrixid = 0;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_CHUNKS_MATRIX,484);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	chunk_store_chunkcounters(ptr,matrixid);
 }
 
@@ -849,11 +802,6 @@ void matocuserv_quota_info(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_QUOTA_INFO,fs_getquotainfo_size());
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	fs_getquotainfo_data(ptr);
 }
 
@@ -865,13 +813,8 @@ void matocuserv_exports_info(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_EXPORTS_INFO,acl_info_size());
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
-	acl_info_data(ptr);
+	ptr = matocuserv_createpacket(eptr,MATOCU_EXPORTS_INFO,exports_info_size());
+	exports_info_data(ptr);
 }
 
 void matocuserv_mlog_list(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -883,11 +826,6 @@ void matocuserv_mlog_list(matocuserventry *eptr,const uint8_t *data,uint32_t len
 		return;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_MLOG_LIST,matomlserv_mloglist_size());
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	matomlserv_mloglist_data(ptr);
 }
 
@@ -941,7 +879,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		}
 		if (sessionid==0) {	// new session
-			status = STATUS_OK; // acl_check(eptr->peerip,(const uint8_t*)"",NULL,NULL,&sesflags);	// check privileges for '/' w/o password
+			status = STATUS_OK; // exports_check(eptr->peerip,(const uint8_t*)"",NULL,NULL,&sesflags);	// check privileges for '/' w/o password
 //			if (status==STATUS_OK) {
 				eptr->sesdata = matocuserv_new_session(0,tools);
 				if (eptr->sesdata==NULL) {
@@ -979,11 +917,6 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,1);
 		} else {
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status!=STATUS_OK)?1:4);
-		}
-		if (wptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
 		}
 		if (status!=STATUS_OK) {
 			put8bit(&wptr,status);
@@ -1024,11 +957,6 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				return;
 			}
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,32);
-			if (wptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			for (i=0 ; i<32 ; i++) {
 				eptr->passwordrnd[i]=rndu8();
 			}
@@ -1066,9 +994,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				path = (const uint8_t*)"";
 			}
 			if (length==77+16+ileng+pleng) {
-				status = acl_check(eptr->peerip,eptr->version,0,path,eptr->passwordrnd,rptr,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
+				status = exports_check(eptr->peerip,eptr->version,0,path,eptr->passwordrnd,rptr,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
 			} else {
-				status = acl_check(eptr->peerip,eptr->version,0,path,NULL,NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
+				status = exports_check(eptr->peerip,eptr->version,0,path,NULL,NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
 			}
 			if (status==STATUS_OK) {
 				status = fs_getrootinode(&rootinode,path);
@@ -1090,8 +1018,10 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				if (ileng>0) {
 					if (info[ileng-1]==0) {
 						eptr->sesdata->info = strdup(info);
+						passert(eptr->sesdata->info);
 					} else {
 						eptr->sesdata->info = malloc(ileng+1);
+						passert(eptr->sesdata->info);
 						memcpy(eptr->sesdata->info,info,ileng);
 						eptr->sesdata->info[ileng]=0;
 					}
@@ -1099,11 +1029,6 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				matocuserv_store_sessions();
 			}
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010601)?21:13):1);
-			if (wptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
@@ -1135,9 +1060,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			info = (const char*)rptr;
 			rptr+=ileng;
 			if (length==73+16+ileng) {
-				status = acl_check(eptr->peerip,eptr->version,1,NULL,eptr->passwordrnd,rptr,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
+				status = exports_check(eptr->peerip,eptr->version,1,NULL,eptr->passwordrnd,rptr,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
 			} else {
-				status = acl_check(eptr->peerip,eptr->version,1,NULL,NULL,NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
+				status = exports_check(eptr->peerip,eptr->version,1,NULL,NULL,NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
 			}
 			if (status==STATUS_OK) {
 				eptr->sesdata = matocuserv_new_session(1,0);
@@ -1156,8 +1081,10 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				if (ileng>0) {
 					if (info[ileng-1]==0) {
 						eptr->sesdata->info = strdup(info);
+						passert(eptr->sesdata->info);
 					} else {
 						eptr->sesdata->info = malloc(ileng+1);
+						passert(eptr->sesdata->info);
 						memcpy(eptr->sesdata->info,info,ileng);
 						eptr->sesdata->info[ileng]=0;
 					}
@@ -1165,11 +1092,6 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				matocuserv_store_sessions();
 			}
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?5:1);
-			if (wptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
@@ -1199,11 +1121,6 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				}
 			}
 			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,1);
-			if (wptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			put8bit(&wptr,status);
 			if (status!=STATUS_OK) {
 				return;
@@ -1251,6 +1168,7 @@ void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,u
 		} else if (ofptr->inode>inode) {
 			if (fs_aquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
 				ofptr = (filelist*)malloc(sizeof(filelist));
+				passert(ofptr);
 				ofptr->next = *ofpptr;
 				ofptr->inode = inode;
 				*ofpptr = ofptr;
@@ -1275,6 +1193,7 @@ void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,u
 	while (inode>0) {
 		if (fs_aquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
 			ofptr = (filelist*)malloc(sizeof(filelist));
+			passert(ofptr);
 			ofptr->next = *ofpptr;
 			ofptr->inode = inode;
 			*ofpptr = ofptr;
@@ -1338,11 +1257,6 @@ void matocuserv_fuse_statfs(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	msgid = get32bit(&data);
 	fs_statfs(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&totalspace,&availspace,&trashspace,&reservedspace,&inodes);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_STATFS,40);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put64bit(&ptr,totalspace);
 	put64bit(&ptr,availspace);
@@ -1373,11 +1287,6 @@ void matocuserv_fuse_access(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	modemask = get8bit(&data);
 	status = fs_access(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,modemask);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_ACCESS,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -1411,11 +1320,6 @@ void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_lookup(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid,auid,agid,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_LOOKUP,(status!=STATUS_OK)?5:43);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1451,11 +1355,6 @@ void matocuserv_fuse_getattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 	status = fs_getattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETATTR,(status!=STATUS_OK)?5:39);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1498,11 +1397,6 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		status = fs_setattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,setmask,attrmode,attruid,attrgid,attratime,attrmtime,attr);
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETATTR,(status!=STATUS_OK)?5:39);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1547,6 +1441,7 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 	status = fs_try_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,auid,agid,attrlength,attr,&chunkid);
 	if (status==ERROR_DELAYED) {
 		cl = (chunklist*)malloc(sizeof(chunklist));
+		passert(cl);
 		cl->chunkid = chunkid;
 		cl->qid = msgid;
 		cl->inode = inode;
@@ -1570,11 +1465,6 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 		dcm_modify(inode,eptr->sesdata->sessionid);
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,(status!=STATUS_OK)?5:39);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1602,11 +1492,6 @@ void matocuserv_fuse_readlink(matocuserventry *eptr,const uint8_t *data,uint32_t
 	inode = get32bit(&data);
 	status = fs_readlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READLINK,(status!=STATUS_OK)?5:8+pleng+1);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1664,11 +1549,6 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 	status = fs_symlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,pleng,path,uid,gid,auid,agid,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SYMLINK,(status!=STATUS_OK)?5:43);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1715,11 +1595,6 @@ void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	rdev = get32bit(&data);
 	status = fs_mknod(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,type,mode,uid,gid,auid,agid,rdev,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_MKNOD,(status!=STATUS_OK)?5:43);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1763,11 +1638,6 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_mkdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,mode,uid,gid,auid,agid,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_MKDIR,(status!=STATUS_OK)?5:43);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1807,11 +1677,6 @@ void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_unlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_UNLINK,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
@@ -1846,11 +1711,6 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_rmdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RMDIR,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
@@ -1895,11 +1755,6 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_rename(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode_src,nleng_src,name_src,inode_dst,nleng_dst,name_dst,uid,gid);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
@@ -1939,11 +1794,6 @@ void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_link(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_LINK,(status!=STATUS_OK)?5:43);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1981,11 +1831,6 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	status = fs_readdir_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,flags,&custom,&dleng);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIR,(status!=STATUS_OK)?5:4+dleng);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2028,11 +1873,6 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,39);
 	} else {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,5);
-	}
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
 	}
 	put32bit(&ptr,msgid);
 	if (eptr->version>=0x010609 && status==STATUS_OK) {
@@ -2081,21 +1921,11 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 	}
 	if (status!=STATUS_OK) {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READ_CHUNK,5);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 		return;
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READ_CHUNK,24+count*6);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put64bit(&ptr,fleng);
 	put64bit(&ptr,chunkid);
@@ -2135,17 +1965,13 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	}
 	if (status!=STATUS_OK) {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 		return;
 	}
 	if (opflag) {	// wait for operation end
 		cl = (chunklist*)malloc(sizeof(chunklist));
+		passert(cl);
 		cl->inode = inode;
 		cl->chunkid = chunkid;
 		cl->qid = msgid;
@@ -2158,22 +1984,12 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 		status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 		if (status!=STATUS_OK) {
 			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
-			if (ptr==NULL) {
-				syslog(LOG_NOTICE,"can't allocate memory for packet");
-				eptr->mode = KILL;
-				return;
-			}
 			put32bit(&ptr,msgid);
 			put8bit(&ptr,status);
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,24+count*6);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,msgid);
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
@@ -2208,11 +2024,6 @@ void matocuserv_fuse_write_chunk_end(matocuserventry *eptr,const uint8_t *data,u
 		status = fs_writeend(inode,fleng,chunkid);
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK_END,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2235,11 +2046,6 @@ void matocuserv_fuse_repair(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_repair(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,&chunksnotchanged,&chunkserased,&chunksrepaired);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REPAIR,(status!=STATUS_OK)?5:16);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=0) {
 		put8bit(&ptr,status);
@@ -2266,11 +2072,6 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	status = fs_checkfile(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,chunkcount);
 	if (status!=STATUS_OK) {
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,5);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 	} else {
@@ -2282,11 +2083,6 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 			}
 		}
 		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,4+j*3);
-		if (ptr==NULL) {
-			syslog(LOG_NOTICE,"can't allocate memory for packet");
-			eptr->mode = KILL;
-			return;
-		}
 		put32bit(&ptr,msgid);
 		for (i=0 ; i<256 ; i++) {
 			t16 = chunkcount[i];
@@ -2317,11 +2113,6 @@ void matocuserv_fuse_gettrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	gmode = get8bit(&data);
 	status = fs_gettrashtime_prepare(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,&fptr,&dptr,&fnodes,&dnodes);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASHTIME,(status!=STATUS_OK)?5:12+8*(fnodes+dnodes));
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2352,11 +2143,6 @@ void matocuserv_fuse_settrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	smode = get8bit(&data);
 	status = fs_settrashtime(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,trashtime,smode,&changed,&notchanged,&notpermitted);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETTRASHTIME,(status!=STATUS_OK)?5:16);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2396,11 +2182,6 @@ void matocuserv_fuse_getgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		}
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETGOAL,(status!=STATUS_OK)?5:6+5*(fn+dn));
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2442,11 +2223,6 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	smode = get8bit(&data);
 	status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2486,11 +2262,6 @@ void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 		}
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETEATTR,(status!=STATUS_OK)?5:6+5*(fn+dn));
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2532,11 +2303,6 @@ void matocuserv_fuse_seteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 	smode = get8bit(&data);
 	status = fs_seteattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,eattr,smode,&changed,&notchanged,&notpermitted);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETEATTR,(status!=STATUS_OK)?5:16);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2565,11 +2331,6 @@ void matocuserv_fuse_append(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	matocuserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_append(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_src,uid,gid);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_APPEND,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2605,11 +2366,6 @@ void matocuserv_fuse_snapshot(matocuserventry *eptr,const uint8_t *data,uint32_t
 	canoverwrite = get8bit(&data);
 	status = fs_snapshot(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,canoverwrite);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SNAPSHOT,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2648,11 +2404,6 @@ void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint
 		status = fs_quotacontrol(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,del,&flags,&sinodes,&slength,&ssize,&srealsize,&hinodes,&hlength,&hsize,&hrealsize,&curinodes,&curlength,&cursize,&currealsize);
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_QUOTACONTROL,(status!=STATUS_OK)?5:89);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2691,11 +2442,6 @@ void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	eattr = get8bit(&data);
 	status = fs_eattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,mode,&eattr,&fneattr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_EATTR,(status!=STATUS_OK)?5:6);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2721,11 +2467,6 @@ void matocuserv_fuse_getdirstats_old(matocuserventry *eptr,const uint8_t *data,u
 	inode = get32bit(&data);
 	status = fs_get_dir_stats(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&inodes,&dirs,&files,&chunks,&leng,&size,&rsize);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:60);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2759,11 +2500,6 @@ void matocuserv_fuse_getdirstats(matocuserventry *eptr,const uint8_t *data,uint3
 	inode = get32bit(&data);
 	status = fs_get_dir_stats(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&inodes,&dirs,&files,&chunks,&leng,&size,&rsize);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:44);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2791,11 +2527,6 @@ void matocuserv_fuse_gettrash(matocuserventry *eptr,const uint8_t *data,uint32_t
 	msgid = get32bit(&data);
 	status = fs_readtrash_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&dleng);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASH,(status!=STATUS_OK)?5:(4+dleng));
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2825,11 +2556,6 @@ void matocuserv_fuse_getdetachedattr(matocuserventry *eptr,const uint8_t *data,u
 	}
 	status = fs_getdetachedattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,attr,dtype);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDETACHEDATTR,(status!=STATUS_OK)?5:39);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2854,11 +2580,6 @@ void matocuserv_fuse_gettrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	inode = get32bit(&data);
 	status = fs_gettrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASHPATH,(status!=STATUS_OK)?5:8+pleng+1);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2898,11 +2619,6 @@ void matocuserv_fuse_settrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	}
 	status = fs_settrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,pleng,path);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETTRASHPATH,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2921,11 +2637,6 @@ void matocuserv_fuse_undel(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	status = fs_undel(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_UNDEL,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2944,11 +2655,6 @@ void matocuserv_fuse_purge(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	status = fs_purge(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_PURGE,5);
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
@@ -2967,11 +2673,6 @@ void matocuserv_fuse_getreserved(matocuserventry *eptr,const uint8_t *data,uint3
 	msgid = get32bit(&data);
 	status = fs_readreserved_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&dleng);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETRESERVED,(status!=STATUS_OK)?5:(4+dleng));
-	if (ptr==NULL) {
-		syslog(LOG_NOTICE,"can't allocate memory for packet");
-		eptr->mode = KILL;
-		return;
-	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -3268,30 +2969,47 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 }
 
 void matocuserv_term(void) {
-	matocuserventry *eptr,*eaptr;
-	packetstruct *pptr,*paptr;
-	syslog(LOG_INFO,"matocu: closing %s:%s",ListenHost,ListenPort);
+	matocuserventry *eptr,*eptrn;
+	packetstruct *pptr,*pptrn;
+	chunklist *cl,*cln;
+	session *ss,*ssn;
+	filelist *of,*ofn;
+
+	syslog(LOG_NOTICE,"matocu: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
-	eptr = matocuservhead;
-	while (eptr) {
+	for (eptr = matocuservhead ; eptr ; eptr = eptrn) {
+		eptrn = eptr->next;
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
-		pptr = eptr->outputhead;
-		while (pptr) {
+		for (pptr = eptr->outputhead ; pptr ; pptr = pptrn) {
+			pptrn = pptr->next;
 			if (pptr->packet) {
 				free(pptr->packet);
 			}
-			paptr = pptr;
-			pptr = pptr->next;
-			free(paptr);
+			free(pptr);
 		}
-		eaptr = eptr;
-		eptr = eptr->next;
-		free(eaptr);
+		for (cl = eptr->chunkdelayedops ; cl ; cl = cln) {
+			cln = cl->next;
+			free(cl);
+		}
+		free(eptr);
 	}
-	matocuservhead=NULL;
+	for (ss = sessionshead ; ss ; ss = ssn) {
+		ssn = ss->next;
+		for (of = ss->openedfiles ; of ; of = ofn) {
+			ofn = of->next;
+			free(of);
+		}
+		if (ss->info) {
+			free(ss->info);
+		}
+		free(ss);
+	}
+
+	free(ListenHost);
+	free(ListenPort);
 }
 
 void matocuserv_read(matocuserventry *eptr) {
@@ -3301,7 +3019,9 @@ void matocuserv_read(matocuserventry *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			// syslog(LOG_INFO,"matocu: connection lost");
+			if (eptr->registered<100) {
+				syslog(LOG_NOTICE,"connection with client(ip:%u.%u.%u.%u) has been closed by peer",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+			}
 			eptr->mode = KILL;
 			return;
 		}
@@ -3310,7 +3030,7 @@ void matocuserv_read(matocuserventry *eptr) {
 #ifdef ECONNRESET
 				if (errno!=ECONNRESET || eptr->registered<100) {
 #endif
-					syslog(LOG_INFO,"matocu: read error: %m");
+					mfs_arg_errlog_silent(LOG_NOTICE,"matocu: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
 				}
 #endif
@@ -3336,11 +3056,7 @@ void matocuserv_read(matocuserventry *eptr) {
 					return;
 				}
 				eptr->inputpacket.packet = malloc(size);
-				if (eptr->inputpacket.packet==NULL) {
-					syslog(LOG_WARNING,"matocu: out of memory");
-					eptr->mode = KILL;
-					return;
-				}
+				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
@@ -3379,7 +3095,7 @@ void matocuserv_write(matocuserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"matocu: write error: %m");
+				mfs_arg_errlog_silent(LOG_NOTICE,"matocu: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 				eptr->mode = KILL;
 			}
 			return;
@@ -3460,17 +3176,18 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	matocuserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
-	int ns;
+	int ns,emptyout;
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 //	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			syslog(LOG_INFO,"matocu: accept error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"matocu: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = malloc(sizeof(matocuserventry));
+			passert(eptr);
 			eptr->next = matocuservhead;
 			matocuservhead = eptr;
 			eptr->sock = ns;
@@ -3500,12 +3217,13 @@ void matocuserv_serve(struct pollfd *pdesc) {
 			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
 				eptr->mode = KILL;
 			}
+			emptyout = (eptr->outputhead==NULL);
 			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
 //			if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
 				eptr->lastread = now;
 				matocuserv_read(eptr);
 			}
-			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
+			if (((emptyout && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
 //			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
 				eptr->lastwrite = now;
 				matocuserv_write(eptr);
@@ -3544,21 +3262,29 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matocuserv_sessionsinit(FILE *msgfd) {
-	fprintf(msgfd,"loading sessions ... ");
-	fflush(msgfd);
+int matocuserv_sessionsinit(void) {
+	fprintf(stderr,"loading sessions ... ");
+	fflush(stderr);
 	sessionshead = NULL;
-	if (matocuserv_load_sessions()<0) {
-		fprintf(msgfd,"error\n");
-		fprintf(msgfd,"due to missing sessions you have to restart all active mounts !!!\n");
-	} else {
-		fprintf(msgfd,"ok\n");
-		fprintf(msgfd,"sessions file has been loaded\n");
+	switch (matocuserv_load_sessions()) {
+		case 0:	// no file
+			fprintf(stderr,"file not found\n");
+			fprintf(stderr,"if it is not fresh installation then you have to restart all active mounts !!!\n");
+			matocuserv_store_sessions();
+			break;
+		case 1: // file loaded
+			fprintf(stderr,"ok\n");
+			fprintf(stderr,"sessions file has been loaded\n");
+			break;
+		default:
+			fprintf(stderr,"error\n");
+			fprintf(stderr,"due to missing sessions you have to restart all active mounts !!!\n");
+			break;
 	}
 	return 0;
 }
 
-int matocuserv_networkinit(FILE *msgfd) {
+int matocuserv_networkinit(void) {
 	ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
@@ -3566,23 +3292,20 @@ int matocuserv_networkinit(FILE *msgfd) {
 	exiting = 0;
 	lsock = tcpsocket();
 	if (lsock<0) {
-		syslog(LOG_ERR,"matocu: socket error: %m");
-		fprintf(msgfd,"main master server module: can't create socket\n");
+		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
-		syslog(LOG_NOTICE,"matocu: can't set accept filter: %m");
+		mfs_errlog_silent(LOG_NOTICE,"matocu: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		syslog(LOG_ERR,"matocu: listen error: %m");
-		fprintf(msgfd,"main master server module: can't listen on socket\n");
+		mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
 		return -1;
 	}
-	syslog(LOG_NOTICE,"matocu: listen on %s:%s",ListenHost,ListenPort);
-	fprintf(msgfd,"main master server module: listen on %s:%s\n",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocuservhead = NULL;
 

@@ -42,9 +42,11 @@
 #include "hddspacemgr.h"
 // #include "cstocsconn.h"
 #include "charts.h"
+#include "slogger.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
+#include "massert.h"
 
 #define CONNECT_RETRIES 5
 #define CONNECT_TIMEOUT 200000
@@ -171,16 +173,11 @@ void* csserv_create_detached_packet(uint32_t type,uint32_t size) {
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -225,16 +222,11 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr,uint32_t type,uint32_t 
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -250,18 +242,18 @@ int csserv_initconnect(csserventry *eptr) {
 	int status;
 	eptr->fwdsock=tcpsocket();
 	if (eptr->fwdsock<0) {
-		syslog(LOG_WARNING,"create socket, error: %m");
+		mfs_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->fwdsock)<0) {
-		syslog(LOG_WARNING,"set nonblock, error: %m");
+		mfs_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
 	}
 	status = tcpnumconnect(eptr->fwdsock,eptr->fwdip,eptr->fwdport);
 	if (status<0) {
-		syslog(LOG_WARNING,"connect failed, error: %m");
+		mfs_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
@@ -287,10 +279,6 @@ void csserv_retryconnect(csserventry *eptr) {
 	if (eptr->connretrycnt<CONNECT_RETRIES) {
 		if (csserv_initconnect(eptr)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -299,10 +287,6 @@ void csserv_retryconnect(csserventry *eptr) {
 		}
 	} else {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,ERROR_CANTCONNECT);
@@ -317,6 +301,7 @@ int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	psize = 12+length;
 	eptr->fwdbytesleft = 8+psize;
 	eptr->fwdinitpacket = malloc(eptr->fwdbytesleft);
+	passert(eptr->fwdinitpacket);
 	eptr->fwdstartptr = eptr->fwdinitpacket;
 	if (eptr->fwdinitpacket==NULL) {
 		return -1;
@@ -369,10 +354,6 @@ void csserv_read_finished(uint8_t status,void *e) {
 			eptr->rpacket = NULL;
 		}
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -401,10 +382,6 @@ void csserv_read_continue(csserventry *eptr) {
 	}
 	if (eptr->size==0) {	// everything have been read
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -419,10 +396,6 @@ void csserv_read_continue(csserventry *eptr) {
 			size = 0x10000-blockoffset;
 		}
 		eptr->rpacket = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
-		if (eptr->rpacket==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		ptr = csserv_get_packet_data(eptr->rpacket);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -455,40 +428,24 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
 	}
 	if (eptr->size==0) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
 		return;
 	}
 	if (eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
 	if (eptr->offset>=0x4000000 || eptr->offset+eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
 		return;
@@ -496,10 +453,6 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_open(eptr->chunkid);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
@@ -522,10 +475,6 @@ void csserv_write_finished(uint8_t status,void *e) {
 	eptr->wjobid = 0;
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
 		put8bit(&ptr,status);
@@ -537,10 +486,6 @@ void csserv_write_finished(uint8_t status,void *e) {
 	}
 	if (eptr->state==WRITELAST) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
 		put8bit(&ptr,STATUS_OK);
@@ -549,10 +494,6 @@ void csserv_write_finished(uint8_t status,void *e) {
 		while ((wptr=*wpptr)) {
 			if (wptr->writeid==eptr->wjobwriteid) { // found - it means that it was added by status_receive
 				ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-				if (ptr==NULL) {
-					eptr->state = CLOSE;
-					return;
-				}
 				put64bit(&ptr,eptr->chunkid);
 				put32bit(&ptr,eptr->wjobwriteid);
 				put8bit(&ptr,STATUS_OK);
@@ -564,6 +505,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 		}
 		// not found - so add it
 		wptr = malloc(sizeof(writestatus));
+		passert(wptr);
 		wptr->writeid = eptr->wjobwriteid;
 		wptr->next = eptr->todolist;
 		eptr->todolist = wptr;
@@ -585,10 +527,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,status);
@@ -602,10 +540,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -614,10 +548,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		}
 		if (csserv_initconnect(eptr)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -658,10 +588,6 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	if (chunkid!=eptr->chunkid) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -697,10 +623,6 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 
 	if (eptr->chunkid!=chunkid) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -709,10 +631,6 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	}
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,status);
@@ -723,10 +641,6 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	while ((wptr=*wpptr)) {
 		if (wptr->writeid==writeid) { // found - means it was added by write_finished
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,chunkid);
 			put32bit(&ptr,writeid);
 			put8bit(&ptr,STATUS_OK);
@@ -739,6 +653,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	}
 	// if not found then add record
 	wptr = malloc(sizeof(writestatus));
+	passert(wptr);
 	wptr->writeid = writeid;
 	wptr->next = eptr->todolist;
 	eptr->todolist = wptr;
@@ -775,10 +690,6 @@ void csserv_read_continue(csserventry *eptr) {
 	if ((eptr->offset+eptr->size-1)>>16 == blocknum) {	// last block
 		size = eptr->size;
 		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
-		if (packet==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		ptr = csserv_get_packet_data(packet);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -791,10 +702,6 @@ void csserv_read_continue(csserventry *eptr) {
 			csserv_attach_packet(eptr,packet);
 		}
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		hdd_close(eptr->chunkid);
@@ -803,10 +710,6 @@ void csserv_read_continue(csserventry *eptr) {
 	} else {
 		size = 0x10000-blockoffset;
 		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
-		if (packet==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		ptr = csserv_get_packet_data(packet);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -816,10 +719,6 @@ void csserv_read_continue(csserventry *eptr) {
 		if (status!=STATUS_OK) {
 			csserv_delete_packet(packet);
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put8bit(&ptr,status);
 			hdd_close(eptr->chunkid);
@@ -849,40 +748,24 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
 	}
 	if (eptr->size==0) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
 		return;
 	}
 	if (eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
 	if (eptr->offset>=0x4000000 || eptr->offset+eptr->size>0x4000000) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
 		return;
@@ -890,10 +773,6 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_open(eptr->chunkid);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return ;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
@@ -923,10 +802,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,status);
@@ -939,10 +814,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -951,10 +822,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		}
 		if (csserv_initconnect(eptr)<0) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -964,10 +831,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		status = hdd_open(eptr->chunkid);
 		if (status!=STATUS_OK) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,status);
@@ -980,10 +843,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		status = hdd_open(eptr->chunkid);
 		if (status!=STATUS_OK) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-			if (ptr==NULL) {
-				eptr->state = CLOSE;
-				return;
-			}
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,status);
@@ -994,10 +853,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->chunkisopen = 1;
 		eptr->state = WRITELAST;	//i'm last in the chain
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,STATUS_OK);
@@ -1031,10 +886,6 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	if (chunkid!=eptr->chunkid) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -1044,10 +895,6 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	status = hdd_write(chunkid,eptr->version,blocknum,data+4,offset,size,data);
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,status);
@@ -1056,10 +903,6 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	if (eptr->state==WRITELAST) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
-		if (ptr==NULL) {
-			eptr->state = CLOSE;
-			return;
-		}
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,STATUS_OK);
@@ -1123,10 +966,6 @@ void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t leng
 	version = get32bit(&data);
 	status = hdd_get_blocks(chunkid,version,&blocks);
 	ptr = csserv_create_attached_packet(eptr,CSTOCS_GET_CHUNK_BLOCKS_STATUS,8+4+2+1);
-	if (ptr==NULL) {
-		eptr->state = CLOSE;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
 	put16bit(&ptr,blocks);
@@ -1152,10 +991,6 @@ void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
 	} else {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
-	}
-	if (ptr==NULL) {
-		eptr->state = CLOSE;
-		return;
 	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
@@ -1186,10 +1021,6 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	} else {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
 	}
-	if (ptr==NULL) {
-		eptr->state = CLOSE;
-		return;
-	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
 	if (status!=STATUS_OK) {
@@ -1211,11 +1042,6 @@ void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	l = hdd_diskinfo_v1_size();	// lock
 	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V1,l);
-	if (ptr==NULL) {
-		hdd_diskinfo_v1_size(NULL);	// unlock
-		eptr->state = CLOSE;
-		return;
-	}
 	hdd_diskinfo_v1_data(ptr);	// unlock
 }
 
@@ -1231,11 +1057,6 @@ void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	l = hdd_diskinfo_v2_size();	// lock
 	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V2,l);
-	if (ptr==NULL) {
-		hdd_diskinfo_v2_size(NULL);	// unlock
-		eptr->state = CLOSE;
-		return;
-	}
 	hdd_diskinfo_v2_data(ptr);	// unlock
 }
 
@@ -1252,10 +1073,6 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	chartid = get32bit(&data);
 	l = charts_make_png(chartid);
 	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART,l);
-	if (ptr==NULL) {
-		eptr->state = CLOSE;
-		return;
-	}
 	if (l>0) {
 		charts_get_png(ptr);
 	}
@@ -1274,10 +1091,6 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	chartid = get32bit(&data);
 	l = charts_datasize(chartid);
 	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART_DATA,l);
-	if (ptr==NULL) {
-		eptr->state = CLOSE;
-		return;
-	}
 	if (l>0) {
 		charts_makedata(ptr,chartid);
 	}
@@ -1450,6 +1263,8 @@ void csserv_term(void) {
 		free(eaptr);
 	}
 	csservhead=NULL;
+	free(ListenHost);
+	free(ListenPort);
 }
 
 void csserv_check_nextpacket(csserventry *eptr) {
@@ -1496,7 +1311,7 @@ void csserv_fwdconnected(csserventry *eptr) {
 	int status;
 	status = tcpgetstatus(eptr->fwdsock);
 	if (status) {
-		syslog(LOG_WARNING,"connection failed, error: %m");
+		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		csserv_fwderror(eptr);
 		return;
 	}
@@ -1517,7 +1332,7 @@ void csserv_fwdread(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(fwdread) read error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1537,11 +1352,7 @@ void csserv_fwdread(csserventry *eptr) {
 		}
 		if (size>0) {
 			eptr->fwdinputpacket.packet = malloc(size);
-			if (eptr->fwdinputpacket.packet==NULL) {
-				syslog(LOG_WARNING,"(fwdread) out of memory");
-				csserv_fwderror(eptr);
-				return;
-			}
+			passert(eptr->fwdinputpacket.packet);
 			eptr->fwdinputpacket.startptr = eptr->fwdinputpacket.packet;
 		}
 		eptr->fwdinputpacket.bytesleft = size;
@@ -1557,7 +1368,7 @@ void csserv_fwdread(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					syslog(LOG_NOTICE,"(fwdread) read error: %m");
+					mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
 					csserv_fwderror(eptr);
 				}
 				return;
@@ -1597,7 +1408,7 @@ void csserv_fwdwrite(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(fwdwrite) write error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(fwdwrite) write error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1632,7 +1443,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(forward) read error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1651,11 +1462,7 @@ void csserv_forward(csserventry *eptr) {
 			return;
 		}
 		eptr->inputpacket.packet = malloc(size+8);
-		if (eptr->inputpacket.packet==NULL) {
-			syslog(LOG_WARNING,"(forward) out of memory");
-			eptr->state = CLOSE;
-			return;
-		}
+		passert(eptr->inputpacket.packet);
 		memcpy(eptr->inputpacket.packet,eptr->hdrbuff,8);
 		eptr->inputpacket.bytesleft = size;
 		eptr->inputpacket.startptr = eptr->inputpacket.packet+8;
@@ -1672,7 +1479,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(forward) read error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(forward) read error: %s");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1691,7 +1498,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(forward) write error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(forward) write error: %s");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1736,7 +1543,7 @@ void csserv_read(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(read) read error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(read) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1759,11 +1566,7 @@ void csserv_read(csserventry *eptr) {
 				return;
 			}
 			eptr->inputpacket.packet = malloc(size);
-			if (eptr->inputpacket.packet==NULL) {
-				syslog(LOG_WARNING,"(read) out of memory");
-				eptr->state = CLOSE;
-				return;
-			}
+			passert(eptr->inputpacket.packet);
 			eptr->inputpacket.startptr = eptr->inputpacket.packet;
 		}
 		eptr->inputpacket.bytesleft = size;
@@ -1779,7 +1582,7 @@ void csserv_read(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					syslog(LOG_NOTICE,"(read) read error: %m");
+					mfs_errlog_silent(LOG_NOTICE,"(read) read error");
 					eptr->state = CLOSE;
 				}
 				return;
@@ -1831,7 +1634,7 @@ void csserv_write(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"(write) write error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"(write) write error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1993,7 +1796,7 @@ void csserv_serve(struct pollfd *pdesc) {
 //	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			syslog(LOG_NOTICE,"accept error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"accept error");
 		} else {
 #ifdef BGJOBS
 			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
@@ -2004,6 +1807,7 @@ void csserv_serve(struct pollfd *pdesc) {
 				tcpnonblock(ns);
 				tcpnodelay(ns);
 				eptr = malloc(sizeof(csserventry));
+				passert(eptr);
 				eptr->next = csservhead;
 				csservhead = eptr;
 				eptr->state = IDLE;
@@ -2169,31 +1973,28 @@ uint16_t csserv_getlistenport() {
 	return mylistenport;
 }
 
-int csserv_init(FILE *msgfd) {
+int csserv_init(void) {
 	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
 	Timeout = cfg_getuint32("CSSERV_TIMEOUT",5);
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		syslog(LOG_ERR,"csserv: socket error: %m");
-		fprintf(msgfd,"main server module error: can't create socket (errno:%d)\n",errno);
+		mfs_errlog(LOG_ERR,"main server module error: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
-		syslog(LOG_NOTICE,"csserv: can't set accept filter: %m");
+		mfs_errlog_silent(LOG_NOTICE,"main server module error:can't set accept filter");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		syslog(LOG_ERR,"csserv: listen error: %m");
-		fprintf(msgfd,"main server module error: can't listen on socket (errno:%d)\n",errno);
+		mfs_errlog(LOG_ERR,"main server module error: can't listen on socket");
 		return -1;
 	}
-	syslog(LOG_NOTICE,"listen on %s:%s",ListenHost,ListenPort);
-	fprintf(msgfd,"main server module: listen on %s:%s\n",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
 
 	csservhead = NULL;
 	main_destructregister(csserv_term);

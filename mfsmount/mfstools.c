@@ -33,6 +33,7 @@
 #include <errno.h>
 
 #include "datapack.h"
+#include "strerr.h"
 #include "sockets.h"
 #include "MFSCommunication.h"
 
@@ -2033,7 +2034,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 
 	if (stat(dstname,&dst)<0) {	// dst does not exist
 		if (errno!=ENOENT) {
-			printf("%s: stat error: %s\n",dstname,strerror(errno));
+			printf("%s: stat error: %s\n",dstname,strerr(errno));
 			return -1;
 		}
 		if (srcelements>1) {
@@ -2041,7 +2042,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			return -1;
 		}
 		if (lstat(srcnames[0],&sst)<0) {
-			printf("%s: lstat error: %s\n",srcnames[0],strerror(errno));
+			printf("%s: lstat error: %s\n",srcnames[0],strerr(errno));
 			return -1;
 		}
 		if (bsd_dirname(dstname,dir)<0) {
@@ -2049,7 +2050,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			return -1;
 		}
 		if (stat(dir,&dst)<0) {
-			printf("%s: stat error: %s\n",dir,strerror(errno));
+			printf("%s: stat error: %s\n",dir,strerr(errno));
 			return -1;
 		}
 		if (sst.st_dev != dst.st_dev) {
@@ -2057,7 +2058,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			return -1;
 		}
 		if (realpath(dir,to)==NULL) {
-			printf("%s: realpath error on %s: %s\n",dir,to,strerror(errno));
+			printf("%s: realpath error on %s: %s\n",dir,to,strerr(errno));
 			return -1;
 		}
 		if (bsd_basename(dstname,base)<0) {
@@ -2071,7 +2072,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 		return make_snapshot(to,base,srcnames[0],sst.st_ino,canowerwrite);
 	} else {	// dst exists
 		if (realpath(dstname,to)==NULL) {
-			printf("%s: realpath error on %s: %s\n",dstname,to,strerror(errno));
+			printf("%s: realpath error on %s: %s\n",dstname,to,strerr(errno));
 			return -1;
 		}
 		if (!S_ISDIR(dst.st_mode)) {	// dst id not a directory
@@ -2080,7 +2081,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 				return -1;
 			}
 			if (lstat(srcnames[0],&sst)<0) {
-				printf("%s: lstat error: %s\n",srcnames[0],strerror(errno));
+				printf("%s: lstat error: %s\n",srcnames[0],strerr(errno));
 				return -1;
 			}
 			if (sst.st_dev != dst.st_dev) {
@@ -2100,7 +2101,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			status = 0;
 			for (i=0 ; i<srcelements ; i++) {
 				if (lstat(srcnames[i],&sst)<0) {
-					printf("%s: lstat error: %s\n",srcnames[i],strerror(errno));
+					printf("%s: lstat error: %s\n",srcnames[i],strerr(errno));
 					status=-1;
 					continue;
 				}
@@ -2112,7 +2113,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 				if (!S_ISDIR(sst.st_mode)) {	// src is not a directory
 					if (!S_ISLNK(sst.st_mode)) {	// src is not a symbolic link
 						if (realpath(srcnames[i],src)==NULL) {
-							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerror(errno));
+							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerr(errno));
 							status=-1;
 							continue;
 						}
@@ -2135,7 +2136,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 					l = strlen(srcnames[i]);
 					if (l>0 && srcnames[i][l-1]!='/') {	// src is a directory and name has trailing slash
 						if (realpath(srcnames[i],src)==NULL) {
-							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerror(errno));
+							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerr(errno));
 							status=-1;
 							continue;
 						}
@@ -2317,6 +2318,8 @@ int main(int argc,char **argv) {
 	uint8_t qflags=0;
 	char *appendfname=NULL;
 	char *hrformat;
+
+	strerr_init();
 
 	l = strlen(argv[0]);
 	f=0;

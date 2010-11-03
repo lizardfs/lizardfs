@@ -37,6 +37,8 @@
 #include "crc.h"
 #include "cfg.h"
 #include "main.h"
+#include "slogger.h"
+#include "massert.h"
 #include "sockets.h"
 
 #define MaxPacketSize 1500000
@@ -68,6 +70,7 @@ typedef struct masterconn {
 
 	uint8_t retrycnt;
 	uint8_t downloading;
+	uint8_t oldmode;
 	FILE *logfd;	// using stdio because this is text file
 	int metafd;	// using standard unix I/O because this is binary file
 	uint64_t filesize;
@@ -100,16 +103,11 @@ uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -128,10 +126,6 @@ void masterconn_sendregister(masterconn *eptr) {
 	eptr->logfd=NULL;
 
 	buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2);
-	if (buff==NULL) {
-		eptr->mode=KILL;
-		return;
-	}
 	put8bit(&buff,1);
 	put16bit(&buff,VERSMAJ);
 	put8bit(&buff,VERSMID);
@@ -188,17 +182,20 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
+void masterconn_metachanges_flush(void) {
+	masterconn *eptr = masterconnsingleton;
+	if (eptr->logfd) {
+		fflush(eptr->logfd);
+	}
+}
+
 int masterconn_download_end(masterconn *eptr) {
 	uint8_t *buff;
 	eptr->downloading=0;
 	buff = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
-	if (buff==NULL) {
-		eptr->mode=KILL;
-		return -1;
-	}
 	if (eptr->metafd>=0) {
 		if (close(eptr->metafd)<0) {
-			syslog(LOG_NOTICE,"error closing metafile: %m");
+			mfs_errlog_silent(LOG_NOTICE,"error closing metafile");
 			eptr->metafd=-1;
 			return -1;
 		}
@@ -213,10 +210,6 @@ void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 	if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->downloading==0) {
 //		syslog(LOG_NOTICE,"sending packet");
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_START,1);
-		if (ptr==NULL) {
-			eptr->mode=KILL;
-			return;
-		}
 		put8bit(&ptr,filenum);
 		eptr->downloading=filenum;
 	}
@@ -233,18 +226,36 @@ void masterconn_sessionsdownloadinit(void) {
 void masterconn_download_next(masterconn *eptr) {
 	uint8_t *ptr;
 	uint8_t filenum;
-	uint64_t dltime;
+	int64_t dltime;
 	if (eptr->dloffset>=eptr->filesize) {	// end of file
 		filenum = eptr->downloading;
 		if (masterconn_download_end(eptr)<0) {
 			return;
 		}
 		dltime = main_utime()-eptr->dlstartuts;
-		syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+		if (dltime<=0) {
+			dltime=1;
+		}
+		syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
 		if (filenum==1) {
 			if (rename("metadata_ml.tmp","metadata_ml.mfs.back")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 			}
+			if (eptr->oldmode==0) {
+				masterconn_download_init(eptr,11);
+			} else {
+				masterconn_download_init(eptr,2);
+			}
+		} else if (filenum==11) {
+			if (rename("changelog_ml.tmp","changelog_ml_back.0.mfs")<0) {
+				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
+			}
+			masterconn_download_init(eptr,12);
+		} else if (filenum==12) {
+			if (rename("changelog_ml.tmp","changelog_ml_back.1.mfs")<0) {
+				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
+			}
+			masterconn_download_init(eptr,2);
 		} else if (filenum==2) {
 			if (rename("sessions_ml.tmp","sessions_ml.mfs")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
@@ -252,10 +263,6 @@ void masterconn_download_next(masterconn *eptr) {
 		}
 	} else {	// send request for next data packet
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_DATA,12);
-		if (ptr==NULL) {
-			eptr->mode=KILL;
-			return;
-		}
 		put64bit(&ptr,eptr->dloffset);
 		if (eptr->filesize-eptr->dloffset>META_DL_BLOCK) {
 			put32bit(&ptr,META_DL_BLOCK);
@@ -272,6 +279,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		return;
 	}
 	if (length==1) {
+		eptr->downloading=0;
 		syslog(LOG_NOTICE,"download start error");
 		return;
 	}
@@ -283,13 +291,15 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		eptr->metafd = open("metadata_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
 	} else if (eptr->downloading==2) {
 		eptr->metafd = open("sessions_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+	} else if (eptr->downloading==11 || eptr->downloading==12) {
+		eptr->metafd = open("changelog_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
 	} else {
 		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
 		eptr->mode = KILL;
 		return;
 	}
 	if (eptr->metafd<0) {
-		syslog(LOG_NOTICE,"error opening metafile: %m");
+		mfs_errlog_silent(LOG_NOTICE,"error opening metafile");
 		masterconn_download_end(eptr);
 		return;
 	}
@@ -336,7 +346,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	ret = write(eptr->metafd,data,leng);
 #endif /* HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
-		syslog(LOG_NOTICE,"error writing metafile: %m");
+		mfs_errlog_silent(LOG_NOTICE,"error writing metafile");
 		if (eptr->retrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -356,7 +366,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (fsync(eptr->metafd)<0) {
-		syslog(LOG_NOTICE,"error syncing metafile: %m");
+		mfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
 		if (eptr->retrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -371,10 +381,15 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 }
 
 void masterconn_beforeclose(masterconn *eptr) {
+	if (eptr->downloading==11 || eptr->downloading==12) {	// old (version less than 1.6.18) master patch
+		syslog(LOG_WARNING,"old master detected - please upgrade your master server and then restart metalogger");
+		eptr->oldmode=1;
+	}
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
 		unlink("metadata_ml.tmp");
 		unlink("sessions_ml.tmp");
+		unlink("changelog_ml.tmp");
 	}
 	if (eptr->logfd) {
 		fclose(eptr->logfd);
@@ -423,6 +438,9 @@ void masterconn_term(void) {
 	}
 
 	free(eptr);
+	free(MasterHost);
+	free(MasterPort);
+	free(BindHost);
 	masterconnsingleton = NULL;
 }
 
@@ -437,10 +455,11 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->outputtail = &(eptr->outputhead);
 
 	masterconn_sendregister(eptr);
+	masterconn_metadownloadinit();
 	eptr->lastread = eptr->lastwrite = main_time();
 }
 
-int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
+int masterconn_initconnect(masterconn *eptr) {
 	int status;
 	if (eptr->masteraddrvalid==0) {
 		uint32_t mip,bip;
@@ -455,40 +474,24 @@ int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
 		} else {
-			if (msgfd) {
-				fprintf(msgfd,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
-			} else {
-				syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
-			}
+			mfs_arg_syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 			return -1;
 		}
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		if (msgfd) {
-			fprintf(msgfd,"create socket error (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"create socket, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		if (msgfd) {
-			fprintf(msgfd,"set nonblock error (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"set nonblock, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			if (msgfd) {
-				fprintf(msgfd,"can't bind socket to given ip (errno:%d)\n",errno);
-			} else {
-				syslog(LOG_WARNING,"can't bind socket to given ip: %m");
-			}
+			mfs_errlog(LOG_WARNING,"can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock=-1;
 			return -1;
@@ -496,11 +499,7 @@ int masterconn_initconnect(FILE *msgfd,masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		if (msgfd) {
-			fprintf(msgfd,"connect failed (errno:%d)\n",errno);
-		} else {
-			syslog(LOG_WARNING,"connect failed, error: %m");
-		}
+		mfs_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		return -1;
@@ -520,7 +519,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		syslog(LOG_WARNING,"connection failed, error: %m");
+		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock=-1;
 		eptr->mode=FREE;
@@ -537,13 +536,13 @@ void masterconn_read(masterconn *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_INFO,"Master connection lost");
+			syslog(LOG_NOTICE,"connection was reset by Master");
 			eptr->mode = KILL;
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"read from Master error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -567,11 +566,7 @@ void masterconn_read(masterconn *eptr) {
 					return;
 				}
 				eptr->inputpacket.packet = malloc(size);
-				if (eptr->inputpacket.packet==NULL) {
-					syslog(LOG_WARNING,"Master packet: out of memory");
-					eptr->mode = KILL;
-					return;
-				}
+				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
@@ -610,7 +605,7 @@ void masterconn_write(masterconn *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"write to Master error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -714,7 +709,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==FREE) {
-		masterconn_initconnect(NULL,eptr);
+		masterconn_initconnect(eptr);
 	}
 }
 
@@ -723,7 +718,7 @@ void masterconn_reload(void) {
 	eptr->masteraddrvalid=0;
 }
 
-int masterconn_init(FILE *msgfd) {
+int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 	masterconn *eptr;
@@ -752,14 +747,16 @@ int masterconn_init(FILE *msgfd) {
 		MetaDLFreq=BackLogsNumber/2;
 	}
 	eptr = masterconnsingleton = malloc(sizeof(masterconn));
+	passert(eptr);
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
 	eptr->logfd = NULL;
 	eptr->metafd = -1;
+	eptr->oldmode = 0;
 
-	if (masterconn_initconnect(msgfd,eptr)<0) {
+	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
 	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
@@ -768,6 +765,6 @@ int masterconn_init(FILE *msgfd) {
 	main_reloadregister(masterconn_reload);
 	main_timeregister(TIMEMODE_RUNONCE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
 	main_timeregister(TIMEMODE_RUNONCE,60,0,masterconn_sessionsdownloadinit);
-	(void)msgfd;
+	main_timeregister(TIMEMODE_RUNONCE,1,0,masterconn_metachanges_flush);
 	return 0;
 }

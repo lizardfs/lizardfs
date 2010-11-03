@@ -19,12 +19,11 @@
 #ifndef _MATOCUSERV_H_
 #define _MATOCUSERV_H_
 
-#include <stdio.h>
 #include <inttypes.h>
 
 void matocuserv_chunk_status(uint64_t chunkid,uint8_t status);
 void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode);
-int matocuserv_sessionsinit(FILE *msgfd);
-int matocuserv_networkinit(FILE *msgfd);
+int matocuserv_sessionsinit(void);
+int matocuserv_networkinit(void);
 
 #endif

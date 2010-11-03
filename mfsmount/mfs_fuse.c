@@ -68,6 +68,7 @@ typedef struct _sinfo {
 	char *buff;
 	uint32_t leng;
 	uint8_t reset;
+	pthread_mutex_t lock;
 } sinfo;
 
 typedef struct _dirbuf {
@@ -128,7 +129,6 @@ enum {
 };
 
 static uint64_t *statsptr[STATNODES];
-static pthread_mutex_t statsptrlock = PTHREAD_MUTEX_INITIALIZER;
 
 void mfs_statsptr_init(void) {
 	void *s;
@@ -166,9 +166,9 @@ void mfs_statsptr_init(void) {
 
 void mfs_stats_inc(uint8_t id) {
 	if (id<STATNODES) {
-		pthread_mutex_lock(&statsptrlock);
+		stats_lock();
 		(*statsptr[id])++;
-		pthread_mutex_unlock(&statsptrlock);
+		stats_unlock();
 	}
 }
 
@@ -1058,10 +1058,12 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else {
 		dirinfo = malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
+		pthread_mutex_lock(&(dirinfo->lock));	// make valgrind happy
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
 		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
+		pthread_mutex_unlock(&(dirinfo->lock));	// make valgrind happy
 		fi->fh = (unsigned long)dirinfo;
 		if (fuse_reply_open(req,fi) == -ENOENT) {
 			fi->fh = 0;
@@ -1196,6 +1198,8 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 	finfo *fileinfo;
 	fileinfo = malloc(sizeof(finfo));
+	pthread_mutex_init(&(fileinfo->lock),NULL);
+	pthread_mutex_lock(&(fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
 	/* old FreeBSD fuse reads whole file when opening with O_WRONLY|O_APPEND,
 	 * so can't open it write-only */
@@ -1215,7 +1219,7 @@ static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 		fileinfo->data = NULL;
 	}
 #endif
-	pthread_mutex_init(&(fileinfo->lock),NULL);
+	pthread_mutex_unlock(&(fileinfo->lock)); // make helgrind happy
 	return fileinfo;
 }
 
@@ -1245,6 +1249,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 
 	mfs_stats_inc(OP_CREATE);
 	if (debug_mode) {
+		ctx = fuse_req_ctx(req);
 		fprintf(stderr,"create (%lu,%s,%04o)\n",(unsigned long int)parent,name,(unsigned int)mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
@@ -1363,8 +1368,11 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			fuse_reply_err(req,ENOMEM);
 			return;
 		}
+		pthread_mutex_init(&(statsinfo->lock),NULL);	// make helgrind happy
+		pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
 		stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
 		statsinfo->reset = 0;
+		pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		fi->direct_io = 1;
 		fi->fh = (unsigned long)statsinfo;
 		fuse_reply_open(req, fi);
@@ -1429,12 +1437,15 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
 		if (statsinfo!=NULL) {
+			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
 			if (statsinfo->buff!=NULL) {
 				free(statsinfo->buff);
 			}
 			if (statsinfo->reset) {
 				stats_reset_all();
 			}
+			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
+			pthread_mutex_destroy(&(statsinfo->lock));	// make helgrind happy
 			free(statsinfo);
 		}
 		fuse_reply_err(req,0);
@@ -1472,12 +1483,18 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	}
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
-		if (off>=statsinfo->leng) {
-			fuse_reply_buf(req,NULL,0);
-		} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
-			fuse_reply_buf(req,statsinfo->buff+off,statsinfo->leng-off);
+		if (statsinfo!=NULL) {
+			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
+			if (off>=statsinfo->leng) {
+				fuse_reply_buf(req,NULL,0);
+			} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
+				fuse_reply_buf(req,statsinfo->buff+off,statsinfo->leng-off);
+			} else {
+				fuse_reply_buf(req,statsinfo->buff+off,size);
+			}
+			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		} else {
-			fuse_reply_buf(req,statsinfo->buff+off,size);
+			fuse_reply_buf(req,NULL,0);
 		}
 		return;
 	}
@@ -1500,15 +1517,16 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 //		}
 //		return;
 //	}
-	if (fileinfo->mode==IO_WRITEONLY) {
-		fuse_reply_err(req,EACCES);
-		return;
-	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req,EFBIG);
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
+	if (fileinfo->mode==IO_WRITEONLY) {
+		pthread_mutex_unlock(&(fileinfo->lock));
+		fuse_reply_err(req,EACCES);
+		return;
+	}
 	if (fileinfo->mode==IO_WRITE) {
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
@@ -1559,7 +1577,9 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
 		if (statsinfo!=NULL) {
+			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
 			statsinfo->reset=1;
+			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		}
 		fuse_reply_write(req,size);
 		return;
@@ -1577,15 +1597,16 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 //		fuse_reply_write(req,wsize);
 //		return;
 //	}
-	if (fileinfo->mode==IO_READONLY) {
-		fuse_reply_err(req,EACCES);
-		return;
-	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req, EFBIG);
 		return;
 	}
-	pthread_mutex_lock(&(fileinfo->lock));     // to trzeba zrobiæ lepiej - wielu czytelnikow i wielu pisarzy
+	pthread_mutex_lock(&(fileinfo->lock));
+	if (fileinfo->mode==IO_READONLY) {
+		pthread_mutex_unlock(&(fileinfo->lock));
+		fuse_reply_err(req,EACCES);
+		return;
+	}
 	if (fileinfo->mode==IO_READ) {
 		read_data_end(fileinfo->data);
 	}

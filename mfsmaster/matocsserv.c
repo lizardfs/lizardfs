@@ -40,6 +40,8 @@
 #include "sockets.h"
 #include "chunks.h"
 #include "random.h"
+#include "slogger.h"
+#include "massert.h"
 
 #define MaxPacketSize 500000000
 
@@ -123,6 +125,7 @@ repsrc* matocsserv_repsrc_malloc() {
 		repsrcfreehead = r->next;
 	} else {
 		r = (repsrc*)malloc(sizeof(repsrc));
+		passert(r);
 	}
 	return r;
 }
@@ -139,6 +142,7 @@ repdst* matocsserv_repdst_malloc() {
 		repdstfreehead = r->next;
 	} else {
 		r = (repdst*)malloc(sizeof(repdst));
+		passert(r);
 	}
 	return r;
 }
@@ -773,6 +777,7 @@ char* matocsserv_makestrip(uint32_t ip) {
 	}
 	l+=4;
 	optr = malloc(l);
+	passert(optr);
 	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
 	return optr;
@@ -784,16 +789,15 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	uint32_t psize;
 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	if (outpacket==NULL) {
-		return NULL;
-	}
+	passert(outpacket);
 	psize = size+8;
 	outpacket->packet=malloc(psize);
+	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
-	if (outpacket->packet==NULL) {
-		free(outpacket);
-		return NULL;
-	}
+//	if (outpacket->packet==NULL) {
+//		free(outpacket);
+//		return NULL;
+//	}
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -810,9 +814,6 @@ int matocsserv_send_chunk_checksum(void *e,uint64_t chunkid,uint32_t version) {
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,ANTOCS_CHUNK_CHECKSUM,8+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 	}
@@ -847,9 +848,6 @@ int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version) {
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_CREATE,8+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 	}
@@ -878,9 +876,6 @@ int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version) {
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_DELETE,8+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 	}
@@ -913,9 +908,6 @@ int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,voi
 	}
 	if (eptr->mode!=KILL && srceptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+4+2);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put32bit(&data,srceptr->servip);
@@ -943,9 +935,6 @@ int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version
 			}
 		}
 		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+cnt*(8+4+4+2));
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		for (i=0 ; i<cnt ; i++) {
@@ -968,9 +957,6 @@ int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,uin
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+4+2);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put32bit(&data,ip);
@@ -986,9 +972,6 @@ int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+cnt*(8+4+4+2));
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		memcpy(data,fromdata,cnt*(8+4+4+2));
@@ -1026,9 +1009,6 @@ int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,ui
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_SET_VERSION,8+4+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put32bit(&data,oldversion);
@@ -1059,9 +1039,6 @@ int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uin
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_DUPLICATE,8+4+8+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put64bit(&data,oldchunkid);
@@ -1092,9 +1069,6 @@ int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint3
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_TRUNCATE,8+4+4+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,length);
 		put32bit(&data,version);
@@ -1126,9 +1100,6 @@ int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_DUPTRUNC,8+4+8+4+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put64bit(&data,oldchunkid);
@@ -1161,9 +1132,6 @@ int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t n
 
 	if (eptr->mode!=KILL) {
 		data = matocsserv_createpacket(eptr,MATOCS_CHUNKOP,8+4+4+8+4+4);
-		if (data==NULL) {
-			return -1;
-		}
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
 		put32bit(&data,newversion);
@@ -1403,12 +1371,10 @@ void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t lo
 
 	for (eptr = matocsservhead ; eptr ; eptr=eptr->next) {
 		data = matocsserv_createpacket(eptr,MATOCS_STRUCTURE_LOG,9+logstrsize);
-		if (data!=NULL) {
-			// put32bit(&data,version);
-			put8bit(&data,0xFF);
-			put64bit(&data,version);
-			memcpy(data,logstr,logstrsize);
-		}
+		// put32bit(&data,version);
+		put8bit(&data,0xFF);
+		put64bit(&data,version);
+		memcpy(data,logstr,logstrsize);
 	}
 }
 
@@ -1489,11 +1455,17 @@ void matocsserv_term(void) {
 			pptr = pptr->next;
 			free(paptr);
 		}
+		if (eptr->servstrip) {
+			free(eptr->servstrip);
+		}
 		eaptr = eptr;
 		eptr = eptr->next;
 		free(eaptr);
 	}
 	matocsservhead=NULL;
+
+	free(ListenHost);
+	free(ListenPort);
 }
 
 void matocsserv_read(matocsserventry *eptr) {
@@ -1503,13 +1475,13 @@ void matocsserv_read(matocsserventry *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_INFO,"connection with CS(%s) lost",eptr->servstrip);
+			syslog(LOG_NOTICE,"connection with CS(%s) has been closed by peer",eptr->servstrip);
 			eptr->mode = KILL;
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"read from CS(%s) error: %m",eptr->servstrip);
+				mfs_arg_errlog_silent(LOG_NOTICE,"read from CS(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -1532,11 +1504,7 @@ void matocsserv_read(matocsserventry *eptr) {
 					return;
 				}
 				eptr->inputpacket.packet = malloc(size);
-				if (eptr->inputpacket.packet==NULL) {
-					syslog(LOG_WARNING,"CS(%s) packet: out of memory",eptr->servstrip);
-					eptr->mode = KILL;
-					return;
-				}
+				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
@@ -1575,7 +1543,7 @@ void matocsserv_write(matocsserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_INFO,"write to CS(%s) error: %m",eptr->servstrip);
+				mfs_arg_errlog_silent(LOG_NOTICE,"write to CS(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -1632,11 +1600,12 @@ void matocsserv_serve(struct pollfd *pdesc) {
 //	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			syslog(LOG_INFO,"Master<->CS socket: accept error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = malloc(sizeof(matocsserventry));
+			passert(eptr);
 			eptr->next = matocsservhead;
 			matocsservhead = eptr;
 			eptr->sock = ns;
@@ -1731,29 +1700,26 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-int matocsserv_init(FILE *msgfd) {
+int matocsserv_init(void) {
 	ListenHost = cfg_getstr("MATOCS_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOCS_LISTEN_PORT","9420");
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		syslog(LOG_ERR,"matocs: socket error: %m");
-		fprintf(msgfd,"master <-> chunkservers module: can't create socket\n");
+		mfs_errlog(LOG_ERR,"master <-> chunkservers module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0) {
-		syslog(LOG_NOTICE,"matocs: can't set accept filter: %m");
+		mfs_errlog_silent(LOG_NOTICE,"matocs: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		syslog(LOG_ERR,"matocs: listen error: %m");
-		fprintf(msgfd,"master <-> chunkservers module: can't listen on socket\n");
+		mfs_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on socket");
 		return -1;
 	}
-	syslog(LOG_NOTICE,"matocs: listen on %s:%s",ListenHost,ListenPort);
-	fprintf(msgfd,"master <-> chunkservers module: listen on %s:%s\n",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
 	matocsservhead = NULL;

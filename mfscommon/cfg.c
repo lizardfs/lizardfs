@@ -24,6 +24,8 @@
 #include <syslog.h>
 
 #include "cfg.h"
+#include "massert.h"
+#include "slogger.h"
 
 typedef struct paramsstr {
 	char *name;
@@ -45,7 +47,7 @@ int cfg_load (const char *configfname,int _lu) {
 
 	fd = fopen(configfname,"r");
 	if (fd==NULL) {
-		syslog(LOG_ERR,"cannot load config file: %s",configfname);
+		mfs_arg_syslog(LOG_ERR,"cannot load config file: %s",configfname);
 		return 0;
 	}
 	while (fgets(linebuff,999,fd)!=NULL) {
@@ -79,8 +81,11 @@ int cfg_load (const char *configfname,int _lu) {
 			continue;
 		}
 		tmp = (paramstr*)malloc(sizeof(paramstr));
+		passert(tmp);
 		tmp->name = (char*)malloc(npe-nps+1);
+		passert(tmp->name);
 		tmp->value = (char*)malloc(vpe-vps+1);
+		passert(tmp->value);
 		memcpy(tmp->name,linebuff+nps,npe-nps);
 		if (vpe>vps) {
 			memcpy(tmp->value,linebuff+vps,vpe-vps);
@@ -94,34 +99,52 @@ int cfg_load (const char *configfname,int _lu) {
 	return 1;
 }
 
-#define STR_TO_int(x) strtol(x,NULL,0)
-#define STR_TO_int32(x) strtol(x,NULL,0)
-#define STR_TO_uint32(x) strtoul(x,NULL,0)
-#define STR_TO_int64(x) strtoll(x,NULL,0)
-#define STR_TO_uint64(x) strtoull(x,NULL,0)
-#define STR_TO_double(x) strtod(x,NULL)
-#define STR_TO_charptr(x) strdup(x)
+void cfg_term(void) {
+	paramstr *i,*in;
+	for (i = paramhead ; i ; i = in) {
+		in = i->next;
+		free(i->value);
+		free(i->name);
+		free(i);
+	}
+}
 
-#define COPY_int(x) x
-#define COPY_int32(x) x
-#define COPY_uint32(x) x
-#define COPY_int64(x) x
-#define COPY_uint64(x) x
-#define COPY_double(x) x
-#define COPY_charptr(x) strdup(x)
+#define STR_TO_int(x) return strtol(x,NULL,0)
+#define STR_TO_int32(x) return strtol(x,NULL,0)
+#define STR_TO_uint32(x) return strtoul(x,NULL,0)
+#define STR_TO_int64(x) return strtoll(x,NULL,0)
+#define STR_TO_uint64(x) return strtoull(x,NULL,0)
+#define STR_TO_double(x) return strtod(x,NULL)
+#define STR_TO_charptr(x) { \
+	char* _cfg_ret_tmp = strdup(x); \
+	passert(_cfg_ret_tmp); \
+	return _cfg_ret_tmp; \
+}
+
+#define COPY_int(x) return x
+#define COPY_int32(x) return x
+#define COPY_uint32(x) return x
+#define COPY_int64(x) return x
+#define COPY_uint64(x) return x
+#define COPY_double(x) return x
+#define COPY_charptr(x) { \
+	char* _cfg_ret_tmp = strdup(x); \
+	passert(_cfg_ret_tmp); \
+	return _cfg_ret_tmp; \
+}
 
 #define _CONFIG_GEN_FUNCTION(fname,type,convname,format) \
 type cfg_get##fname(const char *name,type def) { \
-	paramstr *tmp; \
-	for (tmp = paramhead ; tmp ; tmp=tmp->next) { \
-		if (strcmp(name,tmp->name)==0) { \
-			return STR_TO_##convname(tmp->value); \
+	paramstr *_cfg_tmp; \
+	for (_cfg_tmp = paramhead ; _cfg_tmp ; _cfg_tmp=_cfg_tmp->next) { \
+		if (strcmp(name,_cfg_tmp->name)==0) { \
+			STR_TO_##convname(_cfg_tmp->value); \
 		} \
 	} \
 	if (logundefined) { \
-		syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,def); \
+		mfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,def); \
 	} \
-	return COPY_##convname(def); \
+	COPY_##convname(def); \
 }
 
 _CONFIG_GEN_FUNCTION(str,char*,charptr,"%s")

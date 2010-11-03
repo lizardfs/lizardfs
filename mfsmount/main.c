@@ -40,6 +40,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <syslog.h>
+#include <errno.h>
 
 #include "mfs_fuse.h"
 #include "mfs_meta_fuse.h"
@@ -50,6 +51,9 @@
 #include "readdata.h"
 #include "writedata.h"
 #include "csdb.h"
+#include "stats.h"
+#include "strerr.h"
+#include "crc.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -305,7 +309,7 @@ static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
 	if (piped[1]>=0) {
 		s=0;
 		if (write(piped[1],&s,1)!=1) {
-			syslog(LOG_ERR,"pipe write error: %m");
+			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}
 		close(piped[1]);
 	}
@@ -324,8 +328,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	int i,j;
 	const char *sesflagposstrtab[]={SESFLAG_POS_STRINGS};
 	const char *sesflagnegstrtab[]={SESFLAG_NEG_STRINGS};
-	struct passwd *pw;
-	struct group *gr;
+	struct passwd pwd,*pw;
+	struct group grp,*gr;
+	char pwdgrpbuff[16384];
 	md5ctx ctx;
 	uint8_t md5pass[16];
 
@@ -396,13 +401,15 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 	if (mfsopts.meta==0) {
 		fprintf(stderr," ; root mapped to ");
-		pw = getpwuid(rootuid);
+		getpwuid_r(rootuid,&pwd,pwdgrpbuff,16384,&pw);
+//		pw = getpwuid(rootuid);
 		if (pw) {
 			fprintf(stderr,"%s:",pw->pw_name);
 		} else {
 			fprintf(stderr,"%"PRIu32":",rootuid);
 		}
-		gr = getgrgid(rootgid);
+		getgrgid_r(rootgid,&grp,pwdgrpbuff,16384,&gr);
+//		gr = getgrgid(rootgid);
 		if (gr) {
 			fprintf(stderr,"%s",gr->gr_name);
 		} else {
@@ -485,10 +492,10 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	fs_init_threads(mfsopts.ioretries);
 
 	if (mfsopts.meta==0) {
+		csdb_init();
 		read_data_init(mfsopts.ioretries);
 //		write_data_init();
 		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
-		csdb_init();
 	}
 
  	ch = fuse_mount(mp, args);
@@ -500,6 +507,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
+		if (mfsopts.meta==0) {
+			write_data_term();
+			read_data_term();
+			csdb_term();
+		}
+		fs_term();
 		return 1;
 	}
 
@@ -520,6 +533,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
+		if (mfsopts.meta==0) {
+			write_data_term();
+			read_data_term();
+			csdb_term();
+		}
+		fs_term();
 		return 1;
 	}
 
@@ -537,6 +556,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
+		if (mfsopts.meta==0) {
+			write_data_term();
+			read_data_term();
+			csdb_term();
+		}
+		fs_term();
 		return 1;
 	}
 
@@ -559,7 +584,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	if (err) {
 		if (piped[1]>=0) {
 			if (write(piped[1],&s,1)!=1) {
-				syslog(LOG_ERR,"pipe write error: %m");
+				syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 			}
 			close(piped[1]);
 		}
@@ -568,6 +593,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	fuse_session_remove_chan(ch);
 	fuse_session_destroy(se);
 	fuse_unmount(mp,ch);
+	if (mfsopts.meta==0) {
+		write_data_term();
+		read_data_term();
+		csdb_term();
+	}
+	fs_term();
 	return err ? 1 : 0;
 }
 
@@ -694,6 +725,9 @@ int main(int argc, char *argv[]) {
 	char *mountpoint;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
+	strerr_init();
+	mycrc32_init();
+
 	mfsopts.masterhost = NULL;
 	mfsopts.masterport = NULL;
 	mfsopts.bindhost = NULL;
@@ -787,5 +821,7 @@ int main(int argc, char *argv[]) {
 		free(mfsopts.bindhost);
 	}
 	free(mfsopts.subfolder);
+	stats_term();
+	strerr_term();
 	return res;
 }

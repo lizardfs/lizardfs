@@ -26,4 +26,6 @@ uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2);
 #define mycrc32_zeroexpanded(crc,block,leng,zeros) mycrc32_zeroblock(mycrc32((crc),(block),(leng)),(zeros))
 #define mycrc32_xorblocks(crc,crcblock1,crcblock2,leng) ((crcblock1)^(crcblock2)^mycrc32_zeroblock(crc,leng))
 
+void mycrc32_init(void);
+
 #endif

@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "acl.h"
+#include "exports.h"
 #include "datacachemgr.h"
 #include "matomlserv.h"
 #include "matocsserv.h"
@@ -35,7 +35,7 @@
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
 /* Run Tab */
-typedef int (*runfn)(FILE *msgfd);
+typedef int (*runfn)(void);
 struct {
 	runfn fn;
 	char *name;
@@ -44,7 +44,7 @@ struct {
 	{rndinit,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matocuserv_networkinit'
 	{matocuserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
-	{acl_init,"access control list"},
+	{exports_init,"exports manager"},
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},

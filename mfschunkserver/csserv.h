@@ -20,7 +20,6 @@
 #define _CSSERV_H_
 
 #include <inttypes.h>
-#include <stdio.h>
 
 void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt);
 void csserv_cstocs_connected(void *e,void *cptr);
@@ -28,6 +27,6 @@ void csserv_cstocs_gotstatus(void *e,uint64_t chunkid,uint32_t writeid,uint8_t s
 void csserv_cstocs_disconnected(void *e);
 uint32_t csserv_getlistenip();
 uint16_t csserv_getlistenport();
-int csserv_init(FILE *msgfd);
+int csserv_init(void);
 
 #endif

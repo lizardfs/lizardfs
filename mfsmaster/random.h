@@ -19,10 +19,9 @@
 #ifndef _RC4RANDOM_H_
 #define _RC4RANDOM_H_
 
-#include <stdio.h>
 #include <inttypes.h>
 
-int rndinit(FILE *msgfd);
+int rndinit(void);
 uint8_t rndu8();
 //uint16_t rndu16();
 uint32_t rndu32();

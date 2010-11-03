@@ -26,4 +26,4 @@ ACLOCAL_AMFLAGS = -I m4 $(shell test -d /opt/local/share/aclocal && echo -I/opt/
 
 SUBDIRS=mfsdata doc $(MASTERDIR) $(CHUNKSERVERDIR) $(MOUNTDIR) $(CGISUBDIR)
 
-EXTRA_DIST=UPGRADE m4/ax_pthread.m4
+EXTRA_DIST=UPGRADE m4/ax_pthread.m4 debian rpm

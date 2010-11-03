@@ -91,6 +91,7 @@ void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status);
 // int chunk_load_1_1(FILE *fd);
 int chunk_load(FILE *fd);
 void chunk_store(FILE *fd);
+void chunk_term(void);
 void chunk_newfs(void);
 void chunk_strinit(void);
 

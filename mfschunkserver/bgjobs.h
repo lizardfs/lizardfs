@@ -23,6 +23,7 @@
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);
 uint32_t job_pool_jobs_count(void *jpool);
+void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8_t status,void *extra));
 void job_pool_disable_job(void *jpool,uint32_t jobid);
 void job_pool_check_jobs(void *jpool);
 void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_t status,void *extra),void *extra);

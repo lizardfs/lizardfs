@@ -32,6 +32,7 @@
 
 #include "MFSCommunication.h"
 #include "sockets.h"
+#include "strerr.h"
 #include "datapack.h"
 #include "mastercomm.h"
 #include "cscomm.h"
@@ -74,6 +75,7 @@ static pthread_t pthid;
 static pthread_mutex_t glock;
 
 static uint32_t maxretries;
+static uint8_t rterm;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
@@ -83,6 +85,10 @@ void* read_data_delayed_ops(void *arg) {
 	(void)arg;
 	for (;;) {
 		pthread_mutex_lock(&glock);
+		if (rterm) {
+			pthread_mutex_unlock(&glock);
+			return NULL;
+		}
 		rrecp = &rdhead;
 		while ((rrec=*rrecp)!=NULL) {
 			if (rrec->refcnt<REFRESHTICKS) {
@@ -186,6 +192,7 @@ void read_data_init(uint32_t retries) {
 	uint32_t i;
 	pthread_attr_t thattr;
 
+	rterm = 0;
 	for (i=0 ; i<MAPSIZE ; i++) {
 		rdinodemap[i]=NULL;
 	}
@@ -195,6 +202,30 @@ void read_data_init(uint32_t retries) {
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&pthid,&thattr,read_data_delayed_ops,NULL);
 	pthread_attr_destroy(&thattr);
+}
+
+void read_data_term(void) {
+	uint32_t i;
+	readrec *rr,*rrn;
+
+	pthread_mutex_lock(&glock);
+	rterm = 1;
+	pthread_mutex_unlock(&glock);
+	pthread_join(pthid,NULL);
+	pthread_mutex_destroy(&glock);
+	for (i=0 ; i<MAPSIZE ; i++) {
+		for (rr = rdinodemap[i] ; rr ; rr = rrn) {
+			rrn = rr->next;
+			if (rr->fd>=0) {
+				tcpclose(rr->fd);
+			}
+			if (rr->rbuff) {
+				free(rr->rbuff);
+			}
+			pthread_cond_destroy(&(rr->cond));
+			free(rr);
+		}
+	}
 }
 
 static int read_data_refresh_connection(readrec *rrec) {
@@ -255,12 +286,12 @@ static int read_data_refresh_connection(readrec *rrec) {
 	while (cnt>0) {
 		rrec->fd = tcpsocket();
 		if (rrec->fd<0) {
-			syslog(LOG_WARNING,"can't create tcp socket: %m");
+			syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
 			cnt=0;
 		}
 		if (srcip) {
 			if (tcpnumbind(rrec->fd,srcip,0)<0) {
-				syslog(LOG_WARNING,"can't bind to given ip: %m");
+				syslog(LOG_WARNING,"can't bind to given ip: %s",strerr(errno));
 				tcpclose(rrec->fd);
 				rrec->fd=-1;
 				cnt=0;
@@ -270,7 +301,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 		if (tcpnumtoconnect(rrec->fd,ip,port,200)<0) {
 			cnt--;
 			if (cnt==0) {
-				syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %m",ip,port);
+				syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %s",ip,port,strerr(errno));
 			}
 			tcpclose(rrec->fd);
 			rrec->fd=-1;
@@ -283,7 +314,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 
 	if (tcpnodelay(rrec->fd)<0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %m");
+		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 
 	csdb_readinc(rrec->ip,rrec->port);

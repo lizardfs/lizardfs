@@ -29,12 +29,14 @@
 
 #include "MFSCommunication.h"
 #include "md5.h"
-#include "acl.h"
+#include "exports.h"
 #include "datapack.h"
 #include "main.h"
 #include "cfg.h"
+#include "slogger.h"
+#include "massert.h"
 
-typedef struct _acl {
+typedef struct _exports {
 	uint32_t pleng;
 	const uint8_t *path;	// without '/' at the begin and at the end
 	uint32_t fromip,toip;
@@ -50,13 +52,13 @@ typedef struct _acl {
 	uint32_t rootgid;
 	uint32_t mapalluid;
 	uint32_t mapallgid;
-	struct _acl *next;
-} acl;
+	struct _exports *next;
+} exports;
 
-static acl *acl_records;
+static exports *exports_records;
 static char *ExportsFileName;
 
-char* acl_strsep(char **stringp, const char *delim) {
+char* exports_strsep(char **stringp, const char *delim) {
 	char *s;
 	const char *spanp;
 	int c, sc;
@@ -86,10 +88,10 @@ char* acl_strsep(char **stringp, const char *delim) {
 }
 
 
-uint32_t acl_info_size(void) {
-	acl *e;
+uint32_t exports_info_size(void) {
+	exports *e;
 	uint32_t size=0;
-	for (e=acl_records ; e ; e=e->next) {
+	for (e=exports_records ; e ; e=e->next) {
 		if (e->meta) {
 			size+=35;
 		} else {
@@ -99,9 +101,9 @@ uint32_t acl_info_size(void) {
 	return size;
 }
 
-void acl_info_data(uint8_t *buff) {
-	acl *e;
-	for (e=acl_records ; e ; e=e->next) {
+void exports_info_data(uint8_t *buff) {
+	exports *e;
+	for (e=exports_records ; e ; e=e->next) {
 		put32bit(&buff,e->fromip);
 		put32bit(&buff,e->toip);
 		if (e->meta) {
@@ -125,16 +127,16 @@ void acl_info_data(uint8_t *buff) {
 	}
 }
 
-uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	const uint8_t *p;
 	uint32_t pleng,i;
 	uint8_t rndstate;
 	int ok,nopass;
 	md5ctx md5c;
 	uint8_t entrydigest[16];
-	acl *e,*f;
+	exports *e,*f;
 
-//	syslog(LOG_NOTICE,"check acl for: %u.%u.%u.%u:%s",(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
+//	syslog(LOG_NOTICE,"check exports for: %u.%u.%u.%u:%s",(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
 
 	if (meta==0) {
 		p = path;
@@ -160,7 +162,7 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 	}
 	nopass=0;
 	f=NULL;
-	for (e=acl_records ; e ; e=e->next) {
+	for (e=exports_records ; e ; e=e->next) {
 		ok = 0;
 //		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
 		if (ip>=e->fromip && ip<=e->toip && version>=e->minversion && meta==e->meta) {
@@ -242,8 +244,8 @@ uint8_t acl_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,
 	return STATUS_OK;
 }
 
-void acl_freelist(acl *arec) {
-	acl *drec;
+void exports_freelist(exports *arec) {
+	exports *drec;
 	while (arec) {
 		drec = arec;
 		arec = arec->next;
@@ -272,7 +274,7 @@ void acl_freelist(acl *arec) {
 // default:
 // *	/	alldirs,maproot=0
 
-int acl_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
+int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	uint32_t ip,i,octet;
 	if (net[0]=='*' && net[1]==0) {
 		*fromip = 0;
@@ -385,7 +387,7 @@ int acl_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	return -1;
 }
 
-int acl_parseversion(char *verstr,uint32_t *version) {
+int exports_parseversion(char *verstr,uint32_t *version) {
 	uint32_t vp;
 	if (*verstr<'0' || *verstr>'9') {
 		return -1;
@@ -437,10 +439,11 @@ int acl_parseversion(char *verstr,uint32_t *version) {
 	return 0;
 }
 
-int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid) {
+int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid) {
 	char *uptr,*gptr,*eptr;
-	struct group *grrec;
-	struct passwd *pwrec;
+	struct group *grrec,grp;
+	struct passwd *pwrec,pwd;
+	char pwgrbuff[16384];
 	uint32_t uid,gid;
 	int gidok;
 
@@ -460,9 +463,10 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid)
 			eptr++;
 		}
 		if (*eptr!=0) {	// not only digits - treat it as a groupname
-			grrec = getgrnam(gptr+1);
+			getgrnam_r(gptr+1,&grp,pwgrbuff,16384,&grrec);
+//			grrec = getgrnam(gptr+1);
 			if (grrec==NULL) {
-				syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %"PRIu32,gptr+1,lineno);
+				mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %"PRIu32,gptr+1,lineno);
 				return -1;
 			}
 			gid = grrec->gr_gid;
@@ -482,9 +486,10 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid)
 		eptr++;
 	}
 	if (*eptr!=0) {	// not only digits - treat it as a username
-		pwrec = getpwnam(uptr);
+		getpwnam_r(uptr,&pwd,pwgrbuff,16384,&pwrec);
+//		pwrec = getpwnam(uptr);
 		if (pwrec==NULL) {
-			syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %"PRIu32,uptr,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %"PRIu32,uptr,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -499,9 +504,10 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid)
 		*rgid = gid;
 		return 0;
 	} else {
-		pwrec = getpwuid(uid);
+		getpwuid_r(uid,&pwd,pwgrbuff,16384,&pwrec);
+//		pwrec = getpwuid(uid);
 		if (pwrec==NULL) {
-			syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %"PRIu32" defined in line: %"PRIu32,uid,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %"PRIu32" defined in line: %"PRIu32,uid,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -511,12 +517,12 @@ int acl_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid)
 	return -1;
 }
 
-int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
+int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 	char *p;
 	int o;
 	md5ctx ctx;
 
-	while ((p=acl_strsep(&opts,","))) {
+	while ((p=exports_strsep(&opts,","))) {
 		o=0;
 //		syslog(LOG_WARNING,"option: %s",p);
 		switch (*p) {
@@ -538,7 +544,7 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 		case 'i':
 			if (strcmp(p,"ignoregid")==0) {
 				if (arec->meta) {
-					syslog(LOG_WARNING,"meta option ignored: %s",p);
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->sesflags |= SESFLAG_IGNOREGID;
 				}
@@ -548,7 +554,7 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 		case 'a':
 			if (strcmp(p,"alldirs")==0) {
 				if (arec->meta) {
-					syslog(LOG_WARNING,"meta option ignored: %s",p);
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->alldirs = 1;
 				}
@@ -564,7 +570,7 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 		case 'c':
 			if (strcmp(p,"canchangequota")==0) {
 				if (arec->meta) {
-					syslog(LOG_WARNING,"meta option ignored: %s",p);
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->sesflags |= SESFLAG_CANCHANGEQUOTA;
 				}
@@ -575,9 +581,9 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 			if (strncmp(p,"maproot=",8)==0) {
 				o=1;
 				if (arec->meta) {
-					syslog(LOG_WARNING,"meta option ignored: %s",p);
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
-					if (acl_parseuidgid(p+8,lineno,&arec->rootuid,&arec->rootgid)<0) {
+					if (exports_parseuidgid(p+8,lineno,&arec->rootuid,&arec->rootgid)<0) {
 						return -1;
 					}
 					arec->rootredefined = 1;
@@ -585,9 +591,9 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 			} else if (strncmp(p,"mapall=",7)==0) {
 				o=1;
 				if (arec->meta) {
-					syslog(LOG_WARNING,"meta option ignored: %s",p);
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
-					if (acl_parseuidgid(p+7,lineno,&arec->mapalluid,&arec->mapallgid)<0) {
+					if (exports_parseuidgid(p+7,lineno,&arec->mapalluid,&arec->mapallgid)<0) {
 						return -1;
 					}
 					arec->sesflags |= SESFLAG_MAPALL;
@@ -622,13 +628,13 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 					}
 					arec->needpassword=1;
 				} else {
-					syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %"PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"minversion=",11)==0) {
 				o=1;
-				if (acl_parseversion(p+11,&arec->minversion)<0) {
-					syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %"PRIu32,p,lineno);
+				if (exports_parseversion(p+11,&arec->minversion)<0) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %"PRIu32,p,lineno);
 					return -1;
 				}
 			}
@@ -644,13 +650,13 @@ int acl_parseoptions(char *opts,uint32_t lineno,acl *arec) {
 			break;
 		}
 		if (o==0) {
-			syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %"PRIu32" (ignored)",p,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %"PRIu32" (ignored)",p,lineno);
 		}
 	}
 	return 0;
 }
 
-int acl_parseline(char *line,uint32_t lineno,acl *arec) {
+int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	char *net,*path;
 	char *p;
 	uint32_t pleng;
@@ -680,13 +686,13 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 		p++;
 	}
 	if (*p==0) {
-		syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %"PRIu32,lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %"PRIu32,lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
-	if (acl_parsenet(net,&arec->fromip,&arec->toip)<0) {
-		syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %"PRIu32,lineno);
+	if (exports_parsenet(net,&arec->fromip,&arec->toip)<0) {
+		mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %"PRIu32,lineno);
 		return -1;
 	}
 
@@ -719,6 +725,7 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 		arec->pleng = pleng;
 		if (pleng>0) {
 			arec->path = malloc(pleng+1);
+			passert(arec->path);
 			memcpy((uint8_t*)(arec->path),path,pleng);
 			((uint8_t*)(arec->path))[pleng]=0;
 		} else {
@@ -731,7 +738,7 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 		p++;
 	}
 
-	if (acl_parseoptions(p,lineno,arec)<0) {
+	if (exports_parseoptions(p,lineno,arec)<0) {
 		return -1;
 	}
 
@@ -743,6 +750,7 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 	arec->pleng = pleng;
 	if (pleng>0) {
 		arec->path = malloc(pleng+1);
+		passert(arec->path);
 		memcpy((uint8_t*)(arec->path),path,pleng);
 		((uint8_t*)(arec->path))[pleng]=0;
 	} else {
@@ -752,56 +760,26 @@ int acl_parseline(char *line,uint32_t lineno,acl *arec) {
 	return 0;
 }
 
-void acl_loadexports(FILE *msgfd) {
+void exports_loadexports(void) {
 	FILE *fd;
 	char linebuff[10000];
 	uint32_t s,lineno;
-	acl *newexports,**netail,*arec;
+	exports *newexports,**netail,*arec;
 
 	fd = fopen(ExportsFileName,"r");
 	if (fd==NULL) {
-/*
 		if (errno==ENOENT) {
-			if (acl_records==NULL) {
-				syslog(LOG_WARNING,"no mfsexports file - using default");
-				acl_records = malloc(sizeof(acl));
-				acl_records->pleng = 0;
-				acl_records->path = NULL;
-				acl_records->fromip = 0;
-				acl_records->toip = 0xFFFFFFFFU;
-				acl_records->alldirs = 1;
-				acl_records->needpassword = 0;
-				acl_records->meta = 0;
-				acl_records->sesflags = 0;
-				acl_records->rootuid = 0;
-				acl_records->rootgid = 0;
-				acl_records->mapalluid = 0;
-				acl_records->mapallgid = 0;
-				acl_records->next = NULL;
-			} else {
-				syslog(LOG_WARNING,"no mfsexports file - using previous settings");
-			}
-		} else {
-			syslog(LOG_WARNING,"can't open mfsexports file: %m");
-		}
-*/
-		if (errno==ENOENT) {
-			if (acl_records) {
+			if (exports_records) {
 				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - exports not changed",ExportsFileName);
 			} else {
 				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - no exports !!!",ExportsFileName);
 			}
-			if (msgfd) {
-				fprintf(msgfd,"mfsexports configuration file (%s) not found - please create one (you can copy %s.dist to get a base configuration)\n",ExportsFileName,ExportsFileName);
-			}
+			fprintf(stderr,"mfsexports configuration file (%s) not found - please create one (you can copy %s.dist to get a base configuration)\n",ExportsFileName,ExportsFileName);
 		} else {
-			if (acl_records) {
-				syslog(LOG_WARNING,"can't open mfsexports configuration file (%s): %m - exports not changed",ExportsFileName);
+			if (exports_records) {
+				mfs_arg_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - exports not changed, error",ExportsFileName);
 			} else {
-				syslog(LOG_WARNING,"can't open mfsexports configuration file (%s): %m - no exports !!!",ExportsFileName);
-			}
-			if (msgfd) {
-				fprintf(msgfd,"can't open mfsexports configuration file (%s)\n",ExportsFileName);
+				mfs_arg_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - no exports !!!, error",ExportsFileName);
 			}
 		}
 		return;
@@ -809,7 +787,8 @@ void acl_loadexports(FILE *msgfd) {
 	newexports = NULL;
 	netail = &newexports;
 	lineno = 1;
-	arec = malloc(sizeof(acl));
+	arec = malloc(sizeof(exports));
+	passert(arec);
 	while (fgets(linebuff,10000,fd)) {
 		if (linebuff[0]!='#') {
 			linebuff[9999]=0;
@@ -817,11 +796,14 @@ void acl_loadexports(FILE *msgfd) {
 			while (s>0 && (linebuff[s-1]=='\r' || linebuff[s-1]=='\n' || linebuff[s-1]=='\t' || linebuff[s-1]==' ')) {
 				s--;
 			}
-			linebuff[s]=0;
-			if (acl_parseline(linebuff,lineno,arec)>=0) {
-				*netail = arec;
-				netail = &(arec->next);
-				arec = malloc(sizeof(acl));
+			if (s>0) {
+				linebuff[s]=0;
+				if (exports_parseline(linebuff,lineno,arec)>=0) {
+					*netail = arec;
+					netail = &(arec->next);
+					arec = malloc(sizeof(exports));
+					passert(arec);
+				}
 			}
 		}
 		lineno++;
@@ -830,33 +812,34 @@ void acl_loadexports(FILE *msgfd) {
 	if (ferror(fd)) {
 		fclose(fd);
 		syslog(LOG_WARNING,"error reading mfsexports file - exports not changed");
-		acl_freelist(newexports);
-		if (msgfd) {
-			fprintf(msgfd,"error reading mfsexports file - using defaults\n");
-		}
+		exports_freelist(newexports);
+		fprintf(stderr,"error reading mfsexports file - using defaults\n");
 		return;
 	}
 	fclose(fd);
-	acl_freelist(acl_records);
-	acl_records = newexports;
-	syslog(LOG_NOTICE,"exports file has been loaded");
-	if (msgfd) {
-		fprintf(msgfd,"exports file has been loaded\n");
-	}
+	exports_freelist(exports_records);
+	exports_records = newexports;
+	mfs_syslog(LOG_NOTICE,"exports file has been loaded");
 }
 
-void acl_reloadexports(void) {
-	acl_loadexports(NULL);
+void exports_reloadexports(void) {
+	exports_loadexports();
 }
 
-int acl_init(FILE *msgfd) {
+void exports_term(void) {
+	exports_freelist(exports_records);
+	free(ExportsFileName);
+}
+
+int exports_init(void) {
 	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
-	acl_records = NULL;
-	acl_loadexports(msgfd);
-	if (acl_records==NULL) {
-		fprintf(msgfd,"no exports defined !!!\n");
+	exports_records = NULL;
+	exports_loadexports();
+	if (exports_records==NULL) {
+		fprintf(stderr,"no exports defined !!!\n");
 		return -1;
 	}
-	main_reloadregister(acl_reloadexports);
+	main_reloadregister(exports_reloadexports);
+	main_destructregister(exports_term);
 	return 0;
 }

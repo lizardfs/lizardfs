@@ -34,7 +34,9 @@
 #include "hddspacemgr.h"
 #include "sockets.h"
 #include "crc.h"
+#include "slogger.h"
 #include "datapack.h"
+#include "massert.h"
 
 #include "replicator.h"
 
@@ -146,7 +148,7 @@ static int rep_read(repsrc *rs) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"replicator: read error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"replicator: read error");
 				return -1;
 			}
 			return 0;
@@ -172,10 +174,7 @@ static int rep_read(repsrc *rs) {
 					return -1;
 				}
 				rs->packet = malloc(size);
-				if (rs->packet==NULL) {
-					syslog(LOG_WARNING,"replicator: out of memory");
-					return -1;
-				}
+				passert(rs->packet);
 				rs->startptr = rs->packet;
 			} else {
 				rs->packet = NULL;
@@ -219,7 +218,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"replicator: poll error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -244,9 +243,7 @@ static uint8_t* rep_create_packet(repsrc *rs,uint32_t type,uint32_t size) {
 		free(rs->packet);
 	}
 	rs->packet = malloc(size+8);
-	if (rs->packet==NULL) {
-		return NULL;
-	}
+	passert(rs->packet);
 	ptr = rs->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
@@ -273,7 +270,7 @@ static int rep_write(repsrc *rs) {
 	}
 	if (i<0) {
 		if (errno!=EAGAIN) {
-			syslog(LOG_NOTICE,"replicator: write error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"replicator: write error");
 			return -1;
 		}
 		return 0;
@@ -316,7 +313,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"replicator: poll error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -367,7 +364,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				syslog(LOG_NOTICE,"replicator: poll error: %m");
+				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -379,7 +376,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 			}
 			if (r->fds[i].revents & POLLOUT) {
 				if (tcpgetstatus(r->repsources[i].sock)<0) {
-					syslog(LOG_NOTICE,"replicator: connect error: %m");
+					mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
 					return -1;
 				}
 				r->repsources[i].mode=IDLE;
@@ -425,6 +422,10 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	const uint8_t *rptr;
 	int s;
 
+	if (srccnt==0) {
+		return ERROR_EINVAL;
+	}
+
 //	syslog(LOG_NOTICE,"replication begin (chunkid:%08"PRIX64",version:%04"PRIX32",srccnt:%"PRIu8")",chunkid,version,srccnt);
 
 	pthread_mutex_lock(&statslock);
@@ -438,21 +439,14 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	r.created = 0;
 	r.opened = 0;
 	r.fds = malloc(sizeof(struct pollfd)*srccnt);
+	passert(r.fds);
 	r.repsources = malloc(sizeof(repsrc)*srccnt);
+	passert(r.repsources);
 	if (srccnt>1) {
 		r.xorbuff = malloc(65536+4);
-		if (r.xorbuff==NULL) {
-			syslog(LOG_NOTICE,"replicator: out of memory");
-			rep_cleanup(&r);
-			return ERROR_OUTOFMEMORY;
-		}
+		passert(r.xorbuff);
 	} else {
 		r.xorbuff = NULL;
-	}
-	if (r.fds==NULL || r.repsources==NULL) {
-		syslog(LOG_NOTICE,"replicator: out of memory");
-		rep_cleanup(&r);
-		return ERROR_OUTOFMEMORY;
 	}
 // create chunk
 	status = hdd_create(chunkid,0);
@@ -476,20 +470,20 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	for (i=0 ; i<srccnt ; i++) {
 		s = tcpsocket();
 		if (s<0) {
-			syslog(LOG_NOTICE,"replicator: socket error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"replicator: socket error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		r.repsources[i].sock = s;
 		r.fds[i].fd = s;
 		if (tcpnonblock(s)<0) {
-			syslog(LOG_NOTICE,"replicator: nonblock error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"replicator: nonblock error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		s = tcpnumconnect(s,r.repsources[i].ip,r.repsources[i].port);
 		if (s<0) {
-			syslog(LOG_NOTICE,"replicator: connect error: %m");
+			mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}

@@ -27,8 +27,11 @@
 //#include <sys/ioctl.h>
 #include <limits.h>
 #include <pthread.h>
-#include "th_queue.h"
+#include <errno.h>
+
+#include "pcqueue.h"
 #include "datapack.h"
+#include "massert.h"
 
 #include "hddspacemgr.h"
 #include "replicator.h"
@@ -113,30 +116,26 @@ typedef struct _jobpool {
 } jobpool;
 
 static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
-	pthread_mutex_lock(&(jp->pipelock));
+	eassert(pthread_mutex_lock(&(jp->pipelock))==0);
 	if (queue_isempty(jp->statusqueue)) {	// first status
-		if (write(jp->wpipe,&status,1)!=1) {	// write anything to wake up select
-			syslog(LOG_ERR,"can't write to bgjobs pipe !!!: %m");
-		}
+		eassert(write(jp->wpipe,&status,1)==1);	// write anything to wake up select
 	}
 	queue_put(jp->statusqueue,jobid,status,NULL,1);
-	pthread_mutex_unlock(&(jp->pipelock));
+	eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
 	return;
 }
 
 static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status) {
 	uint32_t qstatus;
-	pthread_mutex_lock(&(jp->pipelock));
+	eassert(pthread_mutex_lock(&(jp->pipelock))==0);
 	queue_get(jp->statusqueue,jobid,&qstatus,NULL,NULL);
 	*status = qstatus;
 	if (queue_isempty(jp->statusqueue)) {
-		if (read(jp->rpipe,&qstatus,1)!=1) {	// make pipe empty
-			syslog(LOG_ERR,"can't read from bgjobs pipe !!!: %m");
-		}
-		pthread_mutex_unlock(&(jp->pipelock));
+		eassert(read(jp->rpipe,&qstatus,1)==1);	// make pipe empty
+		eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
 		return 0;	// last element
 	}
-	pthread_mutex_unlock(&(jp->pipelock));
+	eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
 	return 1;	// not last
 }
 
@@ -152,10 +151,12 @@ void* job_worker(void *th_arg) {
 	uint8_t status,jstate;
 	uint32_t jobid;
 	uint32_t op;
+
+//	syslog(LOG_NOTICE,"worker %p started (jobqueue: %p ; jptr:%p ; jptrarg:%p ; status:%p )",(void*)pthread_self(),jp->jobqueue,(void*)&jptr,(void*)&jptrarg,(void*)&status);
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;
-		pthread_mutex_lock(&(jp->jobslock));
+		eassert(pthread_mutex_lock(&(jp->jobslock))==0);
 		if (jptr!=NULL) {
 			jstate=jptr->jstate;
 			if (jptr->jstate==JSTATE_ENABLED) {
@@ -164,7 +165,7 @@ void* job_worker(void *th_arg) {
 		} else {
 			jstate=JSTATE_DISABLED;
 		}
-		pthread_mutex_unlock(&(jp->jobslock));
+		eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
 		switch (op) {
 			case OP_INVAL:
 				status = ERROR_EINVAL;
@@ -204,7 +205,7 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			default: // OP_EXIT
-				pthread_exit(NULL);
+//				syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
 				return NULL;
 		}
 		job_send_status(jp,jobid,status);
@@ -217,9 +218,7 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
 	jptr = malloc(sizeof(job));
-	if (jptr==NULL) {
-		return 0;
-	}
+	passert(jptr);
 	jptr->jobid = jobid;
 	jptr->callback = callback;
 	jptr->extra = extra;
@@ -247,25 +246,30 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 		return NULL;
 	}
        	jp=malloc(sizeof(jobpool));
+	passert(jp);
+//	syslog(LOG_WARNING,"new pool of workers (%p:%"PRIu8")",(void*)jp,workers);
 	*wakeupdesc = fd[0];
 	jp->rpipe = fd[0];
 	jp->wpipe = fd[1];
 	jp->workers = workers;
 	jp->workerthreads = malloc(sizeof(pthread_t)*workers);
-	pthread_mutex_init(&(jp->pipelock),NULL);
-	pthread_mutex_init(&(jp->jobslock),NULL);
+	passert(jp->workerthreads);
+	eassert(pthread_mutex_init(&(jp->pipelock),NULL)==0);
+	eassert(pthread_mutex_init(&(jp->jobslock),NULL)==0);
 	jp->jobqueue = queue_new(jobs);
+//	syslog(LOG_WARNING,"new jobqueue: %p",jp->jobqueue);
 	jp->statusqueue = queue_new(0);
 	for (i=0 ; i<JHASHSIZE ; i++) {
 		jp->jobhash[i]=NULL;
 	}
 	jp->nextjobid = 1;
-	pthread_attr_init(&thattr);
-	pthread_attr_setstacksize(&thattr,0x100000);
+	eassert(pthread_attr_init(&thattr)==0);
+	eassert(pthread_attr_setstacksize(&thattr,0x100000)==0);
+	eassert(pthread_attr_setdetachstate(&thattr,PTHREAD_CREATE_JOINABLE)==0);
 	for (i=0 ; i<workers ; i++) {
-		pthread_create(jp->workerthreads+i,&thattr,job_worker,jp);
+		eassert(pthread_create(jp->workerthreads+i,&thattr,job_worker,jp)==0);
 	}
-	pthread_attr_destroy(&thattr);
+	eassert(pthread_attr_destroy(&thattr)==0);
 	return jp;
 }
 
@@ -274,17 +278,34 @@ uint32_t job_pool_jobs_count(void *jpool) {
 	return queue_elements(jp->jobqueue);
 }
 
+void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8_t status,void *extra)) {
+	jobpool* jp = (jobpool*)jpool;
+	uint32_t jhpos;
+	job *jptr;
+
+	eassert(pthread_mutex_lock(&(jp->jobslock))==0);
+	for (jhpos = 0 ; jhpos<JHASHSIZE ; jhpos++) {
+		for (jptr = jp->jobhash[jhpos] ; jptr ; jptr=jptr->next) {
+			if (jptr->jstate==JSTATE_ENABLED) {
+				jptr->jstate=JSTATE_DISABLED;
+			}
+			jptr->callback=callback;
+		}
+	}
+	eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
+}
+
 void job_pool_disable_job(void *jpool,uint32_t jobid) {
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
 	for (jptr = jp->jobhash[jhpos] ; jptr ; jptr=jptr->next) {
 		if (jptr->jobid==jobid) {
-			pthread_mutex_lock(&(jp->jobslock));
+			eassert(pthread_mutex_lock(&(jp->jobslock))==0);
 			if (jptr->jstate==JSTATE_ENABLED) {
 				jptr->jstate=JSTATE_DISABLED;
 			}
-			pthread_mutex_unlock(&(jp->jobslock));
+			eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
 		}
 	}
 }
@@ -332,19 +353,22 @@ void job_pool_check_jobs(void *jpool) {
 void job_pool_delete(void *jpool) {
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t i;
+//	syslog(LOG_WARNING,"deleting pool of workers (%p:%"PRIu8")",(void*)jp,jp->workers);
 	for (i=0 ; i<jp->workers ; i++) {
-		queue_put(jp->jobqueue,0,OP_EXIT,NULL,0);
+		queue_put(jp->jobqueue,0,OP_EXIT,NULL,1);
 	}
 	for (i=0 ; i<jp->workers ; i++) {
-		pthread_join(jp->workerthreads[i],NULL);
+		eassert(pthread_join(jp->workerthreads[i],NULL)==0);
 	}
+	sassert(queue_isempty(jp->jobqueue));
 	if (!queue_isempty(jp->statusqueue)) {
 		job_pool_check_jobs(jp);
 	}
+//	syslog(LOG_NOTICE,"deleting jobqueue: %p",jp->jobqueue);
 	queue_delete(jp->jobqueue);
 	queue_delete(jp->statusqueue);
-	pthread_mutex_destroy(&(jp->pipelock));
-	pthread_mutex_destroy(&(jp->jobslock));
+	eassert(pthread_mutex_destroy(&(jp->pipelock))==0);
+	eassert(pthread_mutex_destroy(&(jp->jobslock))==0);
 	free(jp->workerthreads);
 	close(jp->rpipe);
 	close(jp->wpipe);
@@ -360,6 +384,7 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 	jobpool* jp = (jobpool*)jpool;
 	chunk_op_args *args;
 	args = malloc(sizeof(chunk_op_args));
+	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->newversion = newversion;
@@ -373,6 +398,7 @@ uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void 
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = malloc(sizeof(chunk_oc_args));
+	passert(args);
 	args->chunkid = chunkid;
 	return job_new(jp,OP_OPEN,args,callback,extra);
 }
@@ -381,6 +407,7 @@ uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = malloc(sizeof(chunk_oc_args));
+	passert(args);
 	args->chunkid = chunkid;
 	return job_new(jp,OP_CLOSE,args,callback,extra);
 }
@@ -389,6 +416,7 @@ uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void 
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
 	args = malloc(sizeof(chunk_rd_args));
+	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->blocknum = blocknum;
@@ -403,6 +431,7 @@ uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void
 	jobpool* jp = (jobpool*)jpool;
 	chunk_wr_args *args;
 	args = malloc(sizeof(chunk_wr_args));
+	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->blocknum = blocknum;
@@ -418,6 +447,7 @@ uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),
 	chunk_rp_args *args;
 	uint8_t *ptr;
 	ptr = malloc(sizeof(chunk_rp_args)+srccnt*18);
+	passert(ptr);
 	args = (chunk_rp_args*)ptr;
 	ptr += sizeof(chunk_rp_args);
 	args->chunkid = chunkid;
@@ -432,6 +462,7 @@ uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *
 	chunk_rp_args *args;
 	uint8_t *ptr;
 	ptr = malloc(sizeof(chunk_rp_args)+18);
+	passert(ptr);
 	args = (chunk_rp_args*)ptr;
 	ptr += sizeof(chunk_rp_args);
 	args->chunkid = chunkid;

@@ -1,10 +1,10 @@
 sbin_PROGRAMS=mfsmaster
 
-AM_CPPFLAGS=-std=c99 -I$(top_srcdir)/mfscommon -DAPPNAME=mfsmaster
+AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -DAPPNAME=mfsmaster
 AM_LDFLAGS=$(ZLIB_LIBS)
 
 mfsmaster_SOURCES=\
-	acl.h acl.c \
+	exports.h exports.c \
 	changelog.c changelog.h \
 	chunks.c chunks.h \
 	filesystem.c filesystem.h \
@@ -21,5 +21,6 @@ mfsmaster_SOURCES=\
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/charts.c ../mfscommon/charts.h \
-	../mfscommon/datapack.h \
+	../mfscommon/strerr.c ../mfscommon/strerr.h \
+	../mfscommon/datapack.h ../mfscommon/massert.h ../mfscommon/slogger.h \
 	../mfscommon/MFSCommunication.h

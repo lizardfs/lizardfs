@@ -41,10 +41,11 @@
 #include "chunks.h"
 #include "filesystem.h"
 #include "datapack.h"
+#include "slogger.h"
+#include "massert.h"
 
 #ifndef METARESTORE
 #include "datacachemgr.h"
-#include "acl.h"
 #include "cfg.h"
 #include "main.h"
 #include "changelog.h"
@@ -218,7 +219,7 @@ static uint32_t fsinfo_msgbuffleng=0;
 static uint32_t fsinfo_loopstart=0;
 static uint32_t fsinfo_loopend=0;
 
-static uint32_t starttime;
+static uint32_t test_start_time;
 
 static uint32_t stats_statfs=0;
 static uint32_t stats_getattr=0;
@@ -296,6 +297,7 @@ static inline freenode* freenode_malloc() {
 	}
 	if (fnbhead==NULL || fnbhead->firstfree==FREENODE_BUCKET_SIZE) {
 		fnb = (freenode_bucket*)malloc(sizeof(freenode_bucket));
+		passert(fnb);
 		fnb->next = fnbhead;
 		fnb->firstfree = 0;
 		fnbhead = fnb;
@@ -312,7 +314,10 @@ static inline void freenode_free(freenode *p) {
 #else /* USE_FREENODE_BUCKETS */
 
 static inline freenode* freenode_malloc() {
-	return (freenode*)malloc(sizeof(freenode));
+	freenode *fn;
+	fn = (freenode*)malloc(sizeof(freenode));
+	passert(fn);
+	return fn;
 }
 
 static inline void freenode_free(freenode* p) {
@@ -343,6 +348,7 @@ static inline sessionidrec* sessionidrec_malloc() {
 	}
 	if (crbhead==NULL || crbhead->firstfree==CUIDREC_BUCKET_SIZE) {
 		crb = (sessionidrec_bucket*)malloc(sizeof(sessionidrec_bucket));
+		passert(crb);
 		crb->next = crbhead;
 		crb->firstfree = 0;
 		crbhead = crb;
@@ -359,7 +365,10 @@ static inline void sessionidrec_free(sessionidrec *p) {
 #else /* USE_CUIDREC_BUCKETS */
 
 static inline sessionidrec* sessionidrec_malloc() {
-	return (sessionidrec*)malloc(sizeof(sessionidrec));
+	sessionidrec *sidrec;
+	sidrec = (sessionidrec*)malloc(sizeof(sessionidrec));
+	passert(sidrec);
+	return sidrec;
 }
 
 static inline void sessionidrec_free(sessionidrec* p) {
@@ -376,6 +385,7 @@ uint32_t fsnodes_get_next_id() {
 	if (searchpos==bitmasksize) {	// no more freeinodes
 		bitmasksize+=0x80;
 		freebitmask = (uint32_t*)realloc(freebitmask,bitmasksize*sizeof(uint32_t));
+		passert(freebitmask);
 		memset(freebitmask+searchpos,0,0x80*sizeof(uint32_t));
 	}
 	mask = freebitmask[searchpos];
@@ -436,7 +446,9 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 		freetail = &(freelist);
 	}
 #ifndef METARESTORE
-	changelog(version++,"%"PRIu32"|FREEINODES():%"PRIu32,(uint32_t)main_time(),fi);
+	if (fi>0) {
+		changelog(version++,"%"PRIu32"|FREEINODES():%"PRIu32,(uint32_t)main_time(),fi);
+	}
 #else
 	version++;
 	if (freeinodes!=fi) {
@@ -449,6 +461,7 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 void fsnodes_init_freebitmask (void) {
 	bitmasksize = 0x100+(((maxnodeid)>>5)&0xFFFFFF80);
 	freebitmask = (uint32_t*)malloc(bitmasksize*sizeof(uint32_t));
+	passert(freebitmask);
 	memset(freebitmask,0,bitmasksize*sizeof(uint32_t));
 	freebitmask[0]=1;	// reserve inode 0
 	searchpos = 0;
@@ -500,6 +513,7 @@ static char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
 			free(escname[buffid]);
 		}
 		escname[buffid] = malloc(escnamesize[buffid]);
+		passert(escname[buffid]);
 	}
 	i = 0;
 	currescname = escname[buffid];
@@ -671,6 +685,7 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 static inline quotanode* fsnodes_new_quotanode() {
 	quotanode *qn;
 	qn = malloc(sizeof(quotanode));
+	passert(qn);
 	memset(qn,0,sizeof(quotanode));
 	qn->next = quotahead;
 	if (qn->next) {
@@ -933,8 +948,10 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 #endif
 
 	e = malloc(sizeof(fsedge));
+	passert(e);
 	e->nleng = nleng;
 	e->name = malloc(nleng);
+	passert(e->name);
 	memcpy(e->name,name,nleng);
 	e->child = child;
 	e->parent = parent;
@@ -981,6 +998,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 #endif
 	uint32_t nodepos;
 	p = malloc(sizeof(fsnode));
+	passert(p);
 	nodes++;
 	if (type==TYPE_DIRECTORY) {
 		dirnodes++;
@@ -991,6 +1009,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 /* link */
 //	d->nleng = nleng;
 //	d->name = malloc(nleng);
+//	passert(d->name);
 //	memcpy(d->name,name,nleng);
 //	d->node = p;
 //	d->next = node->data.ddata.children;
@@ -1012,11 +1031,16 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 		p->mode = (mode&07777) | (node->mode&(0xF000&(~(EATTR_NOECACHE<<12))));
 	}
 	p->uid = uid;
-	p->gid = gid;
+	if ((node->mode&02000)==02000) {	// set gid flag is set in the parent directory ?
+		p->gid = node->gid;
+	} else {
+		p->gid = gid;
+	}
 	switch (type) {
 	case TYPE_DIRECTORY:
 #ifndef METARESTORE
 		sr = malloc(sizeof(statsrecord));
+		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
 		p->data.ddata.quota = NULL;
@@ -1041,6 +1065,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 	}
 	p->parents = NULL;
 //	p->parents = malloc(sizeof(parent));
+//	passert(p->parents);
 //	p->parents->node = node;
 //	p->parents->next = NULL;
 //	node->data.ddata.elements++;
@@ -1118,6 +1143,7 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 	}
 	*pleng = size;
 	ret = malloc(size);
+	passert(ret);
 	size -= e->nleng;
 	memcpy(ret+size,e->name,e->nleng);
 	if (size>0) {
@@ -1518,6 +1544,7 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 		} else {
 			dstobj->data.fdata.chunktab = (uint64_t*)realloc(dstobj->data.fdata.chunktab,sizeof(uint64_t)*newsize);
 		}
+		passert(dstobj->data.fdata.chunktab);
 		for (i=dstobj->data.fdata.chunks ; i<newsize ; i++) {
 			dstobj->data.fdata.chunktab[i]=0;
 		}
@@ -1604,11 +1631,12 @@ static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
 				syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,obj->id,i);
 			}
 		}
-		obj->data.fdata.chunktab[i]=0;	// raczej zbedne bo ponizej jest realloc, ale na wszelki wypadek niech bedzie
+		obj->data.fdata.chunktab[i]=0;
 	}
 	if (chunks>0) {
 		if (chunks<obj->data.fdata.chunks && obj->data.fdata.chunktab) {
 			obj->data.fdata.chunktab = (uint64_t*)realloc(obj->data.fdata.chunktab,sizeof(uint64_t)*chunks);
+			passert(obj->data.fdata.chunktab);
 			obj->data.fdata.chunks = chunks;
 		}
 	} else {
@@ -1699,6 +1727,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				child->type = TYPE_TRASH;
 				child->ctime = ts;
 				e = malloc(sizeof(fsedge));
+				passert(e);
 				e->nleng = pleng;
 				e->name = path;
 				e->child = child;
@@ -1721,6 +1750,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 			} else if (child->data.fdata.sessionids!=NULL) {
 				child->type = TYPE_RESERVED;
 				e = malloc(sizeof(fsedge));
+				passert(e);
 				e->nleng = pleng;
 				e->name = path;
 				e->child = child;
@@ -2029,6 +2059,7 @@ static inline void fsnodes_bst_add(bstnode **n,uint32_t val) {
 		}
 	}
 	(*n)=malloc(sizeof(bstnode));
+	passert(*n);
 	(*n)->val = val;
 	(*n)->count = 1;
 	(*n)->left = NULL;
@@ -2269,7 +2300,12 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 //				dstnode->mode = srcnode->mode;
 //				dstnode->atime = srcnode->atime;
 //				dstnode->mtime = srcnode->mtime;
-				dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
+				if (srcnode->data.fdata.chunks>0) {
+					dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
+					passert(dstnode->data.fdata.chunktab);
+				} else {
+					dstnode->data.fdata.chunktab = NULL;
+				}
 				dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
 				for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
 					chunkid = srcnode->data.fdata.chunktab[i];
@@ -2300,12 +2336,9 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 			}
 			if (srcnode->data.sdata.pleng>0) {
 				dstnode->data.sdata.path = malloc(srcnode->data.sdata.pleng);
-				if (dstnode->data.sdata.path!=NULL) {
-					memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
-					dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
-				} else {
-					dstnode->data.sdata.pleng=0;
-				}
+				passert(dstnode->data.sdata.path);
+				memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
+				dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
 			} else {
 				dstnode->data.sdata.path=NULL;
 				dstnode->data.sdata.pleng=0;
@@ -2338,7 +2371,12 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 					fsnodes_snapshot(ts,e->child,dstnode,e->nleng,e->name);
 				}
 			} else if (srcnode->type==TYPE_FILE) {
-				dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
+				if (srcnode->data.fdata.chunks>0) {
+					dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
+					passert(dstnode->data.fdata.chunktab);
+				} else {
+					dstnode->data.fdata.chunktab = NULL;
+				}
 				dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
 				for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
 					chunkid = srcnode->data.fdata.chunktab[i];
@@ -2357,10 +2395,9 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 			} else if (srcnode->type==TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng>0) {
 					dstnode->data.sdata.path = malloc(srcnode->data.sdata.pleng);
-					if (dstnode->data.sdata.path!=NULL) {
-						memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
-						dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
-					}
+					passert(dstnode->data.sdata.path);
+					memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
+					dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
 				}
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&nsr);
@@ -2586,9 +2623,7 @@ uint8_t fs_setpath(uint32_t inode,const uint8_t *path) {
 		return ERROR_ENOENT;
 	}
 	newpath = malloc(pleng);
-	if (newpath==NULL) {
-		return ERROR_EINVAL;	// no mem ?
-	}
+	passert(newpath);
 	free(p->parents->name);
 	memcpy(newpath,path,pleng);
 	p->parents->name = newpath;
@@ -3332,9 +3367,7 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	}
 #endif
 	newpath = malloc(pleng);
-	if (newpath==NULL) {
-		return ERROR_EINVAL;	// no mem ?
-	}
+	passert(newpath);
 #ifndef METARESTORE
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_SYMLINK,0777,uid,gid);
 #else
@@ -4354,6 +4387,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 		} else {
 			p->data.fdata.chunktab = (uint64_t*)realloc(p->data.fdata.chunktab,sizeof(uint64_t)*newsize);
 		}
+		passert(p->data.fdata.chunktab);
 		for (i=p->data.fdata.chunks ; i<newsize ; i++) {
 			p->data.fdata.chunktab[i]=0;
 		}
@@ -4415,6 +4449,7 @@ uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_
 		} else {
 			p->data.fdata.chunktab = (uint64_t*)realloc(p->data.fdata.chunktab,sizeof(uint64_t)*newsize);
 		}
+		passert(p->data.fdata.chunktab);
 		for (i=p->data.fdata.chunks ; i<newsize ; i++) {
 			p->data.fdata.chunktab[i]=0;
 		}
@@ -5473,7 +5508,7 @@ void fs_test_files() {
 	fsnode *f;
 	fsedge *e;
 
-	if ((uint32_t)(main_time())<=starttime+900) {
+	if ((uint32_t)(main_time())<=test_start_time) {
 		return;
 	}
 	if (i>=NODEHASHSIZE) {
@@ -5538,6 +5573,7 @@ void fs_test_files() {
 
 		if (fsinfo_msgbuff==NULL) {
 			fsinfo_msgbuff=malloc(MSGBUFFSIZE);
+			passert(fsinfo_msgbuff);
 		}
 		tmp = fsinfo_msgbuff;
 		fsinfo_msgbuff=msgbuff;
@@ -5762,7 +5798,9 @@ uint8_t fs_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes) {
 		}
 	}
 #ifndef METARESTORE
-	changelog(version++,"%"PRIu32"|EMPTYTRASH():%"PRIu32",%"PRIu32,ts,fi,ri);
+	if ((fi|ri)>0) {
+		changelog(version++,"%"PRIu32"|EMPTYTRASH():%"PRIu32",%"PRIu32,ts,fi,ri);
+	}
 #else
 	version++;
 	if (freeinodes!=fi || reservedinodes!=ri) {
@@ -5795,7 +5833,9 @@ uint8_t fs_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 		}
 	}
 #ifndef METARESTORE
-	changelog(version++,"%"PRIu32"|EMPTYRESERVED():%"PRIu32,ts,fi);
+	if (fi>0) {
+		changelog(version++,"%"PRIu32"|EMPTYRESERVED():%"PRIu32,ts,fi);
+	}
 #else
 	version++;
 	if (freeinodes!=fi) {
@@ -5989,11 +6029,7 @@ int fs_loadedge(FILE *fd) {
 #endif
 
 	if (fread(uedgebuff,1,4+4+2,fd)!=4+4+2) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading edge: read error: %s\n",strerror(errno));
-#else
-		syslog(LOG_ERR,"loading edge: read error: %m");
-#endif
+		mfs_errlog(LOG_ERR,"loading edge: read error");
 		return -1;
 	}
 	ptr = uedgebuff;
@@ -6003,42 +6039,24 @@ int fs_loadedge(FILE *fd) {
 		return 1;
 	}
 	e = malloc(sizeof(fsedge));
-	if (e==NULL) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading edge: edge alloc: out of memory\n");
-#else
-		syslog(LOG_ERR,"loading edge: edge alloc: out of memory");
-#endif
-		return -1;
-	}
+	passert(e);
 	e->nleng = get16bit(&ptr);
-	e->name = malloc(e->nleng);
-	if (e->name==NULL) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading edge: name alloc: out of memory\n");
-#else
-		syslog(LOG_ERR,"loading edge: name alloc: out of memory");
-#endif
+	if (e->nleng==0) {
+		mfs_arg_syslog(LOG_ERR,"loading edge: %"PRIu32"->%"PRIu32" error: empty name",parent_id,child_id);
 		free(e);
 		return -1;
 	}
+	e->name = malloc(e->nleng);
+	passert(e->name);
 	if (fread(e->name,1,e->nleng,fd)!=e->nleng) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading edge: read error: %s\n",strerror(errno));
-#else
-		syslog(LOG_ERR,"loading edge: read error: %m");
-#endif
+		mfs_errlog(LOG_ERR,"loading edge: read error");
 		free(e->name);
 		free(e);
 		return -1;
 	}
 	e->child = fsnodes_id_to_node(child_id);
 	if (e->child==NULL) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
-		syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+		mfs_arg_syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 		free(e->name);
 		free(e);
 		return -1;
@@ -6224,25 +6242,14 @@ int fs_loadnode(FILE *fd) {
 		return 1;
 	}
 	p = malloc(sizeof(fsnode));
-	if (p==NULL) {
-#ifdef METARESTORE
-		fprintf(stderr,"loading node: node alloc: out of memory\n");
-#else
-		syslog(LOG_ERR,"loading node: node alloc: out of memory");
-#endif
-		return -1;
-	}
+	passert(p);
 	p->type = type;
 	switch (type) {
 	case TYPE_DIRECTORY:
 	case TYPE_FIFO:
 	case TYPE_SOCKET:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4,fd)!=4+1+2+4+4+4+4+4+4) {
-#ifdef METARESTORE
-			fprintf(stderr,"loading node: read error: %s\n",strerror(errno));
-#else
-			syslog(LOG_ERR,"loading node: read error: %m");
-#endif
+			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
 		}
@@ -6251,11 +6258,7 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_CHARDEV:
 	case TYPE_SYMLINK:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4+4,fd)!=4+1+2+4+4+4+4+4+4+4) {
-#ifdef METARESTORE
-			fprintf(stderr,"loading node: read error: %s\n",strerror(errno));
-#else
-			syslog(LOG_ERR,"loading node: read error: %m");
-#endif
+			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
 		}
@@ -6264,21 +6267,13 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_TRASH:
 	case TYPE_RESERVED:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4+8+4+2,fd)!=4+1+2+4+4+4+4+4+4+8+4+2) {
-#ifdef METARESTORE
-			fprintf(stderr,"loading node: read error: %s\n",strerror(errno));
-#else
-			syslog(LOG_ERR,"loading node: read error: %m");
-#endif
+			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
 		}
 		break;
 	default:
-#ifdef METARESTORE
-		fprintf(stderr,"loading node: unrecognized node type: %c\n",type);
-#else
-		syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
-#endif
+		mfs_arg_syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
 		free(p);
 		return -1;
 	}
@@ -6296,6 +6291,7 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_DIRECTORY:
 #ifndef METARESTORE
 		sr = malloc(sizeof(statsrecord));
+		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
 		p->data.ddata.quota = NULL;
@@ -6315,21 +6311,9 @@ int fs_loadnode(FILE *fd) {
 		p->data.sdata.pleng = pleng;
 		if (pleng>0) {
 			p->data.sdata.path = malloc(pleng);
-			if (p->data.sdata.path==NULL) {
-#ifdef METARESTORE
-				fprintf(stderr,"loading node: path alloc: out of memory\n");
-#else
-				syslog(LOG_ERR,"loading node: path alloc: out of memory");
-#endif
-				free(p);
-				return -1;
-			}
+			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
-#ifdef METARESTORE
-				fprintf(stderr,"loading node: read error: %s\n",strerror(errno));
-#else
-				syslog(LOG_ERR,"loading node: read error: %m");
-#endif
+				mfs_errlog(LOG_ERR,"loading node: read error");
 				free(p->data.sdata.path);
 				free(p);
 				return -1;
@@ -6347,24 +6331,12 @@ int fs_loadnode(FILE *fd) {
 		sessionids = get16bit(&ptr);
 		if (ch>0) {
 			p->data.fdata.chunktab = malloc(sizeof(uint64_t)*ch);
-			if (p->data.fdata.chunktab==NULL) {
-#ifdef METARESTORE
-				fprintf(stderr,"loading node: chunktab alloc: out of memory\n");
-#else
-				syslog(LOG_ERR,"loading node: chunktab alloc: out of memory");
-#endif
-				free(p);
-				return -1;
-			}
+			passert(p->data.fdata.chunktab);
 		} else {
 			p->data.fdata.chunktab = NULL;
 		}
 		if (fread((uint8_t*)ptr,1,8*ch+4*sessionids,fd)!=8*ch+4*sessionids) {
-#ifdef METARESTORE
-			fprintf(stderr,"loading node: read error: %s\n",strerror(errno));
-#else
-			syslog(LOG_ERR,"loading node: read error: %m");
-#endif
+			mfs_errlog(LOG_ERR,"loading node: read error");
 			if (p->data.fdata.chunktab) {
 				free(p->data.fdata.chunktab);
 			}
@@ -6378,18 +6350,6 @@ int fs_loadnode(FILE *fd) {
 		while (sessionids) {
 			sessionid = get32bit(&ptr);
 			sessionidptr = sessionidrec_malloc();
-			if (sessionidptr==NULL) {
-#ifdef METARESTORE
-				fprintf(stderr,"loading node: sessionidrec alloc: out of memory\n");
-#else
-				syslog(LOG_ERR,"loading node: sessionidrec alloc: out of memory");
-#endif
-				if (p->data.fdata.chunktab) {
-					free(p->data.fdata.chunktab);
-				}
-				free(p);
-				return -1;
-			}
 			sessionidptr->sessionid = sessionid;
 			sessionidptr->next = p->data.fdata.sessionids;
 			p->data.fdata.sessionids = sessionidptr;
@@ -6527,14 +6487,9 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 #endif
 
 	p = malloc(sizeof(fsnode));
-	if (p==NULL) {
-		return NULL;
-	}
+	passert(p);
 	e = malloc(sizeof(fsedge));
-	if (e==NULL) {
-		free(p);
-		return NULL;
-	}
+	passert(e);
 	e->child = p;
 	e->parent = node;
 	e->nextparent = NULL;
@@ -6551,11 +6506,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 	p->id = get32bit(&ptr);
 	e->nleng = get16bit(&ptr);
 	e->name = malloc(e->nleng);
-	if (e->name==NULL) {
-		free(e);
-		free(p);
-		return NULL;
-	}
+	passert(e->name);
 	switch (type) {
 	case TYPE_DIRECTORY:
 	case TYPE_FIFO:
@@ -6607,6 +6558,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 	case TYPE_DIRECTORY:
 #ifndef METARESTORE
 		sr = malloc(sizeof(statsrecord));
+		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
 		p->data.ddata.quota = NULL;
@@ -6625,12 +6577,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 		pleng = get32bit(&ptr);
 		if (pleng>0) {
 			p->data.sdata.path = malloc(pleng);
-			if (p->data.sdata.path==NULL) {
-				free(e->name);
-				free(e);
-				free(p);
-				return NULL;
-			}
+			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
 				free(e->name);
 				free(e);
@@ -6668,12 +6615,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 		}
 		if (ch>0) {
 			p->data.fdata.chunktab = malloc(sizeof(uint64_t)*ch);
-			if (p->data.fdata.chunktab==NULL) {
-				free(e->name);
-				free(e);
-				free(p);
-				return NULL;
-			}
+			passert(p->data.fdata.chunktab);
 		} else {
 			p->data.fdata.chunktab = NULL;
 		}
@@ -6697,16 +6639,7 @@ fsnode* fs_loaduninode_1_4(int flag,uint8_t type,fsnode* node,FILE *fd) {
 			if (pleng>0) {
 				uint8_t *tmpname;
 				tmpname = malloc(pleng+e->nleng+1);
-				if (tmpname==NULL) {
-					if (p->data.fdata.chunktab) {
-						free(p->data.fdata.chunktab);
-					}
-					// free sessionid list ?
-					free(e->name);
-					free(e);
-					free(p);
-					return NULL;
-				}
+				passert(tmpname);
 				if (fread(tmpname,1,pleng,fd)!=pleng) {
 					if (p->data.fdata.chunktab) {
 						free(p->data.fdata.chunktab);
@@ -6806,9 +6739,7 @@ int fs_loadrootnode_1_4(FILE *fd) {
 #endif
 
 	p = malloc(sizeof(fsnode));
-	if (p==NULL) {
-		return -1;
-	}
+	passert(p);
 	root = p;
 	if (fread(dnodebuff,1,1+2+4+4+4+4+4+4,fd)!=1+2+4+4+4+4+4+4) {
 		free(p);
@@ -6827,6 +6758,7 @@ int fs_loadrootnode_1_4(FILE *fd) {
 	p->type = TYPE_DIRECTORY;
 #ifndef METARESTORE
 	sr = malloc(sizeof(statsrecord));
+	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
 	p->data.ddata.stats = sr;
 	p->data.ddata.quota = NULL;
@@ -6963,9 +6895,6 @@ int fs_loadfree(FILE *fd) {
 			ptr = rbuff;
 		}
 		n = freenode_malloc();
-		if (n==NULL) {
-			return -1;
-		}
 		n->id = get32bit(&ptr);
 		n->ftime = get32bit(&ptr);
 		n->next = NULL;
@@ -7006,11 +6935,11 @@ uint64_t fs_loadversion(FILE *fd) {
 	return fversion;
 }
 
-int fs_load(FILE *fd,FILE *msgfd) {
+int fs_load(FILE *fd) {
 	uint8_t hdr[16];
 	const uint8_t *ptr;
 	if (fread(hdr,1,16,fd)!=16) {
-		fprintf(msgfd,"error loading header\n");
+		fprintf(stderr,"error loading header\n");
 		return -1;
 	}
 	ptr = hdr;
@@ -7018,51 +6947,51 @@ int fs_load(FILE *fd,FILE *msgfd) {
 	version = get64bit(&ptr);
 	nextsessionid = get32bit(&ptr);
 	fsnodes_init_freebitmask();
-	fprintf(msgfd,"loading objects (files,directories,etc.) ... ");
-	fflush(msgfd);
+	fprintf(stderr,"loading objects (files,directories,etc.) ... ");
+	fflush(stderr);
 	if (fs_loadnodes(fd)<0) {
-		fprintf(msgfd,"error\n");
+		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (node)");
 #endif
 		return -1;
 	}
-	fprintf(msgfd,"ok\n");
-	fprintf(msgfd,"loading names ... ");
-	fflush(msgfd);
+	fprintf(stderr,"ok\n");
+	fprintf(stderr,"loading names ... ");
+	fflush(stderr);
 	if (fs_loadedges(fd)<0) {
-		fprintf(msgfd,"error\n");
+		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (edge)");
 #endif
 		return -1;
 	}
-	fprintf(msgfd,"ok\n");
-	fprintf(msgfd,"loading deletion timestamps ... ");
-	fflush(msgfd);
+	fprintf(stderr,"ok\n");
+	fprintf(stderr,"loading deletion timestamps ... ");
+	fflush(stderr);
 	if (fs_loadfree(fd)<0) {
-		fprintf(msgfd,"error\n");
+		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (free)");
 #endif
 		return -1;
 	}
-	fprintf(msgfd,"ok\n");
-	fprintf(msgfd,"checking filesystem consistency ... ");
-	fflush(msgfd);
+	fprintf(stderr,"ok\n");
+	fprintf(stderr,"checking filesystem consistency ... ");
+	fflush(stderr);
 	root = fsnodes_id_to_node(MFS_ROOT_ID);
 	if (root==NULL) {
-		fprintf(msgfd,"error\n");
+		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (no root)");
 #endif
 		return -1;
 	}
 	if (fs_checknodes()<0) {
-		fprintf(msgfd,"error\n");
+		fprintf(stderr,"error\n");
 		return -1;
 	}
-	fprintf(msgfd,"ok\n");
+	fprintf(stderr,"ok\n");
 	return 0;
 }
 
@@ -7145,6 +7074,7 @@ void fs_new(void) {
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
 	root = malloc(sizeof(fsnode));
+	passert(root);
 	root->id = MFS_ROOT_ID;
 	root->type = TYPE_DIRECTORY;
 	root->ctime = root->mtime = root->atime = main_time();
@@ -7155,6 +7085,7 @@ void fs_new(void) {
 	root->gid = 0;
 // #ifndef METARESTORE
 	sr = malloc(sizeof(statsrecord));
+	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
 	root->data.ddata.stats = sr;
 	root->data.ddata.quota = NULL;
@@ -7270,7 +7201,7 @@ int fs_storeall(int bg) {
 #endif
 		if (rename("metadata.mfs.back","metadata.mfs.back.tmp")<0) {
 			if (errno!=ENOENT) {
-				syslog(LOG_ERR,"can't rename metadata.mfs.back -> metadata.mfs.back.tmp (%m)");
+				mfs_errlog(LOG_ERR,"can't rename metadata.mfs.back -> metadata.mfs.back.tmp");
 #ifdef BACKGROUND_METASTORE
 				if (i==0) {
 					exit(0);
@@ -7316,8 +7247,9 @@ void fs_term(void) {
 	for (u=0 ; u<3 ; u++) {
 		if (fs_storeall(0)==1) {
 			if (rename("metadata.mfs.back","metadata.mfs")<0) {
-				syslog(LOG_WARNING,"can't rename metadata.mfs.back -> metadata.mfs (%m)");
+				mfs_errlog(LOG_WARNING,"can't rename metadata.mfs.back -> metadata.mfs");
 			}
+			chunk_term();
 			return ;
 		}
 		sleep(5);
@@ -7351,9 +7283,9 @@ void fs_term(const char *fname) {
 #endif
 
 #ifndef METARESTORE
-int fs_loadall(FILE *msgfd) {
+int fs_loadall(void) {
 #else
-int fs_loadall(const char *fname,FILE *msgfd) {
+int fs_loadall(const char *fname) {
 #endif
 	FILE *fd;
 	uint8_t hdr[8];
@@ -7383,7 +7315,7 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	fd = fopen("metadata.mfs","r");
 #endif
 	if (fd==NULL) {
-		fprintf(msgfd,"can't open metadata file\n");
+		fprintf(stderr,"can't open metadata file\n");
 #ifndef METARESTORE
 		{
 #if defined(HAVE_GETCWD)
@@ -7409,9 +7341,9 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 			cwdbuf[0]=0;
 #endif
 			if (cwdbuf[0]) {
-				fprintf(msgfd,"if this is new instalation then rename %smetadata.mfs.empty as %smetadata.mfs\n",cwdbuf,cwdbuf);
+				fprintf(stderr,"if this is new instalation then rename %smetadata.mfs.empty as %smetadata.mfs\n",cwdbuf,cwdbuf);
 			} else {
-				fprintf(msgfd,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs (in current working directory)\n");
+				fprintf(stderr,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs (in current working directory)\n");
 			}
 		}
 		syslog(LOG_ERR,"can't open metadata file");
@@ -7419,7 +7351,7 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 		return -1;
 	}
 	if (fread(hdr,1,8,fd)!=8) {
-		fprintf(msgfd,"can't read metadata header\n");
+		fprintf(stderr,"can't read metadata header\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"can't read metadata header");
 #endif
@@ -7429,16 +7361,15 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
 		fclose(fd);
 		if (backversion>0) {
-			fprintf(msgfd,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
+			fprintf(stderr,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
 			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
 			return -1;
 		}
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
-			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back\n");
-			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back (%m)");
+			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
 			return -1;
 		}
-		fprintf(msgfd,"create new empty filesystem");
+		fprintf(stderr,"create new empty filesystem");
 		syslog(LOG_NOTICE,"create new empty filesystem");
 		fs_new();
 		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
@@ -7448,13 +7379,13 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	if (memcmp(hdr,"MFSM 1.4",8)==0) {
 		converted=1;
 		if (fs_load_1_4(fd)<0) {
-			fprintf(msgfd,"error reading metadata (structure)\n");
+			fprintf(stderr,"error reading metadata (structure)\n");
 			syslog(LOG_ERR,"error reading metadata (structure)");
 			fclose(fd);
 			return -1;
 		}
 		if (chunk_load(fd)<0) {
-			fprintf(msgfd,"error reading metadata (chunks)\n");
+			fprintf(stderr,"error reading metadata (chunks)\n");
 			syslog(LOG_ERR,"error reading metadata (chunks)");
 			fclose(fd);
 			return -1;
@@ -7463,26 +7394,26 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 */
 #endif
 	if (memcmp(hdr,"MFSM 1.5",8)==0) {
-		if (fs_load(fd,msgfd)<0) {
+		if (fs_load(fd)<0) {
 #ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (structure)");
 #endif
 			fclose(fd);
 			return -1;
 		}
-		fprintf(msgfd,"loading chunks data ... ");
-		fflush(msgfd);
+		fprintf(stderr,"loading chunks data ... ");
+		fflush(stderr);
 		if (chunk_load(fd)<0) {
-			fprintf(msgfd,"error\n");
+			fprintf(stderr,"error\n");
 #ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
 			fclose(fd);
 			return -1;
 		}
-		fprintf(msgfd,"ok\n");
+		fprintf(stderr,"ok\n");
 	} else {
-		fprintf(msgfd,"wrong metadata header\n");
+		fprintf(stderr,"wrong metadata header\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"wrong metadata header");
 #endif
@@ -7490,7 +7421,7 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 		return -1;
 	}
 	if (ferror(fd)!=0) {
-		fprintf(msgfd,"error reading metadata\n");
+		fprintf(stderr,"error reading metadata\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata");
 #endif
@@ -7500,14 +7431,12 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 	fclose(fd);
 #ifndef METARESTORE
 	if (backversion>version) {
-		fprintf(msgfd,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
-		syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
+		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
 		return -1;
 	}
 	if (converted==1) {
 		if (rename("metadata.mfs","metadata.mfs.back.1.4")<0) {
-			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back.1.4\n");
-			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4 (%m)");
+			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4");
 			return -1;
 		}
 		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
@@ -7516,21 +7445,20 @@ int fs_loadall(const char *fname,FILE *msgfd) {
 //		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
 	} else {
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
-			fprintf(msgfd,"can't rename metadata.mfs -> metadata.mfs.back\n");
-			syslog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back (%m)");
+			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
 			return -1;
 		}
 	}
 #endif
-	fprintf(msgfd,"connecting files and chunks ... ");
-	fflush(msgfd);
+	fprintf(stderr,"connecting files and chunks ... ");
+	fflush(stderr);
 	fs_add_files_to_chunks();
-	fprintf(msgfd,"ok\n");
+	fprintf(stderr,"ok\n");
 #ifndef METARESTORE
-	fprintf(msgfd,"all inodes: %"PRIu32"\n",nodes);
-	fprintf(msgfd,"directory inodes: %"PRIu32"\n",dirnodes);
-	fprintf(msgfd,"file inodes: %"PRIu32"\n",filenodes);
-	fprintf(msgfd,"chunks: %"PRIu32"\n",chunk_count());
+	fprintf(stderr,"all inodes: %"PRIu32"\n",nodes);
+	fprintf(stderr,"directory inodes: %"PRIu32"\n",dirnodes);
+	fprintf(stderr,"file inodes: %"PRIu32"\n",filenodes);
+	fprintf(stderr,"chunks: %"PRIu32"\n",chunk_count());
 #endif
 	return 0;
 }
@@ -7558,15 +7486,20 @@ void fs_strinit(void) {
 }
 
 #ifndef METARESTORE
-int fs_init(FILE *msgfd) {
-	fprintf(msgfd,"loading metadata ...\n");
+
+void fs_cs_disconnected(void) {
+	test_start_time = main_time()+600;
+}
+
+int fs_init(void) {
+	fprintf(stderr,"loading metadata ...\n");
 	fs_strinit();
 	chunk_strinit();
-	starttime = main_time();
-	if (fs_loadall(msgfd)<0) {
+	test_start_time = main_time()+900;
+	if (fs_loadall()<0) {
 		return -1;
 	}
-	fprintf(msgfd,"metadata file has been loaded\n");
+	fprintf(stderr,"metadata file has been loaded\n");
 #if VERSMID==7
 #warning uncomment quota time limit
 #endif
@@ -7585,7 +7518,7 @@ int fs_init(FILE *msgfd) {
 int fs_init(const char *fname) {
 	fs_strinit();
 	chunk_strinit();
-	if (fs_loadall(fname,stdout)<0) {
+	if (fs_loadall(fname)<0) {
 		return -1;
 	}
 	return 0;
