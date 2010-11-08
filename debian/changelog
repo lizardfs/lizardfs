@@ -9,12 +9,13 @@ mfs (1.6.18) unstable; urgency=medium
     happy)
   * (cs) added ability to use read-only disks in "marked for removal" mode (to
     retrieve missing chunks from damaged disks)
-  * (all/master) added releasing used resources at the end.
+  * (cs) added showing scanning progress during startup
+  * (all/master) added releasing used resources at the end
   * (all) changed some malloc/free allocations into mmap/munmap
   * (all) new error messages routines
   * (daemons) added proper handling SIGINT in "foreground" mode
 
- -- Jakub Bogusz <contact@moosefs.com>  Tue, 03 Nov 2010 12:30:00 +0100
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 08 Nov 2010 14:00:00 +0100
 
 mfs (1.6.17) unstable; urgency=low
 

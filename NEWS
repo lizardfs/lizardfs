@@ -8,6 +8,7 @@ This file lists noteworthy changes in MooseFS.
  - (all) added a lot of assertions (mainly NULL pointers, and unsuccessful thread functions)
  - (all) fixed some minor bugs and potential race conditions (makes valgrind happy)
  - (cs) added ability to use read-only disks in "marked for removal" mode (to retrieve missing chunks from damaged disks)
+ - (cs) added showing scanning progress during startup
  - (all/master) added releasing used resources at the end.
  - (all) changed some malloc/free allocations into mmap/munmap
  - (all) new error messages routines

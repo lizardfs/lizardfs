@@ -244,6 +244,10 @@ static pthread_key_t hdrbufferkey;
 static pthread_key_t blockbufferkey;
 #endif
 
+static uint32_t scanprogress;
+static uint8_t scanprogresswaiting;
+static pthread_cond_t scanprogresscond = PTHREAD_COND_INITIALIZER;
+
 static uint32_t emptyblockcrc;
 
 static uint32_t stats_bytesr=0;
@@ -3520,23 +3524,27 @@ void* hdd_folder_scan(void *arg) {
 		fullname[plen]='\0';
 //		mkdir(fullname,0755);
 		dd = opendir(fullname);
-		if (dd==NULL) {
-			continue;
-		}
-		while (readdir_r(dd,&destorage,&de)==0 && de!=NULL) {
-			if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
-				continue;
+		if (dd) {
+			while (readdir_r(dd,&destorage,&de)==0 && de!=NULL) {
+				if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
+					continue;
+				}
+				memcpy(fullname+plen,de->d_name,36);
+				hdd_add_chunk(f,fullname,namechunkid,nameversion);
 			}
-			memcpy(fullname+plen,de->d_name,36);
-			hdd_add_chunk(f,fullname,namechunkid,nameversion);
+			closedir(dd);
 		}
-		closedir(dd);
+		eassert(pthread_mutex_lock(&folderlock)==0);
+		scanprogress++;
+		if (scanprogresswaiting) {
+			eassert(pthread_cond_signal(&scanprogresscond)==0);
+			scanprogresswaiting=0;
+		}
+		eassert(pthread_mutex_unlock(&folderlock)==0);
 	}
 	free(fullname);
 
-	eassert(pthread_mutex_lock(&folderlock)==0);
-	fprintf(stderr,"hdd space manager: %s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
-	eassert(pthread_mutex_unlock(&folderlock)==0);
+//	fprintf(stderr,"hdd space manager: %s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
 
 //	pthread_exit(NULL);
 	return NULL;
@@ -3666,7 +3674,7 @@ void hdd_term(void) {
 }
 
 int hdd_init(void) {
-	uint32_t l;
+	uint32_t l,p;
 	int lfp,td;
 	uint32_t hp;
 	FILE *fd;
@@ -3823,14 +3831,35 @@ int hdd_init(void) {
 	eassert(pthread_attr_setstacksize(&thattr,0x100000)==0);
 	eassert(pthread_attr_setdetachstate(&thattr,PTHREAD_CREATE_JOINABLE)==0);
 
+	scanprogress=0;
+	scanprogresswaiting=0;
+	l=0;
 	/* scan folders in separate threads */
 	for (f=folderhead ; f ; f=f->next) {
+		l++;
 		fprintf(stderr,"hdd space manager: scanning folder %s ...\n",f->path);
 		eassert(pthread_create(&(f->scanthread),&thattr,hdd_folder_scan,f)==0);
 	}
+
+	l*=256;
+	p=0;
+	eassert(pthread_mutex_lock(&folderlock)==0);
+	while (scanprogress<l) {
+		scanprogresswaiting=1;
+		eassert(pthread_cond_wait(&scanprogresscond,&folderlock)==0);
+		if ((scanprogress*100/l)>p) {
+			p = (scanprogress*100/l);
+			fprintf(stderr,"hdd space manager: scanning... %"PRIu32"%%\r",p);
+			fflush(stderr);
+		}
+	}
+	fprintf(stderr,"hdd space manager: scanning complete\n");
+	eassert(pthread_mutex_unlock(&folderlock)==0);
+
 	for (f=folderhead ; f ; f=f->next) {
 		eassert(pthread_join(f->scanthread,NULL)==0);
 		eassert(pthread_mutex_lock(&folderlock)==0);	// make helgrind happy
+		fprintf(stderr,"hdd space manager: %s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
 		hdd_refresh_usage(f);
 		f->needrefresh = 0;
 		eassert(pthread_mutex_unlock(&folderlock)==0);	// make helgrind happy
