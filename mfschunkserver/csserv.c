@@ -1986,7 +1986,7 @@ int csserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	if (tcpsetacceptfilter(lsock)<0) {
+	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		mfs_errlog_silent(LOG_NOTICE,"main server module error:can't set accept filter");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);

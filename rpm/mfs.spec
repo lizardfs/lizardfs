@@ -29,8 +29,14 @@ Summary:	MooseFS master server
 Group:		System Environment/Daemons
 
 %description master
-MooseFS master and metalogger servers together with metarestore
-utility.
+MooseFS master (metadata) server together with metarestore utility.
+
+%package metalogger
+Summary:	MooseFS metalogger server
+Group:		System Environment/Daemons
+
+%description metalogger
+MooseFS metalogger (metadata replication) server.
 
 %package chunkserver
 Summary:	MooseFS data server
@@ -84,23 +90,29 @@ rm -rf $RPM_BUILD_ROOT
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmaster
 %attr(755,root,root) %{_sbindir}/mfsmetadump
-%attr(755,root,root) %{_sbindir}/mfsmetalogger
 %attr(755,root,root) %{_sbindir}/mfsmetarestore
 %{_mandir}/man5/mfsexports.cfg.5*
 %{_mandir}/man5/mfsmaster.cfg.5*
-%{_mandir}/man5/mfsmetalogger.cfg.5*
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man8/mfsmaster.8*
-%{_mandir}/man8/mfsmetalogger.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{mfsconfdir}/mfsexports.cfg.dist
 %{mfsconfdir}/mfsmaster.cfg.dist
-%{mfsconfdir}/mfsmetalogger.cfg.dist
 %dir %{_localstatedir}/mfs
 %{_localstatedir}/mfs/metadata.mfs.empty
 %if "%{distro}" == "rh"
 %attr(754,root,root) %{_initrddir}/mfsmaster
+%endif
+
+%files metalogger
+%defattr(644,root,root,755)
+%doc NEWS README UPGRADE
+%attr(755,root,root) %{_sbindir}/mfsmetalogger
+%{_mandir}/man5/mfsmetalogger.cfg.5*
+%{_mandir}/man8/mfsmetalogger.8*
+%{mfsconfdir}/mfsmetalogger.cfg.dist
+%if "%{distro}" == "rh"
 %attr(754,root,root) %{_initrddir}/mfsmetalogger
 %endif
 
@@ -170,6 +182,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_datadir}/mfscgi
 
 %changelog
+* Fri Nov 19 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.18-1
+- separated mfs-metalogger subpackage (following Debian packaging)
+
 * Fri Oct  8 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.17-1
 - added init scripts based on work of Steve Huff (Dag Apt Repository)
   (included in RPMs when building with --define "distro rh")

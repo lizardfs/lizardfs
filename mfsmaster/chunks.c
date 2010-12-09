@@ -152,6 +152,8 @@ static chunk *chunkhash[HASHSIZE];
 static uint64_t nextchunkid=1;
 #define LOCKTIMEOUT 120
 
+#define UNUSED_DELETE_TIMEOUT (86400*7)
+
 #ifndef METARESTORE
 
 static uint32_t ReplicationsDelayDisconnect=3600;
@@ -999,7 +1001,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
-			if (uscount>0 && (uint32_t)(main_time())>(starttime+60)) {	// if there are chunkservers and it's at least one minute after start then it means that there is no space left
+			if (uscount>0 && (uint32_t)(main_time())>(starttime+600)) {	// if there are chunkservers and it's at least one minute after start then it means that there is no space left
 				return ERROR_NOSPACE;
 			} else {
 				return ERROR_NOCHUNKSERVERS;
@@ -1570,8 +1572,12 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"_%08"PRIX32"), so create it for future deletion",chunkid,version);
+		if (chunkid>=nextchunkid) {
+			nextchunkid=chunkid+1;
+		}
 		c = chunk_new(chunkid);
 		c->version = version;
+		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
@@ -1607,6 +1613,9 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"), so create it for future deletion",chunkid);
+		if (chunkid>=nextchunkid) {
+			nextchunkid=chunkid+1;
+		}
 		c = chunk_new(chunkid);
 		c->version = 0;
 	}
@@ -2734,8 +2743,8 @@ void chunk_strinit(void) {
 	//jobslastdisconnect = 0;
 /*
 	chunk_cfg_check();
-	main_timeregister(TIMEMODE_RUNONCE,30,0,chunk_cfg_check);
+	main_timeregister(TIMEMODE_RUN_LATE,30,0,chunk_cfg_check);
 */
-	main_timeregister(TIMEMODE_RUNONCE,1,0,chunk_jobs_main);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
 #endif
 }

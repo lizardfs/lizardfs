@@ -179,8 +179,13 @@ class HTTP(ClientHandler):
 		self.requestline = lines[0]
 		try:
 			self.method,self.url,self.protocol = lines[0].strip().split()
+			if not self.protocol.startswith("HTTP/1") or ( self.protocol[7]!='0' and self.protocol[7]!='1') or len(self.protocol)!=8:
+				self.method = None
+				self.protocol = "HTTP/1.1"
+				return True
 		except:
-			self.method = None # indicates bad request
+			self.method = None
+			self.protocol = "HTTP/1.1"
 			return True
 		# put request headers in a dictionary
 		self.headers = {}
@@ -213,7 +218,7 @@ class HTTP(ClientHandler):
 		try:
 			"""Build the response : a list of strings or files"""
 			if self.method is None: # bad request
-				return self.error_resp(400,'Bad request : %s' %self.requestline)
+				return self.err_resp(400,'Bad request : %s' %self.requestline)
 			resp_headers, resp_body, resp_file = '','',None
 			if not self.method in ['GET','POST','HEAD']:
 				return self.err_resp(501,'Unsupported method (%s)' %self.method)

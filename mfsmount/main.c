@@ -137,6 +137,7 @@ struct mfsopts {
 	int cachefiles;
 	int keepcache;
 	int passwordask;
+	int donotrememberpassword;
 	unsigned writecachesize;
 	unsigned ioretries;
 	double attrcacheto;
@@ -176,6 +177,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
+	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 0),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
@@ -237,6 +239,7 @@ static void usage(const char *progname) {
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
+"    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 //"\n"
 //"CACHEMODE can be set to:\n"
 //"    NO,NONE or NEVER            never allow files data to be kept in cache\n"
@@ -375,8 +378,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(mfsopts.md5pass,0,strlen(mfsopts.md5pass));
 	}
 
-
-	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.bindhost,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
+	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.bindhost,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
 		return 1;
 	}
 	memset(md5pass,0,16);
@@ -742,6 +744,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.nostdmountoptions = 0;
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
+	mfsopts.donotrememberpassword = 0;
 	mfsopts.cachefiles = 0;
 	mfsopts.cachemode = NULL;
 	mfsopts.writecachesize = 0;

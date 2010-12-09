@@ -68,7 +68,7 @@ typedef struct masterconn {
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
 
-	uint8_t retrycnt;
+	uint8_t downloadretrycnt;
 	uint8_t downloading;
 	uint8_t oldmode;
 	FILE *logfd;	// using stdio because this is text file
@@ -285,7 +285,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	}
 	eptr->filesize = get64bit(&data);
 	eptr->dloffset = 0;
-	eptr->retrycnt = 0;
+	eptr->downloadretrycnt = 0;
 	eptr->dlstartuts = main_utime();
 	if (eptr->downloading==1) {
 		eptr->metafd = open("metadata_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
@@ -347,36 +347,36 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 #endif /* HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		mfs_errlog_silent(LOG_NOTICE,"error writing metafile");
-		if (eptr->retrycnt>=5) {
+		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
-			eptr->retrycnt++;
+			eptr->downloadretrycnt++;
 			masterconn_download_next(eptr);
 		}
 		return;
 	}
 	if (crc!=mycrc32(0,data,leng)) {
 		syslog(LOG_NOTICE,"metafile data crc error");
-		if (eptr->retrycnt>=5) {
+		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
-			eptr->retrycnt++;
+			eptr->downloadretrycnt++;
 			masterconn_download_next(eptr);
 		}
 		return;
 	}
 	if (fsync(eptr->metafd)<0) {
 		mfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
-		if (eptr->retrycnt>=5) {
+		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
-			eptr->retrycnt++;
+			eptr->downloadretrycnt++;
 			masterconn_download_next(eptr);
 		}
 		return;
 	}
 	eptr->dloffset+=leng;
-	eptr->retrycnt=0;
+	eptr->downloadretrycnt=0;
 	masterconn_download_next(eptr);
 }
 
@@ -486,14 +486,14 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (tcpnonblock(eptr->sock)<0) {
 		mfs_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
+		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
 			mfs_errlog(LOG_WARNING,"can't bind socket to given ip");
 			tcpclose(eptr->sock);
-			eptr->sock=-1;
+			eptr->sock = -1;
 			return -1;
 		}
 	}
@@ -501,7 +501,8 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (status<0) {
 		mfs_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
+		eptr->sock = -1;
+		eptr->masteraddrvalid = 0;
 		return -1;
 	}
 	if (status==0) {
@@ -521,8 +522,9 @@ void masterconn_connecttest(masterconn *eptr) {
 	if (status) {
 		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
-		eptr->mode=FREE;
+		eptr->sock = -1;
+		eptr->mode = FREE;
+		eptr->masteraddrvalid = 0;
 	} else {
 		syslog(LOG_NOTICE,"connected to Master");
 		masterconn_connected(eptr);
@@ -715,7 +717,10 @@ void masterconn_reconnect(void) {
 
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
-	eptr->masteraddrvalid=0;
+	eptr->masteraddrvalid = 0;
+	if (eptr->mode!=FREE) {
+		eptr->mode = KILL;
+	}
 }
 
 int masterconn_init(void) {
@@ -759,12 +764,12 @@ int masterconn_init(void) {
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
-	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
+	main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
-	main_timeregister(TIMEMODE_RUNONCE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
-	main_timeregister(TIMEMODE_RUNONCE,60,0,masterconn_sessionsdownloadinit);
-	main_timeregister(TIMEMODE_RUNONCE,1,0,masterconn_metachanges_flush);
+	main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
+	main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
 	return 0;
 }

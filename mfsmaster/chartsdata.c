@@ -171,8 +171,8 @@ int chartsdata_init (void) {
 	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
-	main_timeregister(TIMEMODE_RUNONCE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUNONCE,3600,0,chartsdata_store);
+	main_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
+	main_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
 	main_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }

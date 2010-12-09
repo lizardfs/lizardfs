@@ -120,8 +120,9 @@ static eloopentry *eloophead=NULL;
 
 
 typedef struct timeentry {
-	time_t nextevent;
+	uint32_t nextevent;
 	uint32_t seconds;
+	uint32_t offset;
 	int mode;
 //	int offset;
 	void (*fun)(void);
@@ -130,7 +131,7 @@ typedef struct timeentry {
 
 static timeentry *timehead=NULL;
 
-static int now;
+static uint32_t now;
 static uint64_t usecnow;
 //static int alcnt=0;
 
@@ -201,6 +202,7 @@ void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(vo
 		aux->nextevent+=seconds;
 	}
 	aux->seconds = seconds;
+	aux->offset = offset;
 	aux->mode = mode;
 	aux->fun = fun;
 	aux->next = timehead;
@@ -288,7 +290,7 @@ void reloadhandle(int signo) {
 #endif
 }
 
-int main_time() {
+uint32_t main_time() {
 	return now;
 }
 
@@ -304,6 +306,7 @@ void destruct() {
 }
 
 void mainloop() {
+	uint32_t prevtime = 0;
 	struct timeval tv;
 	pollentry *pollit;
 	eloopentry *eloopit;
@@ -348,30 +351,38 @@ void mainloop() {
 		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
 			eloopit->fun();
 		}
-		for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
-			if (timeit->mode==TIMEMODE_RUNALL) {
-				while (now>=timeit->nextevent) {
-					timeit->nextevent += timeit->seconds;
-					timeit->fun();
+		if (now<prevtime || now>prevtime+10) {
+			// time has changed !!! - recalculate "nextevent" time
+			// adding previous_time_to_run prevents from running next event too soon.
+			for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
+				uint32_t previous_time_to_run = timeit->nextevent - prevtime;
+				if (previous_time_to_run > timeit->seconds) {
+					previous_time_to_run = timeit->seconds;
 				}
-			} else if (timeit->mode==TIMEMODE_RUNONCE) {
-				if (now>=timeit->nextevent) {
-					while (now>=timeit->nextevent) {
+				timeit->nextevent = ((now / timeit->seconds) * timeit->seconds) + timeit->offset;
+				while (timeit->nextevent <= now+previous_time_to_run) {
+					timeit->nextevent += timeit->seconds;
+				}
+			}
+		}
+		for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
+			if (now >= timeit->nextevent) {
+				if (timeit->mode == TIMEMODE_RUN_LATE) {
+					while (now >= timeit->nextevent) {
 						timeit->nextevent += timeit->seconds;
 					}
 					timeit->fun();
-				}
-			} else { /* timeit->mode == TIMEMODE_SKIP */
-				if (now>=timeit->nextevent) {
-					if (now==timeit->nextevent) {
+				} else { /* timeit->mode == TIMEMODE_SKIP_LATE */
+					if (now == timeit->nextevent) {
 						timeit->fun();
 					}
-					while (now>=timeit->nextevent) {
+					while (now >= timeit->nextevent) {
 						timeit->nextevent += timeit->seconds;
 					}
 				}
 			}
 		}
+		prevtime = now;
 #ifdef USE_PTHREADS
 		pthread_mutex_lock(&signal_lock);
 #endif
@@ -674,8 +685,10 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 		fprintf(stderr,"lockfile created and locked\n");
 	} else if (runmode==RM_STOP) {
 		fprintf(stderr,"can't find process to terminate\n");
+		return -1;
 	} else if (runmode==RM_RELOAD) {
 		fprintf(stderr,"can't find process to send reload signal\n");
+		return -1;
 	}
 	return 0;
 }
@@ -797,6 +810,12 @@ void makedaemon() {
 //		printf("Starting daemon ...\n");
 		while ((r=read(piped[0],pipebuff,1000))) {
 			if (r>0) {
+				if (pipebuff[r-1]==0) {	// zero as a last char in the pipe means error
+					if (r>1) {
+						fwrite(pipebuff,1,r-1,stderr);
+					}
+					exit(1);
+				}
 				fwrite(pipebuff,1,r,stderr);
 			} else {
 				fprintf(stderr,"Error reading pipe: %s\n",strerr(errno));
@@ -1013,6 +1032,7 @@ int main(int argc,char **argv) {
 	if (chdir(wrkdir)<0) {
 		mfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
 		if (rundaemon) {
+			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
@@ -1026,6 +1046,7 @@ int main(int argc,char **argv) {
 	/* for upgrading from previous versions of MFS */
 	if (check_old_locks(runmode,locktimeout)<0) {
 		if (rundaemon) {
+			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
@@ -1035,6 +1056,7 @@ int main(int argc,char **argv) {
 
 	if (wdlock(runmode,locktimeout)<0) {
 		if (rundaemon) {
+			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
@@ -1071,11 +1093,14 @@ int main(int argc,char **argv) {
 			close_msg_channel();
 		}
 		mainloop();
+		ch=0;
 	} else {
 		fprintf(stderr,"error occured during initialization - exiting\n");
 		if (rundaemon) {
+			fputc(0,stderr);
 			close_msg_channel();
 		}
+		ch=1;
 	}
 	destruct();
 	free_all_registered_entries();
@@ -1083,5 +1108,5 @@ int main(int argc,char **argv) {
 	strerr_term();
 	closelog();
 	free(logappname);
-	return 0;
+	return ch;
 }

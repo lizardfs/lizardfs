@@ -161,7 +161,7 @@ typedef struct _fsnode {
 			uint8_t *path;
 		} sdata;
 		uint32_t rdev;				// type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
-		struct _fdata {				// type==TYPE_FILE
+		struct _fdata {				// type==TYPE_FILE ; type==TYPE_TRASH ; type==TYPE_RESERVED
 			uint64_t length;
 			uint64_t *chunktab;
 			uint32_t chunks;
@@ -2164,10 +2164,10 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 					node->goal=goal;
 					(*sinodes)++;
 				}
+				node->ctime = ts;
 			} else {
 				(*ncinodes)++;
 			}
-			node->ctime = ts;
 		}
 		if (node->type==TYPE_DIRECTORY && (smode&SMODE_RMASK)) {
 //			if (quota==0 && node->data.ddata.quota && node->data.ddata.quota->exceeded) {
@@ -2211,10 +2211,10 @@ static inline void fsnodes_settrashtime_recursive(fsnode *node,uint32_t ts,uint3
 			}
 			if (set) {
 				(*sinodes)++;
+				node->ctime = ts;
 			} else {
 				(*ncinodes)++;
 			}
-			node->ctime = ts;
 		}
 		if (node->type==TYPE_DIRECTORY && (smode&SMODE_RMASK)) {
 			for (e = node->data.ddata.children ; e ; e=e->nextchild) {
@@ -2251,10 +2251,10 @@ static inline void fsnodes_seteattr_recursive(fsnode *node,uint32_t ts,uint32_t 
 		if (neweattr!=(node->mode>>12)) {
 			node->mode = (node->mode&0xFFF) | (((uint16_t)neweattr)<<12);
 			(*sinodes)++;
+			node->ctime = ts;
 		} else {
 			(*ncinodes)++;
 		}
-		node->ctime = ts;
 	}
 	if (node->type==TYPE_DIRECTORY && (smode&SMODE_RMASK)) {
 		for (e = node->data.ddata.children ; e ; e=e->nextchild) {
@@ -7505,12 +7505,12 @@ int fs_init(void) {
 #endif
 //	config_getuint32("QUOTA_TIME_LIMIT",7*86400,&QuotaTimeLimit);
 	QuotaTimeLimit = 7*86400;	// for tests
-	main_timeregister(TIMEMODE_RUNONCE,1,0,fs_test_files);
-	main_timeregister(TIMEMODE_RUNONCE,1,0,fsnodes_check_all_quotas);
-	main_timeregister(TIMEMODE_RUNONCE,3600,0,fs_dostoreall);
-	main_timeregister(TIMEMODE_RUNONCE,300,0,fs_emptytrash);
-	main_timeregister(TIMEMODE_RUNONCE,60,0,fs_emptyreserved);
-	main_timeregister(TIMEMODE_RUNONCE,60,0,fsnodes_freeinodes);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,fsnodes_check_all_quotas);
+	main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
+	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_emptytrash);
+	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_emptyreserved);
+	main_timeregister(TIMEMODE_RUN_LATE,60,0,fsnodes_freeinodes);
 	main_destructregister(fs_term);
 	return 0;
 }

@@ -1,12 +1,8 @@
 etc/mfsexports.cfg.dist
 etc/mfsmaster.cfg.dist
-etc/mfsmetalogger.cfg.dist
 usr/sbin/mfsmaster
 usr/sbin/mfsmetarestore
-usr/sbin/mfsmetalogger
 usr/sbin/mfsmetadump
-#usr/share/man/man7/mfs.7
-#usr/share/man/man7/moosefs.7
 usr/share/man/man5/mfsexports.cfg.5
 usr/share/man/man5/mfsmaster.cfg.5
 usr/share/man/man8/mfsmaster.8

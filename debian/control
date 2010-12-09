@@ -6,20 +6,32 @@ Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-conf
 Standards-Version: 3.7.3
 Homepage: http://moosefs.com/
 
-Package: mfs-master
+Package: mfs-common
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MooseFS common files
+ Files and services common for all MooseFS daemons.
+
+Package: mfs-master
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
 Description: MooseFS master server
- MooseFS master server.
+ MooseFS master (metadata) server.
+
+Package: mfs-metalogger
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
+Description: MooseFS metalogger server
+ MooseFS metalogger (metadata replication) server.
 
 Package: mfs-chunkserver
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
 Description: MooseFS data server
  MooseFS data server.
 
 Package: mfs-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
 Description: MooseFS client
- MooseFS client: mfsmount and mfstools.
+ MooseFS clients: mfsmount and mfstools.

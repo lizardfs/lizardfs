@@ -607,7 +607,7 @@ int matomlserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	if (tcpsetacceptfilter(lsock)<0) {
+	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		mfs_errlog_silent(LOG_NOTICE,"matoml: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
@@ -619,6 +619,6 @@ int matomlserv_init(void) {
 	matomlservhead = NULL;
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
-	main_timeregister(TIMEMODE_SKIP,60,0,matomlserv_status);
+	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matomlserv_status);
 	return 0;
 }

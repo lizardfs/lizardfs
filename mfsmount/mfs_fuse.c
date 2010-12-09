@@ -287,48 +287,69 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 	attrctime = get32bit(&ptr);
 	attrnlink = get32bit(&ptr);
 	stbuf->st_ino = inode;
+#ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
+	stbuf->st_blksize = 0x10000;
+#endif
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
 		stbuf->st_mode = S_IFDIR | ( attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
+#endif
 		break;
 	case TYPE_SYMLINK:
 		stbuf->st_mode = S_IFLNK | ( attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
+#endif
 		break;
 	case TYPE_FILE:
 		stbuf->st_mode = S_IFREG | ( attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
+#endif
 		break;
 	case TYPE_FIFO:
 		stbuf->st_mode = S_IFIFO | ( attrmode & 07777);
 		stbuf->st_size = 0;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
+#endif
 		break;
 	case TYPE_SOCKET:
 		stbuf->st_mode = S_IFSOCK | ( attrmode & 07777);
 		stbuf->st_size = 0;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
+#endif
 		break;
 	case TYPE_BLOCKDEV:
 		stbuf->st_mode = S_IFBLK | ( attrmode & 07777);
 		attrrdev = get32bit(&ptr);
+#ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
+#endif
 		stbuf->st_size = 0;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
+#endif
 		break;
 	case TYPE_CHARDEV:
 		stbuf->st_mode = S_IFCHR | ( attrmode & 07777);
 		attrrdev = get32bit(&ptr);
+#ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
+#endif
 		stbuf->st_size = 0;
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
+#endif
 		break;
 	default:
 		stbuf->st_mode = 0;
@@ -338,6 +359,9 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 	stbuf->st_atime = attratime;
 	stbuf->st_mtime = attrmtime;
 	stbuf->st_ctime = attrctime;
+#ifdef HAVE_STRUCT_STAT_ST_BIRTHTIME
+	stbuf->st_birthtime = attrctime;	// for future use
+#endif
 	stbuf->st_nlink = attrnlink;
 }
 

@@ -44,6 +44,7 @@ case $target_os in
 		PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 		export PKG_CONFIG_PATH
 	fi
+	CPPFLAGS="$CPPFLAGS -D__DARWIN_64_BIT_INO_T=0"
 	;;
   *bsd*)
 	fuse=maybe
@@ -87,6 +88,10 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_STRUCT_ST_BLOCKS
 AC_CHECK_MEMBERS([struct stat.st_rdev])
+AC_CHECK_MEMBERS([struct stat.st_birthtime])
+AC_CHECK_MEMBERS([struct stat.st_blksize])
+AC_CHECK_MEMBERS([struct stat.st_flags])
+
 AC_HEADER_TIME
 AC_STRUCT_TM
 AC_CHECK_MEMBERS([struct tm.tm_gmtoff],,, [

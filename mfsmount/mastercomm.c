@@ -140,6 +140,17 @@ enum {
 
 static uint64_t *statsptr[STATNODES];
 
+struct connect_args_t {
+	char *masterhostname;
+	char *masterportname;
+	uint8_t meta;
+	char *info;
+	char *subfolder;
+	uint8_t *passworddigest;
+};
+
+static struct connect_args_t connect_args;
+
 void master_statsptr_init(void) {
 	void *s;
 	s = stats_get_subnode(NULL,"master");
@@ -468,6 +479,285 @@ int fs_direct_read(int rfd,uint8_t *buff,uint32_t size) {
 }
 */
 
+int fs_connect(uint8_t oninit,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+	uint32_t i;
+	uint8_t *wptr,*regbuff;
+	md5ctx ctx;
+	uint8_t digest[16];
+	const uint8_t *rptr;
+	uint8_t havepassword;
+	uint32_t pleng,ileng;
+
+	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
+		if (oninit) {
+			fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",connect_args.masterhostname,connect_args.masterportname);
+		} else {
+			syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",connect_args.masterhostname,connect_args.masterportname);
+		}
+		return -1;
+	}
+	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
+	masterstrip[16]=0;
+
+	havepassword=(passworddigest==NULL)?0:1;
+	ileng=strlen(info)+1;
+	if (meta) {
+		pleng=0;
+		regbuff = malloc(8+64+9+ileng+16);
+	} else {
+		pleng=strlen(subfolder)+1;
+		regbuff = malloc(8+64+13+pleng+ileng+16);
+	}
+
+	fd = tcpsocket();
+	if (tcpnodelay(fd)<0) {
+		if (oninit) {
+			fprintf(stderr,"can't set TCP_NODELAY\n");
+		} else {
+			syslog(LOG_WARNING,"can't set TCP_NODELAY");
+		}
+	}
+	if (srcip>0) {
+		if (tcpnumbind(fd,srcip,0)<0) {
+			if (oninit) {
+				fprintf(stderr,"can't bind socket to given ip (\"%s\")\n",srcstrip);
+			} else {
+				syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+	}
+	if (tcpnumconnect(fd,masterip,masterport)<0) {
+		if (oninit) {
+			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%"PRIu16"\")\n",masterstrip,masterport);
+		} else {
+			syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	if (havepassword) {
+		wptr = regbuff;
+		put32bit(&wptr,CUTOMA_FUSE_REGISTER);
+		put32bit(&wptr,65);
+		memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
+		wptr+=64;
+		put8bit(&wptr,REGISTER_GETRANDOM);
+		if (tcptowrite(fd,regbuff,8+65,1000)!=8+65) {
+			if (oninit) {
+				fprintf(stderr,"error sending data to mfsmaster\n");
+			} else {
+				syslog(LOG_WARNING,"error sending data to mfsmaster");
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+		if (tcptoread(fd,regbuff,8,1000)!=8) {
+			if (oninit) {
+				fprintf(stderr,"error receiving data from mfsmaster\n");
+			} else {
+				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+		rptr = regbuff;
+		i = get32bit(&rptr);
+		if (i!=MATOCU_FUSE_REGISTER) {
+			if (oninit) {
+				fprintf(stderr,"got incorrect answer from mfsmaster\n");
+			} else {
+				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+		i = get32bit(&rptr);
+		if (i!=32) {
+			if (oninit) {
+				fprintf(stderr,"got incorrect answer from mfsmaster\n");
+			} else {
+				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+		if (tcptoread(fd,regbuff,32,1000)!=32) {
+			if (oninit) {
+				fprintf(stderr,"error receiving data from mfsmaster\n");
+			} else {
+				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+			}
+			tcpclose(fd);
+			fd=-1;
+			free(regbuff);
+			return -1;
+		}
+		md5_init(&ctx);
+		md5_update(&ctx,regbuff,16);
+		md5_update(&ctx,passworddigest,16);
+		md5_update(&ctx,regbuff+16,16);
+		md5_final(digest,&ctx);
+	}
+	wptr = regbuff;
+	put32bit(&wptr,CUTOMA_FUSE_REGISTER);
+	if (meta) {
+		if (havepassword) {
+			put32bit(&wptr,64+9+ileng+16);
+		} else {
+			put32bit(&wptr,64+9+ileng);
+		}
+	} else {
+		if (havepassword) {
+			put32bit(&wptr,64+13+ileng+pleng+16);
+		} else {
+			put32bit(&wptr,64+13+ileng+pleng);
+		}
+	}
+	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
+	wptr+=64;
+	put8bit(&wptr,(meta)?REGISTER_NEWMETASESSION:REGISTER_NEWSESSION);
+	put16bit(&wptr,VERSMAJ);
+	put8bit(&wptr,VERSMID);
+	put8bit(&wptr,VERSMIN);
+	put32bit(&wptr,ileng);
+	memcpy(wptr,info,ileng);
+	wptr+=ileng;
+	if (!meta) {
+		put32bit(&wptr,pleng);
+		memcpy(wptr,subfolder,pleng);
+	}
+	if (havepassword) {
+		memcpy(wptr+pleng,digest,16);
+	}
+	if (tcptowrite(fd,regbuff,8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0))) {
+		if (oninit) {
+			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
+		} else {
+			syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(errno));
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	if (tcptoread(fd,regbuff,8,1000)!=8) {
+		if (oninit) {
+			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+		} else {
+			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	rptr = regbuff;
+	i = get32bit(&rptr);
+	if (i!=MATOCU_FUSE_REGISTER) {
+		if (oninit) {
+			fprintf(stderr,"got incorrect answer from mfsmaster\n");
+		} else {
+			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	i = get32bit(&rptr);
+	if ( !(i==1 || (meta && i==5) || (meta==0 && (i==13 || i==21)))) {
+		if (oninit) {
+			fprintf(stderr,"got incorrect answer from mfsmaster\n");
+		} else {
+			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
+		if (oninit) {
+			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+		} else {
+			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	rptr = regbuff;
+	if (i==1) {
+		if (oninit) {
+			fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
+		} else {
+			syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
+		}
+		tcpclose(fd);
+		fd=-1;
+		free(regbuff);
+		return -1;
+	}
+	sessionid = get32bit(&rptr);
+	if (sesflags) {
+		*sesflags = get8bit(&rptr);
+	} else {
+		rptr++;
+	}
+	if (!meta) {
+		if (rootuid) {
+			*rootuid = get32bit(&rptr);
+		} else {
+			rptr+=4;
+		}
+		if (rootgid) {
+			*rootgid = get32bit(&rptr);
+		} else {
+			rptr+=4;
+		}
+		if (i==21) {
+			if (mapalluid) {
+				*mapalluid = get32bit(&rptr);
+			} else {
+				rptr+=4;
+			}
+			if (mapallgid) {
+				*mapallgid = get32bit(&rptr);
+			} else {
+				rptr+=4;
+			}
+		} else {
+			if (mapalluid) {
+				*mapalluid = 0;
+			}
+			if (mapallgid) {
+				*mapallgid = 0;
+			}
+		}
+	}
+	free(regbuff);
+	lastwrite=time(NULL);
+	if (oninit==0) {
+		syslog(LOG_NOTICE,"registered to master with new session");
+	}
+	return 0;
+}
+
 void fs_reconnect() {
 	uint32_t i;
 	uint8_t *wptr,regbuff[8+64+9];
@@ -477,6 +767,7 @@ void fs_reconnect() {
 		syslog(LOG_WARNING,"can't register: session not created");
 		return;
 	}
+
 	fd = tcpsocket();
 	if (tcpnodelay(fd)<0) {
 		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
@@ -555,231 +846,6 @@ void fs_reconnect() {
 	lastwrite=time(NULL);
 	syslog(LOG_NOTICE,"registered to master");
 }
-
-int fs_connect(uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
-	uint32_t i;
-	uint8_t *wptr,*regbuff;
-	md5ctx ctx;
-	uint8_t digest[16];
-	const uint8_t *rptr;
-	uint8_t havepassword;
-	uint32_t pleng,ileng;
-
-	havepassword=(passworddigest==NULL)?0:1;
-	ileng=strlen(info)+1;
-	if (meta) {
-		pleng=0;
-		regbuff = malloc(8+64+9+ileng+16);
-	} else {
-		pleng=strlen(subfolder)+1;
-		regbuff = malloc(8+64+13+pleng+ileng+16);
-	}
-
-	fd = tcpsocket();
-	if (tcpnodelay(fd)<0) {
-//		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
-		fprintf(stderr,"can't set RCP_NODELAY\n");
-	}
-	if (srcip>0) {
-		if (tcpnumbind(fd,srcip,0)<0) {
-			fprintf(stderr,"can't bind socket to given ip (\"%s\")\n",srcstrip);
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-	}
-	if (tcpnumconnect(fd,masterip,masterport)<0) {
-//		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
-		fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%"PRIu16"\")\n",masterstrip,masterport);
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	if (havepassword) {
-		wptr = regbuff;
-		put32bit(&wptr,CUTOMA_FUSE_REGISTER);
-		put32bit(&wptr,65);
-		memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
-		wptr+=64;
-		put8bit(&wptr,REGISTER_GETRANDOM);
-		if (tcptowrite(fd,regbuff,8+65,1000)!=8+65) {
-//			syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
-			fprintf(stderr,"error sending data to mfsmaster\n");
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-		if (tcptoread(fd,regbuff,8,1000)!=8) {
-//			syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
-			fprintf(stderr,"error receiving data from mfsmaster\n");
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-		rptr = regbuff;
-		i = get32bit(&rptr);
-		if (i!=MATOCU_FUSE_REGISTER) {
-//			syslog(LOG_WARNING,"master: register error (bad answer: %"PRIu32")",i);
-			fprintf(stderr,"got incorrect answer from mfsmaster\n");
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-		i = get32bit(&rptr);
-		if (i!=32) {
-			fprintf(stderr,"got incorrect answer from mfsmaster\n");
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-		if (tcptoread(fd,regbuff,32,1000)!=32) {
-//			syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
-			fprintf(stderr,"error receiving data from mfsmaster\n");
-			tcpclose(fd);
-			fd=-1;
-			free(regbuff);
-			return -1;
-		}
-//		memcpy(passwordblock+32,passwordblock+16,16);
-//		memcpy(passwordblock+16,passworddigest,16);
-		md5_init(&ctx);
-		md5_update(&ctx,regbuff,16);
-		md5_update(&ctx,passworddigest,16);
-		md5_update(&ctx,regbuff+16,16);
-		md5_final(digest,&ctx);
-	}
-	wptr = regbuff;
-	put32bit(&wptr,CUTOMA_FUSE_REGISTER);
-	if (meta) {
-		if (havepassword) {
-			put32bit(&wptr,64+9+ileng+16);
-		} else {
-			put32bit(&wptr,64+9+ileng);
-		}
-	} else {
-		if (havepassword) {
-			put32bit(&wptr,64+13+ileng+pleng+16);
-		} else {
-			put32bit(&wptr,64+13+ileng+pleng);
-		}
-	}
-	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
-	wptr+=64;
-	put8bit(&wptr,(meta)?REGISTER_NEWMETASESSION:REGISTER_NEWSESSION);
-	put16bit(&wptr,VERSMAJ);
-	put8bit(&wptr,VERSMID);
-	put8bit(&wptr,VERSMIN);
-	put32bit(&wptr,ileng);
-	memcpy(wptr,info,ileng);
-	wptr+=ileng;
-	if (!meta) {
-		put32bit(&wptr,pleng);
-		memcpy(wptr,subfolder,pleng);
-	}
-	if (havepassword) {
-		memcpy(wptr+pleng,digest,16);
-	}
-	if (tcptowrite(fd,regbuff,8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(meta?9:13)+ileng+pleng+(havepassword?16:0))) {
-//		syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
-		fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	if (tcptoread(fd,regbuff,8,1000)!=8) {
-//		syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
-		fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	rptr = regbuff;
-	i = get32bit(&rptr);
-	if (i!=MATOCU_FUSE_REGISTER) {
-//		syslog(LOG_WARNING,"master: register error (bad answer: %"PRIu32")",i);
-		fprintf(stderr,"got incorrect answer from mfsmaster\n");
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	i = get32bit(&rptr);
-	if ( !(i==1 || (meta && i==5) || (meta==0 && (i==13 || i==21)))) {
-//		syslog(LOG_WARNING,"master: register error (bad length: %"PRIu32")",i);
-		fprintf(stderr,"got incorrect answer from mfsmaster\n");
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-//		syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
-		fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	rptr = regbuff;
-	if (i==1) {
-//		syslog(LOG_WARNING,"master: register status: %"PRIu8,rptr[0]);
-		fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
-		tcpclose(fd);
-		fd=-1;
-		free(regbuff);
-		return -1;
-	}
-	sessionid = get32bit(&rptr);
-	if (sesflags) {
-		*sesflags = get8bit(&rptr);
-	} else {
-		rptr++;
-	}
-	if (!meta) {
-		if (rootuid) {
-			*rootuid = get32bit(&rptr);
-		} else {
-			rptr+=4;
-		}
-		if (rootgid) {
-			*rootgid = get32bit(&rptr);
-		} else {
-			rptr+=4;
-		}
-		if (i==21) {
-			if (mapalluid) {
-				*mapalluid = get32bit(&rptr);
-			} else {
-				rptr+=4;
-			}
-			if (mapallgid) {
-				*mapallgid = get32bit(&rptr);
-			} else {
-				rptr+=4;
-			}
-		} else {
-			if (mapalluid) {
-				*mapalluid = 0;
-			}
-			if (mapallgid) {
-				*mapallgid = 0;
-			}
-		}
-	}
-	free(regbuff);
-	lastwrite=time(NULL);
-//	syslog(LOG_NOTICE,"registered to master");
-	return 0;
-}
-
 
 void* fs_nop_thread(void *arg) {
 	uint8_t *ptr,hdr[12],*inodespacket;
@@ -873,7 +939,12 @@ void* fs_receive_thread(void *arg) {
 			pthread_mutex_unlock(&reclock);
 		}
 		if (fd==-1) {
-			fs_reconnect();
+			fs_reconnect();		// try to register using the same sesion id
+			if (sessionlost) {	// if previous session is lost then try to register as a new session
+				if (fs_connect(0,connect_args.masterhostname,connect_args.masterportname,connect_args.meta,connect_args.info,connect_args.subfolder,connect_args.passworddigest,NULL,NULL,NULL,NULL,NULL)==0) {
+					sessionlost=0;
+				}
+			}
 		}
 		if (fd==-1) {
 			pthread_mutex_unlock(&fdlock);
@@ -956,7 +1027,7 @@ void* fs_receive_thread(void *arg) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	master_statsptr_init();
 	if (bindhost) {
 		if (tcpresolve(bindhost,NULL,&srcip,NULL,1)<0) {
@@ -966,19 +1037,26 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 	} else {
 		srcip=0;
 	}
-	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
-		fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
-		return -1;
-	}
 	snprintf(srcstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
 	srcstrip[16]=0;
-	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
-	masterstrip[16]=0;
 	fd = -1;
 	sessionlost = 0;
 	sessionid = 0;
 	disconnect = 0;
-	return fs_connect(meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
+
+	connect_args.masterhostname = strdup(masterhostname);
+	connect_args.masterportname = strdup(masterportname);
+	connect_args.meta = meta;
+	connect_args.info = strdup(info);
+	connect_args.subfolder = strdup(subfolder);
+	if (passworddigest==NULL || donotrememberpassword) {
+		connect_args.passworddigest = NULL;
+	} else {
+		connect_args.passworddigest = malloc(16);
+		memcpy(connect_args.passworddigest,passworddigest,16);
+	}
+
+	return fs_connect(1,masterhostname,masterportname,meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
 }
 
 // called after fork
@@ -1033,6 +1111,13 @@ void fs_term(void) {
 	}
 	if (fd>=0) {
 		tcpclose(fd);
+	}
+	free(connect_args.masterhostname);
+	free(connect_args.masterportname);
+	free(connect_args.info);
+	free(connect_args.subfolder);
+	if (connect_args.passworddigest) {
+		free(connect_args.passworddigest);
 	}
 }
 

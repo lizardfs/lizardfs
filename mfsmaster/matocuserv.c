@@ -3298,7 +3298,7 @@ int matocuserv_networkinit(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	if (tcpsetacceptfilter(lsock)<0) {
+	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		mfs_errlog_silent(LOG_NOTICE,"matocu: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
@@ -3309,8 +3309,8 @@ int matocuserv_networkinit(void) {
 
 	matocuservhead = NULL;
 
-	main_timeregister(TIMEMODE_RUNONCE,10,0,matocu_session_check);
-	main_timeregister(TIMEMODE_RUNONCE,3600,0,matocu_session_statsmove);
+	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocu_session_check);
+	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocu_session_statsmove);
 	main_destructregister(matocuserv_term);
 	main_pollregister(matocuserv_desc,matocuserv_serve);
 	main_wantexitregister(matocuserv_wantexit);

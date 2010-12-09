@@ -882,6 +882,10 @@ if "HD" in sectionset:
 		HDtime = int(fields.getvalue("HDtime"))
 	except Exception:
 		HDtime = 0
+	try:
+		HDaddrname = int(fields.getvalue("HDaddrname"))
+	except Exception:
+		HDaddrname = 0
 
 	try:
 		# get cs list
@@ -912,11 +916,15 @@ if "HD" in sectionset:
 		# get hdd lists one by one
 		hdd = []
 		for v1,v2,v3,ip1,ip2,ip3,ip4,port in hostlist:
-			host = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
+			hostip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
+			try:
+				hoststr = (socket.gethostbyaddr(hostip))[0]
+			except Exception:
+				hoststr = "(unresolved)"
 			if port>0:
 				if (v1,v2,v3)<=(1,6,8):
 					s = socket.socket()
-					s.connect((host,port))
+					s.connect((hostip,port))
 					mysend(s,struct.pack(">LL",502,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
@@ -924,7 +932,10 @@ if "HD" in sectionset:
 						data = myrecv(s,length)
 						while length>0:
 							plen = ord(data[0])
-							path = "%s:%u:%s" % (host,port,data[1:plen+1])
+							if HDaddrname==1:
+								path = "%s:%u:%s" % (hoststr,port,data[1:plen+1])
+							else:
+								path = "%s:%u:%s" % (hostip,port,data[1:plen+1])
 							flags,errchunkid,errtime,used,total,chunkscnt = struct.unpack(">BQLQQL",data[plen+1:plen+34])
 							length -= plen+34
 							data = data[plen+34:]
@@ -951,7 +962,7 @@ if "HD" in sectionset:
 					s.close()
 				else:
 					s = socket.socket()
-					s.connect((host,port))
+					s.connect((hostip,port))
 					mysend(s,struct.pack(">LL",600,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
@@ -964,7 +975,10 @@ if "HD" in sectionset:
 							length -= 2+entrysize;
 
 							plen = ord(entry[0])
-							path = "%s:%u:%s" % (host,port,entry[1:plen+1])
+							if HDaddrname==1:
+								path = "%s:%u:%s" % (hoststr,port,entry[1:plen+1])
+							else:
+								path = "%s:%u:%s" % (hostip,port,entry[1:plen+1])
 							flags,errchunkid,errtime,used,total,chunkscnt = struct.unpack(">BQLQQL",entry[plen+1:plen+34])
 							rbytes,wbytes,usecreadsum,usecwritesum,usecfsyncsum,rops,wops,fsyncops,usecreadmax,usecwritemax,usecfsyncmax = (0,0,0,0,0,0,0,0,0,0,0)
 							if entrysize==plen+34+144:
@@ -1067,9 +1081,13 @@ if "HD" in sectionset:
 			out.append("""		<th colspan="3"><a style="cursor:default" title="number of chunk block operations / chunk fsyncs"># of ops</a></th></tr>""")
 			out.append("""	<tr>""")
 			if HDorder==1 and HDrev==0:
-				out.append("""		<th><a href="%s">path</a></th>""" % (createlink({"HDrev":"1"})))
+				sortlink = createlink({"HDrev":"1"})
 			else:
-				out.append("""		<th><a href="%s">path</a></th>""" % (createlink({"HDorder":"1","HDrev":"0"})))
+				sortlink = createlink({"HDorder":"1","HDrev":"0"})
+			if HDaddrname==1:
+				out.append("""		<th><a href="%s">name path</a> (<a href="%s" class="VISIBLELINK">switch to IP</a>)</th>""" % (sortlink,createlink({"HDaddrname":"0"})))
+			else:
+				out.append("""		<th><a href="%s">IP path</a> (<a href="%s" class="VISIBLELINK">switch to name</a>)</th>""" % (sortlink,createlink({"HDaddrname":"1"})))
 			if HDorder==2 and HDrev==0:
 				out.append("""		<th><a href="%s">chunks</a></th>""" % (createlink({"HDrev":"1"})))
 			else:

@@ -1712,7 +1712,7 @@ int matocsserv_init(void) {
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	if (tcpsetacceptfilter(lsock)<0) {
+	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		mfs_errlog_silent(LOG_NOTICE,"matocs: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
@@ -1725,6 +1725,6 @@ int matocsserv_init(void) {
 	matocsservhead = NULL;
 	main_destructregister(matocsserv_term);
 	main_pollregister(matocsserv_desc,matocsserv_serve);
-	main_timeregister(TIMEMODE_SKIP,60,0,matocsserv_status);
+	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matocsserv_status);
 	return 0;
 }

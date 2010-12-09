@@ -14,8 +14,24 @@ mfs (1.6.18) unstable; urgency=medium
   * (all) changed some malloc/free allocations into mmap/munmap
   * (all) new error messages routines
   * (daemons) added proper handling SIGINT in "foreground" mode
+  * (cgiserv) fixed small bug (malformed request could crash cgiserv)
+  * (debian) separated mfs-common and mfs-metalogger subpackages,
+    added init scripts (contributed by Christopher Lewis)
+  * (daemon) fixed return values (return non zero on error)
+  * (cs) fixed chunk testing bug (any error during chunk opening caused
+    assigning whole disk as damaged)
+  * (cs,metalogger) added resolving master name when connection failed (patch
+    contributed by Davies Liu)
+  * (mount) added creating new session when prevoius is lost (inspired by
+    Davies Liu)
+  * (cs) added for unused chunks week delay before deletion (inspired by
+    Davies Liu)
+  * (cgi) added switching between name and IP in 'path' column in 'Disks'
+    table (inspired by Davies Liu)
+  * (master) do not update ctime when goal, trashtime or extra attributes are
+    not changing
 
- -- Jakub Bogusz <contact@moosefs.com>  Tue, 08 Nov 2010 14:00:00 +0100
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 08 Dec 2010 12:40:00 +0100
 
 mfs (1.6.17) unstable; urgency=low
 

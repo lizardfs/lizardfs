@@ -1,0 +1,95 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		mfs-chunkserver
+# Required-Start:	$network $remote_fs
+# Required-Stop:	$remote_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Start mfs-chunkserver at boot time
+# Description:		mfs-chunkservers provide storage space for MooseFS.
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/sbin/mfschunkserver
+NAME=mfschunkserver
+DESC=mfs-chunkserver
+USER=mfs
+GROUP=mfs
+
+test -e /usr/sbin/mfschunkserver || exit 0
+
+# Include mfs-chunkserver defaults if available
+. /lib/lsb/init-functions
+MFSCHUNKSERVER_ENABLE=false
+MFSCHUNKSERVER_DEFAULTS_FILE=/etc/default/mfs-chunkserver
+if [ -s "$MFSCHUNKSERVER_DEFAULTS_FILE" ]; then
+    . "$MFSCHUNKSERVER_DEFAULTS_FILE"
+    case "x$MFSCHUNKSERVER_ENABLE" in
+        xtrue|xfalse) ;;
+        *)
+            log_failure_msg "value of MFSCHUNKSERVER_ENABLE must be either 'true' or 'false';"
+            log_failure_msg "not starting mfs-chunkserver."
+            exit 1
+            ;;
+    esac
+fi
+
+set -e
+
+check_dirs()
+{
+	# check that the metadata dir exists
+	if [ ! -d /var/lib/mfs ]; then
+		mkdir /var/lib/mfs
+	fi
+	chmod 0755 /var/lib/mfs
+	chown -R $USER:$GROUP /var/lib/mfs
+
+	# check that the pid dir exists
+	if [ ! -d /var/run/mfs ]; then
+		mkdir /var/run/mfs
+	fi
+	chmod 0755 /var/run/mfs
+	chown -R $USER:$GROUP /var/run/mfs
+}
+
+case "$1" in
+	start)
+		if [ "$MFSCHUNKSERVER_ENABLE" = "true" ]; then
+			check_dirs
+			echo -n "Starting $DESC: "
+			start-stop-daemon --start --quiet --exec $DAEMON -- $DAEMON_OPTS
+			echo "$NAME."
+		else
+			log_warning_msg "mfs-chunkserver not enabled in \"$MFSCHUNKSERVER_DEFAULTS_FILE\", not starting..."
+		fi
+		;;
+
+	stop)
+		echo -n "Stopping $DESC: "
+		start-stop-daemon --stop --oknodo --quiet --exec $DAEMON -- -s
+		echo "$NAME."
+		;;
+
+	restart|force-reload)
+		echo -n "Restarting $DESC: "
+		start-stop-daemon --stop --oknodo --quiet --exec $DAEMON -- -s
+		sleep 1
+		if [ "$MFSCHUNKSERVER_ENABLE" = "true" ]; then
+			check_dirs
+			start-stop-daemon --start --quiet --exec $DAEMON -- $DAEMON_OPTS
+			echo "$NAME."
+		else
+			log_warning_msg "mfs-chunkserver not enabled in \"$MFSCHUNKSERVER_DEFAULTS_FILE\", not starting..."
+		fi
+		;;
+
+	*)
+		N=/etc/init.d/$NAME
+		echo "Usage: $N {start|stop|restart|force-reload}" >&2
+		exit 1
+		;;
+esac
+
+exit 0

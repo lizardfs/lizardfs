@@ -107,10 +107,10 @@ void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
 	uint8_t *ptr;
 	uint32_t psize;
 
-	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
+	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet = malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -143,10 +143,10 @@ uint8_t* masterconn_create_attached_packet(masterconn *eptr,uint32_t type,uint32
 	uint8_t *ptr;
 	uint32_t psize;
 
-	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
+	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet = malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -877,14 +877,14 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (tcpnonblock(eptr->sock)<0) {
 		mfs_errlog(LOG_WARNING,"master connection module: set nonblock error");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
+		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
 			mfs_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
 			tcpclose(eptr->sock);
-			eptr->sock=-1;
+			eptr->sock = -1;
 			return -1;
 		}
 	}
@@ -892,7 +892,8 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (status<0) {
 		mfs_errlog(LOG_WARNING,"master connection module: connect failed");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
+		eptr->sock = -1;
+		eptr->masteraddrvalid = 0;
 		return -1;
 	}
 	if (status==0) {
@@ -912,8 +913,9 @@ void masterconn_connecttest(masterconn *eptr) {
 	if (status) {
 		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
-		eptr->sock=-1;
-		eptr->mode=FREE;
+		eptr->sock = -1;
+		eptr->mode = FREE;
+		eptr->masteraddrvalid = 0;
 	} else {
 		syslog(LOG_NOTICE,"connected to Master");
 		masterconn_connected(eptr);
@@ -1158,7 +1160,10 @@ void masterconn_reconnect(void) {
 
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
-	eptr->masteraddrvalid=0;
+	eptr->masteraddrvalid = 0;
+	if (eptr->mode!=FREE) {
+		eptr->mode = KILL;
+	}
 }
 
 int masterconn_init(void) {
@@ -1197,7 +1202,7 @@ int masterconn_init(void) {
 #endif
 
 	main_eachloopregister(masterconn_check_hdd_reports);
-	main_timeregister(TIMEMODE_RUNONCE,ReconnectionDelay,0,masterconn_reconnect);
+	main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);

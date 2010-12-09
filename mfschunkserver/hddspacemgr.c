@@ -1519,6 +1519,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 //	eassert(c->state==CH_LOCKED||c->state==CH_TOBEDELETED);
 
 //	syslog(LOG_NOTICE,"chunk: %"PRIu64" - before io",c->chunkid);
+	hdd_chunk_testmove(c);
 	if (c->crcrefcount==0) {
 #ifdef PRESERVE_BLOCK
 		add = (c->fd<0 && c->crc==NULL && c->block==NULL);
@@ -1579,7 +1580,6 @@ static int hdd_io_begin(chunk *c,int newflag) {
 		}
 	}
 	c->crcrefcount++;
-	hdd_chunk_testmove(c);
 	return STATUS_OK;
 }
 
@@ -3881,7 +3881,7 @@ int hdd_init(void) {
 	eassert(pthread_attr_destroy(&thattr)==0);
 
 
-	main_timeregister(TIMEMODE_RUNONCE,60,0,hdd_diskinfo_movestats);
+	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
 	main_destructregister(hdd_term);
 
 	return 0;
