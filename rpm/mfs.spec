@@ -6,7 +6,7 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.18
+Version:	1.6.19
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
@@ -182,7 +182,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_datadir}/mfscgi
 
 %changelog
-* Fri Nov 19 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.18-1
+* Fri Nov 19 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.19-1
 - separated mfs-metalogger subpackage (following Debian packaging)
 
 * Fri Oct  8 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.17-1

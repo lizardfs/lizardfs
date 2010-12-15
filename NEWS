@@ -1,6 +1,17 @@
 This file lists noteworthy changes in MooseFS.
 
-* MooseFS 1.6.18 (2010-12-08)
+* MooseFS 1.6.19 (2010-12-15)
+
+ - (debian) separated mfs-common and mfs-metalogger subpackages, added init scripts (contributed by Christopher Lewis)
+ - (daemon) fixed return values (return non zero on error)
+ - (cs) fixed chunk testing bug (any error during chunk opening caused assigning whole disk as damaged)
+ - (cs,metalogger) added resolving master name when connection failed (patch contributed by Davies Liu)
+ - (mount) added creating new session when prevoius is lost (inspired by Davies Liu)
+ - (cs) added for unused chunks week delay before deletion (inspired by Davies Liu)
+ - (cgi) added switching between name and IP in 'path' column in 'Disks' table (inspired by Davies Liu)
+ - (master) do not update ctime when goal, trashtime or extra attributes are not changing
+
+* MooseFS 1.6.18 (2010-11-08)
 
  - (metalogger) added sending metadata after metalogger startup
  - (master,metalogger) added sending two change logs together with metadata
@@ -14,14 +25,6 @@ This file lists noteworthy changes in MooseFS.
  - (all) new error messages routines
  - (daemons) added proper handling SIGINT in "foreground" mode
  - (cgiserv) fixed small bug (malformed request could crash cgiserv)
- - (debian) separated mfs-common and mfs-metalogger subpackages, added init scripts (contributed by Christopher Lewis)
- - (daemon) fixed return values (return non zero on error)
- - (cs) fixed chunk testing bug (any error during chunk opening caused assigning whole disk as damaged)
- - (cs,metalogger) added resolving master name when connection failed (patch contributed by Davies Liu)
- - (mount) added creating new session when prevoius is lost (inspired by Davies Liu)
- - (cs) added for unused chunks week delay before deletion (inspired by Davies Liu)
- - (cgi) added switching between name and IP in 'path' column in 'Disks' table (inspired by Davies Liu)
- - (master) do not update ctime when goal, trashtime or extra attributes are not changing
 
 * MooseFS 1.6.17 (2010-07-20)
 
