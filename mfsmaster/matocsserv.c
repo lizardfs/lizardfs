@@ -59,7 +59,7 @@ typedef struct matocsserventry {
 	uint8_t mode;
 	int sock;
 	int32_t pdescpos;
-	time_t lastread,lastwrite;
+	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
@@ -1177,11 +1177,12 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 	uint8_t rversion;
 	double us,ts;
 
-	if (eptr->servip>0 || eptr->servport>0) {
+	if (eptr->totalspace>0) {
 		syslog(LOG_WARNING,"got register message from registered chunk-server !!!");
 		eptr->mode=KILL;
 		return;
 	}
+
 	if ((length&1)==0) {
 		if (length<22 || ((length-22)%12)!=0) {
 			syslog(LOG_NOTICE,"CSTOMA_REGISTER (old ver.) - wrong size (%"PRIu32"/22+N*12)",length);
@@ -1193,9 +1194,12 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->usedspace = get64bit(&data);
 		eptr->totalspace = get64bit(&data);
 		length-=22;
+		rversion=0;
 	} else {
 		rversion = get8bit(&data);
-		syslog(LOG_NOTICE,"register packet version: %u",rversion);
+		if (rversion<=4) {
+			syslog(LOG_NOTICE,"register packet version: %u",rversion);
+		}
 		if (rversion==1) {
 			if (length<39 || ((length-39)%12)!=0) {
 				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 1) - wrong size (%"PRIu32"/39+N*12)",length);
@@ -1257,45 +1261,119 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todeltotalspace = get64bit(&data);
 			eptr->todelchunkscount = get32bit(&data);
 			length-=53;
+		} else if (rversion==50) {
+			if (length!=13) {
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:BEGIN) - wrong size (%"PRIu32"/13)",length);
+				eptr->mode=KILL;
+				return;
+			}
+			eptr->version = get32bit(&data);
+			eptr->servip = get32bit(&data);
+			eptr->servport = get16bit(&data);
+			eptr->timeout = get16bit(&data);
+			if (eptr->timeout<10) {
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+				eptr->mode=KILL;
+				return;
+			}
+			if (eptr->servip==0) {
+				tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
+			}
+			if (eptr->servstrip) {
+				free(eptr->servstrip);
+			}
+			eptr->servstrip = matocsserv_makestrip(eptr->servip);
+			if (((eptr->servip)&0xFF000000) == 0x7F000000) {
+				syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
+				eptr->mode=KILL;
+				return;
+			}
+			for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
+				if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
+					syslog(LOG_WARNING,"chunk-server already connected !!!");
+					eptr->mode=KILL;
+					return;
+				}
+			}
+			syslog(LOG_NOTICE,"chunkserver register begin (packet version: 5) - ip: %s, port: %"PRIu16,eptr->servstrip,eptr->servport);
+			return;
+		} else if (rversion==51) {
+			if (((length-1)%12)!=0) {
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:CHUNKS) - wrong size (%"PRIu32"/1+N*12)",length);
+				eptr->mode=KILL;
+				return;
+			}
+			chunkcount = (length-1)/12;
+			for (i=0 ; i<chunkcount ; i++) {
+				chunkid = get64bit(&data);
+				chunkversion = get32bit(&data);
+				chunk_server_has_chunk(eptr,chunkid,chunkversion);
+			}
+			return;
+		} else if (rversion==52) {
+			if (length!=41) {
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:END) - wrong size (%"PRIu32"/41)",length);
+				eptr->mode=KILL;
+				return;
+			}
+			eptr->usedspace = get64bit(&data);
+			eptr->totalspace = get64bit(&data);
+			eptr->chunkscount = get32bit(&data);
+			eptr->todelusedspace = get64bit(&data);
+			eptr->todeltotalspace = get64bit(&data);
+			eptr->todelchunkscount = get32bit(&data);
+			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
+			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
+			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			return;
 		} else {
 			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%"PRIu8"/1..4)",rversion);
 			eptr->mode=KILL;
 			return;
 		}
 	}
-	if (eptr->servip==0) {
-		tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
-	}
-	if (eptr->servstrip) {
-		free(eptr->servstrip);
-	}
-	eptr->servstrip = matocsserv_makestrip(eptr->servip);
-	if (((eptr->servip)&0xFF000000) == 0x7F000000) {
-		syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
-		eptr->mode=KILL;
-		return;
-	}
-	if (eptr->totalspace>maxtotalspace) {
-		maxtotalspace=eptr->totalspace;
-	}
-	us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
-	ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-	syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
-	for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
-		if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
-			syslog(LOG_WARNING,"chunk-server already connected !!!");
+	if (rversion<=4) {
+		if (eptr->timeout<10) {
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+			if (eptr->timeout<3) {
+				eptr->timeout=3;
+			}
+			return;
+		}
+		if (eptr->servip==0) {
+			tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
+		}
+		if (eptr->servstrip) {
+			free(eptr->servstrip);
+		}
+		eptr->servstrip = matocsserv_makestrip(eptr->servip);
+		if (((eptr->servip)&0xFF000000) == 0x7F000000) {
+			syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
 			eptr->mode=KILL;
 			return;
 		}
-	}
-//	eptr->creation = NULL;
-//	eptr->setversion = NULL;
-//	eptr->duplication = NULL;
-	chunkcount = length/(8+4);
-	for (i=0 ; i<chunkcount ; i++) {
-		chunkid = get64bit(&data);
-		chunkversion = get32bit(&data);
-		chunk_server_has_chunk(eptr,chunkid,chunkversion);
+		if (eptr->totalspace>maxtotalspace) {
+			maxtotalspace=eptr->totalspace;
+		}
+		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
+		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
+		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+		for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
+			if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
+				syslog(LOG_WARNING,"chunk-server already connected !!!");
+				eptr->mode=KILL;
+				return;
+			}
+		}
+//		eptr->creation = NULL;
+//		eptr->setversion = NULL;
+//		eptr->duplication = NULL;
+		chunkcount = length/(8+4);
+		for (i=0 ; i<chunkcount ; i++) {
+			chunkid = get64bit(&data);
+			chunkversion = get32bit(&data);
+			chunk_server_has_chunk(eptr,chunkid,chunkversion);
+		}
 	}
 }
 
@@ -1663,7 +1741,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/2))<(uint32_t)now && eptr->outputhead==NULL) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
 			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
 		}
 	}

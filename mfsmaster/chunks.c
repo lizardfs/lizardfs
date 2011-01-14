@@ -2285,7 +2285,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 	}
 */
-	if (chunksinfo.notdone.copy_undergoal>0) {
+	if (chunksinfo.notdone.copy_undergoal>0 && chunksinfo.done.copy_undergoal>0) {
 		return;
 	}
 
@@ -2590,6 +2590,7 @@ void chunk_store(FILE *fd) {
 	uint8_t storebuff[CHUNKFSIZE*CHUNKCNT];
 	uint8_t *ptr;
 	uint32_t i,j;
+	size_t happy;
 	chunk *c;
 // chunkdata
 	uint64_t chunkid;
@@ -2602,7 +2603,7 @@ void chunk_store(FILE *fd) {
 #endif
 	ptr = hdr;
 	put64bit(&ptr,nextchunkid);
-	fwrite(hdr,1,8,fd);
+	happy = fwrite(hdr,1,8,fd);
 	j=0;
 	ptr = storebuff;
 	for (i=0 ; i<HASHSIZE ; i++) {
@@ -2618,7 +2619,7 @@ void chunk_store(FILE *fd) {
 			put32bit(&ptr,lockedto);
 			j++;
 			if (j==CHUNKCNT) {
-				fwrite(storebuff,1,CHUNKFSIZE*CHUNKCNT,fd);
+				happy = fwrite(storebuff,1,CHUNKFSIZE*CHUNKCNT,fd);
 				j=0;
 				ptr = storebuff;
 			}
@@ -2626,7 +2627,7 @@ void chunk_store(FILE *fd) {
 	}
 	memset(ptr,0,CHUNKFSIZE);
 	j++;
-	fwrite(storebuff,1,CHUNKFSIZE*j,fd);
+	happy = fwrite(storebuff,1,CHUNKFSIZE*j,fd);
 }
 
 void chunk_term(void) {

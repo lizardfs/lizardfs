@@ -105,6 +105,7 @@ typedef struct _fsedge {
 	struct _fsedge *next,**prev;
 #endif
 	uint16_t nleng;
+//	uint16_t nhash;
 	uint8_t *name;
 } fsedge;
 
@@ -544,7 +545,7 @@ static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8
 }
 #endif
 
-static int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
+static inline int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
 	fsedge *ei;
 #ifdef EDGEHASH
 	if (node->data.ddata.elements>LOOKUPNOHASHLIMIT) {
@@ -576,7 +577,7 @@ static int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
 	return 0;
 }
 
-static fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *name) {
+static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *name) {
 	fsedge *ei;
 
 	if (node->type!=TYPE_DIRECTORY) {
@@ -5996,11 +5997,12 @@ void fs_dump(void) {
 #endif
 
 void fs_storeedge(fsedge *e,FILE *fd) {
+	size_t happy;
 	uint8_t uedgebuff[4+4+2+65535];
 	uint8_t *ptr;
 	if (e==NULL) {	// last edge
 		memset(uedgebuff,0,4+4+2);
-		fwrite(uedgebuff,1,4+4+2,fd);
+		happy = fwrite(uedgebuff,1,4+4+2,fd);
 		return;
 	}
 	ptr = uedgebuff;
@@ -6012,7 +6014,7 @@ void fs_storeedge(fsedge *e,FILE *fd) {
 	put32bit(&ptr,e->child->id);
 	put16bit(&ptr,e->nleng);
 	memcpy(ptr,e->name,e->nleng);
-	fwrite(uedgebuff,1,4+4+2+e->nleng,fd);
+	happy = fwrite(uedgebuff,1,4+4+2+e->nleng,fd);
 }
 
 int fs_loadedge(FILE *fd) {
@@ -6161,6 +6163,7 @@ void fs_storenode(fsnode *f,FILE *fd) {
 	uint8_t unodebuff[1+4+1+2+4+4+4+4+4+4+8+4+2+8*MAX_CHUNKS_PER_FILE+4*65536+4];
 	uint8_t *ptr;
 	uint32_t indx,ch,sessionids;
+	size_t happy;
 	sessionidrec *sessionidptr;
 
 	if (f==NULL) {	// last node
@@ -6182,17 +6185,17 @@ void fs_storenode(fsnode *f,FILE *fd) {
 	case TYPE_DIRECTORY:
 	case TYPE_SOCKET:
 	case TYPE_FIFO:
-		fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4,fd);
+		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4,fd);
 		break;
 	case TYPE_BLOCKDEV:
 	case TYPE_CHARDEV:
 		put32bit(&ptr,f->data.rdev);
-		fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
+		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
 		break;
 	case TYPE_SYMLINK:
 		put32bit(&ptr,f->data.sdata.pleng);
-		fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
-		fwrite(f->data.sdata.path,1,f->data.sdata.pleng,fd);
+		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
+		happy = fwrite(f->data.sdata.path,1,f->data.sdata.pleng,fd);
 		break;
 	case TYPE_FILE:
 	case TYPE_TRASH:
@@ -6221,7 +6224,7 @@ void fs_storenode(fsnode *f,FILE *fd) {
 			sessionids++;
 		}
 
-		fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2+8*ch+4*sessionids,fd);
+		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2+8*ch+4*sessionids,fd);
 	}
 }
 
@@ -6842,18 +6845,19 @@ void fs_storefree(FILE *fd) {
 	uint8_t wbuff[8*1024],*ptr;
 	freenode *n;
 	uint32_t l;
+	size_t happy;
 	l=0;
 	for (n=freelist ; n ; n=n->next) {
 		l++;
 	}
 	ptr = wbuff;
 	put32bit(&ptr,l);
-	fwrite(wbuff,1,4,fd);
+	happy = fwrite(wbuff,1,4,fd);
 	l=0;
 	ptr=wbuff;
 	for (n=freelist ; n ; n=n->next) {
 		if (l==1024) {
-			fwrite(wbuff,1,8*1024,fd);
+			happy = fwrite(wbuff,1,8*1024,fd);
 			l=0;
 			ptr=wbuff;
 		}
@@ -6862,7 +6866,7 @@ void fs_storefree(FILE *fd) {
 		l++;
 	}
 	if (l>0) {
-		fwrite(wbuff,1,8*l,fd);
+		happy = fwrite(wbuff,1,8*l,fd);
 	}
 }
 
@@ -6910,11 +6914,13 @@ int fs_loadfree(FILE *fd) {
 void fs_store(FILE *fd) {
 	uint8_t hdr[16];
 	uint8_t *ptr;
+	size_t happy;
+
 	ptr = hdr;
 	put32bit(&ptr,maxnodeid);
 	put64bit(&ptr,version);
 	put32bit(&ptr,nextsessionid);
-	fwrite(hdr,1,16,fd);
+	happy = fwrite(hdr,1,16,fd);
 	fs_storenodes(fd);
 	fs_storeedges(fd);
 	fs_storefree(fd);
@@ -7107,11 +7113,12 @@ void fs_new(void) {
 
 int fs_emergency_storeall(const char *fname) {
 	FILE *fd;
+	size_t happy;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
 		return -1;
 	}
-	fwrite("MFSM 1.5",1,8,fd);
+	happy = fwrite("MFSM 1.5",1,8,fd);
 	fs_store(fd);
 	chunk_store(fd);
 	if (ferror(fd)!=0) {
@@ -7180,6 +7187,7 @@ int fs_emergency_saves() {
 #ifndef METARESTORE
 int fs_storeall(int bg) {
 	FILE *fd;
+	size_t happy;
 #ifdef BACKGROUND_METASTORE
 	int i;
 	struct stat sb;
@@ -7220,7 +7228,7 @@ int fs_storeall(int bg) {
 #endif
 			return 0;
 		}
-		fwrite("MFSM 1.5",1,8,fd);
+		happy = fwrite("MFSM 1.5",1,8,fd);
 		fs_store(fd);
 		chunk_store(fd);
 		if (ferror(fd)!=0) {
@@ -7263,12 +7271,13 @@ void fs_term(void) {
 #else
 void fs_storeall(const char *fname) {
 	FILE *fd;
+	size_t happy;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
 		printf("can't open metadata file\n");
 		return;
 	}
-	fwrite("MFSM 1.5",1,8,fd);
+	happy = fwrite("MFSM 1.5",1,8,fd);
 	fs_store(fd);
 	chunk_store(fd);
 	if (ferror(fd)!=0) {

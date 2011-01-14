@@ -1,5 +1,11 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.20 (2011-01-14)
+
+ - (cs) fixed "packet too big" issue during register to master (split big register packet with all chunks info into small packets)
+ - (cs,metalogger,master) added minimum socket timeout (ten seconds)
+ - (mount) accepting nop packets during write (for future use)
+
 * MooseFS 1.6.19 (2010-12-15)
 
  - (debian) separated mfs-common and mfs-metalogger subpackages, added init scripts (contributed by Christopher Lewis)

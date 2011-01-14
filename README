@@ -3,9 +3,9 @@ fault tolerant file system for POSIX compliant OSes.
 
 MooseFS uses FUSE (http://fuse.sourceforge.net/).
 
-MooseFS v1.5
+MooseFS v1.5 - 1.6
 ============
-Release date: 2008-05-30
+Date of first public release: 2008-05-30
 
 Project web site: http://www.moosefs.com/
 Installation and using MooseFS: http://www.moosefs.com/pages/userguides
@@ -18,7 +18,7 @@ General contact address: contact@moosefs.com
 
 Copyright
 =========
-Copyright 2008 Gemius SA.
+Copyright 2005-2011 Gemius SA.
 
 MooseFS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,8 +42,10 @@ Linux 2.6.x (i386):			YES	YES	YES
 FreeBSD 5.x (i386+amd64):		NO	YES	YES
 FreeBSD 6.x (i386+amd64):		YES	YES	YES
 FreeBSD 7.x (i386+amd64):		YES	YES	YES
+FreeBSD 8.x (i386+amd64):		YES	YES	YES
 MacOS X 10.3 (Panther, ppc):		NO	YES	YES
 MacOS X 10.4 (Tiger, ppc+i386):		YES	YES	YES
 MacOS X 10.5 (Leopard, ppc+i386):	YES	YES	YES
+MacOS X 10.6 (Snow Leopard):		YES	YES	YES
 Solaris 10 (sparc):			NO	YES	YES
 OpenSolaris (i386):			YES	YES	YES

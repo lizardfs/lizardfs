@@ -1144,6 +1144,51 @@ void hdd_error_occured(chunk *c) {
 
 /* interface */
 
+#define CHUNKS_CUT_COUNT 10000
+static uint32_t hdd_get_chunks_pos;
+
+void hdd_get_chunks_begin() {
+	pthread_mutex_lock(&hashlock);
+	hdd_get_chunks_pos=0;
+}
+
+void hdd_get_chunks_end() {
+	pthread_mutex_unlock(&hashlock);
+}
+
+uint32_t hdd_get_chunks_next_list_count() {
+	uint32_t res=0;
+	uint32_t i=0;
+	chunk *c;
+	while (res<CHUNKS_CUT_COUNT && hdd_get_chunks_pos+i<HASHSIZE) {
+		for (c = hashtab[hdd_get_chunks_pos+i] ; c ; c=c->next) {
+			res++;
+		}
+		i++;
+	}
+	return res;
+}
+
+void hdd_get_chunks_next_list_data(uint8_t *buff) {
+	uint32_t res=0;
+	uint32_t v;
+	chunk *c;
+	while (res<CHUNKS_CUT_COUNT && hdd_get_chunks_pos<HASHSIZE) {
+		for (c = hashtab[hdd_get_chunks_pos] ; c ; c=c->next) {
+			put64bit(&buff,c->chunkid);
+			v = c->version;
+			if (c->owner->todel) {
+				v|=0x80000000;
+			}
+			put32bit(&buff,v);
+			res++;
+		}
+		hdd_get_chunks_pos++;
+	}
+}
+
+/*
+// for old register packets - deprecated
 uint32_t hdd_get_chunks_count() {
 	uint32_t res=0;
 	uint32_t i;
@@ -1172,8 +1217,8 @@ void hdd_get_chunks_data(uint8_t *buff) {
 			}
 		}
 	}
-	pthread_mutex_unlock(&hashlock);
 }
+*/
 
 /*
 uint32_t get_changedchunkscount() {

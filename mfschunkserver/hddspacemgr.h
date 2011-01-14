@@ -39,8 +39,12 @@ void hdd_diskinfo_v1_data(uint8_t *buff);
 uint32_t hdd_diskinfo_v2_size();
 void hdd_diskinfo_v2_data(uint8_t *buff);
 /* lock/unlock pair */
-uint32_t hdd_get_chunks_count();
-void hdd_get_chunks_data(uint8_t *buff);
+void hdd_get_chunks_begin();
+void hdd_get_chunks_end();
+uint32_t hdd_get_chunks_next_list_count();
+void hdd_get_chunks_next_list_data(uint8_t *buff);
+//uint32_t hdd_get_chunks_count();
+//void hdd_get_chunks_data(uint8_t *buff);
 
 //uint32_t get_changedchunkscount();
 //void fill_changedchunksinfo(uint8_t *buff);

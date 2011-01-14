@@ -59,7 +59,7 @@ typedef struct masterconn {
 	int mode;
 	int sock;
 	int32_t pdescpos;
-	time_t lastread,lastwrite;
+	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
@@ -684,7 +684,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/2)<now && eptr->outputhead==NULL) {
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
 				masterconn_createpacket(eptr,ANTOAN_NOP,0);
 			}
 		}
@@ -739,8 +739,8 @@ int masterconn_init(void) {
 	if (Timeout>65536) {
 		Timeout=65535;
 	}
-	if (Timeout<=1) {
-		Timeout=2;
+	if (Timeout<10) {
+		Timeout=10;
 	}
 	if (BackLogsNumber<5) {
 		BackLogsNumber=5;

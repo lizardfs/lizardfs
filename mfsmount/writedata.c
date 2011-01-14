@@ -660,6 +660,12 @@ void* write_worker(void *arg) {
 				}
 				gettimeofday(&lastrcvd,NULL);
 				rcvd+=i;
+				if (rcvd>=8 && recvbuff[7]==0 && recvbuff[6]==0 && recvbuff[5]==0 && recvbuff[4]==0 && recvbuff[3]==0 && recvbuff[2]==0 && recvbuff[1]==0 && recvbuff[0]==0) {	// ANTOAN_NOP packet received - skip it
+					if (rcvd>8) {
+						memmove(recvbuff,recvbuff+8,rcvd-8);
+						rcvd-=8;
+					}
+				}
 				if (rcvd==21) {
 					rptr = recvbuff;
 					reccmd = get32bit(&rptr);

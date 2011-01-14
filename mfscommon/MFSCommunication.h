@@ -290,7 +290,9 @@
 // CHUNKSERVER <-> MASTER
 
 #define CSTOMA_REGISTER 100
+// - version 0:
 // myip:32 myport:16 usedspace:64 totalspace:64 N*[ chunkid:64 version:32 ]
+// - version 1-4:
 // rver:8
 // 	rver==1:
 // 		myip:32 myport:16 usedspace:64 totalspace:64 tdusedspace:64 tdtotalspace:64 tdchunks:32 N*[ chunkid:64 version:32 ]
@@ -300,6 +302,14 @@
 // 		myip:32 myport:16 tpctimeout:16 usedspace:64 totalspace:64 chunks:32 tdusedspace:64 tdtotalspace:64 tdchunks:32 N*[ chunkid:64 version:32 ]
 // 	rver==4:
 // 		version:32 myip:32 myport:16 tcptimeout:16 usedspace:64 totalspace:64 chunks:32 tdusedspace:64 tdtotalspace:64 tdchunks:32 N*[ chunkid:64 version:32 ]
+// - version 5:
+//      rver==50:	// version 5 / BEGIN
+//      	version:32 myip:32 myport:16 tcptimeout:16
+//      rver==51:	// version 5 / CHUNKS
+//      	N*[chunkid:64 version:32]
+//      rver==52:	// version 5 / END
+//      	usedspace:64 totalspace:64 chunks:32 tdusedspace:64 tdtotalspace:64 tdchunks:32
+
 #define CSTOMA_SPACE 101
 // usedspace:64 totalspace:64
 // usedspace:64 totalspace:64 tdusedspace:64 tdtotalspace:64

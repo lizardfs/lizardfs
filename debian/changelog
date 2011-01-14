@@ -1,3 +1,12 @@
+mfs (1.6.20) unstable; urgency=low
+
+  * (cs) fixed "packet too big" issue during register to master (split big
+    register packet with all chunks info into small packets)
+  * (cs,metalogger,master) added minimum socket timeout (ten seconds)
+  * (mount) accepting nop packets during write (for future use)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 14 Jan 2011 11:00:00 +0100
+
 mfs (1.6.19) unstable; urgency=low
 
   * (debian) separated mfs-common and mfs-metalogger subpackages,

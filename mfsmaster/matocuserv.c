@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <sys/resource.h>
 
 #include "MFSCommunication.h"
 
@@ -702,19 +703,19 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
 	uint32_t chunks,chunkcopies,tdcopies;
 	uint8_t *ptr;
-#ifdef RUSAGE_SELF
-	struct rusage r;
-#endif
+//#ifdef RUSAGE_SELF
+//	struct rusage r;
+//#endif
 	(void)data;
 	if (length!=0) {
 		syslog(LOG_NOTICE,"CUTOMA_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-#ifdef RUSAGE_SELF
-	getrusage(RUSAGE_SELF,&r);
-	syslog(LOG_NOTICE,"%lu",r.ru_maxrss);
-#endif
+//#ifdef RUSAGE_SELF
+//	getrusage(RUSAGE_SELF,&r);
+//	syslog(LOG_NOTICE,"maxrss: %lu",r.ru_maxrss);
+//#endif
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
 	ptr = matocuserv_createpacket(eptr,MATOCU_INFO,68);
@@ -2909,7 +2910,7 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 				syslog(LOG_NOTICE,"matocu: got unknown message from mfsmount (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
-	} else {
+	} else {	// mfstools
 		if (eptr->sesdata==NULL) {
 			syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 			eptr->mode=KILL;
@@ -3019,7 +3020,7 @@ void matocuserv_read(matocuserventry *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			if (eptr->registered<100) {
+			if (eptr->registered>0 && eptr->registered<100) {	// show this message only for standard, registered clients
 				syslog(LOG_NOTICE,"connection with client(ip:%u.%u.%u.%u) has been closed by peer",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 			}
 			eptr->mode = KILL;

@@ -792,6 +792,7 @@ void makedaemon() {
 	int f;
 	uint8_t pipebuff[1000];
 	ssize_t r;
+	size_t happy;
 	int piped[2];
 
 	fflush(stdout);
@@ -806,17 +807,22 @@ void makedaemon() {
 		exit(1);
 	}
 	if (f>0) {
+		wait(&f);	// just get child status - prevents child from being zombie during initialization stage
+		if (f) {
+			fprintf(stderr,"Child status: %d\n",f);
+			exit(1);
+		}
 		close(piped[1]);
 //		printf("Starting daemon ...\n");
 		while ((r=read(piped[0],pipebuff,1000))) {
 			if (r>0) {
 				if (pipebuff[r-1]==0) {	// zero as a last char in the pipe means error
 					if (r>1) {
-						fwrite(pipebuff,1,r-1,stderr);
+						happy = fwrite(pipebuff,1,r-1,stderr);
 					}
 					exit(1);
 				}
-				fwrite(pipebuff,1,r,stderr);
+				happy = fwrite(pipebuff,1,r,stderr);
 			} else {
 				fprintf(stderr,"Error reading pipe: %s\n",strerr(errno));
 				exit(1);

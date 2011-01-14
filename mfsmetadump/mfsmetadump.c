@@ -62,6 +62,7 @@ int chunk_load(FILE *fd) {
 void print_name(FILE *in,uint32_t nleng) {
 	uint8_t buff[1024];
 	uint32_t x,y,i;
+	size_t happy;
 	while (nleng>0) {
 		y = (nleng>1024)?1024:nleng;
 		x = fread(buff,1,y,in);
@@ -70,7 +71,7 @@ void print_name(FILE *in,uint32_t nleng) {
 				buff[i]='.';
 			}
 		}
-		fwrite(buff,1,x,stdout);
+		happy = fwrite(buff,1,x,stdout);
 		if (x!=y) {
 			return;
 		}

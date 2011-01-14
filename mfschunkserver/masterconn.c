@@ -63,7 +63,7 @@ typedef struct masterconn {
 	int mode;
 	int sock;
 	int32_t pdescpos;
-	time_t lastread,lastwrite;
+	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
@@ -168,12 +168,49 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint32_t chunkcount,tdchunkcount;
 
 	myip = csserv_getlistenip();
-	myport =  csserv_getlistenport();
+	myport = csserv_getlistenport();
+	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2);
+	put8bit(&buff,50);
+	put16bit(&buff,VERSMAJ);
+	put8bit(&buff,VERSMID);
+	put8bit(&buff,VERSMIN);
+	put32bit(&buff,myip);
+	put16bit(&buff,myport);
+	put16bit(&buff,Timeout);
+	hdd_get_chunks_begin();
+	while ((chunks = hdd_get_chunks_next_list_count())) {
+		buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+chunks*(8+4));
+		put8bit(&buff,51);
+		hdd_get_chunks_next_list_data(buff);
+	}
+	hdd_get_chunks_end();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+8+8+4+8+8+4);
+	put8bit(&buff,52);
+	put64bit(&buff,usedspace);
+	put64bit(&buff,totalspace);
+	put32bit(&buff,chunkcount);
+	put64bit(&buff,tdusedspace);
+	put64bit(&buff,tdtotalspace);
+	put32bit(&buff,tdchunkcount);
+}
+
+/*
+void masterconn_sendregister_v4(masterconn *eptr) {
+	uint8_t *buff;
+	uint32_t chunks,myip;
+	uint16_t myport;
+	uint64_t usedspace,totalspace;
+	uint64_t tdusedspace,tdtotalspace;
+	uint32_t chunkcount,tdchunkcount;
+
+	myip = csserv_getlistenip();
+	myport = csserv_getlistenport();
+	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+	hdd_get_chunks_begin();
 	chunks = hdd_get_chunks_count();
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2+8+8+4+8+8+4+chunks*(8+4));
 	put8bit(&buff,4);
-	/* put32bit(&buff,VERSION): */
 	put16bit(&buff,VERSMAJ);
 	put8bit(&buff,VERSMID);
 	put8bit(&buff,VERSMIN);
@@ -188,11 +225,10 @@ void masterconn_sendregister(masterconn *eptr) {
 	put32bit(&buff,tdchunkcount);
 	if (chunks>0) {
 		hdd_get_chunks_data(buff);
-	} else {
-		hdd_get_chunks_data(NULL);	// unlock
 	}
+	hdd_get_chunks_end();
 }
-
+*/
 /*
 void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunkcount,uint64_t tdusedspace,uint64_t tdtotalspace,uint32_t tdchunkcount) {
 	uint8_t *buff;
@@ -1117,7 +1153,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/2)<now && eptr->outputhead==NULL) {
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
 				masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
 			}
 		}
@@ -1180,8 +1216,8 @@ int masterconn_init(void) {
 	if (Timeout>65536) {
 		Timeout=65535;
 	}
-	if (Timeout<=1) {
-		Timeout=2;
+	if (Timeout<10) {
+		Timeout=10;
 	}
 	eptr = masterconnsingleton = malloc(sizeof(masterconn));
 	passert(eptr);

@@ -48,6 +48,9 @@
 #endif
 #include "massert.h"
 
+// connection timeout in seconds
+#define CSSERV_TIMEOUT 5
+
 #define CONNECT_RETRIES 5
 #define CONNECT_TIMEOUT 200000
 
@@ -85,7 +88,7 @@ typedef struct csserventry {
 	uint8_t connretrycnt;		// 'connect' retry counter
 	int32_t pdescpos;
 	int32_t fwdpdescpos;
-	time_t activity;
+	uint32_t activity;
 	uint8_t hdrbuff[8];
 	uint8_t fwdhdrbuff[8];
 	packetstruct inputpacket;
@@ -152,7 +155,6 @@ static uint32_t stats_maxjobscnt=0;
 // from config
 static char *ListenHost;
 static char *ListenPort;
-static uint32_t Timeout;
 
 void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
@@ -1904,7 +1906,7 @@ void csserv_serve(struct pollfd *pdesc) {
 		if (eptr->state==CONNECTING && eptr->connstart+CONNECT_TIMEOUT<usecnow) {
 			csserv_retryconnect(eptr);
 		}
-		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+Timeout<now) {
+		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+CSSERV_TIMEOUT<now) {
 //			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
@@ -1976,7 +1978,6 @@ uint16_t csserv_getlistenport() {
 int csserv_init(void) {
 	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
-	Timeout = cfg_getuint32("CSSERV_TIMEOUT",5);
 
 	lsock = tcpsocket();
 	if (lsock<0) {

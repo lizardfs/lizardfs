@@ -58,7 +58,7 @@ typedef struct matomlserventry {
 	uint8_t mode;
 	int sock;
 	int32_t pdescpos;
-	time_t lastread,lastwrite;
+	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
@@ -182,6 +182,14 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			}
 			eptr->version = get32bit(&data);
 			eptr->timeout = get16bit(&data);
+			if (eptr->timeout<10) {
+				syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+				if (eptr->timeout<3) {
+					eptr->timeout=3;
+				}
+//				eptr->mode=KILL;
+				return;
+			}
 		} else {
 			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%"PRIu8"/1)",rversion);
 			eptr->mode=KILL;
@@ -563,7 +571,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/2))<(uint32_t)now && eptr->outputhead==NULL) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
 			matomlserv_createpacket(eptr,ANTOAN_NOP,0);
 		}
 	}
