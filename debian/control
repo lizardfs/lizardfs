@@ -32,6 +32,12 @@ Description: MooseFS data server
 
 Package: mfs-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: MooseFS client
  MooseFS clients: mfsmount and mfstools.
+
+Package: mfs-cgi
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MooseFS CGI Monitor
+ MooseFS CGI Monitor.

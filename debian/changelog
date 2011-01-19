@@ -1,3 +1,9 @@
+mfs (1.6.20-2) unstable; urgency=low
+
+  * (debian) added server dirs to mfs-common; package CGI Monitor as mfs-cgi
+
+ -- Jakub Bogusz <contact@moosefs.com>  Wed, 19 Jan 2011 08:20:00 +0100
+
 mfs (1.6.20) unstable; urgency=low
 
   * (cs) fixed "packet too big" issue during register to master (split big

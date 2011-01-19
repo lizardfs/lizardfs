@@ -1,4 +1,4 @@
-# build with "--define 'distro XXX' diset to:
+# build with "--define 'distro XXX' set to:
 # "rh" for Fedora/RHEL/CentOS
 # ... (other awaiting contribution)
 
@@ -6,7 +6,7 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.19
+Version:	1.6.20
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
