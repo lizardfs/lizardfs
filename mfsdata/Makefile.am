@@ -1,4 +1,4 @@
-EXTRA_DIST=metadata.mfs mfschunkserver.cfg.in mfsexports.cfg mfsmaster.cfg.in mfshdd.cfg mfsmetalogger.cfg.in
+EXTRA_DIST=metadata.mfs mfschunkserver.cfg.in mfsexports.cfg mfstopology.cfg mfsmount.cfg mfsmaster.cfg.in mfshdd.cfg mfsmetalogger.cfg.in
 
 install-data-hook:
 	if [ ! -d $(DESTDIR)$(sysconfdir) ]; then \
@@ -18,6 +18,7 @@ if BUILD_MASTER
 	$(INSTALL_DATA) $(builddir)/mfsmetalogger.cfg $(DESTDIR)$(sysconfdir)/mfsmetalogger.cfg.dist
 	$(INSTALL_DATA) $(builddir)/mfsmaster.cfg $(DESTDIR)$(sysconfdir)/mfsmaster.cfg.dist
 	$(INSTALL_DATA) $(builddir)/mfsexports.cfg $(DESTDIR)$(sysconfdir)/mfsexports.cfg.dist
+	$(INSTALL_DATA) $(builddir)/mfstopology.cfg $(DESTDIR)$(sysconfdir)/mfstopology.cfg.dist
 	if [ ! -d $(DESTDIR)$(DATA_PATH) ]; then \
 		$(MKDIR_P) $(DESTDIR)$(DATA_PATH) ; \
 		if [ "`id -u`" = "0" ]; then \
@@ -25,4 +26,7 @@ if BUILD_MASTER
 		fi ; \
 	fi
 	$(INSTALL_DATA) $(srcdir)/metadata.mfs $(DESTDIR)$(DATA_PATH)/metadata.mfs.empty
+endif
+if BUILD_MOUNT
+	$(INSTALL_DATA) $(builddir)/mfsmount.cfg $(DESTDIR)$(sysconfdir)/mfsmount.cfg.dist
 endif

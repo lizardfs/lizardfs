@@ -14,19 +14,26 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfsmaster
 NAME=mfsmaster
 DESC=mfs-master
-USER=mfs
-GROUP=mfs
+DEFAULT_USER=mfs
+DEFAULT_GROUP=mfs
+DEFAULT_DATADIR=/var/lib/mfs
+DEFAULT_CFG=/etc/mfsmaster.cfg
 
-test -e /usr/sbin/mfsmaster || exit 0
+test -e $DAEMON || exit 0
 
 # Include mfs-master defaults if available
 . /lib/lsb/init-functions
 MFSMASTER_ENABLE=false
 MFSMASTER_DEFAULTS_FILE=/etc/default/mfs-master
+MFSMASTER_CONFIG_FILE=
 if [ -s "$MFSMASTER_DEFAULTS_FILE" ]; then
     . "$MFSMASTER_DEFAULTS_FILE"
     case "x$MFSMASTER_ENABLE" in
-        xtrue|xfalse) ;;
+        xtrue) ;;
+        xfalse)
+	    log_warning_msg "mfs-master not enabled in \"$MFSMASTER_DEFAULTS_FILE\", exiting..."
+	    exit 0
+	    ;;
         *)
             log_failure_msg "value of MFSMASTER_ENABLE must be either 'true' or 'false';"
             log_failure_msg "not starting mfs-master."
@@ -37,57 +44,55 @@ fi
 
 set -e
 
+CFGFILE="${MFSMASTER_CONFIG_FILE:-$DEFAULT_CFG}"
+if [ -s "$CFGFILE" ]; then
+	DATADIR=$(sed -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
+	MFSUSER=$(sed -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
+	MFSGROUP=$(sed -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
+else
+	DATADIR=
+	MFSUSER=
+	MFSGROUP=
+fi
+: ${DATADIR:=$DEFAULT_DATADIR}
+: ${MFSUSER:=$DEFAULT_USER}
+: ${MFSGROUP:=$DEFAULT_GROUP}
+
 check_dirs()
 {
 	# check that the metadata dir exists
-	if [ ! -d /var/lib/mfs ]; then
-		mkdir /var/lib/mfs
+	if [ ! -d "$DATADIR" ]; then
+		mkdir "$DATADIR"
 	fi
-	chmod 0755 /var/lib/mfs
-	chown -R $USER:$GROUP /var/lib/mfs
-	if [ ! -e /var/lib/mfs/metadata.mfs ]; then
-		if [ ! -e /var/lib/mfs/metadata.mfs.back ]; then
-			echo "MFSM NEW" > /var/lib/mfs/metadata.mfs
+	chmod 0755 "$DATADIR"
+	chown -R $MFSUSER:$MFSGROUP "$DATADIR"
+	if [ ! -e "$DATADIR"/metadata.mfs ]; then
+		if [ ! -e "$DATADIR"/metadata.mfs.back ]; then
+			echo "MFSM NEW" > "$DATADIR"/metadata.mfs
 		fi
 	fi
-
-	# check that the pid dir exists
-	if [ ! -d /var/run/mfs ]; then
-		mkdir /var/run/mfs
-	fi
-	chmod 0755 /var/run/mfs
-	chown -R $USER:$GROUP /var/run/mfs
 }
 
 case "$1" in
 	start)
-		if [ "$MFSMASTER_ENABLE" = "true" ]; then
-			check_dirs
-			echo -n "Starting $DESC: "
-			start-stop-daemon --start --quiet --exec $DAEMON -- $DAEMON_OPTS
-			echo "$NAME."
-		else
-			log_warning_msg "mfs-master not enabled in \"$MFSMASTER_DEFAULTS_FILE\", not starting..."
-		fi
+		check_dirs
+		echo "Starting $DESC:"
+		$DAEMON ${MFSMASTER_CONFIG_FILE:+-c $MFSMASTER_CONFIG_FILE} $DAEMON_OPTS start
 		;;
 
 	stop)
-		echo -n "Stopping $DESC: "
-		start-stop-daemon --stop --oknodo --quiet --exec $DAEMON -- -s
-		echo "$NAME."
+		echo "Stopping $DESC:"
+		$DAEMON ${MFSMASTER_CONFIG_FILE:+-c $MFSMASTER_CONFIG_FILE} stop
 		;;
 
-	restart|force-reload)
-		echo -n "Restarting $DESC: "
-		start-stop-daemon --stop --oknodo --quiet --exec $DAEMON -- -s
-		sleep 1
-		if [ "$MFSMASTER_ENABLE" = "true" ]; then
-			check_dirs
-			start-stop-daemon --start --quiet --exec $DAEMON -- $DAEMON_OPTS
-			echo "$NAME."
-		else
-			log_warning_msg "mfs-master not enabled in \"$MFSMASTER_DEFAULTS_FILE\", not starting..."
-		fi
+	reload|force-reload)
+		echo "Reloading $DESC:"
+		$DAEMON ${MFSMASTER_CONFIG_FILE:+-c $MFSMASTER_CONFIG_FILE} reload
+		;;
+
+	restart)
+		echo "Restarting $DESC:"
+		$DAEMON ${MFSMASTER_CONFIG_FILE:+-c $MFSMASTER_CONFIG_FILE} restart
 		;;
 
 	*)

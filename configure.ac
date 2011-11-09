@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.20], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.23], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -35,7 +35,7 @@ case $target_os in
   *solaris*)
 	# OpenSolaris has fuse available and is still identified as "solaris"
 	fuse=maybe
-	CPPFLAGS="$CPPFLAGS -D__EXTENSIONS__"
+	CPPFLAGS="$CPPFLAGS -D__EXTENSIONS__ -D_POSIX_PTHREAD_SEMANTICS"
 	;;
   *darwin*)
 	fuse=maybe
@@ -99,7 +99,8 @@ AC_CHECK_MEMBERS([struct tm.tm_gmtoff],,, [
 #  include <sys/time.h>
 #else
 #  include <time.h>
-#endif])
+#endif
+])
 
 AC_SYS_LARGEFILE
 
@@ -121,15 +122,34 @@ AC_CHECK_FUNCS([strerror perror])
 
 # optional system functions
 AC_CHECK_FUNCS([dup2 mlockall getcwd])
+AC_CHECK_HEADERS([sys/mman.h])
 
 # optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev])
+
+# optional resource usage function and headers
+AC_CHECK_FUNCS([getrusage setitimer])
+AC_CHECK_HEADERS([sys/rusage.h sys/resource.h])
+AC_CHECK_MEMBERS([struct rusage.ru_maxrss],,, [
+#include <sys/time.h>
+#ifdef HAVE_GETRUSAGE
+#  ifdef HAVE_SYS_RESOURCE_H
+#    include <sys/resource.h>
+#  endif
+#  ifdef HAVE_SYS_RUSAGE_H
+#    include <sys/rusage.h>
+#  endif
+#endif
+])
 
 dnl optional thread functions
 dnl AC_CHECK_FUNCS([pthread_spin_lock])
 
 dnl optional interfaces (Linux, FreeBSD)
 dnl AC_CHECK_FUNCS([fopencookie funopen])
+
+dnl this is work in progress
+dnl AC_ARG_ENABLE([lightmfs], [AS_HELP_STRING([--enable-lightmfs], [Build special version])])
 
 AC_ARG_ENABLE([mfsmaster], [AS_HELP_STRING([--disable-mfsmaster], [Don't build mfsmaster])])
 AC_ARG_ENABLE([mfschunkserver], [AS_HELP_STRING([--disable-mfschunkserver], [Don't build mfschunkserver])])
@@ -263,8 +283,19 @@ AC_DEFINE_UNQUOTED([DEFAULT_GROUP], ["$DEFAULT_GROUP"], [Default working group])
 AC_SUBST([DEFAULT_USER])
 AC_SUBST([DEFAULT_GROUP])
 
+if test "$enable_lightmfs" = "yes"; then
+	PROTOBASE=65536
+	LIGHTMFS=1
+else
+	PROTOBASE=0
+	LIGHTMFS=0
+fi
+AC_SUBST([PROTOBASE])
+AC_SUBST([LIGHTMFS])
+
 AC_CONFIG_FILES([Makefile
 		doc/Makefile
+		mfscommon/Makefile
 		mfschunkserver/Makefile
 		mfscgi/Makefile
 		mfsdata/Makefile
@@ -273,6 +304,9 @@ AC_CONFIG_FILES([Makefile
 		mfsmetadump/Makefile
 		mfsmetalogger/Makefile
 		mfsmount/Makefile
+		mfscgi/mfs.cgi
+		mfscgi/chart.cgi
+		mfscommon/MFSCommunication.h
 		mfsdata/mfschunkserver.cfg
 		mfsdata/mfsmaster.cfg
 		mfsdata/mfsmetalogger.cfg])

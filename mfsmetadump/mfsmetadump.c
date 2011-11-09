@@ -344,7 +344,7 @@ int fs_loadall(const char *fname) {
 		return -1;
 	}
 	printf("# header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X)\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);
-	if (memcmp(hdr,"MFSM 1.5",8)==0) {
+	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
 		if (fs_load(fd)<0) {
 			printf("error reading metadata (structure)\n");
 			fclose(fd);

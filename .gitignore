@@ -21,6 +21,8 @@ Makefile.in
 /ltmain.sh
 /m4
 /mfscgi/mfscgiserv
+/mfscgi/chart.cgi
+/mfscgi/mfs.cgi
 /mfschunkserver/mfschunkserver
 /mfsdata/mfschunkserver.cfg
 /mfsdata/mfsmaster.cfg
@@ -31,6 +33,7 @@ Makefile.in
 /mfsmetarestore/mfsmetarestore
 /mfsmount/mfsmount
 /mfsmount/mfstools
+/mfscommon/MFSCommunication.h
 /missing
 /stamp-h1
 *.tar.gz

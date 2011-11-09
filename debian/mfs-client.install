@@ -1,3 +1,4 @@
+etc/mfsmount.cfg.dist
 usr/bin/mfsappendchunks
 usr/bin/mfscheckfile
 usr/bin/mfsdeleattr

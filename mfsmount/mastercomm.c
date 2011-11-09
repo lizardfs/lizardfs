@@ -41,6 +41,7 @@
 #include "strerr.h"
 #include "md5.h"
 #include "datapack.h"
+// #include "dircache.h"
 
 typedef struct _threc {
 	pthread_t thid;
@@ -83,11 +84,11 @@ typedef struct _threc {
 */
 
 
-typedef struct _aquired_file {
+typedef struct _acquired_file {
 	uint32_t inode;
 	uint32_t cnt;
-	struct _aquired_file *next;
-} aquired_file;
+	struct _acquired_file *next;
+} acquired_file;
 
 
 #define DEFAULT_OUTPUT_BUFFSIZE 0x1000
@@ -97,7 +98,7 @@ typedef struct _aquired_file {
 
 static threc *threchead=NULL;
 
-static aquired_file *afhead=NULL;
+static acquired_file *afhead=NULL;
 
 static int fd;
 static int disconnect;
@@ -110,6 +111,7 @@ static pthread_t rpthid,npthid;
 static pthread_mutex_t fdlock,reclock,aflock;
 
 static uint32_t sessionid;
+static uint32_t masterversion;
 
 static char masterstrip[17];
 static uint32_t masterip=0;
@@ -119,10 +121,11 @@ static uint32_t srcip=0;
 
 static uint8_t fterm;
 
-void fs_getmasterlocation(uint8_t loc[10]) {
+void fs_getmasterlocation(uint8_t loc[14]) {
 	put32bit(&loc,masterip);
 	put16bit(&loc,masterport);
 	put32bit(&loc,sessionid);
+	put32bit(&loc,masterversion);
 }
 
 uint32_t fs_getsrcip() {
@@ -141,6 +144,7 @@ enum {
 static uint64_t *statsptr[STATNODES];
 
 struct connect_args_t {
+	char *bindhostname;
 	char *masterhostname;
 	char *masterportname;
 	uint8_t meta;
@@ -153,12 +157,12 @@ static struct connect_args_t connect_args;
 
 void master_statsptr_init(void) {
 	void *s;
-	s = stats_get_subnode(NULL,"master");
-	statsptr[MASTER_PACKETSRCVD] = stats_get_counterptr(stats_get_subnode(s,"packets_received"));
-	statsptr[MASTER_PACKETSSENT] = stats_get_counterptr(stats_get_subnode(s,"packets_sent"));
-	statsptr[MASTER_BYTESRCVD] = stats_get_counterptr(stats_get_subnode(s,"bytes_received"));
-	statsptr[MASTER_BYTESSENT] = stats_get_counterptr(stats_get_subnode(s,"bytes_sent"));
-	statsptr[MASTER_CONNECTS] = stats_get_counterptr(stats_get_subnode(s,"reconnects"));
+	s = stats_get_subnode(NULL,"master",0);
+	statsptr[MASTER_PACKETSRCVD] = stats_get_counterptr(stats_get_subnode(s,"packets_received",0));
+	statsptr[MASTER_PACKETSSENT] = stats_get_counterptr(stats_get_subnode(s,"packets_sent",0));
+	statsptr[MASTER_BYTESRCVD] = stats_get_counterptr(stats_get_subnode(s,"bytes_received",0));
+	statsptr[MASTER_BYTESSENT] = stats_get_counterptr(stats_get_subnode(s,"bytes_sent",0));
+	statsptr[MASTER_CONNECTS] = stats_get_counterptr(stats_get_subnode(s,"reconnects",0));
 }
 
 void master_stats_inc(uint8_t id) {
@@ -195,7 +199,7 @@ void fs_unlock_acnt(void) {
 }
 
 uint32_t fs_get_acnt(uint32_t inode) {
-	aquired_file *afptr;
+	acquired_file *afptr;
 	for (afptr=afhead ; afptr ; afptr=afptr->next) {
 		if (afptr->inode==inode) {
 			return (afptr->cnt);
@@ -205,8 +209,170 @@ uint32_t fs_get_acnt(uint32_t inode) {
 }
 */
 
+
+// attributes of inode have changed
+// #define MATOCU_FUSE_NOTIFY_ATTR 491
+// // msgid:32 N*[ inode:32 attr:35B ]
+//
+// // new entry has been added
+// #define MATOCU_FUSE_NOTIFY_LINK 492
+// // msgid:32 N*[ parent:32 name:NAME inode:32 attr:35B ]
+//
+// // entry has been deleted
+// #define MATOCU_FUSE_NOTIFY_UNLINK 493
+// // msgid:32 N*[ parent:32 name:NAME ]
+//
+// // whole directory needs to be removed
+// #define MATOCU_FUSE_NOTIFY_REMOVE 494
+// // msgid:32 N*[ inode:32 ]
+//
+
+/*
+void fs_notify_attr(const uint8_t *buff,uint32_t size) {
+	uint32_t inode;
+	while (size>=39) {
+		inode = get32bit(&buff);
+		dir_cache_attr(inode,buff);
+		buff += 35;
+		size -= 39;
+	}
+}
+
+void fs_notify_link(const uint8_t *buff,uint32_t size) {
+	uint32_t parent,inode;
+	uint32_t ts;
+	const uint8_t *name;
+	uint8_t nleng;
+	ts = get32bit(&buff);
+	size-=4;
+	while (size>=44) {
+		parent = get32bit(&buff);
+		nleng = get8bit(&buff);
+		if (size<44U+nleng) {
+			return;
+		}
+		name = buff;
+		buff += nleng;
+		inode = get32bit(&buff);
+		dir_cache_link(parent,nleng,name,inode,buff,ts);
+		buff += 35;
+		size -= 44U+nleng;
+	}
+}
+
+void fs_notify_unlink(const uint8_t *buff,uint32_t size) {
+	uint32_t ts;
+	uint32_t parent;
+	uint8_t nleng;
+	ts = get32bit(&buff);
+	size-=4;
+	while (size>=5) {
+		parent = get32bit(&buff);
+		nleng = get8bit(&buff);
+		if (size<5U+nleng) {
+			return;
+		}
+		dir_cache_unlink(parent,nleng,buff,ts);
+		buff += nleng;
+		size -= 5U+nleng;
+	}
+}
+
+void fs_notify_remove(const uint8_t *buff,uint32_t size) {
+	uint32_t inode;
+	while (size>=4) {
+		inode = get32bit(&buff);
+		dir_cache_remove(inode);
+		size -= 4;
+	}
+}
+
+void fs_notify_parent(const uint8_t *buff,uint32_t size) {
+	uint32_t inode,parent;
+	while (size>=8) {
+		inode = get32bit(&buff);
+		parent = get32bit(&buff);
+		dir_cache_parent(inode,parent);
+		size -= 8;
+	}
+}
+
+void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes) {
+	static uint8_t *notify_buff=NULL;
+	static uint32_t notify_buff_size=0;
+	uint32_t size;
+	uint8_t *ptr;
+
+	if (cnt==0) {
+		return;
+	}
+
+	size = 12+4*cnt;
+
+	if (size>DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		if (notify_buff) {
+			munmap(notify_buff,notify_buff_size);
+		}
+		notify_buff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		if (notify_buff) {
+			free(notify_buff);
+		}
+		notify_buff = malloc(size);
+#endif
+		notify_buff_size = size;
+	} else if (notify_buff_size!=DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		if (notify_buff) {
+			munmap(notify_buff,notify_buff_size);
+		}
+		notify_buff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		if (notify_buff) {
+			free(notify_buff);
+		}
+		notify_buff = malloc(DEFAULT_OUTPUT_BUFFSIZE);
+#endif
+		notify_buff_size = DEFAULT_OUTPUT_BUFFSIZE;
+	}
+	if (notify_buff==NULL) {
+		notify_buff_size = 0;
+		disconnect=1;
+		return;
+	}
+
+	ptr = notify_buff;
+
+	put32bit(&ptr,CUTOMA_FUSE_DIR_REMOVED);
+	put32bit(&ptr,size-8);
+	put32bit(&ptr,0);
+
+	while (cnt) {
+		put32bit(&ptr,*inodes);
+		inodes++;
+		cnt--;
+	}
+
+	pthread_mutex_lock(&fdlock);
+	if (sessionlost || fd==-1 || masterversion<0x010615) {
+		pthread_mutex_unlock(&fdlock);
+		return;
+	}
+	if (tcptowrite(fd,notify_buff,size,1000)!=(int32_t)size) {
+		syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
+		disconnect = 1;
+		pthread_mutex_unlock(&fdlock);
+		return;
+	}
+	master_stats_add(MASTER_BYTESSENT,size);
+	master_stats_inc(MASTER_PACKETSSENT);
+	lastwrite = time(NULL);
+	pthread_mutex_unlock(&fdlock);
+}
+*/
 void fs_inc_acnt(uint32_t inode) {
-	aquired_file *afptr,**afpptr;
+	acquired_file *afptr,**afpptr;
 	pthread_mutex_lock(&aflock);
 	afpptr = &afhead;
 	while ((afptr=*afpptr)) {
@@ -220,7 +386,7 @@ void fs_inc_acnt(uint32_t inode) {
 		}
 		afpptr = &(afptr->next);
 	}
-	afptr = (aquired_file*)malloc(sizeof(aquired_file));
+	afptr = (acquired_file*)malloc(sizeof(acquired_file));
 	afptr->inode = inode;
 	afptr->cnt = 1;
 	afptr->next = *afpptr;
@@ -229,7 +395,7 @@ void fs_inc_acnt(uint32_t inode) {
 }
 
 void fs_dec_acnt(uint32_t inode) {
-	aquired_file *afptr,**afpptr;
+	acquired_file *afptr,**afpptr;
 	pthread_mutex_lock(&aflock);
 	afpptr = &afhead;
 	while ((afptr=*afpptr)) {
@@ -260,6 +426,7 @@ threc* fs_get_my_threc() {
 	}
 	rec = malloc(sizeof(threc));
 	rec->thid = mythid;
+/*
 #ifdef MMAP_ALLOC
 	rec->obuff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 	rec->ibuff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
@@ -287,10 +454,13 @@ threc* fs_get_my_threc() {
 		pthread_mutex_unlock(&reclock);
 		return NULL;
 	}
+*/
 	pthread_mutex_init(&(rec->mutex),NULL);
 	pthread_cond_init(&(rec->cond),NULL);
-	rec->obuffsize = DEFAULT_OUTPUT_BUFFSIZE;
-	rec->ibuffsize = DEFAULT_INPUT_BUFFSIZE;
+	rec->obuff = NULL;
+	rec->ibuff = NULL;
+	rec->obuffsize = 0;//DEFAULT_OUTPUT_BUFFSIZE;
+	rec->ibuffsize = 0;//DEFAULT_INPUT_BUFFSIZE;
 	rec->odataleng = 0;
 	rec->idataleng = 0;
 	rec->sent = 0;
@@ -326,44 +496,66 @@ threc* fs_get_threc_by_id(uint32_t packetid) {
 void fs_output_buffer_init(threc *rec,uint32_t size) {
 	if (size>DEFAULT_OUTPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
-		munmap(rec->obuff,rec->obuffsize);
+		if (rec->obuff) {
+			munmap(rec->obuff,rec->obuffsize);
+		}
 		rec->obuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
-		free(rec->obuff);
+		if (rec->obuff) {
+			free(rec->obuff);
+		}
 		rec->obuff = malloc(size);
 #endif
 		rec->obuffsize = size;
-	} else if (rec->obuffsize>DEFAULT_OUTPUT_BUFFSIZE) {
+	} else if (rec->obuffsize!=DEFAULT_OUTPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
-		munmap(rec->obuff,rec->obuffsize);
+		if (rec->obuff) {
+			munmap(rec->obuff,rec->obuffsize);
+		}
 		rec->obuff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
-		free(rec->obuff);
+		if (rec->obuff) {
+			free(rec->obuff);
+		}
 		rec->obuff = malloc(DEFAULT_OUTPUT_BUFFSIZE);
 #endif
 		rec->obuffsize = DEFAULT_OUTPUT_BUFFSIZE;
+	}
+	if (rec->obuff==NULL) {
+		rec->obuffsize = 0;
 	}
 }
 
 void fs_input_buffer_init(threc *rec,uint32_t size) {
 	if (size>DEFAULT_INPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
-		munmap(rec->ibuff,rec->ibuffsize);
+		if (rec->ibuff) {
+			munmap(rec->ibuff,rec->ibuffsize);
+		}
 		rec->ibuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
-		free(rec->ibuff);
+		if (rec->ibuff) {
+			free(rec->ibuff);
+		}
 		rec->ibuff = malloc(size);
 #endif
 		rec->ibuffsize = size;
-	} else if (rec->ibuffsize>DEFAULT_INPUT_BUFFSIZE) {
+	} else if (rec->ibuffsize!=DEFAULT_INPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
-		munmap(rec->ibuff,rec->ibuffsize);
+		if (rec->ibuff) {
+			munmap(rec->ibuff,rec->ibuffsize);
+		}
 		rec->ibuff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
-		free(rec->ibuff);
+		if (rec->ibuff) {
+			free(rec->ibuff);
+		}
 		rec->ibuff = malloc(DEFAULT_INPUT_BUFFSIZE);
 #endif
 		rec->ibuffsize = DEFAULT_INPUT_BUFFSIZE;
+	}
+	if (rec->ibuff==NULL) {
+		rec->ibuffsize = 0;
 	}
 }
 
@@ -479,7 +671,37 @@ int fs_direct_read(int rfd,uint8_t *buff,uint32_t size) {
 }
 */
 
-int fs_connect(uint8_t oninit,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname) {
+	if (bindhostname) {
+		if (tcpresolve(bindhostname,NULL,&srcip,NULL,1)<0) {
+			if (oninit) {
+				fprintf(stderr,"can't resolve source hostname (%s)\n",bindhostname);
+			} else {
+				syslog(LOG_WARNING,"can't resolve source hostname (%s)",bindhostname);
+			}
+			return -1;
+		}
+	} else {
+		srcip=0;
+	}
+	snprintf(srcstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
+	srcstrip[16]=0;
+
+	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
+		if (oninit) {
+			fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
+		} else {
+			syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",masterhostname,masterportname);
+		}
+		return -1;
+	}
+	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
+	masterstrip[16]=0;
+
+	return 0;
+}
+
+int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	uint32_t i;
 	uint8_t *wptr,*regbuff;
 	md5ctx ctx;
@@ -488,16 +710,9 @@ int fs_connect(uint8_t oninit,const char *masterhostname,const char *masterportn
 	uint8_t havepassword;
 	uint32_t pleng,ileng;
 
-	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
-		if (oninit) {
-			fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",connect_args.masterhostname,connect_args.masterportname);
-		} else {
-			syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",connect_args.masterhostname,connect_args.masterportname);
-		}
+	if (fs_resolve(oninit,bindhostname,masterhostname,masterportname)<0) {
 		return -1;
 	}
-	snprintf(masterstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
-	masterstrip[16]=0;
 
 	havepassword=(passworddigest==NULL)?0:1;
 	ileng=strlen(info)+1;
@@ -679,7 +894,7 @@ int fs_connect(uint8_t oninit,const char *masterhostname,const char *masterportn
 		return -1;
 	}
 	i = get32bit(&rptr);
-	if ( !(i==1 || (meta && i==5) || (meta==0 && (i==13 || i==21)))) {
+	if (!(i==1 || (meta && (i==5 || i==9)) || (meta==0 && (i==13 || i==21 || i==25)))) {
 		if (oninit) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
@@ -712,6 +927,13 @@ int fs_connect(uint8_t oninit,const char *masterhostname,const char *masterportn
 		fd=-1;
 		free(regbuff);
 		return -1;
+	}
+	if (i==9 || i==25) {
+		masterversion = get32bit(&rptr);
+//		dir_cache_master_switch((masterversion<0x010615)?0:(masterversion<0x010616)?1:2);
+	} else {
+		masterversion = 0;
+//		dir_cache_master_switch(0);
 	}
 	sessionid = get32bit(&rptr);
 	if (sesflags) {
@@ -847,17 +1069,39 @@ void fs_reconnect() {
 	syslog(LOG_NOTICE,"registered to master");
 }
 
+void fs_close_session(void) {
+	uint8_t *wptr,regbuff[8+64+5];
+
+	if (sessionid==0) {
+		return;
+	}
+
+	wptr = regbuff;
+	put32bit(&wptr,CUTOMA_FUSE_REGISTER);
+	put32bit(&wptr,69);
+	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
+	wptr+=64;
+	put8bit(&wptr,REGISTER_CLOSESESSION);
+	put32bit(&wptr,sessionid);
+	if (tcptowrite(fd,regbuff,8+64+5,1000)!=8+64+5) {
+		syslog(LOG_WARNING,"master: close session error (write: %s)",strerr(errno));
+	}
+}
+
 void* fs_nop_thread(void *arg) {
 	uint8_t *ptr,hdr[12],*inodespacket;
 	int32_t inodesleng;
-	aquired_file *afptr;
+	acquired_file *afptr;
 	int now;
-	int lastinodeswrite=0;
+	int inodeswritecnt=0;
 	(void)arg;
 	for (;;) {
 		now = time(NULL);
 		pthread_mutex_lock(&fdlock);
 		if (fterm) {
+			if (fd>=0) {
+				fs_close_session();
+			}
 			pthread_mutex_unlock(&fdlock);
 			return NULL;
 		}
@@ -875,8 +1119,14 @@ void* fs_nop_thread(void *arg) {
 				}
 				lastwrite=now;
 			}
-			if (lastinodeswrite+60<now) {	// RESERVED INODES
+			if (inodeswritecnt<=0 || inodeswritecnt>60) {
+				inodeswritecnt=60;
+			} else {
+				inodeswritecnt--;
+			}
+			if (inodeswritecnt==0) {	// HELD INODES
 				pthread_mutex_lock(&aflock);
+				//inodesleng=24;
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
 					//syslog(LOG_NOTICE,"reserved inode: %"PRIu32,afptr->inode);
@@ -886,6 +1136,11 @@ void* fs_nop_thread(void *arg) {
 				ptr = inodespacket;
 				put32bit(&ptr,CUTOMA_FUSE_RESERVED_INODES);
 				put32bit(&ptr,inodesleng-8);
+				//put32bit(&ptr,inodesleng-24);
+				//put64bit(&ptr,0);	// readbytes
+				//put64bit(&ptr,0);	// writebytes
+				// readbytes = 0;
+				// writebytes = 0;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
 					put32bit(&ptr,afptr->inode);
 				}
@@ -897,7 +1152,6 @@ void* fs_nop_thread(void *arg) {
 				}
 				free(inodespacket);
 				pthread_mutex_unlock(&aflock);
-				lastinodeswrite=now;
 			}
 		}
 		pthread_mutex_unlock(&fdlock);
@@ -910,6 +1164,8 @@ void* fs_receive_thread(void *arg) {
 	uint8_t hdr[12];
 	threc *rec;
 	uint32_t cmd,size,packetid;
+//	static uint8_t *notify_buff=NULL;
+//	static uint32_t notify_buff_size=0;
 	int r;
 
 	(void)arg;
@@ -920,6 +1176,7 @@ void* fs_receive_thread(void *arg) {
 			return NULL;
 		}
 		if (disconnect) {
+//			dir_cache_remove_all();
 			tcpclose(fd);
 			fd=-1;
 			disconnect=0;
@@ -939,10 +1196,16 @@ void* fs_receive_thread(void *arg) {
 			pthread_mutex_unlock(&reclock);
 		}
 		if (fd==-1) {
-			fs_reconnect();		// try to register using the same sesion id
+			fs_reconnect();		// try to register using the same session id
+		}
+		if (fd==-1) {	// still not connected
 			if (sessionlost) {	// if previous session is lost then try to register as a new session
-				if (fs_connect(0,connect_args.masterhostname,connect_args.masterportname,connect_args.meta,connect_args.info,connect_args.subfolder,connect_args.passworddigest,NULL,NULL,NULL,NULL,NULL)==0) {
+				if (fs_connect(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname,connect_args.meta,connect_args.info,connect_args.subfolder,connect_args.passworddigest,NULL,NULL,NULL,NULL,NULL)==0) {
 					sessionlost=0;
+				}
+			} else {	// if other problem occured then try to resolve hostname and portname then try to reconnect using the same session id
+				if (fs_resolve(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname)==0) {
+					fs_reconnect();
 				}
 			}
 		}
@@ -965,22 +1228,97 @@ void* fs_receive_thread(void *arg) {
 			continue;
 		}
 		master_stats_add(MASTER_BYTESRCVD,12);
+		master_stats_inc(MASTER_PACKETSRCVD);
 
 		ptr = hdr;
 		cmd = get32bit(&ptr);
 		size = get32bit(&ptr);
 		packetid = get32bit(&ptr);
-		if (cmd==ANTOAN_NOP && size==4) {
-			// syslog(LOG_NOTICE,"master: got nop");
-			master_stats_inc(MASTER_PACKETSRCVD);
-			continue;
-		}
 		if (size<4) {
 			syslog(LOG_WARNING,"master: packet too small");
 			disconnect=1;
 			continue;
 		}
-		size-=4;
+		size -= 4;
+		if (packetid==0) {
+			if (cmd==ANTOAN_NOP && size==0) {
+				// syslog(LOG_NOTICE,"master: got nop");
+				continue;
+			}
+/*
+			if (cmd==MATOCU_FUSE_NOTIFY_END && size==0) {
+				dir_cache_transaction_end();
+				continue;
+			}
+			if (cmd==MATOCU_FUSE_NOTIFY_ATTR || cmd==MATOCU_FUSE_NOTIFY_LINK || cmd==MATOCU_FUSE_NOTIFY_UNLINK || cmd==MATOCU_FUSE_NOTIFY_REMOVE || cmd==MATOCU_FUSE_NOTIFY_PARENT) {
+				if (size>DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+					if (notify_buff) {
+						munmap(notify_buff,notify_buff_size);
+					}
+					notify_buff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+					if (notify_buff) {
+						free(notify_buff);
+					}
+					notify_buff = malloc(size);
+#endif
+					notify_buff_size = size;
+				} else if (notify_buff_size!=DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+					if (notify_buff) {
+						munmap(notify_buff,notify_buff_size);
+					}
+					notify_buff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+					if (notify_buff) {
+						free(notify_buff);
+					}
+					notify_buff = malloc(DEFAULT_INPUT_BUFFSIZE);
+#endif
+					notify_buff_size = DEFAULT_INPUT_BUFFSIZE;
+				}
+				if (notify_buff==NULL) {
+					notify_buff_size = 0;
+					disconnect=1;
+					continue;
+				}
+				if (size>0) {
+					r = tcptoread(fd,notify_buff,size,1000);
+					// syslog(LOG_NOTICE,"master: data size: %d",r);
+					if (r==0) {
+						syslog(LOG_WARNING,"master: connection lost (2)");
+						disconnect=1;
+						continue;
+					}
+					if (r!=(int32_t)(size)) {
+						syslog(LOG_WARNING,"master: tcp recv error: %s (2)",strerr(errno));
+						disconnect=1;
+						continue;
+					}
+					master_stats_add(MASTER_BYTESRCVD,size);
+				}
+				switch (cmd) {
+					case MATOCU_FUSE_NOTIFY_ATTR:
+						fs_notify_attr(notify_buff,size);
+						break;
+					case MATOCU_FUSE_NOTIFY_LINK:
+						fs_notify_link(notify_buff,size);
+						break;
+					case MATOCU_FUSE_NOTIFY_UNLINK:
+						fs_notify_unlink(notify_buff,size);
+						break;
+					case MATOCU_FUSE_NOTIFY_REMOVE:
+						fs_notify_remove(notify_buff,size);
+						break;
+					case MATOCU_FUSE_NOTIFY_PARENT:
+						fs_notify_parent(notify_buff,size);
+						break;
+				}
+				continue;
+			}
+*/
+		}
 		rec = fs_get_threc_by_id(packetid);
 		if (rec==NULL) {
 			syslog(LOG_WARNING,"master: got unexpected queryid");
@@ -1012,7 +1350,6 @@ void* fs_receive_thread(void *arg) {
 			}
 			master_stats_add(MASTER_BYTESRCVD,size);
 		}
-		master_stats_inc(MASTER_PACKETSRCVD);
 		rec->sent = 0;
 		rec->status = 0;
 		rec->idataleng = size;
@@ -1027,23 +1364,19 @@ void* fs_receive_thread(void *arg) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
 	master_statsptr_init();
-	if (bindhost) {
-		if (tcpresolve(bindhost,NULL,&srcip,NULL,1)<0) {
-			fprintf(stderr,"can't resolve source hostname (%s)\n",bindhost);
-			return -1;
-		}
-	} else {
-		srcip=0;
-	}
-	snprintf(srcstrip,17,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
-	srcstrip[16]=0;
+
 	fd = -1;
 	sessionlost = 0;
 	sessionid = 0;
 	disconnect = 0;
 
+	if (bindhostname) {
+		connect_args.bindhostname = strdup(bindhostname);
+	} else {
+		connect_args.bindhostname = NULL;
+	}
 	connect_args.masterhostname = strdup(masterhostname);
 	connect_args.masterportname = strdup(masterportname);
 	connect_args.meta = meta;
@@ -1056,7 +1389,7 @@ int fs_init_master_connection(const char *masterhostname,const char *masterportn
 		memcpy(connect_args.passworddigest,passworddigest,16);
 	}
 
-	return fs_connect(1,masterhostname,masterportname,meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
+	return fs_connect(1,bindhostname,masterhostname,masterportname,meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
 }
 
 // called after fork
@@ -1076,7 +1409,8 @@ void fs_init_threads(uint32_t retries) {
 
 void fs_term(void) {
 	threc *tr,*trn;
-	aquired_file *af,*afn;
+	acquired_file *af,*afn;
+
 	pthread_mutex_lock(&fdlock);
 	fterm = 1;
 	pthread_mutex_unlock(&fdlock);
@@ -1111,6 +1445,9 @@ void fs_term(void) {
 	}
 	if (fd>=0) {
 		tcpclose(fd);
+	}
+	if (connect_args.bindhostname) {
+		free(connect_args.bindhostname);
 	}
 	free(connect_args.masterhostname);
 	free(connect_args.masterportname);
@@ -1523,10 +1860,11 @@ uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,
 	return ret;
 }
 
-uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint8_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid) {
+uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint8_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
+	uint32_t t32;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CUTOMA_FUSE_RENAME,18+nleng_src+nleng_dst);
@@ -1548,11 +1886,18 @@ uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,
 		ret = ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else {
+		*inode = 0;
+		memset(attr,0,35);
+	} else if (i!=39) {
 		pthread_mutex_lock(&fdlock);
 		disconnect = 1;
 		pthread_mutex_unlock(&fdlock);
 		ret = ERROR_IO;
+	} else {
+		t32 = get32bit(&rptr);
+		*inode = t32;
+		memcpy(attr,rptr,35);
+		ret = STATUS_OK;
 	}
 	return ret;
 }
@@ -1620,11 +1965,12 @@ uint8_t fs_getdir(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff
 	return ret;
 }
 
-uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff,uint32_t *dbuffsize) {
+uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocache,const uint8_t **dbuff,uint32_t *dbuffsize) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
 	uint8_t ret;
+	uint8_t flags;
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CUTOMA_FUSE_GETDIR,13);
 	if (wptr==NULL) {
@@ -1633,7 +1979,11 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
 	put32bit(&wptr,gid);
-	put8bit(&wptr,GETDIR_FLAG_WITHATTR);
+	flags = GETDIR_FLAG_WITHATTR;
+	if (addtocache) {
+		flags |= GETDIR_FLAG_ADDTOCACHE;
+	}
+	put8bit(&wptr,flags);
 	rptr = fs_sendandreceive(rec,MATOCU_FUSE_GETDIR,&i);
 	if (rptr==NULL) {
 		ret = ERROR_IO;
@@ -1742,7 +2092,7 @@ void fs_release(uint32_t inode) {
 	fs_dec_acnt(inode);
 }
 
-// release - decrease aquire cnt - if reach 0 send CUTOMA_FUSE_RELEASE
+// release - decrease acquire cnt - if reach 0 send CUTOMA_FUSE_RELEASE
 /*
 uint8_t fs_release(uint32_t inode) {
 	uint8_t *ptr;

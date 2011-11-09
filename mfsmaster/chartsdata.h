@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 
+uint64_t chartsdata_memusage(void);
 int chartsdata_init (void);
 
 #endif

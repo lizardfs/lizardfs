@@ -112,15 +112,15 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				syslog(LOG_NOTICE,"readblock; READ_DATA empty block");
 				return -1;
 			}
-			if (blockno!=(offset>>16)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%"PRIu16" expected:%"PRIu32")",blockno,(offset>>16));
+			if (blockno!=(offset>>MFSBLOCKBITS)) {
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%"PRIu16" expected:%"PRIu32")",blockno,(offset>>MFSBLOCKBITS));
 				return -1;
 			}
-			if (blockoffset!=(offset&0xFFFF)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%"PRIu16" expected:%"PRIu32")",blockoffset,(offset&0xFFFF));
+			if (blockoffset!=(offset&MFSBLOCKMASK)) {
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%"PRIu16" expected:%"PRIu32")",blockoffset,(offset&MFSBLOCKMASK));
 				return -1;
 			}
-			breq = 65536 - (uint32_t)blockoffset;
+			breq = MFSBLOCKSIZE - (uint32_t)blockoffset;
 			if (size<breq) {
 				breq=size;
 			}

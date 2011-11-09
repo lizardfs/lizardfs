@@ -51,8 +51,8 @@
 // connection timeout in seconds
 #define CSSERV_TIMEOUT 5
 
-#define CONNECT_RETRIES 5
-#define CONNECT_TIMEOUT 200000
+#define CONNECT_RETRIES 10
+#define CONNECT_TIMEOUT(cnt) (((cnt)%2)?(300000*(1<<((cnt)>>1))):(200000*(1<<((cnt)>>1))))
 
 #define MaxPacketSize 100000
 
@@ -390,12 +390,12 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;	// no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
-		blocknum = (eptr->offset)>>16;
-		blockoffset = (eptr->offset)&0xFFFF;
-		if (((eptr->offset+eptr->size-1)>>16) == blocknum) {	// last block
+		blocknum = (eptr->offset)>>MFSBLOCKBITS;
+		blockoffset = (eptr->offset)&MFSBLOCKMASK;
+		if (((eptr->offset+eptr->size-1)>>MFSBLOCKBITS) == blocknum) {	// last block
 			size = eptr->size;
 		} else {
-			size = 0x10000-blockoffset;
+			size = MFSBLOCKSIZE-blockoffset;
 		}
 		eptr->rpacket = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(eptr->rpacket);
@@ -440,13 +440,13 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
 		return;
 	}
-	if (eptr->size>0x4000000) {
+	if (eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
-	if (eptr->offset>=0x4000000 || eptr->offset+eptr->size>0x4000000) {
+	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
@@ -687,9 +687,9 @@ void csserv_read_continue(csserventry *eptr) {
 	uint8_t status;
 	void *packet;
 
-	blocknum = (eptr->offset)>>16;
-	blockoffset = (eptr->offset)&0xFFFF;
-	if ((eptr->offset+eptr->size-1)>>16 == blocknum) {	// last block
+	blocknum = (eptr->offset)>>MFSBLOCKBITS;
+	blockoffset = (eptr->offset)&MFSBLOCKMASK;
+	if ((eptr->offset+eptr->size-1)>>MFSBLOCKBITS == blocknum) {	// last block
 		size = eptr->size;
 		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(packet);
@@ -710,7 +710,7 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;
 	} else {
-		size = 0x10000-blockoffset;
+		size = MFSBLOCKSIZE-blockoffset;
 		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(packet);
 		put64bit(&ptr,eptr->chunkid);
@@ -760,13 +760,13 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put8bit(&ptr,STATUS_OK);
 		return;
 	}
-	if (eptr->size>0x4000000) {
+	if (eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
-	if (eptr->offset>=0x4000000 || eptr->offset+eptr->size>0x4000000) {
+	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
@@ -1903,7 +1903,7 @@ void csserv_serve(struct pollfd *pdesc) {
 		if (eptr->state==WRITEFINISH && eptr->outputhead==NULL) {
 			eptr->state = CLOSE;
 		}
-		if (eptr->state==CONNECTING && eptr->connstart+CONNECT_TIMEOUT<usecnow) {
+		if (eptr->state==CONNECTING && eptr->connstart+CONNECT_TIMEOUT(eptr->connretrycnt)<usecnow) {
 			csserv_retryconnect(eptr);
 		}
 		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+CSSERV_TIMEOUT<now) {

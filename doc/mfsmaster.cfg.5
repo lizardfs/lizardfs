@@ -1,4 +1,4 @@
-.TH MFSMASTER.CFG "5" "November 2009" "MooseFS 1.6.9"
+.TH MFSMASTER.CFG "5" "April 2011" "MooseFS 1.6.21"
 .SH NAME
 mfsmaster.cfg \- main configuration file for \fBmfsmaster\fP
 .SH DESCRIPTION
@@ -37,6 +37,9 @@ nice level to run daemon with (default is -19 if possible; note: process must be
 .TP
 \fBEXPORTS_FILENAME\fP
 alternative name of \fBmfsexports.cfg\fP file
+.TP
+\fBTOPOLOGY_FILENAME\fP
+alternative name of \fBmfstopology.cfg\fP file
 .TP
 \fBBACK_LOGS\fP
 number of metadata change log files (default is 50)
@@ -98,3 +101,4 @@ along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
 .SH "SEE ALSO"
 .BR mfsmaster (8),
 .BR mfsexports.cfg (5)
+.BR mfstopology.cfg (5)

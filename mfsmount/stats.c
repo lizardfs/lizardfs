@@ -25,6 +25,7 @@
 typedef struct _statsnode {
 	uint64_t counter;
 	uint8_t active;
+	uint8_t absolute;
 	char *name;
 	char *fullname;
 	uint32_t nleng;	// : strlen(name)
@@ -46,7 +47,7 @@ void stats_unlock(void) {
 	pthread_mutex_unlock(&glock);
 }
 
-void* stats_get_subnode(void *node,const char *name) {
+void* stats_get_subnode(void *node,const char *name,uint8_t absolute) {
 	statsnode *sn = (statsnode*)node;
 	statsnode *a;
 	pthread_mutex_lock(&glock);
@@ -61,6 +62,7 @@ void* stats_get_subnode(void *node,const char *name) {
 	a->firstchild = NULL;
 	a->counter = 0;
 	a->active = 0;
+	a->absolute = absolute;
 	a->name = strdup(name);
 	a->nleng = strlen(name);
 	if (sn) {
@@ -99,7 +101,9 @@ uint64_t* stats_get_counterptr(void *node) {
 
 static inline void stats_reset(statsnode *n) {
 	statsnode *a;
-	n->counter = 0;
+	if (n->absolute==0) {
+		n->counter = 0;
+	}
 	for (a=n->firstchild ; a ; a=a->nextsibling) {
 		stats_reset(a);
 	}

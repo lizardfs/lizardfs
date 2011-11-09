@@ -1,4 +1,4 @@
-.TH MFSMOUNT "8" "July 2009" "MooseFS 1.6.0"
+.TH MFSMOUNT "8" "April 2011" "MooseFS 1.6.21"
 .SH NAME
 mfsmount \- mount Moose File System
 .SH SYNOPSIS
@@ -45,6 +45,9 @@ disable multi-threaded operation
 .PP
 MooseFS options:
 .TP
+\fB\-c\fP \fICFGFILE\fP, \fB\-o mfscfgfile=\fP\fICFGFILE\fP
+loads file with additional mount options
+.TP
 \fB\-m\fP, \fB\-\-meta\fP, \fB\-o mfsmeta\fP
 mount MFSMETA companion filesystem instead of primary MooseFS
 .TP
@@ -76,8 +79,11 @@ authenticate to MooseFS master using directly given \fIMD5\fP (only if
 \fB\-o mfsdebug\fP
 print some MooseFS-specific debugging information
 .TP
+\fB\-o mfscachemode=\fP\fICACHEMODE\fP
+set cache mode (see \fBDATA CACHE MODES\fP; default is AUTO)
+.TP
 \fB\-o mfscachefiles\fP
-preserve file data in cache (default is not to use data cache)
+(deprecated) preserve file data in cache (equivalent to '-o mfscachemode=YES')
 .TP
 \fB\-o mfsattrcacheto=\fP\fISEC\fP
 set attributes cache timeout in seconds (default: 1.0)
@@ -94,6 +100,12 @@ specify write cache size in MiB (in range: 16..2048 - default: 250)
 \fB\-o mfsrlimitnofile=\fP\fIN\fP
 try to change limit of simultaneously opened file descriptors on startup
 (default: 100000)
+.TP
+\fB\-o mfsnice=\fP\fILEVEL\fP
+try to change nice level to specified value on startup (default: -19)
+.TP
+\fB\-o mfsioretries=\fP\fIN\fP
+specify number of retiries before I/O error is returned (default: 30)
 .PP
 General mount options (see \fBmount\fP\|(8) manual):
 .TP
@@ -108,7 +120,19 @@ Enable or disable character or block special device files interpretation.
 .TP
 \fB\-o exec\fP|\fB-o noexec\fP
 Allow or disallow execution of binaries.
+.SH DATA CACHE MODES
+There are three cache modes: \fBNO\fP, \fBYES\fP and \fBAUTO\fP. Default option
+is \fBAUTO\fP and you shuldn't change it unless you really know what you are
+doing. In \fBAUTO\fP mode data cache is managed automatically by mfsmaster.
 .TP
+\fBNO\fP,\fBNONE\fP or \fBNEVER\fP
+never allow files data to be kept in cache (safest but can reduce efficiency)
+.TP
+\fBYES\fP or \fBALWAYS\fP
+always allow files data to be kept in cache (dangerous)
+.TP
+\fBAUTO\fP
+file cache is managed by mfsmaster automatically (should be very safe and efficient)
 .SH "REPORTING BUGS"
 Report bugs to <bugs@moosefs.com>.
 .SH COPYRIGHT

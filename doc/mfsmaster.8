@@ -22,8 +22,8 @@ parameters it can start, restart or stop MooseFS master process. Without any
 options it starts MooseFS master, killing previously run process if lock
 file exists.
 .PP
-SIGHUP forces \fBmfsmaster\fP to reload \fBmfsexports.cfg\fP file. It
-doesn't affect already active connections.
+SIGHUP forces \fBmfsmaster\fP to reload \fBmfsexports.cfg\fP and
+\fBmfstopology.cfg\fP files. It doesn't affect already active connections.
 .TP
 \fB\-v\fP
 print version information and exit
@@ -67,6 +67,9 @@ configuration file for MooseFS master process (see \fBmfsmaster.cfg\fP\|(5) manu
 MooseFS access control file (used with \fBmfsmount\fPs 1.6.0 or later, see
 \fBmfsexports.cfg\fP\|(5) manual)
 .TP
+\fBmfstopology.cfg\fP
+Network topology definitions (see \fBmfstopology.cfg\fP\|(5) manual)
+.TP
 \fBmfsmaster.lock\fP
 PID file of running MooseFS master process
 (created in RUN_PATH by MooseFS < 1.6.9)
@@ -106,4 +109,5 @@ along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
 .BR mfsmount (8),
 .BR mfsmaster.cfg (5),
 .BR mfsexports.cfg (5),
+.BR mfstopology.cfg (5),
 .BR moosefs (7)

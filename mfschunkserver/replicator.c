@@ -44,7 +44,7 @@
 #define SENDMSECTO 5000
 #define RECVMSECTO 5000
 
-#define MAX_RECV_PACKET_SIZE (20+65536)
+#define MAX_RECV_PACKET_SIZE (20+MFSBLOCKSIZE)
 
 typedef enum {IDLE,CONNECTING,HEADER,DATA} modetype;
 
@@ -443,7 +443,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	r.repsources = malloc(sizeof(repsrc)*srccnt);
 	passert(r.repsources);
 	if (srccnt>1) {
-		r.xorbuff = malloc(65536+4);
+		r.xorbuff = malloc(MFSBLOCKSIZE+4);
 		passert(r.xorbuff);
 	} else {
 		r.xorbuff = NULL;
@@ -582,7 +582,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 				rep_cleanup(&r);
 				return ERROR_OUTOFMEMORY;
 			}
-			leng = r.repsources[i].blocks*0x10000;
+			leng = r.repsources[i].blocks*MFSBLOCKSIZE;
 			put64bit(&wptr,r.repsources[i].chunkid);
 			put32bit(&wptr,r.repsources[i].version);
 			put32bit(&wptr,0);
@@ -646,7 +646,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					}
 					syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
 					return pstatus;
-				} else if (type==CSTOCU_READ_DATA && size==20+65536) {
+				} else if (type==CSTOCU_READ_DATA && size==20+MFSBLOCKSIZE) {
 					pchid = get64bit(&rptr);
 					pblocknum = get16bit(&rptr);
 					poffset = get16bit(&rptr);
@@ -666,7 +666,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 						rep_cleanup(&r);
 						return ERROR_WRONGOFFSET;
 					}
-					if (psize!=65536) {
+					if (psize!=MFSBLOCKSIZE) {
 						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%"PRIu32") from (%08"PRIX32":%04"PRIX16")",psize,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_WRONGSIZE;
@@ -688,7 +688,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
-					status = hdd_write(chunkid,0,b,rptr+20,0,65536,rptr+16);
+					status = hdd_write(chunkid,0,b,rptr+20,0,MFSBLOCKSIZE,rptr+16);
 					if (status!=STATUS_OK) {
 						syslog(LOG_WARNING,"replicator: write status: %u",status);
 						rep_cleanup(&r);
@@ -701,20 +701,20 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			if (vbuffs&1) {
 				xcrc = 0;
 			} else {
-				xcrc = 0xD7978EEBU; // = mycrc32_zeroblock(0,0x10000);
+				xcrc = MFSCRCEMPTY; // = mycrc32_zeroblock(0,0x10000);
 			}
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
 					rptr+=16;	// skip chunkid,blockno,offset and size
 					if (first) {
-						memcpy(r.xorbuff+4,rptr+4,65536);
+						memcpy(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
 						first=0;
 					} else {
-						xordata(r.xorbuff+4,rptr+4,65536);
+						xordata(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
 					}
 					crc = get32bit(&rptr);
-					if (crc!=mycrc32(0,rptr,65536)) {
+					if (crc!=mycrc32(0,rptr,MFSBLOCKSIZE)) {
 						syslog(LOG_WARNING,"replicator: received data with wrong checksum from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_CRC;
@@ -724,7 +724,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			}
 			wptr = r.xorbuff;
 			put32bit(&wptr,xcrc);
-			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,65536,r.xorbuff);
+			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,MFSBLOCKSIZE,r.xorbuff);
 			if (status!=STATUS_OK) {
 				syslog(LOG_WARNING,"replicator: xor write status: %u",status);
 				rep_cleanup(&r);

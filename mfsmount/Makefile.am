@@ -10,6 +10,8 @@ mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -I$(top_srcdir)/mfscommon
 
 mfsmount_SOURCES=\
 	dirattrcache.c dirattrcache.h \
+	symlinkcache.c symlinkcache.h \
+	chunkloccache.c chunkloccache.h \
 	mfs_fuse.c mfs_fuse.h \
 	mfs_meta_fuse.c mfs_meta_fuse.h \
 	mastercomm.c mastercomm.h \
@@ -18,6 +20,7 @@ mfsmount_SOURCES=\
 	writedata.c writedata.h \
 	csdb.c csdb.h \
 	stats.c stats.h \
+	oplog.c oplog.h \
 	main.c \
 	../mfscommon/pcqueue.c ../mfscommon/pcqueue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \

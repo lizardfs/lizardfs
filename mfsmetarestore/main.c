@@ -36,6 +36,8 @@
 #define STR(x) STR_AUX(x)
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
 
+#define MAXIDHOLE 10000
+
 int changelog_checkname(const char *fname) {
 	const char *ptr = fname;
 	if (strncmp(ptr,"changelog.",10)==0) {
@@ -73,7 +75,7 @@ int changelog_checkname(const char *fname) {
 }
 
 void usage(const char* appname) {
-	fprintf(stderr,"restore metadata:\n\t%s [-x [-x ]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n",appname,appname,appname,appname);
+	fprintf(stderr,"restore metadata:\n\t%s [ -b ] [-x [-x ]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s [ -b ] [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n-b - if there is any error in change logs then save the best possible metadata file\n",appname,appname,appname,appname);
 }
 
 int main(int argc,char **argv) {
@@ -81,6 +83,9 @@ int main(int argc,char **argv) {
 	uint8_t vl=0;
 //	int i;
 	int autorestore = 0;
+	int savebest = 0;
+	int ignoreflag = 0;
+	int status;
 	char *metaout = NULL;
 	char *metadata = NULL;
 	char *datapath = NULL;
@@ -90,7 +95,7 @@ int main(int argc,char **argv) {
 
 	strerr_init();
 
-	while ((ch = getopt(argc, argv, "vm:o:d:ax?")) != -1) {
+	while ((ch = getopt(argc, argv, "vm:o:d:abxih:?")) != -1) {
 		switch (ch) {
 			case 'v':
 				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
@@ -110,6 +115,12 @@ int main(int argc,char **argv) {
 				break;
 			case 'a':
 				autorestore=1;
+				break;
+			case 'b':
+				savebest=1;
+				break;
+			case 'i':
+				ignoreflag=1;
 				break;
 			case '?':
 			default:
@@ -155,7 +166,7 @@ int main(int argc,char **argv) {
 		memcpy(metaout+dplen,"/metadata.mfs",sizeof("/metadata.mfs"));
 	}
 
-	if (fs_init(metadata)!=0) {
+	if (fs_init(metadata,ignoreflag)!=0) {
 		printf("can't read metadata from file: %s\n",metadata);
 		return 1;
 	}
@@ -197,16 +208,18 @@ int main(int argc,char **argv) {
 			}
 		}
 		closedir(dd);
-		merger_start(files,filenames);
+		merger_start(files,filenames,MAXIDHOLE);
 		for (pos = 0 ; pos<files ; pos++) {
 			free(filenames[pos]);
 		}
 		free(filenames);
 	} else {
-		merger_start(argc,argv);
+		merger_start(argc,argv,MAXIDHOLE);
 	}
 
-	if (merger_loop()<0) {
+	status = merger_loop();
+
+	if (status<0 && savebest==0) {
 		return 1;
 	}
 

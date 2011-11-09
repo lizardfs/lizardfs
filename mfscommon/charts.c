@@ -31,7 +31,7 @@
 #include <fcntl.h>
 #include <sys/time.h>
 #include <errno.h>
-#include <sys/resource.h>
+#include <inttypes.h>
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #endif
@@ -117,6 +117,7 @@ static uint8_t warning[50] = {
 #define COLOR_DATA1 5
 #define COLOR_DATA2 6
 #define COLOR_DATA3 7
+#define COLOR_NODATA 8
 
 static uint8_t png_header[] = {
 	137, 80, 78, 71, 13, 10, 26, 10,        // signature
@@ -127,7 +128,7 @@ static uint8_t png_header[] = {
 	4, 3, 0, 0, 0,                          // 4bits, indexed color mode, default compression, default filters, no interlace
 	'C', 'R', 'C', '#',                     // CRC32 placeholder
 
-	0, 0, 0, 0x18, 'P', 'L', 'T', 'E',      // PLTE chunk
+	0, 0, 0, 0x1B, 'P', 'L', 'T', 'E',      // PLTE chunk
 	0xff,0xff,0xff,                         // color map 0 - background (transparent)
 	0xff,0xff,0xff,                         // color map 1 - chart background (white)
 	0x00,0x00,0x00,                         // color map 2 - axes (black)
@@ -135,7 +136,8 @@ static uint8_t png_header[] = {
 	0x5f,0x20,0x00,                         // color map 4 - texts (brown)
 	0x00,0xff,0x00,                         // color map 5 - data1 (light green)
 	0x00,0x96,0x00,                         // color map 6 - data2 (green)
-	0x00,0x60,0x00,                         // color map 7 - dane3 (dark green)
+	0x00,0x60,0x00,                         // color map 7 - data3 (dark green)
+	0xC0,0xC0,0xC0,                         // color map 8 - nodata (grey)
 	'C', 'R', 'C', '#',                     // CRC32 placeholder
 
 	0, 0, 0, 1, 't', 'R', 'N', 'S',         // tRNS chunk
@@ -871,13 +873,21 @@ void charts_load(void) {
 }
 
 void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno) {
+#if defined(INT64_MIN)
+#  define STACK_NODATA INT64_MIN
+#elif defined(INT64_C)
+#  define STACK_NODATA (-INT64_C(9223372036854775807)-1)
+#else
+#  define STACK_NODATA (-9223372036854775807LL-1)
+#endif
+
 	uint32_t i;
 	uint32_t src,*ops;
 	int64_t stack[50];
 	uint32_t sp;
 	if (range>=RANGES || cno==0 || cno>3) {
 		for (i=0 ; i<LENG ; i++) {
-			datatab[i] = 0;
+			datatab[i] = CHARTS_NODATA;
 		}
 		return;
 	}
@@ -888,7 +898,7 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 			}
 		} else {
 			for (i=0 ; i<LENG ; i++) {
-				datatab[i] = 0;
+				datatab[i] = CHARTS_NODATA;
 			}
 		}
 	} else if (CHARTS_IS_EXTENDED_STAT(type)) {
@@ -910,50 +920,72 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 				while (*ops!=CHARTS_OP_END) {
 					if (CHARTS_IS_DIRECT_STAT(*ops)) {
 						if (sp<50) {
-							stack[sp]=series[*ops][range][i];
+							if (series[*ops][range][i]==CHARTS_NODATA) {
+								stack[sp]=STACK_NODATA;
+							} else {
+								stack[sp]=series[*ops][range][i];
+							}
 							sp++;
 						}
 					} else if (*ops==CHARTS_OP_ADD) {
 						if (sp>=2) {
-							stack[sp-2]+=stack[sp-1];
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA) {
+								stack[sp-2]=STACK_NODATA;
+							} else {
+								stack[sp-2]+=stack[sp-1];
+							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_SUB) {
 						if (sp>=2) {
-							stack[sp-2]-=stack[sp-1];
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA) {
+								stack[sp-2]=STACK_NODATA;
+							} else {
+								stack[sp-2]-=stack[sp-1];
+							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_MIN) {
 						if (sp>=2) {
-							if (stack[sp-1]<stack[sp-2]) {
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA) {
+								stack[sp-2]=STACK_NODATA;
+							} else if (stack[sp-1]<stack[sp-2]) {
 								stack[sp-2]=stack[sp-1];
 							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_MAX) {
 						if (sp>=2) {
-							if (stack[sp-1]>stack[sp-2]) {
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA) {
+								stack[sp-2]=STACK_NODATA;
+							} else if (stack[sp-1]>stack[sp-2]) {
 								stack[sp-2]=stack[sp-1];
 							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_MUL) {
 						if (sp>=2) {
-							stack[sp-2]*=stack[sp-1];
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA) {
+								stack[sp-2]=STACK_NODATA;
+							} else {
+								stack[sp-2]*=stack[sp-1];
+							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_DIV) {
 						if (sp>=2) {
-							if (stack[sp-1]!=0) {
-								stack[sp-2]/=stack[sp-1];
+							if (stack[sp-1]==STACK_NODATA || stack[sp-2]==STACK_NODATA || stack[sp-1]==0) {
+								stack[sp-2]=STACK_NODATA;
 							} else {
-								stack[sp-2]=0;
+								stack[sp-2]/=stack[sp-1];
 							}
 							sp--;
 						}
 					} else if (*ops==CHARTS_OP_NEG) {
 						if (sp>=1) {
-							stack[sp-1]=-stack[sp-1];
+							if (stack[sp-1]!=STACK_NODATA) {
+								stack[sp-1]=-stack[sp-1];
+							}
 						}
 					} else if (*ops==CHARTS_OP_CONST) {
 						ops++;
@@ -964,26 +996,26 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 					}
 					ops++;
 				}
-				if (sp>=1 && stack[sp-1]>=0) {
+				if (sp>=1 && stack[sp-1]>=0) {	// STACK_NODATA < 0, so this condition is enough for STACK_NODATA
 					datatab[i]=stack[sp-1];
 				} else {
-					datatab[i]=0;
+					datatab[i]=CHARTS_NODATA;
 				}
 			}
 		} else {
 			for (i=0 ; i<LENG ; i++) {
-				datatab[i] = 0;
+				datatab[i] = CHARTS_NODATA;
 			}
 		}
 	} else {
 		for (i=0 ; i<LENG ; i++) {
-			datatab[i] = 0;
+			datatab[i] = CHARTS_NODATA;
 		}
 	}
 }
 
 uint64_t charts_get (uint32_t type,uint32_t numb) {
-	uint64_t result=0;
+	uint64_t result=0,cnt;
 	uint64_t *tab;
 	uint32_t i,ptr;
 
@@ -992,12 +1024,19 @@ uint64_t charts_get (uint32_t type,uint32_t numb) {
 		tab = series[type][SHORTRANGE];
 		ptr = pointers[SHORTRANGE];
 		if (statdefs[type].mode == CHARTS_MODE_ADD) {
+			cnt=0;
 			for (i=0 ; i<numb ; i++) {
-				result += tab[(LENG+ptr-i)%LENG];
+				if (tab[(LENG+ptr-i)%LENG]!=CHARTS_NODATA) {
+					result += tab[(LENG+ptr-i)%LENG];
+					cnt++;
+				}
+			}
+			if (cnt>0) {
+				result /= cnt;
 			}
 		} else {
 			for (i=0 ; i<numb ; i++) {
-				if (tab[(LENG+ptr-i)%LENG]>result) {
+				if (tab[(LENG+ptr-i)%LENG]!=CHARTS_NODATA && tab[(LENG+ptr-i)%LENG]>result) {
 					result = tab[(LENG+ptr-i)%LENG];
 				}
 			}
@@ -1072,7 +1111,7 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			pointers[SHORTRANGE]++;
 			pointers[SHORTRANGE]%=LENG;
 			for (i=0 ; i<statdefscount ; i++) {
-				series[i][SHORTRANGE][pointers[SHORTRANGE]] = 0;
+				series[i][SHORTRANGE][pointers[SHORTRANGE]] = CHARTS_NODATA;
 			}
 			delta--;
 		}
@@ -1083,12 +1122,12 @@ void charts_add (uint64_t *data,uint32_t datats) {
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[SHORTRANGE] + LENG + delta) % LENG;
 		for (j=0 ; j<statdefscount ; j++) {
-			if (statdefs[j].mode==CHARTS_MODE_ADD) {
+			if (series[j][SHORTRANGE][i]==CHARTS_NODATA) {   // no data
+				series[j][SHORTRANGE][i] = data[j];
+			} else if (statdefs[j].mode==CHARTS_MODE_ADD) {  // add mode
 				series[j][SHORTRANGE][i] += data[j];
-			} else {
-				if (data[j]>series[j][SHORTRANGE][i]) {
-					series[j][SHORTRANGE][i] = data[j];
-				}
+			} else if (data[j]>series[j][SHORTRANGE][i]) {   // max mode
+				series[j][SHORTRANGE][i] = data[j];
 			}
 		}
 	}
@@ -1105,7 +1144,7 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			pointers[MEDIUMRANGE]++;
 			pointers[MEDIUMRANGE]%=LENG;
 			for (i=0 ; i<statdefscount ; i++) {
-				series[i][MEDIUMRANGE][pointers[MEDIUMRANGE]] = 0;
+				series[i][MEDIUMRANGE][pointers[MEDIUMRANGE]] = CHARTS_NODATA;
 			}
 			delta--;
 		}
@@ -1116,12 +1155,12 @@ void charts_add (uint64_t *data,uint32_t datats) {
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[MEDIUMRANGE] + LENG + delta) % LENG;
 		for (j=0 ; j<statdefscount ; j++) {
-			if (statdefs[j].mode==CHARTS_MODE_ADD) {
+			if (series[j][MEDIUMRANGE][i]==CHARTS_NODATA) {  // no data
+				series[j][MEDIUMRANGE][i] = data[j];
+			} else if (statdefs[j].mode==CHARTS_MODE_ADD) {  // add mode
 				series[j][MEDIUMRANGE][i] += data[j];
-			} else {
-				if (data[j]>series[j][MEDIUMRANGE][i]) {
-					series[j][MEDIUMRANGE][i] = data[j];
-				}
+			} else if (data[j]>series[j][MEDIUMRANGE][i]) {  // max mode
+				series[j][MEDIUMRANGE][i] = data[j];
 			}
 		}
 	}
@@ -1139,7 +1178,7 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			pointers[LONGRANGE]++;
 			pointers[LONGRANGE]%=LENG;
 			for (i=0 ; i<statdefscount ; i++) {
-				series[i][LONGRANGE][pointers[LONGRANGE]] = 0;
+				series[i][LONGRANGE][pointers[LONGRANGE]] = CHARTS_NODATA;
 			}
 			delta--;
 		}
@@ -1155,12 +1194,12 @@ void charts_add (uint64_t *data,uint32_t datats) {
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[LONGRANGE] + LENG + delta) % LENG;
 		for (j=0 ; j<statdefscount ; j++) {
-			if (statdefs[j].mode==CHARTS_MODE_ADD) {
+			if (series[j][LONGRANGE][i]==CHARTS_NODATA) {    // no data
+				series[j][LONGRANGE][i] = data[j];
+			} else if (statdefs[j].mode==CHARTS_MODE_ADD) {  // add mode
 				series[j][LONGRANGE][i] += data[j];
-			} else {
-				if (data[j]>series[j][LONGRANGE][i]) {
-					series[j][LONGRANGE][i] = data[j];
-				}
+			} else if (data[j]>series[j][LONGRANGE][i]) {    // max mode
+				series[j][LONGRANGE][i] = data[j];
 			}
 		}
 	}
@@ -1176,7 +1215,7 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			pointers[VERYLONGRANGE]++;
 			pointers[VERYLONGRANGE]%=LENG;
 			for (i=0 ; i<statdefscount ; i++) {
-				series[i][VERYLONGRANGE][pointers[VERYLONGRANGE]] = 0;
+				series[i][VERYLONGRANGE][pointers[VERYLONGRANGE]] = CHARTS_NODATA;
 			}
 			delta--;
 		}
@@ -1188,12 +1227,12 @@ void charts_add (uint64_t *data,uint32_t datats) {
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[VERYLONGRANGE] + LENG + delta) % LENG;
 		for (j=0 ; j<statdefscount ; j++) {
-			if (statdefs[j].mode==CHARTS_MODE_ADD) {
+			if (series[j][VERYLONGRANGE][i]==CHARTS_NODATA) {  // no data
+				series[j][VERYLONGRANGE][i] = data[j];
+			} else if (statdefs[j].mode==CHARTS_MODE_ADD) {    // add mode
 				series[j][VERYLONGRANGE][i] += data[j];
-			} else {
-				if (data[j]>series[j][VERYLONGRANGE][i]) {
-					series[j][VERYLONGRANGE][i] = data[j];
-				}
+			} else if (data[j]>series[j][VERYLONGRANGE][i]) {  // max mode
+				series[j][VERYLONGRANGE][i] = data[j];
 			}
 		}
 	}
@@ -1298,7 +1337,7 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 		series = NULL;
 	}
 	for (i=0 ; i<statdefscount ; i++) {
-		memset(series+i,0,sizeof(stat_record));
+		memset(series+i,0xFF,sizeof(stat_record));
 	}
 
 	for (i=0 ; i<RANGES ; i++) {
@@ -1468,18 +1507,31 @@ void charts_makechart(uint32_t type,uint32_t range) {
 
 	max = 0;
 	for (i=0 ; i<LENG ; i++) {
-		d = c1dispdata[i];
-		d += c2dispdata[i];
-		d += c3dispdata[i];
+		d = 0;
+		if (c1dispdata[i]!=CHARTS_NODATA) {
+			d += c1dispdata[i];
+		}
+		if (c2dispdata[i]!=CHARTS_NODATA) {
+			d += c2dispdata[i];
+		}
+		if (c3dispdata[i]!=CHARTS_NODATA) {
+			d += c3dispdata[i];
+		}
 		if (d>max) {
 			max=d;
 		}
 	}
 	if (max>1000000000000000000ULL) {	// arithmetic overflow protection
 		for (i=0 ; i<LENG ; i++) {
-			c1dispdata[i]/=1000;
-			c2dispdata[i]/=1000;
-			c3dispdata[i]/=1000;
+			if (c1dispdata[i]!=CHARTS_NODATA) {
+				c1dispdata[i]/=1000;
+			}
+			if (c2dispdata[i]!=CHARTS_NODATA) {
+				c2dispdata[i]/=1000;
+			}
+			if (c3dispdata[i]!=CHARTS_NODATA) {
+				c3dispdata[i]/=1000;
+			}
 		}
 		max/=1000;
 		scale=1;
@@ -1542,32 +1594,50 @@ void charts_makechart(uint32_t type,uint32_t range) {
 //	m = 0;
 	for (i=0 ; i<LENG ; i++) {
 		j = (LENG+1+pointer+i)%LENG;
-		c3d = c3dispdata[j];
-		c2d = c3d + c2dispdata[j];
-		c1d = c2d + c1dispdata[j];
-		c1d *= DATA;
-		c1d /= dmax;
-		c2d *= DATA;
-		c2d /= dmax;
-		c3d *= DATA;
-		c3d /= dmax;
+		if ((c1dispdata[j]&c2dispdata[j]&c3dispdata[j])==CHARTS_NODATA) {
+			for (j=0 ; j<DATA ; j++) {
+				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = ((j+i)%3)?COLOR_BKG:COLOR_NODATA; //(((j+i)&3)&&((j+2+LENG-i)&3))?COLOR_BKG:COLOR_DATA1;
+			}
+		} else {
+			if (c3dispdata[j]!=CHARTS_NODATA) {
+				c3d = c3dispdata[j];
+			} else {
+				c3d = 0;
+			}
+			if (c2dispdata[j]!=CHARTS_NODATA) {
+				c2d = c3d + c2dispdata[j];
+			} else {
+				c2d = c3d;
+			}
+			if (c1dispdata[j]!=CHARTS_NODATA) {
+				c1d = c2d + c1dispdata[j];
+			} else {
+				c1d = c2d;
+			}
+			c1d *= DATA;
+			c1d /= dmax;
+			c2d *= DATA;
+			c2d /= dmax;
+			c3d *= DATA;
+			c3d /= dmax;
 
-		j=0;
-		while (DATA>=c1d+j) {
-			chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_BKG;
-			j++;
-		}
-		while (DATA>=c2d+j) {
-			chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA1;
-			j++;
-		}
-		while (DATA>=c3d+j) {
-			chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA2;
-			j++;
-		}
-		while (DATA>j) {
-			chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA3;
-			j++;
+			j=0;
+			while (DATA>=c1d+j) {
+				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_BKG;
+				j++;
+			}
+			while (DATA>=c2d+j) {
+				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA1;
+				j++;
+			}
+			while (DATA>=c3d+j) {
+				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA2;
+				j++;
+			}
+			while (DATA>j) {
+				chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_DATA3;
+				j++;
+			}
 		}
 	}
 	// axes

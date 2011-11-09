@@ -60,6 +60,14 @@
 #define CHARTS_CALC_START 1000
 #define CHARTS_CALC(x) ((x)+CHARTS_CALC_START)
 
+#if defined(UINT64_C)
+#  define CHARTS_NODATA UINT64_C(0xFFFFFFFFFFFFFFFF)
+#elif defined(UINT64_MAX)
+#  define CHARTS_NODATA UINT64_MAX
+#else
+#  define CHARTS_NODATA 0xFFFFFFFFFFFFFFFFULL
+#endif
+
 typedef struct _statdef {
 	char *name;
 	uint8_t mode;

@@ -68,8 +68,8 @@ int hdd_get_checksum_tab(uint64_t chunkid, uint32_t version, uint8_t *checksum_t
 /* all chunk operations in one call */
 // newversion>0 && length==0xFFFFFFFF && copychunkid==0    -> change version
 // newversion>0 && length==0xFFFFFFFF && copycnunkid>0     -> duplicate
-// newversion>0 && length<=0x4000000 && copychunkid==0     -> truncate
-// newversion>0 && length<=0x4000000 && copychunkid>0      -> duplicate and truncate
+// newversion>0 && length<=MFSCHUNKSIZE && copychunkid==0     -> truncate
+// newversion>0 && length<=MFSCHUNKSIZE && copychunkid>0      -> duplicate and truncate
 // newversion==0 && length==0                              -> delete
 // newversion==0 && length==1                              -> create
 // newversion==0 && length==2                              -> test

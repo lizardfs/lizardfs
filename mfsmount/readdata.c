@@ -178,6 +178,7 @@ void read_data_end(void* rr) {
 	}
 	if (rrec->rbuff!=NULL) {
 		free(rrec->rbuff);
+		rrec->rbuff=NULL;
 	}
 
 	pthread_mutex_lock(&glock);
@@ -219,12 +220,13 @@ void read_data_term(void) {
 			if (rr->fd>=0) {
 				tcpclose(rr->fd);
 			}
-			if (rr->rbuff) {
+			if (rr->rbuff!=NULL) {
 				free(rr->rbuff);
 			}
 			pthread_cond_destroy(&(rr->cond));
 			free(rr);
 		}
+		rdinodemap[i] = NULL;
 	}
 }
 
@@ -282,31 +284,30 @@ static int read_data_refresh_connection(readrec *rrec) {
 	rrec->port = port;
 
 	srcip = fs_getsrcip();
-	cnt=5;
-	while (cnt>0) {
+	cnt=0;
+	while (cnt<10) {
 		rrec->fd = tcpsocket();
 		if (rrec->fd<0) {
 			syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
-			cnt=0;
+			break;
 		}
 		if (srcip) {
 			if (tcpnumbind(rrec->fd,srcip,0)<0) {
 				syslog(LOG_WARNING,"can't bind to given ip: %s",strerr(errno));
 				tcpclose(rrec->fd);
 				rrec->fd=-1;
-				cnt=0;
 				break;
 			}
 		}
-		if (tcpnumtoconnect(rrec->fd,ip,port,200)<0) {
-			cnt--;
-			if (cnt==0) {
+		if (tcpnumtoconnect(rrec->fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
+			cnt++;
+			if (cnt>=10) {
 				syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %s",ip,port,strerr(errno));
 			}
 			tcpclose(rrec->fd);
 			rrec->fd=-1;
 		} else {
-			cnt=0;
+			cnt=10;
 		}
 	}
 	if (rrec->fd<0) {
@@ -398,7 +399,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	curroff = offset;
 	currsize = *size;
 	while (currsize>0) {
-		indx = (curroff>>26);
+		indx = (curroff>>MFSCHUNKBITS);
 		if (rrec->fd<0 || rrec->indx != indx) {
 			rrec->indx = indx;
 			while (cnt<maxretries) {
@@ -446,9 +447,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		if (curroff+currsize>rrec->fleng) {
 			currsize = rrec->fleng-curroff;
 		}
-		chunkoffset = (curroff&0x3FFFFFF);
-		if (chunkoffset+currsize>0x4000000) {
-			chunksize = 0x4000000-chunkoffset;
+		chunkoffset = (curroff&MFSCHUNKMASK);
+		if (chunkoffset+currsize>MFSCHUNKSIZE) {
+			chunksize = MFSCHUNKSIZE-chunkoffset;
 		} else {
 			chunksize = currsize;
 		}

@@ -376,7 +376,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	// random <0-min)
 	for (i=0 ; i<min ; i++) {
 		// k = random <i,j)
-		k = i+(rndu32()%(min-i));
+		k = i+rndu32_ranged(min-i);
 		// swap(i,k)
 		if (i!=k) {
 			void* p = ptrs[i];
@@ -388,7 +388,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	// random <max-j)
 	for (i=max ; i<j ; i++) {
 		// k = random <i,j)
-		k = i+(rndu32()%(j-i));
+		k = i+rndu32_ranged(j-i);
 		// swap(i,k)
 		if (i!=k) {
 			void* p = ptrs[i];
@@ -450,7 +450,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
 	allcnt=0;
 	availcnt=0;
 	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(1<<30)) {
+		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
 			servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
 			servtab[allcnt].carry = eptr->carry;
 			servtab[allcnt].ptr = eptr;
@@ -575,7 +575,7 @@ uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand,uint32_
 		} else {
 			do {
 				// r = random <0,psum)
-				r = rndu32()%psum;
+				r = rndu32_ranged(psum);
 				// choose randomly one of 'j' servers with propability servtab[i].p/psum (for i from 0 to j-1)
 				for (i=0 ; i<j && r>=servtab[i].p ; i++) {
 					r-=servtab[i].p;
@@ -614,7 +614,7 @@ uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
 		return 0;
 	}
 	for (k=0 ; k<j-1 ; k++) {
-		r = k + rndu32()%(j-k);
+		r = k + rndu32_ranged(j-k);
 		if (r!=k) {
 			x = ptrs[k];
 			ptrs[k] = ptrs[r];
@@ -701,6 +701,7 @@ void matocsserv_cservlist_data(uint8_t *ptr) {
 	}
 }
 
+/*
 void matocsserv_status(void) {
 	matocsserventry *eptr;
 	uint32_t n;
@@ -728,6 +729,7 @@ void matocsserv_status(void) {
 	ts = (double)(tspace)/(double)(1024*1024*1024);
 	syslog(LOG_NOTICE,"total: usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB), usage: %.2lf%%",uspace,us,tspace,ts,(ts>0.0)?100.0*us/ts:0.0);
 }
+*/
 
 char* matocsserv_getstrip(void *e) {
 	matocsserventry *eptr = (matocsserventry *)e;
@@ -1803,6 +1805,6 @@ int matocsserv_init(void) {
 	matocsservhead = NULL;
 	main_destructregister(matocsserv_term);
 	main_pollregister(matocsserv_desc,matocsserv_serve);
-	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matocsserv_status);
+//	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matocsserv_status);
 	return 0;
 }

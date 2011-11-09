@@ -86,7 +86,11 @@ typedef struct _pathbuf {
 #define MASTERINFO_NAME ".masterinfo"
 #define MASTERINFO_INODE 0x7FFFFFFE
 // 0x0124 = 0444
+#ifdef MASTERINFO_WITH_VERSION
+static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,14};
+#else
 static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10};
+#endif
 
 // info - todo
 //#define META_INFO_INODE 0x7FFFFFFD
@@ -905,12 +909,19 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	pathbuf *pathinfo = (pathbuf *)((unsigned long)(fi->fh));
 	if (ino==MASTERINFO_INODE) {
-		uint8_t masterinfo[10];
+		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
+#ifdef MASTERINFO_WITH_VERSION
+		if (off>=14) {
+			fuse_reply_buf(req,NULL,0);
+		} else if (off+size>14) {
+			fuse_reply_buf(req,(char*)(masterinfo+off),14-off);
+#else
 		if (off>=10) {
 			fuse_reply_buf(req,NULL,0);
 		} else if (off+size>10) {
 			fuse_reply_buf(req,(char*)(masterinfo+off),10-off);
+#endif
 		} else {
 			fuse_reply_buf(req,(char*)(masterinfo+off),size);
 		}

@@ -347,6 +347,8 @@ int tcpgetmyaddr(int sock,uint32_t *ip,uint16_t *port) {
 }
 
 int tcpclose(int sock) {
+	// make sure that all pending data in the output buffer will be sent
+	shutdown(sock,SHUT_WR);
 	return close(sock);
 }
 

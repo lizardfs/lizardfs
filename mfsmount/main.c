@@ -48,6 +48,9 @@
 #include "MFSCommunication.h"
 #include "md5.h"
 #include "mastercomm.h"
+#include "chunkloccache.h"
+#include "symlinkcache.h"
+//#include "dircache.h"
 #include "readdata.h"
 #include "writedata.h"
 #include "csdb.h"
@@ -146,8 +149,12 @@ struct mfsopts {
 };
 
 static struct mfsopts mfsopts;
+static char *defaultmountpoint = NULL;
+
+static int custom_cfg;
 
 enum {
+	KEY_CFGFILE,
 	KEY_META,
 	KEY_HOST,
 	KEY_PORT,
@@ -161,7 +168,13 @@ enum {
 
 #define MFS_OPT(t, p, v) { t, offsetof(struct mfsopts, p), v }
 
-static struct fuse_opt mfs_opts[] = {
+static struct fuse_opt mfs_opts_stage1[] = {
+	FUSE_OPT_KEY("mfscfgfile=",    KEY_CFGFILE),
+	FUSE_OPT_KEY("-c ",            KEY_CFGFILE),
+	FUSE_OPT_END
+};
+
+static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsmaster=%s", masterhost, 0),
 	MFS_OPT("mfsport=%s", masterport, 0),
 	MFS_OPT("mfsbind=%s", bindhost, 0),
@@ -178,7 +191,7 @@ static struct fuse_opt mfs_opts[] = {
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
-	MFS_OPT("mfscachefiles", cachefiles, 0),
+	MFS_OPT("mfscachefiles", cachefiles, 1),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
@@ -211,6 +224,7 @@ static void usage(const char *progname) {
 "    -V   --version          print version\n"
 "\n"
 "MFS options:\n"
+"    -c CFGFILE                  equivalent to '-o mfscfgfile=CFGFILE'\n"
 "    -m   --meta                 equivalent to '-o mfsmeta'\n"
 "    -H HOST                     equivalent to '-o mfsmaster=HOST'\n"
 "    -P PORT                     equivalent to '-o mfsport=PORT'\n"
@@ -218,11 +232,12 @@ static void usage(const char *progname) {
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
+"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
-// "    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
-// "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
-"    -o mfscachefiles            allow files data to be kept in cache (dangerous in network environment)\n"
+"    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
+"    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
+// "    -o mfscachefiles            allow files data to be kept in cache (dangerous in network environment)\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
@@ -240,18 +255,82 @@ static void usage(const char *progname) {
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
-//"\n"
-//"CACHEMODE can be set to:\n"
-//"    NO,NONE or NEVER            never allow files data to be kept in cache\n"
-//"    YES or ALWAYS               always allow files data to be kept in cache\n"
-//"    AUTO                        if flag 'nodatacache' is not set then allow files data to be kept in cache automatically\n"
+"\n"
+"CACHEMODE can be set to:\n"
+"    NO,NONE or NEVER            never allow files data to be kept in cache (safest but can reduce efficiency)\n"
+"    YES or ALWAYS               always allow files data to be kept in cache (dangerous)\n"
+"    AUTO                        file cache is managed by mfsmaster automatically (should be very safe and efficient)\n"
 "\n", progname);
+}
+
+static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
+	FILE *fd;
+	char lbuff[1000],*p;
+
+	fd = fopen(filename,"r");
+	if (fd==NULL) {
+		if (optional==0) {
+			fprintf(stderr,"can't open cfg file: %s\n",filename);
+			abort();
+		}
+		return;
+	}
+	custom_cfg = 1;
+	while (fgets(lbuff,999,fd)) {
+		if (lbuff[0]!='#' && lbuff[0]!=';') {
+			lbuff[999]=0;
+			for (p = lbuff ; *p ; p++) {
+				if (*p=='\r' || *p=='\n') {
+					*p=0;
+					break;
+				}
+			}
+			p--;
+			while (p>=lbuff && (*p==' ' || *p=='\t')) {
+				*p=0;
+				p--;
+			}
+			p = lbuff;
+			while (*p==' ' || *p=='\t') {
+				p++;
+			}
+			if (*p) {
+//				printf("add option: %s\n",p);
+				if (*p=='-') {
+					fuse_opt_add_arg(outargs,p);
+				} else if (*p=='/') {
+					if (defaultmountpoint) {
+						free(defaultmountpoint);
+					}
+					defaultmountpoint = strdup(*p);
+				} else {
+					fuse_opt_add_arg(outargs,"-o");
+					fuse_opt_add_arg(outargs,p);
+				}
+			}
+		}
+	}
+	fclose(fd);
+}
+
+static int mfs_opt_proc_stage1(void *data, const char *arg, int key, struct fuse_args *outargs) {
+	(void)data;
+
+	if (key==KEY_CFGFILE) {
+		if (memcmp(arg,"mfscfgfile=",11)==0) {
+			mfs_opt_parse_cfg_file(arg+11,0,outargs);
+		} else if (arg[0]=='-' && arg[1]=='c') {
+			mfs_opt_parse_cfg_file(arg+2,0,outargs);
+		}
+		return 0;
+	}
+	return 1;
 }
 
 // return value:
 //   0 - discard this arg
 //   1 - keep this arg for future processing
-static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *outargs) {
+static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *outargs) {
 	(void)data;
 
 	switch (key) {
@@ -262,6 +341,9 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 	case KEY_HOST:
 		if (mfsopts.masterhost==NULL) {
 			mfsopts.masterhost = strdup(arg+2);
+//			printf("host test: %s ; NULL->%p\n",arg,mfsopts.masterhost);
+//		} else {
+//			printf("host test: %s ; %p\n",arg,mfsopts.masterhost);
 		}
 		return 0;
 	case KEY_PORT:
@@ -290,14 +372,25 @@ static int mfs_opt_proc(void *data, const char *arg, int key, struct fuse_args *
 		return 0;
 	case KEY_VERSION:
 		fprintf(stderr, "MFS version %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
-		fuse_opt_add_arg(outargs, "--version");
-		fuse_parse_cmdline(outargs,NULL,NULL,NULL);
+		{
+			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
+
+			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
+			fuse_opt_add_arg(&helpargs,"--version");
+			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
+			fuse_mount(NULL,&helpargs);
+		}
 		exit(0);
 	case KEY_HELP:
 		usage(outargs->argv[0]);
-		fuse_opt_add_arg(outargs, "-ho");
-		fuse_parse_cmdline(outargs,NULL,NULL,NULL);
-		fuse_mount(NULL,outargs);
+		{
+			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
+
+			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
+			fuse_opt_add_arg(&helpargs,"-ho");
+			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
+			fuse_mount(NULL,&helpargs);
+		}
 		exit(1);
 	default:
 		fprintf(stderr, "internal error\n");
@@ -378,7 +471,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(mfsopts.md5pass,0,strlen(mfsopts.md5pass));
 	}
 
-	if (fs_init_master_connection(mfsopts.masterhost,mfsopts.masterport,mfsopts.bindhost,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
+	if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
 		return 1;
 	}
 	memset(md5pass,0,16);
@@ -491,6 +584,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
+	chunkloc_cache_init();
+	symlink_cache_init();
+//	dir_cache_init();
 	fs_init_threads(mfsopts.ioretries);
 
 	if (mfsopts.meta==0) {
@@ -515,6 +611,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			csdb_term();
 		}
 		fs_term();
+//		dir_cache_term();
+		symlink_cache_term();
+		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -541,6 +640,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			csdb_term();
 		}
 		fs_term();
+//		dir_cache_term();
+		symlink_cache_term();
+		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -564,6 +666,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			csdb_term();
 		}
 		fs_term();
+//		dir_cache_term();
+		symlink_cache_term();
+		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -601,6 +706,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		csdb_term();
 	}
 	fs_term();
+//	dir_cache_term();
+	symlink_cache_term();
+	chunkloc_cache_term();
 	return err ? 1 : 0;
 }
 
@@ -720,6 +828,14 @@ void make_fsname(struct fuse_args *args) {
 #endif
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
+/*
+void dump_args(struct fuse_args *args) {
+	int i;
+	for (i=0 ; i<args->argc ; i++) {
+		printf("[%d]:%s\n",i,args->argv[i]);
+	}
+}
+*/
 
 int main(int argc, char *argv[]) {
 	int res;
@@ -754,9 +870,22 @@ int main(int argc, char *argv[]) {
 	mfsopts.entrycacheto = 0.0;
 	mfsopts.direntrycacheto = 1.0;
 
-	if (fuse_opt_parse(&args, &mfsopts, mfs_opts, mfs_opt_proc)<0) {
+	custom_cfg = 0;
+
+//	dump_args(&args);
+	if (fuse_opt_parse(&args, NULL, mfs_opts_stage1, mfs_opt_proc_stage1)<0) {
 		exit(1);
 	}
+
+	if (custom_cfg==0) {
+		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&args);
+	}
+
+//	dump_args(&args);
+	if (fuse_opt_parse(&args, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
+		exit(1);
+	}
+//	dump_args(&args);
 
 	if (mfsopts.cachemode!=NULL && mfsopts.cachefiles) {
 		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);
@@ -812,8 +941,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!mountpoint) {
-		fprintf(stderr,"no mount point\nsee: %s -h for help\n",argv[0]);
-		return 1;
+		if (defaultmountpoint) {
+			mountpoint = defaultmountpoint;
+		} else {
+			fprintf(stderr,"no mount point\nsee: %s -h for help\n",argv[0]);
+			return 1;
+		}
 	}
 
 	res = mainloop(&args,mountpoint,mt,fg);
@@ -824,6 +957,9 @@ int main(int argc, char *argv[]) {
 		free(mfsopts.bindhost);
 	}
 	free(mfsopts.subfolder);
+	if (defaultmountpoint) {
+		free(defaultmountpoint);
+	}
 	stats_term();
 	strerr_term();
 	return res;

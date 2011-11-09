@@ -22,21 +22,27 @@
 #define MFSMAXFILES 5000
 #endif
 
-#if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
-#define MFS_USE_MEMLOCK 1
+#if defined(HAVE_MLOCKALL)
+#  if defined(HAVE_SYS_MMAN_H)
+#    include <sys/mman.h>
+#  endif
+#  if defined(HAVE_SYS_RESOURCE_H)
+#    include <sys/resource.h>
+#  endif
+#  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
+#    define MFS_USE_MEMLOCK 1
+#  endif
 #endif
 
 #if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-#define USE_PTHREADS 1
+#  define USE_PTHREADS 1
 #endif
 
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#ifdef MFS_USE_MEMLOCK
-#include <sys/mman.h>
-#endif
+
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -57,6 +63,7 @@
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
+
 #include "cfg.h"
 #include "main.h"
 #include "strerr.h"
@@ -69,6 +76,7 @@
 #define RM_START 1
 #define RM_STOP 2
 #define RM_RELOAD 3
+#define RM_TEST 4
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -351,8 +359,8 @@ void mainloop() {
 		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
 			eloopit->fun();
 		}
-		if (now<prevtime || now>prevtime+10) {
-			// time has changed !!! - recalculate "nextevent" time
+		if (now<prevtime) {
+			// time went backward !!! - recalculate "nextevent" time
 			// adding previous_time_to_run prevents from running next event too soon.
 			for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
 				uint32_t previous_time_to_run = timeit->nextevent - prevtime;
@@ -361,6 +369,14 @@ void mainloop() {
 				}
 				timeit->nextevent = ((now / timeit->seconds) * timeit->seconds) + timeit->offset;
 				while (timeit->nextevent <= now+previous_time_to_run) {
+					timeit->nextevent += timeit->seconds;
+				}
+			}
+		} else if (now>prevtime+3600) {
+			// time went forward !!! - just recalculate "nextevent" time
+			for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
+				timeit->nextevent = ((now / timeit->seconds) * timeit->seconds) + timeit->offset;
+				while (now >= timeit->nextevent) {
 					timeit->nextevent += timeit->seconds;
 				}
 			}
@@ -627,6 +643,10 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 		return -1;
 	}
 	if (ownerpid>0) {
+		if (runmode==RM_TEST) {
+			fprintf(stderr,STR(APPNAME) " pid: %ld\n",(long)ownerpid);
+			return -1;
+		}
 		if (runmode==RM_START) {
 			fprintf(stderr,"can't start: lockfile is already locked by another process\n");
 			return -1;
@@ -689,6 +709,8 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 	} else if (runmode==RM_RELOAD) {
 		fprintf(stderr,"can't find process to send reload signal\n");
 		return -1;
+	} else if (runmode==RM_TEST) {
+		fprintf(stderr,STR(APPNAME) " is not running\n");
 	}
 	return 0;
 }
@@ -888,7 +910,7 @@ void createpath(const char *filename) {
 
 void usage(const char *appname) {
 	printf(
-"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart|reload]\n"
+"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart|reload|test]\n"
 "\n"
 "-v : print version number and exit\n"
 "-d : run in foreground\n"
@@ -908,9 +930,7 @@ int main(int argc,char **argv) {
 	int ch;
 	uint8_t runmode;
 	int rundaemon,logundefined;
-#ifdef MFS_USE_MEMLOCK
 	int lockmemory;
-#endif
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
@@ -920,10 +940,11 @@ int main(int argc,char **argv) {
 
 	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
 	passert(cfgfile);
-	locktimeout=60;
-	rundaemon=1;
+	locktimeout = 60;
+	rundaemon = 1;
 	runmode = RM_RESTART;
-	logundefined=0;
+	logundefined = 0;
+	lockmemory = 0;
 	appname = argv[0];
 
 	while ((ch = getopt(argc, argv, "uvdfsc:t:h?")) != -1) {
@@ -967,6 +988,8 @@ int main(int argc,char **argv) {
 			runmode = RM_RESTART;
 		} else if (strcasecmp(argv[0],"reload")==0) {
 			runmode = RM_RELOAD;
+		} else if (strcasecmp(argv[0],"test")==0) {
+			runmode = RM_TEST;
 		} else {
 			usage(appname);
 			return 1;
@@ -1013,27 +1036,31 @@ int main(int argc,char **argv) {
 #endif
 	}
 
-	rls.rlim_cur = MFSMAXFILES;
-	rls.rlim_max = MFSMAXFILES;
-	if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
-		syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
-	}
+	if (runmode==RM_START || runmode==RM_RESTART) {
+		rls.rlim_cur = MFSMAXFILES;
+		rls.rlim_max = MFSMAXFILES;
+		if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
+			syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
+		}
 
+		lockmemory = cfg_getnum("LOCK_MEMORY",0);
 #ifdef MFS_USE_MEMLOCK
-	lockmemory = cfg_getnum("LOCK_MEMORY",0);
-	if (lockmemory) {
-		rls.rlim_cur = RLIM_INFINITY;
-		rls.rlim_max = RLIM_INFINITY;
-		setrlimit(RLIMIT_MEMLOCK,&rls);
-	}
+		if (lockmemory) {
+			rls.rlim_cur = RLIM_INFINITY;
+			rls.rlim_max = RLIM_INFINITY;
+			setrlimit(RLIMIT_MEMLOCK,&rls);
+		}
 #endif
-	nicelevel = cfg_getint32("NICE_LEVEL",-19);
-	setpriority(PRIO_PROCESS,getpid(),nicelevel);
+		nicelevel = cfg_getint32("NICE_LEVEL",-19);
+		setpriority(PRIO_PROCESS,getpid(),nicelevel);
+	}
 
 	changeugid();
 
 	wrkdir = cfg_getstr("DATA_PATH",DATA_PATH);
-	fprintf(stderr,"working directory: %s\n",wrkdir);
+	if (runmode==RM_START || runmode==RM_RESTART) {
+		fprintf(stderr,"working directory: %s\n",wrkdir);
+	}
 
 	if (chdir(wrkdir)<0) {
 		mfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
@@ -1072,7 +1099,7 @@ int main(int argc,char **argv) {
 
 	remove_old_wdlock();
 
-	if (runmode==RM_STOP || runmode==RM_RELOAD) {
+	if (runmode==RM_STOP || runmode==RM_RELOAD || runmode==RM_TEST) {
 		if (rundaemon) {
 			close_msg_channel();
 		}
@@ -1083,9 +1110,33 @@ int main(int argc,char **argv) {
 
 #ifdef MFS_USE_MEMLOCK
 	if (lockmemory) {
-		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
-			mfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+		if (getrlimit(RLIMIT_MEMLOCK,&rls)<0) {
+			mfs_errlog(LOG_WARNING,"error getting memory lock limits");
+		} else {
+			if (rls.rlim_cur!=RLIM_INFINITY && rls.rlim_max==RLIM_INFINITY) {
+				rls.rlim_cur = RLIM_INFINITY;
+				rls.rlim_max = RLIM_INFINITY;
+				if (setrlimit(RLIMIT_MEMLOCK,&rls)<0) {
+					mfs_errlog(LOG_WARNING,"error setting memory lock limit to unlimited");
+				}
+			}
+			if (getrlimit(RLIMIT_MEMLOCK,&rls)<0) {
+				mfs_errlog(LOG_WARNING,"error getting memory lock limits");
+			} else {
+				if (rls.rlim_cur!=RLIM_INFINITY) {
+					mfs_errlog(LOG_WARNING,"can't set memory lock limit to unlimited");
+				} else {
+					if (mlockall(MCL_CURRENT|MCL_FUTURE)<0) {
+						mfs_errlog(LOG_WARNING,"memory lock error");
+					} else {
+						mfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+					}
+			}	}
 		}
+	}
+#else
+	if (lockmemory) {
+		mfs_syslog(LOG_WARNING,"memory lock not supported !!!");
 	}
 #endif
 	fprintf(stderr,"initializing %s modules ...\n",logappname);

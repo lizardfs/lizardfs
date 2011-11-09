@@ -39,6 +39,7 @@
 #include "matocsserv.h"
 #include "matocuserv.h"
 #include "random.h"
+#include "topology.h"
 #endif
 
 #include "chunks.h"
@@ -519,6 +520,16 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidco
 		*allcopies += ag*i;
 		*regularvalidcopies += rg*i;
 	}
+}
+
+uint32_t chunk_get_missing_count(void) {
+	uint32_t res=0;
+	uint8_t i;
+
+	for (i=1 ; i<=10 ; i++) {
+		res+=allchunkcounts[i][0];
+	}
+	return res;
 }
 
 void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
@@ -1536,7 +1547,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	for (s=c->slisthead ;s ; s=s->next) {
 		if (s->valid!=INVALID && s->valid!=DEL) {
 			if (cnt<100 && matocsserv_getlocation(s->ptr,&(lstab[cnt].ip),&(lstab[cnt].port))==0) {
-				lstab[cnt].dist = (lstab[cnt].ip==cuip)?0:1;	// in the future prepare more sofisticated distance function
+				lstab[cnt].dist = topology_distance(lstab[cnt].ip,cuip);	// in the future prepare more sofisticated distance function
 				lstab[cnt].rnd = rndu32();
 				cnt++;
 			}
@@ -1552,7 +1563,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 //	// make random permutation
 //	for (i=0 ; i<cnt ; i++) {
 //		// k = random <i,j)
-//		k = i+(rndu32()%(cnt-i));
+//		k = i+rndu32_ranged(cnt-i);
 //		// swap (i,k)
 //		if (i!=k) {
 //			void* p = sptr[i];
@@ -1571,7 +1582,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"_%08"PRIX32"), so create it for future deletion",chunkid,version);
+//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"_%08"PRIX32"), so create it for future deletion",chunkid,version);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1612,7 +1623,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"), so create it for future deletion",chunkid);
+//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"), so create it for future deletion",chunkid);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -2208,7 +2219,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					if (!s) {
 						uint32_t r;
 						if (rgvc>0) {	// if there are VALID copies then make copy of one VALID chunk
-							r = 1+(rndu32()%rgvc);
+							r = 1+rndu32_ranged(rgvc);
 							srcptr = NULL;
 							for (s=c->slisthead ; s && r>0 ; s=s->next) {
 								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
@@ -2217,7 +2228,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 								}
 							}
 						} else {	// if not then use TDVALID chunks.
-							r = 1+(rndu32()%rgtdc);
+							r = 1+rndu32_ranged(rgtdc);
 							srcptr = NULL;
 							for (s=c->slisthead ; s && r>0 ; s=s->next) {
 								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
@@ -2253,7 +2264,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				if (!s) {
 					uint32_t r;
 					if (vc>0) {	// if there are VALID copies then make copy of one VALID chunk
-						r = 1+(rndu32()%vc);
+						r = 1+rndu32_ranged(vc);
 						srcptr = NULL;
 						for (s=c->slisthead ; s && r>0 ; s=s->next) {
 							if (s->valid==VALID) {
@@ -2262,7 +2273,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 							}
 						}
 					} else {	// if not then use TDVALID chunks.
-						r = 1+(rndu32()%tdc);
+						r = 1+rndu32_ranged(tdc);
 						srcptr = NULL;
 						for (s=c->slisthead ; s && r>0 ; s=s->next) {
 							if (s->valid==TDVALID) {
@@ -2388,6 +2399,11 @@ void chunk_jobs_main(void) {
 	static uint16_t maxtscount=0;
 	double minusage,maxusage;
 	chunk *c,**cp;
+
+	if (starttime+600>main_time()) {
+		return;
+	}
+
 	matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
 
 	if (tscount<lasttscount) {		// servers disconnected
@@ -2424,7 +2440,7 @@ void chunk_jobs_main(void) {
 			}
 		}
 		if (l>0) {
-			r = rndu32()%l;
+			r = rndu32_ranged(l);
 			l=0;
 		// do jobs on rest of them
 			for (c=chunkhash[jobshpos] ; c ; c=c->next) {

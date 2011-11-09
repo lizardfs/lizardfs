@@ -10,9 +10,10 @@ cgidata_DATA = \
 	err.gif \
 	index.html \
 	logomini.png \
+	favicon.ico \
 	mfs.css
 
-EXTRA_DIST = cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_DATA)
+EXTRA_DIST = mfs.cgi.in chart.cgi.in cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_DATA)
 
 if INSTALL_CGISERV
 cgiserv_SCRIPTS = \

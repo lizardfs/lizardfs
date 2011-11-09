@@ -627,6 +627,6 @@ int matomlserv_init(void) {
 	matomlservhead = NULL;
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
-	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matomlserv_status);
+	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return 0;
 }

@@ -21,9 +21,10 @@
 
 #include <inttypes.h>
 
-void fs_getmasterlocation(uint8_t loc[10]);
+void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
 
+void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes);
 //int fs_direct_connect(void);
 //void fs_direct_close(int rfd);
 //int fs_direct_write(int rfd,const uint8_t *buff,uint32_t size);
@@ -41,10 +42,10 @@ uint8_t fs_mknod(uint32_t parent,uint8_t nleng,const uint8_t *name,uint8_t type,
 uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]);
 uint8_t fs_unlink(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid);
 uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid);
-uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint8_t nleng,const uint8_t *name_dst,uint32_t uid,uint32_t gid);
+uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint8_t nleng,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]);
 uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]);
 uint8_t fs_getdir(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff,uint32_t *dbuffsize);
-uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff,uint32_t *dbuffsize);
+uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocache,const uint8_t **dbuff,uint32_t *dbuffsize);
 
 // uint8_t fs_check(uint32_t inode,uint8_t dbuff[22]);
 
@@ -69,7 +70,7 @@ uint8_t fs_purge(uint32_t inode);
 // uint8_t fs_append(uint32_t inode,uint32_t ainode,uint32_t uid,uint32_t gid);
 
 // called before fork
-int fs_init_master_connection(const char *masterhostname,const char *masterportname,const char *bindhost,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid);
+int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid);
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);

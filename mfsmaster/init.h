@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 
+#include "topology.h"
 #include "exports.h"
 #include "datacachemgr.h"
 #include "matomlserv.h"
@@ -41,10 +42,11 @@ struct {
 	char *name;
 } RunTab[]={
 	{changelog_init,"change log"},
-	{rndinit,"random generator"},
+	{rnd_init,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matocuserv_networkinit'
 	{matocuserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
 	{exports_init,"exports manager"},
+	{topology_init,"net topology module"},
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},

@@ -43,6 +43,8 @@ endif
 		--mandir=\$${prefix}/share/man \
 		--sysconfdir=/etc \
 		--localstatedir=/var/lib \
+		--with-default-user=mfs \
+		--with-default-group=mfs \
 		CFLAGS="$(CFLAGS)" \
 		LDFLAGS="-Wl,-z,defs -Wl,-as-needed"
 
@@ -96,6 +98,7 @@ install-arch:
 
 	# Add here commands to install the arch part of the package into
 	# debian/tmp.
+	install -d $(CURDIR)/debian/tmp/var/lib/mfs
 	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
 	dh_install -s --sourcedir=debian/tmp

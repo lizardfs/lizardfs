@@ -1,3 +1,61 @@
+mfs (1.6.23) unstable; urgency=low
+
+  * (master+mount) removed directory cache (didn't increase performance as 
+    expected and caused many troubles)
+  * (metarestore) added option (-i) - ignore some structure inconsistencies
+  * (metarestore) added option (-b) - in case of errors save the best metadata
+    file
+  * (mount) more dynamic write cache management (changed condition ib<tb/5 to
+    ib<3*fb where: ib - inode blocks in cache, tb - total blocks in cache,
+    fb - free block in cache)
+  * (master) save metadata file to alternative locations in case of error
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 08 Nov 2011 12:00:00 +0100
+
+mfs (1.6.22) unstable; urgency=low
+
+  * (mount) added resolving master hostname whenever connection has failed
+  * (cs) removed getting attributes of every chunk during initualization -
+    speeds up starting of chunkserver
+  * (cs) changed calculating of total/used space. Superuser space now is
+    substracted from total space instead of adding it to used space
+  * (master+mount) fixed directory cache.
+  * (debian) rewritten init scripts to use mfscommon commands
+    (start/stop/restart/reload) instead of start-stop-daemon (where stop
+    caused killing all instances of daemon)
+  * (debian) changed init scripts to bail out early if MFS*_ENABLE is not true
+    (i.e. given daemon is not scripts-controlled)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Mon, 09 May 2011 12:00:00 +0200
+
+mfs (1.6.21) unstable; urgency=low
+
+  * (mount) added support of default config file (mfsmount.cfg)
+  * (metarestore) fixed snapshot bug
+  * (metarestore) improved tolerance for damaged changelog files
+  * (master,mount) added full directory (with attributes) cache on
+    client (mfsmount) side
+  * (mount) added symlink cache on client (mfsmount) side
+  * (mount) added hidden files '.oplog' and '.ophistory' with detailed info
+    about current/historical operations performed by mfsmount
+  * (master) added simple net topology support
+  * (all) added -D_POSIX_PTHREAD_SEMANTICS to CFLAGS - needed by Solaris-like
+    OSes
+  * (cs) fixed detection of 'damaged disk' condition
+  * (mount) fixed error caused segfaults during umount on certain conditions
+  * (daemon) added 'test' command - checks if process is running and returns
+    its PID
+
+ -- Jakub Bogusz <contact@moosefs.com>  Thu, 14 Apr 2011 12:00:00 +0200
+
+mfs (1.6.20-3) unstable; urgency=low
+
+  * (debian) changed rules to configure with default user/group mfs/mfs
+  * (debian) enhanced init scripts: configurable .cfg paths and data dir;
+    dropped obsolete /var/run dir
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 01 Mar 2011 12:00:00 +0100
+
 mfs (1.6.20-2) unstable; urgency=low
 
   * (debian) added server dirs to mfs-common; package CGI Monitor as mfs-cgi

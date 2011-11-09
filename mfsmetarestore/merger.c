@@ -8,6 +8,7 @@
 
 typedef struct _hentry {
 	FILE *fd;
+	const char *filename;
 	char *buff;
 	char *ptr;
 	uint64_t nextid;
@@ -15,6 +16,7 @@ typedef struct _hentry {
 
 static hentry *heap;
 static uint32_t heapsize;
+static uint64_t maxidhole;
 
 #define PARENT(x) (((x)-1)/2)
 #define CHILD(x) (((x)*2)+1)
@@ -62,7 +64,13 @@ void merger_heap_sort_up(void) {
 
 void merger_nextentry(uint32_t pos) {
 	if (fgets(heap[pos].buff,BSIZE,heap[pos].fd)) {
-		heap[pos].nextid = strtoull(heap[pos].buff,&(heap[pos].ptr),10);
+		uint64_t nextid = strtoull(heap[pos].buff,&(heap[pos].ptr),10);
+		if (heap[pos].nextid==0 || (nextid>heap[pos].nextid && nextid<heap[pos].nextid+maxidhole)) {
+			heap[pos].nextid = nextid;
+		} else {
+			printf("found garbage at the end of file: %s (last correct id: %"PRIu64")\n",heap[pos].filename,heap[pos].nextid);
+			heap[pos].nextid = 0;
+		}
 	} else {
 		heap[pos].nextid = 0;
 	}
@@ -75,13 +83,14 @@ void merger_delete_entry(void) {
 
 void merger_new_entry(const char *filename) {
 	heap[heapsize].fd = fopen(filename,"r");
+	heap[heapsize].filename = filename;
 	heap[heapsize].buff = malloc(BSIZE);
 	heap[heapsize].ptr = NULL;
 	heap[heapsize].nextid = 0;
 	merger_nextentry(heapsize);
 }
 
-int merger_start(uint32_t files,char **filenames) {
+int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {
 	uint32_t i;
 	heapsize = 0;
 	heap = (hentry*)malloc(sizeof(hentry)*files);
@@ -98,6 +107,7 @@ int merger_start(uint32_t files,char **filenames) {
 			merger_heap_sort_up();
 		}
 	}
+	maxidhole = maxhole;
 //	for (i=0 ; i<heapsize ; i++) {
 //		printf("heap: %u / firstid: %"PRIu64"\n",i,heap[i].nextid);
 //	}
@@ -105,15 +115,16 @@ int merger_start(uint32_t files,char **filenames) {
 }
 
 int merger_loop(void) {
+	int status;
 	hentry h;
 	while (heapsize) {
 //		printf("current id: %"PRIu64" / %s\n",heap[0].nextid,heap[0].ptr);
-		if (restore(heap[0].nextid,heap[0].ptr)<0) {
+		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {
 			while (heapsize) {
 				heapsize--;
 				merger_delete_entry();
 			}
-			return -1;
+			return status;
 		}
 		merger_nextentry(0);
 		if (heap[0].nextid==0) {

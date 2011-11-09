@@ -60,7 +60,7 @@
 #define IDHASH(inode) (((inode)*0xB239FB71)%IDHASHSIZE)
 
 typedef struct cblock_s {
-	uint8_t data[65536];	// modified only when writeid==0
+	uint8_t data[MFSBLOCKSIZE];	// modified only when writeid==0
 	uint16_t chindx;	// chunk number
 	uint16_t pos;		// block in chunk (0...1023) - never modified
 	uint32_t writeid;	// 0 = not sent, >0 = block was sent (modified and accessed only when wchunk is locked)
@@ -72,11 +72,10 @@ typedef struct cblock_s {
 typedef struct inodedata_s {
 	uint32_t inode;
 	uint64_t maxfleng;
-	uint32_t cacheblocks;
+	uint32_t cacheblockcount;
 	int status;
 	uint16_t flushwaiting;
 	uint16_t writewaiting;
-	uint16_t cachewaiting;
 	uint16_t lcnt;
 	uint32_t trycnt;
 	uint8_t waitingworker;
@@ -85,7 +84,6 @@ typedef struct inodedata_s {
 	cblock *datachainhead,*datachaintail;
 	pthread_cond_t flushcond;	// wait for inqueue==0 (flush)
 	pthread_cond_t writecond;	// wait for flushwaiting==0 (write)
-	pthread_cond_t cachecond;	// wait for cache blocks
 	struct inodedata_s *next;
 } inodedata;
 
@@ -93,8 +91,8 @@ typedef struct inodedata_s {
 
 static pthread_cond_t fcbcond;
 static uint8_t fcbwaiting;
-static cblock *freecblockshead;
-static uint32_t maxinodecacheblocks;
+static cblock *cacheblocks,*freecblockshead;
+static uint32_t freecacheblocks;
 
 static uint32_t maxretries;
 
@@ -128,10 +126,12 @@ void* write_info_worker(void *arg) {
 #endif
 
 /* glock: LOCKED */
-void write_cb_release (cblock *cb) {
+void write_cb_release (inodedata *id,cblock *cb) {
 //	pthread_mutex_lock(&fcblock);
 	cb->next = freecblockshead;
 	freecblockshead = cb;
+	freecacheblocks++;
+	id->cacheblockcount--;
 	if (fcbwaiting) {
 		pthread_cond_signal(&fcbcond);
 	}
@@ -142,11 +142,11 @@ void write_cb_release (cblock *cb) {
 }
 
 /* glock: LOCKED */
-cblock* write_cb_acquire() {
+cblock* write_cb_acquire(inodedata *id) {
 	cblock *ret;
 //	pthread_mutex_lock(&fcblock);
 	fcbwaiting++;
-	while (freecblockshead==NULL) {
+	while (freecblockshead==NULL || id->cacheblockcount>(freecacheblocks/3)) {
 		pthread_cond_wait(&fcbcond,&glock);
 	}
 	fcbwaiting--;
@@ -159,6 +159,8 @@ cblock* write_cb_acquire() {
 	ret->to = 0;
 	ret->next = NULL;
 	ret->prev = NULL;
+	freecacheblocks--;
+	id->cacheblockcount++;
 #ifdef BUFFER_DEBUG
 	usedblocks++;
 #endif
@@ -199,7 +201,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	}
 	id = malloc(sizeof(inodedata));
 	id->inode = inode;
-	id->cacheblocks = 0;
+	id->cacheblockcount = 0;
 	id->maxfleng = 0;
 	id->status = 0;
 	id->trycnt = 0;
@@ -211,11 +213,9 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	id->inqueue = 0;
 	id->flushwaiting = 0;
 	id->writewaiting = 0;
-	id->cachewaiting = 0;
 	id->lcnt = 0;
 	pthread_cond_init(&(id->flushcond),NULL);
 	pthread_cond_init(&(id->writecond),NULL);
-	pthread_cond_init(&(id->cachecond),NULL);
 	id->next = idhash[idh];
 	idhash[idh] = id;
 	return id;
@@ -231,7 +231,6 @@ void write_free_inodedata(inodedata *fid) {
 			*idp = id->next;
 			pthread_cond_destroy(&(id->flushcond));
 			pthread_cond_destroy(&(id->writecond));
-			pthread_cond_destroy(&(id->cachecond));
 			close(id->pipe[0]);
 			close(id->pipe[1]);
 			free(id);
@@ -320,15 +319,10 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 		while (cb) {
 			fcb = cb;
 			cb = cb->next;
-			write_cb_release(fcb);
-			id->cacheblocks--;
+			write_cb_release(id,fcb);
 		}
 		id->datachainhead=NULL;
 		id->inqueue=0;
-
-		if (id->cachewaiting>0) {
-			pthread_cond_broadcast(&(id->cachecond));
-		}
 
 		if (id->flushwaiting>0) {
 			pthread_cond_broadcast(&(id->flushcond));
@@ -451,11 +445,11 @@ void* write_worker(void *arg) {
 							write_job_end(id,EIO,0);
 						}
 					} else {
-						write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
+						write_delayed_enqueue(id,1+((id->trycnt<30)?(id->trycnt/3):10));
 					}
 				}
 			} else {
-				write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
+				write_delayed_enqueue(id,1+((id->trycnt<30)?(id->trycnt/3):10));
 			}
 			continue;	// get next job
 		}
@@ -500,12 +494,12 @@ void* write_worker(void *arg) {
 
 		// make connection to cs
 		srcip = fs_getsrcip();
-		cnt=5;
-		while (cnt>0) {
+		cnt=0;
+		while (cnt<10) {
 			fd = tcpsocket();
 			if (fd<0) {
 				syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
-				cnt=0;
+				break;
 			}
 			if (srcip) {
 				if (tcpnumbind(fd,srcip,0)<0) {
@@ -515,15 +509,15 @@ void* write_worker(void *arg) {
 					break;
 				}
 			}
-			if (tcpnumtoconnect(fd,ip,port,200)<0) {
-				cnt--;
-				if (cnt==0) {
+			if (tcpnumtoconnect(fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
+				cnt++;
+				if (cnt>=10) {
 					syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %s",ip,port,strerr(errno));
 				}
 				tcpclose(fd);
 				fd=-1;
 			} else {
-				cnt=0;
+				cnt=10;
 			}
 		}
 		if (fd<0) {
@@ -532,7 +526,7 @@ void* write_worker(void *arg) {
 			if (id->trycnt>=maxretries) {
 				write_job_end(id,EIO,0);
 			} else {
-				write_delayed_enqueue(id,1+(id->trycnt<30)?(id->trycnt/3):10);
+				write_delayed_enqueue(id,1+((id->trycnt<30)?(id->trycnt/3):10));
 			}
 			continue;
 		}
@@ -595,7 +589,7 @@ void* write_worker(void *arg) {
 				pthread_mutex_lock(&glock);
 				if (cb==NULL) {
 					if (id->datachainhead) {
-						if (id->datachainhead->to-id->datachainhead->from==65536 || waitforstatus<=1) {
+						if (id->datachainhead->to-id->datachainhead->from==MFSBLOCKSIZE || waitforstatus<=1) {
 							cb = id->datachainhead;
 							havedata=1;
 						}
@@ -603,7 +597,7 @@ void* write_worker(void *arg) {
 				} else {
 					if (cb->next) {
 						if (cb->next->chindx==chindx) {
-							if (cb->next->to-cb->next->from==65536 || waitforstatus<=1) {
+							if (cb->next->to-cb->next->from==MFSBLOCKSIZE || waitforstatus<=1) {
 								cb = cb->next;
 								havedata=1;
 							}
@@ -626,7 +620,7 @@ void* write_worker(void *arg) {
 					put32bit(&wptr,cb->to-cb->from);
 					put32bit(&wptr,mycrc32(0,cb->data+cb->from,cb->to-cb->from));
 #ifdef WORKER_DEBUG
-					if (cb->to-cb->from<65536) {
+					if (cb->to-cb->from<MFSBLOCKSIZE) {
 						partialblocks++;
 					}
 					bytessent+=(cb->to-cb->from);
@@ -719,15 +713,11 @@ void* write_worker(void *arg) {
 						} else {
 							id->datachaintail = rcb->prev;
 						}
-						maxwroffset = (((uint64_t)(chindx))<<26)+(((uint32_t)(rcb->pos))<<16)+rcb->to;
+						maxwroffset = (((uint64_t)(chindx))<<MFSCHUNKBITS)+(((uint32_t)(rcb->pos))<<MFSBLOCKBITS)+rcb->to;
 						if (maxwroffset>mfleng) {
 							mfleng=maxwroffset;
 						}
-						write_cb_release(rcb);
-						id->cacheblocks--;
-						if (id->cachewaiting>0) {
-							pthread_cond_broadcast(&(id->cachecond));
-						}
+						write_cb_release(id,rcb);
 						pthread_mutex_unlock(&glock);
 					}
 					waitforstatus--;
@@ -833,7 +823,7 @@ void* write_worker(void *arg) {
 			if (id->trycnt>=maxretries) {
 				write_job_end(id,status,0);
 			} else {
-				write_job_end(id,0,1+(id->trycnt<30)?(id->trycnt/3):10);
+				write_job_end(id,0,1+((id->trycnt<30)?(id->trycnt/3):10));
 			}
 		} else {
 			read_inode_ops(id->inode);
@@ -844,24 +834,25 @@ void* write_worker(void *arg) {
 
 /* API | glock: INITIALIZED,UNLOCKED */
 void write_data_init (uint32_t cachesize,uint32_t retries) {
-	uint32_t cacheblocks = (cachesize/65536);
+	uint32_t cacheblockcount = (cachesize/MFSBLOCKSIZE);
 	uint32_t i;
 	pthread_attr_t thattr;
 
 	maxretries = retries;
-	if (cacheblocks<10) {
-		cacheblocks=10;
+	if (cacheblockcount<10) {
+		cacheblockcount=10;
 	}
-	maxinodecacheblocks = cacheblocks/5;
 	pthread_mutex_init(&glock,NULL);
 
 	pthread_cond_init(&fcbcond,NULL);
 	fcbwaiting=0;
-	freecblockshead = malloc(sizeof(cblock)*cacheblocks);
-	for (i=0 ; i<cacheblocks-1 ; i++) {
-		freecblockshead[i].next = freecblockshead+(i+1);
+	cacheblocks = malloc(sizeof(cblock)*cacheblockcount);
+	for (i=0 ; i<cacheblockcount-1 ; i++) {
+		cacheblocks[i].next = cacheblocks+(i+1);
 	}
-	freecblockshead[cacheblocks-1].next = NULL;
+	cacheblocks[cacheblockcount-1].next = NULL;
+	freecblockshead = cacheblocks;
+	freecacheblocks = cacheblockcount;
 
 	idhash = malloc(sizeof(inodedata*)*IDHASHSIZE);
 	for (i=0 ; i<IDHASHSIZE ; i++) {
@@ -902,14 +893,13 @@ void write_data_term(void) {
 			idn = id->next;
 			pthread_cond_destroy(&(id->flushcond));
 			pthread_cond_destroy(&(id->writecond));
-			pthread_cond_destroy(&(id->cachecond));
 			close(id->pipe[0]);
 			close(id->pipe[1]);
 			free(id);
 		}
 	}
 	free(idhash);
-	free(freecblockshead);
+	free(cacheblocks);
 	pthread_cond_destroy(&fcbcond);
 	pthread_mutex_destroy(&glock);
 }
@@ -945,13 +935,7 @@ int write_block(inodedata *id,uint16_t chindx,uint16_t pos,uint32_t from,uint32_
 		}
 	}
 
-	id->cachewaiting++;
-	while (id->cacheblocks>=maxinodecacheblocks) {
-		pthread_cond_wait(&(id->cachecond),&glock);
-	}
-	id->cachewaiting--;
-	id->cacheblocks++;
-	cb = write_cb_acquire();
+	cb = write_cb_acquire(id);
 //	syslog(LOG_NOTICE,"write_block: acquired new cache block");
 	cb->chindx = chindx;
 	cb->pos = pos;
@@ -1011,16 +995,16 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 		return status;
 	}
 
-	chindx = offset>>26;
-	pos = (offset&0x3FFFFFF)>>16;
-	from = offset&0xFFFF;
+	chindx = offset>>MFSCHUNKBITS;
+	pos = (offset&MFSCHUNKMASK)>>MFSBLOCKBITS;
+	from = offset&MFSBLOCKMASK;
 	while (size>0) {
-		if (size>0x10000-from) {
-			if (write_block(id,chindx,pos,from,0x10000,data)<0) {
+		if (size>MFSBLOCKSIZE-from) {
+			if (write_block(id,chindx,pos,from,MFSBLOCKSIZE,data)<0) {
 				return EIO;
 			}
-			size -= (0x10000-from);
-			data += (0x10000-from);
+			size -= (MFSBLOCKSIZE-from);
+			data += (MFSBLOCKSIZE-from);
 			from = 0;
 			pos++;
 			if (pos==1024) {

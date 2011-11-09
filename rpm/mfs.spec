@@ -6,7 +6,7 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.20
+Version:	1.6.23
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
@@ -92,12 +92,14 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/mfsmetadump
 %attr(755,root,root) %{_sbindir}/mfsmetarestore
 %{_mandir}/man5/mfsexports.cfg.5*
+%{_mandir}/man5/mfstopology.cfg.5*
 %{_mandir}/man5/mfsmaster.cfg.5*
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man8/mfsmaster.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{mfsconfdir}/mfsexports.cfg.dist
+%{mfsconfdir}/mfstopology.cfg.dist
 %{mfsconfdir}/mfsmaster.cfg.dist
 %dir %{_localstatedir}/mfs
 %{_localstatedir}/mfs/metadata.mfs.empty
@@ -173,6 +175,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man8/mfsmount.8*
+%{mfsconfdir}/mfsmount.cfg.dist
 
 %files cgi
 %defattr(644,root,root,755)

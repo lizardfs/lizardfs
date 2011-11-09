@@ -44,6 +44,7 @@
 #include "exports.h"
 #include "datacachemgr.h"
 #include "charts.h"
+#include "chartsdata.h"
 #include "cfg.h"
 #include "main.h"
 #include "sockets.h"
@@ -57,8 +58,32 @@ enum {KILL,HEADER,DATA};
 // chunklis.type
 enum {FUSE_WRITE,FUSE_TRUNCATE};
 
+#define SESSION_STATS 16
+
 #define NEWSESSION_TIMEOUT (7*86400)
 #define OLDSESSION_TIMEOUT 7200
+
+/* CACHENOTIFY
+// hash size should be at least 1.5 * 10000 * # of connected mounts
+// it also should be the prime number
+// const 10000 is defined in mfsmount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
+// current const is calculated as nextprime(1.5 * 10000 * 500) and is enough for up to about 500 mounts
+#define DIRINODE_HASH_SIZE 7500013
+*/
+
+struct matocuserventry;
+
+/* CACHENOTIFY
+// directories in external caches
+typedef struct dirincache {
+	struct matocuserventry *eptr;
+	uint32_t dirinode;
+	struct dirincache *nextnode,**prevnode;
+	struct dirincache *nextcu,**prevcu;
+} dirincache;
+
+static dirincache **dirinodehash;
+*/
 
 // locked chunks
 typedef struct chunklist {
@@ -93,8 +118,8 @@ typedef struct session {
 	uint32_t rootinode;
 	uint32_t disconnected;	// 0 = connected ; other = disconnection timestamp
 	uint32_t nsocks;	// >0 - connected (number of active connections) ; 0 - not connected
-	uint32_t currentopstats[16];
-	uint32_t lasthouropstats[16];
+	uint32_t currentopstats[SESSION_STATS];
+	uint32_t lasthouropstats[SESSION_STATS];
 	filelist *openedfiles;
 	struct session *next;
 } session;
@@ -109,6 +134,9 @@ typedef struct packetstruct {
 typedef struct matocuserventry {
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
+/* CACHENOTIFY
+	uint8_t notifications;
+*/
 	int sock;				//socket number
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;		//time of last activity
@@ -121,6 +149,9 @@ typedef struct matocuserventry {
 	uint8_t passwordrnd[32];
 	session *sesdata;
 	chunklist *chunkdelayedops;
+/* CACHENOTIFY
+	dirincache *cacheddirs;
+*/
 //	filelist *openedfiles;
 
 	struct matocuserventry *next;
@@ -130,13 +161,106 @@ static session *sessionshead=NULL;
 static matocuserventry *matocuservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
-static int exiting;
+static int exiting,starting;
 
 // from config
 static char *ListenHost;
 static char *ListenPort;
 static uint32_t RejectOld;
 //static uint32_t Timeout;
+
+static uint32_t stats_prcvd = 0;
+static uint32_t stats_psent = 0;
+static uint64_t stats_brcvd = 0;
+static uint64_t stats_bsent = 0;
+
+void matocuserv_stats(uint64_t stats[5]) {
+	stats[0] = stats_prcvd;
+	stats[1] = stats_psent;
+	stats[2] = stats_brcvd;
+	stats[3] = stats_bsent;
+	stats_prcvd = 0;
+	stats_psent = 0;
+	stats_brcvd = 0;
+	stats_bsent = 0;
+}
+
+/* CACHENOTIFY
+// cache notification routines
+
+static inline void matocuserv_dircache_init(void) {
+	dirinodehash = (dirincache**)malloc(sizeof(dirincache*)*DIRINODE_HASH_SIZE);
+	passert(dirinodehash);
+}
+
+static inline void matocuserv_dircache_remove_entry(dirincache *dc) {
+	*(dc->prevnode) = dc->nextnode;
+	if (dc->nextnode) {
+		dc->nextnode->prevnode = dc->prevnode;
+	}
+	*(dc->prevcu) = dc->nextcu;
+	if (dc->nextcu) {
+		dc->nextcu->prevcu = dc->prevcu;
+	}
+	free(dc);
+}
+
+static inline void matocuserv_notify_add_dir(matocuserventry *eptr,uint32_t inode) {
+	uint32_t hash = (inode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+
+	dc = (dirincache*)malloc(sizeof(dirincache));
+	passert(dc);
+	dc->eptr = eptr;
+	dc->dirinode = inode;
+	// by inode
+	dc->nextnode = dirinodehash[hash];
+	dc->prevnode = (dirinodehash+hash);
+	if (dirinodehash[hash]) {
+		dirinodehash[hash]->prevnode = &(dc->nextnode);
+	}
+	dirinodehash[hash] = dc;
+	// by eptr
+	dc->nextcu = eptr->cacheddirs;
+	dc->prevcu = &(eptr->cacheddirs);
+	if (eptr->cacheddirs) {
+		eptr->cacheddirs->prevcu = &(dc->nextcu);
+	}
+	eptr->cacheddirs = dc;
+
+//	syslog(LOG_NOTICE,"rcvd from: '%s' ; add inode: %"PRIu32,eptr->sesdata->info,inode);
+}
+
+static inline void matocuserv_notify_remove_dir(matocuserventry *eptr,uint32_t inode) {
+	uint32_t hash = (inode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc,*ndc;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=ndc) {
+		ndc = dc->nextnode;
+		if (dc->eptr==eptr && dc->dirinode==inode) {
+			matocuserv_dircache_remove_entry(dc);
+		}
+	}
+//	syslog(LOG_NOTICE,"rcvd from: '%s' ; remove inode: %"PRIu32,eptr->sesdata->info,inode);
+}
+
+static inline void matocuserv_notify_disconnected(matocuserventry *eptr) {
+	while (eptr->cacheddirs) {
+		matocuserv_dircache_remove_entry(eptr->cacheddirs);
+	}
+}
+
+static inline void matocuserv_show_notification_dirs(void) {
+	uint32_t hash;
+	dirincache *dc;
+
+	for (hash=0 ; hash<DIRINODE_HASH_SIZE ; hash++) {
+		for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+			syslog(LOG_NOTICE,"session: %u ; dir inode: %u",dc->eptr->sesdata->sessionid,dc->dirinode);
+		}
+	}
+}
+*/
 
 /* new registration procedure */
 session* matocuserv_new_session(uint8_t newsession,uint8_t nonewid) {
@@ -160,8 +284,8 @@ session* matocuserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	asesdata->openedfiles = NULL;
 	asesdata->disconnected = 0;
 	asesdata->nsocks = 1;
-	memset(asesdata->currentopstats,0,4*16);
-	memset(asesdata->lasthouropstats,0,4*16);
+	memset(asesdata->currentopstats,0,4*SESSION_STATS);
+	memset(asesdata->lasthouropstats,0,4*SESSION_STATS);
 	asesdata->next = sessionshead;
 	sessionshead = asesdata;
 	return asesdata;
@@ -174,7 +298,12 @@ session* matocuserv_find_session(uint32_t sessionid) {
 	}
 	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
 		if (asesdata->sessionid==sessionid) {
+//			syslog(LOG_NOTICE,"found: %u ; before ; nsocks: %u ; state: %u",sessionid,asesdata->nsocks,asesdata->newsession);
+			if (asesdata->newsession>=2) {
+				asesdata->newsession-=2;
+			}
 			asesdata->nsocks++;
+//			syslog(LOG_NOTICE,"found: %u ; after ; nsocks: %u ; state: %u",sessionid,asesdata->nsocks,asesdata->newsession);
 			asesdata->disconnected = 0;
 			return asesdata;
 		}
@@ -182,10 +311,27 @@ session* matocuserv_find_session(uint32_t sessionid) {
 	return NULL;
 }
 
+void matocuserv_close_session(uint32_t sessionid) {
+	session *asesdata;
+	if (sessionid==0) {
+		return;
+	}
+	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+		if (asesdata->sessionid==sessionid) {
+//			syslog(LOG_NOTICE,"close: %u ; before ; nsocks: %u ; state: %u",sessionid,asesdata->nsocks,asesdata->newsession);
+			if (asesdata->nsocks==1 && asesdata->newsession<2) {
+				asesdata->newsession+=2;
+			}
+//			syslog(LOG_NOTICE,"close: %u ; after ; nsocks: %u ; state: %u",sessionid,asesdata->nsocks,asesdata->newsession);
+		}
+	}
+	return;
+}
+
 void matocuserv_store_sessions() {
 	session *asesdata;
 	uint32_t ileng;
-	uint8_t fsesrecord[161];	// 161 = 4+4+4+4+1+4+4+4+4+16*4+16*4
+	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
 	uint8_t *ptr;
 	int i;
 	FILE *fd;
@@ -195,14 +341,16 @@ void matocuserv_store_sessions() {
 		mfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
 		return;
 	}
-	if (fwrite("MFSS \001\006\001",8,1,fd)!=1) {
+	memcpy(fsesrecord,MFSSIGNATURE "S \001\006\003",8);
+	ptr = fsesrecord+8;
+	put16bit(&ptr,SESSION_STATS);
+	if (fwrite(fsesrecord,10,1,fd)!=1) {
 		syslog(LOG_WARNING,"can't store sessions, fwrite error");
 		fclose(fd);
 		return;
 	}
-
 	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
-		if (asesdata->newsession) {
+		if (asesdata->newsession==1) {
 			ptr = fsesrecord;
 			if (asesdata->info) {
 				ileng = strlen(asesdata->info);
@@ -218,13 +366,13 @@ void matocuserv_store_sessions() {
 			put32bit(&ptr,asesdata->rootgid);
 			put32bit(&ptr,asesdata->mapalluid);
 			put32bit(&ptr,asesdata->mapallgid);
-			for (i=0 ; i<16 ; i++) {
+			for (i=0 ; i<SESSION_STATS ; i++) {
 				put32bit(&ptr,asesdata->currentopstats[i]);
 			}
-			for (i=0 ; i<16 ; i++) {
+			for (i=0 ; i<SESSION_STATS ; i++) {
 				put32bit(&ptr,asesdata->lasthouropstats[i]);
 			}
-			if (fwrite(fsesrecord,161,1,fd)!=1) {
+			if (fwrite(fsesrecord,(33+SESSION_STATS*8),1,fd)!=1) {
 				syslog(LOG_WARNING,"can't store sessions, fwrite error");
 				fclose(fd);
 				return;
@@ -250,9 +398,12 @@ void matocuserv_store_sessions() {
 int matocuserv_load_sessions() {
 	session *asesdata;
 	uint32_t ileng;
-	uint8_t fsesrecord[161];	// 153 = 4+4+4+4+1+4+4+4+4+16*4+16*4
+//	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
+	uint8_t hdr[8];
+	uint8_t *fsesrecord;
 	const uint8_t *ptr;
-	int i,imp15;
+	uint8_t impold;
+	uint32_t i,statsinfile;
 	int r;
 	FILE *fd;
 
@@ -265,26 +416,47 @@ int matocuserv_load_sessions() {
 			return -1;
 		}
 	}
-	if (fread(fsesrecord,8,1,fd)!=1) {
+	if (fread(hdr,8,1,fd)!=1) {
 		syslog(LOG_WARNING,"can't load sessions, fread error");
 		fclose(fd);
 		return -1;
 	}
-	if (memcmp(fsesrecord,"MFSS 1.5",8)==0) {
-		imp15=1;
-	} else if (memcmp(fsesrecord,"MFSS \001\006\001",8)==0) {
-		imp15=0;
+	if (memcmp(hdr,MFSSIGNATURE "S 1.5",8)==0) {
+		impold = 1;
+		statsinfile = 16;
+	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\001",8)==0) {
+		impold = 0;
+		statsinfile = 16;
+	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\002",8)==0) {
+		impold = 0;
+		statsinfile = 21;
+	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\003",8)==0) {
+		impold = 0;
+		if (fread(hdr,2,1,fd)!=1) {
+			syslog(LOG_WARNING,"can't load sessions, fread error");
+			fclose(fd);
+			return -1;
+		}
+		ptr = hdr;
+		statsinfile = get16bit(&ptr);
 	} else {
 		syslog(LOG_WARNING,"can't load sessions, bad header");
 		fclose(fd);
 		return -1;
 	}
 
+	if (impold==2) {
+		fsesrecord = malloc(25+statsinfile*8);
+	} else {
+		fsesrecord = malloc(33+statsinfile*8);
+	}
+	passert(fsesrecord);
+
 	while (!feof(fd)) {
-		if (imp15) {
-			r = fread(fsesrecord,153,1,fd);
+		if (impold) {
+			r = fread(fsesrecord,25+statsinfile*8,1,fd);
 		} else {
-			r = fread(fsesrecord,161,1,fd);
+			r = fread(fsesrecord,33+statsinfile*8,1,fd);
 		}
 		if (r==1) {
 			ptr = fsesrecord;
@@ -297,7 +469,7 @@ int matocuserv_load_sessions() {
 			asesdata->sesflags = get8bit(&ptr);
 			asesdata->rootuid = get32bit(&ptr);
 			asesdata->rootgid = get32bit(&ptr);
-			if (imp15) {
+			if (impold) {
 				asesdata->mapalluid = 0;
 				asesdata->mapallgid = 0;
 			} else {
@@ -309,11 +481,14 @@ int matocuserv_load_sessions() {
 			asesdata->openedfiles = NULL;
 			asesdata->disconnected = main_time();
 			asesdata->nsocks = 0;
-			for (i=0 ; i<16 ; i++) {
-				asesdata->currentopstats[i] = get32bit(&ptr);
+			for (i=0 ; i<SESSION_STATS ; i++) {
+				asesdata->currentopstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
-			for (i=0 ; i<16 ; i++) {
-				asesdata->lasthouropstats[i] = get32bit(&ptr);
+			if (statsinfile>SESSION_STATS) {
+				ptr+=4*(statsinfile-SESSION_STATS);
+			}
+			for (i=0 ; i<SESSION_STATS ; i++) {
+				asesdata->lasthouropstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
 			if (ileng>0) {
 				asesdata->info = malloc(ileng+1);
@@ -321,6 +496,7 @@ int matocuserv_load_sessions() {
 				if (fread(asesdata->info,ileng,1,fd)!=1) {
 					free(asesdata->info);
 					free(asesdata);
+					free(fsesrecord);
 					syslog(LOG_WARNING,"can't load sessions, fread error");
 					fclose(fd);
 					return -1;
@@ -331,11 +507,13 @@ int matocuserv_load_sessions() {
 			sessionshead = asesdata;
 		}
 		if (ferror(fd)) {
+			free(fsesrecord);
 			syslog(LOG_WARNING,"can't load sessions, fread error");
 			fclose(fd);
 			return -1;
 		}
 	}
+	free(fsesrecord);
 	syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
 	return 1;
@@ -366,8 +544,8 @@ session* matocuserv_get_session(uint32_t sessionid) {
 	asesdata->openedfiles = NULL;
 	asesdata->disconnected = 0;
 	asesdata->nsocks = 1;
-	memset(asesdata->currentopstats,0,4*16);
-	memset(asesdata->lasthouropstats,0,4*16);
+	memset(asesdata->currentopstats,0,4*SESSION_STATS);
+	memset(asesdata->lasthouropstats,0,4*SESSION_STATS);
 	asesdata->next = sessionshead;
 	sessionshead = asesdata;
 	return asesdata;
@@ -381,14 +559,14 @@ int matocuserv_insert_openfile(session* cr,uint32_t inode) {
 	ofpptr = &(cr->openedfiles);
 	while ((ofptr=*ofpptr)) {
 		if (ofptr->inode==inode) {
-			return STATUS_OK;	// file already aquired - nothing to do
+			return STATUS_OK;	// file already acquired - nothing to do
 		}
 		if (ofptr->inode>inode) {
 			break;
 		}
 		ofpptr = &(ofptr->next);
 	}
-	status = fs_aquire(inode,cr->sessionid);
+	status = fs_acquire(inode,cr->sessionid);
 	if (status==STATUS_OK) {
 		ofptr = (filelist*)malloc(sizeof(filelist));
 		passert(ofptr);
@@ -421,8 +599,8 @@ void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 		asesdata->openedfiles = NULL;
 		asesdata->disconnected = main_time();
 		asesdata->nsocks = 0;
-		memset(asesdata->currentopstats,0,4*16);
-		memset(asesdata->lasthouropstats,0,4*16);
+		memset(asesdata->currentopstats,0,4*SESSION_STATS);
+		memset(asesdata->lasthouropstats,0,4*SESSION_STATS);
 		asesdata->next = sessionshead;
 		sessionshead = asesdata;
 	}
@@ -602,10 +780,10 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		eptr->mode = KILL;
 		return;
 	}
-	size = 0;
+	size = 2;
 	for (eaptr = matocuservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
-			size += 165;
+			size += 37+SESSION_STATS*8;
 			if (eaptr->sesdata->info) {
 				size += strlen(eaptr->sesdata->info);
 			}
@@ -617,6 +795,7 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		}
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_SESSION_LIST,size);
+	put16bit(&ptr,SESSION_STATS);
 	for (eaptr = matocuservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
 //			tcpgetpeer(eaptr->sock,&ip,NULL);
@@ -648,15 +827,15 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 			put32bit(&ptr,eaptr->sesdata->mapalluid);
 			put32bit(&ptr,eaptr->sesdata->mapallgid);
 			if (eaptr->sesdata) {
-				for (i=0 ; i<16 ; i++) {
+				for (i=0 ; i<SESSION_STATS ; i++) {
 					put32bit(&ptr,eaptr->sesdata->currentopstats[i]);
 				}
-				for (i=0 ; i<16 ; i++) {
+				for (i=0 ; i<SESSION_STATS ; i++) {
 					put32bit(&ptr,eaptr->sesdata->lasthouropstats[i]);
 				}
 			} else {
-				memset(ptr,0xFF,8*16);
-				ptr+=8*16;
+				memset(ptr,0xFF,8*SESSION_STATS);
+				ptr+=8*SESSION_STATS;
 			}
 		}
 	}
@@ -700,6 +879,7 @@ void matocuserv_chart_data(matocuserventry *eptr,const uint8_t *data,uint32_t le
 
 void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t totalspace,availspace,trspace,respace;
+	uint64_t memusage;
 	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
 	uint32_t chunks,chunkcopies,tdcopies;
 	uint8_t *ptr;
@@ -718,11 +898,14 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 //#endif
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
-	ptr = matocuserv_createpacket(eptr,MATOCU_INFO,68);
+	memusage = chartsdata_memusage();
+	ptr = matocuserv_createpacket(eptr,MATOCU_INFO,76);
 	/* put32bit(&buff,VERSION): */
 	put16bit(&ptr,VERSMAJ);
 	put8bit(&ptr,VERSMID);
 	put8bit(&ptr,VERSMIN);
+	/* --- */
+	put64bit(&ptr,memusage);
 	/* --- */
 	put64bit(&ptr,totalspace);
 	put64bit(&ptr,availspace);
@@ -830,6 +1013,145 @@ void matocuserv_mlog_list(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	matomlserv_mloglist_data(ptr);
 }
 
+/* CACHENOTIFY
+void matocuserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[35]) {
+	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+	uint8_t *ptr;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==dirinode) {
+//			syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %"PRIu32,dc->eptr->sesdata->info,inode);
+			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_ATTR,43);
+			stats_notify++;
+			put32bit(&ptr,0);
+			put32bit(&ptr,inode);
+			memcpy(ptr,attr,35);
+			if (dc->eptr->sesdata) {
+				dc->eptr->sesdata->currentopstats[16]++;
+			}
+			dc->eptr->notifications = 1;
+		}
+	}
+}
+
+void matocuserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const uint8_t attr[35],uint32_t ts) {
+	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+	uint8_t *ptr;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==dirinode) {
+//			{
+//				char strname[256];
+//				memcpy(strname,name,nleng);
+//				strname[nleng]=0;
+//				syslog(LOG_NOTICE,"send to: '%s' ; new link (%"PRIu32",%s)->%"PRIu32,dc->eptr->sesdata->info,dirinode,strname,inode);
+//			}
+			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_LINK,52+nleng);
+			stats_notify++;
+			put32bit(&ptr,0);
+			put32bit(&ptr,ts);
+			if (dirinode==dc->eptr->sesdata->rootinode) {
+				put32bit(&ptr,MFS_ROOT_ID);
+			} else {
+				put32bit(&ptr,dirinode);
+			}
+			put8bit(&ptr,nleng);
+			memcpy(ptr,name,nleng);
+			ptr+=nleng;
+			put32bit(&ptr,inode);
+			memcpy(ptr,attr,35);
+			if (dc->eptr->sesdata) {
+				dc->eptr->sesdata->currentopstats[17]++;
+			}
+			dc->eptr->notifications = 1;
+		}
+	}
+}
+
+void matocuserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t ts) {
+	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+	uint8_t *ptr;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==dirinode) {
+//			{
+//				char strname[256];
+//				memcpy(strname,name,nleng);
+//				strname[nleng]=0;
+//				syslog(LOG_NOTICE,"send to: '%s' ; remove link (%"PRIu32",%s)",dc->eptr->sesdata->info,dirinode,strname);
+//			}
+			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_UNLINK,13+nleng);
+			stats_notify++;
+			put32bit(&ptr,0);
+			put32bit(&ptr,ts);
+			if (dirinode==dc->eptr->sesdata->rootinode) {
+				put32bit(&ptr,MFS_ROOT_ID);
+			} else {
+				put32bit(&ptr,dirinode);
+			}
+			put8bit(&ptr,nleng);
+			memcpy(ptr,name,nleng);
+			if (dc->eptr->sesdata) {
+				dc->eptr->sesdata->currentopstats[18]++;
+			}
+			dc->eptr->notifications = 1;
+		}
+	}
+}
+
+void matocuserv_notify_remove(uint32_t dirinode) {
+	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+	uint8_t *ptr;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==dirinode) {
+//			syslog(LOG_NOTICE,"send to: '%s' ; removed inode: %"PRIu32,dc->eptr->sesdata->info,dirinode);
+			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_REMOVE,8);
+			stats_notify++;
+			put32bit(&ptr,0);
+			if (dirinode==dc->eptr->sesdata->rootinode) {
+				put32bit(&ptr,MFS_ROOT_ID);
+			} else {
+				put32bit(&ptr,dirinode);
+			}
+			if (dc->eptr->sesdata) {
+				dc->eptr->sesdata->currentopstats[19]++;
+			}
+			dc->eptr->notifications = 1;
+		}
+	}
+}
+
+void matocuserv_notify_parent(uint32_t dirinode,uint32_t parent) {
+	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+	dirincache *dc;
+	uint8_t *ptr;
+
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==dirinode && dirinode!=dc->eptr->sesdata->rootinode) {
+//			syslog(LOG_NOTICE,"send to: '%s' ; new parent: %"PRIu32"->%"PRIu32,dc->eptr->sesdata->info,dirinode,parent);
+			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_PARENT,12);
+			stats_notify++;
+			put32bit(&ptr,0);
+			put32bit(&ptr,dirinode);
+			if (parent==dc->eptr->sesdata->rootinode) {
+				put32bit(&ptr,MFS_ROOT_ID);
+			} else {
+				put32bit(&ptr,parent);
+			}
+			if (dc->eptr->sesdata) {
+				dc->eptr->sesdata->currentopstats[20]++;
+			}
+			dc->eptr->notifications = 1;
+		}
+	}
+}
+*/
+
 void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *rptr;
 	uint8_t *wptr;
@@ -837,13 +1159,17 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t status;
 	uint8_t tools;
 
+	if (starting) {
+		eptr->mode = KILL;
+		return;
+	}
 	if (length<64) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER - wrong size (%"PRIu32"/<65)",length);
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER - wrong size (%"PRIu32"/<64)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	tools = (memcmp(data,FUSE_REGISTER_BLOB_TOOLS_NOACL,64)==0)?1:0;
-	if (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools) {
+	if (eptr->registered==0 && (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
 			syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
 			eptr->mode = KILL;
@@ -950,8 +1276,14 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		rptr = data+64;
 		rcode = get8bit(&rptr);
 
+		if ((eptr->registered==0 && rcode==REGISTER_CLOSESESSION) || (eptr->registered && rcode!=REGISTER_CLOSESESSION)) {
+			syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)",rcode,eptr->registered);
+			eptr->mode = KILL;
+			return;
+		}
+
 		switch (rcode) {
-		case 1:
+		case REGISTER_GETRANDOM:
 			if (length!=65) {
 				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.1 - wrong size (%"PRIu32"/65)",length);
 				eptr->mode = KILL;
@@ -963,7 +1295,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			}
 			memcpy(wptr,eptr->passwordrnd,32);
 			return;
-		case 2:
+		case REGISTER_NEWSESSION:
 			if (length<77) {
 				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/>=77)",length);
 				eptr->mode = KILL;
@@ -1029,12 +1361,19 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				}
 				matocuserv_store_sessions();
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010601)?21:13):1);
+			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?25:(eptr->version>=0x010601)?21:13):1);
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
 			}
 			sessionid = eptr->sesdata->sessionid;
+			if (eptr->version==0x010615) {
+				put32bit(&wptr,0);
+			} else if (eptr->version>=0x010616) {
+				put16bit(&wptr,VERSMAJ);
+				put8bit(&wptr,VERSMID);
+				put8bit(&wptr,VERSMIN);
+			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);
 			put32bit(&wptr,rootuid);
@@ -1045,7 +1384,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			}
 			eptr->registered = 1;
 			return;
-		case 5:
+		case REGISTER_NEWMETASESSION:
 			if (length<73) {
 				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.5 - wrong size (%"PRIu32"/>=73)",length);
 				eptr->mode = KILL;
@@ -1092,18 +1431,23 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				}
 				matocuserv_store_sessions();
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?5:1);
+			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?9:5):1);
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
 			}
 			sessionid = eptr->sesdata->sessionid;
+			if (eptr->version>=0x010615) {
+				put16bit(&wptr,VERSMAJ);
+				put8bit(&wptr,VERSMID);
+				put8bit(&wptr,VERSMIN);
+			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);
 			eptr->registered = 1;
 			return;
-		case 3:
-		case 4:
+		case REGISTER_RECONNECT:
+		case REGISTER_TOOLS:
 			if (length<73) {
 				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.%"PRIu8" - wrong size (%"PRIu32"/73)",rcode,length);
 				eptr->mode = KILL;
@@ -1127,6 +1471,16 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				return;
 			}
 			eptr->registered = (rcode==3)?1:100;
+			return;
+		case REGISTER_CLOSESESSION:
+			if (length<69) {
+				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.6 - wrong size (%"PRIu32"/69)",length);
+				eptr->mode = KILL;
+				return;
+			}
+			sessionid = get32bit(&rptr);
+			matocuserv_close_session(sessionid);
+			eptr->mode = KILL;
 			return;
 		}
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL - wrong rcode (%"PRIu8")",rcode);
@@ -1167,7 +1521,7 @@ void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,u
 			*ofpptr = ofptr->next;
 			free(ofptr);
 		} else if (ofptr->inode>inode) {
-			if (fs_aquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
+			if (fs_acquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
 				ofptr = (filelist*)malloc(sizeof(filelist));
 				passert(ofptr);
 				ofptr->next = *ofpptr;
@@ -1192,7 +1546,7 @@ void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,u
 		}
 	}
 	while (inode>0) {
-		if (fs_aquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
+		if (fs_acquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
 			ofptr = (filelist*)malloc(sizeof(filelist));
 			passert(ofptr);
 			ofptr->next = *ofpptr;
@@ -1720,10 +2074,11 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 }
 
 void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode_src,inode_dst;
+	uint32_t inode,inode_src,inode_dst;
 	uint8_t nleng_src,nleng_dst;
 	const uint8_t *name_src,*name_dst;
-	uint32_t uid,gid;
+	uint32_t uid,gid,auid,agid;
+	uint8_t attr[35];
 	uint32_t msgid;
 	uint8_t status;
 	uint8_t *ptr;
@@ -1751,19 +2106,27 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	name_dst = data;
 	data += nleng_dst;
-	uid = get32bit(&data);
-	gid = get32bit(&data);
+	auid = uid = get32bit(&data);
+	agid = gid = get32bit(&data);
 	matocuserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_rename(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode_src,nleng_src,name_src,inode_dst,nleng_dst,name_dst,uid,gid);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,5);
+	status = fs_rename(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode_src,nleng_src,name_src,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&inode,attr);
+	if (eptr->version>=0x010615 && status==STATUS_OK) {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,43);
+	} else {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,5);
+	}
 	put32bit(&ptr,msgid);
-	put8bit(&ptr,status);
+	if (eptr->version>=0x010615 && status==STATUS_OK) {
+		put32bit(&ptr,inode);
+		memcpy(ptr,attr,35);
+	} else {
+		put8bit(&ptr,status);
+	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[10]++;
 	}
 }
 
-// na razie funkcja zostanie wy³±czona - do momentu zaimplementowania posiksowego twardego linka
 void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_dst;
 	uint8_t nleng_dst;
@@ -1837,11 +2200,46 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 		put8bit(&ptr,status);
 	} else {
 		fs_readdir_data(eptr->sesdata->rootinode,eptr->sesdata->sesflags,uid,gid,auid,agid,flags,custom,ptr);
+/* CACHENOTIFY
+		if (flags&GETDIR_FLAG_ADDTOCACHE) {
+			if (inode==MFS_ROOT_ID) {
+				matocuserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
+			} else {
+				matocuserv_notify_add_dir(eptr,inode);
+			}
+		}
+*/
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[12]++;
 	}
 }
+
+/* CACHENOTIFY
+void matocuserv_fuse_dir_removed(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t inode;
+	if (length%4!=0) {
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_DIR_REMOVED - wrong size (%"PRIu32"/N*4)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	if (get32bit(&data)) {
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_DIR_REMOVED - wrong msgid");
+		eptr->mode = KILL;
+		return;
+	}
+	length-=4;
+	while (length) {
+		inode = get32bit(&data);
+		length-=4;
+		if (inode==MFS_ROOT_ID) {
+			matocuserv_notify_remove_dir(eptr,eptr->sesdata->rootinode);
+		} else {
+			matocuserv_notify_remove_dir(eptr,inode);
+		}
+	}
+}
+*/
 
 void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
@@ -2706,7 +3104,9 @@ void matocu_session_check(void) {
 	now = main_time();
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
-		if (asesdata->nsocks==0 && ((asesdata->newsession && asesdata->disconnected+NEWSESSION_TIMEOUT<now) || (asesdata->newsession==0 && asesdata->disconnected+OLDSESSION_TIMEOUT<now))) {
+//		syslog(LOG_NOTICE,"session: %u ; nsocks: %u ; state: %u ; disconnected: %u",asesdata->sessionid,asesdata->nsocks,asesdata->newsession,asesdata->disconnected);
+		if (asesdata->nsocks==0 && ((asesdata->newsession>1 && asesdata->disconnected<now) || (asesdata->newsession==1 && asesdata->disconnected+NEWSESSION_TIMEOUT<now) || (asesdata->newsession==0 && asesdata->disconnected+OLDSESSION_TIMEOUT<now))) {
+//			syslog(LOG_NOTICE,"remove session: %u",asesdata->sessionid);
 			matocu_session_timedout(asesdata);
 			*sesdata = asesdata->next;
 			free(asesdata);
@@ -2714,13 +3114,14 @@ void matocu_session_check(void) {
 			sesdata = &(asesdata->next);
 		}
 	}
+//	matocuserv_show_notification_dirs();
 }
 
 void matocu_session_statsmove(void) {
 	session *sesdata;
 	for (sesdata = sessionshead ; sesdata ; sesdata=sesdata->next) {
-		memcpy(sesdata->lasthouropstats,sesdata->currentopstats,4*16);
-		memset(sesdata->currentopstats,0,4*16);
+		memcpy(sesdata->lasthouropstats,sesdata->currentopstats,4*SESSION_STATS);
+		memset(sesdata->currentopstats,0,4*SESSION_STATS);
 	}
 	matocuserv_store_sessions();
 }
@@ -2746,6 +3147,9 @@ void matocu_beforedisconnect(matocuserventry *eptr) {
 			eptr->sesdata->disconnected = main_time();
 		}
 	}
+/* CACHENOTIFY
+	matocuserv_notify_disconnected(eptr);
+*/
 }
 
 void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
@@ -2801,6 +3205,9 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			return;
 		}
 		switch (type) {
+			case CUTOMA_FUSE_REGISTER:
+				matocuserv_fuse_register(eptr,data,length);
+				break;
 			case CUTOMA_FUSE_RESERVED_INODES:
 				matocuserv_fuse_reserved_inodes(eptr,data,length);
 				break;
@@ -2846,6 +3253,11 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			case CUTOMA_FUSE_GETDIR:
 				matocuserv_fuse_getdir(eptr,data,length);
 				break;
+/* CACHENOTIFY
+			case CUTOMA_FUSE_DIR_REMOVED:
+				matocuserv_fuse_dir_removed(eptr,data,length);
+				break;
+*/
 			case CUTOMA_FUSE_OPEN:
 				matocuserv_fuse_open(eptr,data,length);
 				break;
@@ -2918,6 +3330,9 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 		}
 		switch (type) {
 // extra (external tools)
+			case CUTOMA_FUSE_REGISTER:
+				matocuserv_fuse_register(eptr,data,length);
+				break;
 			case CUTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
 				matocuserv_fuse_read_chunk(eptr,data,length);
 				break;
@@ -3041,6 +3456,7 @@ void matocuserv_read(matocuserventry *eptr) {
 		}
 		eptr->inputpacket.startptr+=i;
 		eptr->inputpacket.bytesleft-=i;
+		stats_brcvd+=i;
 
 		if (eptr->inputpacket.bytesleft>0) {
 			return;
@@ -3076,6 +3492,7 @@ void matocuserv_read(matocuserventry *eptr) {
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
 			matocuserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+			stats_prcvd++;
 
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
@@ -3103,10 +3520,12 @@ void matocuserv_write(matocuserventry *eptr) {
 		}
 		pack->startptr+=i;
 		pack->bytesleft-=i;
+		stats_bsent+=i;
 		if (pack->bytesleft>0) {
 			return;
 		}
 		free(pack->packet);
+		stats_psent++;
 		eptr->outputhead = pack->next;
 		if (eptr->outputhead==NULL) {
 			eptr->outputtail = &(eptr->outputhead);
@@ -3177,7 +3596,7 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
 	matocuserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
-	int ns,emptyout;
+	int ns;
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 //	if (FD_ISSET(lsock,rset)) {
@@ -3195,6 +3614,9 @@ void matocuserv_serve(struct pollfd *pdesc) {
 			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
 			eptr->registered = 0;
+/* CACHENOTIFY
+			eptr->notifications = 0;
+*/
 			eptr->version = 0;
 			eptr->mode = HEADER;
 			eptr->lastread = now;
@@ -3208,24 +3630,44 @@ void matocuserv_serve(struct pollfd *pdesc) {
 
 			eptr->chunkdelayedops = NULL;
 			eptr->sesdata = NULL;
+/* CACHENOTIFY
+			eptr->cacheddirs = NULL;
+*/
 			memset(eptr->passwordrnd,0,32);
 //			eptr->openedfiles = NULL;
 		}
 	}
 
+// read
 	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->pdescpos>=0) {
 			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
 				eptr->mode = KILL;
 			}
-			emptyout = (eptr->outputhead==NULL);
 			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
-//			if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
 				eptr->lastread = now;
 				matocuserv_read(eptr);
 			}
-			if (((emptyout && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
-//			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
+		}
+	}
+
+// write
+	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
+		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
+			uint8_t *ptr = matocuserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
+			*((uint32_t*)ptr) = 0;
+		}
+		if (eptr->pdescpos>=0) {
+/* CACHENOTIFY
+			if (eptr->notifications) {
+				if (eptr->version>=0x010616) {
+					uint8_t *ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_NOTIFY_END,4);	// transaction end
+					*((uint32_t*)ptr) = 0;
+				}
+				eptr->notifications = 0;
+			}
+*/
+			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
 				eptr->lastwrite = now;
 				matocuserv_write(eptr);
 			}
@@ -3233,11 +3675,9 @@ void matocuserv_serve(struct pollfd *pdesc) {
 		if (eptr->lastread+10<now && exiting==0) {
 			eptr->mode = KILL;
 		}
-		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
-			uint8_t *ptr = matocuserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
-			*((uint32_t*)ptr) = 0;
-		}
 	}
+
+// close
 	kptr = &matocuservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
@@ -3259,6 +3699,18 @@ void matocuserv_serve(struct pollfd *pdesc) {
 			free(eptr);
 		} else {
 			kptr = &(eptr->next);
+		}
+	}
+}
+
+void matocuserv_start_cond_check(void) {
+	if (starting) {
+// very simple condition checking if all chunkservers have been connected
+// in the future master will know his chunkservers list and then this condition will be changed
+		if (chunk_get_missing_count()<100) {
+			starting=0;
+		} else {
+			starting--;
 		}
 	}
 }
@@ -3291,6 +3743,7 @@ int matocuserv_networkinit(void) {
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 
 	exiting = 0;
+	starting = 12;
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -3309,7 +3762,11 @@ int matocuserv_networkinit(void) {
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocuservhead = NULL;
+/* CACHENOTIFY
+	matocuserv_dircache_init();
+*/
 
+	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocuserv_start_cond_check);
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocu_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocu_session_statsmove);
 	main_destructregister(matocuserv_term);

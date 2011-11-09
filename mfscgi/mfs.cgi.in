@@ -9,6 +9,31 @@ import cgi
 import cgitb
 import sys
 
+PROTO_BASE = @PROTOBASE@
+
+CUTOMA_CSERV_LIST = (PROTO_BASE+500)
+MATOCU_CSERV_LIST = (PROTO_BASE+501)
+CUTOCS_HDD_LIST_V1 = (PROTO_BASE+502)
+CSTOCU_HDD_LIST_V1 = (PROTO_BASE+503)
+CUTOMA_SESSION_LIST = (PROTO_BASE+508)
+MATOCU_SESSION_LIST = (PROTO_BASE+509)
+CUTOMA_INFO = (PROTO_BASE+510)
+MATOCU_INFO = (PROTO_BASE+511)
+CUTOMA_FSTEST_INFO = (PROTO_BASE+512)
+MATOCU_FSTEST_INFO = (PROTO_BASE+513)
+CUTOMA_CHUNKSTEST_INFO = (PROTO_BASE+514)
+MATOCU_CHUNKSTEST_INFO = (PROTO_BASE+515)
+CUTOMA_CHUNKS_MATRIX = (PROTO_BASE+516)
+MATOCU_CHUNKS_MATRIX = (PROTO_BASE+517)
+CUTOMA_QUOTA_INFO = (PROTO_BASE+518)
+MATOCU_QUOTA_INFO = (PROTO_BASE+519)
+CUTOMA_EXPORTS_INFO = (PROTO_BASE+520)
+MATOCU_EXPORTS_INFO = (PROTO_BASE+521)
+CUTOMA_MLOG_LIST = (PROTO_BASE+522)
+MATOCU_MLOG_LIST = (PROTO_BASE+523)
+CUTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
+CSTOCU_HDD_LIST_V2 = (PROTO_BASE+601)
+
 cgitb.enable()
 
 fields = cgi.FieldStorage()
@@ -89,16 +114,16 @@ masterversion = (0,0,0)
 try:
 	s = socket.socket()
 	s.connect((masterhost,masterport))
-	mysend(s,struct.pack(">LL",510,0))
+	mysend(s,struct.pack(">LL",CUTOMA_INFO,0))
 	header = myrecv(s,8)
 	cmd,length = struct.unpack(">LL",header)
 	data = myrecv(s,length)
-	if cmd==511:
+	if cmd==MATOCU_INFO:
 		if length==52:
 			masterversion = (1,4,0)
 		elif length==60:
 			masterversion = (1,5,0)
-		elif length==68:
+		elif length==68 or length==76:
 			masterversion = struct.unpack(">HBB",data[:4])
 except Exception:
 	print "Content-Type: text/html; charset=UTF-8"
@@ -245,10 +270,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",510,0))
+		mysend(s,struct.pack(">LL",CUTOMA_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==511 and length==52:
+		if cmd==MATOCU_INFO and length==52:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,chunks,tdcopies = struct.unpack(">QQQLQLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -276,7 +301,7 @@ if "IN" in sectionset:
 			out.append("""	<td align="right">%u</td>""" % tdcopies)
 			out.append("""</tr>""")
 			out.append("""</table>""")
-		elif cmd==511 and length==60:
+		elif cmd==MATOCU_INFO and length==60:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,tdcopies = struct.unpack(">QQQLQLLLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -308,7 +333,7 @@ if "IN" in sectionset:
 			out.append("""	<td align="right">%u</td>""" % tdcopies)
 			out.append("""</tr>""")
 			out.append("""</table>""")
-		elif cmd==511 and length==68:
+		elif cmd==MATOCU_INFO and length==68:
 			data = myrecv(s,length)
 			v1,v2,v3,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQLQLLLLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -348,6 +373,47 @@ if "IN" in sectionset:
 			out.append("""	<td align="right">%u</td>""" % tdcopies)
 			out.append("""</tr>""")
 			out.append("""</table>""")
+		elif cmd==MATOCU_INFO and length==76:
+			data = myrecv(s,length)
+			v1,v2,v3,memusage,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQQLQLLLLLLL",data)
+			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<tr><th colspan="14">Info</th></tr>""")
+			out.append("""<tr>""")
+			out.append("""	<th>version</th>""")
+			out.append("""	<th>RAM used</th>""")
+			out.append("""	<th>total space</th>""")
+			out.append("""	<th>avail space</th>""")
+			out.append("""	<th>trash space</th>""")
+			out.append("""	<th>trash files</th>""")
+			out.append("""	<th>reserved space</th>""")
+			out.append("""	<th>reserved files</th>""")
+			out.append("""	<th>all fs objects</th>""")
+			out.append("""	<th>directories</th>""")
+			out.append("""	<th>files</th>""")
+			out.append("""	<th>chunks</th>""")
+			out.append("""	<th><a style="cursor:default" title="chunks from 'regular' hdd space and 'marked for removal' hdd space">all chunk copies</a></th>""")
+			out.append("""	<th><a style="cursor:default" title="only chunks from 'regular' hdd space">regular chunk copies</a></th>""")
+			out.append("""</tr>""")
+			out.append("""<tr>""")
+			out.append("""	<td align="center">%u.%u.%u</td>""" % (v1,v2,v3))
+			if memusage>0:
+				out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(memusage),humanize_number(memusage,"&nbsp;")))
+			else:
+				out.append("""  <td align="center"><a style="cursor:default" title="obtaining memory usage is not supported by your OS">not available</td>""")
+			out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(total),humanize_number(total,"&nbsp;")))
+			out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(avail),humanize_number(avail,"&nbsp;")))
+			out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(trspace),humanize_number(trspace,"&nbsp;")))
+			out.append("""	<td align="right">%u</td>""" % trfiles)
+			out.append("""	<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(respace),humanize_number(respace,"&nbsp;")))
+			out.append("""	<td align="right">%u</td>""" % refiles)
+			out.append("""	<td align="right">%u</td>""" % nodes)
+			out.append("""	<td align="right">%u</td>""" % dirs)
+			out.append("""	<td align="right">%u</td>""" % files)
+			out.append("""	<td align="right">%u</td>""" % chunks)
+			out.append("""	<td align="right">%u</td>""" % allcopies)
+			out.append("""	<td align="right">%u</td>""" % tdcopies)
+			out.append("""</tr>""")
+			out.append("""</table>""")
 		else:
 			out.append("""<table class="FR" cellspacing="0">""")
 			out.append("""<tr><td align="left">""")
@@ -371,12 +437,12 @@ if "IN" in sectionset:
 			s = socket.socket()
 			s.connect((masterhost,masterport))
 			if masterversion>=(1,6,10):
-				mysend(s,struct.pack(">LLB",516,1,INmatrix))
+				mysend(s,struct.pack(">LLB",CUTOMA_CHUNKS_MATRIX,1,INmatrix))
 			else:
-				mysend(s,struct.pack(">LL",516,0))
+				mysend(s,struct.pack(">LL",CUTOMA_CHUNKS_MATRIX,0))
 			header = myrecv(s,8)
 			cmd,length = struct.unpack(">LL",header)
-			if cmd==517 and length==484:
+			if cmd==MATOCU_CHUNKS_MATRIX and length==484:
 				matrix = []
 				for i in xrange(11):
 					data = myrecv(s,44)
@@ -407,6 +473,7 @@ if "IN" in sectionset:
 				out.append("""		<th class="PERC8">10+</th>""")
 				out.append("""		<th class="PERC8">all</th>""")
 				out.append("""	</tr>""")
+				classsum = 6*[0]
 				sumlist = 11*[0]
 				for goal in xrange(11):
 					out.append("""<tr>""")
@@ -417,19 +484,26 @@ if "IN" in sectionset:
 					for vc in xrange(11):
 						if goal==0:
 							cl="IGNORE"
+							clidx = 5
 						elif vc==0:
 							cl="MISSING"
+							clidx = 0
 						elif vc>goal:
 							cl="OVERGOAL"
+							clidx = 4
 						elif vc<goal:
 							if vc==1:
 								cl="ENDANGERED"
+								clidx = 1
 							else:
 								cl="UNDERGOAL"
+								clidx = 2
 						else:
 							cl="NORMAL"
+							clidx = 3
 						if matrix[goal][vc]>0:
 							out.append("""	<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[goal][vc]))
+							classsum[clidx]+=matrix[goal][vc]
 						else:
 							out.append("""	<td align="center">-</td>""")
 					if goal==0:
@@ -442,14 +516,10 @@ if "IN" in sectionset:
 				out.append("""<tr>""")
 				out.append("""	<td align="center">all 1+</td>""")
 				for vc in xrange(11):
-					if vc==0 and sumlist[vc]>0:
-						out.append("""	<td align="right"><span class="MISSING">%u</span></td>""" % sumlist[vc])
-					elif vc==1 and sumlist[vc]>0:
-						out.append("""	<td align="right"><span class="ENDANGERED">%u</span></td>""" % sumlist[vc])
-					else:
-						out.append("""	<td align="right">%u</td>""" % sumlist[vc])
+					out.append("""	<td align="right">%u</td>""" % sumlist[vc])
 				out.append("""	<td align="right">%u</td>""" % sum(sumlist))
 				out.append("""</tr>""")
+				out.append("""<tr><td colspan="13"><span class="MISSINGBOX"></span>&nbsp;-&nbsp;missing (<span class="MISSING">%u</span>) / <span class="ENDANGEREDBOX"></span>&nbsp;-&nbsp;endangered (<span class="ENDANGERED">%u</span>) / <span class="UNDERGOALBOX"></span>&nbsp;-&nbsp;undergoal (<span class="UNDERGOAL">%u</span>) / <span class="NORMALBOX"></span>&nbsp;-&nbsp;stable (<span class="NORMAL">%u</span>) / <span class="OVERGOALBOX"></span>&nbsp;-&nbsp;overgoal (<span class="OVERGOAL">%u</span>) / <span class="IGNOREBOX"></span>&nbsp;-&nbsp;pending&nbsp;deletion (<span class="IGNORE">%u</span>)</td></tr>""" % tuple(classsum))
 				out.append("""</table>""")
 			s.close()
 			print "\n".join(out)
@@ -466,10 +536,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",514,0))
+		mysend(s,struct.pack(">LL",CUTOMA_CHUNKSTEST_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==515 and length==52:
+		if cmd==MATOCU_CHUNKSTEST_INFO and length==52:
 			data = myrecv(s,length)
 			loopstart,loopend,del_invalid,ndel_invalid,del_unused,ndel_unused,del_dclean,ndel_dclean,del_ogoal,ndel_ogoal,rep_ugoal,nrep_ugoal,rebalnce = struct.unpack(">LLLLLLLLLLLLL",data[:52])
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -520,10 +590,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",512,0))
+		mysend(s,struct.pack(">LL",CUTOMA_FSTEST_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==513 and length>=36:
+		if cmd==MATOCU_FSTEST_INFO and length>=36:
 			data = myrecv(s,length)
 			loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,msgbuffleng = struct.unpack(">LLLLLLLLL",data[:36])
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -649,10 +719,10 @@ if "CS" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",500,0))
+		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==501 and masterversion>=(1,5,13) and (length%54)==0:
+		if cmd==MATOCU_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
 			servers = []
@@ -715,7 +785,7 @@ if "CS" in sectionset:
 					out.append("""	<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
 				out.append("""</tr>""")
 				i+=1
-		elif cmd==501 and masterversion<(1,5,13) and (length%50)==0:
+		elif cmd==MATOCU_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
 			servers = []
@@ -821,10 +891,10 @@ if "CS" in sectionset:
 
 			s = socket.socket()
 			s.connect((masterhost,masterport))
-			mysend(s,struct.pack(">LL",522,0))
+			mysend(s,struct.pack(">LL",CUTOMA_MLOG_LIST,0))
 			header = myrecv(s,8)
 			cmd,length = struct.unpack(">LL",header)
-			if cmd==523 and (length%8)==0:
+			if cmd==MATOCU_MLOG_LIST and (length%8)==0:
 				data = myrecv(s,length)
 				n = length/8
 				servers = []
@@ -892,10 +962,10 @@ if "HD" in sectionset:
 		hostlist = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",500,0))
+		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==501 and masterversion>=(1,5,13) and (length%54)==0:
+		if cmd==MATOCU_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
 			servers = []
@@ -903,7 +973,7 @@ if "HD" in sectionset:
 				d = data[i*54:(i+1)*54]
 				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
 				hostlist.append((v1,v2,v3,ip1,ip2,ip3,ip4,port))
-		elif cmd==501 and masterversion<(1,5,13) and (length%50)==0:
+		elif cmd==MATOCU_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
 			servers = []
@@ -925,10 +995,10 @@ if "HD" in sectionset:
 				if (v1,v2,v3)<=(1,6,8):
 					s = socket.socket()
 					s.connect((hostip,port))
-					mysend(s,struct.pack(">LL",502,0))
+					mysend(s,struct.pack(">LL",CUTOCS_HDD_LIST_V1,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
-					if cmd==503:
+					if cmd==CSTOCU_HDD_LIST_V1:
 						data = myrecv(s,length)
 						while length>0:
 							plen = ord(data[0])
@@ -963,10 +1033,10 @@ if "HD" in sectionset:
 				else:
 					s = socket.socket()
 					s.connect((hostip,port))
-					mysend(s,struct.pack(">LL",600,0))
+					mysend(s,struct.pack(">LL",CUTOCS_HDD_LIST_V2,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
-					if cmd==601:
+					if cmd==CSTOCU_HDD_LIST_V2:
 						data = myrecv(s,length)
 						while length>0:
 							entrysize = struct.unpack(">H",data[:2])[0]
@@ -1108,18 +1178,18 @@ if "HD" in sectionset:
 				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
 				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"6","HDrev":"0"})))
-			if HDorder==7 and HDrev==0:
-				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDrev":"1"})))
+			if HDorder==7 and HDrev==1:
+				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDrev":"0"})))
 			else:
-				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDorder":"7","HDrev":"0"})))
-			if HDorder==8 and HDrev==0:
-				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDrev":"1"})))
+				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDorder":"7","HDrev":"1"})))
+			if HDorder==8 and HDrev==1:
+				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDrev":"0"})))
 			else:
-				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"8","HDrev":"0"})))
-			if HDorder==9 and HDrev==0:
-				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDrev":"1"})))
+				out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"HDorder":"8","HDrev":"1"})))
+			if HDorder==9 and HDrev==1:
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDrev":"0"})))
 			else:
-				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDorder":"9","HDrev":"0"})))
+				out.append("""		<th><a href="%s">fsync</a></th>""" % (createlink({"HDorder":"9","HDrev":"1"})))
 			if HDorder==10 and HDrev==0:
 				out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"HDrev":"1"})))
 			else:
@@ -1274,10 +1344,10 @@ if "EX" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",520,0))
+		mysend(s,struct.pack(">LL",CUTOMA_EXPORTS_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==521 and masterversion>=(1,5,14):
+		if cmd==MATOCU_EXPORTS_INFO and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
 			pos = 0
@@ -1512,10 +1582,10 @@ if "ML" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",508,0))
+		mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==509 and masterversion<=(1,5,13) and (length%136)==0:
+		if cmd==MATOCU_SESSION_LIST and masterversion<=(1,5,13) and (length%136)==0:
 			data = myrecv(s,length)
 			n = length/136
 			servers = []
@@ -1656,13 +1726,21 @@ if "MS" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",508,0))
+		mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==509 and masterversion>=(1,5,14):
+		if cmd==MATOCU_SESSION_LIST and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
-			pos = 0
+			if masterversion<(1,6,21):
+				statscnt = 16
+				pos = 0
+			elif masterversion==(1,6,21):
+				statscnt = 21
+				pos = 0
+			else:
+				statscnt = struct.unpack(">H",data[0:2])[0]
+				pos = 2
 			while pos<length:
 				sessionid,ip1,ip2,ip3,ip4,v1,v2,v3,ileng = struct.unpack(">LBBBBHBBL",data[pos:pos+16])
 				ipnum = "%d.%d.%d.%d" % (ip1,ip2,ip3,ip4)
@@ -1676,12 +1754,13 @@ if "MS" in sectionset:
 				pos+=pleng
 				if masterversion>=(1,6,1):
 					sesflags,rootuid,rootgid,mapalluid,mapallgid = struct.unpack(">BLLLL",data[pos:pos+17])
-					pos+=145  # 17+64+64 - skip stats
+					pos+=17
 				else:
 					sesflags,rootuid,rootgid = struct.unpack(">BLL",data[pos:pos+9])
 					mapalluid = 0
 					mapallgid = 0
-					pos+=137  # 9+64+64 - skip stats
+					pos+=9
+				pos+=8*statscnt		# skip stats
 				if path=='.':
 					meta=1
 				else:
@@ -1808,7 +1887,7 @@ if "MO" in sectionset:
 
 	try:
 		out.append("""<table class="CR" cellspacing="0">""")
-		out.append("""<tr><th colspan="20">Active mounts (operations)</th></tr>""")
+		out.append("""<tr><th colspan="21">Active mounts (operations)</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
 		if MOorder==1 and MOrev==0:
@@ -1823,84 +1902,96 @@ if "MO" in sectionset:
 			out.append("""		<th rowspan="2"><a href="%s">mount&nbsp;point</a></th>""" % (createlink({"MOrev":"1"})))
 		else:
 			out.append("""		<th rowspan="2"><a href="%s">mount&nbsp;point</a></th>""" % (createlink({"MOorder":"3","MOrev":"0"})))
-		out.append("""		<th colspan="16">operations current hour/last hour</th>""")
+		out.append("""		<th colspan="17">operations current hour/last hour</th>""")
 		out.append("""	</tr>""")
 		out.append("""	<tr>""")
-		if MOorder==100 and MOrev==0:
-			out.append("""		<th><a href="%s">statfs</a></th>"""  % (createlink({"MOrev":"1"})))
+		if MOorder==100 and MOrev==1:
+			out.append("""		<th><a href="%s">statfs</a></th>"""  % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">statfs</a></th>"""  % (createlink({"MOorder":"100","MOrev":"0"})))
-		if MOorder==101 and MOrev==0:
-			out.append("""		<th><a href="%s">getattr</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">statfs</a></th>"""  % (createlink({"MOorder":"100","MOrev":"1"})))
+		if MOorder==101 and MOrev==1:
+			out.append("""		<th><a href="%s">getattr</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">getattr</a></th>""" % (createlink({"MOorder":"101","MOrev":"0"})))
-		if MOorder==102 and MOrev==0:
-			out.append("""		<th><a href="%s">setattr</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">getattr</a></th>""" % (createlink({"MOorder":"101","MOrev":"1"})))
+		if MOorder==102 and MOrev==1:
+			out.append("""		<th><a href="%s">setattr</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">setattr</a></th>""" % (createlink({"MOorder":"102","MOrev":"0"})))
-		if MOorder==103 and MOrev==0:
-			out.append("""		<th><a href="%s">lookup</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">setattr</a></th>""" % (createlink({"MOorder":"102","MOrev":"1"})))
+		if MOorder==103 and MOrev==1:
+			out.append("""		<th><a href="%s">lookup</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">lookup</a></th>""" % (createlink({"MOorder":"103","MOrev":"0"})))
-		if MOorder==104 and MOrev==0:
-			out.append("""		<th><a href="%s">mkdir</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">lookup</a></th>""" % (createlink({"MOorder":"103","MOrev":"1"})))
+		if MOorder==104 and MOrev==1:
+			out.append("""		<th><a href="%s">mkdir</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">mkdir</a></th>""" % (createlink({"MOorder":"104","MOrev":"0"})))
-		if MOorder==105 and MOrev==0:
-			out.append("""		<th><a href="%s">rmdir</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">mkdir</a></th>""" % (createlink({"MOorder":"104","MOrev":"1"})))
+		if MOorder==105 and MOrev==1:
+			out.append("""		<th><a href="%s">rmdir</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">rmdir</a></th>""" % (createlink({"MOorder":"105","MOrev":"0"})))
-		if MOorder==106 and MOrev==0:
-			out.append("""		<th><a href="%s">symlink</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">rmdir</a></th>""" % (createlink({"MOorder":"105","MOrev":"1"})))
+		if MOorder==106 and MOrev==1:
+			out.append("""		<th><a href="%s">symlink</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">symlink</a></th>""" % (createlink({"MOorder":"106","MOrev":"0"})))
-		if MOorder==107 and MOrev==0:
-			out.append("""		<th><a href="%s">readlink</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">symlink</a></th>""" % (createlink({"MOorder":"106","MOrev":"1"})))
+		if MOorder==107 and MOrev==1:
+			out.append("""		<th><a href="%s">readlink</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">readlink</a></th>""" % (createlink({"MOorder":"107","MOrev":"0"})))
-		if MOorder==108 and MOrev==0:
-			out.append("""		<th><a href="%s">mknod</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">readlink</a></th>""" % (createlink({"MOorder":"107","MOrev":"1"})))
+		if MOorder==108 and MOrev==1:
+			out.append("""		<th><a href="%s">mknod</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">mknod</a></th>""" % (createlink({"MOorder":"108","MOrev":"0"})))
-		if MOorder==109 and MOrev==0:
-			out.append("""		<th><a href="%s">unlink</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">mknod</a></th>""" % (createlink({"MOorder":"108","MOrev":"1"})))
+		if MOorder==109 and MOrev==1:
+			out.append("""		<th><a href="%s">unlink</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">unlink</a></th>""" % (createlink({"MOorder":"109","MOrev":"0"})))
-		if MOorder==110 and MOrev==0:
-			out.append("""		<th><a href="%s">rename</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">unlink</a></th>""" % (createlink({"MOorder":"109","MOrev":"1"})))
+		if MOorder==110 and MOrev==1:
+			out.append("""		<th><a href="%s">rename</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">rename</a></th>""" % (createlink({"MOorder":"110","MOrev":"0"})))
-		if MOorder==111 and MOrev==0:
-			out.append("""		<th><a href="%s">link</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">rename</a></th>""" % (createlink({"MOorder":"110","MOrev":"1"})))
+		if MOorder==111 and MOrev==1:
+			out.append("""		<th><a href="%s">link</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">link</a></th>""" % (createlink({"MOorder":"111","MOrev":"0"})))
-		if MOorder==112 and MOrev==0:
-			out.append("""		<th><a href="%s">readdir</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">link</a></th>""" % (createlink({"MOorder":"111","MOrev":"1"})))
+		if MOorder==112 and MOrev==1:
+			out.append("""		<th><a href="%s">readdir</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">readdir</a></th>""" % (createlink({"MOorder":"112","MOrev":"0"})))
-		if MOorder==113 and MOrev==0:
-			out.append("""		<th><a href="%s">open</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">readdir</a></th>""" % (createlink({"MOorder":"112","MOrev":"1"})))
+		if MOorder==113 and MOrev==1:
+			out.append("""		<th><a href="%s">open</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">open</a></th>""" % (createlink({"MOorder":"113","MOrev":"0"})))
-		if MOorder==114 and MOrev==0:
-			out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">open</a></th>""" % (createlink({"MOorder":"113","MOrev":"1"})))
+		if MOorder==114 and MOrev==1:
+			out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"MOorder":"114","MOrev":"0"})))
-		if MOorder==115 and MOrev==0:
-			out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"MOrev":"1"})))
+			out.append("""		<th><a href="%s">read</a></th>""" % (createlink({"MOorder":"114","MOrev":"1"})))
+		if MOorder==115 and MOrev==1:
+			out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"MOrev":"0"})))
 		else:
-			out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"MOorder":"115","MOrev":"0"})))
+			out.append("""		<th><a href="%s">write</a></th>""" % (createlink({"MOorder":"115","MOrev":"1"})))
+		if MOorder==150 and MOrev==1:
+			out.append("""		<th><a href="%s">total</a></th>""" % (createlink({"MOrev":"0"})))
+		else:
+			out.append("""		<th><a href="%s">total</a></th>""" % (createlink({"MOorder":"150","MOrev":"1"})))
 		out.append("""	</tr>""")
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",508,0))
+		mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==509 and masterversion>=(1,5,14):
+		if cmd==MATOCU_SESSION_LIST and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
-			pos = 0
+			if masterversion<(1,6,21):
+				statscnt = 16
+				pos = 0
+			elif masterversion==(1,6,21):
+				statscnt = 21
+				pos = 0
+			else:
+				statscnt = struct.unpack(">H",data[0:2])[0]
+				pos = 2
 			while pos<length:
 				sessionid,ip1,ip2,ip3,ip4,v1,v2,v3,ileng = struct.unpack(">LBBBBHBBL",data[pos:pos+16])
 				ipnum = "%d.%d.%d.%d" % (ip1,ip2,ip3,ip4)
@@ -1917,10 +2008,16 @@ if "MO" in sectionset:
 					pos+=17
 				else:
 					pos+=9
-				stats_c = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
-				pos+=64
-				stats_l = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
-				pos+=64
+				if statscnt<16:
+					stats_c = struct.unpack(">"+"L"*statscnt,data[pos:pos+4*statscnt])+(0,)*(16-statscnt)
+					pos+=statscnt*4
+					stats_l = struct.unpack(">"+"L"*statscnt,data[pos:pos+4*statscnt])+(0,)*(16-statscnt)
+					pos+=statscnt*4
+				else:
+					stats_c = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
+					pos+=statscnt*4
+					stats_l = struct.unpack(">LLLLLLLLLLLLLLLL",data[pos:pos+64])
+					pos+=statscnt*4
 				try:
 					host = (socket.gethostbyaddr(ipnum))[0]
 				except Exception:
@@ -1933,6 +2030,8 @@ if "MO" in sectionset:
 					sf = info
 				elif MOorder>=100 and MOorder<=115:
 					sf = stats_c[MOorder-100]+stats_l[MOorder-100]
+				elif MOorder==150:
+					sf = sum(stats_c)+sum(stats_l)
 				else:
 					sf = 0
 				if path!='.':
@@ -1949,10 +2048,12 @@ if "MO" in sectionset:
 				out.append("""	<td align="left" rowspan="2">%s</td>""" % info)
 				for st in xrange(16):
 					out.append("""	<td align="right">%u</td>""" % (stats_c[st]))
+				out.append("""	<td align="right">%u</td>""" % (sum(stats_c)))
 				out.append("""</tr>""")
 				out.append("""<tr class="C%u">""" % (((i-1)%2)*2+2))
 				for st in xrange(16):
 					out.append("""	<td align="right">%u</td>""" % (stats_l[st]))
+				out.append("""	<td align="right">%u</td>""" % (sum(stats_l)))
 				out.append("""</tr>""")
 				i+=1
 		out.append("""</table>""")
@@ -2053,10 +2154,10 @@ if "QU" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",518,0))
+		mysend(s,struct.pack(">LL",CUTOMA_QUOTA_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==519 and length>=4 and masterversion>=(1,7,0):
+		if cmd==MATOCU_QUOTA_INFO and length>=4 and masterversion>=(1,7,0):
 			data = myrecv(s,length)
 			quotas = []
 			pos = 0
@@ -2232,6 +2333,7 @@ if "MC" in sectionset:
 	try:
 		charts = (
 			(100,'cpu','cpu usage (percent)'),
+			(20,'memory','memory usage (if available)'),
 			(2,'dels','chunk deletions (per minute)'),
 			(3,'repl','chunk replications (per minute)'),
 			(4,'stafs','statfs operations (per minute)'),
@@ -2249,7 +2351,11 @@ if "MC" in sectionset:
 			(16,'readdir','readdir operations (per minute)'),
 			(17,'open','open operations (per minute)'),
 			(18,'read','read operations (per minute)'),
-			(19,'write','write operations (per minute)')
+			(19,'write','write operations (per minute)'),
+			(21,'prcvd','packets received (per second)'),
+			(22,'psent','packets sent (per second)'),
+			(23,'brcvd','bits received (per second)'),
+			(24,'bsent','bits sent (per second)')
 		)
 
 		out.append("""<script type="text/javascript">""")
@@ -2361,82 +2467,89 @@ if "CC" in sectionset:
 	out = []
 
 	try:
-		if fields.has_key("CChost"):
-			CChost = fields.getvalue("CChost")
+		if fields.has_key("CCdata"):
+			CCdata = fields.getvalue("CCdata")
 		else:
-			CChost = ""
+			CCdata = ""
 	except Exception:
-		CChost = ""
+		CCdata = ""
 
 	try:
 		# get cs list
 		hostlist = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",500,0))
+		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==501 and (length%54)==0:
+		if cmd==MATOCU_CSERV_LIST and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
-			servers = []
 			for i in xrange(n):
 				d = data[i*54:(i+1)*54]
 				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
 				hostlist.append((ip1,ip2,ip3,ip4,port))
-		elif cmd==501 and (length%50)==0:
+		elif cmd==MATOCU_CSERV_LIST and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
-			servers = []
 			for i in xrange(n):
 				d = data[i*50:(i+1)*50]
 				ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBHQQLQQLL",d)
 				hostlist.append((ip1,ip2,ip3,ip4,port))
 		s.close()
 
+		charts = (
+			(100,'cpu','cpu usage (percent)'),
+			(101,'datain','traffic from clients and other chunkservers (bits/s)'),
+			(102,'dataout','traffic to clients and other chunkservers (bits/s)'),
+			(103,'bytesr','bytes read - data/other (bytes/s)'),
+			(104,'bytesw','bytes written - data/other (bytes/s)'),
+			(2,'masterin','traffic from master (bits/s)'),
+			(3,'masterout','traffic to master (bits/s)'),
+			(105,'hddopr','number of low-level read operations per minute'),
+			(106,'hddopw','number of low-level write operations per minute'),
+			(16,'hlopr','number of high-level read operations per minute'),
+			(17,'hlopw','number of high-level write operations per minute'),
+			(18,'rtime','time of data read operations'),
+			(19,'wtime','time of data write operations'),
+			(20,'repl','number of chunk replications per minute'),
+			(21,'create','number of chunk creations per minute'),
+			(22,'delete','number of chunk deletions per minute'),
+		)
+		servers = []
+
 		if len(hostlist)>0:
 			hostlist.sort()
-			out.append("""<form action=""><table class="FR" cellspacing="0"><tr><th>Server: <select name="server" size="1" onchange="document.location.href='%s&amp;CChost='+this.options[this.selectedIndex].value">""" % createlink({"CChost":""}))
-			hoststr = []
+			out.append("""<form action=""><table class="FR" cellspacing="0"><tr><th>Select: <select name="server" size="1" onchange="document.location.href='%s&amp;CCdata='+this.options[this.selectedIndex].value">""" % createlink({"CCdata":""}))
+			entrystr = []
+			entrydesc = {}
+			for id,oname,desc in charts:
+				name = oname.replace(":","")
+				entrystr.append(name)
+				entrydesc[name] = desc
 			for ip1,ip2,ip3,ip4,port in hostlist:
-				hoststr.append("%u.%u.%u.%u:%u" % (ip1,ip2,ip3,ip4,port))
-			if CChost not in hoststr:
-				out.append("""<option value="" selected="selected">- choose one -</option>""")
-			for hstr in hoststr:
-				strip = hstr.split(":")[0]
+				strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
+				name = "%s:%u" % (strip,port)
 				try:
 					host = " / "+(socket.gethostbyaddr(strip))[0]
 				except Exception:
 					host = ""
-				if hstr==CChost:
-					out.append("""<option value="%s" selected="selected">%s%s</option>""" % (hstr,hstr,host))
+				entrystr.append(name)
+				entrydesc[name] = "Server: %s%s" % (name,host)
+				servers.append((strip,port,name.replace(".","_").replace(":","_"),entrydesc[name]))
+			if CCdata not in entrystr:
+				out.append("""<option value="" selected="selected"> data type or server</option>""")
+			for estr in entrystr:
+				if estr==CCdata:
+					out.append("""<option value="%s" selected="selected">%s</option>""" % (estr,entrydesc[estr]))
 				else:
-					out.append("""<option value="%s">%s%s</option>""" % (hstr,hstr,host))
+					out.append("""<option value="%s">%s</option>""" % (estr,entrydesc[estr]))
 			out.append("""</select></th></tr></table></form><br/>""")
 
-		cchtmp = CChost.split(":")
+		cchtmp = CCdata.split(":")
 		if len(cchtmp)==2:
 			cshost = cchtmp[0]
 			csport = cchtmp[1]
-
-			charts = (
-				(100,'cpu','cpu usage (percent)'),
-				(101,'datain','traffic from clients and other chunkservers (bits/s)'),
-				(102,'dataout','traffic to clients and other chunkservers (bits/s)'),
-				(103,'bytesr','bytes read - data/other (bytes/s)'),
-				(104,'bytesw','bytes written - data/other (bytes/s)'),
-				(2,'masterin','traffic from master (bits/s)'),
-				(3,'masterout','traffic to master (bits/s)'),
-				(105,'hddopr','number of low-level read operations per minute'),
-				(106,'hddopw','number of low-level write operations per minute'),
-				(16,'hlopr','number of high-level read operations per minute'),
-				(17,'hlopw','number of high-level write operations per minute'),
-				(18,'rtime','time of data read operations'),
-				(19,'wtime','time of data write operations'),
-				(20,'repl','number of chunk replications per minute'),
-				(21,'create','number of chunk creations per minute'),
-				(22,'delete','number of chunk deletions per minute'),
-			)
 
 			out.append("""<script type="text/javascript">""")
 			out.append("""<!--//--><![CDATA[//><!--""")
@@ -2533,6 +2646,58 @@ if "CC" in sectionset:
 				out.append("""	</td>""")
 				out.append("""</tr>""")
 			out.append("""</table>""")
+		elif len(cchtmp)==1 and len(CCdata)>0:
+			chid = 0
+			for id,name,desc in charts:
+				if name==CCdata:
+					chid = id
+			if chid==0:
+				try:
+					chid = int(CCdata)
+				except Exception:
+					pass
+			if chid>0 and chid<1000:
+				out.append("""<script type="text/javascript">""")
+				out.append("""<!--//--><![CDATA[//><!--""")
+				out.append("""	var i,j;""")
+				out.append("""	var cs_chartid = new Array(0,0);""")
+				out.append("""	var cs_range=0;""")
+				out.append("""	var cs_imgs = new Array();""")
+				out.append("""	var cs_vhosts = new Array%s;""" % str(tuple([ x[0] for x in servers ])))
+				out.append("""	var cs_vports = new Array%s;""" % str(tuple([ x[1] for x in servers ])))
+				out.append("""	var cs_inames = new Array%s;""" % str(tuple([ x[2] for x in servers ])))
+				out.append("""	for (i=0 ; i<cs_inames.length ; i++) {""")
+				out.append("""		for (j=0 ; j<4 ; j++) {""")
+				out.append("""			var vhost = cs_vhosts[i];""")
+				out.append("""			var vport = cs_vports[i];""")
+				out.append("""			var id = %d*10+j;""" % chid)
+				out.append("""			cs_imgs[i*10+j] = new Image();""")
+				out.append("""			cs_imgs[i*10+j].src = "chart.cgi?host="+vhost+"&amp;port="+vport+"&amp;id="+id;""")
+				out.append("""		}""")
+				out.append("""	}""")
+				out.append("""	function cs_change(num) {""")
+				out.append("""		for (i=0 ;  i<cs_inames.length ; i++) {""")
+				out.append("""			var name = "cs_"+cs_inames[i];""")
+				out.append("""			document.images[name].src = cs_imgs[i*10+num].src;""")
+				out.append("""		}""")
+				out.append("""	}""")
+				out.append("""//--><!]]>""")
+				out.append("""</script>""")
+				out.append("""<table class="FR" cellspacing="0">""")
+				out.append("""<tr>""")
+				out.append("""	<th><a href="javascript:cs_change(0);">short range</a></th>""")
+				out.append("""	<th><a href="javascript:cs_change(1);">medium range</a></th>""")
+				out.append("""	<th><a href="javascript:cs_change(2);">long range</a></th>""")
+				out.append("""	<th><a href="javascript:cs_change(3);">very long range</a></th>""")
+				out.append("""</tr>""")
+				for cshost,csport,name,desc in servers:
+					out.append("""<tr class="C2">""")
+					out.append("""	<td align="center" colspan="4">""")
+					out.append("""		%s:<br/>""" % (desc))
+					out.append("""		<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_%s" alt="%s" />""" % (cshost,csport,chid*10,name,name))
+					out.append("""	</td>""")
+					out.append("""</tr>""")
+				out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
 		print """<table class="FR" cellspacing="0">"""

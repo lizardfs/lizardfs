@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 
+#include "random.h"
 #include "hddspacemgr.h"
 #include "masterconn.h"
 #include "csserv.h"
@@ -35,6 +36,7 @@ struct {
 	runfn fn;
 	char *name;
 } RunTab[]={
+	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
 	{csserv_init,"main server module"},	/* heve to be before "masterconn" */
 	{masterconn_init,"master connection module"},

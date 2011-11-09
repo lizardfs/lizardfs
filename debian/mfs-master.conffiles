@@ -1,2 +1,3 @@
 etc/mfsexports.cfg.dist
+etc/mfstopology.cfg.dist
 etc/mfsmaster.cfg.dist

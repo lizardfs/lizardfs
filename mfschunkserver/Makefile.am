@@ -13,6 +13,7 @@ mfschunkserver_SOURCES= \
 	init.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/cfg.c ../mfscommon/cfg.h \
+	../mfscommon/random.c ../mfscommon/random.h \
 	../mfscommon/pcqueue.c ../mfscommon/pcqueue.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \

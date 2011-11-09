@@ -434,6 +434,7 @@ int master_register(int rfd,uint32_t cuid) {
 
 static dev_t current_device = 0;
 static int current_master = -1;
+static uint32_t masterversion = 0;
 
 int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needsamedev,uint8_t needrwfs) {
 	char rpath[PATH_MAX],*p;
@@ -441,21 +442,22 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 	struct stat stb;
 	struct statvfs stvfsb;
 	int sd;
-	uint8_t masterinfo[10];
+	uint8_t masterinfo[14];
 	const uint8_t *miptr;
 	uint8_t cnt;
 	uint32_t masterip;
 	uint16_t masterport;
 	uint32_t mastercuid;
 
+	rpath[0]=0;
 	if (realpath(name,rpath)==NULL) {
-		printf("%s: realpath error\n",name);
+		printf("%s: realpath error on (%s): %s\n",name,rpath,strerr(errno));
 		return -1;
 	}
 	p = rpath;
 	if (needrwfs) {
 		if (statvfs(p,&stvfsb)!=0) {
-			printf("%s: (%s) statvfs error\n",name,p);
+			printf("%s: (%s) statvfs error: %s\n",name,p,strerr(errno));
 			return -1;
 		}
 		if (stvfsb.f_flag&ST_RDONLY) {
@@ -464,7 +466,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		}
 	}
 	if (lstat(p,&stb)!=0) {
-		printf("%s: (%s) lstat error\n",name,p);
+		printf("%s: (%s) lstat error: %s\n",name,p,strerr(errno));
 		return -1;
 	}
 	*inode = stb.st_ino;
@@ -490,7 +492,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 			// first try to locate ".masterinfo"
 			p = strcat(p,"/.masterinfo");
 			if (lstat(p,&stb)==0) {
-				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && stb.st_size==10) {
+				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
 					if (stb.st_ino==0x7FFFFFFE) {	// meta master
 						if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
 							printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
@@ -499,36 +501,49 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 						(*inode)&=INODE_VALUE_MASK;
 					}
 					sd = open(p,O_RDONLY);
-					if (read(sd,masterinfo,10)!=10) {
-						printf("%s: can't read '.masterinfo'\n",name);
-						close(sd);
-						return -1;
+					if (stb.st_size==10) {
+						if (read(sd,masterinfo,10)!=10) {
+							printf("%s: can't read '.masterinfo'\n",name);
+							close(sd);
+							return -1;
+						}
+					} else if (stb.st_size==14) {
+						if (read(sd,masterinfo,14)!=14) {
+							printf("%s: can't read '.masterinfo'\n",name);
+							close(sd);
+							return -1;
+						}
 					}
 					close(sd);
 					miptr = masterinfo;
 					masterip = get32bit(&miptr);
 					masterport = get16bit(&miptr);
 					mastercuid = get32bit(&miptr);
+					if (stb.st_size==14) {
+						masterversion = get32bit(&miptr);
+					} else {
+						masterversion = 0;
+					}
 					if (masterip==0 || masterport==0 || mastercuid==0) {
 						printf("%s: incorrect '.masterinfo'\n",name);
 						return -1;
 					}
-					cnt=5;
-					while (cnt>0) {
+					cnt=0;
+					while (cnt<10) {
 						sd = tcpsocket();
 						if (sd<0) {
-							printf("%s: can't create connection socket\n",name);
+							printf("%s: can't create connection socket: %s\n",name,strerr(errno));
 							return -1;
 						}
-						if (tcpnumtoconnect(sd,masterip,masterport,200)<0) {
-							cnt--;
-							if (cnt==0) {
-								printf("%s: can't connect to master (.masterinfo)\n",name);
+						if (tcpnumtoconnect(sd,masterip,masterport,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
+							cnt++;
+							if (cnt==10) {
+								printf("%s: can't connect to master (.masterinfo): %s\n",name,strerr(errno));
 								return -1;
 							}
 							tcpclose(sd);
 						} else {
-							cnt=0;
+							cnt=10;
 						}
 					}
 					if (master_register(sd,mastercuid)<0) {
@@ -572,7 +587,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		strcpy(rpath,apath);
 		p=rpath;
 		if (lstat(p,&stb)!=0) {
-			printf("%s: (%s) lstat error\n",name,p);
+			printf("%s: (%s) lstat error: %s\n",name,p,strerr(errno));
 			return -1;
 		}
 	}
@@ -1488,7 +1503,7 @@ int file_info(const char *fname) {
 		}
 		free(buff);
 		indx++;
-	} while (indx<((fleng+0x3FFFFFF)>>26));
+	} while (indx<((fleng+MFSCHUNKMASK)>>MFSCHUNKBITS));
 	close_master_conn(0);
 	return 0;
 }

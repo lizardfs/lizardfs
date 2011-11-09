@@ -5,6 +5,11 @@ import struct
 import cgi
 import cgitb; cgitb.enable()
 
+PROTO_BASE = @PROTOBASE@
+
+CUTOAN_CHART = (PROTO_BASE+504)
+ANTOCU_CHART = (PROTO_BASE+505)
+
 fields = cgi.FieldStorage()
 
 if fields.has_key("host"):
@@ -53,10 +58,10 @@ else:
 	try:
 		s = socket.socket()
 		s.connect((host,port))
-		mysend(s,struct.pack(">LLL",504,4,chartid))
+		mysend(s,struct.pack(">LLL",CUTOAN_CHART,4,chartid))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==505 and length>0:
+		if cmd==ANTOCU_CHART and length>0:
 			data = myrecv(s,length)
 #		data = s.recv(length)
 #		print len(data),length
