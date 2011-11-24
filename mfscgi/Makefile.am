@@ -20,5 +20,5 @@ cgiserv_SCRIPTS = \
 	mfscgiserv
 
 mfscgiserv: cgiserv.py.in
-	sed -e "s#@""CGIDIR""@#$(CGIDIR)#" <cgiserv.py.in >mfscgiserv
+	sed -e "s#@""CGIDIR""@#$(CGIDIR)#" -e "s#@""DATAPATH""@#$(DATA_PATH)#" <cgiserv.py.in >mfscgiserv
 endif

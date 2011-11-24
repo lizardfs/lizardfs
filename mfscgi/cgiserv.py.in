@@ -224,7 +224,9 @@ class HTTP(ClientHandler):
 				return self.err_resp(501,'Unsupported method (%s)' %self.method)
 			else:
 				file_name = self.file_name = self.translate_path()
-				if not os.path.exists(file_name):
+				if not file_name.startswith(HTTP.root+os.path.sep) and not file_name==HTTP.root:
+					return self.err_resp(403,'Forbidden')
+				elif not os.path.exists(file_name):
 					return self.err_resp(404,'File not found')
 				elif self.managed():
 					response = self.mngt_method()
@@ -263,7 +265,7 @@ class HTTP(ClientHandler):
 
 	def translate_path(self):
 		"""Translate URL path into a path in the file system"""
-		return os.path.join(HTTP.root,*self.path.split('/'))
+		return os.path.realpath(os.path.join(HTTP.root,*self.path.split('/')))
 
 	def managed(self):
 		"""Test if the request can be processed by a specific method
@@ -365,6 +367,7 @@ if __name__=="__main__":
 	host = 'any'
 	port = 9425
 	rootpath="@CGIDIR@"
+	datapath="@DATAPATH@"
 
 	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:fv")
 	for opt,val in opts:
@@ -382,6 +385,8 @@ if __name__=="__main__":
 			daemonize = 0
 		elif opt=='-v':
 			verbose = 1
+
+	rootpath = os.path.realpath(rootpath)
 
 	print "starting simple cgi server (host: %s , port: %u , rootpath: %s)" % (host,port,rootpath)
 
