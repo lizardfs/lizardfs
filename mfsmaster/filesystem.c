@@ -6423,15 +6423,23 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	static fsedge **root_tail;
 	static fsedge **current_tail;
 	static uint32_t current_parent_id;
+	static uint8_t nl;
 
 	if (fd==NULL) {
 		current_parent_id = 0;
 		current_tail = NULL;
 		root_tail = NULL;
+		nl = 1;
 		return 0;
 	}
 
 	if (fread(uedgebuff,1,4+4+2,fd)!=4+4+2) {
+		int err = errno;
+		if (nl) {
+			fputc('\n',stderr);
+			nl=0;
+		}
+		errno = err;
 		mfs_errlog(LOG_ERR,"loading edge: read error");
 		return -1;
 	}
@@ -6445,6 +6453,10 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	passert(e);
 	e->nleng = get16bit(&ptr);
 	if (e->nleng==0) {
+		if (nl) {
+			fputc('\n',stderr);
+			nl=0;
+		}
 		mfs_arg_syslog(LOG_ERR,"loading edge: %"PRIu32"->%"PRIu32" error: empty name",parent_id,child_id);
 		free(e);
 		return -1;
@@ -6452,6 +6464,12 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	e->name = malloc(e->nleng);
 	passert(e->name);
 	if (fread(e->name,1,e->nleng,fd)!=e->nleng) {
+		int err = errno;
+		if (nl) {
+			fputc('\n',stderr);
+			nl=0;
+		}
+		errno = err;
 		mfs_errlog(LOG_ERR,"loading edge: read error");
 		free(e->name);
 		free(e);
@@ -6459,6 +6477,10 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	}
 	e->child = fsnodes_id_to_node(child_id);
 	if (e->child==NULL) {
+		if (nl) {
+			fputc('\n',stderr);
+			nl=0;
+		}
 		mfs_arg_syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 		free(e->name);
 		free(e);
@@ -6497,9 +6519,12 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			reservedspace += e->child->data.fdata.length;
 			reservednodes++;
 		} else {
-#ifdef METARESTORE
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
 			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad child type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
-#else
+#ifndef METARESTORE
 			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad child type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
 #endif
 			free(e->name);
@@ -6509,60 +6534,64 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	} else {
 		e->parent = fsnodes_id_to_node(parent_id);
 		if (e->parent==NULL) {
-#ifdef METARESTORE
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
 			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
+#ifndef METARESTORE
 			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-#ifdef METARESTORE
 					fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" root dir not found !!!\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
+#ifndef METARESTORE
 					syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" root dir not found !!!",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 					free(e->name);
 					free(e);
 					return -1;
 				}
-#ifdef METARESTORE
-				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" attaching file to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
-				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" attaching file to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" attaching node to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+#ifndef METARESTORE
+				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" attaching node to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 				parent_id = MFS_ROOT_ID;
 			} else {
+				fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				free(e->name);
 				free(e);
+				return -1;
 			}
-			return -1;
 		}
 		if (e->parent->type!=TYPE_DIRECTORY) {
-#ifdef METARESTORE
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
 			fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad parent type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
-#else
+#ifndef METARESTORE
 			syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: bad parent type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
 #endif
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-#ifdef METARESTORE
 					fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" root dir not found !!!\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
+#ifndef METARESTORE
 					syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" root dir not found !!!",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 					free(e->name);
 					free(e);
 					return -1;
 				}
-#ifdef METARESTORE
-				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" attaching file to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
-				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" attaching file to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" attaching node to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+#ifndef METARESTORE
+				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" attaching node to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
 				parent_id = MFS_ROOT_ID;
 			} else {
+				fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				free(e->name);
 				free(e);
 				return -1;
@@ -6574,14 +6603,24 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			}
 		} else if (current_parent_id!=parent_id) {
 			if (e->parent->data.ddata.children) {
-#ifdef METARESTORE
-				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: duplicated parent\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#else
-				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: duplicated parent",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+				if (nl) {
+					fputc('\n',stderr);
+					nl=0;
+				}
+				fprintf(stderr,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent node sequence error\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+#ifndef METARESTORE
+				syslog(LOG_ERR,"loading edge: %"PRIu32",%s->%"PRIu32" error: parent node sequence error",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 #endif
-				free(e->name);
-				free(e);
-				return -1;
+				if (ignoreflag) {
+					current_tail = &(e->parent->data.ddata.children);
+					while (*current_tail) {
+						current_tail = &((*current_tail)->nextchild);
+					}
+				} else {
+					free(e->name);
+					free(e);
+					return -1;
+				}
 			} else {
 				current_tail = &(e->parent->data.ddata.children);
 			}
@@ -6712,6 +6751,12 @@ int fs_loadnode(FILE *fd) {
 #ifndef METARESTORE
 	statsrecord *sr;
 #endif
+	static uint8_t nl;
+
+	if (fd==NULL) {
+		nl=1;
+		return 0;
+	}
 
 	type = fgetc(fd);
 	if (type==0) {	// last node
@@ -6725,6 +6770,12 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_FIFO:
 	case TYPE_SOCKET:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4,fd)!=4+1+2+4+4+4+4+4+4) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
@@ -6734,6 +6785,12 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_CHARDEV:
 	case TYPE_SYMLINK:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4+4,fd)!=4+1+2+4+4+4+4+4+4+4) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
@@ -6743,12 +6800,22 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_TRASH:
 	case TYPE_RESERVED:
 		if (fread(unodebuff,1,4+1+2+4+4+4+4+4+4+8+4+2,fd)!=4+1+2+4+4+4+4+4+4+8+4+2) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
 			free(p);
 			return -1;
 		}
 		break;
 	default:
+		if (nl) {
+			fputc('\n',stderr);
+			nl=0;
+		}
 		mfs_arg_syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
 		free(p);
 		return -1;
@@ -6799,6 +6866,12 @@ int fs_loadnode(FILE *fd) {
 			p->data.sdata.path = malloc(pleng);
 			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
+				int err = errno;
+				if (nl) {
+					fputc('\n',stderr);
+					nl=0;
+				}
+				errno = err;
 				mfs_errlog(LOG_ERR,"loading node: read error");
 				free(p->data.sdata.path);
 				free(p);
@@ -6827,6 +6900,12 @@ int fs_loadnode(FILE *fd) {
 			p->data.fdata.chunktab = NULL;
 		}
 		if (fread((uint8_t*)ptr,1,8*ch+4*sessionids,fd)!=8*ch+4*sessionids) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
 			if (p->data.fdata.chunktab) {
 				free(p->data.fdata.chunktab);
@@ -6924,18 +7003,28 @@ int fs_lostnode(fsnode *p) {
 	return -1;
 }
 
-int fs_checknodes() {
+int fs_checknodes(int ignoreflag) {
 	uint32_t i;
+	uint8_t nl;
 	fsnode *p;
+	nl=1;
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		for (p=nodehash[i] ; p ; p=p->next) {
 			if (p->parents==NULL && p!=root) {
-#ifdef METARESTORE
-				fprintf(stderr,"fschk: found lost inode: %"PRIu32"\n",p->id);
-#else
-				syslog(LOG_ERR,"fschk: found lost inode: %"PRIu32,p->id);
+				if (nl) {
+					fputc('\n',stderr);
+					nl=0;
+				}
+				fprintf(stderr,"found orphaned inode: %"PRIu32"\n",p->id);
+#ifndef METARESTORE
+				syslog(LOG_ERR,"found orphaned inode: %"PRIu32,p->id);
 #endif
-				if (fs_lostnode(p)<0) {
+				if (ignoreflag) {
+					if (fs_lostnode(p)<0) {
+						return -1;
+					}
+				} else {
+					fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
 					return -1;
 				}
 			}
@@ -6946,6 +7035,7 @@ int fs_checknodes() {
 
 int fs_loadnodes(FILE *fd) {
 	int s;
+	fs_loadnode(NULL);
 	do {
 		s = fs_loadnode(fd);
 		if (s<0) {
@@ -7369,6 +7459,8 @@ int fs_loadfree(FILE *fd) {
 	const uint8_t *ptr;
 	freenode *n;
 	uint32_t l,t;
+	uint8_t nl=1;
+
 	if (fread(rbuff,1,4,fd)!=4) {
 		return -1;
 	}
@@ -7381,11 +7473,25 @@ int fs_loadfree(FILE *fd) {
 		if (l==0) {
 			if (t>1024) {
 				if (fread(rbuff,1,8*1024,fd)!=8*1024) {
+					int err = errno;
+					if (nl) {
+						fputc('\n',stderr);
+						nl=0;
+					}
+					errno = err;
+					mfs_errlog(LOG_ERR,"loading free nodes: read error");
 					return -1;
 				}
 				l=1024;
 			} else {
 				if (fread(rbuff,1,8*t,fd)!=8*t) {
+					int err = errno;
+					if (nl) {
+						fputc('\n',stderr);
+						nl=0;
+					}
+					errno = err;
+					mfs_errlog(LOG_ERR,"loading free nodes: read error");
 					return -1;
 				}
 				l=t;
@@ -7450,7 +7556,6 @@ int fs_load(FILE *fd,int ignoreflag) {
 	fprintf(stderr,"loading objects (files,directories,etc.) ... ");
 	fflush(stderr);
 	if (fs_loadnodes(fd)<0) {
-		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (node)");
 #endif
@@ -7460,7 +7565,6 @@ int fs_load(FILE *fd,int ignoreflag) {
 	fprintf(stderr,"loading names ... ");
 	fflush(stderr);
 	if (fs_loadedges(fd,ignoreflag)<0) {
-		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (edge)");
 #endif
@@ -7470,7 +7574,6 @@ int fs_load(FILE *fd,int ignoreflag) {
 	fprintf(stderr,"loading deletion timestamps ... ");
 	fflush(stderr);
 	if (fs_loadfree(fd)<0) {
-		fprintf(stderr,"error\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (free)");
 #endif
@@ -7481,14 +7584,13 @@ int fs_load(FILE *fd,int ignoreflag) {
 	fflush(stderr);
 	root = fsnodes_id_to_node(MFS_ROOT_ID);
 	if (root==NULL) {
-		fprintf(stderr,"error\n");
+		fprintf(stderr,"root node not found !!!\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata (no root)");
 #endif
 		return -1;
 	}
-	if (fs_checknodes()<0) {
-		fprintf(stderr,"error\n");
+	if (fs_checknodes(ignoreflag)<0) {
 		return -1;
 	}
 	fprintf(stderr,"ok\n");

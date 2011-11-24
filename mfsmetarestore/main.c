@@ -75,7 +75,7 @@ int changelog_checkname(const char *fname) {
 }
 
 void usage(const char* appname) {
-	fprintf(stderr,"restore metadata:\n\t%s [ -b ] [-x [-x ]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s -m <meta data file>\nautorestore:\n\t%s [ -b ] [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n-b - if there is any error in change logs then save the best possible metadata file\n",appname,appname,appname,appname);
+	fprintf(stderr,"restore metadata:\n\t%s [-b] [-i] [-x [-x]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s [-i] -m <meta data file>\nautorestore:\n\t%s [-b] [-i] [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n-b - if there is any error in change logs then save the best possible metadata file\n-i - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)",appname,appname,appname,appname);
 }
 
 int main(int argc,char **argv) {
