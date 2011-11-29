@@ -22,8 +22,9 @@
 #define MFS_USE_MEMLOCK
 #endif
 
-#include <fuse_lowlevel.h>
+#include <fuse.h>
 #include <fuse_opt.h>
+#include <fuse_lowlevel.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #ifdef MFS_USE_MEMLOCK
@@ -263,6 +264,33 @@ static void usage(const char *progname) {
 "\n", progname);
 }
 
+static struct fuse_operations fake_help_ops = {
+	.init = NULL,
+	.getattr = NULL,
+	.readlink = NULL,
+	.mknod = NULL,
+	.mkdir = NULL,
+	.symlink = NULL,
+	.unlink = NULL,
+	.rmdir = NULL,
+	.rename = NULL,
+	.link = NULL,
+	.chmod = NULL,
+	.chown = NULL,
+	.truncate = NULL,
+	.utime = NULL,
+	.open = NULL,
+	.flush = NULL,
+	.fsync = NULL,
+	.release = NULL,
+	.read = NULL,
+	.write = NULL,
+	.statfs = NULL,
+	.create = NULL,
+	.ftruncate = NULL,
+	.fgetattr = NULL,
+};
+
 static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
 	FILE *fd;
 	char lbuff[1000],*p;
@@ -302,7 +330,7 @@ static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse
 					if (defaultmountpoint) {
 						free(defaultmountpoint);
 					}
-					defaultmountpoint = strdup(*p);
+					defaultmountpoint = strdup(p);
 				} else {
 					fuse_opt_add_arg(outargs,"-o");
 					fuse_opt_add_arg(outargs,p);
@@ -388,8 +416,9 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"-ho");
-			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_mount(NULL,&helpargs);
+			fuse_main(helpargs.argc,helpargs.argv,&fake_help_ops,NULL);
+			//fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
+			//fuse_mount(NULL,&helpargs);
 		}
 		exit(1);
 	default:

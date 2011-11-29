@@ -44,7 +44,6 @@ case $target_os in
 		PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 		export PKG_CONFIG_PATH
 	fi
-	CPPFLAGS="$CPPFLAGS -D__DARWIN_64_BIT_INO_T=0"
 	;;
   *bsd*)
 	fuse=maybe
@@ -284,18 +283,19 @@ AC_SUBST([DEFAULT_USER])
 AC_SUBST([DEFAULT_GROUP])
 
 if test "$enable_lightmfs" = "yes"; then
-	PROTOBASE=65536
-	LIGHTMFS=1
+	PROTO_BASE=65536
+	LIGHT_MFS=1
 else
-	PROTOBASE=0
-	LIGHTMFS=0
+	PROTO_BASE=0
+	LIGHT_MFS=0
 fi
-AC_SUBST([PROTOBASE])
-AC_SUBST([LIGHTMFS])
+AC_SUBST([PROTO_BASE])
+AC_SUBST([LIGHT_MFS])
+AC_DEFINE_UNQUOTED([PROTO_BASE], [$PROTO_BASE], [Base value for protocol commands])
+AC_DEFINE_UNQUOTED([LIGHT_MFS], [$LIGHT_MFS], [Build light version])
 
 AC_CONFIG_FILES([Makefile
 		doc/Makefile
-		mfscommon/Makefile
 		mfschunkserver/Makefile
 		mfscgi/Makefile
 		mfsdata/Makefile
@@ -306,7 +306,6 @@ AC_CONFIG_FILES([Makefile
 		mfsmount/Makefile
 		mfscgi/mfs.cgi
 		mfscgi/chart.cgi
-		mfscommon/MFSCommunication.h
 		mfsdata/mfschunkserver.cfg
 		mfsdata/mfsmaster.cfg
 		mfsdata/mfsmetalogger.cfg])

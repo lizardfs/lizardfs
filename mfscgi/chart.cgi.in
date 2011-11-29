@@ -5,7 +5,7 @@ import struct
 import cgi
 import cgitb; cgitb.enable()
 
-PROTO_BASE = @PROTOBASE@
+PROTO_BASE = @PROTO_BASE@
 
 CUTOAN_CHART = (PROTO_BASE+504)
 ANTOCU_CHART = (PROTO_BASE+505)

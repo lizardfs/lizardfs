@@ -119,7 +119,7 @@ void print_humanized_number(const char *format,uint64_t number,uint8_t flags) {
 	printf(format,numbuf);
 }
 
-void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t bytesflag,uint8_t dflag) {
+void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t mode32,uint8_t bytesflag,uint8_t dflag) {
 	if (prefix) {
 		printf("%s",prefix);
 	}
@@ -139,15 +139,27 @@ void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t 
 				}
 			}
 			if (humode>2) {
-				printf(" (%20"PRIu64")",number);
+				if (mode32) {
+					printf(" (%10"PRIu32")",(uint32_t)number);
+				} else {
+					printf(" (%20"PRIu64")",number);
+				}
 			}
 		} else {
-			printf("%20"PRIu64,number);
+			if (mode32) {
+				printf("%10"PRIu32,(uint32_t)number);
+			} else {
+				printf("%20"PRIu64,number);
+			}
 		}
 	} else {
 		switch(humode) {
 		case 0:
-			printf("                   -");
+			if (mode32) {
+				printf("         -");
+			} else {
+				printf("                   -");
+			}
 			break;
 		case 1:
 			printf("     -");
@@ -156,10 +168,18 @@ void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t 
 			printf("    -");
 			break;
 		case 3:
-			printf("                            -");
+			if (mode32) {
+				printf("                  -");
+			} else {
+				printf("                            -");
+			}
 			break;
 		case 4:
-			printf("                           -");
+			if (mode32) {
+				printf("                 -");
+			} else {
+				printf("                           -");
+			}
 			break;
 		}
 	}
@@ -733,7 +753,7 @@ int check_file(const char* fname) {
 	const uint8_t *rptr;
 	uint32_t cmd,leng,inode;
 	uint8_t copies;
-	uint16_t chunks;
+	uint32_t chunks;
 	int fd;
 	fd = open_master_conn(fname,&inode,NULL,0,0);
 	if (fd<0) {
@@ -782,16 +802,37 @@ int check_file(const char* fname) {
 		printf("%s: %s\n",fname,mfs_strerror(*rptr));
 		free(buff);
 		return -1;
-	} else if (leng%3!=0) {
+	} else if (leng%3!=0 && leng!=44) {
 		printf("%s: master query: wrong answer (leng)\n",fname);
 		free(buff);
 		return -1;
 	}
 	printf("%s:\n",fname);
-	for (cmd=0 ; cmd<leng ; cmd+=3) {
-		copies = get8bit(&rptr);
-		chunks = get16bit(&rptr);
-		printf("%"PRIu8" copies: %"PRIu16" chunks\n",copies,chunks);
+	if (leng%3==0) {
+		for (cmd=0 ; cmd<leng ; cmd+=3) {
+			copies = get8bit(&rptr);
+			chunks = get16bit(&rptr);
+			if (copies==1) {
+				printf("1 copy:");
+			} else {
+				printf("%"PRIu8" copies:",copies);
+			}
+			print_number(" ","\n",chunks,1,0,1);
+		}
+	} else {
+		for (cmd=0 ; cmd<11 ; cmd++) {
+			chunks = get32bit(&rptr);
+			if (chunks>0) {
+				if (cmd==1) {
+					printf(" chunks with 1 copy:    ");
+				} else if (cmd>=10) {
+					printf(" chunks with 10+ copies:");
+				} else {
+					printf(" chunks with %u copies:  ",cmd);
+				}
+				print_number(" ","\n",chunks,1,0,1);
+			}
+		}
 	}
 	free(buff);
 	return 0;
@@ -886,13 +927,13 @@ int get_goal(const char *fname,uint8_t mode) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
 			printf(" files with goal        %"PRIu8" :",goal);
-			print_number(" ","\n",cnt,0,1);
+			print_number(" ","\n",cnt,1,0,1);
 		}
 		for (i=0 ; i<dn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
 			printf(" directories with goal  %"PRIu8" :",goal);
-			print_number(" ","\n",cnt,0,1);
+			print_number(" ","\n",cnt,1,0,1);
 		}
 	}
 	free(buff);
@@ -988,13 +1029,13 @@ int get_trashtime(const char *fname,uint8_t mode) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
 			printf(" files with trashtime        %10"PRIu32" :",trashtime);
-			print_number(" ","\n",cnt,0,1);
+			print_number(" ","\n",cnt,1,0,1);
 		}
 		for (i=0 ; i<dn ; i++) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
 			printf(" directories with trashtime  %10"PRIu32" :",trashtime);
-			print_number(" ","\n",cnt,0,1);
+			print_number(" ","\n",cnt,1,0,1);
 		}
 	}
 	free(buff);
@@ -1126,17 +1167,17 @@ int get_eattr(const char *fname,uint8_t mode) {
 		for (j=0 ; j<EATTR_BITS ; j++) {
 			if (eattrtab[j][0]) {
 				printf(" not directory nodes with attribute %16s :",eattrtab[j]);
-				print_number(" ","\n",fcnt[j],0,1);
+				print_number(" ","\n",fcnt[j],1,0,1);
 				printf(" directories with attribute         %16s :",eattrtab[j]);
-				print_number(" ","\n",dcnt[j],0,1);
+				print_number(" ","\n",dcnt[j],1,0,1);
 			} else {
 				if (fcnt[j]>0) {
 					printf(" not directory nodes with attribute      'unknown-%u' :",j);
-					print_number(" ","\n",fcnt[j],0,1);
+					print_number(" ","\n",fcnt[j],1,0,1);
 				}
 				if (dcnt[j]>0) {
 					printf(" directories with attribute              'unknown-%u' :",j);
-					print_number(" ","\n",dcnt[j],0,1);
+					print_number(" ","\n",dcnt[j],1,0,1);
 				}
 			}
 		}
@@ -1232,9 +1273,9 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 		}
 	} else {
 		printf("%s:\n",fname);
-		print_number(" inodes with goal changed:      ","\n",changed,0,1);
-		print_number(" inodes with goal not changed:  ","\n",notchanged,0,1);
-		print_number(" inodes with permission denied: ","\n",notpermitted,0,1);
+		print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
+		print_number(" inodes with goal not changed:  ","\n",notchanged,1,0,1);
+		print_number(" inodes with permission denied: ","\n",notpermitted,1,0,1);
 	}
 	free(buff);
 	return 0;
@@ -1313,9 +1354,9 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 		}
 	} else {
 		printf("%s:\n",fname);
-		print_number(" inodes with trashtime changed:     ","\n",changed,0,1);
-		print_number(" inodes with trashtime not changed: ","\n",notchanged,0,1);
-		print_number(" inodes with permission denied:     ","\n",notpermitted,0,1);
+		print_number(" inodes with trashtime changed:     ","\n",changed,1,0,1);
+		print_number(" inodes with trashtime not changed: ","\n",notchanged,1,0,1);
+		print_number(" inodes with permission denied:     ","\n",notpermitted,1,0,1);
 	}
 	free(buff);
 	return 0;
@@ -1394,9 +1435,9 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 		}
 	} else {
 		printf("%s:\n",fname);
-		print_number(" inodes with attributes changed:     ","\n",changed,0,1);
-		print_number(" inodes with attributes not changed: ","\n",notchanged,0,1);
-		print_number(" inodes with permission denied:      ","\n",notpermitted,0,1);
+		print_number(" inodes with attributes changed:     ","\n",changed,1,0,1);
+		print_number(" inodes with attributes not changed: ","\n",notchanged,1,0,1);
+		print_number(" inodes with permission denied:      ","\n",notpermitted,1,0,1);
 	}
 	free(buff);
 	return 0;
@@ -1664,13 +1705,13 @@ int dir_info(const char *fname) {
 	realsize = get64bit(&rptr);
 	free(buff);
 	printf("%s:\n",fname);
-	print_number(" inodes:       ","\n",inodes,0,1);
-	print_number("  directories: ","\n",dirs,0,1);
-	print_number("  files:       ","\n",files,0,1);
-	print_number(" chunks:       ","\n",chunks,0,1);
-	print_number(" length:       ","\n",length,1,1);
-	print_number(" size:         ","\n",size,1,1);
-	print_number(" realsize:     ","\n",realsize,1,1);
+	print_number(" inodes:       ","\n",inodes,0,0,1);
+	print_number("  directories: ","\n",dirs,0,0,1);
+	print_number("  files:       ","\n",files,0,0,1);
+	print_number(" chunks:       ","\n",chunks,0,0,1);
+	print_number(" length:       ","\n",length,0,1,1);
+	print_number(" size:         ","\n",size,0,1,1);
+	print_number(" realsize:     ","\n",realsize,0,1,1);
 	return 0;
 }
 
@@ -1742,9 +1783,9 @@ int file_repair(const char *fname) {
 	repaired = get32bit(&rptr);
 	free(buff);
 	printf("%s:\n",fname);
-	print_number(" chunks not changed: ","\n",notchanged,0,1);
-	print_number(" chunks erased:      ","\n",erased,0,1);
-	print_number(" chunks repaired:    ","\n",repaired,0,1);
+	print_number(" chunks not changed: ","\n",notchanged,1,0,1);
+	print_number(" chunks erased:      ","\n",erased,1,0,1);
+	print_number(" chunks repaired:    ","\n",repaired,1,0,1);
 	return 0;
 }
 
@@ -1935,18 +1976,18 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	currealsize = get64bit(&rptr);
 	free(buff);
 	printf("%s: (current values | soft quota | hard quota)\n",fname);
-	print_number(" inodes   | ",NULL,curinodes,0,1);
-	print_number(" | ",NULL,sinodes,0,qflags&QUOTA_FLAG_SINODES);
-	print_number(" | "," |\n",hinodes,0,qflags&QUOTA_FLAG_HINODES);
-	print_number(" length   | ",NULL,curlength,1,1);
-	print_number(" | ",NULL,slength,1,qflags&QUOTA_FLAG_SLENGTH);
-	print_number(" | "," |\n",hlength,1,qflags&QUOTA_FLAG_HLENGTH);
-	print_number(" size     | ",NULL,cursize,1,1);
-	print_number(" | ",NULL,ssize,1,qflags&QUOTA_FLAG_SSIZE);
-	print_number(" | "," |\n",hsize,1,qflags&QUOTA_FLAG_HSIZE);
-	print_number(" realsize | ",NULL,currealsize,1,1);
-	print_number(" | ",NULL,srealsize,1,qflags&QUOTA_FLAG_SREALSIZE);
-	print_number(" | "," |\n",hrealsize,1,qflags&QUOTA_FLAG_HREALSIZE);
+	print_number(" inodes   | ",NULL,curinodes,0,0,1);
+	print_number(" | ",NULL,sinodes,0,0,qflags&QUOTA_FLAG_SINODES);
+	print_number(" | "," |\n",hinodes,0,0,qflags&QUOTA_FLAG_HINODES);
+	print_number(" length   | ",NULL,curlength,0,1,1);
+	print_number(" | ",NULL,slength,0,1,qflags&QUOTA_FLAG_SLENGTH);
+	print_number(" | "," |\n",hlength,0,1,qflags&QUOTA_FLAG_HLENGTH);
+	print_number(" size     | ",NULL,cursize,0,1,1);
+	print_number(" | ",NULL,ssize,0,1,qflags&QUOTA_FLAG_SSIZE);
+	print_number(" | "," |\n",hsize,0,1,qflags&QUOTA_FLAG_HSIZE);
+	print_number(" realsize | ",NULL,currealsize,0,1,1);
+	print_number(" | ",NULL,srealsize,0,1,qflags&QUOTA_FLAG_SREALSIZE);
+	print_number(" | "," |\n",hrealsize,0,1,qflags&QUOTA_FLAG_HREALSIZE);
 	return 0;
 }
 
@@ -2253,7 +2294,7 @@ void usage(int f) {
 			fprintf(stderr," SECONDS - just set trashtime to given value\n");
 			break;
 		case MFSCHECKFILE:
-			fprintf(stderr,"check files\n\nusage: mfscheckfile name [name ...]\n");
+			fprintf(stderr,"check files\n\nusage: mfscheckfile [-nhH] name [name ...]\n");
 			break;
 		case MFSFILEINFO:
 			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name [name ...]\n");
@@ -2606,6 +2647,7 @@ int main(int argc,char **argv) {
 	case MFSFILEREPAIR:
 	case MFSGETQUOTA:
 	case MFSDIRINFO:
+	case MFSCHECKFILE:
 		while ((ch=getopt(argc,argv,"nhH"))!=-1) {
 			switch(ch) {
 			case 'n':

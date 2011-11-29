@@ -2457,7 +2457,7 @@ void matocuserv_fuse_repair(matocuserventry *eptr,const uint8_t *data,uint32_t l
 
 void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
-	uint16_t t16,chunkcount[256];
+	uint32_t i,chunkcount[11];
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -2474,21 +2474,10 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 	} else {
-		uint32_t i,j;
-		j=0;
-		for (i=0 ; i<256 ; i++) {
-			if (chunkcount[i]>0) {
-				j++;
-			}
-		}
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,4+j*3);
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,48);
 		put32bit(&ptr,msgid);
-		for (i=0 ; i<256 ; i++) {
-			t16 = chunkcount[i];
-			if (t16>0) {
-				put8bit(&ptr,i);
-				put16bit(&ptr,t16);
-			}
+		for (i=0 ; i<11 ; i++) {
+			put32bit(&ptr,chunkcount[i]);
 		}
 	}
 }

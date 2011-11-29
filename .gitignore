@@ -33,7 +33,6 @@ Makefile.in
 /mfsmetarestore/mfsmetarestore
 /mfsmount/mfsmount
 /mfsmount/mfstools
-/mfscommon/MFSCommunication.h
 /missing
 /stamp-h1
 *.tar.gz

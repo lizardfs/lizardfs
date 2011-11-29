@@ -1,4 +1,4 @@
-.TH MFSCGISERV "8" "June 2010" "MooseFS 1.6.15"
+.TH MFSCGISERV "8" "Nov 2011" "MooseFS 1.6.23"
 .SH NAME
 mfscgiserv \- start HTTP/CGI server for Moose File System monitoring
 .SH SYNOPSIS
@@ -6,15 +6,15 @@ mfscgiserv \- start HTTP/CGI server for Moose File System monitoring
 [\fB\-H\fP \fIBIND_HOST\fP]
 [\fB\-P\fP \fIBIND_PORT\fP]
 [\fB\-R\fP \fIROOT_PATH\fP]
+[\fB\-t\fP \fILOCKTIMEOUT\fP]
 [\fB\-f\fP [\fB\-v\fP]]
+[\fIACTION\fP]
 .PP
 .B mfscgiserv \-h
 .SH DESCRIPTION
 .PP
 \fBmfscgiserv\fP is a very simple HTTP server capable of running CGI
-scripts for Moose File System monitoring. Running \fBmfscgiserv\fP
-command starts the server (except for \fB-h\fP option, which displays
-help message and exists).
+scripts for Moose File System monitoring.
 .TP
 \fB\-h\fP
 print usage information and exit
@@ -33,5 +33,12 @@ run in foreground, don't daemonize
 .TP
 \fB\-v\fP
 log requests on stderr
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
+.TP
+\fIACTION\fP
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP or \fBtest\fP. Default action is
+\fBrestart\fP.
 .SH "SEE ALSO"
 .BR moosefs (7)

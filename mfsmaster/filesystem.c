@@ -85,8 +85,7 @@
 
 #define MAXFNAMELENG 255
 
-#define MAX_INDEX 0x7FFF
-#define MAX_CHUNKS_PER_FILE (MAX_INDEX+1)
+#define MAX_INDEX 0x7FFFFFFF
 
 #define CHIDS_NO 0
 #define CHIDS_YES 1
@@ -1720,17 +1719,20 @@ static inline void fsnodes_getdirdata(uint32_t rootinode,uint32_t uid,uint32_t g
 	}
 }
 
-static inline void fsnodes_checkfile(fsnode *p,uint16_t chunkcount[256]) {
+static inline void fsnodes_checkfile(fsnode *p,uint32_t chunkcount[11]) {
 	uint32_t i;
 	uint64_t chunkid;
 	uint8_t count;
-	for (i=0 ; i<256 ; i++) {
+	for (i=0 ; i<11 ; i++) {
 		chunkcount[i]=0;
 	}
 	for (i=0 ; i<p->data.fdata.chunks ; i++) {
 		chunkid = p->data.fdata.chunktab[i];
 		if (chunkid>0) {
 			chunk_get_validcopies(chunkid,&count);
+			if (count>10) {
+				count=10;
+			}
 			chunkcount[count]++;
 		}
 	}
@@ -4522,7 +4524,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 }
 
 
-uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint16_t chunkcount[256]) {
+uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[11]) {
 	fsnode *p,*rn;
 	(void)sesflags;
 	if (rootinode==MFS_ROOT_ID || rootinode==0) {
@@ -6672,9 +6674,9 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 }
 
 void fs_storenode(fsnode *f,FILE *fd) {
-	uint8_t unodebuff[1+4+1+2+4+4+4+4+4+4+8+4+2+8*MAX_CHUNKS_PER_FILE+4*65536+4];
-	uint8_t *ptr;
-	uint32_t indx,ch,sessionids;
+	uint8_t unodebuff[1+4+1+2+4+4+4+4+4+4+8+4+2+8*65536+4*65536+4];
+	uint8_t *ptr,*chptr;
+	uint32_t i,indx,ch,sessionids;
 	size_t happy;
 	sessionidrec *sessionidptr;
 
@@ -6726,25 +6728,40 @@ void fs_storenode(fsnode *f,FILE *fd) {
 		}
 		put16bit(&ptr,sessionids);
 
-		for (indx=0 ; indx<ch ; indx++) {
-			put64bit(&ptr,f->data.fdata.chunktab[indx]);
+		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2,fd);
+
+		indx = 0;
+		while (ch>65536) {
+			chptr = ptr;
+			for (i=0 ; i<65536 ; i++) {
+				put64bit(&chptr,f->data.fdata.chunktab[indx]);
+				indx++;
+			}
+			happy = fwrite(ptr,1,8*65536,fd);
+			ch-=65536;
+		}
+
+		chptr = ptr;
+		for (i=0 ; i<ch ; i++) {
+			put64bit(&chptr,f->data.fdata.chunktab[indx]);
+			indx++;
 		}
 
 		sessionids=0;
 		for (sessionidptr=f->data.fdata.sessionids ; sessionidptr && sessionids<65535; sessionidptr=sessionidptr->next) {
-			put32bit(&ptr,sessionidptr->sessionid);
+			put32bit(&chptr,sessionidptr->sessionid);
 			sessionids++;
 		}
 
-		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2+8*ch+4*sessionids,fd);
+		happy = fwrite(ptr,1,8*ch+4*sessionids,fd);
 	}
 }
 
 int fs_loadnode(FILE *fd) {
-	uint8_t unodebuff[4+1+2+4+4+4+4+4+4+8+4+2+8*MAX_CHUNKS_PER_FILE+4*65536+4];
-	const uint8_t *ptr;
+	uint8_t unodebuff[4+1+2+4+4+4+4+4+4+8+4+2+8*65536+4*65536+4];
+	const uint8_t *ptr,*chptr;
 	uint8_t type;
-	uint32_t indx,pleng,ch,sessionids,sessionid;
+	uint32_t i,indx,pleng,ch,sessionids,sessionid;
 	fsnode *p;
 	sessionidrec *sessionidptr;
 	uint32_t nodepos;
@@ -6899,6 +6916,29 @@ int fs_loadnode(FILE *fd) {
 		} else {
 			p->data.fdata.chunktab = NULL;
 		}
+		indx = 0;
+		while (ch>65536) {
+			chptr = ptr;
+			if (fread((uint8_t*)ptr,1,8*65536,fd)!=8*65536) {
+				int err = errno;
+				if (nl) {
+					fputc('\n',stderr);
+					nl=0;
+				}
+				errno = err;
+				mfs_errlog(LOG_ERR,"loading node: read error");
+				if (p->data.fdata.chunktab) {
+					free(p->data.fdata.chunktab);
+				}
+				free(p);
+				return -1;
+			}
+			for (i=0 ; i<65536 ; i++) {
+				p->data.fdata.chunktab[indx] = get64bit(&chptr);
+				indx++;
+			}
+			ch-=65536;
+		}
 		if (fread((uint8_t*)ptr,1,8*ch+4*sessionids,fd)!=8*ch+4*sessionids) {
 			int err = errno;
 			if (nl) {
@@ -6913,8 +6953,9 @@ int fs_loadnode(FILE *fd) {
 			free(p);
 			return -1;
 		}
-		for (indx=0 ; indx<ch ; indx++) {
-			p->data.fdata.chunktab[indx] = get64bit(&ptr);;
+		for (i=0 ; i<ch ; i++) {
+			p->data.fdata.chunktab[indx] = get64bit(&ptr);
+			indx++;
 		}
 		p->data.fdata.sessionids=NULL;
 		while (sessionids) {

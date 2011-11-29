@@ -24,8 +24,9 @@
 // type:32 length:32 data:lengthB
 //
 
-#define PROTO_BASE @PROTOBASE@
-#define LIGHT_MFS @LIGHTMFS@
+#ifndef PROTO_BASE
+#include "config.h"
+#endif
 
 #define MFSBLOCKSINCHUNK 0x400
 #if LIGHT_MFS == 1
@@ -62,7 +63,7 @@
 #define MFS_ROOT_ID 1
 
 #define MFS_NAME_MAX 255
-#define MFS_MAX_FILE_SIZE ((uint64_t)(MFSCHUNKSIZE)*(uint64_t)(0x8000))
+#define MFS_MAX_FILE_SIZE (((uint64_t)(MFSCHUNKSIZE))<<31)
 
 #define MFS_INODE_REUSE_DELAY 86400
 
@@ -804,7 +805,10 @@
 // 0x01B9
 #define MATOCU_FUSE_CHECK (PROTO_BASE+441)
 // msgid:32 status:8
-// msgid:32 N*[ copies:8 chunks:16 ]
+// up to version 1.6.22:
+//	msgid:32 N*[ copies:8 chunks:16 ]
+// since version 1.6.23:
+// 	msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
 
 
 // 0x01BA
