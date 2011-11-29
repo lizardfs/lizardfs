@@ -2,7 +2,7 @@ Source: mfs
 Section: admin
 Priority: extra
 Maintainer: Jakub Bogusz <contact@moosefs.com>
-Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-config, zlib1g-dev
+Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-config, zlib1g-dev, python
 Standards-Version: 3.7.3
 Homepage: http://moosefs.com/
 

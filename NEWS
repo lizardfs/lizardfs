@@ -7,6 +7,10 @@ This file lists noteworthy changes in MooseFS.
   - (metarestore) added option (-b) - in case of errors save the best metadata file
   - (mount) more dynamic write cache management (changed condition ib<tb/5 to ib<3*fb where: ib - inode blocks in cache, tb - total blocks in cache, fb - free block in cache)
   - (master) save metadata file to alternative locations in case of error
+  - (all) increased file length limit from 2TiB to 128PiB
+  - (mfscgiserv) fixed directory traversal vulnerability
+  - (mfscgiserv) added lockfile/pidfile and actions such as 'start', 'stop', 'restart' and 'test'.
+  - (mfsmount) fixed parsing file with defaults
 
 * MooseFS 1.6.22 (2011-05-09)
 

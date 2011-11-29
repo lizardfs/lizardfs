@@ -1,4 +1,4 @@
-mfs (1.6.23) unstable; urgency=low
+mfs (1.6.23) unstable; urgency=medium
 
   * (master+mount) removed directory cache (didn't increase performance as 
     expected and caused many troubles)
@@ -9,8 +9,13 @@ mfs (1.6.23) unstable; urgency=low
     ib<3*fb where: ib - inode blocks in cache, tb - total blocks in cache,
     fb - free block in cache)
   * (master) save metadata file to alternative locations in case of error
+  * (all) increased file length limit from 2TiB to 128PiB
+  * (mfscgiserv) fixed directory traversal vulnerability
+  * (mfscgiserv) added lockfile/pidfile and actions such as 'start', 'stop',
+    'restart' and 'test'.
+  * (mfsmount) fixed parsing file with defaults
 
- -- Jakub Bogusz <contact@moosefs.com>  Tue, 08 Nov 2011 12:00:00 +0100
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 29 Nov 2011 09:00:00 +0100
 
 mfs (1.6.22) unstable; urgency=low
 

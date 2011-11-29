@@ -264,33 +264,6 @@ static void usage(const char *progname) {
 "\n", progname);
 }
 
-static struct fuse_operations fake_help_ops = {
-	.init = NULL,
-	.getattr = NULL,
-	.readlink = NULL,
-	.mknod = NULL,
-	.mkdir = NULL,
-	.symlink = NULL,
-	.unlink = NULL,
-	.rmdir = NULL,
-	.rename = NULL,
-	.link = NULL,
-	.chmod = NULL,
-	.chown = NULL,
-	.truncate = NULL,
-	.utime = NULL,
-	.open = NULL,
-	.flush = NULL,
-	.fsync = NULL,
-	.release = NULL,
-	.read = NULL,
-	.write = NULL,
-	.statfs = NULL,
-	.create = NULL,
-	.ftruncate = NULL,
-	.fgetattr = NULL,
-};
-
 static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
 	FILE *fd;
 	char lbuff[1000],*p;
@@ -342,13 +315,14 @@ static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse
 }
 
 static int mfs_opt_proc_stage1(void *data, const char *arg, int key, struct fuse_args *outargs) {
-	(void)data;
+	struct fuse_args *defargs = (struct fuse_args*)data;
+	(void)outargs;
 
 	if (key==KEY_CFGFILE) {
 		if (memcmp(arg,"mfscfgfile=",11)==0) {
-			mfs_opt_parse_cfg_file(arg+11,0,outargs);
+			mfs_opt_parse_cfg_file(arg+11,0,defargs);
 		} else if (arg[0]=='-' && arg[1]=='c') {
-			mfs_opt_parse_cfg_file(arg+2,0,outargs);
+			mfs_opt_parse_cfg_file(arg+2,0,defargs);
 		}
 		return 0;
 	}
@@ -367,27 +341,28 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 	case FUSE_OPT_KEY_NONOPT:
 		return 1;
 	case KEY_HOST:
-		if (mfsopts.masterhost==NULL) {
-			mfsopts.masterhost = strdup(arg+2);
-//			printf("host test: %s ; NULL->%p\n",arg,mfsopts.masterhost);
-//		} else {
-//			printf("host test: %s ; %p\n",arg,mfsopts.masterhost);
+		if (mfsopts.masterhost!=NULL) {
+			free(mfsopts.masterhost);
 		}
+		mfsopts.masterhost = strdup(arg+2);
 		return 0;
 	case KEY_PORT:
-		if (mfsopts.masterport==NULL) {
-			mfsopts.masterport = strdup(arg+2);
+		if (mfsopts.masterport!=NULL) {
+			free(mfsopts.masterport);
 		}
+		mfsopts.masterport = strdup(arg+2);
 		return 0;
 	case KEY_BIND:
-		if (mfsopts.bindhost==NULL) {
-			mfsopts.bindhost = strdup(arg+2);
+		if (mfsopts.bindhost!=NULL) {
+			free(mfsopts.bindhost);
 		}
+		mfsopts.bindhost = strdup(arg+2);
 		return 0;
 	case KEY_PATH:
-		if (mfsopts.subfolder==NULL) {
-			mfsopts.subfolder = strdup(arg+2);
+		if (mfsopts.subfolder!=NULL) {
+			free(mfsopts.subfolder);
 		}
+		mfsopts.subfolder = strdup(arg+2);
 		return 0;
 	case KEY_PASSWORDASK:
 		mfsopts.passwordask = 1;
@@ -416,9 +391,8 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"-ho");
-			fuse_main(helpargs.argc,helpargs.argv,&fake_help_ops,NULL);
-			//fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			//fuse_mount(NULL,&helpargs);
+			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
+			fuse_mount("",&helpargs);
 		}
 		exit(1);
 	default:
@@ -857,11 +831,12 @@ void make_fsname(struct fuse_args *args) {
 #endif
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
+
 /*
-void dump_args(struct fuse_args *args) {
+void dump_args(const char *prfx,struct fuse_args *args) {
 	int i;
 	for (i=0 ; i<args->argc ; i++) {
-		printf("[%d]:%s\n",i,args->argv[i]);
+		printf("%s [%d]: %s\n",prfx,i,args->argv[i]);
 	}
 }
 */
@@ -871,6 +846,7 @@ int main(int argc, char *argv[]) {
 	int mt,fg;
 	char *mountpoint;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
 
 	strerr_init();
 	mycrc32_init();
@@ -901,20 +877,30 @@ int main(int argc, char *argv[]) {
 
 	custom_cfg = 0;
 
-//	dump_args(&args);
-	if (fuse_opt_parse(&args, NULL, mfs_opts_stage1, mfs_opt_proc_stage1)<0) {
+//	dump_args("input_args",&args);
+
+	fuse_opt_add_arg(&defaultargs,"fakeappname");
+
+	if (fuse_opt_parse(&args, &defaultargs, mfs_opts_stage1, mfs_opt_proc_stage1)<0) {
 		exit(1);
 	}
 
 	if (custom_cfg==0) {
-		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&args);
+		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
 	}
 
-//	dump_args(&args);
+//	dump_args("parsed_defaults",&defaultargs);
+//	dump_args("changed_args",&args);
+
+	if (fuse_opt_parse(&defaultargs, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
+		exit(1);
+	}
+
 	if (fuse_opt_parse(&args, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
-//	dump_args(&args);
+
+//	dump_args("args_after_parse",&args);
 
 	if (mfsopts.cachemode!=NULL && mfsopts.cachefiles) {
 		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);
