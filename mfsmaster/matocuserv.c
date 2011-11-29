@@ -2474,10 +2474,32 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 	} else {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,48);
-		put32bit(&ptr,msgid);
-		for (i=0 ; i<11 ; i++) {
-			put32bit(&ptr,chunkcount[i]);
+		if (eptr->version>=0x010617) {
+			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,48);
+			put32bit(&ptr,msgid);
+			for (i=0 ; i<11 ; i++) {
+				put32bit(&ptr,chunkcount[i]);
+			}
+		} else {
+			uint8_t j;
+			j=0;
+			for (i=0 ; i<11 ; i++) {
+				if (chunkcount[i]>0) {
+					j++;
+				}
+			}
+			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,4+3*j);
+			put32bit(&ptr,msgid);
+			for (i=0 ; i<11 ; i++) {
+				if (chunkcount[i]>0) {
+					put8bit(&ptr,i);
+					if (chunkcount[i]<=65535) {
+						put16bit(&ptr,chunkcount[i]);
+					} else {
+						put16bit(&ptr,65535);
+					}
+				}
+			}
 		}
 	}
 }
