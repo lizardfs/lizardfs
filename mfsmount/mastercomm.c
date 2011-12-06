@@ -638,6 +638,68 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 	return NULL;
 }
 
+const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t *answer_leng) {
+	uint32_t cnt;
+//	uint32_t size = rec->size;
+
+	for (cnt=0 ; cnt<maxretries ; cnt++) {
+		pthread_mutex_lock(&fdlock);
+		if (sessionlost) {
+			pthread_mutex_unlock(&fdlock);
+			return NULL;
+		}
+		if (fd==-1) {
+			pthread_mutex_unlock(&fdlock);
+			sleep(1+(cnt<30)?(cnt/3):10);
+			continue;
+		}
+		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
+		pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
+		if (tcptowrite(fd,rec->obuff,rec->odataleng,1000)!=(int32_t)(rec->odataleng)) {
+			syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
+			disconnect = 1;
+			pthread_mutex_unlock(&(rec->mutex));
+			pthread_mutex_unlock(&fdlock);
+			sleep(1+(cnt<30)?(cnt/3):10);
+			continue;
+		}
+		rec->rcvd = 0;
+		rec->sent = 1;
+		pthread_mutex_unlock(&(rec->mutex));	// make helgrind happy
+		master_stats_add(MASTER_BYTESSENT,rec->odataleng);
+		master_stats_inc(MASTER_PACKETSSENT);
+		lastwrite = time(NULL);
+		pthread_mutex_unlock(&fdlock);
+		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
+		pthread_mutex_lock(&(rec->mutex));
+		while (rec->rcvd==0) {
+			rec->waiting = 1;
+			pthread_cond_wait(&(rec->cond),&(rec->mutex));
+			rec->waiting = 0;
+		}
+		*answer_leng = rec->idataleng;
+		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
+		if (rec->status!=0) {
+			pthread_mutex_unlock(&(rec->mutex));
+			sleep(1+(cnt<30)?(cnt/3):10);
+			continue;
+		}
+		*received_cmd = rec->rcvd_cmd;
+		pthread_mutex_unlock(&(rec->mutex));
+		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
+		return rec->ibuff;
+	}
+	return NULL;
+}
+
+//static inline const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answer_leng) {
+//	uint32_t *rcmd;
+//	const uint8_t *rptr;
+//	rptr = fs_commwithmaster(rec,&rcmd,answer_leng);
+//	if (
+//}
+
 /*
 int fs_direct_connect() {
 	int rfd;
@@ -2420,6 +2482,32 @@ uint8_t fs_purge(uint32_t inode) {
 		disconnect = 1;
 		pthread_mutex_unlock(&fdlock);
 		ret = ERROR_IO;
+	}
+	return ret;
+}
+
+uint8_t fs_custom(uint32_t qcmd,const uint8_t *query,uint32_t queryleng,uint32_t *acmd,uint8_t *answer,uint32_t *answerleng) {
+	uint8_t *wptr;
+	const uint8_t *rptr;
+	uint32_t i;
+	uint8_t ret;
+	threc *rec = fs_get_my_threc();
+	wptr = fs_createpacket(rec,qcmd,queryleng);
+	if (wptr==NULL) {
+		return ERROR_IO;
+	}
+	memcpy(wptr,query,queryleng);
+	rptr = fs_sendandreceive_any(rec,acmd,&i);
+	if (rptr==NULL) {
+		ret = ERROR_IO;
+	} else {
+		if (*answerleng<i) {
+			ret = ERROR_EINVAL;
+		} else {
+			*answerleng = i;
+			memcpy(answer,rptr,i);
+			ret = STATUS_OK;
+		}
 	}
 	return ret;
 }

@@ -35,6 +35,7 @@
 
 #include "datapack.h"
 #include "mastercomm.h"
+#include "masterproxy.h"
 #include "MFSCommunication.h"
 
 #define READDIR_BUFFSIZE 50000
@@ -917,6 +918,7 @@ void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struc
 	if (ino==MASTERINFO_INODE) {
 		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
+		masterproxy_getlocation(masterinfo);
 #ifdef MASTERINFO_WITH_VERSION
 		if (off>=14) {
 			fuse_reply_buf(req,NULL,0);

@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.23], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.24], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET

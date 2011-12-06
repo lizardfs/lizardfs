@@ -1,5 +1,9 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.24 (2011-12-06)
+
+  - (master+mount) proxy in mount for mfstools (fixes problems with frequent connect to master)
+
 * MooseFS 1.6.23 (2011-11-08)
 
   - (master+mount) removed directory cache (didn't increase performance as expected and caused many troubles)

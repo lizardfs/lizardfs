@@ -40,6 +40,7 @@
 #include "oplog.h"
 #include "datapack.h"
 #include "mastercomm.h"
+#include "masterproxy.h"
 #include "readdata.h"
 #include "writedata.h"
 #include "strerr.h"
@@ -1848,6 +1849,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	if (ino==MASTERINFO_INODE) {
 		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
+		masterproxy_getlocation(masterinfo);
 #ifdef MASTERINFO_WITH_VERSION
 		if (off>=14) {
 			fuse_reply_buf(req,NULL,0);

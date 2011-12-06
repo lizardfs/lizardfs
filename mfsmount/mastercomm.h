@@ -66,6 +66,8 @@ uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path);
 uint8_t fs_undel(uint32_t inode);
 uint8_t fs_purge(uint32_t inode);
 
+uint8_t fs_custom(uint32_t qcmd,const uint8_t *query,uint32_t queryleng,uint32_t *acmd,uint8_t *answer,uint32_t *answerleng);
+
 // for hardlink emulation only
 // uint8_t fs_append(uint32_t inode,uint32_t ainode,uint32_t uid,uint32_t gid);
 

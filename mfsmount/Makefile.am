@@ -15,6 +15,7 @@ mfsmount_SOURCES=\
 	mfs_fuse.c mfs_fuse.h \
 	mfs_meta_fuse.c mfs_meta_fuse.h \
 	mastercomm.c mastercomm.h \
+	masterproxy.c masterproxy.h \
 	cscomm.c cscomm.h \
 	readdata.c readdata.h \
 	writedata.c writedata.h \

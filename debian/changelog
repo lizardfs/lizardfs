@@ -1,3 +1,10 @@
+mfs (1.6.24) unstable; urgency=low
+
+  * (master+mount) proxy in mount for mfstools (fixes problems with frequent
+    connect to master)
+
+ -- Jakub Bogusz <contact@moosefs.com>  Tue, 06 Dec 2011 13:30:00 +0100
+
 mfs (1.6.23) unstable; urgency=medium
 
   * (master+mount) removed directory cache (didn't increase performance as 

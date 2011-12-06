@@ -3167,7 +3167,7 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 	if (type==ANTOAN_NOP) {
 		return;
 	}
-	if (eptr->registered==0) {	// sesdata is NULL
+	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
 		switch (type) {
 			case CUTOMA_FUSE_REGISTER:
 				matocuserv_fuse_register(eptr,data,length);
@@ -3209,7 +3209,7 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 				syslog(LOG_NOTICE,"matocu: got unknown message from unregistered (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
-	} else if (eptr->registered<100) {
+	} else if (eptr->registered<100) {	// mounts and new tools
 		if (eptr->sesdata==NULL) {
 			syslog(LOG_ERR,"registered connection without sesdata !!!");
 			eptr->mode=KILL;
@@ -3303,8 +3303,6 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			case CUTOMA_FUSE_GETRESERVED:
 				matocuserv_fuse_getreserved(eptr,data,length);
 				break;
-
-// extra (external tools - still here for compatibility with old tools)
 			case CUTOMA_FUSE_CHECK:
 				matocuserv_fuse_check(eptr,data,length);
 				break;
@@ -3329,11 +3327,61 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			case CUTOMA_FUSE_TRUNCATE:
 				matocuserv_fuse_truncate(eptr,data,length);
 				break;
+			case CUTOMA_FUSE_REPAIR:
+				matocuserv_fuse_repair(eptr,data,length);
+				break;
+			case CUTOMA_FUSE_SNAPSHOT:
+				matocuserv_fuse_snapshot(eptr,data,length);
+				break;
+			case CUTOMA_FUSE_GETEATTR:
+				matocuserv_fuse_geteattr(eptr,data,length);
+				break;
+			case CUTOMA_FUSE_SETEATTR:
+				matocuserv_fuse_seteattr(eptr,data,length);
+				break;
+/* do not use in version before 1.7.x */
+			case CUTOMA_FUSE_QUOTACONTROL:
+				matocuserv_fuse_quotacontrol(eptr,data,length);
+				break;
+/* for tools - also should be available for registered clients */
+			case CUTOMA_CSERV_LIST:
+				matocuserv_cserv_list(eptr,data,length);
+				break;
+			case CUTOMA_SESSION_LIST:
+				matocuserv_session_list(eptr,data,length);
+				break;
+			case CUTOAN_CHART:
+				matocuserv_chart(eptr,data,length);
+				break;
+			case CUTOAN_CHART_DATA:
+				matocuserv_chart_data(eptr,data,length);
+				break;
+			case CUTOMA_INFO:
+				matocuserv_info(eptr,data,length);
+				break;
+			case CUTOMA_FSTEST_INFO:
+				matocuserv_fstest_info(eptr,data,length);
+				break;
+			case CUTOMA_CHUNKSTEST_INFO:
+				matocuserv_chunkstest_info(eptr,data,length);
+				break;
+			case CUTOMA_CHUNKS_MATRIX:
+				matocuserv_chunks_matrix(eptr,data,length);
+				break;
+			case CUTOMA_QUOTA_INFO:
+				matocuserv_quota_info(eptr,data,length);
+				break;
+			case CUTOMA_EXPORTS_INFO:
+				matocuserv_exports_info(eptr,data,length);
+				break;
+			case CUTOMA_MLOG_LIST:
+				matocuserv_mlog_list(eptr,data,length);
+				break;
 			default:
 				syslog(LOG_NOTICE,"matocu: got unknown message from mfsmount (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
-	} else {	// mfstools
+	} else {	// old mfstools
 		if (eptr->sesdata==NULL) {
 			syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 			eptr->mode=KILL;

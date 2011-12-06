@@ -430,6 +430,21 @@ int32_t tcptowrite(int sock,const void *buff,uint32_t leng,uint32_t msecto) {
 	return sent;
 }
 
+int tcptoaccept(int sock,uint32_t msecto) {
+	struct pollfd pfd;
+	pfd.fd = sock;
+	pfd.events = POLLIN;
+	pfd.revents = 0;
+	if (poll(&pfd,1,msecto)<0) {
+		return -1;
+	}
+	if (pfd.revents & POLLIN) {
+		return accept(sock,(struct sockaddr *)NULL,0);
+	}
+	errno = ETIMEDOUT;
+	return -1;
+}
+
 /* ----------------- UDP ----------------- */
 
 int udpsocket(void) {

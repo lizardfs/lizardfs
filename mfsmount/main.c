@@ -49,6 +49,7 @@
 #include "MFSCommunication.h"
 #include "md5.h"
 #include "mastercomm.h"
+#include "masterproxy.h"
 #include "chunkloccache.h"
 #include "symlinkcache.h"
 //#include "dircache.h"
@@ -591,6 +592,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	symlink_cache_init();
 //	dir_cache_init();
 	fs_init_threads(mfsopts.ioretries);
+	masterproxy_init();
 
 	if (mfsopts.meta==0) {
 		csdb_init();
@@ -613,6 +615,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			read_data_term();
 			csdb_term();
 		}
+		masterproxy_term();
 		fs_term();
 //		dir_cache_term();
 		symlink_cache_term();
@@ -642,6 +645,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			read_data_term();
 			csdb_term();
 		}
+		masterproxy_term();
 		fs_term();
 //		dir_cache_term();
 		symlink_cache_term();
@@ -668,6 +672,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			read_data_term();
 			csdb_term();
 		}
+		masterproxy_term();
 		fs_term();
 //		dir_cache_term();
 		symlink_cache_term();
@@ -708,6 +713,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		read_data_term();
 		csdb_term();
 	}
+	masterproxy_term();
 	fs_term();
 //	dir_cache_term();
 	symlink_cache_term();
