@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.24], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.25], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
 AC_CANONICAL_TARGET
@@ -15,6 +15,7 @@ versmin=$(echo $PACKAGE_VERSION | cut -d. -f3)
 AC_DEFINE_UNQUOTED([VERSMAJ], [$versmaj], [Major MFS version])
 AC_DEFINE_UNQUOTED([VERSMID], [$versmid], [Middle MFS version])
 AC_DEFINE_UNQUOTED([VERSMIN], [$versmin], [Minor MFS version])
+AC_DEFINE_UNQUOTED([VERSHEX], [(($versmaj)*0x10000+($versmid)*0x100+($versmin))], [Full MFS version as a hex number])
 
 # Checks for programs.
 AC_PROG_CC
@@ -30,12 +31,12 @@ fi
 case $target_os in
   *linux*)
 	fuse=maybe
-	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
+	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE -DDEFAULT_SUGID_CLEAR_MODE_EXT"
 	;;
   *solaris*)
 	# OpenSolaris has fuse available and is still identified as "solaris"
 	fuse=maybe
-	CPPFLAGS="$CPPFLAGS -D__EXTENSIONS__ -D_POSIX_PTHREAD_SEMANTICS"
+	CPPFLAGS="$CPPFLAGS -D__EXTENSIONS__ -D_POSIX_PTHREAD_SEMANTICS -DDEFAULT_SUGID_CLEAR_MODE_OSX"
 	;;
   *darwin*)
 	fuse=maybe
@@ -44,9 +45,11 @@ case $target_os in
 		PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 		export PKG_CONFIG_PATH
 	fi
+	CPPFLAGS="$CPPFLAGS -DDEFAULT_SUGID_CLEAR_MODE_OSX"
 	;;
   *bsd*)
 	fuse=maybe
+	CPPFLAGS="$CPPFLAGS -DDEFAULT_SUGID_CLEAR_MODE_BSD"
 	;;
   *)
 	fuse=no
@@ -114,7 +117,7 @@ AC_FUNC_REALLOC
 dnl AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_STAT
 # required functions
-AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol strtoul],, [AC_MSG_ERROR([One of required functions was not found])])
+AC_CHECK_FUNCS([atexit bzero ftruncate getaddrinfo getpass gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol strtoul ftello fseeko],, [AC_MSG_ERROR([One of required functions was not found])])
 
 # optional error conversion functions
 AC_CHECK_FUNCS([strerror perror])
@@ -293,6 +296,8 @@ AC_SUBST([PROTO_BASE])
 AC_SUBST([LIGHT_MFS])
 AC_DEFINE_UNQUOTED([PROTO_BASE], [$PROTO_BASE], [Base value for protocol commands])
 AC_DEFINE_UNQUOTED([LIGHT_MFS], [$LIGHT_MFS], [Build light version])
+
+AM_CONDITIONAL([INSTALL_QUOTA_TOOLS], [test "$versmid" -gt "6" -o "$versmaj" -gt "1"])
 
 AC_CONFIG_FILES([Makefile
 		doc/Makefile

@@ -168,15 +168,15 @@ static uint32_t ReplicationsDelayInit=300;
 // static char* CfgFileName;
 // static uint32_t MaxRepl=1;
 // static uint32_t MaxDel=100;
-// static uint32_t LoopTime=300;
 // static uint32_t HashSteps=1+((HASHSIZE)/3600);
 static uint32_t MaxWriteRepl;
 static uint32_t MaxReadRepl;
-static uint32_t MaxDel;
+static uint32_t MaxDelSoftLimit;
+static uint32_t MaxDelHardLimit;
 static double TmpMaxDelFrac;
 static uint32_t TmpMaxDel;
-static uint32_t LoopTime;
 static uint32_t HashSteps;
+static uint32_t HashCPS;
 
 //#define MAXCOPY 2
 //#define MAXDEL 6
@@ -1969,35 +1969,51 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	uint16_t i;
 	uint32_t vc,tdc,ivc,bc,tdb,dc;
 	static loop_info inforec;
-	static uint32_t delcount;
+	static uint32_t delnotdone;
+	static uint32_t deldone;
+	static uint32_t prevtodeletecount;
+	static uint32_t delloopcnt;
 
 	if (c==NULL) {
-		if (scount==0) {
-			servcount=0;
-			delcount=0;
-		} else if (scount==1) {
-			uint32_t delnotdone,deldone,prevdelnotdone;
-			delnotdone = inforec.notdone.del_invalid + inforec.notdone.del_unused + inforec.notdone.del_diskclean + inforec.notdone.del_overgoal;
-			deldone = inforec.done.del_invalid + inforec.done.del_unused + inforec.done.del_diskclean + inforec.done.del_overgoal;
-			prevdelnotdone = chunksinfo.notdone.del_invalid + chunksinfo.notdone.del_unused + chunksinfo.notdone.del_diskclean + chunksinfo.notdone.del_overgoal;
-			if (delnotdone > deldone && delnotdone > prevdelnotdone) {
-				TmpMaxDelFrac *= 1.3;
-				TmpMaxDel = TmpMaxDelFrac;
-				syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %u/s",TmpMaxDel);
-			}
-			if (delnotdone < deldone && TmpMaxDelFrac > MaxDel) {
-				TmpMaxDelFrac /= 1.3;
-				if (TmpMaxDelFrac<MaxDel) {
-					TmpMaxDelFrac = MaxDel;
+		if (scount==0) { // init tasks
+			delnotdone = 0;
+			deldone = 0;
+			prevtodeletecount = 0;
+			delloopcnt = 0;
+			memset(&inforec,0,sizeof(loop_info));
+		} else if (scount==2) { // every loop tasks
+			delloopcnt++;
+			if (delloopcnt>=16) {
+				uint32_t todeletecount = deldone+delnotdone;
+				delloopcnt=0;
+				if ((delnotdone > deldone) && (todeletecount > prevtodeletecount)) {
+					TmpMaxDelFrac *= 1.5;
+					if (TmpMaxDelFrac>MaxDelHardLimit) {
+						syslog(LOG_NOTICE,"DEL_LIMIT hard limit (%"PRIu32" per server) reached",MaxDelHardLimit);
+						TmpMaxDelFrac=MaxDelHardLimit;
+					}
+					TmpMaxDel = TmpMaxDelFrac;
+					syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %"PRIu32" per server",TmpMaxDel);
 				}
-				TmpMaxDel = TmpMaxDelFrac;
-				syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %u/s",TmpMaxDel);
+				if ((todeletecount < prevtodeletecount) && (TmpMaxDelFrac > MaxDelSoftLimit)) {
+					TmpMaxDelFrac /= 1.5;
+					if (TmpMaxDelFrac<MaxDelSoftLimit) {
+						syslog(LOG_NOTICE,"DEL_LIMIT back to soft limit (%"PRIu32" per server)",MaxDelSoftLimit);
+						TmpMaxDelFrac = MaxDelSoftLimit;
+					}
+					TmpMaxDel = TmpMaxDelFrac;
+					syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %"PRIu32" per server",TmpMaxDel);
+				}
+				prevtodeletecount = todeletecount;
+				delnotdone = 0;
+				deldone = 0;
 			}
-//			prevdeldone = chunksinfo.done.del_invalid + chunksinfo.done.del_unused + chunksinfo.done.del_diskclean + chunksinfo.done.del_overgoal;
 			chunksinfo = inforec;
 			memset(&inforec,0,sizeof(inforec));
 			chunksinfo_loopstart = chunksinfo_loopend;
 			chunksinfo_loopend = main_time();
+		} else if (scount==2) { // every second tasks
+			servcount=0;
 		}
 		return;
 	}
@@ -2048,6 +2064,29 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 // step 3. delete invalid copies
+
+	for (s=c->slisthead ; s ; s=s->next) {
+		if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
+			if (s->valid==INVALID || s->valid==DEL) {
+				if (s->valid==DEL) {
+					syslog(LOG_WARNING,"chunk hasn't been deleted since previous loop - retry");
+				}
+				s->valid = DEL;
+				stats_deletions++;
+				matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
+				inforec.done.del_invalid++;
+				deldone++;
+				dc++;
+				ivc--;
+			}
+		} else {
+			if (s->valid==INVALID) {
+				inforec.notdone.del_invalid++;
+				delnotdone++;
+			}
+		}
+	}
+/*
 	if (delcount<TmpMaxDel) {
 		for (s=c->slisthead ; s ; s=s->next) {
 			if (s->valid==INVALID || s->valid==DEL) {
@@ -2070,6 +2109,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			}
 		}
 	}
+*/
 
 // step 4. return if chunk is during some operation
 	if (c->operation!=NONE || (c->lockedto>=(uint32_t)main_time())) {
@@ -2085,8 +2125,8 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 // step 6. delete unused chunk
 	if (c->flisthead==NULL) {
 //		syslog(LOG_WARNING,"unused - delete");
-		if (delcount<TmpMaxDel) {
-			for (s=c->slisthead ; s ; s=s->next) {
+		for (s=c->slisthead ; s ; s=s->next) {
+			if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 				if (s->valid==VALID || s->valid==TDVALID) {
 					if (s->valid==TDVALID) {
 						chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies);
@@ -2100,14 +2140,13 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,c->version);
-					delcount++;
 					inforec.done.del_unused++;
+					deldone++;
 				}
-			}
-		} else {
-			for (s=c->slisthead ; s ; s=s->next) {
+			} else {
 				if (s->valid==VALID || s->valid==TDVALID) {
 					inforec.notdone.del_unused++;
+					delnotdone++;
 				}
 			}
 		}
@@ -2145,14 +2184,18 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 7b. if chunk has too many copies then delete some of them
 	if (vc > c->goal) {
+		uint8_t prevdone;
 //		syslog(LOG_WARNING,"vc (%"PRIu32") > goal (%"PRIu32") - delete",vc,c->goal);
-		if (delcount<TmpMaxDel) {
-			if (servcount==0) {
-				servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
-			}
-			for (i=0 ; i<servcount && vc>c->goal ; i++) {
-				for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
-				if (s && s->valid==VALID) {
+		if (servcount==0) {
+			servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
+		}
+		inforec.notdone.del_overgoal+=(vc-(c->goal));
+		delnotdone+=(vc-(c->goal));
+		prevdone = 1;
+		for (i=0 ; i<servcount && vc>c->goal && prevdone; i++) {
+			for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
+			if (s && s->valid==VALID) {
+				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 					chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies-1);
 					c->allvalidcopies--;
 					c->regularvalidcopies--;
@@ -2160,39 +2203,42 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-					delcount++;
 					inforec.done.del_overgoal++;
+					inforec.notdone.del_overgoal--;
+					deldone++;
+					delnotdone--;
 					vc--;
 					dc++;
+				} else {
+					prevdone=0;
 				}
 			}
-		} else {
-			inforec.notdone.del_overgoal+=(vc-(c->goal));
 		}
 		return;
 	}
 
 // step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
 	if (vc+tdc>=scount && vc<c->goal && tdc>0 && vc+tdc>1) {
+		uint8_t prevdone;
 //		syslog(LOG_WARNING,"vc+tdc (%"PRIu32") >= scount (%"PRIu32") and vc (%"PRIu32") < goal (%"PRIu32") and tdc (%"PRIu32") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal,tdc);
-		if (delcount<TmpMaxDel) {
-			for (s=c->slisthead ; s ; s=s->next) {
-				if (s->valid==TDVALID) {
+		prevdone = 0;
+		for (s=c->slisthead ; s && prevdone==0 ; s=s->next) {
+			if (s->valid==TDVALID) {
+				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 					chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies);
 					c->allvalidcopies--;
 					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-					delcount++;
 					inforec.done.del_diskclean++;
 					tdc--;
 					dc++;
-					break;
+					prevdone = 1;
+				} else {
+					inforec.notdone.del_diskclean++;
 				}
 			}
-		} else {
-			inforec.notdone.del_diskclean++;
 		}
 		return;
 	}
@@ -2393,7 +2439,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 }
 
 void chunk_jobs_main(void) {
-	uint32_t i,l,r;
+	uint32_t i,l,lc,r;
 	uint16_t uscount,tscount;
 	static uint16_t lasttscount=0;
 	static uint16_t maxtscount=0;
@@ -2422,10 +2468,11 @@ void chunk_jobs_main(void) {
 		return;
 	}
 
-	chunk_do_jobs(NULL,0,0.0,0.0);	// clear servercount and delcount
-	for (i=0 ; i<HashSteps ; i++) {
+	chunk_do_jobs(NULL,2,0.0,0.0);	// every second tasks
+	lc = 0;
+	for (i=0 ; i<HashSteps && lc<HashCPS ; i++) {
 		if (jobshpos==0) {
-			chunk_do_jobs(NULL,1,0.0,0.0);	// copy loop info
+			chunk_do_jobs(NULL,1,0.0,0.0);	// every loop tasks
 		}
 		// delete unused chunks from structures
 		l=0;
@@ -2437,6 +2484,7 @@ void chunk_jobs_main(void) {
 			} else {
 				cp = &(c->next);
 				l++;
+				lc++;
 			}
 		}
 		if (l>0) {
@@ -2545,12 +2593,10 @@ void chunk_dump(void) {
 
 int chunk_load(FILE *fd) {
 	uint8_t hdr[8];
-	uint8_t loadbuff[CHUNKFSIZE*CHUNKCNT];
+	uint8_t loadbuff[CHUNKFSIZE];
 	const uint8_t *ptr;
 	int32_t r;
-	uint32_t i,j;
 	chunk *c;
-	int readlast;
 // chunkdata
 	uint64_t chunkid;
 	uint32_t version,lockedto;
@@ -2563,40 +2609,28 @@ int chunk_load(FILE *fd) {
 	}
 	ptr = hdr;
 	nextchunkid = get64bit(&ptr);
-	readlast = 0;
 	for (;;) {
-		r = fread(loadbuff,1,CHUNKFSIZE*CHUNKCNT,fd);
-		if (r<0) {
+		r = fread(loadbuff,1,CHUNKFSIZE,fd);
+		if (r!=CHUNKFSIZE) {
 			return -1;
 		}
-		if ((r%CHUNKFSIZE)!=0) {
-			return -1;
-		}
-		i = r/CHUNKFSIZE;
 		ptr = loadbuff;
-		for (j=0 ; j<i ; j++) {
-			chunkid = get64bit(&ptr);
-			if (chunkid>0) {
-				if (readlast==1) {
-					return -1;
-				}
-				c = chunk_new(chunkid);
-				version = get32bit(&ptr);
-				c->version = version;
-				lockedto = get32bit(&ptr);
-				c->lockedto = lockedto;
+		chunkid = get64bit(&ptr);
+		if (chunkid>0) {
+			c = chunk_new(chunkid);
+			version = get32bit(&ptr);
+			c->version = version;
+			lockedto = get32bit(&ptr);
+			c->lockedto = lockedto;
+		} else {
+			version = get32bit(&ptr);
+			lockedto = get32bit(&ptr);
+			if (version==0 && lockedto==0) {
+				return 0;
 			} else {
-				readlast = 1;
-				version = get32bit(&ptr);
-				lockedto = get32bit(&ptr);
+				return -1;
 			}
 		}
-		if (i<CHUNKCNT) {
-			break;
-		}
-	}
-	if (readlast==0) {
-		return -1;
 	}
 	return 0;
 }
@@ -2728,19 +2762,65 @@ void chunk_newfs(void) {
 	nextchunkid = 1;
 }
 
-void chunk_strinit(void) {
+int chunk_strinit(void) {
 	uint32_t i;
 #ifndef METARESTORE
 	uint32_t j;
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
-	MaxDel = cfg_getuint32("CHUNKS_DEL_LIMIT",100);
-	TmpMaxDelFrac = MaxDel;
-	TmpMaxDel = MaxDel;
+	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",1);
+	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
+		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",10);
+		if (MaxDelHardLimit<MaxDelSoftLimit) {
+			MaxDelSoftLimit = MaxDelHardLimit;
+			fprintf(stderr,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both\n");
+		}
+	} else {
+		MaxDelHardLimit = 10 * MaxDelSoftLimit;
+	}
+	if (MaxDelSoftLimit==0) {
+		fprintf(stderr,"delete limit is zero !!!\n");
+		return -1;
+	}
+	TmpMaxDelFrac = MaxDelSoftLimit;
+	TmpMaxDel = MaxDelSoftLimit;
 	MaxWriteRepl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",1);
 	MaxReadRepl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",5);
-	LoopTime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-	HashSteps = 1+((HASHSIZE)/LoopTime);
+	if (MaxReadRepl==0) {
+		fprintf(stderr,"read replication limit is zero !!!\n");
+		return -1;
+	}
+	if (MaxWriteRepl==0) {
+		fprintf(stderr,"write replication limit is zero !!!\n");
+		return -1;
+	}
+	if (cfg_isdefined("CHUNKS_LOOP_CPS")) { // chunks per second limit is defined ?
+		HashCPS = cfg_getuint32("CHUNKS_LOOP_CPS",10000);
+		if (HashCPS==0) {
+			fprintf(stderr,"chunk loop cps is zero !!!\n");
+			return -1;
+		}
+		if (cfg_isdefined("CHUNKS_LOOP_TIME")) { // also time limit is defined ?
+			uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+			if (looptime<60) {
+				looptime=60;
+			}
+			HashSteps = 1+((HASHSIZE)/looptime);
+		} else {
+			HashSteps = 1+((HASHSIZE)/60); // not too fast
+		}
+	} else {
+		uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+		if (looptime==0) {
+			fprintf(stderr,"chunk loop time is zero !!!\n");
+			return -1;
+		}
+		if (looptime<60) {
+			fprintf(stderr,"chunk loop time is very short\n");
+		}
+		HashSteps = 1+((HASHSIZE)/looptime);
+		HashCPS = 0xFFFFFFFF;
+	}
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
 #endif
 	for (i=0 ; i<HASHSIZE ; i++) {
@@ -2758,10 +2838,12 @@ void chunk_strinit(void) {
 	starttime = main_time();
 	jobsnorepbefore = starttime+ReplicationsDelayInit;
 	//jobslastdisconnect = 0;
+	chunk_do_jobs(NULL,0,0.0,0.0);	// clear chunk loop internal data
 /*
 	chunk_cfg_check();
 	main_timeregister(TIMEMODE_RUN_LATE,30,0,chunk_cfg_check);
 */
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
 #endif
+	return 1;
 }

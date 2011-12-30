@@ -1,3 +1,17 @@
+mfs (1.6.25) unstable; urgency=medium
+
+  * (metadump) fixed dumping big files (>2TiB)
+  * (metarestore) fixed bug: nonexisting changelog file caused segv
+  * (master+mount) added 'sugidclearmode' and 'mkdircopysgid' compatibility
+    options
+  * (master) improved chunk deletion algorithm (soft/hard limits per server)
+  * (all) ready for new metadata file format, which will be introduced in
+    upcomoing version 1.7
+  * (all) ready for quota handling, which will be introduced in upcoming
+    version 1.7
+
+ -- Jakub Bogusz <contact@moosefs.com>  Fri, 30 Dec 2011 14:30:00 +0100
+
 mfs (1.6.24) unstable; urgency=low
 
   * (master+mount) proxy in mount for mfstools (fixes problems with frequent

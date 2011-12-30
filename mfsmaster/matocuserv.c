@@ -1728,10 +1728,11 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
+	uint8_t sugidclearmode;
 	uint16_t attrmode;
 	uint32_t attruid,attrgid,attratime,attrmtime;
-	if (length!=35) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETATTR - wrong size (%"PRIu32"/35)",length);
+	if (length!=35 && length!=36) {
+		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETATTR - wrong size (%"PRIu32"/35|36)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1746,10 +1747,15 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	attrgid = get32bit(&data);
 	attratime = get32bit(&data);
 	attrmtime = get32bit(&data);
+	if (length==36) {
+		sugidclearmode = get8bit(&data);
+	} else {
+		sugidclearmode = SUGID_CLEAR_MODE_ALWAYS; // this is safest option
+	}
 	if (setmask&(SET_GOAL_FLAG|SET_LENGTH_FLAG|SET_OPENED_FLAG)) {
 		status = ERROR_EINVAL;
 	} else {
-		status = fs_setattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,setmask,attrmode,attruid,attrgid,attratime,attrmtime,attr);
+		status = fs_setattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,setmask,attrmode,attruid,attrgid,attratime,attrmtime,sugidclearmode,attr);
 	}
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETATTR,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
@@ -1972,6 +1978,7 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
+	uint8_t copysgid;
 	if (length<19) {
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKDIR - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
@@ -1980,7 +1987,7 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
-	if (length!=19U+nleng) {
+	if (length!=19U+nleng && length!=20U+nleng) {
 		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKDIR - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
@@ -1991,7 +1998,12 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
 	matocuserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_mkdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,mode,uid,gid,auid,agid,&newinode,attr);
+	if (length==20U+nleng) {
+		copysgid = get8bit(&data);
+	} else {
+		copysgid = 0; // by default do not copy sgid bit
+	}
+	status = fs_mkdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,mode,uid,gid,auid,agid,copysgid,&newinode,attr);
 	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_MKDIR,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
@@ -2617,7 +2629,11 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint32_t inode,uid;
 	uint32_t msgid;
 	uint8_t goal,smode;
+#if VERSHEX>=0x010700
+	uint32_t changed,notchanged,notpermitted,quotaexceeded;
+#else
 	uint32_t changed,notchanged,notpermitted;
+#endif
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=14) {
@@ -2631,8 +2647,16 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	matocuserv_ugid_remap(eptr,&uid,NULL);
 	goal = get8bit(&data);
 	smode = get8bit(&data);
+#if VERSHEX>=0x010700
+	status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted,&quotaexceeded);
+#else
 	status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
+#endif
+	if (eptr->version>=0x010700) {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:20);
+	} else {
+		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
+	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2640,6 +2664,13 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 		put32bit(&ptr,changed);
 		put32bit(&ptr,notchanged);
 		put32bit(&ptr,notpermitted);
+		if (eptr->version>=0x010700) {
+#if VERSHEX>=0x010700
+			put32bit(&ptr,quotaexceeded);
+#else
+			put32bit(&ptr,0);
+#endif
+		}
 	}
 }
 

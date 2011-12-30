@@ -111,7 +111,9 @@
 #define ERROR_NOPASSWORD      36        // Password is needed
 #define ERROR_BADPASSWORD     37        // Incorrect password
 
-#define ERROR_MAX             38
+#define ERROR_ENOATTR         38        // Attribute not found
+
+#define ERROR_MAX             39
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -152,6 +154,7 @@
 	"Bad session id", \
 	"Password is needed", \
 	"Incorrect password", \
+	"Attribute not found", \
 	"Unknown MFS error"
 
 /* type for readdir command */
@@ -279,6 +282,25 @@
 	NULL, \
 	NULL, \
 	NULL
+
+// sugicclearmode in fs_setattr
+#define SUGID_CLEAR_MODE_NEVER 0
+#define SUGID_CLEAR_MODE_ALWAYS 1
+#define SUGID_CLEAR_MODE_OSX 2
+#define SUGID_CLEAR_MODE_BSD 3
+#define SUGID_CLEAR_MODE_EXT 4
+#define SUGID_CLEAR_MODE_XFS 5
+
+#define SUGID_CLEAR_MODE_OPTIONS 6
+
+#define SUGID_CLEAR_MODE_STRINGS \
+	"never", \
+	"always", \
+	"osx", \
+	"bsd", \
+	"ext", \
+	"xfs"
+
 
 // flags: "flags" fileld in "CUTOMA_FUSE_AQUIRE"
 #define WANT_READ 1
@@ -659,7 +681,8 @@
 #define CUTOMA_FUSE_SETATTR (PROTO_BASE+410)
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attr:32B	- compatibility with very old version
 // msgid:32 inode:32 uid:32 gid:32 setmask:16 attr:32B  - compatibility with old version
-// msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32
+// msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 - compatibility with versions < 1.6.25
+// msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 sugidclearmode:8
 
 // 0x019B
 #define MATOCU_FUSE_SETATTR (PROTO_BASE+411)
@@ -695,7 +718,8 @@
 
 // 0x01A2
 #define CUTOMA_FUSE_MKDIR (PROTO_BASE+418)
-// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32
+// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 - version < 1.6.25
+// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 copysgid:8
 
 // 0x01A3
 #define MATOCU_FUSE_MKDIR (PROTO_BASE+419)
@@ -986,6 +1010,27 @@
 #define MATOCU_FUSE_QUOTACONTROL (PROTO_BASE+477)
 // msgid:32 status:8
 // msgid:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 curinodes:32 curlength:64 cursize:64 currealsize:64
+
+
+// 0x01DE
+#define CUTOMA_FUSE_SETXATTR (PROTO_BASE+478)
+// msgid:32 inode:32 name:NAME vleng:16 value:8[VLENG] mode:8
+//   empty value = remove xattr
+
+// 0x01DF
+#define MATOCU_FUSE_SETXATTR (PROTO_BASE+479)
+// msgid:32 status:8 
+
+// 0x01E0
+#define CUTOMA_FUSE_GETXATTR (PROTO_BASE+480)
+// msgid:32 inode:32 name:NAME
+//   empty name = list names
+
+// 0x01E1
+#define MATOCU_FUSE_GETXATTR (PROTO_BASE+481)
+// msgid:32 status:8
+// msgid:32 vleng:16 valur:8[VLENG]
+
 
 
 /* Abandoned sub-project - directory entries cached on client side

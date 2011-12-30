@@ -94,6 +94,6 @@ int chunk_load(FILE *fd);
 void chunk_store(FILE *fd);
 void chunk_term(void);
 void chunk_newfs(void);
-void chunk_strinit(void);
+int chunk_strinit(void);
 
 #endif

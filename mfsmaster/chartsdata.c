@@ -204,6 +204,21 @@ void chartsdata_refresh(void) {
 #  else
 	memusage = ru.ru_maxrss * 1024;
 #  endif
+#  ifdef __linux__
+	if (memusage==0) {
+		int fd = open("/proc/self/statm",O_RDONLY);
+		char statbuff[1000];
+		int l;
+		if (fd>=0) {
+			l = read(fd,statbuff,1000);
+			if (l<1000 && l>0) {
+				statbuff[l]=0;
+				memusage = strtoul(statbuff,NULL,10)*getpagesize();
+			}
+			close(fd);
+		}
+	}
+#  endif
 	if (memusage>0) {
 		data[CHARTS_MEMORY] = memusage;
 	}

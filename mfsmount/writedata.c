@@ -729,9 +729,9 @@ void* write_worker(void *arg) {
 					if (sent<20) {
 #ifdef HAVE_WRITEV
 						if (chainsize>0) {
-							siov[0].iov_base = sendbuff+sent;
+							siov[0].iov_base = (void*)(sendbuff+sent);
 							siov[0].iov_len = 20-sent;
-							siov[1].iov_base = (char*)chain;	// discard const (safe - because it's used in writev)
+							siov[1].iov_base = (void*)chain;	// discard const (safe - because it's used in writev)
 							siov[1].iov_len = chainsize;
 							i = writev(fd,siov,2);
 						} else {
@@ -755,9 +755,9 @@ void* write_worker(void *arg) {
 				} else {
 					if (sent<32) {
 #ifdef HAVE_WRITEV
-						siov[0].iov_base = sendbuff+sent;
+						siov[0].iov_base = (void*)(sendbuff+sent);
 						siov[0].iov_len = 32-sent;
-						siov[1].iov_base = cb->data+cb->from;
+						siov[1].iov_base = (void*)(cb->data+cb->from);
 						siov[1].iov_len = cb->to-cb->from;
 						i = writev(fd,siov,2);
 #else

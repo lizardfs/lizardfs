@@ -1,5 +1,14 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.25 (2011-12-30)
+
+  - (metadump) fixed dumping big files (>2TiB)
+  - (metarestore) fixed bug: nonexisting changelog file caused segv
+  - (master+mount) added 'sugidclearmode' and 'mkdircopysgid' compatibility options
+  - (master) improved chunk deletion algorithm (soft/hard limits per server)
+  - (all) ready for new metadata file format, which will be introduced in upcomoing version 1.7
+  - (all) ready for quota handling, which will be introduced in upcoming version 1.7
+
 * MooseFS 1.6.24 (2011-12-06)
 
   - (master+mount) proxy in mount for mfstools (fixes problems with frequent connect to master)

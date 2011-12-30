@@ -2,6 +2,7 @@
 *~
 .DS_Store
 .deps
+.clang_complete
 Makefile
 Makefile.in
 /aclocal.m4

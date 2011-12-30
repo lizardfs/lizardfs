@@ -497,9 +497,9 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 	if (size>DEFAULT_OUTPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
 		if (rec->obuff) {
-			munmap(rec->obuff,rec->obuffsize);
+			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -510,9 +510,9 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 	} else if (rec->obuffsize!=DEFAULT_OUTPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
 		if (rec->obuff) {
-			munmap(rec->obuff,rec->obuffsize);
+			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (void*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -530,9 +530,9 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 	if (size>DEFAULT_INPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
 		if (rec->ibuff) {
-			munmap(rec->ibuff,rec->ibuffsize);
+			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -543,9 +543,9 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 	} else if (rec->ibuffsize!=DEFAULT_INPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
 		if (rec->ibuff) {
-			munmap(rec->ibuff,rec->ibuffsize);
+			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (void*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -1485,14 +1485,14 @@ void fs_term(void) {
 		trn = tr->next;
 		if (tr->obuff) {
 #ifdef MMAP_ALLOC
-			munmap(tr->obuff,tr->obuffsize);
+			munmap((void*)(tr->obuff),tr->obuffsize);
 #else
 			free(tr->obuff);
 #endif
 		}
 		if (tr->ibuff) {
 #ifdef MMAP_ALLOC
-			munmap(tr->ibuff,tr->ibuffsize);
+			munmap((void*)(tr->ibuff),tr->ibuffsize);
 #else
 			free(tr->ibuff);
 #endif
@@ -1639,13 +1639,17 @@ uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
 	return ret;
 }
 
-uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t attr[35]) {
+uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t sugidclearmode,uint8_t attr[35]) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CUTOMA_FUSE_SETATTR,31);
+	if (masterversion<0x010619) {
+		wptr = fs_createpacket(rec,CUTOMA_FUSE_SETATTR,31);
+	} else {
+		wptr = fs_createpacket(rec,CUTOMA_FUSE_SETATTR,32);
+	}
 	if (wptr==NULL) {
 		return ERROR_IO;
 	}
@@ -1658,6 +1662,9 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	put32bit(&wptr,attrgid);
 	put32bit(&wptr,attratime);
 	put32bit(&wptr,attrmtime);
+	if (masterversion>=0x010619) {
+		put8bit(&wptr,sugidclearmode);
+	}
 	rptr = fs_sendandreceive(rec,MATOCU_FUSE_SETATTR,&i);
 	if (rptr==NULL) {
 		ret = ERROR_IO;
@@ -1825,14 +1832,18 @@ uint8_t fs_mknod(uint32_t parent,uint8_t nleng,const uint8_t *name,uint8_t type,
 	return ret;
 }
 
-uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode,uint32_t uid,uint32_t gid,uint8_t copysgid,uint32_t *inode,uint8_t attr[35]) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
 	uint32_t t32;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CUTOMA_FUSE_MKDIR,15+nleng);
+	if (masterversion<0x010619) {
+		wptr = fs_createpacket(rec,CUTOMA_FUSE_MKDIR,15+nleng);
+	} else {
+		wptr = fs_createpacket(rec,CUTOMA_FUSE_MKDIR,16+nleng);
+	}
 	if (wptr==NULL) {
 		return ERROR_IO;
 	}
@@ -1843,6 +1854,9 @@ uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode
 	put16bit(&wptr,mode);
 	put32bit(&wptr,uid);
 	put32bit(&wptr,gid);
+	if (masterversion>=0x010619) {
+		put8bit(&wptr,copysgid);
+	}
 	rptr = fs_sendandreceive(rec,MATOCU_FUSE_MKDIR,&i);
 	if (rptr==NULL) {
 		ret = ERROR_IO;

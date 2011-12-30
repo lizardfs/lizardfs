@@ -82,12 +82,19 @@ void merger_delete_entry(void) {
 }
 
 void merger_new_entry(const char *filename) {
-	heap[heapsize].fd = fopen(filename,"r");
-	heap[heapsize].filename = filename;
-	heap[heapsize].buff = malloc(BSIZE);
-	heap[heapsize].ptr = NULL;
-	heap[heapsize].nextid = 0;
-	merger_nextentry(heapsize);
+	if ((heap[heapsize].fd = fopen(filename,"r"))!=NULL) {
+		heap[heapsize].filename = filename;
+		heap[heapsize].buff = malloc(BSIZE);
+		heap[heapsize].ptr = NULL;
+		heap[heapsize].nextid = 0;
+		merger_nextentry(heapsize);
+	} else {
+		printf("can't open changelog file: %s\n",filename);
+		heap[heapsize].filename = NULL;
+		heap[heapsize].buff = NULL;
+		heap[heapsize].ptr = NULL;
+		heap[heapsize].nextid = 0;
+	}
 }
 
 int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {

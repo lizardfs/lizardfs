@@ -860,8 +860,8 @@ void masterconn_term(void) {
 	}
 
 	free(eptr);
-	masterconnsingleton = NULL;
 	job_pool_delete(jpool);
+	masterconnsingleton = NULL;
 	free(MasterHost);
 	free(MasterPort);
 	free(BindHost);

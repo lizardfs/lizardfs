@@ -99,6 +99,16 @@ int cfg_load (const char *configfname,int _lu) {
 	return 1;
 }
 
+int cfg_isdefined(const char *name) {
+	paramstr *_cfg_tmp;
+	for (_cfg_tmp = paramhead ; _cfg_tmp ; _cfg_tmp=_cfg_tmp->next) {
+		if (strcmp(name,_cfg_tmp->name)==0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 void cfg_term(void) {
 	paramstr *i,*in;
 	for (i = paramhead ; i ; i = in) {

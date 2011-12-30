@@ -1204,7 +1204,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	uint8_t reqbuff[22],*wptr,*buff;
 	const uint8_t *rptr;
 	uint32_t cmd,leng,inode,uid;
-	uint32_t changed,notchanged,notpermitted;
+	uint32_t changed,notchanged,notpermitted,quotaexceeded;
 	int fd;
 	fd = open_master_conn(fname,&inode,NULL,0,1);
 	if (fd<0) {
@@ -1257,7 +1257,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 		printf("%s: %s\n",fname,mfs_strerror(*rptr));
 		free(buff);
 		return -1;
-	} else if (leng!=12) {
+	} else if (leng!=12 && leng!=16) {
 		printf("%s: master query: wrong answer (leng)\n",fname);
 		free(buff);
 		return -1;
@@ -1265,6 +1265,11 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	changed = get32bit(&rptr);
 	notchanged = get32bit(&rptr);
 	notpermitted = get32bit(&rptr);
+	if (leng==16) {
+		quotaexceeded = get32bit(&rptr);
+	} else {
+		quotaexceeded = 0;
+	}
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
 			printf("%s: %"PRIu8"\n",fname,goal);
@@ -1276,6 +1281,9 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 		print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
 		print_number(" inodes with goal not changed:  ","\n",notchanged,1,0,1);
 		print_number(" inodes with permission denied: ","\n",notpermitted,1,0,1);
+		if (leng==16) {
+			print_number(" inodes with quota exceeded:    ","\n",quotaexceeded,1,0,1);
+		}
 	}
 	free(buff);
 	return 0;
@@ -2399,7 +2407,7 @@ int main(int argc,char **argv) {
 			SYMLINK("mfsgeteattr")
 			SYMLINK("mfsseteattr")
 			SYMLINK("mfsdeleattr")
-#if VERSMID>=7
+#if VERSHEX>=0x010700
 			SYMLINK("mfsgetquota")
 			SYMLINK("mfssetquota")
 			SYMLINK("mfsdelquota")
@@ -2417,7 +2425,7 @@ int main(int argc,char **argv) {
 			fprintf(stderr,"\tmfscheckfile\n\tmfsfileinfo\n\tmfsappendchunks\n\tmfsdirinfo\n\tmfsfilerepair\n");
 			fprintf(stderr,"\tmfsmakesnapshot\n");
 			fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
-#if VERSMID>=7
+#if VERSHEX>=0x010700
 			fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
 #endif
 			fprintf(stderr,"\ndeprecated tools:\n");
@@ -2790,7 +2798,7 @@ int main(int argc,char **argv) {
 			fprintf(stderr,"only root can change quota\n");
 			usage(f);
 		}
-		while ((ch=getopt(argc,argv,"nhHiIlLsSrR"))!=-1) {
+		while ((ch=getopt(argc,argv,"nhHiIlLsSrRaA"))!=-1) {
 			switch(ch) {
 			case 'n':
 				humode=0;

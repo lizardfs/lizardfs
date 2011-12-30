@@ -26,6 +26,8 @@
 int cfg_load (const char *fname,int logundefined);
 void cfg_term (void);
 
+int cfg_isdefined(const char *name);
+
 _CONFIG_MAKE_PROTOTYPE(str,char*);
 _CONFIG_MAKE_PROTOTYPE(num,int);
 _CONFIG_MAKE_PROTOTYPE(uint8,uint8_t);

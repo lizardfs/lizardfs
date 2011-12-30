@@ -45,12 +45,22 @@ EXTRA_DIST = $(bin_SCRIPTS)
 bin_SCRIPTS=\
 	mfssnapshot
 
+if INSTALL_QUOTA_TOOLS
+mfstools_links=\
+	mfscheckfile mfsdirinfo mfsfileinfo mfsfilerepair \
+	mfsgetgoal mfsgettrashtime mfsrgetgoal mfsrgettrashtime \
+	mfsrsetgoal mfsrsettrashtime mfssetgoal mfssettrashtime \
+	mfsgeteattr mfsseteattr mfsdeleattr \
+	mfsgetquota mfssetquota mfsdelquota \
+	mfsmakesnapshot mfsappendchunks
+else
 mfstools_links=\
 	mfscheckfile mfsdirinfo mfsfileinfo mfsfilerepair \
 	mfsgetgoal mfsgettrashtime mfsrgetgoal mfsrgettrashtime \
 	mfsrsetgoal mfsrsettrashtime mfssetgoal mfssettrashtime \
 	mfsgeteattr mfsseteattr mfsdeleattr \
 	mfsmakesnapshot mfsappendchunks
+endif
 
 install-exec-hook:
 	for l in $(mfstools_links) ; do \

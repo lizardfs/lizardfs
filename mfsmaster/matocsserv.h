@@ -30,6 +30,7 @@ char* matocsserv_getstrip(void *e);
 int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport);
 uint16_t matocsserv_replication_read_counter(void *e);
 uint16_t matocsserv_replication_write_counter(void *e);
+uint16_t matocsserv_deletion_counter(void *e);
 uint32_t matocsserv_cservlist_size(void);
 void matocsserv_cservlist_data(uint8_t *ptr);
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *src);

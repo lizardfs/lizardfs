@@ -138,6 +138,9 @@ struct mfsopts {
 	int nostdmountoptions;
 	int meta;
 	int debug;
+	int mkdircopysgid;
+	char *sugidclearmodestr;
+	int sugidclearmode;
 	char *cachemode;
 	int cachefiles;
 	int keepcache;
@@ -195,6 +198,8 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
+	MFS_OPT("mfsmkdircopysgid=%u", mkdircopysgid, 0),
+	MFS_OPT("mfssugidclearmode=%s", sugidclearmodestr, 0),
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
@@ -219,12 +224,14 @@ static struct fuse_opt mfs_opts_stage2[] = {
 static void usage(const char *progname) {
 	fprintf(stderr,
 "usage: %s mountpoint [options]\n"
-"\n"
+"\n", progname);
+	fprintf(stderr,
 "general options:\n"
 "    -o opt,[opt...]         mount options\n"
 "    -h   --help             print help\n"
 "    -V   --version          print version\n"
-"\n"
+"\n");
+	fprintf(stderr,
 "MFS options:\n"
 "    -c CFGFILE                  equivalent to '-o mfscfgfile=CFGFILE'\n"
 "    -m   --meta                 equivalent to '-o mfsmeta'\n"
@@ -237,7 +244,21 @@ static void usage(const char *progname) {
 "    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
-"    -o mfscachemode=CACHEMODE   set cache mode (see below ; default: AUTO)\n"
+#ifdef __linux__
+"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
+#else
+"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 0)\n"
+#endif
+#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
+"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: EXT)\n"
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
+"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: BSD)\n"
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
+"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: OSX)\n"
+#else
+"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: NEVER)\n"
+#endif
+"    -o mfscachemode=CMODE       set cache mode (see below ; default: AUTO)\n"
 "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
 // "    -o mfscachefiles            allow files data to be kept in cache (dangerous in network environment)\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
@@ -257,12 +278,27 @@ static void usage(const char *progname) {
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
-"\n"
-"CACHEMODE can be set to:\n"
+"\n");
+	fprintf(stderr,
+"CMODE can be set to:\n"
 "    NO,NONE or NEVER            never allow files data to be kept in cache (safest but can reduce efficiency)\n"
 "    YES or ALWAYS               always allow files data to be kept in cache (dangerous)\n"
 "    AUTO                        file cache is managed by mfsmaster automatically (should be very safe and efficient)\n"
-"\n", progname);
+"\n");
+	fprintf(stderr,
+"SMODE can be set to:\n"
+"    NEVER                       MFS will not change suid and sgid bit on chown\n"
+"    ALWAYS                      clear suid and sgid on every chown - safest operation\n"
+"    OSX                         standard behavior in OS X and Solaris (chown made by unprivileged user clear suid and sgid)\n"
+"    BSD                         standard behavior in *BSD systems (like in OSX, but only when something is really changed)\n"
+"    EXT                         standard behavior in most file systems on Linux (directories not changed, others: suid cleared always, sgid only when group exec bit is set)\n"
+"    XFS                         standard behavior in XFS on Linux (like EXT but directories are changed by unprivileged users)\n"
+"SMODE extra info:\n"
+"    btrfs,ext2,ext3,ext4,hfs[+],jfs,ntfs and reiserfs on Linux work as 'EXT'.\n"
+"    Only xfs on Linux works a little different. Beware that there is a strange\n"
+"    operation - chown(-1,-1) which is usually converted by a kernel into something\n"
+"    like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'\n"
+"\n");
 }
 
 static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
@@ -627,7 +663,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		mfs_meta_init(mfsopts.debug,mfsopts.entrycacheto,mfsopts.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto);
+		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto,mfsopts.mkdircopysgid,mfsopts.sugidclearmode);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -871,6 +907,12 @@ int main(int argc, char *argv[]) {
 	mfsopts.nostdmountoptions = 0;
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
+#ifdef __linux__
+	mfsopts.mkdircopysgid = 1;
+#else
+	mfsopts.mkdircopysgid = 0;
+#endif
+	mfsopts.sugidclearmodestr = NULL;
 	mfsopts.donotrememberpassword = 0;
 	mfsopts.cachefiles = 0;
 	mfsopts.cachemode = NULL;
@@ -923,6 +965,32 @@ int main(int argc, char *argv[]) {
 		mfsopts.keepcache=2;
 	} else {
 		fprintf(stderr,"unrecognized cachemode option\nsee: %s -h for help\n",argv[0]);
+		return 1;
+	}
+	if (mfsopts.sugidclearmodestr==NULL) {
+#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+#else
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+#endif
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"NEVER")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"ALWAYS")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_ALWAYS;
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"OSX")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"BSD")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"EXT")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+	} else if (strcasecmp(mfsopts.sugidclearmodestr,"XFS")==0) {
+		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_XFS;
+	} else {
+		fprintf(stderr,"unrecognized sugidclearmode option\nsee: %s -h for help\n",argv[0]);
 		return 1;
 	}
 	if (mfsopts.masterhost==NULL) {

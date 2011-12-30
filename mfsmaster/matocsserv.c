@@ -78,6 +78,7 @@ typedef struct matocsserventry {
 	uint32_t errorcounter;
 	uint16_t rrepcounter;
 	uint16_t wrepcounter;
+	uint16_t delcounter;
 
 	double carry;
 
@@ -299,14 +300,26 @@ void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usab
 			k++;
 		}
 	}
-	*usablescount = j;
-	*totalscount = k;
+	if (usablescount) {
+		*usablescount = j;
+	}
+	if (totalscount) {
+		*totalscount = k;
+	}
 	if (j==0) {
-		*minusage = 1.0;
-		*maxusage = 0.0;
+		if (minusage) {
+			*minusage = 1.0;
+		}
+		if (maxusage) {
+			*maxusage = 0.0;
+		}
 	} else {
-		*minusage = minspace;
-		*maxusage = maxspace;
+		if (minusage) {
+			*minusage = minspace;
+		}
+		if (maxusage) {
+			*maxusage = maxspace;
+		}
 	}
 }
 
@@ -761,6 +774,11 @@ uint16_t matocsserv_replication_read_counter(void *e) {
 	return eptr->rrepcounter;
 }
 
+uint16_t matocsserv_deletion_counter(void *e) {
+	matocsserventry *eptr = (matocsserventry *)e;
+	return eptr->delcounter;
+}
+
 char* matocsserv_makestrip(uint32_t ip) {
 	uint8_t *ptr,pt[4];
 	uint32_t l,i;
@@ -880,6 +898,7 @@ int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version) {
 		data = matocsserv_createpacket(eptr,MATOCS_DELETE,8+4);
 		put64bit(&data,chunkid);
 		put32bit(&data,version);
+		eptr->delcounter++;
 	}
 	return 0;
 }
@@ -894,6 +913,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 	}
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
+	eptr->delcounter--;
 	chunk_got_delete_status(eptr,chunkid,status);
 	if (status!=0) {
 		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" deletion status: %"PRIu8,eptr->servstrip,eptr->servport,chunkid,status);
@@ -1715,6 +1735,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->errorcounter=0;
 			eptr->rrepcounter=0;
 			eptr->wrepcounter=0;
+			eptr->delcounter=0;
 
 			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
 //				eptr->creation=NULL;
