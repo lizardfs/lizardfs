@@ -11,7 +11,7 @@ mfsmaster_SOURCES=\
 	chunks.c chunks.h \
 	filesystem.c filesystem.h \
 	matocsserv.c matocsserv.h \
-	matocuserv.c matocuserv.h \
+	matoclserv.c matoclserv.h \
 	matomlserv.c matomlserv.h \
 	datacachemgr.c datacachemgr.h \
 	chartsdata.c chartsdata.h \

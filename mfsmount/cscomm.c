@@ -39,7 +39,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 	const uint8_t *rptr;
 
 	wptr = ibuff;
-	put32bit(&wptr,CUTOCS_READ);
+	put32bit(&wptr,CLTOCS_READ);
 	put32bit(&wptr,20);
 	put64bit(&wptr,chunkid);
 	put32bit(&wptr,version);
@@ -61,7 +61,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 		rptr = ibuff;
 		cmd = get32bit(&rptr);
 		l = get32bit(&rptr);
-		if (cmd==CSTOCU_READ_STATUS) {
+		if (cmd==CSTOCL_READ_STATUS) {
 			if (l!=9) {
 				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect message size (%"PRIu32"/9)",l);
 				return -1;
@@ -85,7 +85,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			return 0;
-		} else if (cmd==CSTOCU_READ_DATA) {
+		} else if (cmd==CSTOCL_READ_DATA) {
 			if (l<20) {
 				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%"PRIu32"/>=20)",l);
 				return -1;
@@ -158,7 +158,7 @@ int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 	}
 	ptr = ibuff;
 	t32 = get32bit(&ptr);
-	if (t32!=CSTOCU_WRITE_STATUS) {
+	if (t32!=CSTOCL_WRITE_STATUS) {
 		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS unknown message (%"PRIu32")",t32);
 		return -1;
 	}
@@ -194,7 +194,7 @@ int cs_writeinit(int fd,const uint8_t *chain,uint32_t chainsize,uint64_t chunkid
 		return -1;
 	}
 	ptr = ibuff;
-	put32bit(&ptr,CUTOCS_WRITE);
+	put32bit(&ptr,CLTOCS_WRITE);
 	put32bit(&ptr,psize);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
@@ -213,7 +213,7 @@ int cs_writeblock(int fd,uint64_t chunkid,uint32_t writeid,uint16_t blockno,uint
 	uint8_t *ptr,ibuff[32];
 	uint32_t crc,psize;
 	ptr = ibuff;
-	put32bit(&ptr,CUTOCS_WRITE_DATA);
+	put32bit(&ptr,CLTOCS_WRITE_DATA);
 	psize = 24+size;
 	put32bit(&ptr,psize);
 	put64bit(&ptr,chunkid);

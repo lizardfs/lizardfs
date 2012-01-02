@@ -280,7 +280,7 @@ void csserv_retryconnect(csserventry *eptr) {
 	eptr->connretrycnt++;
 	if (eptr->connretrycnt<CONNECT_RETRIES) {
 		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -288,7 +288,7 @@ void csserv_retryconnect(csserventry *eptr) {
 			return;
 		}
 	} else {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,ERROR_CANTCONNECT);
@@ -309,7 +309,7 @@ int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) 
 		return -1;
 	}
 	ptr = eptr->fwdinitpacket;
-	put32bit(&ptr,CUTOCS_WRITE);
+	put32bit(&ptr,CLTOCS_WRITE);
 	put32bit(&ptr,psize);
 	put64bit(&ptr,eptr->chunkid);
 	put32bit(&ptr,eptr->version);
@@ -355,7 +355,7 @@ void csserv_read_finished(uint8_t status,void *e) {
 			csserv_delete_packet(eptr->rpacket);
 			eptr->rpacket = NULL;
 		}
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -383,7 +383,7 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->todocnt++;
 	}
 	if (eptr->size==0) {	// everything have been read
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
@@ -397,7 +397,7 @@ void csserv_read_continue(csserventry *eptr) {
 		} else {
 			size = MFSBLOCKSIZE-blockoffset;
 		}
-		eptr->rpacket = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
+		eptr->rpacket = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(eptr->rpacket);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -419,7 +419,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_READ - wrong size (%"PRIu32"/20)",length);
+		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%"PRIu32"/20)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -429,32 +429,32 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->size = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
 	}
 	if (eptr->size==0) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
 		return;
 	}
 	if (eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
 	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
 		return;
 	}
 	status = hdd_open(eptr->chunkid);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
@@ -476,7 +476,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 //	syslog(LOG_NOTICE,"write job finished (jobid:%"PRIu32",chunkid:%"PRIu64",writeid:%"PRIu32",status:%"PRIu8")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
 		put8bit(&ptr,status);
@@ -487,7 +487,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->state==WRITELAST) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
 		put8bit(&ptr,STATUS_OK);
@@ -495,7 +495,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 		wpptr = &(eptr->todolist);
 		while ((wptr=*wpptr)) {
 			if (wptr->writeid==eptr->wjobwriteid) { // found - it means that it was added by status_receive
-				ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+				ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 				put64bit(&ptr,eptr->chunkid);
 				put32bit(&ptr,eptr->wjobwriteid);
 				put8bit(&ptr,STATUS_OK);
@@ -520,7 +520,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length<12 || ((length-12)%6)!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -528,7 +528,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->version = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,status);
@@ -541,7 +541,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->fwdport = get16bit(&data);
 		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -549,7 +549,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			return;
 		}
 		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -574,7 +574,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 
 	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -584,12 +584,12 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	offset = get16bit(&data);
 	size = get32bit(&data);
 	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
 		eptr->state = CLOSE;
 		return;
 	}
 	if (chunkid!=eptr->chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -613,7 +613,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	writestatus **wpptr,*wptr;
 
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCU_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
+		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -624,7 +624,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 //	syslog(LOG_NOTICE,"received write status (chunkid:%"PRIu64",writeid:%"PRIu32",status:%"PRIu8")",chunkid,writeid,status);
 
 	if (eptr->chunkid!=chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -632,7 +632,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 		return;
 	}
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,status);
@@ -642,7 +642,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	wpptr = &(eptr->todolist);
 	while ((wptr=*wpptr)) {
 		if (wptr->writeid==writeid) { // found - means it was added by write_finished
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,chunkid);
 			put32bit(&ptr,writeid);
 			put8bit(&ptr,STATUS_OK);
@@ -663,7 +663,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 
 void csserv_fwderror(csserventry *eptr) {
 	uint8_t *ptr;
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 	put64bit(&ptr,eptr->chunkid);
 	put32bit(&ptr,0);
 	if (eptr->state==CONNECTING) {
@@ -691,7 +691,7 @@ void csserv_read_continue(csserventry *eptr) {
 	blockoffset = (eptr->offset)&MFSBLOCKMASK;
 	if ((eptr->offset+eptr->size-1)>>MFSBLOCKBITS == blocknum) {	// last block
 		size = eptr->size;
-		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
+		packet = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(packet);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -703,7 +703,7 @@ void csserv_read_continue(csserventry *eptr) {
 		} else {
 			csserv_attach_packet(eptr,packet);
 		}
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		hdd_close(eptr->chunkid);
@@ -711,7 +711,7 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->state = IDLE;
 	} else {
 		size = MFSBLOCKSIZE-blockoffset;
-		packet = csserv_create_detached_packet(CSTOCU_READ_DATA,8+2+2+4+4+size);
+		packet = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(packet);
 		put64bit(&ptr,eptr->chunkid);
 		put16bit(&ptr,blocknum);
@@ -720,7 +720,7 @@ void csserv_read_continue(csserventry *eptr) {
 		status = hdd_read(eptr->chunkid,eptr->version,blocknum,ptr+4,blockoffset,size,ptr);
 		if (status!=STATUS_OK) {
 			csserv_delete_packet(packet);
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 			put64bit(&ptr,eptr->chunkid);
 			put8bit(&ptr,status);
 			hdd_close(eptr->chunkid);
@@ -739,7 +739,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_READ - wrong size (%"PRIu32"/20)",length);
+		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%"PRIu32"/20)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -749,32 +749,32 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->size = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
 	}
 	if (eptr->size==0) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
 		return;
 	}
 	if (eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
 	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
 		return;
 	}
 	status = hdd_open(eptr->chunkid);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_READ_STATUS,8+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
 		return;
@@ -794,7 +794,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t version,newversion,copyversion,leng;
 
 	if (length<12 || ((length-12)%6)!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -803,7 +803,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->version = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,status);
@@ -815,7 +815,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->fwdport = get16bit(&data);
 		eptr->connretrycnt = 0;
 		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -823,7 +823,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			return;
 		}
 		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,ERROR_CANTCONNECT);
@@ -832,7 +832,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		}
 		status = hdd_open(eptr->chunkid);
 		if (status!=STATUS_OK) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,status);
@@ -844,7 +844,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	} else {	// you are the last one
 		status = hdd_open(eptr->chunkid);
 		if (status!=STATUS_OK) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
 			put8bit(&ptr,status);
@@ -854,11 +854,11 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		stats_hlopw++;
 		eptr->chunkisopen = 1;
 		eptr->state = WRITELAST;	//i'm last in the chain
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,STATUS_OK);
-// createpacket(CSTOCU_WRITE_STATUS,STATUS_OK)
+// createpacket(CSTOCL_WRITE_STATUS,STATUS_OK)
 	}
 }
 
@@ -872,7 +872,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -882,12 +882,12 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	offset = get16bit(&data);
 	size = get32bit(&data);
 	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CUTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
 		eptr->state = CLOSE;
 		return;
 	}
 	if (chunkid!=eptr->chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,ERROR_WRONGCHUNKID);
@@ -896,7 +896,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	status = hdd_write(chunkid,eptr->version,blocknum,data+4,offset,size,data);
 	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,status);
@@ -904,7 +904,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 	if (eptr->state==WRITELAST) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
 		put8bit(&ptr,STATUS_OK);
@@ -918,7 +918,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint8_t status;
 
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCU_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
+		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -926,7 +926,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	writeid = get32bit(&data);
 	status = get8bit(&data);
 
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,writeid);
 	put8bit(&ptr,status);
@@ -937,7 +937,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 
 void csserv_fwderror(csserventry *eptr) {
 	uint8_t *ptr;
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_WRITE_STATUS,8+4+1);
+	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 	put64bit(&ptr,eptr->chunkid);
 	put32bit(&ptr,0);
 	if (eptr->state==CONNECTING) {
@@ -1038,12 +1038,12 @@ void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST(1) - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%"PRIu32"/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	l = hdd_diskinfo_v1_size();	// lock
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V1,l);
+	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V1,l);
 	hdd_diskinfo_v1_data(ptr);	// unlock
 }
 
@@ -1053,12 +1053,12 @@ void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOCS_HDD_LIST(2) - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(2) - wrong size (%"PRIu32"/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	l = hdd_diskinfo_v2_size();	// lock
-	ptr = csserv_create_attached_packet(eptr,CSTOCU_HDD_LIST_V2,l);
+	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V2,l);
 	hdd_diskinfo_v2_data(ptr);	// unlock
 }
 
@@ -1068,13 +1068,13 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%"PRIu32"/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_make_png(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART,l);
+	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART,l);
 	if (l>0) {
 		charts_get_png(ptr);
 	}
@@ -1086,13 +1086,13 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_datasize(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCU_CHART_DATA,l);
+	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART_DATA,l);
 	if (l>0) {
 		charts_makedata(ptr,chartid);
 	}
@@ -1142,16 +1142,16 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 	}
 	if (eptr->state==IDLE) {
 		switch (type) {
-		case CUTOCS_READ:
+		case CLTOCS_READ:
 			csserv_read_init(eptr,data,length);
 			break;
-		case CUTOCS_WRITE:
+		case CLTOCS_WRITE:
 			csserv_write_init(eptr,data,length);
 			break;
-//		case CUTOCS_WRITE_DATA:
+//		case CLTOCS_WRITE_DATA:
 //			csserv_write_data(eptr,data,length);
 //			break;
-//		case CUTOCS_WRITE_DONE:
+//		case CLTOCS_WRITE_DONE:
 //			csserv_write_done(eptr,data,length);
 //			break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
@@ -1163,16 +1163,16 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 		case ANTOCS_CHUNK_CHECKSUM_TAB:
 			csserv_chunk_checksum_tab(eptr,data,length);
 			break;
-		case CUTOCS_HDD_LIST_V1:
+		case CLTOCS_HDD_LIST_V1:
 			csserv_hdd_list_v1(eptr,data,length);
 			break;
-		case CUTOCS_HDD_LIST_V2:
+		case CLTOCS_HDD_LIST_V2:
 			csserv_hdd_list_v2(eptr,data,length);
 			break;
-		case CUTOAN_CHART:
+		case CLTOAN_CHART:
 			csserv_chart(eptr,data,length);
 			break;
-		case CUTOAN_CHART_DATA:
+		case CLTOAN_CHART_DATA:
 			csserv_chart_data(eptr,data,length);
 			break;
 		default:
@@ -1180,7 +1180,7 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 			eptr->state = CLOSE;
 		}
 	} else if (eptr->state==WRITELAST) {
-		if (type==CUTOCS_WRITE_DATA) {
+		if (type==CLTOCS_WRITE_DATA) {
 			csserv_write_data(eptr,data,length);
 		} else {
 			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
@@ -1188,10 +1188,10 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 		}
 	} else if (eptr->state==WRITEFWD) {
 		switch (type) {
-		case CUTOCS_WRITE_DATA:
+		case CLTOCS_WRITE_DATA:
 			csserv_write_data(eptr,data,length);
 			break;
-		case CSTOCU_WRITE_STATUS:
+		case CSTOCL_WRITE_STATUS:
 			csserv_write_status(eptr,data,length);
 			break;
 		default:
@@ -1199,7 +1199,7 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 			eptr->state = CLOSE;
 		}
 	} else if (eptr->state==WRITEFINISH) {
-		if (type==CUTOCS_WRITE_DATA) {
+		if (type==CLTOCS_WRITE_DATA) {
 			return;
 		} else {
 			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);

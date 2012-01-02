@@ -61,7 +61,7 @@
 
 #include "chunks.h"
 #include "filesystem.h"
-#include "matocuserv.h"
+#include "matoclserv.h"
 
 #define CHARTS_FILENAME "stats.mfs"
 
@@ -231,7 +231,7 @@ void chartsdata_refresh(void) {
 	for (i=0 ; i<16 ; i++) {
 		data[CHARTS_STATFS+i]=fsdata[i];
 	}
-	matocuserv_stats(data+CHARTS_PACKETSRCVD);
+	matoclserv_stats(data+CHARTS_PACKETSRCVD);
 
 	charts_add(data,main_time()-60);
 }

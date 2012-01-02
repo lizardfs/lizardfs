@@ -82,7 +82,7 @@ static void* masterproxy_server(void *args) {
 		rptr = header;
 		cmd = get32bit(&rptr);
 		psize = get32bit(&rptr);
-		if (cmd==CUTOMA_FUSE_REGISTER) {	// special case: register
+		if (cmd==CLTOMA_FUSE_REGISTER) {	// special case: register
 			// if (psize>QUERYSIZE) {
 			if (psize!=73) {
 				tcpclose(sock);
@@ -105,7 +105,7 @@ static void* masterproxy_server(void *args) {
 			}
 
 			wptr = ansbuffer;
-			put32bit(&wptr,MATOCU_FUSE_REGISTER);
+			put32bit(&wptr,MATOCL_FUSE_REGISTER);
 			put32bit(&wptr,1);
 			put8bit(&wptr,STATUS_OK);
 
@@ -187,7 +187,7 @@ int masterproxy_init(void) {
 	tcpnodelay(lsock);
 	// tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		// mfs_errlog_silent(LOG_NOTICE,"matocu: can't set accept filter");
+		// mfs_errlog_silent(LOG_NOTICE,"master proxy: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,"127.0.0.1",0,100)<0) {
 		// mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");

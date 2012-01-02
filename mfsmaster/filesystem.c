@@ -36,7 +36,7 @@
 // #define CACHENOTIFY 1
 
 #ifndef METARESTORE
-#include "matocuserv.h"
+#include "matoclserv.h"
 #include "matocsserv.h"
 #endif
 
@@ -1160,7 +1160,7 @@ static inline void fsnodes_attr_changed_other_parents(fsnode *node,uint32_t pare
 		for (e=node->parents ; e ; e=e->nextparent) {
 			if (e->parent && e->parent->id!=parent_to_ignore) {
 				fsnodes_fill_attr(node,e->parent,0,0,0,0,0,attr);
-				matocuserv_notify_attr(e->parent->id,node->id,attr);
+				matoclserv_notify_attr(e->parent->id,node->id,attr);
 			}
 		}
 	}
@@ -1173,12 +1173,12 @@ static inline void fsnodes_attr_changed(fsnode *node,uint32_t ts) {
 		for (e=node->parents ; e ; e=e->nextparent) {
 			if (e->parent) {
 				fsnodes_fill_attr(node,e->parent,0,0,0,0,0,attr);
-				matocuserv_notify_attr(e->parent->id,node->id,attr);
+				matoclserv_notify_attr(e->parent->id,node->id,attr);
 			}
 		}
 		if (node->type==TYPE_DIRECTORY) {	// change '.' attributes
 			fsnodes_fill_attr(node,node,0,0,0,0,0,attr);
-			matocuserv_notify_attr(node->id,node->id,attr);
+			matoclserv_notify_attr(node->id,node->id,attr);
 		}
 	}
 }
@@ -1190,7 +1190,7 @@ static inline void fsnodes_attr_access(fsnode *node,uint32_t ts) {
 		for (e=node->parents ; e ; e=e->nextparent) {
 			if (e->parent) {
 				fsnodes_fill_attr(node,e->parent,0,0,0,0,0,attr);
-				matocuserv_notify_attr(e->parent->id,node->id,attr);
+				matoclserv_notify_attr(e->parent->id,node->id,attr);
 			}
 		}
 	}
@@ -1239,7 +1239,7 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 /*
 #ifdef CACHENOTIFY
 	if (e->parent) {
-		matocuserv_notify_unlink(e->parent->id,e->nleng,e->name,ts);
+		matoclserv_notify_unlink(e->parent->id,e->nleng,e->name,ts);
 		if (e->child->type==TYPE_DIRECTORY) {
 			fsnodes_attr_changed(e->parent,ts);		// nlink attr in the parent directory has changed
 		} else {
@@ -1316,9 +1316,9 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 		fsnodes_attr_changed_other_parents(child,parent->id,ts);	// inform other parents that nlink attr has changed
 	}
 	fsnodes_fill_attr(child,parent,0,0,0,0,0,attr);
-	matocuserv_notify_link(parent->id,nleng,name,child->id,attr,ts);
+	matoclserv_notify_link(parent->id,nleng,name,child->id,attr,ts);
 	if (child->type==TYPE_DIRECTORY) {
-		matocuserv_notify_parent(child->id,parent->id);
+		matoclserv_notify_parent(child->id,parent->id);
 		fsnodes_attr_changed(parent,ts);		// nlink attr in the parent directory has changed
 	}
 #endif
@@ -1960,7 +1960,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		free(toremove->data.ddata.stats);
 /*
 #ifdef CACHENOTIFY
-		matocuserv_notify_remove(toremove->id);
+		matoclserv_notify_remove(toremove->id);
 #endif
 */
 #endif
@@ -7164,7 +7164,7 @@ int fs_loadnode(FILE *fd) {
 			sessionidptr->next = p->data.fdata.sessionids;
 			p->data.fdata.sessionids = sessionidptr;
 #ifndef METARESTORE
-			matocuserv_init_sessions(sessionid,p->id);
+			matoclserv_init_sessions(sessionid,p->id);
 #endif
 			sessionids--;
 		}

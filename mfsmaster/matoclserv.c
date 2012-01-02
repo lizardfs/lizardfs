@@ -35,7 +35,7 @@
 #include "MFSCommunication.h"
 
 #include "datapack.h"
-#include "matocuserv.h"
+#include "matoclserv.h"
 #include "matocsserv.h"
 #include "matomlserv.h"
 #include "chunks.h"
@@ -53,7 +53,7 @@
 
 #define MaxPacketSize 1000000
 
-// matocuserventry.mode
+// matoclserventry.mode
 enum {KILL,HEADER,DATA};
 // chunklis.type
 enum {FUSE_WRITE,FUSE_TRUNCATE};
@@ -71,12 +71,12 @@ enum {FUSE_WRITE,FUSE_TRUNCATE};
 #define DIRINODE_HASH_SIZE 7500013
 */
 
-struct matocuserventry;
+struct matoclserventry;
 
 /* CACHENOTIFY
 // directories in external caches
 typedef struct dirincache {
-	struct matocuserventry *eptr;
+	struct matoclserventry *eptr;
 	uint32_t dirinode;
 	struct dirincache *nextnode,**prevnode;
 	struct dirincache *nextcu,**prevcu;
@@ -131,7 +131,7 @@ typedef struct packetstruct {
 	uint8_t *packet;
 } packetstruct;
 
-typedef struct matocuserventry {
+typedef struct matoclserventry {
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
 /* CACHENOTIFY
@@ -154,11 +154,11 @@ typedef struct matocuserventry {
 */
 //	filelist *openedfiles;
 
-	struct matocuserventry *next;
-} matocuserventry;
+	struct matoclserventry *next;
+} matoclserventry;
 
 static session *sessionshead=NULL;
-static matocuserventry *matocuservhead=NULL;
+static matoclserventry *matoclservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
 static int exiting,starting;
@@ -174,7 +174,7 @@ static uint32_t stats_psent = 0;
 static uint64_t stats_brcvd = 0;
 static uint64_t stats_bsent = 0;
 
-void matocuserv_stats(uint64_t stats[5]) {
+void matoclserv_stats(uint64_t stats[5]) {
 	stats[0] = stats_prcvd;
 	stats[1] = stats_psent;
 	stats[2] = stats_brcvd;
@@ -188,12 +188,12 @@ void matocuserv_stats(uint64_t stats[5]) {
 /* CACHENOTIFY
 // cache notification routines
 
-static inline void matocuserv_dircache_init(void) {
+static inline void matoclserv_dircache_init(void) {
 	dirinodehash = (dirincache**)malloc(sizeof(dirincache*)*DIRINODE_HASH_SIZE);
 	passert(dirinodehash);
 }
 
-static inline void matocuserv_dircache_remove_entry(dirincache *dc) {
+static inline void matoclserv_dircache_remove_entry(dirincache *dc) {
 	*(dc->prevnode) = dc->nextnode;
 	if (dc->nextnode) {
 		dc->nextnode->prevnode = dc->prevnode;
@@ -205,7 +205,7 @@ static inline void matocuserv_dircache_remove_entry(dirincache *dc) {
 	free(dc);
 }
 
-static inline void matocuserv_notify_add_dir(matocuserventry *eptr,uint32_t inode) {
+static inline void matoclserv_notify_add_dir(matoclserventry *eptr,uint32_t inode) {
 	uint32_t hash = (inode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 
@@ -231,26 +231,26 @@ static inline void matocuserv_notify_add_dir(matocuserventry *eptr,uint32_t inod
 //	syslog(LOG_NOTICE,"rcvd from: '%s' ; add inode: %"PRIu32,eptr->sesdata->info,inode);
 }
 
-static inline void matocuserv_notify_remove_dir(matocuserventry *eptr,uint32_t inode) {
+static inline void matoclserv_notify_remove_dir(matoclserventry *eptr,uint32_t inode) {
 	uint32_t hash = (inode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc,*ndc;
 
 	for (dc=dirinodehash[hash] ; dc ; dc=ndc) {
 		ndc = dc->nextnode;
 		if (dc->eptr==eptr && dc->dirinode==inode) {
-			matocuserv_dircache_remove_entry(dc);
+			matoclserv_dircache_remove_entry(dc);
 		}
 	}
 //	syslog(LOG_NOTICE,"rcvd from: '%s' ; remove inode: %"PRIu32,eptr->sesdata->info,inode);
 }
 
-static inline void matocuserv_notify_disconnected(matocuserventry *eptr) {
+static inline void matoclserv_notify_disconnected(matoclserventry *eptr) {
 	while (eptr->cacheddirs) {
-		matocuserv_dircache_remove_entry(eptr->cacheddirs);
+		matoclserv_dircache_remove_entry(eptr->cacheddirs);
 	}
 }
 
-static inline void matocuserv_show_notification_dirs(void) {
+static inline void matoclserv_show_notification_dirs(void) {
 	uint32_t hash;
 	dirincache *dc;
 
@@ -263,7 +263,7 @@ static inline void matocuserv_show_notification_dirs(void) {
 */
 
 /* new registration procedure */
-session* matocuserv_new_session(uint8_t newsession,uint8_t nonewid) {
+session* matoclserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	session *asesdata;
 	asesdata = (session*)malloc(sizeof(session));
 	passert(asesdata);
@@ -291,7 +291,7 @@ session* matocuserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	return asesdata;
 }
 
-session* matocuserv_find_session(uint32_t sessionid) {
+session* matoclserv_find_session(uint32_t sessionid) {
 	session *asesdata;
 	if (sessionid==0) {
 		return NULL;
@@ -311,7 +311,7 @@ session* matocuserv_find_session(uint32_t sessionid) {
 	return NULL;
 }
 
-void matocuserv_close_session(uint32_t sessionid) {
+void matoclserv_close_session(uint32_t sessionid) {
 	session *asesdata;
 	if (sessionid==0) {
 		return;
@@ -328,7 +328,7 @@ void matocuserv_close_session(uint32_t sessionid) {
 	return;
 }
 
-void matocuserv_store_sessions() {
+void matoclserv_store_sessions() {
 	session *asesdata;
 	uint32_t ileng;
 	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
@@ -395,7 +395,7 @@ void matocuserv_store_sessions() {
 	}
 }
 
-int matocuserv_load_sessions() {
+int matoclserv_load_sessions() {
 	session *asesdata;
 	uint32_t ileng;
 //	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
@@ -521,7 +521,7 @@ int matocuserv_load_sessions() {
 
 /* old registration procedure */
 /*
-session* matocuserv_get_session(uint32_t sessionid) {
+session* matoclserv_get_session(uint32_t sessionid) {
 	// if sessionid==0 - create new record with next id
 	session *asesdata;
 
@@ -552,7 +552,7 @@ session* matocuserv_get_session(uint32_t sessionid) {
 }
 */
 
-int matocuserv_insert_openfile(session* cr,uint32_t inode) {
+int matoclserv_insert_openfile(session* cr,uint32_t inode) {
 	filelist *ofptr,**ofpptr;
 	int status;
 
@@ -577,7 +577,7 @@ int matocuserv_insert_openfile(session* cr,uint32_t inode) {
 	return status;
 }
 
-void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode) {
+void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	session *asesdata;
 	filelist *ofptr,**ofpptr;
 
@@ -622,7 +622,7 @@ void matocuserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	*ofpptr = ofptr;
 }
 
-uint8_t* matocuserv_createpacket(matocuserventry *eptr,uint32_t type,uint32_t size) {
+uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
 	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
@@ -644,7 +644,7 @@ uint8_t* matocuserv_createpacket(matocuserventry *eptr,uint32_t type,uint32_t si
 }
 
 /*
-int matocuserv_open_check(matocuserventry *eptr,uint32_t fid) {
+int matoclserv_open_check(matoclserventry *eptr,uint32_t fid) {
 	filelist *fl;
 	for (fl=eptr->openedfiles ; fl ; fl=fl->next) {
 		if (fl->fid==fid) {
@@ -655,7 +655,7 @@ int matocuserv_open_check(matocuserventry *eptr,uint32_t fid) {
 }
 */
 
-void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
+void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint32_t qid,inode,uid,gid,auid,agid;
 	uint64_t fleng;
 	uint8_t type,attr[35];
@@ -667,7 +667,7 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint8_t count;
 	uint8_t loc[100*6];
 	chunklist *cl,**acl;
-	matocuserventry *eptr,*eaptr;
+	matoclserventry *eptr,*eaptr;
 
 	eptr=NULL;
 	qid=0;
@@ -678,7 +678,7 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	gid=0;
 	auid=0;
 	agid=0;
-	for (eaptr = matocuservhead ; eaptr && eptr==NULL ; eaptr=eaptr->next) {
+	for (eaptr = matoclservhead ; eaptr && eptr==NULL ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL) {
 			acl = &(eaptr->chunkdelayedops);
 			while (*acl && eptr==NULL) {
@@ -717,13 +717,13 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 			//syslog(LOG_NOTICE,"get version for chunk %"PRIu64" -> %"PRIu32,chunkid,version);
 		}
 		if (status!=STATUS_OK) {
-			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
 			put32bit(&ptr,qid);
 			put8bit(&ptr,status);
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,24+count*6);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,24+count*6);
 		put32bit(&ptr,qid);
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
@@ -743,13 +743,13 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		fs_end_setlength(chunkid);
 
 		if (status!=STATUS_OK) {
-			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,5);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_TRUNCATE,5);
 			put32bit(&ptr,qid);
 			put8bit(&ptr,status);
 			return;
 		}
 		fs_do_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,fleng,attr);
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,39);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_TRUNCATE,39);
 		put32bit(&ptr,qid);
 		memcpy(ptr,attr,35);
 		return;
@@ -758,30 +758,30 @@ void matocuserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	}
 }
 
-void matocuserv_cserv_list(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_cserv_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_CSERV_LIST - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_CSERV_LIST - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_CSERV_LIST,matocsserv_cservlist_size());
+	ptr = matoclserv_createpacket(eptr,MATOCL_CSERV_LIST,matocsserv_cservlist_size());
 	matocsserv_cservlist_data(ptr);
 }
 
-void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
-	matocuserventry *eaptr;
+	matoclserventry *eaptr;
 	uint32_t size,ileng,pleng,i;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_SESSION_LIST - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_SESSION_LIST - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	size = 2;
-	for (eaptr = matocuservhead ; eaptr ; eaptr=eaptr->next) {
+	for (eaptr = matoclservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
 			size += 37+SESSION_STATS*8;
 			if (eaptr->sesdata->info) {
@@ -794,9 +794,9 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 			}
 		}
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_SESSION_LIST,size);
+	ptr = matoclserv_createpacket(eptr,MATOCL_SESSION_LIST,size);
 	put16bit(&ptr,SESSION_STATS);
-	for (eaptr = matocuservhead ; eaptr ; eaptr=eaptr->next) {
+	for (eaptr = matoclservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
 //			tcpgetpeer(eaptr->sock,&ip,NULL);
 			put32bit(&ptr,eaptr->sesdata->sessionid);
@@ -841,43 +841,43 @@ void matocuserv_session_list(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_chart(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_chart(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_make_png(chartid);
-	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART,l);
+	ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
 	if (l>0) {
 		charts_get_png(ptr);
 	}
 }
 
-void matocuserv_chart_data(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_chart_data(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_datasize(chartid);
-	ptr = matocuserv_createpacket(eptr,ANTOCU_CHART_DATA,l);
+	ptr = matoclserv_createpacket(eptr,ANTOCL_CHART_DATA,l);
 	if (l>0) {
 		charts_makedata(ptr,chartid);
 	}
 }
 
-void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t totalspace,availspace,trspace,respace;
 	uint64_t memusage;
 	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
@@ -888,7 +888,7 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 //#endif
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_INFO - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -899,7 +899,7 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
 	memusage = chartsdata_memusage();
-	ptr = matocuserv_createpacket(eptr,MATOCU_INFO,76);
+	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
 	/* put32bit(&buff,VERSION): */
 	put16bit(&ptr,VERSMAJ);
 	put8bit(&ptr,VERSMID);
@@ -921,18 +921,18 @@ void matocuserv_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) 
 	put32bit(&ptr,tdcopies);
 }
 
-void matocuserv_fstest_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,msgbuffleng;
 	char *msgbuff;
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_FSTEST_INFO - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FSTEST_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	fs_test_getdata(&loopstart,&loopend,&files,&ugfiles,&mfiles,&chunks,&ugchunks,&mchunks,&msgbuff,&msgbuffleng);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FSTEST_INFO,msgbuffleng+36);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FSTEST_INFO,msgbuffleng+36);
 	put32bit(&ptr,loopstart);
 	put32bit(&ptr,loopend);
 	put32bit(&ptr,files);
@@ -947,24 +947,24 @@ void matocuserv_fstest_info(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_chunkstest_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_chunkstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_CHUNKSTEST_INFO - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_CHUNKSTEST_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_CHUNKSTEST_INFO,52);
+	ptr = matoclserv_createpacket(eptr,MATOCL_CHUNKSTEST_INFO,52);
 	chunk_store_info(ptr);
 }
 
-void matocuserv_chunks_matrix(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_chunks_matrix(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t matrixid;
 	(void)data;
 	if (length>1) {
-		syslog(LOG_NOTICE,"CUTOMA_CHUNKS_MATRIX - wrong size (%"PRIu32"/0|1)",length);
+		syslog(LOG_NOTICE,"CLTOMA_CHUNKS_MATRIX - wrong size (%"PRIu32"/0|1)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -973,48 +973,48 @@ void matocuserv_chunks_matrix(matocuserventry *eptr,const uint8_t *data,uint32_t
 	} else {
 		matrixid = 0;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_CHUNKS_MATRIX,484);
+	ptr = matoclserv_createpacket(eptr,MATOCL_CHUNKS_MATRIX,484);
 	chunk_store_chunkcounters(ptr,matrixid);
 }
 
-void matocuserv_quota_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_quota_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_QUOTA_INFO - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_QUOTA_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_QUOTA_INFO,fs_getquotainfo_size());
+	ptr = matoclserv_createpacket(eptr,MATOCL_QUOTA_INFO,fs_getquotainfo_size());
 	fs_getquotainfo_data(ptr);
 }
 
-void matocuserv_exports_info(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_exports_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_EXPORTS_INFO - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_EXPORTS_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_EXPORTS_INFO,exports_info_size());
+	ptr = matoclserv_createpacket(eptr,MATOCL_EXPORTS_INFO,exports_info_size());
 	exports_info_data(ptr);
 }
 
-void matocuserv_mlog_list(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_MLOG_LIST - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOMA_MLOG_LIST - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_MLOG_LIST,matomlserv_mloglist_size());
+	ptr = matoclserv_createpacket(eptr,MATOCL_MLOG_LIST,matomlserv_mloglist_size());
 	matomlserv_mloglist_data(ptr);
 }
 
 /* CACHENOTIFY
-void matocuserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[35]) {
+void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[35]) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1022,7 +1022,7 @@ void matocuserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[
 	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
 		if (dc->dirinode==dirinode) {
 //			syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %"PRIu32,dc->eptr->sesdata->info,inode);
-			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_ATTR,43);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_ATTR,43);
 			stats_notify++;
 			put32bit(&ptr,0);
 			put32bit(&ptr,inode);
@@ -1035,7 +1035,7 @@ void matocuserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[
 	}
 }
 
-void matocuserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const uint8_t attr[35],uint32_t ts) {
+void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const uint8_t attr[35],uint32_t ts) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1048,7 +1048,7 @@ void matocuserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,
 //				strname[nleng]=0;
 //				syslog(LOG_NOTICE,"send to: '%s' ; new link (%"PRIu32",%s)->%"PRIu32,dc->eptr->sesdata->info,dirinode,strname,inode);
 //			}
-			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_LINK,52+nleng);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_LINK,52+nleng);
 			stats_notify++;
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
@@ -1070,7 +1070,7 @@ void matocuserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,
 	}
 }
 
-void matocuserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t ts) {
+void matoclserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t ts) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1083,7 +1083,7 @@ void matocuserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *nam
 //				strname[nleng]=0;
 //				syslog(LOG_NOTICE,"send to: '%s' ; remove link (%"PRIu32",%s)",dc->eptr->sesdata->info,dirinode,strname);
 //			}
-			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_UNLINK,13+nleng);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_UNLINK,13+nleng);
 			stats_notify++;
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
@@ -1102,7 +1102,7 @@ void matocuserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *nam
 	}
 }
 
-void matocuserv_notify_remove(uint32_t dirinode) {
+void matoclserv_notify_remove(uint32_t dirinode) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1110,7 +1110,7 @@ void matocuserv_notify_remove(uint32_t dirinode) {
 	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
 		if (dc->dirinode==dirinode) {
 //			syslog(LOG_NOTICE,"send to: '%s' ; removed inode: %"PRIu32,dc->eptr->sesdata->info,dirinode);
-			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_REMOVE,8);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_REMOVE,8);
 			stats_notify++;
 			put32bit(&ptr,0);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
@@ -1126,7 +1126,7 @@ void matocuserv_notify_remove(uint32_t dirinode) {
 	}
 }
 
-void matocuserv_notify_parent(uint32_t dirinode,uint32_t parent) {
+void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1134,7 +1134,7 @@ void matocuserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
 		if (dc->dirinode==dirinode && dirinode!=dc->eptr->sesdata->rootinode) {
 //			syslog(LOG_NOTICE,"send to: '%s' ; new parent: %"PRIu32"->%"PRIu32,dc->eptr->sesdata->info,dirinode,parent);
-			ptr = matocuserv_createpacket(dc->eptr,MATOCU_FUSE_NOTIFY_PARENT,12);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_PARENT,12);
 			stats_notify++;
 			put32bit(&ptr,0);
 			put32bit(&ptr,dirinode);
@@ -1152,7 +1152,7 @@ void matocuserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 }
 */
 
-void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *rptr;
 	uint8_t *wptr;
 	uint32_t sessionid;
@@ -1164,26 +1164,26 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		return;
 	}
 	if (length<64) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER - wrong size (%"PRIu32"/<64)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong size (%"PRIu32"/<64)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	tools = (memcmp(data,FUSE_REGISTER_BLOB_TOOLS_NOACL,64)==0)?1:0;
 	if (eptr->registered==0 && (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
-			syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
+			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
 			eptr->mode = KILL;
 			return;
 		}
 		if (tools) {
 			if (length!=64 && length!=68) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/NOACL-TOOLS - wrong size (%"PRIu32"/64|68)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-TOOLS - wrong size (%"PRIu32"/64|68)",length);
 				eptr->mode = KILL;
 				return;
 			}
 		} else {
 			if (length!=68 && length!=72) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/NOACL-MOUNT - wrong size (%"PRIu32"/68|72)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-MOUNT - wrong size (%"PRIu32"/68|72)",length);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1208,7 +1208,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		if (sessionid==0) {	// new session
 			status = STATUS_OK; // exports_check(eptr->peerip,(const uint8_t*)"",NULL,NULL,&sesflags);	// check privileges for '/' w/o password
 //			if (status==STATUS_OK) {
-				eptr->sesdata = matocuserv_new_session(0,tools);
+				eptr->sesdata = matoclserv_new_session(0,tools);
 				if (eptr->sesdata==NULL) {
 					syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
@@ -1219,9 +1219,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				eptr->sesdata->peerip = eptr->peerip;
 //			}
 		} else { // reconnect or tools
-			eptr->sesdata = matocuserv_find_session(sessionid);
+			eptr->sesdata = matoclserv_find_session(sessionid);
 			if (eptr->sesdata==NULL) {	// in old model if session doesn't exist then create it
-				eptr->sesdata = matocuserv_new_session(0,0);
+				eptr->sesdata = matoclserv_new_session(0,0);
 				if (eptr->sesdata==NULL) {
 					syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
@@ -1241,9 +1241,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			}
 		}
 		if (tools) {
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,1);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,1);
 		} else {
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status!=STATUS_OK)?1:4);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,(status!=STATUS_OK)?1:4);
 		}
 		if (status!=STATUS_OK) {
 			put8bit(&wptr,status);
@@ -1268,7 +1268,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		const char *info;
 
 		if (length<65) {
-			syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL - wrong size (%"PRIu32"/<65)",length);
+			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong size (%"PRIu32"/<65)",length);
 			eptr->mode = KILL;
 			return;
 		}
@@ -1277,7 +1277,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		rcode = get8bit(&rptr);
 
 		if ((eptr->registered==0 && rcode==REGISTER_CLOSESESSION) || (eptr->registered && rcode!=REGISTER_CLOSESESSION)) {
-			syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)",rcode,eptr->registered);
+			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)",rcode,eptr->registered);
 			eptr->mode = KILL;
 			return;
 		}
@@ -1285,11 +1285,11 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		switch (rcode) {
 		case REGISTER_GETRANDOM:
 			if (length!=65) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.1 - wrong size (%"PRIu32"/65)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.1 - wrong size (%"PRIu32"/65)",length);
 				eptr->mode = KILL;
 				return;
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,32);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,32);
 			for (i=0 ; i<32 ; i++) {
 				eptr->passwordrnd[i]=rndu8();
 			}
@@ -1297,14 +1297,14 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_NEWSESSION:
 			if (length<77) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/>=77)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/>=77)",length);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->version = get32bit(&rptr);
 			ileng = get32bit(&rptr);
 			if (length<77+ileng) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/>=77+ileng(%"PRIu32"))",length,ileng);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/>=77+ileng(%"PRIu32"))",length,ileng);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1312,14 +1312,14 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			rptr+=ileng;
 			pleng = get32bit(&rptr);
 			if (length!=77+ileng+pleng && length!=77+16+ileng+pleng) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/77+ileng(%"PRIu32")+pleng(%"PRIu32")[+16])",length,ileng,pleng);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%"PRIu32"/77+ileng(%"PRIu32")+pleng(%"PRIu32")[+16])",length,ileng,pleng);
 				eptr->mode = KILL;
 				return;
 			}
 			path = rptr;
 			rptr+=pleng;
 			if (pleng>0 && rptr[-1]!=0) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.2 - received path without ending zero");
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - received path without ending zero");
 				eptr->mode = KILL;
 				return;
 			}
@@ -1335,7 +1335,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				status = fs_getrootinode(&rootinode,path);
 			}
 			if (status==STATUS_OK) {
-				eptr->sesdata = matocuserv_new_session(1,0);
+				eptr->sesdata = matoclserv_new_session(1,0);
 				if (eptr->sesdata==NULL) {
 					syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
@@ -1359,9 +1359,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 						eptr->sesdata->info[ileng]=0;
 					}
 				}
-				matocuserv_store_sessions();
+				matoclserv_store_sessions();
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?25:(eptr->version>=0x010601)?21:13):1);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?25:(eptr->version>=0x010601)?21:13):1);
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
@@ -1386,14 +1386,14 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_NEWMETASESSION:
 			if (length<73) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.5 - wrong size (%"PRIu32"/>=73)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%"PRIu32"/>=73)",length);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->version = get32bit(&rptr);
 			ileng = get32bit(&rptr);
 			if (length!=73+ileng && length!=73+16+ileng) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.5 - wrong size (%"PRIu32"/73+ileng(%"PRIu32")[+16])",length,ileng);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%"PRIu32"/73+ileng(%"PRIu32")[+16])",length,ileng);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1405,7 +1405,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 				status = exports_check(eptr->peerip,eptr->version,1,NULL,NULL,NULL,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid);
 			}
 			if (status==STATUS_OK) {
-				eptr->sesdata = matocuserv_new_session(1,0);
+				eptr->sesdata = matoclserv_new_session(1,0);
 				if (eptr->sesdata==NULL) {
 					syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
@@ -1429,9 +1429,9 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 						eptr->sesdata->info[ileng]=0;
 					}
 				}
-				matocuserv_store_sessions();
+				matoclserv_store_sessions();
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?9:5):1);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,(status==STATUS_OK)?((eptr->version>=0x010615)?9:5):1);
 			if (status!=STATUS_OK) {
 				put8bit(&wptr,status);
 				return;
@@ -1449,13 +1449,13 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 		case REGISTER_RECONNECT:
 		case REGISTER_TOOLS:
 			if (length<73) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.%"PRIu8" - wrong size (%"PRIu32"/73)",rcode,length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.%"PRIu8" - wrong size (%"PRIu32"/73)",rcode,length);
 				eptr->mode = KILL;
 				return;
 			}
 			sessionid = get32bit(&rptr);
 			eptr->version = get32bit(&rptr);
-			eptr->sesdata = matocuserv_find_session(sessionid);
+			eptr->sesdata = matoclserv_find_session(sessionid);
 			if (eptr->sesdata==NULL) {
 				status = ERROR_BADSESSIONID;
 			} else {
@@ -1465,7 +1465,7 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 					status = STATUS_OK;
 				}
 			}
-			wptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REGISTER,1);
+			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,1);
 			put8bit(&wptr,status);
 			if (status!=STATUS_OK) {
 				return;
@@ -1474,32 +1474,32 @@ void matocuserv_fuse_register(matocuserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_CLOSESESSION:
 			if (length<69) {
-				syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL.6 - wrong size (%"PRIu32"/69)",length);
+				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.6 - wrong size (%"PRIu32"/69)",length);
 				eptr->mode = KILL;
 				return;
 			}
 			sessionid = get32bit(&rptr);
-			matocuserv_close_session(sessionid);
+			matoclserv_close_session(sessionid);
 			eptr->mode = KILL;
 			return;
 		}
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER/ACL - wrong rcode (%"PRIu8")",rcode);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%"PRIu8")",rcode);
 		eptr->mode = KILL;
 		return;
 	} else {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_REGISTER - wrong register blob");
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong register blob");
 		eptr->mode = KILL;
 		return;
 	}
 }
 
-void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *ptr;
 	filelist *ofptr,**ofpptr;
 	uint32_t inode;
 
 	if ((length&0x3)!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RESERVED_INODES - wrong size (%"PRIu32"/N*4)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RESERVED_INODES - wrong size (%"PRIu32"/N*4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1569,7 +1569,7 @@ void matocuserv_fuse_reserved_inodes(matocuserventry *eptr,const uint8_t *data,u
 
 }
 
-static inline void matocuserv_ugid_remap(matocuserventry *eptr,uint32_t *auid,uint32_t *agid) {
+static inline void matoclserv_ugid_remap(matoclserventry *eptr,uint32_t *auid,uint32_t *agid) {
 	if (*auid==0) {
 		*auid = eptr->sesdata->rootuid;
 		if (agid) {
@@ -1584,7 +1584,7 @@ static inline void matocuserv_ugid_remap(matocuserventry *eptr,uint32_t *auid,ui
 }
 
 /*
-static inline void matocuserv_ugid_attr_remap(matocuserventry *eptr,uint8_t attr[35],uint32_t auid,uint32_t agid) {
+static inline void matoclserv_ugid_attr_remap(matoclserventry *eptr,uint8_t attr[35],uint32_t auid,uint32_t agid) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t fuid,fgid;
@@ -1600,18 +1600,18 @@ static inline void matocuserv_ugid_attr_remap(matocuserventry *eptr,uint8_t attr
 	}
 }
 */
-void matocuserv_fuse_statfs(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t totalspace,availspace,trashspace,reservedspace;
 	uint32_t msgid,inodes;
 	uint8_t *ptr;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_STATFS - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_STATFS - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	fs_statfs(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&totalspace,&availspace,&trashspace,&reservedspace,&inodes);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_STATFS,40);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_STATFS,40);
 	put32bit(&ptr,msgid);
 	put64bit(&ptr,totalspace);
 	put64bit(&ptr,availspace);
@@ -1623,14 +1623,14 @@ void matocuserv_fuse_statfs(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_fuse_access(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_access(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t modemask;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_ACCESS - wrong size (%"PRIu32"/17)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_ACCESS - wrong size (%"PRIu32"/17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1638,15 +1638,15 @@ void matocuserv_fuse_access(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	modemask = get8bit(&data);
 	status = fs_access(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,modemask);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_ACCESS,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_ACCESS,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t nleng;
 	const uint8_t *name;
@@ -1656,7 +1656,7 @@ void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_LOOKUP - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1664,7 +1664,7 @@ void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_LOOKUP - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1672,9 +1672,9 @@ void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	data += nleng;
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_lookup(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid,auid,agid,&newinode,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_LOOKUP,(status!=STATUS_OK)?5:43);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_LOOKUP,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1687,14 +1687,14 @@ void matocuserv_fuse_lookup(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_fuse_getattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t attr[35];
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8 && length!=16) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETATTR - wrong size (%"PRIu32"/8,16)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETATTR - wrong size (%"PRIu32"/8,16)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1703,13 +1703,13 @@ void matocuserv_fuse_getattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	if (length==16) {
 		auid = uid = get32bit(&data);
 		agid = gid = get32bit(&data);
-		matocuserv_ugid_remap(eptr,&uid,&gid);
+		matoclserv_ugid_remap(eptr,&uid,&gid);
 	} else {
 		auid = uid = 12345;
 		agid = gid = 12345;
 	}
 	status = fs_getattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETATTR,(status!=STATUS_OK)?5:39);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETATTR,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1721,7 +1721,7 @@ void matocuserv_fuse_getattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint16_t setmask;
 	uint8_t attr[35];
@@ -1732,7 +1732,7 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint16_t attrmode;
 	uint32_t attruid,attrgid,attratime,attrmtime;
 	if (length!=35 && length!=36) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETATTR - wrong size (%"PRIu32"/35|36)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETATTR - wrong size (%"PRIu32"/35|36)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1740,7 +1740,7 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	inode = get32bit(&data);
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	setmask = get8bit(&data);
 	attrmode = get16bit(&data);
 	attruid = get32bit(&data);
@@ -1757,7 +1757,7 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	} else {
 		status = fs_setattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,setmask,attrmode,attruid,attrgid,attratime,attrmtime,sugidclearmode,attr);
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETATTR,(status!=STATUS_OK)?5:39);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETATTR,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1769,7 +1769,7 @@ void matocuserv_fuse_setattr(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t attr[35];
 	uint32_t msgid;
@@ -1780,7 +1780,7 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 	chunklist *cl;
 	uint64_t chunkid;
 	if (length!=24 && length!=25) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_TRUNCATE - wrong size (%"PRIu32"/24|25)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_TRUNCATE - wrong size (%"PRIu32"/24|25)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1797,7 +1797,7 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 			opened = 1;
 		}
 	}
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	attrlength = get64bit(&data);
 	status = fs_try_setlength(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,auid,agid,attrlength,attr,&chunkid);
 	if (status==ERROR_DELAYED) {
@@ -1825,7 +1825,7 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 	if (status==STATUS_OK) {
 		dcm_modify(inode,eptr->sesdata->sessionid);
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_TRUNCATE,(status!=STATUS_OK)?5:39);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_TRUNCATE,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1837,7 +1837,7 @@ void matocuserv_fuse_truncate(matocuserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
-void matocuserv_fuse_readlink(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_readlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t pleng;
 	uint8_t *path;
@@ -1845,14 +1845,14 @@ void matocuserv_fuse_readlink(matocuserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_READLINK - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_READLINK - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_readlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READLINK,(status!=STATUS_OK)?5:8+pleng+1);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READLINK,(status!=STATUS_OK)?5:8+pleng+1);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1868,7 +1868,7 @@ void matocuserv_fuse_readlink(matocuserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
-void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t nleng;
 	const uint8_t *name,*path;
@@ -1880,7 +1880,7 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t status;
 	uint8_t *ptr;
 	if (length<21) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SYMLINK - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1888,7 +1888,7 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length<21U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SYMLINK - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1896,7 +1896,7 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	data += nleng;
 	pleng = get32bit(&data);
 	if (length!=21U+nleng+pleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SYMLINK - wrong size (%"PRIu32":nleng=%"PRIu8":pleng=%"PRIu32")",length,nleng,pleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%"PRIu32":nleng=%"PRIu8":pleng=%"PRIu32")",length,nleng,pleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1904,12 +1904,12 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	data += pleng;
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	while (pleng>0 && path[pleng-1]==0) {
 		pleng--;
 	}
 	status = fs_symlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,pleng,path,uid,gid,auid,agid,&newinode,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SYMLINK,(status!=STATUS_OK)?5:43);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SYMLINK,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1922,7 +1922,7 @@ void matocuserv_fuse_symlink(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_mknod(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid,rdev;
 	uint8_t nleng;
 	const uint8_t *name;
@@ -1934,7 +1934,7 @@ void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<24) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKNOD - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKNOD - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1942,7 +1942,7 @@ void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=24U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKNOD - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKNOD - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1952,10 +1952,10 @@ void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	mode = get16bit(&data);
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	rdev = get32bit(&data);
 	status = fs_mknod(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,type,mode,uid,gid,auid,agid,rdev,&newinode,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_MKNOD,(status!=STATUS_OK)?5:43);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_MKNOD,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -1968,7 +1968,7 @@ void matocuserv_fuse_mknod(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
-void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_mkdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t nleng;
 	const uint8_t *name;
@@ -1980,7 +1980,7 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t status;
 	uint8_t copysgid;
 	if (length<19) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKDIR - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKDIR - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1988,7 +1988,7 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=19U+nleng && length!=20U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_MKDIR - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKDIR - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1997,14 +1997,14 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	mode = get16bit(&data);
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	if (length==20U+nleng) {
 		copysgid = get8bit(&data);
 	} else {
 		copysgid = 0; // by default do not copy sgid bit
 	}
 	status = fs_mkdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,mode,uid,gid,auid,agid,copysgid,&newinode,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_MKDIR,(status!=STATUS_OK)?5:43);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_MKDIR,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2017,7 +2017,7 @@ void matocuserv_fuse_mkdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
-void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t nleng;
 	const uint8_t *name;
@@ -2025,7 +2025,7 @@ void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_UNLINK - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2033,7 +2033,7 @@ void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_UNLINK - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2041,9 +2041,9 @@ void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	data += nleng;
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_unlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_UNLINK,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_UNLINK,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
@@ -2051,7 +2051,7 @@ void matocuserv_fuse_unlink(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t nleng;
 	const uint8_t *name;
@@ -2059,7 +2059,7 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RMDIR - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2067,7 +2067,7 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RMDIR - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%"PRIu32":nleng=%"PRIu8")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2075,9 +2075,9 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	data += nleng;
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_rmdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RMDIR,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RMDIR,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
@@ -2085,7 +2085,7 @@ void matocuserv_fuse_rmdir(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
-void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_src,inode_dst;
 	uint8_t nleng_src,nleng_dst;
 	const uint8_t *name_src,*name_dst;
@@ -2095,7 +2095,7 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t status;
 	uint8_t *ptr;
 	if (length<22) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RENAME - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2103,7 +2103,7 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode_src = get32bit(&data);
 	nleng_src = get8bit(&data);
 	if (length<22U+nleng_src) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RENAME - wrong size (%"PRIu32":nleng_src=%"PRIu8")",length,nleng_src);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%"PRIu32":nleng_src=%"PRIu8")",length,nleng_src);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2112,7 +2112,7 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
 	if (length!=22U+nleng_src+nleng_dst) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_RENAME - wrong size (%"PRIu32":nleng_src=%"PRIu8":nleng_dst=%"PRIu8")",length,nleng_src,nleng_dst);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%"PRIu32":nleng_src=%"PRIu8":nleng_dst=%"PRIu8")",length,nleng_src,nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2120,12 +2120,12 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	data += nleng_dst;
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_rename(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode_src,nleng_src,name_src,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&inode,attr);
 	if (eptr->version>=0x010615 && status==STATUS_OK) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,43);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RENAME,43);
 	} else {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_RENAME,5);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RENAME,5);
 	}
 	put32bit(&ptr,msgid);
 	if (eptr->version>=0x010615 && status==STATUS_OK) {
@@ -2139,7 +2139,7 @@ void matocuserv_fuse_rename(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_dst;
 	uint8_t nleng_dst;
 	const uint8_t *name_dst;
@@ -2150,7 +2150,7 @@ void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<21) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_LINK - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2159,7 +2159,7 @@ void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
 	if (length!=21U+nleng_dst) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_LINK - wrong size (%"PRIu32":nleng_dst=%"PRIu8")",length,nleng_dst);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%"PRIu32":nleng_dst=%"PRIu8")",length,nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2167,9 +2167,9 @@ void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	data += nleng_dst;
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_link(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&newinode,attr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_LINK,(status!=STATUS_OK)?5:43);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_LINK,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2182,7 +2182,7 @@ void matocuserv_fuse_link(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
-void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t flags;
 	uint32_t msgid;
@@ -2191,7 +2191,7 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	uint32_t dleng;
 	void *custom;
 	if (length!=16 && length!=17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETDIR - wrong size (%"PRIu32"/16|17)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIR - wrong size (%"PRIu32"/16|17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2199,14 +2199,14 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	if (length==17) {
 		flags = get8bit(&data);
 	} else {
 		flags = 0;
 	}
 	status = fs_readdir_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,flags,&custom,&dleng);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIR,(status!=STATUS_OK)?5:4+dleng);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETDIR,(status!=STATUS_OK)?5:4+dleng);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2215,9 +2215,9 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 /* CACHENOTIFY
 		if (flags&GETDIR_FLAG_ADDTOCACHE) {
 			if (inode==MFS_ROOT_ID) {
-				matocuserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
+				matoclserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
 			} else {
-				matocuserv_notify_add_dir(eptr,inode);
+				matoclserv_notify_add_dir(eptr,inode);
 			}
 		}
 */
@@ -2228,15 +2228,15 @@ void matocuserv_fuse_getdir(matocuserventry *eptr,const uint8_t *data,uint32_t l
 }
 
 /* CACHENOTIFY
-void matocuserv_fuse_dir_removed(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	if (length%4!=0) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_DIR_REMOVED - wrong size (%"PRIu32"/N*4)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_DIR_REMOVED - wrong size (%"PRIu32"/N*4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	if (get32bit(&data)) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_DIR_REMOVED - wrong msgid");
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_DIR_REMOVED - wrong msgid");
 		eptr->mode = KILL;
 		return;
 	}
@@ -2245,15 +2245,15 @@ void matocuserv_fuse_dir_removed(matocuserventry *eptr,const uint8_t *data,uint3
 		inode = get32bit(&data);
 		length-=4;
 		if (inode==MFS_ROOT_ID) {
-			matocuserv_notify_remove_dir(eptr,eptr->sesdata->rootinode);
+			matoclserv_notify_remove_dir(eptr,eptr->sesdata->rootinode);
 		} else {
-			matocuserv_notify_remove_dir(eptr,inode);
+			matoclserv_notify_remove_dir(eptr,inode);
 		}
 	}
 }
 */
 
-void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t flags;
 	uint8_t attr[35];
@@ -2262,7 +2262,7 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	uint8_t status;
 	int allowcache;
 	if (length!=17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_OPEN - wrong size (%"PRIu32"/17)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_OPEN - wrong size (%"PRIu32"/17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2270,9 +2270,9 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	inode = get32bit(&data);
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	flags = get8bit(&data);
-	status = matocuserv_insert_openfile(eptr->sesdata,inode);
+	status = matoclserv_insert_openfile(eptr->sesdata,inode);
 	if (status==STATUS_OK) {
 		status = fs_opencheck(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,flags,attr);
 	}
@@ -2281,9 +2281,9 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 		if (allowcache==0) {
 			attr[1]&=(0xFF^(MATTR_ALLOWDATACACHE<<4));
 		}
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,39);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_OPEN,39);
 	} else {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_OPEN,5);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_OPEN,5);
 	}
 	put32bit(&ptr,msgid);
 	if (eptr->version>=0x010609 && status==STATUS_OK) {
@@ -2296,7 +2296,7 @@ void matocuserv_fuse_open(matocuserventry *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
-void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t inode;
@@ -2310,14 +2310,14 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 	uint8_t loc[100*6];
 	uint32_t msgid;
 	if (length!=12) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_READ_CHUNK - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_READ_CHUNK - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	indx = get32bit(&data);
-//	if (matocuserv_open_check(eptr,inode)<0) {
+//	if (matoclserv_open_check(eptr,inode)<0) {
 //		status = ERROR_NOTOPENED;
 //	} else {
 		status = fs_readchunk(inode,indx,&chunkid,&fleng);
@@ -2331,12 +2331,12 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 		}
 	}
 	if (status!=STATUS_OK) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READ_CHUNK,5);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READ_CHUNK,5);
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 		return;
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_READ_CHUNK,24+count*6);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READ_CHUNK,24+count*6);
 	put32bit(&ptr,msgid);
 	put64bit(&ptr,fleng);
 	put64bit(&ptr,chunkid);
@@ -2347,7 +2347,7 @@ void matocuserv_fuse_read_chunk(matocuserventry *eptr,const uint8_t *data,uint32
 	}
 }
 
-void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t inode;
@@ -2362,7 +2362,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	uint8_t loc[100*6];
 
 	if (length!=12) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_WRITE_CHUNK - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_WRITE_CHUNK - wrong size (%"PRIu32"/12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2375,7 +2375,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 		status = fs_writechunk(inode,indx,&chunkid,&fleng,&opflag);
 	}
 	if (status!=STATUS_OK) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 		return;
@@ -2394,13 +2394,13 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 		dcm_modify(inode,eptr->sesdata->sessionid);
 		status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
 		if (status!=STATUS_OK) {
-			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,5);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
 			put32bit(&ptr,msgid);
 			put8bit(&ptr,status);
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK,24+count*6);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,24+count*6);
 		put32bit(&ptr,msgid);
 		put64bit(&ptr,fleng);
 		put64bit(&ptr,chunkid);
@@ -2412,7 +2412,7 @@ void matocuserv_fuse_write_chunk(matocuserventry *eptr,const uint8_t *data,uint3
 	}
 }
 
-void matocuserv_fuse_write_chunk_end(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint32_t msgid;
 	uint32_t inode;
@@ -2421,7 +2421,7 @@ void matocuserv_fuse_write_chunk_end(matocuserventry *eptr,const uint8_t *data,u
 	uint8_t status;
 //	chunklist *cl,**acl;
 	if (length!=24) {
-		syslog(LOG_NOTICE,"CUTOMA_WRITE_CHUNK_END - wrong size (%"PRIu32"/24)",length);
+		syslog(LOG_NOTICE,"CLTOMA_WRITE_CHUNK_END - wrong size (%"PRIu32"/24)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2434,19 +2434,19 @@ void matocuserv_fuse_write_chunk_end(matocuserventry *eptr,const uint8_t *data,u
 	} else {
 		status = fs_writeend(inode,fleng,chunkid);
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_WRITE_CHUNK_END,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK_END,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_repair(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint32_t msgid;
 	uint32_t chunksnotchanged,chunkserased,chunksrepaired;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=16) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_REPAIR - wrong size (%"PRIu32"/16)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_REPAIR - wrong size (%"PRIu32"/16)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2454,9 +2454,9 @@ void matocuserv_fuse_repair(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_repair(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,&chunksnotchanged,&chunkserased,&chunksrepaired);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_REPAIR,(status!=STATUS_OK)?5:16);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REPAIR,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=0) {
 		put8bit(&ptr,status);
@@ -2467,14 +2467,14 @@ void matocuserv_fuse_repair(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
-void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t i,chunkcount[11];
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_CHECK - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_CHECK - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2482,12 +2482,12 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	status = fs_checkfile(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,chunkcount);
 	if (status!=STATUS_OK) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,5);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,5);
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 	} else {
 		if (eptr->version>=0x010617) {
-			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,48);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,48);
 			put32bit(&ptr,msgid);
 			for (i=0 ; i<11 ; i++) {
 				put32bit(&ptr,chunkcount[i]);
@@ -2500,7 +2500,7 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 					j++;
 				}
 			}
-			ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_CHECK,4+3*j);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,4+3*j);
 			put32bit(&ptr,msgid);
 			for (i=0 ; i<11 ; i++) {
 				if (chunkcount[i]>0) {
@@ -2517,7 +2517,7 @@ void matocuserv_fuse_check(matocuserventry *eptr,const uint8_t *data,uint32_t le
 }
 
 
-void matocuserv_fuse_gettrashtime(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t gmode;
 	void *fptr,*dptr;
@@ -2526,7 +2526,7 @@ void matocuserv_fuse_gettrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=9) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETTRASHTIME - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASHTIME - wrong size (%"PRIu32"/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2534,7 +2534,7 @@ void matocuserv_fuse_gettrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	inode = get32bit(&data);
 	gmode = get8bit(&data);
 	status = fs_gettrashtime_prepare(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,&fptr,&dptr,&fnodes,&dnodes);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASHTIME,(status!=STATUS_OK)?5:12+8*(fnodes+dnodes));
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETTRASHTIME,(status!=STATUS_OK)?5:12+8*(fnodes+dnodes));
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2545,7 +2545,7 @@ void matocuserv_fuse_gettrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matocuserv_fuse_settrashtime(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,trashtime;
 	uint32_t msgid;
 	uint8_t smode;
@@ -2553,18 +2553,18 @@ void matocuserv_fuse_settrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=17) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETTRASHTIME - wrong size (%"PRIu32"/17)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHTIME - wrong size (%"PRIu32"/17)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,NULL);
+	matoclserv_ugid_remap(eptr,&uid,NULL);
 	trashtime = get32bit(&data);
 	smode = get8bit(&data);
 	status = fs_settrashtime(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,trashtime,smode,&changed,&notchanged,&notpermitted);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETTRASHTIME,(status!=STATUS_OK)?5:16);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHTIME,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2575,7 +2575,7 @@ void matocuserv_fuse_settrashtime(matocuserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matocuserv_fuse_getgoal(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t msgid;
 	uint32_t fgtab[10],dgtab[10];
@@ -2583,7 +2583,7 @@ void matocuserv_fuse_getgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=9) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETGOAL - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETGOAL - wrong size (%"PRIu32"/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2603,7 +2603,7 @@ void matocuserv_fuse_getgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 			}
 		}
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETGOAL,(status!=STATUS_OK)?5:6+5*(fn+dn));
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETGOAL,(status!=STATUS_OK)?5:6+5*(fn+dn));
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2625,7 +2625,7 @@ void matocuserv_fuse_getgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid;
 	uint32_t msgid;
 	uint8_t goal,smode;
@@ -2637,14 +2637,14 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=14) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETGOAL - wrong size (%"PRIu32"/14)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETGOAL - wrong size (%"PRIu32"/14)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,NULL);
+	matoclserv_ugid_remap(eptr,&uid,NULL);
 	goal = get8bit(&data);
 	smode = get8bit(&data);
 #if VERSHEX>=0x010700
@@ -2653,9 +2653,9 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
 #endif
 	if (eptr->version>=0x010700) {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:20);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:20);
 	} else {
-		ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
 	}
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
@@ -2674,7 +2674,7 @@ void matocuserv_fuse_setgoal(matocuserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_geteattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t msgid;
 	uint32_t feattrtab[16],deattrtab[16];
@@ -2682,7 +2682,7 @@ void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=9) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETEATTR - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETEATTR - wrong size (%"PRIu32"/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2702,7 +2702,7 @@ void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 			}
 		}
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETEATTR,(status!=STATUS_OK)?5:6+5*(fn+dn));
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETEATTR,(status!=STATUS_OK)?5:6+5*(fn+dn));
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2724,7 +2724,7 @@ void matocuserv_fuse_geteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
-void matocuserv_fuse_seteattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_seteattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid;
 	uint32_t msgid;
 	uint8_t eattr,smode;
@@ -2732,18 +2732,18 @@ void matocuserv_fuse_seteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=14) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETEATTR - wrong size (%"PRIu32"/14)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETEATTR - wrong size (%"PRIu32"/14)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,NULL);
+	matoclserv_ugid_remap(eptr,&uid,NULL);
 	eattr = get8bit(&data);
 	smode = get8bit(&data);
 	status = fs_seteattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,eattr,smode,&changed,&notchanged,&notpermitted);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETEATTR,(status!=STATUS_OK)?5:16);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETEATTR,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2754,13 +2754,13 @@ void matocuserv_fuse_seteattr(matocuserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
-void matocuserv_fuse_append(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_append(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_src,uid,gid;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=20) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_APPEND - wrong size (%"PRIu32"/20)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_APPEND - wrong size (%"PRIu32"/20)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2769,14 +2769,14 @@ void matocuserv_fuse_append(matocuserventry *eptr,const uint8_t *data,uint32_t l
 	inode_src = get32bit(&data);
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	status = fs_append(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_src,uid,gid);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_APPEND,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_APPEND,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_snapshot(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_dst;
 	uint8_t nleng_dst;
 	const uint8_t *name_dst;
@@ -2786,7 +2786,7 @@ void matocuserv_fuse_snapshot(matocuserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<22) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SNAPSHOT - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SNAPSHOT - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2795,7 +2795,7 @@ void matocuserv_fuse_snapshot(matocuserventry *eptr,const uint8_t *data,uint32_t
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
 	if (length!=22U+nleng_dst) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SNAPSHOT - wrong size (%"PRIu32":nleng_dst=%"PRIu8")",length,nleng_dst);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SNAPSHOT - wrong size (%"PRIu32":nleng_dst=%"PRIu8")",length,nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2803,15 +2803,15 @@ void matocuserv_fuse_snapshot(matocuserventry *eptr,const uint8_t *data,uint32_t
 	data += nleng_dst;
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matocuserv_ugid_remap(eptr,&uid,&gid);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
 	canoverwrite = get8bit(&data);
 	status = fs_snapshot(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,canoverwrite);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SNAPSHOT,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SNAPSHOT,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_quotacontrol(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t flags,del;
 	uint32_t sinodes,hinodes,curinodes;
 	uint64_t slength,ssize,srealsize,hlength,hsize,hrealsize,curlength,cursize,currealsize;
@@ -2819,7 +2819,7 @@ void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=65 && length!=9) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_QUOTACONTROL - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_QUOTACONTROL - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2844,7 +2844,7 @@ void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint
 	} else {
 		status = fs_quotacontrol(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,del,&flags,&sinodes,&slength,&ssize,&srealsize,&hinodes,&hlength,&hsize,&hrealsize,&curinodes,&curlength,&cursize,&currealsize);
 	}
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_QUOTACONTROL,(status!=STATUS_OK)?5:89);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_QUOTACONTROL,(status!=STATUS_OK)?5:89);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2866,13 +2866,13 @@ void matocuserv_fuse_quotacontrol(matocuserventry *eptr,const uint8_t *data,uint
 }
 
 /*
-void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_eattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t mode,eattr,fneattr;
 	uint32_t msgid,inode,uid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=14) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_EATTR - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_EATTR - wrong size (%"PRIu32")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2882,7 +2882,7 @@ void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t le
 	mode = get8bit(&data);
 	eattr = get8bit(&data);
 	status = fs_eattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,mode,&eattr,&fneattr);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_EATTR,(status!=STATUS_OK)?5:6);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_EATTR,(status!=STATUS_OK)?5:6);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2893,21 +2893,21 @@ void matocuserv_fuse_eattr(matocuserventry *eptr,const uint8_t *data,uint32_t le
 }
 */
 
-void matocuserv_fuse_getdirstats_old(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inodes,files,dirs,chunks;
 	uint64_t leng,size,rsize;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETDIRSTATS - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_get_dir_stats(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&inodes,&dirs,&files,&chunks,&leng,&size,&rsize);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:60);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:60);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2926,21 +2926,21 @@ void matocuserv_fuse_getdirstats_old(matocuserventry *eptr,const uint8_t *data,u
 	}
 }
 
-void matocuserv_fuse_getdirstats(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getdirstats(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inodes,files,dirs,chunks;
 	uint64_t leng,size,rsize;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETDIRSTATS - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_get_dir_stats(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&inodes,&dirs,&files,&chunks,&leng,&size,&rsize);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:44);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETDIRSTATS,(status!=STATUS_OK)?5:44);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2955,19 +2955,19 @@ void matocuserv_fuse_getdirstats(matocuserventry *eptr,const uint8_t *data,uint3
 	}
 }
 
-void matocuserv_fuse_gettrash(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_gettrash(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t dleng;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETTRASH - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASH - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	status = fs_readtrash_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&dleng);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASH,(status!=STATUS_OK)?5:(4+dleng));
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETTRASH,(status!=STATUS_OK)?5:(4+dleng));
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2976,7 +2976,7 @@ void matocuserv_fuse_gettrash(matocuserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
-void matocuserv_fuse_getdetachedattr(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t attr[35];
 	uint32_t msgid;
@@ -2984,7 +2984,7 @@ void matocuserv_fuse_getdetachedattr(matocuserventry *eptr,const uint8_t *data,u
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<8 || length>9) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETDETACHEDATTR - wrong size (%"PRIu32"/8,9)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDETACHEDATTR - wrong size (%"PRIu32"/8,9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2996,7 +2996,7 @@ void matocuserv_fuse_getdetachedattr(matocuserventry *eptr,const uint8_t *data,u
 		dtype = DTYPE_UNKNOWN;
 	}
 	status = fs_getdetachedattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,attr,dtype);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETDETACHEDATTR,(status!=STATUS_OK)?5:39);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETDETACHEDATTR,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -3005,7 +3005,7 @@ void matocuserv_fuse_getdetachedattr(matocuserventry *eptr,const uint8_t *data,u
 	}
 }
 
-void matocuserv_fuse_gettrashpath(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_gettrashpath(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t pleng;
 	uint8_t *path;
@@ -3013,14 +3013,14 @@ void matocuserv_fuse_gettrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETTRASHPATH - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASHPATH - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_gettrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETTRASHPATH,(status!=STATUS_OK)?5:8+pleng+1);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETTRASHPATH,(status!=STATUS_OK)?5:8+pleng+1);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -3033,7 +3033,7 @@ void matocuserv_fuse_gettrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matocuserv_fuse_settrashpath(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_settrashpath(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	const uint8_t *path;
 	uint32_t pleng;
@@ -3041,7 +3041,7 @@ void matocuserv_fuse_settrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	uint8_t status;
 	uint8_t *ptr;
 	if (length<12) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETTRASHPATH - wrong size (%"PRIu32"/>=12)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%"PRIu32"/>=12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3049,7 +3049,7 @@ void matocuserv_fuse_settrashpath(matocuserventry *eptr,const uint8_t *data,uint
 	inode = get32bit(&data);
 	pleng = get32bit(&data);
 	if (length!=12+pleng) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_SETTRASHPATH - wrong size (%"PRIu32"/%"PRIu32")",length,12+pleng);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%"PRIu32"/%"PRIu32")",length,12+pleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3059,61 +3059,61 @@ void matocuserv_fuse_settrashpath(matocuserventry *eptr,const uint8_t *data,uint
 		pleng--;
 	}
 	status = fs_settrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,pleng,path);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_SETTRASHPATH,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHPATH,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_undel(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_undel(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t msgid;
 	uint8_t status;
 	uint8_t *ptr;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_UNDEL - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNDEL - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_undel(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_UNDEL,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_UNDEL,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
-void matocuserv_fuse_purge(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_purge(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_PURGE - wrong size (%"PRIu32"/8)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_PURGE - wrong size (%"PRIu32"/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	status = fs_purge(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_PURGE,5);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_PURGE,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 }
 
 
-void matocuserv_fuse_getreserved(matocuserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getreserved(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
 	uint32_t dleng;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CUTOMA_FUSE_GETRESERVED - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETRESERVED - wrong size (%"PRIu32"/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	status = fs_readreserved_size(eptr->sesdata->rootinode,eptr->sesdata->sesflags,&dleng);
-	ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_GETRESERVED,(status!=STATUS_OK)?5:(4+dleng));
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETRESERVED,(status!=STATUS_OK)?5:(4+dleng));
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -3124,7 +3124,7 @@ void matocuserv_fuse_getreserved(matocuserventry *eptr,const uint8_t *data,uint3
 
 
 
-void matocu_session_timedout(session *sesdata) {
+void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
 	while (fl) {
@@ -3139,7 +3139,7 @@ void matocu_session_timedout(session *sesdata) {
 	}
 }
 
-void matocu_session_check(void) {
+void matocl_session_check(void) {
 	session **sesdata,*asesdata;
 	uint32_t now;
 
@@ -3149,26 +3149,26 @@ void matocu_session_check(void) {
 //		syslog(LOG_NOTICE,"session: %u ; nsocks: %u ; state: %u ; disconnected: %u",asesdata->sessionid,asesdata->nsocks,asesdata->newsession,asesdata->disconnected);
 		if (asesdata->nsocks==0 && ((asesdata->newsession>1 && asesdata->disconnected<now) || (asesdata->newsession==1 && asesdata->disconnected+NEWSESSION_TIMEOUT<now) || (asesdata->newsession==0 && asesdata->disconnected+OLDSESSION_TIMEOUT<now))) {
 //			syslog(LOG_NOTICE,"remove session: %u",asesdata->sessionid);
-			matocu_session_timedout(asesdata);
+			matocl_session_timedout(asesdata);
 			*sesdata = asesdata->next;
 			free(asesdata);
 		} else {
 			sesdata = &(asesdata->next);
 		}
 	}
-//	matocuserv_show_notification_dirs();
+//	matoclserv_show_notification_dirs();
 }
 
-void matocu_session_statsmove(void) {
+void matocl_session_statsmove(void) {
 	session *sesdata;
 	for (sesdata = sessionshead ; sesdata ; sesdata=sesdata->next) {
 		memcpy(sesdata->lasthouropstats,sesdata->currentopstats,4*SESSION_STATS);
 		memset(sesdata->currentopstats,0,4*SESSION_STATS);
 	}
-	matocuserv_store_sessions();
+	matoclserv_store_sessions();
 }
 
-void matocu_beforedisconnect(matocuserventry *eptr) {
+void matocl_beforedisconnect(matoclserventry *eptr) {
 	chunklist *cl,*acl;
 // unlock locked chunks
 	cl=eptr->chunkdelayedops;
@@ -3190,54 +3190,54 @@ void matocu_beforedisconnect(matocuserventry *eptr) {
 		}
 	}
 /* CACHENOTIFY
-	matocuserv_notify_disconnected(eptr);
+	matoclserv_notify_disconnected(eptr);
 */
 }
 
-void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
+void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	if (type==ANTOAN_NOP) {
 		return;
 	}
 	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
 		switch (type) {
-			case CUTOMA_FUSE_REGISTER:
-				matocuserv_fuse_register(eptr,data,length);
+			case CLTOMA_FUSE_REGISTER:
+				matoclserv_fuse_register(eptr,data,length);
 				break;
-			case CUTOMA_CSERV_LIST:
-				matocuserv_cserv_list(eptr,data,length);
+			case CLTOMA_CSERV_LIST:
+				matoclserv_cserv_list(eptr,data,length);
 				break;
-			case CUTOMA_SESSION_LIST:
-				matocuserv_session_list(eptr,data,length);
+			case CLTOMA_SESSION_LIST:
+				matoclserv_session_list(eptr,data,length);
 				break;
-			case CUTOAN_CHART:
-				matocuserv_chart(eptr,data,length);
+			case CLTOAN_CHART:
+				matoclserv_chart(eptr,data,length);
 				break;
-			case CUTOAN_CHART_DATA:
-				matocuserv_chart_data(eptr,data,length);
+			case CLTOAN_CHART_DATA:
+				matoclserv_chart_data(eptr,data,length);
 				break;
-			case CUTOMA_INFO:
-				matocuserv_info(eptr,data,length);
+			case CLTOMA_INFO:
+				matoclserv_info(eptr,data,length);
 				break;
-			case CUTOMA_FSTEST_INFO:
-				matocuserv_fstest_info(eptr,data,length);
+			case CLTOMA_FSTEST_INFO:
+				matoclserv_fstest_info(eptr,data,length);
 				break;
-			case CUTOMA_CHUNKSTEST_INFO:
-				matocuserv_chunkstest_info(eptr,data,length);
+			case CLTOMA_CHUNKSTEST_INFO:
+				matoclserv_chunkstest_info(eptr,data,length);
 				break;
-			case CUTOMA_CHUNKS_MATRIX:
-				matocuserv_chunks_matrix(eptr,data,length);
+			case CLTOMA_CHUNKS_MATRIX:
+				matoclserv_chunks_matrix(eptr,data,length);
 				break;
-			case CUTOMA_QUOTA_INFO:
-				matocuserv_quota_info(eptr,data,length);
+			case CLTOMA_QUOTA_INFO:
+				matoclserv_quota_info(eptr,data,length);
 				break;
-			case CUTOMA_EXPORTS_INFO:
-				matocuserv_exports_info(eptr,data,length);
+			case CLTOMA_EXPORTS_INFO:
+				matoclserv_exports_info(eptr,data,length);
 				break;
-			case CUTOMA_MLOG_LIST:
-				matocuserv_mlog_list(eptr,data,length);
+			case CLTOMA_MLOG_LIST:
+				matoclserv_mlog_list(eptr,data,length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"matocu: got unknown message from unregistered (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"matocl: got unknown message from unregistered (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	} else if (eptr->registered<100) {	// mounts and new tools
@@ -3247,169 +3247,169 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 			return;
 		}
 		switch (type) {
-			case CUTOMA_FUSE_REGISTER:
-				matocuserv_fuse_register(eptr,data,length);
+			case CLTOMA_FUSE_REGISTER:
+				matoclserv_fuse_register(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_RESERVED_INODES:
-				matocuserv_fuse_reserved_inodes(eptr,data,length);
+			case CLTOMA_FUSE_RESERVED_INODES:
+				matoclserv_fuse_reserved_inodes(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_STATFS:
-				matocuserv_fuse_statfs(eptr,data,length);
+			case CLTOMA_FUSE_STATFS:
+				matoclserv_fuse_statfs(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_ACCESS:
-				matocuserv_fuse_access(eptr,data,length);
+			case CLTOMA_FUSE_ACCESS:
+				matoclserv_fuse_access(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_LOOKUP:
-				matocuserv_fuse_lookup(eptr,data,length);
+			case CLTOMA_FUSE_LOOKUP:
+				matoclserv_fuse_lookup(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETATTR:
-				matocuserv_fuse_getattr(eptr,data,length);
+			case CLTOMA_FUSE_GETATTR:
+				matoclserv_fuse_getattr(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETATTR:
-				matocuserv_fuse_setattr(eptr,data,length);
+			case CLTOMA_FUSE_SETATTR:
+				matoclserv_fuse_setattr(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_READLINK:
-				matocuserv_fuse_readlink(eptr,data,length);
+			case CLTOMA_FUSE_READLINK:
+				matoclserv_fuse_readlink(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SYMLINK:
-				matocuserv_fuse_symlink(eptr,data,length);
+			case CLTOMA_FUSE_SYMLINK:
+				matoclserv_fuse_symlink(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_MKNOD:
-				matocuserv_fuse_mknod(eptr,data,length);
+			case CLTOMA_FUSE_MKNOD:
+				matoclserv_fuse_mknod(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_MKDIR:
-				matocuserv_fuse_mkdir(eptr,data,length);
+			case CLTOMA_FUSE_MKDIR:
+				matoclserv_fuse_mkdir(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_UNLINK:
-				matocuserv_fuse_unlink(eptr,data,length);
+			case CLTOMA_FUSE_UNLINK:
+				matoclserv_fuse_unlink(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_RMDIR:
-				matocuserv_fuse_rmdir(eptr,data,length);
+			case CLTOMA_FUSE_RMDIR:
+				matoclserv_fuse_rmdir(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_RENAME:
-				matocuserv_fuse_rename(eptr,data,length);
+			case CLTOMA_FUSE_RENAME:
+				matoclserv_fuse_rename(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_LINK:
-				matocuserv_fuse_link(eptr,data,length);
+			case CLTOMA_FUSE_LINK:
+				matoclserv_fuse_link(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETDIR:
-				matocuserv_fuse_getdir(eptr,data,length);
+			case CLTOMA_FUSE_GETDIR:
+				matoclserv_fuse_getdir(eptr,data,length);
 				break;
 /* CACHENOTIFY
-			case CUTOMA_FUSE_DIR_REMOVED:
-				matocuserv_fuse_dir_removed(eptr,data,length);
+			case CLTOMA_FUSE_DIR_REMOVED:
+				matoclserv_fuse_dir_removed(eptr,data,length);
 				break;
 */
-			case CUTOMA_FUSE_OPEN:
-				matocuserv_fuse_open(eptr,data,length);
+			case CLTOMA_FUSE_OPEN:
+				matoclserv_fuse_open(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_READ_CHUNK:
-				matocuserv_fuse_read_chunk(eptr,data,length);
+			case CLTOMA_FUSE_READ_CHUNK:
+				matoclserv_fuse_read_chunk(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_WRITE_CHUNK:
-				matocuserv_fuse_write_chunk(eptr,data,length);
+			case CLTOMA_FUSE_WRITE_CHUNK:
+				matoclserv_fuse_write_chunk(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_WRITE_CHUNK_END:
-				matocuserv_fuse_write_chunk_end(eptr,data,length);
+			case CLTOMA_FUSE_WRITE_CHUNK_END:
+				matoclserv_fuse_write_chunk_end(eptr,data,length);
 				break;
 // fuse - meta
-			case CUTOMA_FUSE_GETTRASH:
-				matocuserv_fuse_gettrash(eptr,data,length);
+			case CLTOMA_FUSE_GETTRASH:
+				matoclserv_fuse_gettrash(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETDETACHEDATTR:
-				matocuserv_fuse_getdetachedattr(eptr,data,length);
+			case CLTOMA_FUSE_GETDETACHEDATTR:
+				matoclserv_fuse_getdetachedattr(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETTRASHPATH:
-				matocuserv_fuse_gettrashpath(eptr,data,length);
+			case CLTOMA_FUSE_GETTRASHPATH:
+				matoclserv_fuse_gettrashpath(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETTRASHPATH:
-				matocuserv_fuse_settrashpath(eptr,data,length);
+			case CLTOMA_FUSE_SETTRASHPATH:
+				matoclserv_fuse_settrashpath(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_UNDEL:
-				matocuserv_fuse_undel(eptr,data,length);
+			case CLTOMA_FUSE_UNDEL:
+				matoclserv_fuse_undel(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_PURGE:
-				matocuserv_fuse_purge(eptr,data,length);
+			case CLTOMA_FUSE_PURGE:
+				matoclserv_fuse_purge(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETRESERVED:
-				matocuserv_fuse_getreserved(eptr,data,length);
+			case CLTOMA_FUSE_GETRESERVED:
+				matoclserv_fuse_getreserved(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_CHECK:
-				matocuserv_fuse_check(eptr,data,length);
+			case CLTOMA_FUSE_CHECK:
+				matoclserv_fuse_check(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETTRASHTIME:
-				matocuserv_fuse_gettrashtime(eptr,data,length);
+			case CLTOMA_FUSE_GETTRASHTIME:
+				matoclserv_fuse_gettrashtime(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETTRASHTIME:
-				matocuserv_fuse_settrashtime(eptr,data,length);
+			case CLTOMA_FUSE_SETTRASHTIME:
+				matoclserv_fuse_settrashtime(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETGOAL:
-				matocuserv_fuse_getgoal(eptr,data,length);
+			case CLTOMA_FUSE_GETGOAL:
+				matoclserv_fuse_getgoal(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETGOAL:
-				matocuserv_fuse_setgoal(eptr,data,length);
+			case CLTOMA_FUSE_SETGOAL:
+				matoclserv_fuse_setgoal(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_APPEND:
-				matocuserv_fuse_append(eptr,data,length);
+			case CLTOMA_FUSE_APPEND:
+				matoclserv_fuse_append(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETDIRSTATS:
-				matocuserv_fuse_getdirstats_old(eptr,data,length);
+			case CLTOMA_FUSE_GETDIRSTATS:
+				matoclserv_fuse_getdirstats_old(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_TRUNCATE:
-				matocuserv_fuse_truncate(eptr,data,length);
+			case CLTOMA_FUSE_TRUNCATE:
+				matoclserv_fuse_truncate(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_REPAIR:
-				matocuserv_fuse_repair(eptr,data,length);
+			case CLTOMA_FUSE_REPAIR:
+				matoclserv_fuse_repair(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SNAPSHOT:
-				matocuserv_fuse_snapshot(eptr,data,length);
+			case CLTOMA_FUSE_SNAPSHOT:
+				matoclserv_fuse_snapshot(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETEATTR:
-				matocuserv_fuse_geteattr(eptr,data,length);
+			case CLTOMA_FUSE_GETEATTR:
+				matoclserv_fuse_geteattr(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETEATTR:
-				matocuserv_fuse_seteattr(eptr,data,length);
+			case CLTOMA_FUSE_SETEATTR:
+				matoclserv_fuse_seteattr(eptr,data,length);
 				break;
 /* do not use in version before 1.7.x */
-			case CUTOMA_FUSE_QUOTACONTROL:
-				matocuserv_fuse_quotacontrol(eptr,data,length);
+			case CLTOMA_FUSE_QUOTACONTROL:
+				matoclserv_fuse_quotacontrol(eptr,data,length);
 				break;
 /* for tools - also should be available for registered clients */
-			case CUTOMA_CSERV_LIST:
-				matocuserv_cserv_list(eptr,data,length);
+			case CLTOMA_CSERV_LIST:
+				matoclserv_cserv_list(eptr,data,length);
 				break;
-			case CUTOMA_SESSION_LIST:
-				matocuserv_session_list(eptr,data,length);
+			case CLTOMA_SESSION_LIST:
+				matoclserv_session_list(eptr,data,length);
 				break;
-			case CUTOAN_CHART:
-				matocuserv_chart(eptr,data,length);
+			case CLTOAN_CHART:
+				matoclserv_chart(eptr,data,length);
 				break;
-			case CUTOAN_CHART_DATA:
-				matocuserv_chart_data(eptr,data,length);
+			case CLTOAN_CHART_DATA:
+				matoclserv_chart_data(eptr,data,length);
 				break;
-			case CUTOMA_INFO:
-				matocuserv_info(eptr,data,length);
+			case CLTOMA_INFO:
+				matoclserv_info(eptr,data,length);
 				break;
-			case CUTOMA_FSTEST_INFO:
-				matocuserv_fstest_info(eptr,data,length);
+			case CLTOMA_FSTEST_INFO:
+				matoclserv_fstest_info(eptr,data,length);
 				break;
-			case CUTOMA_CHUNKSTEST_INFO:
-				matocuserv_chunkstest_info(eptr,data,length);
+			case CLTOMA_CHUNKSTEST_INFO:
+				matoclserv_chunkstest_info(eptr,data,length);
 				break;
-			case CUTOMA_CHUNKS_MATRIX:
-				matocuserv_chunks_matrix(eptr,data,length);
+			case CLTOMA_CHUNKS_MATRIX:
+				matoclserv_chunks_matrix(eptr,data,length);
 				break;
-			case CUTOMA_QUOTA_INFO:
-				matocuserv_quota_info(eptr,data,length);
+			case CLTOMA_QUOTA_INFO:
+				matoclserv_quota_info(eptr,data,length);
 				break;
-			case CUTOMA_EXPORTS_INFO:
-				matocuserv_exports_info(eptr,data,length);
+			case CLTOMA_EXPORTS_INFO:
+				matoclserv_exports_info(eptr,data,length);
 				break;
-			case CUTOMA_MLOG_LIST:
-				matocuserv_mlog_list(eptr,data,length);
+			case CLTOMA_MLOG_LIST:
+				matoclserv_mlog_list(eptr,data,length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"matocu: got unknown message from mfsmount (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"matocl: got unknown message from mfsmount (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	} else {	// old mfstools
@@ -3420,71 +3420,71 @@ void matocuserv_gotpacket(matocuserventry *eptr,uint32_t type,const uint8_t *dat
 		}
 		switch (type) {
 // extra (external tools)
-			case CUTOMA_FUSE_REGISTER:
-				matocuserv_fuse_register(eptr,data,length);
+			case CLTOMA_FUSE_REGISTER:
+				matoclserv_fuse_register(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
-				matocuserv_fuse_read_chunk(eptr,data,length);
+			case CLTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
+				matoclserv_fuse_read_chunk(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_CHECK:
-				matocuserv_fuse_check(eptr,data,length);
+			case CLTOMA_FUSE_CHECK:
+				matoclserv_fuse_check(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETTRASHTIME:
-				matocuserv_fuse_gettrashtime(eptr,data,length);
+			case CLTOMA_FUSE_GETTRASHTIME:
+				matoclserv_fuse_gettrashtime(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETTRASHTIME:
-				matocuserv_fuse_settrashtime(eptr,data,length);
+			case CLTOMA_FUSE_SETTRASHTIME:
+				matoclserv_fuse_settrashtime(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETGOAL:
-				matocuserv_fuse_getgoal(eptr,data,length);
+			case CLTOMA_FUSE_GETGOAL:
+				matoclserv_fuse_getgoal(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETGOAL:
-				matocuserv_fuse_setgoal(eptr,data,length);
+			case CLTOMA_FUSE_SETGOAL:
+				matoclserv_fuse_setgoal(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_APPEND:
-				matocuserv_fuse_append(eptr,data,length);
+			case CLTOMA_FUSE_APPEND:
+				matoclserv_fuse_append(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETDIRSTATS:
-				matocuserv_fuse_getdirstats(eptr,data,length);
+			case CLTOMA_FUSE_GETDIRSTATS:
+				matoclserv_fuse_getdirstats(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_TRUNCATE:
-				matocuserv_fuse_truncate(eptr,data,length);
+			case CLTOMA_FUSE_TRUNCATE:
+				matoclserv_fuse_truncate(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_REPAIR:
-				matocuserv_fuse_repair(eptr,data,length);
+			case CLTOMA_FUSE_REPAIR:
+				matoclserv_fuse_repair(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SNAPSHOT:
-				matocuserv_fuse_snapshot(eptr,data,length);
+			case CLTOMA_FUSE_SNAPSHOT:
+				matoclserv_fuse_snapshot(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_GETEATTR:
-				matocuserv_fuse_geteattr(eptr,data,length);
+			case CLTOMA_FUSE_GETEATTR:
+				matoclserv_fuse_geteattr(eptr,data,length);
 				break;
-			case CUTOMA_FUSE_SETEATTR:
-				matocuserv_fuse_seteattr(eptr,data,length);
+			case CLTOMA_FUSE_SETEATTR:
+				matoclserv_fuse_seteattr(eptr,data,length);
 				break;
 /* do not use in version before 1.7.x */
-			case CUTOMA_FUSE_QUOTACONTROL:
-				matocuserv_fuse_quotacontrol(eptr,data,length);
+			case CLTOMA_FUSE_QUOTACONTROL:
+				matoclserv_fuse_quotacontrol(eptr,data,length);
 				break;
 /* ------ */
 			default:
-				syslog(LOG_NOTICE,"matocu: got unknown message from mfstools (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"matocl: got unknown message from mfstools (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	}
 }
 
-void matocuserv_term(void) {
-	matocuserventry *eptr,*eptrn;
+void matoclserv_term(void) {
+	matoclserventry *eptr,*eptrn;
 	packetstruct *pptr,*pptrn;
 	chunklist *cl,*cln;
 	session *ss,*ssn;
 	filelist *of,*ofn;
 
-	syslog(LOG_NOTICE,"matocu: closing %s:%s",ListenHost,ListenPort);
+	syslog(LOG_NOTICE,"matocl: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
-	for (eptr = matocuservhead ; eptr ; eptr = eptrn) {
+	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
 		eptrn = eptr->next;
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
@@ -3518,7 +3518,7 @@ void matocuserv_term(void) {
 	free(ListenPort);
 }
 
-void matocuserv_read(matocuserventry *eptr) {
+void matoclserv_read(matoclserventry *eptr) {
 	int32_t i;
 	uint32_t type,size;
 	const uint8_t *ptr;
@@ -3536,7 +3536,7 @@ void matocuserv_read(matocuserventry *eptr) {
 #ifdef ECONNRESET
 				if (errno!=ECONNRESET || eptr->registered<100) {
 #endif
-					mfs_arg_errlog_silent(LOG_NOTICE,"matocu: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+					mfs_arg_errlog_silent(LOG_NOTICE,"matocl: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
 				}
 #endif
@@ -3558,7 +3558,7 @@ void matocuserv_read(matocuserventry *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"matocu: packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+					syslog(LOG_WARNING,"matocl: packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -3581,7 +3581,7 @@ void matocuserv_read(matocuserventry *eptr) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			matocuserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+			matoclserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
 			stats_prcvd++;
 
 			if (eptr->inputpacket.packet) {
@@ -3592,7 +3592,7 @@ void matocuserv_read(matocuserventry *eptr) {
 	}
 }
 
-void matocuserv_write(matocuserventry *eptr) {
+void matoclserv_write(matoclserventry *eptr) {
 	packetstruct *pack;
 	int32_t i;
 	for (;;) {
@@ -3603,7 +3603,7 @@ void matocuserv_write(matocuserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"matocu: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+				mfs_arg_errlog_silent(LOG_NOTICE,"matocl: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 				eptr->mode = KILL;
 			}
 			return;
@@ -3624,13 +3624,13 @@ void matocuserv_write(matocuserventry *eptr) {
 	}
 }
 
-void matocuserv_wantexit(void) {
+void matoclserv_wantexit(void) {
 	exiting=1;
 }
 
-int matocuserv_canexit(void) {
-	matocuserventry *eptr;
-	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
+int matoclserv_canexit(void) {
+	matoclserventry *eptr;
+	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->outputhead!=NULL) {
 			return 0;
 		}
@@ -3641,9 +3641,9 @@ int matocuserv_canexit(void) {
 	return 1;
 }
 
-void matocuserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	uint32_t pos = *ndesc;
-	matocuserventry *eptr;
+	matoclserventry *eptr;
 
 	if (exiting==0) {
 		pdesc[pos].fd = lsock;
@@ -3656,7 +3656,7 @@ void matocuserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		lsockpdescpos = -1;
 //		max = -1;
 	}
-	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
+	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		pdesc[pos].fd = eptr->sock;
 		pdesc[pos].events = 0;
 		eptr->pdescpos = pos;
@@ -3682,9 +3682,9 @@ void matocuserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 }
 
 
-void matocuserv_serve(struct pollfd *pdesc) {
+void matoclserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
-	matocuserventry *eptr,**kptr;
+	matoclserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
 
@@ -3692,14 +3692,14 @@ void matocuserv_serve(struct pollfd *pdesc) {
 //	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"matocu: accept error");
+			mfs_errlog_silent(LOG_NOTICE,"matocl: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
-			eptr = malloc(sizeof(matocuserventry));
+			eptr = malloc(sizeof(matoclserventry));
 			passert(eptr);
-			eptr->next = matocuservhead;
-			matocuservhead = eptr;
+			eptr->next = matoclservhead;
+			matoclservhead = eptr;
 			eptr->sock = ns;
 			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
@@ -3729,29 +3729,29 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 
 // read
-	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
+	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->pdescpos>=0) {
 			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
 				eptr->mode = KILL;
 			}
 			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
 				eptr->lastread = now;
-				matocuserv_read(eptr);
+				matoclserv_read(eptr);
 			}
 		}
 	}
 
 // write
-	for (eptr=matocuservhead ; eptr ; eptr=eptr->next) {
+	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
-			uint8_t *ptr = matocuserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
+			uint8_t *ptr = matoclserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
 			*((uint32_t*)ptr) = 0;
 		}
 		if (eptr->pdescpos>=0) {
 /* CACHENOTIFY
 			if (eptr->notifications) {
 				if (eptr->version>=0x010616) {
-					uint8_t *ptr = matocuserv_createpacket(eptr,MATOCU_FUSE_NOTIFY_END,4);	// transaction end
+					uint8_t *ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_NOTIFY_END,4);	// transaction end
 					*((uint32_t*)ptr) = 0;
 				}
 				eptr->notifications = 0;
@@ -3759,7 +3759,7 @@ void matocuserv_serve(struct pollfd *pdesc) {
 */
 			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
 				eptr->lastwrite = now;
-				matocuserv_write(eptr);
+				matoclserv_write(eptr);
 			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
@@ -3768,10 +3768,10 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 
 // close
-	kptr = &matocuservhead;
+	kptr = &matoclservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
-			matocu_beforedisconnect(eptr);
+			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
@@ -3793,7 +3793,7 @@ void matocuserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-void matocuserv_start_cond_check(void) {
+void matoclserv_start_cond_check(void) {
 	if (starting) {
 // very simple condition checking if all chunkservers have been connected
 // in the future master will know his chunkservers list and then this condition will be changed
@@ -3805,15 +3805,15 @@ void matocuserv_start_cond_check(void) {
 	}
 }
 
-int matocuserv_sessionsinit(void) {
+int matoclserv_sessionsinit(void) {
 	fprintf(stderr,"loading sessions ... ");
 	fflush(stderr);
 	sessionshead = NULL;
-	switch (matocuserv_load_sessions()) {
+	switch (matoclserv_load_sessions()) {
 		case 0:	// no file
 			fprintf(stderr,"file not found\n");
 			fprintf(stderr,"if it is not fresh installation then you have to restart all active mounts !!!\n");
-			matocuserv_store_sessions();
+			matoclserv_store_sessions();
 			break;
 		case 1: // file loaded
 			fprintf(stderr,"ok\n");
@@ -3827,9 +3827,15 @@ int matocuserv_sessionsinit(void) {
 	return 0;
 }
 
-int matocuserv_networkinit(void) {
-	ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
-	ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
+int matoclserv_networkinit(void) {
+	if (cfg_isdefined("MATOCL_LISTEN_HOST") || cfg_isdefined("MATOCL_LISTEN_PORT") || !(cfg_isdefined("MATOCU_LISTEN_HOST") || cfg_isdefined("MATOCU_LISTEN_HOST"))) {
+		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
+		ListenPort = cfg_getstr("MATOCL_LISTEN_PORT","9421");
+	} else {
+		fprintf(stderr,"change MATOCU_LISTEN_* option names to MATOCL_LISTEN_* !!!\n");
+		ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
+		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
+	}
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 
 	exiting = 0;
@@ -3843,7 +3849,7 @@ int matocuserv_networkinit(void) {
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"matocu: can't set accept filter");
+		mfs_errlog_silent(LOG_NOTICE,"matocl: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
@@ -3851,17 +3857,17 @@ int matocuserv_networkinit(void) {
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
 
-	matocuservhead = NULL;
+	matoclservhead = NULL;
 /* CACHENOTIFY
-	matocuserv_dircache_init();
+	matoclserv_dircache_init();
 */
 
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocuserv_start_cond_check);
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocu_session_check);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocu_session_statsmove);
-	main_destructregister(matocuserv_term);
-	main_pollregister(matocuserv_desc,matocuserv_serve);
-	main_wantexitregister(matocuserv_wantexit);
-	main_canexitregister(matocuserv_canexit);
+	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
+	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
+	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	main_destructregister(matoclserv_term);
+	main_pollregister(matoclserv_desc,matoclserv_serve);
+	main_wantexitregister(matoclserv_wantexit);
+	main_canexitregister(matoclserv_canexit);
 	return 0;
 }

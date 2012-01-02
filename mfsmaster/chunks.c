@@ -37,7 +37,7 @@
 #include "main.h"
 #include "cfg.h"
 #include "matocsserv.h"
-#include "matocuserv.h"
+#include "matoclserv.h"
 #include "random.h"
 #include "topology.h"
 #endif
@@ -1488,7 +1488,7 @@ void chunk_emergency_increase_version(chunk *c) {
 		c->operation = SET_VERSION;
 		c->version++;
 	} else {
-		matocuserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
+		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
 	}
 	fs_incversion(c->chunkid);
 }
@@ -1727,9 +1727,9 @@ void chunk_server_disconnected(void *ptr) {
 				if (valid) {
 					if (vs>0) {
 						chunk_emergency_increase_version(c);
-//						matocuserv_chunk_status(c->chunkid,STATUS_OK);
+//						matoclserv_chunk_status(c->chunkid,STATUS_OK);
 					} else {
-						matocuserv_chunk_status(c->chunkid,ERROR_NOTDONE);
+						matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
 						c->operation=NONE;
 					}
 				} else {
@@ -1869,12 +1869,12 @@ void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 			if (c->interrupted) {
 				chunk_emergency_increase_version(c);
 			} else {
-				matocuserv_chunk_status(c->chunkid,STATUS_OK);
+				matoclserv_chunk_status(c->chunkid,STATUS_OK);
 				c->operation=NONE;
 				c->needverincrease = 0;
 			}
 		} else {
-			matocuserv_chunk_status(c->chunkid,ERROR_NOTDONE);
+			matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
 			c->operation=NONE;
 		}
 	}

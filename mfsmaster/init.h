@@ -25,7 +25,7 @@
 #include "datacachemgr.h"
 #include "matomlserv.h"
 #include "matocsserv.h"
-#include "matocuserv.h"
+#include "matoclserv.h"
 #include "filesystem.h"
 #include "random.h"
 #include "changelog.h"
@@ -43,14 +43,14 @@ struct {
 } RunTab[]={
 	{changelog_init,"change log"},
 	{rnd_init,"random generator"},
-	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matocuserv_networkinit'
-	{matocuserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
+	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matoclserv_networkinit'
+	{matoclserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
 	{exports_init,"exports manager"},
 	{topology_init,"net topology module"},
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
-	{matocuserv_networkinit,"communication with clients"},
+	{matoclserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
 };

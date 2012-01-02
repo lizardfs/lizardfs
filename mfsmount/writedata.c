@@ -547,7 +547,7 @@ void* write_worker(void *arg) {
 		waitforstatus=1;
 		havedata=1;
 		wptr = sendbuff;
-		put32bit(&wptr,CUTOCS_WRITE);
+		put32bit(&wptr,CLTOCS_WRITE);
 		put32bit(&wptr,12+chainsize);
 		put64bit(&wptr,chunkid);
 		put32bit(&wptr,version);
@@ -611,7 +611,7 @@ void* write_worker(void *arg) {
 // debug:				syslog(LOG_NOTICE,"writeworker: data packet prepared (writeid:%"PRIu32",pos:%"PRIu16")",cb->writeid,cb->pos);
 					waitforstatus++;
 					wptr = sendbuff;
-					put32bit(&wptr,CUTOCS_WRITE_DATA);
+					put32bit(&wptr,CLTOCS_WRITE_DATA);
 					put32bit(&wptr,24+(cb->to-cb->from));
 					put64bit(&wptr,chunkid);
 					put32bit(&wptr,cb->writeid);
@@ -667,7 +667,7 @@ void* write_worker(void *arg) {
 					recchunkid = get64bit(&rptr);
 					recwriteid = get32bit(&rptr);
 					recstatus = get8bit(&rptr);
-					if (reccmd!=CSTOCU_WRITE_STATUS ||  recleng!=13) {
+					if (reccmd!=CSTOCL_WRITE_STATUS ||  recleng!=13) {
 						syslog(LOG_WARNING,"writeworker: got unrecognized packet from chunkserver (cmd:%"PRIu32",leng:%"PRIu32")",reccmd,recleng);
 						status=EIO;
 						break;
@@ -725,7 +725,7 @@ void* write_worker(void *arg) {
 				}
 			}
 			if (havedata && (pfd[0].revents&POLLOUT)) {
-				if (cb==NULL) {	// havedata==1 && cb==NULL means sending first packet (CUTOCS_WRITE)
+				if (cb==NULL) {	// havedata==1 && cb==NULL means sending first packet (CLTOCS_WRITE)
 					if (sent<20) {
 #ifdef HAVE_WRITEV
 						if (chainsize>0) {

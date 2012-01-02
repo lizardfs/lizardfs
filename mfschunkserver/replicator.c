@@ -576,7 +576,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	for (i=0 ; i<srccnt ; i++) {
 		if (r.repsources[i].blocks>0) {
 			uint32_t leng;
-			wptr = rep_create_packet(r.repsources+i,CUTOCS_READ,8+4+4+4);
+			wptr = rep_create_packet(r.repsources+i,CLTOCS_READ,8+4+4+4);
 			if (wptr==NULL) {
 				syslog(LOG_NOTICE,"replicator: out of memory");
 				rep_cleanup(&r);
@@ -632,7 +632,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					rep_cleanup(&r);
 					return ERROR_DISCONNECTED;
 				}
-				if (type==CSTOCU_READ_STATUS && size==9) {
+				if (type==CSTOCL_READ_STATUS && size==9) {
 					pchid = get64bit(&rptr);
 					pstatus = get8bit(&rptr);
 					rep_cleanup(&r);
@@ -646,7 +646,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					}
 					syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
 					return pstatus;
-				} else if (type==CSTOCU_READ_DATA && size==20+MFSBLOCKSIZE) {
+				} else if (type==CSTOCL_READ_DATA && size==20+MFSBLOCKSIZE) {
 					pchid = get64bit(&rptr);
 					pblocknum = get16bit(&rptr);
 					poffset = get16bit(&rptr);
@@ -760,7 +760,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			type = get32bit(&rptr);
 			size = get32bit(&rptr);
 			rptr = r.repsources[i].packet;
-			if (rptr==NULL || type!=CSTOCU_READ_STATUS || size!=9) {
+			if (rptr==NULL || type!=CSTOCL_READ_STATUS || size!=9) {
 				syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return ERROR_DISCONNECTED;

@@ -378,7 +378,7 @@ int master_register_old(int rfd) {
 	uint8_t *wptr,regbuff[8+72];
 
 	wptr = regbuff;
-	put32bit(&wptr,CUTOMA_FUSE_REGISTER);
+	put32bit(&wptr,CLTOMA_FUSE_REGISTER);
 	put32bit(&wptr,68);
 	memcpy(wptr,FUSE_REGISTER_BLOB_TOOLS_NOACL,64);
 	wptr+=64;
@@ -395,7 +395,7 @@ int master_register_old(int rfd) {
 	}
 	rptr = regbuff;
 	i = get32bit(&rptr);
-	if (i!=MATOCU_FUSE_REGISTER) {
+	if (i!=MATOCL_FUSE_REGISTER) {
 		printf("register to master: wrong answer (type)\n");
 		return -1;
 	}
@@ -417,7 +417,7 @@ int master_register(int rfd,uint32_t cuid) {
 	uint8_t *wptr,regbuff[8+73];
 
 	wptr = regbuff;
-	put32bit(&wptr,CUTOMA_FUSE_REGISTER);
+	put32bit(&wptr,CLTOMA_FUSE_REGISTER);
 	put32bit(&wptr,73);
 	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
 	wptr+=64;
@@ -436,7 +436,7 @@ int master_register(int rfd,uint32_t cuid) {
 	}
 	rptr = regbuff;
 	i = get32bit(&rptr);
-	if (i!=MATOCU_FUSE_REGISTER) {
+	if (i!=MATOCL_FUSE_REGISTER) {
 		printf("register to master: wrong answer (type)\n");
 		return -1;
 	}
@@ -760,7 +760,7 @@ int check_file(const char* fname) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_CHECK);
+	put32bit(&wptr,CLTOMA_FUSE_CHECK);
 	put32bit(&wptr,8);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -777,7 +777,7 @@ int check_file(const char* fname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_CHECK) {
+	if (cmd!=MATOCL_FUSE_CHECK) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -851,7 +851,7 @@ int get_goal(const char *fname,uint8_t mode) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_GETGOAL);
+	put32bit(&wptr,CLTOMA_FUSE_GETGOAL);
 	put32bit(&wptr,9);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -869,7 +869,7 @@ int get_goal(const char *fname,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_GETGOAL) {
+	if (cmd!=MATOCL_FUSE_GETGOAL) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -953,7 +953,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_GETTRASHTIME);
+	put32bit(&wptr,CLTOMA_FUSE_GETTRASHTIME);
 	put32bit(&wptr,9);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -971,7 +971,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_GETTRASHTIME) {
+	if (cmd!=MATOCL_FUSE_GETTRASHTIME) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1057,7 +1057,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_GETEATTR);
+	put32bit(&wptr,CLTOMA_FUSE_GETEATTR);
 	put32bit(&wptr,9);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1075,7 +1075,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_GETEATTR) {
+	if (cmd!=MATOCL_FUSE_GETEATTR) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1212,7 +1212,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	}
 	uid = getuid();
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_SETGOAL);
+	put32bit(&wptr,CLTOMA_FUSE_SETGOAL);
 	put32bit(&wptr,14);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1232,7 +1232,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_SETGOAL) {
+	if (cmd!=MATOCL_FUSE_SETGOAL) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1301,7 +1301,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	}
 	uid = getuid();
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_SETTRASHTIME);
+	put32bit(&wptr,CLTOMA_FUSE_SETTRASHTIME);
 	put32bit(&wptr,17);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1321,7 +1321,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_SETTRASHTIME) {
+	if (cmd!=MATOCL_FUSE_SETTRASHTIME) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1382,7 +1382,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 	}
 	uid = getuid();
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_SETEATTR);
+	put32bit(&wptr,CLTOMA_FUSE_SETEATTR);
 	put32bit(&wptr,14);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1402,7 +1402,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_SETEATTR) {
+	if (cmd!=MATOCL_FUSE_SETEATTR) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1470,7 +1470,7 @@ int file_info(const char *fname) {
 	indx=0;
 	do {
 		wptr = reqbuff;
-		put32bit(&wptr,CUTOMA_FUSE_READ_CHUNK);
+		put32bit(&wptr,CLTOMA_FUSE_READ_CHUNK);
 		put32bit(&wptr,12);
 		put32bit(&wptr,0);
 		put32bit(&wptr,inode);
@@ -1488,7 +1488,7 @@ int file_info(const char *fname) {
 		rptr = reqbuff;
 		cmd = get32bit(&rptr);
 		leng = get32bit(&rptr);
-		if (cmd!=MATOCU_FUSE_READ_CHUNK) {
+		if (cmd!=MATOCL_FUSE_READ_CHUNK) {
 			printf("%s [%"PRIu32"]: master query: wrong answer (type)\n",fname,indx);
 			close_master_conn(1);
 			return -1;
@@ -1582,7 +1582,7 @@ int append_file(const char *fname,const char *afname) {
 	uid = getuid();
 	gid = getgid();
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_APPEND);
+	put32bit(&wptr,CLTOMA_FUSE_APPEND);
 	put32bit(&wptr,20);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1602,7 +1602,7 @@ int append_file(const char *fname,const char *afname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_APPEND) {
+	if (cmd!=MATOCL_FUSE_APPEND) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1648,7 +1648,7 @@ int dir_info(const char *fname) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_GETDIRSTATS);
+	put32bit(&wptr,CLTOMA_FUSE_GETDIRSTATS);
 	put32bit(&wptr,8);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1665,7 +1665,7 @@ int dir_info(const char *fname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_GETDIRSTATS) {
+	if (cmd!=MATOCL_FUSE_GETDIRSTATS) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1734,7 +1734,7 @@ int file_repair(const char *fname) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_REPAIR);
+	put32bit(&wptr,CLTOMA_FUSE_REPAIR);
 	put32bit(&wptr,16);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1753,7 +1753,7 @@ int file_repair(const char *fname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_REPAIR) {
+	if (cmd!=MATOCL_FUSE_REPAIR) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1811,7 +1811,7 @@ int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_EATTR);
+	put32bit(&wptr,CLTOMA_FUSE_EATTR);
 	put32bit(&wptr,14);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1831,7 +1831,7 @@ int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_EATTR) {
+	if (cmd!=MATOCL_FUSE_EATTR) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -1908,7 +1908,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 		return -1;
 	}
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_QUOTACONTROL);
+	put32bit(&wptr,CLTOMA_FUSE_QUOTACONTROL);
 	put32bit(&wptr,(del)?9:65);
 	put32bit(&wptr,0);
 	put32bit(&wptr,inode);
@@ -1936,7 +1936,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_QUOTACONTROL) {
+	if (cmd!=MATOCL_FUSE_QUOTACONTROL) {
 		printf("%s: master query: wrong answer (type)\n",fname);
 		close_master_conn(1);
 		return -1;
@@ -2029,7 +2029,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 	uid = getuid();
 	gid = getgid();
 	wptr = reqbuff;
-	put32bit(&wptr,CUTOMA_FUSE_SNAPSHOT);
+	put32bit(&wptr,CLTOMA_FUSE_SNAPSHOT);
 	put32bit(&wptr,22+nleng);
 	put32bit(&wptr,0);
 	put32bit(&wptr,srcinode);
@@ -2053,7 +2053,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd!=MATOCU_FUSE_SNAPSHOT) {
+	if (cmd!=MATOCL_FUSE_SNAPSHOT) {
 		printf("%s->%s/%s: master query: wrong answer (type)\n",srcname,dstdir,dstbase);
 		close_master_conn(1);
 		return -1;

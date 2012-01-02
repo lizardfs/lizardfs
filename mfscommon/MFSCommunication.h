@@ -167,15 +167,15 @@
 #define TYPE_SOCKET           's'
 // 't' and 'r' are only for internal master use - they are in readdir shown as 'f'
 #define TYPE_TRASH            't'
-#define TYPE_RESERVED         'r'
+#define TYPE_RESERVED        'r'
 #define TYPE_UNKNOWN          '?'
 
-// mode mask:  "modemask" field in "CUTOMA_FUSE_ACCESS"
+// mode mask:  "modemask" field in "CLTOMA_FUSE_ACCESS"
 #define MODE_MASK_R            4
 #define MODE_MASK_W            2
 #define MODE_MASK_X            1
 
-// flags: "setmask" field in "CUTOMA_FUSE_SETATTR"
+// flags: "setmask" field in "CLTOMA_FUSE_SETATTR"
 // SET_GOAL_FLAG,SET_DELETE_FLAG are no longer supported
 // SET_LENGTH_FLAG,SET_OPENED_FLAG are deprecated
 // instead of using FUSE_SETATTR with SET_GOAL_FLAG use FUSE_SETGOAL command
@@ -194,7 +194,7 @@
 // dtypes:
 #define DTYPE_UNKNOWN          0
 #define DTYPE_TRASH            1
-#define DTYPE_RESERVED         2
+#define DTYPE_RESERVED        2
 #define DTYPE_ISVALID(x)       (((uint32_t)(x))<=2)
 
 // smode:
@@ -302,7 +302,7 @@
 	"xfs"
 
 
-// flags: "flags" fileld in "CUTOMA_FUSE_AQUIRE"
+// flags: "flags" fileld in "CLTOMA_FUSE_AQUIRE"
 #define WANT_READ 1
 #define WANT_WRITE 2
 #define AFTER_CREATE 4
@@ -488,31 +488,31 @@
 // CHUNKSERVER <-> CLIENT/CHUNKSERVER
 
 // 0x00C8
-#define CUTOCS_READ (PROTO_BASE+200)
+#define CLTOCS_READ (PROTO_BASE+200)
 // chunkid:64 version:32 offset:32 size:32
 
 // 0x00C9
-#define CSTOCU_READ_STATUS (PROTO_BASE+201)
+#define CSTOCL_READ_STATUS (PROTO_BASE+201)
 // chunkid:64 status:8
 
 // 0x00CA
-#define CSTOCU_READ_DATA (PROTO_BASE+202)
+#define CSTOCL_READ_DATA (PROTO_BASE+202)
 // chunkid:64 blocknum:16 offset:16 size:32 crc:32 size*[ databyte:8 ]
 
 // 0x00D2
-#define CUTOCS_WRITE (PROTO_BASE+210)
+#define CLTOCS_WRITE (PROTO_BASE+210)
 // chunkid:64 version:32 N*[ ip:32 port:16 ]
 
 // 0x00D3
-#define CSTOCU_WRITE_STATUS (PROTO_BASE+211)
+#define CSTOCL_WRITE_STATUS (PROTO_BASE+211)
 // chunkid:64 writeid:32 status:8
 
 // 0x00D4
-#define CUTOCS_WRITE_DATA (PROTO_BASE+212)
+#define CLTOCS_WRITE_DATA (PROTO_BASE+212)
 // chunkid:64 writeid:32 blocknum:16 offset:16 size:32 crc:32 size*[ databyte:8 ]
 
 // 0x00D5
-#define CUTOCS_WRITE_FINISH (PROTO_BASE+213)
+#define CLTOCS_WRITE_FINISH (PROTO_BASE+213)
 // chunkid:64 version:32
 
 //CHUNKSERVER <-> CHUNKSERVER
@@ -577,257 +577,257 @@
 
 
 #define FUSE_REGISTER_BLOB_NOACL       "kFh9mdZsR84l5e675v8bi54VfXaXSYozaU3DSz9AsLLtOtKipzb9aQNkxeOISx64"
-// CUTOMA:
+// CLTOMA:
 //  clientid:32 [ version:32 ]
-// MATOCU:
+// MATOCL:
 //  clientid:32
 //  status:8
 
 #define FUSE_REGISTER_BLOB_TOOLS_NOACL "kFh9mdZsR84l5e675v8bi54VfXaXSYozaU3DSz9AsLLtOtKipzb9aQNkxeOISx63"
-// CUTOMA:
+// CLTOMA:
 //  -
-// MATOCU:
+// MATOCL:
 //  status:8
 
 #define FUSE_REGISTER_BLOB_ACL         "DjI1GAQDULI5d2YjA26ypc3ovkhjvhciTQVx3CS4nYgtBoUcsljiVpsErJENHaw0"
 
 #define REGISTER_GETRANDOM 1
 // rcode==1: generate random blob
-// CUTOMA:
+// CLTOMA:
 //  rcode:8
-// MATOCU:
+// MATOCL:
 //  randomblob:32B
 
 #define REGISTER_NEWSESSION 2
 // rcode==2: first register
-// CUTOMA:
+// CLTOMA:
 //  rcode:8 version:32 ileng:32 info:ilengB pleng:32 path:plengB [ passcode:16B ]
-// MATOCU:
+// MATOCL:
 //  version:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
 //  status:8
 
 #define REGISTER_RECONNECT 3
 // rcode==3: mount reconnect
-// CUTOMA:
+// CLTOMA:
 //  rcode:8 sessionid:32 version:32
-// MATOCU:
+// MATOCL:
 //  status:8
 
 #define REGISTER_TOOLS 4
 // rcode==4: tools connect
-// CUTOMA:
+// CLTOMA:
 //  rcode:8 sessionid:32 version:32
-// MATOCU:
+// MATOCL:
 //  status:8
 
 #define REGISTER_NEWMETASESSION 5
 // rcode==5: first register
-// CUTOMA:
+// CLTOMA:
 //  rcode:8 version:32 ileng:32 info:ilengB [ passcode:16B ]
-// MATOCU:
+// MATOCL:
 //  version:32 sessionid:32 sesflags:8
 //  status:8
 
 #define REGISTER_CLOSESESSION 6
 // rcode==6: close session
-// CUTOMA:
+// CLTOMA:
 //  rcode:8 sessionid:32
-// MATOCU: -- no answer --
+// MATOCL: -- no answer --
 
 // 0x0190
-#define CUTOMA_FUSE_REGISTER (PROTO_BASE+400)
+#define CLTOMA_FUSE_REGISTER (PROTO_BASE+400)
 // blob:64B ... (depends on blob - see blob descriptions above)
 
 // 0x0191
-#define MATOCU_FUSE_REGISTER (PROTO_BASE+401)
+#define MATOCL_FUSE_REGISTER (PROTO_BASE+401)
 // depends on blob - see blob descriptions above
 
 // 0x0192
-#define CUTOMA_FUSE_STATFS (PROTO_BASE+402)
+#define CLTOMA_FUSE_STATFS (PROTO_BASE+402)
 // msgid:32 -
 
 // 0x0193
-#define MATOCU_FUSE_STATFS (PROTO_BASE+403)
+#define MATOCL_FUSE_STATFS (PROTO_BASE+403)
 // msgid:32 totalspace:64 availspace:64 trashspace:64 inodes:32
 
 // 0x0194
-#define CUTOMA_FUSE_ACCESS (PROTO_BASE+404)
+#define CLTOMA_FUSE_ACCESS (PROTO_BASE+404)
 // msgid:32 inode:32 uid:32 gid:32 modemask:8
 
 // 0x0195
-#define MATOCU_FUSE_ACCESS (PROTO_BASE+405)
+#define MATOCL_FUSE_ACCESS (PROTO_BASE+405)
 // msgid:32 status:8
 
 // 0x0196
-#define CUTOMA_FUSE_LOOKUP (PROTO_BASE+406)
+#define CLTOMA_FUSE_LOOKUP (PROTO_BASE+406)
 // msgid:32 inode:32 name:NAME uid:32 gid:32
 
 // 0x0197
-#define MATOCU_FUSE_LOOKUP (PROTO_BASE+407)
+#define MATOCL_FUSE_LOOKUP (PROTO_BASE+407)
 // msgid:32 status:8
 // msgid:32 inode:32 attr:35B
 
 // 0x0198
-#define CUTOMA_FUSE_GETATTR (PROTO_BASE+408)
+#define CLTOMA_FUSE_GETATTR (PROTO_BASE+408)
 // msgid:32 inode:32
 // msgid:32 inode:32 uid:32 gid:32
 
 // 0x0199
-#define MATOCU_FUSE_GETATTR (PROTO_BASE+409)
+#define MATOCL_FUSE_GETATTR (PROTO_BASE+409)
 // msgid:32 status:8
 // msgid:32 attr:35B
 
 // 0x019A
-#define CUTOMA_FUSE_SETATTR (PROTO_BASE+410)
+#define CLTOMA_FUSE_SETATTR (PROTO_BASE+410)
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attr:32B	- compatibility with very old version
 // msgid:32 inode:32 uid:32 gid:32 setmask:16 attr:32B  - compatibility with old version
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 - compatibility with versions < 1.6.25
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 sugidclearmode:8
 
 // 0x019B
-#define MATOCU_FUSE_SETATTR (PROTO_BASE+411)
+#define MATOCL_FUSE_SETATTR (PROTO_BASE+411)
 // msgid:32 status:8
 // msgid:32 attr:35B
 
 // 0x019C
-#define CUTOMA_FUSE_READLINK (PROTO_BASE+412)
+#define CLTOMA_FUSE_READLINK (PROTO_BASE+412)
 // msgid:32 inode:32
 
 // 0x019D
-#define MATOCU_FUSE_READLINK (PROTO_BASE+413)
+#define MATOCL_FUSE_READLINK (PROTO_BASE+413)
 // msgid:32 status:8
 // msgid:32 length:32 path:lengthB
 
 // 0x019E
-#define CUTOMA_FUSE_SYMLINK (PROTO_BASE+414)
+#define CLTOMA_FUSE_SYMLINK (PROTO_BASE+414)
 // msgid:32 inode:32 name:NAME length:32 path:lengthB uid:32 gid:32
 
 // 0x019F
-#define MATOCU_FUSE_SYMLINK (PROTO_BASE+415)
+#define MATOCL_FUSE_SYMLINK (PROTO_BASE+415)
 // msgid:32 status:8
 // msgid:32 inode:32 attr:35B
 
 // 0x01A0
-#define CUTOMA_FUSE_MKNOD (PROTO_BASE+416)
+#define CLTOMA_FUSE_MKNOD (PROTO_BASE+416)
 // msgid:32 inode:32 name:NAME type:8 mode:16 uid:32 gid:32 rdev:32
 
 // 0x01A1
-#define MATOCU_FUSE_MKNOD (PROTO_BASE+417)
+#define MATOCL_FUSE_MKNOD (PROTO_BASE+417)
 // msgid:32 status:8
 // msgid:32 inode:32 attr:35B
 
 // 0x01A2
-#define CUTOMA_FUSE_MKDIR (PROTO_BASE+418)
+#define CLTOMA_FUSE_MKDIR (PROTO_BASE+418)
 // msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 - version < 1.6.25
 // msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 copysgid:8
 
 // 0x01A3
-#define MATOCU_FUSE_MKDIR (PROTO_BASE+419)
+#define MATOCL_FUSE_MKDIR (PROTO_BASE+419)
 // msgid:32 status:8
 // msgid:32 inode:32 attr:35B
 
 // 0x01A4
-#define CUTOMA_FUSE_UNLINK (PROTO_BASE+420)
+#define CLTOMA_FUSE_UNLINK (PROTO_BASE+420)
 // msgid:32 inode:32 name:NAME uid:32 gid:32
 
 // 0x01A5
-#define MATOCU_FUSE_UNLINK (PROTO_BASE+421)
+#define MATOCL_FUSE_UNLINK (PROTO_BASE+421)
 // msgid:32 status:8
 
 // 0x01A6
-#define CUTOMA_FUSE_RMDIR (PROTO_BASE+422)
+#define CLTOMA_FUSE_RMDIR (PROTO_BASE+422)
 // msgid:32 inode:32 name:NAME uid:32 gid:32
 
 // 0x01A7
-#define MATOCU_FUSE_RMDIR (PROTO_BASE+423)
+#define MATOCL_FUSE_RMDIR (PROTO_BASE+423)
 // msgid:32 status:8
 
 // 0x01A8
-#define CUTOMA_FUSE_RENAME (PROTO_BASE+424)
+#define CLTOMA_FUSE_RENAME (PROTO_BASE+424)
 // msgid:32 inode_src:32 name_src:NAME inode_dst:32 name_dst:NAME uid:32 gid:32
 
 // 0x01A9
-#define MATOCU_FUSE_RENAME (PROTO_BASE+425)
+#define MATOCL_FUSE_RENAME (PROTO_BASE+425)
 // msgid:32 status:8
 // since 1.6.21 (after successful rename):
 // msgid:32 inode:32 attr:35B
 
 // 0x01AA
-#define CUTOMA_FUSE_LINK (PROTO_BASE+426)
+#define CLTOMA_FUSE_LINK (PROTO_BASE+426)
 // msgid:32 inode:32 inode_dst:32 name_dst:NAME uid:32 gid:32
 
 // 0x01AB
-#define MATOCU_FUSE_LINK (PROTO_BASE+427)
+#define MATOCL_FUSE_LINK (PROTO_BASE+427)
 // msgid:32 status:8
 // msgid:32 inode:32 attr:35B
 
 // 0x01AC
-#define CUTOMA_FUSE_GETDIR (PROTO_BASE+428)
+#define CLTOMA_FUSE_GETDIR (PROTO_BASE+428)
 // msgid:32 inode:32 uid:32 gid:32 - old version (works like new version with flags==0)
 // msgid:32 inode:32 uid:32 gid:32 flags:8
 
 // 0x01AD
-#define MATOCU_FUSE_GETDIR (PROTO_BASE+429)
+#define MATOCL_FUSE_GETDIR (PROTO_BASE+429)
 // msgid:32 status:8
 // msgid:32 N*[ name:NAME inode:32 type:8 ]	- when GETDIR_FLAG_WITHATTR in flags is not set
 // msgid:32 N*[ name:NAME inode:32 attr:35B ]	- when GETDIR_FLAG_WITHATTR in flags is set
 
 
 // 0x01AE
-#define CUTOMA_FUSE_OPEN (PROTO_BASE+430)
+#define CLTOMA_FUSE_OPEN (PROTO_BASE+430)
 // msgid:32 inode:32 uid:32 gid:32 flags:8
 
 // 0x01AF
-#define MATOCU_FUSE_OPEN (PROTO_BASE+431)
+#define MATOCL_FUSE_OPEN (PROTO_BASE+431)
 // msgid:32 status:8
 // since 1.6.9 if no error:
 // msgid:32 attr:35B
 
 
 // 0x01B0
-#define CUTOMA_FUSE_READ_CHUNK (PROTO_BASE+432)
+#define CLTOMA_FUSE_READ_CHUNK (PROTO_BASE+432)
 // msgid:32 inode:32 chunkindx:32
 
 // 0x01B1
-#define MATOCU_FUSE_READ_CHUNK (PROTO_BASE+433)
+#define MATOCL_FUSE_READ_CHUNK (PROTO_BASE+433)
 // msgid:32 status:8
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
 // msgid:32 length:64 srcs:8 srcs*[chunkid:64 version:32 ip:32 port:16] - not implemented
 
 // 0x01B2
-#define CUTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
+#define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
 // msgid:32 inode:32 chunkindx:32
 
 // 0x01B3
-#define MATOCU_FUSE_WRITE_CHUNK (PROTO_BASE+435)
+#define MATOCL_FUSE_WRITE_CHUNK (PROTO_BASE+435)
 // msgid:32 status:8
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
 
 // 0x01B4
-#define CUTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
+#define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
 // msgid:32 chunkid:64 inode:32 length:64
 
 // 0x01B5
-#define MATOCU_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
+#define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
 // msgid:32 status:8
 
 
 
 // 0x01B6
-#define CUTOMA_FUSE_APPEND (PROTO_BASE+438)
+#define CLTOMA_FUSE_APPEND (PROTO_BASE+438)
 // msgid:32 inode:32 srcinode:32 uid:32 gid:32 - append to existing element
 
 // 0x01B7
-#define MATOCU_FUSE_APPEND (PROTO_BASE+439)
+#define MATOCL_FUSE_APPEND (PROTO_BASE+439)
 // msgid:32 status:8
 
 
 // 0x01B8
-#define CUTOMA_FUSE_CHECK (PROTO_BASE+440)
+#define CLTOMA_FUSE_CHECK (PROTO_BASE+440)
 // msgid:32 inode:32
 
 // 0x01B9
-#define MATOCU_FUSE_CHECK (PROTO_BASE+441)
+#define MATOCL_FUSE_CHECK (PROTO_BASE+441)
 // msgid:32 status:8
 // up to version 1.6.22:
 //	msgid:32 N*[ copies:8 chunks:16 ]
@@ -836,198 +836,198 @@
 
 
 // 0x01BA
-#define CUTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
+#define CLTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
 // msgid:32 inode:32 gmode:8
 
 // 0x01BB
-#define MATOCU_FUSE_GETTRASHTIME (PROTO_BASE+443)
+#define MATOCL_FUSE_GETTRASHTIME (PROTO_BASE+443)
 // msgid:32 status:8
 // msgid:32 tdirs:32 tfiles:32 tdirs*[ trashtime:32 dirs:32 ] tfiles*[ trashtime:32 files:32 ]
 
 
 // 0x01BC
-#define CUTOMA_FUSE_SETTRASHTIME (PROTO_BASE+444)
+#define CLTOMA_FUSE_SETTRASHTIME (PROTO_BASE+444)
 // msgid:32 inode:32 uid:32 trashtimeout:32 smode:8
 
 // 0x01BD
-#define MATOCU_FUSE_SETTRASHTIME (PROTO_BASE+445)
+#define MATOCL_FUSE_SETTRASHTIME (PROTO_BASE+445)
 // msgid:32 status:8
 // msgid:32 changed:32 notchanged:32 notpermitted:32
 
 
 // 0x01BE
-#define CUTOMA_FUSE_GETGOAL (PROTO_BASE+446)
+#define CLTOMA_FUSE_GETGOAL (PROTO_BASE+446)
 // msgid:32 inode:32 gmode:8
 
 // 0x01BF
-#define MATOCU_FUSE_GETGOAL (PROTO_BASE+447)
+#define MATOCL_FUSE_GETGOAL (PROTO_BASE+447)
 // msgid:32 status:8
 // msgid:32 gdirs:8 gfiles:8 gdirs*[ goal:8 dirs:32 ] gfiles*[ goal:8 files:32 ]
 
 
 // 0x01C0
-#define CUTOMA_FUSE_SETGOAL (PROTO_BASE+448)
+#define CLTOMA_FUSE_SETGOAL (PROTO_BASE+448)
 // msgid:32 inode:32 uid:32 goal:8 smode:8
 
 // 0x01C1
-#define MATOCU_FUSE_SETGOAL (PROTO_BASE+449)
+#define MATOCL_FUSE_SETGOAL (PROTO_BASE+449)
 // msgid:32 status:8
 // msgid:32 changed:32 notchanged:32 notpermitted:32
 
 
 // 0x01C2
-#define CUTOMA_FUSE_GETTRASH (PROTO_BASE+450)
+#define CLTOMA_FUSE_GETTRASH (PROTO_BASE+450)
 // msgid:32
 
 // 0x01C3
-#define MATOCU_FUSE_GETTRASH (PROTO_BASE+451)
+#define MATOCL_FUSE_GETTRASH (PROTO_BASE+451)
 // msgid:32 status:8
 // msgid:32 N*[ name:NAME inode:32 ]
 
 
 // 0x01C4
-#define CUTOMA_FUSE_GETDETACHEDATTR (PROTO_BASE+452)
+#define CLTOMA_FUSE_GETDETACHEDATTR (PROTO_BASE+452)
 // msgid:32 inode:32 dtype:8
 
 // 0x01C5
-#define MATOCU_FUSE_GETDETACHEDATTR (PROTO_BASE+453)
+#define MATOCL_FUSE_GETDETACHEDATTR (PROTO_BASE+453)
 // msgid:32 status:8
 // msgid:32 attr:35B
 
 
 // 0x01C6
-#define CUTOMA_FUSE_GETTRASHPATH (PROTO_BASE+454)
+#define CLTOMA_FUSE_GETTRASHPATH (PROTO_BASE+454)
 // msgid:32 inode:32
 
 // 0x01C7
-#define MATOCU_FUSE_GETTRASHPATH (PROTO_BASE+455)
+#define MATOCL_FUSE_GETTRASHPATH (PROTO_BASE+455)
 // msgid:32 status:8
 // msgid:32 length:32 path:lengthB
 
 
 // 0x01C8
-#define CUTOMA_FUSE_SETTRASHPATH (PROTO_BASE+456)
+#define CLTOMA_FUSE_SETTRASHPATH (PROTO_BASE+456)
 // msgid:32 inode:32 length:32 path:lengthB
 
 // 0x01C9
-#define MATOCU_FUSE_SETTRASHPATH (PROTO_BASE+457)
+#define MATOCL_FUSE_SETTRASHPATH (PROTO_BASE+457)
 // msgid:32 status:8
 
 
 // 0x01CA
-#define CUTOMA_FUSE_UNDEL (PROTO_BASE+458)
+#define CLTOMA_FUSE_UNDEL (PROTO_BASE+458)
 // msgid:32 inode:32
 
 // 0x01CB
-#define MATOCU_FUSE_UNDEL (PROTO_BASE+459)
+#define MATOCL_FUSE_UNDEL (PROTO_BASE+459)
 // msgid:32 status:8
 
 
 // 0x01CC
-#define CUTOMA_FUSE_PURGE (PROTO_BASE+460)
+#define CLTOMA_FUSE_PURGE (PROTO_BASE+460)
 // msgid:32 inode:32
 
 // 0x01CD
-#define MATOCU_FUSE_PURGE (PROTO_BASE+461)
+#define MATOCL_FUSE_PURGE (PROTO_BASE+461)
 // msgid:32 status:8
 
 
 // 0x01CE
-#define CUTOMA_FUSE_GETDIRSTATS (PROTO_BASE+462)
+#define CLTOMA_FUSE_GETDIRSTATS (PROTO_BASE+462)
 // msgid:32 inode:32
 
 // 0x01CF
-#define MATOCU_FUSE_GETDIRSTATS (PROTO_BASE+463)
+#define MATOCL_FUSE_GETDIRSTATS (PROTO_BASE+463)
 // msgid:32 status:8
 // msgid:32 inodes:32 dirs:32 files:32 ugfiles:32 mfiles:32 chunks:32 ugchunks:32 mchunks32 length:64 size:64 gsize:64
 
 
 // 0x01D0
-#define CUTOMA_FUSE_TRUNCATE (PROTO_BASE+464)
+#define CLTOMA_FUSE_TRUNCATE (PROTO_BASE+464)
 // msgid:32 inode:32 [opened:8] uid:32 gid:32 opened:8 length:64
 
 // 0x01D1
-#define MATOCU_FUSE_TRUNCATE (PROTO_BASE+465)
+#define MATOCL_FUSE_TRUNCATE (PROTO_BASE+465)
 // msgid:32 status:8
 // msgid:32 attr:35B
 
 
 // 0x01D2
-#define CUTOMA_FUSE_REPAIR (PROTO_BASE+466)
+#define CLTOMA_FUSE_REPAIR (PROTO_BASE+466)
 // msgid:32 inode:32 uid:32 gid:32
 
 // 0x01D3
-#define MATOCU_FUSE_REPAIR (PROTO_BASE+467)
+#define MATOCL_FUSE_REPAIR (PROTO_BASE+467)
 // msgid:32 status:8
 // msgid:32 notchanged:32 erased:32 repaired:32
 
 
 // 0x01D4
-#define CUTOMA_FUSE_SNAPSHOT (PROTO_BASE+468)
+#define CLTOMA_FUSE_SNAPSHOT (PROTO_BASE+468)
 // msgid:32 inode:32 inode_dst:32 name_dst:NAME uid:32 gid:32 canoverwrite:8
 
 // 0x01D5
-#define MATOCU_FUSE_SNAPSHOT (PROTO_BASE+469)
+#define MATOCL_FUSE_SNAPSHOT (PROTO_BASE+469)
 // msgid:32 status:8
 
 
 // 0x01D6
-#define CUTOMA_FUSE_GETRESERVED (PROTO_BASE+470)
+#define CLTOMA_FUSE_GETRESERVED (PROTO_BASE+470)
 // msgid:32
 
 // 0x01D7
-#define MATOCU_FUSE_GETRESERVED (PROTO_BASE+471)
+#define MATOCL_FUSE_GETRESERVED (PROTO_BASE+471)
 // msgid:32 status:8
 // msgid:32 N*[ name:NAME inode:32 ]
 
 
 // 0x01D8
-#define CUTOMA_FUSE_GETEATTR (PROTO_BASE+472)
+#define CLTOMA_FUSE_GETEATTR (PROTO_BASE+472)
 // msgid:32 inode:32 gmode:8
 
 // 0x01D9
-#define MATOCU_FUSE_GETEATTR (PROTO_BASE+473)
+#define MATOCL_FUSE_GETEATTR (PROTO_BASE+473)
 // msgid:32 status:8
 // msgid:32 eattrdirs:8 eattrfiles:8 eattrdirs*[ eattr:8 dirs:32 ] eattrfiles*[ eattr:8 files:32 ]
 
 
 // 0x01DA
-#define CUTOMA_FUSE_SETEATTR (PROTO_BASE+474)
+#define CLTOMA_FUSE_SETEATTR (PROTO_BASE+474)
 // msgid:32 inode:32 uid:32 eattr:8 smode:8
 
 // 0x01DB
-#define MATOCU_FUSE_SETEATTR (PROTO_BASE+475)
+#define MATOCL_FUSE_SETEATTR (PROTO_BASE+475)
 // msgid:32 status:8
 // msgid:32 changed:32 notchanged:32 notpermitted:32
 
 
 // 0x01DC
-#define CUTOMA_FUSE_QUOTACONTROL (PROTO_BASE+476)
+#define CLTOMA_FUSE_QUOTACONTROL (PROTO_BASE+476)
 // msgid:32 inode:32 qflags:8 - delete quota
 // msgid:32 inode:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 - set quota
 
 // 0x01DD
-#define MATOCU_FUSE_QUOTACONTROL (PROTO_BASE+477)
+#define MATOCL_FUSE_QUOTACONTROL (PROTO_BASE+477)
 // msgid:32 status:8
 // msgid:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 curinodes:32 curlength:64 cursize:64 currealsize:64
 
 
 // 0x01DE
-#define CUTOMA_FUSE_SETXATTR (PROTO_BASE+478)
+#define CLTOMA_FUSE_SETXATTR (PROTO_BASE+478)
 // msgid:32 inode:32 name:NAME vleng:16 value:8[VLENG] mode:8
 //   empty value = remove xattr
 
 // 0x01DF
-#define MATOCU_FUSE_SETXATTR (PROTO_BASE+479)
+#define MATOCL_FUSE_SETXATTR (PROTO_BASE+479)
 // msgid:32 status:8 
 
 // 0x01E0
-#define CUTOMA_FUSE_GETXATTR (PROTO_BASE+480)
+#define CLTOMA_FUSE_GETXATTR (PROTO_BASE+480)
 // msgid:32 inode:32 name:NAME
 //   empty name = list names
 
 // 0x01E1
-#define MATOCU_FUSE_GETXATTR (PROTO_BASE+481)
+#define MATOCL_FUSE_GETXATTR (PROTO_BASE+481)
 // msgid:32 status:8
 // msgid:32 vleng:16 valur:8[VLENG]
 
@@ -1036,43 +1036,43 @@
 /* Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
 // 0x01EA
-#define CUTOMA_FUSE_DIR_REMOVED (PROTO_BASE+490)
+#define CLTOMA_FUSE_DIR_REMOVED (PROTO_BASE+490)
 // msgid:32 N*[ inode:32 ]
 
 // attributes of inode have changed
 // 0x01EB
-#define MATOCU_FUSE_NOTIFY_ATTR (PROTO_BASE+491)
+#define MATOCL_FUSE_NOTIFY_ATTR (PROTO_BASE+491)
 // msgid:32 N*[ inode:32 attr:35B ]
 
 // new entry has been added
 // 0x01EC
-#define MATOCU_FUSE_NOTIFY_LINK (PROTO_BASE+492)
+#define MATOCL_FUSE_NOTIFY_LINK (PROTO_BASE+492)
 // msgid:32 timestamp:32 N*[ parent:32 name:NAME inode:32 attr:35B ]
 
 // entry has been deleted
 // 0x01ED
-#define MATOCU_FUSE_NOTIFY_UNLINK (PROTO_BASE+493)
+#define MATOCL_FUSE_NOTIFY_UNLINK (PROTO_BASE+493)
 // msgid:32 timestamp:32 N*[ parent:32 name:NAME ]
 
 // whole directory needs to be removed
 // 0x01EE
-#define MATOCU_FUSE_NOTIFY_REMOVE (PROTO_BASE+494)
+#define MATOCL_FUSE_NOTIFY_REMOVE (PROTO_BASE+494)
 // msgid:32 N*[ inode:32 ]
 
 // parent inode has changed
 // 0x01EF
-#define MATOCU_FUSE_NOTIFY_PARENT (PROTO_BASE+495)
+#define MATOCL_FUSE_NOTIFY_PARENT (PROTO_BASE+495)
 // msgid:32 N*[ inode:32 parent:32 ]
 
 // last notification
 // 0x01F0
-#define MATOCU_FUSE_NOTIFY_END (PROTO_BASE+496)
+#define MATOCL_FUSE_NOTIFY_END (PROTO_BASE+496)
 // msgid:32
 */
 
 // special - reserved (opened) inodes - keep opened files.
 // 0x01F3
-#define CUTOMA_FUSE_RESERVED_INODES (PROTO_BASE+499)
+#define CLTOMA_FUSE_RESERVED_INODES (PROTO_BASE+499)
 // N*[ inode:32 ]
 
 
@@ -1082,116 +1082,116 @@
 
 
 // 0x001F4
-#define CUTOMA_CSERV_LIST (PROTO_BASE+500)
+#define CLTOMA_CSERV_LIST (PROTO_BASE+500)
 // -
 
 // 0x001F5
-#define MATOCU_CSERV_LIST (PROTO_BASE+501)
+#define MATOCL_CSERV_LIST (PROTO_BASE+501)
 // 	N*[ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32 ]
 // since version 1.5.13:
 // 	N*[version:32 ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32 ]
 
 
 // 0x001F6
-#define CUTOCS_HDD_LIST_V1 (PROTO_BASE+502)
+#define CLTOCS_HDD_LIST_V1 (PROTO_BASE+502)
 // -
 
 // 0x001F7
-#define CSTOCU_HDD_LIST_V1 (PROTO_BASE+503)
+#define CSTOCL_HDD_LIST_V1 (PROTO_BASE+503)
 // N*[ path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 ]
 
 
 // 0x001F8
-#define CUTOAN_CHART (PROTO_BASE+504)
+#define CLTOAN_CHART (PROTO_BASE+504)
 // chartid:32
 
 // 0x001F9
-#define ANTOCU_CHART (PROTO_BASE+505)
+#define ANTOCL_CHART (PROTO_BASE+505)
 // chart:GIF
 
 
 // 0x001FA
-#define CUTOAN_CHART_DATA (PROTO_BASE+506)
+#define CLTOAN_CHART_DATA (PROTO_BASE+506)
 // chartid:32
 
 // 0x001FB
-#define ANTOCU_CHART_DATA (PROTO_BASE+507)
+#define ANTOCL_CHART_DATA (PROTO_BASE+507)
 // time:32 N*[ data:64 ]
 
 
 // 0x001FC
-#define CUTOMA_SESSION_LIST (PROTO_BASE+508)
+#define CLTOMA_SESSION_LIST (PROTO_BASE+508)
 // -
 
 // 0x001FD
-#define MATOCU_SESSION_LIST (PROTO_BASE+509)
+#define MATOCL_SESSION_LIST (PROTO_BASE+509)
 // N*[ip:32 version:32 ]
 
 
 // 0x001FE
-#define CUTOMA_INFO (PROTO_BASE+510)
+#define CLTOMA_INFO (PROTO_BASE+510)
 // -
 
 // 0x001FF
-#define MATOCU_INFO (PROTO_BASE+511)
+#define MATOCL_INFO (PROTO_BASE+511)
 // 	totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 tdchunks:32
 // since version 1.5.13:
 // 	version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 tdcopies:32
 
 
 // 0x00200
-#define CUTOMA_FSTEST_INFO (PROTO_BASE+512)
+#define CLTOMA_FSTEST_INFO (PROTO_BASE+512)
 // -
 
 // 0x00201
-#define MATOCU_FSTEST_INFO (PROTO_BASE+513)
+#define MATOCL_FSTEST_INFO (PROTO_BASE+513)
 // 	loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 chunks:32 ugchunks:32 mchunks:32 msgleng:32 msgleng*[ char:8]
 // since version 1.5.13
 // 	loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 msgleng:32 msgleng*[ char:8]
 
 
 // 0x00202
-#define CUTOMA_CHUNKSTEST_INFO (PROTO_BASE+514)
+#define CLTOMA_CHUNKSTEST_INFO (PROTO_BASE+514)
 // -
 
 // 0x00203
-#define MATOCU_CHUNKSTEST_INFO (PROTO_BASE+515)
+#define MATOCL_CHUNKSTEST_INFO (PROTO_BASE+515)
 // loopstart:32 loopend:32 del_invalid:32 nodel_invalid:32 del_unused:32 nodel_unused:32 del_diskclean:32 nodel_diskclean:32 del_overgoal:32 nodel_overgoal:32 copy_undergoal:32 nocopy_undergoal:32 copy_rebalance:32
 
 
 // 0x00204
-#define CUTOMA_CHUNKS_MATRIX (PROTO_BASE+516)
+#define CLTOMA_CHUNKS_MATRIX (PROTO_BASE+516)
 // [matrix_id:8]
 
 // 0x00205
-#define MATOCU_CHUNKS_MATRIX (PROTO_BASE+517)
+#define MATOCL_CHUNKS_MATRIX (PROTO_BASE+517)
 // 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
 
 
 // 0x00206
-#define CUTOMA_QUOTA_INFO (PROTO_BASE+518)
+#define CLTOMA_QUOTA_INFO (PROTO_BASE+518)
 // -
 
 // 0x00207
-#define MATOCU_QUOTA_INFO (PROTO_BASE+519)
+#define MATOCL_QUOTA_INFO (PROTO_BASE+519)
 // quota_time_limit:32 N * [ inode:32 pleng:32 path:plengB exceeded:8 qflags:8 stimestamp:32 sinodes:32 slength:64 ssize:64 sgoalsize:64 hinodes:32 hlength:64 hsize:64 hgoalsize:64 currinodes:32 currlength:64 currsize:64 currgoalsize:64 ]
 
 
 // 0x00208
-#define CUTOMA_EXPORTS_INFO (PROTO_BASE+520)
+#define CLTOMA_EXPORTS_INFO (PROTO_BASE+520)
 // -
 
 // 0x00209
-#define MATOCU_EXPORTS_INFO (PROTO_BASE+521)
+#define MATOCL_EXPORTS_INFO (PROTO_BASE+521)
 // N * [ fromip:32 toip:32 pleng:32 path:plengB extraflags:8 sesflags:8 rootuid:32 rootgid:32 ]
 
 
 // 0x0020A
-#define CUTOMA_MLOG_LIST (PROTO_BASE+522)
+#define CLTOMA_MLOG_LIST (PROTO_BASE+522)
 // -
 
 // 0x0020B
-#define MATOCU_MLOG_LIST (PROTO_BASE+523)
+#define MATOCL_MLOG_LIST (PROTO_BASE+523)
 // N * [ version:32 ip:32 ]
 
 
@@ -1199,11 +1199,11 @@
 
 
 // 0x00258
-#define CUTOCS_HDD_LIST_V2 (PROTO_BASE+600)
+#define CLTOCS_HDD_LIST_V2 (PROTO_BASE+600)
 // -
 
 // 0x00259
-#define CSTOCU_HDD_LIST_V2 (PROTO_BASE+601)
+#define CSTOCL_HDD_LIST_V2 (PROTO_BASE+601)
 // N*[ entrysize:16 path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 bytesread:64 usecread:64 usecreadmax:64 byteswriten:64 usecwrite:64 usecwritemax:64]
 
 #endif
