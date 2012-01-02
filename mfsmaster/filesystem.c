@@ -1381,8 +1381,8 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
-		p->data.ddata.quota = NULL;
 #endif
+		p->data.ddata.quota = NULL;
 		p->data.ddata.children = NULL;
 		p->data.ddata.nlink = 2;
 		p->data.ddata.elements = 0;
@@ -7053,8 +7053,8 @@ int fs_loadnode(FILE *fd) {
 		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
-		p->data.ddata.quota = NULL;
 #endif
+		p->data.ddata.quota = NULL;
 		p->data.ddata.children = NULL;
 		p->data.ddata.nlink = 2;
 		p->data.ddata.elements = 0;
