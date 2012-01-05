@@ -57,6 +57,12 @@ user and group (see notes below).
 \fBminversion=\fP\fIVER\fP
 rejects access from clients older than specified
 .TP
+\fBmingoal=\fP\fIN\fP, \fBmaxgoal=\fP\fIN\fP
+specify range in which goal can be set by users
+.TP
+\fBmintrashtime=\fP\fITDUR\fP, \fBmaxtrashtime=\fP\fITDUR\fP
+specify range in which trashtime can be set by users
+.TP
 \fBpassword=\fP\fIPASS\fP, \fBmd5pass=\fP\fIMD5\fP
 requires password authentication in order to access specified resource
 .TP
@@ -68,6 +74,11 @@ Default options are: \fBro,maproot=999:999\fP.
 \fIUSER\fP and \fIGROUP\fP names (if not specified by explicit uid/gid
 number) are resolved on \fBmfsmaster\fP host.
 .PP
+TDUR can be specified as number without time unit (number of seconds) or
+combination of numbers with time units. Time units are:
+\fBW\fP,\fBD\fP,\fBH\fP,\fBM\fP,\fBS\fP. Order is important - less
+significant time units can't be defined before more significant time units.
+.PP
 Option \fBmapall\fP works in MooseFS in different way than in NFS, because of
 using FUSE's "default_permissions" option. When mapall option is used, users
 see all objects with uid equal to mapped uid as their own and all other as
@@ -75,6 +86,16 @@ root's objects. Similarly objects with gid equal to mapped gid are seen as
 objects with current user's primary group and all other objects as objects
 with group 0 (usually wheel). With \fBmapall\fP option set attribute cache
 in kernel is always turned off.
+.SH EXAMPLES
+.nf
+.ta +2i
+\fB*                    /       ro\fP
+\fB192.168.1.0/24       /       rw\fP
+\fB192.168.1.0/24       /       rw,alldirs,maproot=0,password=passcode\fP
+\fB10.0.0.0-10.0.0.5    /test   rw,maproot=nobody,password=test\fP
+\fB10.1.0.0/255.255.0.0 /public rw,mapall=1000:1000\fP
+\fB10.2.0.0/16          /       rw,alldirs,maproot=0,mintrashtime=2h30m,maxtrashtime=2w\fP
+.fi
 .SH COPYRIGHT
 Copyright 2008-2009 Gemius SA.
 

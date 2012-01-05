@@ -167,7 +167,7 @@
 #define TYPE_SOCKET           's'
 // 't' and 'r' are only for internal master use - they are in readdir shown as 'f'
 #define TYPE_TRASH            't'
-#define TYPE_RESERVED        'r'
+#define TYPE_RESERVED         'r'
 #define TYPE_UNKNOWN          '?'
 
 // mode mask:  "modemask" field in "CLTOMA_FUSE_ACCESS"
@@ -194,7 +194,7 @@
 // dtypes:
 #define DTYPE_UNKNOWN          0
 #define DTYPE_TRASH            1
-#define DTYPE_RESERVED        2
+#define DTYPE_RESERVED         2
 #define DTYPE_ISVALID(x)       (((uint32_t)(x))<=2)
 
 // smode:

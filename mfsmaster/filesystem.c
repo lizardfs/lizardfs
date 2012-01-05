@@ -7866,8 +7866,8 @@ void fs_new(void) {
 	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
 	root->data.ddata.stats = sr;
-	root->data.ddata.quota = NULL;
 // #endif
+	root->data.ddata.quota = NULL;
 	root->data.ddata.children = NULL;
 	root->data.ddata.elements = 0;
 	root->data.ddata.nlink = 2;

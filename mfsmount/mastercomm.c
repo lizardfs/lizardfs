@@ -763,7 +763,7 @@ int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 	return 0;
 }
 
-int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid,uint8_t *mingoal,uint8_t *maxgoal,uint32_t *mintrashtime,uint32_t *maxtrashtime) {
 	uint32_t i;
 	uint8_t *wptr,*regbuff;
 	md5ctx ctx;
@@ -956,7 +956,7 @@ int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 		return -1;
 	}
 	i = get32bit(&rptr);
-	if (!(i==1 || (meta && (i==5 || i==9)) || (meta==0 && (i==13 || i==21 || i==25)))) {
+	if (!(i==1 || (meta && (i==5 || i==9 || i==19)) || (meta==0 && (i==13 || i==21 || i==25 || i==35)))) {
 		if (oninit) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
@@ -990,7 +990,7 @@ int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 		free(regbuff);
 		return -1;
 	}
-	if (i==9 || i==25) {
+	if (i==9 || i==19 || i==25 || i==35) {
 		masterversion = get32bit(&rptr);
 //		dir_cache_master_switch((masterversion<0x010615)?0:(masterversion<0x010616)?1:2);
 	} else {
@@ -1032,6 +1032,41 @@ int fs_connect(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 			if (mapallgid) {
 				*mapallgid = 0;
 			}
+		}
+	}
+	if (i==19 || i==35) {
+		if (mingoal) {
+			*mingoal = get8bit(&rptr);
+		} else {
+			rptr++;
+		}
+		if (maxgoal) {
+			*maxgoal = get8bit(&rptr);
+		} else {
+			rptr++;
+		}
+		if (mintrashtime) {
+			*mintrashtime = get32bit(&rptr);
+		} else {
+			rptr+=4;
+		}
+		if (maxtrashtime) {
+			*maxtrashtime = get32bit(&rptr);
+		} else {
+			rptr+=4;
+		}
+	} else {
+		if (mingoal) {
+			*mingoal = 0;
+		}
+		if (maxgoal) {
+			*maxgoal = 0;
+		}
+		if (mintrashtime) {
+			*mintrashtime = 0;
+		}
+		if (maxtrashtime) {
+			*maxtrashtime = 0;
 		}
 	}
 	free(regbuff);
@@ -1262,7 +1297,7 @@ void* fs_receive_thread(void *arg) {
 		}
 		if (fd==-1) {	// still not connected
 			if (sessionlost) {	// if previous session is lost then try to register as a new session
-				if (fs_connect(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname,connect_args.meta,connect_args.info,connect_args.subfolder,connect_args.passworddigest,NULL,NULL,NULL,NULL,NULL)==0) {
+				if (fs_connect(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname,connect_args.meta,connect_args.info,connect_args.subfolder,connect_args.passworddigest,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)==0) {
 					sessionlost=0;
 				}
 			} else {	// if other problem occured then try to resolve hostname and portname then try to reconnect using the same session id
@@ -1426,7 +1461,7 @@ void* fs_receive_thread(void *arg) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t *flags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid,uint8_t *mingoal,uint8_t *maxgoal,uint32_t *mintrashtime,uint32_t *maxtrashtime) {
 	master_statsptr_init();
 
 	fd = -1;
@@ -1451,7 +1486,7 @@ int fs_init_master_connection(const char *bindhostname,const char *masterhostnam
 		memcpy(connect_args.passworddigest,passworddigest,16);
 	}
 
-	return fs_connect(1,bindhostname,masterhostname,masterportname,meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid);
+	return fs_connect(1,bindhostname,masterhostname,masterportname,meta,info,subfolder,passworddigest,flags,rootuid,rootgid,mapalluid,mapallgid,mingoal,maxgoal,mintrashtime,maxtrashtime);
 }
 
 // called after fork

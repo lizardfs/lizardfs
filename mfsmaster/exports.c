@@ -48,6 +48,10 @@ typedef struct _exports {
 	unsigned rootredefined:1;
 //	unsigned old:1;
 	uint8_t sesflags;
+	uint8_t mingoal;
+	uint8_t maxgoal;
+	uint32_t mintrashtime;
+	uint32_t maxtrashtime;
 	uint32_t rootuid;
 	uint32_t rootgid;
 	uint32_t mapalluid;
@@ -88,20 +92,20 @@ char* exports_strsep(char **stringp, const char *delim) {
 }
 
 
-uint32_t exports_info_size(void) {
+uint32_t exports_info_size(uint8_t versmode) {
 	exports *e;
 	uint32_t size=0;
 	for (e=exports_records ; e ; e=e->next) {
 		if (e->meta) {
-			size+=35;
+			size+=35+((versmode)?10:0);
 		} else {
-			size+=35+e->pleng;
+			size+=35+((versmode)?10:0)+e->pleng;
 		}
 	}
 	return size;
 }
 
-void exports_info_data(uint8_t *buff) {
+void exports_info_data(uint8_t versmode,uint8_t *buff) {
 	exports *e;
 	for (e=exports_records ; e ; e=e->next) {
 		put32bit(&buff,e->fromip);
@@ -124,10 +128,16 @@ void exports_info_data(uint8_t *buff) {
 		put32bit(&buff,e->rootgid);
 		put32bit(&buff,e->mapalluid);
 		put32bit(&buff,e->mapallgid);
+		if (versmode) {
+			put8bit(&buff,e->mingoal);
+			put8bit(&buff,e->maxgoal);
+			put32bit(&buff,e->mintrashtime);
+			put32bit(&buff,e->maxtrashtime);
+		}
 	}
 }
 
-uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid) {
+uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid,uint8_t *mingoal,uint8_t *maxgoal,uint32_t *mintrashtime,uint32_t *maxtrashtime) {
 	const uint8_t *p;
 	uint32_t pleng,i;
 	uint8_t rndstate;
@@ -241,6 +251,10 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	*rootgid = f->rootgid;
 	*mapalluid = f->mapalluid;
 	*mapallgid = f->mapallgid;
+	*mingoal = f->mingoal;
+	*maxgoal = f->maxgoal;
+	*mintrashtime = f->mintrashtime;
+	*maxtrashtime = f->maxtrashtime;
 	return STATUS_OK;
 }
 
@@ -268,6 +282,10 @@ void exports_freelist(exports *arec) {
 //  dynamicip
 //  ignoregid
 //  canchangequota
+//  mingoal=#
+//  maxgoal=#
+//  mintrashtime=[#w][#d][#h][#m][#[s]]
+//  maxtrashtime=[#w][#d][#h][#m][#[s]]
 //
 // ip[/bits] can be '*' (same as 0.0.0.0/0)
 //
@@ -387,6 +405,101 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	return -1;
 }
 
+int exports_parsegoal(char *goalstr,uint8_t *goal) {
+	if (*goalstr<'1' || *goalstr>'9' || *(goalstr+1)) {
+		return -1;
+	}
+	*goal = *goalstr-'0';
+	return 0;
+}
+
+// # | [#w][#d][#h][#m][#s]
+int exports_parsetime(char *timestr,uint32_t *time) {
+	uint64_t t;
+	uint64_t tp;
+	uint8_t bits;
+	char *p;
+	for (p=timestr ; *p ; p++) {
+		if (*p>='a' && *p<='z') {
+			*p -= ('a'-'A');
+		}
+	}
+	t = 0;
+	bits = 0;
+	while (1) {
+		if (*timestr<'0' || *timestr>'9') {
+			return -1;
+		}
+		tp = 0;
+		while (*timestr>='0' && *timestr<='9') {
+			tp *= 10;
+			tp += *timestr-'0';
+			timestr++;
+			if (tp>UINT64_C(0x100000000)) {
+				return -1;
+			}
+		}
+		switch (*timestr) {
+		case 'W':
+			if (bits&0x1F) {
+				return -1;
+			}
+			bits |= 0x10;
+			tp *= 604800;
+			timestr++;
+			break;
+		case 'D':
+			if (bits&0x0F) {
+				return -1;
+			}
+			bits |= 0x08;
+			tp *= 86400;
+			timestr++;
+			break;
+		case 'H':
+			if (bits&0x07) {
+				return -1;
+			}
+			bits |= 0x04;
+			tp *= 3600;
+			timestr++;
+			break;
+		case 'M':
+			if (bits&0x03) {
+				return -1;
+			}
+			bits |= 0x02;
+			tp *= 60;
+			timestr++;
+			break;
+		case 'S':
+			if (bits&0x01) {
+				return -1;
+			}
+			bits |= 0x01;
+			timestr++;
+			break;
+		case '\0':
+			if (bits) {
+				return -1;
+			}
+			break;
+		default:
+			return -1;
+		}
+		t += tp;
+		if (t>UINT64_C(0x100000000)) {
+			return -1;
+		}
+		if (*timestr=='\0') {
+			*time = t;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+// x | x.y | x.y.z -> ( x<<16 + y<<8 + z )
 int exports_parseversion(char *verstr,uint32_t *version) {
 	uint32_t vp;
 	if (*verstr<'0' || *verstr>'9') {
@@ -637,6 +750,46 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %"PRIu32,p,lineno);
 					return -1;
 				}
+			} else if (strncmp(p,"mingoal=",8)==0) {
+				o=1;
+				if (exports_parsegoal(p+8,&arec->mingoal)<0) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mingoal definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+				if (arec->mingoal>arec->maxgoal) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: mingoal>maxgoal in definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+			} else if (strncmp(p,"maxgoal=",8)==0) {
+				o=1;
+				if (exports_parsegoal(p+8,&arec->maxgoal)<0) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxgoal definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+				if (arec->mingoal>arec->maxgoal) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxgoal<mingoal in definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+			} else if (strncmp(p,"mintrashtime=",13)==0) {
+				o=1;
+				if (exports_parsetime(p+13,&arec->mintrashtime)<0) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mintrashtime definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+				if (arec->mintrashtime>arec->maxtrashtime) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: mintrashtime>maxtrashtime in definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+			} else if (strncmp(p,"maxtrashtime=",13)==0) {
+				o=1;
+				if (exports_parsetime(p+13,&arec->maxtrashtime)<0) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxtrashtime definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
+				if (arec->mintrashtime>arec->maxtrashtime) {
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxtrashtime<mintrashtime in definition (%s) in line: %"PRIu32,p,lineno);
+					return -1;
+				}
 			}
 			break;
 		case 'p':
@@ -671,6 +824,10 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	arec->meta = 0;
 	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
+	arec->mingoal = 1;
+	arec->maxgoal = 9;
+	arec->mintrashtime = 0;
+	arec->maxtrashtime = UINT32_C(0xFFFFFFFF);
 	arec->rootuid = 999;
 	arec->rootgid = 999;
 	arec->mapalluid = 999;

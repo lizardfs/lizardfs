@@ -459,6 +459,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	char s;
 	int err;
 	uint8_t sesflags;
+	uint8_t mingoal,maxgoal;
+	uint32_t mintrashtime,maxtrashtime;
 	uint32_t rootuid,rootgid;
 	uint32_t mapalluid,mapallgid;
 	int i,j;
@@ -511,7 +513,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(mfsopts.md5pass,0,strlen(mfsopts.md5pass));
 	}
 
-	if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid)<0) {
+	if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid,&mingoal,&maxgoal,&mintrashtime,&maxtrashtime)<0) {
 		return 1;
 	}
 	memset(md5pass,0,16);
@@ -564,6 +566,62 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			} else {
 				fprintf(stderr,"%"PRIu32,mapallgid);
 			}
+		}
+	}
+	if (mingoal>0 && maxgoal>0) {
+		if (mingoal>1 || maxgoal<9) {
+			fprintf(stderr," ; setgoal limited to (%u:%u)",mingoal,maxgoal);
+		}
+		if (mintrashtime>0 || maxtrashtime<UINT32_C(0xFFFFFFFF)) {
+			fprintf(stderr," ; settrashtime limited to (");
+			if (mintrashtime>0) {
+				if (mintrashtime>604800) {
+					fprintf(stderr,"%uw",mintrashtime/604800);
+					mintrashtime %= 604800;
+				}
+				if (mintrashtime>86400) {
+					fprintf(stderr,"%ud",mintrashtime/86400);
+					mintrashtime %= 86400;
+				}
+				if (mintrashtime>3600) {
+					fprintf(stderr,"%uh",mintrashtime/3600);
+					mintrashtime %= 3600;
+				}
+				if (mintrashtime>60) {
+					fprintf(stderr,"%um",mintrashtime/60);
+					mintrashtime %= 60;
+				}
+				if (mintrashtime>0) {
+					fprintf(stderr,"%us",mintrashtime);
+				}
+			} else {
+				fprintf(stderr,"0s");
+			}
+			fprintf(stderr,":");
+			if (maxtrashtime>0) {
+				if (maxtrashtime>604800) {
+					fprintf(stderr,"%uw",maxtrashtime/604800);
+					maxtrashtime %= 604800;
+				}
+				if (maxtrashtime>86400) {
+					fprintf(stderr,"%ud",maxtrashtime/86400);
+					maxtrashtime %= 86400;
+				}
+				if (maxtrashtime>3600) {
+					fprintf(stderr,"%uh",maxtrashtime/3600);
+					maxtrashtime %= 3600;
+				}
+				if (maxtrashtime>60) {
+					fprintf(stderr,"%um",maxtrashtime/60);
+					maxtrashtime %= 60;
+				}
+				if (maxtrashtime>0) {
+					fprintf(stderr,"%us",maxtrashtime);
+				}
+			} else {
+				fprintf(stderr,"0s");
+			}
+			fprintf(stderr,")");
 		}
 	}
 	fprintf(stderr,"\n");
