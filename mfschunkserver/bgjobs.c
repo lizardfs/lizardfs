@@ -116,26 +116,26 @@ typedef struct _jobpool {
 } jobpool;
 
 static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
-	eassert(pthread_mutex_lock(&(jp->pipelock))==0);
+	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	if (queue_isempty(jp->statusqueue)) {	// first status
 		eassert(write(jp->wpipe,&status,1)==1);	// write anything to wake up select
 	}
 	queue_put(jp->statusqueue,jobid,status,NULL,1);
-	eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
+	zassert(pthread_mutex_unlock(&(jp->pipelock)));
 	return;
 }
 
 static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status) {
 	uint32_t qstatus;
-	eassert(pthread_mutex_lock(&(jp->pipelock))==0);
+	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	queue_get(jp->statusqueue,jobid,&qstatus,NULL,NULL);
 	*status = qstatus;
 	if (queue_isempty(jp->statusqueue)) {
 		eassert(read(jp->rpipe,&qstatus,1)==1);	// make pipe empty
-		eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
+		zassert(pthread_mutex_unlock(&(jp->pipelock)));
 		return 0;	// last element
 	}
-	eassert(pthread_mutex_unlock(&(jp->pipelock))==0);
+	zassert(pthread_mutex_unlock(&(jp->pipelock)));
 	return 1;	// not last
 }
 
@@ -156,7 +156,7 @@ void* job_worker(void *th_arg) {
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;
-		eassert(pthread_mutex_lock(&(jp->jobslock))==0);
+		zassert(pthread_mutex_lock(&(jp->jobslock)));
 		if (jptr!=NULL) {
 			jstate=jptr->jstate;
 			if (jptr->jstate==JSTATE_ENABLED) {
@@ -165,7 +165,7 @@ void* job_worker(void *th_arg) {
 		} else {
 			jstate=JSTATE_DISABLED;
 		}
-		eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
+		zassert(pthread_mutex_unlock(&(jp->jobslock)));
 		switch (op) {
 			case OP_INVAL:
 				status = ERROR_EINVAL;
@@ -254,8 +254,8 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	jp->workers = workers;
 	jp->workerthreads = malloc(sizeof(pthread_t)*workers);
 	passert(jp->workerthreads);
-	eassert(pthread_mutex_init(&(jp->pipelock),NULL)==0);
-	eassert(pthread_mutex_init(&(jp->jobslock),NULL)==0);
+	zassert(pthread_mutex_init(&(jp->pipelock),NULL));
+	zassert(pthread_mutex_init(&(jp->jobslock),NULL));
 	jp->jobqueue = queue_new(jobs);
 //	syslog(LOG_WARNING,"new jobqueue: %p",jp->jobqueue);
 	jp->statusqueue = queue_new(0);
@@ -263,13 +263,13 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 		jp->jobhash[i]=NULL;
 	}
 	jp->nextjobid = 1;
-	eassert(pthread_attr_init(&thattr)==0);
-	eassert(pthread_attr_setstacksize(&thattr,0x100000)==0);
-	eassert(pthread_attr_setdetachstate(&thattr,PTHREAD_CREATE_JOINABLE)==0);
+	zassert(pthread_attr_init(&thattr));
+	zassert(pthread_attr_setstacksize(&thattr,0x100000));
+	zassert(pthread_attr_setdetachstate(&thattr,PTHREAD_CREATE_JOINABLE));
 	for (i=0 ; i<workers ; i++) {
-		eassert(pthread_create(jp->workerthreads+i,&thattr,job_worker,jp)==0);
+		zassert(pthread_create(jp->workerthreads+i,&thattr,job_worker,jp));
 	}
-	eassert(pthread_attr_destroy(&thattr)==0);
+	zassert(pthread_attr_destroy(&thattr));
 	return jp;
 }
 
@@ -283,7 +283,7 @@ void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8
 	uint32_t jhpos;
 	job *jptr;
 
-	eassert(pthread_mutex_lock(&(jp->jobslock))==0);
+	zassert(pthread_mutex_lock(&(jp->jobslock)));
 	for (jhpos = 0 ; jhpos<JHASHSIZE ; jhpos++) {
 		for (jptr = jp->jobhash[jhpos] ; jptr ; jptr=jptr->next) {
 			if (jptr->jstate==JSTATE_ENABLED) {
@@ -292,7 +292,7 @@ void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8
 			jptr->callback=callback;
 		}
 	}
-	eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
+	zassert(pthread_mutex_unlock(&(jp->jobslock)));
 }
 
 void job_pool_disable_job(void *jpool,uint32_t jobid) {
@@ -301,11 +301,11 @@ void job_pool_disable_job(void *jpool,uint32_t jobid) {
 	job *jptr;
 	for (jptr = jp->jobhash[jhpos] ; jptr ; jptr=jptr->next) {
 		if (jptr->jobid==jobid) {
-			eassert(pthread_mutex_lock(&(jp->jobslock))==0);
+			zassert(pthread_mutex_lock(&(jp->jobslock)));
 			if (jptr->jstate==JSTATE_ENABLED) {
 				jptr->jstate=JSTATE_DISABLED;
 			}
-			eassert(pthread_mutex_unlock(&(jp->jobslock))==0);
+			zassert(pthread_mutex_unlock(&(jp->jobslock)));
 		}
 	}
 }
@@ -358,7 +358,7 @@ void job_pool_delete(void *jpool) {
 		queue_put(jp->jobqueue,0,OP_EXIT,NULL,1);
 	}
 	for (i=0 ; i<jp->workers ; i++) {
-		eassert(pthread_join(jp->workerthreads[i],NULL)==0);
+		zassert(pthread_join(jp->workerthreads[i],NULL));
 	}
 	sassert(queue_isempty(jp->jobqueue));
 	if (!queue_isempty(jp->statusqueue)) {
@@ -367,8 +367,8 @@ void job_pool_delete(void *jpool) {
 //	syslog(LOG_NOTICE,"deleting jobqueue: %p",jp->jobqueue);
 	queue_delete(jp->jobqueue);
 	queue_delete(jp->statusqueue);
-	eassert(pthread_mutex_destroy(&(jp->pipelock))==0);
-	eassert(pthread_mutex_destroy(&(jp->jobslock))==0);
+	zassert(pthread_mutex_destroy(&(jp->pipelock)));
+	zassert(pthread_mutex_destroy(&(jp->jobslock)));
 	free(jp->workerthreads);
 	close(jp->rpipe);
 	close(jp->wpipe);

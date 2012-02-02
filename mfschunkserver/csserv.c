@@ -1975,29 +1975,76 @@ uint16_t csserv_getlistenport() {
 	return mylistenport;
 }
 
+void csserv_reload(void) {
+	char *oldListenHost,*oldListenPort;
+	int newlsock;
+
+	oldListenHost = ListenHost;
+	oldListenPort = ListenPort;
+	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
+	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
+		free(oldListenHost);
+		free(oldListenPort);
+		mfs_arg_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		return;
+	}
+
+	newlsock = tcpsocket();
+	if (newlsock<0) {
+		mfs_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		return;
+	}
+	tcpnonblock(newlsock);
+	tcpnodelay(newlsock);
+	tcpreuseaddr(newlsock);
+	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
+		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+	}
+	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
+		mfs_arg_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		tcpclose(newlsock);
+		return;
+	}
+	mfs_arg_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	free(oldListenHost);
+	free(oldListenPort);
+	tcpclose(lsock);
+	lsock = newlsock;
+}
+
 int csserv_init(void) {
 	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main server module error: can't create socket");
+		mfs_errlog(LOG_ERR,"main server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module error:can't set accept filter");
+		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		mfs_errlog(LOG_ERR,"main server module error: can't listen on socket");
+		mfs_errlog(LOG_ERR,"main server module: can't listen on socket");
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
 
 	csservhead = NULL;
+	main_reloadregister(csserv_reload);
 	main_destructregister(csserv_term);
 	main_pollregister(csserv_desc,csserv_serve);
 

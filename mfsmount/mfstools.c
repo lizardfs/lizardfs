@@ -34,6 +34,7 @@
 
 #include "datapack.h"
 #include "strerr.h"
+#include "mfsstrerr.h"
 #include "sockets.h"
 #include "MFSCommunication.h"
 
@@ -52,14 +53,6 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 
 static const char* eattrtab[EATTR_BITS]={EATTR_STRINGS};
 static const char* eattrdesc[EATTR_BITS]={EATTR_DESCRIPTIONS};
-
-static inline const char* mfs_strerror(uint8_t status) {
-	static const char* errtab[]={ERROR_STRINGS};
-	if (status>ERROR_MAX) {
-		status=ERROR_MAX;
-	}
-	return errtab[status];
-}
 
 static uint8_t humode=0;
 
@@ -405,7 +398,7 @@ int master_register_old(int rfd) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n",mfs_strerror(*rptr));
+		printf("register to master: %s\n",mfsstrerr(*rptr));
 		return -1;
 	}
 	return 0;
@@ -446,7 +439,7 @@ int master_register(int rfd,uint32_t cuid) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n",mfs_strerror(*rptr));
+		printf("register to master: %s\n",mfsstrerr(*rptr));
 		return -1;
 	}
 	return 0;
@@ -799,7 +792,7 @@ int check_file(const char* fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng%3!=0 && leng!=44) {
@@ -891,7 +884,7 @@ int get_goal(const char *fname,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng%5!=2) {
@@ -993,7 +986,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng<8 || leng%8!=0) {
@@ -1097,7 +1090,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng%5!=2) {
@@ -1254,7 +1247,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng!=12 && leng!=16) {
@@ -1343,7 +1336,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng!=12) {
@@ -1424,7 +1417,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng!=12) {
@@ -1510,7 +1503,7 @@ int file_info(const char *fname) {
 		}
 		leng-=4;
 		if (leng==1) {
-			printf("%s [%"PRIu32"]: %s\n",fname,indx,mfs_strerror(*rptr));
+			printf("%s [%"PRIu32"]: %s\n",fname,indx,mfsstrerr(*rptr));
 			free(buff);
 			close_master_conn(1);
 			return -1;
@@ -1628,7 +1621,7 @@ int append_file(const char *fname,const char *afname) {
 		free(buff);
 		return -1;
 	} else if (*rptr!=STATUS_OK) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	}
@@ -1687,7 +1680,7 @@ int dir_info(const char *fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -1775,7 +1768,7 @@ int file_repair(const char *fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -1853,7 +1846,7 @@ int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -1958,7 +1951,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfs_strerror(*rptr));
+		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -2082,7 +2075,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 	}
 	close_master_conn(0);
 	if (*rptr!=0) {
-		printf("%s->%s/%s: %s\n",srcname,dstdir,dstbase,mfs_strerror(*rptr));
+		printf("%s->%s/%s: %s\n",srcname,dstdir,dstbase,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	}

@@ -29,6 +29,7 @@
 #include "cfg.h"
 
 #define MAXLOGLINESIZE 10000
+#define MAXLOGNUMBER 1000
 static uint32_t BackLogsNumber;
 static FILE *fd;
 
@@ -80,8 +81,21 @@ void changelog(uint64_t version,const char *format,...) {
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
 
+void changelog_reload(void) {
+	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+	if (BackLogsNumber>MAXLOGNUMBER) {
+		syslog(LOG_WARNING,"BACK_LOGS value too big !!!");
+		BackLogsNumber = MAXLOGLINESIZE;
+	}
+}
+
 int changelog_init(void) {
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+	if (BackLogsNumber>MAXLOGNUMBER) {
+		fprintf(stderr,"BACK_LOGS value too big !!!");
+		return -1;
+	}
+	main_reloadregister(changelog_reload);
 	fd = NULL;
 	return 0;
 }

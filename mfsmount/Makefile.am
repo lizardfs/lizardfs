@@ -29,6 +29,7 @@ mfsmount_SOURCES=\
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h \
+	../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
 mfstools_LDADD=-lm
@@ -37,7 +38,7 @@ mfstools_SOURCES=\
 	mfstools.c \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \
-	../mfscommon/datapack.h \
+	../mfscommon/datapack.h ../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
 EXTRA_DIST = $(bin_SCRIPTS)

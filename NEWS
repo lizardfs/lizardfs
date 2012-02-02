@@ -1,5 +1,15 @@
 This file lists noteworthy changes in MooseFS.
 
+* MooseFS 1.6.26 (2012-01-02)
+
+  - (all) fixed signal handling in multithreaded modules
+  - (master) added goal and trashtime limits to mfsexport.cfg
+  - (metalogger) added simple check for downloaded metadata file (inspired by Davies Liu)
+  - (master) better handle disk full (inspired by Davies Liu)
+  - (master+metalogger) added keeping previous copies of metadata (inspired by Davies Liu)
+  - (all) reload all settings on "reload" (SIGHUP)
+  - (cs) disk scanning in background
+
 * MooseFS 1.6.25 (2011-12-30)
 
   - (metadump) fixed dumping big files (>2TiB)

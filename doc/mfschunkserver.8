@@ -1,4 +1,4 @@
-.TH MFSCHUNKSERVER "8" "November 2009" "MooseFS 1.6.9"
+.TH MFSCHUNKSERVER "8" "February 2012" "MooseFS 1.6.26"
 .SH NAME
 mfschunkserver \- start, restart or stop Moose File System chunkserver process
 .SH SYNOPSIS
@@ -6,7 +6,7 @@ mfschunkserver \- start, restart or stop Moose File System chunkserver process
 [\fB\-f\fP]
 [\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
 [\fB\-d\fP]
-[\fB\-t\fP\fI LOCKTIMEOUT\fP]
+[\fB\-t\fP \fILOCKTIMEOUT\fP]
 [\fIACTION\fP]
 .PP
 .B mfschunkserver \-s
@@ -22,12 +22,16 @@ parameters it can start, restart or stop MooseFS chunkserver process. Without
 any options it starts MooseFS chunkserver, killing previously run process if
 lock file exists.
 .PP
+SIGHUP (or 'reload' \fIACTION\fP) forces \fBmfschunkserver\fP to reload all configuration files.
+.PP
 Starting with version 1.6.0 chunkserver periodically tests stored chunks
 (see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
 .PP
 Starting with version 1.6.5 MooseFS master doesn't send metadata change logs
 to chunkserver and expect at least one \fBmfsmetalogger\fP\|(8) daemon
 to connect.
+.PP
+Starting with version 1.6.26 chunkserver scans attached disks in background.
 .TP
 \fB\-v\fP
 print version information and exit
@@ -58,7 +62,7 @@ run in foreground, don't daemonize
 how long to wait for lockfile (default is 60 seconds)
 .TP
 \fIACTION\fP
-is the one of \fBstart\fP, \fBstop\fP or \fBrestart\fP. Default action is
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP, \fBreload\fP, \fBtest\fP or \fBkill\fP. Default action is
 \fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
 Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
 and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.

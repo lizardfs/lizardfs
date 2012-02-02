@@ -30,6 +30,7 @@
 #include "sockets.h"
 #include "datapack.h"
 #include "strerr.h"
+#include "mfsstrerr.h"
 #include "crc.h"
 
 #define CSMSECTIMEOUT 5000
@@ -73,7 +74,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			rptr = ibuff;
 			t64 = get64bit(&rptr);
 			if (*rptr!=0) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %"PRIu8,*rptr);
+				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %s",mfsstrerr(*rptr));
 				return -1;
 			}
 			if (t64!=chunkid) {
@@ -170,7 +171,7 @@ int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 	t64 = get64bit(&ptr);
 	t32 = get32bit(&ptr);
 	if (*ptr!=0) {
-		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS status: %"PRIu8,*ptr);
+		syslog(LOG_NOTICE,"writestatus; WRITE_STATUS status: %s",mfsstrerr(*ptr));
 		return -1;
 	}
 	if (t64!=chunkid) {

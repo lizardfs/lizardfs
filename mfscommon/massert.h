@@ -34,5 +34,11 @@
 		fprintf(stderr,"failed assertion '%s', error: %s\n",#e,_mfs_errorstring); \
 		abort(); \
 	}
+#define zassert(e) if ((e)!=0) { \
+		const char *_mfs_errorstring = strerr(errno); \
+		syslog(LOG_ERR,"unexpected status, '%s' returned: %s",#e,_mfs_errorstring); \
+		fprintf(stderr,"unexpected status, '%s' returned: %s\n",#e,_mfs_errorstring); \
+		abort(); \
+	}
 
 #endif

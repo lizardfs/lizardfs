@@ -34,9 +34,9 @@
 #  endif
 #endif
 
-#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-#  define USE_PTHREADS 1
-#endif
+//#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
+//#  define USE_PTHREADS 1
+//#endif
 
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -56,9 +56,9 @@
 #include <sys/resource.h>
 #include <grp.h>
 #include <pwd.h>
-#ifdef USE_PTHREADS
-#include <pthread.h>
-#endif
+//#ifdef USE_PTHREADS
+//#include <pthread.h>
+//#endif
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -77,6 +77,7 @@
 #define RM_STOP 2
 #define RM_RELOAD 3
 #define RM_TEST 4
+#define RM_KILL 5
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -143,11 +144,7 @@ static uint32_t now;
 static uint64_t usecnow;
 //static int alcnt=0;
 
-#ifdef USE_PTHREADS
-static pthread_mutex_t signal_lock = PTHREAD_MUTEX_INITIALIZER;
-#endif
-static int terminate=0;
-static int reload=0;
+static int signalpipe[2];
 
 /* interface */
 
@@ -200,9 +197,11 @@ void main_eachloopregister (void (*fun)(void)) {
 	eloophead = aux;
 }
 
-void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void)) {
+void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void)) {
 	timeentry *aux;
-	if (seconds==0 || offset>=seconds) return;
+	if (seconds==0 || offset>=seconds) {
+		return NULL;
+	}
 	aux = (timeentry*)malloc(sizeof(timeentry));
 	passert(aux);
 	aux->nextevent = ((now / seconds) * seconds) + offset;
@@ -215,6 +214,22 @@ void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(vo
 	aux->fun = fun;
 	aux->next = timehead;
 	timehead = aux;
+	return aux;
+}
+
+int main_timechange(void* x,int mode,uint32_t seconds,uint32_t offset) {
+	timeentry *aux = (timeentry*)x;
+	if (seconds==0 || offset>=seconds) {
+		return -1;
+	}
+	aux->nextevent = ((now / seconds) * seconds) + offset;
+	while (aux->nextevent<now) {
+		aux->nextevent+=seconds;
+	}
+	aux->seconds = seconds;
+	aux->offset = offset;
+	aux->mode = mode;
+	return 0;
 }
 
 /* internal */
@@ -274,30 +289,6 @@ int canexit() {
 	return 1;
 }
 
-void termhandle(int signo) {
-	(void)signo;
-#ifdef USE_PTHREADS
-	pthread_mutex_lock(&signal_lock);
-#endif
-	if (terminate==0) {
-		terminate=1;
-	}
-#ifdef USE_PTHREADS
-	pthread_mutex_unlock(&signal_lock);
-#endif
-}
-
-void reloadhandle(int signo) {
-	(void)signo;
-#ifdef USE_PTHREADS
-	pthread_mutex_lock(&signal_lock);
-#endif
-	reload=1;
-#ifdef USE_PTHREADS
-	pthread_mutex_unlock(&signal_lock);
-#endif
-}
-
 uint32_t main_time() {
 	return now;
 }
@@ -328,10 +319,12 @@ void mainloop() {
 	int t,r;
 
 	t = 0;
+	r = 0;
 	while (t!=3) {
-		tv.tv_sec=0;
-		tv.tv_usec=300000;
-		ndesc=0;
+		ndesc=1;
+		pdesc[0].fd = signalpipe[0];
+		pdesc[0].events = POLLIN;
+		pdesc[0].revents = 0;
 		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
 			pollit->desc(pdesc,&ndesc);
 		}
@@ -352,6 +345,18 @@ void mainloop() {
 				break;
 			}
 		} else {
+			if ((pdesc[0].revents)&POLLIN) {
+				uint8_t sigid;
+				if (read(signalpipe[0],&sigid,1)==1) {
+					if (sigid=='\001' && t==0) {
+						syslog(LOG_NOTICE,"terminate signal received");
+						t = 1;
+					} else if (sigid=='\002') {
+						syslog(LOG_NOTICE,"reloading config files");
+						r = 1;
+					}
+				}
+			}
 			for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
 				pollit->serve(pdesc);
 			}
@@ -399,37 +404,18 @@ void mainloop() {
 			}
 		}
 		prevtime = now;
-#ifdef USE_PTHREADS
-		pthread_mutex_lock(&signal_lock);
-#endif
-		t = terminate;
-		r = reload;
-#ifdef USE_PTHREADS
-		pthread_mutex_unlock(&signal_lock);
-#endif
 		if (t==0 && r) {
+			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next ) {
 				rlit->fun();
 			}
-#ifdef USE_PTHREADS
-			pthread_mutex_lock(&signal_lock);
-#endif
-			r = reload = 0;
-#ifdef USE_PTHREADS
-			pthread_mutex_unlock(&signal_lock);
-#endif
+			r = 0;
 		}
 		if (t==1) {
 			for (weit = wehead ; weit!=NULL ; weit=weit->next ) {
 				weit->fun();
 			}
-#ifdef USE_PTHREADS
-			pthread_mutex_lock(&signal_lock);
-#endif
-			t = terminate = 2;
-#ifdef USE_PTHREADS
-			pthread_mutex_unlock(&signal_lock);
-#endif
+			t = 2;
 		}
 		if (t==2) {
 			i = 1;
@@ -439,13 +425,7 @@ void mainloop() {
 				}
 			}
 			if (i) {
-#ifdef USE_PTHREADS
-				pthread_mutex_lock(&signal_lock);
-#endif
-				t = terminate = 3;
-#ifdef USE_PTHREADS
-				pthread_mutex_unlock(&signal_lock);
-#endif
+				t = 3;
 			}
 		}
 	}
@@ -464,6 +444,10 @@ int initialize(void) {
 	}
 	return ok;
 }
+
+
+
+/* signals */
 
 static int termsignal[]={
 	SIGTERM,
@@ -512,9 +496,19 @@ static int daemonignoresignal[]={
 	-1
 };
 
+void termhandle(int signo) {
+	signo = write(signalpipe[1],"\001",1); // killing two birds with one stone - use signo and do something with value returned by write :)
+}
+
+void reloadhandle(int signo) {
+	signo = write(signalpipe[1],"\002",1); // see above
+}
+
 void set_signal_handlers(int daemonflag) {
 	struct sigaction sa;
 	uint32_t i;
+
+	zassert(pipe(signalpipe));
 
 #ifdef SA_RESTART
 	sa.sa_flags = SA_RESTART;
@@ -539,6 +533,11 @@ void set_signal_handlers(int daemonflag) {
 	for (i=0 ; daemonignoresignal[i]>0 ; i++) {
 		sigaction(daemonignoresignal[i],&sa,(struct sigaction *)0);
 	}
+}
+
+void signal_cleanup(void) {
+	close(signalpipe[0]);
+	close(signalpipe[1]);
 }
 
 void changeugid(void) {
@@ -659,10 +658,18 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 			fprintf(stderr,"reload signal has beed sent\n");
 			return 0;
 		}
-		fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
-		if (kill(ownerpid,SIGTERM)<0) {
-			mfs_errlog(LOG_WARNING,"can't kill lock owner");
-			return -1;
+		if (runmode==RM_KILL) {
+			fprintf(stderr,"sending SIGKILL to lock owner (pid:%ld)\n",(long int)ownerpid);
+			if (kill(ownerpid,SIGKILL)<0) {
+				mfs_errlog(LOG_WARNING,"can't kill lock owner");
+				return -1;
+			}
+		} else {
+			fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
+			if (kill(ownerpid,SIGTERM)<0) {
+				mfs_errlog(LOG_WARNING,"can't kill lock owner");
+				return -1;
+			}
 		}
 		l=0;
 		fprintf(stderr,"waiting for termination ... ");
@@ -687,11 +694,20 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 				}
 				if (newownerpid!=ownerpid) {
 					fprintf(stderr,"\nnew lock owner detected\n");
-					fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
-					fflush(stderr);
-					if (kill(newownerpid,SIGTERM)<0) {
-						mfs_errlog(LOG_WARNING,"can't kill lock owner");
-						return -1;
+					if (runmode==RM_KILL) {
+						fprintf(stderr,"sending SIGKILL to lock owner (pid:%ld) ... ",(long int)newownerpid);
+						fflush(stderr);
+						if (kill(newownerpid,SIGKILL)<0) {
+							mfs_errlog(LOG_WARNING,"can't kill lock owner");
+							return -1;
+						}
+					} else {
+						fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
+						fflush(stderr);
+						if (kill(newownerpid,SIGTERM)<0) {
+							mfs_errlog(LOG_WARNING,"can't kill lock owner");
+							return -1;
+						}
 					}
 					ownerpid = newownerpid;
 				}
@@ -703,7 +719,7 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 	}
 	if (runmode==RM_START || runmode==RM_RESTART) {
 		fprintf(stderr,"lockfile created and locked\n");
-	} else if (runmode==RM_STOP) {
+	} else if (runmode==RM_STOP || runmode==RM_KILL) {
 		fprintf(stderr,"can't find process to terminate\n");
 		return -1;
 	} else if (runmode==RM_RELOAD) {
@@ -744,7 +760,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 			free(lockfname);
 			return -1;
 		}
-		if (runmode==RM_STOP || runmode==RM_RESTART) {
+		if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RESTART) {
 			fprintf(stderr,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
 		} else if (runmode==RM_RELOAD) {
 			fprintf(stderr,"old lockfile found - sending reload signal using data from old lockfile\n");
@@ -766,11 +782,20 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 			fprintf(stderr,"reload signal has beed sent\n");
 			return 0;
 		}
-		fprintf(stderr,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
-		if (kill(ptk,SIGTERM)<0) {
-			mfs_errlog(LOG_WARNING,"can't kill previous process");
-			free(lockfname);
-			return -1;
+		if (runmode==RM_KILL) {
+			fprintf(stderr,"sending SIGKILL to previous instance (pid:%ld)\n",(long int)ptk);
+			if (kill(ptk,SIGKILL)<0) {
+				mfs_errlog(LOG_WARNING,"can't kill previous process");
+				free(lockfname);
+				return -1;
+			}
+		} else {
+			fprintf(stderr,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
+			if (kill(ptk,SIGTERM)<0) {
+				mfs_errlog(LOG_WARNING,"can't kill previous process");
+				free(lockfname);
+				return -1;
+			}
 		}
 		l=0;
 		fprintf(stderr,"waiting for termination ...\n");
@@ -990,6 +1015,8 @@ int main(int argc,char **argv) {
 			runmode = RM_RELOAD;
 		} else if (strcasecmp(argv[0],"test")==0) {
 			runmode = RM_TEST;
+		} else if (strcasecmp(argv[0],"kill")==0) {
+			runmode = RM_KILL;
 		} else {
 			usage(appname);
 			return 1;
@@ -1099,7 +1126,7 @@ int main(int argc,char **argv) {
 
 	remove_old_wdlock();
 
-	if (runmode==RM_STOP || runmode==RM_RELOAD || runmode==RM_TEST) {
+	if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RELOAD || runmode==RM_TEST) {
 		if (rundaemon) {
 			close_msg_channel();
 		}
@@ -1161,6 +1188,7 @@ int main(int argc,char **argv) {
 	}
 	destruct();
 	free_all_registered_entries();
+	signal_cleanup();
 	cfg_term();
 	strerr_term();
 	closelog();

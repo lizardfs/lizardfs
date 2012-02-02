@@ -387,24 +387,28 @@
 
 // 0x0066
 #define CSTOMA_CHUNK_DAMAGED (PROTO_BASE+102)
-// N*[chunkid:64]	- now N is always 1
+// N*[chunkid:64]
 
 // 0x0067
-#define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
+// #define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
 // version:32 logdata:string ( N*[ char:8 ] )
 // 0xFF:8 version:64 logdata:string ( N*[ char:8 ] )
 
 // 0x0068
-#define MATOCS_STRUCTURE_LOG_ROTATE (PROTO_BASE+104)
+// #define MATOCS_STRUCTURE_LOG_ROTATE (PROTO_BASE+104)
 // -
 
 // 0x0069
 #define CSTOMA_CHUNK_LOST (PROTO_BASE+105)
-// N*[chunkid:64]	- now N is always 1
+// N*[ chunkid:64 ]
 
 // 0x006A
 #define CSTOMA_ERROR_OCCURRED (PROTO_BASE+106)
 // -
+
+// 0x006B
+#define CSTOMA_CHUNK_NEW (PROTO_BASE+107)
+// N*[ chunkid:64 version:32 ]
 
 // 0x006E
 #define MATOCS_CREATE (PROTO_BASE+110)

@@ -24,5 +24,6 @@ mfsmaster_SOURCES=\
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/charts.c ../mfscommon/charts.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \
-	../mfscommon/datapack.h ../mfscommon/massert.h ../mfscommon/slogger.h \
+	../mfscommon/datapack.h ../mfscommon/massert.h \
+	../mfscommon/slogger.h ../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h

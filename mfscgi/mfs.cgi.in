@@ -11,28 +11,28 @@ import sys
 
 PROTO_BASE = @PROTO_BASE@
 
-CUTOMA_CSERV_LIST = (PROTO_BASE+500)
-MATOCU_CSERV_LIST = (PROTO_BASE+501)
-CUTOCS_HDD_LIST_V1 = (PROTO_BASE+502)
-CSTOCU_HDD_LIST_V1 = (PROTO_BASE+503)
-CUTOMA_SESSION_LIST = (PROTO_BASE+508)
-MATOCU_SESSION_LIST = (PROTO_BASE+509)
-CUTOMA_INFO = (PROTO_BASE+510)
-MATOCU_INFO = (PROTO_BASE+511)
-CUTOMA_FSTEST_INFO = (PROTO_BASE+512)
-MATOCU_FSTEST_INFO = (PROTO_BASE+513)
-CUTOMA_CHUNKSTEST_INFO = (PROTO_BASE+514)
-MATOCU_CHUNKSTEST_INFO = (PROTO_BASE+515)
-CUTOMA_CHUNKS_MATRIX = (PROTO_BASE+516)
-MATOCU_CHUNKS_MATRIX = (PROTO_BASE+517)
-CUTOMA_QUOTA_INFO = (PROTO_BASE+518)
-MATOCU_QUOTA_INFO = (PROTO_BASE+519)
-CUTOMA_EXPORTS_INFO = (PROTO_BASE+520)
-MATOCU_EXPORTS_INFO = (PROTO_BASE+521)
-CUTOMA_MLOG_LIST = (PROTO_BASE+522)
-MATOCU_MLOG_LIST = (PROTO_BASE+523)
-CUTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
-CSTOCU_HDD_LIST_V2 = (PROTO_BASE+601)
+CLTOMA_CSERV_LIST = (PROTO_BASE+500)
+MATOCL_CSERV_LIST = (PROTO_BASE+501)
+CLTOCS_HDD_LIST_V1 = (PROTO_BASE+502)
+CSTOCL_HDD_LIST_V1 = (PROTO_BASE+503)
+CLTOMA_SESSION_LIST = (PROTO_BASE+508)
+MATOCL_SESSION_LIST = (PROTO_BASE+509)
+CLTOMA_INFO = (PROTO_BASE+510)
+MATOCL_INFO = (PROTO_BASE+511)
+CLTOMA_FSTEST_INFO = (PROTO_BASE+512)
+MATOCL_FSTEST_INFO = (PROTO_BASE+513)
+CLTOMA_CHUNKSTEST_INFO = (PROTO_BASE+514)
+MATOCL_CHUNKSTEST_INFO = (PROTO_BASE+515)
+CLTOMA_CHUNKS_MATRIX = (PROTO_BASE+516)
+MATOCL_CHUNKS_MATRIX = (PROTO_BASE+517)
+CLTOMA_QUOTA_INFO = (PROTO_BASE+518)
+MATOCL_QUOTA_INFO = (PROTO_BASE+519)
+CLTOMA_EXPORTS_INFO = (PROTO_BASE+520)
+MATOCL_EXPORTS_INFO = (PROTO_BASE+521)
+CLTOMA_MLOG_LIST = (PROTO_BASE+522)
+MATOCL_MLOG_LIST = (PROTO_BASE+523)
+CLTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
+CSTOCL_HDD_LIST_V2 = (PROTO_BASE+601)
 
 cgitb.enable()
 
@@ -146,11 +146,11 @@ masterversion = (0,0,0)
 try:
 	s = socket.socket()
 	s.connect((masterhost,masterport))
-	mysend(s,struct.pack(">LL",CUTOMA_INFO,0))
+	mysend(s,struct.pack(">LL",CLTOMA_INFO,0))
 	header = myrecv(s,8)
 	cmd,length = struct.unpack(">LL",header)
 	data = myrecv(s,length)
-	if cmd==MATOCU_INFO:
+	if cmd==MATOCL_INFO:
 		if length==52:
 			masterversion = (1,4,0)
 		elif length==60:
@@ -315,10 +315,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_INFO,0))
+		mysend(s,struct.pack(">LL",CLTOMA_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_INFO and length==52:
+		if cmd==MATOCL_INFO and length==52:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,chunks,tdcopies = struct.unpack(">QQQLQLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -346,7 +346,7 @@ if "IN" in sectionset:
 			out.append("""		<td align="right">%u</td>""" % tdcopies)
 			out.append("""	</tr>""")
 			out.append("""</table>""")
-		elif cmd==MATOCU_INFO and length==60:
+		elif cmd==MATOCL_INFO and length==60:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,tdcopies = struct.unpack(">QQQLQLLLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -378,7 +378,7 @@ if "IN" in sectionset:
 			out.append("""		<td align="right">%u</td>""" % tdcopies)
 			out.append("""	</tr>""")
 			out.append("""</table>""")
-		elif cmd==MATOCU_INFO and length==68:
+		elif cmd==MATOCL_INFO and length==68:
 			data = myrecv(s,length)
 			v1,v2,v3,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQLQLLLLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -418,7 +418,7 @@ if "IN" in sectionset:
 			out.append("""		<td align="right">%u</td>""" % tdcopies)
 			out.append("""	</tr>""")
 			out.append("""</table>""")
-		elif cmd==MATOCU_INFO and length==76:
+		elif cmd==MATOCL_INFO and length==76:
 			data = myrecv(s,length)
 			v1,v2,v3,memusage,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQQLQLLLLLLL",data)
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -480,12 +480,12 @@ if "IN" in sectionset:
 			s = socket.socket()
 			s.connect((masterhost,masterport))
 			if masterversion>=(1,6,10):
-				mysend(s,struct.pack(">LLB",CUTOMA_CHUNKS_MATRIX,1,INmatrix))
+				mysend(s,struct.pack(">LLB",CLTOMA_CHUNKS_MATRIX,1,INmatrix))
 			else:
-				mysend(s,struct.pack(">LL",CUTOMA_CHUNKS_MATRIX,0))
+				mysend(s,struct.pack(">LL",CLTOMA_CHUNKS_MATRIX,0))
 			header = myrecv(s,8)
 			cmd,length = struct.unpack(">LL",header)
-			if cmd==MATOCU_CHUNKS_MATRIX and length==484:
+			if cmd==MATOCL_CHUNKS_MATRIX and length==484:
 				matrix = []
 				for i in xrange(11):
 					data = myrecv(s,44)
@@ -579,10 +579,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_CHUNKSTEST_INFO,0))
+		mysend(s,struct.pack(">LL",CLTOMA_CHUNKSTEST_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_CHUNKSTEST_INFO and length==52:
+		if cmd==MATOCL_CHUNKSTEST_INFO and length==52:
 			data = myrecv(s,length)
 			loopstart,loopend,del_invalid,ndel_invalid,del_unused,ndel_unused,del_dclean,ndel_dclean,del_ogoal,ndel_ogoal,rep_ugoal,nrep_ugoal,rebalnce = struct.unpack(">LLLLLLLLLLLLL",data[:52])
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -633,10 +633,10 @@ if "IN" in sectionset:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_FSTEST_INFO,0))
+		mysend(s,struct.pack(">LL",CLTOMA_FSTEST_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_FSTEST_INFO and length>=36:
+		if cmd==MATOCL_FSTEST_INFO and length>=36:
 			data = myrecv(s,length)
 			loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,msgbuffleng = struct.unpack(">LLLLLLLLL",data[:36])
 			out.append("""<table class="FR" cellspacing="0">""")
@@ -726,10 +726,10 @@ if "CS" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
+		mysend(s,struct.pack(">LL",CLTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
+		if cmd==MATOCL_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
 			servers = []
@@ -792,7 +792,7 @@ if "CS" in sectionset:
 					out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
 				out.append("""	</tr>""")
 				i+=1
-		elif cmd==MATOCU_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
+		elif cmd==MATOCL_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
 			servers = []
@@ -889,10 +889,10 @@ if "CS" in sectionset:
 
 			s = socket.socket()
 			s.connect((masterhost,masterport))
-			mysend(s,struct.pack(">LL",CUTOMA_MLOG_LIST,0))
+			mysend(s,struct.pack(">LL",CLTOMA_MLOG_LIST,0))
 			header = myrecv(s,8)
 			cmd,length = struct.unpack(">LL",header)
-			if cmd==MATOCU_MLOG_LIST and (length%8)==0:
+			if cmd==MATOCL_MLOG_LIST and (length%8)==0:
 				data = myrecv(s,length)
 				n = length/8
 				servers = []
@@ -960,10 +960,10 @@ if "HD" in sectionset:
 		hostlist = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
+		mysend(s,struct.pack(">LL",CLTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
+		if cmd==MATOCL_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
 			servers = []
@@ -971,7 +971,7 @@ if "HD" in sectionset:
 				d = data[i*54:(i+1)*54]
 				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
 				hostlist.append((v1,v2,v3,ip1,ip2,ip3,ip4,port))
-		elif cmd==MATOCU_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
+		elif cmd==MATOCL_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
 			servers = []
@@ -993,10 +993,10 @@ if "HD" in sectionset:
 				if (v1,v2,v3)<=(1,6,8):
 					s = socket.socket()
 					s.connect((hostip,port))
-					mysend(s,struct.pack(">LL",CUTOCS_HDD_LIST_V1,0))
+					mysend(s,struct.pack(">LL",CLTOCS_HDD_LIST_V1,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
-					if cmd==CSTOCU_HDD_LIST_V1:
+					if cmd==CSTOCL_HDD_LIST_V1:
 						data = myrecv(s,length)
 						while length>0:
 							plen = ord(data[0])
@@ -1031,10 +1031,10 @@ if "HD" in sectionset:
 				else:
 					s = socket.socket()
 					s.connect((hostip,port))
-					mysend(s,struct.pack(">LL",CUTOCS_HDD_LIST_V2,0))
+					mysend(s,struct.pack(">LL",CLTOCS_HDD_LIST_V2,0))
 					header = myrecv(s,8)
 					cmd,length = struct.unpack(">LL",header)
-					if cmd==CSTOCU_HDD_LIST_V2:
+					if cmd==CSTOCL_HDD_LIST_V2:
 						data = myrecv(s,length)
 						while length>0:
 							entrysize = struct.unpack(">H",data[:2])[0]
@@ -1113,11 +1113,17 @@ if "HD" in sectionset:
 							elif HDorder==12:
 								sf = fsyncops
 							elif HDorder==20:
-								sf = used
+								if flags&4:
+									sf = used
+								else:
+									sf = 0
 							elif HDorder==21:
-								sf = total
+								if flags&4:
+									sf = total
+								else:
+									sf = 0
 							elif HDorder==22:
-								if total>0:
+								if flags&4 and total>0:
 									sf = (1.0*used)/total
 								else:
 									sf = 0
@@ -1184,6 +1190,10 @@ if "HD" in sectionset:
 						status = 'damaged, marked for removal'
 					else:
 						status = 'damaged, to be empty'
+				elif flags==4 or flags==6:
+					status = 'scanning'
+				elif flags==5 or flags==7:
+					status = 'marked for removal, scanning'
 				else:
 					status = 'ok'
 				if errtime==0 and errchunkid==0:
@@ -1206,13 +1216,14 @@ if "HD" in sectionset:
 						wbsize = 0
 					out.append("""		<td align="right"><a style="cursor:default" title="%s B/s">%sB/s</a></td><td align="right"><a style="cursor:default" title="%s B">%sB/s</a></td>""" % (decimal_number(rbw),humanize_number(rbw,"&nbsp;"),decimal_number(wbw),humanize_number(wbw,"&nbsp;")))
 					out.append("""		<td align="right">%u us</td><td align="right">%u us</td><td align="right">%u us</td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td><td align="right"><a style="cursor:default" title="average block size: %u B">%u</a></td><td align="right">%u</td>""" % (rtime,wtime,fsynctime,rbsize,rops,wbsize,wops,fsyncops))
-				out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
-#				out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(total),humanize_number(total,"&nbsp;")))
-				if (total>0):
-#					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f&nbsp;(%sB&nbsp;/&nbsp;%sB)</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total,humanize_number(used,"&nbsp;"),humanize_number(total,"&nbsp;")))
-					out.append("""		<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*100.0)/total),(used*100.0)/total))
+				if flags&4:
+					out.append("""		<td colspan="3" align="right"><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.0f%% scanned</div></div></td>""" % (int(used)*2,used))
 				else:
-					out.append("""		<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">-</div></div></td>""" % (0))
+					out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
+					if (total>0):
+						out.append("""		<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*100.0)/total),(used*100.0)/total))
+					else:
+						out.append("""		<td><div class="smbox"><div class="progress" style="width:%upx;"></div><div class="value">-</div></div></td>""" % (0))
 				out.append("""	</tr>""")
 				i+=1
 			out.append("""</table>""")
@@ -1277,12 +1288,12 @@ if "EX" in sectionset:
 		s = socket.socket()
 		s.connect((masterhost,masterport))
 		if masterversion>=(1,6,26):
-			mysend(s,struct.pack(">LLB",CUTOMA_EXPORTS_INFO,1,1))
+			mysend(s,struct.pack(">LLB",CLTOMA_EXPORTS_INFO,1,1))
 		else:
-			mysend(s,struct.pack(">LL",CUTOMA_EXPORTS_INFO,0))
+			mysend(s,struct.pack(">LL",CLTOMA_EXPORTS_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_EXPORTS_INFO and masterversion>=(1,5,14):
+		if cmd==MATOCL_EXPORTS_INFO and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
 			pos = 0
@@ -1483,10 +1494,10 @@ if "ML" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
+		mysend(s,struct.pack(">LL",CLTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_SESSION_LIST and masterversion<=(1,5,13) and (length%136)==0:
+		if cmd==MATOCL_SESSION_LIST and masterversion<=(1,5,13) and (length%136)==0:
 			data = myrecv(s,length)
 			n = length/136
 			servers = []
@@ -1603,12 +1614,12 @@ if "MS" in sectionset:
 		s = socket.socket()
 		s.connect((masterhost,masterport))
 		if masterversion>=(1,6,26):
-			mysend(s,struct.pack(">LLB",CUTOMA_SESSION_LIST,1,1))
+			mysend(s,struct.pack(">LLB",CLTOMA_SESSION_LIST,1,1))
 		else:
-			mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
+			mysend(s,struct.pack(">LL",CLTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_SESSION_LIST and masterversion>=(1,5,14):
+		if cmd==MATOCL_SESSION_LIST and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
 			if masterversion<(1,6,21):
@@ -1844,10 +1855,10 @@ if "MO" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_SESSION_LIST,0))
+		mysend(s,struct.pack(">LL",CLTOMA_SESSION_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_SESSION_LIST and masterversion>=(1,5,14):
+		if cmd==MATOCL_SESSION_LIST and masterversion>=(1,5,14):
 			data = myrecv(s,length)
 			servers = []
 			if masterversion<(1,6,21):
@@ -1976,10 +1987,10 @@ if "QU" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_QUOTA_INFO,0))
+		mysend(s,struct.pack(">LL",CLTOMA_QUOTA_INFO,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_QUOTA_INFO and length>=4 and masterversion>=(1,7,0):
+		if cmd==MATOCL_QUOTA_INFO and length>=4 and masterversion>=(1,7,0):
 			data = myrecv(s,length)
 			quotas = []
 			pos = 0
@@ -2301,17 +2312,17 @@ if "CC" in sectionset:
 		hostlist = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CUTOMA_CSERV_LIST,0))
+		mysend(s,struct.pack(">LL",CLTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
 		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCU_CSERV_LIST and (length%54)==0:
+		if cmd==MATOCL_CSERV_LIST and (length%54)==0:
 			data = myrecv(s,length)
 			n = length/54
 			for i in xrange(n):
 				d = data[i*54:(i+1)*54]
 				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
 				hostlist.append((ip1,ip2,ip3,ip4,port))
-		elif cmd==MATOCU_CSERV_LIST and (length%50)==0:
+		elif cmd==MATOCL_CSERV_LIST and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
 			for i in xrange(n):

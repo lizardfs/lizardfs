@@ -24,6 +24,7 @@
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,type def)
 
 int cfg_load (const char *fname,int logundefined);
+int cfg_reload (void);
 void cfg_term (void);
 
 int cfg_isdefined(const char *name);

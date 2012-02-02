@@ -3,6 +3,8 @@
 .DS_Store
 .deps
 .clang_complete
+tags
+*.taghl
 Makefile
 Makefile.in
 /aclocal.m4

@@ -3365,7 +3365,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				matoclserv_mlog_list(eptr,data,length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"matocl: got unknown message from unregistered (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	} else if (eptr->registered<100) {	// mounts and new tools
@@ -3537,7 +3537,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				matoclserv_mlog_list(eptr,data,length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"matocl: got unknown message from mfsmount (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	} else {	// old mfstools
@@ -3596,7 +3596,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 /* ------ */
 			default:
-				syslog(LOG_NOTICE,"matocl: got unknown message from mfstools (type:%"PRIu32")",type);
+				syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%"PRIu32")",type);
 				eptr->mode=KILL;
 		}
 	}
@@ -3609,7 +3609,7 @@ void matoclserv_term(void) {
 	session *ss,*ssn;
 	filelist *of,*ofn;
 
-	syslog(LOG_NOTICE,"matocl: closing %s:%s",ListenHost,ListenPort);
+	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
 	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
@@ -3664,7 +3664,7 @@ void matoclserv_read(matoclserventry *eptr) {
 #ifdef ECONNRESET
 				if (errno!=ECONNRESET || eptr->registered<100) {
 #endif
-					mfs_arg_errlog_silent(LOG_NOTICE,"matocl: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+					mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
 				}
 #endif
@@ -3686,7 +3686,7 @@ void matoclserv_read(matoclserventry *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"matocl: packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+					syslog(LOG_WARNING,"main master server module: packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -3731,7 +3731,7 @@ void matoclserv_write(matoclserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"matocl: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+				mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 				eptr->mode = KILL;
 			}
 			return;
@@ -3820,7 +3820,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 //	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"matocl: accept error");
+			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -3955,6 +3955,59 @@ int matoclserv_sessionsinit(void) {
 	return 0;
 }
 
+void matoclserv_reload(void) {
+	char *oldListenHost,*oldListenPort;
+	int newlsock;
+
+	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+
+	oldListenHost = ListenHost;
+	oldListenPort = ListenPort;
+	if (cfg_isdefined("MATOCL_LISTEN_HOST") || cfg_isdefined("MATOCL_LISTEN_PORT") || !(cfg_isdefined("MATOCU_LISTEN_HOST") || cfg_isdefined("MATOCU_LISTEN_HOST"))) {
+		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
+		ListenPort = cfg_getstr("MATOCL_LISTEN_PORT","9421");
+	} else {
+		ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
+		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
+	}
+	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
+		free(oldListenHost);
+		free(oldListenPort);
+		mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		return;
+	}
+
+	newlsock = tcpsocket();
+	if (newlsock<0) {
+		mfs_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		return;
+	}
+	tcpnonblock(newlsock);
+	tcpnodelay(newlsock);
+	tcpreuseaddr(newlsock);
+	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
+		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
+	}
+	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
+		mfs_arg_errlog(LOG_ERR,"main master server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		tcpclose(newlsock);
+		return;
+	}
+	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	free(oldListenHost);
+	free(oldListenPort);
+	tcpclose(lsock);
+	lsock = newlsock;
+}
+
 int matoclserv_networkinit(void) {
 	if (cfg_isdefined("MATOCL_LISTEN_HOST") || cfg_isdefined("MATOCL_LISTEN_PORT") || !(cfg_isdefined("MATOCU_LISTEN_HOST") || cfg_isdefined("MATOCU_LISTEN_HOST"))) {
 		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
@@ -3977,7 +4030,7 @@ int matoclserv_networkinit(void) {
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"matocl: can't set accept filter");
+		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
@@ -3993,6 +4046,7 @@ int matoclserv_networkinit(void) {
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	main_reloadregister(matoclserv_reload);
 	main_destructregister(matoclserv_term);
 	main_pollregister(matoclserv_desc,matoclserv_serve);
 	main_wantexitregister(matoclserv_wantexit);

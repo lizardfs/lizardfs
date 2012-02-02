@@ -1,4 +1,4 @@
-.TH MFSMETALOGGER.CFG "5" "November 2009" "MooseFS 1.6.9"
+.TH MFSMETALOGGER.CFG "5" "February 2012" "MooseFS 1.6.26"
 .SH NAME
 mfsmetalogger.cfg \- configuration file for \fBmfsmetalogger\fP
 .SH DESCRIPTION
@@ -38,6 +38,9 @@ nice level to run daemon with (default is -19 if possible; note: process must be
 .TP
 \fBBACK_LOGS\fP
 number of metadata change log files (default is 50)
+.TP
+\fBBACK_META_KEEP_PREVIOUS\fP
+number of previous metadata files to be kept (default is 3)
 .TP
 \fBMETA_DOWNLOAD_FREQ\fP
 metadata download frequency in hours (default is 24, at most \fBBACK_LOGS\fP/2)

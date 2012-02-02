@@ -33,21 +33,20 @@ typedef struct paramsstr {
 	struct paramsstr *next;
 } paramstr;
 
+static char *cfgfname;
 static paramstr *paramhead=NULL;
 static int logundefined=0;
 
-int cfg_load (const char *configfname,int _lu) {
+int cfg_reload (void) {
 	FILE *fd;
 	char linebuff[1000];
 	uint32_t nps,npe,vps,vpe,i;
-
+	uint8_t found;
 	paramstr *tmp;
-	paramhead = NULL;
-	logundefined = _lu;
 
-	fd = fopen(configfname,"r");
+	fd = fopen(cfgfname,"r");
 	if (fd==NULL) {
-		mfs_arg_syslog(LOG_ERR,"cannot load config file: %s",configfname);
+		mfs_arg_syslog(LOG_ERR,"cannot load config file: %s",cfgfname);
 		return 0;
 	}
 	while (fgets(linebuff,999,fd)!=NULL) {
@@ -64,6 +63,9 @@ int cfg_load (const char *configfname,int _lu) {
 		npe = i;
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
 		if (linebuff[i]!='=' || npe==nps) {
+			if (linebuff[i]>32) {
+				mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
+			}
 			continue;
 		}
 		i++;
@@ -78,25 +80,40 @@ int cfg_load (const char *configfname,int _lu) {
 		vpe = i;
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
 		if (linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n') {
+			mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
 			continue;
 		}
-		tmp = (paramstr*)malloc(sizeof(paramstr));
-		passert(tmp);
-		tmp->name = (char*)malloc(npe-nps+1);
-		passert(tmp->name);
-		tmp->value = (char*)malloc(vpe-vps+1);
-		passert(tmp->value);
-		memcpy(tmp->name,linebuff+nps,npe-nps);
-		if (vpe>vps) {
-			memcpy(tmp->value,linebuff+vps,vpe-vps);
+		linebuff[npe]=0;
+		linebuff[vpe]=0;
+		found = 0;
+		for (tmp = paramhead ; tmp && found==0; tmp=tmp->next) {
+			if (strcmp(tmp->name,linebuff+nps)==0) {
+				free(tmp->value);
+				tmp->value = (char*)malloc(vpe-vps+1);
+				memcpy(tmp->value,linebuff+vps,vpe-vps+1);
+				found = 1;
+			}
 		}
-		tmp->name[npe-nps]=0;
-		tmp->value[vpe-vps]=0;
-		tmp->next = paramhead;
-		paramhead = tmp;
+		if (found==0) {
+			tmp = (paramstr*)malloc(sizeof(paramstr));
+			tmp->name = (char*)malloc(npe-nps+1);
+			tmp->value = (char*)malloc(vpe-vps+1);
+			memcpy(tmp->name,linebuff+nps,npe-nps+1);
+			memcpy(tmp->value,linebuff+vps,vpe-vps+1);
+			tmp->next = paramhead;
+			paramhead = tmp;
+		}
 	}
 	fclose(fd);
 	return 1;
+}
+
+int cfg_load (const char *configfname,int _lu) {
+	paramhead = NULL;
+	logundefined = _lu;
+	cfgfname = strdup(configfname);
+
+	return cfg_reload();
 }
 
 int cfg_isdefined(const char *name) {
@@ -117,6 +134,7 @@ void cfg_term(void) {
 		free(i->name);
 		free(i);
 	}
+	free(cfgfname);
 }
 
 #define STR_TO_int(x) return strtol(x,NULL,0)

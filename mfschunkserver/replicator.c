@@ -37,6 +37,7 @@
 #include "slogger.h"
 #include "datapack.h"
 #include "massert.h"
+#include "mfsstrerr.h"
 
 #include "replicator.h"
 
@@ -451,7 +452,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // create chunk
 	status = hdd_create(chunkid,0);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_create status: %u",status);
+		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -500,7 +501,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // open chunk
 	status = hdd_open(chunkid);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_open status: %u",status);
+		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -563,7 +564,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			return ERROR_WRONGVERSION;
 		}
 		if (pstatus!=STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return pstatus;
 		}
@@ -644,7 +645,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 						syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
 						return ERROR_DISCONNECTED;
 					}
-					syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
+					syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 					return pstatus;
 				} else if (type==CSTOCL_READ_DATA && size==20+MFSBLOCKSIZE) {
 					pchid = get64bit(&rptr);
@@ -690,7 +691,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					rptr = r.repsources[i].packet;
 					status = hdd_write(chunkid,0,b,rptr+20,0,MFSBLOCKSIZE,rptr+16);
 					if (status!=STATUS_OK) {
-						syslog(LOG_WARNING,"replicator: write status: %u",status);
+						syslog(LOG_WARNING,"replicator: write status: %s",mfsstrerr(status));
 						rep_cleanup(&r);
 						return status;
 					}
@@ -726,7 +727,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			put32bit(&wptr,xcrc);
 			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,MFSBLOCKSIZE,r.xorbuff);
 			if (status!=STATUS_OK) {
-				syslog(LOG_WARNING,"replicator: xor write status: %u",status);
+				syslog(LOG_WARNING,"replicator: xor write status: %s",mfsstrerr(status));
 				rep_cleanup(&r);
 				return status;
 			}
@@ -773,7 +774,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 				return ERROR_WRONGCHUNKID;
 			}
 			if (pstatus!=STATUS_OK) {
-				syslog(LOG_NOTICE,"replicator: got status: %u from (%08"PRIX32":%04"PRIX16")",pstatus,r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return pstatus;
 			}
@@ -782,14 +783,14 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // close chunk and change version
 	status = hdd_close(chunkid);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_close status: %u",status);
+		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
 	r.opened = 0;
 	status = hdd_version(chunkid,0,version);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_version status: %u",status);
+		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}

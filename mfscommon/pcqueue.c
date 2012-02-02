@@ -56,17 +56,17 @@ void* queue_new(uint32_t size) {
 	q->freewaiting = 0;
 	q->fullwaiting = 0;
 	if (size) {
-		eassert(pthread_cond_init(&(q->waitfull),NULL)==0);
+		zassert(pthread_cond_init(&(q->waitfull),NULL));
 	}
-	eassert(pthread_cond_init(&(q->waitfree),NULL)==0);
-	eassert(pthread_mutex_init(&(q->lock),NULL)==0);
+	zassert(pthread_cond_init(&(q->waitfree),NULL));
+	zassert(pthread_mutex_init(&(q->lock),NULL));
 	return q;
 }
 
 void queue_delete(void *que) {
 	queue *q = (queue*)que;
 	qentry *qe,*qen;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	sassert(q->freewaiting==0);
 	sassert(q->fullwaiting==0);
 	for (qe = q->head ; qe ; qe = qen) {
@@ -74,11 +74,11 @@ void queue_delete(void *que) {
 		free(qe->data);
 		free(qe);
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
-	eassert(pthread_mutex_destroy(&(q->lock))==0);
-	eassert(pthread_cond_destroy(&(q->waitfree))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
+	zassert(pthread_mutex_destroy(&(q->lock)));
+	zassert(pthread_cond_destroy(&(q->waitfree)));
 	if (q->maxsize) {
-		eassert(pthread_cond_destroy(&(q->waitfull))==0);
+		zassert(pthread_cond_destroy(&(q->waitfull)));
 	}
 	free(q);
 }
@@ -86,40 +86,40 @@ void queue_delete(void *que) {
 int queue_isempty(void *que) {
 	queue *q = (queue*)que;
 	int r;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	r=(q->elements==0)?1:0;
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return r;
 }
 
 uint32_t queue_elements(void *que) {
 	queue *q = (queue*)que;
 	uint32_t r;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	r=q->elements;
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return r;
 }
 
 int queue_isfull(void *que) {
 	queue *q = (queue*)que;
 	int r;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	r = (q->maxsize>0 && q->maxsize<=q->size)?1:0;
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return r;
 }
 
 uint32_t queue_sizeleft(void *que) {
 	queue *q = (queue*)que;
 	uint32_t r;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	if (q->maxsize>0) {
 		r = q->maxsize-q->size;
 	} else {
 		r = 0xFFFFFFFF;
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return r;
 }
 
@@ -133,16 +133,16 @@ int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 	qe->data = data;
 	qe->leng = leng;
 	qe->next = NULL;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	if (q->maxsize) {
 		if (leng>q->maxsize) {
-			eassert(pthread_mutex_unlock(&(q->lock))==0);
+			zassert(pthread_mutex_unlock(&(q->lock)));
 			errno = EDEADLK;
 			return -1;
 		}
 		while (q->size+leng>q->maxsize) {
 			q->fullwaiting++;
-			eassert(pthread_cond_wait(&(q->waitfull),&(q->lock))==0);
+			zassert(pthread_cond_wait(&(q->waitfull),&(q->lock)));
 		}
 	}
 	q->elements++;
@@ -150,25 +150,25 @@ int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 	*(q->tail) = qe;
 	q->tail = &(qe->next);
 	if (q->freewaiting>0) {
-		eassert(pthread_cond_signal(&(q->waitfree))==0);
+		zassert(pthread_cond_signal(&(q->waitfree)));
 		q->freewaiting--;
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return 0;
 }
 
 int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 	queue *q = (queue*)que;
 	qentry *qe;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	if (q->maxsize) {
 		if (leng>q->maxsize) {
-			eassert(pthread_mutex_unlock(&(q->lock))==0);
+			zassert(pthread_mutex_unlock(&(q->lock)));
 			errno = EDEADLK;
 			return -1;
 		}
 		if (q->size+leng>q->maxsize) {
-			eassert(pthread_mutex_unlock(&(q->lock))==0);
+			zassert(pthread_mutex_unlock(&(q->lock)));
 			errno = EBUSY;
 			return -1;
 		}
@@ -185,20 +185,20 @@ int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) 
 	*(q->tail) = qe;
 	q->tail = &(qe->next);
 	if (q->freewaiting>0) {
-		eassert(pthread_cond_signal(&(q->waitfree))==0);
+		zassert(pthread_cond_signal(&(q->waitfree)));
 		q->freewaiting--;
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	return 0;
 }
 
 int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
 	queue *q = (queue*)que;
 	qentry *qe;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	while (q->elements==0) {
 		q->freewaiting++;
-		eassert(pthread_cond_wait(&(q->waitfree),&(q->lock))==0);
+		zassert(pthread_cond_wait(&(q->waitfree),&(q->lock)));
 	}
 	qe = q->head;
 	q->head = qe->next;
@@ -208,10 +208,10 @@ int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng)
 	q->elements--;
 	q->size -= qe->leng;
 	if (q->fullwaiting>0) {
-		eassert(pthread_cond_signal(&(q->waitfull))==0);
+		zassert(pthread_cond_signal(&(q->waitfull)));
 		q->fullwaiting--;
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	if (id) {
 		*id = qe->id;
 	}
@@ -231,9 +231,9 @@ int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng)
 int queue_tryget(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
 	queue *q = (queue*)que;
 	qentry *qe;
-	eassert(pthread_mutex_lock(&(q->lock))==0);
+	zassert(pthread_mutex_lock(&(q->lock)));
 	if (q->elements==0) {
-		eassert(pthread_mutex_unlock(&(q->lock))==0);
+		zassert(pthread_mutex_unlock(&(q->lock)));
 		if (id) {
 			*id=0;
 		}
@@ -257,10 +257,10 @@ int queue_tryget(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *le
 	q->elements--;
 	q->size -= qe->leng;
 	if (q->fullwaiting>0) {
-		eassert(pthread_cond_signal(&(q->waitfull))==0);
+		zassert(pthread_cond_signal(&(q->waitfull)));
 		q->fullwaiting--;
 	}
-	eassert(pthread_mutex_unlock(&(q->lock))==0);
+	zassert(pthread_mutex_unlock(&(q->lock)));
 	if (id) {
 		*id = qe->id;
 	}

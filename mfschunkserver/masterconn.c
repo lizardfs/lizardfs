@@ -42,12 +42,18 @@
 #include "hddspacemgr.h"
 #include "slogger.h"
 #include "massert.h"
+#include "random.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
 #include "csserv.h"
 
 #define MaxPacketSize 10000
+
+// has to be less than MaxPacketSize on master side divided by 8
+#define LOSTCHUNKLIMIT 25000
+// has to be less than MaxPacketSize on master side divided by 12
+#define NEWCHUNKLIMIT 25000
 
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};
@@ -81,17 +87,18 @@ static int32_t jobfdpdescpos;
 #endif
 
 // from config
-static uint32_t BackLogsNumber;
+// static uint32_t BackLogsNumber;
 static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
+static void* reconnect_hook;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
 static uint32_t stats_maxjobscnt=0;
 
-static FILE *logfd;
+// static FILE *logfd;
 
 void masterconn_stats(uint32_t *bin,uint32_t *bout,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
@@ -309,12 +316,19 @@ void masterconn_check_hdd_reports() {
 		} else {
 			hdd_get_damaged_chunk_data(NULL);
 		}
-		chunkcounter = hdd_get_lost_chunk_count();	// lock
+		chunkcounter = hdd_get_lost_chunk_count(LOSTCHUNKLIMIT);	// lock
 		if (chunkcounter) {
 			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8*chunkcounter);
-			hdd_get_lost_chunk_data(buff);	// unlock
+			hdd_get_lost_chunk_data(buff,LOSTCHUNKLIMIT);	// unlock
 		} else {
-			hdd_get_lost_chunk_data(NULL);
+			hdd_get_lost_chunk_data(NULL,0);
+		}
+		chunkcounter = hdd_get_new_chunk_count(NEWCHUNKLIMIT);	// lock
+		if (chunkcounter) {
+			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_NEW,12*chunkcounter);
+			hdd_get_new_chunk_data(buff,NEWCHUNKLIMIT);	// unlock
+		} else {
+			hdd_get_new_chunk_data(NULL,0);
 		}
 	}
 }
@@ -665,6 +679,7 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 }
 #endif
 
+/*
 void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	if (length<5) {
 		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%"PRIu32"/4+data)",length);
@@ -730,7 +745,7 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 		unlink("changelog_csback.0.mfs");
 	}
 }
-
+*/
 
 void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
@@ -818,12 +833,12 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 		case MATOCS_DUPTRUNC:
 			masterconn_duptrunc(eptr,data,length);
 			break;
-		case MATOCS_STRUCTURE_LOG:
-			masterconn_structure_log(eptr,data,length);
-			break;
-		case MATOCS_STRUCTURE_LOG_ROTATE:
-			masterconn_structure_log_rotate(eptr,data,length);
-			break;
+//		case MATOCS_STRUCTURE_LOG:
+//			masterconn_structure_log(eptr,data,length);
+//			break;
+//		case MATOCS_STRUCTURE_LOG_ROTATE:
+//			masterconn_structure_log_rotate(eptr,data,length);
+//			break;
 		case ANTOCS_CHUNK_CHECKSUM:
 			masterconn_chunk_checksum(eptr,data,length);
 			break;
@@ -841,6 +856,8 @@ void masterconn_term(void) {
 	packetstruct *pptr,*paptr;
 //	syslog(LOG_INFO,"closing %s:%s",MasterHost,MasterPort);
 	masterconn *eptr = masterconnsingleton;
+
+	job_pool_delete(jpool);
 
 	if (eptr->mode!=FREE && eptr->mode!=CONNECTING) {
 		tcpclose(eptr->sock);
@@ -860,8 +877,8 @@ void masterconn_term(void) {
 	}
 
 	free(eptr);
-	job_pool_delete(jpool);
 	masterconnsingleton = NULL;
+
 	free(MasterHost);
 	free(MasterPort);
 	free(BindHost);
@@ -886,11 +903,10 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (eptr->masteraddrvalid==0) {
 		uint32_t mip,bip;
 		uint16_t mport;
-		if (tcpresolve(BindHost,NULL,&bip,NULL,1)>=0) {
-			eptr->bindip = bip;
-		} else {
-			eptr->bindip = 0;
+		if (tcpresolve(BindHost,NULL,&bip,NULL,1)<0) {
+			bip = 0;
 		}
+		eptr->bindip = bip;
 		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
 			if ((mip&0xFF000000)!=0x7F000000) {
 				eptr->masterip = mip;
@@ -1196,10 +1212,55 @@ void masterconn_reconnect(void) {
 
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
-	eptr->masteraddrvalid = 0;
-	if (eptr->mode!=FREE) {
-		eptr->mode = KILL;
+	uint32_t ReconnectionDelay;
+
+	free(MasterHost);
+	free(MasterPort);
+	free(BindHost);
+
+	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstr("MASTER_PORT","9420");
+	BindHost = cfg_getstr("BIND_HOST","*");
+
+	if (eptr->masteraddrvalid && eptr->mode!=FREE) {
+		uint32_t mip,bip;
+		uint16_t mport;
+		if (tcpresolve(BindHost,NULL,&bip,NULL,1)<0) {
+			bip = 0;
+		}
+		if (eptr->bindip!=bip) {
+			eptr->bindip = bip;
+			eptr->mode = KILL;
+		}
+		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
+			if ((mip&0xFF000000)!=0x7F000000) {
+				if (eptr->masterip!=mip || eptr->masterport!=mport) {
+					eptr->masterip = mip;
+					eptr->masterport = mport;
+					eptr->mode = KILL;
+				}
+			} else {
+				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
+			}
+		} else {
+			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+		}
+	} else {
+		eptr->masteraddrvalid=0;
 	}
+
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+
+	if (Timeout>65536) {
+		Timeout=65535;
+	}
+	if (Timeout<10) {
+		Timeout=10;
+	}
+
+	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
 
 int masterconn_init(void) {
@@ -1211,7 +1272,7 @@ int masterconn_init(void) {
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
-	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+//	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -1225,6 +1286,7 @@ int masterconn_init(void) {
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
+//	logfd = NULL;
 
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
@@ -1238,11 +1300,9 @@ int masterconn_init(void) {
 #endif
 
 	main_eachloopregister(masterconn_check_hdd_reports);
-	main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
+	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rndu32_ranged(ReconnectionDelay),masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
-
-	logfd = NULL;
 	return 0;
 }

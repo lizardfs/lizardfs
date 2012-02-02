@@ -33,6 +33,7 @@
 #include "MFSCommunication.h"
 #include "sockets.h"
 #include "strerr.h"
+#include "mfsstrerr.h"
 #include "datapack.h"
 #include "mastercomm.h"
 #include "cscomm.h"
@@ -247,7 +248,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 	status = fs_readchunk(rrec->inode,rrec->indx,&(rrec->fleng),&(rrec->chunkid),&(rrec->version),&csdata,&csdatasize);
 	if (status!=0) {
-		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_readchunk returns status %"PRIu8,rrec->inode,rrec->indx,rrec->chunkid,rrec->version,status);
+		syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,mfsstrerr(status));
 		if (status==ERROR_ENOENT) {
 			return EBADF;	// stale handle
 		}

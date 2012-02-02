@@ -1,4 +1,4 @@
-.TH MFSMASTER "8" "November 2009" "MooseFS 1.6.9"
+.TH MFSMASTER "8" "February 2012" "MooseFS 1.6.26"
 .SH NAME
 mfsmaster \- start, restart or stop Moose File System master process
 .SH SYNOPSIS
@@ -22,8 +22,7 @@ parameters it can start, restart or stop MooseFS master process. Without any
 options it starts MooseFS master, killing previously run process if lock
 file exists.
 .PP
-SIGHUP forces \fBmfsmaster\fP to reload \fBmfsexports.cfg\fP and
-\fBmfstopology.cfg\fP files. It doesn't affect already active connections.
+SIGHUP (or 'reload' \fIACTION\fP) forces \fBmfsmaster\fP to reload all configuration files.
 .TP
 \fB\-v\fP
 print version information and exit
@@ -54,7 +53,7 @@ run in foreground, don't daemonize
 how long to wait for lockfile (default is 60 seconds)
 .TP
 \fIACTION\fP
-is the one of \fBstart\fP, \fBstop\fP or \fBrestart\fP. Default action is
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP, \fBreload\fP, \fBtest\fP or \fBkill\fP. Default action is
 \fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
 Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
 and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.

@@ -979,7 +979,9 @@ void exports_loadexports(void) {
 	mfs_syslog(LOG_NOTICE,"exports file has been loaded");
 }
 
-void exports_reloadexports(void) {
+void exports_reload(void) {
+	free(ExportsFileName);
+	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
 	exports_loadexports();
 }
 
@@ -996,7 +998,7 @@ int exports_init(void) {
 		fprintf(stderr,"no exports defined !!!\n");
 		return -1;
 	}
-	main_reloadregister(exports_reloadexports);
+	main_reloadregister(exports_reload);
 	main_destructregister(exports_term);
 	return 0;
 }

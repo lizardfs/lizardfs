@@ -368,7 +368,7 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 			matomlserv_download_end(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"matoml: got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%"PRIu32")",type);
 			eptr->mode=KILL;
 	}
 }
@@ -376,7 +376,7 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 void matomlserv_term(void) {
 	matomlserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
-	syslog(LOG_INFO,"matoml: closing %s:%s",ListenHost,ListenPort);
+	syslog(LOG_INFO,"master <-> metaloggers module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
 	eptr = matomlservhead;
@@ -603,6 +603,52 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
+void matomlserv_reload(void) {
+	char *oldListenHost,*oldListenPort;
+	int newlsock;
+
+	oldListenHost = ListenHost;
+	oldListenPort = ListenPort;
+	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
+	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
+	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
+		free(oldListenHost);
+		free(oldListenPort);
+		mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		return;
+	}
+
+	newlsock = tcpsocket();
+	if (newlsock<0) {
+		mfs_errlog(LOG_WARNING,"master <-> metaloggers module: socket address has changed, but can't create new socket");
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		return;
+	}
+	tcpnonblock(newlsock);
+	tcpnodelay(newlsock);
+	tcpreuseaddr(newlsock);
+	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
+		mfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
+	}
+	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
+		mfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		free(ListenHost);
+		free(ListenPort);
+		ListenHost = oldListenHost;
+		ListenPort = oldListenPort;
+		tcpclose(newlsock);
+		return;
+	}
+	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	free(oldListenHost);
+	free(oldListenPort);
+	tcpclose(lsock);
+	lsock = newlsock;
+}
+
 int matomlserv_init(void) {
 	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
@@ -616,7 +662,7 @@ int matomlserv_init(void) {
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"matoml: can't set accept filter");
+		mfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		mfs_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on socket");
@@ -625,6 +671,7 @@ int matomlserv_init(void) {
 	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matomlservhead = NULL;
+	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
 	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);

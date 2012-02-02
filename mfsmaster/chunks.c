@@ -51,6 +51,9 @@
 #define USE_FLIST_BUCKETS 1
 #define USE_CHUNK_BUCKETS 1
 
+#define MINLOOPTIME 60
+#define MAXCPS 1000000
+
 #define HASHSIZE 65536
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFF)
 
@@ -2446,7 +2449,7 @@ void chunk_jobs_main(void) {
 	double minusage,maxusage;
 	chunk *c,**cp;
 
-	if (starttime+600>main_time()) {
+	if (starttime+ReplicationsDelayInit>main_time()) {
 		return;
 	}
 
@@ -2762,6 +2765,89 @@ void chunk_newfs(void) {
 	nextchunkid = 1;
 }
 
+#ifndef METARESTORE
+void chunk_reload(void) {
+	uint32_t oldMaxDelSoftLimit,oldMaxDelHardLimit;
+	uint32_t repl;
+
+	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
+	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
+
+
+	oldMaxDelSoftLimit = MaxDelSoftLimit;
+	oldMaxDelHardLimit = MaxDelHardLimit;
+
+	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",1);
+	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
+		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",10);
+		if (MaxDelHardLimit<MaxDelSoftLimit) {
+			MaxDelSoftLimit = MaxDelHardLimit;
+			syslog(LOG_WARNING,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both");
+		}
+	} else {
+		MaxDelHardLimit = 10 * MaxDelSoftLimit;
+	}
+	if (MaxDelSoftLimit==0) {
+		MaxDelSoftLimit = oldMaxDelSoftLimit;
+		MaxDelHardLimit = oldMaxDelHardLimit;
+	}
+	if (TmpMaxDelFrac<MaxDelSoftLimit) {
+		TmpMaxDelFrac = MaxDelSoftLimit;
+	}
+	if (TmpMaxDelFrac>MaxDelHardLimit) {
+		TmpMaxDelFrac = MaxDelHardLimit;
+	}
+	if (TmpMaxDel<MaxDelSoftLimit) {
+		TmpMaxDel = MaxDelSoftLimit;
+	}
+	if (TmpMaxDel>MaxDelHardLimit) {
+		TmpMaxDel = MaxDelHardLimit;
+	}
+
+
+	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",1);
+	if (repl>0) {
+		MaxWriteRepl = repl;
+	}
+
+
+	repl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",5);
+	if (repl>0) {
+		MaxReadRepl = repl;
+	}
+
+
+	if (cfg_isdefined("CHUNKS_LOOP_CPS")) { // chunks per second limit is defined ?
+		uint32_t cps = cfg_getuint32("CHUNKS_LOOP_CPS",10000);
+		if (cps>0) {
+			HashCPS = cps;
+		}
+		if (cps>MAXCPS) {
+			cps = MAXCPS;
+		}
+		if (cfg_isdefined("CHUNKS_LOOP_TIME")) { // also time limit is defined ?
+			uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+			if (looptime<MINLOOPTIME) {
+				looptime=MINLOOPTIME;
+			}
+			HashSteps = 1+((HASHSIZE)/looptime);
+		} else {
+			HashSteps = 1+((HASHSIZE)/MINLOOPTIME); // not too fast
+		}
+	} else {
+		uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+		if (looptime>0) {
+			if (looptime<MINLOOPTIME) {
+				syslog(LOG_WARNING,"chunk loop time is very short (%us) - increasing to %us",looptime,MINLOOPTIME);
+				looptime = MINLOOPTIME;
+			}
+			HashSteps = 1+((HASHSIZE)/looptime);
+			HashCPS = MAXCPS;
+		}
+	}
+}
+#endif
+
 int chunk_strinit(void) {
 	uint32_t i;
 #ifndef METARESTORE
@@ -2800,14 +2886,17 @@ int chunk_strinit(void) {
 			fprintf(stderr,"chunk loop cps is zero !!!\n");
 			return -1;
 		}
+		if (HashCPS>MAXCPS) {
+			HashCPS = MAXCPS;
+		}
 		if (cfg_isdefined("CHUNKS_LOOP_TIME")) { // also time limit is defined ?
 			uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-			if (looptime<60) {
-				looptime=60;
+			if (looptime<MINLOOPTIME) {
+				looptime=MINLOOPTIME;
 			}
 			HashSteps = 1+((HASHSIZE)/looptime);
 		} else {
-			HashSteps = 1+((HASHSIZE)/60); // not too fast
+			HashSteps = 1+((HASHSIZE)/MINLOOPTIME); // not too fast
 		}
 	} else {
 		uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
@@ -2815,11 +2904,12 @@ int chunk_strinit(void) {
 			fprintf(stderr,"chunk loop time is zero !!!\n");
 			return -1;
 		}
-		if (looptime<60) {
-			fprintf(stderr,"chunk loop time is very short\n");
+		if (looptime<MINLOOPTIME) {
+			fprintf(stderr,"chunk loop time is very short (%us) - increasing to %us\n",looptime,MINLOOPTIME);
+			looptime = MINLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = 0xFFFFFFFF;
+		HashCPS = MAXCPS;
 	}
 //	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
 #endif
@@ -2843,6 +2933,7 @@ int chunk_strinit(void) {
 	chunk_cfg_check();
 	main_timeregister(TIMEMODE_RUN_LATE,30,0,chunk_cfg_check);
 */
+	main_reloadregister(chunk_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
 #endif
 	return 1;

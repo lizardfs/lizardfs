@@ -82,10 +82,13 @@ static masterconn *masterconnsingleton=NULL;
 
 // from config
 static uint32_t BackLogsNumber;
+static uint32_t BackMetaCopies;
 static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
+static void* reconnect_hook;
+static void* download_hook;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
@@ -223,6 +226,47 @@ void masterconn_sessionsdownloadinit(void) {
 	masterconn_download_init(masterconnsingleton,2);
 }
 
+int masterconn_metadata_check(char *name) {
+	int fd;
+	char chkbuff[16];
+	char eofmark[16];
+	fd = open(name,O_RDONLY);
+	if (fd<0) {
+		syslog(LOG_WARNING,"can't open downloaded metadata");
+		return -1;
+	}
+	if (read(fd,chkbuff,8)!=8) {
+		syslog(LOG_WARNING,"can't read downloaded metadata");
+		close(fd);
+		return -1;
+	}
+	if (memcmp(chkbuff,"MFSM NEW",8)==0) { // silently ignore "new file"
+		close(fd);
+		return -1;
+	}
+	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0) {
+		memset(eofmark,0,16);
+	} else if (memcmp(chkbuff,MFSSIGNATURE "M 1.7",8)==0) {
+		memcpy(eofmark,"[MFS EOF MARKER]",16);
+	} else {
+		syslog(LOG_WARNING,"bad metadata file format");
+		close(fd);
+		return -1;
+	}
+	lseek(fd,-16,SEEK_END);
+	if (read(fd,chkbuff,16)!=16) {
+		syslog(LOG_WARNING,"can't read downloaded metadata");
+		close(fd);
+		return -1;
+	}
+	close(fd);
+	if (memcmp(chkbuff,eofmark,16)!=0) {
+		syslog(LOG_WARNING,"truncated metadata file !!!");
+		return -1;
+	}
+	return 0;
+}
+
 void masterconn_download_next(masterconn *eptr) {
 	uint8_t *ptr;
 	uint8_t filenum;
@@ -238,8 +282,20 @@ void masterconn_download_next(masterconn *eptr) {
 		}
 		syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
 		if (filenum==1) {
-			if (rename("metadata_ml.tmp","metadata_ml.mfs.back")<0) {
-				syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
+			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
+				if (BackMetaCopies>0) {
+					char metaname1[100],metaname2[100];
+					int i;
+					for (i=BackMetaCopies-1 ; i>0 ; i--) {
+						snprintf(metaname1,100,"metadata_ml.mfs.back.%"PRIu32,i+1);
+						snprintf(metaname2,100,"metadata_ml.mfs.back.%"PRIu32,i);
+						rename(metaname2,metaname1);
+					}
+					rename("metadata_ml.mfs.back","metadata_ml.mfs.back.1");
+				}
+				if (rename("metadata_ml.tmp","metadata_ml.mfs.back")<0) {
+					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
+				}
 			}
 			if (eptr->oldmode==0) {
 				masterconn_download_init(eptr,11);
@@ -717,10 +773,50 @@ void masterconn_reconnect(void) {
 
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
+	uint32_t ReconnectionDelay;
+	uint32_t MetaDLFreq;
+
+	free(MasterHost);
+	free(MasterPort);
+	free(BindHost);
+
+	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstr("MASTER_PORT","9419");
+	BindHost = cfg_getstr("BIND_HOST","*");
+
 	eptr->masteraddrvalid = 0;
 	if (eptr->mode!=FREE) {
 		eptr->mode = KILL;
 	}
+
+	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
+
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
+
+	if (Timeout>65536) {
+		Timeout=65535;
+	}
+	if (Timeout<10) {
+		Timeout=10;
+	}
+	if (BackLogsNumber<5) {
+		BackLogsNumber=5;
+	}
+	if (BackLogsNumber>10000) {
+		BackLogsNumber=10000;
+	}
+	if (MetaDLFreq>(BackLogsNumber/2)) {
+		MetaDLFreq=BackLogsNumber/2;
+	}
+	if (BackMetaCopies>99) {
+		BackMetaCopies=99;
+	}
+
+	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
+	main_timechange(download_hook,TIMEMODE_RUN_LATE,MetaDLFreq*3600,630);
 }
 
 int masterconn_init(void) {
@@ -734,6 +830,7 @@ int masterconn_init(void) {
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
 	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
@@ -764,11 +861,11 @@ int masterconn_init(void) {
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
-	main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
+	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
+	download_hook = main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
 	return 0;

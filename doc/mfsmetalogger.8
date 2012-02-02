@@ -1,4 +1,4 @@
-.TH MFSMETALOGGER "8" "November 2009" "MooseFS 1.6.9"
+.TH MFSMETALOGGER "8" "February 2012" "MooseFS 1.6.26"
 .SH NAME
 mfsmetalogger \- start, restart or stop Moose File System metalogger process
 .SH SYNOPSIS
@@ -21,6 +21,8 @@ mfsmetalogger \- start, restart or stop Moose File System metalogger process
 Depending on parameters it can start, restart or stop MooseFS metalogger process.
 Without any options it starts MooseFS metalogger, killing previously run process
 if lock file exists.
+.PP
+SIGHUP (or 'reload' \fIACTION\fP) forces \fBmfsmetalogger\fP to reload all configuration files.
 .PP
 mfsmetalogger exists since 1.6.5 version of MooseFS; before this version
 \fBmfschunkserver\fP\|(8) was responsible of logging metadata changes.
@@ -54,7 +56,7 @@ run in foreground, don't daemonize
 how long to wait for lockfile (default is 60 seconds)
 .TP
 \fIACTION\fP
-is the one of \fBstart\fP, \fBstop\fP or \fBrestart\fP. Default action is
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP, \fBreload\fP, \fBtest\fP or \fBkill\fP. Default action is
 \fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
 Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
 and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.

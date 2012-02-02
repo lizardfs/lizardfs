@@ -31,7 +31,8 @@ void main_wantexitregister (void (*fun)(void));
 void main_reloadregister (void (*fun)(void));
 void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *));
 void main_eachloopregister (void (*fun)(void));
-void main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
+void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
+int main_timechange(void *x,int mode,uint32_t seconds,uint32_t offset);
 uint32_t main_time(void);
 uint64_t main_utime(void);
 

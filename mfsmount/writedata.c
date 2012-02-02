@@ -37,6 +37,7 @@
 #include "datapack.h"
 #include "crc.h"
 #include "strerr.h"
+#include "mfsstrerr.h"
 #include "pcqueue.h"
 #include "sockets.h"
 #include "csdb.h"
@@ -428,7 +429,7 @@ void* write_worker(void *arg) {
 		// get chunk data from master
 		wrstatus = fs_writechunk(id->inode,chindx,&mfleng,&chunkid,&version,&csdata,&csdatasize);
 		if (wrstatus!=STATUS_OK) {
-			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - fs_writechunk returns status %d",id->inode,chindx,wrstatus);
+			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - fs_writechunk returns status: %s",id->inode,chindx,mfsstrerr(wrstatus));
 			if (wrstatus!=ERROR_LOCKED) {
 				if (wrstatus==ERROR_ENOENT) {
 					write_job_end(id,EBADF,0);
@@ -678,7 +679,7 @@ void* write_worker(void *arg) {
 						break;
 					}
 					if (recstatus!=STATUS_OK) {
-						syslog(LOG_WARNING,"writeworker: write error: %"PRIu8,recstatus);
+						syslog(LOG_WARNING,"writeworker: write error: %s",mfsstrerr(recstatus));
 						wrstatus=recstatus;
 						break;
 					}

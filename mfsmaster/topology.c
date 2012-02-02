@@ -476,6 +476,8 @@ void topology_load(void) {
 //}
 
 void topology_reload(void) {
+	free(TopologyFileName);
+	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME",ETC_PATH "/mfstopology.cfg");
 	topology_load();
 }
 

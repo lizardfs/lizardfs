@@ -1,4 +1,4 @@
-.TH MFSMASTER.CFG "5" "April 2011" "MooseFS 1.6.21"
+.TH MFSMASTER.CFG "5" "February 2012" "MooseFS 1.6.26"
 .SH NAME
 mfsmaster.cfg \- main configuration file for \fBmfsmaster\fP
 .SH DESCRIPTION
@@ -44,6 +44,9 @@ alternative name of \fBmfstopology.cfg\fP file
 \fBBACK_LOGS\fP
 number of metadata change log files (default is 50)
 .TP
+\fBBACK_META_KEEP_PREVIOUS\fP
+number of previous metadata files to be kept (default is 1)
+.TP
 \fBREPLICATIONS_DELAY_INIT\fP
 initial delay in seconds before starting replications (default is 300)
 .TP
@@ -71,19 +74,30 @@ port to listen on for client (mount) connections (default is 9421)
 \fBCHUNKS_LOOP_TIME\fP
 Chunks loop frequency in seconds (default is 300)
 .TP
-\fBCHUNKS_DEL_LIMIT\fP
-Maximum number of chunks to delete in one loop (default is 100)
+\fBCHUNKS_LOOP_CPS\fP
+Chunks loop frequency defined as number of chunks per second (no default - this option is alternative to CHUNKS_LOOP_TIME)
+.TP
+\fBCHUNKS_SOFT_DEL_LIMIT\fP
+Soft maximum number of chunks to delete on one chunkserver (default is 1)
+.TP
+\fBCHUNKS_HARD_DEL_LIMIT\fP
+Hard maximum number of chunks to delete on one chunkserver (default is 10)
 .TP
 \fBCHUNKS_WRITE_REP_LIMIT\fP
-Maximum number of chunks to replicate to one chunkserver in one loop (default is 1)
+Maximum number of chunks to replicate to one chunkserver (default is 1)
 .TP
 \fBCHUNKS_READ_REP_LIMIT\fP
-Maximum number of chunks to replicate from one chunkserver in one loop (default is 5)
+Maximum number of chunks to replicate from one chunkserver (default is 5)
 .TP
 \fBREJECT_OLD_CLIENTS\fP
 Reject \fBmfsmount\fPs older than 1.6.0 (0 or 1, default is 0).
 Note that \fBmfsexports\fP access control is NOT used for those old
 clients.
+.SH NOTES
+.PP
+Chunks in master are tested in loop. Speed (or frequency) is regulated by two options \fBCHUNKS_LOOP_TIME\fP and \fBCHUNKS_LOOP_CPS\fP. First defines constant time of loop and second constant speed. When time of loop is constant then increasing number of chunks increases CPU usage. When number of chunks per second is constant then increasing number of chunks increases time of loop. Both options can be defined. In such case at the beginning, when number of chunks is small, time is constant, but when number of chunks became bigger then time of loop increases.
+.PP
+Deletion limits are defined as 'soft' and 'hard' limit. When number of chunks to delete increases from loop to loop then current limit can be temporary increased above soft limit, but never above hard limit.
 .SH COPYRIGHT
 Copyright 2008-2009 Gemius SA.
 
