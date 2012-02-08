@@ -9,6 +9,7 @@ mfs (1.6.26) unstable; urgency=medium
     (inspired by Davies Liu)
   * (all) reload all settings on "reload" (SIGHUP)
   * (cs) disk scanning in background
+  * (cs) fixed long termination issue (found by Davies Liu)
 
  -- Jakub Bogusz <contact@moosefs.com>  Thu, 02 Feb 2012 12:00:00 +0100
 

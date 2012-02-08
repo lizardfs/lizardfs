@@ -201,6 +201,7 @@ typedef struct folder {
 	uint32_t lastrefresh;
 	dev_t devid;
 	ino_t lockinode;
+	int lfd;
 	double carry;
 	pthread_t scanthread;
 	struct chunk *testhead,**testtail;
@@ -243,6 +244,7 @@ static pthread_attr_t thattr;
 static pthread_t foldersthread,delayedthread,testerthread;
 static uint8_t term = 0;
 static uint8_t folderactions = 0;
+static uint8_t testerreset = 0;
 static pthread_mutex_t termlock = PTHREAD_MUTEX_INITIALIZER;
 
 // stats_X
@@ -1273,8 +1275,12 @@ void hdd_check_folders() {
 			if (f->toremove==0) { // 0 here means 'removed', so delete it from data structures
 				*fptr = f->next;
 				syslog(LOG_NOTICE,"folder %s successfully removed",f->path);
+				if (f->lfd>=0) {
+					close(f->lfd);
+				}
 				free(f->path);
 				free(f);
+				testerreset = 1;
 			} else {
 				fptr = &(f->next);
 			}
@@ -3526,24 +3532,32 @@ void* hdd_tester_thread(void* arg) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t freq;
+	uint32_t cnt;
+	uint64_t st,en;
 	char *path;
 
-	sleep(5);
 	f = folderhead;
-	if (f==NULL) {
-		return arg;
-	}
+	freq = HDDTestFreq;
+	cnt = 0;
 	for (;;) {
+		st = get_usectime();
 		path = NULL;
 		chunkid = 0;
 		version = 0;
 		zassert(pthread_mutex_lock(&folderlock));
 		zassert(pthread_mutex_lock(&hashlock));
 		zassert(pthread_mutex_lock(&testlock));
-		freq = HDDTestFreq;
-		if (freq==0 || folderactions==0) {
+		if (testerreset) {
+			testerreset = 0;
+			f = folderhead;
+			freq = HDDTestFreq;
+			cnt = 0;
+		}
+		cnt++;
+		if (cnt<freq || freq==0 || folderactions==0 || folderhead==NULL) {
 			path = NULL;
 		} else {
+			cnt = 0;
 			of = f;
 			do {
 				f = f->next;
@@ -3572,9 +3586,6 @@ void* hdd_tester_thread(void* arg) {
 				hdd_report_damaged_chunk(chunkid);
 			}
 			free(path);
-			sleep(freq);
-		} else {
-			sleep(1);
 		}
 		zassert(pthread_mutex_lock(&termlock));
 		if (term) {
@@ -3582,6 +3593,13 @@ void* hdd_tester_thread(void* arg) {
 			return arg;
 		}
 		zassert(pthread_mutex_unlock(&termlock));
+		en = get_usectime();
+		if (en>st) {
+			en-=st;
+			if (en<1000000) {
+				usleep(1000000-en);
+			}
+		}
 	}
 	return arg;
 }
@@ -4050,11 +4068,6 @@ void hdd_term(void) {
 		}
 		zassert(pthread_mutex_unlock(&folderlock));
 	}
-	for (f=folderhead ; f ; f=fn) {
-		fn = f->next;
-		free(f->path);
-		free(f);
-	}
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=hashtab[i] ; c ; c=cn) {
 			cn = c->next;
@@ -4093,6 +4106,14 @@ void hdd_term(void) {
 			}
 		}
 	}
+	for (f=folderhead ; f ; f=fn) {
+		fn = f->next;
+		if (f->lfd>=0) {
+			close(f->lfd);
+		}
+		free(f->path);
+		free(f);
+	}
 	for (i=0 ; i<DHASHSIZE ; i++) {
 		for (dc=dophashtab[i] ; dc ; dc=dcn) {
 			dcn = dc->next;
@@ -4128,7 +4149,7 @@ void hdd_term(void) {
 
 int hdd_parseline(char *hddcfgline) {
 	uint32_t l;
-	int lfp,td;
+	int lfd,td;
 	char *pptr;
 	char *lockfname;
 	struct stat sb;
@@ -4173,28 +4194,30 @@ int hdd_parseline(char *hddcfgline) {
 	passert(lockfname);
 	memcpy(lockfname,pptr,l);
 	memcpy(lockfname+l,".lock",6);
-	lfp = open(lockfname,O_RDWR|O_CREAT|O_TRUNC,0640);
-	if (lfp<0 && errno==EROFS && td) {
+	lfd = open(lockfname,O_RDWR|O_CREAT|O_TRUNC,0640);
+	if (lfd<0 && errno==EROFS && td) {
 		free(lockfname);
 		td = 2;
 	} else {
-		if (lfp<0) {
+		if (lfd<0) {
 			mfs_arg_errlog(LOG_ERR,"hdd space manager: can't create lock file '%s'",lockfname);
 			free(lockfname);
 			return -1;
 		}
-		if (lockneeded && lockf(lfp,F_TLOCK,0)<0) {
+		if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
 			if (errno==EAGAIN) {
 				mfs_arg_syslog(LOG_ERR,"hdd space manager: data folder '%s' already locked (used by another process)",pptr);
 			} else {
 				mfs_arg_errlog(LOG_NOTICE,"hdd space manager: lockf '%s' error",lockfname);
 			}
 			free(lockfname);
+			close(lfd);
 			return -1;
 		}
-		if (fstat(lfp,&sb)<0) {
+		if (fstat(lfd,&sb)<0) {
 			mfs_arg_errlog(LOG_NOTICE,"hdd space manager: fstat '%s' error",lockfname);
 			free(lockfname);
+			close(lfd);
 			return -1;
 		}
 		free(lockfname);
@@ -4205,6 +4228,7 @@ int hdd_parseline(char *hddcfgline) {
 					if (f->lockinode==sb.st_ino) {
 						mfs_arg_syslog(LOG_ERR,"hdd space manager: data folders '%s' and '%s have the same lockfile !!!",pptr,f->path);
 						zassert(pthread_mutex_unlock(&folderlock));
+						close(lfd);
 						return -1;
 					} else {
 						mfs_arg_syslog(LOG_WARNING,"hdd space manager: data folders '%s' and '%s' are on the same physical device (could lead to unexpected behaviours)",pptr,f->path);
@@ -4245,6 +4269,9 @@ int hdd_parseline(char *hddcfgline) {
 			}
 			f->todel = td;
 			zassert(pthread_mutex_unlock(&folderlock));
+			if (lfd>=0) {
+				close(lfd);
+			}
 			return 1;
 		}
 	}
@@ -4275,11 +4302,13 @@ int hdd_parseline(char *hddcfgline) {
 	f->needrefresh = 1;
 	f->devid = sb.st_dev;
 	f->lockinode = sb.st_ino;
+	f->lfd = lfd;
 	f->testhead = NULL;
 	f->testtail = &(f->testhead);
 	f->carry = (double)(random()&0x7FFFFFFF)/(double)(0x7FFFFFFF);
 	f->next = folderhead;
 	folderhead = f;
+	testerreset = 1;
 	zassert(pthread_mutex_unlock(&folderlock));
 	return 2;
 }

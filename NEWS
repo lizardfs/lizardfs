@@ -9,6 +9,7 @@ This file lists noteworthy changes in MooseFS.
   - (master+metalogger) added keeping previous copies of metadata (inspired by Davies Liu)
   - (all) reload all settings on "reload" (SIGHUP)
   - (cs) disk scanning in background
+  - (cs) fixed long termination issue (found by Davies Liu)
 
 * MooseFS 1.6.25 (2011-12-30)
 

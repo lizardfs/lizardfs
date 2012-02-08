@@ -6,7 +6,7 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.23
+Version:	1.6.26
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
