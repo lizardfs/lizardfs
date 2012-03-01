@@ -38,8 +38,11 @@ struct {
 } RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
-	{csserv_init,"main server module"},	/* heve to be before "masterconn" */
+	{csserv_init,"main server module"},	/* it has to be before "masterconn" */
 	{masterconn_init,"master connection module"},
 	{chartsdata_init,"charts module"},
+	{(runfn)0,"****"}
+},LateRunTab[]={
+	{hdd_late_init,"hdd space manager - threads"},
 	{(runfn)0,"****"}
 };

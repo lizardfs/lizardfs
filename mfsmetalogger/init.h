@@ -34,4 +34,6 @@ struct {
 } RunTab[]={
 	{masterconn_init,"connection with master"},
 	{(runfn)0,"****"}
+},LateRunTab[]={
+	{(runfn)0,"****"}
 };

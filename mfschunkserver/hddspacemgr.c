@@ -3993,7 +3993,6 @@ void* hdd_folder_scan(void *arg) {
 
 void* hdd_folders_thread(void *arg) {
 	for (;;) {
-		sleep(1);
 		hdd_check_folders();
 		zassert(pthread_mutex_lock(&termlock));
 		if (term) {
@@ -4001,13 +4000,13 @@ void* hdd_folders_thread(void *arg) {
 			return arg;
 		}
 		zassert(pthread_mutex_unlock(&termlock));
+		sleep(1);
 	}
 	return arg;
 }
 
 void* hdd_delayed_thread(void *arg) {
 	for (;;) {
-		sleep(DELAYEDSTEP);
 		hdd_delayed_ops();
 		zassert(pthread_mutex_lock(&termlock));
 		if (term) {
@@ -4015,6 +4014,7 @@ void* hdd_delayed_thread(void *arg) {
 			return arg;
 		}
 		zassert(pthread_mutex_unlock(&termlock));
+		sleep(DELAYEDSTEP);
 	}
 	return arg;
 }
@@ -4039,11 +4039,14 @@ void hdd_term(void) {
 
 	zassert(pthread_attr_destroy(&thattr));
 	zassert(pthread_mutex_lock(&termlock));
+	i = term; // if term is non zero here then it means that threads have not been started, so do not join with them
 	term = 1;
 	zassert(pthread_mutex_unlock(&termlock));
-	zassert(pthread_join(testerthread,NULL));
-	zassert(pthread_join(foldersthread,NULL));
-	zassert(pthread_join(delayedthread,NULL));
+	if (i==0) {
+		zassert(pthread_join(testerthread,NULL));
+		zassert(pthread_join(foldersthread,NULL));
+		zassert(pthread_join(delayedthread,NULL));
+	}
 	zassert(pthread_mutex_lock(&folderlock));
 	i = 0;
 	for (f=folderhead ; f ; f=f->next) {
@@ -4384,6 +4387,17 @@ void hdd_reload(void) {
 	hdd_folders_reinit();
 }
 
+int hdd_late_init(void) {
+	zassert(pthread_mutex_lock(&termlock));
+	term = 0;
+	zassert(pthread_mutex_unlock(&termlock));
+
+	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
+	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
+	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
+	return 0;
+}
+
 int hdd_init(void) {
 //	uint32_t l,p;
 	uint32_t hp;
@@ -4465,21 +4479,18 @@ int hdd_init(void) {
 	zassert(pthread_mutex_unlock(&folderlock));
 	fprintf(stderr,"hdd space manager: start background hdd scanning (searching for available chunks)\n");
 
-	term = 0;
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 //	for (f=folderhead ; f ; f=f->next) {
 //		hdd_testsort(f);
 //		hdd_testshuffle(f);
 //	}
-	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
-	hdd_check_folders();
-
-	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
-	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
-
 	main_reloadregister(hdd_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
 	main_destructregister(hdd_term);
+
+	zassert(pthread_mutex_lock(&termlock));
+	term = 1;
+	zassert(pthread_mutex_unlock(&termlock));
 
 	return 0;
 }

@@ -2515,6 +2515,7 @@ void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,const uint8_t *data,u
 	} else {
 		status = fs_writeend(inode,fleng,chunkid);
 	}
+	dcm_modify(inode,eptr->sesdata->sessionid);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK_END,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);

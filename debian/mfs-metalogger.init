@@ -46,9 +46,9 @@ set -e
 
 CFGFILE="${MFSMETALOGGER_CONFIG_FILE:-$DEFAULT_CFG}"
 if [ -s "$CFGFILE" ]; then
-	DATADIR=$(sed -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
-	MFSUSER=$(sed -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
-	MFSGROUP=$(sed -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/' "$CFGFILE")
+	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
+	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
+	MFSGROUP=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
 else
 	DATADIR=
 	MFSUSER=

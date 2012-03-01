@@ -53,4 +53,6 @@ struct {
 	{matocsserv_init,"communication with chunkserver"},
 	{matoclserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
+},LateRunTab[]={
+	{(runfn)0,"****"}
 };

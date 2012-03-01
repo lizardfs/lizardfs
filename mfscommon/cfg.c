@@ -79,7 +79,7 @@ int cfg_reload (void) {
 		}
 		vpe = i;
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		if (linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n') {
+		if (linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n' && linebuff[i]!='#') {
 			mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
 			continue;
 		}

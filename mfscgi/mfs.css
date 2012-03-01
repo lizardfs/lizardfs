@@ -68,14 +68,16 @@ a:visited {color: #000;}
 
 a.VISIBLELINK {color: #008;}
 
-span.IGNORE {color: #888;}
+span.DELETEREADY {color: #777;}
+span.DELETEPENDING {color: #60A;}
 span.OVERGOAL {color: #00E;}
 span.NORMAL {color: #080;}
 span.UNDERGOAL {color: #EA0;}
 span.ENDANGERED {color: #F50;}
 span.MISSING {color: #F00;}
 
-span.IGNOREBOX {background: #888; width:8px; height:8px; display: inline-block;}
+span.DELETEREADYBOX {background: #777; width:8px; height:8px; display: inline-block;}
+span.DELETEPENDINGBOX {background: #60A; width:8px; height:8px; display: inline-block;}
 span.OVERGOALBOX {background: #00E; width:8px; height:8px; display: inline-block;}
 span.NORMALBOX {background: #080; width:8px; height:8px; display: inline-block;}
 span.UNDERGOALBOX {background: #EA0; width:8px; height:8px; display: inline-block;}

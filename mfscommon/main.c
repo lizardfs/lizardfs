@@ -435,13 +435,28 @@ int initialize(void) {
 	uint32_t i;
 	int ok;
 	ok = 1;
-	now = time(NULL);
 	for (i=0 ; (long int)(RunTab[i].fn)!=0 && ok ; i++) {
+		now = time(NULL);
 		if (RunTab[i].fn()<0) {
 			mfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
 			ok=0;
 		}
 	}
+	return ok;
+}
+
+int initialize_late(void) {
+	uint32_t i;
+	int ok;
+	ok = 1;
+	for (i=0 ; (long int)(LateRunTab[i].fn)!=0 && ok ; i++) {
+		now = time(NULL);
+		if (LateRunTab[i].fn()<0) {
+			mfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
+			ok=0;
+		}
+	}
+	now = time(NULL);
 	return ok;
 }
 
@@ -1176,8 +1191,12 @@ int main(int argc,char **argv) {
 		if (rundaemon) {
 			close_msg_channel();
 		}
-		mainloop();
-		ch=0;
+		if (initialize_late()) {
+			mainloop();
+			ch=0;
+		} else {
+			ch=1;
+		}
 	} else {
 		fprintf(stderr,"error occured during initialization - exiting\n");
 		if (rundaemon) {

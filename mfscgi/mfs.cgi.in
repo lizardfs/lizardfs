@@ -516,7 +516,7 @@ if "IN" in sectionset:
 				out.append("""		<th class="PERC8">10+</th>""")
 				out.append("""		<th class="PERC8">all</th>""")
 				out.append("""	</tr>""")
-				classsum = 6*[0]
+				classsum = 7*[0]
 				sumlist = 11*[0]
 				for goal in xrange(11):
 					out.append("""	<tr>""")
@@ -526,23 +526,27 @@ if "IN" in sectionset:
 						out.append("""		<td align="center">%u</td>""" % goal)
 					for vc in xrange(11):
 						if goal==0:
-							cl="IGNORE"
-							clidx = 5
+							if vc==0:
+								cl = "DELETEREADY"
+								clidx = 6
+							else:
+								cl = "DELETEPENDING"
+								clidx = 5
 						elif vc==0:
-							cl="MISSING"
+							cl = "MISSING"
 							clidx = 0
 						elif vc>goal:
-							cl="OVERGOAL"
+							cl = "OVERGOAL"
 							clidx = 4
 						elif vc<goal:
 							if vc==1:
-								cl="ENDANGERED"
+								cl = "ENDANGERED"
 								clidx = 1
 							else:
-								cl="UNDERGOAL"
+								cl = "UNDERGOAL"
 								clidx = 2
 						else:
-							cl="NORMAL"
+							cl = "NORMAL"
 							clidx = 3
 						if matrix[goal][vc]>0:
 							out.append("""		<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[goal][vc]))
@@ -562,7 +566,7 @@ if "IN" in sectionset:
 					out.append("""		<td align="right">%u</td>""" % sumlist[vc])
 				out.append("""		<td align="right">%u</td>""" % sum(sumlist))
 				out.append("""	</tr>""")
-				out.append("""	<tr><td colspan="13"><span class="MISSINGBOX"></span>&nbsp;-&nbsp;missing (<span class="MISSING">%u</span>) / <span class="ENDANGEREDBOX"></span>&nbsp;-&nbsp;endangered (<span class="ENDANGERED">%u</span>) / <span class="UNDERGOALBOX"></span>&nbsp;-&nbsp;undergoal (<span class="UNDERGOAL">%u</span>) / <span class="NORMALBOX"></span>&nbsp;-&nbsp;stable (<span class="NORMAL">%u</span>) / <span class="OVERGOALBOX"></span>&nbsp;-&nbsp;overgoal (<span class="OVERGOAL">%u</span>) / <span class="IGNOREBOX"></span>&nbsp;-&nbsp;pending&nbsp;deletion (<span class="IGNORE">%u</span>)</td></tr>""" % tuple(classsum))
+				out.append("""	<tr><td colspan="13">""" + " / ".join(["""<span class="%sBOX"></span>&nbsp;-&nbsp;%s (<span class="%s">%u</span>)""" % (cl,desc,cl,classsum[clidx]) for clidx,cl,desc in [(0,"MISSING","missing"),(1,"ENDANGERED","endangered"),(2,"UNDERGOAL","undergoal"),(3,"NORMAL","stable"),(4,"OVERGOAL","overgoal"),(5,"DELETEPENDING","pending&nbsp;deletion"),(6,"DELETEREADY","ready&nbsp;to&nbsp;be&nbsp;removed")]]) + """</td></tr>""")
 				out.append("""</table>""")
 			s.close()
 			print "\n".join(out)

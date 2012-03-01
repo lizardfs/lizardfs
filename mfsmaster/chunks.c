@@ -52,12 +52,17 @@
 #define USE_CHUNK_BUCKETS 1
 
 #define MINLOOPTIME 60
-#define MAXCPS 1000000
+#define MAXLOOPTIME 7200
+#define MAXCPS 10000000
+#define MINCPS 10000
 
-#define HASHSIZE 65536
-#define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFF)
+#define HASHSIZE 0x100000
+#define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
 
 #ifndef METARESTORE
+
+enum {JOBS_INIT,JOBS_EVERYLOOP,JOBS_EVERYSECOND};
+
 /* chunk.operation */
 enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 /* slist.valid */
@@ -1978,13 +1983,13 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	static uint32_t delloopcnt;
 
 	if (c==NULL) {
-		if (scount==0) { // init tasks
+		if (scount==JOBS_INIT) { // init tasks
 			delnotdone = 0;
 			deldone = 0;
 			prevtodeletecount = 0;
 			delloopcnt = 0;
 			memset(&inforec,0,sizeof(loop_info));
-		} else if (scount==2) { // every loop tasks
+		} else if (scount==JOBS_EVERYLOOP) { // every loop tasks
 			delloopcnt++;
 			if (delloopcnt>=16) {
 				uint32_t todeletecount = deldone+delnotdone;
@@ -2015,7 +2020,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			memset(&inforec,0,sizeof(inforec));
 			chunksinfo_loopstart = chunksinfo_loopend;
 			chunksinfo_loopend = main_time();
-		} else if (scount==2) { // every second tasks
+		} else if (scount==JOBS_EVERYSECOND) { // every second tasks
 			servcount=0;
 		}
 		return;
@@ -2471,11 +2476,11 @@ void chunk_jobs_main(void) {
 		return;
 	}
 
-	chunk_do_jobs(NULL,2,0.0,0.0);	// every second tasks
+	chunk_do_jobs(NULL,JOBS_EVERYSECOND,0.0,0.0);	// every second tasks
 	lc = 0;
 	for (i=0 ; i<HashSteps && lc<HashCPS ; i++) {
 		if (jobshpos==0) {
-			chunk_do_jobs(NULL,1,0.0,0.0);	// every loop tasks
+			chunk_do_jobs(NULL,JOBS_EVERYLOOP,0.0,0.0);	// every loop tasks
 		}
 		// delete unused chunks from structures
 		l=0;
@@ -2769,6 +2774,7 @@ void chunk_newfs(void) {
 void chunk_reload(void) {
 	uint32_t oldMaxDelSoftLimit,oldMaxDelHardLimit;
 	uint32_t repl;
+	uint32_t looptime;
 
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
@@ -2777,15 +2783,15 @@ void chunk_reload(void) {
 	oldMaxDelSoftLimit = MaxDelSoftLimit;
 	oldMaxDelHardLimit = MaxDelHardLimit;
 
-	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",1);
+	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
 	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
-		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",10);
+		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
 		if (MaxDelHardLimit<MaxDelSoftLimit) {
 			MaxDelSoftLimit = MaxDelHardLimit;
 			syslog(LOG_WARNING,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both");
 		}
 	} else {
-		MaxDelHardLimit = 10 * MaxDelSoftLimit;
+		MaxDelHardLimit = 3 * MaxDelSoftLimit;
 	}
 	if (MaxDelSoftLimit==0) {
 		MaxDelSoftLimit = oldMaxDelSoftLimit;
@@ -2805,43 +2811,47 @@ void chunk_reload(void) {
 	}
 
 
-	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",1);
+	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",2);
 	if (repl>0) {
 		MaxWriteRepl = repl;
 	}
 
 
-	repl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",5);
+	repl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",10);
 	if (repl>0) {
 		MaxReadRepl = repl;
 	}
 
-
-	if (cfg_isdefined("CHUNKS_LOOP_CPS")) { // chunks per second limit is defined ?
-		uint32_t cps = cfg_getuint32("CHUNKS_LOOP_CPS",10000);
-		if (cps>0) {
-			HashCPS = cps;
+	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
+		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+		if (looptime < MINLOOPTIME) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too low (%"PRIu32") increased to %u",looptime,MINLOOPTIME);
+			looptime = MINLOOPTIME;
 		}
-		if (cps>MAXCPS) {
-			cps = MAXCPS;
+		if (looptime > MAXLOOPTIME) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too high (%"PRIu32") decreased to %u",looptime,MAXLOOPTIME);
+			looptime = MAXLOOPTIME;
 		}
-		if (cfg_isdefined("CHUNKS_LOOP_TIME")) { // also time limit is defined ?
-			uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-			if (looptime<MINLOOPTIME) {
-				looptime=MINLOOPTIME;
-			}
-			HashSteps = 1+((HASHSIZE)/looptime);
-		} else {
-			HashSteps = 1+((HASHSIZE)/MINLOOPTIME); // not too fast
-		}
+		HashSteps = 1+((HASHSIZE)/looptime);
+		HashCPS = 0xFFFFFFFF;
 	} else {
-		uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-		if (looptime>0) {
-			if (looptime<MINLOOPTIME) {
-				syslog(LOG_WARNING,"chunk loop time is very short (%us) - increasing to %us",looptime,MINLOOPTIME);
-				looptime = MINLOOPTIME;
-			}
-			HashSteps = 1+((HASHSIZE)/looptime);
+		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
+		if (looptime < MINLOOPTIME) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too low (%"PRIu32") increased to %u",looptime,MINLOOPTIME);
+			looptime = MINLOOPTIME;
+		}
+		if (looptime > MAXLOOPTIME) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too high (%"PRIu32") decreased to %u",looptime,MAXLOOPTIME);
+			looptime = MAXLOOPTIME;
+		}
+		HashSteps = 1+((HASHSIZE)/looptime);
+		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
+		if (HashCPS < MINCPS) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too low (%"PRIu32") increased to %u",HashCPS,MINCPS);
+			HashCPS = MINCPS;
+		}
+		if (HashCPS > MAXCPS) {
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too high (%"PRIu32") decreased to %u",HashCPS,MAXCPS);
 			HashCPS = MAXCPS;
 		}
 	}
@@ -2852,17 +2862,19 @@ int chunk_strinit(void) {
 	uint32_t i;
 #ifndef METARESTORE
 	uint32_t j;
+	uint32_t looptime;
+
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
-	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",1);
+	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
 	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
-		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",10);
+		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
 		if (MaxDelHardLimit<MaxDelSoftLimit) {
 			MaxDelSoftLimit = MaxDelHardLimit;
 			fprintf(stderr,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both\n");
 		}
 	} else {
-		MaxDelHardLimit = 10 * MaxDelSoftLimit;
+		MaxDelHardLimit = 3 * MaxDelSoftLimit;
 	}
 	if (MaxDelSoftLimit==0) {
 		fprintf(stderr,"delete limit is zero !!!\n");
@@ -2870,8 +2882,8 @@ int chunk_strinit(void) {
 	}
 	TmpMaxDelFrac = MaxDelSoftLimit;
 	TmpMaxDel = MaxDelSoftLimit;
-	MaxWriteRepl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",1);
-	MaxReadRepl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",5);
+	MaxWriteRepl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",2);
+	MaxReadRepl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",10);
 	if (MaxReadRepl==0) {
 		fprintf(stderr,"read replication limit is zero !!!\n");
 		return -1;
@@ -2880,38 +2892,40 @@ int chunk_strinit(void) {
 		fprintf(stderr,"write replication limit is zero !!!\n");
 		return -1;
 	}
-	if (cfg_isdefined("CHUNKS_LOOP_CPS")) { // chunks per second limit is defined ?
-		HashCPS = cfg_getuint32("CHUNKS_LOOP_CPS",10000);
-		if (HashCPS==0) {
-			fprintf(stderr,"chunk loop cps is zero !!!\n");
-			return -1;
-		}
-		if (HashCPS>MAXCPS) {
-			HashCPS = MAXCPS;
-		}
-		if (cfg_isdefined("CHUNKS_LOOP_TIME")) { // also time limit is defined ?
-			uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-			if (looptime<MINLOOPTIME) {
-				looptime=MINLOOPTIME;
-			}
-			HashSteps = 1+((HASHSIZE)/looptime);
-		} else {
-			HashSteps = 1+((HASHSIZE)/MINLOOPTIME); // not too fast
-		}
-	} else {
-		uint32_t looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-		if (looptime==0) {
-			fprintf(stderr,"chunk loop time is zero !!!\n");
-			return -1;
-		}
-		if (looptime<MINLOOPTIME) {
-			fprintf(stderr,"chunk loop time is very short (%us) - increasing to %us\n",looptime,MINLOOPTIME);
+	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
+		fprintf(stderr,"Defining loop time by CHUNKS_LOOP_TIME option is deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME\n");
+		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
+		if (looptime < MINLOOPTIME) {
+			fprintf(stderr,"CHUNKS_LOOP_TIME value too low (%"PRIu32") increased to %u\n",looptime,MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
+		if (looptime > MAXLOOPTIME) {
+			fprintf(stderr,"CHUNKS_LOOP_TIME value too high (%"PRIu32") decreased to %u\n",looptime,MAXLOOPTIME);
+			looptime = MAXLOOPTIME;
+		}
 		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = MAXCPS;
+		HashCPS = 0xFFFFFFFF;
+	} else {
+		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
+		if (looptime < MINLOOPTIME) {
+			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too low (%"PRIu32") increased to %u\n",looptime,MINLOOPTIME);
+			looptime = MINLOOPTIME;
+		}
+		if (looptime > MAXLOOPTIME) {
+			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too high (%"PRIu32") decreased to %u\n",looptime,MAXLOOPTIME);
+			looptime = MAXLOOPTIME;
+		}
+		HashSteps = 1+((HASHSIZE)/looptime);
+		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
+		if (HashCPS < MINCPS) {
+			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too low (%"PRIu32") increased to %u\n",HashCPS,MINCPS);
+			HashCPS = MINCPS;
+		}
+		if (HashCPS > MAXCPS) {
+			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too high (%"PRIu32") decreased to %u\n",HashCPS,MAXCPS);
+			HashCPS = MAXCPS;
+		}
 	}
-//	config_getnewstr("CHUNKS_CONFIG",ETC_PATH "/mfschunks.cfg",&CfgFileName);
 #endif
 	for (i=0 ; i<HASHSIZE ; i++) {
 		chunkhash[i]=NULL;
@@ -2928,7 +2942,7 @@ int chunk_strinit(void) {
 	starttime = main_time();
 	jobsnorepbefore = starttime+ReplicationsDelayInit;
 	//jobslastdisconnect = 0;
-	chunk_do_jobs(NULL,0,0.0,0.0);	// clear chunk loop internal data
+	chunk_do_jobs(NULL,JOBS_INIT,0.0,0.0);	// clear chunk loop internal data
 /*
 	chunk_cfg_check();
 	main_timeregister(TIMEMODE_RUN_LATE,30,0,chunk_cfg_check);
