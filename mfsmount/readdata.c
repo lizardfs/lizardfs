@@ -426,7 +426,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					sleep(60);
 					cnt+=6;
 				} else {
-					sleep(1+(cnt<30)?(cnt/3):10);
+					sleep(1+((cnt<30)?(cnt/3):10));
 				}
 			}
 			if (cnt>=maxretries) {
@@ -461,7 +461,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);
 				rrec->fd = -1;
-				sleep(1+(cnt<30)?(cnt/3):10);
+				sleep(1+((cnt<30)?(cnt/3):10));
 			} else {
 				curroff+=chunksize;
 				currsize-=chunksize;

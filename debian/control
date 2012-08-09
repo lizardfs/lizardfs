@@ -41,3 +41,9 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: MooseFS CGI Monitor
  MooseFS CGI Monitor.
+
+Package: mfs-cgiserv
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-cgi
+Description: Simple CGI-capable HTTP server to run MooseFS CGI Monitor
+ Simple CGI-capable HTTP server to run MooseFS CGI Monitor.

@@ -38,8 +38,6 @@
 #include <strings.h>
 #include <stddef.h>
 #include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
 #include <syslog.h>
 #include <errno.h>
 
@@ -115,11 +113,13 @@ static struct fuse_lowlevel_ops mfs_oper = {
 	.read		= mfs_read,
 	.write		= mfs_write,
 	.access		= mfs_access,
+	.getxattr       = mfs_getxattr,
+	.setxattr       = mfs_setxattr,
+	.listxattr      = mfs_listxattr,
+	.removexattr    = mfs_removexattr,
 #if FUSE_VERSION >= 26
-/* locks are still in development
-	.getlk		= mfs_getlk,
-	.setlk		= mfs_setlk,
-*/
+//	.getlk		= mfs_getlk,
+//	.setlk		= mfs_setlk,
 #endif
 };
 
@@ -138,6 +138,7 @@ struct mfsopts {
 	int nostdmountoptions;
 	int meta;
 	int debug;
+	int delayedinit;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
 	int sugidclearmode;
@@ -195,6 +196,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
+	MFS_OPT("mfsdelayedinit", delayedinit, 1),
 	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
@@ -241,9 +243,10 @@ static void usage(const char *progname) {
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
-"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
+"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfs/mfsmount.cfg or " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
+"    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
 #ifdef __linux__
 "    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
 #else
@@ -458,17 +461,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	int piped[2];
 	char s;
 	int err;
-	uint8_t sesflags;
-	uint8_t mingoal,maxgoal;
-	uint32_t mintrashtime,maxtrashtime;
-	uint32_t rootuid,rootgid;
-	uint32_t mapalluid,mapallgid;
-	int i,j;
-	const char *sesflagposstrtab[]={SESFLAG_POS_STRINGS};
-	const char *sesflagnegstrtab[]={SESFLAG_NEG_STRINGS};
-	struct passwd pwd,*pw;
-	struct group grp,*gr;
-	char pwdgrpbuff[16384];
+	int i;
 	md5ctx ctx;
 	uint8_t md5pass[16];
 
@@ -513,118 +506,14 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(mfsopts.md5pass,0,strlen(mfsopts.md5pass));
 	}
 
-	if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,&sesflags,&rootuid,&rootgid,&mapalluid,&mapallgid,&mingoal,&maxgoal,&mintrashtime,&maxtrashtime)<0) {
-		return 1;
+	if (mfsopts.delayedinit) {
+		fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,1);
+	} else {
+		if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,0)<0) {
+			return 1;
+		}
 	}
 	memset(md5pass,0,16);
-
-	if (mfsopts.debug) {
-		fprintf(stderr,"registered to master\n");
-	}
-
-	fprintf(stderr,"mfsmaster accepted connection with parameters: ");
-	j=0;
-	for (i=0 ; i<8 ; i++) {
-		if (sesflags&(1<<i)) {
-			fprintf(stderr,"%s%s",j?",":"",sesflagposstrtab[i]);
-			j=1;
-		} else if (sesflagnegstrtab[i]) {
-			fprintf(stderr,"%s%s",j?",":"",sesflagnegstrtab[i]);
-			j=1;
-		}
-	}
-	if (j==0) {
-		fprintf(stderr,"-");
-	}
-	if (mfsopts.meta==0) {
-		fprintf(stderr," ; root mapped to ");
-		getpwuid_r(rootuid,&pwd,pwdgrpbuff,16384,&pw);
-//		pw = getpwuid(rootuid);
-		if (pw) {
-			fprintf(stderr,"%s:",pw->pw_name);
-		} else {
-			fprintf(stderr,"%"PRIu32":",rootuid);
-		}
-		getgrgid_r(rootgid,&grp,pwdgrpbuff,16384,&gr);
-//		gr = getgrgid(rootgid);
-		if (gr) {
-			fprintf(stderr,"%s",gr->gr_name);
-		} else {
-			fprintf(stderr,"%"PRIu32,rootgid);
-		}
-		if (sesflags&SESFLAG_MAPALL) {
-			fprintf(stderr," ; users mapped to ");
-			pw = getpwuid(mapalluid);
-			if (pw) {
-				fprintf(stderr,"%s:",pw->pw_name);
-			} else {
-				fprintf(stderr,"%"PRIu32":",mapalluid);
-			}
-			gr = getgrgid(mapallgid);
-			if (gr) {
-				fprintf(stderr,"%s",gr->gr_name);
-			} else {
-				fprintf(stderr,"%"PRIu32,mapallgid);
-			}
-		}
-	}
-	if (mingoal>0 && maxgoal>0) {
-		if (mingoal>1 || maxgoal<9) {
-			fprintf(stderr," ; setgoal limited to (%u:%u)",mingoal,maxgoal);
-		}
-		if (mintrashtime>0 || maxtrashtime<UINT32_C(0xFFFFFFFF)) {
-			fprintf(stderr," ; settrashtime limited to (");
-			if (mintrashtime>0) {
-				if (mintrashtime>604800) {
-					fprintf(stderr,"%uw",mintrashtime/604800);
-					mintrashtime %= 604800;
-				}
-				if (mintrashtime>86400) {
-					fprintf(stderr,"%ud",mintrashtime/86400);
-					mintrashtime %= 86400;
-				}
-				if (mintrashtime>3600) {
-					fprintf(stderr,"%uh",mintrashtime/3600);
-					mintrashtime %= 3600;
-				}
-				if (mintrashtime>60) {
-					fprintf(stderr,"%um",mintrashtime/60);
-					mintrashtime %= 60;
-				}
-				if (mintrashtime>0) {
-					fprintf(stderr,"%us",mintrashtime);
-				}
-			} else {
-				fprintf(stderr,"0s");
-			}
-			fprintf(stderr,":");
-			if (maxtrashtime>0) {
-				if (maxtrashtime>604800) {
-					fprintf(stderr,"%uw",maxtrashtime/604800);
-					maxtrashtime %= 604800;
-				}
-				if (maxtrashtime>86400) {
-					fprintf(stderr,"%ud",maxtrashtime/86400);
-					maxtrashtime %= 86400;
-				}
-				if (maxtrashtime>3600) {
-					fprintf(stderr,"%uh",maxtrashtime/3600);
-					maxtrashtime %= 3600;
-				}
-				if (maxtrashtime>60) {
-					fprintf(stderr,"%um",maxtrashtime/60);
-					maxtrashtime %= 60;
-				}
-				if (maxtrashtime>0) {
-					fprintf(stderr,"%us",maxtrashtime);
-				}
-			} else {
-				fprintf(stderr,"0s");
-			}
-			fprintf(stderr,")");
-		}
-	}
-	fprintf(stderr,"\n");
 
 	if (fg==0) {
 		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY , LOG_DAEMON);
@@ -891,7 +780,10 @@ void make_fsname(struct fuse_args *args) {
 			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
 				l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.subfolder);
 			}
-			fsnamearg[255]=0;
+			if (l>255) {
+				l=255;
+			}
+			fsnamearg[l]=0;
 		} else {
 			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
 			if (l<255) {
@@ -906,7 +798,10 @@ void make_fsname(struct fuse_args *args) {
 			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
 				l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
 			}
-			fsnamearg[255]=0;
+			if (l>255) {
+				l=255;
+			}
+			fsnamearg[l]=0;
 		}
 	} else {
 #else
@@ -924,7 +819,10 @@ void make_fsname(struct fuse_args *args) {
 		if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
 			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
 		}
-		fsnamearg[255]=0;
+		if (l>255) {
+			l=255;
+		}
+		fsnamearg[l]=0;
 #endif
 #if HAVE_FUSE_VERSION
 	}
@@ -965,6 +863,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.nostdmountoptions = 0;
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
+	mfsopts.delayedinit = 0;
 #ifdef __linux__
 	mfsopts.mkdircopysgid = 1;
 #else
@@ -992,7 +891,22 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (custom_cfg==0) {
-		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
+		int cfgfd;
+		char *cfgfile;
+
+		cfgfile=strdup(ETC_PATH "/mfs/mfsmount.cfg");
+		if ((cfgfd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
+			free(cfgfile);
+			cfgfile=strdup(ETC_PATH "/mfsmount.cfg");
+			if ((cfgfd = open(cfgfile,O_RDONLY))>=0) {
+				fprintf(stderr,"default sysconf path has changed - please move mfsmount.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/\n");
+			}
+		}
+		if (cfgfd>=0) {
+			close(cfgfd);
+		}
+		mfs_opt_parse_cfg_file(cfgfile,1,&defaultargs);
+		free(cfgfile);
 	}
 
 //	dump_args("parsed_defaults",&defaultargs);

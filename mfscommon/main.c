@@ -513,10 +513,12 @@ static int daemonignoresignal[]={
 
 void termhandle(int signo) {
 	signo = write(signalpipe[1],"\001",1); // killing two birds with one stone - use signo and do something with value returned by write :)
+	(void)signo; // and then use this value to calm down compiler ;)
 }
 
 void reloadhandle(int signo) {
 	signo = write(signalpipe[1],"\002",1); // see above
+	(void)signo;
 }
 
 void set_signal_handlers(int daemonflag) {
@@ -609,12 +611,22 @@ void changeugid(void) {
 		free(wuser);
 		free(wgroup);
 
-		setgid(wrk_gid);
-		syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
-		setuid(wrk_uid);
-		syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
+		if (setgid(wrk_gid)<0) {
+			mfs_arg_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
+			exit(1);
+		} else {
+			syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
+		}
+		if (setuid(wrk_uid)<0) {
+			mfs_arg_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
+			exit(1);
+		} else {
+			syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
+		}
 	}
 }
+
+static int lfd = -1;	// main lock
 
 pid_t mylock(int fd) {
 	struct flock fl;
@@ -640,18 +652,23 @@ pid_t mylock(int fd) {
 	return -1;	// pro forma
 }
 
+void wdunlock(void) {
+	if (lfd>=0) {
+		close(lfd);
+	}
+}
+
 int wdlock(uint8_t runmode,uint32_t timeout) {
 	pid_t ownerpid;
 	pid_t newownerpid;
-	int lfp;
 	uint32_t l;
 
-	lfp = open("." STR(APPNAME) ".lock",O_WRONLY|O_CREAT,0666);
-	if (lfp<0) {
+	lfd = open("." STR(APPNAME) ".lock",O_WRONLY|O_CREAT,0666);
+	if (lfd<0) {
 		mfs_errlog(LOG_ERR,"can't create lockfile in working directory");
 		return -1;
 	}
-	ownerpid = mylock(lfp);
+	ownerpid = mylock(lfd);
 	if (ownerpid<0) {
 		mfs_errlog(LOG_ERR,"fcntl error");
 		return -1;
@@ -690,7 +707,7 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 		fprintf(stderr,"waiting for termination ... ");
 		fflush(stderr);
 		do {
-			newownerpid = mylock(lfp);
+			newownerpid = mylock(lfd);
 			if (newownerpid<0) {
 				mfs_errlog(LOG_ERR,"fcntl error");
 				return -1;
@@ -747,15 +764,14 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 }
 
 int check_old_locks(uint8_t runmode,uint32_t timeout) {
-	int lfp;
 	char str[13];
 	uint32_t l;
 	pid_t ptk;
 	char *lockfname;
 
 	lockfname = cfg_getstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock");
-	lfp=open(lockfname,O_RDWR);
-	if (lfp<0) {
+	lfd=open(lockfname,O_RDWR);
+	if (lfd<0) {
 		if (errno==ENOENT) {    // no old lock file
 			free(lockfname);
 			return 0;	// ok
@@ -764,7 +780,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 		free(lockfname);
 		return -1;
 	}
-	if (lockf(lfp,F_TLOCK,0)<0) {
+	if (lockf(lfd,F_TLOCK,0)<0) {
 		if (errno!=EAGAIN) {
 			mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
 			free(lockfname);
@@ -780,7 +796,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 		} else if (runmode==RM_RELOAD) {
 			fprintf(stderr,"old lockfile found - sending reload signal using data from old lockfile\n");
 		}
-		l=read(lfp,str,13);
+		l=read(lfd,str,13);
 		if (l==0 || l>=13) {
 			mfs_arg_syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
 			free(lockfname);
@@ -814,7 +830,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 		}
 		l=0;
 		fprintf(stderr,"waiting for termination ...\n");
-		while (lockf(lfp,F_TLOCK,0)<0) {
+		while (lockf(lfd,F_TLOCK,0)<0) {
 			if (errno!=EAGAIN) {
 				mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
 				free(lockfname);
@@ -840,7 +856,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 		}
 	}
 	fprintf(stderr,"removing old lockfile\n");
-	close(lfp);
+	close(lfd);
 	unlink(lockfname);
 	free(lockfname);
 	return 0;
@@ -881,10 +897,12 @@ void makedaemon() {
 				if (pipebuff[r-1]==0) {	// zero as a last char in the pipe means error
 					if (r>1) {
 						happy = fwrite(pipebuff,1,r-1,stderr);
+						(void)happy;
 					}
 					exit(1);
 				}
 				happy = fwrite(pipebuff,1,r,stderr);
+				(void)happy;
 			} else {
 				fprintf(stderr,"Error reading pipe: %s\n",strerr(errno));
 				exit(1);
@@ -973,14 +991,28 @@ int main(int argc,char **argv) {
 	int lockmemory;
 	int32_t nicelevel;
 	uint32_t locktimeout;
+	int fd;
+	uint8_t movewarning;
 	struct rlimit rls;
 
 	strerr_init();
 	mycrc32_init();
 
-	cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
+	movewarning = 0;
+	cfgfile=strdup(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
 	passert(cfgfile);
-	locktimeout = 60;
+	if ((fd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
+		free(cfgfile);
+		cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
+		passert(cfgfile);
+		if ((fd = open(cfgfile,O_RDONLY))>=0) {
+			movewarning = 1;
+		}
+	}
+	if (fd>=0) {
+		close(fd);
+	}
+	locktimeout = 1800;
 	rundaemon = 1;
 	runmode = RM_RESTART;
 	logundefined = 0;
@@ -1008,6 +1040,7 @@ int main(int argc,char **argv) {
 				free(cfgfile);
 				cfgfile = strdup(optarg);
 				passert(cfgfile);
+				movewarning = 0;
 				break;
 			case 'u':
 				logundefined=1;
@@ -1039,6 +1072,10 @@ int main(int argc,char **argv) {
 	} else if (argc!=0) {
 		usage(appname);
 		return 1;
+	}
+
+	if (movewarning) {
+		mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
 	}
 
 	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
@@ -1126,6 +1163,7 @@ int main(int argc,char **argv) {
 		}
 		closelog();
 		free(logappname);
+		wdunlock();
 		return 1;
 	}
 
@@ -1136,6 +1174,7 @@ int main(int argc,char **argv) {
 		}
 		closelog();
 		free(logappname);
+		wdunlock();
 		return 1;
 	}
 
@@ -1147,6 +1186,7 @@ int main(int argc,char **argv) {
 		}
 		closelog();
 		free(logappname);
+		wdunlock();
 		return 0;
 	}
 
@@ -1212,5 +1252,6 @@ int main(int argc,char **argv) {
 	strerr_term();
 	closelog();
 	free(logappname);
+	wdunlock();
 	return ch;
 }

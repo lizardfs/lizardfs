@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 dnl AC_PREREQ(2.60)
-AC_INIT([MFS], [1.6.26], [bugs@moosefs.com])
+AC_INIT([MFS], [1.6.27], [bugs@moosefs.com])
 dnl AC_INIT([MFS], [1.7.0], [bugs@moosefs.com])
 dnl AC_CONFIG_SRCDIR([MFSCommunication.h])
 AC_CONFIG_HEADER([config.h])
@@ -25,7 +25,7 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
 if test "$GCC" = "yes"; then
-	CFLAGS="-std=c99 $CFLAGS -W -Wall -Wshadow -pedantic"
+	CFLAGS="-std=c99 $CFLAGS -Wall -Wextra -Wshadow -pedantic -fwrapv -O2"
 dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
@@ -63,6 +63,7 @@ dnl AC_CHECK_LIB([pthread], [pthread_create])
 # Checks for libraries.
 AC_SEARCH_LIBS([socket], [socket])
 AC_SEARCH_LIBS([getaddrinfo], [nsl])
+AC_SEARCH_LIBS([round], [m])
 
 # Checks for header files.
 AC_HEADER_DIRENT

@@ -94,13 +94,13 @@ static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
 
-static uint32_t stats_bytesout=0;
-static uint32_t stats_bytesin=0;
+static uint64_t stats_bytesout=0;
+static uint64_t stats_bytesin=0;
 static uint32_t stats_maxjobscnt=0;
 
 // static FILE *logfd;
 
-void masterconn_stats(uint32_t *bin,uint32_t *bout,uint32_t *maxjobscnt) {
+void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
 	*bout = stats_bytesout;
 	*maxjobscnt = stats_maxjobscnt;
@@ -808,6 +808,10 @@ void masterconn_chunk_checksum_tab(masterconn *eptr,const uint8_t *data,uint32_t
 void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
+			break;
+		case ANTOAN_UNKNOWN_COMMAND: // for future use
+			break;
+		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
 		case MATOCS_CREATE:
 			masterconn_create(eptr,data,length);

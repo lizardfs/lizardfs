@@ -22,7 +22,8 @@
 #include <inttypes.h>
 
 int dcm_open(uint32_t inode,uint32_t sessionid);
-int dcm_modify(uint32_t inode,uint32_t sessionid);
+void dcm_access(uint32_t inode,uint32_t sessionid);
+void dcm_modify(uint32_t inode,uint32_t sessionid);
 int dcm_init(void);
 
 #endif

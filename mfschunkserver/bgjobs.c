@@ -178,10 +178,18 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			case OP_OPEN:
-				status = hdd_open(ocargs->chunkid);
+				if (jstate==JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+				} else {
+					status = hdd_open(ocargs->chunkid);
+				}
 				break;
 			case OP_CLOSE:
-				status = hdd_close(ocargs->chunkid);
+				if (jstate==JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+				} else {
+					status = hdd_close(ocargs->chunkid);
+				}
 				break;
 			case OP_READ:
 				if (jstate==JSTATE_DISABLED) {

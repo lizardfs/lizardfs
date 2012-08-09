@@ -140,6 +140,14 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			offset+=blocksize;
 			size-=blocksize;
 			buff+=blocksize;
+		} else if (cmd==ANTOAN_NOP) {
+			if (l!=0) {
+				syslog(LOG_NOTICE,"readblock; NOP incorrect message size (%"PRIu32"/0)",l);
+				return -1;
+			}
+		} else if (cmd==ANTOAN_UNKNOWN_COMMAND || cmd==ANTOAN_BAD_COMMAND_SIZE) {
+			syslog(LOG_NOTICE,"readblock; got UNKNOWN_COMMAND/BAD_COMMAND_SIZE !!!");
+			return -1;
 		} else {
 			syslog(LOG_NOTICE,"readblock; unknown message");
 			return -1;
@@ -147,7 +155,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 	}
 	return 0;
 }
-
+/*
 int cs_writestatus(int fd,uint64_t chunkid,uint32_t writeid) {
 	uint8_t ibuff[21];
 	const uint8_t *ptr;
@@ -234,3 +242,4 @@ int cs_writeblock(int fd,uint64_t chunkid,uint32_t writeid,uint16_t blockno,uint
 	}
 	return 0;
 }
+*/

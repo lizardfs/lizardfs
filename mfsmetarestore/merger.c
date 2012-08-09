@@ -1,14 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <inttypes.h>
 
 #include "restore.h"
 
-#define BSIZE 10000
+#define BSIZE 200000
 
 typedef struct _hentry {
 	FILE *fd;
-	const char *filename;
+	char *filename;
 	char *buff;
 	char *ptr;
 	uint64_t nextid;
@@ -77,13 +78,21 @@ void merger_nextentry(uint32_t pos) {
 }
 
 void merger_delete_entry(void) {
-	fclose(heap[heapsize].fd);
-	free(heap[heapsize].buff);
+	if (heap[heapsize].fd) {
+		fclose(heap[heapsize].fd);
+	}
+	if (heap[heapsize].filename) {
+		free(heap[heapsize].filename);
+	}
+	if (heap[heapsize].buff) {
+		free(heap[heapsize].buff);
+	}
 }
 
 void merger_new_entry(const char *filename) {
+	// printf("add file: %s\n",filename);
 	if ((heap[heapsize].fd = fopen(filename,"r"))!=NULL) {
-		heap[heapsize].filename = filename;
+		heap[heapsize].filename = strdup(filename);
 		heap[heapsize].buff = malloc(BSIZE);
 		heap[heapsize].ptr = NULL;
 		heap[heapsize].nextid = 0;
@@ -124,6 +133,7 @@ int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {
 int merger_loop(void) {
 	int status;
 	hentry h;
+
 	while (heapsize) {
 //		printf("current id: %"PRIu64" / %s\n",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {

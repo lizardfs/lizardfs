@@ -1275,7 +1275,7 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 			calcdefscount++;
 		}
 	}
-	if (i>0) {
+	if (i>0 && calcdefscount>0) {
 		calcdefs = (uint32_t*)malloc(sizeof(uint32_t)*i);
 		passert(calcdefs);
 		calcstartpos = (uint32_t**)malloc(sizeof(uint32_t*)*calcdefscount);

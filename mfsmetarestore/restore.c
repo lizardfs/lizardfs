@@ -98,21 +98,83 @@
 			if ((path)==NULL) { \
 				(path) = malloc(size); \
 			} else { \
+				uint8_t *_tmp_path = (path); \
 				(path) = realloc((path),(size)); \
+				if ((path)==NULL) { \
+					free(_tmp_path); \
+				} \
+			} \
+			if ((path)==NULL) { \
+				printf("out of memory !!!\n"); \
+				exit(1); \
 			} \
 		} \
-		path[_tmp_i++]=_tmp_c; \
+		(path)[_tmp_i++]=_tmp_c; \
 	} \
 	if ((_tmp_i)>=(size)) { \
 		(size) = _tmp_i+1000; \
 		if ((path)==NULL) { \
 			(path) = malloc(size); \
 		} else { \
+			uint8_t *_tmp_path = (path); \
 			(path) = realloc((path),(size)); \
+			if ((path)==NULL) { \
+				free(_tmp_path); \
+			} \
+		} \
+		if ((path)==NULL) { \
+			printf("out of memory !!!\n"); \
+			exit(1); \
 		} \
 	} \
 	(clptr)--; \
-	path[_tmp_i]=0; \
+	(path)[_tmp_i]=0; \
+}
+
+#define GETDATA(buff,leng,size,clptr,fn,vno,c) { \
+	char _tmp_c,_tmp_h1,_tmp_h2; \
+	(leng) = 0; \
+	while ((_tmp_c=*((clptr)++))!=c) { \
+		if (_tmp_c=='%') { \
+			_tmp_h1 = *((clptr)++); \
+			_tmp_h2 = *((clptr)++); \
+			if (_tmp_h1>='0' && _tmp_h1<='9') { \
+				_tmp_h1-='0'; \
+			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
+				_tmp_h1-=('A'-10); \
+			} else { \
+				printf("%s:%"PRIu64": hex expected\n",(fn),(vno)); \
+				return -1; \
+			} \
+			if (_tmp_h2>='0' && _tmp_h2<='9') { \
+				_tmp_h2-='0'; \
+			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
+				_tmp_h2-=('A'-10); \
+			} else { \
+				printf("%s:%"PRIu64": hex expected\n",(fn),(vno)); \
+				return -1; \
+			} \
+			_tmp_c = _tmp_h1*16+_tmp_h2; \
+		} \
+		if ((leng)>=(size)) { \
+			(size) = (leng)+1000; \
+			if ((buff)==NULL) { \
+				(buff) = malloc(size); \
+			} else { \
+				uint8_t *_tmp_buff = (buff); \
+				(buff) = realloc((buff),(size)); \
+				if ((buff)==NULL) { \
+					free(_tmp_buff); \
+				} \
+			} \
+			if ((buff)==NULL) { \
+				printf("out of memory !!!\n"); \
+				exit(1); \
+			} \
+		} \
+		(buff)[(leng)++]=_tmp_c; \
+	} \
+	(clptr)--; \
 }
 
 #define GETU32(data,clptr) (data)=strtoul(clptr,&clptr,10)
@@ -438,8 +500,8 @@ int do_setgoal(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 
 int do_setpath(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode;
-	static uint8_t *path;
-	static uint32_t pathsize;
+	static uint8_t *path = NULL;
+	static uint32_t pathsize = 0;
 	(void)ts;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
@@ -471,6 +533,23 @@ int do_settrashtime(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_settrashtime(ts,inode,uid,trashtime,smode,ci,nci,npi);
 }
 
+int do_setxattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
+	uint32_t inode,valueleng,mode;
+	uint8_t name[256];
+	static uint8_t *value = NULL;
+	static uint32_t valuesize = 0;
+	EAT(ptr,filename,lv,'(');
+	GETU32(inode,ptr);
+	EAT(ptr,filename,lv,',');
+	GETNAME(name,ptr,filename,lv,',');
+	EAT(ptr,filename,lv,',');
+	GETDATA(value,valueleng,valuesize,ptr,filename,lv,',');
+	EAT(ptr,filename,lv,',');
+	GETU32(mode,ptr);
+	EAT(ptr,filename,lv,')');
+	return fs_setxattr(ts,inode,strlen((char*)name),name,valueleng,value,mode);
+}
+
 int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,parent,canoverwrite;
 	uint8_t name[256];
@@ -489,8 +568,8 @@ int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 int do_symlink(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t parent,uid,gid,inode;
 	uint8_t name[256];
-	static uint8_t *path;
-	static uint32_t pathsize;
+	static uint8_t *path = NULL;
+	static uint32_t pathsize = 0;
 	EAT(ptr,filename,lv,'(');
 	GETU32(parent,ptr);
 	EAT(ptr,filename,lv,',');
@@ -677,6 +756,8 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_setpath(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
 				status = do_settrashtime(filename,lv,ts,ptr+12);
+			} else if (strncmp(ptr,"SETXATTR",8)==0) {
+				status = do_setxattr(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SNAPSHOT",8)==0) {
 				status = do_snapshot(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SYMLINK",7)==0) {
@@ -716,7 +797,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			printf("%s:%"PRIu64": unknown entry '%s'\n",filename,lv,ptr);
 	}
 	if (status>STATUS_OK) {
-		printf("%s:%"PRIu64": error: %"PRIu8" (%s)\n",filename,lv,status,errormsgs[status]);
+		printf("%s:%"PRIu64": error: %d (%s)\n",filename,lv,status,errormsgs[status]);
 	}
 	return status;
 }

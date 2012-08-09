@@ -28,8 +28,8 @@
 #include "matomlserv.h"
 #include "cfg.h"
 
-#define MAXLOGLINESIZE 10000
-#define MAXLOGNUMBER 1000
+#define MAXLOGLINESIZE 200000U
+#define MAXLOGNUMBER 1000U
 static uint32_t BackLogsNumber;
 static FILE *fd;
 

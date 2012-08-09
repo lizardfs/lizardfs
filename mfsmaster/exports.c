@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <syslog.h>
 #include <errno.h>
 #include <pwd.h>
@@ -496,7 +498,7 @@ int exports_parsetime(char *timestr,uint32_t *time) {
 			return 0;
 		}
 	}
-	return -1;
+	return -1;	// unreachable
 }
 
 // x | x.y | x.y.z -> ( x<<16 + y<<8 + z )
@@ -627,7 +629,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 		*rgid = pwrec->pw_gid;
 		return 0;
 	}
-	return -1;
+	return -1;	// unreachable
 }
 
 int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
@@ -980,20 +982,40 @@ void exports_loadexports(void) {
 }
 
 void exports_reload(void) {
-	free(ExportsFileName);
-	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
+	int fd;
+	if (ExportsFileName) {
+		free(ExportsFileName);
+	}
+	if (!cfg_isdefined("EXPORTS_FILENAME")) {
+		ExportsFileName = strdup(ETC_PATH "/mfs/mfsexports.cfg");
+		passert(ExportsFileName);
+		if ((fd = open(ExportsFileName,O_RDONLY))<0 && errno==ENOENT) {
+			free(ExportsFileName);
+			ExportsFileName = strdup(ETC_PATH "/mfsexports.cfg");
+			if ((fd = open(ExportsFileName,O_RDONLY))>=0) {
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+			}
+		}
+		if (fd>=0) {
+			close(fd);
+		}
+	} else {
+		ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfs/mfsexports.cfg");
+	}
 	exports_loadexports();
 }
 
 void exports_term(void) {
 	exports_freelist(exports_records);
-	free(ExportsFileName);
+	if (ExportsFileName) {
+		free(ExportsFileName);
+	}
 }
 
 int exports_init(void) {
-	ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfsexports.cfg");
 	exports_records = NULL;
-	exports_loadexports();
+	ExportsFileName = NULL;
+	exports_reload();
 	if (exports_records==NULL) {
 		fprintf(stderr,"no exports defined !!!\n");
 		return -1;

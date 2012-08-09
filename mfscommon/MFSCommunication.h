@@ -112,8 +112,10 @@
 #define ERROR_BADPASSWORD     37        // Incorrect password
 
 #define ERROR_ENOATTR         38        // Attribute not found
+#define ERROR_ENOTSUP         39        // Operation not supported
+#define ERROR_ERANGE          40        // Result too large
 
-#define ERROR_MAX             39
+#define ERROR_MAX             41
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -155,6 +157,8 @@
 	"Password is needed", \
 	"Incorrect password", \
 	"Attribute not found", \
+	"Operation not supported", \
+	"Result too large", \
 	"Unknown MFS error"
 
 /* type for readdir command */
@@ -308,12 +312,31 @@
 #define AFTER_CREATE 4
 
 
+#define MFS_XATTR_CREATE_OR_REPLACE 0
+#define MFS_XATTR_CREATE_ONLY 1
+#define MFS_XATTR_REPLACE_ONLY 2
+#define MFS_XATTR_REMOVE 3
+
+#define MFS_XATTR_GETA_DATA 0
+#define MFS_XATTR_LENGTH_ONLY 1
+
+// MFS uses Linux limits
+#define MFS_XATTR_NAME_MAX 255
+#define MFS_XATTR_SIZE_MAX 65536
+#define MFS_XATTR_LIST_MAX 65536
 
 
 // ANY <-> ANY
 
 #define ANTOAN_NOP 0
+// [msgid:32] (msgid - only in communication from master to client)
 
+// these packets are acceptable since version 1.6.27 (but treated as NOP in this version)
+#define ANTOAN_UNKNOWN_COMMAND 1
+// [msgid:32] cmdno:32 size:32 version:32 (msgid - only in communication from master to client)
+
+#define ANTOAN_BAD_COMMAND_SIZE 2
+// [msgid:32] cmdno:32 size:32 version:32 (msgid - only in communication from master to client)
 
 
 
@@ -1017,23 +1040,31 @@
 
 
 // 0x01DE
-#define CLTOMA_FUSE_SETXATTR (PROTO_BASE+478)
-// msgid:32 inode:32 name:NAME vleng:16 value:8[VLENG] mode:8
-//   empty value = remove xattr
+#define CLTOMA_FUSE_GETXATTR (PROTO_BASE+478)
+// msgid:32 inode:32 opened:8 uid:32 gid:32 nleng:8 name:nlengB mode:8
+//   empty name = list names
+//   mode:
+//    0 - get data
+//    1 - get length only
 
 // 0x01DF
-#define MATOCL_FUSE_SETXATTR (PROTO_BASE+479)
-// msgid:32 status:8 
+#define MATOCL_FUSE_GETXATTR (PROTO_BASE+479)
+// msgid:32 status:8
+// msgid:32 vleng:32
+// msgid:32 vleng:32 value:vlengB
 
 // 0x01E0
-#define CLTOMA_FUSE_GETXATTR (PROTO_BASE+480)
-// msgid:32 inode:32 name:NAME
-//   empty name = list names
+#define CLTOMA_FUSE_SETXATTR (PROTO_BASE+480)
+// msgid:32 inode:32 uid:32 gid:32 nleng:8 name:8[NLENG] vleng:32 value:8[VLENG] mode:8
+//   mode:
+//    0 - create or replace
+//    1 - create only
+//    2 - replace only
+//    3 - remove
 
 // 0x01E1
-#define MATOCL_FUSE_GETXATTR (PROTO_BASE+481)
-// msgid:32 status:8
-// msgid:32 vleng:16 valur:8[VLENG]
+#define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
+// msgid:32 status:8 
 
 
 
@@ -1196,6 +1227,15 @@
 
 // 0x0020B
 #define MATOCL_MLOG_LIST (PROTO_BASE+523)
+// N * [ version:32 ip:32 ]
+
+
+// 0x0020C
+#define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
+// -
+
+// 0x0020D
+#define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
 // N * [ version:32 ip:32 ]
 
 

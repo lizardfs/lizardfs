@@ -32,11 +32,11 @@ int chunk_reinitialize(uint64_t chunkid);
 void chunk_load_goal(void);
 */
 #ifdef METARESTORE
-int chunk_set_file_goal(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
-int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx);
-int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t opflag);
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal);
+int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
+int chunk_delete_file(uint64_t chunkid,uint8_t goal);
+int chunk_add_file(uint64_t chunkid,uint8_t goal);
+int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag);
+int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal);
 //int chunk_multi_reinitialize(uint32_t ts,uint64_t chunkid);
 int chunk_unlock(uint64_t chunkid);
 int chunk_increase_version(uint64_t chunkid);
@@ -54,18 +54,18 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 
-int chunk_set_file_goal(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
-int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx);
-int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal);
+int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
+int chunk_delete_file(uint64_t chunkid,uint8_t goal);
+int chunk_add_file(uint64_t chunkid,uint8_t goal);
 //int chunk_get_refcount(uint64_t chunkid,uint16_t *refcount);
 //int chunk_locked(uint64_t chunkid,uint8_t *l);
 //int chunk_writelock(uint64_t chunkid);
 int chunk_unlock(uint64_t chunkid);
 
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t *opflag);
-int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint32_t inode,uint16_t indx,uint8_t goal);
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag);
+int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal);
 //int chunk_multi_reinitialize(uint64_t chunkid);
-int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversion);
+int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 /* ---- */
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);

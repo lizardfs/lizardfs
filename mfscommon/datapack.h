@@ -56,23 +56,23 @@ static inline void put8bit(uint8_t **ptr,uint8_t val) {
 
 static inline uint64_t get64bit(const uint8_t **ptr) {
 	uint64_t t64;
-	t64=((*ptr)[3]+256*((*ptr)[2]+256*((*ptr)[1]+256*(*ptr)[0])));
+	t64=((*ptr)[3]+256U*((*ptr)[2]+256U*((*ptr)[1]+256U*(*ptr)[0])));
 	t64<<=32;
-	t64|=(((*ptr)[7]+256*((*ptr)[6]+256*((*ptr)[5]+256*(*ptr)[4]))))&0xffffffffU;
+	t64|=(uint32_t)(((*ptr)[7]+256U*((*ptr)[6]+256U*((*ptr)[5]+256U*(*ptr)[4]))));
 	(*ptr)+=8;
 	return t64;
 }
 
 static inline uint32_t get32bit(const uint8_t **ptr) {
 	uint32_t t32;
-	t32=((*ptr)[3]+256*((*ptr)[2]+256*((*ptr)[1]+256*(*ptr)[0])));
+	t32=((*ptr)[3]+256U*((*ptr)[2]+256U*((*ptr)[1]+256U*(*ptr)[0])));
 	(*ptr)+=4;
 	return t32;
 }
 
 static inline uint16_t get16bit(const uint8_t **ptr) {
 	uint32_t t16;
-	t16=(*ptr)[1]+256*(*ptr)[0];
+	t16=(*ptr)[1]+256U*(*ptr)[0];
 	(*ptr)+=2;
 	return t16;
 }

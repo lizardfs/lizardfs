@@ -53,6 +53,7 @@ int chunk_load(FILE *fd) {
 	printf("# nextchunkid: %016"PRIX64"\n",nextchunkid);
 	for (;;) {
 		r = fread(loadbuff,1,16,fd);
+		(void)r;
 		ptr = loadbuff;
 		chunkid = get64bit(&ptr);
 		version = get32bit(&ptr);
@@ -77,6 +78,7 @@ void print_name(FILE *in,uint32_t nleng) {
 			}
 		}
 		happy = fwrite(buff,1,x,stdout);
+		(void)happy;
 		if (x!=y) {
 			return;
 		}
@@ -195,7 +197,7 @@ int fs_loadnode(FILE *fd) {
 	ctimestamp = get32bit(&ptr);
 	trashtime = get32bit(&ptr);
 
-	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|e:%1"PRIX16"|m:%04"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,nodeid,goal,mode>>12,mode&0xFFF,uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
+	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|e:%1"PRIX16"|m:%04"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,nodeid,goal,(uint16_t)(mode>>12),(uint16_t)(mode&0xFFF),uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
 
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		uint32_t rdev;
@@ -549,6 +551,7 @@ int fs_loadall(const char *fname) {
 	}
 	if (fread(hdr,1,8,fd)!=8) {
 		printf("can't read metadata header\n");
+		fclose(fd);
 		return -1;
 	}
 	printf("# header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X)\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);

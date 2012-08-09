@@ -1,6 +1,28 @@
 This file lists noteworthy changes in MooseFS.
 
-* MooseFS 1.6.26 (2012-01-02)
+* MooseFS 1.6.27 (2012-08-09)
+
+  - (mfsrestore) fixed bug - freeing filenames memory too early
+  - (all) added initial support for extra attributes (xattr), which will be introduced in upcoming version 1.7
+  - (master+metalogger) better change log synchronization (storage in master memory and sending expected version in metalogger - inspired by Davies Liu)
+  - (master) acceptable difference of percent of hdd usage added to configuration (up to this version this parameter was constantly set to 0.01% - patch contributed by Davies Liu)
+  - (master) added emergency store metadata to some other places on errors during standard hourly store (inspired by Davies Liu)
+  - (cs) default space to be left (256MB) moved to config file (inspired by Davies Liu)
+  - (cs) added extra limits in mfshdd.cfg (minimum space to be left, maximum space to be used)
+  - (cs) fixed charts overflow issue (overflow in net transfer on about 575Mbps and hdd transfer on about 77MBps)
+  - (metalogger) fixed issue: file variable was not clear after close (on rare occasions might cause segfault after disconnecting from master)
+  - (all) cfg files moved form PREFIX/etc/ to PREFIX/etc/mfs/
+  - (cgiserv) improved CGI handle (added support for custom http responses, such as "302 Found")
+  - (master+cgi) showing disconnected chunkservers in "Servers" tab.
+  - (deb+rpm) mfscgiserv moved from mfscgi to separate package, changes in init scripts
+  - (mount) added option 'mfsdelayedinit' - for being run from fstab/init scripts
+  - (master) optimized goal management in chunks
+  - (master) fixed rare race-condition on clear/preserve cache during open in mount
+  - (mount) fixed compiling problems on Mac OS X
+  - (all) changed code to be more compatible with new gcc 4.7 (gcc 4.7 has too strong optimizations - it can generate unpredictable code)
+  - (master) sustain session time could be defined in mfsmaster.cfg
+
+* MooseFS 1.6.26 (2012-02-01)
 
   - (all) fixed signal handling in multithreaded modules
   - (master) added goal and trashtime limits to mfsexport.cfg

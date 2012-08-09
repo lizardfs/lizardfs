@@ -160,9 +160,13 @@ static void* masterproxy_acceptor(void *args) {
 		sock = tcptoaccept(lsock,1000);
 		if (sock>=0) {
 			int *s = malloc(sizeof(int));
+			// memory is freed inside pthread routine !!!
 			*s = sock;
 			tcpnodelay(sock);
-			pthread_create(&clientthread,&thattr,masterproxy_server,s);
+			if (pthread_create(&clientthread,&thattr,masterproxy_server,s)<0) {
+				free(s);
+				tcpclose(sock);
+			}
 		}
 	}
 

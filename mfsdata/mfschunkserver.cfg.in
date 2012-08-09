@@ -17,7 +17,7 @@
 # CSSERV_LISTEN_HOST = *
 # CSSERV_LISTEN_PORT = 9422
 
-# HDD_CONF_FILENAME = @ETC_PATH@/mfshdd.cfg
+# HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
 # HDD_TEST_FREQ = 10
 
 # deprecated, to be removed in MooseFS 1.7

@@ -43,6 +43,7 @@
 #include "slogger.h"
 #include "massert.h"
 #include "mfsstrerr.h"
+#include "hashfn.h"
 
 #define MaxPacketSize 500000000
 
@@ -81,6 +82,7 @@ typedef struct matocsserventry {
 	uint16_t wrepcounter;
 	uint16_t delcounter;
 
+	uint8_t incsdb;
 	double carry;
 
 	struct matocsserventry *next;
@@ -95,8 +97,137 @@ static int32_t lsockpdescpos;
 static char *ListenHost;
 static char *ListenPort;
 
+#define CSDBHASHSIZE 256
+//#define CSDBHASHFN(ip,port) ((((ip)*0x4F30FD53)+(port))%(CSDBHASHSIZE))
+#define CSDBHASHFN(ip,port) (hash32((ip)^((port)<<16))%(CSDBHASHSIZE))
 
+typedef struct csdbentry {
+	uint32_t ip;
+	uint16_t port;
+//	uint32_t lastversion;
+//	uint64_t lastusedspace;
+//	uint64_t lasttotalspace;
+//	uint32_t lastchunkscount;
+//	uint64_t lasttodelusedspace;
+//	uint64_t lasttodeltotalspace;
+//	uint32_t lasttodelchunkscount;
+	matocsserventry *eptr;
+	struct csdbentry *next;
+} csdbentry;
 
+static csdbentry *csdbhash[CSDBHASHSIZE];
+
+int matocsserv_csdb_new_connection(uint32_t ip,uint16_t port,matocsserventry *eptr) {
+	uint32_t hash;
+	csdbentry *csptr;
+
+	hash = CSDBHASHFN(ip,port);
+	for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
+		if (csptr->ip == ip && csptr->port == port) {
+			if (csptr->eptr!=NULL) {
+				return -1;
+			}
+			csptr->eptr = eptr;
+			return 0;
+		}
+	}
+	csptr = malloc(sizeof(csdbentry));
+	passert(csptr);
+	csptr->ip = ip;
+	csptr->port = port;
+	csptr->eptr = eptr;
+	csptr->next = csdbhash[hash];
+	csdbhash[hash] = csptr;
+	return 1;
+}
+
+void matocsserv_csdb_lost_connection(uint32_t ip,uint16_t port) {
+	uint32_t hash;
+	csdbentry *csptr;
+
+	hash = CSDBHASHFN(ip,port);
+	for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
+		if (csptr->ip == ip && csptr->port == port) {
+			csptr->eptr = NULL;
+			return;
+		}
+	}
+}
+
+uint32_t matocsserv_cservlist_size(void) {
+	uint32_t hash;
+	csdbentry *csptr;
+	uint32_t i;
+	i=0;
+	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
+		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
+			i++;
+		}
+	}
+	return i*(4+4+2+8+8+4+8+8+4+4);
+}
+
+void matocsserv_cservlist_data(uint8_t *ptr) {
+	uint32_t hash;
+	csdbentry *csptr;
+	matocsserventry *eptr;
+	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
+		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
+			eptr = csptr->eptr;
+			if (eptr) {
+				put32bit(&ptr,(eptr->version)&0xFFFFFF);
+				put32bit(&ptr,eptr->servip);
+				put16bit(&ptr,eptr->servport);
+				put64bit(&ptr,eptr->usedspace);
+				put64bit(&ptr,eptr->totalspace);
+				put32bit(&ptr,eptr->chunkscount);
+				put64bit(&ptr,eptr->todelusedspace);
+				put64bit(&ptr,eptr->todeltotalspace);
+				put32bit(&ptr,eptr->todelchunkscount);
+				put32bit(&ptr,eptr->errorcounter);
+			} else {
+				put32bit(&ptr,0x01000000);
+				put32bit(&ptr,csptr->ip);
+				put16bit(&ptr,csptr->port);
+				put64bit(&ptr,0);
+				put64bit(&ptr,0);
+				put32bit(&ptr,0);
+				put64bit(&ptr,0);
+				put64bit(&ptr,0);
+				put32bit(&ptr,0);
+				put32bit(&ptr,0);
+			}
+		}
+	}
+}
+
+int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port) {
+	uint32_t hash;
+	csdbentry *csptr,**cspptr;
+
+	hash = CSDBHASHFN(ip,port);
+	cspptr = csdbhash + hash;
+	while ((csptr=*cspptr)) {
+		if (csptr->ip == ip && csptr->port == port) {
+			if (csptr->eptr!=NULL) {
+				return -1;
+			}
+			*cspptr = csptr->next;
+			free(csptr);
+			return 1;
+		} else {
+			cspptr = &(csptr->next);
+		}
+	}
+	return 0;
+}
+
+void matocsserv_csdb_init(void) {
+	uint32_t hash;
+	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
+		csdbhash[hash]=NULL;
+	}
+}
 
 /* replications DB */
 
@@ -685,6 +816,8 @@ int matocsserv_balanced(double balancelimit) {
 	return 0;
 }
 */
+
+/* old versions
 uint32_t matocsserv_cservlist_size(void) {
 	matocsserventry *eptr;
 	uint32_t i;
@@ -714,6 +847,7 @@ void matocsserv_cservlist_data(uint8_t *ptr) {
 		}
 	}
 }
+*/
 
 /*
 void matocsserv_status(void) {
@@ -850,6 +984,7 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 		eptr->mode=KILL;
 		return ;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	if (length==8+4+1) {
@@ -861,6 +996,7 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 //		chunk_got_checksum(eptr,chunkid,version,checksum);
 		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" calculate checksum: %08"PRIX32,eptr->servstrip,eptr->servport,chunkid,checksum);
 	}
+	(void)version;
 }
 
 int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version) {
@@ -883,6 +1019,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	chunk_got_create_status(eptr,chunkid,status);
@@ -912,6 +1049,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	eptr->delcounter--;
@@ -1016,6 +1154,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 //	if (eptr->repcounter>0) {
 //		eptr->repcounter--;
 //	}
+	passert(data);
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	matocsserv_replication_end(chunkid,version,eptr);
@@ -1047,6 +1186,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	chunk_got_setversion_status(eptr,chunkid,status);
@@ -1078,6 +1218,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *d
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	chunk_got_duplicate_status(eptr,chunkid,status);
@@ -1108,6 +1249,7 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	chunk_got_truncate_status(eptr,chunkid,status);
@@ -1140,6 +1282,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,const uint8_t *da
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
 	chunk_got_duptrunc_status(eptr,chunkid,status);
@@ -1174,6 +1317,7 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	newversion = get32bit(&data);
@@ -1195,7 +1339,6 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t chunkversion;
-	matocsserventry *eaptr;
 	uint32_t i,chunkcount;
 	uint8_t rversion;
 	double us,ts;
@@ -1212,6 +1355,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
+		passert(data);
 		eptr->servip = get32bit(&data);
 		eptr->servport = get16bit(&data);
 		eptr->usedspace = get64bit(&data);
@@ -1219,6 +1363,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		length-=22;
 		rversion=0;
 	} else {
+		passert(data);
 		rversion = get8bit(&data);
 		if (rversion<=4) {
 			syslog(LOG_NOTICE,"register packet version: %u",rversion);
@@ -1311,13 +1456,12 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 				eptr->mode=KILL;
 				return;
 			}
-			for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
-				if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
-					syslog(LOG_WARNING,"chunk-server already connected !!!");
-					eptr->mode=KILL;
-					return;
-				}
+			if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
+				syslog(LOG_WARNING,"chunk-server already connected !!!");
+				eptr->mode=KILL;
+				return;
 			}
+			eptr->incsdb = 1;
 			syslog(LOG_NOTICE,"chunkserver register begin (packet version: 5) - ip: %s, port: %"PRIu16,eptr->servstrip,eptr->servport);
 			return;
 		} else if (rversion==51) {
@@ -1381,13 +1525,12 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
-		for (eaptr=matocsservhead ; eaptr ; eaptr=eaptr->next) {
-			if (eptr!=eaptr && eaptr->mode!=KILL && eaptr->servip==eptr->servip && eaptr->servport==eptr->servport) {
-				syslog(LOG_WARNING,"chunk-server already connected !!!");
-				eptr->mode=KILL;
-				return;
-			}
+		if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
+			syslog(LOG_WARNING,"chunk-server already connected !!!");
+			eptr->mode=KILL;
+			return;
 		}
+		eptr->incsdb = 1;
 //		eptr->creation = NULL;
 //		eptr->setversion = NULL;
 //		eptr->duplication = NULL;
@@ -1406,6 +1549,7 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 		eptr->mode=KILL;
 		return;
 	}
+	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
 	if (eptr->totalspace>maxtotalspace) {
@@ -1432,6 +1576,9 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode=KILL;
 		return;
 	}
+	if (length>0) {
+		passert(data);
+	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
 //		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" is damaged",eptr->servstrip,eptr->servport,chunkid);
@@ -1447,6 +1594,9 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 		syslog(LOG_NOTICE,"CSTOMA_CHUNK_LOST - wrong size (%"PRIu32"/N*8)",length);
 		eptr->mode=KILL;
 		return;
+	}
+	if (length>0) {
+		passert(data);
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
@@ -1464,6 +1614,9 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 		syslog(LOG_NOTICE,"CSTOMA_CHUNK_NEW - wrong size (%"PRIu32"/N*12)",length);
 		eptr->mode=KILL;
 		return;
+	}
+	if (length>0) {
+		passert(data);
 	}
 	for (i=0 ; i<length/12 ; i++) {
 		chunkid = get64bit(&data);
@@ -1508,6 +1661,10 @@ void matocsserv_broadcast_logrotate() {
 void matocsserv_gotpacket(matocsserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
+			break;
+		case ANTOAN_UNKNOWN_COMMAND: // for future use
+			break;
+		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
 		case CSTOMA_REGISTER:
 			matocsserv_register(eptr,data,length);
@@ -1744,20 +1901,21 @@ void matocsserv_serve(struct pollfd *pdesc) {
 
 			tcpgetpeer(eptr->sock,&peerip,NULL);
 			eptr->servstrip = matocsserv_makestrip(peerip);
-			eptr->version=0;
-			eptr->servip=0;
-			eptr->servport=0;
-			eptr->timeout=60;
-			eptr->usedspace=0;
-			eptr->totalspace=0;
-			eptr->chunkscount=0;
-			eptr->todelusedspace=0;
-			eptr->todeltotalspace=0;
-			eptr->todelchunkscount=0;
-			eptr->errorcounter=0;
-			eptr->rrepcounter=0;
-			eptr->wrepcounter=0;
-			eptr->delcounter=0;
+			eptr->version = 0;
+			eptr->servip = 0;
+			eptr->servport = 0;
+			eptr->timeout = 60;
+			eptr->usedspace = 0;
+			eptr->totalspace = 0;
+			eptr->chunkscount = 0;
+			eptr->todelusedspace = 0;
+			eptr->todeltotalspace = 0;
+			eptr->todelchunkscount = 0;
+			eptr->errorcounter = 0;
+			eptr->rrepcounter = 0;
+			eptr->wrepcounter = 0;
+			eptr->delcounter = 0;
+			eptr->incsdb = 0;
 
 			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
 //				eptr->creation=NULL;
@@ -1799,6 +1957,9 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr);
+			if (eptr->incsdb) {
+				matocsserv_csdb_lost_connection(eptr->servip,eptr->servport);
+			}
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
@@ -1885,12 +2046,13 @@ int matocsserv_init(void) {
 		mfs_errlog_silent(LOG_NOTICE,"master <-> chunkservers module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on socket");
+		mfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
+	matocsserv_csdb_init();
 	matocsservhead = NULL;
 	main_reloadregister(matocsserv_reload);
 	main_destructregister(matocsserv_term);

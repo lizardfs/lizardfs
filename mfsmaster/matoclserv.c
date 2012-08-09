@@ -60,9 +60,6 @@ enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define SESSION_STATS 16
 
-#define NEWSESSION_TIMEOUT (7*86400)
-#define OLDSESSION_TIMEOUT 7200
-
 /* CACHENOTIFY
 // hash size should be at least 1.5 * 10000 * # of connected mounts
 // it also should be the prime number
@@ -171,6 +168,7 @@ static int exiting,starting;
 static char *ListenHost;
 static char *ListenPort;
 static uint32_t RejectOld;
+static uint32_t SessionSustainTime;
 //static uint32_t Timeout;
 
 static uint32_t stats_prcvd = 0;
@@ -810,6 +808,20 @@ void matoclserv_cserv_list(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 	ptr = matoclserv_createpacket(eptr,MATOCL_CSERV_LIST,matocsserv_cservlist_size());
 	matocsserv_cservlist_data(ptr);
+}
+
+void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t ip;
+	uint16_t port;
+	if (length!=6) {
+		syslog(LOG_NOTICE,"CLTOMA_CSSERV_REMOVESERV - wrong size (%"PRIu32"/6)",length);
+		eptr->mode = KILL;
+		return;
+	}
+	ip = get32bit(&data);
+	port = get32bit(&data);
+	matocsserv_csdb_remove_server(ip,port);
+	matoclserv_createpacket(eptr,MATOCL_CSSERV_REMOVESERV,0);
 }
 
 void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2417,6 +2429,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 		put8bit(&ptr,status);
 		return;
 	}
+	dcm_access(inode,eptr->sesdata->sessionid);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READ_CHUNK,24+count*6);
 	put32bit(&ptr,msgid);
 	put64bit(&ptr,fleng);
@@ -2883,6 +2896,114 @@ void matoclserv_fuse_seteattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
+void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t inode,uid,gid;
+	uint32_t msgid;
+	uint8_t opened;
+	uint8_t mode;
+	uint8_t *ptr;
+	uint8_t status;
+	uint8_t anleng;
+	const uint8_t *attrname;
+	if (length<19) {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%"PRIu32")",length);
+		eptr->mode = KILL;
+		return;
+	}
+	msgid = get32bit(&data);
+	inode = get32bit(&data);
+	opened = get8bit(&data);
+	uid = get32bit(&data);
+	gid = get32bit(&data);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
+	anleng = get8bit(&data);
+	attrname = data;
+	data+=anleng;
+	if (length!=19U+anleng) {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%"PRIu32":anleng=%"PRIu8")",length,anleng);
+		eptr->mode = KILL;
+		return;
+	}
+	mode = get8bit(&data);
+	if (mode!=MFS_XATTR_GETA_DATA && mode!=MFS_XATTR_LENGTH_ONLY) {
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,5);
+		put32bit(&ptr,msgid);
+		put8bit(&ptr,ERROR_EINVAL);
+	} else if (anleng==0) {
+		void *xanode;
+		uint32_t xasize;
+		status = fs_listxattr_leng(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,&xanode,&xasize);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==MFS_XATTR_GETA_DATA)?xasize:0));
+		put32bit(&ptr,msgid);
+		if (status!=STATUS_OK) {
+			put8bit(&ptr,status);
+		} else {
+			put32bit(&ptr,xasize);
+			if (mode==MFS_XATTR_GETA_DATA && xasize>0) {
+				fs_listxattr_data(xanode,ptr);
+			}
+		}
+	} else {
+		uint8_t *attrvalue;
+		uint32_t avleng;
+		status = fs_getxattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,anleng,attrname,&avleng,&attrvalue);
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==MFS_XATTR_GETA_DATA)?avleng:0));
+		put32bit(&ptr,msgid);
+		if (status!=STATUS_OK) {
+			put8bit(&ptr,status);
+		} else {
+			put32bit(&ptr,avleng);
+			if (mode==MFS_XATTR_GETA_DATA && avleng>0) {
+				memcpy(ptr,attrvalue,avleng);
+			}
+		}
+	}
+}
+
+void matoclserv_fuse_setxattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t inode,uid,gid;
+	uint32_t msgid;
+	const uint8_t *attrname,*attrvalue;
+	uint8_t opened;
+	uint8_t anleng;
+	uint32_t avleng;
+	uint8_t mode;
+	uint8_t *ptr;
+	uint8_t status;
+	if (length<23) {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%"PRIu32")",length);
+		eptr->mode = KILL;
+		return;
+	}
+	msgid = get32bit(&data);
+	inode = get32bit(&data);
+	opened = get8bit(&data);
+	uid = get32bit(&data);
+	gid = get32bit(&data);
+	matoclserv_ugid_remap(eptr,&uid,&gid);
+	anleng = get8bit(&data);
+	if (length<23U+anleng) {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%"PRIu32":anleng=%"PRIu8")",length,anleng);
+		eptr->mode = KILL;
+		return;
+	}
+	attrname = data;
+	data += anleng;
+	avleng = get32bit(&data);
+	if (length!=23U+anleng+avleng) {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%"PRIu32":anleng=%"PRIu8":avleng=%"PRIu32")",length,anleng,avleng);
+		eptr->mode = KILL;
+		return;
+	}
+	attrvalue = data;
+	data += avleng;
+	mode = get8bit(&data);
+	status = fs_setxattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,anleng,attrname,avleng,attrvalue,mode);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETXATTR,5);
+	put32bit(&ptr,msgid);
+	put8bit(&ptr,status);
+}
+
 void matoclserv_fuse_append(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inode_src,uid,gid;
 	uint32_t msgid;
@@ -3276,7 +3397,7 @@ void matocl_session_check(void) {
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
 //		syslog(LOG_NOTICE,"session: %u ; nsocks: %u ; state: %u ; disconnected: %u",asesdata->sessionid,asesdata->nsocks,asesdata->newsession,asesdata->disconnected);
-		if (asesdata->nsocks==0 && ((asesdata->newsession>1 && asesdata->disconnected<now) || (asesdata->newsession==1 && asesdata->disconnected+NEWSESSION_TIMEOUT<now) || (asesdata->newsession==0 && asesdata->disconnected+OLDSESSION_TIMEOUT<now))) {
+		if (asesdata->nsocks==0 && ((asesdata->newsession>1 && asesdata->disconnected<now) || (asesdata->newsession==1 && asesdata->disconnected+SessionSustainTime<now) || (asesdata->newsession==0 && asesdata->disconnected+7200<now))) {
 //			syslog(LOG_NOTICE,"remove session: %u",asesdata->sessionid);
 			matocl_session_timedout(asesdata);
 			*sesdata = asesdata->next;
@@ -3327,6 +3448,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 	if (type==ANTOAN_NOP) {
 		return;
 	}
+	if (type==ANTOAN_UNKNOWN_COMMAND) { // for future use
+		return;
+	}
+	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
+		return;
+	}
 	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
 		switch (type) {
 			case CLTOMA_FUSE_REGISTER:
@@ -3364,6 +3491,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case CLTOMA_MLOG_LIST:
 				matoclserv_mlog_list(eptr,data,length);
+				break;
+			case CLTOMA_CSSERV_REMOVESERV:
+				matoclserv_cserv_removeserv(eptr,data,length);
 				break;
 			default:
 				syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%"PRIu32")",type);
@@ -3500,6 +3630,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				matoclserv_fuse_seteattr(eptr,data,length);
 				break;
 /* do not use in version before 1.7.x */
+			case CLTOMA_FUSE_GETXATTR:
+				matoclserv_fuse_getxattr(eptr,data,length);
+				break;
+			case CLTOMA_FUSE_SETXATTR:
+				matoclserv_fuse_setxattr(eptr,data,length);
+				break;
 			case CLTOMA_FUSE_QUOTACONTROL:
 				matoclserv_fuse_quotacontrol(eptr,data,length);
 				break;
@@ -3536,6 +3672,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case CLTOMA_MLOG_LIST:
 				matoclserv_mlog_list(eptr,data,length);
+				break;
+			case CLTOMA_CSSERV_REMOVESERV:
+				matoclserv_cserv_removeserv(eptr,data,length);
 				break;
 			default:
 				syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%"PRIu32")",type);
@@ -3953,6 +4092,15 @@ int matoclserv_sessionsinit(void) {
 			fprintf(stderr,"due to missing sessions you have to restart all active mounts !!!\n");
 			break;
 	}
+	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
+	if (SessionSustainTime>7*86400) {
+		SessionSustainTime=7*86400;
+		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+	}
+	if (SessionSustainTime<60) {
+		SessionSustainTime=60;
+		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+	}
 	return 0;
 }
 
@@ -3961,6 +4109,15 @@ void matoclserv_reload(void) {
 	int newlsock;
 
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
+	if (SessionSustainTime>7*86400) {
+		SessionSustainTime=7*86400;
+		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+	}
+	if (SessionSustainTime<60) {
+		SessionSustainTime=60;
+		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+	}
 
 	oldListenHost = ListenHost;
 	oldListenPort = ListenPort;
@@ -4034,7 +4191,7 @@ int matoclserv_networkinit(void) {
 		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
+		mfs_arg_errlog(LOG_ERR,"main master server module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);

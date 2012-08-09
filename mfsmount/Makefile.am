@@ -32,8 +32,6 @@ mfsmount_SOURCES=\
 	../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
-mfstools_LDADD=-lm
-
 mfstools_SOURCES=\
 	mfstools.c \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \

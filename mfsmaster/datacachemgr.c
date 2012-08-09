@@ -21,6 +21,12 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+/*
+     open(inode,sessionid) -> isset? (inode,sessionid)
+     access(inode,sessionid) -> set (inode,sessionid)
+     modify(inode,sessionid) -> clear (inode,!sessionid) and set (inode,sessionid)
+*/
+
 #define DCM_TAB_LENG 500000
 #define DCM_INODEHASH_LENG ((DCM_TAB_LENG)/2)
 
@@ -30,7 +36,8 @@
 
 typedef struct _datacache_entry {
 	uint32_t inode;
-	uint32_t sessionid;
+	unsigned cacheok:1;
+	unsigned sessionid:31;
 	uint32_t iprev,inext;
 	uint32_t lruprev,lrunext;
 } datacache_entry;
@@ -68,7 +75,7 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 				dcm_tab[dcm_lru_last].lrunext = p;
 				dcm_lru_last = p;
 			}
-			return 1;
+			return dcm_tab[p].cacheok;
 		}
 		p = dcm_tab[p].inext;
 	}
@@ -115,6 +122,7 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 
 	/* replace values and add to new INODE chain */
 	dcm_tab[p].inode = inode;
+	dcm_tab[p].cacheok = 0;
 	dcm_tab[p].sessionid = sessionid;
 	ih = DCM_INODE_HASH(inode);
 	np = dcm_inodehash[ih];
@@ -125,6 +133,40 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 		dcm_tab[np].iprev = p;
 	}
 	return 0;
+}
+
+void dcm_access(uint32_t inode,uint32_t sessionid) {
+	uint32_t ih = DCM_INODE_HASH(inode);
+	uint32_t p,pp,np;
+	p = dcm_inodehash[ih];
+	while (p<DCM_TAB_LENG) {
+		if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
+			/* move element to the end of LRU list */
+			if (dcm_lru_last!=p) {	/* do it only if needed */
+				/* remove from LRU chain */
+				pp = dcm_tab[p].lruprev;
+				np = dcm_tab[p].lrunext;
+				if (pp<DCM_TAB_LENG) {
+					dcm_tab[pp].lrunext = np;
+				} else {
+					dcm_lru_first = np;
+				}
+				if (np<DCM_TAB_LENG) {
+					dcm_tab[np].lruprev = pp;
+				} else {
+					dcm_lru_last = pp;
+				}
+				/* add at the end of LRU chain */
+				dcm_tab[p].lruprev = dcm_lru_last;
+				dcm_tab[p].lrunext = DCM_NIL;
+				dcm_tab[dcm_lru_last].lrunext = p;
+				dcm_lru_last = p;
+			}
+			dcm_tab[p].cacheok = 1;
+			return;
+		}
+		p = dcm_tab[p].inext;
+	}
 }
 
 void dcm_modify(uint32_t inode,uint32_t sessionid) {
@@ -173,6 +215,30 @@ void dcm_modify(uint32_t inode,uint32_t sessionid) {
 			/* p = INODE_NEXT(p) */
 			p = np;
 		} else {
+			if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
+				/* move element to the end of LRU list */
+				if (dcm_lru_last!=p) {	/* do it only if needed */
+					/* remove from LRU chain */
+					pp = dcm_tab[p].lruprev;
+					np = dcm_tab[p].lrunext;
+					if (pp<DCM_TAB_LENG) {
+						dcm_tab[pp].lrunext = np;
+					} else {
+						dcm_lru_first = np;
+					}
+					if (np<DCM_TAB_LENG) {
+						dcm_tab[np].lruprev = pp;
+					} else {
+						dcm_lru_last = pp;
+					}
+					/* add at the end of LRU chain */
+					dcm_tab[p].lruprev = dcm_lru_last;
+					dcm_tab[p].lrunext = DCM_NIL;
+					dcm_tab[dcm_lru_last].lrunext = p;
+					dcm_lru_last = p;
+				}
+				dcm_tab[p].cacheok = 1;
+			}
 			p = dcm_tab[p].inext;
 		}
 	}

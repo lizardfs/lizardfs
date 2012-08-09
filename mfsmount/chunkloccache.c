@@ -172,9 +172,9 @@ int chunkloc_cache_search(uint32_t inode,uint32_t pos,uint64_t *chunkid,uint32_t
 	uint32_t primes[HASH_FUNCTIONS] = {1072573589U,3465827623U,2848548977U,748191707U};
 	hashbucket *hb;
 	uint8_t h,i;
-	uint32_t now;
+//	uint32_t now;
 
-	now = time(NULL);
+//	now = time(NULL);
 
 	pthread_mutex_lock(&clcachelock);
 	for (h=0 ; h<HASH_FUNCTIONS ; h++) {

@@ -40,7 +40,7 @@ int rnd_init(void) {
 		p[l]=l;
 	}
 	for (l=0 ; l<768 ; l++) {
-		i = l;
+		i = l&0xFF;
 		x = j+p[i]+key[l%64];
 		j = p[x];
 		x = p[i];
@@ -48,7 +48,7 @@ int rnd_init(void) {
 		p[j] = x;
 	}
 	for (l=0 ; l<768 ; l++) {
-		i = l;
+		i = l&0xFF;
 		x = j+p[i]+vkey[l%64];
 		j = p[x];
 		x = p[i];

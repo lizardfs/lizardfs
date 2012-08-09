@@ -21,8 +21,7 @@
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
 [ -x "@sbindir@/mfschunkserver" ] || exit 1
-[ -r "@sysconfdir@/mfschunkserver.cfg" ] || exit 1
-[ -r "@sysconfdir@/mfshdd.cfg" ] || exit 1
+[ -r "@sysconfdir@/mfs/mfshdd.cfg" -o -r "@sysconfdir@/mfshdd.cfg" ] || exit 1
 
 RETVAL=0
 prog="mfschunkserver"

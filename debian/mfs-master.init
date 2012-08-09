@@ -17,7 +17,8 @@ DESC=mfs-master
 DEFAULT_USER=mfs
 DEFAULT_GROUP=mfs
 DEFAULT_DATADIR=/var/lib/mfs
-DEFAULT_CFG=/etc/mfsmaster.cfg
+DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
+COMPAT_CFG=/etc/mfsmaster.cfg
 
 test -e $DAEMON || exit 0
 
@@ -44,7 +45,13 @@ fi
 
 set -e
 
-CFGFILE="${MFSMASTER_CONFIG_FILE:-$DEFAULT_CFG}"
+if [ -n "$MFSMASTER_CONFIG_FILE" ]; then
+	CFGFILE="$MFSMASTER_CONFIG_FILE"
+elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
+	CFGFILE="$DEFAULT_CFG"
+else
+	CFGFILE="$COMPAT_CFG"
+fi
 if [ -s "$CFGFILE" ]; then
 	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
 	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")

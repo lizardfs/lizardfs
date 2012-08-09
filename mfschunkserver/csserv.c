@@ -146,8 +146,8 @@ static int32_t jobfdpdescpos;
 static uint32_t mylistenip;
 static uint16_t mylistenport;
 
-static uint32_t stats_bytesin=0;
-static uint32_t stats_bytesout=0;
+static uint64_t stats_bytesin=0;
+static uint64_t stats_bytesout=0;
 static uint32_t stats_hlopr=0;
 static uint32_t stats_hlopw=0;
 static uint32_t stats_maxjobscnt=0;
@@ -156,7 +156,7 @@ static uint32_t stats_maxjobscnt=0;
 static char *ListenHost;
 static char *ListenPort;
 
-void csserv_stats(uint32_t *bin,uint32_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
+void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
 	*bout = stats_bytesout;
 	*hlopr = stats_hlopr;
@@ -1138,6 +1138,12 @@ void csserv_close(csserventry *eptr) {
 void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 //	syslog(LOG_NOTICE,"packet %u:%u",type,length);
 	if (type==ANTOAN_NOP) {
+		return;
+	}
+	if (type==ANTOAN_UNKNOWN_COMMAND) { // for future use
+		return;
+	}
+	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
 		return;
 	}
 	if (eptr->state==IDLE) {

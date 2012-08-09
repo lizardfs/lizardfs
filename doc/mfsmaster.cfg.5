@@ -59,6 +59,9 @@ IP address to listen on for metalogger connections (\fB*\fP means any)
 \fBMATOML_LISTEN_PORT\fP
 port to listen on for metalogger connections (default is 9419)
 .TP
+\fBMATOML_LOG_PRESERVE_SECONDS\fP
+how many seconds of change logs have to be preserved in memory (default is 600; note: logs are stored in blocks of 5k lines, so sometimes real number of seconds may be little bigger; zero disables extra logs storage)
+.TP
 \fBMATOCS_LISTEN_HOST\fP
 IP address to listen on for chunkserver connections (\fB*\fP means any)
 .TP

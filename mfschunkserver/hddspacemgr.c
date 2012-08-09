@@ -36,6 +36,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <pthread.h>
 #ifdef MMAP_ALLOC
 #include <sys/mman.h>
@@ -189,6 +190,7 @@ typedef struct folder {
 	unsigned int damaged:1;
 	unsigned int toremove:2;
 	uint8_t scanprogress;
+	uint64_t sizelimit;
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
@@ -220,6 +222,7 @@ typedef struct damaged {
 */
 
 static uint32_t HDDTestFreq = 10;
+static uint64_t LeaveFree;
 
 /* folders data */
 static folder *folderhead = NULL;
@@ -281,8 +284,8 @@ static pthread_cond_t scanprogresscond = PTHREAD_COND_INITIALIZER;
 
 static uint32_t emptyblockcrc;
 
-static uint32_t stats_bytesr = 0;
-static uint32_t stats_bytesw = 0;
+static uint64_t stats_bytesr = 0;
+static uint64_t stats_bytesw = 0;
 static uint32_t stats_opr = 0;
 static uint32_t stats_opw = 0;
 static uint32_t stats_databytesr = 0;
@@ -519,7 +522,7 @@ int hdd_spacechanged(void) {
 	return result;
 }
 
-void hdd_stats(uint32_t *br,uint32_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
+void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
 	zassert(pthread_mutex_lock(&statslock));
 	*br = stats_bytesr;
 	*bw = stats_bytesw;
@@ -1085,19 +1088,50 @@ static void hdd_chunk_testmove(chunk *c) {
 
 // no locks - locked by caller
 static inline void hdd_refresh_usage(folder *f) {
-	struct statvfs fsinfo;
-
-	if (statvfs(f->path,&fsinfo)<0) {
-		f->avail = 0ULL;
-		f->total = 0ULL;
-	}
-	f->avail = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_bavail);
-	f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
-//	f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks);
-	if (f->avail < f->leavefree) {
-		f->avail = 0ULL;
+	if (f->sizelimit) {
+		uint32_t knownblocks;
+		uint32_t knowncount;
+		uint64_t calcsize;
+		chunk *c;
+		knownblocks = 0;
+		knowncount = 0;
+		zassert(pthread_mutex_lock(&hashlock));
+		zassert(pthread_mutex_lock(&testlock));
+		for (c=f->testhead ; c ; c=c->testnext) {
+			if (c->state==CH_AVAIL && c->validattr==1) {
+				knowncount++;
+				knownblocks+=c->blocks;
+			}
+		}
+		zassert(pthread_mutex_unlock(&testlock));
+		zassert(pthread_mutex_unlock(&hashlock));
+		if (knowncount>0) {
+			calcsize = knownblocks;
+			calcsize *= f->chunkcount;
+			calcsize /= knowncount;
+			calcsize *= 64;
+			calcsize += f->chunkcount*5;
+			calcsize *= 1024;
+		} else { // unknown result;
+			calcsize = 0;
+		}
+		f->total = f->sizelimit;
+		f->avail = (calcsize>f->sizelimit)?0:f->sizelimit-calcsize;
 	} else {
-		f->avail -= f->leavefree;
+		struct statvfs fsinfo;
+
+		if (statvfs(f->path,&fsinfo)<0) {
+			f->avail = 0ULL;
+			f->total = 0ULL;
+		}
+		f->avail = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_bavail);
+		f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
+	//	f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks);
+		if (f->avail < f->leavefree) {
+			f->avail = 0ULL;
+		} else {
+			f->avail -= f->leavefree;
+		}
 	}
 }
 
@@ -1170,14 +1204,17 @@ static inline folder* hdd_getfolder() {
 
 void hdd_senddata(folder *f,int rmflag) {
 	uint32_t i;
+	uint8_t todel;
 	chunk **cptr,*c;
 
+	todel = f->todel;
 	zassert(pthread_mutex_lock(&hashlock));
 	zassert(pthread_mutex_lock(&testlock));
 	for (i=0 ; i<HASHSIZE ; i++) {
 		cptr = &(hashtab[i]);
 		while ((c=*cptr)) {
 			if (c->owner==f) {
+				c->todel = todel;
 				if (rmflag) {
 					hdd_report_lost_chunk(c->chunkid);
 					if (c->state==CH_AVAIL) {
@@ -4150,14 +4187,104 @@ void hdd_term(void) {
 	}
 }
 
+int hdd_size_parse(const char *str,uint64_t *ret) {
+	uint64_t val,frac,fracdiv;
+	double drval,mult;
+	int f;
+	val=0;
+	frac=0;
+	fracdiv=1;
+	f=0;
+	while (*str>='0' && *str<='9') {
+		f=1;
+		val*=10;
+		val+=(*str-'0');
+		str++;
+	}
+	if (*str=='.') {	// accept format ".####" (without 0)
+		str++;
+		while (*str>='0' && *str<='9') {
+			fracdiv*=10;
+			frac*=10;
+			frac+=(*str-'0');
+			str++;
+		}
+		if (fracdiv==1) {	// if there was '.' expect number afterwards
+			return -1;
+		}
+	} else if (f==0) {	// but not empty string
+		return -1;
+	}
+	if (str[0]=='\0' || (str[0]=='B' && str[1]=='\0')) {
+		mult=1.0;
+	} else if (str[0]!='\0' && (str[1]=='\0' || (str[1]=='B' && str[2]=='\0'))) {
+		switch(str[0]) {
+		case 'k':
+			mult=1e3;
+			break;
+		case 'M':
+			mult=1e6;
+			break;
+		case 'G':
+			mult=1e9;
+			break;
+		case 'T':
+			mult=1e12;
+			break;
+		case 'P':
+			mult=1e15;
+			break;
+		case 'E':
+			mult=1e18;
+			break;
+		default:
+			return -1;
+		}
+	} else if (str[0]!='\0' && str[1]=='i' && (str[2]=='\0' || (str[2]=='B' && str[3]=='\0'))) {
+		switch(str[0]) {
+		case 'K':
+			mult=1024.0;
+			break;
+		case 'M':
+			mult=1048576.0;
+			break;
+		case 'G':
+			mult=1073741824.0;
+			break;
+		case 'T':
+			mult=1099511627776.0;
+			break;
+		case 'P':
+			mult=1125899906842624.0;
+			break;
+		case 'E':
+			mult=1152921504606846976.0;
+			break;
+		default:
+			return -1;
+		}
+	} else {
+		return -1;
+	}
+	drval = round(((double)frac/(double)fracdiv+(double)val)*mult);
+	if (drval>18446744073709551615.0) {
+		return -2;
+	} else {
+		*ret = drval;
+	}
+	return 1;
+}
+
 int hdd_parseline(char *hddcfgline) {
-	uint32_t l;
+	uint32_t l,p;
 	int lfd,td;
 	char *pptr;
 	char *lockfname;
 	struct stat sb;
 	folder *f;
 	uint8_t lockneeded;
+	uint64_t limit;
+	uint8_t lmode;
 
 	if (hddcfgline[0]=='#') {
 		return 0;
@@ -4168,6 +4295,31 @@ int hdd_parseline(char *hddcfgline) {
 	}
 	if (l==0) {
 		return 0;
+	}
+	p = l;
+	while (p>0 && hddcfgline[p-1]!=' ' && hddcfgline[p-1]!='\t') {
+		p--;
+	}
+	lmode = 0;
+	if (p>0) {
+		if (hddcfgline[p]=='-') {
+			if (hdd_size_parse(hddcfgline+p+1,&limit)>=0) {
+				lmode = 1;
+			}
+		} if ((hddcfgline[p]>='0' && hddcfgline[p]<='9') || hddcfgline[p]=='.') {
+			if (hdd_size_parse(hddcfgline+p,&limit)>=0) {
+				lmode = 2;
+			}
+		}
+		if (lmode) {
+			l = p;
+			while (l>0 && (hddcfgline[l-1]==' ' || hddcfgline[l-1]=='\t')) {
+				l--;
+			}
+			if (l==0) {
+				return 0;
+			}
+		}
 	}
 	if (hddcfgline[l-1]!='/') {
 		hddcfgline[l]='/';
@@ -4192,6 +4344,41 @@ int hdd_parseline(char *hddcfgline) {
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
+
+	if (lmode==1) { // sanity checks
+		if (limit<0x4000000) {
+			mfs_arg_syslog(LOG_WARNING,"hdd space manager: limit on '%s' < chunk size - leaving so small space on hdd is not recommended",pptr);
+		} else {
+			struct statvfs fsinfo;
+
+			if (statvfs(pptr,&fsinfo)<0) {
+				mfs_arg_errlog(LOG_NOTICE,"hdd space manager: statvfs on '%s'",pptr);
+			} else {
+				uint64_t size = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
+				if (limit > size) {
+					mfs_arg_syslog(LOG_WARNING,"hdd space manager: space to be left free on '%s' (%"PRIu64") is greater than real volume size (%"PRIu64") !!!",pptr,limit,size);
+				}
+			}
+		}
+	}
+	if (lmode==2) { // sanity checks
+		if (limit==0) {
+			mfs_arg_syslog(LOG_WARNING,"hdd space manager: limit on '%s' set to zero - using real volume size",pptr);
+			lmode = 0;
+		} else {
+			struct statvfs fsinfo;
+
+			if (statvfs(pptr,&fsinfo)<0) {
+				mfs_arg_errlog(LOG_NOTICE,"hdd space manager: statvfs on '%s'",pptr);
+			} else {
+				uint64_t size = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
+				if (limit > size) {
+					mfs_arg_syslog(LOG_WARNING,"hdd space manager: limit on '%s' (%"PRIu64") is greater than real volume size (%"PRIu64") - using real volume size",pptr,limit,size);
+					lmode = 0;
+				}
+			}
+		}
+	}
 
 	lockfname = (char*)malloc(l+6);
 	passert(lockfname);
@@ -4251,6 +4438,16 @@ int hdd_parseline(char *hddcfgline) {
 				f->damaged = 0;
 				f->avail = 0ULL;
 				f->total = 0ULL;
+				if (lmode==1) {
+					f->leavefree = limit;
+				} else {
+					f->leavefree = LeaveFree;
+				}
+				if (lmode==2) {
+					f->sizelimit = limit;
+				} else {
+					f->sizelimit = 0;
+				}
 				f->chunkcount = 0;
 				hdd_stats_clear(&(f->cstat));
 				for (l=0 ; l<STATSHISTORY ; l++) {
@@ -4287,7 +4484,16 @@ int hdd_parseline(char *hddcfgline) {
 	f->path = strdup(pptr);
 	passert(f->path);
 	f->toremove = 0;
-	f->leavefree = 0x10000000; // about 256MB  -  future: (uint64_t)as*0x40000000;
+	if (lmode==1) {
+		f->leavefree = limit;
+	} else {
+		f->leavefree = LeaveFree;
+	}
+	if (lmode==2) {
+		f->sizelimit = limit;
+	} else {
+		f->sizelimit = 0;
+	}
 	f->avail = 0ULL;
 	f->total = 0ULL;
 	f->chunkcount = 0;
@@ -4323,9 +4529,23 @@ int hdd_folders_reinit(void) {
 	char *hddfname;
 	int ret,datadef;
 
-	hddfname = cfg_getstr("HDD_CONF_FILENAME",ETC_PATH "/mfshdd.cfg");
+	if (!cfg_isdefined("HDD_CONF_FILENAME")) {
+		hddfname = strdup(ETC_PATH "/mfs/mfshdd.cfg");
+		passert(hddfname);
+		fd = fopen(hddfname,"r");
+		if (!fd) {
+			free(hddfname);
+			hddfname = strdup(ETC_PATH "/mfshdd.cfg");
+			fd = fopen(hddfname,"r");
+			if (fd) {
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfshdd.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+			}
+		}
+	} else {
+		hddfname = cfg_getstr("HDD_CONF_FILENAME",ETC_PATH "/mfs/mfshdd.cfg");
+		fd = fopen(hddfname,"r");
+	}
 
-	fd = fopen(hddfname,"r");
 	if (!fd) {
 		free(hddfname);
 		return -1;
@@ -4379,9 +4599,20 @@ int hdd_folders_reinit(void) {
 }
 
 void hdd_reload(void) {
+	char *LeaveFreeStr;
+
 	zassert(pthread_mutex_lock(&testlock));
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
+
+	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
+	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - left unchanged");
+	}
+	free(LeaveFreeStr);
+	if (LeaveFree<0x4000000) {
+		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT < chunk size - leaving so small space on hdd is not recommended");
+	}
 
 	syslog(LOG_NOTICE,"reloading hdd data ...");
 	hdd_folders_reinit();
@@ -4402,6 +4633,7 @@ int hdd_init(void) {
 //	uint32_t l,p;
 	uint32_t hp;
 	folder *f;
+	char *LeaveFreeStr;
 
 	// this routine is called at the beginning from the main thread so no locks are necessary here
 	for (hp=0 ; hp<HASHSIZE ; hp++) {
@@ -4423,6 +4655,16 @@ int hdd_init(void) {
 //	memset(blockbuffer,0,MFSBLOCKSIZE);
 //	emptyblockcrc = mycrc32(0,blockbuffer,MFSBLOCKSIZE);
 	emptyblockcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE);
+
+	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
+	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+		fprintf(stderr,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - using default (256MiB)\n");
+		LeaveFree = 0x10000000;
+	}
+	free(LeaveFreeStr);
+	if (LeaveFree<0x4000000) {
+		fprintf(stderr,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT < chunk size - leaving so small space on hdd is not recommended\n");
+	}
 
 	if (hdd_folders_reinit()<0) {
 		return -1;
@@ -4484,6 +4726,7 @@ int hdd_init(void) {
 //		hdd_testsort(f);
 //		hdd_testshuffle(f);
 //	}
+
 	main_reloadregister(hdd_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
 	main_destructregister(hdd_term);

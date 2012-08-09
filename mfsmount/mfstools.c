@@ -341,6 +341,42 @@ int bsd_dirname(const char *path,char *bname) {
 	return 0;
 }
 
+void dirname_inplace(char *path) {
+	char *endp;
+
+	if (path==NULL) {
+		return;
+	}
+	if (path[0]=='\0') {
+		path[0]='.';
+		path[1]='\0';
+		return;
+	}
+
+	/* Strip trailing slashes */
+	endp = path + strlen(path) - 1;
+	while (endp > path && *endp == '/') {
+		endp--;
+	}
+
+	/* Find the start of the dir */
+	while (endp > path && *endp != '/') {
+		endp--;
+	}
+
+	if (endp == path) {
+		if (path[0]=='/') {
+			path[1]='\0';
+		} else {
+			path[0]='.';
+			path[1]='\0';
+		}
+		return;
+	} else {
+		*endp = '\0';
+	}
+}
+
 /*
 int32_t socket_read(int sock,void *buff,uint32_t leng) {
 	uint32_t rcvd=0;
@@ -450,8 +486,7 @@ static int current_master = -1;
 static uint32_t masterversion = 0;
 
 int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needsamedev,uint8_t needrwfs) {
-	char rpath[PATH_MAX],*p;
-	char apath[PATH_MAX];
+	char rpath[PATH_MAX+1];
 	struct stat stb;
 	struct statvfs stvfsb;
 	int sd;
@@ -467,19 +502,19 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		printf("%s: realpath error on (%s): %s\n",name,rpath,strerr(errno));
 		return -1;
 	}
-	p = rpath;
+//	p = rpath;
 	if (needrwfs) {
-		if (statvfs(p,&stvfsb)!=0) {
-			printf("%s: (%s) statvfs error: %s\n",name,p,strerr(errno));
+		if (statvfs(rpath,&stvfsb)!=0) {
+			printf("%s: (%s) statvfs error: %s\n",name,rpath,strerr(errno));
 			return -1;
 		}
 		if (stvfsb.f_flag&ST_RDONLY) {
-			printf("%s: (%s) Read-only file system\n",name,p);
+			printf("%s: (%s) Read-only file system\n",name,rpath);
 			return -1;
 		}
 	}
-	if (lstat(p,&stb)!=0) {
-		printf("%s: (%s) lstat error: %s\n",name,p,strerr(errno));
+	if (lstat(rpath,&stb)!=0) {
+		printf("%s: (%s) lstat error: %s\n",name,rpath,strerr(errno));
 		return -1;
 	}
 	*inode = stb.st_ino;
@@ -503,104 +538,110 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 	for(;;) {
 		if (stb.st_ino==1) {	// found fuse root
 			// first try to locate ".masterinfo"
-			p = strcat(p,"/.masterinfo");
-			if (lstat(p,&stb)==0) {
-				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
-					if (stb.st_ino==0x7FFFFFFE) {	// meta master
-						if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-							printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
-							return -1;
-						}
-						(*inode)&=INODE_VALUE_MASK;
-					}
-					sd = open(p,O_RDONLY);
-					if (stb.st_size==10) {
-						if (read(sd,masterinfo,10)!=10) {
-							printf("%s: can't read '.masterinfo'\n",name);
-							close(sd);
-							return -1;
-						}
-					} else if (stb.st_size==14) {
-						if (read(sd,masterinfo,14)!=14) {
-							printf("%s: can't read '.masterinfo'\n",name);
-							close(sd);
-							return -1;
-						}
-					}
-					close(sd);
-					miptr = masterinfo;
-					masterip = get32bit(&miptr);
-					masterport = get16bit(&miptr);
-					mastercuid = get32bit(&miptr);
-					if (stb.st_size==14) {
-						masterversion = get32bit(&miptr);
-					} else {
-						masterversion = 0;
-					}
-					if (masterip==0 || masterport==0 || mastercuid==0) {
-						printf("%s: incorrect '.masterinfo'\n",name);
-						return -1;
-					}
-					cnt=0;
-					while (cnt<10) {
-						sd = tcpsocket();
-						if (sd<0) {
-							printf("%s: can't create connection socket: %s\n",name,strerr(errno));
-							return -1;
-						}
-						if (tcpnumtoconnect(sd,masterip,masterport,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
-							cnt++;
-							if (cnt==10) {
-								printf("%s: can't connect to master (.masterinfo): %s\n",name,strerr(errno));
+			if (strlen(rpath)+12<PATH_MAX) {
+				strcat(rpath,"/.masterinfo");
+				if (lstat(rpath,&stb)==0) {
+					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
+						if (stb.st_ino==0x7FFFFFFE) {	// meta master
+							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
+								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
 								return -1;
 							}
-							tcpclose(sd);
-						} else {
-							cnt=10;
+							(*inode)&=INODE_VALUE_MASK;
 						}
-					}
-					if (master_register(sd,mastercuid)<0) {
-						printf("%s: can't register to master (.masterinfo)\n",name);
-						return -1;
-					}
-					current_master = sd;
-					return sd;
-				}
-			}
-			p[strlen(p)-4]=0;	// cut '.masterinfo' to '.master' and try to fallback to older communication method
-			if (lstat(p,&stb)==0) {
-				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
-					if (stb.st_ino==0x7FFFFFFE) {	// meta master
-						if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-							printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
+						sd = open(rpath,O_RDONLY);
+						if (stb.st_size==10) {
+							if (read(sd,masterinfo,10)!=10) {
+								printf("%s: can't read '.masterinfo'\n",name);
+								close(sd);
+								return -1;
+							}
+						} else if (stb.st_size==14) {
+							if (read(sd,masterinfo,14)!=14) {
+								printf("%s: can't read '.masterinfo'\n",name);
+								close(sd);
+								return -1;
+							}
+						}
+						close(sd);
+						miptr = masterinfo;
+						masterip = get32bit(&miptr);
+						masterport = get16bit(&miptr);
+						mastercuid = get32bit(&miptr);
+						if (stb.st_size==14) {
+							masterversion = get32bit(&miptr);
+						} else {
+							masterversion = 0;
+						}
+						if (masterip==0 || masterport==0 || mastercuid==0) {
+							printf("%s: incorrect '.masterinfo'\n",name);
 							return -1;
 						}
-						(*inode)&=INODE_VALUE_MASK;
+						cnt=0;
+						while (cnt<10) {
+							sd = tcpsocket();
+							if (sd<0) {
+								printf("%s: can't create connection socket: %s\n",name,strerr(errno));
+								return -1;
+							}
+							if (tcpnumtoconnect(sd,masterip,masterport,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
+								cnt++;
+								if (cnt==10) {
+									printf("%s: can't connect to master (.masterinfo): %s\n",name,strerr(errno));
+									return -1;
+								}
+								tcpclose(sd);
+							} else {
+								cnt=10;
+							}
+						}
+						if (master_register(sd,mastercuid)<0) {
+							printf("%s: can't register to master (.masterinfo)\n",name);
+							return -1;
+						}
+						current_master = sd;
+						return sd;
 					}
-					fprintf(stderr,"old version of mfsmount detected - using old and deprecated version of protocol - please upgrade your mfsmount\n");
-					sd = open(p,O_RDWR);
-					if (master_register_old(sd)<0) {
-						printf("%s: can't register to master (.master / old protocol)\n",name);
-						return -1;
-					}
-					current_master = sd;
-					return sd;
 				}
+				rpath[strlen(rpath)-4]=0;	// cut '.masterinfo' to '.master' and try to fallback to older communication method
+				if (lstat(rpath,&stb)==0) {
+					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
+						if (stb.st_ino==0x7FFFFFFE) {	// meta master
+							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
+								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
+								return -1;
+							}
+							(*inode)&=INODE_VALUE_MASK;
+						}
+						fprintf(stderr,"old version of mfsmount detected - using old and deprecated version of protocol - please upgrade your mfsmount\n");
+						sd = open(rpath,O_RDWR);
+						if (master_register_old(sd)<0) {
+							printf("%s: can't register to master (.master / old protocol)\n",name);
+							return -1;
+						}
+						current_master = sd;
+						return sd;
+					}
+				}
+				printf("%s: not MFS object\n",name);
+				return -1;
+			} else {
+				printf("%s: path too long\n",name);
+				return -1;
 			}
+		}
+		if (rpath[0]!='/' || rpath[1]=='\0') {
 			printf("%s: not MFS object\n",name);
 			return -1;
 		}
-		if (p[0]!='/' || p[1]=='\0') {
-			printf("%s: not MFS object\n",name);
-			return -1;
-		}
-		if (bsd_dirname(p,apath)<0) {
-			printf("%s: (%s) dirname error\n",name,p);
-		}
-		strcpy(rpath,apath);
-		p=rpath;
-		if (lstat(p,&stb)!=0) {
-			printf("%s: (%s) lstat error: %s\n",name,p,strerr(errno));
+		dirname_inplace(rpath);
+//		if (bsd_dirname(rpath,apath)<0) {
+//			printf("%s: (%s) dirname error\n",name,rpath);
+//		}
+//		strcpy(rpath,apath);
+//		p=rpath;
+		if (lstat(rpath,&stb)!=0) {
+			printf("%s: (%s) lstat error: %s\n",name,rpath,strerr(errno));
 			return -1;
 		}
 	}
@@ -2083,8 +2124,8 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 }
 
 int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uint8_t canowerwrite) {
-	char to[PATH_MAX],base[PATH_MAX],dir[PATH_MAX];
-	char src[PATH_MAX];
+	char to[PATH_MAX+1],base[PATH_MAX+1],dir[PATH_MAX+1];
+	char src[PATH_MAX+1];
 	struct stat sst,dst;
 	int status;
 	uint32_t i,l;
@@ -2145,10 +2186,12 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 				printf("(%s,%s): both elements must be on the same device\n",dstname,srcnames[0]);
 				return -1;
 			}
-			if (bsd_dirname(to,dir)<0) {
-				printf("%s: dirname error\n",to);
-				return -1;
-			}
+			memcpy(dir,to,PATH_MAX+1);
+			dirname_inplace(dir);
+//			if (bsd_dirname(to,dir)<0) {
+//				printf("%s: dirname error\n",to);
+//				return -1;
+//			}
 			if (bsd_basename(to,base)<0) {
 				printf("%s: basename error\n",to);
 				return -1;
@@ -2206,11 +2249,13 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 							status=-1;
 						}
 					} else {	// src is a directory and name has not trailing slash
-						if (bsd_dirname(to,dir)<0) {
-							printf("%s: dirname error\n",to);
-							status=-1;
-							continue;
-						}
+						memcpy(dir,to,PATH_MAX+1);
+						dirname_inplace(dir);
+						//if (bsd_dirname(to,dir)<0) {
+						//	printf("%s: dirname error\n",to);
+						//	status=-1;
+						//	continue;
+						//}
 						if (bsd_basename(to,base)<0) {
 							printf("%s: basename error\n",to);
 							status=-1;
@@ -2379,7 +2424,6 @@ int main(int argc,char **argv) {
 	strerr_init();
 
 	l = strlen(argv[0]);
-	f=0;
 #define CHECKNAME(name) ((l==(int)(sizeof(name)-1) && strcmp(argv[0],name)==0) || (l>(int)(sizeof(name)-1) && strcmp((argv[0])+(l-sizeof(name)),"/" name)==0))
 	if (CHECKNAME("mfstools")) {
 		if (argc==2 && strcmp(argv[1],"create")==0) {

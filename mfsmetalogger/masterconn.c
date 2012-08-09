@@ -20,6 +20,7 @@
 
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/uio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -89,6 +90,7 @@ static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
 static void* download_hook;
+static uint64_t lastlogversion=0;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
@@ -98,6 +100,84 @@ void masterconn_stats(uint32_t *bin,uint32_t *bout) {
 	*bout = stats_bytesout;
 	stats_bytesin = 0;
 	stats_bytesout = 0;
+}
+
+void masterconn_findlastlogversion(void) {
+	struct stat st;
+	uint8_t buff[32800];	// 32800 = 32768 + 32
+	uint64_t size;
+	uint32_t buffpos;
+	uint64_t lastnewline;
+	int fd;
+
+	lastlogversion = 0;
+
+	if (stat("metadata_ml.mfs.back",&st)<0 || st.st_size==0 || (st.st_mode & S_IFMT)!=S_IFREG) {
+		return;
+	}
+
+	fd = open("changelog_ml.0.back",O_RDWR);
+	if (fd<0) {
+		return;
+	}
+	fstat(fd,&st);
+	size = st.st_size;
+	memset(buff,0,32);
+	lastnewline = 0;
+	while (size>0 && size+200000>(uint64_t)(st.st_size)) {
+		if (size>32768) {
+			memcpy(buff+32768,buff,32);
+			size-=32768;
+			lseek(fd,size,SEEK_SET);
+			if (read(fd,buff,32768)!=32768) {
+				lastlogversion = 0;
+				close(fd);
+				return;
+			}
+			buffpos = 32768;
+		} else {
+			memmove(buff+size,buff,32);
+			lseek(fd,0,SEEK_SET);
+			if (read(fd,buff,size)!=(ssize_t)size) {
+				lastlogversion = 0;
+				close(fd);
+				return;
+			}
+			buffpos = size;
+			size = 0;
+		}
+		// size = position in file of first byte in buff
+		// buffpos = position of last byte in buff to search
+		while (buffpos>0) {
+			buffpos--;
+			if (buff[buffpos]=='\n') {
+				if (lastnewline==0) {
+					lastnewline = size + buffpos;
+				} else {
+					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file - truncate
+						if (ftruncate(fd,lastnewline+1)<0) {
+							lastlogversion = 0;
+							close(fd);
+							return;
+						}
+					}
+					buffpos++;
+					while (buffpos<32800 && buff[buffpos]>='0' && buff[buffpos]<='9') {
+						lastlogversion *= 10;
+						lastlogversion += buff[buffpos]-'0';
+						buffpos++;
+					}
+					if (buffpos==32800 || buff[buffpos]!=':') {
+						lastlogversion = 0;
+					}
+					close(fd);
+					return;
+				}
+			}
+		}
+	}
+	close(fd);
+	return;
 }
 
 uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
@@ -128,12 +208,22 @@ void masterconn_sendregister(masterconn *eptr) {
 	eptr->metafd=-1;
 	eptr->logfd=NULL;
 
-	buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2);
-	put8bit(&buff,1);
-	put16bit(&buff,VERSMAJ);
-	put8bit(&buff,VERSMID);
-	put8bit(&buff,VERSMIN);
-	put16bit(&buff,Timeout);
+	if (lastlogversion>0) {
+		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
+		put8bit(&buff,2);
+		put16bit(&buff,VERSMAJ);
+		put8bit(&buff,VERSMID);
+		put8bit(&buff,VERSMIN);
+		put16bit(&buff,Timeout);
+		put64bit(&buff,lastlogversion);
+	} else {
+		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2);
+		put8bit(&buff,1);
+		put16bit(&buff,VERSMAJ);
+		put8bit(&buff,VERSMID);
+		put8bit(&buff,VERSMIN);
+		put16bit(&buff,Timeout);
+	}
 }
 
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -172,14 +262,31 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 
+	data++;
+	version = get64bit(&data);
+
+	if (lastlogversion>0 && version!=lastlogversion+1) {
+		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion,version-1);
+		if (eptr->logfd!=NULL) {
+			fclose(eptr->logfd);
+			eptr->logfd=NULL;
+		}
+		for (i=0 ; i<=BackLogsNumber ; i++) {
+			snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
+			unlink(logname1);
+		}
+		lastlogversion = 0;
+		eptr->mode = KILL;
+		return;
+	}
+
 	if (eptr->logfd==NULL) {
 		eptr->logfd = fopen("changelog_ml.0.mfs","a");
 	}
 
-	data++;
-	version = get64bit(&data);
 	if (eptr->logfd) {
 		fprintf(eptr->logfd,"%"PRIu64": %s\n",version,data);
+		lastlogversion = version;
 	} else {
 		syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,data);
 	}
@@ -193,9 +300,8 @@ void masterconn_metachanges_flush(void) {
 }
 
 int masterconn_download_end(masterconn *eptr) {
-	uint8_t *buff;
 	eptr->downloading=0;
-	buff = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
+	masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
 	if (eptr->metafd>=0) {
 		if (close(eptr->metafd)<0) {
 			mfs_errlog_silent(LOG_NOTICE,"error closing metafile");
@@ -334,6 +440,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		eptr->mode = KILL;
 		return;
 	}
+	passert(data);
 	if (length==1) {
 		eptr->downloading=0;
 		syslog(LOG_NOTICE,"download start error");
@@ -377,6 +484,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		eptr->mode = KILL;
 		return;
 	}
+	passert(data);
 	offset = get64bit(&data);
 	leng = get32bit(&data);
 	crc = get32bit(&data);
@@ -443,18 +551,24 @@ void masterconn_beforeclose(masterconn *eptr) {
 	}
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
+		eptr->metafd=-1;
 		unlink("metadata_ml.tmp");
 		unlink("sessions_ml.tmp");
 		unlink("changelog_ml.tmp");
 	}
 	if (eptr->logfd) {
 		fclose(eptr->logfd);
+		eptr->logfd = NULL;
 	}
 }
 
 void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
+			break;
+		case ANTOAN_UNKNOWN_COMMAND: // for future use
+			break;
+		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
 		case MATOML_METACHANGES_LOG:
 			masterconn_metachanges_log(eptr,data,length);
@@ -477,7 +591,7 @@ void masterconn_term(void) {
 
 	if (eptr->mode!=FREE) {
 		tcpclose(eptr->sock);
-	       	if (eptr->mode!=CONNECTING) {
+		if (eptr->mode!=CONNECTING) {
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
 			}
@@ -511,7 +625,9 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->outputtail = &(eptr->outputhead);
 
 	masterconn_sendregister(eptr);
-	masterconn_metadownloadinit();
+	if (lastlogversion==0) {
+		masterconn_metadownloadinit();
+	}
 	eptr->lastread = eptr->lastwrite = main_time();
 }
 
@@ -858,6 +974,7 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
+	masterconn_findlastlogversion();
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}

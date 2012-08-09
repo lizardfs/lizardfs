@@ -385,6 +385,7 @@ void* write_worker(void *arg) {
 	int status;
 	uint8_t waitforstatus;
 	uint8_t havedata;
+	uint8_t jobs;
 	struct timeval start,now,lastrcvd,lrdiff;
 
 	uint8_t cnt;
@@ -412,12 +413,12 @@ void* write_worker(void *arg) {
 		pthread_mutex_lock(&glock);
 		if (id->datachainhead) {
 			chindx = id->datachainhead->chindx;
+			status = id->status;
 		} else {
 			syslog(LOG_WARNING,"writeworker got inode with no data to write !!!");
 			chindx = 0;
 			status = EINVAL;	// this should never happen, so status is not important - just anything
 		}
-		status = id->status;
 		pthread_mutex_unlock(&glock);
 
 		if (status) {
@@ -561,6 +562,7 @@ void* write_worker(void *arg) {
 		lastrcvd.tv_sec = 0;
 
 		do {
+			jobs = queue_isempty(jqueue)?0:1;
 			gettimeofday(&now,NULL);
 
 			if (lastrcvd.tv_sec==0) {
@@ -586,7 +588,7 @@ void* write_worker(void *arg) {
 			now.tv_sec -= start.tv_sec;
 			now.tv_usec -= start.tv_usec;
 
-			if (havedata==0 && now.tv_sec<5 && waitforstatus<5) {
+			if (havedata==0 && now.tv_sec<(jobs?5:25) && waitforstatus<15) {
 				pthread_mutex_lock(&glock);
 				if (cb==NULL) {
 					if (id->datachainhead) {
@@ -645,6 +647,9 @@ void* write_worker(void *arg) {
 			pthread_mutex_unlock(&glock);	// make helgrind happy
 			if (pfd[1].revents&POLLIN) {	// used just to break poll - so just read all data from pipe to empty it
 				i = read(id->pipe[0],pipebuff,1024);
+				if (i<0) { // mainly to make happy static code analyzers
+					syslog(LOG_NOTICE,"read pipe error: %s",strerr(errno));
+				}
 			}
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
@@ -655,6 +660,7 @@ void* write_worker(void *arg) {
 				}
 				gettimeofday(&lastrcvd,NULL);
 				rcvd+=i;
+				// do not accept ANTOAN_UNKNOWN_COMMAND and ANTOAN_BAD_COMMAND_SIZE here - only ANTOAN_NOP
 				if (rcvd>=8 && recvbuff[7]==0 && recvbuff[6]==0 && recvbuff[5]==0 && recvbuff[4]==0 && recvbuff[3]==0 && recvbuff[2]==0 && recvbuff[1]==0 && recvbuff[0]==0) {	// ANTOAN_NOP packet received - skip it
 					if (rcvd>8) {
 						memmove(recvbuff,recvbuff+8,rcvd-8);
@@ -778,7 +784,7 @@ void* write_worker(void *arg) {
 					}
 				}
 			}
-		} while (waitforstatus>0 && now.tv_sec<10);
+		} while (waitforstatus>0 && now.tv_sec<(jobs?10:30));
 
 		tcpclose(fd);
 
@@ -974,6 +980,9 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 	uint32_t from;
 	int status;
 	inodedata *id = (inodedata*)vid;
+	if (id==NULL) {
+		return EIO;
+	}
 //	struct timeval s,e;
 
 //	gettimeofday(&s,NULL);
@@ -1029,6 +1038,10 @@ void* write_data_new(uint32_t inode) {
 	inodedata* id;
 	pthread_mutex_lock(&glock);
 	id = write_get_inodedata(inode);
+	if (id==NULL) {
+		pthread_mutex_unlock(&glock);
+		return NULL;
+	}
 	id->lcnt++;
 //	pthread_mutex_unlock(&(id->lock));
 	pthread_mutex_unlock(&glock);
@@ -1038,6 +1051,9 @@ void* write_data_new(uint32_t inode) {
 int write_data_flush(void *vid) {
 	inodedata* id = (inodedata*)vid;
 	int ret;
+	if (id==NULL) {
+		return EIO;
+	}
 //	struct timeval s,e;
 
 //	gettimeofday(&s,NULL);
@@ -1108,6 +1124,9 @@ int write_data_flush_inode(uint32_t inode) {
 int write_data_end(void *vid) {
 	inodedata* id = (inodedata*)vid;
 	int ret;
+	if (id==NULL) {
+		return EIO;
+	}
 	pthread_mutex_lock(&glock);
 	id->flushwaiting++;
 	while (id->inqueue) {

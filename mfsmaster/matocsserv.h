@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 
+int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port);
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);

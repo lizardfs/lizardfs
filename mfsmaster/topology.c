@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -89,7 +91,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 			octet=0;
 			while (*net>='0' && *net<='9') {
 				octet*=10;
-				octet+=*net-'0';
+				octet+=(*net)-'0';
 				net++;
 				if (octet>255) {
 					return -1;
@@ -121,7 +123,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 				octet=0;
 				while (*net>='0' && *net<='9') {
 					octet*=10;
-					octet+=*net-'0';
+					octet+=(*net)-'0';
 					net++;
 					if (octet>255) {
 						return -1;
@@ -476,20 +478,40 @@ void topology_load(void) {
 //}
 
 void topology_reload(void) {
-	free(TopologyFileName);
-	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME",ETC_PATH "/mfstopology.cfg");
+	int fd;
+	if (TopologyFileName) {
+		free(TopologyFileName);
+	}
+	if (!cfg_isdefined("TOPOLOGY_FILENAME")) {
+		TopologyFileName = strdup(ETC_PATH "/mfs/mfstopology.cfg");
+		passert(TopologyFileName);
+		if ((fd = open(TopologyFileName,O_RDONLY))<0 && errno==ENOENT) {
+			free(TopologyFileName);
+			TopologyFileName = strdup(ETC_PATH "/mfstopology.cfg");
+			if ((fd = open(TopologyFileName,O_RDONLY))>=0) {
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+			}
+		}
+		if (fd>=0) {
+			close(fd);
+		}
+	} else {
+		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME",ETC_PATH "/mfs/mfstopology.cfg");
+	}
 	topology_load();
 }
 
 void topology_term(void) {
 	itree_freeall(racktree);
-	free(TopologyFileName);
+	if (TopologyFileName) {
+		free(TopologyFileName);
+	}
 }
 
 int topology_init(void) {
-	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME",ETC_PATH "/mfstopology.cfg");
+	TopologyFileName = NULL;
 	racktree = NULL;
-	topology_load();
+	topology_reload();
 	main_reloadregister(topology_reload);
 	main_destructregister(topology_term);
 	return 0;

@@ -184,8 +184,8 @@ void chartsdata_refresh(void) {
 		uc.it_value.tv_usec = 0;
 	}
 
-	ucusec = uc.it_value.tv_sec*1000000+uc.it_value.tv_usec;
-	pcusec = pc.it_value.tv_sec*1000000+pc.it_value.tv_usec;
+	ucusec = uc.it_value.tv_sec*1000000U+uc.it_value.tv_usec;
+	pcusec = pc.it_value.tv_sec*1000000U+pc.it_value.tv_usec;
 
 	if (pcusec>ucusec) {
 		pcusec-=ucusec;
@@ -202,7 +202,7 @@ void chartsdata_refresh(void) {
 #  ifdef __APPLE__
 	memusage = ru.ru_maxrss;
 #  else
-	memusage = ru.ru_maxrss * 1024;
+	memusage = ru.ru_maxrss * UINT64_C(1024);
 #  endif
 #  ifdef __linux__
 	if (memusage==0) {

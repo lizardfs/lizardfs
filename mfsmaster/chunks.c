@@ -105,6 +105,7 @@ static slist *slfreehead = NULL;
 
 #endif /* METARESTORE */
 
+#if 0
 typedef struct _flist {
 	uint32_t inode;
 	uint16_t indx;
@@ -123,6 +124,7 @@ typedef struct _flist_bucket {
 static flist_bucket *fbhead = NULL;
 static flist *flfreehead = NULL;
 #endif /* USE_FLIST_BUCKET */
+#endif
 
 typedef struct chunk {
 	uint64_t chunkid;
@@ -136,12 +138,14 @@ typedef struct chunk {
 	unsigned operation:4;
 #endif
 	uint32_t lockedto;
+	uint32_t fcount;
 #ifndef METARESTORE
 //	uint32_t lockedby;
 	slist *slisthead;
 //	bcdata *bestchunk;
 #endif
-	flist *flisthead;
+	uint32_t *ftab;
+//	flist *flisthead;
 	struct chunk *next;
 } chunk;
 
@@ -168,15 +172,6 @@ static uint64_t nextchunkid=1;
 static uint32_t ReplicationsDelayDisconnect=3600;
 static uint32_t ReplicationsDelayInit=300;
 
-// CONFIG
-// D:(MAX DELETES PER SECOND)
-// R:(MAX REPLICATION PER SECOND)
-// L:(LOOP TIME)
-
-// static char* CfgFileName;
-// static uint32_t MaxRepl=1;
-// static uint32_t MaxDel=100;
-// static uint32_t HashSteps=1+((HASHSIZE)/3600);
 static uint32_t MaxWriteRepl;
 static uint32_t MaxReadRepl;
 static uint32_t MaxDelSoftLimit;
@@ -185,13 +180,7 @@ static double TmpMaxDelFrac;
 static uint32_t TmpMaxDel;
 static uint32_t HashSteps;
 static uint32_t HashCPS;
-
-//#define MAXCOPY 2
-//#define MAXDEL 6
-//#define LOOPTIME 3600
-//#define HASHSTEPS (1+((HASHSIZE)/(LOOPTIME)))
-
-#define ACCEPTABLE_DIFFERENCE 0.01
+static double AcceptableDifference;
 
 static uint32_t jobshpos;
 static uint32_t jobsrebalancecount;
@@ -284,6 +273,7 @@ static inline void slist_free(slist* p) {
 #endif /* USE_SLIST_BUCKETS */
 #endif /* !METARESTORE */
 
+#if 0
 #ifdef USE_FLIST_BUCKETS
 static inline flist* flist_malloc() {
 	flist_bucket *fb;
@@ -323,6 +313,7 @@ static inline void flist_free(flist* p) {
 }
 
 #endif /* USE_FLIST_BUCKETS */
+#endif
 
 #ifdef USE_CHUNK_BUCKETS
 static inline chunk* chunk_malloc() {
@@ -417,6 +408,9 @@ chunk* chunk_new(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
 	newchunk = chunk_malloc();
+#ifdef METARESTORE
+	printf("N%"PRIu64"\n",chunkid);
+#endif
 #ifndef METARESTORE
 	chunks++;
 	allchunkcounts[0][0]++;
@@ -436,7 +430,9 @@ chunk* chunk_new(uint64_t chunkid) {
 	newchunk->operation = NONE;
 	newchunk->slisthead = NULL;
 #endif
-	newchunk->flisthead = NULL;
+	newchunk->fcount = 0;
+//	newchunk->flisthead = NULL;
+	newchunk->ftab = NULL;
 	lastchunkid = chunkid;
 	lastchunkptr = newchunk;
 	return newchunk;
@@ -445,6 +441,9 @@ chunk* chunk_new(uint64_t chunkid) {
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
+#ifdef METARESTORE
+	printf("F%"PRIu64"\n",chunkid);
+#endif
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
@@ -556,20 +555,6 @@ void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
 		}
 	} else {
 		memset(buff,0,11*11*4);
-	}
-}
-
-void chunk_refresh_goal(chunk* c) {
-	flist *f;
-	uint8_t oldgoal = c->goal;
-	c->goal = 0;
-	for (f=c->flisthead ; f ; f=f->next) {
-		if (f->goal > c->goal) {
-			c->goal = f->goal;
-		}
-	}
-	if (c->goal!=oldgoal) {
-		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
 	}
 }
 #endif
@@ -810,67 +795,54 @@ void chunk_load_goal(void) {
 }
 */
 
-int chunk_set_file_goal(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
+int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	chunk *c;
-	flist *f;
 #ifndef METARESTORE
 	uint8_t oldgoal;
 #endif
+	if (prevgoal==newgoal) {
+		return STATUS_OK;
+	}
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
+	if (c->fcount==0) {
+//#ifndef METARESTORE
+//		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
+//#else
+//		printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",chunkid,inode,indx);
+//#endif
+#ifndef METARESTORE
+		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
+#else
+		printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",c->chunkid);
+#endif
+		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+	}
 #ifndef METARESTORE
 	oldgoal = c->goal;
 #endif
-	c->goal = 0;
-	for (f=c->flisthead ; f ; f=f->next) {
-		if (f->inode == inode && f->indx == indx) {
-			f->goal = goal;
-		}
-		if (f->goal > c->goal) {
-			c->goal = f->goal;
-		}
-	}
-#ifndef METARESTORE
-	if (oldgoal!=c->goal) {
-		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
-	}
-#endif
-	return STATUS_OK;
-}
-
-int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx) {
-	chunk *c;
-	flist *f,**fp;
-#ifndef METARESTORE
-	uint8_t oldgoal;
-#endif
-	uint32_t i;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	i=0;
-#ifndef METARESTORE
-	oldgoal = c->goal;
-#endif
-	c->goal = 0;
-	fp = &(c->flisthead);
-	while ((f=*fp)) {
-		if (f->inode == inode && f->indx == indx) {
-			*fp = f->next;
-			flist_free(f);
-			i=1;
-		} else {
-			if (f->goal > c->goal) {
-				c->goal = f->goal;
+	if (c->fcount==1) {
+		c->goal = newgoal;
+	} else {
+		if (c->ftab==NULL) {
+			c->ftab = malloc(sizeof(uint32_t)*10);
+			passert(c->ftab);
+			memset(c->ftab,0,sizeof(uint32_t)*10);
+			c->ftab[c->goal]=c->fcount-1;
+			c->ftab[newgoal]=1;
+			if (newgoal > c->goal) {
+				c->goal = newgoal;
 			}
-			fp = &(f->next);
+		} else {
+			c->ftab[prevgoal]--;
+			c->ftab[newgoal]++;
+			c->goal = 9;
+			while (c->ftab[c->goal]==0) {
+				c->goal--;
+			}
 		}
-	}
-	if (i==0) {
-		syslog(LOG_WARNING,"(delete file) serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
 	}
 #ifndef METARESTORE
 	if (oldgoal!=c->goal) {
@@ -880,43 +852,88 @@ int chunk_delete_file(uint64_t chunkid,uint32_t inode,uint16_t indx) {
 	return STATUS_OK;
 }
 
-int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
-	chunk *c;
-	flist *f;
+static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 #ifndef METARESTORE
 	uint8_t oldgoal;
 #endif
-	uint32_t i;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
+	if (c->fcount==0) {
+//#ifndef METARESTORE
+//		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
+//#else
+//		printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",chunkid,inode,indx);
+//#endif
+#ifndef METARESTORE
+		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
+#else
+		printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",c->chunkid);
+#endif
+		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 	}
-	i=0;
 #ifndef METARESTORE
 	oldgoal = c->goal;
 #endif
-	c->goal = 0;
-	for (f=c->flisthead ; f ; f=f->next) {
-		if (f->inode == inode && f->indx == indx) {
-			f->goal = goal;
-			i=1;
+	if (c->fcount==1) {
+		c->goal = 0;
+		c->fcount = 0;
+#ifdef METARESTORE
+		printf("D%"PRIu64"\n",c->chunkid);
+#endif
+	} else {
+		if (c->ftab) {
+			c->ftab[goal]--;
+			c->goal = 9;
+			while (c->ftab[c->goal]==0) {
+				c->goal--;
+			}
 		}
-		if (f->goal > c->goal) {
-			c->goal = f->goal;
+		c->fcount--;
+		if (c->fcount==1 && c->ftab) {
+			free(c->ftab);
+			c->ftab = NULL;
 		}
 	}
-	if (i==0) {
-		f = flist_malloc();
-		f->inode = inode;
-		f->indx = indx;
-		f->goal = goal;
-		f->next = c->flisthead;
-		c->flisthead = f;
-		if (goal > c->goal) {
-			c->goal = goal;
+#ifndef METARESTORE
+	if (oldgoal!=c->goal) {
+		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
+	}
+#endif
+	return STATUS_OK;
+}
+
+static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
+#ifndef METARESTORE
+	uint8_t oldgoal;
+#endif
+#ifndef METARESTORE
+	oldgoal = c->goal;
+#endif
+	if (c->fcount==0) {
+		c->goal = goal;
+		c->fcount = 1;
+	} else if (goal==c->goal) {
+		c->fcount++;
+		if (c->ftab) {
+			c->ftab[goal]++;
 		}
 	} else {
-		syslog(LOG_WARNING,"(add file) serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
+		if (c->ftab==NULL) {
+			c->ftab = malloc(sizeof(uint32_t)*10);
+			passert(c->ftab);
+			memset(c->ftab,0,sizeof(uint32_t)*10);
+			c->ftab[c->goal]=c->fcount;
+			c->ftab[goal]=1;
+			c->fcount++;
+			if (goal > c->goal) {
+				c->goal = goal;
+			}
+		} else {
+			c->ftab[goal]++;
+			c->fcount++;
+			c->goal = 9;
+			while (c->ftab[c->goal]==0) {
+				c->goal--;
+			}
+		}
 	}
 #ifndef METARESTORE
 	if (oldgoal!=c->goal) {
@@ -924,6 +941,24 @@ int chunk_add_file(uint64_t chunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
 	}
 #endif
 	return STATUS_OK;
+}
+
+int chunk_delete_file(uint64_t chunkid,uint8_t goal) {
+	chunk *c;
+	c = chunk_find(chunkid);
+	if (c==NULL) {
+		return ERROR_NOCHUNK;
+	}
+	return chunk_delete_file_int(c,goal);
+}
+
+int chunk_add_file(uint64_t chunkid,uint8_t goal) {
+	chunk *c;
+	c = chunk_find(chunkid);
+	if (c==NULL) {
+		return ERROR_NOCHUNK;
+	}
+	return chunk_add_file_int(c,goal);
 }
 
 /*
@@ -1000,17 +1035,15 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 
 #ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t *opflag) {
+int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag) {
 	void* ptrs[65536];
 	uint16_t servcount;
 	slist *os,*s;
-	uint8_t oldgoal;
-#else
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal,uint8_t opflag) {
-#endif
 	uint32_t i;
+#else
+int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
+#endif
 	chunk *oc,*c;
-	flist *f,**fp;
 
 	if (ochunkid==0) {	// new chunk
 //		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
@@ -1029,16 +1062,11 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 #endif
 		c = chunk_new(nextchunkid++);
 		c->version = 1;
-		c->goal = goal;
 #ifndef METARESTORE
 		c->interrupted = 0;
 		c->operation = CREATE;
 #endif
-		c->flisthead = flist_malloc();
-		c->flisthead->inode = inode;
-		c->flisthead->indx = indx;
-		c->flisthead->goal = goal;
-		c->flisthead->next = NULL;
+		chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 		if (servcount<goal) {
 			c->allvalidcopies = servcount;
@@ -1056,7 +1084,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			c->slisthead = s;
 			matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
 		}
-		chunk_state_change(0,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+		chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 		*opflag=1;
 #endif
 		*nchunkid = c->chunkid;
@@ -1071,17 +1099,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			return ERROR_LOCKED;
 		}
 #endif
-		fp = &(oc->flisthead);
-		i=1;
-		while ((f=*fp)) {
-			if (f->inode==inode && f->indx==indx) {
-				f->goal = goal;	// not needed.
-				break;
-			}
-			fp = &(f->next);
-			i=0;
-		}
-		if (i && f && f->next==NULL) {	// refcount==1
+		if (oc->fcount==1) {	// refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
 #ifndef METARESTORE
@@ -1120,11 +1138,16 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 			}
 #endif
 		} else {
-			if (f==NULL) {	// it's serious structure error
+			if (oc->fcount==0/* f==NULL */) {	// it's serious structure error
+//#ifndef METARESTORE
+//				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
+//#else
+//				printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
+//#endif
 #ifndef METARESTORE
-				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
+				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
 #else
-				printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
+				printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",ochunkid);
 #endif
 				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 			}
@@ -1136,15 +1159,12 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 #endif
 						c = chunk_new(nextchunkid++);
 						c->version = 1;
-						c->goal = goal;
 #ifndef METARESTORE
 						c->interrupted = 0;
 						c->operation = DUPLICATE;
 #endif
-						// move f to new chunk
-						c->flisthead = f;
-						*fp = f->next;
-						f->next = NULL;
+						chunk_delete_file_int(oc,goal);
+						chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 					}
 					s = slist_malloc();
@@ -1160,24 +1180,12 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 				}
 			}
 			if (c!=NULL) {
-				chunk_state_change(0,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+				chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 			}
 			if (i>0) {
 #endif
 				*nchunkid = c->chunkid;
 #ifndef METARESTORE
-				oldgoal = oc->goal;
-#endif
-				oc->goal = 0;
-				for (f=oc->flisthead ; f ; f=f->next) {
-					if (f->goal > oc->goal) {
-						oc->goal = f->goal;
-					}
-				}
-#ifndef METARESTORE
-				if (oldgoal!=oc->goal) {
-					chunk_state_change(oldgoal,oc->goal,oc->allvalidcopies,oc->allvalidcopies,oc->regularvalidcopies,oc->regularvalidcopies);
-				}
 				*opflag=1;
 			} else {
 				return ERROR_CHUNKLOST;
@@ -1195,15 +1203,13 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t
 }
 
 #ifndef METARESTORE
-int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint32_t inode,uint16_t indx,uint8_t goal) {
+int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal) {
 	slist *os,*s;
-	uint8_t oldgoal;
+	uint32_t i;
 #else
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t inode,uint16_t indx,uint8_t goal) {
+int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
 #endif
 	chunk *oc,*c;
-	flist *f,**fp;
-	uint32_t i;
 
 	c=NULL;
 	oc = chunk_find(ochunkid);
@@ -1215,17 +1221,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 		return ERROR_LOCKED;
 	}
 #endif
-	fp = &(oc->flisthead);
-	i=1;
-	while ((f=*fp)) {
-		if (f->inode==inode && f->indx==indx) {
-			f->goal = goal;	// not needed.
-			break;
-		}
-		fp = &(f->next);
-		i=0;
-	}
-	if (i && f && f->next==NULL) {	// refcount==1
+	if (oc->fcount==1) {	// refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
 #ifndef METARESTORE
@@ -1256,11 +1252,16 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 		c->version++;
 #endif
 	} else {
-		if (f==NULL) {	// it's serious structure error
+		if (oc->fcount==0/*f==NULL*/) {	// it's serious structure error
+//#ifndef METARESTORE
+//			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
+//#else
+//			printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
+//#endif
 #ifndef METARESTORE
-				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
+			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
 #else
-				printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
+			printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",ochunkid);
 #endif
 			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 		}
@@ -1272,15 +1273,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 #endif
 					c = chunk_new(nextchunkid++);
 					c->version = 1;
-					c->goal = goal;
 #ifndef METARESTORE
 					c->interrupted = 0;
 					c->operation = DUPTRUNC;
 #endif
-					// move f to new chunk
-					c->flisthead = f;
-					*fp = f->next;
-					f->next = NULL;
+					chunk_delete_file_int(oc,goal);
+					chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 				}
 				s = slist_malloc();
@@ -1296,24 +1294,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 			}
 		}
 		if (c!=NULL) {
-			chunk_state_change(0,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+			chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 		}
 		if (i>0) {
 #endif
 			*nchunkid = c->chunkid;
 #ifndef METARESTORE
-			oldgoal = oc->goal;
-#endif
-			oc->goal = 0;
-			for (f=oc->flisthead ; f ; f=f->next) {
-				if (f->goal > oc->goal) {
-					oc->goal = f->goal;
-				}
-			}
-#ifndef METARESTORE
-			if (oldgoal!=oc->goal) {
-				chunk_state_change(oldgoal,oc->goal,oc->allvalidcopies,oc->allvalidcopies,oc->regularvalidcopies,oc->regularvalidcopies);
-			}
 		} else {
 			return ERROR_CHUNKLOST;
 		}
@@ -1388,11 +1374,9 @@ int chunk_multi_reinitialize(uint32_t ts,uint64_t chunkid) {
 #endif
 */
 #ifndef METARESTORE
-int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversion) {
+int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	uint32_t bestversion;
-	uint8_t oldgoal;
 	chunk *c;
-	flist *f,**fp;
 	slist *s;
 
 	*nversion=0;
@@ -1419,23 +1403,7 @@ int chunk_repair(uint32_t inode,uint16_t indx,uint64_t ochunkid,uint32_t *nversi
 		}
 	}
 	if (bestversion==0) {	// didn't find sensible chunk - so erase it
-		oldgoal = c->goal;
-		c->goal = 0;
-		fp = &(c->flisthead);
-		while ((f=*fp)) {
-			if (f->inode == inode && f->indx == indx) {
-				*fp = f->next;
-				flist_free(f);
-			} else {
-				if (f->goal > c->goal) {
-					c->goal = f->goal;
-				}
-				fp = &(f->next);
-			}
-		}
-		if (oldgoal!=c->goal) {
-			chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
-		}
+		chunk_delete_file_int(c,goal);
 		return 1;
 	}
 	if (c->allvalidcopies>0 || c->regularvalidcopies>0) {
@@ -2063,7 +2031,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 //	syslog(LOG_WARNING,"chunk %016"PRIX64": ivc=%"PRIu32" , tdc=%"PRIu32" , vc=%"PRIu32" , bc=%"PRIu32" , tdb=%"PRIu32" , dc=%"PRIu32" , goal=%"PRIu8" , scount=%"PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
 
 // step 2. check number of copies
-	if (tdc+vc+tdb+bc==0 && ivc>0 && c->flisthead) {
+	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
 		syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
 			syslog(LOG_NOTICE,"chunk %016"PRIX64"_%08"PRIX32" - invalid copy on (%s - ver:%08"PRIX32")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
@@ -2131,7 +2099,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 // step 6. delete unused chunk
-	if (c->flisthead==NULL) {
+	if (c->fcount==0/* c->flisthead==NULL */) {
 //		syslog(LOG_WARNING,"unused - delete");
 		for (s=c->slisthead ; s ; s=s->next) {
 			if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
@@ -2195,7 +2163,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		uint8_t prevdone;
 //		syslog(LOG_WARNING,"vc (%"PRIu32") > goal (%"PRIu32") - delete",vc,c->goal);
 		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
+			servcount = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
 		inforec.notdone.del_overgoal+=(vc-(c->goal));
 		delnotdone+=(vc-(c->goal));
@@ -2355,9 +2323,9 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 // step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->goal >= vc && vc+tdc>0 && (maxusage-minusage)>ACCEPTABLE_DIFFERENCE) {
+	if (c->goal >= vc && vc+tdc>0 && (maxusage-minusage)>AcceptableDifference) {
 		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,ACCEPTABLE_DIFFERENCE/2.0,&min,&max);
+			servcount = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
 		if (min>0 || max>0) {
 			void *srcserv=NULL;
@@ -2414,7 +2382,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 9. if there is too big difference between chunkservers then make copy on server with lowest disk usage
 /*
-	if (jobscopycount<MaxRepl && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>ACCEPTABLE_DIFFERENCE) {
+	if (jobscopycount<MaxRepl && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>AcceptableDifference) {
 		if (servcount==0) {
 			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
 		}
@@ -2486,7 +2454,7 @@ void chunk_jobs_main(void) {
 		l=0;
 		cp = &(chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
-			if (c->flisthead==NULL && c->slisthead==NULL) {
+			if (c->fcount==0 && /*c->flisthead==NULL && */c->slisthead==NULL) {
 				*cp = (c->next);
 				chunk_delete(c);
 			} else {
@@ -2592,7 +2560,7 @@ void chunk_dump(void) {
 			if (lockedto<now) {
 				lockedto = 0;
 			}
-			printf("*|i:%016"PRIX64"|v:%08"PRIX32"|g:%"PRIu8"|t:%10"PRIu32"\n",c->chunkid,c->version,c->goal,c->lockedto);
+			printf("*|i:%016"PRIX64"|v:%08"PRIX32"|g:%"PRIu8"|t:%10"PRIu32"\n",c->chunkid,c->version,c->goal,lockedto);
 		}
 	}
 }
@@ -2640,7 +2608,7 @@ int chunk_load(FILE *fd) {
 			}
 		}
 	}
-	return 0;
+	return 0;	// unreachable
 }
 
 void chunk_store(FILE *fd) {
@@ -2648,7 +2616,6 @@ void chunk_store(FILE *fd) {
 	uint8_t storebuff[CHUNKFSIZE*CHUNKCNT];
 	uint8_t *ptr;
 	uint32_t i,j;
-	size_t happy;
 	chunk *c;
 // chunkdata
 	uint64_t chunkid;
@@ -2661,7 +2628,9 @@ void chunk_store(FILE *fd) {
 #endif
 	ptr = hdr;
 	put64bit(&ptr,nextchunkid);
-	happy = fwrite(hdr,1,8,fd);
+	if (fwrite(hdr,1,8,fd)!=(size_t)8) {
+		return;
+	}
 	j=0;
 	ptr = storebuff;
 	for (i=0 ; i<HASHSIZE ; i++) {
@@ -2677,7 +2646,9 @@ void chunk_store(FILE *fd) {
 			put32bit(&ptr,lockedto);
 			j++;
 			if (j==CHUNKCNT) {
-				happy = fwrite(storebuff,1,CHUNKFSIZE*CHUNKCNT,fd);
+				if (fwrite(storebuff,1,CHUNKFSIZE*CHUNKCNT,fd)!=(size_t)(CHUNKFSIZE*CHUNKCNT)) {
+					return;
+				}
 				j=0;
 				ptr = storebuff;
 			}
@@ -2685,7 +2656,9 @@ void chunk_store(FILE *fd) {
 	}
 	memset(ptr,0,CHUNKFSIZE);
 	j++;
-	happy = fwrite(storebuff,1,CHUNKFSIZE*j,fd);
+	if (fwrite(storebuff,1,CHUNKFSIZE*j,fd)!=(size_t)(CHUNKFSIZE*j)) {
+		return;
+	}
 }
 
 void chunk_term(void) {
@@ -2695,10 +2668,12 @@ void chunk_term(void) {
 # else
 	slist *sl,*sln;
 # endif
+# if 0
 # ifdef USE_FLIST_BUCKETS
 	flist_bucket *fb,*fbn;
 # else
 	flist *fl,*fln;
+# endif
 # endif
 # ifdef USE_CHUNK_BUCKETS
 	chunk_bucket *cb,*cbn;
@@ -2732,6 +2707,7 @@ void chunk_term(void) {
 		}
 	}
 # endif
+# if 0
 # ifdef USE_FLIST_BUCKETS
 	for (fb = fbhead ; fb ; fb = fbn) {
 		fbn = fb->next;
@@ -2746,6 +2722,7 @@ void chunk_term(void) {
 			}
 		}
 	}
+# endif
 # endif
 #endif
 #ifdef USE_CHUNK_BUCKETS
@@ -2855,6 +2832,14 @@ void chunk_reload(void) {
 			HashCPS = MAXCPS;
 		}
 	}
+
+	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	if (AcceptableDifference<0.001) {
+		AcceptableDifference = 0.001;
+	}
+	if (AcceptableDifference>10.0) {
+		AcceptableDifference = 10.0;
+	}
 }
 #endif
 
@@ -2925,6 +2910,13 @@ int chunk_strinit(void) {
 			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too high (%"PRIu32") decreased to %u\n",HashCPS,MAXCPS);
 			HashCPS = MAXCPS;
 		}
+	}
+	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	if (AcceptableDifference<0.001) {
+		AcceptableDifference = 0.001;
+	}
+	if (AcceptableDifference>10.0) {
+		AcceptableDifference = 10.0;
 	}
 #endif
 	for (i=0 ; i<HASHSIZE ; i++) {

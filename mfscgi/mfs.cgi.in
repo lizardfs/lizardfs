@@ -31,6 +31,8 @@ CLTOMA_EXPORTS_INFO = (PROTO_BASE+520)
 MATOCL_EXPORTS_INFO = (PROTO_BASE+521)
 CLTOMA_MLOG_LIST = (PROTO_BASE+522)
 MATOCL_MLOG_LIST = (PROTO_BASE+523)
+CLTOMA_CSSERV_REMOVESERV = (PROTO_BASE+524)
+MATOCL_CSSERV_REMOVESERV = (PROTO_BASE+525)
 CLTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
 CSTOCL_HDD_LIST_V2 = (PROTO_BASE+601)
 
@@ -214,6 +216,63 @@ def createorderlink(prefix,columnid):
 	except Exception:
 		revval = 0
 	return createlink({revname:"1"}) if orderval==columnid and revval==0 else createlink({ordername:str(columnid),revname:"0"})
+
+# commands
+if fields.has_key("CSremove"):
+	cmd_success = 0
+	tracedata = ""
+	try:
+		serverdata = fields.getvalue("CSremove").split(":")
+		if len(serverdata)==2:
+			csip = map(int,serverdata[0].split("."))
+			csport = int(serverdata[1])
+			if len(csip)==4:
+				s = socket.socket()
+				s.connect((masterhost,masterport))
+				mysend(s,struct.pack(">LLBBBBH",CLTOMA_CSSERV_REMOVESERV,6,csip[0],csip[1],csip[2],csip[3],csport))
+				header = myrecv(s,8)
+				cmd,length = struct.unpack(">LL",header)
+				if cmd==MATOCL_CSSERV_REMOVESERV and length==0:
+					cmd_success = 1
+	except Exception:
+		tracedata = traceback.format_exc()
+	url = createlink({"CSremove":""})
+	if cmd_success:
+		print "Status: 302 Found"
+		print "Location: %s" % url.replace("&amp;","&")
+		print "Content-Type: text/html; charset=UTF-8"
+		print
+		print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
+		print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
+		print """<head>"""
+		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
+		print """<meta http-equiv="Refresh" content="0; url=%s" />""" % url
+		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
+		print """</head>"""
+		print """<body>"""
+		print """<h1 align="center"><a href="%s">If you see this then it means that redirection didn't work, so click here</a></h1>"""
+		print """</body>"""
+		print """</html>"""
+	else:
+		print "Content-Type: text/html; charset=UTF-8"
+		print
+		print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
+		print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
+		print """<head>"""
+		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
+		print """<meta http-equiv="Refresh" content="5; url=%s" />""" % url
+		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
+		print """</head>"""
+		print """<body>"""
+		print """<h3 align="center">Can't remove server (%s) from list - wait 5 seconds for refresh</h3>""" % fields.getvalue("CSremove")
+		if tracedata:
+			print """<hr />"""
+			print """<pre>%s</pre>""" % tracedata
+		print """</body>"""
+		print """</html>"""
+	exit()
 
 if fields.has_key("sections"):
 	sectionstr = fields.getvalue("sections")
@@ -739,9 +798,10 @@ if "CS" in sectionset:
 			servers = []
 			for i in xrange(n):
 				d = data[i*54:(i+1)*54]
-				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
+				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBBBBBHQQLQQLL",d)
+				strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
 				try:
-					host = (socket.gethostbyaddr("%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)))[0]
+					host = (socket.gethostbyaddr(strip))[0]
 				except Exception:
 					host = "(unresolved)"
 				if CSorder==1:
@@ -776,24 +836,27 @@ if "CS" in sectionset:
 						sf = 0
 				else:
 					sf = 0
-				servers.append((sf,host,ip1,ip2,ip3,ip4,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
+				servers.append((sf,disconnected,host,strip,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
 			servers.sort()
 			if CSrev:
 				servers.reverse()
 			i = 1
-			for sf,host,ip1,ip2,ip3,ip4,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
+			for sf,disconnected,host,strip,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
 				out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%u.%u.%u.%u</td><td align="center">%u</td><td align="center">%u.%u.%u</td>""" % (i,host,ip1,ip2,ip3,ip4,port,v1,v2,v3))
-				out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
-				if (total>0):
-					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
+				if disconnected==1:
+					out.append("""		<td align="right"><span class="DISCONNECTED">%u</span></td><td align="left"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%u</span></td><td align="center"><span class="DISCONNECTED">disconnected !!!</span></td><td align="right" colspan="8"><a href="%s">click to remove</a></td>""" % (i,host,strip,port,createlink({"CSremove":("%s:%u" % (strip,port))})))
 				else:
-					out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
-				out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (tdchunks,decimal_number(tdused),humanize_number(tdused,"&nbsp;"),decimal_number(tdtotal),humanize_number(tdtotal,"&nbsp;")))
-				if (tdtotal>0):
-					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((tdused*200.0)/tdtotal),(tdused*100.0)/tdtotal))
-				else:
-					out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
+					out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">%u.%u.%u</td>""" % (i,host,strip,port,v1,v2,v3))
+					out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
+					if (total>0):
+						out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
+					else:
+						out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
+					out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (tdchunks,decimal_number(tdused),humanize_number(tdused,"&nbsp;"),decimal_number(tdtotal),humanize_number(tdtotal,"&nbsp;")))
+					if (tdtotal>0):
+						out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((tdused*200.0)/tdtotal),(tdused*100.0)/tdtotal))
+					else:
+						out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
 				out.append("""	</tr>""")
 				i+=1
 		elif cmd==MATOCL_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
@@ -803,8 +866,9 @@ if "CS" in sectionset:
 			for i in xrange(n):
 				d = data[i*50:(i+1)*50]
 				ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBHQQLQQLL",d)
+				strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
 				try:
-					host = (socket.gethostbyaddr("%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)))[0]
+					host = (socket.gethostbyaddr(strip))[0]
 				except Exception:
 					host = "(unresolved)"
 				if CSorder==1:
@@ -839,12 +903,12 @@ if "CS" in sectionset:
 						sf = 0
 				else:
 					sf = 0
-				servers.append((sf,host,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
+				servers.append((sf,host,strip,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
 			servers.sort()
 			i = 1
-			for sf,host,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
+			for sf,host,strip,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
 				out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%u.%u.%u.%u</td><td align="center">%u</td><td align="center">???</td>""" % (i,host,ip1,ip2,ip3,ip4,port))
+				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">???</td>""" % (i,host,strip,port))
 				out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
 				if (total>0):
 					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
@@ -903,8 +967,9 @@ if "CS" in sectionset:
 				for i in xrange(n):
 					d = data[i*8:(i+1)*8]
 					v1,v2,v3,ip1,ip2,ip3,ip4 = struct.unpack(">HBBBBBB",d)
+					strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
 					try:
-						host = (socket.gethostbyaddr("%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)))[0]
+						host = (socket.gethostbyaddr(strip))[0]
 					except Exception:
 						host = "(unresolved)"
 					if MBorder==1:
@@ -913,14 +978,14 @@ if "CS" in sectionset:
 						sf = (ip1,ip2,ip3,ip4)
 					elif MBorder==3:
 						sf = (v1,v2,v3)
-					servers.append((sf,host,ip1,ip2,ip3,ip4,v1,v2,v3))
+					servers.append((sf,host,strip,v1,v2,v3))
 				servers.sort()
 				if MBrev:
 					servers.reverse()
 				i = 1
-				for sf,host,ip1,ip2,ip3,ip4,v1,v2,v3 in servers:
+				for sf,host,strip,v1,v2,v3 in servers:
 					out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-					out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%u.%u.%u.%u</td><td align="center">%u.%u.%u</td>""" % (i,host,ip1,ip2,ip3,ip4,v1,v2,v3))
+					out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u.%u.%u</td>""" % (i,host,strip,v1,v2,v3))
 					out.append("""	</tr>""")
 					i+=1
 			out.append("""</table>""")
@@ -973,8 +1038,9 @@ if "HD" in sectionset:
 			servers = []
 			for i in xrange(n):
 				d = data[i*54:(i+1)*54]
-				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
-				hostlist.append((v1,v2,v3,ip1,ip2,ip3,ip4,port))
+				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBBBBBHQQLQQLL",d)
+				if disconnected==0:
+					hostlist.append((v1,v2,v3,ip1,ip2,ip3,ip4,port))
 		elif cmd==MATOCL_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50
@@ -2324,8 +2390,9 @@ if "CC" in sectionset:
 			n = length/54
 			for i in xrange(n):
 				d = data[i*54:(i+1)*54]
-				v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">HBBBBBBHQQLQQLL",d)
-				hostlist.append((ip1,ip2,ip3,ip4,port))
+				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBBBBBHQQLQQLL",d)
+				if disconnected==0:
+					hostlist.append((ip1,ip2,ip3,ip4,port))
 		elif cmd==MATOCL_CSERV_LIST and (length%50)==0:
 			data = myrecv(s,length)
 			n = length/50

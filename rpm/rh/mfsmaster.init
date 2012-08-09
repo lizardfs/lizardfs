@@ -21,8 +21,7 @@
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
 [ -x "@sbindir@/mfsmaster" ] || exit 1
-[ -r "@sysconfdir@/mfsmaster.cfg" ] || exit 1
-[ -r "@sysconfdir@/mfsexports.cfg" ] || exit 1
+[ -r "@sysconfdir@/mfs/mfsexports.cfg" -o -r "@sysconfdir@/mfsexports.cfg" ] || exit 1
 
 RETVAL=0
 prog="mfsmaster"

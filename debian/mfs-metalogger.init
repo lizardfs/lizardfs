@@ -17,7 +17,8 @@ DESC=mfs-metalogger
 DEFAULT_USER=mfs
 DEFAULT_GROUP=mfs
 DEFAULT_DATADIR=/var/lib/mfs
-DEFAULT_CFG=/etc/mfsmetalogger.cfg
+DEFAULT_CFG=/etc/mfs/mfsmetalogger.cfg
+COMPAT_CFG=/etc/mfsmetalogger.cfg
 
 test -e $DAEMON || exit 0
 
@@ -44,7 +45,13 @@ fi
 
 set -e
 
-CFGFILE="${MFSMETALOGGER_CONFIG_FILE:-$DEFAULT_CFG}"
+if [ -n "$MFSMETALOGGER_CONFIG_FILE" ]; then
+	CFGFILE="$MFSMETALOGGER_CONFIG_FILE"
+elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
+	CFGFILE="$DEFAULT_CFG"
+else
+	CFGFILE="$COMPAT_CFG"
+fi
 if [ -s "$CFGFILE" ]; then
 	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
 	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")

@@ -132,7 +132,8 @@ static struct itimerval it_set;
 
 void chartsdata_refresh(void) {
 	uint64_t data[CHARTS];
-	uint32_t i,bin,bout,opr,opw,dbr,dbw,dopr,dopw,repl;
+	uint64_t bin,bout;
+	uint32_t i,opr,opw,dbr,dbw,dopr,dopw,repl;
 	uint32_t op_cr,op_de,op_ve,op_du,op_tr,op_dt,op_te;
 	uint32_t csservjobs,masterjobs;
 	struct itimerval uc,pc;

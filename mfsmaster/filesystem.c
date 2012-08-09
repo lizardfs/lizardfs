@@ -56,7 +56,6 @@
 #define USE_FREENODE_BUCKETS 1
 #define USE_CUIDREC_BUCKETS 1
 #define EDGEHASH 1
-#define BACKGROUND_METASTORE 1
 
 #define NODEHASHBITS (22)
 #define NODEHASHSIZE (1<<NODEHASHBITS)
@@ -68,6 +67,9 @@
 #define EDGEHASHPOS(hash) ((hash)&(EDGEHASHSIZE-1))
 #define LOOKUPNOHASHLIMIT 10
 #endif
+
+#define XATTR_INODE_HASH_SIZE 65536
+#define XATTR_DATA_HASH_SIZE 524288
 
 /*
 #ifdef CACHENOTIFY
@@ -142,6 +144,27 @@ typedef struct _quotanode {
 } quotanode;
 
 static quotanode *quotahead;
+
+typedef struct _xattr_data_entry {
+	uint32_t inode;
+	uint8_t anleng;
+	uint32_t avleng;
+	uint8_t *attrname;
+	uint8_t *attrvalue;
+	struct _xattr_data_entry **previnode,*nextinode;
+	struct _xattr_data_entry **prev,*next;
+} xattr_data_entry;
+
+typedef struct _xattr_inode_entry {
+	uint32_t inode;
+	uint32_t anleng;
+	uint32_t avleng;
+	struct _xattr_data_entry *data_head;
+	struct _xattr_inode_entry *next;
+} xattr_inode_entry;
+
+static xattr_inode_entry **xattr_inode_hash;
+static xattr_data_entry **xattr_data_hash;
 
 #ifndef METARESTORE
 static uint32_t QuotaTimeLimit;
@@ -420,8 +443,13 @@ uint32_t fsnodes_get_next_id() {
 		searchpos++;
 	}
 	if (searchpos==bitmasksize) {	// no more freeinodes
+		uint32_t *tmpfbm;
 		bitmasksize+=0x80;
+		tmpfbm = freebitmask;
 		freebitmask = (uint32_t*)realloc(freebitmask,bitmasksize*sizeof(uint32_t));
+		if (freebitmask==NULL) {
+			free(tmpfbm); // pro forma - satisfy cppcheck
+		}
 		passert(freebitmask);
 		memset(freebitmask+searchpos,0,0x80*sizeof(uint32_t));
 	}
@@ -484,7 +512,7 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 	}
 #ifndef METARESTORE
 	if (fi>0) {
-		changelog(metaversion++,"%"PRIu32"|FREEINODES():%"PRIu32,(uint32_t)main_time(),fi);
+		changelog(metaversion++,"%" PRIu32 "|FREEINODES():%" PRIu32,(uint32_t)main_time(),fi);
 	}
 #else
 	metaversion++;
@@ -496,7 +524,7 @@ uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes) {
 }
 
 void fsnodes_init_freebitmask (void) {
-	bitmasksize = 0x100+(((maxnodeid)>>5)&0xFFFFFF80);
+	bitmasksize = 0x100+(((maxnodeid)>>5)&0xFFFFFF80U);
 	freebitmask = (uint32_t*)malloc(bitmasksize*sizeof(uint32_t));
 	passert(freebitmask);
 	memset(freebitmask,0,bitmasksize*sizeof(uint32_t));
@@ -511,6 +539,226 @@ void fsnodes_used_inode (uint32_t id) {
 	freebitmask[pos]|=mask;
 }
 
+
+/* xattr */
+
+static inline uint32_t xattr_inode_hash_fn(uint32_t inode) {
+	return ((inode*0x72B5F387U)&(XATTR_INODE_HASH_SIZE-1));
+}
+
+static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const uint8_t *attrname) {
+	uint32_t hash = inode*5381U;
+	while (anleng) {
+		hash = (hash * 33U) + (*attrname);
+		attrname++;
+		anleng--;
+	}
+	return (hash&(XATTR_DATA_HASH_SIZE-1));
+}
+
+static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
+	uint32_t i;
+	for (i=0 ; i<anleng ; i++) {
+		if (attrname[i]=='\0') {
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static inline void xattr_removeentry(xattr_data_entry *xa) {
+	*(xa->previnode) = xa->nextinode;
+	if (xa->nextinode) {
+		xa->nextinode->previnode = xa->previnode;
+	}
+	*(xa->prev) = xa->next;
+	if (xa->next) {
+		xa->next->prev = xa->prev;
+	}
+	free(xa->attrname);
+	if (xa->attrvalue) {
+		free(xa->attrvalue);
+	}
+	free(xa);
+}
+
+void xattr_removeinode(uint32_t inode) {
+	xattr_inode_entry *ih,**ihp;
+
+	ihp = &(xattr_inode_hash[xattr_inode_hash_fn(inode)]);
+	while ((ih = *ihp)) {
+		if (ih->inode==inode) {
+			while (ih->data_head) {
+				xattr_removeentry(ih->data_head);
+			}
+			*ihp = ih->next;
+			free(ih);
+		} else {
+			ihp = &(ih->next);
+		}
+	}
+}
+
+uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint8_t mode) {
+	xattr_inode_entry *ih;
+	xattr_data_entry *xa;
+	uint32_t hash,ihash;
+
+	if (avleng>MFS_XATTR_SIZE_MAX) {
+		return ERROR_ERANGE;
+	}
+#if MFS_XATTR_NAME_MAX<255
+	if (anleng==0U || anleng>MFS_XATTR_NAME_MAX) {
+#else
+	if (anleng==0U) {
+#endif
+		return ERROR_EINVAL;
+	}
+
+	ihash = xattr_inode_hash_fn(inode);
+	for (ih = xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
+
+	hash = xattr_data_hash_fn(inode,anleng,attrname);
+	for (xa = xattr_data_hash[hash]; xa ; xa=xa->next) {
+		if (xa->inode==inode && xa->anleng==anleng && memcmp(xa->attrname,attrname,anleng)==0) {
+			passert(ih);
+			if (mode==MFS_XATTR_CREATE_ONLY) { // create only
+				return ERROR_EEXIST;
+			}
+			if (mode==MFS_XATTR_REMOVE) { // remove
+				ih->anleng -= anleng+1U;
+				ih->avleng -= xa->avleng;
+				xattr_removeentry(xa);
+				if (ih->data_head==NULL) {
+					if (ih->anleng!=0 || ih->avleng!=0) {
+						syslog(LOG_WARNING,"xattr non zero lengths on remove (inode:%"PRIu32",anleng:%"PRIu32",avleng:%"PRIu32")",ih->inode,ih->anleng,ih->avleng);
+					}
+					xattr_removeinode(inode);
+				}
+				return STATUS_OK;
+			}
+			ih->avleng -= xa->avleng;
+			if (xa->attrvalue) {
+				free(xa->attrvalue);
+			}
+			if (avleng>0) {
+				xa->attrvalue = malloc(avleng);
+				passert(xa->attrvalue);
+				memcpy(xa->attrvalue,attrvalue,avleng);
+			} else {
+				xa->attrvalue = NULL;
+			}
+			xa->avleng = avleng;
+			ih->avleng += avleng;
+			return STATUS_OK;
+		}
+	}
+
+	if (mode==MFS_XATTR_REPLACE_ONLY || mode==MFS_XATTR_REMOVE) {
+		return ERROR_ENOATTR;
+	}
+
+	if (ih && ih->anleng+anleng+1>MFS_XATTR_LIST_MAX) {
+		return ERROR_ERANGE;
+	}
+
+	xa = malloc(sizeof(xattr_data_entry));
+	passert(xa);
+	xa->inode = inode;
+	xa->attrname = malloc(anleng);
+	passert(xa->attrname);
+	memcpy(xa->attrname,attrname,anleng);
+	xa->anleng = anleng;
+	if (avleng>0) {
+		xa->attrvalue = malloc(avleng);
+		passert(xa->attrvalue);
+		memcpy(xa->attrvalue,attrvalue,avleng);
+	} else {
+		xa->attrvalue = NULL;
+	}
+	xa->avleng = avleng;
+	xa->next = xattr_data_hash[hash];
+	if (xa->next) {
+		xa->next->prev = &(xa->next);
+	}
+	xa->prev = xattr_data_hash + hash;
+	xattr_data_hash[hash] = xa;
+
+	if (ih) {
+		xa->nextinode = ih->data_head;
+		if (xa->nextinode) {
+			xa->nextinode->previnode = &(xa->nextinode);
+		}
+		xa->previnode = &(ih->data_head);
+		ih->data_head = xa;
+		ih->anleng += anleng+1U;
+		ih->avleng += avleng;
+	} else {
+		ih = malloc(sizeof(xattr_inode_entry));
+		passert(ih);
+		ih->inode = inode;
+		xa->nextinode = NULL;
+		xa->previnode = &(ih->data_head);
+		ih->data_head = xa;
+		ih->anleng = anleng+1U;
+		ih->avleng = avleng;
+		ih->next = xattr_inode_hash[ihash];
+		xattr_inode_hash[ihash] = ih;
+	}
+	return STATUS_OK;
+}
+
+uint8_t xattr_getattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint32_t *avleng,uint8_t **attrvalue) {
+	xattr_data_entry *xa;
+
+	for (xa = xattr_data_hash[xattr_data_hash_fn(inode,anleng,attrname)] ; xa ; xa=xa->next) {
+		if (xa->inode==inode && xa->anleng==anleng && memcmp(xa->attrname,attrname,anleng)==0) {
+			if (xa->avleng>MFS_XATTR_SIZE_MAX) {
+				return ERROR_ERANGE;
+			}
+			*attrvalue = xa->attrvalue;
+			*avleng = xa->avleng;
+			return STATUS_OK;
+		}
+	}
+	return ERROR_ENOATTR;
+}
+
+uint8_t xattr_listattr_leng(uint32_t inode,void **xanode,uint32_t *xasize) {
+	xattr_inode_entry *ih;
+	xattr_data_entry *xa;
+
+	*xasize = 0;
+	for (ih = xattr_inode_hash[xattr_inode_hash_fn(inode)] ; ih ; ih=ih->next) {
+		if (ih->inode==inode) {
+			*xanode = ih;
+			for (xa=ih->data_head ; xa ; xa=xa->nextinode) {
+				*xasize += xa->anleng+1U;
+			}
+			if (*xasize>MFS_XATTR_LIST_MAX) {
+				return ERROR_ERANGE;
+			}
+			return STATUS_OK;
+		}
+	}
+	*xanode = NULL;
+	return STATUS_OK;
+}
+
+void xattr_listattr_data(void *xanode,uint8_t *xabuff) {
+	xattr_inode_entry *ih = (xattr_inode_entry*)xanode;
+	xattr_data_entry *xa;
+	uint32_t l;
+
+	l = 0;
+	if (ih) {
+		for (xa=ih->data_head ; xa ; xa=xa->nextinode) {
+			memcpy(xabuff+l,xa->attrname,xa->anleng);
+			l+=xa->anleng;
+			xabuff[l++]=0;
+		}
+	}
+}
 
 /*
 char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
@@ -534,7 +782,7 @@ char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
 }
 */
 
-static char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
+static char* fsnodes_escape_name(uint32_t nleng,const uint8_t *name) {
 	static char *escname[2]={NULL,NULL};
 	static uint32_t escnamesize[2]={0,0};
 	static uint8_t buffid=0;
@@ -544,7 +792,7 @@ static char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
 	buffid = 1-buffid;
 	i = nleng;
 	i = i*3+1;
-	if (i>escnamesize[buffid]) {
+	if (i>escnamesize[buffid] || i==0) {
 		escnamesize[buffid] = ((i/1000)+1)*1000;
 		if (escname[buffid]!=NULL) {
 			free(escname[buffid]);
@@ -554,6 +802,7 @@ static char* fsnodes_escape_name(uint16_t nleng,const uint8_t *name) {
 	}
 	i = 0;
 	currescname = escname[buffid];
+	passert(currescname);
 	while (nleng>0) {
 		c = *name;
 		if (c<32 || c>=127 || c==',' || c=='%' || c=='(' || c==')') {
@@ -1819,7 +2068,7 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 		chunkid = srcobj->data.fdata.chunktab[i];
 		dstobj->data.fdata.chunktab[i+dstchunks] = chunkid;
 		if (chunkid>0) {
-			if (chunk_add_file(chunkid,dstobj->id,i+dstchunks,dstobj->goal)!=STATUS_OK) {
+			if (chunk_add_file(chunkid,dstobj->goal)!=STATUS_OK) {
 				syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,srcobj->id,i);
 			}
 		}
@@ -1877,12 +2126,12 @@ static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
 #endif
-	obj->goal = goal;
 	for (i=0 ; i<obj->data.fdata.chunks ; i++) {
 		if (obj->data.fdata.chunktab[i]>0) {
-			chunk_set_file_goal(obj->data.fdata.chunktab[i],obj->id,i,goal);
+			chunk_change_file(obj->data.fdata.chunktab[i],obj->goal,goal);
 		}
 	}
+	obj->goal = goal;
 }
 
 static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
@@ -1909,7 +2158,7 @@ static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
 	for (i=chunks ; i<obj->data.fdata.chunks ; i++) {
 		chunkid = obj->data.fdata.chunktab[i];
 		if (chunkid>0) {
-			if (chunk_delete_file(chunkid,obj->id,i)!=STATUS_OK) {
+			if (chunk_delete_file(chunkid,obj->goal)!=STATUS_OK) {
 				syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,obj->id,i);
 			}
 		}
@@ -1974,7 +2223,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		for (i=0 ; i<toremove->data.fdata.chunks ; i++) {
 			chunkid = toremove->data.fdata.chunktab[i];
 			if (chunkid>0) {
-				if (chunk_delete_file(chunkid,toremove->id,i)!=STATUS_OK) {
+				if (chunk_delete_file(chunkid,toremove->goal)!=STATUS_OK) {
 					syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,toremove->id,i);
 				}
 			}
@@ -1987,6 +2236,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		free(toremove->data.sdata.path);
 	}
 	fsnodes_free_id(toremove->id,ts);
+	xattr_removeinode(toremove->id);
 #ifndef METARESTORE
 	dcm_modify(toremove->id,0);
 #endif
@@ -2056,11 +2306,19 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				reservedspace += child->data.fdata.length;
 				reservednodes++;
 			} else {
+				if (path) { // always should be NULL
+					free(path);
+				}
 				fsnodes_remove_node(ts,child);
 			}
 		} else {
+			if (path) { // always should be NULL
+				free(path);
+			}
 			fsnodes_remove_node(ts,child);
 		}
+	} else if (path) { // always should be NULL
+		free(path);
 	}
 }
 
@@ -2620,18 +2878,19 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 				if (srcnode->data.fdata.chunks>0) {
 					dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
 					passert(dstnode->data.fdata.chunktab);
-				} else {
-					dstnode->data.fdata.chunktab = NULL;
-				}
-				dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
-				for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
-					chunkid = srcnode->data.fdata.chunktab[i];
-					dstnode->data.fdata.chunktab[i] = chunkid;
-					if (chunkid>0) {
-						if (chunk_add_file(chunkid,dstnode->id,i,dstnode->goal)!=STATUS_OK) {
-							syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,srcnode->id,i);
+					dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
+					for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
+						chunkid = srcnode->data.fdata.chunktab[i];
+						dstnode->data.fdata.chunktab[i] = chunkid;
+						if (chunkid>0) {
+							if (chunk_add_file(chunkid,dstnode->goal)!=STATUS_OK) {
+								syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,srcnode->id,i);
+							}
 						}
 					}
+				} else {
+					dstnode->data.fdata.chunktab = NULL;
+					dstnode->data.fdata.chunks = 0;
 				}
 				dstnode->data.fdata.length = srcnode->data.fdata.length;
 #ifndef METARESTORE
@@ -2705,18 +2964,19 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 				if (srcnode->data.fdata.chunks>0) {
 					dstnode->data.fdata.chunktab = (uint64_t*)malloc(sizeof(uint64_t)*(srcnode->data.fdata.chunks));
 					passert(dstnode->data.fdata.chunktab);
-				} else {
-					dstnode->data.fdata.chunktab = NULL;
-				}
-				dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
-				for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
-					chunkid = srcnode->data.fdata.chunktab[i];
-					dstnode->data.fdata.chunktab[i] = chunkid;
-					if (chunkid>0) {
-						if (chunk_add_file(chunkid,dstnode->id,i,dstnode->goal)!=STATUS_OK) {
-							syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,srcnode->id,i);
+					dstnode->data.fdata.chunks = srcnode->data.fdata.chunks;
+					for (i=0 ; i<srcnode->data.fdata.chunks ; i++) {
+						chunkid = srcnode->data.fdata.chunktab[i];
+						dstnode->data.fdata.chunktab[i] = chunkid;
+						if (chunkid>0) {
+							if (chunk_add_file(chunkid,dstnode->goal)!=STATUS_OK) {
+								syslog(LOG_ERR,"structure error - chunk %016"PRIX64" not found (inode: %"PRIu32" ; index: %"PRIu32")",chunkid,srcnode->id,i);
+							}
 						}
 					}
+				} else {
+					dstnode->data.fdata.chunktab = NULL;
+					dstnode->data.fdata.chunks = 0;
 				}
 				dstnode->data.fdata.length = srcnode->data.fdata.length;
 #ifndef METARESTORE
@@ -3148,7 +3408,7 @@ uint8_t fs_access(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -3275,7 +3535,7 @@ uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -3346,7 +3606,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (ochunkid>0) {
 				uint8_t status;
 				uint64_t nchunkid;
-				status = chunk_multi_truncate(&nchunkid,ochunkid,length&MFSCHUNKMASK,inode,indx,p->goal);
+				status = chunk_multi_truncate(&nchunkid,ochunkid,length&MFSCHUNKMASK,p->goal);
 				if (status!=STATUS_OK) {
 					return status;
 				}
@@ -3382,7 +3642,7 @@ uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
 		return ERROR_EINVAL;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_truncate(ts,&nchunkid,ochunkid,inode,indx,p->goal);
+	status = chunk_multi_truncate(ts,&nchunkid,ochunkid,p->goal);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -4558,7 +4818,7 @@ uint8_t fs_readdir_size(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -4618,7 +4878,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -4653,7 +4913,7 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -4844,7 +5104,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,inode,indx,p->goal,opflag);
+	status = chunk_multi_modify(&nchunkid,ochunkid,p->goal,opflag);
 /* zapis bez zwiekszania wersji
 	if (nchunkid==ochunkid && status==255) {
 		*chunkid = nchunkid;
@@ -4916,7 +5176,7 @@ uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(ts,&nchunkid,ochunkid,inode,indx,p->goal,opflag);
+	status = chunk_multi_modify(ts,&nchunkid,ochunkid,p->goal,opflag);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -5087,7 +5347,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	}
 	fsnodes_get_stats(p,&psr);
 	for (indx=0 ; indx<p->data.fdata.chunks ; indx++) {
-		if (chunk_repair(inode,indx,p->data.fdata.chunktab[indx],&nversion)) {
+		if (chunk_repair(p->goal,p->data.fdata.chunktab[indx],&nversion)) {
 			changelog(metaversion++,"%"PRIu32"|REPAIR(%"PRIu32",%"PRIu32"):%"PRIu32,ts,inode,indx,nversion);
 			if (nversion>0) {
 				(*repaired)++;
@@ -5134,7 +5394,7 @@ uint8_t fs_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion) {
 		return ERROR_NOCHUNK;
 	}
 	if (nversion==0) {
-		status = chunk_delete_file(p->data.fdata.chunktab[indx],inode,indx);
+		status = chunk_delete_file(p->data.fdata.chunktab[indx],p->goal);
 		p->data.fdata.chunktab[indx]=0;
 	} else {
 		status = chunk_set_version(p->data.fdata.chunktab[indx],nversion);
@@ -5168,7 +5428,7 @@ uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gm
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -5214,7 +5474,7 @@ uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t ino
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -5269,7 +5529,7 @@ uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t g
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -5577,6 +5837,163 @@ uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_
 }
 
 
+
+
+#ifndef METARESTORE
+
+uint8_t fs_listxattr_leng(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,void **xanode,uint32_t *xasize) {
+	fsnode *p,*rn;
+
+	*xasize = 0;
+	if (rootinode==MFS_ROOT_ID) {
+		p = fsnodes_id_to_node(inode);
+		if (!p) {
+			return ERROR_ENOENT;
+		}
+	} else {
+		rn = fsnodes_id_to_node(rootinode);
+		if (!rn || rn->type!=TYPE_DIRECTORY) {
+			return ERROR_ENOENT;
+		}
+		if (inode==MFS_ROOT_ID) {
+			inode = rootinode;
+			p = rn;
+		} else {
+			p = fsnodes_id_to_node(inode);
+			if (!p) {
+				return ERROR_ENOENT;
+			}
+			if (!fsnodes_isancestor(rn,p)) {
+				return ERROR_EPERM;
+			}
+		}
+	}
+	if (opened==0) {
+		if (!fsnodes_access(p,uid,gid,MODE_MASK_R,sesflags)) {
+			return ERROR_EACCES;
+		}
+	}
+	return xattr_listattr_leng(inode,xanode,xasize);
+}
+
+void fs_listxattr_data(void *xanode,uint8_t *xabuff) {
+	xattr_listattr_data(xanode,xabuff);
+}
+
+uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint8_t mode) {
+	uint32_t ts;
+	fsnode *p,*rn;
+	uint8_t status;
+
+	ts = main_time();
+	if (sesflags&SESFLAG_READONLY) {
+		return ERROR_EROFS;
+	}
+	if (rootinode==MFS_ROOT_ID) {
+		p = fsnodes_id_to_node(inode);
+		if (!p) {
+			return ERROR_ENOENT;
+		}
+	} else {
+		rn = fsnodes_id_to_node(rootinode);
+		if (!rn || rn->type!=TYPE_DIRECTORY) {
+			return ERROR_ENOENT;
+		}
+		if (inode==MFS_ROOT_ID) {
+			inode = rootinode;
+			p = rn;
+		} else {
+			p = fsnodes_id_to_node(inode);
+			if (!p) {
+				return ERROR_ENOENT;
+			}
+			if (!fsnodes_isancestor(rn,p)) {
+				return ERROR_EPERM;
+			}
+		}
+	}
+	if (opened==0) {
+		if (!fsnodes_access(p,uid,gid,MODE_MASK_W,sesflags)) {
+			return ERROR_EACCES;
+		}
+	}
+	if (xattr_namecheck(anleng,attrname)<0) {
+		return ERROR_EINVAL;
+	}
+	if (mode>MFS_XATTR_REMOVE) {
+		return ERROR_EINVAL;
+	}
+	status = xattr_setattr(inode,anleng,attrname,avleng,attrvalue,mode);
+	if (status!=STATUS_OK) {
+		return status;
+	}
+	p->ctime = ts;
+	changelog(metaversion++,"%"PRIu32"|SETXATTR(%"PRIu32",%s,%s,%"PRIu8")",ts,inode,fsnodes_escape_name(anleng,attrname),fsnodes_escape_name(avleng,attrvalue),mode);
+	return STATUS_OK;
+}
+
+uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t *avleng,uint8_t **attrvalue) {
+	fsnode *p,*rn;
+
+	if (rootinode==MFS_ROOT_ID) {
+		p = fsnodes_id_to_node(inode);
+		if (!p) {
+			return ERROR_ENOENT;
+		}
+	} else {
+		rn = fsnodes_id_to_node(rootinode);
+		if (!rn || rn->type!=TYPE_DIRECTORY) {
+			return ERROR_ENOENT;
+		}
+		if (inode==MFS_ROOT_ID) {
+			inode = rootinode;
+			p = rn;
+		} else {
+			p = fsnodes_id_to_node(inode);
+			if (!p) {
+				return ERROR_ENOENT;
+			}
+			if (!fsnodes_isancestor(rn,p)) {
+				return ERROR_EPERM;
+			}
+		}
+	}
+	if (opened==0) {
+		if (!fsnodes_access(p,uid,gid,MODE_MASK_R,sesflags)) {
+			return ERROR_EACCES;
+		}
+	}
+	if (xattr_namecheck(anleng,attrname)<0) {
+		return ERROR_EINVAL;
+	}
+	return xattr_getattr(inode,anleng,attrname,avleng,attrvalue);
+}
+
+#else /* METARESTORE */
+
+uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode) {
+	fsnode *p;
+	uint8_t status;
+	if (anleng==0 || anleng>MFS_XATTR_NAME_MAX || avleng>MFS_XATTR_SIZE_MAX || mode>MFS_XATTR_REMOVE) {
+		return ERROR_EINVAL;
+	}
+	p = fsnodes_id_to_node(inode);
+	if (!p) {
+		return ERROR_ENOENT;
+	}
+	status = xattr_setattr(inode,anleng,attrname,avleng,attrvalue,mode);
+
+	if (status!=STATUS_OK) {
+		return status;
+	}
+	p->ctime = ts;
+	metaversion++;
+	return status;
+}
+
+#endif
+
+
 /*
 
 #ifndef METARESTORE
@@ -5677,7 +6094,7 @@ uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -5793,6 +6210,8 @@ uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8
 			changelog(metaversion++,"%"PRIu32"|QUOTA(%"PRIu32",0,0,0,0,0,0,0,0,0,0,0)",main_time(),inode);
 		}
 	}
+#else
+	(void)chg;
 #endif
 	return STATUS_OK;
 }
@@ -5945,7 +6364,7 @@ uint32_t fs_getdirpath_size(uint32_t inode) {
 	} else {
 		return 11; // "(not found)"
 	}
-	return 0;
+	return 0;	// unreachable
 }
 
 void fs_getdirpath_data(uint32_t inode,uint8_t *buff,uint32_t size) {
@@ -5990,7 +6409,7 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			return ERROR_ENOENT;
 		}
 		if (inode==MFS_ROOT_ID) {
-			inode = rootinode;
+			// inode = rootinode;
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -6028,7 +6447,7 @@ void fs_add_files_to_chunks() {
 				for (j=0 ; j<f->data.fdata.chunks ; j++) {
 					chunkid = f->data.fdata.chunktab[j];
 					if (chunkid>0) {
-						chunk_add_file(chunkid,f->id,j,f->goal);
+						chunk_add_file(chunkid,f->goal);
 					}
 				}
 			}
@@ -6580,23 +6999,232 @@ void fs_dumpfree() {
 	}
 }
 
+void xattr_dump() {
+	uint32_t i;
+	xattr_data_entry *xa;
+
+	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
+		for (xa=xattr_data_hash[i] ; xa ; xa=xa->next) {
+			printf("X|i:%10"PRIu32"|n:%s|v:%s\n",xa->inode,fsnodes_escape_name(xa->anleng,xa->attrname),fsnodes_escape_name(xa->avleng,xa->attrvalue));
+		}
+	}
+}
+
+
 void fs_dump(void) {
 	fs_dumpnodes();
 	fs_dumpedges(root);
 	fs_dumpedgelist(trash);
 	fs_dumpedgelist(reserved);
 	fs_dumpfree();
+	xattr_dump();
 }
 
 #endif
 
+void xattr_store(FILE *fd) {
+	uint8_t hdrbuff[4+1+4];
+	uint8_t *ptr;
+	uint32_t i;
+	xattr_data_entry *xa;
+
+	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
+		for (xa=xattr_data_hash[i] ; xa ; xa=xa->next) {
+			ptr = hdrbuff;
+			put32bit(&ptr,xa->inode);
+			put8bit(&ptr,xa->anleng);
+			put32bit(&ptr,xa->avleng);
+			if (fwrite(hdrbuff,1,4+1+4,fd)!=(size_t)(4+1+4)) {
+				syslog(LOG_NOTICE,"fwrite error");
+				return;
+			}
+			if (fwrite(xa->attrname,1,xa->anleng,fd)!=(size_t)(xa->anleng)) {
+				syslog(LOG_NOTICE,"fwrite error");
+				return;
+			}
+			if (xa->avleng>0) {
+				if (fwrite(xa->attrvalue,1,xa->avleng,fd)!=(size_t)(xa->avleng)) {
+					syslog(LOG_NOTICE,"fwrite error");
+					return;
+				}
+			}
+		}
+	}
+	memset(hdrbuff,0,4+1+4);
+	if (fwrite(hdrbuff,1,4+1+4,fd)!=(size_t)(4+1+4)) {
+		syslog(LOG_NOTICE,"fwrite error");
+		return;
+	}
+}
+
+int xattr_load(FILE *fd,int ignoreflag) {
+	uint8_t hdrbuff[4+1+4];
+	const uint8_t *ptr;
+	uint32_t inode;
+	uint8_t anleng;
+	uint32_t avleng;
+	uint8_t nl=1;
+	xattr_data_entry *xa;
+	xattr_inode_entry *ih;
+	uint32_t hash,ihash;
+
+	while (1) {
+		if (fread(hdrbuff,1,4+1+4,fd)!=4+1+4) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				// nl=0;
+			}
+			errno = err;
+			mfs_errlog(LOG_ERR,"loading xattr: read error");
+			return -1;
+		}
+		ptr = hdrbuff;
+		inode = get32bit(&ptr);
+		anleng = get8bit(&ptr);
+		avleng = get32bit(&ptr);
+		if (inode==0) {
+			return 1;
+		}
+		if (anleng==0) {
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			mfs_syslog(LOG_ERR,"loading xattr: empty name");
+			if (ignoreflag) {
+				fseek(fd,anleng+avleng,SEEK_CUR);
+				continue;
+			} else {
+				return -1;
+			}
+		}
+		if (avleng>MFS_XATTR_SIZE_MAX) {
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			mfs_syslog(LOG_ERR,"loading xattr: value oversized");
+			if (ignoreflag) {
+				fseek(fd,anleng+avleng,SEEK_CUR);
+				continue;
+			} else {
+				return -1;
+			}
+		}
+
+		ihash = xattr_inode_hash_fn(inode);
+		for (ih = xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
+
+		if (ih && ih->anleng+anleng+1>MFS_XATTR_LIST_MAX) {
+			if (nl) {
+				fputc('\n',stderr);
+				nl=0;
+			}
+			mfs_syslog(LOG_ERR,"loading xattr: name list too long");
+			if (ignoreflag) {
+				fseek(fd,anleng+avleng,SEEK_CUR);
+				continue;
+			} else {
+				return -1;
+			}
+		}
+
+		xa = malloc(sizeof(xattr_data_entry));
+		passert(xa);
+		xa->inode = inode;
+		xa->attrname = malloc(anleng);
+		passert(xa->attrname);
+		if (fread(xa->attrname,1,anleng,fd)!=(size_t)anleng) {
+			int err = errno;
+			if (nl) {
+				fputc('\n',stderr);
+				// nl=0;
+			}
+			free(xa->attrname);
+			free(xa);
+			errno = err;
+			mfs_errlog(LOG_ERR,"loading xattr: read error");
+			return -1;
+		}
+		xa->anleng = anleng;
+		if (avleng>0) {
+			xa->attrvalue = malloc(avleng);
+			passert(xa->attrvalue);
+			if (fread(xa->attrvalue,1,avleng,fd)!=(size_t)avleng) {
+				int err = errno;
+				if (nl) {
+					fputc('\n',stderr);
+					// nl=0;
+				}
+				free(xa->attrname);
+				free(xa->attrvalue);
+				free(xa);
+				errno = err;
+				mfs_errlog(LOG_ERR,"loading xattr: read error");
+				return -1;
+			}
+		} else {
+			xa->attrvalue = NULL;
+		}
+		xa->avleng = avleng;
+		hash = xattr_data_hash_fn(inode,xa->anleng,xa->attrname);
+		xa->next = xattr_data_hash[hash];
+		if (xa->next) {
+			xa->next->prev = &(xa->next);
+		}
+		xa->prev = xattr_data_hash + hash;
+		xattr_data_hash[hash] = xa;
+
+		if (ih) {
+			xa->nextinode = ih->data_head;
+			if (xa->nextinode) {
+				xa->nextinode->previnode = &(xa->nextinode);
+			}
+			xa->previnode = &(ih->data_head);
+			ih->data_head = xa;
+			ih->anleng += anleng+1U;
+			ih->avleng += avleng;
+		} else {
+			ih = malloc(sizeof(xattr_inode_entry));
+			passert(ih);
+			ih->inode = inode;
+			xa->nextinode = NULL;
+			xa->previnode = &(ih->data_head);
+			ih->data_head = xa;
+			ih->anleng = anleng+1U;
+			ih->avleng = avleng;
+			ih->next = xattr_inode_hash[ihash];
+			xattr_inode_hash[ihash] = ih;
+		}
+	}
+}
+
+void xattr_init(void) {
+	uint32_t i;
+	xattr_data_hash = malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
+	passert(xattr_data_hash);
+	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
+		xattr_data_hash[i]=NULL;
+	}
+	xattr_inode_hash = malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
+	passert(xattr_inode_hash);
+	for (i=0 ; i<XATTR_INODE_HASH_SIZE ; i++) {
+		xattr_inode_hash[i]=NULL;
+	}
+}
+
+
+
 void fs_storeedge(fsedge *e,FILE *fd) {
-	size_t happy;
 	uint8_t uedgebuff[4+4+2+65535];
 	uint8_t *ptr;
 	if (e==NULL) {	// last edge
 		memset(uedgebuff,0,4+4+2);
-		happy = fwrite(uedgebuff,1,4+4+2,fd);
+		if (fwrite(uedgebuff,1,4+4+2,fd)!=(size_t)(4+4+2)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		return;
 	}
 	ptr = uedgebuff;
@@ -6608,7 +7236,10 @@ void fs_storeedge(fsedge *e,FILE *fd) {
 	put32bit(&ptr,e->child->id);
 	put16bit(&ptr,e->nleng);
 	memcpy(ptr,e->name,e->nleng);
-	happy = fwrite(uedgebuff,1,4+4+2+e->nleng,fd);
+	if (fwrite(uedgebuff,1,4+4+2+e->nleng,fd)!=(size_t)(4+4+2+e->nleng)) {
+		syslog(LOG_NOTICE,"fwrite error");
+		return;
+	}
 }
 
 int fs_loadedge(FILE *fd,int ignoreflag) {
@@ -6878,7 +7509,6 @@ void fs_storenode(fsnode *f,FILE *fd) {
 	uint8_t unodebuff[1+4+1+2+4+4+4+4+4+4+8+4+2+8*65536+4*65536+4];
 	uint8_t *ptr,*chptr;
 	uint32_t i,indx,ch,sessionids;
-	size_t happy;
 	sessionidrec *sessionidptr;
 
 	if (f==NULL) {	// last node
@@ -6900,17 +7530,29 @@ void fs_storenode(fsnode *f,FILE *fd) {
 	case TYPE_DIRECTORY:
 	case TYPE_SOCKET:
 	case TYPE_FIFO:
-		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4,fd);
+		if (fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4,fd)!=(size_t)(1+4+1+2+4+4+4+4+4+4)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		break;
 	case TYPE_BLOCKDEV:
 	case TYPE_CHARDEV:
 		put32bit(&ptr,f->data.devdata.rdev);
-		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
+		if (fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd)!=(size_t)(1+4+1+2+4+4+4+4+4+4+4)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		break;
 	case TYPE_SYMLINK:
 		put32bit(&ptr,f->data.sdata.pleng);
-		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd);
-		happy = fwrite(f->data.sdata.path,1,f->data.sdata.pleng,fd);
+		if (fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+4,fd)!=(size_t)(1+4+1+2+4+4+4+4+4+4+4)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
+		if (fwrite(f->data.sdata.path,1,f->data.sdata.pleng,fd)!=(size_t)(f->data.sdata.pleng)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		break;
 	case TYPE_FILE:
 	case TYPE_TRASH:
@@ -6929,7 +7571,10 @@ void fs_storenode(fsnode *f,FILE *fd) {
 		}
 		put16bit(&ptr,sessionids);
 
-		happy = fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2,fd);
+		if (fwrite(unodebuff,1,1+4+1+2+4+4+4+4+4+4+8+4+2,fd)!=(size_t)(1+4+1+2+4+4+4+4+4+4+8+4+2)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 
 		indx = 0;
 		while (ch>65536) {
@@ -6938,7 +7583,10 @@ void fs_storenode(fsnode *f,FILE *fd) {
 				put64bit(&chptr,f->data.fdata.chunktab[indx]);
 				indx++;
 			}
-			happy = fwrite(ptr,1,8*65536,fd);
+			if (fwrite(ptr,1,8*65536,fd)!=(size_t)(8*65536)) {
+				syslog(LOG_NOTICE,"fwrite error");
+				return;
+			}
 			ch-=65536;
 		}
 
@@ -6954,7 +7602,10 @@ void fs_storenode(fsnode *f,FILE *fd) {
 			sessionids++;
 		}
 
-		happy = fwrite(ptr,1,8*ch+4*sessionids,fd);
+		if (fwrite(ptr,1,8*ch+4*sessionids,fd)!=(size_t)(8*ch+4*sessionids)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 	}
 }
 
@@ -7303,19 +7954,24 @@ void fs_storefree(FILE *fd) {
 	uint8_t wbuff[8*1024],*ptr;
 	freenode *n;
 	uint32_t l;
-	size_t happy;
 	l=0;
 	for (n=freelist ; n ; n=n->next) {
 		l++;
 	}
 	ptr = wbuff;
 	put32bit(&ptr,l);
-	happy = fwrite(wbuff,1,4,fd);
+	if (fwrite(wbuff,1,4,fd)!=(size_t)4) {
+		syslog(LOG_NOTICE,"fwrite error");
+		return;
+	}
 	l=0;
 	ptr=wbuff;
 	for (n=freelist ; n ; n=n->next) {
 		if (l==1024) {
-			happy = fwrite(wbuff,1,8*1024,fd);
+			if (fwrite(wbuff,1,8*1024,fd)!=(size_t)(8*1024)) {
+				syslog(LOG_NOTICE,"fwrite error");
+				return;
+			}
 			l=0;
 			ptr=wbuff;
 		}
@@ -7324,7 +7980,10 @@ void fs_storefree(FILE *fd) {
 		l++;
 	}
 	if (l>0) {
-		happy = fwrite(wbuff,1,8*l,fd);
+		if (fwrite(wbuff,1,8*l,fd)!=(size_t)(8*l)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 	}
 }
 
@@ -7339,7 +7998,7 @@ int fs_loadfree(FILE *fd) {
 		int err = errno;
 		if (nl) {
 			fputc('\n',stderr);
-			nl=0;
+			// nl=0;
 		}
 		errno = err;
 		mfs_errlog(LOG_ERR,"loading free nodes: read error");
@@ -7357,7 +8016,7 @@ int fs_loadfree(FILE *fd) {
 					int err = errno;
 					if (nl) {
 						fputc('\n',stderr);
-						nl=0;
+						// nl=0;
 					}
 					errno = err;
 					mfs_errlog(LOG_ERR,"loading free nodes: read error");
@@ -7369,7 +8028,7 @@ int fs_loadfree(FILE *fd) {
 					int err = errno;
 					if (nl) {
 						fputc('\n',stderr);
-						nl=0;
+						// nl=0;
 					}
 					errno = err;
 					mfs_errlog(LOG_ERR,"loading free nodes: read error");
@@ -7399,19 +8058,24 @@ void fs_storequota(FILE *fd) {
 	uint8_t wbuff[66*100],*ptr;
 	quotanode *qn;
 	uint32_t l;
-	size_t happy;
 	l=0;
 	for (qn = quotahead ; qn ; qn=qn->next) {
 		l++;
 	}
 	ptr = wbuff;
 	put32bit(&ptr,l);
-	happy = fwrite(wbuff,1,4,fd);
+	if (fwrite(wbuff,1,4,fd)!=(size_t)4) {
+		syslog(LOG_NOTICE,"fwrite error");
+		return;
+	}
 	l=0;
 	ptr=wbuff;
 	for (qn = quotahead ; qn ; qn=qn->next) {
 		if (l==100) {
-			happy = fwrite(wbuff,1,66*100,fd);
+			if (fwrite(wbuff,1,66*100,fd)!=(size_t)(66*100)) {
+				syslog(LOG_NOTICE,"fwrite error");
+				return;
+			}
 			l=0;
 			ptr=wbuff;
 		}
@@ -7430,7 +8094,10 @@ void fs_storequota(FILE *fd) {
 		l++;
 	}
 	if (l>0) {
-		happy = fwrite(wbuff,1,66*l,fd);
+		if (fwrite(wbuff,1,66*l,fd)!=(66*l)) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 	}
 }
 
@@ -7446,7 +8113,7 @@ int fs_loadquota(FILE *fd,int ignoreflag) {
 		int err = errno;
 		if (nl) {
 			fputc('\n',stderr);
-			nl=0;
+			// nl=0;
 		}
 		errno = err;
 		mfs_errlog(LOG_ERR,"loading quota: read error");
@@ -7464,7 +8131,7 @@ int fs_loadquota(FILE *fd,int ignoreflag) {
 					int err = errno;
 					if (nl) {
 						fputc('\n',stderr);
-						nl=0;
+						// nl=0;
 					}
 					errno = err;
 					mfs_errlog(LOG_ERR,"loading quota: read error");
@@ -7476,7 +8143,7 @@ int fs_loadquota(FILE *fd,int ignoreflag) {
 					int err = errno;
 					if (nl) {
 						fputc('\n',stderr);
-						nl=0;
+						// nl=0;
 					}
 					errno = err;
 					mfs_errlog(LOG_ERR,"loading free nodes: read error");
@@ -7526,14 +8193,16 @@ int fs_loadquota(FILE *fd,int ignoreflag) {
 void fs_store(FILE *fd,uint8_t fver) {
 	uint8_t hdr[16];
 	uint8_t *ptr;
-	size_t happy;
 	off_t offbegin,offend;
 
 	ptr = hdr;
 	put32bit(&ptr,maxnodeid);
 	put64bit(&ptr,metaversion);
 	put32bit(&ptr,nextsessionid);
-	happy = fwrite(hdr,1,16,fd);
+	if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+		syslog(LOG_NOTICE,"fwrite error");
+		return;
+	}
 	if (fver>=0x16) {
 		offbegin = ftello(fd);
 		fseeko(fd,offbegin+16,SEEK_SET);
@@ -7547,8 +8216,10 @@ void fs_store(FILE *fd,uint8_t fver) {
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
-		happy = fwrite(hdr,1,16,fd);
-
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
@@ -7559,8 +8230,10 @@ void fs_store(FILE *fd,uint8_t fver) {
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
-		happy = fwrite(hdr,1,16,fd);
-
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
@@ -7571,8 +8244,10 @@ void fs_store(FILE *fd,uint8_t fver) {
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
-		happy = fwrite(hdr,1,16,fd);
-
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
 
@@ -7583,8 +8258,24 @@ void fs_store(FILE *fd,uint8_t fver) {
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
-		happy = fwrite(hdr,1,16,fd);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
+		offbegin = offend;
+		fseeko(fd,offbegin+16,SEEK_SET);
 
+		xattr_store(fd);
+
+		offend = ftello(fd);
+		memcpy(hdr,"XATR 1.0",8);
+		ptr = hdr+8;
+		put64bit(&ptr,offend-offbegin-16);
+		fseeko(fd,offbegin,SEEK_SET);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
@@ -7595,11 +8286,17 @@ void fs_store(FILE *fd,uint8_t fver) {
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
-		happy = fwrite(hdr,1,16,fd);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 
 		fseeko(fd,offend,SEEK_SET);
 		memcpy(hdr,"[MFS EOF MARKER]",16);
-		happy = fwrite(hdr,1,16,fd);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
 	}
 }
 
@@ -7722,8 +8419,14 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 					return -1;
 				}
 			} else if (memcmp(hdr,"XATR 1.0",8)==0) {
-				fprintf(stderr,"ignoring xattrs\n");
-				fseeko(fd,sleng,SEEK_CUR);
+				fprintf(stderr,"loading extra attributes (xattr) ... ");
+				fflush(stderr);
+				if (xattr_load(fd,ignoreflag)<0) {
+#ifndef METARESTORE
+					syslog(LOG_ERR,"error reading metadata (xattr)");
+#endif
+					return -1;
+				}
 			} else if (memcmp(hdr,"LOCK 1.0",8)==0) {
 				fprintf(stderr,"ignoring locks\n");
 				fseeko(fd,sleng,SEEK_CUR);
@@ -7887,17 +8590,22 @@ void fs_new(void) {
 
 int fs_emergency_storeall(const char *fname) {
 	FILE *fd;
-	size_t happy;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
 		return -1;
 	}
 #if VERSHEX>=0x010700
-	happy = fwrite(MFSSIGNATURE "M 1.7",1,8,fd);
-	fs_store(fd,0x17);
+	if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+		syslog(LOG_NOTICE,"fwrite error");
+	} else {
+		fs_store(fd,0x17);
+	}
 #else
-	happy = fwrite(MFSSIGNATURE "M 1.5",1,8,fd);
-	fs_store(fd,0x15);
+	if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+		syslog(LOG_NOTICE,"fwrite error");
+	} else {
+		fs_store(fd,0x15);
+	}
 #endif
 	if (ferror(fd)!=0) {
 		fclose(fd);
@@ -7965,19 +8673,13 @@ int fs_emergency_saves() {
 #ifndef METARESTORE
 int fs_storeall(int bg) {
 	FILE *fd;
-	size_t happy;
-#ifdef BACKGROUND_METASTORE
 	int i;
 	struct stat sb;
 	if (stat("metadata.mfs.back.tmp",&sb)==0) {
 		syslog(LOG_ERR,"previous metadata save process hasn't finished yet - do not start another one");
 		return -1;
 	}
-#else
-	(void)bg;
-#endif
 	changelog_rotate();
-#ifdef BACKGROUND_METASTORE
 	if (bg) {
 		i = fork();
 	} else {
@@ -7985,29 +8687,39 @@ int fs_storeall(int bg) {
 	}
 	// if fork returned -1 (fork error) store metadata in foreground !!!
 	if (i<=0) {
-#endif
 		fd = fopen("metadata.mfs.back.tmp","w");
 		if (fd==NULL) {
 			syslog(LOG_ERR,"can't open metadata file");
-#ifdef BACKGROUND_METASTORE
+			// try to save in alternative location - just in case
+			fs_emergency_saves();
 			if (i==0) {
 				exit(0);
 			}
-#endif
 			return 0;
 		}
 #if VERSHEX>=0x010700
-		happy = fwrite(MFSSIGNATURE "M 1.7",1,8,fd);
-		fs_store(fd,0x17);
+		if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+			syslog(LOG_NOTICE,"fwrite error");
+		} else {
+			fs_store(fd,0x17);
+		}
 #else
-		happy = fwrite(MFSSIGNATURE "M 1.5",1,8,fd);
-		fs_store(fd,0x15);
+		if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+			syslog(LOG_NOTICE,"fwrite error");
+		} else {
+			fs_store(fd,0x15);
+		}
 #endif
 		if (ferror(fd)!=0) {
 			syslog(LOG_ERR,"can't write metadata");
 			fclose(fd);
 			unlink("metadata.mfs.back.tmp");
+			// try to save in alternative location - just in case
 			fs_emergency_saves();
+			if (i==0) {
+				exit(0);
+			}
+			return 0;
 		} else {
 			fclose(fd);
 			if (BackMetaCopies>0) {
@@ -8023,12 +8735,10 @@ int fs_storeall(int bg) {
 			rename("metadata.mfs.back.tmp","metadata.mfs.back");
 			unlink("metadata.mfs");
 		}
-#ifdef BACKGROUND_METASTORE
 		if (i==0) {
 			exit(0);
 		}
 	}
-#endif
 	return 1;
 }
 
@@ -8045,8 +8755,6 @@ void fs_term(void) {
 			chunk_term();
 			return ;
 		}
-		// try to save in alternative location - just in cases
-		fs_emergency_saves();
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
 		sleep(10);
 	}
@@ -8055,18 +8763,23 @@ void fs_term(void) {
 #else
 void fs_storeall(const char *fname) {
 	FILE *fd;
-	size_t happy;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
 		printf("can't open metadata file\n");
 		return;
 	}
 #if VERSHEX>=0x010700
-	happy = fwrite(MFSSIGNATURE "M 1.7",1,8,fd);
-	fs_store(fd,0x17);
+	if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+		syslog(LOG_NOTICE,"fwrite error");
+	} else {
+		fs_store(fd,0x17);
+	}
 #else
-	happy = fwrite(MFSSIGNATURE "M 1.5",1,8,fd);
-	fs_store(fd,0x15);
+	if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+		syslog(LOG_NOTICE,"fwrite error");
+	} else {
+		fs_store(fd,0x15);
+	}
 #endif
 	if (ferror(fd)!=0) {
 		printf("can't write metadata\n");
@@ -8148,6 +8861,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		return -1;
 	}
 	if (fread(hdr,1,8,fd)!=8) {
+		fclose(fd);
 		fprintf(stderr,"can't read metadata header\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"can't read metadata header");
@@ -8169,6 +8883,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		fprintf(stderr,"create new empty filesystem");
 		syslog(LOG_NOTICE,"create new empty filesystem");
 		fs_new();
+		unlink("metadata.mfs.back.tmp");
 		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
 		return 0;
 	}
@@ -8254,7 +8969,13 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 	fprintf(stderr,"connecting files and chunks ... ");
 	fflush(stderr);
+#ifdef METARESTORE
+	printf("L\n");
+#endif
 	fs_add_files_to_chunks();
+#ifdef METARESTORE
+	printf("C\n");
+#endif
 	fprintf(stderr,"ok\n");
 #ifndef METARESTORE
 	fprintf(stderr,"all inodes: %"PRIu32"\n",nodes);
@@ -8262,6 +8983,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	fprintf(stderr,"file inodes: %"PRIu32"\n",filenodes);
 	fprintf(stderr,"chunks: %"PRIu32"\n",chunk_count());
 #endif
+	unlink("metadata.mfs.back.tmp");
 	return 0;
 }
 
@@ -8277,6 +8999,7 @@ void fs_strinit(void) {
 #ifndef METARESTORE
 	quotahead = NULL;
 #endif
+	xattr_init();
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		nodehash[i]=NULL;
 	}

@@ -17,7 +17,7 @@
  */
 
 #if defined(__APPLE__)
-# ifndef __DARWIN_64_BIT_INO_T
+# if ! defined(__DARWIN_64_BIT_INO_T) && ! defined(_DARWIN_USE_64_BIT_INODE)
 #  define __DARWIN_64_BIT_INO_T 0
 # endif
 #endif
@@ -166,6 +166,10 @@ enum {
 	OP_WRITE,
 	OP_FLUSH,
 	OP_FSYNC,
+	OP_SETXATTR,
+	OP_GETXATTR,
+	OP_LISTXATTR,
+	OP_REMOVEXATTR,
 //	OP_GETDIR_CACHED,
 	OP_GETDIR_FULL,
 	OP_GETDIR_SMALL,
@@ -177,6 +181,10 @@ static uint64_t *statsptr[STATNODES];
 void mfs_statsptr_init(void) {
 	void *s;
 	s = stats_get_subnode(NULL,"fuse_ops",0);
+	statsptr[OP_SETXATTR] = stats_get_counterptr(stats_get_subnode(s,"setxattr",0));
+	statsptr[OP_GETXATTR] = stats_get_counterptr(stats_get_subnode(s,"getxattr",0));
+	statsptr[OP_LISTXATTR] = stats_get_counterptr(stats_get_subnode(s,"listxattr",0));
+	statsptr[OP_REMOVEXATTR] = stats_get_counterptr(stats_get_subnode(s,"removexattr",0));
 	statsptr[OP_FSYNC] = stats_get_counterptr(stats_get_subnode(s,"fsync",0));
 	statsptr[OP_FLUSH] = stats_get_counterptr(stats_get_subnode(s,"flush",0));
 	statsptr[OP_WRITE] = stats_get_counterptr(stats_get_subnode(s,"write",0));
@@ -222,7 +230,14 @@ void mfs_stats_inc(uint8_t id) {
 }
 
 #ifndef EDQUOT
-#define EDQUOT ENOSPC
+# define EDQUOT ENOSPC
+#endif
+#ifndef ENOATTR
+# ifdef ENODATA
+#  define ENOATTR ENODATA
+# else
+#  define ENOATTR ENOENT
+# endif
 #endif
 
 static int mfs_errorconv(int status) {
@@ -260,6 +275,15 @@ static int mfs_errorconv(int status) {
 		break;
 	case ERROR_QUOTA:
 		ret=EDQUOT;
+		break;
+	case ERROR_ENOATTR:
+		ret=ENOATTR;
+		break;
+	case ERROR_ENOTSUP:
+		ret=ENOTSUP;
+		break;
+	case ERROR_ERANGE:
+		ret=ERANGE;
 		break;
 	default:
 		ret=EINVAL;
@@ -414,6 +438,66 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 	stbuf->st_nlink = attrnlink;
 }
 
+static inline void mfs_makemodestr(char modestr[11],uint16_t mode) {
+	uint32_t i;
+	strcpy(modestr,"?rwxrwxrwx");
+	switch (mode & S_IFMT) {
+	case S_IFSOCK:
+		modestr[0] = 's';
+		break;
+	case S_IFLNK:
+		modestr[0] = 'l';
+		break;
+	case S_IFREG:
+		modestr[0] = '-';
+		break;
+	case S_IFBLK:
+		modestr[0] = 'b';
+		break;
+	case S_IFDIR:
+		modestr[0] = 'd';
+		break;
+	case S_IFCHR:
+		modestr[0] = 'c';
+		break;
+	case S_IFIFO:
+		modestr[0] = 'f';
+		break;
+	}
+	if (mode & S_ISUID) {
+		modestr[3] = 's';
+	}
+	if (mode & S_ISGID) {
+		modestr[6] = 's';
+	}
+	if (mode & S_ISVTX) {
+		modestr[9] = 't';
+	}
+	for (i=0 ; i<9 ; i++) {
+		if ((mode & (1<<i))==0) {
+			if (modestr[9-i]=='s' || modestr[9-i]=='t') {
+				modestr[9-i]&=0xDF;
+			} else {
+				modestr[9-i]='-';
+			}
+		}
+	}
+}
+
+static void mfs_makeattrstr(char *buff,uint32_t size,struct stat *stbuf) {
+	char modestr[11];
+	mfs_makemodestr(modestr,stbuf->st_mode);
+#ifdef HAVE_STRUCT_STAT_ST_RDEV
+	if (modestr[0]=='b' || modestr[0]=='c') {
+		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu,%08lX]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size),(unsigned long int)(stbuf->st_rdev));
+	} else {
+		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size));
+	}
+#else
+	snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size));
+#endif
+}
+
 #if FUSE_USE_VERSION >= 26
 void mfs_statfs(fuse_req_t req,fuse_ino_t ino) {
 #else
@@ -425,12 +509,14 @@ void mfs_statfs(fuse_req_t req) {
 	struct statvfs stfsbuf;
 	memset(&stfsbuf,0,sizeof(stfsbuf));
 
-#if FUSE_USE_VERSION >= 26
-	oplog_printf(fuse_req_ctx(req),"statfs (%lu)",(unsigned long int)ino);
-#else
-	oplog_printf(fuse_req_ctx(req),"statfs ()");
-#endif
 	mfs_stats_inc(OP_STATFS);
+	if (debug_mode) {
+#if FUSE_USE_VERSION >= 26
+		oplog_printf(fuse_req_ctx(req),"statfs (%lu)",(unsigned long int)ino);
+#else
+		oplog_printf(fuse_req_ctx(req),"statfs ()");
+#endif
+	}
 #if FUSE_USE_VERSION >= 26
 	(void)ino;
 #endif
@@ -475,6 +561,11 @@ void mfs_statfs(fuse_req_t req) {
 	stfsbuf.f_favail = 1000000000+PKGVERSION;
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
+#if FUSE_USE_VERSION >= 26
+	oplog_printf(fuse_req_ctx(req),"statfs (%lu): OK (%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu32")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
+#else
+	oplog_printf(fuse_req_ctx(req),"statfs (): OK (%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu32")",totalspace,availspace,trashspace,reservedspace,inodes);
+#endif
 }
 
 /*
@@ -551,7 +642,7 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 	status = fs_access(ino,ctx->uid,ctx->gid,mmode);
 	status = mfs_errorconv(status);
 	if (status!=0) {
-		fuse_reply_err(req, status);
+		fuse_reply_err(req,status);
 	} else {
 		fuse_reply_err(req,0);
 	}
@@ -563,19 +654,22 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	uint32_t inode;
 	uint32_t nleng;
 	uint8_t attr[35];
+	char attrstr[256];
 	uint8_t mattr;
+	uint8_t icacheflag;
 	int status;
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
 	if (debug_mode) {
+		oplog_printf(ctx,"lookup (%lu,%s) ...",(unsigned long int)parent,name);
 		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		mfs_stats_inc(OP_LOOKUP);
 		fuse_reply_err(req, ENAMETOOLONG);
-		oplog_printf(ctx,"lookup (%lu,%s) (internal check: %s)",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
+		oplog_printf(ctx,"lookup (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
 		return;
 	}
 	if (parent==FUSE_ROOT_ID) {
@@ -600,7 +694,8 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			mfs_attr_to_stat(MASTERINFO_INODE,masterinfoattr,&e.attr);
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: MASTERINFO)",(unsigned long int)parent,name);
+			mfs_makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,STATS_NAME)==0) {
@@ -611,7 +706,8 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			mfs_attr_to_stat(STATS_INODE,statsattr,&e.attr);
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS)",(unsigned long int)parent,name);
+			mfs_makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,OPLOG_NAME)==0) {
@@ -622,7 +718,8 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			mfs_attr_to_stat(OPLOG_INODE,oplogattr,&e.attr);
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPLOG)",(unsigned long int)parent,name);
+			mfs_makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPLOG): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,OPHISTORY_NAME)==0) {
@@ -633,7 +730,8 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			mfs_attr_to_stat(OPHISTORY_INODE,oplogattr,&e.attr);
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPHISTORY)",(unsigned long int)parent,name);
+			mfs_makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 /*
@@ -724,19 +822,17 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		}
 		mfs_stats_inc(OP_DIRCACHE_LOOKUP);
 		status = 0;
-		oplog_printf(ctx,"lookup (%lu,%s) (open dir cache: %lu)",(unsigned long int)parent,name,(unsigned long int)inode);
+		icacheflag = 1;
+//		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		mfs_stats_inc(OP_LOOKUP);
 		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
 		status = mfs_errorconv(status);
-		if (status!=0) {
-			oplog_printf(ctx,"lookup (%lu,%s) (%s)",(unsigned long int)parent,name,strerr(status));
-		} else {
-			oplog_printf(ctx,"lookup (%lu,%s) (inode: %lu)",(unsigned long int)parent,name,(unsigned long int)inode);
-		}
+		icacheflag = 0;
 	}
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"lookup (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
 		return;
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -757,19 +853,25 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 //		fprintf(stderr,"lookup inode %lu - file size: %llu\n",(unsigned long int)inode,(unsigned long long int)e.attr.st_size);
 //	}
 	fuse_reply_entry(req, &e);
+	mfs_makeattrstr(attrstr,256,&e.attr);
+	oplog_printf(ctx,"lookup (%lu,%s)%s: OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,icacheflag?" (using open dir cache)":"",e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 }
 
 void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint64_t maxfleng;
+	double attr_timeout;
 	struct stat o_stbuf;
 	uint8_t attr[35];
+	char attrstr[256];
 	int status;
+	uint8_t icacheflag;
 	const struct fuse_ctx *ctx;
 	(void)fi;
 
 	ctx = fuse_req_ctx(req);
 //	mfs_stats_inc(OP_GETATTR);
 	if (debug_mode) {
+		oplog_printf(ctx,"getattr (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
 	}
 //	if (ino==MASTER_INODE) {
@@ -784,7 +886,8 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		mfs_attr_to_stat(ino,masterinfoattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		mfs_stats_inc(OP_GETATTR);
-		oplog_printf(ctx,"getattr (%lu) (internal node MASTERINFO)",(unsigned long int)ino);
+		mfs_makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"getattr (%lu) (internal node: MASTERINFO): OK (3600,%s)",(unsigned long int)ino,attrstr);
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -792,7 +895,8 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		mfs_attr_to_stat(ino,statsattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		mfs_stats_inc(OP_GETATTR);
-		oplog_printf(ctx,"getattr (%lu) (internal node STATS)",(unsigned long int)ino);
+		mfs_makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"getattr (%lu) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,attrstr);
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
@@ -804,7 +908,8 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 //		}
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		mfs_stats_inc(OP_GETATTR);
-		oplog_printf(ctx,"getattr (%lu) (internal node OPLOG/OPHISTORY)",(unsigned long int)ino);
+		mfs_makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"getattr (%lu) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return;
 	}
 /*
@@ -845,19 +950,16 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		}
 		mfs_stats_inc(OP_DIRCACHE_GETATTR);
 		status = 0;
-		oplog_printf(ctx,"getattr (%lu) (data found in open dir cache)",(unsigned long int)ino);
+		icacheflag = 1;
 	} else {
 		mfs_stats_inc(OP_GETATTR);
 		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
 		status = mfs_errorconv(status);
-		if (status!=0) {
-			oplog_printf(ctx,"getattr (%lu) (error: %s)",(unsigned long int)ino,strerr(status));
-		} else {
-			oplog_printf(ctx,"getattr (%lu) (ok)",(unsigned long int)ino);
-		}
+		icacheflag = 0;
 	}
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"getattr (%lu): %s",(unsigned long int)ino,strerr(status));
 		return;
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -870,31 +972,41 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (maxfleng>(uint64_t)(o_stbuf.st_size)) {
 		o_stbuf.st_size=maxfleng;
 	}
-	fuse_reply_attr(req, &o_stbuf, (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout);
+	attr_timeout = (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+	fuse_reply_attr(req, &o_stbuf, attr_timeout);
+	mfs_makeattrstr(attrstr,256,&o_stbuf);
+	oplog_printf(ctx,"getattr (%lu): OK (%.1lf,%s)",(unsigned long int)ino,attr_timeout,attrstr);
 }
 
 void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set, struct fuse_file_info *fi) {
 	struct stat o_stbuf;
 	uint64_t maxfleng;
 	uint8_t attr[35];
+	char modestr[11];
+	char attrstr[256];
+	double attr_timeout;
 	int status;
 	const struct fuse_ctx *ctx;
 	uint8_t setmask = 0;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"setattr (%lu,0x%X,(0%04o,%ld,%ld,%lu,%lu,%llu))",(unsigned long int)ino,to_set,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
+	mfs_makemodestr(modestr,stbuf->st_mode);
 	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
-		fprintf(stderr,"setattr (%lu,0x%X,(0%04o,%ld,%ld,%lu,%lu,%llu))\n",(unsigned long int)ino,to_set,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) ...",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
+		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu])\n",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
 	}
 	if (/*ino==MASTER_INODE || */ino==MASTERINFO_INODE) {
 		fuse_reply_err(req, EPERM);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EPERM));
 		return;
 	}
 	if (ino==STATS_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,statsattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
+		mfs_makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attrstr);
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
@@ -905,6 +1017,8 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 //			o_stbuf.st_size = (*posptr)+oplog_getpos();
 //		}
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
+		mfs_makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return;
 	}
 /*
@@ -922,6 +1036,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
@@ -947,16 +1062,19 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
 	if (to_set & FUSE_SET_ATTR_SIZE) {
 		if (stbuf->st_size<0) {
 			fuse_reply_err(req, EINVAL);
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EINVAL));
 			return;
 		}
 		if (stbuf->st_size>=MAX_FILE_SIZE) {
 			fuse_reply_err(req, EFBIG);
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EFBIG));
 			return;
 		}
 		write_data_flush_inode(ino);
@@ -969,11 +1087,13 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		read_inode_ops(ino);
 		if (status!=0) {
 			fuse_reply_err(req, status);
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
 	if (status!=0) {	// should never happend but better check than sorry
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
 		return;
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -986,13 +1106,18 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	if (maxfleng>(uint64_t)(o_stbuf.st_size)) {
 		o_stbuf.st_size=maxfleng;
 	}
-	fuse_reply_attr(req, &o_stbuf, (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout);
+	attr_timeout = (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
+	fuse_reply_attr(req, &o_stbuf, attr_timeout);
+	mfs_makeattrstr(attrstr,256,&o_stbuf);
+	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): OK (%.1lf,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attr_timeout,attrstr);
 }
 
 void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev) {
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	char modestr[11];
+	char attrstr[256];
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
@@ -1000,14 +1125,16 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"mknod (%lu,%s,0%04o,0x%08lX)",(unsigned long int)parent,name,(unsigned int)mode,(unsigned long int)rdev);
+	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_MKNOD);
 	if (debug_mode) {
-		fprintf(stderr,"mknod (%lu,%s,0%04o,0x%08lX)\n",(unsigned long int)parent,name,(unsigned int)mode,(unsigned long int)rdev);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX) ...",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev);
+		fprintf(stderr,"mknod (%lu,%s,%s:0%04o,0x%08lX)\n",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(ENAMETOOLONG));
 		return;
 	}
 	if (S_ISFIFO(mode)) {
@@ -1022,12 +1149,14 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		type = TYPE_FILE;
 	} else {
 		fuse_reply_err(req, EPERM);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(EPERM));
 		return;
 	}
 
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(EACCES));
 			return;
 		}
 	}
@@ -1036,6 +1165,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
@@ -1047,6 +1177,8 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
+		mfs_makeattrstr(attrstr,256,&e.attr);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1056,14 +1188,15 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"unlink (%lu,%s)",(unsigned long int)parent,name);
 	mfs_stats_inc(OP_UNLINK);
 	if (debug_mode) {
+		oplog_printf(ctx,"unlink (%lu,%s) ...",(unsigned long int)parent,name);
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(EACCES));
 			return;
 		}
 	}
@@ -1071,6 +1204,7 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1078,11 +1212,13 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //		}
 		fuse_reply_err(req, 0);
+		oplog_printf(ctx,"unlink (%lu,%s): OK",(unsigned long int)parent,name);
 	}
 }
 
@@ -1090,26 +1226,31 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	char modestr[11];
+	char attrstr[256];
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"mkdir (%lu,%s,0%04o)",(unsigned long int)parent,name,(unsigned int)mode);
+	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_MKDIR);
 	if (debug_mode) {
-		fprintf(stderr,"mkdir (%lu,%s,0%04o)\n",(unsigned long int)parent,name,(unsigned int)mode);
+		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o) ...",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
+		fprintf(stderr,"mkdir (%lu,%s,d%s:0%04o)\n",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EACCES));
 			return;
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1117,6 +1258,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
@@ -1128,6 +1270,8 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:direntry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
+		mfs_makeattrstr(attrstr,256,&e.attr);
+		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1137,20 +1281,22 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"rmdir (%lu,%s)",(unsigned long int)parent,name);
 	mfs_stats_inc(OP_RMDIR);
 	if (debug_mode) {
+		oplog_printf(ctx,"rmdir (%lu,%s) ...",(unsigned long int)parent,name);
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(EACCES));
 			return;
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1158,11 +1304,13 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //		}
 		fuse_reply_err(req, 0);
+		oplog_printf(ctx,"rmdir (%lu,%s): OK",(unsigned long int)parent,name);
 	}
 }
 
@@ -1170,26 +1318,29 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	char attrstr[256];
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"symlink (%s,%lu,%s)",path,(unsigned long int)parent,name);
 	mfs_stats_inc(OP_SYMLINK);
 	if (debug_mode) {
+		oplog_printf(ctx,"symlink (%s,%lu,%s) ...",path,(unsigned long int)parent,name);
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(EACCES));
 			return;
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1198,6 +1349,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
@@ -1209,6 +1361,8 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
+		mfs_makeattrstr(attrstr,256,&e.attr);
+		oplog_printf(ctx,"symlink (%s,%lu,%s): OK (%.1lf,%lu,%.1lf,%s)",path,(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1219,12 +1373,13 @@ void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 
 	ctx = fuse_req_ctx(req);
 	if (debug_mode) {
+		oplog_printf(ctx,"readlink (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
 	}
 	if (symlink_cache_search(ino,&path)) {
 		mfs_stats_inc(OP_READLINK_CACHED);
 		fuse_reply_readlink(req, (char*)path);
-		oplog_printf(ctx,"readlink (%lu) (data found in cache)",(unsigned long int)ino);
+		oplog_printf(ctx,"readlink (%lu) (using cache): OK (%s)",(unsigned long int)ino,(char*)path);
 		return;
 	}
 	mfs_stats_inc(OP_READLINK);
@@ -1232,11 +1387,11 @@ void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
-		oplog_printf(ctx,"readlink (%lu) (data not found in cache: %s)",(unsigned long int)ino,strerr(status));
+		oplog_printf(ctx,"readlink (%lu): %s",(unsigned long int)ino,strerr(status));
 	} else {
 		symlink_cache_insert(ino,path);
 		fuse_reply_readlink(req, (char*)path);
-		oplog_printf(ctx,"readlink (%lu) (data not found in cache)",(unsigned long int)ino);
+		oplog_printf(ctx,"readlink (%lu): OK (%s)",(unsigned long int)ino,(char*)path);
 	}
 }
 
@@ -1248,31 +1403,35 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"rename (%lu,%s,%lu,%s)",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	mfs_stats_inc(OP_RENAME);
 	if (debug_mode) {
+		oplog_printf(ctx,"rename (%lu,%s,%lu,%s) ...",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(EACCES));
 			return;
 		}
 	}
 	if (newparent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(EACCES));
 			return;
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
 		return;
 	}
 	newnleng = strlen(newname);
 	if (newnleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1280,12 +1439,14 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //			dir_cache_link(newparent,newnleng,(const uint8_t*)newname,inode,attr);
 //		}
 		fuse_reply_err(req, 0);
+		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): OK",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	}
 }
 
@@ -1295,28 +1456,32 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	struct fuse_entry_param e;
 	uint32_t inode;
 	uint8_t attr[35];
+	char attrstr[256];
 	uint8_t mattr;
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"link (%lu,%lu,%s)",(unsigned long int)ino,(unsigned long int)newparent,newname);
 	mfs_stats_inc(OP_LINK);
 	if (debug_mode) {
+		oplog_printf(ctx,"link (%lu,%lu,%s) ...",(unsigned long int)ino,(unsigned long int)newparent,newname);
 		fprintf(stderr,"link (%lu,%lu,%s)\n",(unsigned long int)ino,(unsigned long int)newparent,newname);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req, EACCES);
+		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(EACCES));
 		return;
 	}
 	if (newparent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
 			fuse_reply_err(req, EACCES);
+			oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(EACCES));
 			return;
 		}
 	}
 	newnleng = strlen(newname);
 	if (newnleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1325,6 +1490,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(status));
 	} else {
 //		if (newdircache) {
 //			dir_cache_link(newparent,newnleng,(const uint8_t*)newname,inode,attr);
@@ -1336,6 +1502,8 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
+		mfs_makeattrstr(attrstr,256,&e.attr);
+		oplog_printf(ctx,"link (%lu,%lu,%s): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)ino,(unsigned long int)newparent,newname,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1345,18 +1513,20 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"opendir (%lu)",(unsigned long int)ino);
 	mfs_stats_inc(OP_OPENDIR);
 	if (debug_mode) {
+		oplog_printf(ctx,"opendir (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"opendir (%lu)\n",(unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req, ENOTDIR);
+		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(ENOTDIR));
 	}
 	status = fs_access(ino,ctx->uid,ctx->gid,MODE_MASK_R);	// at least test rights
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(status));
 	} else {
 		dirinfo = malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
@@ -1372,6 +1542,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			pthread_mutex_destroy(&(dirinfo->lock));
 			free(dirinfo);
 		}
+		oplog_printf(ctx,"opendir (%lu): OK",(unsigned long int)ino);
 	}
 }
 
@@ -1390,13 +1561,14 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"readdir (%lu,%llu,%llu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	mfs_stats_inc(OP_READDIR);
 	if (debug_mode) {
+		oplog_printf(ctx,"readdir (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 		fprintf(stderr,"readdir (%lu,%llu,%llu)\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
 	if (off<0) {
 		fuse_reply_err(req,EINVAL);
+		oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EINVAL));
 		return;
 	}
 	pthread_mutex_lock(&(dirinfo->lock));
@@ -1442,6 +1614,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		if (status!=0) {
 			fuse_reply_err(req, status);
 			pthread_mutex_unlock(&(dirinfo->lock));
+			oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(status));
 			return;
 		}
 		if (dirinfo->dcache) {
@@ -1457,6 +1630,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			if (dirinfo->p == NULL) {
 				fuse_reply_err(req,EINVAL);
 				pthread_mutex_unlock(&(dirinfo->lock));
+				oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EINVAL));
 				return;
 			}
 			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
@@ -1472,6 +1646,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 
 	if (off>=(off_t)(dirinfo->size)) {
 		fuse_reply_buf(req, NULL, 0);
+		oplog_printf(ctx,"readdir (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	} else {
 		if (size>READDIR_BUFFSIZE) {
 			size=READDIR_BUFFSIZE;
@@ -1507,6 +1682,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		}
 
 		fuse_reply_buf(req,buffer,opos);
+		oplog_printf(ctx,"readdir (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)opos);
 	}
 	pthread_mutex_unlock(&(dirinfo->lock));
 }
@@ -1517,9 +1693,9 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"releasedir (%lu)",(unsigned long int)ino);
 	mfs_stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
+		oplog_printf(ctx,"releasedir (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
 	pthread_mutex_lock(&(dirinfo->lock));
@@ -1534,6 +1710,7 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	free(dirinfo);
 	fi->fh = 0;
 	fuse_reply_err(req,0);
+	oplog_printf(ctx,"releasedir (%lu): OK",(unsigned long int)ino);
 }
 
 
@@ -1583,6 +1760,8 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	uint32_t inode;
 	uint8_t oflags;
 	uint8_t attr[35];
+	char modestr[11];
+	char attrstr[256];
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
@@ -1590,20 +1769,23 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	finfo *fileinfo;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"create (%lu,%s,0%04o)",(unsigned long int)parent,name,(unsigned int)mode);
+	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_CREATE);
 	if (debug_mode) {
-		fprintf(stderr,"create (%lu,%s,0%04o)\n",(unsigned long int)parent,name,(unsigned int)mode);
+		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
+		fprintf(stderr,"create (%lu,%s,-%s:0%04o)\n",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
 	}
 	if (parent==FUSE_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			fuse_reply_err(req,EACCES);
+			oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EACCES));
 			return;
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		fuse_reply_err(req, ENAMETOOLONG);
+		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(ENAMETOOLONG));
 		return;
 	}
 
@@ -1616,12 +1798,15 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		oflags |= WANT_READ | WANT_WRITE;
 	} else {
 		fuse_reply_err(req, EINVAL);
+		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EINVAL));
+		return;
 	}
 
 	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx->uid,ctx->gid,0,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (mknod): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
 		return;
 	}
 //	if (newdircache) {
@@ -1631,6 +1816,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
 		return;
 	}
 
@@ -1655,6 +1841,8 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	if (fuse_reply_create(req, &e, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);
 	}
+	mfs_makeattrstr(attrstr,256,&e.attr);
+	oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): OK (%.1lf,%lu,%.1lf,%s,%lu)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr,(unsigned long int)fi->keep_cache);
 }
 
 void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
@@ -1666,9 +1854,9 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	finfo *fileinfo;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"open (%lu)",(unsigned long int)ino);
 	mfs_stats_inc(OP_OPEN);
 	if (debug_mode) {
+		oplog_printf(ctx,"open (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
 	}
 //	if (ino==MASTER_INODE) {
@@ -1694,12 +1882,14 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (ino==MASTERINFO_INODE) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 			fuse_reply_err(req,EACCES);
+			oplog_printf(ctx,"open (%lu) (internal node: MASTERINFO): %s",(unsigned long int)ino,strerr(EACCES));
 			return;
 		}
 		fi->fh = 0;
 		fi->direct_io = 0;
 		fi->keep_cache = 1;
 		fuse_reply_open(req, fi);
+		oplog_printf(ctx,"open (%lu) (internal node: MASTERINFO): OK (0,1)",(unsigned long int)ino);
 		return;
 	}
 
@@ -1713,6 +1903,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		statsinfo = malloc(sizeof(sinfo));
 		if (statsinfo==NULL) {
 			fuse_reply_err(req,ENOMEM);
+			oplog_printf(ctx,"open (%lu) (internal node: STATS): %s",(unsigned long int)ino,strerr(ENOMEM));
 			return;
 		}
 		pthread_mutex_init(&(statsinfo->lock),NULL);	// make helgrind happy
@@ -1724,18 +1915,21 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
 		fuse_reply_open(req, fi);
+		oplog_printf(ctx,"open (%lu) (internal node: STATS): OK (1,0)",(unsigned long int)ino);
 		return;
 	}
 
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 			fuse_reply_err(req,EACCES);
+			oplog_printf(ctx,"open (%lu) (internal node: %s): %s",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",strerr(EACCES));
 			return;
 		}
 		fi->fh = oplog_newhandle((ino==OPHISTORY_INODE)?1:0);
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
 		fuse_reply_open(req, fi);
+		oplog_printf(ctx,"open (%lu) (internal node: %s): OK (1,0)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
 		return;
 	}
 /*
@@ -1759,6 +1953,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
+		oplog_printf(ctx,"open (%lu): %s",(unsigned long int)ino,strerr(status));
 		return ;
 	}
 
@@ -1775,10 +1970,11 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (debug_mode) {
 		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",(unsigned long int)ino,(unsigned long int)fi->keep_cache);
 	}
-//	fi->direct_io = 1;
+	fi->direct_io = 0;
 	if (fuse_reply_open(req, fi) == -ENOENT) {
 		mfs_removefileinfo(fileinfo);
 	}
+	oplog_printf(ctx,"open (%lu): OK (%lu,%lu)",(unsigned long int)ino,(unsigned long int)fi->direct_io,(unsigned long int)fi->keep_cache);
 }
 
 void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
@@ -1786,9 +1982,9 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"release (%lu)",(unsigned long int)ino);
 	mfs_stats_inc(OP_RELEASE);
 	if (debug_mode) {
+		oplog_printf(ctx,"release (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
 	}
 //	if (ino==MASTER_INODE) {
@@ -1802,6 +1998,7 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 //	}
 	if (ino==MASTERINFO_INODE/* || ino==ATTRCACHE_INODE*/) {
 		fuse_reply_err(req,0);
+		oplog_printf(ctx,"release (%lu) (internal node: MASTERINFO): OK",(unsigned long int)ino);
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -1819,11 +2016,13 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			free(statsinfo);
 		}
 		fuse_reply_err(req,0);
+		oplog_printf(ctx,"release (%lu) (internal node: STATS): OK",(unsigned long int)ino);
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		oplog_releasehandle(fi->fh);
 		fuse_reply_err(req,0);
+		oplog_printf(ctx,"release (%lu) (internal node: %s): OK",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
 		return;
 	}
 	if (fileinfo!=NULL) {
@@ -1831,6 +2030,7 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	}
 	fs_release(ino);
 	fuse_reply_err(req,0);
+	oplog_printf(ctx,"release (%lu): OK",(unsigned long int)ino);
 }
 
 void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
@@ -1841,11 +2041,11 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
-		oplog_printf(ctx,"read (%lu,%llu,%llu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
-	}
 	mfs_stats_inc(OP_READ);
 	if (debug_mode) {
+		if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
+			oplog_printf(ctx,"read (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+		}
 		fprintf(stderr,"read from inode %lu up to %llu bytes from position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
 	if (ino==MASTERINFO_INODE) {
@@ -1855,16 +2055,21 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 #ifdef MASTERINFO_WITH_VERSION
 		if (off>=14) {
 			fuse_reply_buf(req,NULL,0);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 		} else if (off+size>14) {
 			fuse_reply_buf(req,(char*)(masterinfo+off),14-off);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(14-off));
 #else
 		if (off>=10) {
 			fuse_reply_buf(req,NULL,0);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 		} else if (off+size>10) {
 			fuse_reply_buf(req,(char*)(masterinfo+off),10-off);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(10-off));
 #endif
 		} else {
 			fuse_reply_buf(req,(char*)(masterinfo+off),size);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
 		}
 		return;
 	}
@@ -1874,14 +2079,18 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
 			if (off>=statsinfo->leng) {
 				fuse_reply_buf(req,NULL,0);
+				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 			} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
 				fuse_reply_buf(req,statsinfo->buff+off,statsinfo->leng-off);
+				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(statsinfo->leng-off));
 			} else {
 				fuse_reply_buf(req,statsinfo->buff+off,size);
+				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
 			}
 			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		} else {
 			fuse_reply_buf(req,NULL,0);
+			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 		}
 		return;
 	}
@@ -1911,6 +2120,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 */
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
+		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EBADF));
 		return;
 	}
 //	if (ino==MASTER_INODE) {
@@ -1930,12 +2140,14 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 //	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req,EFBIG);
+		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EFBIG));
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITEONLY) {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_err(req,EACCES);
+		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
 		return;
 	}
 	if (fileinfo->mode==IO_WRITE) {
@@ -1946,6 +2158,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			if (debug_mode) {
 				fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 			}
+			oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
 			return;
 		}
 		write_data_end(fileinfo->data);
@@ -1963,11 +2176,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while reading inode %lu\n",(unsigned long int)ino);
 		}
+		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
 	} else {
 		fuse_reply_buf(req,(char*)buff,ssize);
 		if (debug_mode) {
 			fprintf(stderr,"%"PRIu32" bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
 		}
+		oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)ssize);
 	}
 	read_data_freebuff(fileinfo->data);
 	pthread_mutex_unlock(&(fileinfo->lock));
@@ -1979,13 +2194,14 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"write (%lu,%llu,%llu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	mfs_stats_inc(OP_WRITE);
 	if (debug_mode) {
+		oplog_printf(ctx,"write (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 		fprintf(stderr,"write to inode %lu %llu bytes at position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
 	}
 	if (ino==MASTERINFO_INODE || ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		fuse_reply_err(req,EACCES);
+		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -1996,6 +2212,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		}
 		fuse_reply_write(req,size);
+		oplog_printf(ctx,"write (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
 		return;
 	}
 /*
@@ -2010,6 +2227,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 */
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
+		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EBADF));
 		return;
 	}
 //	if (ino==MASTER_INODE) {
@@ -2023,12 +2241,14 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 //	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req, EFBIG);
+		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EFBIG));
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_READONLY) {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_err(req,EACCES);
+		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
 		return;
 	}
 	if (fileinfo->mode==IO_READ) {
@@ -2045,12 +2265,14 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 		}
+		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
 	} else {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_write(req,size);
 		if (debug_mode) {
 			fprintf(stderr,"%llu bytes have been written to inode %lu\n",(unsigned long long int)size,(unsigned long int)ino);
 		}
+		oplog_printf(ctx,"write (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
 	}
 }
 
@@ -2060,20 +2282,22 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"flush (%lu)",(unsigned long int)ino);
 	mfs_stats_inc(OP_FLUSH);
 	if (debug_mode) {
+		oplog_printf(ctx,"flush (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"flush (%lu)\n",(unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,0);
+		oplog_printf(ctx,"flush (%lu): OK",(unsigned long int)ino);
 		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
+		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(EBADF));
 		return;
 	}
-//	syslog(LOG_NOTICE,"remove_locks inode:%u owner:%llu",ino,fi->lock_owner);
+//	syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%llu",(unsigned long int)ino,(unsigned long long int)fi->lock_owner);
 	err = 0;
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
@@ -2081,6 +2305,11 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	}
 	pthread_mutex_unlock(&(fileinfo->lock));
 	fuse_reply_err(req,err);
+	if (err!=0) {
+		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(err));
+	} else {
+		oplog_printf(ctx,"flush (%lu): OK",(unsigned long int)ino);
+	}
 }
 
 void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi) {
@@ -2089,17 +2318,19 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 	const struct fuse_ctx *ctx;
 
 	ctx = fuse_req_ctx(req);
-	oplog_printf(ctx,"fsync (%lu,%d)",(unsigned long int)ino,datasync);
 	mfs_stats_inc(OP_FSYNC);
 	if (debug_mode) {
-		fprintf(stderr,"fsync (%lu)\n",(unsigned long int)ino);
+		oplog_printf(ctx,"fsync (%lu,%d) ...",(unsigned long int)ino,datasync);
+		fprintf(stderr,"fsync (%lu,%d)\n",(unsigned long int)ino,datasync);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,0);
+		oplog_printf(ctx,"fsync (%lu,%d): OK",(unsigned long int)ino,datasync);
 		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
+		oplog_printf(ctx,"fsync (%lu,%d): %s",(unsigned long int)ino,datasync,strerr(EBADF));
 		return;
 	}
 	err = 0;
@@ -2109,24 +2340,332 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 	}
 	pthread_mutex_unlock(&(fileinfo->lock));
 	fuse_reply_err(req,err);
+	if (err!=0) {
+		oplog_printf(ctx,"fsync (%lu,%d): %s",(unsigned long int)ino,datasync,strerr(err));
+	} else {
+		oplog_printf(ctx,"fsync (%lu,%d): OK",(unsigned long int)ino,datasync);
+	}
+}
+
+#if defined(__APPLE__)
+void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags, uint32_t position) {
+#else
+void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags) {
+	uint32_t position=0;
+#endif
+	uint32_t nleng;
+	int status;
+	uint8_t mode;
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	mfs_stats_inc(OP_SETXATTR);
+	if (debug_mode) {
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d) ...",(unsigned long int)ino,name,(unsigned long long int)size,flags);
+		fprintf(stderr,"setxattr (%lu,%s,%llu,%d)",(unsigned long int)ino,name,(unsigned long long int)size,flags);
+	}
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EPERM));
+		return;
+	}
+	if (size>MFS_XATTR_SIZE_MAX) {
+#if defined(__APPLE__)
+		// Mac OS X returns E2BIG here
+		fuse_reply_err(req,E2BIG);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(E2BIG));
+#else
+		fuse_reply_err(req,ERANGE);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ERANGE));
+#endif
+		return;
+	}
+	// ACL's - will be implemented separately
+	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ENOTSUP));
+		return;
+	}
+	nleng = strlen(name);
+	if (nleng>MFS_XATTR_NAME_MAX) {
+#if defined(__APPLE__)
+		// Mac OS X returns EPERM here
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EPERM));
+#else
+		fuse_reply_err(req,ERANGE);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ERANGE));
+#endif
+		return;
+	}
+	if (nleng==0) {
+		fuse_reply_err(req,EINVAL);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EINVAL));
+		return;
+	}
+#if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
+	if ((flags&XATTR_CREATE) && (flags&XATTR_REPLACE)) {
+		fuse_reply_err(req,EINVAL);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EINVAL));
+		return;
+	}
+	mode = (flags==XATTR_CREATE)?MFS_XATTR_CREATE_ONLY:(flags==XATTR_REPLACE)?MFS_XATTR_REPLACE_ONLY:MFS_XATTR_CREATE_OR_REPLACE;
+#else
+	mode = 0;
+#endif
+	(void)position;
+	status = fs_setxattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name,(uint32_t)size,(const uint8_t*)value,mode);
+	status = mfs_errorconv(status);
+	if (status!=0) {
+		fuse_reply_err(req,status);
+		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(status));
+		return;
+	}
+	fuse_reply_err(req,0);
+	oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): OK",(unsigned long int)ino,name,(unsigned long long int)size,flags);
+}
+
+#if defined(__APPLE__)
+void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position) {
+#else
+void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size) {
+	uint32_t position=0;
+#endif /* __APPLE__ */
+	uint32_t nleng;
+	int status;
+	uint8_t mode;
+	const uint8_t *buff;
+	uint32_t leng;
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	mfs_stats_inc(OP_GETXATTR);
+	if (debug_mode) {
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu) ...",(unsigned long int)ino,name,(unsigned long long int)size);
+		fprintf(stderr,"getxattr (%lu,%s,%llu)",(unsigned long int)ino,name,(unsigned long long int)size);
+	}
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EPERM));
+		return;
+	}
+	// ACL's - will be implemented separately
+	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ENOTSUP));
+		return;
+	}
+	nleng = strlen(name);
+	if (nleng>MFS_XATTR_NAME_MAX) {
+#if defined(__APPLE__)
+		// Mac OS X returns EPERM here
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EPERM));
+#else
+		fuse_reply_err(req,ERANGE);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ERANGE));
+#endif
+		return;
+	}
+	if (nleng==0) {
+		fuse_reply_err(req,EINVAL);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EINVAL));
+		return;
+	}
+	if (size==0) {
+		mode = MFS_XATTR_LENGTH_ONLY;
+	} else {
+		mode = MFS_XATTR_GETA_DATA;
+	}
+	(void)position;
+	status = fs_getxattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name,mode,&buff,&leng);
+	status = mfs_errorconv(status);
+	if (status!=0) {
+		fuse_reply_err(req,status);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(status));
+		return;
+	}
+	if (size==0) {
+		fuse_reply_xattr(req,leng);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%"PRIu32")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+	} else {
+		if (leng>size) {
+			fuse_reply_err(req,ERANGE);
+			oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ERANGE));
+		} else {
+			fuse_reply_buf(req,(const char*)buff,leng);
+			oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%"PRIu32")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+		}
+	}
+}
+
+void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
+	const uint8_t *buff;
+	uint32_t leng;
+	int status;
+	uint8_t mode;
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	mfs_stats_inc(OP_LISTXATTR);
+	if (debug_mode) {
+		oplog_printf(ctx,"listxattr (%lu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size);
+		fprintf(stderr,"listxattr (%lu,%llu)",(unsigned long int)ino,(unsigned long long int)size);
+	}
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(EPERM));
+		return;
+	}
+	if (size==0) {
+		mode = MFS_XATTR_LENGTH_ONLY;
+	} else {
+		mode = MFS_XATTR_GETA_DATA;
+	}
+	status = fs_listxattr(ino,0,ctx->uid,ctx->gid,mode,&buff,&leng);
+	status = mfs_errorconv(status);
+	if (status!=0) {
+		fuse_reply_err(req,status);
+		oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(status));
+		return;
+	}
+	if (size==0) {
+		fuse_reply_xattr(req,leng);
+		oplog_printf(ctx,"listxattr (%lu,%llu): OK (%"PRIu32")",(unsigned long int)ino,(unsigned long long int)size,leng);
+	} else {
+		if (leng>size) {
+			fuse_reply_err(req,ERANGE);
+			oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(ERANGE));
+		} else {
+			fuse_reply_buf(req,(const char*)buff,leng);
+			oplog_printf(ctx,"listxattr (%lu,%llu): OK (%"PRIu32")",(unsigned long int)ino,(unsigned long long int)size,leng);
+		}
+	}
+}
+
+void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
+	uint32_t nleng;
+	int status;
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	mfs_stats_inc(OP_REMOVEXATTR);
+	if (debug_mode) {
+		oplog_printf(ctx,"removexattr (%lu,%s) ...",(unsigned long int)ino,name);
+		fprintf(stderr,"removexattr (%lu,%s)",(unsigned long int)ino,name);
+	}
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
+		return;
+	}
+	// ACL's - will be implemented separately
+	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ENOTSUP));
+		return;
+	}
+	nleng = strlen(name);
+	if (nleng>MFS_XATTR_NAME_MAX) {
+#if defined(__APPLE__)
+		// Mac OS X returns EPERM here
+		fuse_reply_err(req,EPERM);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
+#else
+		fuse_reply_err(req,ERANGE);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ERANGE));
+#endif
+		return;
+	}
+	if (nleng==0) {
+		fuse_reply_err(req,EINVAL);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EINVAL));
+		return;
+	}
+	status = fs_removexattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name);
+	status = mfs_errorconv(status);
+	if (status!=0) {
+		fuse_reply_err(req,status);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(status));
+	} else {
+		fuse_reply_err(req,0);
+		oplog_printf(ctx,"removexattr (%lu,%s): OK",(unsigned long int)ino,name);
+	}
 }
 
 #if FUSE_USE_VERSION >= 26
 /*
 void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock) {
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	oplog_printf(ctx,"getlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u)\n",(unsigned long int)ino,(unsigned long long int)fi->lock_owner,(unsigned long long int)lock->l_start,(unsigned long long int)lock->l_len,(unsigned int)lock->l_whence,(unsigned int)lock->l_type);
 	if (debug_mode) {
-		fprintf(stderr,"getlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u)\n",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type);
+		fprintf(stderr,"getlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u)\n",(unsigned long int)ino,(unsigned long long int)fi->lock_owner,(unsigned long long int)lock->l_start,(unsigned long long int)lock->l_len,(unsigned int)lock->l_whence,(unsigned int)lock->l_type);
 	}
-	syslog(LOG_NOTICE,"get lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type);
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		return;
+	}
+//	syslog(LOG_NOTICE,"get lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type);
 	lock->l_type = F_UNLCK;
 	fuse_reply_lock(req,lock);
 }
 
-void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl) {
+typedef struct _setlk_interrupt {
+	fuse_ino_t inode;
+	uint64_t ownerid;
+	uint64_t start;
+	uint64_t len;
+	uint8_t whence;
+	uint8_t type;
+	uint8_t fired;
+} setlk_interrupt;
+
+void mfs_setlk_interrupt(fuse_req_t req,void *data) {
+	const struct fuse_ctx *ctx;
+	setlk_interrupt *d = (setlk_interrupt*)data;
+
+	ctx = fuse_req_ctx(req);
+	oplog_printf(ctx,"setlk interrupt (inode:%lu owner:%"PRIu64" lstart:%"PRIu64" llen:%"PRIu64" lwhence:%"PRIu8" ltype:%"PRIu8")\n",(unsigned long int)d->inode,d->ownerid,d->start,d->len,d->whence,d->type);
 	if (debug_mode) {
-		fprintf(stderr,"setlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u)\n",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type,sl);
+		fprintf(stderr,"setlk interrupt (inode:%lu owner:%"PRIu64" lstart:%"PRIu64" llen:%"PRIu64" lwhence:%"PRIu8" ltype:%"PRIu8")\n",(unsigned long int)d->inode,d->ownerid,d->start,d->len,d->whence,d->type);
 	}
-	syslog(LOG_NOTICE,"set lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type,sl);
+	d->fired = 1;
+}
+
+void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl) {
+	const struct fuse_ctx *ctx;
+
+	ctx = fuse_req_ctx(req);
+	oplog_printf(ctx,"setlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u)\n",(unsigned long int)ino,(unsigned long long int)fi->lock_owner,(unsigned long long int)lock->l_start,(unsigned long long int)lock->l_len,(unsigned int)lock->l_whence,(unsigned int)lock->l_type,(unsigned int)sl);
+	if (debug_mode) {
+		fprintf(stderr,"setlk (inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u)\n",(unsigned long int)ino,(unsigned long long int)fi->lock_owner,(unsigned long long int)lock->l_start,(unsigned long long int)lock->l_len,(unsigned int)lock->l_whence,(unsigned int)lock->l_type,(unsigned int)sl);
+	}
+	if (IS_SPECIAL_INODE(ino)) {
+		fuse_reply_err(req,EPERM);
+		return;
+	}
+//	syslog(LOG_NOTICE,"set lock inode:%lu owner:%llu lstart:%llu llen:%llu lwhence:%u ltype:%u sleep:%u",(unsigned long int)ino,fi->lock_owner,lock->l_start,lock->l_len,lock->l_whence,lock->l_type,sl);
+	if (sl) {
+		uint32_t i;
+		setlk_interrupt data;
+		data.inode = ino;
+		data.ownerid = fi->lock_owner;
+		data.start = lock->l_start;
+		data.len = lock->l_len;
+		data.whence = lock->l_whence;
+		data.type = lock->l_type;
+		data.fired = 0;
+		fuse_req_interrupt_func(req,mfs_setlk_interrupt,&data);
+		for (i=0 ; i<20000 ; i++) {
+			usleep(1000);
+			if (data.fired) {
+				break;
+			}
+		}
+		fuse_req_interrupt_func(req,NULL,NULL);
+	}
 	fuse_reply_err(req,0);
 }
 */

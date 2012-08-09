@@ -43,6 +43,7 @@
 #include "massert.h"
 
 #define MaxPacketSize 1500000
+#define OLD_CHANGES_BLOCK_SIZE 5000
 
 // matomlserventry.mode
 enum{KILL,HEADER,DATA};
@@ -78,10 +79,77 @@ static matomlserventry *matomlservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
 
+typedef struct old_changes_entry {
+	uint64_t version;
+	uint32_t length;
+	uint8_t *data;
+} old_changes_entry;
+
+typedef struct old_changes_block {
+	old_changes_entry old_changes_block [OLD_CHANGES_BLOCK_SIZE];
+	uint32_t entries;
+	uint32_t mintimestamp;
+	uint64_t minversion;
+	struct old_changes_block *next;
+} old_changes_block;
+
+static old_changes_block *old_changes_head=NULL;
+static old_changes_block *old_changes_current=NULL;
+
 // from config
 static char *ListenHost;
 static char *ListenPort;
+static uint16_t ChangelogSecondsToRemember;
 
+void matomlserv_old_changes_free_block(old_changes_block *oc) {
+	uint32_t i;
+	for (i=0 ; i<oc->entries ; i++) {
+		free(oc->old_changes_block[i].data);
+	}
+	free(oc);
+}
+
+void matomlserv_store_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize) {\
+	old_changes_block *oc;
+	old_changes_entry *oce;
+	uint32_t ts;
+	if (ChangelogSecondsToRemember==0) {
+		while (old_changes_head) {
+			oc = old_changes_head->next;
+			matomlserv_old_changes_free_block(old_changes_head);
+			old_changes_head = oc;
+		}
+		return;
+	}
+	if (old_changes_current==NULL || old_changes_head==NULL || old_changes_current->entries>=OLD_CHANGES_BLOCK_SIZE) {
+		oc = malloc(sizeof(old_changes_block));
+		passert(oc);
+		ts = main_time();
+		oc->entries = 0;
+		oc->minversion = version;
+		oc->mintimestamp = ts;
+		oc->next = NULL;
+		if (old_changes_current==NULL || old_changes_head==NULL) {
+			old_changes_head = old_changes_current = oc;
+		} else {
+			old_changes_current->next = oc;
+			old_changes_current = oc;
+		}
+		while (old_changes_head && old_changes_head->next && old_changes_head->next->mintimestamp+ChangelogSecondsToRemember<ts) {
+			oc = old_changes_head->next;
+			matomlserv_old_changes_free_block(old_changes_head);
+			old_changes_head = oc;
+		}
+	}
+	oc = old_changes_current;
+	oce = oc->old_changes_block + oc->entries;
+	oce->version = version;
+	oce->length = logstrsize;
+	oce->data = malloc(logstrsize);
+	passert(oce->data);
+	memcpy(oce->data,logstr,logstrsize);
+	oc->entries++;
+}
 
 uint32_t matomlserv_mloglist_size(void) {
 	matomlserventry *eptr;
@@ -160,8 +228,41 @@ uint8_t* matomlserv_createpacket(matomlserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
+void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
+	old_changes_block *oc;
+	old_changes_entry *oce;
+	uint8_t *data;
+	uint8_t start=0;
+	uint32_t i;
+	if (old_changes_head==NULL) {
+		// syslog(LOG_WARNING,"meta logger wants old changes, but storage is disabled");
+		return;
+	}
+	if (old_changes_head->minversion>version) {
+		syslog(LOG_WARNING,"meta logger wants changes since version: %"PRIu64", but minimal version in storage is: %"PRIu64,version,old_changes_head->minversion);
+		return;
+	}
+	for (oc=old_changes_head ; oc ; oc=oc->next) {
+		if (oc->minversion<=version && (oc->next==NULL || oc->next->minversion>version)) {
+			start=1;
+		}
+		if (start) {
+			for (i=0 ; i<oc->entries ; i++) {
+				oce = oc->old_changes_block + i;
+				if (version>=oce->version) {
+					data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+oce->length);
+					put8bit(&data,0xFF);
+					put64bit(&data,oce->version);
+					memcpy(data,oce->data,oce->length);
+				}
+			}
+		}
+	}
+}
+
 void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t rversion;
+	uint64_t minversion;
 
 	if (eptr->version>0) {
 		syslog(LOG_WARNING,"got register message from registered metalogger !!!");
@@ -182,17 +283,27 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			}
 			eptr->version = get32bit(&data);
 			eptr->timeout = get16bit(&data);
-			if (eptr->timeout<10) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
-				if (eptr->timeout<3) {
-					eptr->timeout=3;
-				}
-//				eptr->mode=KILL;
+		} else if (rversion==2) {
+			if (length!=7+8) {
+				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 2) - wrong size (%"PRIu32"/15)",length);
+				eptr->mode=KILL;
 				return;
 			}
+			eptr->version = get32bit(&data);
+			eptr->timeout = get16bit(&data);
+			minversion = get64bit(&data);
+			matomlserv_send_old_changes(eptr,minversion);
 		} else {
 			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%"PRIu8"/1)",rversion);
 			eptr->mode=KILL;
+			return;
+		}
+		if (eptr->timeout<10) {
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+			if (eptr->timeout<3) {
+				eptr->timeout=3;
+			}
+//			eptr->mode=KILL;
 			return;
 		}
 	}
@@ -314,6 +425,8 @@ void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t lo
 	matomlserventry *eptr;
 	uint8_t *data;
 
+	matomlserv_store_logstring(version,logstr,logstrsize);
+
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->version>0) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+logstrsize);
@@ -354,6 +467,10 @@ void matomlserv_beforeclose(matomlserventry *eptr) {
 void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
+			break;
+		case ANTOAN_UNKNOWN_COMMAND: // for future use
+			break;
+		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
 		case MLTOMA_REGISTER:
 			matomlserv_register(eptr,data,length);
@@ -647,6 +764,12 @@ void matomlserv_reload(void) {
 	free(oldListenPort);
 	tcpclose(lsock);
 	lsock = newlsock;
+
+	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
+	if (ChangelogSecondsToRemember>3600) {
+		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%"PRIu16") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		ChangelogSecondsToRemember=3600;
+	}
 }
 
 int matomlserv_init(void) {
@@ -665,12 +788,17 @@ int matomlserv_init(void) {
 		mfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on socket");
+		mfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matomlservhead = NULL;
+	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
+	if (ChangelogSecondsToRemember>3600) {
+		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%"PRIu16") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		ChangelogSecondsToRemember=3600;
+	}
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);

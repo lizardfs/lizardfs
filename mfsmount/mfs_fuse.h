@@ -50,6 +50,15 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi);
+#if defined(__APPLE__)
+void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags, uint32_t position);
+void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position);
+#else
+void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags);
+void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
+#endif /* __APPLE__ */
+void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
+void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name);
 #if FUSE_USE_VERSION >= 26
 //void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock);
 //void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl);

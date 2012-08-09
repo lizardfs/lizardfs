@@ -6,7 +6,7 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.26
+Version:	1.6.27
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
@@ -18,7 +18,7 @@ BuildRequires:	zlib-devel
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %define		_localstatedir	/var/lib
-%define		mfsconfdir	%{_sysconfdir}
+%define		mfsconfdir	%{_sysconfdir}/mfs
 
 %description
 MooseFS is an Open Source, easy to deploy and maintain, distributed,
@@ -60,6 +60,14 @@ Requires:	python
 %description cgi
 MooseFS CGI Monitor.
 
+%package cgiserv
+Summary:	Simple CGI-capable HTTP server to run MooseFS CGI Monitor
+Group:		System Environment/Daemons
+Requires:	%{name}-cgi = %{version}-%{release}
+
+%description cgiserv
+Simple CGI-capable HTTP server to run MooseFS CGI Monitor.
+
 %prep
 %setup -q
 
@@ -76,7 +84,7 @@ make install \
 %if "%{distro}" == "rh"
 install -d $RPM_BUILD_ROOT%{_initrddir}
 for f in rpm/rh/*.init ; do
-	sed -e 's,@sysconfdir@,%{mfsconfdir},;
+	sed -e 's,@sysconfdir@,%{_sysconfdir},;
 		s,@sbindir@,%{_sbindir},;
 		s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
 done
@@ -180,11 +188,24 @@ rm -rf $RPM_BUILD_ROOT
 %files cgi
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_sbindir}/mfscgiserv
-%{_mandir}/man8/mfscgiserv.8*
 %{_datadir}/mfscgi
 
+%files cgiserv
+%defattr(644,root,root,755)
+%attr(755,root,root) %{_sbindir}/mfscgiserv
+%{_mandir}/man8/mfscgiserv.8*
+%if "%{distro}" == "rh"
+%attr(754,root,root) %{_initrddir}/mfscgiserv
+%endif
+
 %changelog
+* Thu Feb 16 2012 Jakub Bogusz <contact@moosefs.com> - 1.6.27-1
+- adjusted to keep configuration files in /etc/mfs
+- require just mfsexports.cfg (master) and mfshdd.cfg (chunkserver) in RH-like
+  init scripts; for other files defaults are just fine to run services
+- moved mfscgiserv to -cgiserv subpackage (-cgi alone can be used with any
+  external CGI-capable HTTP server), added mfscgiserv init script
+
 * Fri Nov 19 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.19-1
 - separated mfs-metalogger subpackage (following Debian packaging)
 
