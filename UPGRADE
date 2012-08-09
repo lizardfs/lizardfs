@@ -1,0 +1,19 @@
+This file contains some important notes on upgrade process.
+
+ * Upgrading from 1.5.x to 1.6.x:
+	1. Upgrade and restart mfsmaster.
+	2. Upgrade and restart chunkservers.
+	3. Upgrade mfs clients (mfstools before remounting MooseFS with new mfsmount),
+	   remount MooseFS trees.
+
+	mfstools 1.6.x work with MooseFS 1.5.x, but not the opposite: old mfstools
+	no longer work with MooseFS 1.6.x.
+
+	mfsmount 1.5.x will work with mfsmaster 1.6.x only if REJECT_OLD_CLIENTS
+	option in mfsmaster.cfg isn't set to 1. mfsexports.cfg file won't be used
+	when authorizing 1.5.x clients.
+
+ * Upgrading from 1.6.19 to 1.6.20
+
+	Upgrade and restart mfsmaster before upgrading any chunkserver.
+

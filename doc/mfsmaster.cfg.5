@@ -1,0 +1,129 @@
+.TH MFSMASTER.CFG "5" "February 2012" "MooseFS 1.6.26"
+.SH NAME
+mfsmaster.cfg \- main configuration file for \fBmfsmaster\fP
+.SH DESCRIPTION
+The file \fBmfsmaster.cfg\fP contains configuration of MooseFS master process.
+.SH SYNTAX
+.PP
+Syntax is:
+.TP
+\fIOPTION\fP \fB=\fP \fIVALUE\fP
+.PP
+Lines starting with \fB#\fP character are ignored as comments.
+.SH OPTIONS
+Configuration options:
+.TP
+\fBDATA_PATH\fP
+where to store metadata files and lock file
+.TP
+\fBLOCK_FILE\fP
+(deprecated)
+daemon lock/pid file
+.TP
+\fBWORKING_USER\fP
+user to run daemon as
+.TP
+\fBWORKING_GROUP\fP
+group to run daemon as (optional - if empty then default user group will be used)
+.TP
+\fBSYSLOG_IDENT\fP
+name of process to place in syslog messages (default is mfsmaster)
+.TP
+\fBLOCK_MEMORY\fP
+whether to perform mlockall() to avoid swapping out mfsmaster process (default is 0, i.e. no)
+.TP
+\fBNICE_LEVEL\fP
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
+.TP
+\fBEXPORTS_FILENAME\fP
+alternative name of \fBmfsexports.cfg\fP file
+.TP
+\fBTOPOLOGY_FILENAME\fP
+alternative name of \fBmfstopology.cfg\fP file
+.TP
+\fBBACK_LOGS\fP
+number of metadata change log files (default is 50)
+.TP
+\fBBACK_META_KEEP_PREVIOUS\fP
+number of previous metadata files to be kept (default is 1)
+.TP
+\fBREPLICATIONS_DELAY_INIT\fP
+initial delay in seconds before starting replications (default is 300)
+.TP
+\fBREPLICATIONS_DELAY_DISCONNECT\fP
+replication delay in seconds after chunkserver disconnection (default is 3600)
+.TP
+\fBMATOML_LISTEN_HOST\fP
+IP address to listen on for metalogger connections (\fB*\fP means any)
+.TP
+\fBMATOML_LISTEN_PORT\fP
+port to listen on for metalogger connections (default is 9419)
+.TP
+\fBMATOML_LOG_PRESERVE_SECONDS\fP
+how many seconds of change logs have to be preserved in memory (default is 600; note: logs are stored in blocks of 5k lines, so sometimes real number of seconds may be little bigger; zero disables extra logs storage)
+.TP
+\fBMATOCS_LISTEN_HOST\fP
+IP address to listen on for chunkserver connections (\fB*\fP means any)
+.TP
+\fBMATOCS_LISTEN_PORT\fP
+port to listen on for chunkserver connections (default is 9420)
+.TP
+\fBMATOCU_LISTEN_HOST\fP
+IP address to listen on for client (mount) connections (\fB*\fP means any)
+.TP
+\fBMATOCU_LISTEN_PORT\fP
+port to listen on for client (mount) connections (default is 9421)
+.TP
+\fBCHUNKS_LOOP_MIN_TIME\fP
+Chunks loop shouldn't be done in less seconds than given number (default is 300)
+.TP
+\fBCHUNKS_LOOP_MAX_CPS\fP
+Chunks loop shouldn't check more chunks per seconds than given number (default is 100000)
+.TP
+\fBCHUNKS_SOFT_DEL_LIMIT\fP
+Soft maximum number of chunks to delete on one chunkserver (default is 10)
+.TP
+\fBCHUNKS_HARD_DEL_LIMIT\fP
+Hard maximum number of chunks to delete on one chunkserver (default is 25)
+.TP
+\fBCHUNKS_WRITE_REP_LIMIT\fP
+Maximum number of chunks to replicate to one chunkserver (default is 2)
+.TP
+\fBCHUNKS_READ_REP_LIMIT\fP
+Maximum number of chunks to replicate from one chunkserver (default is 10)
+.TP
+\fBREJECT_OLD_CLIENTS\fP
+Reject \fBmfsmount\fPs older than 1.6.0 (0 or 1, default is 0).
+Note that \fBmfsexports\fP access control is NOT used for those old
+clients.
+.SH NOTES
+.PP
+Chunks in master are tested in loop. Speed (or frequency) is regulated by two
+options \fBCHUNKS_LOOP_MIN_TIME\fP and \fBCHUNKS_LOOP_MAX_CPS\fP. First
+defines minimal time of the loop and second maximal number of chunk tests per
+second. Typically at the beginning, when number of chunks is small, time is
+constant, regulated by \fBCHUNK_LOOP_MIN_TIME\fP, but when number of chunks
+became bigger then time of loop can increase according to
+\fBCHUNKS_LOOP_MAX_CPS\fP.
+.PP
+Deletion limits are defined as 'soft' and 'hard' limit. When number of chunks
+to delete increases from loop to loop then current limit can be temporary
+increased above soft limit, but never above hard limit.
+.SH COPYRIGHT
+Copyright 2008-2012 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmaster (8),
+.BR mfsexports.cfg (5)
+.BR mfstopology.cfg (5)

@@ -1,0 +1,115 @@
+.TH MFSCHUNKSERVER "8" "February 2012" "MooseFS 1.6.26"
+.SH NAME
+mfschunkserver \- start, restart or stop Moose File System chunkserver process
+.SH SYNOPSIS
+.B mfschunkserver
+[\fB\-f\fP]
+[\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
+[\fB\-d\fP]
+[\fB\-t\fP \fILOCKTIMEOUT\fP]
+[\fIACTION\fP]
+.PP
+.B mfschunkserver \-s
+[\fB\-c\fP \fICFGFILE\fP]
+.PP
+.B mfschunkserver \-v
+.PP
+.B mfschunkserver \-h
+.SH DESCRIPTION
+.PP
+\fBmfschunkserver\fP is the data server of Moose File System. Depending on
+parameters it can start, restart or stop MooseFS chunkserver process. Without
+any options it starts MooseFS chunkserver, killing previously run process if
+lock file exists.
+.PP
+SIGHUP (or 'reload' \fIACTION\fP) forces \fBmfschunkserver\fP to reload all configuration files.
+.PP
+Starting with version 1.6.0 chunkserver periodically tests stored chunks
+(see \fBHDD_TEST_FREQ\fP option in \fBmfschunkserver.cfg\fP\|(5) manual).
+.PP
+Starting with version 1.6.5 MooseFS master doesn't send metadata change logs
+to chunkserver and expect at least one \fBmfsmetalogger\fP\|(8) daemon
+to connect.
+.PP
+Starting with version 1.6.26 chunkserver scans attached disks in background.
+.TP
+\fB\-v\fP
+print version information and exit
+.TP
+\fB\-h\fP
+print usage information and exit
+.TP
+\fB\-f\fP
+(deprecated, use \fBstart\fP action instead)
+forcily run MooseFS chunkserver process, without trying to kill previous instance
+(this option allows to run MooseFS chunkserver if stale PID file exists)
+.TP
+\fB\-s\fP
+(deprecated, use \fBstop\fP action instead)
+stop MooseFS chunkserver process
+.TP
+\fB\-c\fP \fICFGFILE\fP
+specify alternative path of configuration file (default is
+\fBmfschunkserver.cfg\fP in system configuration directory)
+.TP
+\fB\-u\fP
+log undefined configuration values (when default is assumed)
+.TP
+\fB\-d\fP
+run in foreground, don't daemonize
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
+.TP
+\fIACTION\fP
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP, \fBreload\fP, \fBtest\fP or \fBkill\fP. Default action is
+\fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
+Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
+and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.
+.SH FILES
+.TP
+\fBmfschunkserver.cfg\fP
+configuration file for MooseFS chunkserver process; refer to
+\fBmfschunkserver.cfg\fI\|(5) manual for defails
+.TP
+\fBmfshdd.cfg\fP
+list of directories (mountpoints) used for MooseFS storage (one per line;
+directory prefixed by \fB*\fP character causes given directory to be freed
+by replicating all data already stored there to another locations)
+.TP
+\fBmfschunkserver.lock\fP
+PID file of running MooseFS chunkserver process
+(created in RUN_PATH by MooseFS < 1.6.9)
+.TP
+.BR .mfschunkserver.lock
+lock file of running MooseFS chunkserver process
+(created in data directory since MooseFS 1.6.9)
+.TP
+\fBchangelog_csback.\fP*\fB.mfs\fP
+MooseFS filesystem metadata change logs (backup of master change log files;
+used only with MooseFS master < 1.6.5)
+.TP
+\fBdata.csstats\fP
+Chunkserver charts state
+.SH "REPORTING BUGS"
+Report bugs to <bugs@moosefs.com>.
+.SH COPYRIGHT
+Copyright 2008-2009 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmaster (8),
+.BR mfsmount (8),
+.BR mfschunkserver.cfg (5),
+.BR mfshdd.cfg (5),
+.BR moosefs (7)

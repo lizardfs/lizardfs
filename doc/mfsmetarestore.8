@@ -1,0 +1,76 @@
+.TH MFSMETARESTORE "8" "November 2009" "MooseFS 1.6.9"
+.SH NAME
+mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata image
+.SH SYNOPSIS
+.B mfsmetarestore
+\fB\-m\fP \fIOLDMETADATAFILE\fP \fB\-o\fP \fINEWMETADATAFILE\fP [\fICHANGELOGFILE\fP...]
+.PP
+.B mfsmetarestore
+\fB\-m\fP \fIMETADATAFILE\fP
+.PP
+.B mfsmetarestore
+\fB\-a\fP [\fB\-d\fP \fIDIRECTORY\fP]
+.PP
+.B mfsmetarestore \-v
+.PP
+.B mfsmetarestore \-?
+.SH DESCRIPTION
+.PP
+When \fBmfsmetarestore\fP is called with both \fB-m\fP and \fB-o\fP options,
+it replays given \fICHANGELOGFILE\fPs on \fIOLDMETADATAFILE\fP and writes result
+to \fINEWMETADATAFILE\fP. Multiple change log files can be given.
+.PP
+\fBmfsmetarestore\fP with just \fB-m\fP \fIMETADATAFILE\fP option dumps MooseFS
+metadata image file in human readable form.
+.PP
+\fBmfsmetarestore\fP called with -a option automatically performs all operations
+needed to merge change log files. Master data directory can be specified using
+\-d \fIDIRECTORY\fP option.
+.TP
+\fB\-v\fP
+print version information and exit
+.TP
+\fB\-?\fP
+print version information and exit
+.TP
+\fB\-a\fP
+autorestore mode (see above)
+.TP
+\fB\-d\fP \fIDATAPATH\fP
+master data directory (for autorestore mode)
+.TP
+\fB\-m\fP \fIMETADATAFILE\fP
+specify input metadata image file
+.TP
+\fB\-o\fP \fINEWMETADATAFILE\fP
+specify output metadata image file
+.SH FILES
+.TP
+\fBmetadata.mfs\fP
+Moose File System metadata image as read by \fBmfsmaster\fP process
+.TP
+\fBmetadata.mfs.back\fP
+Moose File System metadata image as left by killed or crashed \fBmfsmaster\fP
+process
+.TP
+\fBchangelog.\fP*\fB.mfs\fP
+Moose File System metadata change logs
+.SH "REPORTING BUGS"
+Report bugs to <bugs@moosefs.com>.
+.SH COPYRIGHT
+Copyright 2008 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmaster (8),
+.BR moosefs (7)

@@ -1,0 +1,112 @@
+.TH MFSMASTER "8" "February 2012" "MooseFS 1.6.26"
+.SH NAME
+mfsmaster \- start, restart or stop Moose File System master process
+.SH SYNOPSIS
+.B mfsmaster
+[\fB\-f\fP]
+[\fB\-c\fP \fICFGFILE\fP] [\fB\-u\fP]
+[\fB\-d\fP]
+[\fB\-t\fP \fILOCKTIMEOUT\fP]
+[\fIACTION\fP]
+.PP
+.B mfsmaster \-s
+[\fB\-c\fP \fICFGFILE\fP]
+.PP
+.B mfsmaster \-v
+.PP
+.B mfsmaster \-h
+.SH DESCRIPTION
+.PP
+\fBmfsmaster\fP is the master program of Moose File System. Depending on
+parameters it can start, restart or stop MooseFS master process. Without any
+options it starts MooseFS master, killing previously run process if lock
+file exists.
+.PP
+SIGHUP (or 'reload' \fIACTION\fP) forces \fBmfsmaster\fP to reload all configuration files.
+.TP
+\fB\-v\fP
+print version information and exit
+.TP
+\fB\-h\fP
+print usage information and exit
+.TP
+\fB\-f\fP
+(deprecated, use \fBstart\fP action instead)
+forcily run MooseFS master process, without trying to kill previous instance
+(this option allows to run MooseFS master if stale PID file exists)
+.TP
+\fB\-s\fP
+(deprecated, use \fBstop\fP action instead)
+stop MooseFS master process
+.TP
+\fB\-c\fP \fICFGFILE\fP
+specify alternative path of configuration file (default is
+\fBmfsmaster.cfg\fP in system configuration directory)
+.TP
+\fB\-u\fP
+log undefined configuration values (when default is assumed)
+.TP
+\fB\-d\fP
+run in foreground, don't daemonize
+.TP
+\fB\-t\fP \fILOCKTIMEOUT\fP
+how long to wait for lockfile (default is 60 seconds)
+.TP
+\fIACTION\fP
+is the one of \fBstart\fP, \fBstop\fP, \fBrestart\fP, \fBreload\fP, \fBtest\fP or \fBkill\fP. Default action is
+\fBrestart\fP unless \fB\-s\fP (stop) or \fB\-f\fP (start) option is given.
+Note that \fB\-s\fP and \fB\-f\fP options are deprecated, likely to disappear
+and \fIACTION\fP parameter to become obligatory in MooseFS 1.7.
+.SH FILES
+.TP
+\fBmfsmaster.cfg\fP
+configuration file for MooseFS master process (see \fBmfsmaster.cfg\fP\|(5) manual)
+.TP
+\fBmfsexports.cfg\fP
+MooseFS access control file (used with \fBmfsmount\fPs 1.6.0 or later, see
+\fBmfsexports.cfg\fP\|(5) manual)
+.TP
+\fBmfstopology.cfg\fP
+Network topology definitions (see \fBmfstopology.cfg\fP\|(5) manual)
+.TP
+\fBmfsmaster.lock\fP
+PID file of running MooseFS master process
+(created in RUN_PATH by MooseFS < 1.6.9)
+.TP
+.BR .mfsmaster.lock
+lock file of running MooseFS master process
+(created in data directory since MooseFS 1.6.9)
+.TP
+\fBmetadata.mfs\fP, \fBmetadata\.mfs\.back\fP
+MooseFS filesystem metadata image
+.TP
+\fBchangelog.\fP*\fB.mfs\fP
+MooseFS filesystem metadata change logs (merged into \fBmetadata.mfs\fP once per hour)
+.TP
+\fBdata.stats\fP
+MooseFS master charts state
+.TP
+.SH "REPORTING BUGS"
+Report bugs to <bugs@moosefs.com>.
+.SH COPYRIGHT
+Copyright 2008-2009 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfsmetarestore (8),
+.BR mfschunkserver (8),
+.BR mfsmount (8),
+.BR mfsmaster.cfg (5),
+.BR mfsexports.cfg (5),
+.BR mfstopology.cfg (5),
+.BR moosefs (7)

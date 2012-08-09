@@ -1,0 +1,88 @@
+.TH MFSCHUNKSERVER.CFG "5" "November 2009" "MooseFS 1.6.9"
+.SH NAME
+mfschunkserver.cfg \- main configuration file for \fBmfschunkserver\fP
+.SH DESCRIPTION
+The file \fBmfschunkserver.cfg\fP contains configuration of MooseFS
+chunkserver process.
+.SH SYNTAX
+.PP
+Syntax is:
+.TP
+\fIOPTION\fP \fB=\fP \fIVALUE\fP
+.PP
+Lines starting with \fB#\fP character are ignored as comments.
+.SH OPTIONS
+Configuration options:
+.TP
+\fBDATA_PATH\fP
+where to store metadata files and daemon lock file
+.TP
+\fBLOCK_FILE\fP
+(deprecated)
+daemon lock/pid file
+.TP
+\fBWORKING_USER\fP
+user to run daemon as
+.TP
+\fBWORKING_GROUP\fP
+group to run daemon as (optional - if empty then default user group will be used)
+.TP
+\fBSYSLOG_IDENT\fP
+name of process to place in syslog messages (default is mfschunkserver)
+.TP
+\fBLOCK_MEMORY\fP
+whether to perform mlockall() to avoid swapping out mfschunkserver process (default is 0, i.e. no)
+.TP
+\fBNICE_LEVEL\fP
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to increase priority)
+.TP
+\fBBACK_LOGS\fP
+(deprecated)
+number of metadata change log files (default is 50; used only when connected with MooseFS master < 1.6.5)
+.TP
+\fBMASTER_HOST\fP
+address of MooseFS master host to connect with (default is mfsmaster)
+.TP
+\fBMASTER_PORT\fP
+number of MooseFS master port to connect with (default is 9419)
+.TP
+\fBMASTER_RECONNECTION_DELAY\fP
+delay in seconds before trying to reconnect to master after disconnection (default is 5)
+.TP
+\fBMASTER_TIMEOUT\fP
+timeout (in seconds) for master connections (default is 60)
+.TP
+\fBBIND_HOST\fP
+local address to use for connecting with master (default is \fB*\fP, i.e. default local address)
+.TP
+\fBCSSERV_LISTEN_HOST\fP
+IP address to listen on for client (mount) connections (\fB*\fP means any)
+.TP
+\fBCSSERV_LISTEN_PORT\fP
+port to listen on for client (mount) connections (default is 9422)
+.TP
+\fBCSSERV_TIMEOUT\fP
+timeout (in seconds) for client (mount) connections (default is 5)
+.TP
+\fBHDD_TEST_FREQ\fP
+chunk test period in seconds (default is 10)
+.TP
+\fBHDD_CONF_FILENAME\fP
+alternative name of \fBmfshdd.cfg\fP file
+.SH COPYRIGHT
+Copyright 2008-2009 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfschunkserver (8),
+.BR mfshdd.cfg (5)

@@ -1,0 +1,80 @@
+.TH MOOSEFS "7" "November 2009" "MooseFS 1.6.9"
+.SH NAME
+MooseFS \- networking, distributed, fault-tolerant file system
+.SH DESCRIPTION
+.PP
+MooseFS is a networking, distributed file system. It spreads data over several
+physical localisations (servers), which are visible to a user as one resource.
+For standard file operations MooseFS acts as other Unix-alike file systems. It has
+hierarchical structure (directory tree), stores files' attributes (permissions,
+last access and modification times) as well as makes it possible to create
+special files (block and character devices, pipes and sockets), symbolic links
+(file names pointing to another files accessible locally, not necessarily on
+MooseFS) and hard links (different names of files which refer to the same data on
+MooseFS). Access to the file system can be limited basing on IP address and/or
+password.
+.PP
+Distinctive features of MooseFS are:
+.TP
+ - higher reliability (data can be stored in several copies on separate computers)
+.TP
+ - dynamically expanding disk space by attaching new computers/disks
+.TP
+ - possibility of storing deleted files for a defined period of time ("trash
+   bin" service on a file system level)
+.TP
+ - possibility of creating snapshot of a file, which means coherent copy of the
+   whole file, even while the file is being written.
+.SH ARCHITECTURE
+.PP
+MooseFS installation consists of four types of machines:
+.TP
+ - managing server (\fBmfsmaster\fR(8)) - single computer managing the whole filesystem,
+   storing metadata for every file (information on size, attributes and file
+   localisation(s), including all information about non-regular files, i.e.
+   directories, sockets, pipes and devices).
+.TP
+ - data servers (\fBmfschunkserver\fR(8)) - any number of commodity servers storing files
+   data and replicating it among themselves (if a certain file is supposed to
+   exist in more than one copy).
+.TP
+ - metadata backup servers (\fBmfsmetalogger\fR(8)) - any number of servers, all of
+   which store metadata changelogs and periodically downloading base metadata file;
+   it's easy to run \fBmfsmaster\fR(8) process on such machine when primary master
+   stops working.
+.TP
+ - client computers referring to MooseFS stored files - any number of machines with
+   working \fBmfsmount\fR(8) process that communicates with the managing server to
+   receive and modify file information and with chunkservers to exchange actual
+   file data.
+.PP
+Metadata is stored in memory of the managing server and simultaneously is being
+saved on disk (as a periodically updated binary file and immediately updated
+incremental logs). The main binary file as well as the logs are replicated to
+metaloggers (if present).
+.PP
+File data is divided to fragments (chunks) of maximum size 64MB each which are
+stored as files on selected disks on data servers (chunkservers). Each chunk is
+saved on different computers in a number of copies equal to a "goal" for the
+given file.
+.SH "REPORTING BUGS"
+Report bugs to <bugs@moosefs.com>.
+.SH COPYRIGHT
+Copyright 2008-2009 Gemius SA.
+
+MooseFS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+MooseFS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+.SH "SEE ALSO"
+.BR mfschunkserver (8),
+.BR mfsmaster (8),
+.BR mfstools (1),
+.BR mfsmount (8)

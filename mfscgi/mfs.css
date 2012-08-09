@@ -1,0 +1,145 @@
+body {
+	margin:0;
+	border:0;
+	padding:0;
+	height:100%;
+	max-height:100%;
+	background:#fff;
+	font-family:arial, verdana, sans-serif;
+	font-size:12px;
+	overflow:hidden;
+}
+
+/* for internet explorer */
+* html body {
+	padding:54px 0 0 0; 
+}
+
+#container {
+	font-family:"times new roman", serif;
+	font-size: 1.2em;
+	position:fixed; 
+	top:54px;
+	left:0;
+	bottom:0;
+	right:0; 
+	overflow:auto;
+	background:#888;
+	padding:15px 2px 15px 2px;
+	color:#000;
+	text-align:center;
+}
+
+* html #container {
+	height:100%; 
+	width:100%; 
+}
+
+#header {
+	position:absolute; 
+	top:0; 
+	left:0; 
+	width:100%; 
+	height:54px; 
+	overflow:hidden; 
+	background:#444;
+	color:#FFF
+}
+* html #header {height:54px;}
+
+#footer {
+	position:absolute; 
+	bottom:0; 
+	left:0;
+	width:100%; 
+	height:19px; 
+	overflow:hidden;
+	text-align:right;
+	padding:0;
+	background:#444;
+	border-top:1px solid #FFF;
+	color:#FFF
+}
+* html #footer {height:20px;}
+
+a:link {color: #000;}
+a:active {color: #000;}
+a:visited {color: #000;}
+
+a.VISIBLELINK {color: #008;}
+
+span.DELETEREADY {color: #777;}
+span.DELETEPENDING {color: #60A;}
+span.OVERGOAL {color: #00E;}
+span.NORMAL {color: #080;}
+span.UNDERGOAL {color: #EA0;}
+span.ENDANGERED {color: #F50;}
+span.MISSING {color: #F00;}
+
+span.DELETEREADYBOX {background: #777; width:8px; height:8px; display: inline-block;}
+span.DELETEPENDINGBOX {background: #60A; width:8px; height:8px; display: inline-block;}
+span.OVERGOALBOX {background: #00E; width:8px; height:8px; display: inline-block;}
+span.NORMALBOX {background: #080; width:8px; height:8px; display: inline-block;}
+span.UNDERGOALBOX {background: #EA0; width:8px; height:8px; display: inline-block;}
+span.ENDANGEREDBOX {background: #F50; width:8px; height:8px; display: inline-block;}
+span.MISSINGBOX {background:#f00; width:8px; height:8px; display: inline-block;}
+
+span.NOTEXCEEDED {color: #080;}
+span.EXCEEDED {color: #F00;}
+span.SEXCEEDED {color: #E80;}
+
+span.DISCONNECTED {color: #F00;}
+
+table {border: 1px solid black; border-spacing: 0px; border-collapse:collapse;}
+td {white-space:nowrap; border: 1px solid black; border-spacing: 0px; border-collapse:collapse; font-family: sans-serif; font-size: 12px;}
+th {white-space:nowrap; border: 1px solid black; border-spacing: 0px; border-collapse:collapse; font-family: sans-serif; font-size: 12px;}
+
+table.HDR {border-style: none; width: 100%; height: 54px; border-collapse:separate;}
+table.HDR td.LOGO {border-bottom: 1px solid #FFF; border-right: none; border-top: none; border-left: none; vertical-align: middle; padding: 0px 30px 0px 10px;}
+table.HDR td.MENU {border-style: none; vertical-align: bottom; padding: 0px 0px 0px 0px; }
+table.HDR td.FILLER {border-bottom: 1px solid #FFF; border-right: none; border-top: none; border-left: none; vertical-align: middle; text-align: right; padding: 0px 10px 0px 30px; width: 100%;}
+
+table.MENU {border-style: none; border-collapse:separate;}
+table.MENU a:link {color:#FFF; text-decoration:none;}
+table.MENU a:active {color:#FFF; text-decoration:none;}
+table.MENU a:visited {color:#FFF; text-decoration:none;}
+table.MENU td {padding: 8px; font-family: sans-serif; font-size: 16px; text-align:center; white-space: nowrap; color:#FFF}
+table.MENU td.UU {border-bottom: 1px solid #FFF; border-right: none; border-top: 1px solid #000; border-left: 1px solid #000; background-color: #666;}
+table.MENU td.SU {border-bottom: 1px solid #FFF; border-right: none; border-top: 1px solid #000; border-left: 1px solid #FFF; background-color: #666;}
+table.MENU td.US {border-bottom: 1px solid #888; border-right: none; border-top: 1px solid #FFF; border-left: 1px solid #FFF; background-color: #888;}
+table.MENU td.SS {border-bottom: 1px solid #888; border-right: none; border-top: 1px solid #FFF; border-left: 1px solid #AAA; background-color: #888;}
+table.MENU td.LUU {border-bottom: 1px solid #FFF; border-right: 1px solid #000; border-top: 1px solid #000; border-left: 1px solid #000; background-color: #666;}
+table.MENU td.LSU {border-bottom: 1px solid #FFF; border-right: 1px solid #000; border-top: 1px solid #000; border-left: 1px solid #FFF; background-color: #666;}
+table.MENU td.LUS {border-bottom: 1px solid #888; border-right: 1px solid #FFF; border-top: 1px solid #FFF; border-left: 1px solid #FFF; background-color: #888;}
+table.MENU td.LSS {border-bottom: 1px solid #888; border-right: 1px solid #FFF; border-top: 1px solid #FFF; border-left: 1px solid #AAA; background-color: #888;}
+
+table.FR {width: 1010px; margin-left:auto; margin-right:auto;}
+table.FR td, table.FR tr.C1 td {background-color: #E8E8E8;}
+table.FR tr.C2 td {background-color: #D6D6D6;}
+table.FR tr:first-child th {background-color: #A0A0A0;}
+table.FR th {background-color: #C0C0C0;}
+table.FR th.SMPROGBAR {width: 102px;}
+table.FR th.PROGBAR {width: 202px;}
+table.FR th.PERC4 {width: 4%;}
+table.FR th.PERC96 {width: 96%;}
+table.FR th.PERC8 {width: 8%;}
+table.FR td.REL {background-color: #D0D0F0;}
+table.FR td.PR {background-color: #7878B8;}
+
+table.CR {width: 1010px; margin-left:auto; margin-right:auto;}
+table.CR td, table.CR tr.C1 td {background-color: #E8E8E8;}
+table.CR tr.C2 td {background-color: #E0E0E0;}
+table.CR tr.C3 td {background-color: #D0D0D0;}
+table.CR tr.C4 td {background-color: #D8D8D8;}
+table.CR tr:first-child th {background-color: #A0A0A0;}
+table.CR th {background-color: #C0C0C0;}
+
+table.BOTMENU {width: 1000px; margin-left:auto; margin-right:auto;}
+
+.smbox {position:relative; border:1px solid #000; width:100px; background:#fff; height:14px;}
+.smbox .progress {background:#0F0; float:left; height:14px;}
+.smbox .value {width:100%; position:absolute; left:0; top:0; text-align:center;}
+
+.box {position:relative; border:1px solid #000; width:200px; background:#fff; height:14px;}
+.box .progress {background:#0F0; float:left; height:14px;}
+.box .value {width:100%; position:absolute; left:0; top:0; text-align:center;}

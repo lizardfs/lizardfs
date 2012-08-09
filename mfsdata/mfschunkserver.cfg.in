@@ -1,0 +1,26 @@
+# WORKING_USER = @DEFAULT_USER@
+# WORKING_GROUP = @DEFAULT_GROUP@
+# SYSLOG_IDENT = mfschunkserver
+# LOCK_MEMORY = 0
+# NICE_LEVEL = -19
+
+# DATA_PATH = @DATA_PATH@
+
+# MASTER_RECONNECTION_DELAY = 5
+
+# BIND_HOST = *
+# MASTER_HOST = mfsmaster
+# MASTER_PORT = 9420
+
+# MASTER_TIMEOUT = 60
+
+# CSSERV_LISTEN_HOST = *
+# CSSERV_LISTEN_PORT = 9422
+
+# HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
+# HDD_TEST_FREQ = 10
+
+# deprecated, to be removed in MooseFS 1.7
+# LOCK_FILE = @RUN_PATH@/mfschunkserver.lock
+# BACK_LOGS = 50
+# CSSERV_TIMEOUT = 5
