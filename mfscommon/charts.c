@@ -50,7 +50,6 @@
 #define YPOS 6
 #define XSIZE (LENG+50)
 #define YSIZE (DATA+20)
-//#define LONGRATIO 6
 
 #define SHORTRANGE 0
 #define MEDIUMRANGE 1
@@ -558,33 +557,9 @@ int charts_import_from_old_4ranges_format(int fd) {
 	if (read(fd,(void*)hdr,sizeof(uint32_t)*21)!=(ssize_t)(sizeof(uint32_t)*21)) {
 		return -1;
 	}
-// hdr[0]:charts
-// hdr[1]:leng
-// hdr[2]:shhour;
-// hdr[3]:shmin;
-// hdr[4]:medhour;
-// hdr[5]:medmin;
-// hdr[6]:lnghalfhour;
-// hdr[7]:lngmday;
-// hdr[8]:lngmonth;
-// hdr[9]:lngyear;
-// hdr[10]:vlngmday;
-// hdr[11]:vlngmonth;
-// hdr[12]:vlngyear;
-// hdr[13]:pointers[SHORTRANGE];
-// hdr[14]:pointers[MEDIUMRANGE];
-// hdr[15]:pointers[LONGRANGE];
-// hdr[16]:pointers[VERYLONGRANGE];
-// hdr[17]:timepoint[SHORTRANGE];
-// hdr[18]:timepoint[MEDIUMRANGE];
-// hdr[19]:timepoint[LONGRANGE];
-// hdr[20]:timepoint[VERYLONGRANGE];
 	fcharts = hdr[0];
 	fleng = hdr[1];
 	timepoint[SHORTRANGE]=hdr[17];
-//	timepoint[MEDIUMRANGE]=hdr[17]/6;
-//	timepoint[LONGRANGE]=hdr[17]/30;
-//	timepoint[VERYLONGRANGE]=hdr[17]/(60*24);
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
 	pointers[LONGRANGE]=LENG-1;
@@ -641,27 +616,9 @@ int charts_import_from_old_3ranges_format(int fd) {
 	if (read(fd,(void*)hdr,sizeof(uint32_t)*15)!=(ssize_t)(sizeof(uint32_t)*15)) {
 		return -1;
 	}
-// hdr[0]:charts
-// hdr[1]:leng
-// hdr[2]:shhour;
-// hdr[3]:shmin;
-// hdr[4]:medhour;
-// hdr[5]:medmin;
-// hdr[6]:vlngmday;
-// hdr[7]:vlngmonth;
-// hdr[8]:vlngyear;
-// hdr[9]:pointers[SHORTRANGE];
-// hdr[10]:pointers[MEDIUMRANGE];
-// hdr[11]:pointers[VERYLONGRANGE];
-// hdr[12]:timepoint[SHORTRANGE];
-// hdr[13]:timepoint[MEDIUMRANGE];
-// hdr[14]:timepoint[VERYLONGRANGE];
 	fcharts = hdr[0];
 	fleng = hdr[1];
 	timepoint[SHORTRANGE]=hdr[12];
-//	timepoint[MEDIUMRANGE]=hdr[12]/6;
-//	timepoint[LONGRANGE]=hdr[12]/30;
-//	timepoint[VERYLONGRANGE]=hdr[12]/(60*24);
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
 	pointers[LONGRANGE]=LENG-1;
@@ -770,9 +727,6 @@ void charts_load(void) {
 	fcharts = get32bit(&ptr);
 	i = get32bit(&ptr);
 	timepoint[SHORTRANGE]=i;
-//	timepoint[MEDIUMRANGE]=i/6;
-//	timepoint[LONGRANGE]=i/30;
-//	timepoint[VERYLONGRANGE]=i/(24*60);
 #else
 	if (read(fd,(void*)hdr,sizeof(uint32_t))!=sizeof(uint32_t)) {
 		mfs_errlog(LOG_WARNING,"error reading charts data file");
@@ -802,9 +756,6 @@ void charts_load(void) {
 	fleng = hdr[0];
 	fcharts = hdr[1];
 	timepoint[SHORTRANGE]=hdr[2];
-//	timepoint[MEDIUMRANGE]=hdr[2]/6;
-//	timepoint[LONGRANGE]=hdr[2]/30;
-//	timepoint[VERYLONGRANGE]=hdr[2]/(24*60);
 #endif
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
@@ -1591,7 +1542,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		}
 	}
 
-//	m = 0;
 	for (i=0 ; i<LENG ; i++) {
 		j = (LENG+1+pointer+i)%LENG;
 		if ((c1dispdata[j]&c2dispdata[j]&c3dispdata[j])==CHARTS_NODATA) {
@@ -1670,7 +1620,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			xbold = 1;
 			xh = shhour;
 		}
-//		k = LENG;
 		for (i=LENG-xoff-1 ; i>=0 ; i-=xs) {
 			if (xh%xbold==0) {
 				ys=2;
@@ -1737,7 +1686,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	} else {
 		xy = lngyear;
 		xm = lngmonth;
-//		k = LENG;
 		for (i=LENG-lngmday ; i>=0 ; ) {
 			text[0]=xm/10;
 			text[1]=xm%10;
@@ -1761,7 +1709,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 				xy--;
 			}
 			i-=getmonleng(xy,xm);
-//			k = i;
 		}
 		text[0]=xm/10;
 		text[1]=xm%10;
@@ -1769,48 +1716,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	}
 	// y scale
 
-/*
-	// range scale
-	if ((CHARTS_IS_DIRECT_STAT(type) && statdefs[type].mode==CHARTS_MODE_ADD) || (CHARTS_IS_EXTENDED_STAT(type) && estatdefs[CHARTS_EXTENDED_POS(type)].mode==CHARTS_MODE_ADD)) {
-		switch (range) {
-			case SHORTRANGE:
-				ymax = max;
-				break;
-			case MEDIUMRANGE:
-				ymax = max/6;
-				break;
-			case LONGRANGE:
-				ymax = max/30;
-				break;
-			case VERYLONGRANGE:
-				ymax = max/(24*60);
-				break;
-			default:
-				ymax=0;
-		}
-	} else {
-		ymax = max;
-	}
-
-	if (CHARTS_IS_DIRECT_STAT(type)) {
-		scale = statdefs[type].scale;
-		ymax *= statdefs[type].multiplier;
-//		ymin *= statdefs[type].multiplier;
-		ymax /= statdefs[type].divisor;
-//		ymin /= statdefs[type].divisor;
-	} else if (CHARTS_IS_EXTENDED_STAT(type)) {
-		scale = estatdefs[CHARTS_EXTENDED_POS(type)].scale;
-		ymax *= estatdefs[CHARTS_EXTENDED_POS(type)].multiplier;
-//		ymin *= estatdefs[CHARTS_EXTENDED_POS(type)].multiplier;
-		ymax /= estatdefs[CHARTS_EXTENDED_POS(type)].divisor;
-//		ymin /= estatdefs[CHARTS_EXTENDED_POS(type)].divisor;
-	}
-*/
-//	for (i=0 ; i<LENG ; i+=2) {
-//		for (j=DATA-20 ; j>=0 ; j-=20) {
-//			chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = 2;
-//		}
-//	}
 	for (i=0 ; i<=5 ; i++) {
 		d = base*i;
 		j=0;

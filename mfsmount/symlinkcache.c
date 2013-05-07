@@ -39,7 +39,6 @@ typedef struct _hashbucket {
 	uint32_t inode[HASH_BUCKET_SIZE];
 	uint32_t time[HASH_BUCKET_SIZE];
 	uint8_t* path[HASH_BUCKET_SIZE];
-//	uint16_t multihit;
 } hashbucket;
 
 static hashbucket *symlinkhash = NULL;

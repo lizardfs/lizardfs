@@ -22,11 +22,6 @@
 #include <inttypes.h>
 
 void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt);
-// void masterconn_replicate_status(uint64_t chunkid,uint32_t version,uint8_t status);
-// void masterconn_send_chunk_damaged(uint64_t chunkid);
-// void masterconn_send_chunk_lost(uint64_t chunkid);
-// void masterconn_send_error_occurred();
-// void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunkcount,uint64_t tdusedspace,uint64_t tdtotalspace,uint32_t tdchunkcount);
 int masterconn_init(void);
 
 #endif

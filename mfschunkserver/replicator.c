@@ -154,7 +154,6 @@ static int rep_read(repsrc *rs) {
 			}
 			return 0;
 		}
-//		stats_bytesin+=i;
 		rs->startptr+=i;
 		rs->bytesleft-=i;
 
@@ -276,7 +275,6 @@ static int rep_write(repsrc *rs) {
 		}
 		return 0;
 	}
-//	stats_bytesin+=i;
 	rs->startptr+=i;
 	rs->bytesleft-=i;
 	return 0;
@@ -702,7 +700,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			if (vbuffs&1) {
 				xcrc = 0;
 			} else {
-				xcrc = MFSCRCEMPTY; // = mycrc32_zeroblock(0,0x10000);
+				xcrc = MFSCRCEMPTY;
 			}
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
@@ -736,10 +734,6 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // receive status
 	for (i=0 ; i<srccnt ; i++) {
 		if (r.repsources[i].blocks>0) {
-//			if (r.repsources[i].packet) {
-//				free(r.repsources[i].packet);
-//				r.repsources[i].packet=NULL;
-//			}
 			r.repsources[i].mode = HEADER;
 			r.repsources[i].startptr = r.repsources[i].hdrbuff;
 			r.repsources[i].bytesleft = 8;

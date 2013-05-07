@@ -153,7 +153,6 @@ typedef struct matoclserventry {
 /* CACHENOTIFY
 	dirincache *cacheddirs;
 */
-//	filelist *openedfiles;
 
 	struct matoclserventry *next;
 } matoclserventry;
@@ -169,7 +168,6 @@ static char *ListenHost;
 static char *ListenPort;
 static uint32_t RejectOld;
 static uint32_t SessionSustainTime;
-//static uint32_t Timeout;
 
 static uint32_t stats_prcvd = 0;
 static uint32_t stats_psent = 0;
@@ -404,7 +402,6 @@ void matoclserv_store_sessions() {
 int matoclserv_load_sessions() {
 	session *asesdata;
 	uint32_t ileng;
-//	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
 	uint8_t hdr[8];
 	uint8_t *fsesrecord;
 	const uint8_t *ptr;
@@ -555,39 +552,6 @@ int matoclserv_load_sessions() {
 	return 1;
 }
 
-/* old registration procedure */
-/*
-session* matoclserv_get_session(uint32_t sessionid) {
-	// if sessionid==0 - create new record with next id
-	session *asesdata;
-
-	if (sessionid>0) {
-		for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
-			if (asesdata->sessionid==sessionid) {
-				asesdata->nsocks++;
-				asesdata->disconnected = 0;
-				return asesdata;
-			}
-		}
-	}
-	asesdata = (session*)malloc(sizeof(session));
-	passert(asesdata);
-	if (sessionid==0) {
-		asesdata->sessionid = fs_newsessionid();
-	} else {
-		asesdata->sessionid = sessionid;
-	}
-	asesdata->openedfiles = NULL;
-	asesdata->disconnected = 0;
-	asesdata->nsocks = 1;
-	memset(asesdata->currentopstats,0,4*SESSION_STATS);
-	memset(asesdata->lasthouropstats,0,4*SESSION_STATS);
-	asesdata->next = sessionshead;
-	sessionshead = asesdata;
-	return asesdata;
-}
-*/
-
 int matoclserv_insert_openfile(session* cr,uint32_t inode) {
 	filelist *ofptr,**ofpptr;
 	int status;
@@ -683,26 +647,11 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
-/*
-int matoclserv_open_check(matoclserventry *eptr,uint32_t fid) {
-	filelist *fl;
-	for (fl=eptr->openedfiles ; fl ; fl=fl->next) {
-		if (fl->fid==fid) {
-			return 0;
-		}
-	}
-	return -1;
-}
-*/
-
 void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint32_t qid,inode,uid,gid,auid,agid;
 	uint64_t fleng;
 	uint8_t type,attr[35];
 	uint32_t version;
-//	uint8_t rstat;
-//	uint32_t ip;
-//	uint16_t port;
 	uint8_t *ptr;
 	uint8_t count;
 	uint8_t loc[100*6];
@@ -769,15 +718,6 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,version);
 		memcpy(ptr,loc,count*6);
-//		for (i=0 ; i<count ; i++) {
-//			if (matocsserv_getlocation(sptr[i],&ip,&port)<0) {
-//				put32bit(&ptr,0);
-//				put16bit(&ptr,0);
-//			} else {
-//				put32bit(&ptr,ip);
-//				put16bit(&ptr,port);
-//			}
-//		}
 		return;
 	case FUSE_TRUNCATE:
 		fs_end_setlength(chunkid);
@@ -858,7 +798,6 @@ void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	put16bit(&ptr,SESSION_STATS);
 	for (eaptr = matoclservhead ; eaptr ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
-//			tcpgetpeer(eaptr->sock,&ip,NULL);
 			put32bit(&ptr,eaptr->sesdata->sessionid);
 			put32bit(&ptr,eaptr->peerip);
 			put32bit(&ptr,eaptr->version);
@@ -949,24 +888,16 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
 	uint32_t chunks,chunkcopies,tdcopies;
 	uint8_t *ptr;
-//#ifdef RUSAGE_SELF
-//	struct rusage r;
-//#endif
 	(void)data;
 	if (length!=0) {
 		syslog(LOG_NOTICE,"CLTOMA_INFO - wrong size (%"PRIu32"/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-//#ifdef RUSAGE_SELF
-//	getrusage(RUSAGE_SELF,&r);
-//	syslog(LOG_NOTICE,"maxrss: %lu",r.ru_maxrss);
-//#endif
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
 	memusage = chartsdata_memusage();
 	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
-	/* put32bit(&buff,VERSION): */
 	put16bit(&ptr,VERSMAJ);
 	put8bit(&ptr,VERSMID);
 	put8bit(&ptr,VERSMIN);
@@ -1278,7 +1209,6 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		}
 		if (sessionid==0) {	// new session
 			status = STATUS_OK; // exports_check(eptr->peerip,(const uint8_t*)"",NULL,NULL,&sesflags);	// check privileges for '/' w/o password
-//			if (status==STATUS_OK) {
 				eptr->sesdata = matoclserv_new_session(0,tools);
 				if (eptr->sesdata==NULL) {
 					syslog(LOG_NOTICE,"can't allocate session record");
@@ -1288,7 +1218,6 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				eptr->sesdata->rootinode = MFS_ROOT_ID;
 				eptr->sesdata->sesflags = 0;
 				eptr->sesdata->peerip = eptr->peerip;
-//			}
 		} else { // reconnect or tools
 			eptr->sesdata = matoclserv_find_session(sessionid);
 			if (eptr->sesdata==NULL) {	// in old model if session doesn't exist then create it
@@ -1598,7 +1527,6 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 	}
 
 	ptr = data;
-//	endptr = ptr + length;
 	ofpptr = &(eptr->sesdata->openedfiles);
 	length >>= 2;
 	if (length) {
@@ -1676,23 +1604,6 @@ static inline void matoclserv_ugid_remap(matoclserventry *eptr,uint32_t *auid,ui
 	}
 }
 
-/*
-static inline void matoclserv_ugid_attr_remap(matoclserventry *eptr,uint8_t attr[35],uint32_t auid,uint32_t agid) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t fuid,fgid;
-	if (auid!=0 && (eptr->sesdata->sesflags&SESFLAG_MAPALL)) {
-		rptr = attr+3;
-		fuid = get32bit(&rptr);
-		fgid = get32bit(&rptr);
-		fuid = (fuid==eptr->sesdata->mapalluid)?auid:0;
-		fgid = (fgid==eptr->sesdata->mapallgid)?agid:0;
-		wptr = attr+3;
-		put32bit(&wptr,fuid);
-		put32bit(&wptr,fgid);
-	}
-}
-*/
 void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t totalspace,availspace,trashspace,reservedspace;
 	uint32_t msgid,inodes;
@@ -2397,8 +2308,6 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 	uint64_t chunkid;
 	uint64_t fleng;
 	uint32_t version;
-//	uint32_t ip;
-//	uint16_t port;
 	uint8_t count;
 	uint8_t loc[100*6];
 	uint32_t msgid;
@@ -2410,11 +2319,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	indx = get32bit(&data);
-//	if (matoclserv_open_check(eptr,inode)<0) {
-//		status = ERROR_NOTOPENED;
-//	} else {
-		status = fs_readchunk(inode,indx,&chunkid,&fleng);
-//	}
+	status = fs_readchunk(inode,indx,&chunkid,&fleng);
 	if (status==STATUS_OK) {
 		if (chunkid>0) {
 			status = chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
@@ -2513,7 +2418,6 @@ void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,const uint8_t *data,u
 	uint64_t fleng;
 	uint64_t chunkid;
 	uint8_t status;
-//	chunklist *cl,**acl;
 	if (length!=24) {
 		syslog(LOG_NOTICE,"CLTOMA_WRITE_CHUNK_END - wrong size (%"PRIu32"/24)",length);
 		eptr->mode = KILL;
@@ -2677,7 +2581,7 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 		}
 		break;
 	}
-//
+
 	if (status==STATUS_OK) {
 		status = fs_settrashtime(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,trashtime,smode,&changed,&notchanged,&notpermitted);
 	}
@@ -2783,7 +2687,6 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		}
 		break;
 	}
-// 
 	if (goal<1 || goal>9) {
 		status = ERROR_EINVAL;
 	}
@@ -3115,34 +3018,6 @@ void matoclserv_fuse_quotacontrol(matoclserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-/*
-void matoclserv_fuse_eattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t mode,eattr,fneattr;
-	uint32_t msgid,inode,uid;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=14) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_EATTR - wrong size (%"PRIu32")",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	uid = get32bit(&data);
-	mode = get8bit(&data);
-	eattr = get8bit(&data);
-	status = fs_eattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,mode,&eattr,&fneattr);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_EATTR,(status!=STATUS_OK)?5:6);
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put8bit(&ptr,eattr);
-		put8bit(&ptr,fneattr);
-	}
-}
-*/
-
 void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inodes,files,dirs,chunks;
 	uint64_t leng,size,rsize;
@@ -3406,7 +3281,6 @@ void matocl_session_check(void) {
 			sesdata = &(asesdata->next);
 		}
 	}
-//	matoclserv_show_notification_dirs();
 }
 
 void matocl_session_statsmove(void) {
@@ -3734,7 +3608,6 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 			case CLTOMA_FUSE_QUOTACONTROL:
 				matoclserv_fuse_quotacontrol(eptr,data,length);
 				break;
-/* ------ */
 			default:
 				syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%"PRIu32")",type);
 				eptr->mode=KILL;
@@ -3918,35 +3791,22 @@ void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		pdesc[pos].events = POLLIN;
 		lsockpdescpos = pos;
 		pos++;
-//		FD_SET(lsock,rset);
-//		max = lsock;
 	} else {
 		lsockpdescpos = -1;
-//		max = -1;
 	}
 	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		pdesc[pos].fd = eptr->sock;
 		pdesc[pos].events = 0;
 		eptr->pdescpos = pos;
-//		i=eptr->sock;
 		if (exiting==0) {
 			pdesc[pos].events |= POLLIN;
-//			FD_SET(i,rset);
-//			if (i>max) {
-//				max=i;
-//			}
 		}
 		if (eptr->outputhead!=NULL) {
 			pdesc[pos].events |= POLLOUT;
-//			FD_SET(i,wset);
-//			if (i>max) {
-//				max=i;
-//			}
 		}
 		pos++;
 	}
 	*ndesc = pos;
-//	return max;
 }
 
 
@@ -3957,7 +3817,6 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	int ns;
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
-//	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
@@ -3992,7 +3851,6 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->cacheddirs = NULL;
 */
 			memset(eptr->passwordrnd,0,32);
-//			eptr->openedfiles = NULL;
 		}
 	}
 

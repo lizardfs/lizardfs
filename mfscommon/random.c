@@ -131,32 +131,3 @@ uint32_t rndu32_ranged(uint32_t range) {
 	}
 	return r%range;
 }
-
-/* test loop:
-int main(int argc,char **argv) {
-	uint32_t x,y,range;
-	uint64_t i;
-	double xmean=0.0,ymean=0.0;
-	double delta;
-	rnd_init();
-	if (argc==2) {
-		range = strtoul(argv[1],NULL,10);
-	} else {
-		range = 3000000000;
-	}
-	i = 1;
-	while (i<100000000) {
-		x = rndu32()%range;
-		y = rndu32_ranged(range);
-		delta = x-xmean;
-		xmean += delta / i;
-		delta = y-ymean;
-		ymean += delta / i;
-		i++;
-		if ((i%1000000)==0) {
-			printf("%.6lf : %.6lf\n",((range/2.0)-0.5-xmean)/range,((range/2.0)-0.5-ymean)/range);
-		}
-	}
-	return 0;
-}
-*/

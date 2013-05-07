@@ -22,8 +22,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-//void masterconn_stats(uint32_t *bin,uint32_t *bout);
-//void masterconn_replicate_status(uint64_t chunkid,uint32_t version,uint8_t status);
 int masterconn_init(void);
 
 #endif

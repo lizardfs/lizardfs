@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+// TODO: wtf?!
 #define BGJOBS 1
 #define BGJOBSCNT 1000
 
@@ -40,7 +41,6 @@
 #include "main.h"
 #include "sockets.h"
 #include "hddspacemgr.h"
-// #include "cstocsconn.h"
 #include "charts.h"
 #include "slogger.h"
 #ifdef BGJOBS
@@ -119,16 +119,6 @@ typedef struct csserventry {
 	uint32_t version;		// R+W
 	uint32_t offset;		// R
 	uint32_t size;			// R
-//	uint8_t *chain;			// W
-//	uint32_t chainleng;		// W
-//	void *conn;			// W
-//	uint64_t wop_chunkid;		// W
-//	uint32_t wop_version;		// W
-//	uint32_t wop_newversion;	// W
-//	uint64_t wop_copychunkid;	// W
-//	uint32_t wop_copyversion;	// W
-//	uint32_t wop_length;		// W
-//	uint32_t blocknum;		// for read operation
 
 	struct csserventry *next;
 } csserventry;
@@ -265,7 +255,6 @@ int csserv_initconnect(csserventry *eptr) {
 		tcpnodelay(eptr->fwdsock);
 		eptr->state=WRITEINIT;
 	} else {
-//		gettimeofday(&(eptr->conninittime),NULL);
 //		syslog(LOG_NOTICE,"connecting ...");
 		eptr->state=CONNECTING;
 		eptr->connstart=main_utime();
@@ -674,8 +663,7 @@ void csserv_fwderror(csserventry *eptr) {
 	eptr->state = WRITEFINISH;
 }
 
-#endif
-#if 0 /* not BGJOBS (#else) */
+#else /* not BGJOBS */
 
 // fg reading
 
@@ -858,7 +846,6 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
 		put8bit(&ptr,STATUS_OK);
-// createpacket(CSTOCL_WRITE_STATUS,STATUS_OK)
 	}
 }
 
@@ -1429,7 +1416,6 @@ void csserv_fwdwrite(csserventry *eptr) {
 		free(eptr->fwdinitpacket);
 		eptr->fwdinitpacket = NULL;
 		eptr->fwdstartptr = NULL;
-//		eptr->fwdbytesleft = 0;
 		eptr->fwdmode = HEADER;
 		eptr->fwdinputpacket.bytesleft = 8;
 		eptr->fwdinputpacket.startptr = eptr->fwdhdrbuff;
@@ -1665,23 +1651,17 @@ void csserv_write(csserventry *eptr) {
 
 void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	uint32_t pos = *ndesc;
-//	int max=lsock;
 	csserventry *eptr;
-//	int i;
 	pdesc[pos].fd = lsock;
 	pdesc[pos].events = POLLIN;
 	lsockpdescpos = pos;
 	pos++;
-//	FD_SET(lsock,rset);
 #ifdef BGJOBS
 	pdesc[pos].fd = jobfd;
 	pdesc[pos].events = POLLIN;
 	jobfdpdescpos = pos;
 	pos++;
-//	FD_SET(jobfd,rset);
-//	if (jobfd>max) {
-//		max=jobfd;
-//	}
+
 #endif
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
 		eptr->pdescpos = -1;
@@ -1693,20 +1673,11 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 				pdesc[pos].fd = eptr->sock;
 				pdesc[pos].events = 0;
 				eptr->pdescpos = pos;
-//				i=eptr->sock;
 				if (eptr->inputpacket.bytesleft>0) {
 					pdesc[pos].events |= POLLIN;
-//					FD_SET(i,rset);
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				if (eptr->outputhead!=NULL) {
 					pdesc[pos].events |= POLLOUT;
-//					FD_SET(i,wset);
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				pos++;
 				break;
@@ -1715,11 +1686,6 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 				pdesc[pos].events = POLLOUT;
 				eptr->fwdpdescpos = pos;
 				pos++;
-//				i=eptr->fwdsock;
-//				FD_SET(i,wset);
-//				if (i>max) {
-//					max=i;
-//				}
 				break;
 			case WRITEINIT:
 				if (eptr->fwdbytesleft>0) {
@@ -1727,45 +1693,25 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 					pdesc[pos].events = POLLOUT;
 					eptr->fwdpdescpos = pos;
 					pos++;
-//					i=eptr->fwdsock;
-//					FD_SET(i,wset);
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				break;
 			case WRITEFWD:
 				pdesc[pos].fd = eptr->fwdsock;
 				pdesc[pos].events = POLLIN;
 				eptr->fwdpdescpos = pos;
-//				i=eptr->fwdsock;
-//				FD_SET(i,rset); // fwdsock
-//				if (i>max) {
-//					max=i;
-//				}
 				if (eptr->fwdbytesleft>0) {
 					pdesc[pos].events |= POLLOUT;
-//					FD_SET(i,wset);	// fwdsock
 				}
 				pos++;
 
 				pdesc[pos].fd = eptr->sock;
 				pdesc[pos].events = 0;
 				eptr->pdescpos = pos;
-//				i=eptr->sock;
 				if (eptr->inputpacket.bytesleft>0) {
 					pdesc[pos].events |= POLLIN;
-//					FD_SET(i,rset); // sock
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				if (eptr->outputhead!=NULL) {
 					pdesc[pos].events |= POLLOUT;
-//					FD_SET(i,wset); // sock
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				pos++;
 				break;
@@ -1775,17 +1721,11 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 					pdesc[pos].events = POLLOUT;
 					eptr->pdescpos = pos;
 					pos++;
-//					i=eptr->sock;
-//					FD_SET(i,wset);
-//					if (i>max) {
-//						max=i;
-//					}
 				}
 				break;
 		}
 	}
 	*ndesc = pos;
-//	return max;
 }
 
 void csserv_serve(struct pollfd *pdesc) {
@@ -1801,7 +1741,6 @@ void csserv_serve(struct pollfd *pdesc) {
 	uint8_t lstate;
 
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
-//	if (FD_ISSET(lsock,rset)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"accept error");
@@ -1852,7 +1791,6 @@ void csserv_serve(struct pollfd *pdesc) {
 	}
 #ifdef BGJOBS
 	if (jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) {
-//	if (FD_ISSET(jobfd,rset)) {
 		job_pool_check_jobs(jpool);
 	}
 #endif
@@ -1865,12 +1803,10 @@ void csserv_serve(struct pollfd *pdesc) {
 		lstate = eptr->state;
 		if (lstate==IDLE || lstate==READ || lstate==WRITELAST || lstate==WRITEFINISH) {
 			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
-//			if (FD_ISSET(eptr->sock,rset)) {
 				eptr->activity = now;
 				csserv_read(eptr);
 			}
 			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
-//			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}
@@ -1891,17 +1827,14 @@ void csserv_serve(struct pollfd *pdesc) {
 			}
 		} else if (eptr->state==WRITEFWD) {
 			if ((eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) || (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT))) {
-//			if (FD_ISSET(eptr->fwdsock,wset) || FD_ISSET(eptr->sock,rset)) {
 				eptr->activity = now;
 				csserv_forward(eptr);
 			}
 			if (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLIN) && eptr->state==lstate) {
-//			if (FD_ISSET(eptr->fwdsock,rset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_fwdread(eptr);
 			}
 			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
-//			if (FD_ISSET(eptr->sock,wset) && eptr->state==lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}

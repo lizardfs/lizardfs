@@ -22,45 +22,6 @@
 #include <stdlib.h>
 #include "MFSCommunication.h"
 
-/* original crc32 code
-uint32_t* crc32_generate(void) {
-	uint32_t *res;
-	uint32_t crc, poly, i, j;
-
-	res = (uint32_t*)malloc(sizeof(uint32_t)*256);
-	poly = CRC_POLY;
-	for (i=0 ; i<256 ; i++) {
-		crc=i;
-		for (j=0 ; j<8 ; j++) {
-			if (crc & 1) {
-				crc = (crc >> 1) ^ poly;
-			} else {
-				crc >>= 1;
-			}
-		}
-		res[i] = crc;
-	}
-	return res;
-}
-
-uint32_t crc32(uint32_t crc,uint8_t *block,uint32_t leng) {
-	uint8_t c;
-	static uint32_t *crc_table = NULL;
-
-	if (crc_table==NULL) {
-		crc_table = crc32_generate();
-	}
-
-	crc^=0xFFFFFFFF;
-	while (leng>0) {
-		c = *block++;
-		leng--;
-		crc = ((crc>>8) & 0x00FFFFFF) ^ crc_table[ (crc^c) & 0xFF ];
-	}
-	return crc^0xFFFFFFFF;
-}
-*/
-
 #define FASTCRC 1
 
 #ifdef FASTCRC
@@ -114,19 +75,6 @@ void crc_generate_main_tables(void) {
 		c = crc_table[0][c&0xff]^(c>>8);
 		crc_table[3][i] = c;
 #endif
-/*
-		c = crc_table[0][i];
-		crc_table[4][i] = BYTEREV(c);
-		c = crc_table[0][c&0xff]^(c>>8);
-		crc_table[1][i] = c;
-		crc_table[5][i] = BYTEREV(c);
-		c = crc_table[0][c&0xff]^(c>>8);
-		crc_table[2][i] = c;
-		crc_table[6][i] = BYTEREV(c);
-		c = crc_table[0][c&0xff]^(c>>8);
-		crc_table[3][i] = c;
-		crc_table[7][i] = BYTEREV(c);
-*/
 	}
 #endif
 }

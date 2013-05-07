@@ -23,8 +23,6 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <inttypes.h>
-//#include <fcntl.h>
-//#include <sys/ioctl.h>
 #include <limits.h>
 #include <pthread.h>
 #include <errno.h>
@@ -221,7 +219,6 @@ void* job_worker(void *th_arg) {
 }
 
 static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callback)(uint8_t status,void *extra),void *extra) {
-//	jobpool* jp = (jobpool*)jpool;
 	uint32_t jobid = jp->nextjobid;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;

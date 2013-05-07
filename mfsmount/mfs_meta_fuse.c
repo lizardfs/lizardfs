@@ -40,10 +40,6 @@
 
 #define READDIR_BUFFSIZE 50000
 
-//typedef struct _minfo {
-//	int sd;
-//	int sent;
-//} minfo;
 typedef struct _dirbuf {
 	int wasread;
 	uint8_t *p;
@@ -83,13 +79,6 @@ typedef struct _pathbuf {
 #define INODE_TYPE_RESERVED 0x40000000
 #define INODE_TYPE_SPECIAL 0x00000000
 
-// standard fs - inode(.master)=0x7FFFFFFF / inode(.masterinfo)=0x7FFFFFFE
-// meta fs - inode(.master)=0x7FFFFFFE / inode(.masterinfo)=0x7FFFFFFF
-//#define MASTER_NAME ".master"
-//#define MASTER_INODE 0x7FFFFFFE
-// 0x01b6 = 0666
-//static uint8_t masterattr[35]={'f', 0x01,0xB6, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
-
 #define MASTERINFO_NAME ".masterinfo"
 #define MASTERINFO_INODE 0x7FFFFFFE
 // 0x0124 = 0444
@@ -98,10 +87,6 @@ static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,
 #else
 static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10};
 #endif
-
-// info - todo
-//#define META_INFO_INODE 0x7FFFFFFD
-//#define META_INFO_NAME "info"
 
 #define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
 
@@ -215,14 +200,6 @@ static void mfs_meta_stat(uint32_t inode, struct stat *stbuf) {
 	stbuf->st_ctime = now;
 }
 
-/*
-static void mfs_inode_to_stat(uint32_t inode, struct stat *stbuf) {
-	memset(stbuf,0,sizeof(struct stat));
-	stbuf->st_ino = inode;
-	stbuf->st_mode = S_IFREG;
-}
-*/
-
 static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf) {
 	uint16_t attrmode;
 	uint8_t attrtype;
@@ -283,39 +260,9 @@ void mfs_meta_statfs(fuse_req_t req) {
 	fuse_reply_statfs(req,&stfsbuf);
 }
 
-/*
-void mfs_meta_access(fuse_req_t req, fuse_ino_t ino, int mask) {
-	const struct fuse_ctx *ctx;
-	ctx = fuse_req_ctx(req);
-	switch (ino) {
-		case FUSE_ROOT_ID:
-			if (mask & W_OK) {
-				fuse_reply_err(req,EACCES);
-				return;
-			}
-			break;
-		case META_TRASH_INODE:
-			if (mask & W_OK && ctx->uid!=0) {
-				fuse_reply_err(req,EACCES);
-				return;
-			}
-			break;
-		case META_UNDEL_INODE:
-			if (mask & (R_OK|X_OK)) {
-				fuse_reply_err(req,EACCES);
-				return;
-			}
-			break;
-	}
-	fuse_reply_err(req,0);
-}
-*/
-
 void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	struct fuse_entry_param e;
 	uint32_t inode;
-//	const struct fuse_ctx *ctx;
-//	ctx = fuse_req_ctx(req);
 	memset(&e, 0, sizeof(e));
 	inode = 0;
 	switch (parent) {
@@ -326,14 +273,6 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			inode = META_TRASH_INODE;
 		} else if (strcmp(name,META_RESERVED_NAME)==0) {
 			inode = META_RESERVED_INODE;
-//		} else if (strcmp(name,MASTER_NAME)==0) {
-//			memset(&e, 0, sizeof(e));
-//			e.ino = MASTER_INODE;
-//			e.attr_timeout = 3600.0;
-//			e.entry_timeout = 3600.0;
-//			mfs_attr_to_stat(MASTER_INODE,masterattr,&e.attr);
-//			fuse_reply_entry(req, &e);
-//			return ;
 		} else if (strcmp(name,MASTERINFO_NAME)==0) {
 			memset(&e, 0, sizeof(e));
 			e.ino = MASTERINFO_INODE;
@@ -418,11 +357,6 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	struct stat o_stbuf;
 	(void)fi;
-//	if (ino==MASTER_INODE) {
-//		memset(&o_stbuf, 0, sizeof(struct stat));
-//		mfs_attr_to_stat(ino,masterattr,&o_stbuf);
-//		fuse_reply_attr(req, &o_stbuf, 3600.0);
-//	} else
 	if (ino==MASTERINFO_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,masterinfoattr,&o_stbuf);
@@ -480,11 +414,7 @@ void mfs_meta_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 	status = fs_purge(inode);
 	status = mfs_errorconv(status);
-//	if (status!=0) {
 	fuse_reply_err(req, status);
-//	} else {
-//		fuse_reply_err(req,0);
-//	}
 }
 
 void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname) {
@@ -502,33 +432,8 @@ void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_i
 	}
 	status = fs_undel(inode);
 	status = mfs_errorconv(status);
-//	if (status!=0) {
 	fuse_reply_err(req, status);
-//	} else {
-//		fuse_reply_err(req,0);
-//	}
 }
-
-/*
-static void dirbuf_add(dirbuf *b, const char *name, fuse_ino_t ino, uint8_t attr[32]) {
-	struct stat stbuf;
-	size_t oldsize = b->size;
-	b->size += fuse_dirent_size(strlen(name));
-	b->p = (char *) realloc(b->p, b->size);
-	mfs_attr_to_stat(ino,attr,&stbuf);
-	fuse_add_dirent(b->p + oldsize, name, &stbuf, b->size);
-}
-
-static void dirbuf_meta_add(dirbuf *b, const char *name, fuse_ino_t ino) {
-	struct stat stbuf;
-	size_t oldsize = b->size;
-	b->size += fuse_dirent_size(strlen(name));
-	b->p = (char *) realloc(b->p, b->size);
-	memset(&stbuf,0,sizeof(struct stat));
-	mfs_meta_stat(ino,&stbuf);
-	fuse_add_dirent(b->p + oldsize, name, &stbuf, b->size);
-}
-*/
 
 static uint32_t dir_metaentries_size(uint32_t ino) {
 	switch (ino) {
@@ -825,27 +730,7 @@ void mfs_meta_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *
 void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	pathbuf *pathinfo;
 	const uint8_t *path;
-	//size_t pleng;
 	int status;
-//	if (ino==MASTER_INODE) {
-//		minfo *masterinfo;
-//		status = fs_direct_connect();
-//		if (status<0) {
-//			fuse_reply_err(req,EIO);
-//			return;
-//		}
-//		masterinfo = malloc(sizeof(minfo));
-//		if (masterinfo==NULL) {
-//			fuse_reply_err(req,ENOMEM);
-//			return;
-//		}
-//		masterinfo->sd = status;
-//		masterinfo->sent = 0;
-//		fi->direct_io = 1;
-//		fi->fh = (unsigned long)masterinfo;
-//		fuse_reply_open(req, fi);
-//		return;
-//	}
 	if (ino==MASTERINFO_INODE) {
 		fi->fh = 0;
 		fi->direct_io = 0;
@@ -885,15 +770,6 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		fuse_reply_err(req,0);
 		return;
 	}
-//	if (ino==MASTER_INODE) {
-//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-//		if (masterinfo!=NULL) {
-//			fs_direct_close(masterinfo->sd);
-//			free(masterinfo);
-//		}
-//		fuse_reply_err(req,0);
-//		return;
-//	}
 	pathbuf *pathinfo = (pathbuf *)((unsigned long)(fi->fh));
 	pthread_mutex_lock(&(pathinfo->lock));
 	if (pathinfo->changed) {
@@ -939,22 +815,6 @@ void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struc
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-//	if (ino==MASTER_INODE) {
-//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-//		if (masterinfo->sent) {
-//			int rsize;
-//			uint8_t *buff;
-//			buff = malloc(size);
-//			rsize = fs_direct_read(masterinfo->sd,buff,size);
-//			fuse_reply_buf(req,(char*)buff,rsize);
-			//syslog(LOG_WARNING,"master received: %d/%u",rsize,size);
-//			free(buff);
-//		} else {
-//			syslog(LOG_WARNING,"master: read before write");
-//			fuse_reply_buf(req,NULL,0);
-//		}
-//		return;
-//	}
 	pthread_mutex_lock(&(pathinfo->lock));
 	if (off<0) {
 		pthread_mutex_unlock(&(pathinfo->lock));
@@ -981,15 +841,6 @@ void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size
 		fuse_reply_err(req,EBADF);
 		return;
 	}
-//	if (ino==MASTER_INODE) {
-//		minfo *masterinfo = (minfo*)(unsigned long)(fi->fh);
-//		int wsize;
-//		masterinfo->sent=1;
-//		wsize = fs_direct_write(masterinfo->sd,(const uint8_t*)buf,size);
-		//syslog(LOG_WARNING,"master sent: %d/%u",wsize,size);
-//		fuse_reply_write(req,wsize);
-//		return;
-//	}
 	if (off + size > PATH_SIZE_LIMIT) {
 		fuse_reply_err(req,EINVAL);
 		return;

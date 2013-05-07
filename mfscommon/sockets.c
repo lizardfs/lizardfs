@@ -352,34 +352,6 @@ int tcpclose(int sock) {
 	return close(sock);
 }
 
-/*
-int32_t tcpread(int sock,void *buff,uint32_t leng) {
-	uint32_t rcvd=0;
-	int i;
-	while (rcvd<leng) {
-		i = read(sock,((uint8_t*)buff)+rcvd,leng-rcvd);
-		if (i<=0) {
-			return i;
-		}
-		rcvd+=i;
-	}
-	return rcvd;
-}
-
-int32_t tcpwrite(int sock,const void *buff,uint32_t leng) {
-	uint32_t sent=0;
-	int i;
-	while (sent<leng) {
-		i = write(sock,((const uint8_t*)buff)+sent,leng-sent);
-		if (i<=0) {
-			return i;
-		}
-		sent+=i;
-	}
-	return sent;
-}
-*/
-
 int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto) {
 	uint32_t rcvd=0;
 	int i;

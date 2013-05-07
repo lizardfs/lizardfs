@@ -21,8 +21,6 @@
 
 #include <fuse_lowlevel.h>
 
-// int mfs_rootnode_setup(char *path);
-
 #if FUSE_USE_VERSION >= 26
 void mfs_statfs(fuse_req_t req, fuse_ino_t ino);
 #else
@@ -59,11 +57,6 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 #endif /* __APPLE__ */
 void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name);
-#if FUSE_USE_VERSION >= 26
-//void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock);
-//void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl);
-#endif
 void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in);
-// void mfs_init(int debug_mode_in,int keep_cache_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
 
 #endif

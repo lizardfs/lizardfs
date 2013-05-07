@@ -176,48 +176,6 @@ void dcache_release(void *r) {
 	free(d);
 }
 
-/*
-static inline uint8_t dcache_namesearch(const uint8_t *dbuff,uint32_t dsize,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
-	const uint8_t *ptr,*eptr;
-	uint8_t enleng;
-	ptr = dbuff;
-	eptr = dbuff+dsize;
-	while (ptr<eptr) {
-		enleng = *ptr;
-		if (ptr+enleng+40<=eptr && enleng==nleng && memcmp(ptr+1,name,enleng)==0) {
-			ptr+=1+enleng;
-			*inode = get32bit(&ptr);
-			memcpy(attr,ptr,35);
-			return 1;
-		}
-		ptr+=enleng+40;
-	}
-	return 0;
-}
-
-static inline uint8_t dcache_inodesearch(const uint8_t *dbuff,uint32_t dsize,uint32_t inode,uint8_t attr[35]) {
-	const uint8_t *ptr,*eptr;
-	uint8_t enleng;
-	ptr = dbuff;
-	eptr = dbuff+dsize;
-	while (ptr<eptr) {
-		enleng = *ptr;
-		if (ptr+enleng+40<=eptr) {
-			ptr+=1+enleng;
-			if (inode==get32bit(&ptr)) {
-				memcpy(attr,ptr,35);
-				return 1;
-			} else {
-				ptr+=35;
-			}
-		} else {
-			return 0;
-		}
-	}
-	return 0;
-}
-*/
-
 static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
 	uint32_t hash,disp,hashmask;
 	const uint8_t *ptr;

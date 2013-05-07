@@ -180,36 +180,3 @@ void stats_term(void) {
 		free(a);
 	}
 }
-
-/*
-#ifdef TEST
-int main(void) {
-	void *n1,*n2,*n3;
-	uint64_t *s;
-
-	uint8_t *b;
-	uint32_t l;
-
-	n1 = stats_get_subnode(NULL,"ala");
-	s = stats_get_counterptr(n1);
-	(*s) += 200;
-	n2 = stats_get_subnode(n1,"ma");
-	n3 = stats_get_subnode(n2,"kota");
-	s = stats_get_counterptr(n3);
-	(*s) += 15;
-	n3 = stats_get_subnode(n2,"psa");
-	s = stats_get_counterptr(n3);
-	(*s) = 10;
-	n1 = stats_get_subnode(NULL,"krowa");
-	n1 = stats_get_subnode(NULL,"pikus");
-	n2 = stats_get_subnode(n1,"barbapapa");
-	s = stats_get_counterptr(n3);
-	(*s) = 0xFFFFFFFFFFFFFFFFULL;
-
-	stats_show_all(&b,&l);
-	b[l]=0;
-	printf("%s",b);
-	return 0;
-}
-*/
-

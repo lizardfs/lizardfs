@@ -50,7 +50,6 @@
 #include "masterproxy.h"
 #include "chunkloccache.h"
 #include "symlinkcache.h"
-//#include "dircache.h"
 #include "readdata.h"
 #include "writedata.h"
 #include "csdb.h"
@@ -85,7 +84,6 @@ static struct fuse_lowlevel_ops mfs_meta_oper = {
 	.release	= mfs_meta_release,
 	.read		= mfs_meta_read,
 	.write		= mfs_meta_write,
-//	.access		= mfs_meta_access
 };
 
 static struct fuse_lowlevel_ops mfs_oper = {
@@ -117,10 +115,6 @@ static struct fuse_lowlevel_ops mfs_oper = {
 	.setxattr       = mfs_setxattr,
 	.listxattr      = mfs_listxattr,
 	.removexattr    = mfs_removexattr,
-#if FUSE_VERSION >= 26
-//	.getlk		= mfs_getlk,
-//	.setlk		= mfs_setlk,
-#endif
 };
 
 struct mfsopts {
@@ -263,7 +257,6 @@ static void usage(const char *progname) {
 #endif
 "    -o mfscachemode=CMODE       set cache mode (see below ; default: AUTO)\n"
 "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
-// "    -o mfscachefiles            allow files data to be kept in cache (dangerous in network environment)\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
@@ -336,7 +329,6 @@ static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse
 				p++;
 			}
 			if (*p) {
-//				printf("add option: %s\n",p);
 				if (*p=='-') {
 					fuse_opt_add_arg(outargs,p);
 				} else if (*p=='/') {
@@ -573,14 +565,12 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 	chunkloc_cache_init();
 	symlink_cache_init();
-//	dir_cache_init();
 	fs_init_threads(mfsopts.ioretries);
 	masterproxy_init();
 
 	if (mfsopts.meta==0) {
 		csdb_init();
 		read_data_init(mfsopts.ioretries);
-//		write_data_init();
 		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
 	}
 
@@ -600,7 +590,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 		masterproxy_term();
 		fs_term();
-//		dir_cache_term();
 		symlink_cache_term();
 		chunkloc_cache_term();
 		return 1;
@@ -630,13 +619,11 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 		masterproxy_term();
 		fs_term();
-//		dir_cache_term();
 		symlink_cache_term();
 		chunkloc_cache_term();
 		return 1;
 	}
 
-//	fprintf(stderr,"check\n");
 	fuse_session_add_chan(se, ch);
 
 	if (fuse_set_signal_handlers(se)<0) {
@@ -657,7 +644,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 		masterproxy_term();
 		fs_term();
-//		dir_cache_term();
 		symlink_cache_term();
 		chunkloc_cache_term();
 		return 1;
@@ -698,7 +684,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 	masterproxy_term();
 	fs_term();
-//	dir_cache_term();
 	symlink_cache_term();
 	chunkloc_cache_term();
 	return err ? 1 : 0;
@@ -830,15 +815,6 @@ void make_fsname(struct fuse_args *args) {
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
 
-/*
-void dump_args(const char *prfx,struct fuse_args *args) {
-	int i;
-	for (i=0 ; i<args->argc ; i++) {
-		printf("%s [%d]: %s\n",prfx,i,args->argv[i]);
-	}
-}
-*/
-
 int main(int argc, char *argv[]) {
 	int res;
 	int mt,fg;
@@ -882,8 +858,6 @@ int main(int argc, char *argv[]) {
 
 	custom_cfg = 0;
 
-//	dump_args("input_args",&args);
-
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 
 	if (fuse_opt_parse(&args, &defaultargs, mfs_opts_stage1, mfs_opt_proc_stage1)<0) {
@@ -909,9 +883,6 @@ int main(int argc, char *argv[]) {
 		free(cfgfile);
 	}
 
-//	dump_args("parsed_defaults",&defaultargs);
-//	dump_args("changed_args",&args);
-
 	if (fuse_opt_parse(&defaultargs, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
@@ -919,8 +890,6 @@ int main(int argc, char *argv[]) {
 	if (fuse_opt_parse(&args, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
-
-//	dump_args("args_after_parse",&args);
 
 	if (mfsopts.cachemode!=NULL && mfsopts.cachefiles) {
 		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);

@@ -37,46 +37,7 @@
 static void *racktree;
 static char *TopologyFileName;
 
-/* hash is much faster than itree, but it is hard to define ip classes in hash tab
-
-#define HASHSIZE 199
-
-static uint32_t hashtab_ip[HASHSIZE];
-static uint32_t hashtab_rid[HASHSIZE];
-
-void hash_clear(void) {
-	memset(hashtab_ip,0,sizeof(uint32_t)*HASHSIZE);
-	memset(hashtab_rid,0,sizeof(uint32_t)*HASHSIZE);
-}
-
-void hash_insert(uint32_t ip,uint32_t rid) {
-	uint32_t hash = ip%HASHSIZE;
-	uint32_t disp = (ip%(HASHSIZE-2))+1;
-	while (hashtab_ip[hash]!=0) {
-		if (hashtab_ip[hash]==ip) {
-			hashtab_rid[hash]=rid;
-			return;
-		}
-		hash += disp;
-		hash %= HASHSIZE;
-	}
-	hashtab_ip[hash] = ip;
-	hashtab_rid[hash] = rid;
-}
-
-uint32_t hash_find(uint32_t ip) {
-	uint32_t hash = ip%HASHSIZE;
-	uint32_t disp = (ip%(HASHSIZE-2))+1;
-	while (hashtab_ip[hash]!=0) {
-		if (hashtab_ip[hash]==ip) {
-			return hashtab_rid[hash];
-		}
-		hash += disp;
-		hash %= HASHSIZE;
-	}
-	return 0;
-}
-*/
+// hash is much faster than itree, but it is hard to define ip classes in hash tab
 
 int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	uint32_t ip,i,octet;
@@ -202,19 +163,8 @@ uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
 	if (ip1==ip2) {
 		return 0;
 	}
-//	rid1 = hash_find(ip1);
-//	rid2 = hash_find(ip2);
 	rid1 = itree_find(racktree,ip1);
 	rid2 = itree_find(racktree,ip2);
-//	rid1^=rid2;
-//	rid2=0;
-//	while(rid1) {
-//		if (rid1&1) {
-//			rid2++;
-//		}
-//		rid1>>=1;
-//	}
-//	return rid2;
 	return (rid1==rid2)?1:2;
 }
 
@@ -436,16 +386,11 @@ void topology_load(void) {
 		return;
 	}
 
-//	hash_clear();
 	newtree = NULL;
 	lineno = 1;
 	while (fgets(linebuff,10000,fd)) {
 		if (topology_parseline(linebuff,lineno,&fip,&tip,&rid)>=0) {
 			newtree = itree_add_interval(newtree,fip,tip,rid);
-//			while (fip<=tip) {
-//				hash_insert(fip,rid);
-//				fip++;
-//			}
 		}
 		lineno++;
 	}
@@ -468,14 +413,6 @@ void topology_load(void) {
 	}
 	mfs_syslog(LOG_NOTICE,"topology file has been loaded");
 }
-
-//int topology_init(void) {
-//	TopologyFileName = strdup("mfstopology.cfg");
-//	racktree = NULL;
-//	topology_load();
-//	itree_show(racktree);
-//	return 0;
-//}
 
 void topology_reload(void) {
 	int fd;

@@ -377,30 +377,6 @@ void dirname_inplace(char *path) {
 	}
 }
 
-/*
-int32_t socket_read(int sock,void *buff,uint32_t leng) {
-	uint32_t rcvd=0;
-	int i;
-	while (rcvd<leng) {
-		i = read(sock,((uint8_t*)buff)+rcvd,leng-rcvd);
-		if (i<=0) return i;
-		rcvd+=i;
-	}
-	return rcvd;
-}
-
-int32_t socket_write(int sock,void *buff,uint32_t leng) {
-	uint32_t sent=0;
-	int i;
-	while (sent<leng) {
-		i = write(sock,((uint8_t*)buff)+sent,leng-sent);
-		if (i<=0) return i;
-		sent+=i;
-	}
-	return sent;
-}
-*/
-
 int master_register_old(int rfd) {
 	uint32_t i;
 	const uint8_t *rptr;
@@ -502,7 +478,6 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		printf("%s: realpath error on (%s): %s\n",name,rpath,strerr(errno));
 		return -1;
 	}
-//	p = rpath;
 	if (needrwfs) {
 		if (statvfs(rpath,&stvfsb)!=0) {
 			printf("%s: (%s) statvfs error: %s\n",name,rpath,strerr(errno));
@@ -635,11 +610,6 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 			return -1;
 		}
 		dirname_inplace(rpath);
-//		if (bsd_dirname(rpath,apath)<0) {
-//			printf("%s: (%s) dirname error\n",name,rpath);
-//		}
-//		strcpy(rpath,apath);
-//		p=rpath;
 		if (lstat(rpath,&stb)!=0) {
 			printf("%s: (%s) lstat error: %s\n",name,rpath,strerr(errno));
 			return -1;
@@ -658,129 +628,6 @@ void close_master_conn(int err) {
 		current_device = 0;
 	}
 }
-
-/*
-int open_master_conn(const char *name,uint32_t *inode) {
-	char rpath[PATH_MAX],*p;
-	struct stat stb;
-	int sd;
-	if (realpath(name,rpath)==NULL) {
-		printf("%s: realpath error\n",name);
-		return -1;
-	}
-	p = rpath;
-	if (lstat(p,&stb)!=0) {
-		printf("%s: (%s) lstat error\n",name,p);
-		return -1;
-	}
-	*inode = stb.st_ino;
-	for(;;) {
-		if (stb.st_ino==1) {	// found fuse root
-			p = strcat(p,"/.master");
-			if (lstat(p,&stb)==0) {
-				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
-					if (stb.st_ino==0x7FFFFFFE) {	// meta master
-						if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-							printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
-							return -1;
-						}
-						(*inode)&=INODE_VALUE_MASK;
-					}
-					sd = open(p,O_RDWR);
-					if (master_register(sd)<0) {
-						printf("%s: can't register to master\n",name);
-						return -1;
-					}
-					return sd;
-				}
-			}
-			printf("%s: not MFS object\n",name);
-			return -1;
-		}
-		if (p[0]!='/' || p[1]=='\0') {
-			printf("%s: not MFS object\n",name);
-			return -1;
-		}
-		p = dirname(p);
-		if (lstat(p,&stb)!=0) {
-			printf("%s: (%s) lstat error\n",name,p);
-			return -1;
-		}
-	}
-	return -1;
-}
-
-int open_two_files_master_conn(const char *fname,const char *sname,uint32_t *finode,uint32_t *sinode) {
-	char frpath[PATH_MAX];
-	char srpath[PATH_MAX];
-	int i;
-	char *p;
-	struct stat stb;
-	int sd;
-	if (realpath(fname,frpath)==NULL) {
-		printf("%s: realpath error\n",fname);
-		return -1;
-	}
-	if (realpath(sname,srpath)==NULL) {
-		printf("%s: realpath error\n",sname);
-		return -1;
-	}
-	if (lstat(frpath,&stb)!=0) {
-		printf("%s: (%s) lstat error\n",fname,frpath);
-		return -1;
-	}
-	*finode = stb.st_ino;
-	if (lstat(srpath,&stb)!=0) {
-		printf("%s: (%s) lstat error\n",sname,srpath);
-		return -1;
-	}
-	*sinode = stb.st_ino;
-
-	for (i=0 ; i<PATH_MAX && frpath[i]==srpath[i] ; i++) {}
-	frpath[i]='\0';
-	p = dirname(frpath);
-	if (lstat(p,&stb)!=0) {
-		printf("%s: lstat error\n",p);
-		return -1;
-	}
-	for(;;) {
-		if (stb.st_ino==1) {	// found fuse root
-			p = strcat(p,"/.master");
-			if (lstat(p,&stb)==0) {
-				if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
-					if (stb.st_ino==0x7FFFFFFE) {	// meta master
-						if ((((*finode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*finode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) \
-						 || (((*sinode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*sinode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED)) {
-							printf("%s,%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",fname,sname);
-							return -1;
-						}
-						(*finode)&=INODE_VALUE_MASK;
-						(*sinode)&=INODE_VALUE_MASK;
-					}
-					sd = open(p,O_RDWR);
-					if (master_register(sd)<0) {
-						printf("%s,%s: can't register to master\n",fname,sname);
-						return -1;
-					}
-					return sd;
-				}
-			}
-			printf("%s,%s: not same MFS objects\n",fname,sname);
-			return -1;
-		}
-		if (p[0]!='/' || p[1]=='\0') {
-			printf("%s,%s: not same MFS objects\n",fname,sname);
-			return -1;
-		}
-		p = dirname(p);
-		if (lstat(p,&stb)!=0) {
-			printf("%s: lstat error\n",p);
-			return -1;
-		}
-	}
-	return -1;
-}
-*/
 
 int check_file(const char* fname) {
 	uint8_t reqbuff[16],*wptr,*buff;
@@ -1215,20 +1062,6 @@ int get_eattr(const char *fname,uint8_t mode) {
 				}
 			}
 		}
-/*
-		for (i=0 ; i<fn ; i++) {
-			eattr = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" files with eattr        %"PRIX8" :",eattr);
-			print_number(" ","\n",cnt,0,1);
-		}
-		for (i=0 ; i<dn ; i++) {
-			eattr = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" directories with eattr  %"PRIX8" :",eattr);
-			print_number(" ","\n",cnt,0,1);
-		}
-*/
 	}
 	free(buff);
 	return 0;
@@ -1831,104 +1664,6 @@ int file_repair(const char *fname) {
 	return 0;
 }
 
-/*
-int eattr_control(const char *fname,uint8_t mode,uint8_t eattr) {
-	uint8_t reqbuff[22],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode;
-	uint8_t nodeeattr,functioneattr;
-//	uint32_t curinodes;
-//	uint64_t curlength,cursize,currealsize;
-	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,(mode<2)?1:0);
-	if (fd<0) {
-		return -1;
-	}
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_EATTR);
-	put32bit(&wptr,14);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put32bit(&wptr,getuid());
-	put8bit(&wptr,mode&1);
-	put8bit(&wptr,(mode>1)?0:eattr);
-	if (tcpwrite(fd,reqbuff,22)!=22) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_EATTR) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	} else if (leng!=2) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	close_master_conn(0);
-	nodeeattr = get8bit(&rptr) & eattr;
-	functioneattr = get8bit(&rptr) & eattr;
-	free(buff);
-	printf("%s:",fname);
-	printf(" nodeeattr:");
-	if (nodeeattr==0) {
-		printf("-");
-	} else {
-		// as for now there is only one eattr: noowner
-		if (nodeeattr&EATTR_NOOWNER) {
-			printf("noowner");
-		} else {
-			printf("?");
-		}
-	}
-	printf("; workingeattr:");
-	if (functioneattr==0) {
-		printf("-");
-	} else {
-		// as for now there is only one eattr: noowner
-		if (functioneattr&EATTR_NOOWNER) {
-			printf("noowner");
-		} else {
-			printf("?");
-		}
-	}
-	printf("\n");
-	return 0;
-}
-*/
-
 int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,uint64_t slength,uint64_t ssize,uint64_t srealsize,uint32_t hinodes,uint64_t hlength,uint64_t hsize,uint64_t hrealsize) {
 	uint8_t reqbuff[73],*wptr,*buff;
 	const uint8_t *rptr;
@@ -2032,18 +1767,6 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	print_number(" | "," |\n",hrealsize,0,1,qflags&QUOTA_FLAG_HREALSIZE);
 	return 0;
 }
-
-/*
-int get_quota(const char *fname) {
-	printf("get quota: %s\n",fname);
-	return 0;
-}
-
-int delete_quota(const char *fname,uint8_t sflags,uint8_t hflags) {
-	printf("delete quota: %s (soft:%1X,hard:%1X)\n",fname,sflags,hflags);
-	return 0;
-}
-*/
 
 int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uint32_t srcinode,uint8_t canoverwrite) {
 	uint8_t reqbuff[8+22+255],*wptr,*buff;
@@ -2188,10 +1911,6 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			}
 			memcpy(dir,to,PATH_MAX+1);
 			dirname_inplace(dir);
-//			if (bsd_dirname(to,dir)<0) {
-//				printf("%s: dirname error\n",to);
-//				return -1;
-//			}
 			if (bsd_basename(to,base)<0) {
 				printf("%s: basename error\n",to);
 				return -1;
@@ -2251,11 +1970,6 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 					} else {	// src is a directory and name has not trailing slash
 						memcpy(dir,to,PATH_MAX+1);
 						dirname_inplace(dir);
-						//if (bsd_dirname(to,dir)<0) {
-						//	printf("%s: dirname error\n",to);
-						//	status=-1;
-						//	continue;
-						//}
 						if (bsd_basename(to,base)<0) {
 							printf("%s: basename error\n",to);
 							status=-1;
@@ -2524,8 +2238,6 @@ int main(int argc,char **argv) {
 		fprintf(stderr,"unknown binary name\n");
 		return 1;
 	}
-//	argc--;
-//	argv++;
 
 	hrformat = getenv("MFSHRFORMAT");
 	if (hrformat) {
@@ -2929,8 +2641,6 @@ int main(int argc,char **argv) {
 		while (getopt(argc,argv,"")!=-1);
 		argc -= optind;
 		argv += optind;
-//		argc--;	// skip appname
-//		argv++;
 	}
 
 	if (f==MFSAPPENDCHUNKS) {

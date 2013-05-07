@@ -46,11 +46,7 @@ void hdd_get_chunks_begin();
 void hdd_get_chunks_end();
 uint32_t hdd_get_chunks_next_list_count();
 void hdd_get_chunks_next_list_data(uint8_t *buff);
-//uint32_t hdd_get_chunks_count();
-//void hdd_get_chunks_data(uint8_t *buff);
 
-//uint32_t get_changedchunkscount();
-//void fill_changedchunksinfo(uint8_t *buff);
 int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
 

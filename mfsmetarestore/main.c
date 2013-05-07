@@ -179,7 +179,6 @@ void usage(const char* appname) {
 int main(int argc,char **argv) {
 	int ch;
 	uint8_t vl=0;
-//	int i;
 	int autorestore = 0;
 	int savebest = 0;
 	int ignoreflag = 0;
@@ -189,7 +188,6 @@ int main(int argc,char **argv) {
 	char *metaout = NULL;
 	char *metadata = NULL;
 	char *datapath = NULL;
-//	char *chgdata = NULL;
 	char *appname = argv[0];
 	uint32_t dplen = 0;
 	uint64_t firstlv,lastlv;
@@ -221,7 +219,6 @@ int main(int argc,char **argv) {
 				break;
 			case 'x':
 				vl++;
-//				vl = strtoul(optarg,NULL,10);
 				break;
 			case 'a':
 				autorestore=1;

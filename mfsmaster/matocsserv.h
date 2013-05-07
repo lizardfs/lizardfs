@@ -36,9 +36,6 @@ uint32_t matocsserv_cservlist_size(void);
 void matocsserv_cservlist_data(uint8_t *ptr);
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *src);
 int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,void **src,uint64_t *srcchunkid,uint32_t *srcversion);
-//int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port);
-// fromdata: cnt*(chunkid:64 version:32 ip:32 port:16)
-//int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,uint8_t *fromdata);
 int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng);
 int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version);
 int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version);
@@ -46,8 +43,6 @@ int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,ui
 int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion);
 int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion);
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
-//void matocsserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
-//void matocsserv_broadcast_logrotate();
 int matocsserv_init(void);
 
 #endif

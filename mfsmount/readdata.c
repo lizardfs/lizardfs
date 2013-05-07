@@ -418,7 +418,6 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 						}
 						rrec->locked = 0;
 						pthread_mutex_unlock(&glock);
-//						pthread_mutex_unlock(&(rrec->lock));
 					}
 					return err;
 				}
@@ -437,7 +436,6 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					}
 					rrec->locked=0;
 					pthread_mutex_unlock(&glock);
-//					pthread_mutex_unlock(&(rrec->lock));
 				}
 				return err;
 			}
@@ -494,7 +492,6 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			pthread_cond_signal(&(rrec->cond));
 		}
 		rrec->locked = 0;
-//		pthread_mutex_unlock(&(rrec->lock));
 	}
 	pthread_mutex_unlock(&glock);
 	return 0;
@@ -508,5 +505,4 @@ void read_data_freebuff(void *rr) {
 	}
 	rrec->locked = 0;
 	pthread_mutex_unlock(&glock);
-//	pthread_mutex_unlock(&(rrec->lock));
 }

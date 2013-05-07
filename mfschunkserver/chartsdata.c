@@ -138,38 +138,10 @@ void chartsdata_refresh(void) {
 	uint32_t csservjobs,masterjobs;
 	struct itimerval uc,pc;
 	uint32_t ucusec,pcusec;
-//	struct rusage sru,chru;
-//	long ru_nswap,ru_minflt,ru_majflt,ru_inblock,ru_oublock,ru_nvcsw,ru_nivcsw;
-//	static long l_nswap=0,l_minflt=0,l_majflt=0,l_inblock=0,l_oublock=0,l_nvcsw=0,l_nivcsw=0;
 
 	for (i=0 ; i<CHARTS ; i++) {
 		data[i]=0;
 	}
-
-//	getrusage(RUSAGE_SELF,&sru);
-//	getrusage(RUSAGE_CHILDREN,&chru);
-
-//	ru_minflt = sru.ru_minflt + chru.ru_minflt;
-//	ru_majflt = sru.ru_majflt + chru.ru_majflt;
-//	ru_nswap = sru.ru_nswap + chru.ru_nswap;
-//	ru_inblock = sru.ru_inblock + chru.ru_inblock;
-//	ru_oublock = sru.ru_oublock + chru.ru_oublock;
-//	ru_nvcsw = sru.ru_nvcsw + chru.ru_nvcsw;
-//	ru_nivcsw = sru.ru_nivcsw + chru.ru_nivcsw;
-//	data[CHARTS_MINFLT] = ru_minflt - l_minflt;
-//	data[CHARTS_MAJFLT] = ru_majflt - l_majflt;
-//	data[CHARTS_NSWAP] = ru_nswap - l_nswap;
-//	data[CHARTS_INBLOCK] = ru_inblock - l_inblock;
-//	data[CHARTS_OUBLOCK] = ru_oublock - l_oublock;
-//	data[CHARTS_NVCSW] = ru_nvcsw - l_nvcsw;
-//	data[CHARTS_NIVCSW] = ru_nivcsw - l_nivcsw;
-//	l_minflt = ru_minflt;
-//	l_majflt = ru_majflt;
-//	l_nswap = ru_nswap;
-//	l_inblock = ru_inblock;
-//	l_oublock = ru_oublock;
-//	l_nvcsw = ru_nvcsw;
-//	l_nivcsw = ru_nivcsw;
 
 	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
@@ -204,9 +176,6 @@ void chartsdata_refresh(void) {
 	data[CHARTS_MASTERIN]=bin;
 	data[CHARTS_MASTEROUT]=bout;
 	data[CHARTS_CHUNKOPJOBS]=masterjobs;
-//	cstocsconn_stats(&bin,&bout);
-//	data[CHARTS_CSCONNIN]=bin;
-//	data[CHARTS_CSCONNOUT]=bout;
 	data[CHARTS_CSCONNIN]=0;
 	data[CHARTS_CSCONNOUT]=0;
 	csserv_stats(&bin,&bout,&opr,&opw,&csservjobs);

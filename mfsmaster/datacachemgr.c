@@ -46,8 +46,6 @@ static datacache_entry dcm_tab[DCM_TAB_LENG];
 static uint32_t dcm_inodehash[DCM_INODEHASH_LENG];
 static uint32_t dcm_lru_first,dcm_lru_last;
 
-// static uint32_t elcount;
-
 int dcm_open(uint32_t inode,uint32_t sessionid) {
 	uint32_t ih = DCM_INODE_HASH(inode);
 	uint32_t p,pp,np;
@@ -116,8 +114,6 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 		if (np<DCM_TAB_LENG) {
 			dcm_tab[np].iprev = pp;
 		}
-//	} else {
-//		elcount++;
 	}
 
 	/* replace values and add to new INODE chain */
@@ -211,8 +207,6 @@ void dcm_modify(uint32_t inode,uint32_t sessionid) {
 			dcm_tab[p].inode = 0;
 			dcm_tab[p].inext = DCM_NIL;
 			dcm_tab[p].iprev = DCM_NIL;
-//			elcount--;
-			/* p = INODE_NEXT(p) */
 			p = np;
 		} else {
 			if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
@@ -262,106 +256,5 @@ int dcm_init(void) {
 	dcm_lru_first = 0;
 	dcm_tab[DCM_TAB_LENG-1].lrunext = DCM_NIL;
 	dcm_lru_last = DCM_TAB_LENG-1;
-//	elcount = 0;
 	return 0;
 }
-
-/*
- * consistency tests
- *
-int dcm_test(void) {
-	uint32_t i,p,j;
-	for (i=0 ; i<DCM_INODEHASH_LENG ; i++) {
-		p = dcm_inodehash[i];
-		if (p<DCM_TAB_LENG) {
-			if (dcm_tab[p].iprev!=DCM_NIL) {
-				return 1;
-			}
-		} else {
-			if (p!=DCM_NIL) {
-				return 2;
-			}
-		}
-	}
-	if (dcm_lru_first<DCM_TAB_LENG) {
-		if (dcm_tab[dcm_lru_first].lruprev!=DCM_NIL) {
-			return 3;
-		}
-	} else {
-		if (dcm_lru_first!=DCM_NIL) {
-			return 4;
-		}
-	}
-	if (dcm_lru_last<DCM_TAB_LENG) {
-		if (dcm_tab[dcm_lru_last].lrunext!=DCM_NIL) {
-			return 5;
-		}
-	} else {
-		if (dcm_lru_last!=DCM_NIL) {
-			return 6;
-		}
-	}
-	for (i=0 ; i<DCM_TAB_LENG ; i++) {
-		p = dcm_tab[i].iprev;
-		if (p<DCM_TAB_LENG) {
-			if (dcm_tab[p].inext!=i) {
-				return 7;
-			}
-		} else if (p!=DCM_NIL) {
-			return 8;
-		}
-		p = dcm_tab[i].inext;
-		if (p<DCM_TAB_LENG) {
-			if (dcm_tab[p].iprev!=i) {
-				return 9;
-			}
-		} else if (p!=DCM_NIL) {
-			return 10;
-		}
-		p = dcm_tab[i].lruprev;
-		if (p<DCM_TAB_LENG) {
-			if (dcm_tab[p].lrunext!=i) {
-				return 11;
-			}
-		} else if (p!=DCM_NIL) {
-			return 12;
-		}
-		p = dcm_tab[i].lrunext;
-		if (p<DCM_TAB_LENG) {
-			if (dcm_tab[p].lruprev!=i) {
-				return 13;
-			}
-		} else if (p!=DCM_NIL) {
-			return 14;
-		}
-	}
-	p=0;
-	for (i=dcm_lru_first ; i<DCM_TAB_LENG ; i=dcm_tab[i].lrunext) {
-		p++;
-	}
-	if (p!=DCM_TAB_LENG) {
-		return 15;
-	}
-	p=0;
-	for (i=dcm_lru_last ; i<DCM_TAB_LENG ; i=dcm_tab[i].lruprev) {
-		p++;
-	}
-	if (p!=DCM_TAB_LENG) {
-		return 16;
-	}
-	p=0;
-	for (j=0 ; j<DCM_INODEHASH_LENG ; j++) {
-		for (i=dcm_inodehash[j] ; i<DCM_TAB_LENG ; i=dcm_tab[i].inext) {
-			p++;
-		}
-	}
-	if (p!=elcount) {
-		return 17;
-	}
-	return 0;
-}
-
-uint32_t dcm_getelcount(void) {
-	return elcount;
-}
-*/

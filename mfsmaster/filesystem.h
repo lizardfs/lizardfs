@@ -30,7 +30,6 @@ uint8_t fs_access(uint32_t ts,uint32_t inode);
 uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src);
 uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);
 uint8_t fs_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t atime,uint32_t mtime);
-// int fs_copy(uint32_t ts,inode,parent,strlen(name),name);
 uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
 uint8_t fs_session(uint32_t sessionid);
 uint8_t fs_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes);
@@ -40,7 +39,6 @@ uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nlen
 uint8_t fs_length(uint32_t ts,uint32_t inode,uint64_t length);
 uint8_t fs_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint32_t nleng_dst,const uint8_t *name_dst,uint32_t inode);
 uint8_t fs_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion);
-// uint8_t fs_reinit(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
 uint8_t fs_release(uint32_t inode,uint32_t sessionid);
 uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,const uint8_t *path,uint32_t uid,uint32_t gid,uint32_t inode);
 uint8_t fs_setpath(uint32_t inode,const uint8_t *path);
@@ -109,7 +107,6 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag);
-// uint8_t fs_reinitchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
 
 uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);
@@ -157,9 +154,6 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 
 // QUOTA
 uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t delflag,uint8_t *flags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize,uint32_t *curinodes,uint64_t *curlength,uint64_t *cursize,uint64_t *currealsize);
-//uint8_t fs_deletequota(uint32_t inode,uint8_t sflags,uint8_t hflags);
-//uint8_t fs_setquota(uint32_t inode,uint8_t sflags,uint8_t hflags,uint32_t sinodes,uint64_t slength,uint64_t ssize,uint64_t srealsize,uint32_t hinodes,uint64_t hlength,uint64_t hsize,uint64_t hrealsize);
-//uint8_t fs_getquota(uint32_t inode,uint8_t *sflags,uint8_t *hflags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize);
 uint32_t fs_getquotainfo_size(void);
 void fs_getquotainfo_data(uint8_t *buff);
 

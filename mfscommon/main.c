@@ -34,10 +34,6 @@
 #  endif
 #endif
 
-//#if defined(_THREAD_SAFE) || defined(_REENTRANT) || defined(_USE_PTHREADS)
-//#  define USE_PTHREADS 1
-//#endif
-
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -56,9 +52,6 @@
 #include <sys/resource.h>
 #include <grp.h>
 #include <pwd.h>
-//#ifdef USE_PTHREADS
-//#include <pthread.h>
-//#endif
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -133,7 +126,6 @@ typedef struct timeentry {
 	uint32_t seconds;
 	uint32_t offset;
 	int mode;
-//	int offset;
 	void (*fun)(void);
 	struct timeentry *next;
 } timeentry;
@@ -142,7 +134,6 @@ static timeentry *timehead=NULL;
 
 static uint32_t now;
 static uint64_t usecnow;
-//static int alcnt=0;
 
 static int signalpipe[2];
 
@@ -891,7 +882,6 @@ void makedaemon() {
 			exit(1);
 		}
 		close(piped[1]);
-//		printf("Starting daemon ...\n");
 		while ((r=read(piped[0],pipebuff,1000))) {
 			if (r>0) {
 				if (pipebuff[r-1]==0) {	// zero as a last char in the pipe means error
@@ -933,7 +923,6 @@ void makedaemon() {
 	close(STDERR_FILENO);
 	sassert(dup(piped[1])==STDERR_FILENO);
 	close(piped[1]);
-//	setvbuf(stderr,(char *)NULL,_IOLBF,0);
 }
 
 void close_msg_channel() {
@@ -981,7 +970,6 @@ void usage(const char *appname) {
 
 int main(int argc,char **argv) {
 	char *logappname;
-//	char *lockfname;
 	char *wrkdir;
 	char *cfgfile;
 	char *appname;

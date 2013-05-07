@@ -45,6 +45,7 @@
 #include "readdata.h"
 #include "MFSCommunication.h"
 
+// TODO: wtf?!
 // #define WORKER_DEBUG 1
 // #define BUFFER_DEBUG 1
 
@@ -128,7 +129,6 @@ void* write_info_worker(void *arg) {
 
 /* glock: LOCKED */
 void write_cb_release (inodedata *id,cblock *cb) {
-//	pthread_mutex_lock(&fcblock);
 	cb->next = freecblockshead;
 	freecblockshead = cb;
 	freecacheblocks++;
@@ -139,13 +139,11 @@ void write_cb_release (inodedata *id,cblock *cb) {
 #ifdef BUFFER_DEBUG
 	usedblocks--;
 #endif
-//	pthread_mutex_unlock(&fcblock);
 }
 
 /* glock: LOCKED */
 cblock* write_cb_acquire(inodedata *id) {
 	cblock *ret;
-//	pthread_mutex_lock(&fcblock);
 	fcbwaiting++;
 	while (freecblockshead==NULL || id->cacheblockcount>(freecacheblocks/3)) {
 		pthread_cond_wait(&fcbcond,&glock);
@@ -165,7 +163,6 @@ cblock* write_cb_acquire(inodedata *id) {
 #ifdef BUFFER_DEBUG
 	usedblocks++;
 #endif
-//	pthread_mutex_unlock(&fcblock);
 	return ret;
 }
 
@@ -392,7 +389,6 @@ void* write_worker(void *arg) {
 
 	inodedata *id;
 	cblock *cb,*rcb;
-//	inodedata *id;
 
 	chainelements = 0;
 
@@ -479,20 +475,6 @@ void* write_worker(void *arg) {
 		port = get16bit(&chain);
 		chainsize = csdatasize-6;
 		gettimeofday(&start,NULL);
-
-/*
-		if (csdatasize>CSDATARESERVE) {
-			csdatasize = CSDATARESERVE;
-		}
-		memcpy(wrec->csdata,csdata,csdatasize);
-		wrec->csdatasize=csdatasize;
-		while (csdatasize>=6) {
-			tmpip = get32bit(&csdata);
-			tmpport = get16bit(&csdata);
-			csdatasize-=6;
-			csdb_writeinc(tmpip,tmpport);
-		}
-*/
 
 		// make connection to cs
 		srcip = fs_getsrcip();
@@ -969,7 +951,6 @@ int write_block(inodedata *id,uint32_t chindx,uint16_t pos,uint32_t from,uint32_
 		write_enqueue(id);
 	}
 	pthread_mutex_unlock(&glock);
-//	pthread_mutex_unlock(&(wc->lock));
 	return 0;
 }
 
@@ -983,12 +964,10 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 	if (id==NULL) {
 		return EIO;
 	}
-//	struct timeval s,e;
 
 //	gettimeofday(&s,NULL);
 	pthread_mutex_lock(&glock);
 //	syslog(LOG_NOTICE,"write_data: inode:%"PRIu32" offset:%"PRIu64" size:%"PRIu32,id->inode,offset,size);
-//	id = write_get_inodedata(inode);
 	status = id->status;
 	if (status==0) {
 		if (offset+size>id->maxfleng) {	// move fleng
@@ -1043,7 +1022,6 @@ void* write_data_new(uint32_t inode) {
 		return NULL;
 	}
 	id->lcnt++;
-//	pthread_mutex_unlock(&(id->lock));
 	pthread_mutex_unlock(&glock);
 	return id;
 }
@@ -1054,7 +1032,6 @@ int write_data_flush(void *vid) {
 	if (id==NULL) {
 		return EIO;
 	}
-//	struct timeval s,e;
 
 //	gettimeofday(&s,NULL);
 	pthread_mutex_lock(&glock);

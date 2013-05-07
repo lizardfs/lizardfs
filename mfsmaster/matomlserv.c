@@ -303,7 +303,6 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
-//			eptr->mode=KILL;
 			return;
 		}
 	}

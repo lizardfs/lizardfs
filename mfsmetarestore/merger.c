@@ -124,9 +124,6 @@ int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {
 		}
 	}
 	maxidhole = maxhole;
-//	for (i=0 ; i<heapsize ; i++) {
-//		printf("heap: %u / firstid: %"PRIu64"\n",i,heap[i].nextid);
-//	}
 	return 0;
 }
 

@@ -227,21 +227,6 @@ int do_attr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_attr(ts,inode,mode,uid,gid,atime,mtime);
 }
 
-/*
-int do_copy(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,parent;
-	uint8_t name[256];
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(parent,ptr);
-	EAT(ptr,filename,lv,',');
-	GETNAME(name,ptr,filename,lv,')');
-	EAT(ptr,filename,lv,')');
-	return fs_copy(ts,inode,parent,strlen(name),name);
-}
-*/
-
 int do_create(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t parent,mode,uid,gid,rdev,inode;
 	uint8_t type,name[256];
@@ -396,20 +381,6 @@ int do_quota(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_quota(ts,inode,exceeded,flags,stimestamp,sinodes,hinodes,slength,hlength,ssize,hsize,srealsize,hrealsize);
 }
 
-/*
-int do_reinit(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,indx;
-	uint64_t chunkid;
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(indx,ptr);
-	EAT(ptr,filename,lv,')');
-	EAT(ptr,filename,lv,':');
-	GETU64(chunkid,ptr);
-	return fs_reinit(ts,inode,indx,chunkid);
-}
-*/
 int do_release(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,cuid;
 	(void)ts;
@@ -433,15 +404,7 @@ int do_repair(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(version,ptr);
 	return fs_repair(ts,inode,indx,version);
 }
-/*
-int do_remove(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode;
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,')');
-	return fs_remove(ts,inode);
-}
-*/
+
 int do_seteattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,uid,ci,nci,npi;
 	uint8_t eattr,smode;

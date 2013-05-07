@@ -37,7 +37,6 @@ typedef struct _fhentry {
 	unsigned long fh;
 	uint64_t readpos;
 	uint32_t refcount;
-//	uint8_t dotsent;
 	struct _fhentry *next;
 } fhentry;
 
@@ -118,7 +117,6 @@ unsigned long oplog_newhandle(int hflag) {
 	fhptr = malloc(sizeof(fhentry));
 	fhptr->fh = nextfh++;
 	fhptr->refcount = 1;
-//	fhptr->dotsent = 0;
 	if (hflag) {
 		if (writepos<MAXHISTORYSIZE) {
 			fhptr->readpos = 0;
@@ -187,18 +185,11 @@ void oplog_getdata(unsigned long fh,uint8_t **buff,uint32_t *leng,uint32_t maxle
 		ts.tv_nsec = tv.tv_usec*1000;
 		waiting=1;
 		if (pthread_cond_timedwait(&nodata,&opbufflock,&ts)==ETIMEDOUT) {
-//			fhptr->dotsent=1;
 			*buff = (uint8_t*)"#\n";
 			*leng = 2;
 			return;
 		}
 	}
-//	if (fhptr->dotsent) {
-//		fhptr->dotsent=0;
-//		*buff = (uint8_t*)"\n";
-//		*leng = 1;
-//		return;
-//	}
 	bpos = fhptr->readpos%OPBUFFSIZE;
 	*leng = (writepos-(fhptr->readpos));
 	*buff = opbuff+bpos;

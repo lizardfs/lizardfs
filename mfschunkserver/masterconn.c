@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+// TODO: wtf?!
 #define BGJOBS 1
 #define BGJOBSCNT 1000
 
@@ -201,90 +202,6 @@ void masterconn_sendregister(masterconn *eptr) {
 	put64bit(&buff,tdtotalspace);
 	put32bit(&buff,tdchunkcount);
 }
-
-/*
-void masterconn_sendregister_v4(masterconn *eptr) {
-	uint8_t *buff;
-	uint32_t chunks,myip;
-	uint16_t myport;
-	uint64_t usedspace,totalspace;
-	uint64_t tdusedspace,tdtotalspace;
-	uint32_t chunkcount,tdchunkcount;
-
-	myip = csserv_getlistenip();
-	myport = csserv_getlistenport();
-	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-	hdd_get_chunks_begin();
-	chunks = hdd_get_chunks_count();
-	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2+8+8+4+8+8+4+chunks*(8+4));
-	put8bit(&buff,4);
-	put16bit(&buff,VERSMAJ);
-	put8bit(&buff,VERSMID);
-	put8bit(&buff,VERSMIN);
-	put32bit(&buff,myip);
-	put16bit(&buff,myport);
-	put16bit(&buff,Timeout);
-	put64bit(&buff,usedspace);
-	put64bit(&buff,totalspace);
-	put32bit(&buff,chunkcount);
-	put64bit(&buff,tdusedspace);
-	put64bit(&buff,tdtotalspace);
-	put32bit(&buff,tdchunkcount);
-	if (chunks>0) {
-		hdd_get_chunks_data(buff);
-	}
-	hdd_get_chunks_end();
-}
-*/
-/*
-void masterconn_send_space(uint64_t usedspace,uint64_t totalspace,uint32_t chunkcount,uint64_t tdusedspace,uint64_t tdtotalspace,uint32_t tdchunkcount) {
-	uint8_t *buff;
-	masterconn *eptr = masterconnsingleton;
-
-//	syslog(LOG_NOTICE,"%"PRIu64",%"PRIu64,usedspace,totalspace);
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-		if (buff) {
-			put64bit(&buff,usedspace);
-			put64bit(&buff,totalspace);
-			put32bit(&buff,chunkcount);
-			put64bit(&buff,tdusedspace);
-			put64bit(&buff,tdtotalspace);
-			put32bit(&buff,tdchunkcount);
-		}
-	}
-}
-*/
-/*
-void masterconn_send_chunk_damaged(uint64_t chunkid) {
-	uint8_t *buff;
-	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_DAMAGED,8);
-		if (buff) {
-			put64bit(&buff,chunkid);
-		}
-	}
-}
-
-void masterconn_send_chunk_lost(uint64_t chunkid) {
-	uint8_t *buff;
-	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8);
-		if (buff) {
-			put64bit(&buff,chunkid);
-		}
-	}
-}
-
-void masterconn_send_error_occurred() {
-	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
-		masterconn_create_attached_packet(eptr,CSTOMA_ERROR_OCCURRED,0);
-	}
-}
-*/
 
 void masterconn_check_hdd_reports() {
 	masterconn *eptr = masterconnsingleton;
@@ -656,8 +573,6 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
-//	uint32_t ip;
-//	uint16_t port;
 	uint8_t *ptr;
 
 	syslog(LOG_WARNING,"This version of chunkserver can perform replication only in background, but was compiled without bgjobs");
@@ -669,8 +584,6 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-//	ip = get32bit(&data);
-//	port = get16bit(&data);
 
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_REPLICATE,8+4+1);
 	put64bit(&ptr,chunkid);
@@ -1096,25 +1009,17 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		pdesc[pos].events = POLLIN;
 		jobfdpdescpos = pos;
 		pos++;
-//		FD_SET(jobfd,rset);
-//		ret = jobfd;
 		if (job_pool_jobs_count(jpool)<(BGJOBSCNT*9)/10) {
 			pdesc[pos].fd = eptr->sock;
 			pdesc[pos].events = POLLIN;
 			eptr->pdescpos = pos;
 			pos++;
-//			FD_SET(eptr->sock,rset);
-//			if (eptr->sock>ret) {
-//				ret=eptr->sock;
-//			}
 		}
 #else /* BGJOBS */
 		pdesc[pos].fd = eptr->sock;
 		pdesc[pos].events = POLLIN;
 		eptr->pdescpos = pos;
 		pos++;
-//		FD_SET(eptr->sock,rset);
-//		ret=eptr->sock;
 #endif /* BGJOBS */
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
@@ -1126,17 +1031,8 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 			eptr->pdescpos = pos;
 			pos++;
 		}
-//		FD_SET(eptr->sock,wset);
-//#ifdef BGJOBS
-//		if (eptr->sock>ret) {
-//			ret=eptr->sock;
-//		}
-//#else /* BGJOBS */
-//		ret=eptr->sock;
-//#endif /* BGJOBS */
 	}
 	*ndesc = pos;
-//	return ret;
 }
 
 void masterconn_serve(struct pollfd *pdesc) {

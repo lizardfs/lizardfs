@@ -19,41 +19,6 @@ static uint8_t terminate;
 static uint32_t proxyhost;
 static uint16_t proxyport;
 
-
-/*
-void* masterproxy_loop(void* args) {
-	struct pollfd pdesc[MAXFILES];
-	uint32_t ndesc;
-
-	(void)args;
-
-	while (terminate==0) {
-		ndesc = 0;
-		masterproxy_desc(pdesc,&ndesc);
-		i = poll(pdesc,ndesc,50);
-//		gettimeofday(&tv,NULL);
-//		usecnow = tv.tv_sec;
-//		usecnow *= 1000000;
-//		usecnow += tv.tv_usec;
-//		now = tv.tv_sec;
-		if (i<0) {
-			if (errno==EAGAIN) {
-				syslog(LOG_WARNING,"poll returned EAGAIN");
-				usleep(100000);
-			}
-			if (errno!=EINTR) {
-				syslog(LOG_WARNING,"poll error: %s",strerr(errno));
-				usleep(100000);
-			}
-			continue;
-		} else {
-			masterproxy_serve(pdesc);
-		}
-	}
-	return NULL;
-}
-*/
-
 void masterproxy_getlocation(uint8_t *masterinfo) {
 	const uint8_t *rptr = masterinfo+10;
 	if (lsock>=0 && get32bit(&rptr)>=0x00010618) {	// use proxy only when master version is greater than or equal to 1.6.24
@@ -83,7 +48,6 @@ static void* masterproxy_server(void *args) {
 		cmd = get32bit(&rptr);
 		psize = get32bit(&rptr);
 		if (cmd==CLTOMA_FUSE_REGISTER) {	// special case: register
-			// if (psize>QUERYSIZE) {
 			if (psize!=73) {
 				tcpclose(sock);
 				return NULL;
@@ -189,7 +153,6 @@ int masterproxy_init(void) {
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
-	// tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		// mfs_errlog_silent(LOG_NOTICE,"master proxy: can't set accept filter");
 	}
@@ -208,7 +171,6 @@ int masterproxy_init(void) {
 	terminate = 0;
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr,0x100000);
-	//pthread_create(&proxythread,&thattr,masterproxy_loop,NULL);
 	pthread_create(&proxythread,&thattr,masterproxy_acceptor,NULL);
 	pthread_attr_destroy(&thattr);
 

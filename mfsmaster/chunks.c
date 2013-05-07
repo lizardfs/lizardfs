@@ -74,13 +74,6 @@ enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 /* TDVALID - want to be deleted */
 enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
-/*
-typedef struct _bcdata {
-	void *ptr;
-	uint32_t version;
-} bcdata;
-*/
-
 typedef struct _slist {
 	void *ptr;
 	uint8_t valid;
@@ -105,27 +98,6 @@ static slist *slfreehead = NULL;
 
 #endif /* METARESTORE */
 
-#if 0
-typedef struct _flist {
-	uint32_t inode;
-	uint16_t indx;
-	uint8_t goal;
-	struct _flist *next;
-} flist;
-
-#ifdef USE_FLIST_BUCKETS
-#define FLIST_BUCKET_SIZE 5000
-typedef struct _flist_bucket {
-	flist bucket[FLIST_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _flist_bucket *next;
-} flist_bucket;
-
-static flist_bucket *fbhead = NULL;
-static flist *flfreehead = NULL;
-#endif /* USE_FLIST_BUCKET */
-#endif
-
 typedef struct chunk {
 	uint64_t chunkid;
 	uint32_t version;
@@ -140,12 +112,9 @@ typedef struct chunk {
 	uint32_t lockedto;
 	uint32_t fcount;
 #ifndef METARESTORE
-//	uint32_t lockedby;
 	slist *slisthead;
-//	bcdata *bestchunk;
 #endif
 	uint32_t *ftab;
-//	flist *flisthead;
 	struct chunk *next;
 } chunk;
 
@@ -273,48 +242,6 @@ static inline void slist_free(slist* p) {
 #endif /* USE_SLIST_BUCKETS */
 #endif /* !METARESTORE */
 
-#if 0
-#ifdef USE_FLIST_BUCKETS
-static inline flist* flist_malloc() {
-	flist_bucket *fb;
-	flist *ret;
-	if (flfreehead) {
-		ret = flfreehead;
-		flfreehead = ret->next;
-		return ret;
-	}
-	if (fbhead==NULL || fbhead->firstfree==FLIST_BUCKET_SIZE) {
-		fb = (flist_bucket*)malloc(sizeof(flist_bucket));
-		passert(fb);
-		fb->next = fbhead;
-		fb->firstfree = 0;
-		fbhead = fb;
-	}
-	ret = (fbhead->bucket)+(fbhead->firstfree);
-	fbhead->firstfree++;
-	return ret;
-}
-
-static inline void flist_free(flist *p) {
-	p->next = flfreehead;
-	flfreehead = p;
-}
-#else /* USE_FLIST_BUCKETS */
-
-static inline flist* flist_malloc() {
-	flist *fl;
-	fl = (flist*)malloc(sizeof(flist));
-	passert(fl);
-	return fl;
-}
-
-static inline void flist_free(flist* p) {
-	free(p);
-}
-
-#endif /* USE_FLIST_BUCKETS */
-#endif
-
 #ifdef USE_CHUNK_BUCKETS
 static inline chunk* chunk_malloc() {
 	chunk_bucket *cb;
@@ -355,55 +282,6 @@ static inline void chunk_free(chunk* p) {
 
 #endif /* USE_CHUNK_BUCKETS */
 
-/*
-#ifndef METARESTORE
-int chunk_cfg_load() {
-	char buff[100];
-	FILE *fd;
-	fd = fopen(CfgFileName,"r");
-	if (!fd) {
-		return -1;
-	}
-	while (fgets(buff,99,fd)) {
-		switch(buff[0]) {
-		case 'D':
-		case 'd':
-			MaxDel = strtoul(buff+2,NULL,0);
-			break;
-		case 'R':
-		case 'r':
-			MaxRepl = strtoul(buff+2,NULL,0);
-			break;
-		case 'L':
-		case 'l':
-			LoopTime = strtoul(buff+2,NULL,0);
-			if (LoopTime<60) {
-				LoopTime=60;
-			}
-			HashSteps = 1+((HASHSIZE)/LoopTime);
-		}
-	}
-	fclose(fd);
-	syslog(LOG_NOTICE,"chunks: new cfg loaded - (%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32")",MaxDel,MaxRepl,LoopTime,HashSteps);
-	return 0;
-}
-
-void chunk_cfg_check() {
-	struct stat sb;
-	static int filesize=0,filemtime=0;
-	if (stat(CfgFileName,&sb)!=0) {
-		filesize = 0;
-		filemtime = 0;
-	} else {
-		if (filesize != sb.st_size || filemtime != sb.st_mtime) {
-			filesize = sb.st_size;
-			filemtime = sb.st_mtime;
-			chunk_cfg_load();
-		}
-	}
-}
-#endif
-*/
 chunk* chunk_new(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
@@ -431,7 +309,6 @@ chunk* chunk_new(uint64_t chunkid) {
 	newchunk->slisthead = NULL;
 #endif
 	newchunk->fcount = 0;
-//	newchunk->flisthead = NULL;
 	newchunk->ftab = NULL;
 	lastchunkid = chunkid;
 	lastchunkptr = newchunk;
@@ -459,24 +336,10 @@ chunk* chunk_find(uint64_t chunkid) {
 
 #ifndef METARESTORE
 void chunk_delete(chunk* c) {
-//	slist *s;
-//	flist *f;
 	if (lastchunkptr==c) {
 		lastchunkid=0;
 		lastchunkptr=NULL;
 	}
-/* not needed - function called only if slisthead==NULL and flisthead==NULL
-	while ((s=c->slisthead)) {
-		s = c->slisthead;
-		c->slisthead = s->next;
-		slist_free(s);
-	}
-	while ((f=c->flisthead)) {
-		f = c->flisthead;
-		c->flisthead = f->next;
-		flist_free(f);
-	}
-*/
 	chunks--;
 	allchunkcounts[c->goal][0]--;
 	regularchunkcounts[c->goal][0]--;
@@ -558,242 +421,6 @@ void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
 	}
 }
 #endif
-/* --- */
-
-
-
-
-/*
-int chunk_create(uint64_t *chunkid,uint8_t goal) {
-	void* ptrs[65536];
-	uint8_t i,g;
-	uint16_t servcount;
-	chunk *c;
-	slist *s;
-	if (goal>15) {
-		goal=15;
-	}
-//	servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
-	servcount = matocsserv_getservers_wrandom(ptrs,goal);
-	if (servcount==0) {
-		return ERROR_NOCHUNKSERVERS;
-	}
-	c = chunk_new(nextchunkid++);
-	c->version = 1;
-	c->refcount = 1;
-	c->goal = goal;
-	c->tgoal = goal;
-	c->operation = CREATE;
-	if (servcount<goal) {
-		g = servcount;
-	} else {
-		g = goal;
-	}
-	for (i=0 ; i<g ; i++) {
-		s = slist_malloc();
-		s->ptr = ptrs[i];
-		s->valid = BUSY;
-		s->next = c->slisthead;
-		c->slisthead = s;
-		matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
-	}
-	*chunkid = c->chunkid;
-	return STATUS_OK;
-}
-
-int chunk_reinitialize(uint64_t chunkid) {
-	void* ptrs[65536];
-	uint8_t i,g;
-	uint16_t servcount;
-	chunk *c;
-	slist *s;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (c->lockedto>=(uint32_t)main_time()) {
-		return ERROR_LOCKED;
-	}
-	if (c->slisthead!=NULL) {
-		return ERROR_CHUNKEXIST;
-	}
-	servcount = matocsserv_getservers_wrandom(ptrs,c->goal);
-	if (servcount==0) {
-		return ERROR_NOCHUNKSERVERS;
-	}
-	c->operation = CREATE;
-	if (servcount<c->goal) {
-		g = servcount;
-	} else {
-		g = c->goal;
-	}
-	c->version++;
-	for (i=0 ; i<g ; i++) {
-		s = slist_malloc();
-		s->ptr = ptrs[i];
-		s->valid = BUSY;
-		s->next = c->slisthead;
-		c->slisthead = s;
-		matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
-	}
-	return STATUS_OK;
-}
-
-
-int chunk_duplicate(uint64_t *chunkid,uint64_t oldchunkid,uint8_t goal) {
-	chunk *c,*oc;
-	slist *s,*os;
-	uint32_t i;
-	oc = chunk_find(oldchunkid);
-	if (oc==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (oc->lockedto>=(uint32_t)main_time()) {
-		return ERROR_LOCKED;
-	}
-	if (goal>15) {
-		goal=15;
-	}
-	c=NULL;
-	i=0;
-	for (os=oc->slisthead ;os ; os=os->next) {
-		if (os->valid!=INVALID && os->valid!=DEL) {
-			if (c==NULL) {
-				c = chunk_new(nextchunkid++);
-				c->version = 1;
-				c->refcount = 1;
-				c->goal = goal;
-				c->tgoal = goal;
-				c->operation = DUPLICATE;
-			}
-			s = slist_malloc();
-			s->ptr = os->ptr;
-			s->valid = BUSY;
-			s->next = c->slisthead;
-			c->slisthead = s;
-			matocsserv_send_duplicatechunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version);
-			i++;
-		}
-	}
-	if (i>0) {
-		*chunkid = c->chunkid;
-		return STATUS_OK;
-	} else {
-		return ERROR_CHUNKLOST;
-	}
-}
-
-int chunk_increase_version(uint64_t chunkid) {
-	chunk *c;
-	slist *s;
-	uint32_t i;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (c->operation!=NONE) {
-		return ERROR_CHUNKBUSY;
-	}
-	i=0;
-	for (s=c->slisthead ;s ; s=s->next) {
-		if (s->valid!=INVALID && s->valid!=DEL) {
-			s->valid = BUSY;
-			matocsserv_send_setchunkversion(s->ptr,chunkid,c->version+1,c->version);
-			i++;
-		}
-	}
-	if (i>0) {
-		c->operation = SET_VERSION;
-		c->version++;
-		return STATUS_OK;
-	} else {
-		return ERROR_CHUNKLOST;
-	}
-}
-
-int chunk_truncate(uint64_t chunkid,uint32_t length) {
-	chunk *c;
-	slist *s;
-	uint32_t i;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (c->operation!=NONE) {
-		return ERROR_CHUNKBUSY;
-	}
-	i=0;
-	for (s=c->slisthead ;s ; s=s->next) {
-		if (s->valid!=INVALID && s->valid!=DEL) {
-			s->valid = BUSY;
-			matocsserv_send_truncatechunk(s->ptr,chunkid,length,c->version+1,c->version);
-			i++;
-		}
-	}
-	if (i>0) {
-		c->operation = TRUNCATE;
-		c->version++;
-		return STATUS_OK;
-	} else {
-		return ERROR_CHUNKLOST;
-	}
-}
-
-int chunk_duptrunc(uint64_t *chunkid,uint64_t oldchunkid,uint32_t length,uint8_t goal) {
-	chunk *c,*oc;
-	slist *s,*os;
-	uint32_t i;
-	oc = chunk_find(oldchunkid);
-	if (oc==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (oc->lockedto>=(uint32_t)main_time()) {
-		return ERROR_LOCKED;
-	}
-	if (goal>15) {
-		goal=15;
-	}
-	c = NULL;
-	i=0;
-	for (os=oc->slisthead ;os ; os=os->next) {
-		if (os->valid!=INVALID && os->valid!=DEL) {
-			if (c==NULL) {
-				c = chunk_new(nextchunkid++);
-				c->version = 1;
-				c->refcount = 1;
-				c->goal = goal;
-				c->tgoal = goal;
-				c->operation = DUPTRUNC;
-			}
-			s = slist_malloc();
-			s->ptr = os->ptr;
-			s->valid = BUSY;
-			s->next = c->slisthead;
-			c->slisthead = s;
-			matocsserv_send_duptruncchunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version,length);
-			i++;
-		}
-	}
-	if (i>0) {
-		*chunkid = c->chunkid;
-		return STATUS_OK;
-	} else {
-		return ERROR_CHUNKLOST;
-	}
-}
-
-
-void chunk_load_goal(void) {
-	uint32_t i;
-	chunk *c;
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next) {
-			c->goal = c->tgoal;
-			c->tgoal = 0;
-		}
-	}
-}
-*/
 
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	chunk *c;
@@ -808,11 +435,6 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 		return ERROR_NOCHUNK;
 	}
 	if (c->fcount==0) {
-//#ifndef METARESTORE
-//		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
-//#else
-//		printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",chunkid,inode,indx);
-//#endif
 #ifndef METARESTORE
 		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
 #else
@@ -857,11 +479,6 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 	uint8_t oldgoal;
 #endif
 	if (c->fcount==0) {
-//#ifndef METARESTORE
-//		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",chunkid,inode,indx);
-//#else
-//		printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",chunkid,inode,indx);
-//#endif
 #ifndef METARESTORE
 		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
 #else
@@ -961,44 +578,6 @@ int chunk_add_file(uint64_t chunkid,uint8_t goal) {
 	return chunk_add_file_int(c,goal);
 }
 
-/*
-int chunk_get_refcount(uint64_t chunkid,uint16_t *refcount) {
-	chunk *c;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	*refcount = c->refcount;
-	return STATUS_OK;
-//	return c->refcount;
-}
-
-int chunk_locked(uint64_t chunkid,uint8_t *l) {
-	chunk *c;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (c->lockedto>=(uint32_t)main_time()) {
-		*l = 1;
-	} else {
-		*l = 0;
-	}
-	return STATUS_OK;
-//	return c->locked;
-}
-
-int chunk_writelock(uint64_t chunkid) {
-	chunk *c;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-	return STATUS_OK;
-}
-*/
-
 int chunk_unlock(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -1013,21 +592,11 @@ int chunk_unlock(uint64_t chunkid) {
 
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 	chunk *c;
-//	slist *s;
-//	uint8_t vc;
 	*vcopies = 0;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-/*
-	vc=0;
-	for (s=c->slisthead ;s ; s=s->next) {
-		if (s->valid!=INVALID && s->valid!=DEL && vc<255) {
-			vc++;
-		}
-	}
-*/
 	*vcopies = c->allvalidcopies;
 	return STATUS_OK;
 }
@@ -1046,7 +615,6 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 	chunk *oc,*c;
 
 	if (ochunkid==0) {	// new chunk
-//		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
 #ifndef METARESTORE
 		servcount = matocsserv_getservers_wrandom(ptrs,goal);
 		if (servcount==0) {
@@ -1138,12 +706,7 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 			}
 #endif
 		} else {
-			if (oc->fcount==0/* f==NULL */) {	// it's serious structure error
-//#ifndef METARESTORE
-//				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
-//#else
-//				printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
-//#endif
+			if (oc->fcount==0) {	// it's serious structure error
 #ifndef METARESTORE
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
 #else
@@ -1252,12 +815,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		c->version++;
 #endif
 	} else {
-		if (oc->fcount==0/*f==NULL*/) {	// it's serious structure error
-//#ifndef METARESTORE
-//			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
-//#else
-//			printf("serious structure inconsistency: (chunkid:%016"PRIX64" ; inode:%"PRIu32" ; index:%"PRIu16")\n",ochunkid,inode,indx);
-//#endif
+		if (oc->fcount==0) {	// it's serious structure error
 #ifndef METARESTORE
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
 #else
@@ -1314,65 +872,6 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 	return STATUS_OK;
 }
 
-/*
-#ifndef METARESTORE
-int chunk_multi_reinitialize(uint64_t chunkid) {
-	void* ptrs[65536];
-	uint8_t i,g;
-	uint16_t servcount;
-	chunk *c;
-	slist *s;
-
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	if (c->lockedto>=(uint32_t)main_time()) {
-		return ERROR_LOCKED;
-	}
-
-	if (c->slisthead!=NULL) {
-		return ERROR_CHUNKEXIST;
-	}
-	servcount = matocsserv_getservers_wrandom(ptrs,c->goal);
-	if (servcount==0) {
-		return ERROR_NOCHUNKSERVERS;
-	}
-	c->interrupted = 0;
-	c->operation = CREATE;
-	if (servcount<c->goal) {
-		g = servcount;
-	} else {
-		g = c->goal;
-	}
-	c->version++;
-	for (i=0 ; i<g ; i++) {
-		s = slist_malloc();
-		s->ptr = ptrs[i];
-		s->valid = BUSY;
-		s->version = c->version;
-		s->next = c->slisthead;
-		c->slisthead = s;
-		matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
-	}
-
-	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-	return STATUS_OK;
-}
-#else
-int chunk_multi_reinitialize(uint32_t ts,uint64_t chunkid) {
-	chunk *c;
-
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ERROR_NOCHUNK;
-	}
-	c->version++;
-	c->lockedto=ts+LOCKTIMEOUT;
-	return STATUS_OK;
-}
-#endif
-*/
 #ifndef METARESTORE
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	uint32_t bestversion;
@@ -1480,8 +979,6 @@ int chunk_increase_version(uint64_t chunkid) {
 }
 #endif
 
-/* ---- */
-
 #ifndef METARESTORE
 
 typedef struct locsort {
@@ -1527,7 +1024,6 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 				lstab[cnt].rnd = rndu32();
 				cnt++;
 			}
-//			sptr[cnt++]=s->ptr;
 		}
 	}
 	qsort(lstab,cnt,sizeof(locsort),chunk_locsort_cmp);
@@ -1536,22 +1032,9 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 		put32bit(&wptr,lstab[i].ip);
 		put16bit(&wptr,lstab[i].port);
 	}
-//	// make random permutation
-//	for (i=0 ; i<cnt ; i++) {
-//		// k = random <i,j)
-//		k = i+rndu32_ranged(cnt-i);
-//		// swap (i,k)
-//		if (i!=k) {
-//			void* p = sptr[i];
-//			sptr[i] = sptr[k];
-//			sptr[k] = p;
-//		}
-//	}
 	*count = cnt;
 	return STATUS_OK;
 }
-
-/* ---- */
 
 void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	chunk *c;
@@ -1665,8 +1148,6 @@ void chunk_server_disconnected(void *ptr) {
 	slist *s,**st;
 	uint32_t i;
 	uint8_t valid,vs;
-	//jobsnorepbefore = main_time()+ReplicationsDelayDisconnect;
-	//jobslastdisconnect = main_time();
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next ) {
 			st = &(c->slisthead);
@@ -1703,7 +1184,6 @@ void chunk_server_disconnected(void *ptr) {
 				if (valid) {
 					if (vs>0) {
 						chunk_emergency_increase_version(c);
-//						matoclserv_chunk_status(c->chunkid,STATUS_OK);
 					} else {
 						matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
 						c->operation=NONE;
@@ -1793,21 +1273,6 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 	uint8_t valid,vs;
 	slist *s;
-/*
-	slist *s,**st;
-	if (status!=0) {
-		st = &(c->slisthead);
-		while (*st) {
-			s = *st;
-			if (s->ptr == ptr) {
-				*st = s->next;
-				slist_free(s);
-			} else {
-				st = &(s->next);
-			}
-		}
-	}
-*/
 	vs=0;
 	valid=1;
 	for (s=c->slisthead ; s ; s=s->next) {
@@ -1940,8 +1405,6 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	void* rptrs[65536];
 	uint16_t rservcount;
 	void *srcptr;
-//	uint32_t ip;
-//	uint16_t port;
 	uint16_t i;
 	uint32_t vc,tdc,ivc,bc,tdb,dc;
 	static loop_info inforec;
@@ -2062,30 +1525,6 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			}
 		}
 	}
-/*
-	if (delcount<TmpMaxDel) {
-		for (s=c->slisthead ; s ; s=s->next) {
-			if (s->valid==INVALID || s->valid==DEL) {
-				if (s->valid==DEL) {
-					syslog(LOG_WARNING,"chunk hasn't been deleted since previous loop - retry");
-				}
-				s->valid = DEL;
-				stats_deletions++;
-				matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-				delcount++;
-				inforec.done.del_invalid++;
-				dc++;
-				ivc--;
-			}
-		}
-	} else {
-		for (s=c->slisthead ; s ; s=s->next) {
-			if (s->valid==INVALID) {
-				inforec.notdone.del_invalid++;
-			}
-		}
-	}
-*/
 
 // step 4. return if chunk is during some operation
 	if (c->operation!=NONE || (c->lockedto>=(uint32_t)main_time())) {
@@ -2261,7 +1700,6 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 						}
 						if (srcptr) {
 							stats_replications++;
-	//						matocsserv_getlocation(srcptr,&ip,&port);
 							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
 							c->needverincrease=1;
 							inforec.done.copy_undergoal++;
@@ -2371,7 +1809,6 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				}
 				if (dstserv!=NULL) {
 					stats_replications++;
-//					matocsserv_getlocation(srcserv,&ip,&port);
 					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
 					c->needverincrease=1;
 					inforec.copy_rebalance++;
@@ -2379,39 +1816,6 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			}
 		}
 	}
-
-// step 9. if there is too big difference between chunkservers then make copy on server with lowest disk usage
-/*
-	if (jobscopycount<MaxRepl && c->goal == vc && vc+tdc>0 && (maxusage-minusage)>AcceptableDifference) {
-		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
-		}
-		if (min>0 && max>0) {
-			void *srcserv=NULL;
-			void *dstserv=NULL;
-			for (i=0 ; i<max && srcserv==NULL ; i++) {
-				for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
-				if (s && (s->valid==VALID || s->valid==TDVALID)) {
-					srcserv=s->ptr;
-				}
-			}
-			if (srcserv!=NULL) {
-				for (i=0 ; i<min && dstserv==NULL ; i++) {
-					for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
-					if (s==NULL) {
-						dstserv=ptrs[i];
-					}
-				}
-				if (dstserv!=NULL) {
-					stats_replications++;
-					matocsserv_getlocation(srcserv,&ip,&port);
-					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,ip,port);
-					inforec.copy_rebalance++;
-				}
-			}
-		}
-	}
-*/
 }
 
 void chunk_jobs_main(void) {
@@ -2454,7 +1858,7 @@ void chunk_jobs_main(void) {
 		l=0;
 		cp = &(chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
-			if (c->fcount==0 && /*c->flisthead==NULL && */c->slisthead==NULL) {
+			if (c->fcount==0 && c->slisthead==NULL) {
 				*cp = (c->next);
 				chunk_delete(c);
 			} else {
@@ -2479,9 +1883,6 @@ void chunk_jobs_main(void) {
 				l++;
 			}
 		}
-//		for (c=chunkhash[jobshpos] ; c ; c=c->next) {
-//			chunk_do_jobs(c,uscount,minusage,maxusage);
-//		}
 		jobshpos+=123;	// if HASHSIZE is any power of 2 then any odd number is good here
 		jobshpos%=HASHSIZE;
 	}
@@ -2489,63 +1890,8 @@ void chunk_jobs_main(void) {
 
 #endif
 
-/* ---- */
-
-// #define CHUNKFSIZE11 12
 #define CHUNKFSIZE 16
 #define CHUNKCNT 1000
-
-/*
-int chunk_load_1_1(FILE *fd) {
-	uint8_t hdr[8];
-	uint8_t loadbuff[CHUNKFSIZE11*CHUNKCNT];
-	uint8_t *ptr;
-	int32_t r;
-	uint32_t i,j;
-	chunk *c;
-	int readlast;
-// chunkdata
-	uint64_t chunkid;
-	uint32_t version;
-
-	fread(hdr,1,8,fd);
-	ptr = hdr;
-	nextchunkid = get64bit(&ptr);
-	readlast = 0;
-	for (;;) {
-		r = fread(loadbuff,1,CHUNKFSIZE11*CHUNKCNT,fd);
-		if (r<0) {
-			return -1;
-		}
-		if ((r%CHUNKFSIZE11)!=0) {
-			return -1;
-		}
-		i = r/CHUNKFSIZE11;
-		ptr = loadbuff;
-		for (j=0 ; j<i ; j++) {
-			chunkid = get64bit(&ptr);
-			if (chunkid>0) {
-				if (readlast==1) {
-					return -1;
-				}
-				c = chunk_new(chunkid);
-				version = get32bit(&ptr);
-				c->version = version;
-			} else {
-				readlast = 1;
-				version = get32bit(&ptr);
-			}
-		}
-		if (i<CHUNKCNT) {
-			break;
-		}
-	}
-	if (readlast==0) {
-		return -1;
-	}
-	return 0;
-}
-*/
 
 #ifdef METARESTORE
 
@@ -2706,23 +2052,6 @@ void chunk_term(void) {
 			}
 		}
 	}
-# endif
-# if 0
-# ifdef USE_FLIST_BUCKETS
-	for (fb = fbhead ; fb ; fb = fbn) {
-		fbn = fb->next;
-		free(fb);
-	}
-# else
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
-			for (fl = ch->flisthead ; fl ; fl = fln) {
-				fln = fl->next;
-				free(fl);
-			}
-		}
-	}
-# endif
 # endif
 #endif
 #ifdef USE_CHUNK_BUCKETS
@@ -2933,12 +2262,7 @@ int chunk_strinit(void) {
 	jobsrebalancecount = 0;
 	starttime = main_time();
 	jobsnorepbefore = starttime+ReplicationsDelayInit;
-	//jobslastdisconnect = 0;
 	chunk_do_jobs(NULL,JOBS_INIT,0.0,0.0);	// clear chunk loop internal data
-/*
-	chunk_cfg_check();
-	main_timeregister(TIMEMODE_RUN_LATE,30,0,chunk_cfg_check);
-*/
 	main_reloadregister(chunk_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
 #endif
