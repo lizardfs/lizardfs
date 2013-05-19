@@ -93,7 +93,7 @@ void merger_new_entry(const char *filename) {
 	// printf("add file: %s\n",filename);
 	if ((heap[heapsize].fd = fopen(filename,"r"))!=NULL) {
 		heap[heapsize].filename = strdup(filename);
-		heap[heapsize].buff = malloc(BSIZE);
+		heap[heapsize].buff = (char*) malloc(BSIZE);
 		heap[heapsize].ptr = NULL;
 		heap[heapsize].nextid = 0;
 		merger_nextentry(heapsize);

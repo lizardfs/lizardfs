@@ -643,7 +643,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 				free(xa->attrvalue);
 			}
 			if (avleng>0) {
-				xa->attrvalue = malloc(avleng);
+				xa->attrvalue = (uint8_t*) malloc(avleng);
 				passert(xa->attrvalue);
 				memcpy(xa->attrvalue,attrvalue,avleng);
 			} else {
@@ -663,15 +663,15 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		return ERROR_ERANGE;
 	}
 
-	xa = malloc(sizeof(xattr_data_entry));
+	xa = (xattr_data_entry*) malloc(sizeof(xattr_data_entry));
 	passert(xa);
 	xa->inode = inode;
-	xa->attrname = malloc(anleng);
+	xa->attrname = (uint8_t*) malloc(anleng);
 	passert(xa->attrname);
 	memcpy(xa->attrname,attrname,anleng);
 	xa->anleng = anleng;
 	if (avleng>0) {
-		xa->attrvalue = malloc(avleng);
+		xa->attrvalue = (uint8_t*) malloc(avleng);
 		passert(xa->attrvalue);
 		memcpy(xa->attrvalue,attrvalue,avleng);
 	} else {
@@ -695,7 +695,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		ih->anleng += anleng+1U;
 		ih->avleng += avleng;
 	} else {
-		ih = malloc(sizeof(xattr_inode_entry));
+		ih = (xattr_inode_entry*) malloc(sizeof(xattr_inode_entry));
 		passert(ih);
 		ih->inode = inode;
 		xa->nextinode = NULL;
@@ -776,7 +776,7 @@ static char* fsnodes_escape_name(uint32_t nleng,const uint8_t *name) {
 		if (escname[buffid]!=NULL) {
 			free(escname[buffid]);
 		}
-		escname[buffid] = malloc(escnamesize[buffid]);
+		escname[buffid] = (char*) malloc(escnamesize[buffid]);
 		passert(escname[buffid]);
 	}
 	i = 0;
@@ -912,7 +912,7 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 
 static inline quotanode* fsnodes_new_quotanode(fsnode *p) {
 	quotanode *qn;
-	qn = malloc(sizeof(quotanode));
+	qn = (quotanode*) malloc(sizeof(quotanode));
 	passert(qn);
 	memset(qn,0,sizeof(quotanode));
 	qn->next = quotahead;
@@ -1339,10 +1339,10 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	uint32_t hpos;
 #endif
 
-	e = malloc(sizeof(fsedge));
+	e = (fsedge*) malloc(sizeof(fsedge));
 	passert(e);
 	e->nleng = nleng;
-	e->name = malloc(nleng);
+	e->name = (uint8_t*) malloc(nleng);
 	passert(e->name);
 	memcpy(e->name,name,nleng);
 	e->child = child;
@@ -1404,7 +1404,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 	statsrecord *sr;
 #endif
 	uint32_t nodepos;
-	p = malloc(sizeof(fsnode));
+	p = (fsnode*) malloc(sizeof(fsnode));
 	passert(p);
 	nodes++;
 	if (type==TYPE_DIRECTORY) {
@@ -1441,7 +1441,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 	switch (type) {
 	case TYPE_DIRECTORY:
 #ifndef METARESTORE
-		sr = malloc(sizeof(statsrecord));
+		sr = (statsrecord*) malloc(sizeof(statsrecord));
 		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
@@ -1555,7 +1555,7 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 		size=65535;
 	}
 	*pleng = size;
-	ret = malloc(size);
+	ret = (uint8_t*) malloc(size);
 	passert(ret);
 	size -= e->nleng;
 	memcpy(ret+size,e->name,e->nleng);
@@ -1986,7 +1986,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 			if (child->trashtime>0) {
 				child->type = TYPE_TRASH;
 				child->ctime = ts;
-				e = malloc(sizeof(fsedge));
+				e = (fsedge*) malloc(sizeof(fsedge));
 				passert(e);
 				e->nleng = pleng;
 				e->name = path;
@@ -2009,7 +2009,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				trashnodes++;
 			} else if (child->data.fdata.sessionids!=NULL) {
 				child->type = TYPE_RESERVED;
-				e = malloc(sizeof(fsedge));
+				e = (fsedge*) malloc(sizeof(fsedge));
 				passert(e);
 				e->nleng = pleng;
 				e->name = path;
@@ -2087,7 +2087,7 @@ static inline int fsnodes_purge(uint32_t ts,fsnode *p) {
 static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 	uint16_t pleng;
 	const uint8_t *path;
-	uint8_t new;
+	uint8_t is_new;
 	uint32_t i,partleng,dots;
 	fsedge *e,*pe;
 	fsnode *p,*n;
@@ -2141,7 +2141,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 /* create path */
 	n = NULL;
 	p = root;
-	new = 0;
+	is_new = 0;
 	for (;;) {
 #ifndef METARESTORE
 		if (p->data.ddata.quota && p->data.ddata.quota->exceeded) {
@@ -2165,10 +2165,10 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 			trashnodes--;
 			return STATUS_OK;
 		} else {
-			if (new==0) {
+			if (is_new==0) {
 				pe = fsnodes_lookup(p,partleng,path);
 				if (pe==NULL) {
-					new=1;
+					is_new=1;
 				} else {
 					n = pe->child;
 					if (n->type!=TYPE_DIRECTORY) {
@@ -2176,7 +2176,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 					}
 				}
 			}
-			if (new==1) {
+			if (is_new==1) {
 				n = fsnodes_create_node(ts,p,partleng,path,TYPE_DIRECTORY,0755,0,0,0);
 			}
 			p = n;
@@ -2229,7 +2229,7 @@ static inline void fsnodes_bst_add(bstnode **n,uint32_t val) {
 			return;
 		}
 	}
-	(*n)=malloc(sizeof(bstnode));
+	(*n)= (bstnode*) malloc(sizeof(bstnode));
 	passert(*n);
 	(*n)->val = val;
 	(*n)->count = 1;
@@ -2543,7 +2543,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 				free(dstnode->data.sdata.path);
 			}
 			if (srcnode->data.sdata.pleng>0) {
-				dstnode->data.sdata.path = malloc(srcnode->data.sdata.pleng);
+				dstnode->data.sdata.path = (uint8_t*) malloc(srcnode->data.sdata.pleng);
 				passert(dstnode->data.sdata.path);
 				memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
 				dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
@@ -2610,7 +2610,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #endif
 			} else if (srcnode->type==TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng>0) {
-					dstnode->data.sdata.path = malloc(srcnode->data.sdata.pleng);
+					dstnode->data.sdata.path = (uint8_t*) malloc(srcnode->data.sdata.pleng);
 					passert(dstnode->data.sdata.path);
 					memcpy(dstnode->data.sdata.path,srcnode->data.sdata.path,srcnode->data.sdata.pleng);
 					dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
@@ -2845,7 +2845,7 @@ uint8_t fs_setpath(uint32_t inode,const uint8_t *path) {
 	if (p->type!=TYPE_TRASH) {
 		return ERROR_ENOENT;
 	}
-	newpath = malloc(pleng);
+	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 	free(p->parents->name);
 	memcpy(newpath,path,pleng);
@@ -3618,7 +3618,7 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	if (fsnodes_test_quota(wd)) {
 		return ERROR_QUOTA;
 	}
-	newpath = malloc(pleng);
+	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 #ifndef METARESTORE
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_SYMLINK,0777,uid,gid,0);
@@ -5992,7 +5992,7 @@ void fs_test_files() {
 		mchunks=0;
 
 		if (fsinfo_msgbuff==NULL) {
-			fsinfo_msgbuff=malloc(MSGBUFFSIZE);
+			fsinfo_msgbuff= (char*) malloc(MSGBUFFSIZE);
 			passert(fsinfo_msgbuff);
 		}
 		tmp = fsinfo_msgbuff;
@@ -6530,10 +6530,10 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			}
 		}
 
-		xa = malloc(sizeof(xattr_data_entry));
+		xa = (xattr_data_entry*) malloc(sizeof(xattr_data_entry));
 		passert(xa);
 		xa->inode = inode;
-		xa->attrname = malloc(anleng);
+		xa->attrname = (uint8_t*) malloc(anleng);
 		passert(xa->attrname);
 		if (fread(xa->attrname,1,anleng,fd)!=(size_t)anleng) {
 			int err = errno;
@@ -6548,7 +6548,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 		}
 		xa->anleng = anleng;
 		if (avleng>0) {
-			xa->attrvalue = malloc(avleng);
+			xa->attrvalue = (uint8_t*) malloc(avleng);
 			passert(xa->attrvalue);
 			if (fread(xa->attrvalue,1,avleng,fd)!=(size_t)avleng) {
 				int err = errno;
@@ -6584,7 +6584,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			ih->anleng += anleng+1U;
 			ih->avleng += avleng;
 		} else {
-			ih = malloc(sizeof(xattr_inode_entry));
+			ih = (xattr_inode_entry*) malloc(sizeof(xattr_inode_entry));
 			passert(ih);
 			ih->inode = inode;
 			xa->nextinode = NULL;
@@ -6600,12 +6600,12 @@ int xattr_load(FILE *fd,int ignoreflag) {
 
 void xattr_init(void) {
 	uint32_t i;
-	xattr_data_hash = malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
+	xattr_data_hash = (xattr_data_entry**) malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
 	passert(xattr_data_hash);
 	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
 		xattr_data_hash[i]=NULL;
 	}
-	xattr_inode_hash = malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
+	xattr_inode_hash = (xattr_inode_entry**) malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
 	passert(xattr_inode_hash);
 	for (i=0 ; i<XATTR_INODE_HASH_SIZE ; i++) {
 		xattr_inode_hash[i]=NULL;
@@ -6681,7 +6681,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	if (parent_id==0 && child_id==0) {	// last edge
 		return 1;
 	}
-	e = malloc(sizeof(fsedge));
+	e = (fsedge*) malloc(sizeof(fsedge));
 	passert(e);
 	e->nleng = get16bit(&ptr);
 	if (e->nleng==0) {
@@ -6693,7 +6693,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 		free(e);
 		return -1;
 	}
-	e->name = malloc(e->nleng);
+	e->name = (uint8_t*) malloc(e->nleng);
 	passert(e->name);
 	if (fread(e->name,1,e->nleng,fd)!=e->nleng) {
 		int err = errno;
@@ -7023,7 +7023,7 @@ int fs_loadnode(FILE *fd) {
 	if (type==0) {	// last node
 		return 1;
 	}
-	p = malloc(sizeof(fsnode));
+	p = (fsnode*) malloc(sizeof(fsnode));
 	passert(p);
 	p->type = type;
 	switch (type) {
@@ -7094,7 +7094,7 @@ int fs_loadnode(FILE *fd) {
 	switch (type) {
 	case TYPE_DIRECTORY:
 #ifndef METARESTORE
-		sr = malloc(sizeof(statsrecord));
+		sr = (statsrecord*) malloc(sizeof(statsrecord));
 		passert(sr);
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
@@ -7124,7 +7124,7 @@ int fs_loadnode(FILE *fd) {
 		pleng = get32bit(&ptr);
 		p->data.sdata.pleng = pleng;
 		if (pleng>0) {
-			p->data.sdata.path = malloc(pleng);
+			p->data.sdata.path = (uint8_t*) malloc(pleng);
 			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
 				int err = errno;
@@ -7155,7 +7155,7 @@ int fs_loadnode(FILE *fd) {
 		p->data.fdata.chunks = ch;
 		sessionids = get16bit(&ptr);
 		if (ch>0) {
-			p->data.fdata.chunktab = malloc(sizeof(uint64_t)*ch);
+			p->data.fdata.chunktab = (uint64_t*) malloc(sizeof(uint64_t)*ch);
 			passert(p->data.fdata.chunktab);
 		} else {
 			p->data.fdata.chunktab = NULL;
@@ -7871,7 +7871,7 @@ void fs_new(void) {
 	metaversion = 0;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
-	root = malloc(sizeof(fsnode));
+	root = (fsnode*) malloc(sizeof(fsnode));
 	passert(root);
 	root->id = MFS_ROOT_ID;
 	root->type = TYPE_DIRECTORY;
@@ -7881,7 +7881,7 @@ void fs_new(void) {
 	root->mode = 0777;
 	root->uid = 0;
 	root->gid = 0;
-	sr = malloc(sizeof(statsrecord));
+	sr = (statsrecord*) malloc(sizeof(statsrecord));
 	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
 	root->data.ddata.stats = sr;

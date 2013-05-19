@@ -122,7 +122,7 @@ void matomlserv_store_logstring(uint64_t version,uint8_t *logstr,uint32_t logstr
 		return;
 	}
 	if (old_changes_current==NULL || old_changes_head==NULL || old_changes_current->entries>=OLD_CHANGES_BLOCK_SIZE) {
-		oc = malloc(sizeof(old_changes_block));
+		oc = (old_changes_block*) malloc(sizeof(old_changes_block));
 		passert(oc);
 		ts = main_time();
 		oc->entries = 0;
@@ -145,7 +145,7 @@ void matomlserv_store_logstring(uint64_t version,uint8_t *logstr,uint32_t logstr
 	oce = oc->old_changes_block + oc->entries;
 	oce->version = version;
 	oce->length = logstrsize;
-	oce->data = malloc(logstrsize);
+	oce->data = (uint8_t*) malloc(logstrsize);
 	passert(oce->data);
 	memcpy(oce->data,logstr,logstrsize);
 	oc->entries++;
@@ -200,7 +200,7 @@ char* matomlserv_makestrip(uint32_t ip) {
 		}
 	}
 	l+=4;
-	optr = malloc(l);
+	optr = (char*) malloc(l);
 	passert(optr);
 	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
@@ -215,7 +215,7 @@ uint8_t* matomlserv_createpacket(matomlserventry *eptr,uint32_t type,uint32_t si
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -554,7 +554,7 @@ void matomlserv_read(matomlserventry *eptr) {
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = malloc(size);
+				eptr->inputpacket.packet = (uint8_t*) malloc(size);
 				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
@@ -645,7 +645,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
-			eptr = malloc(sizeof(matomlserventry));
+			eptr = (matomlserventry*) malloc(sizeof(matomlserventry));
 			passert(eptr);
 			eptr->next = matomlservhead;
 			matomlservhead = eptr;

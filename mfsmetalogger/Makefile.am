@@ -4,12 +4,12 @@ AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -DAPPNAME=mfsmetalogger
 AM_LDFLAGS=$(ZLIB_LIBS)
 
 mfsmetalogger_SOURCES= \
-	masterconn.c masterconn.h \
+	masterconn.cc masterconn.h \
 	init.h \
-	../mfscommon/main.c ../mfscommon/main.h \
-	../mfscommon/cfg.c ../mfscommon/cfg.h \
-	../mfscommon/crc.c ../mfscommon/crc.h \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
-	../mfscommon/strerr.c ../mfscommon/strerr.h \
+	../mfscommon/main.cc ../mfscommon/main.h \
+	../mfscommon/cfg.cc ../mfscommon/cfg.h \
+	../mfscommon/crc.cc ../mfscommon/crc.h \
+	../mfscommon/sockets.cc ../mfscommon/sockets.h \
+	../mfscommon/strerr.cc ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h ../mfscommon/slogger.h \
 	../mfscommon/MFSCommunication.h

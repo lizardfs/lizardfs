@@ -222,7 +222,7 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 	uint32_t jobid = jp->nextjobid;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
-	jptr = malloc(sizeof(job));
+	jptr = (job*) malloc(sizeof(job));
 	passert(jptr);
 	jptr->jobid = jobid;
 	jptr->callback = callback;
@@ -250,14 +250,14 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	if (pipe(fd)<0) {
 		return NULL;
 	}
-       	jp=malloc(sizeof(jobpool));
+       	jp= (jobpool*) malloc(sizeof(jobpool));
 	passert(jp);
 //	syslog(LOG_WARNING,"new pool of workers (%p:%"PRIu8")",(void*)jp,workers);
 	*wakeupdesc = fd[0];
 	jp->rpipe = fd[0];
 	jp->wpipe = fd[1];
 	jp->workers = workers;
-	jp->workerthreads = malloc(sizeof(pthread_t)*workers);
+	jp->workerthreads = (__pthread_t**) malloc(sizeof(pthread_t)*workers);
 	passert(jp->workerthreads);
 	zassert(pthread_mutex_init(&(jp->pipelock),NULL));
 	zassert(pthread_mutex_init(&(jp->jobslock),NULL));
@@ -388,7 +388,7 @@ uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void
 uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
 	jobpool* jp = (jobpool*)jpool;
 	chunk_op_args *args;
-	args = malloc(sizeof(chunk_op_args));
+	args = (chunk_op_args*) malloc(sizeof(chunk_op_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
@@ -402,7 +402,7 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
-	args = malloc(sizeof(chunk_oc_args));
+	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
 	return job_new(jp,OP_OPEN,args,callback,extra);
@@ -411,7 +411,7 @@ uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void 
 uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
-	args = malloc(sizeof(chunk_oc_args));
+	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
 	return job_new(jp,OP_CLOSE,args,callback,extra);
@@ -420,7 +420,7 @@ uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void
 uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff) {
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
-	args = malloc(sizeof(chunk_rd_args));
+	args = (chunk_rd_args*) malloc(sizeof(chunk_rd_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
@@ -435,7 +435,7 @@ uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void 
 uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
 	jobpool* jp = (jobpool*)jpool;
 	chunk_wr_args *args;
-	args = malloc(sizeof(chunk_wr_args));
+	args = (chunk_wr_args*) malloc(sizeof(chunk_wr_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
@@ -451,7 +451,7 @@ uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rp_args *args;
 	uint8_t *ptr;
-	ptr = malloc(sizeof(chunk_rp_args)+srccnt*18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+srccnt*18);
 	passert(ptr);
 	args = (chunk_rp_args*)ptr;
 	ptr += sizeof(chunk_rp_args);
@@ -466,7 +466,7 @@ uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rp_args *args;
 	uint8_t *ptr;
-	ptr = malloc(sizeof(chunk_rp_args)+18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+18);
 	passert(ptr);
 	args = (chunk_rp_args*)ptr;
 	ptr += sizeof(chunk_rp_args);
