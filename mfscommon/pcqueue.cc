@@ -126,7 +126,7 @@ uint32_t queue_sizeleft(void *que) {
 int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 	queue *q = (queue*)que;
 	qentry *qe;
-	qe = malloc(sizeof(qentry));
+	qe = (qentry*) malloc(sizeof(qentry));
 	passert(qe);
 	qe->id = id;
 	qe->op = op;
@@ -174,7 +174,7 @@ int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) 
 			return -1;
 		}
 	}
-	qe = malloc(sizeof(qentry));
+	qe = (qentry*) malloc(sizeof(qentry));
 	passert(qe);
 	qe->id = id;
 	qe->op = op;

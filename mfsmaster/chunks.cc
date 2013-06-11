@@ -449,7 +449,7 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 		c->goal = newgoal;
 	} else {
 		if (c->ftab==NULL) {
-			c->ftab = malloc(sizeof(uint32_t)*10);
+			c->ftab = (uint32_t*) malloc(sizeof(uint32_t)*10);
 			passert(c->ftab);
 			memset(c->ftab,0,sizeof(uint32_t)*10);
 			c->ftab[c->goal]=c->fcount-1;
@@ -534,7 +534,7 @@ static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
 		}
 	} else {
 		if (c->ftab==NULL) {
-			c->ftab = malloc(sizeof(uint32_t)*10);
+			c->ftab = (uint32_t*) malloc(sizeof(uint32_t)*10);
 			passert(c->ftab);
 			memset(c->ftab,0,sizeof(uint32_t)*10);
 			c->ftab[c->goal]=c->fcount;

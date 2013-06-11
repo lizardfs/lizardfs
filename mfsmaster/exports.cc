@@ -879,7 +879,7 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 		// no options - use defaults
 		arec->pleng = pleng;
 		if (pleng>0) {
-			arec->path = malloc(pleng+1);
+			arec->path = (const uint8_t*) malloc(pleng+1);
 			passert(arec->path);
 			memcpy((uint8_t*)(arec->path),path,pleng);
 			((uint8_t*)(arec->path))[pleng]=0;
@@ -904,7 +904,7 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 
 	arec->pleng = pleng;
 	if (pleng>0) {
-		arec->path = malloc(pleng+1);
+		arec->path = (const uint8_t*) malloc(pleng+1);
 		passert(arec->path);
 		memcpy((uint8_t*)(arec->path),path,pleng);
 		((uint8_t*)(arec->path))[pleng]=0;
@@ -942,7 +942,7 @@ void exports_loadexports(void) {
 	newexports = NULL;
 	netail = &newexports;
 	lineno = 1;
-	arec = malloc(sizeof(exports));
+	arec = (exports*) malloc(sizeof(exports));
 	passert(arec);
 	while (fgets(linebuff,10000,fd)) {
 		if (linebuff[0]!='#') {
@@ -956,7 +956,7 @@ void exports_loadexports(void) {
 				if (exports_parseline(linebuff,lineno,arec)>=0) {
 					*netail = arec;
 					netail = &(arec->next);
-					arec = malloc(sizeof(exports));
+					arec = (exports*) malloc(sizeof(exports));
 					passert(arec);
 				}
 			}

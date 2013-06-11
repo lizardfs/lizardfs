@@ -464,11 +464,11 @@ int matoclserv_load_sessions() {
 	}
 
 	if (mapalldata==0) {
-		fsesrecord = malloc(25+statsinfile*8);
+		fsesrecord = (uint8_t*) malloc(25+statsinfile*8);
 	} else if (goaltrashdata==0) {
-		fsesrecord = malloc(33+statsinfile*8);
+		fsesrecord = (uint8_t*) malloc(33+statsinfile*8);
 	} else {
-		fsesrecord = malloc(43+statsinfile*8);
+		fsesrecord = (uint8_t*) malloc(43+statsinfile*8);
 	}
 	passert(fsesrecord);
 
@@ -524,7 +524,7 @@ int matoclserv_load_sessions() {
 				asesdata->lasthouropstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
 			if (ileng>0) {
-				asesdata->info = malloc(ileng+1);
+				asesdata->info = (char*) malloc(ileng+1);
 				passert(asesdata->info);
 				if (fread(asesdata->info,ileng,1,fd)!=1) {
 					free(asesdata->info);
@@ -634,7 +634,7 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -1359,7 +1359,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 						eptr->sesdata->info = strdup(info);
 						passert(eptr->sesdata->info);
 					} else {
-						eptr->sesdata->info = malloc(ileng+1);
+						eptr->sesdata->info = (char*) malloc(ileng+1);
 						passert(eptr->sesdata->info);
 						memcpy(eptr->sesdata->info,info,ileng);
 						eptr->sesdata->info[ileng]=0;
@@ -1439,7 +1439,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 						eptr->sesdata->info = strdup(info);
 						passert(eptr->sesdata->info);
 					} else {
-						eptr->sesdata->info = malloc(ileng+1);
+						eptr->sesdata->info = (char*) malloc(ileng+1);
 						passert(eptr->sesdata->info);
 						memcpy(eptr->sesdata->info,info,ileng);
 						eptr->sesdata->info[ileng]=0;
@@ -3703,7 +3703,7 @@ void matoclserv_read(matoclserventry *eptr) {
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = malloc(size);
+				eptr->inputpacket.packet = (uint8_t*) malloc(size);
 				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
@@ -3823,7 +3823,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
-			eptr = malloc(sizeof(matoclserventry));
+			eptr = (matoclserventry*) malloc(sizeof(matoclserventry));
 			passert(eptr);
 			eptr->next = matoclservhead;
 			matoclservhead = eptr;

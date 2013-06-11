@@ -167,7 +167,7 @@ void* csserv_create_detached_packet(uint32_t type,uint32_t size) {
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -216,7 +216,7 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr,uint32_t type,uint32_t 
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -291,7 +291,7 @@ int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint32_t psize;
 	psize = 12+length;
 	eptr->fwdbytesleft = 8+psize;
-	eptr->fwdinitpacket = malloc(eptr->fwdbytesleft);
+	eptr->fwdinitpacket = (uint8_t*) malloc(eptr->fwdbytesleft);
 	passert(eptr->fwdinitpacket);
 	eptr->fwdstartptr = eptr->fwdinitpacket;
 	if (eptr->fwdinitpacket==NULL) {
@@ -495,7 +495,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 			}
 		}
 		// not found - so add it
-		wptr = malloc(sizeof(writestatus));
+		wptr = (writestatus*) malloc(sizeof(writestatus));
 		passert(wptr);
 		wptr->writeid = eptr->wjobwriteid;
 		wptr->next = eptr->todolist;
@@ -643,7 +643,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 		}
 	}
 	// if not found then add record
-	wptr = malloc(sizeof(writestatus));
+	wptr = (writestatus*) malloc(sizeof(writestatus));
 	passert(wptr);
 	wptr->writeid = writeid;
 	wptr->next = eptr->todolist;
@@ -1346,7 +1346,7 @@ void csserv_fwdread(csserventry *eptr) {
 			return;
 		}
 		if (size>0) {
-			eptr->fwdinputpacket.packet = malloc(size);
+			eptr->fwdinputpacket.packet = (uint8_t*) malloc(size);
 			passert(eptr->fwdinputpacket.packet);
 			eptr->fwdinputpacket.startptr = eptr->fwdinputpacket.packet;
 		}
@@ -1455,7 +1455,7 @@ void csserv_forward(csserventry *eptr) {
 			eptr->state = CLOSE;
 			return;
 		}
-		eptr->inputpacket.packet = malloc(size+8);
+		eptr->inputpacket.packet = (uint8_t*) malloc(size+8);
 		passert(eptr->inputpacket.packet);
 		memcpy(eptr->inputpacket.packet,eptr->hdrbuff,8);
 		eptr->inputpacket.bytesleft = size;
@@ -1559,7 +1559,7 @@ void csserv_read(csserventry *eptr) {
 				eptr->state = CLOSE;
 				return;
 			}
-			eptr->inputpacket.packet = malloc(size);
+			eptr->inputpacket.packet = (uint8_t*) malloc(size);
 			passert(eptr->inputpacket.packet);
 			eptr->inputpacket.startptr = eptr->inputpacket.packet;
 		}
@@ -1753,7 +1753,7 @@ void csserv_serve(struct pollfd *pdesc) {
 #endif
 				tcpnonblock(ns);
 				tcpnodelay(ns);
-				eptr = malloc(sizeof(csserventry));
+				eptr = (csserventry*) malloc(sizeof(csserventry));
 				passert(eptr);
 				eptr->next = csservhead;
 				csservhead = eptr;

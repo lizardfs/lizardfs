@@ -482,7 +482,7 @@ void strerr_init(void) {
 		n>>=1;
 	}
 
-	errhash = malloc(sizeof(errent)*errhsize);
+	errhash = (errent*) malloc(sizeof(errent)*errhsize);
 	memset(errhash,0,sizeof(errent)*errhsize);
 
 	for (n=0 ; errtab[n].str ; n++) {

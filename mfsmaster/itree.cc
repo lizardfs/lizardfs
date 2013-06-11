@@ -154,7 +154,7 @@ static inline void itree_add(itnode **p,uint32_t f,uint32_t t,uint32_t id) {
 			itree_add(&(n->right),f,t,id);
 		}
 	} else {
-		*p = n = malloc(sizeof(itnode));
+		*p = n = (itnode*) malloc(sizeof(itnode));
 		passert(n);
 		n->from = f;
 		n->to = t;

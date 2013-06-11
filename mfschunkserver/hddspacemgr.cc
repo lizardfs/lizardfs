@@ -325,7 +325,7 @@ static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
 void hdd_report_damaged_chunk(uint64_t chunkid) {
 	damagedchunk *dc;
 	zassert(pthread_mutex_lock(&dclock));
-	dc = malloc(sizeof(damagedchunk));
+	dc = (damagedchunk*) malloc(sizeof(damagedchunk));
 	passert(dc);
 	dc->chunkid = chunkid;
 	dc->next = damagedchunks;
@@ -367,7 +367,7 @@ void hdd_report_lost_chunk(uint64_t chunkid) {
 	if (lostchunks && lostchunks->chunksinblock<LOSTCHUNKSBLOCKSIZE) {
 		lostchunks->chunkidblock[lostchunks->chunksinblock++] = chunkid;
 	} else {
-		lc = malloc(sizeof(lostchunk));
+		lc = (lostchunk*) malloc(sizeof(lostchunk));
 		passert(lc);
 		lc->chunkidblock[0] = chunkid;
 		lc->chunksinblock = 1;
@@ -422,7 +422,7 @@ void hdd_report_new_chunk(uint64_t chunkid,uint32_t version) {
 		newchunks->versionblock[newchunks->chunksinblock] = version;
 		newchunks->chunksinblock++;
 	} else {
-		nc = malloc(sizeof(newchunk));
+		nc = (newchunk*) malloc(sizeof(newchunk));
 		passert(nc);
 		nc->chunkidblock[0] = chunkid;
 		nc->versionblock[0] = version;
@@ -819,7 +819,7 @@ static chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 	for (c=hashtab[hashpos] ; c && c->chunkid!=chunkid ; c=c->next) {}
 	if (c!=NULL) {
 		if (c->state==CH_LOCKED) {
-			c = CHUNKLOCKED;
+			c = (chunk*) CHUNKLOCKED;
 		} else if (c->state!=CH_AVAIL) {
 			c = NULL;
 		} else {
@@ -843,7 +843,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 	for (c=hashtab[hashpos] ; c && c->chunkid!=chunkid ; c=c->next) {}
 	if (c==NULL) {
 		if (cflag!=CH_NEW_NONE) {
-			c = malloc(sizeof(chunk));
+			c = (chunk*) malloc(sizeof(chunk));
 			passert(c);
 			c->chunkid = chunkid;
 			c->version = 0;
@@ -964,7 +964,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 			if (c->ccond==NULL) {
 				for (cc=cclist ; cc && cc->wcnt ; cc=cc->next) {}
 				if (cc==NULL) {
-					cc = malloc(sizeof(cntcond));
+					cc = (cntcond*) malloc(sizeof(cntcond));
 					passert(cc);
 					zassert(pthread_cond_init(&(cc->cond),NULL));
 					cc->wcnt = 0;
@@ -1013,7 +1013,7 @@ static chunk* hdd_chunk_create(folder *f,uint64_t chunkid,uint32_t version) {
 	}
 	c->version = version;
 	leng = strlen(f->path);
-	c->filename = malloc(leng+39);
+	c->filename = (char*) malloc(leng+39);
 	passert(c->filename);
 	memcpy(c->filename,f->path,leng);
 	sprintf(c->filename+leng,"%02X/chunk_%016"PRIX64"_%08"PRIX32".mfs",(unsigned int)(chunkid&255),chunkid,version);
@@ -1774,7 +1774,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 		}
 #endif /* PRESERVE_BLOCK */
 		if (add) {
-			cc = malloc(sizeof(dopchunk));
+			cc = (dopchunk*) malloc(sizeof(dopchunk));
 			passert(cc);
 			cc->chunkid = c->chunkid;
 			zassert(pthread_mutex_lock(&ndoplock));
@@ -2566,7 +2566,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	if (newversion!=version) {
 		filenameleng = strlen(oc->filename);
 		if (oc->filename[filenameleng-13]=='_') {	// new file name format
-			newfilename = malloc(filenameleng+1);
+			newfilename = (char*) malloc(filenameleng+1);
 			passert(newfilename);
 			memcpy(newfilename,c->filename,filenameleng+1);
 			sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
@@ -2738,7 +2738,7 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 	}
 	filenameleng = strlen(c->filename);
 	if (c->filename[filenameleng-13]=='_') {	// new file name format
-		newfilename = malloc(filenameleng+1);
+		newfilename = (char*) malloc(filenameleng+1);
 		passert(newfilename);
 		memcpy(newfilename,c->filename,filenameleng+1);
 		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
@@ -2818,7 +2818,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 	filenameleng = strlen(c->filename);
 	if (c->filename[filenameleng-13]=='_') {	// new file name format
-		newfilename = malloc(filenameleng+1);
+		newfilename = (char*) malloc(filenameleng+1);
 		passert(newfilename);
 		memcpy(newfilename,c->filename,filenameleng+1);
 		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
@@ -3006,7 +3006,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	if (newversion!=version) {
 		filenameleng = strlen(oc->filename);
 		if (oc->filename[filenameleng-13]=='_') {	// new file name format
-			newfilename = malloc(filenameleng+1);
+			newfilename = (char*) malloc(filenameleng+1);
 			passert(newfilename);
 			memcpy(newfilename,c->filename,filenameleng+1);
 			sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
@@ -3516,7 +3516,7 @@ void hdd_testshuffle(folder *f) {
 		chunksno++;
 	}
 	if (chunksno>0) {
-		csorttab = malloc(sizeof(chunk*)*chunksno);
+		csorttab = (chunk**) malloc(sizeof(chunk*)*chunksno);
 		passert(csorttab);
 		chunksno = 0;
 		for (c=f->testhead ; c ; c=c->testnext) {
@@ -3686,7 +3686,7 @@ void* hdd_folder_scan(void *arg) {
 	destorage = (struct dirent*)malloc(sizeof(struct dirent)+pathconf(f->path,_PC_NAME_MAX)+1);
 	passert(destorage);
 
-	fullname = malloc(plen+39);
+	fullname = (char*) malloc(plen+39);
 	passert(fullname);
 
 	memcpy(fullname,f->path,plen);
@@ -3715,7 +3715,7 @@ void* hdd_folder_scan(void *arg) {
 
 /* move chunks from "X/name" to "XX/name" */
 
-		oldfullname = malloc(oldplen+38);
+		oldfullname = (char*) malloc(oldplen+38);
 		passert(oldfullname);
 		memcpy(oldfullname,f->path,oldplen);
 		oldfullname[oldplen++]='_';

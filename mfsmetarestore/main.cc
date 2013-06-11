@@ -263,13 +263,13 @@ int main(int argc,char **argv) {
 			datapath=strdup(DATA_PATH);
 		}
 		dplen = strlen(datapath);
-		metadata = malloc(dplen+sizeof("/metadata.mfs.back"));
+		metadata = (char*) malloc(dplen+sizeof("/metadata.mfs.back"));
 		memcpy(metadata,datapath,dplen);
 		memcpy(metadata+dplen,"/metadata.mfs.back",sizeof("/metadata.mfs.back"));
 		if (stat(metadata,&metast)<0) {
 			if (errno==ENOENT) {
 				free(metadata);
-				metadata = malloc(dplen+sizeof("/metadata_ml.mfs.back"));
+				metadata = (char*) malloc(dplen+sizeof("/metadata_ml.mfs.back"));
 				memcpy(metadata,datapath,dplen);
 				memcpy(metadata+dplen,"/metadata_ml.mfs.back",sizeof("/metadata_ml.mfs.back"));
 				if (stat(metadata,&metast)==0) {
@@ -289,7 +289,7 @@ int main(int argc,char **argv) {
 				}
 			}
 		}
-		metaout = malloc(dplen+sizeof("/metadata.mfs"));
+		metaout = (char*) malloc(dplen+sizeof("/metadata.mfs"));
 		memcpy(metaout,datapath,dplen);
 		memcpy(metaout+dplen,"/metadata.mfs",sizeof("/metadata.mfs"));
 	}
@@ -352,7 +352,7 @@ int main(int argc,char **argv) {
 		while ((dp = readdir(dd)) != NULL) {
 			if (changelog_checkname(dp->d_name)) {
 				nlen = strlen(dp->d_name);
-				filenames[pos] = malloc(dplen+1+nlen+1);
+				filenames[pos] = (char*) malloc(dplen+1+nlen+1);
 				memcpy(filenames[pos],datapath,dplen);
 				filenames[pos][dplen]='/';
 				memcpy(filenames[pos]+dplen+1,dp->d_name,nlen);
