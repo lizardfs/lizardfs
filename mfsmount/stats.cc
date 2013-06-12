@@ -57,7 +57,7 @@ void* stats_get_subnode(void *node,const char *name,uint8_t absolute) {
 			return a;
 		}
 	}
-	a = malloc(sizeof(statsnode));
+	a = (statsnode*) malloc(sizeof(statsnode));
 	a->nextsibling = sn?sn->firstchild:firstnode;
 	a->firstchild = NULL;
 	a->counter = 0;
@@ -68,7 +68,7 @@ void* stats_get_subnode(void *node,const char *name,uint8_t absolute) {
 	if (sn) {
 		char *bstr;
 		a->fnleng = sn->fnleng+1+a->nleng;
-		bstr = malloc(a->fnleng+1);
+		bstr = (char*) malloc(a->fnleng+1);
 		memcpy(bstr,sn->fullname,sn->fnleng);
 		bstr[sn->fnleng]='.';
 		memcpy(bstr+sn->fnleng+1,a->name,a->nleng);
@@ -150,7 +150,7 @@ void stats_show_all(char **buff,uint32_t *leng) {
 	uint32_t rl;
 	pthread_mutex_lock(&glock);
 	rl = allactiveplengs + 23*activenodes + 1;
-	*buff = malloc(rl);
+	*buff = (char*) malloc(rl);
 	if (*buff) {
 		*leng = stats_print_total(*buff,rl);
 	} else {

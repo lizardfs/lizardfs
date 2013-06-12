@@ -2,40 +2,37 @@ bin_PROGRAMS=mfsmount mfstools
 
 AM_CPPFLAGS=-I$(top_srcdir)/mfscommon
 
-
-
 mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS)
-mfsmount_CFLAGS=$(PTHREAD_CFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -DAPPNAME=mfsmount
-mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -I$(top_srcdir)/mfscommon
+mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -DAPPNAME=mfsmount -I$(top_srcdir)/mfscommon
 
 mfsmount_SOURCES=\
-	dirattrcache.c dirattrcache.h \
-	symlinkcache.c symlinkcache.h \
-	chunkloccache.c chunkloccache.h \
-	mfs_fuse.c mfs_fuse.h \
-	mfs_meta_fuse.c mfs_meta_fuse.h \
-	mastercomm.c mastercomm.h \
-	masterproxy.c masterproxy.h \
-	cscomm.c cscomm.h \
-	readdata.c readdata.h \
-	writedata.c writedata.h \
-	csdb.c csdb.h \
-	stats.c stats.h \
-	oplog.c oplog.h \
-	main.c \
-	../mfscommon/pcqueue.c ../mfscommon/pcqueue.h \
-	../mfscommon/crc.c ../mfscommon/crc.h \
-	../mfscommon/md5.c ../mfscommon/md5.h \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
-	../mfscommon/strerr.c ../mfscommon/strerr.h \
+	dirattrcache.cc dirattrcache.h \
+	symlinkcache.cc symlinkcache.h \
+	chunkloccache.cc chunkloccache.h \
+	mfs_fuse.cc mfs_fuse.h \
+	mfs_meta_fuse.cc mfs_meta_fuse.h \
+	mastercomm.cc mastercomm.h \
+	masterproxy.cc masterproxy.h \
+	cscomm.cc cscomm.h \
+	readdata.cc readdata.h \
+	writedata.cc writedata.h \
+	csdb.cc csdb.h \
+	stats.cc stats.h \
+	oplog.cc oplog.h \
+	main.cc \
+	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
+	../mfscommon/crc.cc ../mfscommon/crc.h \
+	../mfscommon/md5.cc ../mfscommon/md5.h \
+	../mfscommon/sockets.cc ../mfscommon/sockets.h \
+	../mfscommon/strerr.cc ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h \
 	../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
 mfstools_SOURCES=\
-	mfstools.c \
-	../mfscommon/sockets.c ../mfscommon/sockets.h \
-	../mfscommon/strerr.c ../mfscommon/strerr.h \
+	mfstools.cc \
+	../mfscommon/sockets.cc ../mfscommon/sockets.h \
+	../mfscommon/strerr.cc ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 

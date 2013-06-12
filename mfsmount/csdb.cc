@@ -41,7 +41,7 @@ void csdb_init(void) {
 	for (i=0 ; i<CSDB_HASHSIZE ; i++) {
 		csdbhtab[i]=NULL;
 	}
-	csdblock = malloc(sizeof(pthread_mutex_t));
+	csdblock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(csdblock,NULL);
 }
 
@@ -115,7 +115,7 @@ void csdb_readinc(uint32_t ip,uint16_t port) {
 			return;
 		}
 	}
-	e = malloc(sizeof(csdbentry));
+	e = (csdbentry*) malloc(sizeof(csdbentry));
 	e->ip = ip;
 	e->port = port;
 	e->readopcnt = 1;
@@ -150,7 +150,7 @@ void csdb_writeinc(uint32_t ip,uint16_t port) {
 			return;
 		}
 	}
-	e = malloc(sizeof(csdbentry));
+	e = (csdbentry*) malloc(sizeof(csdbentry));
 	e->ip = ip;
 	e->port = port;
 	e->readopcnt = 0;

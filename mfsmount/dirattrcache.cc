@@ -86,7 +86,7 @@ void dcache_makenamehash(dircache *d) {
 		dcache_calchashsize(d);
 	}
 	hashmask = d->hashsize-1;
-	d->namehashtab = malloc(sizeof(uint8_t*)*d->hashsize);
+	d->namehashtab = (const uint8_t**) malloc(sizeof(uint8_t*)*d->hashsize);
 	memset(d->namehashtab,0,sizeof(uint8_t*)*d->hashsize);
 
 	ptr = d->dbuff;
@@ -115,7 +115,7 @@ void dcache_makeinodehash(dircache *d) {
 		dcache_calchashsize(d);
 	}
 	hashmask = d->hashsize-1;
-	d->inodehashtab = malloc(sizeof(uint8_t*)*d->hashsize);
+	d->inodehashtab = (const uint8_t**) malloc(sizeof(uint8_t*)*d->hashsize);
 	memset(d->inodehashtab,0,sizeof(uint8_t*)*d->hashsize);
 
 	ptr = d->dbuff;
@@ -138,7 +138,7 @@ void dcache_makeinodehash(dircache *d) {
 
 void* dcache_new(const struct fuse_ctx *ctx,uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	dircache *d;
-	d = malloc(sizeof(dircache));
+	d = (dircache*) malloc(sizeof(dircache));
 	d->ctx.pid = ctx->pid;
 	d->ctx.uid = ctx->uid;
 	d->ctx.gid = ctx->gid;
