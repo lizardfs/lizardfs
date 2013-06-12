@@ -629,7 +629,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
 			mfs_makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,STATS_NAME)==0) {
@@ -641,7 +641,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
 			mfs_makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,OPLOG_NAME)==0) {
@@ -653,7 +653,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
 			mfs_makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPLOG): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPLOG): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 		if (strcmp(name,OPHISTORY_NAME)==0) {
@@ -665,7 +665,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			fuse_reply_entry(req, &e);
 			mfs_stats_inc(OP_LOOKUP_INTERNAL);
 			mfs_makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return ;
 		}
 	}
@@ -704,7 +704,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 	fuse_reply_entry(req, &e);
 	mfs_makeattrstr(attrstr,256,&e.attr);
-	oplog_printf(ctx,"lookup (%lu,%s)%s: OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,icacheflag?" (using open dir cache)":"",e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+	oplog_printf(ctx,"lookup (%lu,%s)%s: OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,icacheflag?" (using open dir cache)":"",e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 }
 
 void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
@@ -781,7 +781,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	attr_timeout = (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	fuse_reply_attr(req, &o_stbuf, attr_timeout);
 	mfs_makeattrstr(attrstr,256,&o_stbuf);
-	oplog_printf(ctx,"getattr (%lu): OK (%.1lf,%s)",(unsigned long int)ino,attr_timeout,attrstr);
+	oplog_printf(ctx,"getattr (%lu): OK (%.1f,%s)",(unsigned long int)ino,attr_timeout,attrstr);
 }
 
 void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set, struct fuse_file_info *fi) {
@@ -903,7 +903,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	attr_timeout = (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	fuse_reply_attr(req, &o_stbuf, attr_timeout);
 	mfs_makeattrstr(attrstr,256,&o_stbuf);
-	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): OK (%.1lf,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attr_timeout,attrstr);
+	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): OK (%.1f,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attr_timeout,attrstr);
 }
 
 void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev) {
@@ -969,7 +969,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 		mfs_makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1056,7 +1056,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 		mfs_makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1141,7 +1141,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 		mfs_makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"symlink (%s,%lu,%s): OK (%.1lf,%lu,%.1lf,%s)",path,(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx,"symlink (%s,%lu,%s): OK (%.1f,%lu,%.1f,%s)",path,(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1274,7 +1274,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 		mfs_attr_to_stat(inode,attr,&e.attr);
 		fuse_reply_entry(req, &e);
 		mfs_makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"link (%lu,%lu,%s): OK (%.1lf,%lu,%.1lf,%s)",(unsigned long int)ino,(unsigned long int)newparent,newname,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx,"link (%lu,%lu,%s): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)ino,(unsigned long int)newparent,newname,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 	}
 }
 
@@ -1590,7 +1590,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		mfs_removefileinfo(fileinfo);
 	}
 	mfs_makeattrstr(attrstr,256,&e.attr);
-	oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): OK (%.1lf,%lu,%.1lf,%s,%lu)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr,(unsigned long int)fi->keep_cache);
+	oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): OK (%.1f,%lu,%.1f,%s,%lu)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr,(unsigned long int)fi->keep_cache);
 }
 
 void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
@@ -2259,7 +2259,7 @@ void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_
 	mkdir_copy_sgid = mkdir_copy_sgid_in;
 	sugid_clear_mode = sugid_clear_mode_in;
 	if (debug_mode) {
-		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2lf entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
+		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_in,(sugid_clear_mode_in<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_in]:"???");
 	}
 	mfs_statsptr_init();

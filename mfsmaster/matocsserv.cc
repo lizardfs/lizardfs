@@ -474,7 +474,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 			}
 			servtab[j].ptr = eptr;
 			servtab[j].space = space;
-//			syslog(LOG_NOTICE,"ptr: %p, space:%lf",eptr,space);
+//			syslog(LOG_NOTICE,"ptr: %p, space:%f",eptr,space);
 			j++;
 		}
 	}
@@ -484,7 +484,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	}
 
 	space = (double)(uspace)/(double)(tspace);
-//	syslog(LOG_NOTICE,"getservers - minspace: %lf , maxspace: %lf , diff: %lf , maxusagediff: %lf",minspace,maxspace,maxspace-minspace,maxusagediff);
+//	syslog(LOG_NOTICE,"getservers - minspace: %f , maxspace: %f , diff: %f , maxusagediff: %f",minspace,maxspace,maxspace-minspace,maxusagediff);
 	min = 0;
 	max = j;
 	mid = 0;
@@ -1206,7 +1206,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todelchunkscount = get32bit(&data);
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			return;
 		} else {
 			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%" PRIu8 "/1..4)",rversion);
@@ -1239,7 +1239,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 		if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
 			syslog(LOG_WARNING,"chunk-server already connected !!!");
 			eptr->mode=KILL;
@@ -1629,7 +1629,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			double us,ts;
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr);
 			if (eptr->incsdb) {

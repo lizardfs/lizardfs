@@ -37,10 +37,12 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 
 /* Run Tab */
 typedef int (*runfn)(void);
-struct {
+struct run_tab {
 	runfn fn;
 	const char *name;
-} RunTab[]={
+};
+
+run_tab RunTab[]={
 	{changelog_init,"change log"},
 	{rnd_init,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matoclserv_networkinit'
