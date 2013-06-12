@@ -23,6 +23,8 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include <limits>
+
 #include "stats.h"
 #include "MFSCommunication.h"
 
@@ -107,7 +109,7 @@ void chunkloc_cache_insert(uint32_t inode,uint32_t pos,uint64_t chunkid,uint32_t
 	uint32_t mints;
 
 	now = time(NULL);
-	mints = UINT32_MAX;
+	mints = std::numeric_limits<uint32_t>::max();
 	fi = 0;
 	fhb = NULL;
 
@@ -189,7 +191,7 @@ int chunkloc_cache_search(uint32_t inode,uint32_t pos,uint64_t *chunkid,uint32_t
 }
 
 void chunkloc_cache_init(void) {
-	chunklochash = malloc(sizeof(hashbucket)*HASH_BUCKETS);
+	chunklochash = (hashbucket*) malloc(sizeof(hashbucket)*HASH_BUCKETS);
 	memset(chunklochash,0,sizeof(hashbucket)*HASH_BUCKETS);
 	chunkloc_cache_statsptr_init();
 }

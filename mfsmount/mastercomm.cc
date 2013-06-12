@@ -226,7 +226,7 @@ threc* fs_get_my_threc() {
 			return rec;
 		}
 	}
-	rec = malloc(sizeof(threc));
+	rec = (threc*) malloc(sizeof(threc));
 	rec->thid = mythid;
 	pthread_mutex_init(&(rec->mutex),NULL);
 	pthread_cond_init(&(rec->cond),NULL);
@@ -272,7 +272,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (uint8_t*) (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -285,7 +285,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (void*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (uint8_t*) (void*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -305,7 +305,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (uint8_t*) (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -318,7 +318,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (void*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (uint8_t*) (void*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -526,10 +526,10 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	ileng=strlen(cargs->info)+1;
 	if (cargs->meta) {
 		pleng=0;
-		regbuff = malloc(8+64+9+ileng+16);
+		regbuff = (uint8_t*) malloc(8+64+9+ileng+16);
 	} else {
 		pleng=strlen(cargs->subfolder)+1;
-		regbuff = malloc(8+64+13+pleng+ileng+16);
+		regbuff = (uint8_t*) malloc(8+64+13+pleng+ileng+16);
 	}
 
 	fd = tcpsocket();
@@ -1044,7 +1044,7 @@ void* fs_nop_thread(void *arg) {
 					//syslog(LOG_NOTICE,"reserved inode: %"PRIu32,afptr->inode);
 					inodesleng+=4;
 				}
-				inodespacket = malloc(inodesleng);
+				inodespacket = (uint8_t*) malloc(inodesleng);
 				ptr = inodespacket;
 				put32bit(&ptr,CLTOMA_FUSE_RESERVED_INODES);
 				put32bit(&ptr,inodesleng-8);
@@ -1220,7 +1220,7 @@ int fs_init_master_connection(const char *bindhostname,const char *masterhostnam
 	if (passworddigest==NULL) {
 		connect_args.passworddigest = NULL;
 	} else {
-		connect_args.passworddigest = malloc(16);
+		connect_args.passworddigest = (uint8_t*) malloc(16);
 		memcpy(connect_args.passworddigest,passworddigest,16);
 	}
 

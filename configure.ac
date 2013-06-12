@@ -19,17 +19,12 @@ AC_DEFINE_UNQUOTED([VERSMIN], [$versmin], [Minor MFS version])
 AC_DEFINE_UNQUOTED([VERSHEX], [(($versmaj)*0x10000+($versmid)*0x100+($versmin))], [Full MFS version as a hex number])
 
 # Checks for programs.
-AC_PROG_CC
+AC_LANG([C++])
 AC_PROG_CXX
 AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
-if test "$GCC" = "yes"; then
-	CFLAGS="-std=c99 $CFLAGS -Wall -Wextra -Wshadow -pedantic -fwrapv -O2"
-dnl	CFLAGS="-O0 -W -Wall -Wshadow"
-fi
-
-CPPFLAGS="$CPPFLAGS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+CPPFLAGS="$CPPFLAGS -std=c++0x -Wall -Wextra -Wshadow -pedantic -fwrapv -O2 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
 
 case $target_os in
   *linux*)
@@ -60,7 +55,7 @@ case $target_os in
 esac
 
 AX_PTHREAD(, [AC_MSG_ERROR([Posix threads not found])])
-dnl AC_CHECK_LIB([pthread], [pthread_create])
+AC_CHECK_LIB([pthread], [pthread_create])
 
 # Checks for libraries.
 AC_SEARCH_LIBS([socket], [socket])

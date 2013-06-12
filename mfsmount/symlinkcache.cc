@@ -23,6 +23,8 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include <limits>
+
 #include "stats.h"
 #include "MFSCommunication.h"
 
@@ -87,7 +89,7 @@ void symlink_cache_insert(uint32_t inode,const uint8_t *path) {
 	uint32_t mints;
 
 	now = time(NULL);
-	mints = UINT32_MAX;
+	mints = std::numeric_limits<uint32_t>::max();
 	fi = 0;
 	fhb = NULL;
 
@@ -164,7 +166,7 @@ int symlink_cache_search(uint32_t inode,const uint8_t **path) {
 }
 
 void symlink_cache_init(void) {
-	symlinkhash = malloc(sizeof(hashbucket)*HASH_BUCKETS);
+	symlinkhash = (hashbucket*) malloc(sizeof(hashbucket)*HASH_BUCKETS);
 	memset(symlinkhash,0,sizeof(hashbucket)*HASH_BUCKETS);
 	symlink_cache_statsptr_init();
 }
