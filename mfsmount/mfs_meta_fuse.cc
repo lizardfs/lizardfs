@@ -618,7 +618,7 @@ static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	if (msize+dcsize==0) {
 		return;
 	}
-	b->p = malloc(msize+dcsize);
+	b->p = (uint8_t*) malloc(msize+dcsize);
 	if (b->p==NULL) {
 		syslog(LOG_WARNING,"out of memory");
 		return;
@@ -635,7 +635,7 @@ static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	dirbuf *dirinfo;
 	if (ino==META_ROOT_INODE || ino==META_TRASH_INODE || ino==META_UNDEL_INODE || ino==META_RESERVED_INODE) {
-		dirinfo = malloc(sizeof(dirbuf));
+		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
@@ -744,11 +744,11 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		if (status!=0) {
 			fuse_reply_err(req, status);
 		} else {
-			pathinfo = malloc(sizeof(pathbuf));
+			pathinfo = (pathbuf*) malloc(sizeof(pathbuf));
 			pthread_mutex_init(&(pathinfo->lock),NULL);
 			pathinfo->changed = 0;
 			pathinfo->size = strlen((char*)path)+1;
-			pathinfo->p = malloc(pathinfo->size);
+			pathinfo->p = (char*) malloc(pathinfo->size);
 			memcpy(pathinfo->p,path,pathinfo->size-1);
 			pathinfo->p[pathinfo->size-1]='\n';
 			fi->direct_io = 1;
@@ -776,7 +776,7 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		if (pathinfo->p[pathinfo->size-1]=='\n') {
 			pathinfo->p[pathinfo->size-1]=0;
 		} else {
-			pathinfo->p = realloc(pathinfo->p,pathinfo->size+1);
+			pathinfo->p = (char*) realloc(pathinfo->p,pathinfo->size+1);
 			pathinfo->p[pathinfo->size]=0;
 		}
 		fs_settrashpath((ino&INODE_VALUE_MASK),(uint8_t*)pathinfo->p);
@@ -851,7 +851,7 @@ void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size
 	}
 	if (off+size > pathinfo->size) {
 		size_t s = pathinfo->size;
-		pathinfo->p = realloc(pathinfo->p,off+size);
+		pathinfo->p = (char*) realloc(pathinfo->p,off+size);
 		pathinfo->size = off+size;
 		memset(pathinfo->p+s,0,off+size-s);
 	}

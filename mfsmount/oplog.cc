@@ -114,7 +114,7 @@ unsigned long oplog_newhandle(int hflag) {
 	uint32_t bpos;
 
 	pthread_mutex_lock(&opbufflock);
-	fhptr = malloc(sizeof(fhentry));
+	fhptr = (fhentry*) malloc(sizeof(fhentry));
 	fhptr->fh = nextfh++;
 	fhptr->refcount = 1;
 	if (hflag) {

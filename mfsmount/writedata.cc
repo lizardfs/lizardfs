@@ -197,7 +197,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 		syslog(LOG_WARNING,"pipe error: %s",strerr(errno));
 		return NULL;
 	}
-	id = malloc(sizeof(inodedata));
+	id = (inodedata*) malloc(sizeof(inodedata));
 	id->inode = inode;
 	id->cacheblockcount = 0;
 	id->maxfleng = 0;
@@ -835,7 +835,7 @@ void write_data_init (uint32_t cachesize,uint32_t retries) {
 
 	pthread_cond_init(&fcbcond,NULL);
 	fcbwaiting=0;
-	cacheblocks = malloc(sizeof(cblock)*cacheblockcount);
+	cacheblocks = (cblock*) malloc(sizeof(cblock)*cacheblockcount);
 	for (i=0 ; i<cacheblockcount-1 ; i++) {
 		cacheblocks[i].next = cacheblocks+(i+1);
 	}
@@ -843,7 +843,7 @@ void write_data_init (uint32_t cachesize,uint32_t retries) {
 	freecblockshead = cacheblocks;
 	freecacheblocks = cacheblockcount;
 
-	idhash = malloc(sizeof(inodedata*)*IDHASHSIZE);
+	idhash = (inodedata**) malloc(sizeof(inodedata*)*IDHASHSIZE);
 	for (i=0 ; i<IDHASHSIZE ; i++) {
 		idhash[i]=NULL;
 	}

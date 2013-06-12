@@ -69,53 +69,55 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 
 static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn);
 
-static struct fuse_lowlevel_ops mfs_meta_oper = {
-	.init           = mfs_fsinit,
-	.statfs		= mfs_meta_statfs,
-	.lookup		= mfs_meta_lookup,
-	.getattr	= mfs_meta_getattr,
-	.setattr	= mfs_meta_setattr,
-	.unlink		= mfs_meta_unlink,
-	.rename		= mfs_meta_rename,
-	.opendir	= mfs_meta_opendir,
-	.readdir	= mfs_meta_readdir,
-	.releasedir	= mfs_meta_releasedir,
-	.open		= mfs_meta_open,
-	.release	= mfs_meta_release,
-	.read		= mfs_meta_read,
-	.write		= mfs_meta_write,
-};
+static struct fuse_lowlevel_ops mfs_meta_oper;
 
-static struct fuse_lowlevel_ops mfs_oper = {
-	.init           = mfs_fsinit,
-	.statfs		= mfs_statfs,
-	.lookup		= mfs_lookup,
-	.getattr	= mfs_getattr,
-	.setattr	= mfs_setattr,
-	.mknod		= mfs_mknod,
-	.unlink		= mfs_unlink,
-	.mkdir		= mfs_mkdir,
-	.rmdir		= mfs_rmdir,
-	.symlink	= mfs_symlink,
-	.readlink	= mfs_readlink,
-	.rename		= mfs_rename,
-	.link		= mfs_link,
-	.opendir	= mfs_opendir,
-	.readdir	= mfs_readdir,
-	.releasedir	= mfs_releasedir,
-	.create		= mfs_create,
-	.open		= mfs_open,
-	.release	= mfs_release,
-	.flush		= mfs_flush,
-	.fsync		= mfs_fsync,
-	.read		= mfs_read,
-	.write		= mfs_write,
-	.access		= mfs_access,
-	.getxattr       = mfs_getxattr,
-	.setxattr       = mfs_setxattr,
-	.listxattr      = mfs_listxattr,
-	.removexattr    = mfs_removexattr,
-};
+static struct fuse_lowlevel_ops mfs_oper;
+
+static void init_fuse_lowlevel_ops() {
+   mfs_meta_oper.init = mfs_fsinit;
+   mfs_meta_oper.statfs =   mfs_meta_statfs;
+   mfs_meta_oper.lookup =      mfs_meta_lookup;
+   mfs_meta_oper.getattr =  mfs_meta_getattr;
+   mfs_meta_oper.setattr =  mfs_meta_setattr;
+   mfs_meta_oper.unlink =      mfs_meta_unlink;
+   mfs_meta_oper.rename =      mfs_meta_rename;
+   mfs_meta_oper.opendir =  mfs_meta_opendir;
+   mfs_meta_oper.readdir =  mfs_meta_readdir;
+   mfs_meta_oper.releasedir =  mfs_meta_releasedir;
+   mfs_meta_oper.open =     mfs_meta_open;
+   mfs_meta_oper.release =  mfs_meta_release;
+   mfs_meta_oper.read =     mfs_meta_read;
+   mfs_meta_oper.write =       mfs_meta_write;
+
+   mfs_oper.init           = mfs_fsinit;
+   mfs_oper.statfs     = mfs_statfs;
+   mfs_oper.lookup     = mfs_lookup;
+   mfs_oper.getattr = mfs_getattr;
+   mfs_oper.setattr = mfs_setattr;
+   mfs_oper.mknod      = mfs_mknod;
+   mfs_oper.unlink     = mfs_unlink;
+   mfs_oper.mkdir      = mfs_mkdir;
+   mfs_oper.rmdir      = mfs_rmdir;
+   mfs_oper.symlink = mfs_symlink;
+   mfs_oper.readlink   = mfs_readlink;
+   mfs_oper.rename     = mfs_rename;
+   mfs_oper.link    = mfs_link;
+   mfs_oper.opendir = mfs_opendir;
+   mfs_oper.readdir = mfs_readdir;
+   mfs_oper.releasedir = mfs_releasedir;
+   mfs_oper.create     = mfs_create;
+   mfs_oper.open    = mfs_open;
+   mfs_oper.release = mfs_release;
+   mfs_oper.flush      = mfs_flush;
+   mfs_oper.fsync      = mfs_fsync;
+   mfs_oper.read    = mfs_read;
+   mfs_oper.write      = mfs_write;
+   mfs_oper.access     = mfs_access;
+   mfs_oper.getxattr       = mfs_getxattr;
+   mfs_oper.setxattr       = mfs_setxattr;
+   mfs_oper.listxattr      = mfs_listxattr;
+   mfs_oper.removexattr    = mfs_removexattr;
+}
 
 struct mfsopts {
 	char *masterhost;
@@ -824,6 +826,8 @@ int main(int argc, char *argv[]) {
 
 	strerr_init();
 	mycrc32_init();
+
+   init_fuse_lowlevel_ops();
 
 	mfsopts.masterhost = NULL;
 	mfsopts.masterport = NULL;

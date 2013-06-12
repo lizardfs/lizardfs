@@ -32,6 +32,8 @@
 #include <poll.h>
 #include <errno.h>
 
+#include <limits>
+
 #include "datapack.h"
 #include "strerr.h"
 #include "mfsstrerr.h"
@@ -70,7 +72,7 @@ void print_humanized_number(const char *format,uint64_t number,uint8_t flags) {
 	} else {
 		divisor = 1024;
 	}
-	if (number>(UINT64_MAX/100)) {
+	if (number>(std::numeric_limits<uint64_t>::max()/100)) {
 		number /= divisor;
 		number *= 100;
 		scale = 1;
@@ -663,7 +665,7 @@ int check_file(const char* fname) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -755,7 +757,7 @@ int get_goal(const char *fname,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -857,7 +859,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -961,7 +963,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1104,7 +1106,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1193,7 +1195,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1274,7 +1276,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1360,7 +1362,7 @@ int file_info(const char *fname) {
 			close_master_conn(1);
 			return -1;
 		}
-		buff = malloc(leng);
+		buff = (uint8_t*) malloc(leng);
 		if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 			printf("%s [%"PRIu32"]: master query: receive error\n",fname,indx);
 			free(buff);
@@ -1474,7 +1476,7 @@ int append_file(const char *fname,const char *afname) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1537,7 +1539,7 @@ int dir_info(const char *fname) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1625,7 +1627,7 @@ int file_repair(const char *fname) {
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1710,7 +1712,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s: master query: receive error\n",fname);
 		free(buff);
@@ -1815,7 +1817,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 		close_master_conn(1);
 		return -1;
 	}
-	buff = malloc(leng);
+	buff = (uint8_t*) malloc(leng);
 	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
 		printf("%s->%s/%s: master query: receive error\n",srcname,dstdir,dstbase);
 		free(buff);
@@ -2438,7 +2440,7 @@ int main(int argc,char **argv) {
 				humode=2;
 				break;
 			case 'i':
-				if (my_get_number(optarg,&v,UINT32_MAX,0)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint32_t>::max(),0)<0) {
 					fprintf(stderr,"bad inodes limit\n");
 					usage(f);
 				}
@@ -2450,7 +2452,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_SINODES;
 				break;
 			case 'I':
-				if (my_get_number(optarg,&v,UINT32_MAX,0)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint32_t>::max(),0)<0) {
 					fprintf(stderr,"bad inodes limit\n");
 					usage(f);
 				}
@@ -2462,7 +2464,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_HINODES;
 				break;
 			case 'l':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad length limit\n");
 					usage(f);
 				}
@@ -2474,7 +2476,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_SLENGTH;
 				break;
 			case 'L':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad length limit\n");
 					usage(f);
 				}
@@ -2486,7 +2488,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_HLENGTH;
 				break;
 			case 's':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad size limit\n");
 					usage(f);
 				}
@@ -2498,7 +2500,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_SSIZE;
 				break;
 			case 'S':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad size limit\n");
 					usage(f);
 				}
@@ -2510,7 +2512,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_HSIZE;
 				break;
 			case 'r':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad real size limit\n");
 					usage(f);
 				}
@@ -2522,7 +2524,7 @@ int main(int argc,char **argv) {
 				qflags |= QUOTA_FLAG_SREALSIZE;
 				break;
 			case 'R':
-				if (my_get_number(optarg,&v,UINT64_MAX,1)<0) {
+				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad real size limit\n");
 					usage(f);
 				}

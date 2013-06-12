@@ -23,4 +23,3 @@ mfschunkserver_SOURCES= \
 	../mfscommon/slogger.h ../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
-mfschunkserver_CFLAGS=$(PTHREAD_CFLAGS)

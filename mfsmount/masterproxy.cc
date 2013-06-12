@@ -123,7 +123,7 @@ static void* masterproxy_acceptor(void *args) {
 	while (terminate==0) {
 		sock = tcptoaccept(lsock,1000);
 		if (sock>=0) {
-			int *s = malloc(sizeof(int));
+			int *s = (int*) malloc(sizeof(int));
 			// memory is freed inside pthread routine !!!
 			*s = sock;
 			tcpnodelay(sock);

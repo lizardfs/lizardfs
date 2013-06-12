@@ -131,7 +131,7 @@ void* read_data_delayed_ops(void *arg) {
 
 void* read_data_new(uint32_t inode) {
 	readrec *rrec;
-	rrec = malloc(sizeof(readrec));
+	rrec = (readrec*) malloc(sizeof(readrec));
 	rrec->rbuff = NULL;
 	rrec->rbuffsize = 0;
 	rrec->inode = inode;
@@ -381,7 +381,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				free(rrec->rbuff);
 			}
 			rrec->rbuffsize = *size;
-			rrec->rbuff = malloc(rrec->rbuffsize);
+			rrec->rbuff = (uint8_t*) malloc(rrec->rbuffsize);
 			if (rrec->rbuff==NULL) {
 				rrec->rbuffsize = 0;
 				syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - out of memory",rrec->inode,rrec->indx);

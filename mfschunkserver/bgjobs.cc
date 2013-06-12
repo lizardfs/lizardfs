@@ -257,7 +257,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	jp->rpipe = fd[0];
 	jp->wpipe = fd[1];
 	jp->workers = workers;
-	jp->workerthreads = (__pthread_t**) malloc(sizeof(pthread_t)*workers);
+	jp->workerthreads = (pthread_t*) malloc(sizeof(pthread_t)*workers);
 	passert(jp->workerthreads);
 	zassert(pthread_mutex_init(&(jp->pipelock),NULL));
 	zassert(pthread_mutex_init(&(jp->jobslock),NULL));

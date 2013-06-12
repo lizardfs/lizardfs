@@ -1299,7 +1299,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		fuse_reply_err(req, status);
 		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(status));
 	} else {
-		dirinfo = malloc(sizeof(dirbuf));
+		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
 		pthread_mutex_lock(&(dirinfo->lock));	// make valgrind happy
 		dirinfo->p = NULL;
@@ -1378,7 +1378,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			dirinfo->p = NULL;
 		}
 		if (needscopy) {
-			dirinfo->p = malloc(dsize);
+			dirinfo->p = (const uint8_t*) malloc(dsize);
 			if (dirinfo->p == NULL) {
 				fuse_reply_err(req,EINVAL);
 				pthread_mutex_unlock(&(dirinfo->lock));
@@ -1468,7 +1468,7 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 	finfo *fileinfo;
-	fileinfo = malloc(sizeof(finfo));
+	fileinfo = (finfo*) malloc(sizeof(finfo));
 	pthread_mutex_init(&(fileinfo->lock),NULL);
 	pthread_mutex_lock(&(fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
@@ -1624,7 +1624,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo;
-		statsinfo = malloc(sizeof(sinfo));
+		statsinfo = (sinfo*) malloc(sizeof(sinfo));
 		if (statsinfo==NULL) {
 			fuse_reply_err(req,ENOMEM);
 			oplog_printf(ctx,"open (%lu) (internal node: STATS): %s",(unsigned long int)ino,strerr(ENOMEM));
