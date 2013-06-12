@@ -118,7 +118,7 @@ void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
 	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet = malloc(psize);
+	outpacket->packet = (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -154,7 +154,7 @@ uint8_t* masterconn_create_attached_packet(masterconn *eptr,uint32_t type,uint32
 	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet = malloc(psize);
+	outpacket->packet = (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -932,7 +932,7 @@ void masterconn_read(masterconn *eptr) {
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = malloc(size);
+				eptr->inputpacket.packet = (uint8_t*) malloc(size);
 				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
@@ -1180,7 +1180,7 @@ int masterconn_init(void) {
 	if (Timeout<10) {
 		Timeout=10;
 	}
-	eptr = masterconnsingleton = malloc(sizeof(masterconn));
+	eptr = masterconnsingleton = (masterconn*) malloc(sizeof(masterconn));
 	passert(eptr);
 
 	eptr->masteraddrvalid = 0;

@@ -29,6 +29,8 @@ if test "$GCC" = "yes"; then
 dnl	CFLAGS="-O0 -W -Wall -Wshadow"
 fi
 
+CPPFLAGS="$CPPFLAGS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+
 case $target_os in
   *linux*)
 	fuse=maybe
@@ -193,7 +195,7 @@ AC_SUBST([CGISERVDIR])
 
 AM_CONDITIONAL([BUILD_MASTER], [test "$enable_mfsmaster" != "no"])
 AM_CONDITIONAL([BUILD_CHUNKSERVER], [test "$enable_mfschunkserver" != "no"])
-if test "$fuse" != "no" -a "enable_mfsmount" != "no"; then
+if test "$fuse" != "no" -a "$enable_mfsmount" != "no"; then
 	PKG_PROG_PKG_CONFIG
 	if test -n "$PKG_CONFIG"; then
 		PKG_CHECK_MODULES([FUSE], [fuse >= 2.6], , [fuse=no])

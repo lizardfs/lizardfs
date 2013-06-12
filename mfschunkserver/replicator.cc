@@ -173,7 +173,7 @@ static int rep_read(repsrc *rs) {
 					syslog(LOG_WARNING,"replicator: packet too long (%"PRIu32"/%u)",size,MAX_RECV_PACKET_SIZE);
 					return -1;
 				}
-				rs->packet = malloc(size);
+				rs->packet = (uint8_t*) malloc(size);
 				passert(rs->packet);
 				rs->startptr = rs->packet;
 			} else {
@@ -242,7 +242,7 @@ static uint8_t* rep_create_packet(repsrc *rs,uint32_t type,uint32_t size) {
 	if (rs->packet) {
 		free(rs->packet);
 	}
-	rs->packet = malloc(size+8);
+	rs->packet = (uint8_t*) malloc(size+8);
 	passert(rs->packet);
 	ptr = rs->packet;
 	put32bit(&ptr,type);
@@ -437,12 +437,12 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	r.srccnt = 0;
 	r.created = 0;
 	r.opened = 0;
-	r.fds = malloc(sizeof(struct pollfd)*srccnt);
+	r.fds = (pollfd*) malloc(sizeof(struct pollfd)*srccnt);
 	passert(r.fds);
-	r.repsources = malloc(sizeof(repsrc)*srccnt);
+	r.repsources = (repsrc*) malloc(sizeof(repsrc)*srccnt);
 	passert(r.repsources);
 	if (srccnt>1) {
-		r.xorbuff = malloc(MFSBLOCKSIZE+4);
+		r.xorbuff = (uint8_t*) malloc(MFSBLOCKSIZE+4);
 		passert(r.xorbuff);
 	} else {
 		r.xorbuff = NULL;

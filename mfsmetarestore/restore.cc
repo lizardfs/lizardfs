@@ -96,10 +96,10 @@
 		if ((_tmp_i)>=(size)) { \
 			(size) = _tmp_i+1000; \
 			if ((path)==NULL) { \
-				(path) = malloc(size); \
+				(path) = (uint8_t*)malloc(size); \
 			} else { \
 				uint8_t *_tmp_path = (path); \
-				(path) = realloc((path),(size)); \
+				(path) = (uint8_t*)realloc((path),(size)); \
 				if ((path)==NULL) { \
 					free(_tmp_path); \
 				} \
@@ -114,10 +114,10 @@
 	if ((_tmp_i)>=(size)) { \
 		(size) = _tmp_i+1000; \
 		if ((path)==NULL) { \
-			(path) = malloc(size); \
+			(path) = (uint8_t*)malloc(size); \
 		} else { \
 			uint8_t *_tmp_path = (path); \
-			(path) = realloc((path),(size)); \
+			(path) = (uint8_t*)realloc((path),(size)); \
 			if ((path)==NULL) { \
 				free(_tmp_path); \
 			} \
@@ -159,10 +159,10 @@
 		if ((leng)>=(size)) { \
 			(size) = (leng)+1000; \
 			if ((buff)==NULL) { \
-				(buff) = malloc(size); \
+				(buff) = (uint8_t*)malloc(size); \
 			} else { \
 				uint8_t *_tmp_buff = (buff); \
-				(buff) = realloc((buff),(size)); \
+				(buff) = (uint8_t*)realloc((buff),(size)); \
 				if ((buff)==NULL) { \
 					free(_tmp_buff); \
 				} \

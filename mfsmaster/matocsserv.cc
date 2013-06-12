@@ -123,7 +123,7 @@ int matocsserv_csdb_new_connection(uint32_t ip,uint16_t port,matocsserventry *ep
 			return 0;
 		}
 	}
-	csptr = malloc(sizeof(csdbentry));
+	csptr = (csdbentry*) malloc(sizeof(csdbentry));
 	passert(csptr);
 	csptr->ip = ip;
 	csptr->port = port;
@@ -384,12 +384,12 @@ void matocsserv_replication_disconnected(void *srv) {
 
 /* replication DB END */
 
-
+struct servsort {
+  double space;
+  void *ptr;
+};
 int matocsserv_space_compare(const void *a,const void *b) {
-	const struct servsort {
-		double space;
-		void *ptr;
-	} *aa=a,*bb=b;
+  const servsort *aa=(const servsort*)a,*bb=(const servsort*)b;
 	if (aa->space > bb->space) {
 		return 1;
 	}
@@ -535,13 +535,13 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	return j;
 }
 
-
+struct rservsort {
+  double w;
+  double carry;
+  matocsserventry *ptr;
+};
 int matocsserv_carry_compare(const void *a,const void *b) {
-	const struct rservsort {
-		double w;
-		double carry;
-		matocsserventry *ptr;
-	} *aa=a,*bb=b;
+ const rservsort *aa=(const rservsort*)a, *bb=(const rservsort*)b;
 	if (aa->carry > bb->carry) {
 		return -1;
 	}
@@ -552,11 +552,7 @@ int matocsserv_carry_compare(const void *a,const void *b) {
 }
 
 uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
-	static struct rservsort {
-		double w;
-		double carry;
-		matocsserventry *ptr;
-	} servtab[65536];
+  rservsort servtab[65536];
 	matocsserventry *eptr;
 	double carry;
 	uint32_t i;
@@ -692,7 +688,7 @@ char* matocsserv_makestrip(uint32_t ip) {
 		}
 	}
 	l+=4;
-	optr = malloc(l);
+	optr = (char*) malloc(l);
 	passert(optr);
 	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
@@ -707,7 +703,7 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet=malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
@@ -1476,7 +1472,7 @@ void matocsserv_read(matocsserventry *eptr) {
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = malloc(size);
+				eptr->inputpacket.packet = (uint8_t*) malloc(size);
 				passert(eptr->inputpacket.packet);
 				eptr->inputpacket.bytesleft = size;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
@@ -1568,7 +1564,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
-			eptr = malloc(sizeof(matocsserventry));
+			eptr = (matocsserventry*) malloc(sizeof(matocsserventry));
 			passert(eptr);
 			eptr->next = matocsservhead;
 			matocsservhead = eptr;
