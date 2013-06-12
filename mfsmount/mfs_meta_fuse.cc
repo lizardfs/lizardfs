@@ -569,7 +569,7 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 			name = (const char*)dbuff;
 			dbuff+=nleng;
 			inode = get32bit(&dbuff);
-			sprintf((char*)buff,"%08"PRIX32"|",inode);
+			sprintf((char*)buff,"%08" PRIX32 "|",inode);
 			if (nleng>255-9) {
 				memcpy(buff+9,name,255-9);
 				buff+=255;

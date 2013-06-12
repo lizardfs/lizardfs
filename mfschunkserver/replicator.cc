@@ -170,7 +170,7 @@ static int rep_read(repsrc *rs) {
 			}
 			if (size>0) {
 				if (size>MAX_RECV_PACKET_SIZE) {
-					syslog(LOG_WARNING,"replicator: packet too long (%"PRIu32"/%u)",size,MAX_RECV_PACKET_SIZE);
+					syslog(LOG_WARNING,"replicator: packet too long (%" PRIu32 "/%u)",size,MAX_RECV_PACKET_SIZE);
 					return -1;
 				}
 				rs->packet = (uint8_t*) malloc(size);
@@ -425,7 +425,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		return ERROR_EINVAL;
 	}
 
-//	syslog(LOG_NOTICE,"replication begin (chunkid:%08"PRIX64",version:%04"PRIX32",srccnt:%"PRIu8")",chunkid,version,srccnt);
+//	syslog(LOG_NOTICE,"replication begin (chunkid:%08" PRIX64 ",version:%04" PRIX32 ",srccnt:%" PRIu8 ")",chunkid,version,srccnt);
 
 	pthread_mutex_lock(&statslock);
 	stats_repl++;
@@ -543,7 +543,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		size = get32bit(&rptr);
 		rptr = r.repsources[i].packet;
 		if (rptr==NULL || type!=CSTOCS_GET_CHUNK_BLOCKS_STATUS || size!=15) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return ERROR_DISCONNECTED;
 		}
@@ -552,17 +552,17 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		pblocks = get16bit(&rptr);
 		pstatus = get8bit(&rptr);
 		if (pchid!=r.repsources[i].chunkid) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return ERROR_WRONGCHUNKID;
 		}
 		if (pver!=r.repsources[i].version) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:version:%"PRIX32"/%"PRIX32") from (%08"PRIX32":%04"PRIX16")",pver,r.repsources[i].version,r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:version:%" PRIX32 "/%" PRIX32 ") from (%08" PRIX32 ":%04" PRIX16 ")",pver,r.repsources[i].version,r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return ERROR_WRONGVERSION;
 		}
 		if (pstatus!=STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return pstatus;
 		}
@@ -636,14 +636,14 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					pstatus = get8bit(&rptr);
 					rep_cleanup(&r);
 					if (pchid!=r.repsources[i].chunkid) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						return ERROR_WRONGCHUNKID;
 					}
 					if (pstatus==STATUS_OK) {	// got status too early or got incorrect packet
-						syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 						return ERROR_DISCONNECTED;
 					}
-					syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 					return pstatus;
 				} else if (type==CSTOCL_READ_DATA && size==20+MFSBLOCKSIZE) {
 					pchid = get64bit(&rptr);
@@ -651,27 +651,27 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					poffset = get16bit(&rptr);
 					psize = get32bit(&rptr);
 					if (pchid!=r.repsources[i].chunkid) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_WRONGCHUNKID;
 					}
 					if (pblocknum!=b) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:blocknum:%"PRIu16"/%"PRIu16") from (%08"PRIX32":%04"PRIX16")",pblocknum,b,r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:blocknum:%" PRIu16 "/%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",pblocknum,b,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_DISCONNECTED;
 					}
 					if (poffset!=0) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:offset:%"PRIu16") from (%08"PRIX32":%04"PRIX16")",poffset,r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:offset:%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",poffset,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_WRONGOFFSET;
 					}
 					if (psize!=MFSBLOCKSIZE) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%"PRIu32") from (%08"PRIX32":%04"PRIX16")",psize,r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%" PRIu32 ") from (%08" PRIX32 ":%04" PRIX16 ")",psize,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_WRONGSIZE;
 					}
 				} else {
-					syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+					syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 					rep_cleanup(&r);
 					return ERROR_DISCONNECTED;
 				}
@@ -680,7 +680,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		}
 // write data
 		if (vbuffs==0) {	// no buffers ? - it should never happen
-			syslog(LOG_WARNING,"replicator: no data received for block: %"PRIu16,b);
+			syslog(LOG_WARNING,"replicator: no data received for block: %" PRIu16,b);
 			rep_cleanup(&r);
 			return ERROR_DISCONNECTED;
 		} else if (vbuffs==1) { // xor not needed, so just find block and write it
@@ -714,7 +714,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					}
 					crc = get32bit(&rptr);
 					if (crc!=mycrc32(0,rptr,MFSBLOCKSIZE)) {
-						syslog(LOG_WARNING,"replicator: received data with wrong checksum from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+						syslog(LOG_WARNING,"replicator: received data with wrong checksum from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_CRC;
 					}
@@ -756,19 +756,19 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			size = get32bit(&rptr);
 			rptr = r.repsources[i].packet;
 			if (rptr==NULL || type!=CSTOCL_READ_STATUS || size!=9) {
-				syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08"PRIX32":%04"PRIX16")",r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return ERROR_DISCONNECTED;
 			}
 			pchid = get64bit(&rptr);
 			pstatus = get8bit(&rptr);
 			if (pchid!=r.repsources[i].chunkid) {
-				syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%"PRIX64"/%"PRIX64") from (%08"PRIX32":%04"PRIX16")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return ERROR_WRONGCHUNKID;
 			}
 			if (pstatus!=STATUS_OK) {
-				syslog(LOG_NOTICE,"replicator: got status: %s from (%08"PRIX32":%04"PRIX16")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return pstatus;
 			}

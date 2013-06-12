@@ -42,8 +42,8 @@ void changelog_rotate() {
 	}
 	if (BackLogsNumber>0) {
 		for (i=BackLogsNumber ; i>0 ; i--) {
-			snprintf(logname1,100,"changelog.%"PRIu32".mfs",i);
-			snprintf(logname2,100,"changelog.%"PRIu32".mfs",i-1);
+			snprintf(logname1,100,"changelog.%" PRIu32 ".mfs",i);
+			snprintf(logname2,100,"changelog.%" PRIu32 ".mfs",i-1);
 			rename(logname2,logname1);
 		}
 	} else {
@@ -70,12 +70,12 @@ void changelog(uint64_t version,const char *format,...) {
 	if (fd==NULL) {
 		fd = fopen("changelog.0.mfs","a");
 		if (!fd) {
-			syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,printbuff);
+			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,printbuff);
 		}
 	}
 
 	if (fd) {
-		fprintf(fd,"%"PRIu64": %s\n",version,printbuff);
+		fprintf(fd,"%" PRIu64 ": %s\n",version,printbuff);
 		fflush(fd);
 	}
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);

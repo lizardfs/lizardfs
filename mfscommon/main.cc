@@ -706,13 +706,13 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 			if (newownerpid>0) {
 				l++;
 				if (l>=timeout) {
-					syslog(LOG_ERR,"about %"PRIu32" seconds passed and lockfile is still locked - giving up",l);
+					syslog(LOG_ERR,"about %" PRIu32 " seconds passed and lockfile is still locked - giving up",l);
 					fprintf(stderr,"giving up\n");
 					return -1;
 				}
 				if (l%10==0) {
-					syslog(LOG_WARNING,"about %"PRIu32" seconds passed and lock still exists",l);
-					fprintf(stderr,"%"PRIu32"s ",l);
+					syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and lock still exists",l);
+					fprintf(stderr,"%" PRIu32 "s ",l);
 					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
@@ -830,12 +830,12 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 			sleep(1);
 			l++;
 			if (l>=timeout) {
-				mfs_arg_syslog(LOG_ERR,"about %"PRIu32" seconds passed and old lockfile is still locked - giving up",l);
+				mfs_arg_syslog(LOG_ERR,"about %" PRIu32 " seconds passed and old lockfile is still locked - giving up",l);
 				free(lockfname);
 				return -1;
 			}
 			if (l%10==0) {
-				mfs_arg_syslog(LOG_WARNING,"about %"PRIu32" seconds passed and old lockfile is still locked",l);
+				mfs_arg_syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and old lockfile is still locked",l);
 			}
 		}
 		fprintf(stderr,"terminated\n");

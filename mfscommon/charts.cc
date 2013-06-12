@@ -1190,7 +1190,6 @@ void charts_add (uint64_t *data,uint32_t datats) {
 }
 
 void charts_term (void) {
-	uint32_t i;
 	free(statsfilename);
 	if (calcdefs) {
 		free(calcdefs);
@@ -1200,9 +1199,6 @@ void charts_term (void) {
 	}
 	if (estatdefs) {
 		free(estatdefs);
-	}
-	for (i=0 ; i<statdefscount ; i++) {
-		free(statdefs[i].name);
 	}
 	if (statdefs) {
 		free(statdefs);
@@ -1255,8 +1251,7 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 		statdefs = NULL;
 	}
 	for (i=0 ; i<statdefscount ; i++) {
-		statdefs[i].name = strdup(stats[i].name);
-		passert(statdefs[i].name);
+		statdefs[i].name = stats[i].name;
 		statdefs[i].mode = stats[i].mode;
 		statdefs[i].percent = stats[i].percent;
 		statdefs[i].scale = stats[i].scale;
@@ -1351,7 +1346,7 @@ static inline void charts_puttext(int32_t posx,int32_t posy,uint8_t color,uint8_
 				for (fx=0 ; fx<5 ; fx++) {
 					x = px+fx;
 					y = posy+fy;
-					if (fbits&0x10 && x>=minx && x<=maxx && y>=miny && y<=maxy) {
+					if ((fbits & 0x10) && x>=minx && x<=maxx && y>=miny && y<=maxy) {
 						chart[(XSIZE)*y+x] = color;
 					}
 					fbits<<=1;

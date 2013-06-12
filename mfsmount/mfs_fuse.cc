@@ -547,9 +547,9 @@ void mfs_statfs(fuse_req_t req) {
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
 #if FUSE_USE_VERSION >= 26
-	oplog_printf(fuse_req_ctx(req),"statfs (%lu): OK (%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu32")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(fuse_req_ctx(req),"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
 #else
-	oplog_printf(fuse_req_ctx(req),"statfs (): OK (%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu32")",totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(fuse_req_ctx(req),"statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",totalspace,availspace,trashspace,reservedspace,inodes);
 #endif
 }
 
@@ -1855,7 +1855,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	} else {
 		fuse_reply_buf(req,(char*)buff,ssize);
 		if (debug_mode) {
-			fprintf(stderr,"%"PRIu32" bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
+			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
 		}
 		oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)ssize);
 	}
@@ -2143,14 +2143,14 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	}
 	if (size==0) {
 		fuse_reply_xattr(req,leng);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%"PRIu32")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+		oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
 	} else {
 		if (leng>size) {
 			fuse_reply_err(req,ERANGE);
 			oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ERANGE));
 		} else {
 			fuse_reply_buf(req,(const char*)buff,leng);
-			oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%"PRIu32")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+			oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
 		}
 	}
 }
@@ -2187,14 +2187,14 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 	}
 	if (size==0) {
 		fuse_reply_xattr(req,leng);
-		oplog_printf(ctx,"listxattr (%lu,%llu): OK (%"PRIu32")",(unsigned long int)ino,(unsigned long long int)size,leng);
+		oplog_printf(ctx,"listxattr (%lu,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,(unsigned long long int)size,leng);
 	} else {
 		if (leng>size) {
 			fuse_reply_err(req,ERANGE);
 			oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(ERANGE));
 		} else {
 			fuse_reply_buf(req,(const char*)buff,leng);
-			oplog_printf(ctx,"listxattr (%lu,%llu): OK (%"PRIu32")",(unsigned long int)ino,(unsigned long long int)size,leng);
+			oplog_printf(ctx,"listxattr (%lu,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,(unsigned long long int)size,leng);
 		}
 	}
 }

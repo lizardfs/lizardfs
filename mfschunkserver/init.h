@@ -34,7 +34,7 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 typedef int (*runfn)(void);
 struct {
 	runfn fn;
-	char *name;
+	const char *name;
 } RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},

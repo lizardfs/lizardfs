@@ -122,7 +122,7 @@ static inline uint32_t stats_print_values(char *buff,uint32_t maxleng,statsnode 
 	statsnode *a;
 	uint32_t l;
 	if (n->active) {
-		l = snprintf(buff,maxleng,"%s: %"PRIu64"\n",n->fullname,n->counter);
+		l = snprintf(buff,maxleng,"%s: %" PRIu64 "\n",n->fullname,n->counter);
 	} else {
 		l = 0;
 	}

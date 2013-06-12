@@ -777,17 +777,17 @@ static inline void hdd_chunk_remove(chunk *c) {
 
 static void hdd_chunk_release(chunk *c) {
 	zassert(pthread_mutex_lock(&hashlock));
-//	syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016"PRIX64" (c->state:%u)",c->chunkid,c->state);
+//	syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 	if (c->state==CH_LOCKED) {
 		c->state = CH_AVAIL;
 		if (c->ccond) {
-//			printf("wake up one thread waiting for AVAIL chunk: %"PRIu64" on ccond:%p\n",c->chunkid,c->ccond);
+//			printf("wake up one thread waiting for AVAIL chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 			zassert(pthread_cond_signal(&(c->ccond->cond)));
 		}
 	} else if (c->state==CH_TOBEDELETED) {
 		if (c->ccond) {
 			c->state = CH_DELETED;
-//			printf("wake up one thread waiting for DELETED chunk: %"PRIu64" on ccond:%p\n",c->chunkid,c->ccond);
+//			printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 			zassert(pthread_cond_signal(&(c->ccond->cond)));
 		} else {
 			hdd_chunk_remove(c);
@@ -827,7 +827,7 @@ static chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 		}
 	}
 //	if (c!=NULL && c!=CHUNKLOCKED) {
-//		syslog(LOG_WARNING,"hdd_chunk_tryfind returns chunk: %016"PRIX64" (c->state:%u)",c->chunkid,c->state);
+//		syslog(LOG_WARNING,"hdd_chunk_tryfind returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 //	}
 	zassert(pthread_mutex_unlock(&hashlock));
 	return c;
@@ -870,7 +870,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 			c->next = hashtab[hashpos];
 			hashtab[hashpos] = c;
 		}
-//		syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016"PRIX64" (c->state:%u)",c->chunkid,c->state);
+//		syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 		zassert(pthread_mutex_unlock(&hashlock));
 		return c;
 	}
@@ -884,7 +884,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 		switch (c->state) {
 		case CH_AVAIL:
 			c->state = CH_LOCKED;
-//			syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016"PRIX64" (c->state:%u)",c->chunkid,c->state);
+//			syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 			zassert(pthread_mutex_unlock(&hashlock));
 			if (c->validattr==0) {
 				if (hdd_chunk_getattr(c)) {
@@ -947,14 +947,14 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 				c->validattr = 0;
 				c->todel = 0;
 				c->state = CH_LOCKED;
-//				syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016"PRIX64" (c->state:%u)",c->chunkid,c->state);
+//				syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 				zassert(pthread_mutex_unlock(&hashlock));
 				return c;
 			}
 			if (c->ccond==NULL) {	// no more waiting threads - remove
 				hdd_chunk_remove(c);
 			} else {	// there are waiting threads - wake them up
-//				printf("wake up one thread waiting for DELETED chunk: %"PRIu64" on ccond:%p\n",c->chunkid,c->ccond);
+//				printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 				zassert(pthread_cond_signal(&(c->ccond->cond)));
 			}
 			zassert(pthread_mutex_unlock(&hashlock));
@@ -974,9 +974,9 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 				c->ccond = cc;
 			}
 			c->ccond->wcnt++;
-//			printf("wait for %s chunk: %"PRIu64" on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":"TOBEDELETED",c->chunkid,c->ccond);
+//			printf("wait for %s chunk: %" PRIu64 " on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":"TOBEDELETED",c->chunkid,c->ccond);
 			zassert(pthread_cond_wait(&(c->ccond->cond),&hashlock));
-//			printf("%s chunk: %"PRIu64" woke up on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":(c->state==CH_DELETED)?"DELETED":(c->state==CH_AVAIL)?"AVAIL":"TOBEDELETED",c->chunkid,c->ccond);
+//			printf("%s chunk: %" PRIu64 " woke up on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":(c->state==CH_DELETED)?"DELETED":(c->state==CH_AVAIL)?"AVAIL":"TOBEDELETED",c->chunkid,c->ccond);
 			c->ccond->wcnt--;
 			if (c->ccond->wcnt==0) {
 				c->ccond = NULL;
@@ -991,7 +991,7 @@ static void hdd_chunk_delete(chunk *c) {
 	f = c->owner;
 	if (c->ccond) {
 		c->state = CH_DELETED;
-//		printf("wake up one thread waiting for DELETED chunk: %"PRIu64" ccond:%p\n",c->chunkid,c->ccond);
+//		printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " ccond:%p\n",c->chunkid,c->ccond);
 		zassert(pthread_cond_signal(&(c->ccond->cond)));
 	} else {
 		hdd_chunk_remove(c);
@@ -1016,7 +1016,7 @@ static chunk* hdd_chunk_create(folder *f,uint64_t chunkid,uint32_t version) {
 	c->filename = (char*) malloc(leng+39);
 	passert(c->filename);
 	memcpy(c->filename,f->path,leng);
-	sprintf(c->filename+leng,"%02X/chunk_%016"PRIX64"_%08"PRIX32".mfs",(unsigned int)(chunkid&255),chunkid,version);
+	sprintf(c->filename+leng,"%02X/chunk_%016" PRIX64 "_%08" PRIX32 ".mfs",(unsigned int)(chunkid&255),chunkid,version);
 	f->needrefresh = 1;
 	f->chunkcount++;
 	c->owner = f;
@@ -1482,7 +1482,7 @@ static inline int chunk_readcrc(chunk *c) {
 	chunkid = get64bit(&ptr);
 	version = get32bit(&ptr);
 	if (c->chunkid!=chunkid || c->version!=version) {
-		syslog(LOG_WARNING,"chunk_readcrc: file:%s - wrong id/version in header (%016"PRIX64"_%08"PRIX32")",c->filename,chunkid,version);
+		syslog(LOG_WARNING,"chunk_readcrc: file:%s - wrong id/version in header (%016" PRIX64 "_%08" PRIX32 ")",c->filename,chunkid,version);
 		errno = 0;
 		return ERROR_IO;
 	}
@@ -1551,7 +1551,7 @@ void hdd_test_show_chunks(void) {
 	zassert(pthread_mutex_lock(&hashlock));
 	for (hashpos=0 ; hashpos<HASHSIZE ; hashpos++) {
 		for (c=hashtab[hashpos] ; c ; c=c->next) {
-			printf("chunk id:%"PRIu64" version:%"PRIu32" state:%"PRIu8"\n",c->chunkid,c->version,c->state);
+			printf("chunk id:%" PRIu64 " version:%" PRIu32 " state:%" PRIu8 "\n",c->chunkid,c->version,c->state);
 		}
 	}
 	zassert(pthread_mutex_unlock(&hashlock));
@@ -1596,15 +1596,15 @@ void hdd_test_show_openedchunks(void) {
 		for (cc=dophashtab[dhashpos]; cc ; cc=cc->next) {
 			c = hdd_chunk_find(cc->chunkid);
 			if (c==NULL) {	// no chunk - delete entry
-				printf("id: %"PRIu64" - chunk doesn't exist\n",cc->chunkid);
+				printf("id: %" PRIu64 " - chunk doesn't exist\n",cc->chunkid);
 			} else if (c->crcrefcount>0) {	// io in progress - skip entry
-				printf("id: %"PRIu64" - chunk in use (refcount:%u)\n",cc->chunkid,c->crcrefcount);
+				printf("id: %" PRIu64 " - chunk in use (refcount:%u)\n",cc->chunkid,c->crcrefcount);
 				hdd_chunk_release(c);
 			} else {
 #ifdef PRESERVE_BLOCK
-				printf("id: %"PRIu64" - fd:%d (steps:%u) crc:%p (steps:%u) block:%p,blockno:%u (steps:%u)\n",cc->chunkid,c->fd,c->opensteps,c->crc,c->crcsteps,c->block,c->blockno,c->blocksteps);
+				printf("id: %" PRIu64 " - fd:%d (steps:%u) crc:%p (steps:%u) block:%p,blockno:%u (steps:%u)\n",cc->chunkid,c->fd,c->opensteps,c->crc,c->crcsteps,c->block,c->blockno,c->blocksteps);
 #else /* PRESERVE_BLOCK */
-				printf("id: %"PRIu64" - fd:%d (steps:%u) crc:%p (steps:%u)\n",cc->chunkid,c->fd,c->opensteps,c->crc,c->crcsteps);
+				printf("id: %" PRIu64 " - fd:%d (steps:%u) crc:%p (steps:%u)\n",cc->chunkid,c->fd,c->opensteps,c->crc,c->crcsteps);
 #endif /* PRESERVE_BLOCK */
 				hdd_chunk_release(c);
 			}
@@ -1685,7 +1685,7 @@ void hdd_delayed_ops() {
 					c->crcsteps--;
 				} else if (c->crc!=NULL) {	// free crc block
 					if (c->crcchanged) {
-						syslog(LOG_ERR,"serious error: crc changes lost (chunk:%016"PRIX64"_%08"PRIX32")",c->chunkid,c->version);
+						syslog(LOG_ERR,"serious error: crc changes lost (chunk:%016" PRIX64 "_%08" PRIX32 ")",c->chunkid,c->version);
 					}
 //					printf("chunk %llu - free crc record\n",c->chunkid);
 					chunk_freecrc(c);
@@ -1718,7 +1718,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 	int status;
 	int add;
 
-//	syslog(LOG_NOTICE,"chunk: %"PRIu64" - before io",c->chunkid);
+//	syslog(LOG_NOTICE,"chunk: %" PRIu64 " - before io",c->chunkid);
 	hdd_chunk_testmove(c);
 	if (c->crcrefcount==0) {
 #ifdef PRESERVE_BLOCK
@@ -1768,7 +1768,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 # else
 			c->block = (uint8_t*)malloc(MFSBLOCKSIZE);
 # endif
-//			syslog(LOG_WARNING,"chunk: %016"PRIX64", block:%p",c->chunkid,c->block);
+//			syslog(LOG_WARNING,"chunk: %016" PRIX64 ", block:%p",c->chunkid,c->block);
 			passert(c->block);
 			c->blockno = 0xFFFF;
 		}
@@ -1792,7 +1792,7 @@ static int hdd_io_end(chunk *c) {
 	int status;
 	uint64_t ts,te;
 
-//	syslog(LOG_NOTICE,"chunk: %"PRIu64" - after io",c->chunkid);
+//	syslog(LOG_NOTICE,"chunk: %" PRIu64 " - after io",c->chunkid);
 	if (c->crcchanged) {
 		status = chunk_writecrc(c);
 		c->crcchanged = 0;
@@ -1860,7 +1860,7 @@ int hdd_open(uint64_t chunkid) {
 	}
 	hdd_chunk_release(c);
 //	if (status==STATUS_OK) {
-//		syslog(LOG_NOTICE,"chunk %08"PRIX64" opened",chunkid);
+//		syslog(LOG_NOTICE,"chunk %08" PRIX64 " opened",chunkid);
 //	}
 	return status;
 }
@@ -1879,7 +1879,7 @@ int hdd_close(uint64_t chunkid) {
 	}
 	hdd_chunk_release(c);
 //	if (status==STATUS_OK) {
-//		syslog(LOG_NOTICE,"chunk %08"PRIX64" closed",chunkid);
+//		syslog(LOG_NOTICE,"chunk %08" PRIX64 " closed",chunkid);
 //	}
 	return status;
 }
@@ -2569,7 +2569,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			newfilename = (char*) malloc(filenameleng+1);
 			passert(newfilename);
 			memcpy(newfilename,c->filename,filenameleng+1);
-			sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
+			sprintf(newfilename+filenameleng-12,"%08" PRIX32 ".mfs",newversion);
 			if (rename(oc->filename,newfilename)<0) {
 				hdd_error_occured(oc);	// uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,"duplicate_chunk: file:%s - rename error",oc->filename);
@@ -2741,7 +2741,7 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 		newfilename = (char*) malloc(filenameleng+1);
 		passert(newfilename);
 		memcpy(newfilename,c->filename,filenameleng+1);
-		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
+		sprintf(newfilename+filenameleng-12,"%08" PRIX32 ".mfs",newversion);
 		if (rename(c->filename,newfilename)<0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,"set_chunk_version: file:%s - rename error",c->filename);
@@ -2821,7 +2821,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 		newfilename = (char*) malloc(filenameleng+1);
 		passert(newfilename);
 		memcpy(newfilename,c->filename,filenameleng+1);
-		sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
+		sprintf(newfilename+filenameleng-12,"%08" PRIX32 ".mfs",newversion);
 		if (rename(c->filename,newfilename)<0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,"truncate_chunk: file:%s - rename error",c->filename);
@@ -3009,7 +3009,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			newfilename = (char*) malloc(filenameleng+1);
 			passert(newfilename);
 			memcpy(newfilename,c->filename,filenameleng+1);
-			sprintf(newfilename+filenameleng-12,"%08"PRIX32".mfs",newversion);
+			sprintf(newfilename+filenameleng-12,"%08" PRIX32 ".mfs",newversion);
 			if (rename(oc->filename,newfilename)<0) {
 				hdd_error_occured(oc);	// uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,"duplicate_chunk: file:%s - rename error",oc->filename);
@@ -3787,12 +3787,12 @@ void* hdd_folder_scan(void *arg) {
 				zassert(pthread_mutex_lock(&dclock));
 				hddspacechanged = 1; // report chunk count to master
 				zassert(pthread_mutex_unlock(&dclock));
-				syslog(LOG_NOTICE,"scanning folder %s: %"PRIu8"%% (%"PRIu32"s)",f->path,lastperc,currenttime-begintime);
+				syslog(LOG_NOTICE,"scanning folder %s: %" PRIu8 "%% (%" PRIu32 "s)",f->path,lastperc,currenttime-begintime);
 			}
 	}
 	free(fullname);
 	free(destorage);
-//	fprintf(stderr,"hdd space manager: %s: %"PRIu32" chunks found\n",f->path,f->chunkcount);
+//	fprintf(stderr,"hdd space manager: %s: %" PRIu32 " chunks found\n",f->path,f->chunkcount);
 
 	hdd_testshuffle(f);
 
@@ -3800,7 +3800,7 @@ void* hdd_folder_scan(void *arg) {
 		if (f->scanstate==SCST_SCANTERMINATE) {
 			syslog(LOG_NOTICE,"scanning folder %s: interrupted",f->path);
 		} else {
-			syslog(LOG_NOTICE,"scanning folder %s: complete (%"PRIu32"s)",f->path,(uint32_t)(time(NULL))-begintime);
+			syslog(LOG_NOTICE,"scanning folder %s: complete (%" PRIu32 "s)",f->path,(uint32_t)(time(NULL))-begintime);
 		}
 	f->scanstate = SCST_SCANFINISHED;
 	f->scanprogress = 100;
@@ -3875,7 +3875,7 @@ void hdd_term(void) {
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
-//	syslog(LOG_NOTICE,"waiting for scanning threads (%"PRIu32")",i);
+//	syslog(LOG_NOTICE,"waiting for scanning threads (%" PRIu32 ")",i);
 	while (i>0) {
 		usleep(10000); // not very elegant solution.
 		zassert(pthread_mutex_lock(&folderlock));
@@ -4136,7 +4136,7 @@ int hdd_parseline(char *hddcfgline) {
 			} else {
 				uint64_t size = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
 				if (limit > size) {
-					mfs_arg_syslog(LOG_WARNING,"hdd space manager: space to be left free on '%s' (%"PRIu64") is greater than real volume size (%"PRIu64") !!!",pptr,limit,size);
+					mfs_arg_syslog(LOG_WARNING,"hdd space manager: space to be left free on '%s' (%" PRIu64 ") is greater than real volume size (%" PRIu64 ") !!!",pptr,limit,size);
 				}
 			}
 		}
@@ -4153,7 +4153,7 @@ int hdd_parseline(char *hddcfgline) {
 			} else {
 				uint64_t size = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
 				if (limit > size) {
-					mfs_arg_syslog(LOG_WARNING,"hdd space manager: limit on '%s' (%"PRIu64") is greater than real volume size (%"PRIu64") - using real volume size",pptr,limit,size);
+					mfs_arg_syslog(LOG_WARNING,"hdd space manager: limit on '%s' (%" PRIu64 ") is greater than real volume size (%" PRIu64 ") - using real volume size",pptr,limit,size);
 					lmode = 0;
 				}
 			}

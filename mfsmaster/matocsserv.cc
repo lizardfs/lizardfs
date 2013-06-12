@@ -531,7 +531,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	if (pmax!=NULL) {
 		*pmax=j-max;
 	}
-//		syslog(LOG_NOTICE,"getservers <0-%"PRIu32") random ; <%"PRIu32"-%"PRIu32") sort ; <%"PRIu32"-END) random",min,min,max,max);
+//		syslog(LOG_NOTICE,"getservers <0-%" PRIu32 ") random ; <%" PRIu32 "-%" PRIu32 ") sort ; <%" PRIu32 "-END) random",min,min,max,max);
 	return j;
 }
 
@@ -636,9 +636,9 @@ void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
 	*availspace = tspace-uspace;
 }
 
-char* matocsserv_getstrip(void *e) {
+const char* matocsserv_getstrip(void *e) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	static char *empty="???";
+	static const char *empty = "???";
 	if (eptr->mode!=KILL && eptr->servstrip) {
 		return eptr->servstrip;
 	}
@@ -690,7 +690,7 @@ char* matocsserv_makestrip(uint32_t ip) {
 	l+=4;
 	optr = (char*) malloc(l);
 	passert(optr);
-	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
+	snprintf(optr,l,"%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
 	return optr;
 }
@@ -733,7 +733,7 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	uint32_t version,checksum;
 	uint8_t status;
 	if (length!=8+4+1 && length!=8+4+4) {
-		syslog(LOG_NOTICE,"CSTOAN_CHUNK_CHECKSUM - wrong size (%"PRIu32"/13|16)",length);
+		syslog(LOG_NOTICE,"CSTOAN_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/13|16)",length);
 		eptr->mode=KILL;
 		return ;
 	}
@@ -742,10 +742,10 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	version = get32bit(&data);
 	if (length==8+4+1) {
 		status = get8bit(&data);
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" calculate checksum status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	} else {
 		checksum = get32bit(&data);
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" calculate checksum: %08"PRIX32,eptr->servstrip,eptr->servport,chunkid,checksum);
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum: %08" PRIX32,eptr->servstrip,eptr->servport,chunkid,checksum);
 	}
 	(void)version;
 }
@@ -766,7 +766,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_CREATE - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_CREATE - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -775,7 +775,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data
 	status = get8bit(&data);
 	chunk_got_create_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" creation status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -796,7 +796,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DELETE - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_DELETE - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -806,7 +806,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 	eptr->delcounter--;
 	chunk_got_delete_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" deletion status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -867,7 +867,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	uint32_t version;
 	uint8_t status;
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOMA_REPLICATE - wrong size (%"PRIu32"/13)",length);
+		syslog(LOG_NOTICE,"CSTOMA_REPLICATE - wrong size (%" PRIu32 "/13)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -878,7 +878,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	status = get8bit(&data);
 	chunk_got_replicate_status(eptr,chunkid,version,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" replication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -899,7 +899,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_SET_VERSION - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_SET_VERSION - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -908,7 +908,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *
 	status = get8bit(&data);
 	chunk_got_setversion_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" set version status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -931,7 +931,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DUPLICATE - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_DUPLICATE - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -940,7 +940,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	status = get8bit(&data);
 	chunk_got_duplicate_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" duplication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -962,7 +962,7 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_TRUNCATE - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_TRUNCATE - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -971,7 +971,7 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 	status = get8bit(&data);
 	chunk_got_truncate_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -994,7 +994,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,const uint8_t *da
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DUPTRUNC - wrong size (%"PRIu32"/9)",length);
+		syslog(LOG_NOTICE,"CSTOMA_DUPTRUNC - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1003,7 +1003,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,const uint8_t *da
 	status = get8bit(&data);
 	chunk_got_duptrunc_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" duplication with truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication with truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
@@ -1028,7 +1028,7 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 	uint32_t version,newversion,copyversion,leng;
 	uint8_t status;
 	if (length!=8+4+4+8+4+4+1) {
-		syslog(LOG_NOTICE,"CSTOMA_CHUNKOP - wrong size (%"PRIu32"/33)",length);
+		syslog(LOG_NOTICE,"CSTOMA_CHUNKOP - wrong size (%" PRIu32 "/33)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1047,7 +1047,7 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 		chunk_got_chunkop_status(eptr,copychunkid,status);
 	}
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunkop(%016"PRIX64",%08"PRIX32",%08"PRIX32",%016"PRIX64",%08"PRIX32",%"PRIu32") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
 	}
 }
 
@@ -1066,7 +1066,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 
 	if ((length&1)==0) {
 		if (length<22 || ((length-22)%12)!=0) {
-			syslog(LOG_NOTICE,"CSTOMA_REGISTER (old ver.) - wrong size (%"PRIu32"/22+N*12)",length);
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER (old ver.) - wrong size (%" PRIu32 "/22+N*12)",length);
 			eptr->mode=KILL;
 			return;
 		}
@@ -1085,7 +1085,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 		if (rversion==1) {
 			if (length<39 || ((length-39)%12)!=0) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 1) - wrong size (%"PRIu32"/39+N*12)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 1) - wrong size (%" PRIu32 "/39+N*12)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1098,7 +1098,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			length-=39;
 		} else if (rversion==2) {
 			if (length<47 || ((length-47)%12)!=0) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 2) - wrong size (%"PRIu32"/47+N*12)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 2) - wrong size (%" PRIu32 "/47+N*12)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1113,7 +1113,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			length-=47;
 		} else if (rversion==3) {
 			if (length<49 || ((length-49)%12)!=0) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 3) - wrong size (%"PRIu32"/49+N*12)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 3) - wrong size (%" PRIu32 "/49+N*12)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1129,7 +1129,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			length-=49;
 		} else if (rversion==4) {
 			if (length<53 || ((length-53)%12)!=0) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 4) - wrong size (%"PRIu32"/53+N*12)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 4) - wrong size (%" PRIu32 "/53+N*12)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1146,7 +1146,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			length-=53;
 		} else if (rversion==50) {
 			if (length!=13) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:BEGIN) - wrong size (%"PRIu32"/13)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:BEGIN) - wrong size (%" PRIu32 "/13)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1155,7 +1155,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->servport = get16bit(&data);
 			eptr->timeout = get16bit(&data);
 			if (eptr->timeout<10) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1177,11 +1177,11 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 				return;
 			}
 			eptr->incsdb = 1;
-			syslog(LOG_NOTICE,"chunkserver register begin (packet version: 5) - ip: %s, port: %"PRIu16,eptr->servstrip,eptr->servport);
+			syslog(LOG_NOTICE,"chunkserver register begin (packet version: 5) - ip: %s, port: %" PRIu16,eptr->servstrip,eptr->servport);
 			return;
 		} else if (rversion==51) {
 			if (((length-1)%12)!=0) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:CHUNKS) - wrong size (%"PRIu32"/1+N*12)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:CHUNKS) - wrong size (%" PRIu32 "/1+N*12)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1194,7 +1194,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			return;
 		} else if (rversion==52) {
 			if (length!=41) {
-				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:END) - wrong size (%"PRIu32"/41)",length);
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER (ver 5:END) - wrong size (%" PRIu32 "/41)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -1206,17 +1206,17 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todelchunkscount = get32bit(&data);
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			return;
 		} else {
-			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%"PRIu8"/1..4)",rversion);
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%" PRIu8 "/1..4)",rversion);
 			eptr->mode=KILL;
 			return;
 		}
 	}
 	if (rversion<=4) {
 		if (eptr->timeout<10) {
-			syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
@@ -1239,7 +1239,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 		if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
 			syslog(LOG_WARNING,"chunk-server already connected !!!");
 			eptr->mode=KILL;
@@ -1257,7 +1257,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 
 void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (length!=16 && length!=32 && length!=40) {
-		syslog(LOG_NOTICE,"CSTOMA_SPACE - wrong size (%"PRIu32"/16|32|40)",length);
+		syslog(LOG_NOTICE,"CSTOMA_SPACE - wrong size (%" PRIu32 "/16|32|40)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1284,7 +1284,7 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 	uint32_t i;
 
 	if (length%8!=0) {
-		syslog(LOG_NOTICE,"CSTOMA_CHUNK_DAMAGED - wrong size (%"PRIu32"/N*8)",length);
+		syslog(LOG_NOTICE,"CSTOMA_CHUNK_DAMAGED - wrong size (%" PRIu32 "/N*8)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1293,7 +1293,7 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk: %016"PRIX64" is damaged",eptr->servstrip,eptr->servport,chunkid);
+//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " is damaged",eptr->servstrip,eptr->servport,chunkid);
 		chunk_damaged(eptr,chunkid);
 	}
 }
@@ -1303,7 +1303,7 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 	uint32_t i;
 
 	if (length%8!=0) {
-		syslog(LOG_NOTICE,"CSTOMA_CHUNK_LOST - wrong size (%"PRIu32"/N*8)",length);
+		syslog(LOG_NOTICE,"CSTOMA_CHUNK_LOST - wrong size (%" PRIu32 "/N*8)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1312,7 +1312,7 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk lost: %016"PRIX64,eptr->servstrip,eptr->servport,chunkid);
+//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
 		chunk_lost(eptr,chunkid);
 	}
 }
@@ -1323,7 +1323,7 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 	uint32_t i;
 
 	if (length%12!=0) {
-		syslog(LOG_NOTICE,"CSTOMA_CHUNK_NEW - wrong size (%"PRIu32"/N*12)",length);
+		syslog(LOG_NOTICE,"CSTOMA_CHUNK_NEW - wrong size (%" PRIu32 "/N*12)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1333,7 +1333,7 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 	for (i=0 ; i<length/12 ; i++) {
 		chunkid = get64bit(&data);
 		chunkversion = get32bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%"PRIu16") chunk lost: %016"PRIX64,eptr->servstrip,eptr->servport,chunkid);
+//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
 		chunk_server_has_chunk(eptr,chunkid,chunkversion);
 	}
 }
@@ -1341,7 +1341,7 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 void matocsserv_error_occurred(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CSTOMA_ERROR_OCCURRED - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CSTOMA_ERROR_OCCURRED - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1399,8 +1399,9 @@ void matocsserv_gotpacket(matocsserventry *eptr,uint32_t type,const uint8_t *dat
 			matocsserv_got_duptruncchunk_status(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message (type:%" PRIu32 ")",type);
 			eptr->mode=KILL;
+			break;
 	}
 }
 
@@ -1468,7 +1469,7 @@ void matocsserv_read(matocsserventry *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"CS(%s) packet too long (%"PRIu32"/%u)",eptr->servstrip,size,MaxPacketSize);
+					syslog(LOG_WARNING,"CS(%s) packet too long (%" PRIu32 "/%u)",eptr->servstrip,size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -1628,7 +1629,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			double us,ts;
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
-			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %"PRIu16", usedspace: %"PRIu64" (%.2lf GiB), totalspace: %"PRIu64" (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			syslog(LOG_NOTICE,"chunkserver disconnected - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2lf GiB), totalspace: %" PRIu64 " (%.2lf GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
 			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr);
 			if (eptr->incsdb) {

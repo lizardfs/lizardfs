@@ -30,7 +30,7 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 typedef int (*runfn)(void);
 struct {
 	runfn fn;
-	char *name;
+	const char *name;
 } RunTab[]={
 	{masterconn_init,"connection with master"},
 	{(runfn)0,"****"}

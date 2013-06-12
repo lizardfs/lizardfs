@@ -324,15 +324,15 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 		p++;
 	}
 	if (*p==0 || *p=='\r' || *p=='\n') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incomplete definition in line: %"PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incomplete definition in line: %"PRIu32"\n",lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfstopology: incomplete definition in line: %" PRIu32,lineno);
+		fprintf(stderr,"mfstopology: incomplete definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
 	if (topology_parsenet(net,fip,tip)<0) {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect ip/network definition in line: %"PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect ip/network definition in line: %"PRIu32"\n",lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect ip/network definition in line: %" PRIu32,lineno);
+		fprintf(stderr,"mfstopology: incorrect ip/network definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -341,8 +341,8 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	}
 
 	if (*p<'0' || *p>'9') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect rack id in line: %"PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect rack id in line: %"PRIu32"\n",lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect rack id in line: %" PRIu32,lineno);
+		fprintf(stderr,"mfstopology: incorrect rack id in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -353,8 +353,8 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	}
 
 	if (*p && *p!='\r' && *p!='\n' && *p!='#') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: garbage found at the end of line: %"PRIu32,lineno);
-		fprintf(stderr,"mfstopology: garbage found at the end of line: %"PRIu32"\n",lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfstopology: garbage found at the end of line: %" PRIu32,lineno);
+		fprintf(stderr,"mfstopology: garbage found at the end of line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	return 0;
@@ -433,7 +433,7 @@ void topology_reload(void) {
 			close(fd);
 		}
 	} else {
-		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME",ETC_PATH "/mfs/mfstopology.cfg");
+		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
 	}
 	topology_load();
 }
