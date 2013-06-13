@@ -474,12 +474,12 @@ static void mfs_makeattrstr(char *buff,uint32_t size,struct stat *stbuf) {
 	mfs_makemodestr(modestr,stbuf->st_mode);
 #ifdef HAVE_STRUCT_STAT_ST_RDEV
 	if (modestr[0]=='b' || modestr[0]=='c') {
-		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu,%08lX]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size),(unsigned long int)(stbuf->st_rdev));
+		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%" PRIu64 ",%08lX]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(uint64_t)(stbuf->st_size),(unsigned long int)(stbuf->st_rdev));
 	} else {
-		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size));
+		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%" PRIu64 "]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(uint64_t)(stbuf->st_size));
 	}
 #else
-	snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%llu]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(unsigned long long int)(stbuf->st_size));
+	snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%" PRIu64 "]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(uint64_t)(stbuf->st_size));
 #endif
 }
 
@@ -796,12 +796,12 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	mfs_makemodestr(modestr,stbuf->st_mode);
 	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) ...",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
-		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu])\n",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size));
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) ...",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size));
+		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "])\n",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size));
 	}
 	if (ino==MASTERINFO_INODE) {
 		fuse_reply_err(req, EPERM);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EPERM));
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EPERM));
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -809,7 +809,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		mfs_attr_to_stat(ino,statsattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		mfs_makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attrstr);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attrstr);
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
@@ -817,7 +817,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		mfs_attr_to_stat(ino,oplogattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
 		mfs_makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return;
 	}
 
@@ -827,7 +827,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
@@ -853,19 +853,19 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
 	if (to_set & FUSE_SET_ATTR_SIZE) {
 		if (stbuf->st_size<0) {
 			fuse_reply_err(req, EINVAL);
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EINVAL));
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EINVAL));
 			return;
 		}
 		if (stbuf->st_size>=MAX_FILE_SIZE) {
 			fuse_reply_err(req, EFBIG);
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(EFBIG));
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EFBIG));
 			return;
 		}
 		write_data_flush_inode(ino);
@@ -878,13 +878,13 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		read_inode_ops(ino);
 		if (status!=0) {
 			fuse_reply_err(req, status);
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 			return;
 		}
 	}
 	if (status!=0) {	// should never happend but better check than sorry
 		fuse_reply_err(req, status);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),strerr(status));
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 		return;
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -900,7 +900,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	attr_timeout = (mfs_attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	fuse_reply_attr(req, &o_stbuf, attr_timeout);
 	mfs_makeattrstr(attrstr,256,&o_stbuf);
-	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%llu]): OK (%.1f,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long long int)(stbuf->st_size),attr_timeout,attrstr);
+	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): OK (%.1f,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attr_timeout,attrstr);
 }
 
 void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev) {
@@ -1331,12 +1331,12 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_READDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"readdir (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
-		fprintf(stderr,"readdir (%lu,%llu,%llu)\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 	}
 	if (off<0) {
 		fuse_reply_err(req,EINVAL);
-		oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EINVAL));
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
 		return;
 	}
 	pthread_mutex_lock(&(dirinfo->lock));
@@ -1363,7 +1363,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		if (status!=0) {
 			fuse_reply_err(req, status);
 			pthread_mutex_unlock(&(dirinfo->lock));
-			oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(status));
+			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(status));
 			return;
 		}
 		if (dirinfo->dcache) {
@@ -1379,7 +1379,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			if (dirinfo->p == NULL) {
 				fuse_reply_err(req,EINVAL);
 				pthread_mutex_unlock(&(dirinfo->lock));
-				oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EINVAL));
+				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
 				return;
 			}
 			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
@@ -1395,7 +1395,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 
 	if (off>=(off_t)(dirinfo->size)) {
 		fuse_reply_buf(req, NULL, 0);
-		oplog_printf(ctx,"readdir (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 	} else {
 		if (size>READDIR_BUFFSIZE) {
 			size=READDIR_BUFFSIZE;
@@ -1431,7 +1431,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		}
 
 		fuse_reply_buf(req,buffer,opos);
-		oplog_printf(ctx,"readdir (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)opos);
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)opos);
 	}
 	pthread_mutex_unlock(&(dirinfo->lock));
 }
@@ -1749,9 +1749,9 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	mfs_stats_inc(OP_READ);
 	if (debug_mode) {
 		if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
-			oplog_printf(ctx,"read (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 		}
-		fprintf(stderr,"read from inode %lu up to %llu bytes from position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+		fprintf(stderr,"read from inode %lu up to %" PRIu64 " bytes from position %" PRIu64 "\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 	}
 	if (ino==MASTERINFO_INODE) {
 		uint8_t masterinfo[14];
@@ -1760,21 +1760,21 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 #ifdef MASTERINFO_WITH_VERSION
 		if (off>=14) {
 			fuse_reply_buf(req,NULL,0);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 		} else if (off+size>14) {
 			fuse_reply_buf(req,(char*)(masterinfo+off),14-off);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(14-off));
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(14-off));
 #else
 		if (off>=10) {
 			fuse_reply_buf(req,NULL,0);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 		} else if (off+size>10) {
 			fuse_reply_buf(req,(char*)(masterinfo+off),10-off);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(10-off));
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(10-off));
 #endif
 		} else {
 			fuse_reply_buf(req,(char*)(masterinfo+off),size);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 		}
 		return;
 	}
@@ -1784,18 +1784,18 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
 			if (off>=statsinfo->leng) {
 				fuse_reply_buf(req,NULL,0);
-				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 			} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
 				fuse_reply_buf(req,statsinfo->buff+off,statsinfo->leng-off);
-				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)(statsinfo->leng-off));
+				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(statsinfo->leng-off));
 			} else {
 				fuse_reply_buf(req,statsinfo->buff+off,size);
-				oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
+				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 			}
 			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		} else {
 			fuse_reply_buf(req,NULL,0);
-			oplog_printf(ctx,"read (%lu,%llu,%llu): OK (no data)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 		}
 		return;
 	}
@@ -1807,19 +1807,19 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
-		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EBADF));
+		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EBADF));
 		return;
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req,EFBIG);
-		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EFBIG));
+		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITEONLY) {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_err(req,EACCES);
-		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
+		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		return;
 	}
 	if (fileinfo->mode==IO_WRITE) {
@@ -1830,7 +1830,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			if (debug_mode) {
 				fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 			}
-			oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
 			return;
 		}
 		write_data_end(fileinfo->data);
@@ -1848,13 +1848,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while reading inode %lu\n",(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"read (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
+		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
 	} else {
 		fuse_reply_buf(req,(char*)buff,ssize);
 		if (debug_mode) {
 			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"read (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)ssize);
+		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ssize);
 	}
 	read_data_freebuff(fileinfo->data);
 	pthread_mutex_unlock(&(fileinfo->lock));
@@ -1868,12 +1868,12 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_WRITE);
 	if (debug_mode) {
-		oplog_printf(ctx,"write (%lu,%llu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
-		fprintf(stderr,"write to inode %lu %llu bytes at position %llu\n",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off);
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		fprintf(stderr,"write to inode %lu %" PRIu64 " bytes at position %" PRIu64 "\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 	}
 	if (ino==MASTERINFO_INODE || ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		fuse_reply_err(req,EACCES);
-		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -1884,24 +1884,24 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
 		}
 		fuse_reply_write(req,size);
-		oplog_printf(ctx,"write (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 		return;
 	}
 	if (fileinfo==NULL) {
 		fuse_reply_err(req,EBADF);
-		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EBADF));
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EBADF));
 		return;
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req, EFBIG);
-		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EFBIG));
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_READONLY) {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_err(req,EACCES);
-		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(EACCES));
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		return;
 	}
 	if (fileinfo->mode==IO_READ) {
@@ -1918,14 +1918,14 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"write (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(err));
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
 	} else {
 		pthread_mutex_unlock(&(fileinfo->lock));
 		fuse_reply_write(req,size);
 		if (debug_mode) {
-			fprintf(stderr,"%llu bytes have been written to inode %lu\n",(unsigned long long int)size,(unsigned long int)ino);
+			fprintf(stderr,"%" PRIu64 " bytes have been written to inode %lu\n",(uint64_t)size,(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"write (%lu,%llu,%llu): OK (%lu)",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,(unsigned long int)size);
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 	}
 }
 
@@ -1950,7 +1950,7 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(EBADF));
 		return;
 	}
-//	syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%llu",(unsigned long int)ino,(unsigned long long int)fi->lock_owner);
+//	syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
@@ -2014,29 +2014,29 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_SETXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d) ...",(unsigned long int)ino,name,(unsigned long long int)size,flags);
-		fprintf(stderr,"setxattr (%lu,%s,%llu,%d)",(unsigned long int)ino,name,(unsigned long long int)size,flags);
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d) ...",(unsigned long int)ino,name,(uint64_t)size,flags);
+		fprintf(stderr,"setxattr (%lu,%s,%" PRIu64 ",%d)",(unsigned long int)ino,name,(uint64_t)size,flags);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EPERM));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EPERM));
 		return;
 	}
 	if (size>MFS_XATTR_SIZE_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns E2BIG here
 		fuse_reply_err(req,E2BIG);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(E2BIG));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(E2BIG));
 #else
 		fuse_reply_err(req,ERANGE);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ERANGE));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ERANGE));
 #endif
 		return;
 	}
 	// ACL's - will be implemented separately
 	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
 		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ENOTSUP));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2044,22 +2044,22 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
 		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EPERM));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EPERM));
 #else
 		fuse_reply_err(req,ERANGE);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(ERANGE));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ERANGE));
 #endif
 		return;
 	}
 	if (nleng==0) {
 		fuse_reply_err(req,EINVAL);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EINVAL));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
 #if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
 	if ((flags&XATTR_CREATE) && (flags&XATTR_REPLACE)) {
 		fuse_reply_err(req,EINVAL);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(EINVAL));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
 	mode = (flags==XATTR_CREATE)?MFS_XATTR_CREATE_ONLY:(flags==XATTR_REPLACE)?MFS_XATTR_REPLACE_ONLY:MFS_XATTR_CREATE_OR_REPLACE;
@@ -2071,11 +2071,11 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
-		oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): %s",(unsigned long int)ino,name,(unsigned long long int)size,flags,strerr(status));
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(status));
 		return;
 	}
 	fuse_reply_err(req,0);
-	oplog_printf(ctx,"setxattr (%lu,%s,%llu,%d): OK",(unsigned long int)ino,name,(unsigned long long int)size,flags);
+	oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): OK",(unsigned long int)ino,name,(uint64_t)size,flags);
 }
 
 #if defined(__APPLE__)
@@ -2094,18 +2094,18 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_GETXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu) ...",(unsigned long int)ino,name,(unsigned long long int)size);
-		fprintf(stderr,"getxattr (%lu,%s,%llu)",(unsigned long int)ino,name,(unsigned long long int)size);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 ") ...",(unsigned long int)ino,name,(uint64_t)size);
+		fprintf(stderr,"getxattr (%lu,%s,%" PRIu64 ")",(unsigned long int)ino,name,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EPERM));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
 		return;
 	}
 	// ACL's - will be implemented separately
 	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
 		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ENOTSUP));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2113,16 +2113,16 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
 		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EPERM));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
 #else
 		fuse_reply_err(req,ERANGE);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ERANGE));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ERANGE));
 #endif
 		return;
 	}
 	if (nleng==0) {
 		fuse_reply_err(req,EINVAL);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(EINVAL));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EINVAL));
 		return;
 	}
 	if (size==0) {
@@ -2135,19 +2135,19 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(status));
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(status));
 		return;
 	}
 	if (size==0) {
 		fuse_reply_xattr(req,leng);
-		oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,name,(uint64_t)size,leng);
 	} else {
 		if (leng>size) {
 			fuse_reply_err(req,ERANGE);
-			oplog_printf(ctx,"getxattr (%lu,%s,%llu): %s",(unsigned long int)ino,name,(unsigned long long int)size,strerr(ERANGE));
+			oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ERANGE));
 		} else {
 			fuse_reply_buf(req,(const char*)buff,leng);
-			oplog_printf(ctx,"getxattr (%lu,%s,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,name,(unsigned long long int)size,leng);
+			oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,name,(uint64_t)size,leng);
 		}
 	}
 }
@@ -2162,12 +2162,12 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_LISTXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"listxattr (%lu,%llu) ...",(unsigned long int)ino,(unsigned long long int)size);
-		fprintf(stderr,"listxattr (%lu,%llu)",(unsigned long int)ino,(unsigned long long int)size);
+		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size);
+		fprintf(stderr,"listxattr (%lu,%" PRIu64 ")",(unsigned long int)ino,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(EPERM));
+		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(EPERM));
 		return;
 	}
 	if (size==0) {
@@ -2179,19 +2179,19 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
-		oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(status));
+		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(status));
 		return;
 	}
 	if (size==0) {
 		fuse_reply_xattr(req,leng);
-		oplog_printf(ctx,"listxattr (%lu,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,(unsigned long long int)size,leng);
+		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,(uint64_t)size,leng);
 	} else {
 		if (leng>size) {
 			fuse_reply_err(req,ERANGE);
-			oplog_printf(ctx,"listxattr (%lu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,strerr(ERANGE));
+			oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(ERANGE));
 		} else {
 			fuse_reply_buf(req,(const char*)buff,leng);
-			oplog_printf(ctx,"listxattr (%lu,%llu): OK (%" PRIu32 ")",(unsigned long int)ino,(unsigned long long int)size,leng);
+			oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,(uint64_t)size,leng);
 		}
 	}
 }
