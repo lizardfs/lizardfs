@@ -69,7 +69,7 @@ void merger_nextentry(uint32_t pos) {
 		if (heap[pos].nextid==0 || (nextid>heap[pos].nextid && nextid<heap[pos].nextid+maxidhole)) {
 			heap[pos].nextid = nextid;
 		} else {
-			printf("found garbage at the end of file: %s (last correct id: %"PRIu64")\n",heap[pos].filename,heap[pos].nextid);
+			printf("found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
 			heap[pos].nextid = 0;
 		}
 	} else {
@@ -115,7 +115,7 @@ int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {
 	}
 	for (i=0 ; i<files ; i++) {
 		merger_new_entry(filenames[i]);
-//		printf("file: %s / firstid: %"PRIu64"\n",filenames[i],heap[heapsize].nextid);
+//		printf("file: %s / firstid: %" PRIu64 "\n",filenames[i],heap[heapsize].nextid);
 		if (heap[heapsize].nextid==0) {
 			merger_delete_entry();
 		} else {
@@ -132,7 +132,7 @@ int merger_loop(void) {
 	hentry h;
 
 	while (heapsize) {
-//		printf("current id: %"PRIu64" / %s\n",heap[0].nextid,heap[0].ptr);
+//		printf("current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {
 			while (heapsize) {
 				heapsize--;

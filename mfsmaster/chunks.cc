@@ -287,7 +287,7 @@ chunk* chunk_new(uint64_t chunkid) {
 	chunk *newchunk;
 	newchunk = chunk_malloc();
 #ifdef METARESTORE
-	printf("N%"PRIu64"\n",chunkid);
+	printf("N%" PRIu64 "\n",chunkid);
 #endif
 #ifndef METARESTORE
 	chunks++;
@@ -319,7 +319,7 @@ chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
 #ifdef METARESTORE
-	printf("F%"PRIu64"\n",chunkid);
+	printf("F%" PRIu64 "\n",chunkid);
 #endif
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
@@ -436,9 +436,9 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	}
 	if (c->fcount==0) {
 #ifndef METARESTORE
-		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
+		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",c->chunkid);
 #else
-		printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",c->chunkid);
+		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
 #endif
 		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 	}
@@ -480,9 +480,9 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 #endif
 	if (c->fcount==0) {
 #ifndef METARESTORE
-		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",c->chunkid);
+		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",c->chunkid);
 #else
-		printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",c->chunkid);
+		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
 #endif
 		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 	}
@@ -493,7 +493,7 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 		c->goal = 0;
 		c->fcount = 0;
 #ifdef METARESTORE
-		printf("D%"PRIu64"\n",c->chunkid);
+		printf("D%" PRIu64 "\n",c->chunkid);
 #endif
 	} else {
 		if (c->ftab) {
@@ -708,9 +708,9 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 		} else {
 			if (oc->fcount==0) {	// it's serious structure error
 #ifndef METARESTORE
-				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
+				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
-				printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",ochunkid);
+				printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
 #endif
 				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 			}
@@ -817,9 +817,9 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 	} else {
 		if (oc->fcount==0) {	// it's serious structure error
 #ifndef METARESTORE
-			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016"PRIX64")",ochunkid);
+			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
-			printf("serious structure inconsistency: (chunkid:%016"PRIX64")\n",ochunkid);
+			printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
 #endif
 			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 		}
@@ -1041,7 +1041,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"_%08"PRIX32"), so create it for future deletion",chunkid,version);
+//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "_%08" PRIX32 "), so create it for future deletion",chunkid,version);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1082,7 +1082,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016"PRIX64"), so create it for future deletion",chunkid);
+//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1243,7 +1243,7 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr) {
-			syslog(LOG_WARNING,"got replication status from server which had had that chunk before (chunk:%016"PRIX64"_%08"PRIX32")",chunkid,version);
+			syslog(LOG_WARNING,"got replication status from server which had had that chunk before (chunk:%016" PRIX64 "_%08" PRIX32 ")",chunkid,version);
 			if (s->valid==VALID && version!=c->version) {
 				chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies-1);
 				c->allvalidcopies--;
@@ -1428,20 +1428,20 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				if ((delnotdone > deldone) && (todeletecount > prevtodeletecount)) {
 					TmpMaxDelFrac *= 1.5;
 					if (TmpMaxDelFrac>MaxDelHardLimit) {
-						syslog(LOG_NOTICE,"DEL_LIMIT hard limit (%"PRIu32" per server) reached",MaxDelHardLimit);
+						syslog(LOG_NOTICE,"DEL_LIMIT hard limit (%" PRIu32 " per server) reached",MaxDelHardLimit);
 						TmpMaxDelFrac=MaxDelHardLimit;
 					}
 					TmpMaxDel = TmpMaxDelFrac;
-					syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %"PRIu32" per server",TmpMaxDel);
+					syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %" PRIu32 " per server",TmpMaxDel);
 				}
 				if ((todeletecount < prevtodeletecount) && (TmpMaxDelFrac > MaxDelSoftLimit)) {
 					TmpMaxDelFrac /= 1.5;
 					if (TmpMaxDelFrac<MaxDelSoftLimit) {
-						syslog(LOG_NOTICE,"DEL_LIMIT back to soft limit (%"PRIu32" per server)",MaxDelSoftLimit);
+						syslog(LOG_NOTICE,"DEL_LIMIT back to soft limit (%" PRIu32 " per server)",MaxDelSoftLimit);
 						TmpMaxDelFrac = MaxDelSoftLimit;
 					}
 					TmpMaxDel = TmpMaxDelFrac;
-					syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %"PRIu32" per server",TmpMaxDel);
+					syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %" PRIu32 " per server",TmpMaxDel);
 				}
 				prevtodeletecount = todeletecount;
 				delnotdone = 0;
@@ -1491,13 +1491,13 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		c->regularvalidcopies = vc+bc;
 	}
 
-//	syslog(LOG_WARNING,"chunk %016"PRIX64": ivc=%"PRIu32" , tdc=%"PRIu32" , vc=%"PRIu32" , bc=%"PRIu32" , tdb=%"PRIu32" , dc=%"PRIu32" , goal=%"PRIu8" , scount=%"PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
+//	syslog(LOG_WARNING,"chunk %016" PRIX64 ": ivc=%" PRIu32 " , tdc=%" PRIu32 " , vc=%" PRIu32 " , bc=%" PRIu32 " , tdb=%" PRIu32 " , dc=%" PRIu32 " , goal=%" PRIu8 " , scount=%" PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
 
 // step 2. check number of copies
 	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
-		syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually",c->chunkid,ivc);
+		syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
-			syslog(LOG_NOTICE,"chunk %016"PRIX64"_%08"PRIX32" - invalid copy on (%s - ver:%08"PRIX32")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
+			syslog(LOG_NOTICE,"chunk %016" PRIX64 "_%08" PRIX32 " - invalid copy on (%s - ver:%08" PRIX32 ")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
 		}
 		return ;
 	}
@@ -1533,7 +1533,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 // step 5. check busy count
 	if ((bc+tdb)>0) {
-		syslog(LOG_WARNING,"chunk %016"PRIX64" has unexpected BUSY copies",c->chunkid);
+		syslog(LOG_WARNING,"chunk %016" PRIX64 " has unexpected BUSY copies",c->chunkid);
 		return ;
 	}
 
@@ -1600,7 +1600,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 // step 7b. if chunk has too many copies then delete some of them
 	if (vc > c->goal) {
 		uint8_t prevdone;
-//		syslog(LOG_WARNING,"vc (%"PRIu32") > goal (%"PRIu32") - delete",vc,c->goal);
+//		syslog(LOG_WARNING,"vc (%" PRIu32 ") > goal (%" PRIu32 ") - delete",vc,c->goal);
 		if (servcount==0) {
 			servcount = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
@@ -1635,7 +1635,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 // step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
 	if (vc+tdc>=scount && vc<c->goal && tdc>0 && vc+tdc>1) {
 		uint8_t prevdone;
-//		syslog(LOG_WARNING,"vc+tdc (%"PRIu32") >= scount (%"PRIu32") and vc (%"PRIu32") < goal (%"PRIu32") and tdc (%"PRIu32") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal,tdc);
+//		syslog(LOG_WARNING,"vc+tdc (%" PRIu32 ") >= scount (%" PRIu32 ") and vc (%" PRIu32 ") < goal (%" PRIu32 ") and tdc (%" PRIu32 ") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal,tdc);
 		prevdone = 0;
 		for (s=c->slisthead ; s && prevdone==0 ; s=s->next) {
 			if (s->valid==TDVALID) {
@@ -1906,7 +1906,7 @@ void chunk_dump(void) {
 			if (lockedto<now) {
 				lockedto = 0;
 			}
-			printf("*|i:%016"PRIX64"|v:%08"PRIX32"|g:%"PRIu8"|t:%10"PRIu32"\n",c->chunkid,c->version,c->goal,lockedto);
+			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,lockedto);
 		}
 	}
 }
@@ -2131,11 +2131,11 @@ void chunk_reload(void) {
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
 		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too low (%"PRIu32") increased to %u",looptime,MINLOOPTIME);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u",looptime,MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too high (%"PRIu32") decreased to %u",looptime,MAXLOOPTIME);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u",looptime,MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
@@ -2143,21 +2143,21 @@ void chunk_reload(void) {
 	} else {
 		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too low (%"PRIu32") increased to %u",looptime,MINLOOPTIME);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u",looptime,MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too high (%"PRIu32") decreased to %u",looptime,MAXLOOPTIME);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u",looptime,MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
 		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
 		if (HashCPS < MINCPS) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too low (%"PRIu32") increased to %u",HashCPS,MINCPS);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u",HashCPS,MINCPS);
 			HashCPS = MINCPS;
 		}
 		if (HashCPS > MAXCPS) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too high (%"PRIu32") decreased to %u",HashCPS,MAXCPS);
+			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u",HashCPS,MAXCPS);
 			HashCPS = MAXCPS;
 		}
 	}
@@ -2210,11 +2210,11 @@ int chunk_strinit(void) {
 		fprintf(stderr,"Defining loop time by CHUNKS_LOOP_TIME option is deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME\n");
 		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_TIME value too low (%"PRIu32") increased to %u\n",looptime,MINLOOPTIME);
+			fprintf(stderr,"CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u\n",looptime,MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_TIME value too high (%"PRIu32") decreased to %u\n",looptime,MAXLOOPTIME);
+			fprintf(stderr,"CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u\n",looptime,MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
@@ -2222,21 +2222,21 @@ int chunk_strinit(void) {
 	} else {
 		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too low (%"PRIu32") increased to %u\n",looptime,MINLOOPTIME);
+			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u\n",looptime,MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too high (%"PRIu32") decreased to %u\n",looptime,MAXLOOPTIME);
+			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u\n",looptime,MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
 		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
 		if (HashCPS < MINCPS) {
-			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too low (%"PRIu32") increased to %u\n",HashCPS,MINCPS);
+			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u\n",HashCPS,MINCPS);
 			HashCPS = MINCPS;
 		}
 		if (HashCPS > MAXCPS) {
-			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too high (%"PRIu32") decreased to %u\n",HashCPS,MAXCPS);
+			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u\n",HashCPS,MAXCPS);
 			HashCPS = MAXCPS;
 		}
 	}

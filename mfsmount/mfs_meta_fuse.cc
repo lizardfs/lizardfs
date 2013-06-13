@@ -569,7 +569,7 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 			name = (const char*)dbuff;
 			dbuff+=nleng;
 			inode = get32bit(&dbuff);
-			sprintf((char*)buff,"%08"PRIX32"|",inode);
+			sprintf((char*)buff,"%08" PRIX32 "|",inode);
 			if (nleng>255-9) {
 				memcpy(buff+9,name,255-9);
 				buff+=255;
@@ -866,6 +866,6 @@ void mfs_meta_init(int debug_mode_in,double entry_cache_timeout_in,double attr_c
 	entry_cache_timeout = entry_cache_timeout_in;
 	attr_cache_timeout = attr_cache_timeout_in;
 	if (debug_mode) {
-		fprintf(stderr,"cache parameters: entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",entry_cache_timeout,attr_cache_timeout);
+		fprintf(stderr,"cache parameters: entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",entry_cache_timeout,attr_cache_timeout);
 	}
 }

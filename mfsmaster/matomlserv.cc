@@ -202,7 +202,7 @@ char* matomlserv_makestrip(uint32_t ip) {
 	l+=4;
 	optr = (char*) malloc(l);
 	passert(optr);
-	snprintf(optr,l,"%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,pt[0],pt[1],pt[2],pt[3]);
+	snprintf(optr,l,"%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8,pt[0],pt[1],pt[2],pt[3]);
 	optr[l-1]=0;
 	return optr;
 }
@@ -239,7 +239,7 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 		return;
 	}
 	if (old_changes_head->minversion>version) {
-		syslog(LOG_WARNING,"meta logger wants changes since version: %"PRIu64", but minimal version in storage is: %"PRIu64,version,old_changes_head->minversion);
+		syslog(LOG_WARNING,"meta logger wants changes since version: %" PRIu64 ", but minimal version in storage is: %" PRIu64,version,old_changes_head->minversion);
 		return;
 	}
 	for (oc=old_changes_head ; oc ; oc=oc->next) {
@@ -270,14 +270,14 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (length<1) {
-		syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong size (%"PRIu32")",length);
+		syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong size (%" PRIu32 ")",length);
 		eptr->mode=KILL;
 		return;
 	} else {
 		rversion = get8bit(&data);
 		if (rversion==1) {
 			if (length!=7) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 1) - wrong size (%"PRIu32"/7)",length);
+				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 1) - wrong size (%" PRIu32 "/7)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -285,7 +285,7 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->timeout = get16bit(&data);
 		} else if (rversion==2) {
 			if (length!=7+8) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 2) - wrong size (%"PRIu32"/15)",length);
+				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 2) - wrong size (%" PRIu32 "/15)",length);
 				eptr->mode=KILL;
 				return;
 			}
@@ -294,12 +294,12 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			minversion = get64bit(&data);
 			matomlserv_send_old_changes(eptr,minversion);
 		} else {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%"PRIu8"/1)",rversion);
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 "/1)",rversion);
 			eptr->mode=KILL;
 			return;
 		}
 		if (eptr->timeout<10) {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%"PRIu16" seconds - should be at least 10 seconds)",eptr->timeout);
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
@@ -313,7 +313,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 	uint64_t size;
 	uint8_t *ptr;
 	if (length!=1) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%"PRIu32"/1)",length);
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%" PRIu32 "/1)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -378,7 +378,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ssize_t ret;
 
 	if (length!=12) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - wrong size (%" PRIu32 "/12)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -410,7 +410,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_END - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_END - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -484,7 +484,7 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 			matomlserv_download_end(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
 			eptr->mode=KILL;
 	}
 }
@@ -550,7 +550,7 @@ void matomlserv_read(matomlserventry *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"ML(%s) packet too long (%"PRIu32"/%u)",eptr->servstrip,size,MaxPacketSize);
+					syslog(LOG_WARNING,"ML(%s) packet too long (%" PRIu32 "/%u)",eptr->servstrip,size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -766,7 +766,7 @@ void matomlserv_reload(void) {
 
 	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
 	if (ChangelogSecondsToRemember>3600) {
-		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%"PRIu16") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
 }
@@ -795,7 +795,7 @@ int matomlserv_init(void) {
 	matomlservhead = NULL;
 	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
 	if (ChangelogSecondsToRemember>3600) {
-		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%"PRIu16") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
 	main_reloadregister(matomlserv_reload);

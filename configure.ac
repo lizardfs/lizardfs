@@ -24,7 +24,7 @@ AC_PROG_CXX
 AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
-CPPFLAGS="$CPPFLAGS -std=c++0x -Wall -Wextra -Wshadow -pedantic -fwrapv -O2 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+CPPFLAGS="$CPPFLAGS -std=gnu++0x -Wall -Wextra -Wshadow -pedantic -fwrapv -O2 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
 
 case $target_os in
   *linux*)

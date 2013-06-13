@@ -247,7 +247,7 @@ threc* fs_get_my_threc() {
 		rec->packetid = threchead->packetid+1;
 	}
 	rec->next = threchead;
-	//syslog(LOG_NOTICE,"mastercomm: create new threc (%"PRIu32")",rec->packetid);
+	//syslog(LOG_NOTICE,"mastercomm: create new threc (%" PRIu32 ")",rec->packetid);
 	threchead = rec;
 	pthread_mutex_unlock(&reclock);
 	return rec;
@@ -364,7 +364,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 			sleep(1+((cnt<30)?(cnt/3):10));
 			continue;
 		}
-		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - sending ...",rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
 		if (tcptowrite(fd,rec->obuff,rec->odataleng,1000)!=(int32_t)(rec->odataleng)) {
 			syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
@@ -381,7 +381,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 		master_stats_inc(MASTER_PACKETSSENT);
 		lastwrite = time(NULL);
 		pthread_mutex_unlock(&fdlock);
-		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: lock: %" PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		while (rec->rcvd==0) {
 			rec->waiting = 1;
@@ -389,8 +389,8 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 			rec->waiting = 0;
 		}
 		*answer_leng = rec->idataleng;
-		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
-		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
+		// syslog(LOG_NOTICE,"master: unlocked: %" PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: command_info: %" PRIu32 " ; reccmd: %" PRIu32,command_info,rec->cmd);
 		if (rec->status!=0) {
 			pthread_mutex_unlock(&(rec->mutex));
 			sleep(1+((cnt<30)?(cnt/3):10));
@@ -410,7 +410,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 			continue;
 		}
 		pthread_mutex_unlock(&(rec->mutex));
-		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - received",rec->packetid);
 		return rec->ibuff;
 	}
 	return NULL;
@@ -430,7 +430,7 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 			sleep(1+((cnt<30)?(cnt/3):10));
 			continue;
 		}
-		//syslog(LOG_NOTICE,"threc(%"PRIu32") - sending ...",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - sending ...",rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));	// make helgrind happy
 		if (tcptowrite(fd,rec->obuff,rec->odataleng,1000)!=(int32_t)(rec->odataleng)) {
 			syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
@@ -447,7 +447,7 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 		master_stats_inc(MASTER_PACKETSSENT);
 		lastwrite = time(NULL);
 		pthread_mutex_unlock(&fdlock);
-		// syslog(LOG_NOTICE,"master: lock: %"PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: lock: %" PRIu32,rec->packetid);
 		pthread_mutex_lock(&(rec->mutex));
 		while (rec->rcvd==0) {
 			rec->waiting = 1;
@@ -455,8 +455,8 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 			rec->waiting = 0;
 		}
 		*answer_leng = rec->idataleng;
-		// syslog(LOG_NOTICE,"master: unlocked: %"PRIu32,rec->packetid);
-		// syslog(LOG_NOTICE,"master: command_info: %"PRIu32" ; reccmd: %"PRIu32,command_info,rec->cmd);
+		// syslog(LOG_NOTICE,"master: unlocked: %" PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: command_info: %" PRIu32 " ; reccmd: %" PRIu32,command_info,rec->cmd);
 		if (rec->status!=0) {
 			pthread_mutex_unlock(&(rec->mutex));
 			sleep(1+((cnt<30)?(cnt/3):10));
@@ -464,7 +464,7 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 		}
 		*received_cmd = rec->rcvd_cmd;
 		pthread_mutex_unlock(&(rec->mutex));
-		//syslog(LOG_NOTICE,"threc(%"PRIu32") - received",rec->packetid);
+		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - received",rec->packetid);
 		return rec->ibuff;
 	}
 	return NULL;
@@ -483,7 +483,7 @@ int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 	} else {
 		srcip=0;
 	}
-	snprintf(srcstrip,17,"%"PRIu32".%"PRIu32".%"PRIu32".%"PRIu32,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
+	snprintf(srcstrip,17,"%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
 	srcstrip[16]=0;
 
 	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
@@ -494,7 +494,7 @@ int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 		}
 		return -1;
 	}
-	snprintf(masterstrip,17,"%"PRIu32".%"PRIu32".%"PRIu32".%"PRIu32,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
+	snprintf(masterstrip,17,"%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
 	masterstrip[16]=0;
 
 	return 0;
@@ -559,9 +559,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
 		if (oninit) {
-			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%"PRIu16"\")\n",masterstrip,masterport);
+			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")\n",masterstrip,masterport);
 		} else {
-			syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
+			syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -805,13 +805,13 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (pw) {
 				fprintf(stderr,"%s:",pw->pw_name);
 			} else {
-				fprintf(stderr,"%"PRIu32":",rootuid);
+				fprintf(stderr,"%" PRIu32 ":",rootuid);
 			}
 			getgrgid_r(rootgid,&grp,pwdgrpbuff,16384,&gr);
 			if (gr) {
 				fprintf(stderr,"%s",gr->gr_name);
 			} else {
-				fprintf(stderr,"%"PRIu32,rootgid);
+				fprintf(stderr,"%" PRIu32,rootgid);
 			}
 			if (sesflags&SESFLAG_MAPALL) {
 				fprintf(stderr," ; users mapped to ");
@@ -819,13 +819,13 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 				if (pw) {
 					fprintf(stderr,"%s:",pw->pw_name);
 				} else {
-					fprintf(stderr,"%"PRIu32":",mapalluid);
+					fprintf(stderr,"%" PRIu32 ":",mapalluid);
 				}
 				gr = getgrgid(mapallgid);
 				if (gr) {
 					fprintf(stderr,"%s",gr->gr_name);
 				} else {
-					fprintf(stderr,"%"PRIu32,mapallgid);
+					fprintf(stderr,"%" PRIu32,mapallgid);
 				}
 			}
 		}
@@ -916,7 +916,7 @@ void fs_reconnect() {
 		}
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
-		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%"PRIu16"\")",masterstrip,masterport);
+		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -950,14 +950,14 @@ void fs_reconnect() {
 	rptr = regbuff;
 	i = get32bit(&rptr);
 	if (i!=MATOCL_FUSE_REGISTER) {
-		syslog(LOG_WARNING,"master: register error (bad answer: %"PRIu32")",i);
+		syslog(LOG_WARNING,"master: register error (bad answer: %" PRIu32 ")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
 	}
 	i = get32bit(&rptr);
 	if (i!=1) {
-		syslog(LOG_WARNING,"master: register error (bad length: %"PRIu32")",i);
+		syslog(LOG_WARNING,"master: register error (bad length: %" PRIu32 ")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -1041,7 +1041,7 @@ void* fs_nop_thread(void *arg) {
 				pthread_mutex_lock(&aflock);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
-					//syslog(LOG_NOTICE,"reserved inode: %"PRIu32,afptr->inode);
+					//syslog(LOG_NOTICE,"reserved inode: %" PRIu32,afptr->inode);
 					inodesleng+=4;
 				}
 				inodespacket = (uint8_t*) malloc(inodesleng);
@@ -1166,7 +1166,7 @@ void* fs_receive_thread(void *arg) {
 			disconnect=1;
 			continue;
 		}
-		// syslog(LOG_NOTICE,"master: expected data size: %"PRIu32,size);
+		// syslog(LOG_NOTICE,"master: expected data size: %" PRIu32,size);
 		if (size>0) {
 			r = tcptoread(fd,rec->ibuff,size,1000);
 			// syslog(LOG_NOTICE,"master: data size: %d",r);
@@ -1188,7 +1188,7 @@ void* fs_receive_thread(void *arg) {
 		rec->status = 0;
 		rec->idataleng = size;
 		rec->rcvd_cmd = cmd;
-		// syslog(LOG_NOTICE,"master: unlock: %"PRIu32,rec->packetid);
+		// syslog(LOG_NOTICE,"master: unlock: %" PRIu32,rec->packetid);
 		rec->rcvd = 1;
 		if (rec->waiting) {
 			pthread_cond_signal(&(rec->cond));

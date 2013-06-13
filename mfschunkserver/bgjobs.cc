@@ -252,7 +252,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	}
        	jp= (jobpool*) malloc(sizeof(jobpool));
 	passert(jp);
-//	syslog(LOG_WARNING,"new pool of workers (%p:%"PRIu8")",(void*)jp,workers);
+//	syslog(LOG_WARNING,"new pool of workers (%p:%" PRIu8 ")",(void*)jp,workers);
 	*wakeupdesc = fd[0];
 	jp->rpipe = fd[0];
 	jp->wpipe = fd[1];
@@ -358,7 +358,7 @@ void job_pool_check_jobs(void *jpool) {
 void job_pool_delete(void *jpool) {
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t i;
-//	syslog(LOG_WARNING,"deleting pool of workers (%p:%"PRIu8")",(void*)jp,jp->workers);
+//	syslog(LOG_WARNING,"deleting pool of workers (%p:%" PRIu8 ")",(void*)jp,jp->workers);
 	for (i=0 ; i<jp->workers ; i++) {
 		queue_put(jp->jobqueue,0,OP_EXIT,NULL,1);
 	}

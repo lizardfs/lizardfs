@@ -50,7 +50,7 @@ int chunk_load(FILE *fd) {
 	}
 	ptr = hdr;
 	nextchunkid = get64bit(&ptr);
-	printf("# nextchunkid: %016"PRIX64"\n",nextchunkid);
+	printf("# nextchunkid: %016" PRIX64 "\n",nextchunkid);
 	for (;;) {
 		r = fread(loadbuff,1,16,fd);
 		(void)r;
@@ -61,8 +61,9 @@ int chunk_load(FILE *fd) {
 		if (chunkid==0 && version==0 && lockedto==0) {
 			return 0;
 		}
-		printf("*|i:%016"PRIX64"|v:%08"PRIX32"|t:%10"PRIu32"\n",chunkid,version,lockedto);
+		printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|t:%10" PRIu32 "\n",chunkid,version,lockedto);
 	}
+	return -1;
 }
 
 void print_name(FILE *in,uint32_t nleng) {
@@ -106,9 +107,9 @@ int fs_loadedge(FILE *fd) {
 	nleng = get16bit(&ptr);
 
 	if (parent_id==0) {
-		printf("E|p:      NULL|c:%10"PRIu32"|n:",child_id);
+		printf("E|p:      NULL|c:%10" PRIu32 "|n:",child_id);
 	} else {
-		printf("E|p:%10"PRIu32"|c:%10"PRIu32"|n:",parent_id,child_id);
+		printf("E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:", parent_id, child_id);
 	}
 	print_name(fd,nleng);
 	printf("\n");
@@ -197,12 +198,12 @@ int fs_loadnode(FILE *fd) {
 	ctimestamp = get32bit(&ptr);
 	trashtime = get32bit(&ptr);
 
-	printf("%c|i:%10"PRIu32"|#:%"PRIu8"|e:%1"PRIX16"|m:%04"PRIo16"|u:%10"PRIu32"|g:%10"PRIu32"|a:%10"PRIu32",m:%10"PRIu32",c:%10"PRIu32"|t:%10"PRIu32,c,nodeid,goal,(uint16_t)(mode>>12),(uint16_t)(mode&0xFFF),uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
+	printf("%c|i:%10" PRIu32 "|#:%" PRIu8 "|e:%1" PRIX16 "|m:%04" PRIo16 "|u:%10" PRIu32 "|g:%10" PRIu32 "|a:%10" PRIu32 ",m:%10" PRIu32 ",c:%10" PRIu32 "|t:%10" PRIu32,c,nodeid,goal,(uint16_t)(mode>>12),(uint16_t)(mode&0xFFF),uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
 
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		uint32_t rdev;
 		rdev = get32bit(&ptr);
-		printf("|d:%5"PRIu32",%5"PRIu32"\n",rdev>>16,rdev&0xFFFF);
+		printf("|d:%5" PRIu32 ",%5" PRIu32 "\n",rdev>>16,rdev&0xFFFF);
 	} else if (type==TYPE_SYMLINK) {
 		uint32_t pleng;
 		pleng = get32bit(&ptr);
@@ -218,7 +219,7 @@ int fs_loadnode(FILE *fd) {
 		ch = get32bit(&ptr);
 		sessionids = get16bit(&ptr);
 
-		printf("|l:%20"PRIu64"|c:(",length);
+		printf("|l:%20" PRIu64 "|c:(",length);
 		while (ch>65536) {
 			chptr = ptr;
 			if (fread((uint8_t*)ptr,1,8*65536,fd)!=8*65536) {
@@ -228,7 +229,7 @@ int fs_loadnode(FILE *fd) {
 			for (ci=0 ; ci<65536 ; ci++) {
 				chunkid = get64bit(&chptr);
 				if (chunkid>0) {
-					printf("%016"PRIX64,chunkid);
+					printf("%016" PRIX64,chunkid);
 				} else {
 					printf("N");
 				}
@@ -245,7 +246,7 @@ int fs_loadnode(FILE *fd) {
 		while (ch>0) {
 			chunkid = get64bit(&ptr);
 			if (chunkid>0) {
-				printf("%016"PRIX64,chunkid);
+				printf("%016" PRIX64,chunkid);
 			} else {
 				printf("N");
 			}
@@ -257,7 +258,7 @@ int fs_loadnode(FILE *fd) {
 		printf(")|r:(");
 		while (sessionids>0) {
 			sessionid = get32bit(&ptr);
-			printf("%"PRIu32,sessionid);
+			printf("%" PRIu32,sessionid);
 			if (sessionids>1) {
 				printf(",");
 			}
@@ -302,7 +303,7 @@ int fs_loadfree(FILE *fd) {
 	}
 	ptr=rbuff;
 	t = get32bit(&ptr);
-	printf("# free nodes: %"PRIu32"\n",t);
+	printf("# free nodes: %" PRIu32 "\n",t);
 	while (t>0) {
 		if (fread(rbuff,1,8,fd)!=8) {
 			return -1;
@@ -310,7 +311,7 @@ int fs_loadfree(FILE *fd) {
 		ptr = rbuff;
 		nodeid = get32bit(&ptr);
 		ftime = get32bit(&ptr);
-		printf("I|i:%10"PRIu32"|f:%10"PRIu32"\n",nodeid,ftime);
+		printf("I|i:%10" PRIu32 "|f:%10" PRIu32 "\n", nodeid, ftime);
 		t--;
 	}
 	return 0;
@@ -327,7 +328,7 @@ int fs_loadquota(FILE *fd) {
 	}
 	ptr=rbuff;
 	t = get32bit(&ptr);
-	printf("# quota nodes: %"PRIu32"\n",t);
+	printf("# quota nodes: %" PRIu32 "\n",t);
 	while (t>0) {
 		if (fread(rbuff,1,66,fd)!=66) {
 			return -1;
@@ -345,44 +346,44 @@ int fs_loadquota(FILE *fd) {
 		hsize = get64bit(&ptr);
 		srealsize = get64bit(&ptr);
 		hrealsize = get64bit(&ptr);
-		printf("Q|i:%10"PRIu32"|e:%c|f:%02"PRIX8"|s:%10"PRIu32,nodeid,(exceeded)?'1':'0',flags,stimestamp);
+		printf("Q|i:%10" PRIu32 "|e:%c|f:%02" PRIX8 "|s:%10" PRIu32,nodeid,(exceeded)?'1':'0',flags,stimestamp);
 		if (flags&QUOTA_FLAG_SINODES) {
-			printf("|si:%10"PRIu32,sinodes);
+			printf("|si:%10" PRIu32,sinodes);
 		} else {
 			printf("|si:         -");
 		}
 		if (flags&QUOTA_FLAG_HINODES) {
-			printf("|hi:%10"PRIu32,hinodes);
+			printf("|hi:%10" PRIu32,hinodes);
 		} else {
 			printf("|hi:         -");
 		}
 		if (flags&QUOTA_FLAG_SLENGTH) {
-			printf("|sl:%20"PRIu64,slength);
+			printf("|sl:%20" PRIu64,slength);
 		} else {
 			printf("|sl:                   -");
 		}
 		if (flags&QUOTA_FLAG_HLENGTH) {
-			printf("|hl:%20"PRIu64,hlength);
+			printf("|hl:%20" PRIu64,hlength);
 		} else {
 			printf("|hl:                   -");
 		}
 		if (flags&QUOTA_FLAG_SSIZE) {
-			printf("|ss:%20"PRIu64,ssize);
+			printf("|ss:%20" PRIu64,ssize);
 		} else {
 			printf("|ss:                   -");
 		}
 		if (flags&QUOTA_FLAG_HSIZE) {
-			printf("|hs:%20"PRIu64,hsize);
+			printf("|hs:%20" PRIu64,hsize);
 		} else {
 			printf("|hs:                   -");
 		}
 		if (flags&QUOTA_FLAG_SREALSIZE) {
-			printf("|sr:%20"PRIu64,srealsize);
+			printf("|sr:%20" PRIu64,srealsize);
 		} else {
 			printf("|sr:                   -");
 		}
 		if (flags&QUOTA_FLAG_HREALSIZE) {
-			printf("|hr:%20"PRIu64,hrealsize);
+			printf("|hr:%20" PRIu64,hrealsize);
 		} else {
 			printf("|hr:                   -");
 		}
@@ -400,7 +401,7 @@ int hexdump(FILE *fd,uint64_t sleng) {
 			return -1;
 		}
 		for (i=0 ; i<32 ; i++) {
-			printf("%02"PRIX8" ",lbuff[i]);
+			printf("%02" PRIX8 " ",lbuff[i]);
 		}
 		printf(" |");
 		for (i=0 ; i<32 ; i++) {
@@ -415,7 +416,7 @@ int hexdump(FILE *fd,uint64_t sleng) {
 		}
 		for (i=0 ; i<32 ; i++) {
 			if (i<sleng) {
-				printf("%02"PRIX8" ",lbuff[i]);
+				printf("%02" PRIX8 " ",lbuff[i]);
 			} else {
 				printf("   ");
 			}
@@ -446,7 +447,7 @@ int fs_load(FILE *fd) {
 	version = get64bit(&ptr);
 	nextsessionid = get32bit(&ptr);
 
-	printf("# maxnodeid: %"PRIu32" ; version: %"PRIu64" ; nextsessionid: %"PRIu32"\n",maxnodeid,version,nextsessionid);
+	printf("# maxnodeid: %" PRIu32 " ; version: %" PRIu64 " ; nextsessionid: %" PRIu32 "\n",maxnodeid,version,nextsessionid);
 
 	printf("# -------------------------------------------------------------------\n");
 	if (fs_loadnodes(fd)<0) {
@@ -482,7 +483,7 @@ int fs_load_17(FILE *fd) {
 	version = get64bit(&ptr);
 	nextsessionid = get32bit(&ptr);
 
-	printf("# maxnodeid: %"PRIu32" ; version: %"PRIu64" ; nextsessionid: %"PRIu32"\n",maxnodeid,version,nextsessionid);
+	printf("# maxnodeid: %" PRIu32 " ; version: %" PRIu64 " ; nextsessionid: %" PRIu32 "\n",maxnodeid,version,nextsessionid);
 
 	while (1) {
 		if (fread(hdr,1,16,fd)!=16) {
@@ -499,7 +500,7 @@ int fs_load_17(FILE *fd) {
 		sleng = get64bit(&ptr);
 		offbegin = ftello(fd);
 		printf("# -------------------------------------------------------------------\n");
-		printf("# section header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X) ; length: %"PRIu64"\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7],sleng);
+		printf("# section header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X) ; length: %" PRIu64 "\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7],sleng);
 		if (memcmp(hdr,"NODE 1.0",8)==0) {
 			if (fs_loadnodes(fd)<0) {
 				printf("error reading metadata (NODE 1.0)\n");
