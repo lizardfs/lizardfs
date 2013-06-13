@@ -714,7 +714,6 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint8_t attr[35];
 	char attrstr[256];
 	int status;
-	uint8_t icacheflag;
 	const struct fuse_ctx *ctx;
 	(void)fi;
 
@@ -756,12 +755,10 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		}
 		mfs_stats_inc(OP_DIRCACHE_GETATTR);
 		status = 0;
-		icacheflag = 1;
 	} else {
 		mfs_stats_inc(OP_GETATTR);
 		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
 		status = mfs_errorconv(status);
-		icacheflag = 0;
 	}
 	if (status!=0) {
 		fuse_reply_err(req, status);

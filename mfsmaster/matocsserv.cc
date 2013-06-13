@@ -446,10 +446,7 @@ void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usab
 }
 
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *pmin,uint32_t *pmax) {
-	static struct servsort {
-		double space;
-		void *ptr;
-	} servsorttab[65535],servtab[65536];
+	static servsort servsorttab[65535],servtab[65536];
 	matocsserventry *eptr;
 	uint32_t i,j,k,min,mid,max;
 	double minspace=1.0,maxspace=0.0;

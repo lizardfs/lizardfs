@@ -866,6 +866,6 @@ void mfs_meta_init(int debug_mode_in,double entry_cache_timeout_in,double attr_c
 	entry_cache_timeout = entry_cache_timeout_in;
 	attr_cache_timeout = attr_cache_timeout_in;
 	if (debug_mode) {
-		fprintf(stderr,"cache parameters: entry_cache_timeout=%.2lf attr_cache_timeout=%.2lf\n",entry_cache_timeout,attr_cache_timeout);
+		fprintf(stderr,"cache parameters: entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",entry_cache_timeout,attr_cache_timeout);
 	}
 }

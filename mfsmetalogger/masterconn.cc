@@ -386,7 +386,7 @@ void masterconn_download_next(masterconn *eptr) {
 		if (dltime<=0) {
 			dltime=1;
 		}
-		syslog(LOG_NOTICE,"%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+		syslog(LOG_NOTICE,"%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
 		if (filenum==1) {
 			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
 				if (BackMetaCopies>0) {
