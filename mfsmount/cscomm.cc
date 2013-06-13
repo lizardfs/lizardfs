@@ -64,7 +64,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 		l = get32bit(&rptr);
 		if (cmd==CSTOCL_READ_STATUS) {
 			if (l!=9) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect message size (%"PRIu32"/9)",l);
+				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect message size (%" PRIu32 "/9)",l);
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,9,CSMSECTIMEOUT)!=9) {
@@ -78,17 +78,17 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (t64!=chunkid) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect chunkid (got:%"PRIu64" expected:%"PRIu64")",t64,chunkid);
+				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect chunkid (got:%" PRIu64 " expected:%" PRIu64 ")",t64,chunkid);
 				return -1;
 			}
 			if (size!=0) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect data size (left: %"PRIu32")",size);
+				syslog(LOG_NOTICE,"readblock; READ_STATUS incorrect data size (left: %" PRIu32 ")",size);
 				return -1;
 			}
 			return 0;
 		} else if (cmd==CSTOCL_READ_DATA) {
 			if (l<20) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%"PRIu32"/>=20)",l);
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%" PRIu32 "/>=20)",l);
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,20,CSMSECTIMEOUT)!=20) {
@@ -98,7 +98,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			rptr = ibuff;
 			t64 = get64bit(&rptr);
 			if (t64!=chunkid) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect chunkid (got:%"PRIu64" expected:%"PRIu64")",t64,chunkid);
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect chunkid (got:%" PRIu64 " expected:%" PRIu64 ")",t64,chunkid);
 				return -1;
 			}
 			blockno = get16bit(&rptr);
@@ -106,7 +106,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			blocksize = get32bit(&rptr);
 			blockcrc = get32bit(&rptr);
 			if (l!=20+blocksize) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%"PRIu32"/%"PRIu32")",l,20+blocksize);
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect message size (%" PRIu32 "/%" PRIu32 ")",l,20+blocksize);
 				return -1;
 			}
 			if (blocksize==0) {
@@ -114,11 +114,11 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (blockno!=(offset>>MFSBLOCKBITS)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%"PRIu16" expected:%"PRIu32")",blockno,(offset>>MFSBLOCKBITS));
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%" PRIu16 " expected:%" PRIu32 ")",blockno,(offset>>MFSBLOCKBITS));
 				return -1;
 			}
 			if (blockoffset!=(offset&MFSBLOCKMASK)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%"PRIu16" expected:%"PRIu32")",blockoffset,(offset&MFSBLOCKMASK));
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%" PRIu16 " expected:%" PRIu32 ")",blockoffset,(offset&MFSBLOCKMASK));
 				return -1;
 			}
 			breq = MFSBLOCKSIZE - (uint32_t)blockoffset;
@@ -126,7 +126,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				breq=size;
 			}
 			if (blocksize!=breq) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block size (got:%"PRIu32" expected:%"PRIu32")",blocksize,breq);
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block size (got:%" PRIu32 " expected:%" PRIu32 ")",blocksize,breq);
 				return -1;
 			}
 			if (tcptoread(fd,buff,blocksize,CSMSECTIMEOUT)!=(int32_t)blocksize) {
@@ -142,7 +142,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			buff+=blocksize;
 		} else if (cmd==ANTOAN_NOP) {
 			if (l!=0) {
-				syslog(LOG_NOTICE,"readblock; NOP incorrect message size (%"PRIu32"/0)",l);
+				syslog(LOG_NOTICE,"readblock; NOP incorrect message size (%" PRIu32 "/0)",l);
 				return -1;
 			}
 		} else if (cmd==ANTOAN_UNKNOWN_COMMAND || cmd==ANTOAN_BAD_COMMAND_SIZE) {

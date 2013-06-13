@@ -149,12 +149,12 @@ void cfg_term(void) {
 	return _cfg_ret_tmp; \
 }
 
-#define COPY_int(x) return x
-#define COPY_int32(x) return x
-#define COPY_uint32(x) return x
-#define COPY_int64(x) return x
-#define COPY_uint64(x) return x
-#define COPY_double(x) return x
+#define COPY_int(x) return x;
+#define COPY_int32(x) return x;
+#define COPY_uint32(x) return x;
+#define COPY_int64(x) return x;
+#define COPY_uint64(x) return x;
+#define COPY_double(x) return x;
 #define COPY_charptr(x) { \
 	char* _cfg_ret_tmp = strdup(x); \
 	passert(_cfg_ret_tmp); \
@@ -162,7 +162,7 @@ void cfg_term(void) {
 }
 
 #define _CONFIG_GEN_FUNCTION(fname,type,convname,format) \
-type cfg_get##fname(const char *name,type def) { \
+type cfg_get##fname(const char *name, const type def) { \
 	paramstr *_cfg_tmp; \
 	for (_cfg_tmp = paramhead ; _cfg_tmp ; _cfg_tmp=_cfg_tmp->next) { \
 		if (strcmp(name,_cfg_tmp->name)==0) { \
@@ -172,17 +172,17 @@ type cfg_get##fname(const char *name,type def) { \
 	if (logundefined) { \
 		mfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,def); \
 	} \
-	COPY_##convname(def); \
+	COPY_##convname(def) \
 }
 
 _CONFIG_GEN_FUNCTION(str,char*,charptr,"%s")
 _CONFIG_GEN_FUNCTION(num,int,int,"%d")
-_CONFIG_GEN_FUNCTION(int8,int8_t,int32,"%"PRId8)
-_CONFIG_GEN_FUNCTION(uint8,uint8_t,uint32,"%"PRIu8)
-_CONFIG_GEN_FUNCTION(int16,int16_t,int32,"%"PRId16)
-_CONFIG_GEN_FUNCTION(uint16,uint16_t,uint32,"%"PRIu16)
-_CONFIG_GEN_FUNCTION(int32,int32_t,int32,"%"PRId32)
-_CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%"PRIu32)
-_CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%"PRId64)
-_CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%"PRIu64)
-_CONFIG_GEN_FUNCTION(double,double,double,"%lf")
+_CONFIG_GEN_FUNCTION(int8,int8_t,int32,"%" PRId8)
+_CONFIG_GEN_FUNCTION(uint8,uint8_t,uint32,"%" PRIu8)
+_CONFIG_GEN_FUNCTION(int16,int16_t,int32,"%" PRId16)
+_CONFIG_GEN_FUNCTION(uint16,uint16_t,uint32,"%" PRIu16)
+_CONFIG_GEN_FUNCTION(int32,int32_t,int32,"%" PRId32)
+_CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%" PRIu32)
+_CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%" PRId64)
+_CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%" PRIu64)
+_CONFIG_GEN_FUNCTION(double,double,double,"%f")

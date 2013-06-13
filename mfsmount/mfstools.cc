@@ -135,16 +135,16 @@ void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t 
 			}
 			if (humode>2) {
 				if (mode32) {
-					printf(" (%10"PRIu32")",(uint32_t)number);
+					printf(" (%10" PRIu32 ")",(uint32_t)number);
 				} else {
-					printf(" (%20"PRIu64")",number);
+					printf(" (%20" PRIu64 ")",number);
 				}
 			}
 		} else {
 			if (mode32) {
-				printf("%10"PRIu32,(uint32_t)number);
+				printf("%10" PRIu32,(uint32_t)number);
 			} else {
-				printf("%20"PRIu64,number);
+				printf("%20" PRIu64,number);
 			}
 		}
 	} else {
@@ -698,7 +698,7 @@ int check_file(const char* fname) {
 			if (copies==1) {
 				printf("1 copy:");
 			} else {
-				printf("%"PRIu8" copies:",copies);
+				printf("%" PRIu8 " copies:",copies);
 			}
 			print_number(" ","\n",chunks,1,0,1);
 		}
@@ -801,7 +801,7 @@ int get_goal(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		printf("%s: %"PRIu8"\n",fname,goal);
+		printf("%s: %" PRIu8 "\n",fname,goal);
 	} else {
 		fn = get8bit(&rptr);
 		dn = get8bit(&rptr);
@@ -809,13 +809,13 @@ int get_goal(const char *fname,uint8_t mode) {
 		for (i=0 ; i<fn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" files with goal        %"PRIu8" :",goal);
+			printf(" files with goal        %" PRIu8 " :",goal);
 			print_number(" ","\n",cnt,1,0,1);
 		}
 		for (i=0 ; i<dn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" directories with goal  %"PRIu8" :",goal);
+			printf(" directories with goal  %" PRIu8 " :",goal);
 			print_number(" ","\n",cnt,1,0,1);
 		}
 	}
@@ -903,7 +903,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		printf("%s: %"PRIu32"\n",fname,trashtime);
+		printf("%s: %" PRIu32 "\n",fname,trashtime);
 	} else {
 		fn = get32bit(&rptr);
 		dn = get32bit(&rptr);
@@ -911,13 +911,13 @@ int get_trashtime(const char *fname,uint8_t mode) {
 		for (i=0 ; i<fn ; i++) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" files with trashtime        %10"PRIu32" :",trashtime);
+			printf(" files with trashtime        %10" PRIu32 " :",trashtime);
 			print_number(" ","\n",cnt,1,0,1);
 		}
 		for (i=0 ; i<dn ; i++) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" directories with trashtime  %10"PRIu32" :",trashtime);
+			printf(" directories with trashtime  %10" PRIu32 " :",trashtime);
 			print_number(" ","\n",cnt,1,0,1);
 		}
 	}
@@ -1020,7 +1020,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 		} else {
 			printf("-\n");
 		}
-//		printf("%s: %"PRIX8"\n",fname,eattr);
+//		printf("%s: %" PRIX8 "\n",fname,eattr);
 	} else {
 		for (j=0 ; j<EATTR_BITS ; j++) {
 			fcnt[j]=0;
@@ -1141,7 +1141,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	}
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			printf("%s: %"PRIu8"\n",fname,goal);
+			printf("%s: %" PRIu8 "\n",fname,goal);
 		} else {
 			printf("%s: goal not changed\n",fname);
 		}
@@ -1225,7 +1225,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	notpermitted = get32bit(&rptr);
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			printf("%s: %"PRIu32"\n",fname,trashtime);
+			printf("%s: %" PRIu32 "\n",fname,trashtime);
 		} else {
 			printf("%s: trashtime not changed\n",fname);
 		}
@@ -1345,12 +1345,12 @@ int file_info(const char *fname) {
 		put32bit(&wptr,inode);
 		put32bit(&wptr,indx);
 		if (tcpwrite(fd,reqbuff,20)!=20) {
-			printf("%s [%"PRIu32"]: master query: send error\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: send error\n",fname,indx);
 			close_master_conn(1);
 			return -1;
 		}
 		if (tcpread(fd,reqbuff,8)!=8) {
-			printf("%s [%"PRIu32"]: master query: receive error\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
 			close_master_conn(1);
 			return -1;
 		}
@@ -1358,13 +1358,13 @@ int file_info(const char *fname) {
 		cmd = get32bit(&rptr);
 		leng = get32bit(&rptr);
 		if (cmd!=MATOCL_FUSE_READ_CHUNK) {
-			printf("%s [%"PRIu32"]: master query: wrong answer (type)\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",fname,indx);
 			close_master_conn(1);
 			return -1;
 		}
 		buff = (uint8_t*) malloc(leng);
 		if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-			printf("%s [%"PRIu32"]: master query: receive error\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
 			free(buff);
 			close_master_conn(1);
 			return -1;
@@ -1372,19 +1372,19 @@ int file_info(const char *fname) {
 		rptr = buff;
 		cmd = get32bit(&rptr);	// queryid
 		if (cmd!=0) {
-			printf("%s [%"PRIu32"]: master query: wrong answer (queryid)\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",fname,indx);
 			free(buff);
 			close_master_conn(1);
 			return -1;
 		}
 		leng-=4;
 		if (leng==1) {
-			printf("%s [%"PRIu32"]: %s\n",fname,indx,mfsstrerr(*rptr));
+			printf("%s [%" PRIu32 "]: %s\n",fname,indx,mfsstrerr(*rptr));
 			free(buff);
 			close_master_conn(1);
 			return -1;
 		} else if (leng<20 || ((leng-20)%6)!=0) {
-			printf("%s [%"PRIu32"]: master query: wrong answer (leng)\n",fname,indx);
+			printf("%s [%" PRIu32 "]: master query: wrong answer (leng)\n",fname,indx);
 			free(buff);
 			close_master_conn(1);
 			return -1;
@@ -1397,9 +1397,9 @@ int file_info(const char *fname) {
 		version = get32bit(&rptr);
 		if (fleng>0) {
 			if (chunkid==0 && version==0) {
-				printf("\tchunk %"PRIu32": empty\n",indx);
+				printf("\tchunk %" PRIu32 ": empty\n",indx);
 			} else {
-				printf("\tchunk %"PRIu32": %016"PRIX64"_%08"PRIX32" / (id:%"PRIu64" ver:%"PRIu32")\n",indx,chunkid,version,chunkid,version);
+				printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 " / (id:%" PRIu64 " ver:%" PRIu32 ")\n",indx,chunkid,version,chunkid,version);
 				leng-=20;
 				leng/=6;
 				if (leng>0) {
@@ -1412,7 +1412,7 @@ int file_info(const char *fname) {
 						ip4 = rptr[3];
 						rptr+=4;
 						port = get16bit(&rptr);
-						printf("\t\tcopy %"PRIu32": %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8":%"PRIu16"\n",cmd+1,ip1,ip2,ip3,ip4,port);
+						printf("\t\tcopy %" PRIu32 ": %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "\n",cmd+1,ip1,ip2,ip3,ip4,port);
 					}
 				} else {
 					printf("\t\tno valid copies !!!\n");
@@ -1673,7 +1673,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	uint32_t curinodes;
 	uint64_t curlength,cursize,currealsize;
 	int fd;
-//	printf("set quota: %s (soft:%1X,i:%"PRIu32",l:%"PRIu64",w:%"PRIu64",r:%"PRIu64"),(hard:%1X,i:%"PRIu32",l:%"PRIu64",w:%"PRIu64",r:%"PRIu64")\n",fname,sflags,sinodes,slength,ssize,srealsize,hflags,hinodes,hlength,hsize,hrealsize);
+//	printf("set quota: %s (soft:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 "),(hard:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 ")\n",fname,sflags,sinodes,slength,ssize,srealsize,hflags,hinodes,hlength,hsize,hrealsize);
 	fd = open_master_conn(fname,&inode,NULL,0,qflags?1:0);
 	if (fd<0) {
 		return -1;

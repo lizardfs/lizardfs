@@ -69,7 +69,7 @@
 #endif
 
 typedef struct _statdef {
-	char *name;
+	const char *name;
 	uint8_t mode;
 	uint8_t percent;
 	uint8_t scale;

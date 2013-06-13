@@ -32,10 +32,12 @@ const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) 
 
 /* Run Tab */
 typedef int (*runfn)(void);
-struct {
+struct run_tab {
 	runfn fn;
-	char *name;
-} RunTab[]={
+	const char *name;
+};
+
+run_tab RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
 	{csserv_init,"main server module"},	/* it has to be before "masterconn" */

@@ -119,7 +119,7 @@ void* write_info_worker(void *arg) {
 	(void)arg;
 	for (;;) {
 		pthread_mutex_lock(&glock);
-		syslog(LOG_NOTICE,"used cache blocks: %"PRIu32,usedblocks);
+		syslog(LOG_NOTICE,"used cache blocks: %" PRIu32,usedblocks);
 		pthread_mutex_unlock(&glock);
 		usleep(500000);
 	}
@@ -297,7 +297,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 	pthread_mutex_lock(&glock);
 	if (status) {
 		errno = status;
-		syslog(LOG_WARNING,"error writing file number %"PRIu32": %s",id->inode,strerr(errno));
+		syslog(LOG_WARNING,"error writing file number %" PRIu32 ": %s",id->inode,strerr(errno));
 		id->status = status;
 	}
 	status = id->status;
@@ -422,11 +422,11 @@ void* write_worker(void *arg) {
 			continue;
 		}
 
-		// syslog(LOG_NOTICE,"file: %"PRIu32", index: %"PRIu16" - debug1",id->inode,chindx);
+		// syslog(LOG_NOTICE,"file: %" PRIu32 ", index: %" PRIu16 " - debug1",id->inode,chindx);
 		// get chunk data from master
 		wrstatus = fs_writechunk(id->inode,chindx,&mfleng,&chunkid,&version,&csdata,&csdatasize);
 		if (wrstatus!=STATUS_OK) {
-			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32" - fs_writechunk returns status: %s",id->inode,chindx,mfsstrerr(wrstatus));
+			syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - fs_writechunk returns status: %s",id->inode,chindx,mfsstrerr(wrstatus));
 			if (wrstatus!=ERROR_LOCKED) {
 				if (wrstatus==ERROR_ENOENT) {
 					write_job_end(id,EBADF,0);
@@ -452,7 +452,7 @@ void* write_worker(void *arg) {
 			continue;	// get next job
 		}
 		if (csdata==NULL || csdatasize==0) {
-			syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - there are no valid copies",id->inode,chindx,chunkid,version);
+			syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",id->inode,chindx,chunkid,version);
 			id->trycnt+=6;
 			if (id->trycnt>=maxretries) {
 				write_job_end(id,ENXIO,0);
@@ -496,7 +496,7 @@ void* write_worker(void *arg) {
 			if (tcpnumtoconnect(fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
 				cnt++;
 				if (cnt>=10) {
-					syslog(LOG_WARNING,"can't connect to (%08"PRIX32":%"PRIu16"): %s",ip,port,strerr(errno));
+					syslog(LOG_WARNING,"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",ip,port,strerr(errno));
 				}
 				tcpclose(fd);
 				fd=-1;
@@ -558,7 +558,7 @@ void* write_worker(void *arg) {
 				lrdiff.tv_sec -= lastrcvd.tv_sec;
 				lrdiff.tv_usec -= lastrcvd.tv_usec;
 				if (lrdiff.tv_sec>=2) {
-					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was timed out (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was timed out (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 					break;
 				}
 			}
@@ -593,7 +593,7 @@ void* write_worker(void *arg) {
 				}
 				if (havedata==1) {
 					cb->writeid = nextwriteid++;
-// debug:				syslog(LOG_NOTICE,"writeworker: data packet prepared (writeid:%"PRIu32",pos:%"PRIu16")",cb->writeid,cb->pos);
+// debug:				syslog(LOG_NOTICE,"writeworker: data packet prepared (writeid:%" PRIu32 ",pos:%" PRIu16 ")",cb->writeid,cb->pos);
 					waitforstatus++;
 					wptr = sendbuff;
 					put32bit(&wptr,CLTOCS_WRITE_DATA);
@@ -636,7 +636,7 @@ void* write_worker(void *arg) {
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
 				if (i==0) { 	// connection reset by peer
-					syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 					status=EIO;
 					break;
 				}
@@ -657,12 +657,12 @@ void* write_worker(void *arg) {
 					recwriteid = get32bit(&rptr);
 					recstatus = get8bit(&rptr);
 					if (reccmd!=CSTOCL_WRITE_STATUS ||  recleng!=13) {
-						syslog(LOG_WARNING,"writeworker: got unrecognized packet from chunkserver (cmd:%"PRIu32",leng:%"PRIu32")",reccmd,recleng);
+						syslog(LOG_WARNING,"writeworker: got unrecognized packet from chunkserver (cmd:%" PRIu32 ",leng:%" PRIu32 ")",reccmd,recleng);
 						status=EIO;
 						break;
 					}
 					if (recchunkid!=chunkid) {
-						syslog(LOG_WARNING,"writeworker: got unexpected packet (expected chunkdid:%"PRIu64",packet chunkid:%"PRIu64")",chunkid,recchunkid);
+						syslog(LOG_WARNING,"writeworker: got unexpected packet (expected chunkdid:%" PRIu64 ",packet chunkid:%" PRIu64 ")",chunkid,recchunkid);
 						status=EIO;
 						break;
 					}
@@ -671,12 +671,12 @@ void* write_worker(void *arg) {
 						wrstatus=recstatus;
 						break;
 					}
-// debug:				syslog(LOG_NOTICE,"writeworker: received status ok for writeid:%"PRIu32,recwriteid);
+// debug:				syslog(LOG_NOTICE,"writeworker: received status ok for writeid:%" PRIu32,recwriteid);
 					if (recwriteid>0) {
 						pthread_mutex_lock(&glock);
 						for (rcb = id->datachainhead ; rcb && rcb->writeid!=recwriteid ; rcb=rcb->next) {}
 						if (rcb==NULL) {
-							syslog(LOG_WARNING,"writeworker: got unexpected status (writeid:%"PRIu32")",recwriteid);
+							syslog(LOG_WARNING,"writeworker: got unexpected status (writeid:%" PRIu32 ")",recwriteid);
 							pthread_mutex_unlock(&glock);
 							status=EIO;
 							break;
@@ -733,7 +733,7 @@ void* write_worker(void *arg) {
 						i = write(fd,chain+(sent-20),chainsize-(sent-20));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 						status=EIO;
 						break;
 					}
@@ -756,7 +756,7 @@ void* write_worker(void *arg) {
 						i = write(fd,cb->data+cb->from+(sent-32),cb->to-cb->from-(sent-32));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %"PRIu32", index: %"PRIu32", chunk: %"PRIu64", version: %"PRIu32" - writeworker: connection with (%08"PRIX32":%"PRIu16") was reset by peer (unfinished writes: %"PRIu8"; try counter: %"PRIu32")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
 						status=EIO;
 						break;
 					}
@@ -786,7 +786,7 @@ void* write_worker(void *arg) {
 		if (cl>=2) {
 			debugchain[cl-2]='\0';
 		}
-		syslog(LOG_NOTICE,"worker %lu sent %"PRIu32" blocks (%"PRIu32" partial) of chunk %016"PRIX64"_%08"PRIX32", received status for %"PRIu32" blocks (%"PRIu32" lost), bw: %.6lfMB ( %"PRIu32" B / %.0lf us ), chain: %s",(unsigned long)arg,nextwriteid-1,partialblocks,chunkid,version,nextwriteid-1-waitforstatus,waitforstatus,(double)bytessent/((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),bytessent,((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),debugchain);
+		syslog(LOG_NOTICE,"worker %lu sent %" PRIu32 " blocks (%" PRIu32 " partial) of chunk %016" PRIX64 "_%08" PRIX32 ", received status for %" PRIu32 " blocks (%" PRIu32 " lost), bw: %.6lfMB ( %" PRIu32 " B / %.0lf us ), chain: %s",(unsigned long)arg,nextwriteid-1,partialblocks,chunkid,version,nextwriteid-1-waitforstatus,waitforstatus,(double)bytessent/((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),bytessent,((double)(now.tv_sec)*1000000+(double)(now.tv_usec)),debugchain);
 #endif
 
 		for (cnt=0 ; cnt<10 ; cnt++) {
@@ -967,7 +967,7 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 
 //	gettimeofday(&s,NULL);
 	pthread_mutex_lock(&glock);
-//	syslog(LOG_NOTICE,"write_data: inode:%"PRIu32" offset:%"PRIu64" size:%"PRIu32,id->inode,offset,size);
+//	syslog(LOG_NOTICE,"write_data: inode:%" PRIu32 " offset:%" PRIu32 " size:%" PRIu32,id->inode,offset,size);
 	status = id->status;
 	if (status==0) {
 		if (offset+size>id->maxfleng) {	// move fleng
@@ -1008,7 +1008,7 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 		}
 	}
 //	gettimeofday(&e,NULL);
-//	syslog(LOG_NOTICE,"write_data time: %"PRId64,TIMEDIFF(e,s));
+//	syslog(LOG_NOTICE,"write_data time: %" PRId64,TIMEDIFF(e,s));
 	return 0;
 }
 
@@ -1051,7 +1051,7 @@ int write_data_flush(void *vid) {
 	}
 	pthread_mutex_unlock(&glock);
 //	gettimeofday(&e,NULL);
-//	syslog(LOG_NOTICE,"write_data_flush time: %"PRId64,TIMEDIFF(e,s));
+//	syslog(LOG_NOTICE,"write_data_flush time: %" PRId64,TIMEDIFF(e,s));
 	return ret;
 }
 

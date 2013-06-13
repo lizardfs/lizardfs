@@ -408,7 +408,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%"PRIu32"/20)",length);
+		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -462,7 +462,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
 	uint8_t *ptr;
 	writestatus **wpptr,*wptr;
-//	syslog(LOG_NOTICE,"write job finished (jobid:%"PRIu32",chunkid:%"PRIu64",writeid:%"PRIu32",status:%"PRIu8")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
+//	syslog(LOG_NOTICE,"write job finished (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
@@ -509,7 +509,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length<12 || ((length-12)%6)!=0) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -563,7 +563,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 
 	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+size)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -573,7 +573,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	offset = get16bit(&data);
 	size = get32bit(&data);
 	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+%" PRIu32 ")",length,size);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -591,7 +591,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->wpacket = csserv_preserve_inputpacket(eptr);
 	eptr->wjobwriteid = writeid;
 	eptr->wjobid = job_write(jpool,csserv_write_finished,eptr,chunkid,eptr->version,blocknum,data+4,offset,size,data);
-//	syslog(LOG_NOTICE,"add write job (jobid:%"PRIu32",chunkid:%"PRIu64",writeid:%"PRIu32")",eptr->wjobid,chunkid,eptr->wjobwriteid);
+//	syslog(LOG_NOTICE,"add write job (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ")",eptr->wjobid,chunkid,eptr->wjobwriteid);
 }
 
 void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -602,7 +602,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	writestatus **wpptr,*wptr;
 
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
+		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%" PRIu32 "/13)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -610,7 +610,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	writeid = get32bit(&data);
 	status = get8bit(&data);
 
-//	syslog(LOG_NOTICE,"received write status (chunkid:%"PRIu64",writeid:%"PRIu32",status:%"PRIu8")",chunkid,writeid,status);
+//	syslog(LOG_NOTICE,"received write status (chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",chunkid,writeid,status);
 
 	if (eptr->chunkid!=chunkid) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
@@ -727,7 +727,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%"PRIu32"/20)",length);
+		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -782,7 +782,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t version,newversion,copyversion,leng;
 
 	if (length<12 || ((length-12)%6)!=0) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%"PRIu32"/12+N*6)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -859,7 +859,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t status;
 
 	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+size)",length);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+size)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -869,7 +869,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	offset = get16bit(&data);
 	size = get32bit(&data);
 	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%"PRIu32"/24+%"PRIu32")",length,size);
+		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+%" PRIu32 ")",length,size);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -905,7 +905,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	uint8_t status;
 
 	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%"PRIu32"/13)",length);
+		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%" PRIu32 "/13)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -947,7 +947,7 @@ void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t leng
 	uint16_t blocks;
 
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -969,7 +969,7 @@ void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length
 	uint32_t checksum;
 
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -998,7 +998,7 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t crctab[4096];
 
 	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%"PRIu32"/12)",length);
+		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -1025,7 +1025,7 @@ void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -1040,7 +1040,7 @@ void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(2) - wrong size (%"PRIu32"/0)",length);
+		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(2) - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -1055,7 +1055,7 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -1073,7 +1073,7 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%"PRIu32"/4)",length);
+		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -1169,14 +1169,15 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 			csserv_chart_data(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
+			break;
 		}
 	} else if (eptr->state==WRITELAST) {
 		if (type==CLTOCS_WRITE_DATA) {
 			csserv_write_data(eptr,data,length);
 		} else {
-			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}
 	} else if (eptr->state==WRITEFWD) {
@@ -1188,18 +1189,19 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 			csserv_write_status(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
+			break;
 		}
 	} else if (eptr->state==WRITEFINISH) {
 		if (type==CLTOCS_WRITE_DATA) {
 			return;
 		} else {
-			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}
 	} else {
-		syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+		syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 		eptr->state = CLOSE;
 	}
 }
@@ -1341,7 +1343,7 @@ void csserv_fwdread(csserventry *eptr) {
 		ptr = eptr->fwdhdrbuff+4;
 		size = get32bit(&ptr);
 		if (size>MaxPacketSize) {
-			syslog(LOG_WARNING,"(fwdread) packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+			syslog(LOG_WARNING,"(fwdread) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 			csserv_fwderror(eptr);
 			return;
 		}
@@ -1451,7 +1453,7 @@ void csserv_forward(csserventry *eptr) {
 		ptr = eptr->hdrbuff+4;
 		size = get32bit(&ptr);
 		if (size>MaxPacketSize) {
-			syslog(LOG_WARNING,"(forward) packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+			syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1555,7 +1557,7 @@ void csserv_read(csserventry *eptr) {
 
 		if (size>0) {
 			if (size>MaxPacketSize) {
-				syslog(LOG_WARNING,"(read) packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+				syslog(LOG_WARNING,"(read) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 				eptr->state = CLOSE;
 				return;
 			}

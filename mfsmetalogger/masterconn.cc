@@ -237,8 +237,8 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		}
 		if (BackLogsNumber>0) {
 			for (i=BackLogsNumber ; i>0 ; i--) {
-				snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
-				snprintf(logname2,100,"changelog_ml.%"PRIu32".mfs",i-1);
+				snprintf(logname1,100,"changelog_ml.%" PRIu32 ".mfs",i);
+				snprintf(logname2,100,"changelog_ml.%" PRIu32 ".mfs",i-1);
 				rename(logname2,logname1);
 			}
 		} else {
@@ -247,7 +247,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 	if (length<10) {
-		syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong size (%"PRIu32"/9+data)",length);
+		syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong size (%" PRIu32 "/9+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -266,13 +266,13 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	version = get64bit(&data);
 
 	if (lastlogversion>0 && version!=lastlogversion+1) {
-		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion,version-1);
+		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
 		if (eptr->logfd!=NULL) {
 			fclose(eptr->logfd);
 			eptr->logfd=NULL;
 		}
 		for (i=0 ; i<=BackLogsNumber ; i++) {
-			snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
+			snprintf(logname1,100,"changelog_ml.%" PRIu32 ".mfs",i);
 			unlink(logname1);
 		}
 		lastlogversion = 0;
@@ -285,10 +285,10 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	}
 
 	if (eptr->logfd) {
-		fprintf(eptr->logfd,"%"PRIu64": %s\n",version,data);
+		fprintf(eptr->logfd,"%" PRIu64 ": %s\n",version,data);
 		lastlogversion = version;
 	} else {
-		syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,data);
+		syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
 	}
 }
 
@@ -332,7 +332,7 @@ void masterconn_sessionsdownloadinit(void) {
 	masterconn_download_init(masterconnsingleton,2);
 }
 
-int masterconn_metadata_check(char *name) {
+int masterconn_metadata_check(const char *name) {
 	int fd;
 	char chkbuff[16];
 	char eofmark[16];
@@ -386,15 +386,15 @@ void masterconn_download_next(masterconn *eptr) {
 		if (dltime<=0) {
 			dltime=1;
 		}
-		syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+		syslog(LOG_NOTICE,"%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
 		if (filenum==1) {
 			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
 				if (BackMetaCopies>0) {
 					char metaname1[100],metaname2[100];
 					int i;
 					for (i=BackMetaCopies-1 ; i>0 ; i--) {
-						snprintf(metaname1,100,"metadata_ml.mfs.back.%"PRIu32,i+1);
-						snprintf(metaname2,100,"metadata_ml.mfs.back.%"PRIu32,i);
+						snprintf(metaname1,100,"metadata_ml.mfs.back.%" PRIu32,i+1);
+						snprintf(metaname2,100,"metadata_ml.mfs.back.%" PRIu32,i);
 						rename(metaname2,metaname1);
 					}
 					rename("metadata_ml.mfs.back","metadata_ml.mfs.back.1");
@@ -436,7 +436,7 @@ void masterconn_download_next(masterconn *eptr) {
 
 void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	if (length!=1 && length!=8) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_START - wrong size (%"PRIu32"/1|8)",length);
+		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_START - wrong size (%" PRIu32 "/1|8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -480,7 +480,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (length<16) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%"PRIu32"/16+data)",length);
+		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -489,17 +489,17 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	leng = get32bit(&data);
 	crc = get32bit(&data);
 	if (leng+16!=length) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%"PRIu32"/16+%"PRIu32")",length,leng);
+		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+%" PRIu32 ")",length,leng);
 		eptr->mode = KILL;
 		return;
 	}
 	if (offset!=eptr->dloffset) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file offset (%"PRIu64"/%"PRIu64")",offset,eptr->dloffset);
+		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file offset (%" PRIu64 "/%" PRIu64 ")",offset,eptr->dloffset);
 		eptr->mode = KILL;
 		return;
 	}
 	if (offset+leng>eptr->filesize) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file size (%"PRIu64"/%"PRIu64")",offset+leng,eptr->filesize);
+		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file size (%" PRIu64 "/%" PRIu64 ")",offset+leng,eptr->filesize);
 		eptr->mode = KILL;
 		return;
 	}
@@ -580,8 +580,9 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 			masterconn_download_data(eptr,data,length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%"PRIu32")",type);
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->mode = KILL;
+			break;
 	}
 }
 
@@ -735,7 +736,7 @@ void masterconn_read(masterconn *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"Master packet too long (%"PRIu32"/%u)",size,MaxPacketSize);
+					syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}

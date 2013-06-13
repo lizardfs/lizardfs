@@ -579,7 +579,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 		if (*eptr!=0) {	// not only digits - treat it as a groupname
 			getgrnam_r(gptr+1,&grp,pwgrbuff,16384,&grrec);
 			if (grrec==NULL) {
-				mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %"PRIu32,gptr+1,lineno);
+				mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %" PRIu32,gptr+1,lineno);
 				return -1;
 			}
 			gid = grrec->gr_gid;
@@ -601,7 +601,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 	if (*eptr!=0) {	// not only digits - treat it as a username
 		getpwnam_r(uptr,&pwd,pwgrbuff,16384,&pwrec);
 		if (pwrec==NULL) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %"PRIu32,uptr,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %" PRIu32,uptr,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -618,7 +618,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 	} else {
 		getpwuid_r(uid,&pwd,pwgrbuff,16384,&pwrec);
 		if (pwrec==NULL) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %"PRIu32" defined in line: %"PRIu32,uid,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %" PRIu32 " defined in line: %" PRIu32,uid,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -739,53 +739,53 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 					}
 					arec->needpassword=1;
 				} else {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"minversion=",11)==0) {
 				o=1;
 				if (exports_parseversion(p+11,&arec->minversion)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"mingoal=",8)==0) {
 				o=1;
 				if (exports_parsegoal(p+8,&arec->mingoal)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mingoal definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mingoal definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mingoal>arec->maxgoal) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: mingoal>maxgoal in definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: mingoal>maxgoal in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"maxgoal=",8)==0) {
 				o=1;
 				if (exports_parsegoal(p+8,&arec->maxgoal)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxgoal definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxgoal definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mingoal>arec->maxgoal) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxgoal<mingoal in definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxgoal<mingoal in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"mintrashtime=",13)==0) {
 				o=1;
 				if (exports_parsetime(p+13,&arec->mintrashtime)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mintrashtime definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mintrashtime definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mintrashtime>arec->maxtrashtime) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: mintrashtime>maxtrashtime in definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: mintrashtime>maxtrashtime in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"maxtrashtime=",13)==0) {
 				o=1;
 				if (exports_parsetime(p+13,&arec->maxtrashtime)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxtrashtime definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxtrashtime definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mintrashtime>arec->maxtrashtime) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxtrashtime<mintrashtime in definition (%s) in line: %"PRIu32,p,lineno);
+					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxtrashtime<mintrashtime in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			}
@@ -801,7 +801,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			break;
 		}
 		if (o==0) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %"PRIu32" (ignored)",p,lineno);
+			mfs_arg_syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %" PRIu32 " (ignored)",p,lineno);
 		}
 	}
 	return 0;
@@ -841,13 +841,13 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 		p++;
 	}
 	if (*p==0) {
-		mfs_arg_syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %"PRIu32,lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %" PRIu32,lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
 	if (exports_parsenet(net,&arec->fromip,&arec->toip)<0) {
-		mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %"PRIu32,lineno);
+		mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %" PRIu32,lineno);
 		return -1;
 	}
 

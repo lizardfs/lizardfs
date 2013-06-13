@@ -367,12 +367,12 @@ int main(int argc,char **argv) {
 						printf("using changelog file: %s (changes: ",filenames[pos]);
 					}
 					if (firstlv>0) {
-						printf("%"PRIu64" - ",firstlv);
+						printf("%" PRIu64 " - ",firstlv);
 					} else {
 						printf("??? - ");
 					}
 					if (lastlv>0) {
-						printf("%"PRIu64")\n",lastlv);
+						printf("%" PRIu64 ")\n",lastlv);
 					} else {
 						printf("?\?\?)\n");
 					}
@@ -408,12 +408,12 @@ int main(int argc,char **argv) {
 					printf("using changelog file: %s (changes: ",argv[pos]);
 				}
 				if (firstlv>0) {
-					printf("%"PRIu64" - ",firstlv);
+					printf("%" PRIu64 " - ",firstlv);
 				} else {
 					printf("??? - ");
 				}
 				if (lastlv>0) {
-					printf("%"PRIu64")\n",lastlv);
+					printf("%" PRIu64 ")\n",lastlv);
 				} else {
 					printf("?\?\?)\n");
 				}
