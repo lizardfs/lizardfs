@@ -989,14 +989,14 @@ void exports_reload(void) {
 			free(ExportsFileName);
 			ExportsFileName = strdup(ETC_PATH "/mfsexports.cfg");
 			if ((fd = open(ExportsFileName,O_RDONLY))>=0) {
-				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 			}
 		}
 		if (fd>=0) {
 			close(fd);
 		}
 	} else {
-		ExportsFileName = cfg_getstr("EXPORTS_FILENAME",ETC_PATH "/mfs/mfsexports.cfg");
+		ExportsFileName = cfg_getstr("EXPORTS_FILENAME", ETC_PATH "/mfs/mfsexports.cfg");
 	}
 	exports_loadexports();
 }
