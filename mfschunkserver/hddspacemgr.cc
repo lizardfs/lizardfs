@@ -4318,11 +4318,11 @@ int hdd_folders_reinit(void) {
 			hddfname = strdup(ETC_PATH "/mfshdd.cfg");
 			fd = fopen(hddfname,"r");
 			if (fd) {
-				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfshdd.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfshdd.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 			}
 		}
 	} else {
-		hddfname = cfg_getstr("HDD_CONF_FILENAME",ETC_PATH "/mfs/mfshdd.cfg");
+		hddfname = cfg_getstr("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
 		fd = fopen(hddfname,"r");
 	}
 

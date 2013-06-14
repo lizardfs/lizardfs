@@ -1,53 +1,32 @@
-MooseFS is an Open Source, easy to deploy and maintain, distributed,
-fault tolerant file system for POSIX compliant OSes.
+LizardFS is a networking, distributed file system.
 
-MooseFS uses FUSE (http://fuse.sourceforge.net/).
+It spreads data over several physical locations (servers), which are visible to a user as one resource (available through FUSE).
 
-MooseFS v1.5 - 1.6
-============
-Date of first public release: 2008-05-30
+LizardFS is fault tolerant at data level, not (yet) completely on metadata level.
 
-Project web site: http://www.moosefs.com/
+The goals behind LizardFS are:
 
-Installation and using MooseFS:
-http://www.moosefs.org/reference-guide.html
+    Providing free:
+        - Highly Reliable,
+        - Highly Scalable,
+        - Highly Available,
+        - Highly Secure,
+        - Highly Efficient file system solution.
+    Adapting modern agile development of distributed system in C++:
+        - git - https://github.com/lizardfs/lizardfs,
+        - jenkins (for access please contact contact@lizardfs.org),
+        - gerrit (for access please contact contact@lizardfs.org),
+        - unit testing.
+    Active cooperation with open source community.
+    Developing test infrastructure standards for distributed file systems.
 
-Sourceforge project site with source repository:
-http://sourceforge.net/projects/moosefs/
+LizardFS is a fork of MooseFS.
 
-Reporting bugs: bugs@moosefs.com
-General contact address: contact@moosefs.com
+Motivations behind creating this fork are:
 
-Copyright
-=========
-Copyright 2005-2011 Gemius SA.
+    - rare updates of git repository,
+    - lack of community (only 2 developers made commits to public git repository at sourceforge),
+    - increase in the number of possible contributors with a simultaneous lack of response on the part of moosefs maintainers,
+    - our ability to perfect the tool.
 
-MooseFS is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, version 3.
-
-MooseFS is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
-
-
-Compatibility matrix
-====================
-(tested Operating Systems only):
-
-					Client	Master	Chunkserver
-Linux 2.6.x (i386):			YES	YES	YES
-FreeBSD 5.x (i386+amd64):		NO	YES	YES
-FreeBSD 6.x (i386+amd64):		YES	YES	YES
-FreeBSD 7.x (i386+amd64):		YES	YES	YES
-FreeBSD 8.x (i386+amd64):		YES	YES	YES
-MacOS X 10.3 (Panther, ppc):		NO	YES	YES
-MacOS X 10.4 (Tiger, ppc+i386):		YES	YES	YES
-MacOS X 10.5 (Leopard, ppc+i386):	YES	YES	YES
-MacOS X 10.6 (Snow Leopard):		YES	YES	YES
-Solaris 10 (sparc):			NO	YES	YES
-OpenSolaris (i386):			YES	YES	YES
+More info at: www.lizardfs.org.
