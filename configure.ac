@@ -20,11 +20,13 @@ AC_DEFINE_UNQUOTED([VERSHEX], [(($versmaj)*0x10000+($versmid)*0x100+($versmin))]
 
 # Checks for programs.
 AC_LANG([C++])
-AC_PROG_CXX
+AC_PROG_CXX([c++ g++ clang++])
+AC_PROG_CC([cc gcc clang])
 AC_PROG_LN_S
 AC_PROG_LIBTOOL
 
-CPPFLAGS="$CPPFLAGS -std=gnu++0x -Wall -Wextra -Wshadow -pedantic -fwrapv -O2 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+CPPFLAGS="$CPPFLAGS -Wall -Wextra -Wshadow -pedantic -fwrapv -O2 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+CXXFLAGS="-std=gnu++0x"
 
 case $target_os in
   *linux*)
