@@ -1,0 +1,7 @@
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon)
+AUX_SOURCE_DIRECTORY("." CHUNKSERVER_SRCS)
+set(MAIN_SRC "../mfscommon/main.cc")
+
+add_executable(mfschunkserver ${CHUNKSERVER_SRCS} ${MAIN_SRC})
+target_link_libraries(mfschunkserver common ${Z_LIB})
+
