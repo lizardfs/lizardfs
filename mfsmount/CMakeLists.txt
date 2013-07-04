@@ -1,5 +1,8 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon)
 
+add_definitions(-DFUSE_USE_VERSION=26)
+add_definitions(-DAPPNAME=mfsmount)
+
 set(MOUNT_SRCS
   chunkloccache.cc
   csdb.cc
@@ -19,7 +22,6 @@ set(MOUNT_SRCS
 set(TOOLS_SRCS
   mfstools.cc)
 
-add_definitions("-DFUSE_USE_VERSION=26")
 
 add_executable(mfsmount ${MOUNT_SRCS})
 add_executable(mfstools ${TOOLS_SRCS})
