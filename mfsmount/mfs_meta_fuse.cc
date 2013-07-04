@@ -24,7 +24,7 @@
 
 #include "config.h"
 
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_lowlevel.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

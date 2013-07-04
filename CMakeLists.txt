@@ -34,11 +34,11 @@ endfunction(check_library)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-check_library(M    True  libm.a)
 find_package(ZLIB REQUIRED)
 find_package(Threads)
-check_library(DL   True  dl)
 check_library(FUSE False fuse)
+
+set(CMAKE_THREAD_LIBS_INIT "-pthread")
 
 add_subdirectory(mfscommon)
 add_subdirectory(mfschunkserver)

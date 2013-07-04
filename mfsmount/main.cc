@@ -23,8 +23,8 @@
 #endif
 
 #include <fuse.h>
-#include <fuse_opt.h>
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_opt.h>
+#include <fuse/fuse_lowlevel.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #ifdef MFS_USE_MEMLOCK
@@ -165,7 +165,7 @@ enum {
 	KEY_PASSWORDASK,
 	KEY_NOSTDMOUNTOPTIONS,
 	KEY_HELP,
-	KEY_VERSION,
+	KEY_VERSION
 };
 
 #define MFS_OPT(t, p, v) { t, offsetof(struct mfsopts, p), v }
