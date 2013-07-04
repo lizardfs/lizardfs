@@ -4,8 +4,16 @@ set(CMAKE_LEGACY_CYGWIN_WIN32 0) # Remove when CMake >= 2.8.4 is required
 project(lizardfs)
 
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wextra -DHAVE_INTTYPES_H -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -DHAVE_CONFIG_H")
+
+set(CMAKE_CXX_FLAGS "-std=gnu++0x -Wall -Wextra -Wshadow -pedantic -fwrapv")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+
+add_definitions(-D_LARGEFILE_SOURCE)
+add_definitions(-D_FILE_OFFSET_BITS=64)
+add_definitions(-DHAVE_CONFIG_H)
+add_definitions(-D__STDC_LIMIT_MACROS)
+add_definitions(-D__STDC_CONSTANT_MACROS)
+add_definitions(-D__STDC_FORMAT_MACROS)
 
 set(CMAKE_BINARY_DIR bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -27,7 +35,8 @@ endfunction(check_library)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 check_library(M    True  libm.a)
-check_library(Z    True  libz.a)
+find_package(ZLIB REQUIRED)
+find_package(Threads)
 check_library(DL   True  dl)
 check_library(FUSE False fuse)
 

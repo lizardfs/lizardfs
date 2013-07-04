@@ -3,5 +3,5 @@ AUX_SOURCE_DIRECTORY("." MASTER_SRCS)
 set(MAIN_SRC "../mfscommon/main.cc")
 
 add_executable(mfsmaster ${MASTER_SRCS} ${MAIN_SRC}) 
-target_link_libraries(mfsmaster common ${Z_LIB})
+target_link_libraries(mfsmaster common ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
