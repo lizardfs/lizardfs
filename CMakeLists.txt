@@ -35,10 +35,14 @@ endfunction(check_library)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(ZLIB REQUIRED)
-find_package(Threads)
-check_library(FUSE False fuse)
 
-set(CMAKE_THREAD_LIBS_INIT "-pthread")
+find_package(Threads)
+if(NOT CMAKE_THREAD_LIBS_INIT AND NOT CYGWIN)
+  # hack for Gentoo where -pthread works, but find_package somehow can't recognize it
+  set(CMAKE_THREAD_LIBS_INIT "-pthread")
+endif()  
+
+check_library(FUSE False fuse)
 
 add_subdirectory(mfscommon)
 add_subdirectory(mfschunkserver)
