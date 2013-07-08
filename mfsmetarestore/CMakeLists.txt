@@ -6,5 +6,5 @@ set(STDERR_SRC ../mfscommon/strerr.cc)
 add_definitions(-DMETARESTORE)
 add_definitions(-DAPPNAME=mfsmetarestore)
 
-add_executable(mfsmetarestore ${METARESTORE_SRCS} ${FILESYSTEM_SRC} ${STDERR_SRC}) 
-target_link_libraries(mfsmetarestore)
+add_executable(mfsmetarestore/mfsmetarestore ${METARESTORE_SRCS} ${FILESYSTEM_SRC} ${STDERR_SRC}) 
+target_link_libraries(mfsmetarestore/mfsmetarestore)

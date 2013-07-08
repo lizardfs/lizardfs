@@ -59,7 +59,7 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #if defined(__APPLE__)
 #define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=600,iosize=65536"
@@ -408,7 +408,7 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 		mfsopts.nostdmountoptions = 1;
 		return 0;
 	case KEY_VERSION:
-		fprintf(stderr, "MFS version %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
+		fprintf(stderr, "MFS version %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
 		{
 			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
 

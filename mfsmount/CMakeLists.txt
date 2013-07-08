@@ -23,9 +23,9 @@ set(TOOLS_SRCS
   mfstools.cc)
 
 
-add_executable(mfsmount ${MOUNT_SRCS})
-add_executable(mfstools ${TOOLS_SRCS})
+add_executable(mfsmount/mfsmount ${MOUNT_SRCS})
+add_executable(mfsmount/mfstools ${TOOLS_SRCS})
 
-target_link_libraries(mfsmount common ${ZLIB_LIBRARIES} ${FUSE_LIB})
-target_link_libraries(mfstools common)
+target_link_libraries(mfsmount/mfsmount common ${ZLIB_LIBRARIES} ${FUSE_LIB})
+target_link_libraries(mfsmount/mfstools common)
 
