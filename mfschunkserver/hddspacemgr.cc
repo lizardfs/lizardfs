@@ -231,7 +231,12 @@ static int hddspacechanged = 0;
 
 static pthread_attr_t thattr;
 
-static pthread_t foldersthread,delayedthread,testerthread;
+static pthread_t foldersthread,delayedthread;
+
+#ifdef ENABLE_CHUNK_TESTING
+static pthread_t testerthread;
+#endif
+
 static uint8_t term = 0;
 static uint8_t folderactions = 0;
 static uint8_t testerreset = 0;
@@ -3860,7 +3865,9 @@ void hdd_term(void) {
 	term = 1;
 	zassert(pthread_mutex_unlock(&termlock));
 	if (i==0) {
+#ifdef ENABLE_CHUNK_TESTING
 		zassert(pthread_join(testerthread,NULL));
+#endif
 		zassert(pthread_join(foldersthread,NULL));
 		zassert(pthread_join(delayedthread,NULL));
 	}
@@ -4402,8 +4409,9 @@ int hdd_late_init(void) {
 	zassert(pthread_mutex_lock(&termlock));
 	term = 0;
 	zassert(pthread_mutex_unlock(&termlock));
-
+#ifdef ENABLE_CHUNK_TESTING
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
+#endif
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
 	return 0;
