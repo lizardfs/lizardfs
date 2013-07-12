@@ -34,16 +34,16 @@
 #include <pthread.h>
 #include <inttypes.h>
 
-#include "datapack.h"
-#include "crc.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "pcqueue.h"
-#include "sockets.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/mfsstrerr.h"
+#include "mfscommon/pcqueue.h"
+#include "mfscommon/sockets.h"
 #include "csdb.h"
 #include "mastercomm.h"
 #include "readdata.h"
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
 // TODO: wtf?!
 // #define WORKER_DEBUG 1

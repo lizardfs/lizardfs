@@ -21,7 +21,7 @@
 
 #include <inttypes.h>
 
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test);
@@ -53,7 +53,7 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 /* I/O operations */
 int hdd_open(uint64_t chunkid);
 int hdd_close(uint64_t chunkid);
-int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff);
+int hdd_read(uint64_t chunkid, uint32_t version, uint8_t *buffer, uint32_t offset, uint32_t size, uint8_t *crcbuff);
 int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff);
 
 /* chunk info */

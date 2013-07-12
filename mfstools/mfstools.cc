@@ -34,11 +34,11 @@
 
 #include <limits>
 
-#include "datapack.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "sockets.h"
-#include "MFSCommunication.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/mfsstrerr.h"
+#include "mfscommon/sockets.h"
+#include "mfscommon/MFSCommunication.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)

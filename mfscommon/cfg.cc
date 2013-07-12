@@ -23,9 +23,9 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-#include "cfg.h"
-#include "massert.h"
-#include "slogger.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/slogger.h"
 
 typedef struct paramsstr {
 	char *name;

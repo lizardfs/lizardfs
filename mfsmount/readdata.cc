@@ -30,11 +30,11 @@
 #include <limits.h>
 #include <pthread.h>
 
-#include "MFSCommunication.h"
-#include "sockets.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "datapack.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/sockets.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/mfsstrerr.h"
+#include "mfscommon/datapack.h"
 #include "mastercomm.h"
 #include "cscomm.h"
 #include "csdb.h"
@@ -454,7 +454,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		}
 		if (rrec->chunkid>0) {
 			// fprintf(stderr,"(%d,%" PRIu64 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%p)\n",rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr);
-			if (cs_readblock(rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr)<0) {
+			if (cs_read(rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr)<0) {
 				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 ", cs: %08" PRIX32 ":%" PRIu16 " - readblock error (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,rrec->ip,rrec->port,cnt);
 				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);

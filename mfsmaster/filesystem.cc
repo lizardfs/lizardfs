@@ -31,7 +31,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
 // TODO: wtf?!
 // #define CACHENOTIFY 1
@@ -43,14 +43,14 @@
 
 #include "chunks.h"
 #include "filesystem.h"
-#include "datapack.h"
-#include "slogger.h"
-#include "massert.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
 
 #ifndef METARESTORE
 #include "datacachemgr.h"
-#include "cfg.h"
-#include "main.h"
+#include "mfscommon/cfg.h"
+#include "mfsdaemonmain/main.h"
 #include "changelog.h"
 #endif
 

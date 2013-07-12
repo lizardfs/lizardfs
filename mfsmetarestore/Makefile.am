@@ -1,6 +1,6 @@
 sbin_PROGRAMS=mfsmetarestore
 
-AM_CPPFLAGS=-I$(top_srcdir)/mfsmaster -I$(top_srcdir)/mfscommon -DAPPNAME=mfsmetarestore -DMETARESTORE
+AM_CPPFLAGS=-I$(top_srcdir)/mfsmaster -DAPPNAME=mfsmetarestore -DMETARESTORE
 
 mfsmetarestore_SOURCES=\
 	main.cc \

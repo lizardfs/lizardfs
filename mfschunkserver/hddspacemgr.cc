@@ -41,14 +41,15 @@
 #include <sys/mman.h>
 #endif
 
-#include "MFSCommunication.h"
-#include "cfg.h"
-#include "datapack.h"
-#include "crc.h"
-#include "main.h"
-#include "slogger.h"
-#include "massert.h"
-#include "random.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/crc.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/random.h"
+#include "devtools/TracePrinter.h"
 
 #define PRESERVE_BLOCK 1
 
@@ -69,11 +70,13 @@
 #define PRESERVESTEPS (PRESERVEDELAY/DELAYEDSTEP)+1
 #endif
 
+
 #define LOSTCHUNKSBLOCKSIZE 1024
 #define NEWCHUNKSBLOCKSIZE 4096
 
-#define CHUNKHDRSIZE (1024+4*1024)
-#define CHUNKHDRCRC 1024
+#define CHUNK_SIGNATURE_SIZE 1024
+#define CHUNK_CRC_SIZE (4 * MFSBLOCKSINCHUNK)
+#define CHUNK_HEADER_SIZE (CHUNK_SIGNATURE_SIZE + CHUNK_CRC_SIZE)
 
 #define STATSHISTORY (24*60)
 
@@ -176,12 +179,12 @@ typedef struct hddstats {
 
 typedef struct folder {
 	char *path;
-#define SCST_SCANNEEDED 0
-#define SCST_SCANINPROGRESS 1
-#define SCST_SCANTERMINATE 2
-#define SCST_SCANFINISHED 3
-#define SCST_SENDNEEDED 4
-#define SCST_WORKING 5
+#define SCST_SCANNEEDED 0u
+#define SCST_SCANINPROGRESS 1u
+#define SCST_SCANTERMINATE 2u
+#define SCST_SCANFINISHED 3u
+#define SCST_SENDNEEDED 4u
+#define SCST_WORKING 5u
 	unsigned int scanstate:3;
 	unsigned int needrefresh:1;
 	unsigned int todel:2;
@@ -289,10 +292,12 @@ static uint32_t stats_truncate = 0;
 static uint32_t stats_duptrunc = 0;
 
 static inline void hdd_stats_clear(hddstats *r) {
+	TRACETHIS();
 	memset(r,0,sizeof(hddstats));
 }
 
 static inline void hdd_stats_add(hddstats *dst,hddstats *src) {
+	TRACETHIS();
 	dst->rbytes += src->rbytes;
 	dst->wbytes += src->wbytes;
 	dst->usecreadsum += src->usecreadsum;
@@ -314,6 +319,7 @@ static inline void hdd_stats_add(hddstats *dst,hddstats *src) {
 
 /* size: 64 */
 static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
+	TRACETHIS();
 	put64bit(buff,r->rbytes);
 	put64bit(buff,r->wbytes);
 	put64bit(buff,r->usecreadsum);
@@ -328,6 +334,7 @@ static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
 }
 
 void hdd_report_damaged_chunk(uint64_t chunkid) {
+	TRACETHIS1(chunkid);
 	damagedchunk *dc;
 	zassert(pthread_mutex_lock(&dclock));
 	dc = (damagedchunk*) malloc(sizeof(damagedchunk));
@@ -339,6 +346,7 @@ void hdd_report_damaged_chunk(uint64_t chunkid) {
 }
 
 uint32_t hdd_get_damaged_chunk_count(void) {
+	TRACETHIS();
 	damagedchunk *dc;
 	uint32_t result;
 	zassert(pthread_mutex_lock(&dclock));
@@ -350,6 +358,7 @@ uint32_t hdd_get_damaged_chunk_count(void) {
 }
 
 void hdd_get_damaged_chunk_data(uint8_t *buff) {
+	TRACETHIS();
 	damagedchunk *dc,*ndc;
 	uint64_t chunkid;
 	if (buff) {
@@ -367,6 +376,7 @@ void hdd_get_damaged_chunk_data(uint8_t *buff) {
 }
 
 void hdd_report_lost_chunk(uint64_t chunkid) {
+	TRACETHIS();
 	lostchunk *lc;
 	zassert(pthread_mutex_lock(&dclock));
 	if (lostchunks && lostchunks->chunksinblock<LOSTCHUNKSBLOCKSIZE) {
@@ -383,6 +393,7 @@ void hdd_report_lost_chunk(uint64_t chunkid) {
 }
 
 uint32_t hdd_get_lost_chunk_count(uint32_t limit) {
+	TRACETHIS();
 	lostchunk *lc;
 	uint32_t result;
 	zassert(pthread_mutex_lock(&dclock));
@@ -397,6 +408,7 @@ uint32_t hdd_get_lost_chunk_count(uint32_t limit) {
 }
 
 void hdd_get_lost_chunk_data(uint8_t *buff,uint32_t limit) {
+	TRACETHIS();
 	lostchunk *lc,**lcptr;
 	uint64_t chunkid;
 	uint32_t i;
@@ -420,6 +432,7 @@ void hdd_get_lost_chunk_data(uint8_t *buff,uint32_t limit) {
 }
 
 void hdd_report_new_chunk(uint64_t chunkid,uint32_t version) {
+	TRACETHIS();
 	newchunk *nc;
 	zassert(pthread_mutex_lock(&dclock));
 	if (newchunks && newchunks->chunksinblock<NEWCHUNKSBLOCKSIZE) {
@@ -439,6 +452,7 @@ void hdd_report_new_chunk(uint64_t chunkid,uint32_t version) {
 }
 
 uint32_t hdd_get_new_chunk_count(uint32_t limit) {
+	TRACETHIS();
 	newchunk *nc;
 	uint32_t result;
 	zassert(pthread_mutex_lock(&dclock));
@@ -453,6 +467,7 @@ uint32_t hdd_get_new_chunk_count(uint32_t limit) {
 }
 
 void hdd_get_new_chunk_data(uint8_t *buff,uint32_t limit) {
+	TRACETHIS();
 	newchunk *nc,**ncptr;
 	uint64_t chunkid;
 	uint32_t version;
@@ -479,6 +494,7 @@ void hdd_get_new_chunk_data(uint8_t *buff,uint32_t limit) {
 }
 
 uint32_t hdd_errorcounter(void) {
+	TRACETHIS();
 	uint32_t result;
 	zassert(pthread_mutex_lock(&dclock));
 	result = errorcounter;
@@ -488,6 +504,7 @@ uint32_t hdd_errorcounter(void) {
 }
 
 int hdd_spacechanged(void) {
+	TRACETHIS();
 	uint32_t result;
 	zassert(pthread_mutex_lock(&dclock));
 	result = hddspacechanged;
@@ -497,6 +514,7 @@ int hdd_spacechanged(void) {
 }
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
 	*br = stats_bytesr;
 	*bw = stats_bytesw;
@@ -522,6 +540,7 @@ void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *d
 }
 
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
 	*op_create = stats_create;
 	*op_delete = stats_delete;
@@ -541,6 +560,7 @@ void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,u
 }
 
 static inline void hdd_stats_read(uint32_t size) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
 	stats_opr++;
 	stats_bytesr += size;
@@ -548,6 +568,7 @@ static inline void hdd_stats_read(uint32_t size) {
 }
 
 static inline void hdd_stats_write(uint32_t size) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
 	stats_opw++;
 	stats_bytesw += size;
@@ -555,6 +576,7 @@ static inline void hdd_stats_write(uint32_t size) {
 }
 
 static inline void hdd_stats_dataread(folder *f,uint32_t size,int64_t rtime) {
+	TRACETHIS();
 	if (rtime<=0) {
 		return;
 	}
@@ -572,6 +594,7 @@ static inline void hdd_stats_dataread(folder *f,uint32_t size,int64_t rtime) {
 }
 
 static inline void hdd_stats_datawrite(folder *f,uint32_t size,int64_t wtime) {
+	TRACETHIS();
 	if (wtime<=0) {
 		return;
 	}
@@ -589,6 +612,7 @@ static inline void hdd_stats_datawrite(folder *f,uint32_t size,int64_t wtime) {
 }
 
 static inline void hdd_stats_datafsync(folder *f,int64_t fsynctime) {
+	TRACETHIS();
 	if (fsynctime<=0) {
 		return;
 	}
@@ -603,6 +627,7 @@ static inline void hdd_stats_datafsync(folder *f,int64_t fsynctime) {
 }
 
 uint32_t hdd_diskinfo_v1_size() {
+	TRACETHIS();
 	folder *f;
 	uint32_t s,sl;
 
@@ -619,6 +644,7 @@ uint32_t hdd_diskinfo_v1_size() {
 }
 
 void hdd_diskinfo_v1_data(uint8_t *buff) {
+	TRACETHIS();
 	folder *f;
 	uint32_t sl;
 	uint32_t ei;
@@ -650,6 +676,7 @@ void hdd_diskinfo_v1_data(uint8_t *buff) {
 }
 
 uint32_t hdd_diskinfo_v2_size() {
+	TRACETHIS();
 	folder *f;
 	uint32_t s,sl;
 
@@ -666,6 +693,7 @@ uint32_t hdd_diskinfo_v2_size() {
 }
 
 void hdd_diskinfo_v2_data(uint8_t *buff) {
+	TRACETHIS();
 	folder *f;
 	hddstats s;
 	uint32_t sl;
@@ -718,6 +746,7 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 }
 
 void hdd_diskinfo_movestats(void) {
+	TRACETHIS();
 	folder *f;
 	zassert(pthread_mutex_lock(&folderlock));
 	zassert(pthread_mutex_lock(&statslock));
@@ -735,6 +764,7 @@ void hdd_diskinfo_movestats(void) {
 }
 
 static inline void hdd_chunk_remove(chunk *c) {
+	TRACETHIS();
 	chunk **cptr,*cp;
 	uint32_t hashpos = HASHPOS(c->chunkid);
 	cptr = &(hashtab[hashpos]);
@@ -746,7 +776,7 @@ static inline void hdd_chunk_remove(chunk *c) {
 			}
 			if (cp->crc!=NULL) {
 #ifdef MMAP_ALLOC
-				munmap((void*)(cp->crc),4096);
+				munmap((void*)(cp->crc),CHUNK_CRC_SIZE);
 #else
 				free(cp->crc);
 #endif
@@ -781,6 +811,7 @@ static inline void hdd_chunk_remove(chunk *c) {
 }
 
 static void hdd_chunk_release(chunk *c) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&hashlock));
 //	syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 	if (c->state==CH_LOCKED) {
@@ -802,22 +833,31 @@ static void hdd_chunk_release(chunk *c) {
 }
 
 static int hdd_chunk_getattr(chunk *c) {
+	TRACETHIS1(c->chunkid);
 	struct stat sb;
 	if (stat(c->filename,&sb)<0) {
+		PRINTTHIS("error: -1");
 		return -1;
 	}
 	if ((sb.st_mode & S_IFMT) != S_IFREG) {
+		PRINTTHIS("error: -1");
 		return -1;
 	}
-	if (sb.st_size<CHUNKHDRSIZE || sb.st_size>(CHUNKHDRSIZE+MFSCHUNKSIZE) || ((sb.st_size-CHUNKHDRSIZE)&MFSBLOCKMASK)!=0) {
+	if (sb.st_size<CHUNK_HEADER_SIZE || sb.st_size>(CHUNK_HEADER_SIZE+MFSCHUNKSIZE) || ((sb.st_size-CHUNK_HEADER_SIZE)&MFSBLOCKMASK)!=0) {
+		PRINTTHIS(sb.st_size);
+		PRINTTHIS((int)(sb.st_size<CHUNK_HEADER_SIZE));
+		PRINTTHIS((int)(sb.st_size>(CHUNK_HEADER_SIZE+MFSCHUNKSIZE)));
+		PRINTTHIS((int)(((sb.st_size-CHUNK_HEADER_SIZE)&MFSBLOCKMASK)!=0));
+		PRINTTHIS("error: -1");
 		return -1;
 	}
-	c->blocks = (sb.st_size - CHUNKHDRSIZE) / MFSBLOCKSIZE;
+	c->blocks = (sb.st_size - CHUNK_HEADER_SIZE) / MFSBLOCKSIZE;
 	c->validattr = 1;
 	return 0;
 }
 
 static chunk* hdd_chunk_tryfind(uint64_t chunkid) {
+	TRACETHIS1(chunkid);
 	uint32_t hashpos = HASHPOS(chunkid);
 	chunk *c;
 	zassert(pthread_mutex_lock(&hashlock));
@@ -841,6 +881,7 @@ static chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 static void hdd_chunk_delete(chunk *c);
 
 static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
+	TRACETHIS2(chunkid, (unsigned)cflag);
 	uint32_t hashpos = HASHPOS(chunkid);
 	chunk *c;
 	cntcond *cc;
@@ -907,7 +948,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 				}
 				if (c->crc!=NULL) {
 #ifdef MMAP_ALLOC
-					munmap((void*)(c->crc),4096);
+					munmap((void*)(c->crc),CHUNK_CRC_SIZE);
 #else
 					free(c->crc);
 #endif
@@ -991,6 +1032,7 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 }
 
 static void hdd_chunk_delete(chunk *c) {
+	TRACETHIS();
 	folder *f;
 	zassert(pthread_mutex_lock(&hashlock));
 	f = c->owner;
@@ -1009,6 +1051,7 @@ static void hdd_chunk_delete(chunk *c) {
 }
 
 static chunk* hdd_chunk_create(folder *f,uint64_t chunkid,uint32_t version) {
+	TRACETHIS();
 	uint32_t leng;
 	chunk *c;
 
@@ -1037,6 +1080,7 @@ static chunk* hdd_chunk_create(folder *f,uint64_t chunkid,uint32_t version) {
 #define hdd_chunk_find(chunkid) hdd_chunk_get(chunkid,CH_NEW_NONE)
 
 static void hdd_chunk_testmove(chunk *c) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&testlock));
 	if (c->testnext) {
 		*(c->testprev) = c->testnext;
@@ -1051,6 +1095,7 @@ static void hdd_chunk_testmove(chunk *c) {
 
 // no locks - locked by caller
 static inline void hdd_refresh_usage(folder *f) {
+	TRACETHIS();
 	if (f->sizelimit) {
 		uint32_t knownblocks;
 		uint32_t knowncount;
@@ -1098,6 +1143,7 @@ static inline void hdd_refresh_usage(folder *f) {
 }
 
 static inline folder* hdd_getfolder() {
+	TRACETHIS();
 	folder *f,*bf;
 	double maxcarry;
 	double minavail,maxavail;
@@ -1164,6 +1210,7 @@ static inline folder* hdd_getfolder() {
 }
 
 void hdd_senddata(folder *f,int rmflag) {
+	TRACETHIS();
 	uint32_t i;
 	uint8_t todel;
 	chunk **cptr,*c;
@@ -1185,7 +1232,7 @@ void hdd_senddata(folder *f,int rmflag) {
 						}
 						if (c->crc!=NULL) {
 #ifdef MMAP_ALLOC
-							munmap((void*)(c->crc),4096);
+							munmap((void*)(c->crc),CHUNK_CRC_SIZE);
 #else
 							free(c->crc);
 #endif
@@ -1229,6 +1276,7 @@ void hdd_senddata(folder *f,int rmflag) {
 void* hdd_folder_scan(void *arg);
 
 void hdd_check_folders() {
+	TRACETHIS();
 	folder *f,**fptr;
 	uint32_t i;
 	uint32_t now;
@@ -1342,6 +1390,7 @@ void hdd_check_folders() {
 }
 
 static inline void hdd_error_occured(chunk *c) {
+	TRACETHIS();
 	uint32_t i;
 	folder *f;
 	struct timeval tv;
@@ -1372,15 +1421,18 @@ static inline void hdd_error_occured(chunk *c) {
 static uint32_t hdd_get_chunks_pos;
 
 void hdd_get_chunks_begin() {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&hashlock));
 	hdd_get_chunks_pos = 0;
 }
 
 void hdd_get_chunks_end() {
+	TRACETHIS();
 	zassert(pthread_mutex_unlock(&hashlock));
 }
 
 uint32_t hdd_get_chunks_next_list_count() {
+	TRACETHIS();
 	uint32_t res = 0;
 	uint32_t i = 0;
 	chunk *c;
@@ -1394,6 +1446,7 @@ uint32_t hdd_get_chunks_next_list_count() {
 }
 
 void hdd_get_chunks_next_list_data(uint8_t *buff) {
+	TRACETHIS();
 	uint32_t res = 0;
 	uint32_t v;
 	chunk *c;
@@ -1412,6 +1465,7 @@ void hdd_get_chunks_next_list_data(uint8_t *buff) {
 }
 
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount) {
+	TRACETHIS();
 	folder *f;
 	uint64_t avail,total;
 	uint64_t tdavail,tdtotal;
@@ -1447,17 +1501,18 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 }
 
 static inline void chunk_emptycrc(chunk *c) {
+	TRACETHIS();
 #ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+	c->crc = (uint8_t*)mmap(NULL,CHUNK_CRC_SIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
-	c->crc = (uint8_t*)malloc(4096);
+	c->crc = (uint8_t*)malloc(CHUNK_CRC_SIZE);
 #endif
-	memset(c->crc,0,4096);	// make valgrind happy
+	memset(c->crc,0,CHUNK_CRC_SIZE);	// make valgrind happy
 	passert(c->crc);
 }
 
 static inline int chunk_readcrc(chunk *c) {
-	int ret;
+	TRACETHIS();
 	uint8_t hdr[20];
 	const uint8_t *ptr;
 	uint64_t chunkid;
@@ -1491,23 +1546,32 @@ static inline int chunk_readcrc(chunk *c) {
 		errno = 0;
 		return ERROR_IO;
 	}
+
 #ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+	c->crc = (uint8_t*)mmap(NULL, CHUNK_CRC_SIZE, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 #else
-	c->crc = (uint8_t*)malloc(4096);
+	c->crc = (uint8_t*)malloc(CHUNK_CRC_SIZE);
 #endif
 	passert(c->crc);
+#ifndef ENABLE_CRC /* if NOT defined */
+	uint8_t* crcArrayPtr = c->crc;
+	for (int i = 0; i < MFSBLOCKSINCHUNK; ++i) {
+		put32bit(&crcArrayPtr, mycrc32_zeroblock(0, 0));
+	}
+#else /* if ENABLE_CRC defined */
+int ret;
 #ifdef USE_PIO
-	ret = pread(c->fd,c->crc,4096,CHUNKHDRCRC);
+	ret = pread(c->fd, c->crc, CHUNK_CRC_SIZE, CHUNK_SIGNATURE_SIZE);
 #else /* USE_PIO */
-	lseek(c->fd,CHUNKHDRCRC,SEEK_SET);
-	ret = read(c->fd,c->crc,4096);
+	lseek(c->fd,CHUNK_SIGNATURE_SIZE,SEEK_SET);
+	ret = read(c->fd, c->crc, CHUNK_CRC_SIZE);
 #endif /* USE_PIO */
-	if (ret!=4096) {
+
+	if (ret != CHUNK_CRC_SIZE) {
 		int errmem = errno;
 		mfs_arg_errlog_silent(LOG_WARNING,"chunk_readcrc: file:%s - read error",c->filename);
 #ifdef MMAP_ALLOC
-		munmap((void*)(c->crc),4096);
+		munmap((void*)(c->crc), CHUNK_CRC_SIZE);
 #else
 		free(c->crc);
 #endif
@@ -1515,14 +1579,16 @@ static inline int chunk_readcrc(chunk *c) {
 		errno = errmem;
 		return ERROR_IO;
 	}
-	hdd_stats_read(4096);
+#endif /* ENABLE_CRC */
+	hdd_stats_read(CHUNK_CRC_SIZE);
 	errno = 0;
 	return STATUS_OK;
 }
 
 static inline void chunk_freecrc(chunk *c) {
+	TRACETHIS();
 #ifdef MMAP_ALLOC
-	munmap((void*)(c->crc),4096);
+	munmap((void*)(c->crc),CHUNK_CRC_SIZE);
 #else
 	free(c->crc);
 #endif
@@ -1530,27 +1596,29 @@ static inline void chunk_freecrc(chunk *c) {
 }
 
 static inline int chunk_writecrc(chunk *c) {
+	TRACETHIS();
 	int ret;
 	zassert(pthread_mutex_lock(&folderlock));
 	c->owner->needrefresh = 1;
 	zassert(pthread_mutex_unlock(&folderlock));
 #ifdef USE_PIO
-	ret = pwrite(c->fd,c->crc,4096,CHUNKHDRCRC);
+	ret = pwrite(c->fd, c->crc, CHUNK_CRC_SIZE, CHUNK_SIGNATURE_SIZE);
 #else /* USE_PIO */
-	lseek(c->fd,CHUNKHDRCRC,SEEK_SET);
-	ret = write(c->fd,c->crc,4096);
+	lseek(c->fd,CHUNK_SIGNATURE_SIZE,SEEK_SET);
+	ret = write(c->fd, c->crc, CHUNK_CRC_SIZE);
 #endif /* USE_PIO */
-	if (ret!=4096) {
+	if (ret != CHUNK_CRC_SIZE) {
 		int errmem = errno;
 		mfs_arg_errlog_silent(LOG_WARNING,"chunk_writecrc: file:%s - write error",c->filename);
 		errno = errmem;
 		return ERROR_IO;
 	}
-	hdd_stats_write(4096);
+	hdd_stats_write(CHUNK_CRC_SIZE);
 	return STATUS_OK;
 }
 
 void hdd_test_show_chunks(void) {
+	TRACETHIS();
 	uint32_t hashpos;
 	chunk *c;
 	zassert(pthread_mutex_lock(&hashlock));
@@ -1563,6 +1631,7 @@ void hdd_test_show_chunks(void) {
 }
 
 void hdd_test_show_openedchunks(void) {
+	TRACETHIS();
 	dopchunk *cc,*tcc;
 	uint32_t dhashpos;
 	chunk *c;
@@ -1622,6 +1691,7 @@ void hdd_test_show_openedchunks(void) {
 }
 
 void hdd_delayed_ops() {
+	TRACETHIS();
 	dopchunk **ccp,*cc,*tcc;
 	uint32_t dhashpos;
 	chunk *c;
@@ -1713,12 +1783,14 @@ void hdd_delayed_ops() {
 }
 
 static inline uint64_t get_usectime() {
+	TRACETHIS();
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
 	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
 }
 
 static int hdd_io_begin(chunk *c,int newflag) {
+	TRACETHIS();
 	dopchunk *cc;
 	int status;
 	int add;
@@ -1794,12 +1866,14 @@ static int hdd_io_begin(chunk *c,int newflag) {
 }
 
 static int hdd_io_end(chunk *c) {
+	TRACETHIS1(c->chunkid);
 	int status;
 	uint64_t ts,te;
 
 //	syslog(LOG_NOTICE,"chunk: %" PRIu64 " - after io",c->chunkid);
 	if (c->crcchanged) {
 		status = chunk_writecrc(c);
+		PRINTTHIS(status);
 		c->crcchanged = 0;
 		if (status!=STATUS_OK) {
 			int errmem = errno;
@@ -1852,6 +1926,7 @@ static int hdd_io_end(chunk *c) {
 /* I/O operations */
 
 int hdd_open(uint64_t chunkid) {
+	TRACETHIS1(chunkid);
 	int status;
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
@@ -1859,6 +1934,7 @@ int hdd_open(uint64_t chunkid) {
 		return ERROR_NOCHUNK;
 	}
 	status = hdd_io_begin(c,0);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
@@ -1871,6 +1947,7 @@ int hdd_open(uint64_t chunkid) {
 }
 
 int hdd_close(uint64_t chunkid) {
+	TRACETHIS1(chunkid);
 	int status;
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
@@ -1878,6 +1955,7 @@ int hdd_close(uint64_t chunkid) {
 		return ERROR_NOCHUNK;
 	}
 	status = hdd_io_end(c);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
@@ -1889,7 +1967,8 @@ int hdd_close(uint64_t chunkid) {
 	return status;
 }
 
-int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff) {
+int hdd_read_block(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff) {
+	TRACETHIS4(chunkid, blocknum, size, offset);
 	chunk *c;
 	int ret;
 	const uint8_t *rcrcptr;
@@ -1948,9 +2027,9 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 #endif /* PRESERVE_BLOCK */
 		ts = get_usectime();
 #ifdef USE_PIO
-		ret = pread(c->fd,buffer,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+		ret = pread(c->fd,buffer,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+		lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = read(c->fd,buffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 		te = get_usectime();
@@ -1983,9 +2062,9 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 		if (c->blockno != blocknum) {
 			ts = get_usectime();
 #ifdef USE_PIO
-			ret = pread(c->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+			ret = pread(c->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+			lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 			ret = read(c->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 			te = get_usectime();
@@ -2000,9 +2079,9 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 #else /* PRESERVE_BLOCK */
 		ts = get_usectime();
 #ifdef USE_PIO
-		ret = pread(c->fd,blockbuffer,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+		ret = pread(c->fd,blockbuffer,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+		lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 		te = get_usectime();
@@ -2044,11 +2123,44 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 #endif /* PRESERVE_BLOCK */
 	}
 	put32bit(&crcbuff,crc);
+
 	hdd_chunk_release(c);
 	return STATUS_OK;
 }
 
+int hdd_read(uint64_t chunkid, uint32_t version, uint8_t *buffer, uint32_t offset, uint32_t size, uint8_t *crcbuff) {
+	TRACETHIS3(chunkid, offset, size);
+	uint32_t blockOffset = offset & MFSBLOCKMASK;
+	uint32_t blockReadSize = size;
+	uint32_t retCrc = 0;
+
+	uint16_t blockNr = offset >> MFSBLOCKBITS;
+	while (size > 0) {
+		blockReadSize = MFSBLOCKSIZE - blockOffset;
+		if (blockReadSize > size) {
+			blockReadSize = size;
+		}
+		uint32_t tmpCrc;
+		int status = hdd_read_block(chunkid, version, blockNr, buffer, blockOffset, blockReadSize, (uint8_t*)&tmpCrc);
+		PRINTTHIS(status);
+		if (status != STATUS_OK) {
+			return status;
+		}
+		const uint8_t* tmpPtr = (uint8_t*)&tmpCrc;
+		tmpCrc = get32bit(&tmpPtr);
+		retCrc = mycrc32_combine(retCrc, tmpCrc, blockReadSize);
+		blockOffset = 0; // offset is equal 0 for every block except the first one
+		size -= blockReadSize;
+		buffer += blockReadSize;
+		blockNr++;
+	}
+	put32bit(&crcbuff, retCrc);
+
+	return STATUS_OK;
+}
+
 int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
+	TRACETHIS3(chunkid, offset, size);
 	chunk *c;
 	int ret;
 	uint8_t *wcrcptr;
@@ -2104,9 +2216,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		}
 		ts = get_usectime();
 #ifdef USE_PIO
-		ret = pwrite(c->fd,buffer,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+		ret = pwrite(c->fd,buffer,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+		lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = write(c->fd,buffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 		te = get_usectime();
@@ -2139,9 +2251,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			if (c->blockno != blocknum) {
 				ts = get_usectime();
 #ifdef USE_PIO
-				ret = pread(c->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+				ret = pread(c->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-				lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+				lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 				ret = read(c->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 				te = get_usectime();
@@ -2153,9 +2265,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 #else /* PRESERVE_BLOCK */
 			ts = get_usectime();
 #ifdef USE_PIO
-			ret = pread(c->fd,blockbuffer,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
+			ret = pread(c->fd,blockbuffer,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
+			lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 			ret = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 			te = get_usectime();
@@ -2196,7 +2308,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				return ERROR_CRC;
 			}
 		} else {
-			if (ftruncate(c->fd,CHUNKHDRSIZE+(((uint32_t)(blocknum+1))<<MFSBLOCKBITS))<0) {
+			if (ftruncate(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)(blocknum+1))<<MFSBLOCKBITS))<0) {
 				hdd_error_occured(c);	// uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,"write_block_to_chunk: file:%s - ftruncate error",c->filename);
 				hdd_report_damaged_chunk(chunkid);
@@ -2221,9 +2333,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		memcpy(c->block+offset,buffer,size);
 		ts = get_usectime();
 #ifdef USE_PIO
-		ret = pwrite(c->fd,c->block+offset,size,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset);
+		ret = pwrite(c->fd,c->block+offset,size,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset);
 #else /* USE_PIO */
-		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
+		lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
 		ret = write(c->fd,c->block+offset,size);
 #endif /* USE_PIO */
 		te = get_usectime();
@@ -2233,9 +2345,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		memcpy(blockbuffer+offset,buffer,size);
 		ts = get_usectime();
 #ifdef USE_PIO
-		ret = pwrite(c->fd,blockbuffer+offset,size,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset);
+		ret = pwrite(c->fd,blockbuffer+offset,size,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset);
 #else /* USE_PIO */
-		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
+		lseek(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
 		ret = write(c->fd,blockbuffer+offset,size);
 #endif /* USE_PIO */
 		te = get_usectime();
@@ -2278,6 +2390,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 /* chunk info */
 
 int hdd_check_version(uint64_t chunkid,uint32_t version) {
+	TRACETHIS2(chunkid, version);
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
@@ -2285,6 +2398,7 @@ int hdd_check_version(uint64_t chunkid,uint32_t version) {
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
+		PRINTTHIS(ERROR_WRONGVERSION);
 		return ERROR_WRONGVERSION;
 	}
 	hdd_chunk_release(c);
@@ -2292,6 +2406,7 @@ int hdd_check_version(uint64_t chunkid,uint32_t version) {
 }
 
 int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks) {
+	TRACETHIS1(chunkid);
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
@@ -2307,25 +2422,30 @@ int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks) {
 }
 
 int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
+	TRACETHIS2(chunkid, version);
 	int status;
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
+		PRINTTHIS(ERROR_NOCHUNK);
 		return ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
+		PRINTTHIS(ERROR_WRONGVERSION);
 		return ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
 	}
-	*checksum = mycrc32(0,c->crc,4096);
+	*checksum = mycrc32(0, c->crc, CHUNK_CRC_SIZE);
 	status = hdd_io_end(c);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
@@ -2337,6 +2457,7 @@ int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
 }
 
 int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab) {
+	TRACETHIS2(chunkid, version);
 	int status;
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
@@ -2348,14 +2469,16 @@ int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab
 		return ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
 	}
-	memcpy(checksum_tab,c->crc,4096);
+	memcpy(checksum_tab,c->crc,CHUNK_CRC_SIZE);
 	status = hdd_io_end(c);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
@@ -2373,12 +2496,13 @@ int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab
 /* chunk operations */
 
 static int hdd_int_create(uint64_t chunkid,uint32_t version) {
+	TRACETHIS2(chunkid, version);
 	folder *f;
 	chunk *c;
 	int status;
 	uint8_t *ptr;
 #ifdef PRESERVE_BLOCK
-	uint8_t hdrbuffer[CHUNKHDRSIZE];
+	uint8_t hdrbuffer[CHUNK_HEADER_SIZE];
 #else /* PRESERVE_BLOCK */
 	uint8_t *hdrbuffer;
 #endif /* PRESERVE_BLOCK */
@@ -2398,24 +2522,25 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 #ifndef PRESERVE_BLOCK
 	hdrbuffer = pthread_getspecific(hdrbufferkey);
 	if (hdrbuffer==NULL) {
-		hdrbuffer = malloc(CHUNKHDRSIZE);
+		hdrbuffer = malloc(CHUNK_HEADER_SIZE);
 		passert(hdrbuffer);
 		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
 	}
 #endif /* PRESERVE_BLOCK */
 
 	status = hdd_io_begin(c,1);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		return ERROR_IO;
 	}
-	memset(hdrbuffer,0,CHUNKHDRSIZE);
+	memset(hdrbuffer,0,CHUNK_HEADER_SIZE);
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
 	ptr = hdrbuffer+8;
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	if (write(c->fd,hdrbuffer,CHUNKHDRSIZE)!=CHUNKHDRSIZE) {
+	if (write(c->fd,hdrbuffer,CHUNK_HEADER_SIZE)!=CHUNK_HEADER_SIZE) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,"create_newchunk: file:%s - write error",c->filename);
 		hdd_io_end(c);
@@ -2423,8 +2548,9 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 		hdd_chunk_delete(c);
 		return ERROR_IO;
 	}
-	hdd_stats_write(CHUNKHDRSIZE);
+	hdd_stats_write(CHUNK_HEADER_SIZE);
 	status = hdd_io_end(c);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		unlink(c->filename);
@@ -2436,6 +2562,7 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 }
 
 static int hdd_int_test(uint64_t chunkid,uint32_t version) {
+	TRACETHIS2(chunkid, version);
 	const uint8_t *ptr;
 	uint16_t block;
 	uint32_t bcrc;
@@ -2464,12 +2591,13 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 		return ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
+	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;
 	}
-	lseek(c->fd,CHUNKHDRSIZE,SEEK_SET);
+	lseek(c->fd,CHUNK_HEADER_SIZE,SEEK_SET);
 	ptr = c->crc;
 	for (block=0 ; block<c->blocks ; block++) {
 #ifdef PRESERVE_BLOCK
@@ -2513,6 +2641,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 }
 
 static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion) {
+	TRACETHIS();
 	folder *f;
 	uint32_t filenameleng;
 	char *newfilename;
@@ -2522,7 +2651,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	int status;
 	chunk *c,*oc;
 #ifdef PRESERVE_BLOCK
-	uint8_t hdrbuffer[CHUNKHDRSIZE];
+	uint8_t hdrbuffer[CHUNK_HEADER_SIZE];
 #else /* PRESERVE_BLOCK */
 	uint8_t *blockbuffer,*hdrbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
@@ -2537,7 +2666,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	}
 	hdrbuffer = pthread_getspecific(hdrbufferkey);
 	if (hdrbuffer==NULL) {
-		hdrbuffer = malloc(CHUNKHDRSIZE);
+		hdrbuffer = malloc(CHUNK_HEADER_SIZE);
 		passert(hdrbuffer);
 		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
 	}
@@ -2628,14 +2757,14 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_chunk_release(oc);
 		return status;
 	}
-	memset(hdrbuffer,0,CHUNKHDRSIZE);
+	memset(hdrbuffer,0,CHUNK_HEADER_SIZE);
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
 	ptr = hdrbuffer+8;
 	put64bit(&ptr,copychunkid);
 	put32bit(&ptr,copyversion);
-	memcpy(c->crc,oc->crc,4096);
-	memcpy(hdrbuffer+1024,oc->crc,4096);
-	if (write(c->fd,hdrbuffer,CHUNKHDRSIZE)!=CHUNKHDRSIZE) {
+	memcpy(c->crc,oc->crc,CHUNK_CRC_SIZE);
+	memcpy(hdrbuffer + CHUNK_SIGNATURE_SIZE, oc->crc, CHUNK_CRC_SIZE);
+	if (write(c->fd,hdrbuffer,CHUNK_HEADER_SIZE)!=CHUNK_HEADER_SIZE) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,"duplicate_chunk: file:%s - hdr write error",c->filename);
 		hdd_io_end(c);
@@ -2645,9 +2774,9 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_chunk_release(oc);
 		return ERROR_IO;
 	}
-	hdd_stats_write(CHUNKHDRSIZE);
+	hdd_stats_write(CHUNK_HEADER_SIZE);
 #ifndef PRESERVE_BLOCK
-	lseek(oc->fd,CHUNKHDRSIZE,SEEK_SET);
+	lseek(oc->fd,CHUNK_HEADER_SIZE,SEEK_SET);
 #endif /* PRESERVE_BLOCK */
 	for (block=0 ; block<oc->blocks ; block++) {
 #ifdef PRESERVE_BLOCK
@@ -2656,9 +2785,9 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			retsize = MFSBLOCKSIZE;
 		} else {
 #ifdef USE_PIO
-			retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS));
+			retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-			lseek(oc->fd,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
+			lseek(oc->fd,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
 			retsize = read(oc->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 		}
@@ -2728,6 +2857,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 }
 
 static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion) {
+	TRACETHIS();
 	int status;
 	uint32_t filenameleng;
 	char *newfilename;
@@ -2789,6 +2919,7 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 }
 
 static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint32_t length) {
+	TRACETHIS4(chunkid, version, newversion, length);
 	int status;
 	uint32_t filenameleng;
 	char *newfilename;
@@ -2862,7 +2993,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	// step 2. truncate
 	blocks = ((length+MFSBLOCKMASK)>>MFSBLOCKBITS);
 	if (blocks>c->blocks) {
-		if (ftruncate(c->fd,CHUNKHDRSIZE+(blocks<<MFSBLOCKBITS))<0) {
+		if (ftruncate(c->fd,CHUNK_HEADER_SIZE+(blocks<<MFSBLOCKBITS))<0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 			hdd_io_end(c);
@@ -2878,7 +3009,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 		uint32_t blocknum = length>>MFSBLOCKBITS;
 		uint32_t blockpos = length&MFSCHUNKBLOCKMASK;
 		uint32_t blocksize = length&MFSBLOCKMASK;
-		if (ftruncate(c->fd,CHUNKHDRSIZE+length)<0) {
+		if (ftruncate(c->fd,CHUNK_HEADER_SIZE+length)<0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 			hdd_io_end(c);
@@ -2886,7 +3017,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 			return ERROR_IO;
 		}
 		if (blocksize>0) {
-			if (ftruncate(c->fd,CHUNKHDRSIZE+(blocks<<MFSBLOCKBITS))<0) {
+			if (ftruncate(c->fd,CHUNK_HEADER_SIZE+(blocks<<MFSBLOCKBITS))<0) {
 				hdd_error_occured(c);	// uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 				hdd_io_end(c);
@@ -2900,16 +3031,16 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 			if (c->blockno!=(blockpos>>MFSBLOCKBITS)) {
 
 #ifdef USE_PIO
-				if (pread(c->fd,c->block,blocksize,CHUNKHDRSIZE+blockpos)!=(signed)blocksize) {
+				if (pread(c->fd,c->block,blocksize,CHUNK_HEADER_SIZE+blockpos)!=(signed)blocksize) {
 #else /* USE_PIO */
-				lseek(c->fd,CHUNKHDRSIZE+blockpos,SEEK_SET);
+				lseek(c->fd,CHUNK_HEADER_SIZE+blockpos,SEEK_SET);
 				if (read(c->fd,c->block,blocksize)!=(signed)blocksize) {
 #endif /* USE_PIO */
 #else /* PRESERVE_BLOCK */
 #ifdef USE_PIO
-			if (pread(c->fd,blockbuffer,blocksize,CHUNKHDRSIZE+blockpos)!=(signed)blocksize) {
+			if (pread(c->fd,blockbuffer,blocksize,CHUNK_HEADER_SIZE+blockpos)!=(signed)blocksize) {
 #else /* USE_PIO */
-			lseek(c->fd,CHUNKHDRSIZE+blockpos,SEEK_SET);
+			lseek(c->fd,CHUNK_HEADER_SIZE+blockpos,SEEK_SET);
 			if (read(c->fd,blockbuffer,blocksize)!=(signed)blocksize) {
 #endif /* USE_PIO */
 #endif /* PRESERVE_BLOCK */
@@ -2948,6 +3079,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 }
 
 static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+	TRACETHIS();
 	folder *f;
 	uint32_t filenameleng;
 	char *newfilename;
@@ -2959,7 +3091,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	int status;
 	chunk *c,*oc;
 #ifdef PRESERVE_BLOCK
-	uint8_t hdrbuffer[CHUNKHDRSIZE];
+	uint8_t hdrbuffer[CHUNK_HEADER_SIZE];
 #else /* PRESERVE_BLOCK */
 	uint8_t *blockbuffer,*hdrbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
@@ -2974,7 +3106,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 	hdrbuffer = pthread_getspecific(hdrbufferkey);
 	if (hdrbuffer==NULL) {
-		hdrbuffer = malloc(CHUNKHDRSIZE);
+		hdrbuffer = malloc(CHUNK_HEADER_SIZE);
 		passert(hdrbuffer);
 		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
 	}
@@ -3069,16 +3201,16 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		return status;
 	}
 	blocks = ((length+MFSBLOCKMASK)>>MFSBLOCKBITS);
-	memset(hdrbuffer,0,CHUNKHDRSIZE);
+	memset(hdrbuffer,0,CHUNK_HEADER_SIZE);
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
 	ptr = hdrbuffer+8;
 	put64bit(&ptr,copychunkid);
 	put32bit(&ptr,copyversion);
-	memcpy(hdrbuffer+1024,oc->crc,4096);
+	memcpy(hdrbuffer + CHUNK_SIGNATURE_SIZE, oc->crc, CHUNK_CRC_SIZE);
 // do not write header yet - only seek to apriopriate position
-	lseek(c->fd,CHUNKHDRSIZE,SEEK_SET);
+	lseek(c->fd,CHUNK_HEADER_SIZE,SEEK_SET);
 #ifndef PRESERVE_BLOCK
-	lseek(oc->fd,CHUNKHDRSIZE,SEEK_SET);
+	lseek(oc->fd,CHUNK_HEADER_SIZE,SEEK_SET);
 #endif /* PRESERVE_BLOCK */
 	if (blocks>oc->blocks) { // expanding
 		for (block=0 ; block<oc->blocks ; block++) {
@@ -3088,9 +3220,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				retsize = MFSBLOCKSIZE;
 			} else {
 #ifdef USE_PIO
-				retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS));
+				retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-				lseek(oc->fd,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
+				lseek(oc->fd,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
 				retsize = read(oc->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 			}
@@ -3132,7 +3264,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			c->blockno = block;
 #endif /* PRESERVE_BLOCK */
 		}
-		if (ftruncate(c->fd,CHUNKHDRSIZE+(((uint32_t)blocks)<<MFSBLOCKBITS))<0) {
+		if (ftruncate(c->fd,CHUNK_HEADER_SIZE+(((uint32_t)blocks)<<MFSBLOCKBITS))<0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,"duptrunc_chunk: file:%s - ftruncate error",c->filename);
 			hdd_io_end(c);
@@ -3142,7 +3274,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_chunk_release(oc);
 			return ERROR_IO;	//write error
 		}
-		ptr = hdrbuffer+CHUNKHDRCRC+4*(oc->blocks);
+		ptr = hdrbuffer+CHUNK_SIGNATURE_SIZE+4*(oc->blocks);
 		for (block=oc->blocks ; block<blocks ; block++) {
 			put32bit(&ptr,emptyblockcrc);
 		}
@@ -3156,9 +3288,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					retsize = MFSBLOCKSIZE;
 				} else {
 #ifdef USE_PIO
-					retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS));
+					retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-					lseek(oc->fd,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
+					lseek(oc->fd,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
 					retsize = read(oc->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 				}
@@ -3208,9 +3340,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					retsize = MFSBLOCKSIZE;
 				} else {
 #ifdef USE_PIO
-					retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS));
+					retsize = pread(oc->fd,c->block,MFSBLOCKSIZE,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-					lseek(oc->fd,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
+					lseek(oc->fd,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
 					retsize = read(oc->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
 				}
@@ -3256,9 +3388,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				retsize = blocksize;
 			} else {
 #ifdef USE_PIO
-				retsize = pread(oc->fd,c->block,blocksize,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS));
+				retsize = pread(oc->fd,c->block,blocksize,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS));
 #else /* USE_PIO */
-				lseek(oc->fd,CHUNKHDRSIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
+				lseek(oc->fd,CHUNK_HEADER_SIZE+(((uint32_t)block)<<MFSBLOCKBITS),SEEK_SET);
 				retsize = read(oc->fd,c->block,blocksize);
 #endif /* USE_PIO */
 			}
@@ -3298,7 +3430,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				return ERROR_IO;
 			}
 			hdd_stats_write(MFSBLOCKSIZE);
-			ptr = hdrbuffer+CHUNKHDRCRC+4*(blocks-1);
+			ptr = hdrbuffer+CHUNK_SIGNATURE_SIZE+4*(blocks-1);
 #ifdef PRESERVE_BLOCK
 			crc = mycrc32_zeroexpanded(0,c->block,blocksize,MFSBLOCKSIZE-blocksize);
 #else /* PRESERVE_BLOCK */
@@ -3311,9 +3443,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		}
 	}
 // and now write header
-	memcpy(c->crc,hdrbuffer+1024,4096);
+	memcpy(c->crc,hdrbuffer + CHUNK_SIGNATURE_SIZE, CHUNK_CRC_SIZE);
 	lseek(c->fd,0,SEEK_SET);
-	if (write(c->fd,hdrbuffer,CHUNKHDRSIZE)!=CHUNKHDRSIZE) {
+	if (write(c->fd,hdrbuffer,CHUNK_HEADER_SIZE)!=CHUNK_HEADER_SIZE) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,"duptrunc_chunk: file:%s - hdr write error",c->filename);
 		hdd_io_end(c);
@@ -3323,7 +3455,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_chunk_release(oc);
 		return ERROR_IO;
 	}
-	hdd_stats_write(CHUNKHDRSIZE);
+	hdd_stats_write(CHUNK_HEADER_SIZE);
 	status = hdd_io_end(oc);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(oc);	// uses and preserves errno !!!
@@ -3352,6 +3484,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 }
 
 static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
+	TRACETHIS();
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
@@ -3380,6 +3513,7 @@ static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 // newversion==0 && length==1                             -> create
 // newversion==0 && length==2                             -> check chunk contents
 int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
 	if (newversion>0) {
 		if (length==0xFFFFFFFF) {
@@ -3435,6 +3569,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 }
 
 void* hdd_tester_thread(void* arg) {
+	TRACETHIS();
 	folder *f,*of;
 	chunk *c;
 	uint64_t chunkid;
@@ -3513,6 +3648,7 @@ void* hdd_tester_thread(void* arg) {
 }
 
 void hdd_testshuffle(folder *f) {
+	TRACETHIS();
 	uint32_t i,j,chunksno;
 	chunk **csorttab,*c;
 	zassert(pthread_mutex_lock(&testlock));
@@ -3558,6 +3694,7 @@ void hdd_testshuffle(folder *f) {
 /* initialization */
 
 static inline int hdd_check_filename(const char *fname,uint64_t *chunkid,uint32_t *version) {
+	TRACETHIS();
 	uint64_t namechunkid;
 	uint32_t nameversion;
 	char ch;
@@ -3604,6 +3741,7 @@ static inline int hdd_check_filename(const char *fname,uint64_t *chunkid,uint32_
 }
 
 static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid,uint32_t version,uint8_t todel) {
+	TRACETHIS();
 	folder *prevf;
 	chunk *c;
 
@@ -3623,7 +3761,7 @@ static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid
 			c->filename = strdup(fullname);
 			passert(c->filename);
 			c->version = version;
-			c->blocks = 0; // (sb.st_size - CHUNKHDRSIZE) / MFSBLOCKSIZE;
+			c->blocks = 0; // (sb.st_size - CHUNK_HEADER_SIZE) / MFSBLOCKSIZE;
 			c->owner = f;
 			c->todel = todel;
 			zassert(pthread_mutex_lock(&testlock));
@@ -3664,6 +3802,7 @@ static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid
 }
 
 void* hdd_folder_scan(void *arg) {
+	TRACETHIS();
 	folder *f = (folder*)arg;
 	DIR *dd;
 	struct dirent *de,*destorage;
@@ -3814,6 +3953,7 @@ void* hdd_folder_scan(void *arg) {
 }
 
 void* hdd_folders_thread(void *arg) {
+	TRACETHIS();
 	for (;;) {
 		hdd_check_folders();
 		zassert(pthread_mutex_lock(&termlock));
@@ -3828,6 +3968,7 @@ void* hdd_folders_thread(void *arg) {
 }
 
 void* hdd_delayed_thread(void *arg) {
+	TRACETHIS();
 	for (;;) {
 		hdd_delayed_ops();
 		zassert(pthread_mutex_lock(&termlock));
@@ -3844,12 +3985,14 @@ void* hdd_delayed_thread(void *arg) {
 #ifndef PRESERVE_BLOCK
 # ifdef MMAP_ALLOC
 void hdd_blockbuffer_free(void *addr) {
+	TRACETHIS();
 	munmap(addr,MFSBLOCKSIZE);
 }
 # endif
 #endif
 
 void hdd_term(void) {
+	TRACETHIS();
 	uint32_t i;
 	folder *f,*fn;
 	chunk *c,*cn;
@@ -3910,7 +4053,7 @@ void hdd_term(void) {
 				}
 				if (c->crc!=NULL) {
 #ifdef MMAP_ALLOC
-					munmap((void*)(c->crc),4096);
+					munmap((void*)(c->crc),CHUNK_CRC_SIZE);
 #else
 					free(c->crc);
 #endif
@@ -3975,6 +4118,7 @@ void hdd_term(void) {
 }
 
 int hdd_size_parse(const char *str,uint64_t *ret) {
+	TRACETHIS();
 	uint64_t val,frac,fracdiv;
 	double drval,mult;
 	int f;
@@ -4063,6 +4207,7 @@ int hdd_size_parse(const char *str,uint64_t *ret) {
 }
 
 int hdd_parseline(char *hddcfgline) {
+	TRACETHIS();
 	uint32_t l,p;
 	int lfd,td;
 	char *pptr;
@@ -4310,6 +4455,7 @@ int hdd_parseline(char *hddcfgline) {
 }
 
 int hdd_folders_reinit(void) {
+	TRACETHIS();
 	folder *f;
 	FILE *fd;
 	char buff[1000];
@@ -4386,6 +4532,7 @@ int hdd_folders_reinit(void) {
 }
 
 void hdd_reload(void) {
+	TRACETHIS();
 	char *LeaveFreeStr;
 
 	zassert(pthread_mutex_lock(&testlock));
@@ -4406,6 +4553,7 @@ void hdd_reload(void) {
 }
 
 int hdd_late_init(void) {
+	TRACETHIS();
 	zassert(pthread_mutex_lock(&termlock));
 	term = 0;
 	zassert(pthread_mutex_unlock(&termlock));
@@ -4418,6 +4566,7 @@ int hdd_late_init(void) {
 }
 
 int hdd_init(void) {
+	TRACETHIS();
 	uint32_t hp;
 	folder *f;
 	char *LeaveFreeStr;

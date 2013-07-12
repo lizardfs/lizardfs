@@ -1,6 +1,6 @@
 sbin_PROGRAMS=mfsmaster
 
-AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -DAPPNAME=mfsmaster
+AM_CPPFLAGS=-DAPPNAME=mfsmaster
 AM_LDFLAGS=$(ZLIB_LIBS)
 
 mfsmaster_SOURCES=\
@@ -16,7 +16,7 @@ mfsmaster_SOURCES=\
 	datacachemgr.cc datacachemgr.h \
 	chartsdata.cc chartsdata.h \
 	init.h \
-	../mfscommon/main.cc ../mfscommon/main.h \
+	../mfsdaemonmain/main.cc ../mfsdaemonmain/main.h \
 	../mfscommon/cfg.cc ../mfscommon/cfg.h \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/md5.cc ../mfscommon/md5.h \

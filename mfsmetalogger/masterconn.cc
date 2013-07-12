@@ -32,15 +32,15 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "MFSCommunication.h"
-#include "datapack.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/datapack.h"
 #include "masterconn.h"
-#include "crc.h"
-#include "cfg.h"
-#include "main.h"
-#include "slogger.h"
-#include "massert.h"
-#include "sockets.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/cfg.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/sockets.h"
 
 #define MaxPacketSize 1500000
 

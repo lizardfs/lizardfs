@@ -31,19 +31,19 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
-#include "datapack.h"
+#include "mfscommon/datapack.h"
 #include "matocsserv.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
+#include "mfscommon/cfg.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/sockets.h"
 #include "chunks.h"
-#include "random.h"
-#include "slogger.h"
-#include "massert.h"
-#include "mfsstrerr.h"
-#include "hashfn.h"
+#include "mfscommon/random.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/mfsstrerr.h"
+#include "mfscommon/hashfn.h"
 
 #define MaxPacketSize 500000000
 

@@ -23,10 +23,10 @@
 #include <syslog.h>
 #include <unistd.h>
 
-#include "main.h"
+#include "mfsdaemonmain/main.h"
 #include "changelog.h"
 #include "matomlserv.h"
-#include "cfg.h"
+#include "mfscommon/cfg.h"
 
 #define MAXLOGLINESIZE 200000U
 #define MAXLOGNUMBER 1000U

@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "random.h"
+#include "mfscommon/random.h"
 #include "hddspacemgr.h"
 #include "masterconn.h"
 #include "csserv.h"

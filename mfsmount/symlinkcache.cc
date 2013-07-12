@@ -26,7 +26,7 @@
 #include <limits>
 
 #include "stats.h"
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
 #define HASH_FUNCTIONS 4
 #define HASH_BUCKET_SIZE 16

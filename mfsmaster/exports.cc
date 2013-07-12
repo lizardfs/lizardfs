@@ -29,14 +29,14 @@
 #include <grp.h>
 #include <inttypes.h>
 
-#include "MFSCommunication.h"
-#include "md5.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/md5.h"
 #include "exports.h"
-#include "datapack.h"
-#include "main.h"
-#include "cfg.h"
-#include "slogger.h"
-#include "massert.h"
+#include "mfscommon/datapack.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
 
 typedef struct _exports {
 	uint32_t pleng;

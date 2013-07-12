@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <errno.h>
 
-#include "strerr.h"
+#include "mfscommon/strerr.h"
 
 #define mfs_syslog(priority,msg) {\
 	syslog((priority),"%s",(msg)); \

@@ -56,14 +56,14 @@
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
-
-#include "cfg.h"
-#include "main.h"
-#include "strerr.h"
-#include "crc.h"
+#include "devtools/TracePrinter.h"
+#include "mfscommon/cfg.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/crc.h"
 #include "init.h"
-#include "massert.h"
-#include "slogger.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/slogger.h"
 
 #define RM_RESTART 0
 #define RM_START 1
@@ -319,7 +319,9 @@ void mainloop() {
 		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
 			pollit->desc(pdesc,&ndesc);
 		}
-		i = poll(pdesc,ndesc,50);
+		PRINTTHISMSG("POLL BEGIN");
+		i = poll(pdesc,ndesc,500);
+		PRINTTHISMSG("POLL END");
 		gettimeofday(&tv,NULL);
 		usecnow = tv.tv_sec;
 		usecnow *= 1000000;

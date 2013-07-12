@@ -23,8 +23,8 @@
 #endif
 
 #include <fuse.h>
-#include <fuse_opt.h>
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_opt.h>
+#include <fuse/fuse_lowlevel.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #ifdef MFS_USE_MEMLOCK
@@ -44,8 +44,8 @@
 #include "mfs_fuse.h"
 #include "mfs_meta_fuse.h"
 
-#include "MFSCommunication.h"
-#include "md5.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/md5.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
 #include "chunkloccache.h"
@@ -54,8 +54,8 @@
 #include "writedata.h"
 #include "csdb.h"
 #include "stats.h"
-#include "strerr.h"
-#include "crc.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/crc.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

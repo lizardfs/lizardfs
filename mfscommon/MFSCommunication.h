@@ -524,7 +524,7 @@
 
 // 0x00CA
 #define CSTOCL_READ_DATA (PROTO_BASE+202)
-// chunkid:64 blocknum:16 offset:16 size:32 crc:32 size*[ databyte:8 ]
+// chunkid:64 offset:32 size:32 crc:32 size*[ databyte:8 ]
 
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)

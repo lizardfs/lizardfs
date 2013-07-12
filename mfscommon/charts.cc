@@ -36,11 +36,11 @@
 #include <zlib.h>
 #endif
 
-#include "charts.h"
-#include "crc.h"
-#include "datapack.h"
-#include "massert.h"
-#include "slogger.h"
+#include "mfscommon/charts.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/slogger.h"
 
 #define USE_NET_ORDER 1
 

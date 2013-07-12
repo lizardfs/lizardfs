@@ -1,6 +1,6 @@
 sbin_PROGRAMS=mfschunkserver
 
-AM_CPPFLAGS=-I$(top_srcdir)/mfscommon -DMFSMAXFILES=10000 -D_USE_PTHREADS $(PTHREAD_CPPFLAGS) -DAPPNAME=mfschunkserver
+AM_CPPFLAGS=-DMFSMAXFILES=10000 -D_USE_PTHREADS $(PTHREAD_CPPFLAGS) -DAPPNAME=mfschunkserver
 AM_LDFLAGS=$(PTHREAD_LIBS) $(ZLIB_LIBS)
 
 mfschunkserver_SOURCES= \
@@ -11,7 +11,7 @@ mfschunkserver_SOURCES= \
 	replicator.cc replicator.h \
 	chartsdata.cc chartsdata.h \
 	init.h \
-	../mfscommon/main.cc ../mfscommon/main.h \
+	../mfsdaemonmain/main.cc ../mfsdaemonmain/main.h \
 	../mfscommon/cfg.cc ../mfscommon/cfg.h \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
