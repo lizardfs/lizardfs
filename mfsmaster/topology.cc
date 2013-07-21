@@ -29,10 +29,10 @@
 
 #include "itree.h"
 
-#include "main.h"
-#include "cfg.h"
-#include "slogger.h"
-#include "massert.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfsdaemonmain/main.h"
 
 static void *racktree;
 static char *TopologyFileName;

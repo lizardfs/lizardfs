@@ -31,21 +31,21 @@
 #include <time.h>
 #endif
 
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
 
 #ifndef METARESTORE
-#include "main.h"
-#include "cfg.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/cfg.h"
 #include "matocsserv.h"
 #include "matoclserv.h"
-#include "random.h"
+#include "mfscommon/random.h"
 #include "topology.h"
 #endif
 
 #include "chunks.h"
 #include "filesystem.h"
-#include "datapack.h"
-#include "massert.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/massert.h"
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1

@@ -29,8 +29,8 @@
 #include <errno.h>
 #include <sys/resource.h>
 
-#include "charts.h"
-#include "main.h"
+#include "mfscommon/charts.h"
+#include "mfsdaemonmain/main.h"
 
 #include "csserv.h"
 #include "masterconn.h"

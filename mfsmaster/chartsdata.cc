@@ -56,8 +56,8 @@
 #include <errno.h>
 
 
-#include "charts.h"
-#include "main.h"
+#include "mfscommon/charts.h"
+#include "mfsdaemonmain/main.h"
 
 #include "chunks.h"
 #include "filesystem.h"

@@ -30,15 +30,15 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "MFSCommunication.h"
-#include "hddspacemgr.h"
-#include "sockets.h"
-#include "crc.h"
-#include "slogger.h"
-#include "datapack.h"
-#include "massert.h"
-#include "mfsstrerr.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/sockets.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/mfsstrerr.h"
 
+#include "hddspacemgr.h"
 #include "replicator.h"
 
 #define CONNMSECTO 5000
