@@ -1,10 +1,9 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon ../mfsmaster)
-AUX_SOURCE_DIRECTORY("." METARESTORE_SRCS)
-set(FILESYSTEM_SRC ../mfsmaster/filesystem.cc ../mfsmaster/chunks.cc)
-set(STDERR_SRC ../mfscommon/strerr.cc)
-
 add_definitions(-DMETARESTORE)
 add_definitions(-DAPPNAME=mfsmetarestore)
 
-add_executable(mfsmetarestore/mfsmetarestore ${METARESTORE_SRCS} ${FILESYSTEM_SRC} ${STDERR_SRC}) 
-target_link_libraries(mfsmetarestore/mfsmetarestore)
+aux_source_directory(. METARESTORE_SOURCES)
+set(METARESTORE_SOURCES ${METARESTORE_SOURCES} ../mfsmaster/filesystem.cc ../mfsmaster/chunks.cc)
+add_executable(mfsmetarestore ${METARESTORE_SOURCES}) 
+target_link_libraries(mfsmetarestore mfscommon)
+install(TARGETS mfsmetarestore RUNTIME DESTINATION sbin)

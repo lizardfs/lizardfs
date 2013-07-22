@@ -877,7 +877,7 @@ int main(int argc, char *argv[]) {
 			free(cfgfile);
 			cfgfile=strdup(ETC_PATH "/mfsmount.cfg");
 			if ((cfgfd = open(cfgfile,O_RDONLY))>=0) {
-				fprintf(stderr,"default sysconf path has changed - please move mfsmount.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/\n");
+				fprintf(stderr,"default sysconf path has changed - please move mfsmount.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/\n");
 			}
 		}
 		if (cfgfd>=0) {

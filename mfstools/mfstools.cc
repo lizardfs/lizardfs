@@ -2145,7 +2145,7 @@ int main(int argc,char **argv) {
 		if (argc==2 && strcmp(argv[1],"create")==0) {
 			fprintf(stderr,"create symlinks\n");
 #define SYMLINK(name)	if (symlink(argv[0],name)<0) { \
-				perror("error creating symlink '"name"'"); \
+				perror("error creating symlink '" name "'"); \
 			}
 			SYMLINK("mfsgetgoal")
 			SYMLINK("mfssetgoal")

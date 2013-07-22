@@ -426,7 +426,7 @@ void topology_reload(void) {
 			free(TopologyFileName);
 			TopologyFileName = strdup(ETC_PATH "/mfstopology.cfg");
 			if ((fd = open(TopologyFileName,O_RDONLY))>=0) {
-				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from "ETC_PATH"/ to "ETC_PATH"/mfs/");
+				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 			}
 		}
 		if (fd>=0) {
