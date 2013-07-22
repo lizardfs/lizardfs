@@ -1741,7 +1741,6 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	uint8_t *buff;
-	uint32_t ssize;
 	int err;
 	const struct fuse_ctx *ctx;
 
@@ -1800,8 +1799,9 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
-		oplog_getdata(fi->fh,&buff,&ssize,size);
-		fuse_reply_buf(req,(char*)buff,ssize);
+		uint32_t ret;
+		oplog_getdata(fi->fh, &buff, &ret, size);
+		fuse_reply_buf(req, (char*)buff, ret);
 		oplog_releasedata(fi->fh);
 		return;
 	}
@@ -1840,9 +1840,16 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		fileinfo->data = read_data_new(ino);
 	}
 	write_data_flush_inode(ino);
-	ssize = size;
+
+	// Lizardfs chunkserver supports only requests aligned to MFSBLOCKSIZE
+	uint32_t firstBlockToRead = off / MFSBLOCKSIZE;
+	uint32_t firstBlockNotToRead = (off + size + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+	uint32_t alignedOffset = firstBlockToRead * MFSBLOCKSIZE;
+	uint32_t alignedSize = (firstBlockNotToRead - firstBlockToRead) * MFSBLOCKSIZE;
+
+	uint32_t ssize = alignedSize;
 	buff = NULL;	// use internal 'readdata' buffer
-	err = read_data(fileinfo->data,off,&ssize,&buff);
+	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		fuse_reply_err(req,err);
 		if (debug_mode) {
@@ -1850,7 +1857,17 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		}
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
 	} else {
-		fuse_reply_buf(req,(char*)buff,ssize);
+		uint32_t replyOffset = off - alignedOffset;
+		buff += replyOffset;
+		if (ssize > replyOffset) {
+			ssize -= replyOffset;
+			if (ssize > size) {
+				ssize = size;
+			}
+		} else {
+			ssize = 0;
+		}
+		fuse_reply_buf(req, (char*)buff, ssize);
 		if (debug_mode) {
 			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
 		}

@@ -1,20 +1,20 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
+ Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
 
-   This file is part of MooseFS.
+ This file is part of MooseFS.
 
-   MooseFS is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, version 3.
+ MooseFS is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, version 3.
 
-   MooseFS is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+ MooseFS is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ You should have received a copy of the GNU General Public License
+ along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "config.h"
 
@@ -31,6 +31,8 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+
+#include <memory>
 
 #include "devtools/TracePrinter.h"
 #include "mfscommon/MFSCommunication.h"
@@ -54,9 +56,22 @@
 #define MaxPacketSize 100000
 
 //csserventry.mode
-enum {HEADER,DATA};
+enum {
+	HEADER, DATA
+};
 //csserventry.state
-enum {IDLE,READ,WRITELAST,CONNECTING,WRITEINIT,WRITEFWD,WRITEFINISH,CLOSE,CLOSEWAIT,CLOSED};
+enum {
+	IDLE,
+	READ,
+	WRITELAST,
+	CONNECTING,
+	WRITEINIT,
+	WRITEFWD,
+	WRITEFINISH,
+	CLOSE,
+	CLOSEWAIT,
+	CLOSED
+};
 
 typedef struct writestatus {
 	uint32_t writeid;
@@ -68,6 +83,7 @@ typedef struct packetstruct {
 	uint8_t *startptr;
 	uint32_t bytesleft;
 	uint8_t *packet;
+	std::unique_ptr<OutputBuffer> outputBuffer; // TODO(alek) unia? uczciwa hierarchia klas?
 } packetstruct;
 
 typedef struct csserventry {
@@ -76,22 +92,22 @@ typedef struct csserventry {
 	uint8_t fwdmode;
 
 	int sock;
-	int fwdsock;			// forwarding socket for writing
-	uint64_t connstart;		// 'connect' start time in usec (for timeout and retry)
-	uint32_t fwdip;			// 'connect' IP
-	uint16_t fwdport;		// 'connect' port number
-	uint8_t connretrycnt;		// 'connect' retry counter
+	int fwdsock; // forwarding socket for writing
+	uint64_t connstart; // 'connect' start time in usec (for timeout and retry)
+	uint32_t fwdip; // 'connect' IP
+	uint16_t fwdport; // 'connect' port number
+	uint8_t connretrycnt; // 'connect' retry counter
 	int32_t pdescpos;
 	int32_t fwdpdescpos;
 	uint32_t activity;
 	uint8_t hdrbuff[8];
 	uint8_t fwdhdrbuff[8];
 	packetstruct inputpacket;
-	uint8_t *fwdstartptr;		// used for forwarding inputpacket data
-	uint32_t fwdbytesleft;		// used for forwarding inputpacket data
-	packetstruct fwdinputpacket;	// used for receiving status from fwdsocket
-	uint8_t *fwdinitpacket;		// used only for write initialization
-	packetstruct *outputhead,**outputtail;
+	uint8_t *fwdstartptr; // used for forwarding inputpacket data
+	uint32_t fwdbytesleft; // used for forwarding inputpacket data
+	packetstruct fwdinputpacket; // used for receiving status from fwdsocket
+	uint8_t *fwdinitpacket; // used only for write initialization
+	packetstruct *outputhead, **outputtail;
 
 	/* write */
 	uint32_t wjobid;
@@ -100,22 +116,22 @@ typedef struct csserventry {
 
 	/* read */
 	uint32_t rjobid;
-	uint8_t todocnt;		// R (read finished + send finished)
+	uint8_t todocnt; // R (read finished + send finished)
 
 	/* common for read and write but meaning is different !!! */
 	void *rpacket;
 	void *wpacket;
 
 	uint8_t chunkisopen;
-	uint64_t chunkid;		// R+W
-	uint32_t version;		// R+W
-	uint32_t offset;		// R
-	uint32_t size;			// R
+	uint64_t chunkid; // R+W
+	uint32_t version; // R+W
+	uint32_t offset; // R
+	uint32_t size; // R
 
 	struct csserventry *next;
 } csserventry;
 
-static csserventry *csservhead=NULL;
+static csserventry *csservhead = NULL;
 static int lsock;
 static int32_t lsockpdescpos;
 
@@ -126,17 +142,18 @@ static int32_t jobfdpdescpos;
 static uint32_t mylistenip;
 static uint16_t mylistenport;
 
-static uint64_t stats_bytesin=0;
-static uint64_t stats_bytesout=0;
-static uint32_t stats_hlopr=0;
-static uint32_t stats_hlopw=0;
-static uint32_t stats_maxjobscnt=0;
+static uint64_t stats_bytesin = 0;
+static uint64_t stats_bytesout = 0;
+static uint32_t stats_hlopr = 0;
+static uint32_t stats_hlopw = 0;
+static uint32_t stats_maxjobscnt = 0;
 
 // from config
 static char *ListenHost;
 static char *ListenPort;
 
-void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
+void csserv_stats(uint64_t *bin, uint64_t *bout, uint32_t *hlopr,
+		uint32_t *hlopw, uint32_t *maxjobscnt) {
 	TRACETHIS();
 	*bin = stats_bytesin;
 	*bout = stats_bytesout;
@@ -150,44 +167,45 @@ void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,u
 	stats_maxjobscnt = 0;
 }
 
-void* csserv_create_detached_packet(uint32_t type,uint32_t size) {
+packetstruct* csserv_create_detached_packet(uint32_t type, uint32_t size) {
 	TRACETHIS();
-	packetstruct *outpacket;
-	uint8_t *ptr;
-	uint32_t psize;
 
-	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
-	passert(outpacket);
-	psize = size+8;
-	outpacket->packet= (uint8_t*) malloc(psize);
-	passert(outpacket->packet);
-	outpacket->bytesleft = psize;
-	ptr = outpacket->packet;
-	put32bit(&ptr,type);
-	put32bit(&ptr,size);
-	outpacket->startptr = (uint8_t*)(outpacket->packet);
+	packetstruct* outpacket = new packetstruct();
+
+#if defined(HAVE_SPLICE)
+	outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512 * 1024u));
+#else /* HAVE_SPLICE */
+	uint32_t psize = size + 8;
+	outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new SimpleOutputBuffer(psize));
+#endif /* HAVE_SPLICE */
+
+	uint8_t data[2 * sizeof(uint32_t)];
+	uint8_t* ptr = data;
+	put32bit(&ptr, type);
+	put32bit(&ptr, size);
+	eassert(outpacket->outputBuffer->copyIntoBuffer(data, sizeof(data)) == sizeof(data)); // TODO(alek) moze jednak nie assert?
+
 	outpacket->next = NULL;
 	return outpacket;
 }
 
 uint8_t* csserv_get_packet_data(void *packet) {
 	TRACETHIS();
-	packetstruct *outpacket = (packetstruct*)packet;
-	return outpacket->packet+8;
+	packetstruct *outpacket = (packetstruct*) packet;
+	return outpacket->packet + 8;
 }
 
 void csserv_delete_packet(void *packet) {
-	TRACETHIS();
-	packetstruct *outpacket = (packetstruct*)packet;
-	free(outpacket->packet);
-	free(outpacket);
+  TRACETHIS();
+  packetstruct *outpacket = (packetstruct*) packet;
+  free(outpacket->packet);
+  delete outpacket;
 }
 
 void csserv_attach_packet(csserventry *eptr,void *packet) {
-	TRACETHIS();
-	packetstruct *outpacket = (packetstruct*)packet;
-	*(eptr->outputtail) = outpacket;
-	eptr->outputtail = &(outpacket->next);
+  packetstruct *outpacket = (packetstruct*)packet;
+  *(eptr->outputtail) = outpacket;
+  eptr->outputtail = &(outpacket->next);
 }
 
 void* csserv_preserve_inputpacket(csserventry *eptr) {
@@ -205,22 +223,23 @@ void csserv_delete_preserved(void *p) {
 	}
 }
 
-uint8_t* csserv_create_attached_packet(csserventry *eptr,uint32_t type,uint32_t size) {
+uint8_t* csserv_create_attached_packet(csserventry *eptr, uint32_t type,
+		uint32_t size) {
 	TRACETHIS();
 	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
 
-	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
+	outpacket = new packetstruct();
 	passert(outpacket);
-	psize = size+8;
-	outpacket->packet= (uint8_t*) malloc(psize);
+	psize = size + 8;
+	outpacket->packet = (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
-	put32bit(&ptr,type);
-	put32bit(&ptr,size);
-	outpacket->startptr = (uint8_t*)(outpacket->packet);
+	put32bit(&ptr, type);
+	put32bit(&ptr, size);
+	outpacket->startptr = (uint8_t*) (outpacket->packet);
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
@@ -231,32 +250,32 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr,uint32_t type,uint32_t 
 int csserv_initconnect(csserventry *eptr) {
 	TRACETHIS();
 	int status;
-	eptr->fwdsock=tcpsocket();
-	if (eptr->fwdsock<0) {
-		mfs_errlog(LOG_WARNING,"create socket, error");
+	eptr->fwdsock = tcpsocket();
+	if (eptr->fwdsock < 0) {
+		mfs_errlog(LOG_WARNING, "create socket, error");
 		return -1;
 	}
-	if (tcpnonblock(eptr->fwdsock)<0) {
-		mfs_errlog(LOG_WARNING,"set nonblock, error");
+	if (tcpnonblock(eptr->fwdsock) < 0) {
+		mfs_errlog(LOG_WARNING, "set nonblock, error");
 		tcpclose(eptr->fwdsock);
-		eptr->fwdsock=-1;
+		eptr->fwdsock = -1;
 		return -1;
 	}
-	status = tcpnumconnect(eptr->fwdsock,eptr->fwdip,eptr->fwdport);
-	if (status<0) {
-		mfs_errlog(LOG_WARNING,"connect failed, error");
+	status = tcpnumconnect(eptr->fwdsock, eptr->fwdip, eptr->fwdport);
+	if (status < 0) {
+		mfs_errlog(LOG_WARNING, "connect failed, error");
 		tcpclose(eptr->fwdsock);
-		eptr->fwdsock=-1;
+		eptr->fwdsock = -1;
 		return -1;
 	}
-	if (status==0) { // connected immediately
+	if (status == 0) { // connected immediately
 //		syslog(LOG_NOTICE,"connected immediately");
 		tcpnodelay(eptr->fwdsock);
-		eptr->state=WRITEINIT;
+		eptr->state = WRITEINIT;
 	} else {
 //		syslog(LOG_NOTICE,"connecting ...");
-		eptr->state=CONNECTING;
-		eptr->connstart=main_utime();
+		eptr->state = CONNECTING;
+		eptr->connstart = main_utime();
 	}
 	return 0;
 }
@@ -265,46 +284,47 @@ void csserv_retryconnect(csserventry *eptr) {
 	TRACETHIS();
 	uint8_t *ptr;
 	tcpclose(eptr->fwdsock);
-	eptr->fwdsock=-1;
+	eptr->fwdsock = -1;
 	eptr->connretrycnt++;
-	if (eptr->connretrycnt<CONNECT_RETRIES) {
-		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+	if (eptr->connretrycnt < CONNECT_RETRIES) {
+		if (csserv_initconnect(eptr) < 0) {
+			ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+			put64bit(&ptr, eptr->chunkid);
+			put32bit(&ptr, 0);
+			put8bit(&ptr, ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
 	} else {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,0);
-		put8bit(&ptr,ERROR_CANTCONNECT);
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, 0);
+		put8bit(&ptr, ERROR_CANTCONNECT);
 		eptr->state = WRITEFINISH;
 		return;
 	}
 }
 
-int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) {
+int csserv_makefwdpacket(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
 	uint32_t psize;
-	psize = 12+length;
-	eptr->fwdbytesleft = 8+psize;
+	psize = 12 + length;
+	eptr->fwdbytesleft = 8 + psize;
 	eptr->fwdinitpacket = (uint8_t*) malloc(eptr->fwdbytesleft);
 	passert(eptr->fwdinitpacket);
 	eptr->fwdstartptr = eptr->fwdinitpacket;
-	if (eptr->fwdinitpacket==NULL) {
+	if (eptr->fwdinitpacket == NULL) {
 		return -1;
 	}
 	ptr = eptr->fwdinitpacket;
-	put32bit(&ptr,CLTOCS_WRITE);
-	put32bit(&ptr,psize);
-	put64bit(&ptr,eptr->chunkid);
-	put32bit(&ptr,eptr->version);
-	if (length>0) {
-		memcpy(ptr,data,length);
+	put32bit(&ptr, CLTOCS_WRITE);
+	put32bit(&ptr, psize);
+	put64bit(&ptr, eptr->chunkid);
+	put32bit(&ptr, eptr->version);
+	if (length > 0) {
+		memcpy(ptr, data, length);
 	}
 	return 0;
 }
@@ -312,32 +332,31 @@ int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) 
 void csserv_check_nextpacket(csserventry *eptr);
 
 // common - delayed close
-void csserv_delayed_close(uint8_t status,void *e) {
+void csserv_delayed_close(uint8_t status, void *e) {
 	TRACETHIS();
-	csserventry *eptr = (csserventry*)e;
-	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==STATUS_OK) {	// this was job_open
+	csserventry *eptr = (csserventry*) e;
+	if (eptr->wjobid > 0 && eptr->wjobwriteid == 0 && status == STATUS_OK) { // this was job_open
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
-		job_close(jpool,NULL,NULL,eptr->chunkid);
-		eptr->chunkisopen=0;
+		job_close(jpool, NULL, NULL, eptr->chunkid);
+		eptr->chunkisopen = 0;
 	}
 	eptr->state = CLOSED;
 }
-
 
 // bg reading
 
 void csserv_read_continue(csserventry *eptr);
 
-void csserv_read_finished(uint8_t status,void *e) {
+void csserv_read_finished(uint8_t status, void *e) {
 	TRACETHIS();
-	csserventry *eptr = (csserventry*)e;
+	csserventry *eptr = (csserventry*) e;
 	uint8_t *ptr;
-	eptr->rjobid=0;
-	if (status==STATUS_OK) {
+	eptr->rjobid = 0;
+	if (status == STATUS_OK) {
 		eptr->todocnt--;
-		if (eptr->todocnt==0) {
+		if (eptr->todocnt == 0) {
 			csserv_read_continue(eptr);
 		}
 	} else {
@@ -345,19 +364,20 @@ void csserv_read_finished(uint8_t status,void *e) {
 			csserv_delete_packet(eptr->rpacket);
 			eptr->rpacket = NULL;
 		}
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
-		job_close(jpool,NULL,NULL,eptr->chunkid);
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, status);
+		job_close(jpool, NULL, NULL, eptr->chunkid);
 		eptr->chunkisopen = 0;
-		eptr->state = IDLE;	// after sending status even if there was an error it's possible to receive new requests on the same connection
+		eptr->state = IDLE; // after sending status even if there was an error it's possible to
+		// receive new requests on the same connection
 	}
 }
 
 void csserv_send_finished(csserventry *eptr) {
 	TRACETHIS();
 	eptr->todocnt--;
-	if (eptr->todocnt==0) {
+	if (eptr->todocnt == 0) {
 		csserv_read_continue(eptr);
 	}
 }
@@ -368,27 +388,33 @@ void csserv_read_continue(csserventry *eptr) {
 	uint8_t *ptr;
 
 	if (eptr->rpacket) {
-		csserv_attach_packet(eptr,eptr->rpacket);
-		eptr->rpacket=NULL;
+		csserv_attach_packet(eptr, eptr->rpacket);
+		eptr->rpacket = NULL;
 		eptr->todocnt++;
 	}
-	if (eptr->size==0) {	// everything have been read
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);
-		job_close(jpool,NULL,NULL,eptr->chunkid);
+	if (eptr->size == 0) { // everything has been read
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, STATUS_OK);
+		job_close(jpool, NULL, NULL, eptr->chunkid);
 		eptr->chunkisopen = 0;
-		eptr->state = IDLE;	// no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
+		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
 		size = eptr->size;
-		eptr->rpacket = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
-		ptr = csserv_get_packet_data(eptr->rpacket);
+		packetstruct* ps = csserv_create_detached_packet(CSTOCL_READ_DATA, 8 + 4 + 4 + 4 + size);
+		eptr->rpacket = (void*)ps;
+
+		uint8_t data[sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint32_t)];
+		uint8_t* ptr = data;
 		put64bit(&ptr, eptr->chunkid);
 		put32bit(&ptr, eptr->offset);
 		put32bit(&ptr, size);
-		eptr->rjobid = job_read(jpool, csserv_read_finished, eptr, eptr->chunkid, eptr->version, ptr+4, eptr->offset, size, ptr);
+		ps->outputBuffer->copyIntoBuffer(data, sizeof(data));
 
-		if (eptr->rjobid==0) {
+		eptr->rjobid = job_read(jpool, csserv_read_finished, eptr, eptr->chunkid,
+					eptr->version, eptr->offset, size, ps->outputBuffer.get());
+
+		if (eptr->rjobid == 0) {
 			eptr->state = CLOSE;
 			return;
 		}
@@ -398,12 +424,12 @@ void csserv_read_continue(csserventry *eptr) {
 	}
 }
 
-void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_read_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS1(length);
 	uint8_t *ptr;
 	uint8_t status;
 
-	if (length!=8+4+4+4) {
+	if (length != 8 + 4 + 4 + 4) {
 		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
 		eptr->state = CLOSE;
 		return;
@@ -412,36 +438,38 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->version = get32bit(&data);
 	eptr->offset = get32bit(&data);
 	eptr->size = get32bit(&data);
-	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
+
+	status = hdd_check_version(eptr->chunkid, eptr->version);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, status);
 		return;
 	}
-	if (eptr->size==0) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
+	if (eptr->size == 0) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, STATUS_OK); // no bytes to read - just return STATUS_OK
 		return;
 	}
-	if (eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGSIZE);
+
+	if (eptr->size > MFSCHUNKSIZE) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, ERROR_WRONGSIZE);
 		return;
 	}
-	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGOFFSET);
+	if (eptr->offset >= MFSCHUNKSIZE || eptr->offset + eptr->size > MFSCHUNKSIZE) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, ERROR_WRONGOFFSET);
 		return;
 	}
 	status = hdd_open(eptr->chunkid);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put8bit(&ptr, status);
 		return;
 	}
 	stats_hlopr++;
@@ -454,37 +482,38 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 // bg writing
 
-void csserv_write_finished(uint8_t status,void *e) {
+void csserv_write_finished(uint8_t status, void *e) {
 	TRACETHIS();
-	csserventry *eptr = (csserventry*)e;
+	csserventry *eptr = (csserventry*) e;
 	uint8_t *ptr;
-	writestatus **wpptr,*wptr;
+	writestatus **wpptr, *wptr;
 //	syslog(LOG_NOTICE,"write job finished (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,eptr->wjobwriteid);
-		put8bit(&ptr,status);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, eptr->wjobwriteid);
+		put8bit(&ptr, status);
 		eptr->state = WRITEFINISH;
 		return;
 	}
-	if (eptr->wjobwriteid==0) {
+	if (eptr->wjobwriteid == 0) {
 		eptr->chunkisopen = 1;
 	}
-	if (eptr->state==WRITELAST) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,eptr->wjobwriteid);
-		put8bit(&ptr,STATUS_OK);
+	if (eptr->state == WRITELAST) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, eptr->wjobwriteid);
+		put8bit(&ptr, STATUS_OK);
 	} else {
 		wpptr = &(eptr->todolist);
-		while ((wptr=*wpptr)) {
-			if (wptr->writeid==eptr->wjobwriteid) { // found - it means that it was added by status_receive
-				ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-				put64bit(&ptr,eptr->chunkid);
-				put32bit(&ptr,eptr->wjobwriteid);
-				put8bit(&ptr,STATUS_OK);
+		while ((wptr = *wpptr)) {
+			if (wptr->writeid == eptr->wjobwriteid) { // found - it means that it was added by status_receive
+				ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS,
+						8 + 4 + 1);
+				put64bit(&ptr, eptr->chunkid);
+				put32bit(&ptr, eptr->wjobwriteid);
+				put8bit(&ptr, STATUS_OK);
 				*wpptr = wptr->next;
 				free(wptr);
 			} else {
@@ -501,45 +530,46 @@ void csserv_write_finished(uint8_t status,void *e) {
 	csserv_check_nextpacket(eptr);
 }
 
-void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_write_init(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
 	uint8_t status;
 
-	if (length<12 || ((length-12)%6)!=0) {
+	if (length < 12 || ((length - 12) % 6) != 0) {
 		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	eptr->chunkid = get64bit(&data);
 	eptr->version = get32bit(&data);
-	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,0);
-		put8bit(&ptr,status);
+	status = hdd_check_version(eptr->chunkid, eptr->version);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, 0);
+		put8bit(&ptr, status);
 		eptr->state = WRITEFINISH;
 		return;
 	}
 
-	if (length>(8+4)) {	// connect to another cs
+	if (length > (8 + 4)) { // connect to another cs
 		eptr->fwdip = get32bit(&data);
 		eptr->fwdport = get16bit(&data);
 		eptr->connretrycnt = 0;
-		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+		if (csserv_makefwdpacket(eptr, data, length - 12 - 6) < 0) {
+			ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+			put64bit(&ptr, eptr->chunkid);
+			put32bit(&ptr, 0);
+			put8bit(&ptr, ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
-		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+		if (csserv_initconnect(eptr) < 0) {
+			ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+			put64bit(&ptr, eptr->chunkid);
+			put32bit(&ptr, 0);
+			put8bit(&ptr, ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
@@ -549,10 +579,11 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	stats_hlopw++;
 
 	eptr->wjobwriteid = 0;
-	eptr->wjobid = job_open(jpool,csserv_write_finished,eptr,eptr->chunkid);
+	eptr->wjobid = job_open(jpool, csserv_write_finished, eptr, eptr->chunkid);
 }
 
-void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_write_data(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint64_t chunkid;
 	uint16_t blocknum;
@@ -561,7 +592,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t writeid;
 	uint8_t *ptr;
 
-	if (length<8+4+2+2+4+4) {
+	if (length < 8 + 4 + 2 + 2 + 4 + 4) {
 		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+size)",length);
 		eptr->state = CLOSE;
 		return;
@@ -571,16 +602,16 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	blocknum = get16bit(&data);
 	offset = get16bit(&data);
 	size = get32bit(&data);
-	if (length!=8+4+2+2+4+4+size) {
+	if (length != 8 + 4 + 2 + 2 + 4 + 4 + size) {
 		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+%" PRIu32 ")",length,size);
 		eptr->state = CLOSE;
 		return;
 	}
-	if (chunkid!=eptr->chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,writeid);
-		put8bit(&ptr,ERROR_WRONGCHUNKID);
+	if (chunkid != eptr->chunkid) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, chunkid);
+		put32bit(&ptr, writeid);
+		put8bit(&ptr, ERROR_WRONGCHUNKID);
 		eptr->state = WRITEFINISH;
 		return;
 	}
@@ -589,19 +620,21 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 	eptr->wpacket = csserv_preserve_inputpacket(eptr);
 	eptr->wjobwriteid = writeid;
-	eptr->wjobid = job_write(jpool,csserv_write_finished,eptr,chunkid,eptr->version,blocknum,data+4,offset,size,data);
+	eptr->wjobid = job_write(jpool, csserv_write_finished, eptr, chunkid,
+			eptr->version, blocknum, data + 4, offset, size, data);
 //	syslog(LOG_NOTICE,"add write job (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ")",eptr->wjobid,chunkid,eptr->wjobwriteid);
 }
 
-void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_write_status(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
 	uint64_t chunkid;
 	uint32_t writeid;
 	uint8_t status;
-	writestatus **wpptr,*wptr;
+	writestatus **wpptr, *wptr;
 
-	if (length!=8+4+1) {
+	if (length != 8 + 4 + 1) {
 		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%" PRIu32 "/13)",length);
 		eptr->state = CLOSE;
 		return;
@@ -612,29 +645,29 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 
 //	syslog(LOG_NOTICE,"received write status (chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",chunkid,writeid,status);
 
-	if (eptr->chunkid!=chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,0);
-		put8bit(&ptr,ERROR_WRONGCHUNKID);
+	if (eptr->chunkid != chunkid) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, 0);
+		put8bit(&ptr, ERROR_WRONGCHUNKID);
 		eptr->state = WRITEFINISH;
 		return;
 	}
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,writeid);
-		put8bit(&ptr,status);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+		put64bit(&ptr, eptr->chunkid);
+		put32bit(&ptr, writeid);
+		put8bit(&ptr, status);
 		eptr->state = WRITEFINISH;
 		return;
 	}
 	wpptr = &(eptr->todolist);
-	while ((wptr=*wpptr)) {
-		if (wptr->writeid==writeid) { // found - means it was added by write_finished
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,chunkid);
-			put32bit(&ptr,writeid);
-			put8bit(&ptr,STATUS_OK);
+	while ((wptr = *wpptr)) {
+		if (wptr->writeid == writeid) { // found - means it was added by write_finished
+			ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+			put64bit(&ptr, chunkid);
+			put32bit(&ptr, writeid);
+			put8bit(&ptr, STATUS_OK);
 			*wpptr = wptr->next;
 			free(wptr);
 			return;
@@ -653,20 +686,21 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 void csserv_fwderror(csserventry *eptr) {
 	TRACETHIS();
 	uint8_t *ptr;
-	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-	put64bit(&ptr,eptr->chunkid);
-	put32bit(&ptr,0);
-	if (eptr->state==CONNECTING) {
-		put8bit(&ptr,ERROR_CANTCONNECT);
+	ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
+	put64bit(&ptr, eptr->chunkid);
+	put32bit(&ptr, 0);
+	if (eptr->state == CONNECTING) {
+		put8bit(&ptr, ERROR_CANTCONNECT);
 	} else {
-		put8bit(&ptr,ERROR_DISCONNECTED);
+		put8bit(&ptr, ERROR_DISCONNECTED);
 	}
 	eptr->state = WRITEFINISH;
 }
 
 /* IDLE operations */
 
-void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint64_t chunkid;
 	uint32_t version;
@@ -674,22 +708,24 @@ void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t leng
 	uint8_t status;
 	uint16_t blocks;
 
-	if (length!=8+4) {
+	if (length != 8 + 4) {
 		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	status = hdd_get_blocks(chunkid,version,&blocks);
-	ptr = csserv_create_attached_packet(eptr,CSTOCS_GET_CHUNK_BLOCKS_STATUS,8+4+2+1);
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	put16bit(&ptr,blocks);
-	put8bit(&ptr,status);
+	status = hdd_get_blocks(chunkid, version, &blocks);
+	ptr = csserv_create_attached_packet(eptr, CSTOCS_GET_CHUNK_BLOCKS_STATUS,
+			8 + 4 + 2 + 1);
+	put64bit(&ptr, chunkid);
+	put32bit(&ptr, version);
+	put16bit(&ptr, blocks);
+	put8bit(&ptr, status);
 }
 
-void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_chunk_checksum(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint64_t chunkid;
 	uint32_t version;
@@ -697,29 +733,30 @@ void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length
 	uint8_t status;
 	uint32_t checksum;
 
-	if (length!=8+4) {
+	if (length != 8 + 4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	status = hdd_get_checksum(chunkid,version,&checksum);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
+	status = hdd_get_checksum(chunkid, version, &checksum);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM, 8 + 4 + 1);
 	} else {
-		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
+		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM, 8 + 4 + 4);
 	}
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
+	put64bit(&ptr, chunkid);
+	put32bit(&ptr, version);
+	if (status != STATUS_OK) {
+		put8bit(&ptr, status);
 	} else {
-		put32bit(&ptr,checksum);
+		put32bit(&ptr, checksum);
 	}
 }
 
-void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_chunk_checksum_tab(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint64_t chunkid;
 	uint32_t version;
@@ -727,144 +764,149 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t status;
 	uint8_t crctab[4096];
 
-	if (length!=8+4) {
+	if (length != 8 + 4) {
 		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%" PRIu32 "/12)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	status = hdd_get_checksum_tab(chunkid,version,crctab);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
+	status = hdd_get_checksum_tab(chunkid, version, crctab);
+	if (status != STATUS_OK) {
+		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM_TAB,
+				8 + 4 + 1);
 	} else {
-		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
+		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM_TAB,
+				8 + 4 + 4096);
 	}
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
+	put64bit(&ptr, chunkid);
+	put32bit(&ptr, version);
+	if (status != STATUS_OK) {
+		put8bit(&ptr, status);
 	} else {
-		memcpy(ptr,crctab,4096);
+		memcpy(ptr, crctab, 4096);
 	}
 }
 
-void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_hdd_list_v1(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint32_t l;
 	uint8_t *ptr;
 
-	(void)data;
-	if (length!=0) {
+	(void) data;
+	if (length != 0) {
 		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
-	l = hdd_diskinfo_v1_size();	// lock
-	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V1,l);
-	hdd_diskinfo_v1_data(ptr);	// unlock
+	l = hdd_diskinfo_v1_size(); // lock
+	ptr = csserv_create_attached_packet(eptr, CSTOCL_HDD_LIST_V1, l);
+	hdd_diskinfo_v1_data(ptr); // unlock
 }
 
-void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_hdd_list_v2(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint32_t l;
 	uint8_t *ptr;
 
-	(void)data;
-	if (length!=0) {
+	(void) data;
+	if (length != 0) {
 		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(2) - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
-	l = hdd_diskinfo_v2_size();	// lock
-	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V2,l);
-	hdd_diskinfo_v2_data(ptr);	// unlock
+	l = hdd_diskinfo_v2_size(); // lock
+	ptr = csserv_create_attached_packet(eptr, CSTOCL_HDD_LIST_V2, l);
+	hdd_diskinfo_v2_data(ptr); // unlock
 }
 
-void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_chart(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
 
-	if (length!=4) {
+	if (length != 4) {
 		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_make_png(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART,l);
-	if (l>0) {
+	ptr = csserv_create_attached_packet(eptr, ANTOCL_CHART, l);
+	if (l > 0) {
 		charts_get_png(ptr);
 	}
 }
 
-void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_chart_data(csserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 	uint32_t chartid;
 	uint8_t *ptr;
 	uint32_t l;
 
-	if (length!=4) {
+	if (length != 4) {
 		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chartid = get32bit(&data);
 	l = charts_datasize(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART_DATA,l);
-	if (l>0) {
-		charts_makedata(ptr,chartid);
+	ptr = csserv_create_attached_packet(eptr, ANTOCL_CHART_DATA, l);
+	if (l > 0) {
+		charts_makedata(ptr, chartid);
 	}
 }
 
-
 void csserv_outputcheck(csserventry *eptr) {
 	TRACETHIS();
-	if (eptr->state==READ) {
+	if (eptr->state == READ) {
 		csserv_send_finished(eptr);
 	}
 }
 
 void csserv_close(csserventry *eptr) {
 	TRACETHIS();
-	if (eptr->rjobid>0) {
-		job_pool_disable_job(jpool,eptr->rjobid);
-		job_pool_change_callback(jpool,eptr->rjobid,csserv_delayed_close,eptr);
+	if (eptr->rjobid > 0) {
+		job_pool_disable_job(jpool, eptr->rjobid);
+		job_pool_change_callback(jpool, eptr->rjobid, csserv_delayed_close, eptr);
 		eptr->state = CLOSEWAIT;
-	} else if (eptr->wjobid>0) {
-		job_pool_disable_job(jpool,eptr->wjobid);
-		job_pool_change_callback(jpool,eptr->wjobid,csserv_delayed_close,eptr);
+	} else if (eptr->wjobid > 0) {
+		job_pool_disable_job(jpool, eptr->wjobid);
+		job_pool_change_callback(jpool, eptr->wjobid, csserv_delayed_close, eptr);
 		eptr->state = CLOSEWAIT;
 	} else {
 		if (eptr->chunkisopen) {
-			job_close(jpool,NULL,NULL,eptr->chunkid);
-			eptr->chunkisopen=0;
+			job_close(jpool, NULL, NULL, eptr->chunkid);
+			eptr->chunkisopen = 0;
 		}
 		eptr->state = CLOSED;
 	}
 }
 
-void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
+void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
+		uint32_t length) {
 	TRACETHIS();
 //	syslog(LOG_NOTICE,"packet %u:%u",type,length);
-	if (type==ANTOAN_NOP) {
+	if (type == ANTOAN_NOP) {
 		return;
 	}
-	if (type==ANTOAN_UNKNOWN_COMMAND) { // for future use
+	if (type == ANTOAN_UNKNOWN_COMMAND) { // for future use
 		return;
 	}
-	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
+	if (type == ANTOAN_BAD_COMMAND_SIZE) { // for future use
 		return;
 	}
-	if (eptr->state==IDLE) {
+	if (eptr->state == IDLE) {
 		switch (type) {
 		case CLTOCS_READ:
-			csserv_read_init(eptr,data,length);
+			csserv_read_init(eptr, data, length);
 			break;
 		case CLTOCS_WRITE:
-			csserv_write_init(eptr,data,length);
+			csserv_write_init(eptr, data, length);
 			break;
 //		case CLTOCS_WRITE_DATA:
 //			csserv_write_data(eptr,data,length);
@@ -873,53 +915,53 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 //			csserv_write_done(eptr,data,length);
 //			break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
-			csserv_get_chunk_blocks(eptr,data,length);
+			csserv_get_chunk_blocks(eptr, data, length);
 			break;
 		case ANTOCS_CHUNK_CHECKSUM:
-			csserv_chunk_checksum(eptr,data,length);
+			csserv_chunk_checksum(eptr, data, length);
 			break;
 		case ANTOCS_CHUNK_CHECKSUM_TAB:
-			csserv_chunk_checksum_tab(eptr,data,length);
+			csserv_chunk_checksum_tab(eptr, data, length);
 			break;
 		case CLTOCS_HDD_LIST_V1:
-			csserv_hdd_list_v1(eptr,data,length);
+			csserv_hdd_list_v1(eptr, data, length);
 			break;
 		case CLTOCS_HDD_LIST_V2:
-			csserv_hdd_list_v2(eptr,data,length);
+			csserv_hdd_list_v2(eptr, data, length);
 			break;
 		case CLTOAN_CHART:
-			csserv_chart(eptr,data,length);
+			csserv_chart(eptr, data, length);
 			break;
 		case CLTOAN_CHART_DATA:
-			csserv_chart_data(eptr,data,length);
+			csserv_chart_data(eptr, data, length);
 			break;
 		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
-	} else if (eptr->state==WRITELAST) {
-		if (type==CLTOCS_WRITE_DATA) {
-			csserv_write_data(eptr,data,length);
+	} else if (eptr->state == WRITELAST) {
+		if (type == CLTOCS_WRITE_DATA) {
+			csserv_write_data(eptr, data, length);
 		} else {
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}
-	} else if (eptr->state==WRITEFWD) {
+	} else if (eptr->state == WRITEFWD) {
 		switch (type) {
 		case CLTOCS_WRITE_DATA:
-			csserv_write_data(eptr,data,length);
+			csserv_write_data(eptr, data, length);
 			break;
 		case CSTOCL_WRITE_STATUS:
-			csserv_write_status(eptr,data,length);
+			csserv_write_status(eptr, data, length);
 			break;
 		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
-	} else if (eptr->state==WRITEFINISH) {
-		if (type==CLTOCS_WRITE_DATA) {
+	} else if (eptr->state == WRITEFINISH) {
+		if (type == CLTOCS_WRITE_DATA) {
 			return;
 		} else {
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
@@ -933,11 +975,11 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 
 void csserv_term(void) {
 	TRACETHIS();
-	csserventry *eptr,*eaptr;
-	packetstruct *pptr,*paptr;
-	writestatus *wptr,*waptr;
+	csserventry *eptr, *eaptr;
+	packetstruct *pptr, *paptr;
+	writestatus *wptr, *waptr;
 
-	syslog(LOG_NOTICE,"closing %s:%s",ListenHost,ListenPort);
+	syslog(LOG_NOTICE, "closing %s:%s", ListenHost, ListenPort);
 	tcpclose(lsock);
 
 	job_pool_delete(jpool);
@@ -948,7 +990,7 @@ void csserv_term(void) {
 			hdd_close(eptr->chunkid);
 		}
 		tcpclose(eptr->sock);
-		if (eptr->fwdsock>=0) {
+		if (eptr->fwdsock >= 0) {
 			tcpclose(eptr->fwdsock);
 		}
 		if (eptr->inputpacket.packet) {
@@ -979,17 +1021,18 @@ void csserv_term(void) {
 		eptr = eptr->next;
 		free(eaptr);
 	}
-	csservhead=NULL;
+	csservhead = NULL;
 	free(ListenHost);
 	free(ListenPort);
 }
 
 void csserv_check_nextpacket(csserventry *eptr) {
 	TRACETHIS();
-	uint32_t type,size;
+	uint32_t type, size;
 	const uint8_t *ptr;
-	if (eptr->state==WRITEFWD) {
-		if (eptr->mode==DATA && eptr->inputpacket.bytesleft==0 && eptr->fwdbytesleft==0) {
+	if (eptr->state == WRITEFWD) {
+		if (eptr->mode == DATA && eptr->inputpacket.bytesleft == 0
+				&& eptr->fwdbytesleft == 0) {
 			ptr = eptr->hdrbuff;
 			type = get32bit(&ptr);
 			size = get32bit(&ptr);
@@ -998,15 +1041,15 @@ void csserv_check_nextpacket(csserventry *eptr) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			csserv_gotpacket(eptr,type,eptr->inputpacket.packet+8,size);
+			csserv_gotpacket(eptr, type, eptr->inputpacket.packet + 8, size);
 
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
 			}
-			eptr->inputpacket.packet=NULL;
+			eptr->inputpacket.packet = NULL;
 		}
 	} else {
-		if (eptr->mode==DATA && eptr->inputpacket.bytesleft==0) {
+		if (eptr->mode == DATA && eptr->inputpacket.bytesleft == 0) {
 			ptr = eptr->hdrbuff;
 			type = get32bit(&ptr);
 			size = get32bit(&ptr);
@@ -1015,12 +1058,12 @@ void csserv_check_nextpacket(csserventry *eptr) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			csserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+			csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
 
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
 			}
-			eptr->inputpacket.packet=NULL;
+			eptr->inputpacket.packet = NULL;
 		}
 	}
 }
@@ -1030,47 +1073,48 @@ void csserv_fwdconnected(csserventry *eptr) {
 	int status;
 	status = tcpgetstatus(eptr->fwdsock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		mfs_errlog_silent(LOG_WARNING, "connection failed, error");
 		csserv_fwderror(eptr);
 		return;
 	}
 	tcpnodelay(eptr->fwdsock);
-	eptr->state=WRITEINIT;
+	eptr->state = WRITEINIT;
 }
 
 void csserv_fwdread(csserventry *eptr) {
 	TRACETHIS();
 	int32_t i;
-	uint32_t type,size;
+	uint32_t type, size;
 	const uint8_t *ptr;
-	if (eptr->fwdmode==HEADER) {
-		i=read(eptr->fwdsock,eptr->fwdinputpacket.startptr,eptr->fwdinputpacket.bytesleft);
-		if (i==0) {
+	if (eptr->fwdmode == HEADER) {
+		i = read(eptr->fwdsock, eptr->fwdinputpacket.startptr,
+				eptr->fwdinputpacket.bytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(fwdread) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(fwdread) read error");
 				csserv_fwderror(eptr);
 			}
 			return;
 		}
-		stats_bytesin+=i;
-		eptr->fwdinputpacket.startptr+=i;
-		eptr->fwdinputpacket.bytesleft-=i;
-		if (eptr->fwdinputpacket.bytesleft>0) {
+		stats_bytesin += i;
+		eptr->fwdinputpacket.startptr += i;
+		eptr->fwdinputpacket.bytesleft -= i;
+		if (eptr->fwdinputpacket.bytesleft > 0) {
 			return;
 		}
-		ptr = eptr->fwdhdrbuff+4;
+		ptr = eptr->fwdhdrbuff + 4;
 		size = get32bit(&ptr);
-		if (size>MaxPacketSize) {
+		if (size > MaxPacketSize) {
 			syslog(LOG_WARNING,"(fwdread) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 			csserv_fwderror(eptr);
 			return;
 		}
-		if (size>0) {
+		if (size > 0) {
 			eptr->fwdinputpacket.packet = (uint8_t*) malloc(size);
 			passert(eptr->fwdinputpacket.packet);
 			eptr->fwdinputpacket.startptr = eptr->fwdinputpacket.packet;
@@ -1078,25 +1122,26 @@ void csserv_fwdread(csserventry *eptr) {
 		eptr->fwdinputpacket.bytesleft = size;
 		eptr->fwdmode = DATA;
 	}
-	if (eptr->fwdmode==DATA) {
-		if (eptr->fwdinputpacket.bytesleft>0) {
-			i=read(eptr->fwdsock,eptr->fwdinputpacket.startptr,eptr->fwdinputpacket.bytesleft);
-			if (i==0) {
+	if (eptr->fwdmode == DATA) {
+		if (eptr->fwdinputpacket.bytesleft > 0) {
+			i = read(eptr->fwdsock, eptr->fwdinputpacket.startptr,
+					eptr->fwdinputpacket.bytesleft);
+			if (i == 0) {
 //				syslog(LOG_NOTICE,"(fwdread) connection closed");
 				csserv_fwderror(eptr);
 				return;
 			}
-			if (i<0) {
-				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+			if (i < 0) {
+				if (errno != EAGAIN) {
+					mfs_errlog_silent(LOG_NOTICE, "(fwdread) read error");
 					csserv_fwderror(eptr);
 				}
 				return;
 			}
-			stats_bytesin+=i;
-			eptr->fwdinputpacket.startptr+=i;
-			eptr->fwdinputpacket.bytesleft-=i;
-			if (eptr->fwdinputpacket.bytesleft>0) {
+			stats_bytesin += i;
+			eptr->fwdinputpacket.startptr += i;
+			eptr->fwdinputpacket.bytesleft -= i;
+			if (eptr->fwdinputpacket.bytesleft > 0) {
 				return;
 			}
 		}
@@ -1104,41 +1149,41 @@ void csserv_fwdread(csserventry *eptr) {
 		type = get32bit(&ptr);
 		size = get32bit(&ptr);
 
-		eptr->fwdmode=HEADER;
+		eptr->fwdmode = HEADER;
 		eptr->fwdinputpacket.bytesleft = 8;
 		eptr->fwdinputpacket.startptr = eptr->fwdhdrbuff;
 
-		csserv_gotpacket(eptr,type,eptr->fwdinputpacket.packet,size);
+		csserv_gotpacket(eptr, type, eptr->fwdinputpacket.packet, size);
 
 		if (eptr->fwdinputpacket.packet) {
 			free(eptr->fwdinputpacket.packet);
 		}
-		eptr->fwdinputpacket.packet=NULL;
+		eptr->fwdinputpacket.packet = NULL;
 	}
 }
 
 void csserv_fwdwrite(csserventry *eptr) {
 	TRACETHIS();
 	int32_t i;
-	if (eptr->fwdbytesleft>0) {
-		i=write(eptr->fwdsock,eptr->fwdstartptr,eptr->fwdbytesleft);
-		if (i==0) {
+	if (eptr->fwdbytesleft > 0) {
+		i = write(eptr->fwdsock, eptr->fwdstartptr, eptr->fwdbytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(fwdwrite) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdwrite) write error");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(fwdwrite) write error");
 				csserv_fwderror(eptr);
 			}
 			return;
 		}
-		stats_bytesout+=i;
-		eptr->fwdstartptr+=i;
-		eptr->fwdbytesleft-=i;
+		stats_bytesout += i;
+		eptr->fwdstartptr += i;
+		eptr->fwdbytesleft -= i;
 	}
-	if (eptr->fwdbytesleft==0) {
+	if (eptr->fwdbytesleft == 0) {
 		free(eptr->fwdinitpacket);
 		eptr->fwdinitpacket = NULL;
 		eptr->fwdstartptr = NULL;
@@ -1153,82 +1198,85 @@ void csserv_fwdwrite(csserventry *eptr) {
 void csserv_forward(csserventry *eptr) {
 	TRACETHIS();
 	int32_t i;
-	uint32_t type,size;
+	uint32_t type, size;
 	const uint8_t *ptr;
-	if (eptr->mode==HEADER) {
-		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
-		if (i==0) {
+	if (eptr->mode == HEADER) {
+		i = read(eptr->sock, eptr->inputpacket.startptr,
+				eptr->inputpacket.bytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
 		}
-		stats_bytesin+=i;
-		eptr->inputpacket.startptr+=i;
-		eptr->inputpacket.bytesleft-=i;
-		if (eptr->inputpacket.bytesleft>0) {
+		stats_bytesin += i;
+		eptr->inputpacket.startptr += i;
+		eptr->inputpacket.bytesleft -= i;
+		if (eptr->inputpacket.bytesleft > 0) {
 			return;
 		}
-		ptr = eptr->hdrbuff+4;
+		ptr = eptr->hdrbuff + 4;
 		size = get32bit(&ptr);
-		if (size>MaxPacketSize) {
+		if (size > MaxPacketSize) {
 			syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 			eptr->state = CLOSE;
 			return;
 		}
-		eptr->inputpacket.packet = (uint8_t*) malloc(size+8);
+		eptr->inputpacket.packet = (uint8_t*) malloc(size + 8);
 		passert(eptr->inputpacket.packet);
-		memcpy(eptr->inputpacket.packet,eptr->hdrbuff,8);
+		memcpy(eptr->inputpacket.packet, eptr->hdrbuff, 8);
 		eptr->inputpacket.bytesleft = size;
-		eptr->inputpacket.startptr = eptr->inputpacket.packet+8;
+		eptr->inputpacket.startptr = eptr->inputpacket.packet + 8;
 		eptr->fwdbytesleft = 8;
 		eptr->fwdstartptr = eptr->inputpacket.packet;
 		eptr->mode = DATA;
 	}
-	if (eptr->inputpacket.bytesleft>0) {
-		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
-		if (i==0) {
+	if (eptr->inputpacket.bytesleft > 0) {
+		i = read(eptr->sock, eptr->inputpacket.startptr,
+				eptr->inputpacket.bytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error: %s");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(forward) read error: %s");
 				eptr->state = CLOSE;
 			}
 			return;
 		}
-		stats_bytesin+=i;
-		eptr->inputpacket.startptr+=i;
-		eptr->inputpacket.bytesleft-=i;
-		eptr->fwdbytesleft+=i;
+		stats_bytesin += i;
+		eptr->inputpacket.startptr += i;
+		eptr->inputpacket.bytesleft -= i;
+		eptr->fwdbytesleft += i;
 	}
-	if (eptr->fwdbytesleft>0) {
-		i=write(eptr->fwdsock,eptr->fwdstartptr,eptr->fwdbytesleft);
-		if (i==0) {
+	if (eptr->fwdbytesleft > 0) {
+		i = write(eptr->fwdsock, eptr->fwdstartptr, eptr->fwdbytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(forward) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) write error: %s");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(forward) write error: %s");
 				csserv_fwderror(eptr);
 			}
 			return;
 		}
-		stats_bytesout+=i;
-		eptr->fwdstartptr+=i;
-		eptr->fwdbytesleft-=i;
+		stats_bytesout += i;
+		eptr->fwdstartptr += i;
+		eptr->fwdbytesleft -= i;
 	}
-	if (eptr->inputpacket.bytesleft==0 && eptr->fwdbytesleft==0 && eptr->wjobid==0) {
+	if (eptr->inputpacket.bytesleft == 0 && eptr->fwdbytesleft == 0
+			&& eptr->wjobid == 0) {
 		ptr = eptr->hdrbuff;
 		type = get32bit(&ptr);
 		size = get32bit(&ptr);
@@ -1237,48 +1285,49 @@ void csserv_forward(csserventry *eptr) {
 		eptr->inputpacket.bytesleft = 8;
 		eptr->inputpacket.startptr = eptr->hdrbuff;
 
-		csserv_gotpacket(eptr,type,eptr->inputpacket.packet+8,size);
+		csserv_gotpacket(eptr, type, eptr->inputpacket.packet + 8, size);
 
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
-		eptr->inputpacket.packet=NULL;
+		eptr->inputpacket.packet = NULL;
 	}
 }
 
 void csserv_read(csserventry *eptr) {
 	TRACETHIS();
 	int32_t i;
-	uint32_t type,size;
+	uint32_t type, size;
 	const uint8_t *ptr;
 
 	if (eptr->mode == HEADER) {
-		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
-		if (i==0) {
+		i = read(eptr->sock, eptr->inputpacket.startptr,
+				eptr->inputpacket.bytesleft);
+		if (i == 0) {
 //			syslog(LOG_NOTICE,"(read) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+		if (i < 0) {
+			if (errno != EAGAIN) {
+				mfs_errlog_silent(LOG_NOTICE, "(read) read error");
 				eptr->state = CLOSE;
 			}
 			return;
 		}
-		stats_bytesin+=i;
-		eptr->inputpacket.startptr+=i;
-		eptr->inputpacket.bytesleft-=i;
+		stats_bytesin += i;
+		eptr->inputpacket.startptr += i;
+		eptr->inputpacket.bytesleft -= i;
 
-		if (eptr->inputpacket.bytesleft>0) {
+		if (eptr->inputpacket.bytesleft > 0) {
 			return;
 		}
 
-		ptr = eptr->hdrbuff+4;
+		ptr = eptr->hdrbuff + 4;
 		size = get32bit(&ptr);
 
-		if (size>0) {
-			if (size>MaxPacketSize) {
+		if (size > 0) {
+			if (size > MaxPacketSize) {
 				syslog(LOG_WARNING,"(read) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 				eptr->state = CLOSE;
 				return;
@@ -1291,43 +1340,44 @@ void csserv_read(csserventry *eptr) {
 		eptr->mode = DATA;
 	}
 	if (eptr->mode == DATA) {
-		if (eptr->inputpacket.bytesleft>0) {
-			i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
-			if (i==0) {
+		if (eptr->inputpacket.bytesleft > 0) {
+			i = read(eptr->sock, eptr->inputpacket.startptr,
+					eptr->inputpacket.bytesleft);
+			if (i == 0) {
 //				syslog(LOG_NOTICE,"(read) connection closed");
 				eptr->state = CLOSE;
 				return;
 			}
-			if (i<0) {
-				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+			if (i < 0) {
+				if (errno != EAGAIN) {
+					mfs_errlog_silent(LOG_NOTICE, "(read) read error");
 					eptr->state = CLOSE;
 				}
 				return;
 			}
-			stats_bytesin+=i;
-			eptr->inputpacket.startptr+=i;
-			eptr->inputpacket.bytesleft-=i;
+			stats_bytesin += i;
+			eptr->inputpacket.startptr += i;
+			eptr->inputpacket.bytesleft -= i;
 
-			if (eptr->inputpacket.bytesleft>0) {
+			if (eptr->inputpacket.bytesleft > 0) {
 				return;
 			}
 		}
-		if (eptr->wjobid==0) {
-		ptr = eptr->hdrbuff;
-		type = get32bit(&ptr);
-		size = get32bit(&ptr);
+		if (eptr->wjobid == 0) {
+			ptr = eptr->hdrbuff;
+			type = get32bit(&ptr);
+			size = get32bit(&ptr);
 
-		eptr->mode = HEADER;
-		eptr->inputpacket.bytesleft = 8;
-		eptr->inputpacket.startptr = eptr->hdrbuff;
+			eptr->mode = HEADER;
+			eptr->inputpacket.bytesleft = 8;
+			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-		csserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+			csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
 
-		if (eptr->inputpacket.packet) {
-			free(eptr->inputpacket.packet);
-		}
-		eptr->inputpacket.packet=NULL;
+			if (eptr->inputpacket.packet) {
+				free(eptr->inputpacket.packet);
+			}
+			eptr->inputpacket.packet = NULL;
 		}
 	}
 }
@@ -1338,39 +1388,51 @@ void csserv_write(csserventry *eptr) {
 	int32_t i;
 	for (;;) {
 		pack = eptr->outputhead;
-		if (pack==NULL) {
+		if (pack == NULL) {
 			return;
 		}
-		i=write(eptr->sock,pack->startptr,pack->bytesleft);
-		if (i==0) {
-//			syslog(LOG_NOTICE,"(write) connection closed");
-			eptr->state = CLOSE;
-			return;
-		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(write) write error");
+		if (pack->outputBuffer) {
+			OutputBuffer::WriteStatus ret = pack->outputBuffer->writeOutToAFileDescriptor(eptr->sock);
+			if (ret == OutputBuffer::WRITE_ERROR) {
+				mfs_errlog_silent(LOG_NOTICE, "(write) write error");
 				eptr->state = CLOSE;
+				return;
+			} else if (ret == OutputBuffer::WRITE_AGAIN) {
+				return;
 			}
-			return;
+		} else {
+			i = write(eptr->sock, pack->startptr, pack->bytesleft);
+			if (i == 0) {
+	//			syslog(LOG_NOTICE,"(write) connection closed");
+				eptr->state = CLOSE;
+				return;
+			}
+			if (i < 0) {
+				if (errno != EAGAIN) {
+					mfs_errlog_silent(LOG_NOTICE, "(write) write error");
+					eptr->state = CLOSE;
+				}
+				return;
+			}
+			stats_bytesout += i;
+			pack->startptr += i;
+			pack->bytesleft -= i;
+			if (pack->bytesleft > 0) {
+				return;
+			}
 		}
-		stats_bytesout+=i;
-		pack->startptr+=i;
-		pack->bytesleft-=i;
-		if (pack->bytesleft>0) {
-			return;
-		}
+		// packet has been sent
 		free(pack->packet);
 		eptr->outputhead = pack->next;
-		if (eptr->outputhead==NULL) {
+		if (eptr->outputhead == NULL) {
 			eptr->outputtail = &(eptr->outputhead);
 		}
-		free(pack);
+		delete pack;
 		csserv_outputcheck(eptr);
 	}
 }
 
-void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 	TRACETHIS();
 	uint32_t pos = *ndesc;
 	csserventry *eptr;
@@ -1383,66 +1445,66 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	jobfdpdescpos = pos;
 	pos++;
 
-	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
+	for (eptr = csservhead; eptr; eptr = eptr->next) {
 		eptr->pdescpos = -1;
 		eptr->fwdpdescpos = -1;
 		switch (eptr->state) {
-			case IDLE:
-			case READ:
-			case WRITELAST:
-				pdesc[pos].fd = eptr->sock;
-				pdesc[pos].events = 0;
-				eptr->pdescpos = pos;
-				if (eptr->inputpacket.bytesleft>0) {
-					pdesc[pos].events |= POLLIN;
-				}
-				if (eptr->outputhead!=NULL) {
-					pdesc[pos].events |= POLLOUT;
-				}
-				pos++;
-				break;
-			case CONNECTING:
+		case IDLE:
+		case READ:
+		case WRITELAST:
+			pdesc[pos].fd = eptr->sock;
+			pdesc[pos].events = 0;
+			eptr->pdescpos = pos;
+			if (eptr->inputpacket.bytesleft > 0) {
+				pdesc[pos].events |= POLLIN;
+			}
+			if (eptr->outputhead != NULL) {
+				pdesc[pos].events |= POLLOUT;
+			}
+			pos++;
+			break;
+		case CONNECTING:
+			pdesc[pos].fd = eptr->fwdsock;
+			pdesc[pos].events = POLLOUT;
+			eptr->fwdpdescpos = pos;
+			pos++;
+			break;
+		case WRITEINIT:
+			if (eptr->fwdbytesleft > 0) {
 				pdesc[pos].fd = eptr->fwdsock;
 				pdesc[pos].events = POLLOUT;
 				eptr->fwdpdescpos = pos;
 				pos++;
-				break;
-			case WRITEINIT:
-				if (eptr->fwdbytesleft>0) {
-					pdesc[pos].fd = eptr->fwdsock;
-					pdesc[pos].events = POLLOUT;
-					eptr->fwdpdescpos = pos;
-					pos++;
-				}
-				break;
-			case WRITEFWD:
-				pdesc[pos].fd = eptr->fwdsock;
-				pdesc[pos].events = POLLIN;
-				eptr->fwdpdescpos = pos;
-				if (eptr->fwdbytesleft>0) {
-					pdesc[pos].events |= POLLOUT;
-				}
-				pos++;
+			}
+			break;
+		case WRITEFWD:
+			pdesc[pos].fd = eptr->fwdsock;
+			pdesc[pos].events = POLLIN;
+			eptr->fwdpdescpos = pos;
+			if (eptr->fwdbytesleft > 0) {
+				pdesc[pos].events |= POLLOUT;
+			}
+			pos++;
 
+			pdesc[pos].fd = eptr->sock;
+			pdesc[pos].events = 0;
+			eptr->pdescpos = pos;
+			if (eptr->inputpacket.bytesleft > 0) {
+				pdesc[pos].events |= POLLIN;
+			}
+			if (eptr->outputhead != NULL) {
+				pdesc[pos].events |= POLLOUT;
+			}
+			pos++;
+			break;
+		case WRITEFINISH:
+			if (eptr->outputhead != NULL) {
 				pdesc[pos].fd = eptr->sock;
-				pdesc[pos].events = 0;
+				pdesc[pos].events = POLLOUT;
 				eptr->pdescpos = pos;
-				if (eptr->inputpacket.bytesleft>0) {
-					pdesc[pos].events |= POLLIN;
-				}
-				if (eptr->outputhead!=NULL) {
-					pdesc[pos].events |= POLLOUT;
-				}
 				pos++;
-				break;
-			case WRITEFINISH:
-				if (eptr->outputhead!=NULL) {
-					pdesc[pos].fd = eptr->sock;
-					pdesc[pos].events = POLLOUT;
-					eptr->pdescpos = pos;
-					pos++;
-				}
-				break;
+			}
+			break;
 		}
 	}
 	*ndesc = pos;
@@ -1450,22 +1512,22 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 
 void csserv_serve(struct pollfd *pdesc) {
 	TRACETHIS();
-	uint32_t now=main_time();
-	uint64_t usecnow=main_utime();
-	csserventry *eptr,**kptr;
-	packetstruct *pptr,*paptr;
-	writestatus *wptr,*waptr;
+	uint32_t now = main_time();
+	uint64_t usecnow = main_utime();
+	csserventry *eptr, **kptr;
+	packetstruct *pptr, *paptr;
+	writestatus *wptr, *waptr;
 	uint32_t jobscnt;
 	int ns;
 	uint8_t lstate;
 
-	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
-		ns=tcpaccept(lsock);
-		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"accept error");
+	if (lsockpdescpos >= 0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
+		ns = tcpaccept(lsock);
+		if (ns < 0) {
+			mfs_errlog_silent(LOG_NOTICE, "accept error");
 		} else {
-			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
-				syslog(LOG_WARNING,"jobs queue is full !!!");
+			if (job_pool_jobs_count(jpool) >= (BGJOBSCNT * 9) / 10) {
+				syslog(LOG_WARNING, "jobs queue is full !!!");
 				tcpclose(ns);
 			} else {
 				tcpnonblock(ns);
@@ -1504,61 +1566,73 @@ void csserv_serve(struct pollfd *pdesc) {
 			}
 		}
 	}
-	if (jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) {
+	if (jobfdpdescpos >= 0 && (pdesc[jobfdpdescpos].revents & POLLIN)) {
 		job_pool_check_jobs(jpool);
 	}
-	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP))) {
+	for (eptr = csservhead; eptr; eptr = eptr->next) {
+		if (eptr->pdescpos >= 0
+				&& (pdesc[eptr->pdescpos].revents & (POLLERR | POLLHUP))) {
 			eptr->state = CLOSE;
-		} else if (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & (POLLERR|POLLHUP))) {
+		} else if (eptr->fwdpdescpos >= 0
+				&& (pdesc[eptr->fwdpdescpos].revents & (POLLERR | POLLHUP))) {
 			csserv_fwderror(eptr);
 		}
 		lstate = eptr->state;
-		if (lstate==IDLE || lstate==READ || lstate==WRITELAST || lstate==WRITEFINISH) {
-			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
+		if (lstate == IDLE || lstate == READ || lstate == WRITELAST
+				|| lstate == WRITEFINISH) {
+			if (eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
 				eptr->activity = now;
 				csserv_read(eptr);
 			}
-			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
+			if (eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLOUT)
+					&& eptr->state == lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}
-		} else if (lstate==CONNECTING && eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
+		} else if (lstate == CONNECTING && eptr->fwdpdescpos >= 0
+				&& (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
 			eptr->activity = now;
 			csserv_fwdconnected(eptr);
-			if (eptr->state==WRITEINIT) {
+			if (eptr->state == WRITEINIT) {
 				csserv_fwdwrite(eptr); // after connect likely some data can be send
 			}
-			if (eptr->state==WRITEFWD) {
+			if (eptr->state == WRITEFWD) {
 				csserv_forward(eptr); // and also some data can be forwarded
 			}
-		} else if (eptr->state==WRITEINIT && eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
+		} else if (eptr->state == WRITEINIT && eptr->fwdpdescpos >= 0
+				&& (pdesc[eptr->fwdpdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->fwdsock,wset)) {
 			eptr->activity = now;
 			csserv_fwdwrite(eptr); // after sending init packet
-			if (eptr->state==WRITEFWD) {
+			if (eptr->state == WRITEFWD) {
 				csserv_forward(eptr); // likely some data can be forwarded
 			}
-		} else if (eptr->state==WRITEFWD) {
-			if ((eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLIN)) || (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLOUT))) {
+		} else if (eptr->state == WRITEFWD) {
+			if ((eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLIN))
+					|| (eptr->fwdpdescpos >= 0
+							&& (pdesc[eptr->fwdpdescpos].revents & POLLOUT))) {
 				eptr->activity = now;
 				csserv_forward(eptr);
 			}
-			if (eptr->fwdpdescpos>=0 && (pdesc[eptr->fwdpdescpos].revents & POLLIN) && eptr->state==lstate) {
+			if (eptr->fwdpdescpos >= 0 && (pdesc[eptr->fwdpdescpos].revents & POLLIN)
+					&& eptr->state == lstate) {
 				eptr->activity = now;
 				csserv_fwdread(eptr);
 			}
-			if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->state==lstate) {
+			if (eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLOUT)
+					&& eptr->state == lstate) {
 				eptr->activity = now;
 				csserv_write(eptr);
 			}
 		}
-		if (eptr->state==WRITEFINISH && eptr->outputhead==NULL) {
+		if (eptr->state == WRITEFINISH && eptr->outputhead == NULL) {
 			eptr->state = CLOSE;
 		}
-		if (eptr->state==CONNECTING && eptr->connstart+CONNECT_TIMEOUT(eptr->connretrycnt)<usecnow) {
+		if (eptr->state == CONNECTING
+				&& eptr->connstart + CONNECT_TIMEOUT(eptr->connretrycnt) < usecnow) {
 			csserv_retryconnect(eptr);
 		}
-		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+CSSERV_TIMEOUT<now) {
+		if (eptr->state != CLOSE && eptr->state != CLOSEWAIT
+				&& eptr->state != CLOSED && eptr->activity + CSSERV_TIMEOUT < now) {
 //			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
@@ -1567,11 +1641,11 @@ void csserv_serve(struct pollfd *pdesc) {
 		}
 	}
 	jobscnt = job_pool_jobs_count(jpool);
-	if (jobscnt>=stats_maxjobscnt) {
-		stats_maxjobscnt=jobscnt;
+	if (jobscnt >= stats_maxjobscnt) {
+		stats_maxjobscnt = jobscnt;
 	}
 	kptr = &csservhead;
-	while ((eptr=*kptr)) {
+	while ((eptr = *kptr)) {
 		if (eptr->state == CLOSED) {
 			tcpclose(eptr->sock);
 			if (eptr->rpacket) {
@@ -1580,7 +1654,7 @@ void csserv_serve(struct pollfd *pdesc) {
 			if (eptr->wpacket) {
 				csserv_delete_preserved(eptr->wpacket);
 			}
-			if (eptr->fwdsock>=0) {
+			if (eptr->fwdsock >= 0) {
 				tcpclose(eptr->fwdsock);
 			}
 			if (eptr->inputpacket.packet) {
@@ -1627,23 +1701,27 @@ uint16_t csserv_getlistenport() {
 
 void csserv_reload(void) {
 	TRACETHIS();
-	char *oldListenHost,*oldListenPort;
+	char *oldListenHost, *oldListenPort;
 	int newlsock;
 
 	oldListenHost = ListenHost;
 	oldListenPort = ListenPort;
-	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
-	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
-	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
+	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST", "*");
+	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT", "9422");
+	if (strcmp(oldListenHost, ListenHost) == 0
+			&& strcmp(oldListenPort, ListenPort) == 0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		mfs_arg_syslog(LOG_NOTICE,
+				"main server module: socket address hasn't changed (%s:%s)", ListenHost,
+				ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
-	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
+	if (newlsock < 0) {
+		mfs_errlog(LOG_WARNING,
+				"main server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1653,11 +1731,13 @@ void csserv_reload(void) {
 	tcpnonblock(newlsock);
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
-	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+	if (tcpsetacceptfilter(newlsock) < 0 && errno != ENOTSUP) {
+		mfs_errlog_silent(LOG_NOTICE, "main server module: can't set accept filter");
 	}
-	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+	if (tcpstrlisten(newlsock, ListenHost, ListenPort, 100) < 0) {
+		mfs_arg_errlog(LOG_ERR,
+				"main server module: socket address has changed, but can't listen on socket (%s:%s)",
+				ListenHost, ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1665,7 +1745,9 @@ void csserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE,
+			"main server module: socket address has changed, now listen on %s:%s",
+			ListenHost, ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -1674,31 +1756,32 @@ void csserv_reload(void) {
 
 int csserv_init(void) {
 	TRACETHIS();
-	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
-	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
+	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST", "*");
+	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT", "9422");
 
 	lsock = tcpsocket();
-	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't create socket");
+	if (lsock < 0) {
+		mfs_errlog(LOG_ERR, "main server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
-	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+	if (tcpsetacceptfilter(lsock) < 0 && errno != ENOTSUP) {
+		mfs_errlog_silent(LOG_NOTICE, "main server module: can't set accept filter");
 	}
-	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
-	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't listen on socket");
+	tcpresolve(ListenHost, ListenPort, &mylistenip, &mylistenport, 1);
+	if (tcpnumlisten(lsock, mylistenip, mylistenport, 100) < 0) {
+		mfs_errlog(LOG_ERR, "main server module: can't listen on socket");
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
+	mfs_arg_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost,
+			ListenPort);
 
 	csservhead = NULL;
 	main_reloadregister(csserv_reload);
 	main_destructregister(csserv_term);
-	main_pollregister(csserv_desc,csserv_serve);
+	main_pollregister(csserv_desc, csserv_serve);
 
 	jpool = job_pool_new(NR_OF_BGJOBS_WORKERS, BGJOBSCNT, &jobfd);
 

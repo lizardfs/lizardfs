@@ -26,6 +26,8 @@
 #include <limits.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
+#include <cstdint>
 
 #include <cassert>
 
@@ -76,6 +78,7 @@ typedef struct _chunk_rd_args {
 	uint32_t offset,size;
 	uint8_t *buffer;
 	uint8_t *crcbuff;
+	OutputBuffer* outputBuffer;
 } chunk_rd_args;
 
 // for OP_WRITE
@@ -143,11 +146,13 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	return 1;	// not last
 }
 
+
 #define opargs ((chunk_op_args*)(jptr->args))
 #define ocargs ((chunk_oc_args*)(jptr->args))
 #define rdargs ((chunk_rd_args*)(jptr->args))
 #define wrargs ((chunk_wr_args*)(jptr->args))
 #define rpargs ((chunk_rp_args*)(jptr->args))
+
 void* job_worker(void *th_arg) {
 	TRACETHIS();
 	jobpool *jp = (jobpool*)th_arg;
@@ -201,7 +206,7 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
+					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->offset, rdargs->size, rdargs->outputBuffer);
 				}
 				break;
 			case OP_WRITE:
@@ -437,8 +442,8 @@ uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void
 	return job_new(jp,OP_CLOSE,args,callback,extra);
 }
 
-uint32_t job_read(void *jpool,void (*callback)(uint8_t status, void *extra), void *extra, uint64_t chunkid,
-		uint32_t version, uint8_t *buffer, uint32_t offset, uint32_t size, uint8_t *crcbuff) {
+uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
@@ -446,10 +451,9 @@ uint32_t job_read(void *jpool,void (*callback)(uint8_t status, void *extra), voi
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
-	args->buffer = buffer;
 	args->offset = offset;
 	args->size = size;
-	args->crcbuff = crcbuff;
+	args->outputBuffer = outputBuffer;
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 

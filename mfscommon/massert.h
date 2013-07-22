@@ -40,5 +40,6 @@
 		fprintf(stderr,"unexpected status, '%s' returned: %s\n",#e,_mfs_errorstring); \
 		abort(); \
 	}
+#define mabort(msg) do { fprintf(stderr,"abort '%s'\n", msg); syslog(LOG_ERR,"abort '%s'", msg); abort(); } while (false)
 
 #endif

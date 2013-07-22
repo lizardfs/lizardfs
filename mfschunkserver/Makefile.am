@@ -4,6 +4,7 @@ AM_CPPFLAGS=-DMFSMAXFILES=10000 -D_USE_PTHREADS $(PTHREAD_CPPFLAGS) -DAPPNAME=mf
 AM_LDFLAGS=$(PTHREAD_LIBS) $(ZLIB_LIBS)
 
 mfschunkserver_SOURCES= \
+	output_buffers.cc output_buffers.h \
 	bgjobs.cc bgjobs.h \
 	csserv.cc csserv.h \
 	hddspacemgr.cc hddspacemgr.h \

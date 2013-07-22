@@ -33,10 +33,13 @@
 #include "mfscommon/mfsstrerr.h"
 #include "mfscommon/crc.h"
 
+#include "devtools/TracePrinter.h"
+
 #define CSMSECTIMEOUT 5000
 
 int cs_read(int fd, uint64_t chunkid, uint32_t version, uint32_t offset,
 		uint32_t size, uint8_t *buff) {
+	TRACETHIS4(chunkid, version, offset, size);
 	uint8_t *wptr, ibuff[28];
 	const uint8_t *rptr;
 
@@ -132,10 +135,12 @@ int cs_read(int fd, uint64_t chunkid, uint32_t version, uint32_t offset,
 				return -1;
 			}
 
+      /*
 			if (mycrc32(0, buff, readsize) != readcrc) {
 				syslog(LOG_NOTICE,"cs read; READ_DATA crc checksum error");
 				return -1;
 			}
+      */
 
 			size -= readsize;
 			buff += readsize;

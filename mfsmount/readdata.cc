@@ -39,6 +39,8 @@
 #include "cscomm.h"
 #include "csdb.h"
 
+#include "devtools/TracePrinter.h"
+
 #define USECTICK 333333
 
 #define REFRESHTICKS 15
@@ -339,6 +341,7 @@ void read_inode_ops(uint32_t inode) {	// attributes of inode have been changed -
 }
 
 int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
+	TRACETHIS2(offset, *size);
 	uint8_t *buffptr;
 	uint64_t curroff;
 	uint32_t currsize;
@@ -443,8 +446,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		if (curroff>=rrec->fleng) {
 			break;
 		}
-		if (curroff+currsize>rrec->fleng) {
-			currsize = rrec->fleng-curroff;
+		uint64_t maxAvailableSize = ((rrec->fleng + MFSBLOCKSIZE -1)/MFSBLOCKSIZE)*MFSBLOCKSIZE;
+		if (curroff+currsize > maxAvailableSize) {
+			currsize = maxAvailableSize - curroff;
 		}
 		chunkoffset = (curroff&MFSCHUNKMASK);
 		if (chunkoffset+currsize>MFSCHUNKSIZE) {

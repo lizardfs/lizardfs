@@ -32,6 +32,7 @@
 #endif
 #include <unistd.h>
 #include <fcntl.h>
+#include <new>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,8 +45,11 @@
 #include "mfs_fuse.h"
 #include "mfs_meta_fuse.h"
 
-#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/massert.h"
 #include "mfscommon/md5.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/strerr.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
 #include "chunkloccache.h"
@@ -54,8 +58,6 @@
 #include "writedata.h"
 #include "csdb.h"
 #include "stats.h"
-#include "mfscommon/strerr.h"
-#include "mfscommon/crc.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -817,7 +819,7 @@ void make_fsname(struct fuse_args *args) {
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) try {
 	int res;
 	int mt,fg;
 	char *mountpoint;
@@ -997,4 +999,6 @@ int main(int argc, char *argv[]) {
 	stats_term();
 	strerr_term();
 	return res;
+} catch (std::bad_alloc ex) {
+	mabort("run out of memory");
 }
