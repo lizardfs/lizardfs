@@ -497,9 +497,9 @@ void mfs_statfs(fuse_req_t req) {
 	mfs_stats_inc(OP_STATFS);
 	if (debug_mode) {
 #if FUSE_USE_VERSION >= 26
-		oplog_printf(fuse_req_ctx(req),"statfs (%lu)",(unsigned long int)ino);
+		oplog_printf(*fuse_req_ctx(req),"statfs (%lu)",(unsigned long int)ino);
 #else
-		oplog_printf(fuse_req_ctx(req),"statfs ()");
+		oplog_printf(*fuse_req_ctx(req),"statfs ()");
 #endif
 	}
 #if FUSE_USE_VERSION >= 26
@@ -547,18 +547,17 @@ void mfs_statfs(fuse_req_t req) {
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
 #if FUSE_USE_VERSION >= 26
-	oplog_printf(fuse_req_ctx(req),"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(*fuse_req_ctx(req),"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
 #else
-	oplog_printf(fuse_req_ctx(req),"statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(*fuse_req_ctx(req),"statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",totalspace,availspace,trashspace,reservedspace,inodes);
 #endif
 }
 
 void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	int mmode;
 
-	ctx = fuse_req_ctx(req);
 	oplog_printf(ctx,"access (%lu,0x%X)",(unsigned long int)ino,mask);
 	mfs_stats_inc(OP_ACCESS);
 #if (R_OK==MODE_MASK_R) && (W_OK==MODE_MASK_W) && (X_OK==MODE_MASK_X)
@@ -583,7 +582,7 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 		}
 		return;
 	}
-	status = fs_access(ino,ctx->uid,ctx->gid,mmode);
+	status = fs_access(ino,ctx.uid,ctx.gid,mmode);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -602,9 +601,8 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	uint8_t mattr;
 	uint8_t icacheflag;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	if (debug_mode) {
 		oplog_printf(ctx,"lookup (%lu,%s) ...",(unsigned long int)parent,name);
 		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
@@ -669,7 +667,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			return ;
 		}
 	}
-	if (usedircache && dcache_lookup(ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
+	if (usedircache && dcache_lookup(&ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"lookup: sending data from dircache\n");
 		}
@@ -679,7 +677,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 //		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		mfs_stats_inc(OP_LOOKUP);
-		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
+		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr);
 		status = mfs_errorconv(status);
 		icacheflag = 0;
 	}
@@ -714,10 +712,9 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint8_t attr[35];
 	char attrstr[256];
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	(void)fi;
 
-	ctx = fuse_req_ctx(req);
 	if (debug_mode) {
 		oplog_printf(ctx,"getattr (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
@@ -749,7 +746,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		oplog_printf(ctx,"getattr (%lu) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return;
 	}
-	if (usedircache && dcache_getattr(ctx,ino,attr)) {
+	if (usedircache && dcache_getattr(&ctx,ino,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"getattr: sending data from dircache\n");
 		}
@@ -757,7 +754,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		status = 0;
 	} else {
 		mfs_stats_inc(OP_GETATTR);
-		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+		status = fs_getattr(ino,ctx.uid,ctx.gid,attr);
 		status = mfs_errorconv(status);
 	}
 	if (status!=0) {
@@ -789,10 +786,9 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	char attrstr[256];
 	double attr_timeout;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	uint8_t setmask = 0;
 
-	ctx = fuse_req_ctx(req);
 	mfs_makemodestr(modestr,stbuf->st_mode);
 	mfs_stats_inc(OP_SETATTR);
 	if (debug_mode) {
@@ -823,7 +819,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 
 	status = EINVAL;
 	if ((to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME|FUSE_SET_ATTR_SIZE)) == 0) {	// change other flags or change nothing
-		status = fs_setattr(ino,ctx->uid,ctx->gid,0,0,0,0,0,0,0,attr);	// ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
+		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);	// ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
@@ -849,7 +845,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			setmask |= SET_MTIME_FLAG;
 			write_data_flush_inode(ino);	// in this case we want flush all pending writes because they could overwrite mtime
 		}
-		status = fs_setattr(ino,ctx->uid,ctx->gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr);
+		status = fs_setattr(ino,ctx.uid,ctx.gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr);
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
@@ -869,10 +865,10 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 		write_data_flush_inode(ino);
-		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx->uid,ctx->gid,stbuf->st_size,attr);
+		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
 		while (status==ERROR_LOCKED) {
 			sleep(1);
-			status = fs_truncate(ino,(fi!=NULL)?1:0,ctx->uid,ctx->gid,stbuf->st_size,attr);
+			status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
 		}
 		status = mfs_errorconv(status);
 		read_inode_ops(ino);
@@ -913,9 +909,8 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 	uint32_t nleng;
 	int status;
 	uint8_t type;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_MKNOD);
 	if (debug_mode) {
@@ -952,7 +947,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		}
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx->uid,ctx->gid,rdev,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.uid,ctx.gid,rdev,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -973,9 +968,8 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_UNLINK);
 	if (debug_mode) {
 		oplog_printf(ctx,"unlink (%lu,%s) ...",(unsigned long int)parent,name);
@@ -996,7 +990,7 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		return;
 	}
 
-	status = fs_unlink(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid);
+	status = fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1016,9 +1010,8 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_MKDIR);
 	if (debug_mode) {
@@ -1039,7 +1032,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		return;
 	}
 
-	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx->uid,ctx->gid,mkdir_copy_sgid,&inode,attr);
+	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.uid,ctx.gid,mkdir_copy_sgid,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1060,9 +1053,8 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_RMDIR);
 	if (debug_mode) {
 		oplog_printf(ctx,"rmdir (%lu,%s) ...",(unsigned long int)parent,name);
@@ -1082,7 +1074,7 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		return;
 	}
 
-	status = fs_rmdir(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid);
+	status = fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1101,9 +1093,8 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_SYMLINK);
 	if (debug_mode) {
 		oplog_printf(ctx,"symlink (%s,%lu,%s) ...",path,(unsigned long int)parent,name);
@@ -1123,8 +1114,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 		return;
 	}
 
-	ctx = fuse_req_ctx(req);
-	status = fs_symlink(parent,nleng,(const uint8_t*)name,(const uint8_t*)path,ctx->uid,ctx->gid,&inode,attr);
+	status = fs_symlink(parent,nleng,(const uint8_t*)name,(const uint8_t*)path,ctx.uid,ctx.gid,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1145,9 +1135,8 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 	int status;
 	const uint8_t *path;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	if (debug_mode) {
 		oplog_printf(ctx,"readlink (%lu) ...",(unsigned long int)ino);
 		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
@@ -1176,9 +1165,8 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 	int status;
 	uint32_t inode;
 	uint8_t attr[35];
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_RENAME);
 	if (debug_mode) {
 		oplog_printf(ctx,"rename (%lu,%s,%lu,%s) ...",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
@@ -1211,7 +1199,7 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 		return;
 	}
 
-	status = fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx->uid,ctx->gid,&inode,attr);
+	status = fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1230,9 +1218,8 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 	uint8_t attr[35];
 	char attrstr[256];
 	uint8_t mattr;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_LINK);
 	if (debug_mode) {
 		oplog_printf(ctx,"link (%lu,%lu,%s) ...",(unsigned long int)ino,(unsigned long int)newparent,newname);
@@ -1257,7 +1244,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 		return;
 	}
 
-	status = fs_link(ino,newparent,newnleng,(const uint8_t*)newname,ctx->uid,ctx->gid,&inode,attr);
+	status = fs_link(ino,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1278,9 +1265,8 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	dirbuf *dirinfo;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_OPENDIR);
 	if (debug_mode) {
 		oplog_printf(ctx,"opendir (%lu) ...",(unsigned long int)ino);
@@ -1290,7 +1276,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		fuse_reply_err(req, ENOTDIR);
 		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(ENOTDIR));
 	}
-	status = fs_access(ino,ctx->uid,ctx->gid,MODE_MASK_R);	// at least test rights
+	status = fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R);	// at least test rights
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1326,9 +1312,8 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 	uint32_t inode;
 	uint8_t type;
 	struct stat stbuf;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_READDIR);
 	if (debug_mode) {
 		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
@@ -1345,14 +1330,14 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		uint32_t dsize;
 		uint8_t needscopy;
 		if (usedircache) {
-			status = fs_getdir_plus(ino,ctx->uid,ctx->gid,0,&dbuff,&dsize);
+			status = fs_getdir_plus(ino,ctx.uid,ctx.gid,0,&dbuff,&dsize);
 			if (status==0) {
 				mfs_stats_inc(OP_GETDIR_FULL);
 			}
 			needscopy = 1;
 			dirinfo->dataformat = 1;
 		} else {
-			status = fs_getdir(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
+			status = fs_getdir(ino,ctx.uid,ctx.gid,&dbuff,&dsize);
 			if (status==0) {
 				mfs_stats_inc(OP_GETDIR_SMALL);
 			}
@@ -1388,7 +1373,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		}
 		dirinfo->size = dsize;
 		if (usedircache && dirinfo->dataformat==1) {
-			dirinfo->dcache = dcache_new(ctx,ino,dirinfo->p,dirinfo->size);
+			dirinfo->dcache = dcache_new(&ctx,ino,dirinfo->p,dirinfo->size);
 		}
 	}
 	dirinfo->wasread=1;
@@ -1439,9 +1424,8 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	(void)ino;
 	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
 		oplog_printf(ctx,"releasedir (%lu) ...",(unsigned long int)ino);
@@ -1513,10 +1497,9 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 	uint8_t mattr;
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	finfo *fileinfo;
 
-	ctx = fuse_req_ctx(req);
 	mfs_makemodestr(modestr,mode);
 	mfs_stats_inc(OP_CREATE);
 	if (debug_mode) {
@@ -1550,14 +1533,14 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		return;
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx->uid,ctx->gid,0,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.uid,ctx.gid,0,&inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (mknod): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
 		return;
 	}
-	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
+	status = fs_opencheck(inode,ctx.uid,ctx.gid,oflags,NULL);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1595,10 +1578,9 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint8_t attr[35];
 	uint8_t mattr;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	finfo *fileinfo;
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_OPEN);
 	if (debug_mode) {
 		oplog_printf(ctx,"open (%lu) ...",(unsigned long int)ino);
@@ -1662,7 +1644,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
-	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
+	status = fs_opencheck(ino,ctx.uid,ctx.gid,oflags,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1692,9 +1674,8 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_RELEASE);
 	if (debug_mode) {
 		oplog_printf(ctx,"release (%lu) ...",(unsigned long int)ino);
@@ -1742,9 +1723,8 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	uint8_t *buff;
 	int err;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_READ);
 	if (debug_mode) {
 		if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
@@ -1880,9 +1860,8 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_WRITE);
 	if (debug_mode) {
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
@@ -1949,9 +1928,8 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_FLUSH);
 	if (debug_mode) {
 		oplog_printf(ctx,"flush (%lu) ...",(unsigned long int)ino);
@@ -1985,9 +1963,8 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_FSYNC);
 	if (debug_mode) {
 		oplog_printf(ctx,"fsync (%lu,%d) ...",(unsigned long int)ino,datasync);
@@ -2026,9 +2003,8 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	uint32_t nleng;
 	int status;
 	uint8_t mode;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_SETXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d) ...",(unsigned long int)ino,name,(uint64_t)size,flags);
@@ -2084,7 +2060,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	mode = 0;
 #endif
 	(void)position;
-	status = fs_setxattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name,(uint32_t)size,(const uint8_t*)value,mode);
+	status = fs_setxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,(uint32_t)size,(const uint8_t*)value,mode);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2106,9 +2082,8 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	uint8_t mode;
 	const uint8_t *buff;
 	uint32_t leng;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_GETXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 ") ...",(unsigned long int)ino,name,(uint64_t)size);
@@ -2148,7 +2123,7 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		mode = MFS_XATTR_GETA_DATA;
 	}
 	(void)position;
-	status = fs_getxattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name,mode,&buff,&leng);
+	status = fs_getxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,mode,&buff,&leng);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2174,9 +2149,8 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 	uint32_t leng;
 	int status;
 	uint8_t mode;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_LISTXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size);
@@ -2192,7 +2166,7 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 	} else {
 		mode = MFS_XATTR_GETA_DATA;
 	}
-	status = fs_listxattr(ino,0,ctx->uid,ctx->gid,mode,&buff,&leng);
+	status = fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2216,9 +2190,8 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 	uint32_t nleng;
 	int status;
-	const struct fuse_ctx *ctx;
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 
-	ctx = fuse_req_ctx(req);
 	mfs_stats_inc(OP_REMOVEXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx,"removexattr (%lu,%s) ...",(unsigned long int)ino,name);
@@ -2252,7 +2225,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EINVAL));
 		return;
 	}
-	status = fs_removexattr(ino,0,ctx->uid,ctx->gid,nleng,(const uint8_t*)name);
+	status = fs_removexattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
