@@ -1822,7 +1822,7 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 	while (ptr+4<=eptr) {
 		chleng = get32bit((const uint8_t **)&ptr);
 		if (ptr+8+chleng<=eptr) {
-			crc = mycrc32(0,ptr,chleng+4);
+			crc = crc32(crc32(0, Z_NULL, 0), ptr, chleng+4);
 			ptr += chleng+4;
 			if (memcmp(ptr,"CRC#",4)==0) {
 				put32bit(&ptr,crc);
