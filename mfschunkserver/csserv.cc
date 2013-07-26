@@ -172,10 +172,14 @@ packetstruct* csserv_create_detached_packet(uint32_t type, uint32_t size) {
 
 	packetstruct* outpacket = new packetstruct();
 
-#if defined(HAVE_SPLICE)
-	outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512 * 1024u));
-#else /* HAVE_SPLICE */
 	uint32_t psize = size + 8;
+#if defined(HAVE_SPLICE)
+	if (psize < 512 * 1024u) {
+		outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512 * 1024u));
+	} else {
+		outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new SimpleOutputBuffer(psize));
+	}
+#else /* HAVE_SPLICE */
 	outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new SimpleOutputBuffer(psize));
 #endif /* HAVE_SPLICE */
 
