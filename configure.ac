@@ -310,6 +310,7 @@ AC_CONFIG_FILES([Makefile
 		mfsmetadump/Makefile
 		mfsmetalogger/Makefile
 		mfsmount/Makefile
+                mfstools/Makefile
 		mfscgi/mfs.cgi
 		mfscgi/chart.cgi
 		mfsdata/mfschunkserver.cfg

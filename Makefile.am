@@ -11,7 +11,7 @@ CHUNKSERVERDIR=
 endif
 
 if BUILD_MOUNT
-MOUNTDIR=mfsmount
+MOUNTDIR=mfsmount mfstools
 else
 MOUNTDIR=
 endif
