@@ -1,6 +1,8 @@
 configure_file(mfsmaster.cfg.in mfsmaster.cfg)
 configure_file(mfschunkserver.cfg.in mfschunkserver.cfg)
 configure_file(mfsmetalogger.cfg.in mfsmetalogger.cfg)
+configure_file(postinst.in postinst)
+set(POSTINST_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/postinst PARENT_SCOPE)
 install(FILES metadata.mfs DESTINATION ${DATA_SUBDIR} RENAME metadata.mfs.empty)
 install(FILES mfsexports.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsexports.cfg.dist)
 install(FILES mfshdd.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfshdd.cfg.dist)

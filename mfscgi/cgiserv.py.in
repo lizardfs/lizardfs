@@ -430,8 +430,8 @@ if __name__=="__main__":
 	verbose = 0
 	host = 'any'
 	port = 9425
-	rootpath="@CGIDIR@"
-	datapath="@DATAPATH@"
+	rootpath="@CGI_PATH"
+	datapath="@DATA_PATH@"
 
 	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:t:fv")
 	for opt,val in opts:
