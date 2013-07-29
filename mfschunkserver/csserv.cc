@@ -1396,7 +1396,12 @@ void csserv_write(csserventry *eptr) {
 			return;
 		}
 		if (pack->outputBuffer) {
+			size_t bytesInBufferBefore = pack->outputBuffer->bytesInABuffer();
 			OutputBuffer::WriteStatus ret = pack->outputBuffer->writeOutToAFileDescriptor(eptr->sock);
+			size_t bytesInBufferAfter = pack->outputBuffer->bytesInABuffer();
+			massert(bytesInBufferAfter <= bytesInBufferBefore,
+					"New bytes in pack->outputBuffer after sending some data");
+			stats_bytesout += (bytesInBufferBefore - bytesInBufferAfter);
 			if (ret == OutputBuffer::WRITE_ERROR) {
 				mfs_errlog_silent(LOG_NOTICE, "(write) write error");
 				eptr->state = CLOSE;
