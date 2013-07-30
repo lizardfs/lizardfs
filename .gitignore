@@ -39,3 +39,8 @@ Makefile.in
 /missing
 /stamp-h1
 *.tar.gz
+/build*
+/tests/googletest
+/.cproject
+/.project
+/.settings
