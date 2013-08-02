@@ -1822,10 +1822,10 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	write_data_flush_inode(ino);
 
 	// Lizardfs chunkserver supports only requests aligned to MFSBLOCKSIZE
-	uint32_t firstBlockToRead = off / MFSBLOCKSIZE;
-	uint32_t firstBlockNotToRead = (off + size + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
-	uint32_t alignedOffset = firstBlockToRead * MFSBLOCKSIZE;
-	uint32_t alignedSize = (firstBlockNotToRead - firstBlockToRead) * MFSBLOCKSIZE;
+	uint64_t firstBlockToRead = off / MFSBLOCKSIZE;
+	uint64_t firstBlockNotToRead = (off + size + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+	uint64_t alignedOffset = firstBlockToRead * MFSBLOCKSIZE;
+	uint64_t alignedSize = (firstBlockNotToRead - firstBlockToRead) * MFSBLOCKSIZE;
 
 	uint32_t ssize = alignedSize;
 	buff = NULL;	// use internal 'readdata' buffer
