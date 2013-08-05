@@ -24,7 +24,7 @@
 
 #include "config.h"
 
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_lowlevel.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,16 +36,16 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/strerr.h"
+
 #include "stats.h"
 #include "oplog.h"
-#include "datapack.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
 #include "readdata.h"
 #include "writedata.h"
-#include "strerr.h"
-#include "MFSCommunication.h"
-
 #include "dirattrcache.h"
 #include "symlinkcache.h"
 

@@ -57,13 +57,14 @@
 #define STR(x) STR_AUX(x)
 
 
-#include "cfg.h"
-#include "main.h"
-#include "strerr.h"
-#include "crc.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/strerr.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/slogger.h"
+
 #include "init.h"
-#include "massert.h"
-#include "slogger.h"
+#include "main.h"
 
 #define RM_RESTART 0
 #define RM_START 1

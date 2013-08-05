@@ -34,16 +34,17 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "MFSCommunication.h"
-#include "datapack.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/cfg.h"
+#include "mfsdaemonmain/main.h"
+#include "mfscommon/sockets.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfscommon/random.h"
+
 #include "masterconn.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
 #include "hddspacemgr.h"
-#include "slogger.h"
-#include "massert.h"
-#include "random.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif

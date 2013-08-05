@@ -31,16 +31,16 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "MFSCommunication.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/crc.h"
+#include "mfscommon/cfg.h"
+#include "mfscommon/sockets.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/massert.h"
+#include "mfsdaemonmain/main.h"
 
-#include "datapack.h"
 #include "matomlserv.h"
-#include "crc.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
-#include "slogger.h"
-#include "massert.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000

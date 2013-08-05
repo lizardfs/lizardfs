@@ -18,12 +18,12 @@
 
 #include "config.h"
 
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_lowlevel.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 
-#include "datapack.h"
+#include "mfscommon/datapack.h"
 
 typedef struct _dircache {
 	struct fuse_ctx ctx;
