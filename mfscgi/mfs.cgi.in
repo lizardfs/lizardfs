@@ -291,9 +291,10 @@ if masterversion<(1,5,14):
 		"HD":"Hard Disks",
 		"ML":"Mount List",
 		"MC":"Master Charts",
-		"CC":"Chunk Servers Charts"
+		"CC":"Chunk Servers Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","ML","MC","CC"];
+	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
 elif masterversion<(1,7,0):
 	sectiondef={
 		"IN":"Info",
@@ -303,9 +304,10 @@ elif masterversion<(1,7,0):
 		"MS":"Mounts",
 		"MO":"Operations",
 		"MC":"Master Charts",
-		"CC":"Server Charts"
+		"CC":"Server Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
 else:
 	sectiondef={
 		"IN":"Info",
@@ -316,9 +318,10 @@ else:
 		"MO":"Operations",
 		"QU":"Quotas",
 		"MC":"Master Charts",
-		"CC":"Server Charts"
+		"CC":"Server Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -2614,6 +2617,16 @@ if "CC" in sectionset:
 		print """</table>"""
 
 	print """<br/>"""
+
+def print_file(name):
+	f=open(name)
+	for line in f:
+		print line
+
+if "HELP" in sectionset:
+	print_file("help.html")
+
+
 
 print """</div> <!-- end of container -->"""
 

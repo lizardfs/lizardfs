@@ -11,6 +11,7 @@ cgidata_DATA = \
 	index.html \
 	logomini.png \
 	favicon.ico \
+	help.html \
 	mfs.css
 
 EXTRA_DIST = mfs.cgi.in chart.cgi.in cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_DATA)
