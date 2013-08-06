@@ -25,8 +25,8 @@ test -e $DAEMON || exit 0
 # Include mfs-master defaults if available
 . /lib/lsb/init-functions
 MFSMASTER_ENABLE=false
-MFSMASTER_DEFAULTS_FILE=/etc/default/mfs-master
 MFSMASTER_CONFIG_FILE=
+MFSMASTER_DEFAULTS_FILE=/etc/default/mfs-master
 if [ -s "$MFSMASTER_DEFAULTS_FILE" ]; then
     . "$MFSMASTER_DEFAULTS_FILE"
     case "x$MFSMASTER_ENABLE" in
@@ -52,18 +52,21 @@ elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 else
 	CFGFILE="$COMPAT_CFG"
 fi
+
+get_config_value_from_CFGFILE()
+{
+		echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+}
+
 if [ -s "$CFGFILE" ]; then
-	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSGROUP=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
+	DATADIR=$(get_config_value_from_CFGFILE "DATA_PATH")
+	MFSUSER=$(get_config_value_from_CFGFILE "WORKING_USER")
+	MFSGROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 else
-	DATADIR=
-	MFSUSER=
-	MFSGROUP=
+	DATADIR=$DEFAULT_DATADIR
+	MFSUSER=$DEFAULT_USER
+	MFSGROUP=$DEFAULT_GROUP
 fi
-: ${DATADIR:=$DEFAULT_DATADIR}
-: ${MFSUSER:=$DEFAULT_USER}
-: ${MFSGROUP:=$DEFAULT_GROUP}
 
 check_dirs()
 {
