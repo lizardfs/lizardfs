@@ -55,9 +55,9 @@ try:
 	if fields.has_key("mastername"):
 		mastername = fields.getvalue("mastername")
 	else:
-		mastername = 'MooseFS'
+		mastername = 'LizardFS'
 except Exception:
-	mastername = 'MooseFS'
+	mastername = 'LizardFS'
 
 thsep = ''
 html_thsep = ''
@@ -166,7 +166,8 @@ except Exception:
 	print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
@@ -182,7 +183,8 @@ if masterversion==(0,0,0):
 	print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
@@ -247,7 +249,8 @@ if fields.has_key("CSremove"):
 		print """<head>"""
 		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 		print """<meta http-equiv="Refresh" content="0; url=%s" />""" % url
-		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
@@ -262,7 +265,8 @@ if fields.has_key("CSremove"):
 		print """<head>"""
 		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 		print """<meta http-equiv="Refresh" content="5; url=%s" />""" % url
-		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
@@ -287,9 +291,10 @@ if masterversion<(1,5,14):
 		"HD":"Hard Disks",
 		"ML":"Mount List",
 		"MC":"Master Charts",
-		"CC":"Chunk Servers Charts"
+		"CC":"Chunk Servers Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","ML","MC","CC"];
+	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
 elif masterversion<(1,7,0):
 	sectiondef={
 		"IN":"Info",
@@ -299,9 +304,10 @@ elif masterversion<(1,7,0):
 		"MS":"Mounts",
 		"MO":"Operations",
 		"MC":"Master Charts",
-		"CC":"Server Charts"
+		"CC":"Server Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
 else:
 	sectiondef={
 		"IN":"Info",
@@ -312,9 +318,10 @@ else:
 		"MO":"Operations",
 		"QU":"Quotas",
 		"MC":"Master Charts",
-		"CC":"Server Charts"
+		"CC":"Server Charts",
+		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -323,7 +330,8 @@ print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3
 print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 print """<head>"""
 print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
+print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 print """</head>"""
 print """<body>"""
@@ -332,7 +340,7 @@ print """<body>"""
 print """<div id="header">"""
 print """<table class="HDR" cellpadding="0" cellspacing="0" border="0">"""
 print """<tr>"""
-print """<td class="LOGO"><a href="http://www.moosefs.org"><img src="/logomini.png" alt="logo" style="border:0;width:123px;height:47px" /></a></td>"""
+print """<td class="LOGO"><a href="http://www.lizardfs.org"><img src="/logomini.png" alt="logo" style="border:0;width:123px;height:47px" /></a></td>"""
 print """<td class="MENU"><table class="MENU" cellspacing="0">"""
 print """<tr>"""
 last="U"
@@ -351,8 +359,6 @@ for k in sectionorder:
 print """</tr>"""
 print """</table></td>"""
 print """<td class="FILLER" style="white-space:nowrap;">"""
-print """<a href="http://jigsaw.w3.org/css-validator/check/referer"><img style="border:0;width:88px;height:31px" src="http://jigsaw.w3.org/css-validator/images/vcss-blue" alt="Valid CSS!" /></a>"""
-print """<a href="http://validator.w3.org/check?uri=referer"><img style="border:0;width:88px;height:31px" src="http://www.w3.org/Icons/valid-xhtml10-blue" alt="Valid XHTML 1.0 Strict" /></a>"""
 print """</td>"""
 print """</tr>"""
 print """</table>"""
@@ -2611,6 +2617,19 @@ if "CC" in sectionset:
 		print """</table>"""
 
 	print """<br/>"""
+
+def print_file(name):
+	f=open(name)
+	for line in f:
+		print line
+
+if "HELP" in sectionset:
+#FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
+#	print_file("@CGIDIR@/help.html")
+        print """please contact with help@lizardfs.org"""
+        print """<br/>"""
+
+
 
 print """</div> <!-- end of container -->"""
 
