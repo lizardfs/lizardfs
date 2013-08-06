@@ -42,7 +42,7 @@ mfs (1.6.27) unstable; urgency=medium
 mfs (1.6.26) unstable; urgency=medium
 
   * (all) fixed signal handling in multithreaded modules
-  * (master) added goal and trashtime limits to mfsexport.cfg
+  * (master) added goal and trashtime limits to mfsexports.cfg
   * (metalogger) added simple check for downloaded metadata file
     (inspired by Davies Liu)
   * (master) better handle disk full (inspired by Davies Liu)
