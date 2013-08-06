@@ -167,6 +167,7 @@ except Exception:
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
@@ -183,6 +184,7 @@ if masterversion==(0,0,0):
 	print """<head>"""
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 	print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 	print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
@@ -248,6 +250,7 @@ if fields.has_key("CSremove"):
 		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 		print """<meta http-equiv="Refresh" content="0; url=%s" />""" % url
 		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
@@ -263,6 +266,7 @@ if fields.has_key("CSremove"):
 		print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 		print """<meta http-equiv="Refresh" content="5; url=%s" />""" % url
 		print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 		print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
@@ -324,6 +328,7 @@ print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
 print """<head>"""
 print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 print """<title>MFS Info (%s)</title>""" % (htmlentities(mastername))
+print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 print """<link rel="stylesheet" href="/mfs.css" type="text/css" />"""
 print """</head>"""
 print """<body>"""
