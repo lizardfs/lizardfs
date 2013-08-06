@@ -4062,7 +4062,7 @@ int matoclserv_networkinit(void) {
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 
 	exiting = 0;
-	starting = 12;
+	starting = 120;
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -4084,8 +4084,10 @@ int matoclserv_networkinit(void) {
 /* CACHENOTIFY
 	matoclserv_dircache_init();
 */
-
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
+	matoclserv_start_cond_check();
+	if (starting) {
+		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
+	}
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	main_reloadregister(matoclserv_reload);
