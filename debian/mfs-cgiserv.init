@@ -44,7 +44,7 @@ set -e
 case "$1" in
 	start)
 		echo "Starting $DESC:"
-		start-stop-daemon --start -c $MFSCGISERV_USER:$MSGCGISERV_GROUP $DAEMON $DAEMON_OPTS start
+		$DAEMON start
 		;;
 
 	stop)
