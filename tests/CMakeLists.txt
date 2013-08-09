@@ -1,6 +1,16 @@
-set(GTEST_ROOT ${CMAKE_SOURCE_DIR}/tests/googletest CACHE PATH "Path to googletest sources")
-add_subdirectory(${GTEST_ROOT})
-include_directories(${GTEST_ROOT}/include)
+# Download gtest if not present
+if(NOT IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/googletest)
+  execute_process(
+    COMMAND svn checkout http://googletest.googlecode.com/svn/trunk/ googletest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    RESULT_VARIABLE CHECKOUT_ERROR
+    ERROR_VARIABLE  CHECKOUT_ERROR_MESSAGE)
+  if(CHECKOUT_ERROR)
+    message(FATAL_ERROR "svn checkout failed: ${CHECKOUT_ERROR_MESSAGE}")
+  endif()
+endif()
+add_subdirectory(googletest)
+include_directories(googletest/include)
 
 add_subdirectory(common)
 add_subdirectory(chunkserver_tests)
