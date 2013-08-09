@@ -124,14 +124,22 @@
 	{CHARTS_NONE                       ,CHARTS_NONE                       ,CHARTS_NONE                       ,0              ,0,0                 ,   0, 0}  \
 };
 
+const uint32_t kSecond = 1;
+const uint32_t kMinute = 60;
+const uint32_t kHour = 3600;
+
 static const uint32_t calcdefs[]=CALCDEFS
 static const statdef statdefs[]=STATDEFS
 static const estatdef estatdefs[]=ESTATDEFS
 
 static struct itimerval it_set;
 
+// variables for stats gathered every 1 minute
+static uint64_t data_every_minute[CHARTS];
+static uint16_t counter_of_seconds = 0;
+
 void chartsdata_refresh(void) {
-	uint64_t data[CHARTS];
+	uint64_t data_realtime[CHARTS];
 	uint64_t bin,bout;
 	uint32_t i,opr,opw,dbr,dbw,dopr,dopw,repl;
 	uint32_t op_cr,op_de,op_ve,op_du,op_tr,op_dt,op_te;
@@ -139,10 +147,16 @@ void chartsdata_refresh(void) {
 	struct itimerval uc,pc;
 	uint32_t ucusec,pcusec;
 
-	for (i=0 ; i<CHARTS ; i++) {
-		data[i]=0;
+	for (i=0 ; i<CHARTS ; i++) {		// initialisation
+		data_realtime[i]=0;
 	}
 
+	if (counter_of_seconds == 0) {
+		for (i = 0; i < CHARTS; ++i) {	// initialisation & reset after a minute
+			data_every_minute[i] = 0;
+		}
+	}
+	
 	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
@@ -169,42 +183,68 @@ void chartsdata_refresh(void) {
 	} else {
 		pcusec=0;
 	}
-	data[CHARTS_UCPU] = ucusec;
-	data[CHARTS_SCPU] = pcusec;
+	data_realtime[CHARTS_UCPU] = ucusec;
+	data_realtime[CHARTS_SCPU] = pcusec;
 
 	masterconn_stats(&bin,&bout,&masterjobs);
-	data[CHARTS_MASTERIN]=bin;
-	data[CHARTS_MASTEROUT]=bout;
-	data[CHARTS_CHUNKOPJOBS]=masterjobs;
-	data[CHARTS_CSCONNIN]=0;
-	data[CHARTS_CSCONNOUT]=0;
+	data_realtime[CHARTS_MASTERIN]=bin;
+	data_realtime[CHARTS_MASTEROUT]=bout;
+	data_realtime[CHARTS_CHUNKOPJOBS]=masterjobs;
+	data_realtime[CHARTS_CSCONNIN]=0;
+	data_realtime[CHARTS_CSCONNOUT]=0;
 	csserv_stats(&bin,&bout,&opr,&opw,&csservjobs);
-	data[CHARTS_CSSERVIN]=bin;
-	data[CHARTS_CSSERVOUT]=bout;
-	data[CHARTS_CHUNKIOJOBS]=csservjobs;
-	data[CHARTS_HLOPR]=opr;
-	data[CHARTS_HLOPW]=opw;
-	hdd_stats(&bin,&bout,&opr,&opw,&dbr,&dbw,&dopr,&dopw,data+CHARTS_RTIME,data+CHARTS_WTIME);
-	data[CHARTS_BYTESR]=bin;
-	data[CHARTS_BYTESW]=bout;
-	data[CHARTS_LLOPR]=opr;
-	data[CHARTS_LLOPW]=opw;
-	data[CHARTS_DATABYTESR]=dbr;
-	data[CHARTS_DATABYTESW]=dbw;
-	data[CHARTS_DATALLOPR]=dopr;
-	data[CHARTS_DATALLOPW]=dopw;
+	data_realtime[CHARTS_CSSERVIN]=bin;
+	data_realtime[CHARTS_CSSERVOUT]=bout;
+	data_realtime[CHARTS_CHUNKIOJOBS]=csservjobs;
+	data_realtime[CHARTS_HLOPR]=opr;
+	data_realtime[CHARTS_HLOPW]=opw;
+	hdd_stats(&bin,&bout,&opr,&opw,&dbr,&dbw,&dopr,&dopw,data_realtime+CHARTS_RTIME,data_realtime+CHARTS_WTIME);
+	data_realtime[CHARTS_BYTESR]=bin;
+	data_realtime[CHARTS_BYTESW]=bout;
+	data_realtime[CHARTS_LLOPR]=opr;
+	data_realtime[CHARTS_LLOPW]=opw;
+	data_realtime[CHARTS_DATABYTESR]=dbr;
+	data_realtime[CHARTS_DATABYTESW]=dbw;
+	data_realtime[CHARTS_DATALLOPR]=dopr;
+	data_realtime[CHARTS_DATALLOPW]=dopw;
 	replicator_stats(&repl);
-	data[CHARTS_REPL]=repl;
+	data_realtime[CHARTS_REPL]=repl;
 	hdd_op_stats(&op_cr,&op_de,&op_ve,&op_du,&op_tr,&op_dt,&op_te);
-	data[CHARTS_CREATE]=op_cr;
-	data[CHARTS_DELETE]=op_de;
-	data[CHARTS_VERSION]=op_ve;
-	data[CHARTS_DUPLICATE]=op_du;
-	data[CHARTS_TRUNCATE]=op_tr;
-	data[CHARTS_DUPTRUNC]=op_dt;
-	data[CHARTS_TEST]=op_te;
+	data_realtime[CHARTS_CREATE]=op_cr;
+	data_realtime[CHARTS_DELETE]=op_de;
+	data_realtime[CHARTS_VERSION]=op_ve;
+	data_realtime[CHARTS_DUPLICATE]=op_du;
+	data_realtime[CHARTS_TRUNCATE]=op_tr;
+	data_realtime[CHARTS_DUPTRUNC]=op_dt;
+	data_realtime[CHARTS_TEST]=op_te;
 
-	charts_add(data,main_time()-60);
+	charts_add(data_realtime, main_time() - kSecond, true, false);
+	
+	// Gathering data
+	for (i = 0; i < CHARTS; ++i) {
+		data_every_minute[i] += data_realtime[i];
+	}
+	++counter_of_seconds;
+	
+	if (counter_of_seconds == kMinute) {
+		// average needed stats
+		data_every_minute[CHARTS_UCPU]			/= kMinute;
+		data_every_minute[CHARTS_SCPU]			/= kMinute;
+		data_every_minute[CHARTS_MASTERIN]		/= kMinute;
+		data_every_minute[CHARTS_MASTEROUT]		/= kMinute;
+		data_every_minute[CHARTS_CSCONNIN]		/= kMinute;
+		data_every_minute[CHARTS_CSCONNOUT]		/= kMinute;
+		data_every_minute[CHARTS_CSSERVIN]		/= kMinute;
+		data_every_minute[CHARTS_CSSERVOUT]		/= kMinute;
+		data_every_minute[CHARTS_BYTESR]			/= kMinute;
+		data_every_minute[CHARTS_BYTESW]			/= kMinute;
+		data_every_minute[CHARTS_DATABYTESR]		/= kMinute;
+		data_every_minute[CHARTS_DATABYTESW]		/= kMinute;
+		
+		// engage!
+		charts_add(data_every_minute, main_time() - kMinute, false, true);
+		counter_of_seconds = 0;
+	}
 }
 
 void chartsdata_term(void) {
@@ -227,8 +267,8 @@ int chartsdata_init (void) {
 	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
+	main_timeregister(TIMEMODE_RUN_LATE, kSecond, 0, chartsdata_refresh);
+	main_timeregister(TIMEMODE_RUN_LATE, kHour, 0, chartsdata_store);
 	main_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }
