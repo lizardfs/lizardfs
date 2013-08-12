@@ -1,0 +1,12 @@
+function(check_functions FUNCTIONS REQUIRED)
+  foreach(FUNC ${FUNCTIONS})
+    string(TOUPPER "HAVE_${FUNC}" VAR)
+    CHECK_FUNCTION_EXISTS(${FUNC} ${VAR})
+    if(${REQUIRED})
+      if("${${VAR}}" STREQUAL "" OR NOT ${${VAR}} EQUAL 1)
+	message(SEND_ERROR "function ${FUNC} is required")
+      endif()
+    endif()
+  endforeach()
+endfunction()
+
