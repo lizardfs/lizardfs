@@ -36,7 +36,7 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #define MAXIDHOLE 10000
 
@@ -197,7 +197,7 @@ int main(int argc,char **argv) {
 	while ((ch = getopt(argc, argv, "fvm:o:d:abxih:?")) != -1) {
 		switch (ch) {
 			case 'v':
-				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
+				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
 				return 0;
 			case 'o':
 				if (metaout) {

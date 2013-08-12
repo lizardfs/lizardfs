@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+lfs_refs_ifdef() {
+  grep -rhoe"^\s*#\s*ifn\?def\W\+\w\+" mfs* | sed -e's/^\s*#\s*ifn\?def\W\+\(\w\+\).*$/\1/'
+}
+
+lfs_refs_defined() {
+  grep -rhe"^\s*#\s*\(el\)\?if.*\bdefined\b" mfs* | grep -eo"\bdefined\W\+\w\+" | sed -e's/^defined\W\+\(\w\+\).*$/\1/'
+}
+
+lfs_referenced_symbols() {
+  ( lfs_refs_ifdef && lfs_refs_defined ) | sort --unique
+}
+
+lfs_defined_symbols() {
+  grep -rhe"^\s*#\s*define\W.*$" mfs* | sed -e's/^\s*#\s*define\W\+\(\w\+\).*/\1/' | sort --unique
+}
+
+lfs_referenced_not_defined_symbols() {
+  lfs_referenced_symbols | grep -vf <(lfs_defined_symbols | sed -e's/^/^/' -e's/$/$/')
+}
+
+lfs_referenced_defined_symbols() {
+  lfs_referenced_symbols | grep -f <(lfs_defined_symbols | sed -e's/^/^/' -e's/$/$/')
+}
+
+lfs_cmake_define_referenced_not_defined_symbols() {
+  lfs_referenced_not_defined_symbols | sed -e's/^/#cmakedefine /'
+}
+
+lfs_HAVE_symbols () {
+  grep -rhoe"\bHAVE_\w\+\b" mfs* | sort --unique
+}
+
+export -f lfs_referenced_symbols
+export -f lfs_defined_symbols
+export -f lfs_referenced_not_defined_symbols
+export -f lfs_referenced_defined_symbols
+export -f lfs_HAVE_symbols
+
+echo $0
+BASENAME=$(basename $0)
+echo "BASENAME: ${BASENAME}"
+if [[ ${BASENAME} = "regen_config.h.in" || ${BASENAME} = "gen_config.h.in" ]]; then
+  if [[ -e "config.h.in" ]]; then
+    echo "$0: config.h.in exist"
+    if [[ ${BASENAME} = "gen_config.h.in" ]]; then
+      exit 0
+    elif [[ ${BASENAME} = "regen_config.h.in" ]]; then
+      echo "destroying old config.h.in"
+      rm config.h.in
+    fi
+  fi
+  echo "generating confih.h.in"
+  cp base_config.h.in config.h.in
+  cat >> config.h.in <<FOOBAR123
+
+/*
+* HAVE_* definitions:
+* (extracted with cmake)
+*/
+
+FOOBAR123
+  lfs_cmake_define_referenced_not_defined_symbols >> config.h.in
+elif [[ ${BASENAME} = "debug_symbols_use" ]]; then
+  echo "referenced symbols:"
+  lfs_referenced_symbols
+  echo -e "\ndefined symbols:"
+  lfs_defined_symbols
+  echo -e "\nHAVE symbols:"
+  lfs_HAVE_symbols
+  echo -e "\nreferenced and NOT defined symbols:"
+  lfs_referenced_not_defined_symbols
+  echo -e "\nreferenced and defined symbols:"
+  lfs_referenced_defined_symbols
+fi
+
