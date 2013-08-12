@@ -39,6 +39,10 @@
 #include "mfsstrerr.h"
 #include "sockets.h"
 #include "MFSCommunication.h"
+#include <vector>
+#include <string>
+
+using namespace std;
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
@@ -2122,6 +2126,70 @@ void usage(int f) {
 	exit(1);
 }
 
+
+
+int createFsLink( const char* pProgName, const char* pSysPrefix )
+{
+
+			vector<string> fsLinksVec;
+			string lsTmp( pSysPrefix );
+			fsLinksVec.push_back( string( lsTmp ) + "getgoal" );
+			fsLinksVec.push_back( string( lsTmp ) + "setgoal" );
+			fsLinksVec.push_back( string( lsTmp ) + "gettrashtime" );
+			fsLinksVec.push_back( string( lsTmp ) + "settrashtime" );
+			fsLinksVec.push_back( string( lsTmp ) + "checkfile" );
+			fsLinksVec.push_back( string( lsTmp ) + "fileinfo" );
+			fsLinksVec.push_back( string( lsTmp ) + "appendchunks" );
+			fsLinksVec.push_back( string( lsTmp ) + "dirinfo");
+			fsLinksVec.push_back( string( lsTmp ) + "filerepair" );
+			fsLinksVec.push_back( string( lsTmp ) + "makesnapshot");
+			fsLinksVec.push_back( string( lsTmp ) + "geteattr" );
+			fsLinksVec.push_back( string( lsTmp ) + "seteattr" );
+			fsLinksVec.push_back( string( lsTmp ) + "sdeleattr" );
+#if VERSHEX>=0x010700
+			fsLinksVec.push_back( string( lsTmp ) + "getquota" );
+			fsLinksVec.push_back( string( lsTmp ) + "setquota" );
+			fsLinksVec.push_back( string( lsTmp ) + "delquota", );
+#endif
+			// deprecated tools:
+			fsLinksVec.push_back( string( lsTmp ) + "rgetgoal" );
+			fsLinksVec.push_back( string( lsTmp ) + "rsetgoal" );
+			fsLinksVec.push_back( string( lsTmp ) + "rgettrashtime" );
+			fsLinksVec.push_back( string( lsTmp ) + "rsettrashtime" );
+
+			
+			for( vector<string>::iterator linkIter = fsLinksVec.begin(); linkIter != fsLinksVec.end(); ++linkIter )	
+			{
+				if ( symlink( pProgName, linkIter->c_str() ) < 0 )  
+				{ 
+				    perror( ( string( "error creating symlink '" ) + linkIter->c_str()  + "'").c_str() );
+				}
+			}
+
+	return 0;
+}
+
+
+int errorCommandInfo( const char* pProgName )
+{ 
+	fprintf(stderr,"[lizadfs|mfs] multi tool\n\nusage:\n\tmfstools create - create symlinks ([lizadfs|mfs]<toolname> -> %s)\n", pProgName);
+	fprintf(stderr,"\ntools:\n");
+	fprintf(stderr,"\t[lizadfs|mfs]getgoal\n\t[lizadfs|mfs]setgoal\n\t[lizadfs|mfs]gettrashtime\n\t[lizadfs|mfs]settrashtime\n");
+	fprintf(stderr,"\t[lizadfs|mfs]checkfile\n\tmfsfileinfo\n\t[lizadfs|mfs]appendchunks\n\t[lizadfs|mfs]dirinfo\n\t[lizadfs|mfs]filerepair\n");
+	fprintf(stderr,"\tmfsmakesnapshot\n");
+	fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
+#if VERSHEX>=0x010700
+	fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
+#endif
+	fprintf(stderr,"\ndeprecated tools:\n");
+	fprintf(stderr,"\t[lizadfs|mfs]rgetgoal = [lizadfs|mfs]getgoal -r\n");
+	fprintf(stderr,"\tmfsrsetgoal = mfssetgoal -r\n");
+	fprintf(stderr,"\tmfsrgettrashtime = mfsgettreshtime -r\n");
+	fprintf(stderr,"\tmfsrsettrashtime = mfssettreshtime -r\n");
+	return 0;
+
+}
+
 int main(int argc,char **argv) {
 	int l,f,status;
 	int i,found;
@@ -2142,36 +2210,16 @@ int main(int argc,char **argv) {
 	l = strlen(argv[0]);
 #define CHECKNAME(name) ((l==(int)(sizeof(name)-1) && strcmp(argv[0],name)==0) || (l>(int)(sizeof(name)-1) && strcmp((argv[0])+(l-sizeof(name)),"/" name)==0))
 	if (CHECKNAME("mfstools")) {
-		if (argc==2 && strcmp(argv[1],"create")==0) {
+		if (argc==2 && strcmp(argv[1],"create")==0) 
+		{
 			fprintf(stderr,"create symlinks\n");
-#define SYMLINK(name)	if (symlink(argv[0],name)<0) { \
-				perror("error creating symlink '" name "'"); \
-			}
-			SYMLINK("mfsgetgoal")
-			SYMLINK("mfssetgoal")
-			SYMLINK("mfsgettrashtime")
-			SYMLINK("mfssettrashtime")
-			SYMLINK("mfscheckfile")
-			SYMLINK("mfsfileinfo")
-			SYMLINK("mfsappendchunks")
-			SYMLINK("mfsdirinfo")
-			SYMLINK("mfsfilerepair")
-			SYMLINK("mfsmakesnapshot")
-			SYMLINK("mfsgeteattr")
-			SYMLINK("mfsseteattr")
-			SYMLINK("mfsdeleattr")
-#if VERSHEX>=0x010700
-			SYMLINK("mfsgetquota")
-			SYMLINK("mfssetquota")
-			SYMLINK("mfsdelquota")
-#endif
-			// deprecated tools:
-			SYMLINK("mfsrgetgoal")
-			SYMLINK("mfsrsetgoal")
-			SYMLINK("mfsrgettrashtime")
-			SYMLINK("mfsrsettrashtime")
+			
+			createFsLink( argv[0], "mfs" );
+			createFsLink( argv[0], "lizardfs" );
 			return 0;
-		} else {
+		} 
+		else 
+		{
 			fprintf(stderr,"mfs multi tool\n\nusage:\n\tmfstools create - create symlinks (mfs<toolname> -> %s)\n",argv[0]);
 			fprintf(stderr,"\ntools:\n");
 			fprintf(stderr,"\tmfsgetgoal\n\tmfssetgoal\n\tmfsgettrashtime\n\tmfssettrashtime\n");
