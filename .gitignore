@@ -17,6 +17,7 @@ tags
 /mfsmount/mfsmount
 /mfsmount/mfstools
 /missing
+config.h.in
 *.tar.gz
 build-arch-stamp
 build-indep-stamp
@@ -60,3 +61,4 @@ debian/tmp/
 /.cproject
 /.settings
 /build*
+*.kdev4
