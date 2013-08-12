@@ -2182,7 +2182,7 @@ int errorCommandInfo( const char* pProgName )
 	fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
 #endif
 	fprintf(stderr,"\ndeprecated tools:\n");
-	fprintf(stderr,"\tmfsrgetgoal = mfsgetgoal -r\n");
+	fprintf(stderr,"\t[lizadfs|mfs]rgetgoal = [lizadfs|mfs]getgoal -r\n");
 	fprintf(stderr,"\tmfsrsetgoal = mfssetgoal -r\n");
 	fprintf(stderr,"\tmfsrgettrashtime = mfsgettreshtime -r\n");
 	fprintf(stderr,"\tmfsrsettrashtime = mfssettreshtime -r\n");
