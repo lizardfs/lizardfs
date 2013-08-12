@@ -24,7 +24,7 @@
 
 #include "config.h"
 
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_lowlevel.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +57,7 @@
 
 #define MAX_FILE_SIZE (int64_t)(MFS_MAX_FILE_SIZE)
 
-#define PKGVERSION ((VERSMAJ)*1000000+(VERSMID)*1000+(VERSMIN))
+#define PKGVERSION ((PACKAGE_VERSION_MAJOR)*1000000+(PACKAGE_VERSION_MINOR)*1000+(PACKAGE_VERSION_MICRO))
 
 // #define MASTER_NAME ".master"
 // #define MASTER_INODE 0x7FFFFFFF

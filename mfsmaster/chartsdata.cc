@@ -146,11 +146,13 @@ static struct itimerval it_set;
 #endif
 #ifdef MEMORY_USAGE
 static uint64_t memusage;
-#endif
 
+/* XXX(lamvak): should chartsdata_memusage not be filtered out when MEMORY_USAGE is undefined?
+ */
 uint64_t chartsdata_memusage(void) {
 	return memusage;
 }
+#endif
 
 // variables for stats gathered every 1 minute
 static uint64_t data_every_minute[CHARTS];
