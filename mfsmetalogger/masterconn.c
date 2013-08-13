@@ -265,6 +265,9 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	data++;
 	version = get64bit(&data);
 
+    if (lastlogversion>0 && version<=lastlogversion) {
+        return; // ignore older version
+    }
 	if (lastlogversion>0 && version!=lastlogversion+1) {
 		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion,version-1);
 		if (eptr->logfd!=NULL) {
