@@ -26,7 +26,7 @@ typedef struct _event {
 } event;
 
 static int initialized=0;
-#if defined(HAVE_EPOLL) || defined(HAVE_EPOLL)
+#if defined(HAVE_EPOLL) || defined(HAVE_KQUEUE)
 static int pollfd=-1;
 static int pollfdpdescpos=-1;
 #endif
