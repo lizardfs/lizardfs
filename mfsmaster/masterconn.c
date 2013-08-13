@@ -85,7 +85,6 @@ typedef struct masterconn {
 static masterconn *masterconnsingleton=NULL;
 
 // from config
-static uint32_t MasterMode;
 static uint32_t BackLogsNumber;
 static uint32_t BackMetaCopies;
 static char *MasterHost;
@@ -797,7 +796,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 
 void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
-    if (MasterMode) return;
+    if (fs_ismastermode()) return;
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
@@ -806,12 +805,6 @@ void masterconn_reconnect(void) {
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
-    char *mode, mastermode;
-
-    mode = cfg_getstr("RUN_MODE","master");
-    mastermode = (strcmp(mode, "master") == 0);
-    // TODO: mode changed
-    MasterMode = mastermode;
 
 	free(MasterHost);
 	free(MasterPort);
@@ -856,9 +849,6 @@ int masterconn_init(void) {
 	masterconn *eptr;
     char *mode;
 
-    mode = cfg_getstr("RUN_MODE","master");
-    MasterMode = (strcmp(mode, "master") == 0);
-
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9419");
@@ -891,7 +881,7 @@ int masterconn_init(void) {
     if (fs_getversion()>0) {
         lastlogversion = fs_getversion()-1;
     }
-	if (!MasterMode && masterconn_initconnect(eptr)<0) {
+	if (!fs_ismastermode() && masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
