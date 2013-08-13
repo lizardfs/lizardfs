@@ -3349,6 +3349,7 @@ void matocl_session_check(void) {
 	session **sesdata,*asesdata;
 	uint32_t now;
 
+    if (!fs_ismastermode()) return;
 	now = main_time();
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
@@ -3408,6 +3409,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
 		return;
 	}
+    if (!fs_ismastermode() && type<CLTOMA_CSERV_LIST) {
+        eptr->mode = KILL; // refuse all packets except STATS
+        return;
+    }
 	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
 		switch (type) {
 			case CLTOMA_FUSE_REGISTER:
@@ -3917,7 +3922,7 @@ void matoclserv_serve(int fd,int mask,void *data) {
 			eptr->mode=KILL;
 		}
 	}
-	if ((eptr->outputhead || (mask & POLLOUT)) && eptr->mode!=KILL) {
+	if (eptr->outputhead) {
 		eptr->lastwrite = now;
 		matoclserv_write(eptr);
 		if (eptr->mode!=KILL) {
@@ -3968,9 +3973,6 @@ void matoclserv_nop(void) {
 			*((uint32_t*)ptr) = 0;
 			eptr->lastwrite = now;
 			matoclserv_write(eptr);
-			if (eptr->outputhead && eptr->mode!=KILL) {
-				event_add(eptr->sock,POLLOUT,matoclserv_serve,eptr);
-			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
 			eptr->mode = KILL;
@@ -4106,6 +4108,10 @@ void matoclserv_reload(void) {
 	event_add(newlsock,POLLIN,matoclserv_serve,NULL);
 	tcpclose(lsock);
 	lsock = newlsock;
+
+    if (fs_ismastermode() && chunk_get_missing_count()>100) {
+        starting = 12;
+    }
 }
 
 int matoclserv_networkinit(void) {
@@ -4148,7 +4154,7 @@ int matoclserv_networkinit(void) {
 
 	matoclservhead = NULL;
 	matoclserv_dircache_init();
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_nop);
