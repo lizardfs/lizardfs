@@ -131,19 +131,19 @@ class MasterDetector(object):
         self.stop()
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser(usage='Usage=%prog [options]')
+    parser = optparse.OptionParser(usage='%prog [options]')
     parser.add_option('-z', '--hosts', default='127.0.0.1:2181',
-            help='hosts of ZooKeeper')
+            help='hosts of ZooKeeper (default: 127.0.0.1:2181)')
     parser.add_option('-p', '--path', default='/mfsmaster',
-            help='path used in ZooKeeper')
+            help='path used in ZooKeeper (default: /mfsmaster)')
     parser.add_option('-c', '--conf', default='@ETC_PATH@/mfs/mfsmaster.cfg',
-            help='path for configuration for mfsmaster')
+            help='path for configuration for mfsmaster ''(default: @ETC_PATH@/mfs/mfsmaster.cfg)')
     parser.add_option('-b', '--bin', default='@CGISERVDIR@/mfsmaster',
-            help='path for mfsmaster')
+            help='path for mfsmaster (default: @CGISERVDIR@/mfsmaster)')
     parser.add_option('-P', '--vip',
-            help='virtual ip for master, such as 192.168.1.110/24')
+            help='bind virtual ip for master, such as 192.168.1.110/24')
     parser.add_option('-i', '--interface', default='eth0',
-            help='interface to bind vip')
+            help='network interface to bind vip (default: eth0)')
 
     options, args = parser.parse_args()
     logging.basicConfig(format='%(asctime)-15s [%(levelname)s] [%(name)-9s] %(message)s',
