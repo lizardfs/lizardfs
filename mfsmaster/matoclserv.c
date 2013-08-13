@@ -1121,7 +1121,6 @@ void matoclserv_notify_dir(uint32_t dirinode) {
 			put32bit(&ptr,0);
 			put32bit(&ptr,dirinode==dc->eptr->sesdata->rootinode?MFS_ROOT_ID:dirinode);
 			stats_notify++;
-			matoclserv_dircache_remove_entry(dc);
 		}
 	}
 }

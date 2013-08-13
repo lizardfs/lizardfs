@@ -226,6 +226,7 @@ void fs_notify_attr(const uint8_t *buff,uint32_t size) {
 
 void fs_notify_dir(const uint8_t *buff,uint32_t size) {
 	uint32_t inode;
+	fs_notify_sendremoved(size/4, buff);
 	while (size>=4) {
 		inode = get32bit(&buff);
 		dcache_remove(inode);
