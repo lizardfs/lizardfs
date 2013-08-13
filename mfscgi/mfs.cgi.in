@@ -292,9 +292,10 @@ if masterversion<(1,5,14):
 		"ML":"Mount List",
 		"MC":"Master Charts",
 		"CC":"Chunk Servers Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","ML","MC","CC","AUDIT","HELP"];
 elif masterversion<(1,7,0):
 	sectiondef={
 		"IN":"Info",
@@ -305,9 +306,10 @@ elif masterversion<(1,7,0):
 		"MO":"Operations",
 		"MC":"Master Charts",
 		"CC":"Server Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","AUDIT","HELP"];
 else:
 	sectiondef={
 		"IN":"Info",
@@ -319,9 +321,10 @@ else:
 		"QU":"Quotas",
 		"MC":"Master Charts",
 		"CC":"Server Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","AUDIT","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -2628,6 +2631,9 @@ if "HELP" in sectionset:
 #	print_file("@CGIDIR@/help.html")
         print """please contact with help@lizardfs.org"""
         print """<br/>"""
+
+if "AUDIT" in sectionset:
+	print """testing in progress...."""
 
 
 
