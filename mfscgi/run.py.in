@@ -63,9 +63,13 @@ class MasterDetector(object):
     def heartbeat(self):
         while True:
             logging.info("broadcast arp")
-	    # it will take 2 seconds
-	    ip = self.options.vip.split('/')[0]
-            subprocess.call(('/sbin/arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
+            # it will take 2 seconds
+            ip = self.options.vip.split('/')[0]
+            try:
+                subprocess.call(('arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
+            except OSError:
+                logging.error("please install iputils-arp package")
+                self.stop()
 
     def install_signal(self):
         def handler(signm, frame):
@@ -150,7 +154,7 @@ if __name__ == '__main__':
             level=logging.INFO)
 
     if options.vip and '/' not in options.vip:
-    	options.vip += '/16'
+        options.vip += '/16'
 
     zk = KazooClient(options.hosts, 10)
     d = MasterDetector(zk, options)
