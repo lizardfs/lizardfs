@@ -3663,7 +3663,7 @@ uint8_t fs_log_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) 
 		return ERROR_EINVAL;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_truncate(ts,&nchunkid,ochunkid,p->goal);
+	status = chunk_log_multi_truncate(ts,&nchunkid,ochunkid,p->goal);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -5204,7 +5204,7 @@ uint8_t fs_log_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uin
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(ts,&nchunkid,ochunkid,p->goal,opflag);
+	status = chunk_log_multi_modify(ts,&nchunkid,ochunkid,p->goal,opflag);
 	if (status!=STATUS_OK) {
 		return status;
 	}

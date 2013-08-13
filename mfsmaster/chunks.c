@@ -1032,7 +1032,7 @@ int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t
 	slist *os,*s;
 	uint32_t i;
 #else
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
+int chunk_log_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
 #endif
 	chunk *oc,*c;
 
@@ -1198,7 +1198,7 @@ int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,ui
 	slist *os,*s;
 	uint32_t i;
 #else
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
+int chunk_log_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
 #endif
 	chunk *oc,*c;
 
