@@ -149,9 +149,10 @@ void masterconn_sendregister(masterconn *eptr) {
 	}
 }
 
+void masterconn_metadownloadinit(void);
+
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	char logname1[100],line[1024];
-	uint32_t i;
+	char line[1024];
 	uint64_t version;
 	if (length==1 && data[0]==0x55) {
         fs_storeall(1);
@@ -176,19 +177,13 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	data++;
 	version = get64bit(&data);
     
-    if (lastlogversion>0 && version<=lastlogversion) {
+    if (version>0 && version<=lastlogversion) {
         // ignore old version
         return;
     }
 	if (lastlogversion>0 && version>lastlogversion+1) {
 		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion+1,version-1);
-		for (i=0 ; i<=BackLogsNumber ; i++) {
-			snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
-			unlink(logname1);
-		}
-		lastlogversion = 0;
-		eptr->mode = KILL;
-		return;
+        masterconn_metadownloadinit();
 	}
 
     changelog(version, (const char*)data); 
@@ -198,10 +193,10 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
         sprintf(line, ": %s\n", data);
         if (restore_line("(live changelog)", version, line)!=STATUS_OK) {
             syslog(LOG_WARNING, "replay change log failed: version=%"PRIu64", download metadata again",version);
-        }
-
-        if (fs_getversion() != version+1) {
+            masterconn_metadownloadinit();
+        } else if (fs_getversion() != version+1) {
             syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
+            masterconn_metadownloadinit();
         }
     }
 }
@@ -847,7 +842,6 @@ void masterconn_reload(void) {
 int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
 	masterconn *eptr;
-    char *mode;
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
