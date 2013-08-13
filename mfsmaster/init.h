@@ -30,6 +30,7 @@
 #include "random.h"
 #include "changelog.h"
 #include "chartsdata.h"
+#include "masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -50,6 +51,7 @@ struct {
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},
+	{masterconn_init,"communication with master"},
 	{matocsserv_init,"communication with chunkserver"},
 	{matoclserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
