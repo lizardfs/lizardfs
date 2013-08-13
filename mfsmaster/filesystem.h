@@ -26,45 +26,45 @@
 
 uint64_t fs_getversion(void);
 
-uint8_t fs_access(uint32_t ts,uint32_t inode);
-uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src);
-uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);
-uint8_t fs_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t atime,uint32_t mtime);
-// int fs_copy(uint32_t ts,inode,parent,strlen(name),name);
-uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
-uint8_t fs_session(uint32_t sessionid);
-uint8_t fs_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes);
-uint8_t fs_emptyreserved(uint32_t ts,uint32_t freeinodes);
-uint8_t fs_freeinodes(uint32_t ts,uint32_t freeinodes);
-uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nleng_dst,uint8_t *name_dst);
-uint8_t fs_length(uint32_t ts,uint32_t inode,uint64_t length);
-uint8_t fs_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint32_t nleng_dst,const uint8_t *name_dst,uint32_t inode);
-uint8_t fs_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion);
-// uint8_t fs_reinit(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
-uint8_t fs_release(uint32_t inode,uint32_t sessionid);
-uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,const uint8_t *path,uint32_t uid,uint32_t gid,uint32_t inode);
-uint8_t fs_setpath(uint32_t inode,const uint8_t *path);
-uint8_t fs_snapshot(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint16_t nleng_dst,uint8_t *name_dst,uint8_t canoverwrite);
-uint8_t fs_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint32_t inode);
-uint8_t fs_purge(uint32_t ts,uint32_t inode);
-uint8_t fs_undel(uint32_t ts,uint32_t inode);
-uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
-uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid);
-uint8_t fs_unlock(uint64_t chunkid);
-uint8_t fs_incversion(uint64_t chunkid);
+uint8_t fs_log_access(uint32_t ts,uint32_t inode);
+uint8_t fs_log_append(uint32_t ts,uint32_t inode,uint32_t inode_src);
+uint8_t fs_log_acquire(uint32_t inode,uint32_t sessionid);
+uint8_t fs_log_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t atime,uint32_t mtime);
+// int  fs_log_copy(uint32_t ts,inode,parent,strlen(name),name);
+uint8_t fs_log_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
+uint8_t fs_log_session(uint32_t sessionid);
+uint8_t fs_log_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes);
+uint8_t fs_log_emptyreserved(uint32_t ts,uint32_t freeinodes);
+uint8_t fs_log_freeinodes(uint32_t ts,uint32_t freeinodes);
+uint8_t fs_log_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nleng_dst,uint8_t *name_dst);
+uint8_t fs_log_length(uint32_t ts,uint32_t inode,uint64_t length);
+uint8_t fs_log_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint32_t nleng_dst,const uint8_t *name_dst,uint32_t inode);
+uint8_t fs_log_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion);
+// uint8_t fs_log_reinit(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
+uint8_t fs_log_release(uint32_t inode,uint32_t sessionid);
+uint8_t fs_log_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,const uint8_t *path,uint32_t uid,uint32_t gid,uint32_t inode);
+uint8_t fs_log_setpath(uint32_t inode,const uint8_t *path);
+uint8_t fs_log_snapshot(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint16_t nleng_dst,uint8_t *name_dst,uint8_t canoverwrite);
+uint8_t fs_log_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint32_t inode);
+uint8_t fs_log_purge(uint32_t ts,uint32_t inode);
+uint8_t fs_log_undel(uint32_t ts,uint32_t inode);
+uint8_t fs_log_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
+uint8_t fs_log_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid);
+uint8_t fs_log_unlock(uint64_t chunkid);
+uint8_t fs_log_incversion(uint64_t chunkid);
 #if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes,uint32_t qeinodes);
+uint8_t fs_log_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes,uint32_t qeinodes);
 #else
-uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
+uint8_t fs_log_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 #endif
-uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashtime,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
-uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
-uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
-uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
+uint8_t fs_log_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashtime,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
+uint8_t fs_log_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
+uint8_t fs_log_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
+uint8_t fs_log_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
 
-void fs_dump(void);
-void fs_term(const char *fname);
-int fs_init(const char *fname,int ignoreflag);
+void fs_log_dump(void);
+void fs_log_term(const char *fname);
+int fs_log_init(const char *fname,int ignoreflag);
 
 #else
 

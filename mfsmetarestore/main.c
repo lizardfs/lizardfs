@@ -297,7 +297,7 @@ int main(int argc,char **argv) {
 		memcpy(metaout+dplen,"/metadata.mfs",sizeof("/metadata.mfs"));
 	}
 
-	if (fs_init(metadata,ignoreflag)!=0) {
+	if (fs_log_init(metadata,ignoreflag)!=0) {
 		printf("can't read metadata from file: %s\n",metadata);
 		if (datapath) {
 			free(datapath);
@@ -449,11 +449,11 @@ int main(int argc,char **argv) {
 	}
 
 	if (metaout==NULL) {
-		fs_dump();
+		fs_log_dump();
 		chunk_dump();
 	} else {
 		printf("store metadata into file: %s\n",metaout);
-		fs_term(metaout);
+		fs_log_term(metaout);
 	}
 	if (datapath) {
 		free(datapath);
