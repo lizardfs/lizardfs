@@ -190,9 +190,13 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 	data++;
 	version = get64bit(&data);
-
-	if (lastlogversion>0 && version!=lastlogversion+1) {
-		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion,version-1);
+    
+    if (lastlogversion>0 && version<=lastlogversion) {
+        // ignore old version
+        return;
+    }
+	if (lastlogversion>0 && version>lastlogversion+1) {
+		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion+1,version-1);
 		if (eptr->logfd!=NULL) {
 			fclose(eptr->logfd);
 			eptr->logfd=NULL;
@@ -218,16 +222,17 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
   
 	lastlogversion = version;
     
-    if (version >= fs_getversion()) {
-        sprintf(line, "%"PRIu64": %s\n", version, data);
+    if (version == fs_getversion()) {
+        sprintf(line, ": %s\n", data);
         if (restore_line("(live changelog)", version, line)!=STATUS_OK) {
-            syslog(LOG_WARNING, "restore change log failed: version=%"PRIu64", download metadata again",version);
+            syslog(LOG_WARNING, "replay change log failed: version=%"PRIu64", download metadata again",version);
         }
 
         if (fs_getversion() != version+1) {
             syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
         }
     } else {
+        syslog(LOG_WARNING, "changelog version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version);
     }
 }
 
@@ -365,7 +370,8 @@ void masterconn_download_next(masterconn *eptr) {
 			}
             if (restart) {
                 syslog(LOG_NOTICE, "restart to restore metadata");
-                kill(0, SIGTERM);
+                unlink("metadata.mfs.back");
+                exit(0); // do not dump metadata
             }
 		}
 	} else {	// send request for next data packet
@@ -919,7 +925,9 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
-    lastlogversion=fs_getversion()-1;
+    if (fs_getversion()>0) {
+        lastlogversion = fs_getversion()-1;
+    }
 	if (!MasterMode && masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
