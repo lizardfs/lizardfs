@@ -186,7 +186,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
         masterconn_metadownloadinit();
 	}
 
-    changelog(version, (const char*)data); 
+    changelog(version, "%s", (const char*)data); 
 	currentlogversion = version+1;
     
     if (version == fs_getversion()) {
