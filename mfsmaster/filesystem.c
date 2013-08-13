@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <inttypes.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include "MFSCommunication.h"
 
@@ -51,6 +52,7 @@
 #include "cfg.h"
 #include "main.h"
 #include "changelog.h"
+#include "../mfsmetarestore/merger.h"
 #endif
 
 #define USE_FREENODE_BUCKETS 1
@@ -8968,22 +8970,134 @@ void fs_log_term(const char *fname) {
 }
 #endif
 
-#ifndef METARESTORE
-int fs_loadall(void) {
-#else
-int fs_loadall(const char *fname,int ignoreflag) {
-#endif
+int fs_log_loadall(const char *fname,int ignoreflag) {
 	FILE *fd;
 	uint8_t hdr[8];
+
+	fd = fopen(fname,"r");
+	if (fd==NULL) {
+		fprintf(stderr,"can't open metadata file\n");
+		return -1;
+	}
+	if (fread(hdr,1,8,fd)!=8) {
+		fclose(fd);
+		fprintf(stderr,"can't read metadata header\n");
+		return -1;
+	}
+	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
+		if (fs_load(fd,ignoreflag,0x15)<0) {
+			fclose(fd);
+			return -1;
+		}
+	} else if (memcmp(hdr,MFSSIGNATURE "M 1.7",8)==0) {
+		if (fs_load(fd,ignoreflag,0x17)<0) {
+			fclose(fd);
+			return -1;
+		}
+	} else {
+		fprintf(stderr,"wrong metadata header\n");
+		fclose(fd);
+		return -1;
+	}
+	if (ferror(fd)!=0) {
+		fprintf(stderr,"error reading metadata\n");
+		fclose(fd);
+		return -1;
+	}
+	fclose(fd);
+	fprintf(stderr,"connecting files and chunks ... ");
+	fflush(stderr);
+	fs_add_files_to_chunks();
+	fprintf(stderr,"ok\n");
+	unlink("metadata.mfs.back.tmp");
+	return 0;
+}
+
 #ifndef METARESTORE
+int fs_auto_restore(void) {
+    struct stat metast;
+    DIR *dd;
+    struct dirent *dp;
+    uint32_t files,pos;
+    char **filenames;
+    char *metadata = "metadata.mfs.back";
+    uint64_t firstlv,lastlv,skip;
+
+    if (stat(metadata, &metast)<0 && errno==ENOENT) {
+        metadata = "metadata_ml.mfs.back";
+        if (stat(metadata, &metast)==0) {
+            printf("file 'metadata.mfs.back' not found - will try 'metadata_ml.mfs.back' instead\n");
+        } else {
+            printf("can't find backed up metadata file !!!\n");
+            return -1;
+        }
+    }
+    if (fs_log_loadall(metadata, 0)!=0) {
+        printf("can't read metadata from file: %s\n",metadata);
+        return -1;
+    }
+    printf("current version: %"PRIu64"\n", metaversion);
+    dd = opendir(".");
+    if (!dd) {
+        printf("can't open data directory\n");
+        return -1;
+    }
+    files = 0;
+    while ((dp=readdir(dd)) != NULL) {
+        files += changelog_checkname(dp->d_name);
+    }
+    if (files==0) {
+        printf("changelog files not found\n");
+        closedir(dd);
+        return -1;
+    }
+    filenames = (char**)malloc(sizeof(char*)*files);
+    pos = 0;
+    rewinddir(dd);
+    while ((dp=readdir(dd))!=NULL) {
+        if (changelog_checkname(dp->d_name)) {
+            filenames[pos] = strdup(dp->d_name);
+            firstlv = findfirstlogversion(dp->d_name);
+            lastlv = findlastlogversion(dp->d_name);
+            skip = lastlv<metaversion;
+            //if (vl>0) {
+                if (skip) {
+                    printf("skipping changelog file: %s (changes: %"PRIu64" - %"PRIu64")\n",filenames[pos],firstlv,lastlv);
+                } else {
+                    printf("using changelog file: %s (changes: %"PRIu64" - %"PRIu64")\n",filenames[pos],firstlv,lastlv);
+                }
+            //}*/
+            if (skip) {
+                free(filenames[pos]);
+                files--;
+            } else {
+                pos++;
+            }
+        }
+    }
+    closedir(dd);
+    merger_start(files,filenames,2);
+    for (pos=0; pos<files; pos++) {
+        free(filenames[pos]);
+    }
+    free(filenames);
+
+    if (merger_loop()!=0) {
+        printf("merge changelog failed, please repair it manually\n");
+        return -1;
+    }
+    printf("merge changelog complete, current version: %"PRIu64"\n", metaversion);
+    fs_storeall(0);
+    return 0;
+}
+
+int fs_loadall(void) {
+	FILE *fd;
+	uint8_t hdr[8];
 	uint8_t bhdr[8];
 	uint64_t backversion;
 	int converted=0;
-#endif
 
-#ifdef METARESTORE
-	fd = fopen(fname,"r");
-#else
 	backversion = 0;
 	fd = fopen("metadata.mfs.back","r");
 	if (fd!=NULL) {
@@ -8999,10 +9113,8 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	}
 
 	fd = fopen("metadata.mfs","r");
-#endif
 	if (fd==NULL) {
 		fprintf(stderr,"can't open metadata file\n");
-#ifndef METARESTORE
 		{
 #if defined(HAVE_GETCWD)
 #ifndef PATH_MAX
@@ -9032,19 +9144,15 @@ int fs_loadall(const char *fname,int ignoreflag) {
 				fprintf(stderr,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs (in current working directory)\n");
 			}
 		}
-		syslog(LOG_ERR,"can't open metadata file");
-#endif
-		return -1;
+		syslog(LOG_ERR,"can't open metadata file, try to restore it");
+        return fs_auto_restore();
 	}
 	if (fread(hdr,1,8,fd)!=8) {
 		fclose(fd);
 		fprintf(stderr,"can't read metadata header\n");
-#ifndef METARESTORE
 		syslog(LOG_ERR,"can't read metadata header");
-#endif
 		return -1;
 	}
-#ifndef METARESTORE
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
 		fclose(fd);
 		if (backversion>0) {
@@ -9080,49 +9188,31 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		}
 	} else
 */
-#endif
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
-#ifndef METARESTORE
 		if (fs_load(fd,0,0x15)<0) {
-#else
-		if (fs_load(fd,ignoreflag,0x15)<0) {
-#endif
-#ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (structure)");
-#endif
 			fclose(fd);
 			return -1;
 		}
 	} else if (memcmp(hdr,MFSSIGNATURE "M 1.7",8)==0) {
-#ifndef METARESTORE
 		if (fs_load(fd,0,0x17)<0) {
-#else
-		if (fs_load(fd,ignoreflag,0x17)<0) {
-#endif
-#ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (structure)");
-#endif
 			fclose(fd);
 			return -1;
 		}
 	} else {
 		fprintf(stderr,"wrong metadata header\n");
-#ifndef METARESTORE
 		syslog(LOG_ERR,"wrong metadata header");
-#endif
 		fclose(fd);
 		return -1;
 	}
 	if (ferror(fd)!=0) {
 		fprintf(stderr,"error reading metadata\n");
-#ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata");
-#endif
 		fclose(fd);
 		return -1;
 	}
 	fclose(fd);
-#ifndef METARESTORE
 	if (backversion>metaversion) {
 		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
 		return -1;
@@ -9142,26 +9232,19 @@ int fs_loadall(const char *fname,int ignoreflag) {
 			return -1;
 		}
 	}
-#endif
 	fprintf(stderr,"connecting files and chunks ... ");
 	fflush(stderr);
-#ifdef METARESTORE
-	printf("L\n");
-#endif
 	fs_add_files_to_chunks();
-#ifdef METARESTORE
-	printf("C\n");
-#endif
 	fprintf(stderr,"ok\n");
-#ifndef METARESTORE
 	fprintf(stderr,"all inodes: %"PRIu32"\n",nodes);
 	fprintf(stderr,"directory inodes: %"PRIu32"\n",dirnodes);
 	fprintf(stderr,"file inodes: %"PRIu32"\n",filenodes);
 	fprintf(stderr,"chunks: %"PRIu32"\n",chunk_count());
-#endif
 	unlink("metadata.mfs.back.tmp");
 	return 0;
 }
+#endif
+
 
 void fs_strinit(void) {
 	uint32_t i;
@@ -9236,7 +9319,7 @@ int fs_init(void) {
 int fs_log_init(const char *fname,int ignoreflag) {
 	fs_strinit();
 	chunk_strinit();
-	if (fs_loadall(fname,ignoreflag)<0) {
+	if (fs_log_loadall(fname,ignoreflag)<0) {
 		return -1;
 	}
 	return 0;

@@ -18,6 +18,7 @@ mfsmaster_SOURCES=\
 	chartsdata.c chartsdata.h \
 	init.h \
 	../mfsmetarestore/restore.c ../mfsmetarestore/restore.h \
+	../mfsmetarestore/merger.c ../mfsmetarestore/merger.h \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/cfg.c ../mfscommon/cfg.h \
 	../mfscommon/random.c ../mfscommon/random.h \

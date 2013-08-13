@@ -22,7 +22,9 @@
 #include <stdarg.h>
 #include <syslog.h>
 #include <unistd.h>
-
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include "main.h"
 #include "changelog.h"
 #include "matomlserv.h"
@@ -31,14 +33,146 @@
 #define MAXLOGLINESIZE 200000U
 #define MAXLOGNUMBER 1000U
 static uint32_t BackLogsNumber;
-static FILE *fd;
+static FILE *logf;
+
+uint64_t findfirstlogversion(const char *fname) {
+	uint8_t buff[50];
+	int32_t s,p;
+	uint64_t fv;
+	int fd;
+
+	fd = open(fname,O_RDONLY);
+	if (fd<0) {
+		return 0;
+	}
+	s = read(fd,buff,50);
+	close(fd);
+	if (s<=0) {
+		return 0;
+	}
+	fv = 0;
+	p = 0;
+	while (p<s && buff[p]>='0' && buff[p]<='9') {
+		fv *= 10;
+		fv += buff[p]-'0';
+		p++;
+	}
+	if (p>=s || buff[p]!=':') {
+		return 0;
+	}
+	return fv;
+}
+
+uint64_t findlastlogversion(const char *fname) {
+	struct stat st;
+	uint8_t buff[32800];	// 32800 = 32768 + 32
+	uint64_t size;
+	uint32_t buffpos;
+	uint64_t lastnewline,lv;
+	int fd;
+
+	fd = open(fname,O_RDONLY);
+	if (fd<0) {
+		return 0;
+	}
+	fstat(fd,&st);
+	size = st.st_size;
+	memset(buff,0,32);
+	lastnewline = 0;
+	while (size>0 && size+200000>(uint64_t)(st.st_size)) {
+		if (size>32768) {
+			memcpy(buff+32768,buff,32);
+			size-=32768;
+			lseek(fd,size,SEEK_SET);
+			if (read(fd,buff,32768)!=32768) {
+				close(fd);
+				return 0;
+			}
+			buffpos = 32768;
+		} else {
+			memmove(buff+size,buff,32);
+			lseek(fd,0,SEEK_SET);
+			if (read(fd,buff,size)!=(ssize_t)size) {
+				close(fd);
+				return 0;
+			}
+			buffpos = size;
+			size = 0;
+		}
+		// size = position in file of first byte in buff
+		// buffpos = position of last byte in buff to search
+		while (buffpos>0) {
+			buffpos--;
+			if (buff[buffpos]=='\n') {
+				if (lastnewline==0) {
+					lastnewline = size + buffpos;
+				} else {
+					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file
+						close(fd);
+						return 0;
+					}
+					buffpos++;
+					lv = 0;
+					while (buffpos<32800 && buff[buffpos]>='0' && buff[buffpos]<='9') {
+						lv *= 10;
+						lv += buff[buffpos]-'0';
+						buffpos++;
+					}
+					if (buffpos==32800 || buff[buffpos]!=':') {
+						lv = 0;
+					}
+					close(fd);
+					return lv;
+				}
+			}
+		}
+	}
+	close(fd);
+	return 0;
+}
+
+int changelog_checkname(const char *fname) {
+	const char *ptr = fname;
+	if (strncmp(ptr,"changelog.",10)==0) {
+		ptr+=10;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
+	} else if (strncmp(ptr,"changelog_ml.",13)==0) {
+		ptr+=13;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
+	} else if (strncmp(ptr,"changelog_ml_back.",18)==0) {
+		ptr+=18;
+		if (*ptr>='0' && *ptr<='9') {
+			while (*ptr>='0' && *ptr<='9') {
+				ptr++;
+			}
+			if (strcmp(ptr,".mfs")==0) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
 
 void changelog_rotate() {
 	char logname1[100],logname2[100];
 	uint32_t i;
-	if (fd) {
-		fclose(fd);
-		fd=NULL;
+	if (logf) {
+		fclose(logf);
+		logf=NULL;
 	}
 	if (BackLogsNumber>0) {
 		for (i=BackLogsNumber ; i>0 ; i--) {
@@ -67,16 +201,16 @@ void changelog(uint64_t version,const char *format,...) {
 		leng++;
 	}
 
-	if (fd==NULL) {
-		fd = fopen("changelog.0.mfs","a");
-		if (!fd) {
+	if (logf==NULL) {
+		logf = fopen("changelog.0.mfs","a");
+		if (!logf) {
 			syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,printbuff);
 		}
 	}
 
-	if (fd) {
-		fprintf(fd,"%"PRIu64": %s\n",version,printbuff);
-		fflush(fd);
+	if (logf) {
+		fprintf(logf,"%"PRIu64": %s\n",version,printbuff);
+		fflush(logf);
 	}
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
@@ -96,6 +230,6 @@ int changelog_init(void) {
 		return -1;
 	}
 	main_reloadregister(changelog_reload);
-	fd = NULL;
+	logf = NULL;
 	return 0;
 }
