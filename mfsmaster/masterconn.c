@@ -330,7 +330,6 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			}
             if (restart) {
-                unlink("metadata.mfs.back");
                 changelog_rotate(); // flush changelog
                 syslog(LOG_NOTICE, "please restart to restore metadata");
                 exit(0); // do not dump metadata
