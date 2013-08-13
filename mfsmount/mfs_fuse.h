@@ -63,7 +63,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name);
 //void mfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock);
 //void mfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sl);
 #endif
-void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in);
+void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in,int use_dir_cache_in);
 // void mfs_init(int debug_mode_in,int keep_cache_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
 
 #endif

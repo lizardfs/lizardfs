@@ -219,17 +219,21 @@ void fs_notify_attr(const uint8_t *buff,uint32_t size) {
 		dirnode = get32bit(&buff);
 		inode = get32bit(&buff);
 		dcache_setattr(dirnode,inode,buff);
+	    syslog(LOG_WARNING,"dcache: invalidate attr %u %u", dirnode, inode);
 		buff += 35;
 		size -= 43;
 	}
 }
 
+void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes);
+
 void fs_notify_dir(const uint8_t *buff,uint32_t size) {
 	uint32_t inode;
-	fs_notify_sendremoved(size/4, buff);
+	fs_notify_sendremoved(size/4, (uint32_t*)buff);
 	while (size>=4) {
 		inode = get32bit(&buff);
 		dcache_remove(inode);
+	    syslog(LOG_WARNING,"dcache: invalidate dir %u", inode);
 		size -= 4;
 	}
 }
@@ -2113,6 +2117,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	flags = GETDIR_FLAG_WITHATTR;
 	if (addtocache) {
 		flags |= GETDIR_FLAG_DIRCACHE;
+	    syslog(LOG_WARNING,"dcache: cache dir %u", inode);
 	}
 	put8bit(&wptr,flags);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDIR,&i);
