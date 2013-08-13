@@ -361,14 +361,14 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	char *net;
 	char *p;
 
-	if (*line=='#') {
-		return -1;
-	}
-
 	p = line;
 	while (*p==' ' || *p=='\t') {
 		p++;
 	}
+	if (*p=='#' || *p==0 || *p=='\r' || *p=='\n') {
+		return -1;
+	}
+
 	net = p;
 	while (*p && *p!=' ' && *p!='\t') {
 		p++;
