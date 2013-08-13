@@ -62,6 +62,8 @@ enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define DIRINODE_HASH_SIZE 1000003
 
+#define MAX_NOTIFY_ATTR_PER_DIR 10
+
 // locked chunks
 typedef struct chunklist {
 	uint64_t chunkid;
@@ -137,8 +139,10 @@ typedef struct matoclserventry {
 typedef struct dirincache {
 	struct matoclserventry *eptr;
 	uint32_t dirinode;
+	uint32_t notify;
 	struct dirincache *nextnode;
 } dirincache;
+
 
 static dirincache **dirinodehash=NULL;
 static session *sessionshead=NULL;
@@ -201,6 +205,7 @@ static inline void matoclserv_notify_add_dir(matoclserventry *eptr,uint32_t inod
 		if (dc->eptr==NULL) {
 			dc->eptr = eptr;
 			dc->dirinode = inode;
+			dc->notify = 0;
 			return;
 		}
 	}
@@ -208,6 +213,7 @@ static inline void matoclserv_notify_add_dir(matoclserventry *eptr,uint32_t inod
 	passert(dc);
 	dc->eptr = eptr;
 	dc->dirinode = inode;
+	dc->notify = 0;
 	// by inode
 	dc->nextnode = dirinodehash[hash];
 	dirinodehash[hash] = dc;
@@ -1077,6 +1083,8 @@ void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	matomlserv_mloglist_data(ptr);
 }
 
+void matoclserv_notify_dir(uint32_t dirinode);
+
 void matoclserv_notify_attr(uint32_t inode,const uint8_t *pattr,matoclserventry *eptr) {
 	uint32_t hash;
 	dirincache *dc;
@@ -1093,6 +1101,12 @@ void matoclserv_notify_attr(uint32_t inode,const uint8_t *pattr,matoclserventry 
 		for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
 			if (dc->dirinode==dirinode) {
 				// syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %"PRIu32,dc->eptr->sesdata->info,inode);
+				dc->notify++;
+				if (dc->notify > MAX_NOTIFY_ATTR_PER_DIR) {
+					matoclserv_notify_dir(dirinode);
+					dc->notify = 0;
+					break;
+				}
 				if (!pattr) {
 					fs_getattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,0,0,0,0,attr);
 					pattr = attr;

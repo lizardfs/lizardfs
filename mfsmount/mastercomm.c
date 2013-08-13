@@ -98,8 +98,11 @@ typedef struct _acquired_file {
 
 #define RECEIVE_TIMEOUT 10
 
-#define LOOKUP_STAT_SIZE 1000
+#define LOOKUP_STAT_SIZE 1003
+#define LAST_INVALIDATE_SIZE 100003
+#define NOT_CACHE_TIME 10 // 10 seconds
 static uint32_t lookup_stats[LOOKUP_STAT_SIZE];
+static time_t   last_invalidates[LAST_INVALIDATE_SIZE];
 
 static threc *threchead=NULL;
 
@@ -169,6 +172,9 @@ void master_statsptr_init(void) {
 	statsptr[MASTER_BYTESRCVD] = stats_get_counterptr(stats_get_subnode(s,"bytes_received",0));
 	statsptr[MASTER_BYTESSENT] = stats_get_counterptr(stats_get_subnode(s,"bytes_sent",0));
 	statsptr[MASTER_CONNECTS] = stats_get_counterptr(stats_get_subnode(s,"reconnects",0));
+
+	memset(lookup_stats, 0, sizeof(lookup_stats));
+	memset(last_invalidates, 0, sizeof(last_invalidates));
 }
 
 void master_stats_inc(uint8_t id) {
@@ -237,6 +243,7 @@ void fs_notify_dir(const uint8_t *buff,uint32_t size) {
 		inode = get32bit(&buff);
 		if (dcache_remove(inode)) {
 			inodes[n++] = inode;
+			last_invalidates[inode%LAST_INVALIDATE_SIZE] = time(NULL);
 		}
 		size -= 4;
 	}
@@ -1663,12 +1670,16 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	uint32_t i;
 	uint32_t t32;
 	uint8_t ret;
+	uint32_t now;
 	if (dcache_lookup(parent,nleng,name,inode,attr)) {
 		return *inode?STATUS_OK:ERROR_ENOENT;
 	}
-	if (lookup_stats[parent%LOOKUP_STAT_SIZE]==parent) {
+	now = time(NULL);
+	if (lookup_stats[parent%LOOKUP_STAT_SIZE]==parent &&
+			last_invalidates[parent%LAST_INVALIDATE_SIZE] + NOT_CACHE_TIME < now) {
 		const uint8_t *dbuff;
 		uint32_t dsize;
+		last_invalidates[parent%LAST_INVALIDATE_SIZE] = now;
 		if (fs_getdir_plus(parent,uid,gid,1,&dbuff,&dsize)==STATUS_OK) {
 			free((void*)dbuff);
 			if (dcache_lookup(parent,nleng,name,inode,attr)) {
