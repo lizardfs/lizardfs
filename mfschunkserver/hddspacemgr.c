@@ -18,7 +18,7 @@
 
 #include "config.h"
 
-#define MMAP_ALLOC 1
+#define MMAP_ALLOC 0
 
 // #include <execinfo.h> // for backtrace - debugs only
 #include <inttypes.h>
