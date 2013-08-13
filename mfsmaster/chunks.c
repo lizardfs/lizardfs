@@ -2022,33 +2022,25 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 //	syslog(LOG_WARNING,"chunk %016"PRIX64": ivc=%"PRIu32" , tdc=%"PRIu32" , vc=%"PRIu32" , bc=%"PRIu32" , tdb=%"PRIu32" , dc=%"PRIu32" , goal=%"PRIu8" , scount=%"PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
 
 // step 2. check number of copies
-	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
-        uint32_t max_version = c->version;
+	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */ && jobsnorepbefore<(uint32_t)main_time()) {
+        uint32_t max_version=0;
 		for (s=c->slisthead ; s ; s=s->next) {
             if (s->version > max_version) {
                 max_version = s->version;
             }
 		}
-        if (max_version > c->version) {
-		    syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - repair it successfully, new version is %"PRIX32"",
-                    c->chunkid,ivc,max_version);
-            c->version = max_version;
-            for (s=c->slisthead ; s ; s=s->next) {
-                if (s->version == max_version) {
-                    s->valid = VALID;
-				    chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies+1,c->regularvalidcopies,c->regularvalidcopies+1);
-                    c->regularvalidcopies ++;
-                    c->allvalidcopies ++;
-                    vc ++;
-                    ivc --;
-                }
+	    syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - repair it successfully, new version is %"PRIX32"",
+                c->chunkid,ivc,max_version);
+        c->version = max_version;
+        for (s=c->slisthead ; s ; s=s->next) {
+            if (s->version == max_version) {
+                s->valid = VALID;
+			    chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies+1,c->regularvalidcopies,c->regularvalidcopies+1);
+                c->regularvalidcopies ++;
+                c->allvalidcopies ++;
+                vc ++;
+                ivc --;
             }
-        } else {
-		    syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually",c->chunkid,ivc);
-            for (s=c->slisthead ; s ; s=s->next) {
-                syslog(LOG_NOTICE,"chunk %016"PRIX64"_%08"PRIX32" - invalid copy on (%s - ver:%08"PRIX32")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
-            }
-		    return ;
         }
 	}
 
