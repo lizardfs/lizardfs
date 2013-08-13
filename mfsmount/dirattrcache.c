@@ -156,6 +156,7 @@ static void dcache_free(dircache *d) {
     if (d->inodehashtab) {
         free(d->inodehashtab);
     }
+    free(d->dbuff);
     free(d);
 }
 
