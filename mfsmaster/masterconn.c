@@ -41,6 +41,7 @@
 #include "slogger.h"
 #include "massert.h"
 #include "sockets.h"
+#include "filesystem.h"
 
 #define MaxPacketSize 1500000
 
@@ -82,6 +83,7 @@ typedef struct masterconn {
 static masterconn *masterconnsingleton=NULL;
 
 // from config
+static uint32_t MasterMode;
 static uint32_t BackLogsNumber;
 static uint32_t BackMetaCopies;
 static char *MasterHost;
@@ -100,84 +102,6 @@ void masterconn_stats(uint32_t *bin,uint32_t *bout) {
 	*bout = stats_bytesout;
 	stats_bytesin = 0;
 	stats_bytesout = 0;
-}
-
-void masterconn_findlastlogversion(void) {
-	struct stat st;
-	uint8_t buff[32800];	// 32800 = 32768 + 32
-	uint64_t size;
-	uint32_t buffpos;
-	uint64_t lastnewline;
-	int fd;
-
-	lastlogversion = 0;
-
-	if (stat("metadata_ml.mfs.back",&st)<0 || st.st_size==0 || (st.st_mode & S_IFMT)!=S_IFREG) {
-		return;
-	}
-
-	fd = open("changelog_ml.0.back",O_RDWR);
-	if (fd<0) {
-		return;
-	}
-	fstat(fd,&st);
-	size = st.st_size;
-	memset(buff,0,32);
-	lastnewline = 0;
-	while (size>0 && size+200000>(uint64_t)(st.st_size)) {
-		if (size>32768) {
-			memcpy(buff+32768,buff,32);
-			size-=32768;
-			lseek(fd,size,SEEK_SET);
-			if (read(fd,buff,32768)!=32768) {
-				lastlogversion = 0;
-				close(fd);
-				return;
-			}
-			buffpos = 32768;
-		} else {
-			memmove(buff+size,buff,32);
-			lseek(fd,0,SEEK_SET);
-			if (read(fd,buff,size)!=(ssize_t)size) {
-				lastlogversion = 0;
-				close(fd);
-				return;
-			}
-			buffpos = size;
-			size = 0;
-		}
-		// size = position in file of first byte in buff
-		// buffpos = position of last byte in buff to search
-		while (buffpos>0) {
-			buffpos--;
-			if (buff[buffpos]=='\n') {
-				if (lastnewline==0) {
-					lastnewline = size + buffpos;
-				} else {
-					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file - truncate
-						if (ftruncate(fd,lastnewline+1)<0) {
-							lastlogversion = 0;
-							close(fd);
-							return;
-						}
-					}
-					buffpos++;
-					while (buffpos<32800 && buff[buffpos]>='0' && buff[buffpos]<='9') {
-						lastlogversion *= 10;
-						lastlogversion += buff[buffpos]-'0';
-						buffpos++;
-					}
-					if (buffpos==32800 || buff[buffpos]!=':') {
-						lastlogversion = 0;
-					}
-					close(fd);
-					return;
-				}
-			}
-		}
-	}
-	close(fd);
-	return;
 }
 
 uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
@@ -882,6 +806,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 
 void masterconn_reconnect(void) {
 	masterconn *eptr = masterconnsingleton;
+    if (MasterMode) return;
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
@@ -891,6 +816,12 @@ void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
+    char *mode, mastermode;
+
+    mode = cfg_getstr("RUN_MODE","master");
+    mastermode = (strcmp(mode, "master") == 0);
+    // TODO: mode changed
+    MasterMode = mastermode;
 
 	free(MasterHost);
 	free(MasterPort);
@@ -939,6 +870,10 @@ int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 	masterconn *eptr;
+    char *mode;
+
+    mode = cfg_getstr("RUN_MODE","master");
+    MasterMode = (strcmp(mode, "master") == 0);
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
@@ -974,8 +909,8 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
-	masterconn_findlastlogversion();
-	if (masterconn_initconnect(eptr)<0) {
+    lastlogversion=fs_getversion();
+	if (!MasterMode && masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
