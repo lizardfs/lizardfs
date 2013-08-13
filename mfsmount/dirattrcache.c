@@ -153,7 +153,7 @@ void dcache_makeinodehash(dircache *d) {
 	}
 	hashmask = d->hashsize-1;
 	d->inodehashtab = malloc(sizeof(uint8_t*)*d->hashsize);
-    if (!d->namehashtab) return;
+    if (!d->inodehashtab) return;
 	memset(d->inodehashtab,0,sizeof(uint8_t*)*d->hashsize);
 
 	ptr = d->dbuff;
