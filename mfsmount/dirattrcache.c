@@ -26,7 +26,8 @@
 #include "datapack.h"
 
 #define DCACHE_HASH_SIZE 100003
-#define INDEX_HASH_SIZE (DCACHE_HASH_SIZE*10+1)
+#define INDEX_SLOT 8
+#define INDEX_HASH_SIZE 100003
 
 typedef struct _dircache {
 	uint32_t parent;
@@ -42,9 +43,33 @@ typedef struct _inode_parent {
     uint32_t parent;
 } inode_parent;
 
-static dircache **head;
-static inode_parent *inodeindex;
+static inode_parent parents[INDEX_HASH_SIZE][INDEX_SLOT];
+static dircache *dcache[DCACHE_HASH_SIZE];
 static pthread_mutex_t glock = PTHREAD_MUTEX_INITIALIZER;
+
+static void add_parent(uint32_t inode, uint32_t parent) {
+    int i;
+    inode_parent *ptr = parents[inode%INDEX_HASH_SIZE];
+    for (i=0; i<INDEX_SLOT; i++) {
+        if (ptr[i].inode == 0) {
+            ptr[i].inode = inode;
+            ptr[i].parent = parent;
+            ptr[(i+1)%INDEX_SLOT].inode = 0;
+            break;
+        }
+    }
+}
+
+static uint32_t get_parent(uint32_t inode) {
+    int i;
+    inode_parent *ptr = parents[inode%INDEX_HASH_SIZE];
+    for (i=0; i<INDEX_SLOT; i++) {
+        if (ptr[i].inode == inode) {
+            return ptr[i].parent;
+        }
+    }
+    return 0;
+}
 
 static inline uint32_t inode_hash(uint32_t inode) {
     return (inode*0x5F2318BD)%DCACHE_HASH_SIZE;
@@ -136,8 +161,7 @@ void dcache_makeinodehash(dircache *d) {
 		if (ptr+enleng+40<=eptr) {
 			iptr = ptr+1+enleng;
 			hash = get32bit(&iptr);
-            inodeindex[hash%INDEX_HASH_SIZE].parent = d->parent;
-            inodeindex[hash%INDEX_HASH_SIZE].inode = hash;
+            add_parent(hash, d->parent);
 			disp = ((hash*0x53B23891)&hashmask)|1;
 			hash *= 0xB28E457D;
 			while (d->inodehashtab[hash&hashmask]) {
@@ -162,10 +186,8 @@ static void dcache_free(dircache *d) {
 
 void dcache_init() {
 	pthread_mutex_lock(&glock);
-    head=malloc(sizeof(dircache*)*DCACHE_HASH_SIZE);
-    memset(head, 0, sizeof(dircache*)*DCACHE_HASH_SIZE);
-    inodeindex=malloc(sizeof(inode_parent)*INDEX_HASH_SIZE);
-    memset(inodeindex, 0, sizeof(inode_parent)*INDEX_HASH_SIZE);
+    memset(dcache, 0, sizeof(dcache));
+    memset(parents, 0, sizeof(parents));
 	pthread_mutex_unlock(&glock);
 }
 
@@ -175,7 +197,7 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	dircache *d;
     
 	pthread_mutex_lock(&glock);
-    if (head[hash]&&head[hash]->parent==parent) {
+    if (dcache[hash]&&dcache[hash]->parent==parent) {
 	    pthread_mutex_unlock(&glock);
         return 0;
     }
@@ -189,11 +211,11 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	d->namehashtab = NULL;
     dcache_makeinodehash(d);
 
-    if (head[hash]) {
-        old = head[hash]->parent;
-        dcache_free(head[hash]);
+    if (dcache[hash]) {
+        old = dcache[hash]->parent;
+        dcache_free(dcache[hash]);
     }
-	head[hash] = d;
+	dcache[hash] = d;
 	pthread_mutex_unlock(&glock);
     return old;
 }
@@ -202,10 +224,10 @@ uint8_t dcache_remove(uint32_t parent) {
     dircache *d;
     uint32_t hash=inode_hash(parent);
     pthread_mutex_lock(&glock);
-    d = head[hash];
+    d = dcache[hash];
     if (d && d->parent == parent) {
         dcache_free(d);
-        head[hash] = NULL;
+        dcache[hash] = NULL;
         pthread_mutex_unlock(&glock);
         return 1;
     }
@@ -217,12 +239,12 @@ void dcache_remove_all() {
     uint32_t h;
     pthread_mutex_lock(&glock);
     for (h=0; h<DCACHE_HASH_SIZE; h++) {
-        if (head[h]) {
-            dcache_free(head[h]);
+        if (dcache[h]) {
+            dcache_free(dcache[h]);
         }
     }
-    memset(head,0,sizeof(dircache*)*DCACHE_HASH_SIZE);
-    memset(inodeindex,0,sizeof(inode_parent)*INDEX_HASH_SIZE);
+    memset(dcache,0,sizeof(dcache));
+    memset(parents,0,sizeof(parents));
     pthread_mutex_unlock(&glock);
 }
 
@@ -271,7 +293,7 @@ uint8_t dcache_getdir(uint32_t parent,uint8_t **dbuff,uint32_t *dsize) {
     uint32_t hash=inode_hash(parent);
     uint8_t r=0;
 	pthread_mutex_lock(&glock);
-    d = head[hash];
+    d = dcache[hash];
 	if (d && parent==d->parent) {
         *dsize=d->dsize;
         *dbuff=malloc(*dsize);
@@ -287,7 +309,7 @@ uint8_t dcache_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t
     uint32_t hash=inode_hash(parent);
     uint8_t r=0;
 	pthread_mutex_lock(&glock);
-    d = head[hash];
+    d = dcache[hash];
 	if (d && parent==d->parent) {
 	    dcache_namehashsearch(d,nleng,name,inode,attr);
         r = 1;
@@ -301,14 +323,14 @@ uint8_t dcache_getattr(uint32_t inode,uint8_t attr[35]) {
 	dircache *d;
     uint8_t *ptr;
     uint32_t hash,parent;
-    hash=inode % INDEX_HASH_SIZE;
-    if (inodeindex[hash].inode!=inode) {
+	pthread_mutex_lock(&glock);
+    parent=get_parent(inode);
+    if (parent==0) {
+	    pthread_mutex_unlock(&glock);
         return 0;
     }
-    parent=inodeindex[hash].parent;
     hash=inode_hash(parent);
-	pthread_mutex_lock(&glock);
-	d=head[hash];
+	d=dcache[hash];
 	if (d && d->parent==parent) {
 		if (dcache_inodehashsearch(d,inode,&ptr)) {
             memcpy(attr,ptr,35);
@@ -324,21 +346,19 @@ uint8_t dcache_setattr(uint32_t parent,uint32_t inode,uint8_t attr[35]) {
 	dircache *d;
     uint8_t *ptr;
     uint32_t hash;
-    if (parent==0) {
-        hash=inode % INDEX_HASH_SIZE;
-        if (inodeindex[hash].inode!=inode) {
-            return 0;
-        }
-        parent=inodeindex[hash].parent;
-    }
-    hash = inode_hash(parent);
 	pthread_mutex_lock(&glock);
-    d = head[hash];
-	if (d && d->parent==parent) {
-		if (dcache_inodehashsearch(d,inode,&ptr)) {
-            memcpy(ptr,attr,35);
-		}
-	}
+    if (parent==0) {
+        parent=get_parent(inode);
+    }
+    if (parent) {
+        hash = inode_hash(parent);
+        d = dcache[hash];
+        if (d && d->parent==parent) {
+            if (dcache_inodehashsearch(d,inode,&ptr)) {
+                memcpy(ptr,attr,35);
+            }
+        }
+    }
 	pthread_mutex_unlock(&glock);
 	return 0;
 }
