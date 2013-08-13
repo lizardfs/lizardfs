@@ -4089,6 +4089,7 @@ int matoclserv_sessionsinit(void) {
 void matoclserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
+    int ismastermode;
 
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
@@ -4149,12 +4150,13 @@ void matoclserv_reload(void) {
 	tcpclose(lsock);
 	lsock = newlsock;
 
-    if (fs_ismastermode() && !lastismastermode) {
+    ismastermode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
+    if (ismastermode && !lastismastermode) {
         matoclserv_load_sessions();
         matoclserv_touch_sessions();
         starting = 12;
     }
-    lastismastermode = fs_ismastermode();
+    lastismastermode = ismastermode;
 }
 
 int matoclserv_networkinit(void) {

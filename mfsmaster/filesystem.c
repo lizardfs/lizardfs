@@ -9304,6 +9304,7 @@ void fs_reload(void) {
 	}
 	NoAtime = cfg_getuint8("NOATIME", 0);
     MasterMode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
+    syslog(LOG_NOTICE, "run as %s mode", cfg_getstr("RUN_MODE", "master"));
 }
 
 int fs_init(void) {
@@ -9326,6 +9327,7 @@ int fs_init(void) {
 	}
 	NoAtime = cfg_getuint8("NOATIME", 0);
 	MasterMode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
+    fprintf(stderr, "run as %s\n", cfg_getstr("RUN_MODE", "master"));
 
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
