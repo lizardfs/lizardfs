@@ -441,7 +441,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		}
 		return;
 	}
-	if (fsync(eptr->metafd)<0) {
+	/*if (fsync(eptr->metafd)<0) {
 		mfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
@@ -450,7 +450,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 			masterconn_download_next(eptr);
 		}
 		return;
-	}
+	}*/
 	eptr->dloffset+=leng;
 	eptr->downloadretrycnt=0;
 	masterconn_download_next(eptr);
