@@ -3498,6 +3498,8 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 
 static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 	chunk *c;
+	int blen = 256;
+	char buf[256];
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
@@ -3505,6 +3507,10 @@ static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
 		return ERROR_WRONGVERSION;
+	}
+	if ((blen = readlink(c->filename, buf, blen)) != -1) {
+		buf[blen] = 0;
+		unlink(buf);
 	}
 	if (unlink(c->filename)<0) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
@@ -3795,7 +3801,7 @@ static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid
 	folder *prevf;
 	chunk *c;
 
-//	if (stat(fullname,&sb)<0) {
+//	if (lstat(fullname,&sb)<0) {
 //		if (f->todel<2) {
 //			unlink(fullname);
 //		}
@@ -3822,7 +3828,7 @@ static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid
 	if (c == NULL) return;
 	if (c->filename!=NULL) {	// already have this chunk
 		if (version <= c->version) {	// current chunk is older
-			if (todel<2) { // this is R/W fs?
+			if (version < c->version && todel<2) { // this is R/W fs?
 				unlink(fullname); // if yes then remove file
 			}
 		} else {
