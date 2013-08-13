@@ -1762,12 +1762,14 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 //	if (newdircache) {
 //		dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
 //	}
-	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
-	status = mfs_errorconv(status);
-	if (status!=0) {
-		fuse_reply_err(req, status);
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
-		return;
+	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+		status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
+		status = mfs_errorconv(status);
+		if (status!=0) {
+			fuse_reply_err(req, status);
+			oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
+			return;
+		}
 	}
 
 	mattr = mfs_attr_get_mattr(attr);
