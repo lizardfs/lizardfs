@@ -208,8 +208,8 @@ void mfs_statsptr_init(void) {
 	statsptr[OP_LOOKUP_INTERNAL] = stats_get_counterptr(stats_get_subnode(s,"lookup-internal",0));
 	statsptr[OP_ACCESS] = stats_get_counterptr(stats_get_subnode(s,"access",0));
 	statsptr[OP_STATFS] = stats_get_counterptr(stats_get_subnode(s,"statfs",0));
-    statsptr[OP_GETDIR_FULL] = stats_get_counterptr(stats_get_subnode(s,"getdir-full",0));
-    statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
+	statsptr[OP_GETDIR_FULL] = stats_get_counterptr(stats_get_subnode(s,"getdir-full",0));
+	statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
 }
 
 void mfs_stats_inc(uint8_t id) {
@@ -1899,7 +1899,11 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
-	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
+	if ((fi->flags & O_ACCMODE) == O_RDONLY) {
+		status = fs_getattr(ino,ctx->uid,ctx->gid,attr); //TODO permission check
+	} else {
+		status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
+	}
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1978,7 +1982,9 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (fileinfo!=NULL) {
 		mfs_removefileinfo(fileinfo);
 	}
-	fs_release(ino);
+	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+		fs_release(ino);
+	}
 	fuse_reply_err(req,0);
 	oplog_printf(ctx,"release (%lu): OK",(unsigned long int)ino);
 }
