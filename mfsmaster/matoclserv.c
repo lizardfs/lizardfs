@@ -31,7 +31,6 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
-#include <sys/event.h>
 
 #include "MFSCommunication.h"
 
@@ -51,6 +50,14 @@
 #include "sockets.h"
 #include "slogger.h"
 #include "massert.h"
+
+#include "config.h"
+#ifdef HAVE_EPOLL
+#include <sys/epoll.h>
+#endif
+#ifdef HAVE_KQUEUE
+#include <sys/event.h>
+#endif
 
 #define MaxPacketSize 1000000
 
@@ -191,6 +198,70 @@ struct ae_event {
 	void *data;
 };
 
+#ifdef HAVE_EPOLL
+static matoclserventry *fd2entry[MFSMAXFILES+1];
+
+static int ae_create() {
+	return epoll_create(MFSMAXFILES);
+}
+
+static int ae_add(int fd, void *data) {
+    struct epoll_event ee;
+    ee.events = EPOLLIN | EPOLLERR | EPOLLHUP;
+    ee.data.fd = fd;
+    fd2entry[fd] = data;
+    if (epoll_ctl(pollfd, EPOLL_CTL_ADD,fd,&ee) == -1 && errno != EEXIST) {
+        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_ADD,fd,errno);
+        return -1;
+    }
+    return 0;
+}
+
+static int ae_update(int fd, int flag, void *data) {
+    struct epoll_event ee;
+    ee.events = EPOLLIN | EPOLLERR | EPOLLHUP;
+    if (flag & AE_WRITE) ee.events |= EPOLLOUT;
+    ee.data.fd = fd;
+    fd2entry[fd] = data;
+    if (epoll_ctl(pollfd, EPOLL_CTL_MOD,fd,&ee) == -1 && errno != EEXIST) {
+        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_ADD,fd,errno);
+        return -1;
+    }
+    return 0;
+}
+
+static int ae_del(int fd) {
+    struct epoll_event ee;
+    /* Note, Kernel < 2.6.9 requires a non null event pointer even for
+     * EPOLL_CTL_DEL. */
+    if (epoll_ctl(pollfd,EPOLL_CTL_DEL,fd,&ee) == -1
+            && errno != ENOENT && errno != EBADF) {
+        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_DEL,fd,errno);
+        return -1;
+    }
+    fd2entry[fd] = NULL;
+    return 0;
+}
+
+static int ae_poll(struct ae_event *events) {
+	struct epoll_event evs[1024];
+    int j, numevents = 0;
+
+    numevents = epoll_wait(pollfd,evs,1024,0);
+    for (j=0; j<numevents; j++) {
+        int mask = 0;
+        if (evs[j].events & EPOLLIN) mask |= AE_READ;
+        if (evs[j].events & EPOLLOUT) mask |= AE_WRITE;
+        if (evs[j].events & (EPOLLERR|EPOLLHUP)) mask |= AE_READ|AE_EOF;
+        events[j].fd = evs[j].data.fd;
+        events[j].mask = mask;
+        events[j].data = fd2entry[evs[j].data.fd];
+    }
+    return numevents;
+}
+#else
+
+#ifdef HAVE_KQUEUE
 static int ae_create() {
 	return kqueue();
 }
@@ -243,6 +314,8 @@ static int ae_poll(struct ae_event *events) {
 	}
 	return ret;
 }
+#endif
+#endif
 
 // cache notification routines
 
@@ -3987,7 +4060,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		}
 
 		eptr = events[i].data;
-		if (eptr->sock != events[i].fd) {
+		if (!eptr || eptr->sock != events[i].fd) {
 			mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
 			continue;
 		}
