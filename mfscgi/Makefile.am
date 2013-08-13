@@ -17,8 +17,10 @@ EXTRA_DIST = mfs.cgi.in chart.cgi.in cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_D
 
 if INSTALL_CGISERV
 cgiserv_SCRIPTS = \
-	mfscgiserv
+	mfscgiserv mfsrun
 
 mfscgiserv: cgiserv.py.in
 	sed -e "s#@""CGIDIR""@#$(CGIDIR)#" -e "s#@""DATAPATH""@#$(DATA_PATH)#" <cgiserv.py.in >mfscgiserv
+mfsrun: run.py.in
+	sed -e "s#@""CGISERVDIR""@#$(CGISERVDIR)#" -e "s#@""ETC_PATH""@#$(ETC_PATH)#" <run.py.in >mfsrun
 endif
