@@ -92,7 +92,7 @@ static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
-static uint64_t lastlogversion=0;
+static uint64_t currentlogversion=0;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
@@ -131,14 +131,14 @@ void masterconn_sendregister(masterconn *eptr) {
 	eptr->downloading=0;
 	eptr->metafd=-1;
 
-	if (lastlogversion>0) {
+	if (currentlogversion>0) {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
 		put8bit(&buff,2);
 		put16bit(&buff,VERSMAJ);
 		put8bit(&buff,VERSMID);
 		put8bit(&buff,VERSMIN);
 		put16bit(&buff,Timeout);
-		put64bit(&buff,lastlogversion);
+		put64bit(&buff,currentlogversion);
 	} else {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2);
 		put8bit(&buff,1);
@@ -177,17 +177,17 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	data++;
 	version = get64bit(&data);
     
-    if (version>0 && version<=lastlogversion) {
+    if (version<currentlogversion) {
         // ignore old version
         return;
     }
-	if (lastlogversion>0 && version>lastlogversion+1) {
-		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion+1,version-1);
+	if (currentlogversion>0 && version>currentlogversion) {
+		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",currentlogversion,version-1);
         masterconn_metadownloadinit();
 	}
 
     changelog(version, (const char*)data); 
-	lastlogversion = version;
+	currentlogversion = version+1;
     
     if (version == fs_getversion()) {
         sprintf(line, ": %s\n", data);
@@ -533,7 +533,7 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->outputtail = &(eptr->outputhead);
 
 	masterconn_sendregister(eptr);
-	if (lastlogversion==0) {
+	if (currentlogversion==0) {
 		masterconn_metadownloadinit();
 	}
 	eptr->lastread = eptr->lastwrite = main_time();
@@ -871,9 +871,7 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
-    if (fs_getversion()>0) {
-        lastlogversion = fs_getversion()-1;
-    }
+    currentlogversion = fs_getversion();
 	if (!fs_ismastermode() && masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
