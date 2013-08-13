@@ -1855,10 +1855,13 @@ void matocsserv_serve(int fd,int mask,void *data) {
 	matocsserventry *eptr=data;
 	int ns;
     
-    if (fd==lsock) {
+	while (fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
+			if (errno!=EAGAIN && errno!=EWOULDBLOCK) {
+			    mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
+				}
+			return;
         } else if (!fs_ismastermode()) {
             close(ns);
 		} else {
@@ -1907,7 +1910,6 @@ void matocsserv_serve(int fd,int mask,void *data) {
             event_add(ns,POLLIN,matocsserv_serve,eptr);
             if (ns>maxfd) maxfd=ns;
 		}
-        return;
 	}
     if (!eptr || eptr->sock!=fd) {
 	    mfs_arg_errlog_silent(LOG_ERR,"invalid event %d",fd);

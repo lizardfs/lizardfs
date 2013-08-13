@@ -3912,10 +3912,13 @@ void matoclserv_serve(int fd,int mask,void *data) {
 	matoclserventry *eptr = data;
 	int ns;
 
-	if (fd==lsock) {
+	while (fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			if (errno!=EAGAIN && errno!=EWOULDBLOCK) {
+				mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			}
+			return;
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -3948,7 +3951,6 @@ void matoclserv_serve(int fd,int mask,void *data) {
 
 			if (ns>maxfd) maxfd=ns;
 		}
-		return;
 	}
 
 	if (!eptr || eptr->sock != fd) {
