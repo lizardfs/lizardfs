@@ -2455,7 +2455,7 @@ void chunk_jobs_main(void) {
 	} else if (tscount>lasttscount) {	// servers connected
 		if (tscount>=maxtscount) {
 			maxtscount = tscount;
-			jobsnorepbefore = main_time();
+			jobsnorepbefore = main_time()+ReplicationsDelayInit;
 		}
 	} else if (tscount<maxtscount && (uint32_t)main_time()>jobsnorepbefore) {
 		maxtscount = tscount;
