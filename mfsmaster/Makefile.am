@@ -21,6 +21,7 @@ mfsmaster_SOURCES=\
 	../mfscommon/random.c ../mfscommon/random.h \
 	../mfscommon/md5.c ../mfscommon/md5.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/event.c ../mfscommon/event.h \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/charts.c ../mfscommon/charts.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \

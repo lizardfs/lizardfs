@@ -71,6 +71,7 @@
 #include "init.h"
 #include "massert.h"
 #include "slogger.h"
+#include "event.h"
 
 #define RM_RESTART 0
 #define RM_START 1
@@ -320,6 +321,7 @@ void mainloop() {
 
 	t = 0;
 	r = 0;
+    main_pollregister(event_desc, event_serve);
 	while (t!=3) {
 		ndesc=1;
 		pdesc[0].fd = signalpipe[0];
@@ -1222,7 +1224,7 @@ int main(int argc,char **argv) {
 	}
 #endif
 	fprintf(stderr,"initializing %s modules ...\n",logappname);
-
+    
 	if (initialize()) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));

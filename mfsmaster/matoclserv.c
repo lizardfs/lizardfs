@@ -50,14 +50,9 @@
 #include "sockets.h"
 #include "slogger.h"
 #include "massert.h"
+#include "event.h"
 
 #include "config.h"
-#ifdef HAVE_EPOLL
-#include <sys/epoll.h>
-#endif
-#ifdef HAVE_KQUEUE
-#include <sys/event.h>
-#endif
 
 #define MaxPacketSize 1000000
 
@@ -157,8 +152,6 @@ static matoclserventry *matoclservhead=NULL;
 static matoclserventry *writable[MFSMAXFILES+1];
 static int maxfd;
 static int lsock;
-static int pollfd;
-static int32_t pollfdpdescpos;
 static int exiting,starting;
 
 // from config
@@ -186,136 +179,6 @@ void matoclserv_stats(uint64_t stats[5]) {
 	stats_bsent = 0;
 	stats_notify = 0;
 }
-
-// epoll and kqueue 
-#define	AE_READ  1
-#define	AE_WRITE 2
-#define	AE_EOF   4
-
-struct ae_event {
-	int fd;
-	int mask;
-	void *data;
-};
-
-#ifdef HAVE_EPOLL
-static matoclserventry *fd2entry[MFSMAXFILES+1];
-
-static int ae_create() {
-	return epoll_create(MFSMAXFILES);
-}
-
-static int ae_add(int fd, void *data) {
-    struct epoll_event ee;
-    ee.events = EPOLLIN | EPOLLERR | EPOLLHUP;
-    ee.data.fd = fd;
-    fd2entry[fd] = data;
-    if (epoll_ctl(pollfd, EPOLL_CTL_ADD,fd,&ee) == -1 && errno != EEXIST) {
-        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_ADD,fd,errno);
-        return -1;
-    }
-    return 0;
-}
-
-static int ae_update(int fd, int flag, void *data) {
-    struct epoll_event ee;
-    ee.events = EPOLLIN | EPOLLERR | EPOLLHUP;
-    if (flag & AE_WRITE) ee.events |= EPOLLOUT;
-    ee.data.fd = fd;
-    fd2entry[fd] = data;
-    if (epoll_ctl(pollfd, EPOLL_CTL_MOD,fd,&ee) == -1 && errno != EEXIST) {
-        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_ADD,fd,errno);
-        return -1;
-    }
-    return 0;
-}
-
-static int ae_del(int fd) {
-    struct epoll_event ee;
-    /* Note, Kernel < 2.6.9 requires a non null event pointer even for
-     * EPOLL_CTL_DEL. */
-    if (epoll_ctl(pollfd,EPOLL_CTL_DEL,fd,&ee) == -1
-            && errno != ENOENT && errno != EBADF) {
-        fprintf(stderr, "epoll_ctl(%d,%d) failed: %d\n", EPOLL_CTL_DEL,fd,errno);
-        return -1;
-    }
-    fd2entry[fd] = NULL;
-    return 0;
-}
-
-static int ae_poll(struct ae_event *events) {
-	struct epoll_event evs[1024];
-    int j, numevents = 0;
-
-    numevents = epoll_wait(pollfd,evs,1024,0);
-    for (j=0; j<numevents; j++) {
-        int mask = 0;
-        if (evs[j].events & EPOLLIN) mask |= AE_READ;
-        if (evs[j].events & EPOLLOUT) mask |= AE_WRITE;
-        if (evs[j].events & (EPOLLERR|EPOLLHUP)) mask |= AE_READ|AE_EOF;
-        events[j].fd = evs[j].data.fd;
-        events[j].mask = mask;
-        events[j].data = fd2entry[evs[j].data.fd];
-    }
-    return numevents;
-}
-#else
-
-#ifdef HAVE_KQUEUE
-static int ae_create() {
-	return kqueue();
-}
-
-static int ae_add(int fd, void *data) {
-	struct kevent ev;
-	EV_SET(&ev, fd, EVFILT_READ, EV_ADD, 0, 0, data);
-	return kevent(pollfd, &ev, 1, NULL, 0, 0);
-}
-
-static int ae_update(int fd, int flag, void *data) {
-	struct kevent ev;
-	uint16_t filter = EVFILT_READ;
-	if (flag & AE_WRITE) filter |= EVFILT_WRITE;
-	EV_SET(&ev, fd, filter, EV_ADD, 0, 0, data);
-	return kevent(pollfd, &ev, 1, NULL, 0, 0);
-}
-
-static int ae_del(int fd) {
-	struct kevent ev;
-	int ret;
-	EV_SET(&ev, fd, EVFILT_READ|EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-	ret = kevent(pollfd, &ev, 1, NULL, 0, 0);
-	if (ret!=0) {
-		if (ret==-1 && errno!=ENOENT) {
-			fprintf(stderr, "del fd %d failed: %d errno: %d\n", fd, ret, errno);
-			fprintf(stderr, "%d %d %d %d %d %d %d %d\n", EACCES, EFAULT, EBADF, EINTR, EINVAL, ENOENT, ENOMEM, ESRCH);
-		}
-	}
-	return ret;
-}
-
-static int ae_poll(struct ae_event *events) {
-	static struct kevent evs[1024];
-	int i, ret = kevent(pollfd, NULL, 0, evs, 1024, NULL);
-	if (ret > 0) {
-		for (i=0; i<ret; i++) {
-			events[i].fd = evs[i].ident;
-			int mask = 0;
-			if (evs[i].filter == EVFILT_READ) {
-				mask |= AE_READ;
-				if (evs[i].flags & EV_EOF) {
-					mask |= AE_EOF;
-				}
-			}
-			if (evs[i].filter == EVFILT_WRITE) mask |= AE_WRITE;
-			events[i].mask = mask; 
-			events[i].data = evs[i].udata;
-		}
-	}
-	return ret;
-}
-#endif
-#endif
 
 // cache notification routines
 
@@ -3842,8 +3705,6 @@ void matoclserv_term(void) {
 	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
-	close(pollfd);
-
 	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
 		eptrn = eptr->next;
 		if (eptr->inputpacket.packet) {
@@ -3986,7 +3847,7 @@ void matoclserv_write(matoclserventry *eptr) {
 
 void matoclserv_wantexit(void) {
 	exiting=1;
-	ae_del(lsock);
+	event_del(lsock);
 }
 
 int matoclserv_canexit(void) {
@@ -4002,26 +3863,12 @@ int matoclserv_canexit(void) {
 	return 1;
 }
 
-void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	pollfdpdescpos = *ndesc;
-	pdesc[pollfdpdescpos].fd = pollfd;
-	pdesc[pollfdpdescpos].events = POLLIN;
-	*ndesc = pollfdpdescpos+1;
-}
-
-
-void matoclserv_serve(struct pollfd *pdesc) {
+void matoclserv_serve(int fd,int mask,void *data) {
 	uint32_t now=main_time();
-	matoclserventry *eptr;
-	struct ae_event events[1024];
-	int i,ns, ret;
+	matoclserventry *eptr = data;
+	int ns;
 
-	if (pollfdpdescpos<0 || !(pdesc[pollfdpdescpos].revents & (POLLIN|POLLOUT))) {
-		return;
-	}
-	ret = ae_poll(events);
-	for (i=0; i<ret; i++) {
-		if (events[i].fd==lsock) {
+	if (fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
@@ -4053,40 +3900,44 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			memset(eptr->passwordrnd,0,32);
 //			eptr->openedfiles = NULL;
 			
-			ae_add(ns, eptr);
+            event_add(ns,AE_READ,matoclserv_serve,eptr);
 			if (ns>maxfd) maxfd=ns;
 		}
-		continue;
-		}
+		return;
+	}
 
-		eptr = events[i].data;
-		if (!eptr || eptr->sock != events[i].fd) {
-			mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
-			continue;
-		}
-		if ((events[i].mask & AE_READ) && eptr->mode!=KILL) {
-			eptr->lastread = now;
-			matoclserv_read(eptr);
-			if (events[i].mask & AE_EOF) {
-				eptr->mode=KILL;
-			}
-		}
-		if ((eptr->outputhead || (events[i].mask & AE_WRITE)) && eptr->mode!=KILL) {
-			eptr->lastwrite = now;
-			matoclserv_write(eptr);
-			if (eptr->mode!=KILL) {
-				if ((events[i].mask & AE_WRITE) && !eptr->outputhead) {
-					ae_update(events[i].fd, AE_READ, eptr);
-				} else if (!(events[i].mask & AE_WRITE) && eptr->outputhead){
-					ae_update(events[i].fd, AE_WRITE, eptr);
-				}
-			}
-			writable[i] = NULL;
-		}
-		if (eptr->mode==KILL) {
-			ae_del(eptr->sock);
+	if (!eptr || eptr->sock != fd) {
+		mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
+        return;
+	}
+	if ((mask & AE_READ) && eptr->mode!=KILL) {
+		eptr->lastread = now;
+		matoclserv_read(eptr);
+		if (mask & AE_EOF) {
+			eptr->mode=KILL;
 		}
 	}
+	if ((eptr->outputhead || (mask & AE_WRITE)) && eptr->mode!=KILL) {
+		eptr->lastwrite = now;
+		matoclserv_write(eptr);
+		if (eptr->mode!=KILL) {
+			if ((mask & AE_WRITE) && !eptr->outputhead) {
+				event_add(fd,AE_READ, matoclserv_serve,eptr);
+			} else if (!(mask & AE_WRITE) && eptr->outputhead){
+				event_add(fd,AE_WRITE,matoclserv_serve,eptr);
+			}
+		}
+		writable[fd] = NULL;
+	}
+	if (eptr->mode==KILL) {
+		event_del(eptr->sock);
+	}
+}
+
+void matoclserv_flush(void) { 
+	uint32_t now=main_time();
+	matoclserventry *eptr;
+	int i;
 	for (i=0; i<maxfd; i++) {
 		if (writable[i]) {
 			eptr = writable[i];
@@ -4094,9 +3945,12 @@ void matoclserv_serve(struct pollfd *pdesc) {
 				eptr->lastwrite = now;
 				matoclserv_write(eptr);
 				if (eptr->outputhead && eptr->mode!=KILL) {
-					ae_update(eptr->sock, AE_WRITE, eptr);
+					event_add(eptr->sock,AE_WRITE,matoclserv_serve,eptr);
 				}
 			}
+            if (eptr->mode==KILL) {
+                event_del(eptr->sock);
+            }
 			writable[i] = NULL;
 		}
 	}
@@ -4115,7 +3969,7 @@ void matoclserv_nop(void) {
 			eptr->lastwrite = now;
 			matoclserv_write(eptr);
 			if (eptr->outputhead && eptr->mode!=KILL) {
-				ae_update(eptr->sock, AE_WRITE, eptr);
+				event_add(eptr->sock,AE_WRITE,matoclserv_serve,eptr);
 			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
@@ -4123,7 +3977,7 @@ void matoclserv_nop(void) {
 		}
 
 		if (eptr->mode==KILL) {
-			ae_del(eptr->sock);
+			event_del(eptr->sock);
 			writable[eptr->sock]=NULL;
 			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
@@ -4248,8 +4102,8 @@ void matoclserv_reload(void) {
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
-	ae_del(lsock);
-	ae_add(newlsock, NULL);
+    event_del(lsock);
+	event_add(newlsock,AE_READ,matoclserv_serve,NULL);
 	tcpclose(lsock);
 	lsock = newlsock;
 }
@@ -4269,11 +4123,7 @@ int matoclserv_networkinit(void) {
 	starting = 12;
 
 	maxfd = 0;
-	pollfd = ae_create();
-	if (pollfd < 0) {
-		mfs_errlog(LOG_ERR, "main master server module: create pollfd failed");
-		return -1;
-	}
+    event_init();
 
 	lsock = tcpsocket();
 	if (lsock<0) {
@@ -4291,7 +4141,7 @@ int matoclserv_networkinit(void) {
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
-	if (ae_add(lsock, NULL) < 0) {
+	if (event_add(lsock,AE_READ,matoclserv_serve,NULL) < 0) {
 		mfs_errlog(LOG_ERR, "main master server module: add event failed");
 		return -1;
 	}
@@ -4302,9 +4152,9 @@ int matoclserv_networkinit(void) {
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_nop);
+    main_eachloopregister(matoclserv_flush);
 	main_reloadregister(matoclserv_reload);
 	main_destructregister(matoclserv_term);
-	main_pollregister(matoclserv_desc,matoclserv_serve);
 	main_wantexitregister(matoclserv_wantexit);
 	main_canexitregister(matoclserv_canexit);
 	return 0;

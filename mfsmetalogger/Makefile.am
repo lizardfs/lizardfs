@@ -9,6 +9,7 @@ mfsmetalogger_SOURCES= \
 	../mfscommon/main.c ../mfscommon/main.h \
 	../mfscommon/cfg.c ../mfscommon/cfg.h \
 	../mfscommon/crc.c ../mfscommon/crc.h \
+	../mfscommon/event.c ../mfscommon/event.h \
 	../mfscommon/sockets.c ../mfscommon/sockets.h \
 	../mfscommon/strerr.c ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h ../mfscommon/slogger.h \
