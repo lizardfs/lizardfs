@@ -490,6 +490,17 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 	}
 }
 
+int matomlserv_canexit(void) {
+	matomlserventry *eptr = matomlservhead;
+	while (eptr) {
+		if (eptr->outputhead!=NULL) {
+            return 0;
+        }
+        eptr = eptr->next;
+    }
+    return 1;
+}
+
 void matomlserv_term(void) {
 	matomlserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
@@ -801,6 +812,7 @@ int matomlserv_init(void) {
 	}
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
+    main_canexitregister(matomlserv_canexit);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
 	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return 0;
