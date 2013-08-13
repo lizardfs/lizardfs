@@ -252,7 +252,8 @@ void matomlserv_send_archived_changes(matomlserventry *eptr) {
             if (nextid<eptr->currentversion) continue;
 
             ptr += 2; // ": "
-            len = strlen(ptr)+1;
+            len=strlen(ptr);
+            ptr[len-1]='\0'; // drop \n
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+len);
 			put8bit(&data,0xFF);
 			put64bit(&data,nextid);
@@ -302,21 +303,19 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
         for (i=0; i<20; i++) {
             sprintf(logname, "changelog.%d.mfs",i);
             firstlv=findfirstlogversion(logname);
-            if (firstlv>version) {
+            if (firstlv>version || firstlv==0) {
                 continue;
             }
-            if (firstlv>0) {
-                if ((eptr->logf=fopen(logname,"r"))!=NULL) {
-                    eptr->logindex = i;
-                    eptr->currentversion=version;
-                    matomlserv_send_archived_changes(eptr);
-                    if (eptr->logf) {
-                        return;
-                    }
-                    version=eptr->currentversion;
-                } else {
-                    syslog(LOG_WARNING, "matomlserv open %s failed", logname);
+            if ((eptr->logf=fopen(logname,"r"))!=NULL) {
+                eptr->logindex = i;
+                eptr->currentversion=version;
+                matomlserv_send_archived_changes(eptr);
+                if (eptr->logf) {
+                    return;
                 }
+                version=eptr->currentversion;
+            } else {
+                syslog(LOG_WARNING, "matomlserv open %s failed", logname);
             }
             break;
         }
