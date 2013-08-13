@@ -4076,6 +4076,7 @@ int hdd_parseline(char *hddcfgline) {
 	if (l==0) {
 		return 0;
 	}
+	hddcfgline[l] = '\0';
 	p = l;
 	while (p>0 && hddcfgline[p-1]!=' ' && hddcfgline[p-1]!='\t') {
 		p--;
