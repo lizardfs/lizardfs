@@ -1858,6 +1858,8 @@ void matocsserv_serve(int fd,int mask,void *data) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
+        } else if (!fs_ismastermode()) {
+            close(ns);
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -1965,13 +1967,13 @@ void matocsserv_nop(void) {
 	
     kptr = &matocsservhead;
 	while ((eptr=*kptr)) {
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
+		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now
+                || (!fs_ismastermode() && eptr->outputhead==NULL)) {
+			eptr->mode = KILL;
+        } else if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
 			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
 			eptr->lastwrite = now;
 			matocsserv_write(eptr);
-		}
-		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
-			eptr->mode = KILL;
 		}
 		if (eptr->mode == KILL) {
 			double us,ts;
