@@ -41,6 +41,7 @@
 #include "sockets.h"
 #include "slogger.h"
 #include "massert.h"
+#include "filesystem.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -175,6 +176,7 @@ void matomlserv_mloglist_data(uint8_t *ptr) {
 
 void matomlserv_status(void) {
 	matomlserventry *eptr;
+    if (!fs_ismastermode()) return;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->mode==HEADER || eptr->mode==DATA) {
 			return;
