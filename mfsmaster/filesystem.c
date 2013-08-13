@@ -917,11 +917,15 @@ uint32_t fs_get_parents(uint32_t id, uint32_t **parents) {
 	p = fsnodes_id_to_node(id);
 	if (!p) return 0;
 
-	for (e=p->parents; e; e=e->nextparent) n ++;
+	for (e=p->parents; e && e->parent; e=e->nextparent) n ++;
+    if (!n) return 0;
+
 	*parents = malloc(sizeof(uint32_t)*n);
 	passert(*parents);
 	n = 0;
-	for (e=p->parents; e; e=e->nextparent) (*parents)[n++] = e->parent->id;
+	for (e=p->parents; e && e->parent; e=e->nextparent) {
+        (*parents)[n++] = e->parent->id;
+    }
 	return n;
 }
 
