@@ -44,6 +44,7 @@
 #include "massert.h"
 #include "mfsstrerr.h"
 #include "hashfn.h"
+#include "event.h"
 
 #define MaxPacketSize 500000000
 
@@ -90,8 +91,9 @@ typedef struct matocsserventry {
 
 static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
+static matocsserventry *writable[MFSMAXFILES+1];
 static int lsock;
-static int32_t lsockpdescpos;
+static int maxfd;
 
 // from config
 static char *ListenHost;
@@ -960,6 +962,7 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
+    writable[eptr->sock] = eptr;
 	return ptr;
 }
 /* for future use */
@@ -1718,6 +1721,7 @@ void matocsserv_term(void) {
 	matocsserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
 	syslog(LOG_INFO,"master <-> chunkservers module: closing %s:%s",ListenHost,ListenPort);
+    event_del(lsock);
 	tcpclose(lsock);
 
 	eptr = matocsservhead;
@@ -1841,42 +1845,13 @@ void matocsserv_write(matocsserventry *eptr) {
 	}
 }
 
-void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
-//	int max=lsock;
-	matocsserventry *eptr;
-//	int i;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
-//	FD_SET(lsock,rset);
-	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
-//		i=eptr->sock;
-//		FD_SET(i,rset);
-		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events |= POLLOUT;
-//			FD_SET(i,wset);
-		}
-		pos++;
-//		if (i>max) max=i;
-	}
-	*ndesc = pos;
-//	return max;
-}
-
-void matocsserv_serve(struct pollfd *pdesc) {
+void matocsserv_serve(int fd,int mask,void *data) {
 	uint32_t now=main_time();
 	uint32_t peerip;
-	matocsserventry *eptr,**kptr;
-	packetstruct *pptr,*paptr;
+	matocsserventry *eptr=data;
 	int ns;
-
-	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
-//	if (FD_ISSET(lsock,rset)) {
+    
+    if (fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
@@ -1923,33 +1898,79 @@ void matocsserv_serve(struct pollfd *pdesc) {
 //				eptr->setversion=NULL;
 //				eptr->duplication=NULL;
 //				eptr->replication=NULL;
+            event_add(ns,AE_READ,matocsserv_serve,eptr);
+            if (ns>maxfd) maxfd=ns;
 		}
+        return;
 	}
-	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->pdescpos>=0) {
-			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
-				eptr->mode = KILL;
-			}
-			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
-//			if (FD_ISSET(eptr->sock,rset) && eptr->mode!=KILL) {
-				eptr->lastread = now;
-				matocsserv_read(eptr);
-			}
-			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
+    if (!eptr || eptr->sock!=fd) {
+	    mfs_arg_errlog_silent(LOG_ERR,"invalid event %d",fd);
+        return;
+    }
+	if ((mask & AE_READ) && eptr->mode!=KILL) {
+		eptr->lastread = now;
+		matocsserv_read(eptr);
+	}
+	if (mask & AE_EOF) {
+		eptr->mode = KILL;
+	}
+	if ((eptr->outputhead || (mask & AE_WRITE)) && eptr->mode!=KILL) {
 //			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
-				eptr->lastwrite = now;
-				matocsserv_write(eptr);
-			}
+		eptr->lastwrite = now;
+		matocsserv_write(eptr);
+        if (mask&AE_WRITE) {
+            if (!eptr->outputhead) {
+                event_add(fd,AE_READ,matocsserv_serve,eptr);
+            }
+        } else {
+            if (eptr->outputhead) {
+                event_add(fd,AE_WRITE,matocsserv_serve,eptr);
+            }
+        }
+	}
+    if (eptr->mode==KILL) {
+        event_del(fd);
+    }
+    writable[fd]=NULL;
+}
+
+void matocsserv_flush(void) {
+    uint32_t now=main_time();
+    matocsserventry *eptr;
+    int i;
+    for (i=0; i<maxfd; i++) {
+        if (writable[i]) {
+            eptr = writable[i];
+            if (eptr->mode!=KILL) {
+                eptr->lastwrite = now;
+                matocsserv_write(eptr);
+                if (eptr->outputhead && eptr->mode!=KILL) {
+                    event_add(eptr->sock,AE_WRITE,matocsserv_serve,eptr);
+                }
+            }
+            if (eptr->mode==KILL) {
+                event_del(eptr->sock);
+            }
+            writable[i] = NULL;
+        }
+    }
+}
+
+void matocsserv_nop(void) {    
+	uint32_t now=main_time();
+	matocsserventry *eptr,**kptr;
+	packetstruct *pptr,*paptr;
+	
+    kptr = &matocsservhead;
+	while ((eptr=*kptr)) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
+			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
+			eptr->lastwrite = now;
+			matocsserv_write(eptr);
 		}
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
-			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
-		}
-	}
-	kptr = &matocsservhead;
-	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
 			double us,ts;
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
@@ -2026,8 +2047,10 @@ void matocsserv_reload(void) {
 	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
+    event_del(lsock);
 	tcpclose(lsock);
 	lsock = newlsock;
+    event_add(lsock,AE_READ,matocsserv_serve,NULL);
 }
 
 int matocsserv_init(void) {
@@ -2049,14 +2072,17 @@ int matocsserv_init(void) {
 		mfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
+    event_init();
+    event_add(lsock,AE_READ,matocsserv_serve,NULL);
 	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
 	matocsserv_csdb_init();
 	matocsservhead = NULL;
 	main_reloadregister(matocsserv_reload);
+    main_timeregister(TIMEMODE_RUN_LATE,1,0,matocsserv_nop);
+    main_eachloopregister(matocsserv_flush);
 	main_destructregister(matocsserv_term);
-	main_pollregister(matocsserv_desc,matocsserv_serve);
 //	main_timeregister(TIMEMODE_SKIP_LATE,60,0,matocsserv_status);
 	return 0;
 }
