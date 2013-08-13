@@ -1518,7 +1518,7 @@ void fill_changedchunksinfo(uint8_t *buff) {
 }
 */
 
-void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount) {
+void hdd_get_space(uint64_t stats[6]) {
 	folder *f;
 	uint64_t avail,total;
 	uint64_t tdavail,tdtotal;
@@ -1545,12 +1545,12 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
-	*usedspace = total-avail;
-	*totalspace = total;
-	*chunkcount = chunks;
-	*tdusedspace = tdtotal-tdavail;
-	*tdtotalspace = tdtotal;
-	*tdchunkcount = tdchunks;
+	stats[0] = total-avail;
+	stats[1] = total;
+	stats[2] = chunks;
+	stats[3] = tdtotal-tdavail;
+	stats[4] = tdtotal;
+	stats[5] = tdchunks;
 }
 
 static inline void chunk_emptycrc(chunk *c) {
