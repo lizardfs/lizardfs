@@ -123,6 +123,7 @@ void dcache_makenamehash(dircache *d) {
 	}
 	hashmask = d->hashsize-1;
 	d->namehashtab = malloc(sizeof(uint8_t*)*d->hashsize);
+    if (!d->namehashtab) return;
 	memset(d->namehashtab,0,sizeof(uint8_t*)*d->hashsize);
 
 	ptr = d->dbuff;
@@ -152,6 +153,7 @@ void dcache_makeinodehash(dircache *d) {
 	}
 	hashmask = d->hashsize-1;
 	d->inodehashtab = malloc(sizeof(uint8_t*)*d->hashsize);
+    if (!d->namehashtab) return;
 	memset(d->inodehashtab,0,sizeof(uint8_t*)*d->hashsize);
 
 	ptr = d->dbuff;
@@ -198,24 +200,36 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
     
 	pthread_mutex_lock(&glock);
     if (dcache[hash]&&dcache[hash]->parent==parent) {
-	    pthread_mutex_unlock(&glock);
-        return 0;
+        goto RET;
     }
 
 	d = malloc(sizeof(dircache));
+    if (!d) {
+        goto RET;
+    }
 	d->parent = parent;
 	d->dbuff = (uint8_t*)malloc(dsize);
+    if (!d->dbuff) {
+        free(d);
+        goto RET;
+    }
     memcpy(d->dbuff, dbuff, dsize);
 	d->dsize = dsize;
 	d->hashsize = 0;
 	d->namehashtab = NULL;
     dcache_makeinodehash(d);
+    dcache_makenamehash(d);
+    if (!d->namehashtab || !d->inodehashtab) {
+        dcache_free(d);
+        goto RET;
+    }
 
     if (dcache[hash]) {
         old = dcache[hash]->parent;
         dcache_free(dcache[hash]);
     }
 	dcache[hash] = d;
+RET:    
 	pthread_mutex_unlock(&glock);
     return old;
 }
@@ -252,9 +266,6 @@ static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint
 	uint32_t hash,disp,hashmask;
 	const uint8_t *ptr;
 
-	if (d->namehashtab==NULL) {
-		dcache_makenamehash(d);
-	}
 	hashmask = d->hashsize-1;
 	hash = dcache_hash(name,nleng);
 	disp = ((hash*0x53B23891)&hashmask)|1;
@@ -297,8 +308,10 @@ uint8_t dcache_getdir(uint32_t parent,uint8_t **dbuff,uint32_t *dsize) {
 	if (d && parent==d->parent) {
         *dsize=d->dsize;
         *dbuff=malloc(*dsize);
-        memcpy(*dbuff,d->dbuff,*dsize);
-        r = 1;
+        if (*dbuff) {
+            memcpy(*dbuff,d->dbuff,*dsize);
+            r = 1;
+        }
 	}
 	pthread_mutex_unlock(&glock);
 	return r;
