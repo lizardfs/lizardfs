@@ -7054,6 +7054,12 @@ uint64_t fs_getversion() {
 
 enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 
+#ifndef METARESTORE
+int fs_ismastermode() {
+	return MasterMode;
+}
+#endif
+
 #ifdef METARESTORE
 /* DUMP */
 
@@ -8927,6 +8933,7 @@ int fs_storeall(int bg) {
 }
 
 void fs_dostoreall(void) {
+    if (!MasterMode) return;
 	fs_storeall(1);	// ignore error
 }
 

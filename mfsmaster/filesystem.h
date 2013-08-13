@@ -69,6 +69,9 @@ int fs_log_init(const char *fname,int ignoreflag);
 
 #else
 
+int fs_ismastermode();
+int fs_storeall(int bg);
+
 // attr blob: [ type:8 goal:8 mode:16 uid:32 gid:32 atime:32 mtime:32 ctime:32 length:64 ]
 void fs_stats(uint32_t stats[16]);
 void fs_info(uint64_t *totalspace,uint64_t *availspace,uint64_t *trspace,uint32_t *trnodes,uint64_t *respace,uint32_t *renodes,uint32_t *inodes,uint32_t *dnodes,uint32_t *fnodes);

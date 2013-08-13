@@ -43,6 +43,7 @@
 #include "massert.h"
 #include "sockets.h"
 #include "filesystem.h"
+#include "changelog.h"
 #include "../mfsmetarestore/restore.h"
 
 #define MaxPacketSize 1500000
@@ -75,7 +76,6 @@ typedef struct masterconn {
 	uint8_t downloadretrycnt;
 	uint8_t downloading;
 	uint8_t oldmode;
-	FILE *logfd;	// using stdio because this is text file
 	int metafd;	// using standard unix I/O because this is binary file
 	uint64_t filesize;
 	uint64_t dloffset;
@@ -131,7 +131,6 @@ void masterconn_sendregister(masterconn *eptr) {
 
 	eptr->downloading=0;
 	eptr->metafd=-1;
-	eptr->logfd=NULL;
 
 	if (lastlogversion>0) {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
@@ -152,23 +151,11 @@ void masterconn_sendregister(masterconn *eptr) {
 }
 
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	char logname1[100],logname2[100], line[1024];
+	char logname1[100],line[1024];
 	uint32_t i;
 	uint64_t version;
 	if (length==1 && data[0]==0x55) {
-		if (eptr->logfd!=NULL) {
-			fclose(eptr->logfd);
-			eptr->logfd=NULL;
-		}
-		if (BackLogsNumber>0) {
-			for (i=BackLogsNumber ; i>0 ; i--) {
-				snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
-				snprintf(logname2,100,"changelog_ml.%"PRIu32".mfs",i-1);
-				rename(logname2,logname1);
-			}
-		} else {
-			unlink("changelog_ml.0.mfs");
-		}
+        fs_storeall(1);
 		return;
 	}
 	if (length<10) {
@@ -196,10 +183,6 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
     }
 	if (lastlogversion>0 && version>lastlogversion+1) {
 		syslog(LOG_WARNING, "some changes lost: [%"PRIu64"-%"PRIu64"], download metadata again",lastlogversion+1,version-1);
-		if (eptr->logfd!=NULL) {
-			fclose(eptr->logfd);
-			eptr->logfd=NULL;
-		}
 		for (i=0 ; i<=BackLogsNumber ; i++) {
 			snprintf(logname1,100,"changelog_ml.%"PRIu32".mfs",i);
 			unlink(logname1);
@@ -209,16 +192,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 
-	if (eptr->logfd==NULL) {
-		eptr->logfd = fopen("changelog_ml.0.mfs","a");
-	}
-
-	if (eptr->logfd) {
-		fprintf(eptr->logfd,"%"PRIu64": %s\n",version,data);
-	} else {
-		syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,data);
-	}
-  
+    changelog(version, (const char*)data); 
 	lastlogversion = version;
     
     if (version == fs_getversion()) {
@@ -231,13 +205,6 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
             syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
         }
     }
-}
-
-void masterconn_metachanges_flush(void) {
-	masterconn *eptr = masterconnsingleton;
-	if (eptr->logfd) {
-		fflush(eptr->logfd);
-	}
 }
 
 int masterconn_download_end(masterconn *eptr) {
@@ -370,8 +337,8 @@ void masterconn_download_next(masterconn *eptr) {
 			}
             if (restart) {
                 unlink("metadata.mfs.back");
-                masterconn_metachanges_flush();
-                syslog(LOG_NOTICE, "restart to restore metadata");
+                changelog_rotate(); // flush changelog
+                syslog(LOG_NOTICE, "please restart to restore metadata");
                 exit(0); // do not dump metadata
             }
 		}
@@ -507,10 +474,6 @@ void masterconn_beforeclose(masterconn *eptr) {
 		unlink("metadata_ml.tmp");
 		unlink("sessions_ml.tmp");
 		unlink("changelog_ml.tmp");
-	}
-	if (eptr->logfd) {
-		fclose(eptr->logfd);
-		eptr->logfd = NULL;
 	}
 }
 
@@ -922,7 +885,6 @@ int masterconn_init(void) {
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
-	eptr->logfd = NULL;
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
@@ -937,6 +899,5 @@ int masterconn_init(void) {
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
-	//main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
 	return 0;
 }
