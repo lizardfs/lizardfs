@@ -94,7 +94,6 @@ static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
 static uint64_t lastlogversion=0;
-static uint32_t restart=0;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
@@ -231,8 +230,6 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
         if (fs_getversion() != version+1) {
             syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
         }
-    } else {
-        syslog(LOG_WARNING, "changelog version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version);
     }
 }
 
@@ -318,6 +315,7 @@ int masterconn_metadata_check(char *name) {
 }
 
 void masterconn_download_next(masterconn *eptr) {
+    static uint32_t restart=0;
 	uint8_t *ptr;
 	uint8_t filenum;
 	int64_t dltime;
@@ -330,7 +328,9 @@ void masterconn_download_next(masterconn *eptr) {
 		if (dltime<=0) {
 			dltime=1;
 		}
-		syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+        if (filenum!=2) {
+		    syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+        }
 		if (filenum==1) {
 			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
 				if (BackMetaCopies>0) {
@@ -369,8 +369,9 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			}
             if (restart) {
-                syslog(LOG_NOTICE, "restart to restore metadata");
                 unlink("metadata.mfs.back");
+                masterconn_metachanges_flush();
+                syslog(LOG_NOTICE, "restart to restore metadata");
                 exit(0); // do not dump metadata
             }
 		}

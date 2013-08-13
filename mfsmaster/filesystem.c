@@ -9047,9 +9047,9 @@ int fs_auto_restore(void) {
         files += changelog_checkname(dp->d_name);
     }
     if (files==0) {
-        printf("changelog files not found\n");
+        printf("no changelog files\n");
         closedir(dd);
-        return -1;
+        return 0;
     }
     filenames = (char**)malloc(sizeof(char*)*files);
     pos = 0;
