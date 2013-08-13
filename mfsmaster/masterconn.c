@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <signal.h>
 
 #include "MFSCommunication.h"
 #include "datapack.h"
@@ -42,6 +43,7 @@
 #include "massert.h"
 #include "sockets.h"
 #include "filesystem.h"
+#include "../mfsmetarestore/restore.h"
 
 #define MaxPacketSize 1500000
 
@@ -91,8 +93,8 @@ static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
-static void* download_hook;
 static uint64_t lastlogversion=0;
+static uint32_t restart=0;
 
 static uint32_t stats_bytesout=0;
 static uint32_t stats_bytesin=0;
@@ -151,7 +153,7 @@ void masterconn_sendregister(masterconn *eptr) {
 }
 
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	char logname1[100],logname2[100];
+	char logname1[100],logname2[100], line[1024];
 	uint32_t i;
 	uint64_t version;
 	if (length==1 && data[0]==0x55) {
@@ -210,10 +212,23 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 	if (eptr->logfd) {
 		fprintf(eptr->logfd,"%"PRIu64": %s\n",version,data);
-		lastlogversion = version;
 	} else {
 		syslog(LOG_NOTICE,"lost MFS change %"PRIu64": %s",version,data);
 	}
+  
+	lastlogversion = version;
+    
+    if (version >= fs_getversion()) {
+        sprintf(line, "%"PRIu64": %s\n", version, data);
+        if (restore_line("(live changelog)", version, line)!=STATUS_OK) {
+            syslog(LOG_WARNING, "restore change log failed: version=%"PRIu64", download metadata again",version);
+        }
+
+        if (fs_getversion() != version+1) {
+            syslog(LOG_WARNING, "restored version not match: %"PRIu64"!=%"PRIu64", download metadata again",fs_getversion(),version+1);
+        }
+    } else {
+    }
 }
 
 void masterconn_metachanges_flush(void) {
@@ -329,6 +344,7 @@ void masterconn_download_next(masterconn *eptr) {
 			}
 			if (eptr->oldmode==0) {
 				masterconn_download_init(eptr,11);
+                restart = 1;
 			} else {
 				masterconn_download_init(eptr,2);
 			}
@@ -342,10 +358,15 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr,2);
+            restart = 1;
 		} else if (filenum==2) {
 			if (rename("sessions_ml.tmp","sessions_ml.mfs")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			}
+            if (restart) {
+                syslog(LOG_NOTICE, "restart to restore metadata");
+                kill(0, SIGTERM);
+            }
 		}
 	} else {	// send request for next data packet
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_DATA,12);
@@ -815,7 +836,6 @@ void masterconn_reconnect(void) {
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
-	uint32_t MetaDLFreq;
     char *mode, mastermode;
 
     mode = cfg_getstr("RUN_MODE","master");
@@ -841,7 +861,6 @@ void masterconn_reload(void) {
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
-	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -855,20 +874,15 @@ void masterconn_reload(void) {
 	if (BackLogsNumber>10000) {
 		BackLogsNumber=10000;
 	}
-	if (MetaDLFreq>(BackLogsNumber/2)) {
-		MetaDLFreq=BackLogsNumber/2;
-	}
 	if (BackMetaCopies>99) {
 		BackMetaCopies=99;
 	}
 
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
-	main_timechange(download_hook,TIMEMODE_RUN_LATE,MetaDLFreq*3600,630);
 }
 
 int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
-	uint32_t MetaDLFreq;
 	masterconn *eptr;
     char *mode;
 
@@ -882,7 +896,6 @@ int masterconn_init(void) {
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
-	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -896,9 +909,6 @@ int masterconn_init(void) {
 	if (BackLogsNumber>10000) {
 		BackLogsNumber=10000;
 	}
-	if (MetaDLFreq>(BackLogsNumber/2)) {
-		MetaDLFreq=BackLogsNumber/2;
-	}
 	eptr = masterconnsingleton = malloc(sizeof(masterconn));
 	passert(eptr);
 
@@ -909,16 +919,15 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
-    lastlogversion=fs_getversion();
+    lastlogversion=fs_getversion()-1;
 	if (!MasterMode && masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
-	download_hook = main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
+	//main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
 	return 0;
 }

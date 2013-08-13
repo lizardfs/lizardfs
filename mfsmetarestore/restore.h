@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 
+int restore_line(const char *filename,uint64_t lv,char *line);
 int restore(const char *filename,uint64_t lv,char *ptr);
 void restore_setverblevel(uint8_t _vlevel);
 
