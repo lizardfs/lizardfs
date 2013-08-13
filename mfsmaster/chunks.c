@@ -408,9 +408,6 @@ chunk* chunk_new(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
 	newchunk = chunk_malloc();
-#ifdef METARESTORE
-	printf("N%"PRIu64"\n",chunkid);
-#endif
 #ifndef METARESTORE
 	chunks++;
 	allchunkcounts[0][0]++;
@@ -441,9 +438,6 @@ chunk* chunk_new(uint64_t chunkid) {
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
-#ifdef METARESTORE
-	printf("F%"PRIu64"\n",chunkid);
-#endif
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
@@ -875,9 +869,6 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 	if (c->fcount==1) {
 		c->goal = 0;
 		c->fcount = 0;
-#ifdef METARESTORE
-		printf("D%"PRIu64"\n",c->chunkid);
-#endif
 	} else {
 		if (c->ftab) {
 			c->ftab[goal]--;
