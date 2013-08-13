@@ -21,8 +21,7 @@
 
 #include <inttypes.h>
 
-#ifdef METARESTORE
-
+// for mfsmetarestore
 
 uint64_t fs_getversion(void);
 
@@ -61,6 +60,8 @@ uint8_t fs_log_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t tra
 uint8_t fs_log_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 uint8_t fs_log_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
 uint8_t fs_log_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
+
+#ifdef METARESTORE
 
 void fs_log_dump(void);
 void fs_log_term(const char *fname);
