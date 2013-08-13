@@ -1901,7 +1901,7 @@ void matocsserv_serve(int fd,int mask,void *data) {
 //				eptr->setversion=NULL;
 //				eptr->duplication=NULL;
 //				eptr->replication=NULL;
-            event_add(ns,AE_READ,matocsserv_serve,eptr);
+            event_add(ns,POLLIN,matocsserv_serve,eptr);
             if (ns>maxfd) maxfd=ns;
 		}
         return;
@@ -1910,23 +1910,23 @@ void matocsserv_serve(int fd,int mask,void *data) {
 	    mfs_arg_errlog_silent(LOG_ERR,"invalid event %d",fd);
         return;
     }
-	if ((mask & AE_READ) && eptr->mode!=KILL) {
+	if ((mask & POLLIN) && eptr->mode!=KILL) {
 		eptr->lastread = now;
 		matocsserv_read(eptr);
 	}
-	if (mask & AE_EOF) {
+	if (mask & POLLHUP) {
 		eptr->mode = KILL;
 	}
 	if (eptr->outputhead && eptr->mode!=KILL) {
 		eptr->lastwrite = now;
 		matocsserv_write(eptr);
-        if (mask&AE_WRITE) {
+        if (mask&POLLOUT) {
             if (!eptr->outputhead) {
-                event_add(fd,AE_READ,matocsserv_serve,eptr);
+                event_add(fd,POLLIN,matocsserv_serve,eptr);
             }
         } else {
             if (eptr->outputhead) {
-                event_add(fd,AE_WRITE,matocsserv_serve,eptr);
+                event_add(fd,POLLOUT,matocsserv_serve,eptr);
             }
         }
 	}
@@ -1947,7 +1947,7 @@ void matocsserv_flush(void) {
                 eptr->lastwrite = now;
                 matocsserv_write(eptr);
                 if (eptr->outputhead && eptr->mode!=KILL) {
-                    event_add(eptr->sock,AE_WRITE,matocsserv_serve,eptr);
+                    event_add(eptr->sock,POLLOUT,matocsserv_serve,eptr);
                 }
             }
             if (eptr->mode==KILL) {
@@ -2052,7 +2052,7 @@ void matocsserv_reload(void) {
     event_del(lsock);
 	tcpclose(lsock);
 	lsock = newlsock;
-    event_add(lsock,AE_READ,matocsserv_serve,NULL);
+    event_add(lsock,POLLIN,matocsserv_serve,NULL);
 }
 
 int matocsserv_init(void) {
@@ -2075,7 +2075,7 @@ int matocsserv_init(void) {
 		return -1;
 	}
     event_init();
-    event_add(lsock,AE_READ,matocsserv_serve,NULL);
+    event_add(lsock,POLLIN,matocsserv_serve,NULL);
 	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();

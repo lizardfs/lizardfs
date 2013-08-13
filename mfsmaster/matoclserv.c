@@ -668,7 +668,6 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
-
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
@@ -3900,7 +3899,8 @@ void matoclserv_serve(int fd,int mask,void *data) {
 			memset(eptr->passwordrnd,0,32);
 //			eptr->openedfiles = NULL;
 			
-            event_add(ns,AE_READ,matoclserv_serve,eptr);
+            event_add(ns,POLLIN,matoclserv_serve,eptr);
+
 			if (ns>maxfd) maxfd=ns;
 		}
 		return;
@@ -3910,21 +3910,21 @@ void matoclserv_serve(int fd,int mask,void *data) {
 		mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
         return;
 	}
-	if ((mask & AE_READ) && eptr->mode!=KILL) {
+	if ((mask & POLLIN) && eptr->mode!=KILL) {
 		eptr->lastread = now;
 		matoclserv_read(eptr);
-		if (mask & AE_EOF) {
+		if (mask & POLLHUP) {
 			eptr->mode=KILL;
 		}
 	}
-	if ((eptr->outputhead || (mask & AE_WRITE)) && eptr->mode!=KILL) {
+	if ((eptr->outputhead || (mask & POLLOUT)) && eptr->mode!=KILL) {
 		eptr->lastwrite = now;
 		matoclserv_write(eptr);
 		if (eptr->mode!=KILL) {
-			if ((mask & AE_WRITE) && !eptr->outputhead) {
-				event_add(fd,AE_READ, matoclserv_serve,eptr);
-			} else if (!(mask & AE_WRITE) && eptr->outputhead){
-				event_add(fd,AE_WRITE,matoclserv_serve,eptr);
+			if ((mask & POLLOUT) && !eptr->outputhead) {
+				event_add(fd,POLLIN, matoclserv_serve,eptr);
+			} else if (!(mask & POLLOUT) && eptr->outputhead){
+				event_add(fd,POLLOUT,matoclserv_serve,eptr);
 			}
 		}
 		writable[fd] = NULL;
@@ -3945,7 +3945,7 @@ void matoclserv_flush(void) {
 				eptr->lastwrite = now;
 				matoclserv_write(eptr);
 				if (eptr->outputhead && eptr->mode!=KILL) {
-					event_add(eptr->sock,AE_WRITE,matoclserv_serve,eptr);
+					event_add(eptr->sock,POLLOUT,matoclserv_serve,eptr);
 				}
 			}
             if (eptr->mode==KILL) {
@@ -3969,7 +3969,7 @@ void matoclserv_nop(void) {
 			eptr->lastwrite = now;
 			matoclserv_write(eptr);
 			if (eptr->outputhead && eptr->mode!=KILL) {
-				event_add(eptr->sock,AE_WRITE,matoclserv_serve,eptr);
+				event_add(eptr->sock,POLLOUT,matoclserv_serve,eptr);
 			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
@@ -4103,7 +4103,7 @@ void matoclserv_reload(void) {
 	free(oldListenHost);
 	free(oldListenPort);
     event_del(lsock);
-	event_add(newlsock,AE_READ,matoclserv_serve,NULL);
+	event_add(newlsock,POLLIN,matoclserv_serve,NULL);
 	tcpclose(lsock);
 	lsock = newlsock;
 }
@@ -4141,7 +4141,7 @@ int matoclserv_networkinit(void) {
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
-	if (event_add(lsock,AE_READ,matoclserv_serve,NULL) < 0) {
+	if (event_add(lsock,POLLIN,matoclserv_serve,NULL) < 0) {
 		mfs_errlog(LOG_ERR, "main master server module: add event failed");
 		return -1;
 	}
