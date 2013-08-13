@@ -132,39 +132,8 @@ uint64_t findlastlogversion(const char *fname) {
 }
 
 int changelog_checkname(const char *fname) {
-	const char *ptr = fname;
-	if (strncmp(ptr,"changelog.",10)==0) {
-		ptr+=10;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
-				return 1;
-			}
-		}
-	} else if (strncmp(ptr,"changelog_ml.",13)==0) {
-		ptr+=13;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
-				return 1;
-			}
-		}
-	} else if (strncmp(ptr,"changelog_ml_back.",18)==0) {
-		ptr+=18;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
-				return 1;
-			}
-		}
-	}
-	return 0;
+    int len = strlen(fname);
+	return strncmp(fname,"changelog",9)==0 && strncmp(fname+len-4,".mfs",4)==0;
 }
 
 void changelog_rotate() {

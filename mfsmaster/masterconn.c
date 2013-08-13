@@ -293,18 +293,18 @@ void masterconn_download_next(masterconn *eptr) {
 		    syslog(LOG_NOTICE,"%s downloaded %"PRIu64"B/%"PRIu64".%06"PRIu32"s (%.3lf MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
         }
 		if (filenum==1) {
-			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
+			if (masterconn_metadata_check("metadata.tmp")==0) {
 				if (BackMetaCopies>0) {
 					char metaname1[100],metaname2[100];
 					int i;
 					for (i=BackMetaCopies-1 ; i>0 ; i--) {
-						snprintf(metaname1,100,"metadata_ml.mfs.back.%"PRIu32,i+1);
-						snprintf(metaname2,100,"metadata_ml.mfs.back.%"PRIu32,i);
+						snprintf(metaname1,100,"metadata.mfs.back.%"PRIu32,i+1);
+						snprintf(metaname2,100,"metadata.mfs.back.%"PRIu32,i);
 						rename(metaname2,metaname1);
 					}
-					rename("metadata_ml.mfs.back","metadata_ml.mfs.back.1");
+					rename("metadata.mfs.back","metadata.mfs.back.1");
 				}
-				if (rename("metadata_ml.tmp","metadata_ml.mfs.back")<0) {
+				if (rename("metadata.tmp","metadata.mfs.back")<0) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
@@ -315,18 +315,18 @@ void masterconn_download_next(masterconn *eptr) {
 				masterconn_download_init(eptr,2);
 			}
 		} else if (filenum==11) {
-			if (rename("changelog_ml.tmp","changelog_ml_back.0.mfs")<0) {
+			if (rename("changelog.tmp","changelog_back.0.mfs")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr,12);
 		} else if (filenum==12) {
-			if (rename("changelog_ml.tmp","changelog_ml_back.1.mfs")<0) {
+			if (rename("changelog.tmp","changelog_back.1.mfs")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr,2);
             restart = 1;
 		} else if (filenum==2) {
-			if (rename("sessions_ml.tmp","sessions_ml.mfs")<0) {
+			if (rename("sessions.tmp","sessions.mfs")<0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			}
             if (restart) {
@@ -364,11 +364,11 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	eptr->downloadretrycnt = 0;
 	eptr->dlstartuts = main_utime();
 	if (eptr->downloading==1) {
-		eptr->metafd = open("metadata_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open("metadata.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
 	} else if (eptr->downloading==2) {
-		eptr->metafd = open("sessions_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open("sessions.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
 	} else if (eptr->downloading==11 || eptr->downloading==12) {
-		eptr->metafd = open("changelog_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open("changelog.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
 	} else {
 		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
 		eptr->mode = KILL;
@@ -465,9 +465,9 @@ void masterconn_beforeclose(masterconn *eptr) {
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
 		eptr->metafd=-1;
-		unlink("metadata_ml.tmp");
-		unlink("sessions_ml.tmp");
-		unlink("changelog_ml.tmp");
+		unlink("metadata.tmp");
+		unlink("sessions.tmp");
+		unlink("changelog.tmp");
 	}
 }
 
