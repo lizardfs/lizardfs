@@ -8,6 +8,7 @@ import urllib
 import cgi
 import cgitb
 import sys
+import subprocess
 
 PROTO_BASE = @PROTO_BASE@
 
@@ -292,9 +293,10 @@ if masterversion<(1,5,14):
 		"ML":"Mount List",
 		"MC":"Master Charts",
 		"CC":"Chunk Servers Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","ML","MC","CC","AUDIT","HELP"];
 elif masterversion<(1,7,0):
 	sectiondef={
 		"IN":"Info",
@@ -305,9 +307,10 @@ elif masterversion<(1,7,0):
 		"MO":"Operations",
 		"MC":"Master Charts",
 		"CC":"Server Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","AUDIT","HELP"];
 else:
 	sectiondef={
 		"IN":"Info",
@@ -319,9 +322,10 @@ else:
 		"QU":"Quotas",
 		"MC":"Master Charts",
 		"CC":"Server Charts",
+		"AUDIT" : "Audit",
 		"HELP":"Help"
 	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
+	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","AUDIT","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -2629,7 +2633,18 @@ if "HELP" in sectionset:
         print """please contact with help@lizardfs.org"""
         print """<br/>"""
 
-
+if "AUDIT" in sectionset:
+#FIXME(jkogut) MFS_PATH should be read from /etc/mfs/mfsconfig or form RPC of Master server
+	MFS_PATH="/var/lib/mfs"
+	df = subprocess.Popen(["df", "-m", MFS_PATH], stdout=subprocess.PIPE)
+	output = df.communicate()[0]
+	device, size, used, available, percent, mountpoint = output.split("\n")[1].split()
+	print 'Disk available: %s MB<br />'%available
+	
+	free = subprocess.Popen(["free", "-m"], stdout=subprocess.PIPE)
+	output = free.communicate()[0]
+	type, total, used, free, shared, buffers, cached = output.split("\n")[1].split()
+	print 'All memory: %s MB <br />'%total	
 
 print """</div> <!-- end of container -->"""
 
