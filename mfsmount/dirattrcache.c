@@ -193,7 +193,7 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
     return old;
 }
 
-void dcache_remove(uint32_t parent) {
+uint8_t dcache_remove(uint32_t parent) {
     dircache *d;
     uint32_t hash=inode_hash(parent);
     pthread_mutex_lock(&glock);
@@ -201,8 +201,11 @@ void dcache_remove(uint32_t parent) {
     if (d && d->parent == parent) {
         dcache_free(d);
         head[hash] = NULL;
+        pthread_mutex_unlock(&glock);
+        return 1;
     }
     pthread_mutex_unlock(&glock);
+    return 0;
 }
 
 void dcache_remove_all() {

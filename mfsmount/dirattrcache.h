@@ -25,7 +25,7 @@ uint8_t dcache_getdir(uint32_t parent,const uint8_t **dbuff,uint32_t *dsize);
 uint8_t dcache_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]);
 uint8_t dcache_getattr(uint32_t inode,uint8_t attr[35]);
 uint8_t dcache_setattr(uint32_t parent,uint32_t inode,const uint8_t attr[35]);
-void dcache_remove(uint32_t parent);
+uint8_t dcache_remove(uint32_t parent);
 void dcache_remove_all();
 
 #endif
