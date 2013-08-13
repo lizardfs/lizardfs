@@ -4256,7 +4256,8 @@ uint8_t fs_mkdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 	stats_mkdir++;
 	return STATUS_OK;
 }
-#else
+#endif
+
 uint8_t fs_log_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode) {
 	fsnode *wd,*p;
 	if (type!=TYPE_FILE && type!=TYPE_SOCKET && type!=TYPE_FIFO && type!=TYPE_BLOCKDEV && type!=TYPE_CHARDEV && type!=TYPE_DIRECTORY) {
@@ -4285,7 +4286,6 @@ uint8_t fs_log_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *
 	metaversion++;
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid) {
@@ -4403,7 +4403,8 @@ uint8_t fs_rmdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 	stats_rmdir++;
 	return STATUS_OK;
 }
-#else
+#endif
+
 uint8_t fs_log_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint32_t inode) {
 	fsnode *wd;
 	fsedge *e;
@@ -4428,7 +4429,6 @@ uint8_t fs_log_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *
 	metaversion++;
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 uint8_t fs_rename(uint32_t rootinode,uint8_t sesflags,uint32_t parent_src,uint16_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint16_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint32_t *inode,uint8_t attr[35]) {
@@ -6130,7 +6130,7 @@ uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 	return xattr_getattr(inode,anleng,attrname,avleng,attrvalue);
 }
 
-#else /* METARESTORE */
+#endif /* METARESTORE */
 
 uint8_t fs_log_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode) {
 	fsnode *p;
@@ -6151,8 +6151,6 @@ uint8_t fs_log_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t
 	metaversion++;
 	return status;
 }
-
-#endif
 
 
 /*
@@ -6949,15 +6947,10 @@ void fs_test_files() {
 #ifndef METARESTORE
 void fs_emptytrash(void) {
 	uint32_t ts;
-#else
-uint8_t fs_log_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes) {
-#endif
 	uint32_t fi,ri;
 	fsedge *e;
 	fsnode *p;
-#ifndef METARESTORE
 	ts = main_time();
-#endif
 	fi=0;
 	ri=0;
 	e = trash;
@@ -6972,31 +6965,44 @@ uint8_t fs_log_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinode
 			}
 		}
 	}
-#ifndef METARESTORE
 	if ((fi|ri)>0) {
 		changelog(metaversion++,"%"PRIu32"|EMPTYTRASH():%"PRIu32",%"PRIu32,ts,fi,ri);
 	}
-#else
+}
+#endif
+
+uint8_t fs_log_emptytrash(uint32_t ts,uint32_t freeinodes,uint32_t reservedinodes) {
+	uint32_t fi,ri;
+	fsedge *e;
+	fsnode *p;
+	fi=0;
+	ri=0;
+	e = trash;
+	while (e) {
+		p = e->child;
+		e = e->nextchild;
+		if (((uint64_t)(p->atime) + (uint64_t)(p->trashtime) < (uint64_t)ts) && ((uint64_t)(p->mtime) + (uint64_t)(p->trashtime) < (uint64_t)ts) && ((uint64_t)(p->ctime) + (uint64_t)(p->trashtime) < (uint64_t)ts)) {
+			if (fsnodes_purge(ts,p)) {
+				fi++;
+			} else {
+				ri++;
+			}
+		}
+	}
 	metaversion++;
 	if (freeinodes!=fi || reservedinodes!=ri) {
 		return ERROR_MISMATCH;
 	}
 	return STATUS_OK;
-#endif
 }
 
 #ifndef METARESTORE
 void fs_emptyreserved(void) {
 	uint32_t ts;
-#else
-uint8_t fs_log_emptyreserved(uint32_t ts,uint32_t freeinodes) {
-#endif
 	fsedge *e;
 	fsnode *p;
 	uint32_t fi;
-#ifndef METARESTORE
 	ts = main_time();
-#endif
 	fi=0;
 	e = reserved;
 	while (e) {
@@ -7007,17 +7013,31 @@ uint8_t fs_log_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 			fi++;
 		}
 	}
-#ifndef METARESTORE
 	if (fi>0) {
 		changelog(metaversion++,"%"PRIu32"|EMPTYRESERVED():%"PRIu32,ts,fi);
 	}
-#else
+}
+#endif
+
+uint8_t fs_log_emptyreserved(uint32_t ts,uint32_t freeinodes) {
+	fsedge *e;
+	fsnode *p;
+	uint32_t fi;
+	fi=0;
+	e = reserved;
+	while (e) {
+		p = e->child;
+		e = e->nextchild;
+		if (p->data.fdata.sessionids==NULL) {
+			fsnodes_purge(ts,p);
+			fi++;
+		}
+	}
 	metaversion++;
 	if (freeinodes!=fi) {
 		return ERROR_MISMATCH;
 	}
 	return STATUS_OK;
-#endif
 }
 
 uint64_t fs_getversion() {
