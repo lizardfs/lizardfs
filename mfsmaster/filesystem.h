@@ -75,6 +75,7 @@ void fs_test_getdata(uint32_t *loopstart,uint32_t *loopend,uint32_t *files,uint3
 
 // void fs_attrtoblob(uint8_t attr[32],uint8_t attrblob[32]);
 
+uint32_t fs_get_parents(uint32_t inode, uint32_t** parents);
 uint32_t fs_getdirpath_size(uint32_t inode);
 void fs_getdirpath_data(uint32_t inode,uint8_t *buff,uint32_t size);
 uint8_t fs_getrootinode(uint32_t *rootinode,const uint8_t *path);

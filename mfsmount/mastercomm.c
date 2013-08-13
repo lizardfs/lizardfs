@@ -43,7 +43,7 @@
 #include "strerr.h"
 #include "md5.h"
 #include "datapack.h"
-// #include "dircache.h"
+#include "dirattrcache.h"
 
 typedef struct _threc {
 	pthread_t thid;
@@ -213,90 +213,23 @@ uint32_t fs_get_acnt(uint32_t inode) {
 */
 
 
-// attributes of inode have changed
-// #define MATOCL_FUSE_NOTIFY_ATTR 491
-// // msgid:32 N*[ inode:32 attr:35B ]
-//
-// // new entry has been added
-// #define MATOCL_FUSE_NOTIFY_LINK 492
-// // msgid:32 N*[ parent:32 name:NAME inode:32 attr:35B ]
-//
-// // entry has been deleted
-// #define MATOCL_FUSE_NOTIFY_UNLINK 493
-// // msgid:32 N*[ parent:32 name:NAME ]
-//
-// // whole directory needs to be removed
-// #define MATOCL_FUSE_NOTIFY_REMOVE 494
-// // msgid:32 N*[ inode:32 ]
-//
-
-/*
 void fs_notify_attr(const uint8_t *buff,uint32_t size) {
-	uint32_t inode;
-	while (size>=39) {
+	uint32_t dirnode, inode;
+	while (size>=43) {
+		dirnode = get32bit(&buff);
 		inode = get32bit(&buff);
-		dir_cache_attr(inode,buff);
+		dcache_setattr(dirnode,inode,buff);
 		buff += 35;
-		size -= 39;
+		size -= 43;
 	}
 }
 
-void fs_notify_link(const uint8_t *buff,uint32_t size) {
-	uint32_t parent,inode;
-	uint32_t ts;
-	const uint8_t *name;
-	uint8_t nleng;
-	ts = get32bit(&buff);
-	size-=4;
-	while (size>=44) {
-		parent = get32bit(&buff);
-		nleng = get8bit(&buff);
-		if (size<44U+nleng) {
-			return;
-		}
-		name = buff;
-		buff += nleng;
-		inode = get32bit(&buff);
-		dir_cache_link(parent,nleng,name,inode,buff,ts);
-		buff += 35;
-		size -= 44U+nleng;
-	}
-}
-
-void fs_notify_unlink(const uint8_t *buff,uint32_t size) {
-	uint32_t ts;
-	uint32_t parent;
-	uint8_t nleng;
-	ts = get32bit(&buff);
-	size-=4;
-	while (size>=5) {
-		parent = get32bit(&buff);
-		nleng = get8bit(&buff);
-		if (size<5U+nleng) {
-			return;
-		}
-		dir_cache_unlink(parent,nleng,buff,ts);
-		buff += nleng;
-		size -= 5U+nleng;
-	}
-}
-
-void fs_notify_remove(const uint8_t *buff,uint32_t size) {
+void fs_notify_dir(const uint8_t *buff,uint32_t size) {
 	uint32_t inode;
 	while (size>=4) {
 		inode = get32bit(&buff);
-		dir_cache_remove(inode);
+		dcache_remove(inode);
 		size -= 4;
-	}
-}
-
-void fs_notify_parent(const uint8_t *buff,uint32_t size) {
-	uint32_t inode,parent;
-	while (size>=8) {
-		inode = get32bit(&buff);
-		parent = get32bit(&buff);
-		dir_cache_parent(inode,parent);
-		size -= 8;
 	}
 }
 
@@ -373,7 +306,7 @@ void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes) {
 	lastwrite = time(NULL);
 	pthread_mutex_unlock(&fdlock);
 }
-*/
+
 void fs_inc_acnt(uint32_t inode) {
 	acquired_file *afptr,**afpptr;
 	pthread_mutex_lock(&aflock);
@@ -1354,8 +1287,8 @@ void* fs_receive_thread(void *arg) {
 	uint8_t hdr[12];
 	threc *rec;
 	uint32_t cmd,size,packetid;
-//	static uint8_t *notify_buff=NULL;
-//	static uint32_t notify_buff_size=0;
+	static uint8_t *notify_buff=NULL;
+	static uint32_t notify_buff_size=0;
 	int r;
 
 	(void)arg;
@@ -1367,6 +1300,7 @@ void* fs_receive_thread(void *arg) {
 		}
 		if (disconnect) {
 //			dir_cache_remove_all();
+			dcache_remove_all();
 			tcpclose(fd);
 			fd=-1;
 			disconnect=0;
@@ -1438,12 +1372,7 @@ void* fs_receive_thread(void *arg) {
 			if (cmd==ANTOAN_UNKNOWN_COMMAND || cmd==ANTOAN_BAD_COMMAND_SIZE) { // just ignore these packets with packetid==0
 				continue;
 			}
-/*
-			if (cmd==MATOCL_FUSE_NOTIFY_END && size==0) {
-				dir_cache_transaction_end();
-				continue;
-			}
-			if (cmd==MATOCL_FUSE_NOTIFY_ATTR || cmd==MATOCL_FUSE_NOTIFY_LINK || cmd==MATOCL_FUSE_NOTIFY_UNLINK || cmd==MATOCL_FUSE_NOTIFY_REMOVE || cmd==MATOCL_FUSE_NOTIFY_PARENT) {
+			if (cmd==MATOCL_FUSE_NOTIFY_ATTR || cmd==MATOCL_FUSE_NOTIFY_DIR) {
 				if (size>DEFAULT_INPUT_BUFFSIZE) {
 #ifdef MMAP_ALLOC
 					if (notify_buff) {
@@ -1495,22 +1424,12 @@ void* fs_receive_thread(void *arg) {
 					case MATOCL_FUSE_NOTIFY_ATTR:
 						fs_notify_attr(notify_buff,size);
 						break;
-					case MATOCL_FUSE_NOTIFY_LINK:
-						fs_notify_link(notify_buff,size);
-						break;
-					case MATOCL_FUSE_NOTIFY_UNLINK:
-						fs_notify_unlink(notify_buff,size);
-						break;
-					case MATOCL_FUSE_NOTIFY_REMOVE:
-						fs_notify_remove(notify_buff,size);
-						break;
-					case MATOCL_FUSE_NOTIFY_PARENT:
-						fs_notify_parent(notify_buff,size);
+					case MATOCL_FUSE_NOTIFY_DIR:
+						fs_notify_dir(notify_buff,size);
 						break;
 				}
 				continue;
 			}
-*/
 		}
 		rec = fs_get_threc_by_id(packetid);
 		if (rec==NULL) {
@@ -2192,7 +2111,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	put32bit(&wptr,gid);
 	flags = GETDIR_FLAG_WITHATTR;
 	if (addtocache) {
-		flags |= GETDIR_FLAG_ADDTOCACHE;
+		flags |= GETDIR_FLAG_DIRCACHE;
 	}
 	put8bit(&wptr,flags);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDIR,&i);

@@ -25,19 +25,30 @@
 
 #include "datapack.h"
 
+#define DCACHE_HASH_SIZE 100003
+#define INDEX_HASH_SIZE (DCACHE_HASH_SIZE*10+1)
+
 typedef struct _dircache {
-	struct fuse_ctx ctx;
 	uint32_t parent;
-	const uint8_t *dbuff;
+	uint8_t *dbuff;
 	uint32_t dsize;
 	uint32_t hashsize;
 	const uint8_t **namehashtab;
 	const uint8_t **inodehashtab;
-	struct _dircache *next,**prev;
 } dircache;
 
-static dircache *head;
+typedef struct _inode_parent {
+    uint32_t inode;
+    uint32_t parent;
+} inode_parent;
+
+static dircache **head;
+static inode_parent *inodeindex;
 static pthread_mutex_t glock = PTHREAD_MUTEX_INITIALIZER;
+
+static inline uint32_t inode_hash(uint32_t inode) {
+    return (inode*0x5F2318BD)%DCACHE_HASH_SIZE;
+}
 
 static inline uint32_t dcache_hash(const uint8_t *name,uint8_t nleng) {
 	uint32_t hash=5381;
@@ -125,6 +136,8 @@ void dcache_makeinodehash(dircache *d) {
 		if (ptr+enleng+40<=eptr) {
 			iptr = ptr+1+enleng;
 			hash = get32bit(&iptr);
+            inodeindex[hash%INDEX_HASH_SIZE].parent = d->parent;
+            inodeindex[hash%INDEX_HASH_SIZE].inode = hash;
 			disp = ((hash*0x53B23891)&hashmask)|1;
 			hash *= 0xB28E457D;
 			while (d->inodehashtab[hash&hashmask]) {
@@ -136,87 +149,73 @@ void dcache_makeinodehash(dircache *d) {
 	}
 }
 
-void* dcache_new(const struct fuse_ctx *ctx,uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
+static void dcache_free(dircache *d) {
+    if (d->namehashtab) {
+        free(d->namehashtab);
+    }
+    if (d->inodehashtab) {
+        free(d->inodehashtab);
+    }
+    free(d);
+}
+
+void dcache_init() {
+	pthread_mutex_lock(&glock);
+    head=malloc(sizeof(dircache*)*DCACHE_HASH_SIZE);
+    memset(head, 0, sizeof(dircache*)*DCACHE_HASH_SIZE);
+    inodeindex=malloc(sizeof(inode_parent)*INDEX_HASH_SIZE);
+    memset(inodeindex, 0, sizeof(inode_parent)*INDEX_HASH_SIZE);
+	pthread_mutex_unlock(&glock);
+}
+
+uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
+    uint32_t old=0;
+    uint32_t hash=inode_hash(parent);
 	dircache *d;
+    
 	d = malloc(sizeof(dircache));
-	d->ctx.pid = ctx->pid;
-	d->ctx.uid = ctx->uid;
-	d->ctx.gid = ctx->gid;
 	d->parent = parent;
-	d->dbuff = dbuff;
+	d->dbuff = (uint8_t*)malloc(dsize);
+    memcpy(d->dbuff, dbuff, dsize);
 	d->dsize = dsize;
 	d->hashsize = 0;
 	d->namehashtab = NULL;
-	d->inodehashtab = NULL;
+    dcache_makeinodehash(d);
+
 	pthread_mutex_lock(&glock);
-	if (head) {
-		head->prev = &(d->next);
-	}
-	d->next = head;
-	d->prev = &head;
-	head = d;
+    if (head[hash]) {
+        old = head[hash]->parent;
+        dcache_free(head[hash]);
+    }
+	head[hash] = d;
 	pthread_mutex_unlock(&glock);
-	return d;
+    return old;
 }
 
-void dcache_release(void *r) {
-	dircache *d = (dircache*)r;
-	pthread_mutex_lock(&glock);
-	if (d->next) {
-		d->next->prev = d->prev;
-	}
-	*(d->prev) = d->next;
-	pthread_mutex_unlock(&glock);
-	if (d->namehashtab) {
-		free(d->namehashtab);
-	}
-	if (d->inodehashtab) {
-		free(d->inodehashtab);
-	}
-	free(d);
+void dcache_remove(uint32_t parent) {
+    dircache *d;
+    uint32_t hash=inode_hash(parent);
+    pthread_mutex_lock(&glock);
+    d = head[hash];
+    if (d && d->parent == parent) {
+        dcache_free(d);
+        head[hash] = NULL;
+    }
+    pthread_mutex_unlock(&glock);
 }
 
-/*
-static inline uint8_t dcache_namesearch(const uint8_t *dbuff,uint32_t dsize,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
-	const uint8_t *ptr,*eptr;
-	uint8_t enleng;
-	ptr = dbuff;
-	eptr = dbuff+dsize;
-	while (ptr<eptr) {
-		enleng = *ptr;
-		if (ptr+enleng+40<=eptr && enleng==nleng && memcmp(ptr+1,name,enleng)==0) {
-			ptr+=1+enleng;
-			*inode = get32bit(&ptr);
-			memcpy(attr,ptr,35);
-			return 1;
-		}
-		ptr+=enleng+40;
-	}
-	return 0;
+void dcache_remove_all() {
+    uint32_t h;
+    pthread_mutex_lock(&glock);
+    for (h=0; h<DCACHE_HASH_SIZE; h++) {
+        if (head[h]) {
+            dcache_free(head[h]);
+        }
+    }
+    memset(head,0,sizeof(dircache*)*DCACHE_HASH_SIZE);
+    memset(inodeindex,0,sizeof(inode_parent)*INDEX_HASH_SIZE);
+    pthread_mutex_unlock(&glock);
 }
-
-static inline uint8_t dcache_inodesearch(const uint8_t *dbuff,uint32_t dsize,uint32_t inode,uint8_t attr[35]) {
-	const uint8_t *ptr,*eptr;
-	uint8_t enleng;
-	ptr = dbuff;
-	eptr = dbuff+dsize;
-	while (ptr<eptr) {
-		enleng = *ptr;
-		if (ptr+enleng+40<=eptr) {
-			ptr+=1+enleng;
-			if (inode==get32bit(&ptr)) {
-				memcpy(attr,ptr,35);
-				return 1;
-			} else {
-				ptr+=35;
-			}
-		} else {
-			return 0;
-		}
-	}
-	return 0;
-}
-*/
 
 static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
 	uint32_t hash,disp,hashmask;
@@ -228,6 +227,7 @@ static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint
 	hashmask = d->hashsize-1;
 	hash = dcache_hash(name,nleng);
 	disp = ((hash*0x53B23891)&hashmask)|1;
+    *inode = 0;
 	while ((ptr=d->namehashtab[hash&hashmask])) {
 		if (*ptr==nleng && memcmp(ptr+1,name,nleng)==0) {
 			ptr+=1+nleng;
@@ -240,19 +240,16 @@ static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint
 	return 0;
 }
 
-static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t attr[35]) {
+static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t **attr) {
 	uint32_t hash,disp,hashmask;
 	const uint8_t *ptr;
 
-	if (d->inodehashtab==NULL) {
-		dcache_makeinodehash(d);
-	}
 	hashmask = d->hashsize-1;
 	hash = inode*0xB28E457D;
 	disp = ((inode*0x53B23891)&hashmask)|1;
 	while ((ptr=d->inodehashtab[hash&hashmask])) {
 		if (inode==get32bit(&ptr)) {
-			memcpy(attr,ptr,35);
+            *attr = ptr;
 			return 1;
 		}
 		hash+=disp;
@@ -260,30 +257,77 @@ static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t 
 	return 0;
 }
 
-uint8_t dcache_lookup(const struct fuse_ctx *ctx,uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
+uint8_t dcache_getdir(uint32_t parent,uint8_t **dbuff,uint32_t *dsize) {
 	dircache *d;
+    uint32_t hash=inode_hash(parent);
+    uint8_t r=0;
 	pthread_mutex_lock(&glock);
-	for (d=head ; d ; d=d->next) {
-		if (parent==d->parent && ctx->pid==d->ctx.pid && ctx->uid==d->ctx.uid && ctx->gid==d->ctx.gid) {
-			if (dcache_namehashsearch(d,nleng,name,inode,attr)) {
-				pthread_mutex_unlock(&glock);
-				return 1;
-			}
+    d = head[hash];
+	if (d && parent==d->parent) {
+        *dsize=d->dsize;
+        *dbuff=malloc(*dsize);
+        memcpy(*dbuff,d->dbuff,*dsize);
+        r = 1;
+	}
+	pthread_mutex_unlock(&glock);
+	return r;
+}
+
+uint8_t dcache_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
+	dircache *d;
+    uint32_t hash=inode_hash(parent);
+    uint8_t r=0;
+	pthread_mutex_lock(&glock);
+    d = head[hash];
+	if (d && parent==d->parent) {
+	    dcache_namehashsearch(d,nleng,name,inode,attr);
+        r = 1;
+	}
+	pthread_mutex_unlock(&glock);
+	return r;
+}
+
+// miss when hash collipsion
+uint8_t dcache_getattr(uint32_t inode,uint8_t attr[35]) {
+	dircache *d;
+    uint8_t *ptr;
+    uint32_t hash,parent;
+    hash=inode % INDEX_HASH_SIZE;
+    if (inodeindex[hash].inode!=inode) {
+        return 0;
+    }
+    parent=inodeindex[hash].parent;
+    hash=inode_hash(parent);
+	pthread_mutex_lock(&glock);
+	d=head[hash];
+	if (d && d->parent==parent) {
+		if (dcache_inodehashsearch(d,inode,&ptr)) {
+            memcpy(attr,ptr,35);
+			pthread_mutex_unlock(&glock);
+            return 1;
 		}
 	}
 	pthread_mutex_unlock(&glock);
 	return 0;
 }
 
-uint8_t dcache_getattr(const struct fuse_ctx *ctx,uint32_t inode,uint8_t attr[35]) {
+uint8_t dcache_setattr(uint32_t parent,uint32_t inode,uint8_t attr[35]) {
 	dircache *d;
+    uint8_t *ptr;
+    uint32_t hash;
+    if (parent==0) {
+        hash=inode % INDEX_HASH_SIZE;
+        if (inodeindex[hash].inode!=inode) {
+            return 0;
+        }
+        parent=inodeindex[hash].parent;
+    }
+    hash = inode_hash(parent);
 	pthread_mutex_lock(&glock);
-	for (d=head ; d ; d=d->next) {
-		if (ctx->pid==d->ctx.pid && ctx->uid==d->ctx.uid && ctx->gid==d->ctx.gid) {
-			if (dcache_inodehashsearch(d,inode,attr)) {
-				pthread_mutex_unlock(&glock);
-				return 1;
-			}
+    d = head[hash];
+	if (d && d->parent==parent) {
+		if (dcache_inodehashsearch(d,inode,&ptr)) {
+            memcpy(ptr,attr,35);
 		}
 	}
 	pthread_mutex_unlock(&glock);

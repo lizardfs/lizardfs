@@ -909,6 +909,22 @@ static inline fsnode* fsnodes_id_to_node(uint32_t id) {
 	return NULL;
 }
 
+uint32_t fs_get_parents(uint32_t id, uint32_t **parents) {
+	uint32_t n=0;
+	fsnode *p;
+	fsedge *e;
+
+	p = fsnodes_id_to_node(id);
+	if (!p) return 0;
+
+	for (e=p->parents; e; e=e->nextparent) n ++;
+	*parents = malloc(sizeof(uint32_t)*n);
+	passert(*parents);
+	n = 0;
+	for (e=p->parents; e; e=e->nextparent) (*parents)[n++] = e->parent->id;
+	return n;
+}
+
 /*
 static inline uint8_t fsnodes_geteattr(fsnode *p) {
 	fsedge *e;

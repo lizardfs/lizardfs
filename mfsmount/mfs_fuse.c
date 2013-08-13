@@ -111,7 +111,6 @@ typedef struct _dirbuf {
 	gid_t gid;
 	const uint8_t *p;
 	size_t size;
-	void *dcache;
 	pthread_mutex_t lock;
 } dirbuf;
 
@@ -134,6 +133,8 @@ static int sugid_clear_mode = 0;
 
 //static int local_mode = 0;
 //static int no_attr_cache = 0;
+#define LOOKUP_STAT_SIZE 1000
+static uint32_t lookup_stats[LOOKUP_STAT_SIZE];
 
 enum {
 	OP_STATFS = 0,
@@ -170,7 +171,7 @@ enum {
 	OP_GETXATTR,
 	OP_LISTXATTR,
 	OP_REMOVEXATTR,
-//	OP_GETDIR_CACHED,
+	OP_GETDIR_CACHED,
 	OP_GETDIR_FULL,
 	OP_GETDIR_SMALL,
 	STATNODES
@@ -215,6 +216,7 @@ void mfs_statsptr_init(void) {
 	statsptr[OP_ACCESS] = stats_get_counterptr(stats_get_subnode(s,"access",0));
 	statsptr[OP_STATFS] = stats_get_counterptr(stats_get_subnode(s,"statfs",0));
 	if (usedircache) {
+		statsptr[OP_GETDIR_CACHED] = stats_get_counterptr(stats_get_subnode(s,"getdir-cached",0));
 		statsptr[OP_GETDIR_FULL] = stats_get_counterptr(stats_get_subnode(s,"getdir-full",0));
 	} else {
 		statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
@@ -816,15 +818,39 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		}
 	} else 
 */
-	if (usedircache && dcache_lookup(ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
-		if (debug_mode) {
-			fprintf(stderr,"lookup: sending data from dircache\n");
+	if (usedircache) {
+		if (dcache_lookup(parent,nleng,(const uint8_t*)name,&inode,attr)) {
+			if (debug_mode) {
+				fprintf(stderr,"lookup: sending data from dircache\n");
+			}
+			mfs_stats_inc(OP_DIRCACHE_LOOKUP);
+			icacheflag = 1;
+            status = inode ? 0 : ENOENT;
+		} else {
+			const uint8_t *dbuff;
+			uint32_t dsize;
+			if (lookup_stats[parent % LOOKUP_STAT_SIZE] == parent
+					&& fs_getdir_plus(parent,ctx->uid,ctx->gid,1,&dbuff,&dsize)==0) {
+				mfs_stats_inc(OP_GETDIR_FULL);
+				uint32_t old = dcache_replace(parent,dbuff,dsize);
+				if (old) {
+					fs_notify_sendremoved(1, &old);
+				}
+				if (dcache_lookup(parent,nleng,(const uint8_t*)name,&inode,attr)) {
+					mfs_stats_inc(OP_DIRCACHE_LOOKUP);
+					icacheflag = 1;
+                    status = inode ? 0 : ENOENT;
+				} else {
+					goto LOOKUP;
+				}
+			} else {
+				lookup_stats[parent % LOOKUP_STAT_SIZE] = parent;
+				goto LOOKUP;
+			}
 		}
-		mfs_stats_inc(OP_DIRCACHE_LOOKUP);
-		status = 0;
-		icacheflag = 1;
-//		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
+	//		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
+LOOKUP:	
 		mfs_stats_inc(OP_LOOKUP);
 		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
 		status = mfs_errorconv(status);
@@ -864,7 +890,6 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	uint8_t attr[35];
 	char attrstr[256];
 	int status;
-	uint8_t icacheflag;
 	const struct fuse_ctx *ctx;
 	(void)fi;
 
@@ -944,18 +969,16 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		}
 	} else 
 */
-	if (usedircache && dcache_getattr(ctx,ino,attr)) {
+	if (usedircache && dcache_getattr(ino,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"getattr: sending data from dircache\n");
 		}
 		mfs_stats_inc(OP_DIRCACHE_GETATTR);
 		status = 0;
-		icacheflag = 1;
 	} else {
 		mfs_stats_inc(OP_GETATTR);
 		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
 		status = mfs_errorconv(status);
-		icacheflag = 0;
 	}
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1066,6 +1089,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 	}
+	if (usedircache) dcache_setattr(0,ino,attr);
 	if (to_set & FUSE_SET_ATTR_SIZE) {
 		if (stbuf->st_size<0) {
 			fuse_reply_err(req, EINVAL);
@@ -1170,6 +1194,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
 //		}
+		if (usedircache) dcache_remove(parent);
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
 		mattr = mfs_attr_get_mattr(attr);
@@ -1217,6 +1242,7 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 //		if (newdircache) {
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //		}
+		if (usedircache) dcache_remove(parent);
 		fuse_reply_err(req, 0);
 		oplog_printf(ctx,"unlink (%lu,%s): OK",(unsigned long int)parent,name);
 	}
@@ -1263,6 +1289,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
 //		}
+		if (usedircache) dcache_remove(parent);
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
 		mattr = mfs_attr_get_mattr(attr);
@@ -1309,6 +1336,7 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 //		if (newdircache) {
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //		}
+		if (usedircache) dcache_remove(parent);
 		fuse_reply_err(req, 0);
 		oplog_printf(ctx,"rmdir (%lu,%s): OK",(unsigned long int)parent,name);
 	}
@@ -1354,6 +1382,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 //		if (newdircache) {
 //			dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
 //		}
+		if (usedircache) dcache_remove(parent);
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
 		mattr = mfs_attr_get_mattr(attr);
@@ -1445,6 +1474,10 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 //			dir_cache_unlink(parent,nleng,(const uint8_t*)name);
 //			dir_cache_link(newparent,newnleng,(const uint8_t*)newname,inode,attr);
 //		}
+		if (usedircache) {
+			dcache_remove(parent);
+			dcache_remove(newparent);
+		}
 		fuse_reply_err(req, 0);
 		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): OK",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
 	}
@@ -1495,6 +1528,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 //		if (newdircache) {
 //			dir_cache_link(newparent,newnleng,(const uint8_t*)newname,inode,attr);
 //		}
+		if (usedircache) dcache_remove(newparent);
 		memset(&e, 0, sizeof(e));
 		e.ino = inode;
 		mattr = mfs_attr_get_mattr(attr);
@@ -1533,7 +1567,6 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		pthread_mutex_lock(&(dirinfo->lock));	// make valgrind happy
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
-		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
 		pthread_mutex_unlock(&(dirinfo->lock));	// make valgrind happy
 		fi->fh = (unsigned long)dirinfo;
@@ -1548,7 +1581,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	int status;
-        dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+		dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char buffer[READDIR_BUFFSIZE];
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
@@ -1596,11 +1629,22 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		} else 
 */
 		if (usedircache) {
-			status = fs_getdir_plus(ino,ctx->uid,ctx->gid,0,&dbuff,&dsize);
-			if (status==0) {
-				mfs_stats_inc(OP_GETDIR_FULL);
+			status = dcache_getdir(ino,&dbuff,&dsize);
+			if (status) {
+				mfs_stats_inc(OP_GETDIR_CACHED);
+				needscopy = 0;
+				status = 0;
+			} else {
+				status = fs_getdir_plus(ino,ctx->uid,ctx->gid,1,&dbuff,&dsize);
+				if (status==0) {
+					uint32_t old = dcache_replace(ino,dbuff,dsize);
+					if (old > 0) {
+						fs_notify_sendremoved(1, &old);
+					}
+					mfs_stats_inc(OP_GETDIR_FULL);
+				}
+				needscopy = 1;
 			}
-			needscopy = 1;
 			dirinfo->dataformat = 1;
 		} else {
 			status = fs_getdir(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
@@ -1616,10 +1660,6 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			pthread_mutex_unlock(&(dirinfo->lock));
 			oplog_printf(ctx,"readdir (%lu,%llu,%llu): %s",(unsigned long int)ino,(unsigned long long int)size,(unsigned long long int)off,strerr(status));
 			return;
-		}
-		if (dirinfo->dcache) {
-			dcache_release(dirinfo->dcache);
-			dirinfo->dcache = NULL;
 		}
 		if (dirinfo->p) {
 			free((uint8_t*)(dirinfo->p));
@@ -1638,9 +1678,6 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			dirinfo->p = dbuff;
 		}
 		dirinfo->size = dsize;
-		if (usedircache && dirinfo->dataformat==1) {
-			dirinfo->dcache = dcache_new(ctx,ino,dirinfo->p,dirinfo->size);
-		}
 	}
 	dirinfo->wasread=1;
 
@@ -1701,9 +1738,6 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	pthread_mutex_lock(&(dirinfo->lock));
 	pthread_mutex_unlock(&(dirinfo->lock));
 	pthread_mutex_destroy(&(dirinfo->lock));
-	if (dirinfo->dcache) {
-		dcache_release(dirinfo->dcache);
-	}
 	if (dirinfo->p) {
 		free((uint8_t*)(dirinfo->p));
 	}
@@ -1812,6 +1846,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 //	if (newdircache) {
 //		dir_cache_link(parent,nleng,(const uint8_t*)name,inode,attr);
 //	}
+	if (usedircache) dcache_remove(parent);
 	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
 	status = mfs_errorconv(status);
 	if (status!=0) {
@@ -2685,4 +2720,5 @@ void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_in,(sugid_clear_mode_in<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_in]:"???");
 	}
 	mfs_statsptr_init();
+	dcache_init();
 }
