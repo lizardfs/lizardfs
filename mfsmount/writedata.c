@@ -81,6 +81,7 @@ typedef struct inodedata_s {
 	uint32_t trycnt;
 	uint8_t waitingworker;
 	uint8_t inqueue;
+	uint8_t delayed;
 	int pipe[2];
 	cblock *datachainhead,*datachaintail;
 	pthread_cond_t flushcond;	// wait for inqueue==0 (flush)
@@ -212,6 +213,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 	id->datachaintail = NULL;
 	id->waitingworker = 0;
 	id->inqueue = 0;
+	id->delayed = 0;
 	id->flushwaiting = 0;
 	id->writewaiting = 0;
 	id->lcnt = 0;
@@ -244,11 +246,15 @@ void write_free_inodedata(inodedata *fid) {
 
 /* queues */
 
-/* glock: UNUSED */
+/* glock: UNLOCKED */
 void write_delayed_enqueue(inodedata *id,uint32_t cnt) {
 	struct timeval tv;
 	if (cnt>0) {
 		gettimeofday(&tv,NULL);
+		pthread_mutex_lock(&glock);
+		id->delayed = 1;
+		id->lcnt++;
+		pthread_mutex_unlock(&glock);
 		queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
 	} else {
 		queue_put(jqueue,0,0,(uint8_t*)id,0);
@@ -264,10 +270,10 @@ void write_enqueue(inodedata *id) {
 void* write_dqueue_worker(void *arg) {
 	struct timeval tv;
 	uint32_t sec,usec,cnt;
-	uint8_t *id;
+	inodedata *id;
 	(void)arg;
 	for (;;) {
-		queue_get(dqueue,&sec,&usec,&id,&cnt);
+		queue_get(dqueue,&sec,&usec,(uint8_t**)&id,&cnt);
 		if (id==NULL) {
 			return NULL;
 		}
@@ -283,12 +289,21 @@ void* write_dqueue_worker(void *arg) {
 			usleep(1000000-(tv.tv_usec-usec));
 		}
 		cnt--;
-		if (cnt>0) {
-			gettimeofday(&tv,NULL);
-			queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
-		} else {
-			queue_put(jqueue,0,0,id,0);
+		pthread_mutex_lock(&glock);
+		id->lcnt--;
+		if (id->delayed) {
+			if (cnt>0) {
+				gettimeofday(&tv,NULL);
+				id->lcnt++;
+				queue_put(dqueue,tv.tv_sec,tv.tv_usec,(uint8_t*)id,cnt);
+			} else {
+				id->delayed=0;
+				queue_put(jqueue,0,0,(uint8_t*)id,0);
+			}
+		} else if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
+			write_free_inodedata(id);
 		}
+		pthread_mutex_unlock(&glock);
 	}
 	return NULL;
 }
@@ -313,6 +328,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 		if (delay==0) {
 			id->trycnt=0;	// on good write reset try counter
 		}
+		pthread_mutex_unlock(&glock);
 		write_delayed_enqueue(id,delay);
 	} else {	// no more work or error occured
 		// if this is an error then release all data blocks
@@ -328,8 +344,8 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 		if (id->flushwaiting>0) {
 			pthread_cond_broadcast(&(id->flushcond));
 		}
+		pthread_mutex_unlock(&glock);
 	}
-	pthread_mutex_unlock(&glock);
 }
 
 /* main working thread | glock:UNLOCKED */
@@ -964,11 +980,12 @@ int write_block(inodedata *id,uint32_t chindx,uint16_t pos,uint32_t from,uint32_
 			}
 			id->waitingworker=0;
 		}
+		pthread_mutex_unlock(&glock);
 	} else {
 		id->inqueue=1;
-		write_enqueue(id);
+		pthread_mutex_unlock(&glock);
+		write_delayed_enqueue(id,1);
 	}
-	pthread_mutex_unlock(&glock);
 //	pthread_mutex_unlock(&(wc->lock));
 	return 0;
 }
@@ -1048,16 +1065,14 @@ void* write_data_new(uint32_t inode) {
 	return id;
 }
 
-int write_data_flush(void *vid) {
-	inodedata* id = (inodedata*)vid;
+static int write_data_do_flush(inodedata *id, int release) {
 	int ret;
-	if (id==NULL) {
-		return EIO;
-	}
-//	struct timeval s,e;
 
 //	gettimeofday(&s,NULL);
-	pthread_mutex_lock(&glock);
+	if (id->delayed) {
+		id->delayed = 0;
+		write_enqueue(id);
+	}
 	id->flushwaiting++;
 	while (id->inqueue) {
 //		syslog(LOG_NOTICE,"flush: wait ...");
@@ -1069,15 +1084,30 @@ int write_data_flush(void *vid) {
 		pthread_cond_broadcast(&(id->writecond));
 	}
 	ret = id->status;
-	if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
+	if (release) {
+		id->lcnt--;
+	}
+	if (id->lcnt==0 && id->inqueue==0 && id->delayed==0 
+			&& id->flushwaiting==0 && id->writewaiting==0) {
 		write_free_inodedata(id);
 	}
-	pthread_mutex_unlock(&glock);
 //	gettimeofday(&e,NULL);
 //	syslog(LOG_NOTICE,"write_data_flush time: %"PRId64,TIMEDIFF(e,s));
 	return ret;
 }
 
+/* API | glock: UNLOCKED */
+int write_data_flush(void *vid) {
+	int ret;
+	if (vid==NULL) return EIO;
+
+	pthread_mutex_lock(&glock);
+	ret = write_data_do_flush(vid, 0);
+	pthread_mutex_unlock(&glock);
+	return ret;
+}
+
+/* API | glock: UNLOCKED */
 uint64_t write_data_getmaxfleng(uint32_t inode) {
 	uint64_t maxfleng;
 	inodedata* id;
@@ -1102,47 +1132,18 @@ int write_data_flush_inode(uint32_t inode) {
 		pthread_mutex_unlock(&glock);
 		return 0;
 	}
-	id->flushwaiting++;
-	while (id->inqueue) {
-//		syslog(LOG_NOTICE,"flush_inode: wait ...");
-		pthread_cond_wait(&(id->flushcond),&glock);
-//		syslog(LOG_NOTICE,"flush_inode: woken up");
-	}
-	id->flushwaiting--;
-	if (id->flushwaiting==0 && id->writewaiting>0) {
-		pthread_cond_broadcast(&(id->writecond));
-	}
-	ret = id->status;
-	if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
-		write_free_inodedata(id);
-	}
+	ret = write_data_do_flush(id, 0);
 	pthread_mutex_unlock(&glock);
 	return ret;
 }
 
 /* API | glock: UNLOCKED */
 int write_data_end(void *vid) {
-	inodedata* id = (inodedata*)vid;
 	int ret;
-	if (id==NULL) {
-		return EIO;
-	}
+	if (vid==NULL) return EIO;
+
 	pthread_mutex_lock(&glock);
-	id->flushwaiting++;
-	while (id->inqueue) {
-//		syslog(LOG_NOTICE,"write_end: wait ...");
-		pthread_cond_wait(&(id->flushcond),&glock);
-//		syslog(LOG_NOTICE,"write_end: woken up");
-	}
-	id->flushwaiting--;
-	if (id->flushwaiting==0 && id->writewaiting>0) {
-		pthread_cond_broadcast(&(id->writecond));
-	}
-	ret = id->status;
-	id->lcnt--;
-	if (id->lcnt==0 && id->inqueue==0 && id->flushwaiting==0 && id->writewaiting==0) {
-		write_free_inodedata(id);
-	}
+	ret = write_data_do_flush(vid, 1);
 	pthread_mutex_unlock(&glock);
 	return ret;
 }
