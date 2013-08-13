@@ -267,6 +267,7 @@ static uint32_t dirnodes;
 
 static uint32_t BackMetaCopies;
 static uint8_t  NoAtime=0;
+static uint8_t  MasterMode=0;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -485,6 +486,7 @@ void fsnodes_free_id(uint32_t id,uint32_t ts) {
 void fsnodes_freeinodes(void) {
 	uint32_t fi,now,pos,mask;
 	freenode *n,*an;
+    if (!MasterMode) return;
 	now = main_time();
 	fi = 0;
 	n = freelist;
@@ -1102,6 +1104,7 @@ static inline void fsnodes_check_quotanode(quotanode *qn,uint32_t ts) {
 void fsnodes_check_all_quotas(void) {
 	quotanode *qn;
 	uint32_t now = main_time();
+    if (!MasterMode) return;
 	for (qn = quotahead ; qn ; qn=qn->next) {
 		fsnodes_check_quotanode(qn,now);
 	}
@@ -6683,6 +6686,7 @@ void fs_test_files() {
 	fsnode *f;
 	fsedge *e;
 
+    if (!MasterMode) return;
 	if ((uint32_t)(main_time())<=test_start_time) {
 		return;
 	}
@@ -6952,6 +6956,7 @@ void fs_emptytrash(void) {
 	uint32_t fi,ri;
 	fsedge *e;
 	fsnode *p;
+    if (!MasterMode) return;
 	ts = main_time();
 	fi=0;
 	ri=0;
@@ -7004,6 +7009,7 @@ void fs_emptyreserved(void) {
 	fsedge *e;
 	fsnode *p;
 	uint32_t fi;
+    if (!MasterMode) return;
 	ts = main_time();
 	fi=0;
 	e = reserved;
@@ -9284,6 +9290,7 @@ void fs_reload(void) {
 		BackMetaCopies=99;
 	}
 	NoAtime = cfg_getuint8("NOATIME", 0);
+    MasterMode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
 }
 
 int fs_init(void) {
@@ -9305,6 +9312,8 @@ int fs_init(void) {
 		BackMetaCopies=99;
 	}
 	NoAtime = cfg_getuint8("NOATIME", 0);
+	MasterMode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
+
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fsnodes_check_all_quotas);
