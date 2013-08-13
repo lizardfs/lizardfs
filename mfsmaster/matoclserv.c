@@ -153,6 +153,7 @@ static matoclserventry *writable[MFSMAXFILES+1];
 static int maxfd;
 static int lsock;
 static int exiting,starting;
+static int lastismastermode;
 
 // from config
 static char *ListenHost;
@@ -403,9 +404,9 @@ void matoclserv_store_sessions() {
 	}
 }
 
-int matoclserv_load_sessions() {
+int matoclserv_load_sessions(void) {
 	session *asesdata;
-	uint32_t ileng;
+	uint32_t ileng,sessionid;
 //	uint8_t fsesrecord[33+SESSION_STATS*8];	// 4+4+4+4+1+4+4+4+4+SESSION_STATS*4+SESSION_STATS*4
 	uint8_t hdr[8];
 	uint8_t *fsesrecord;
@@ -487,9 +488,20 @@ int matoclserv_load_sessions() {
 		}
 		if (r==1) {
 			ptr = fsesrecord;
-			asesdata = (session*)malloc(sizeof(session));
-			passert(asesdata);
-			asesdata->sessionid = get32bit(&ptr);
+            sessionid = get32bit(&ptr);
+            for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+                if (asesdata->sessionid==sessionid) {
+                    break;
+                }
+            }
+            if (!asesdata) {
+                asesdata = (session*)malloc(sizeof(session));
+                passert(asesdata);
+                memset(asesdata,0,sizeof(session));
+                asesdata->sessionid = sessionid;
+                asesdata->next = sessionshead;
+                sessionshead = asesdata;
+            }
 			ileng = get32bit(&ptr);
 			asesdata->peerip = get32bit(&ptr);
 			asesdata->rootinode = get32bit(&ptr);
@@ -514,11 +526,8 @@ int matoclserv_load_sessions() {
 				asesdata->mapalluid = 0;
 				asesdata->mapallgid = 0;
 			}
-			asesdata->info = NULL;
 			asesdata->newsession = 1;
-			asesdata->openedfiles = NULL;
 			asesdata->disconnected = main_time();
-			asesdata->nsocks = 0;
 			for (i=0 ; i<SESSION_STATS ; i++) {
 				asesdata->currentopstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
@@ -529,6 +538,9 @@ int matoclserv_load_sessions() {
 				asesdata->lasthouropstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
 			if (ileng>0) {
+                if (asesdata->info) {
+                    free(asesdata->info);
+                }
 				asesdata->info = malloc(ileng+1);
 				passert(asesdata->info);
 				if (fread(asesdata->info,ileng,1,fd)!=1) {
@@ -541,8 +553,6 @@ int matoclserv_load_sessions() {
 				}
 				asesdata->info[ileng]=0;
 			}
-			asesdata->next = sessionshead;
-			sessionshead = asesdata;
 		}
 		if (ferror(fd)) {
 			free(fsesrecord);
@@ -555,6 +565,13 @@ int matoclserv_load_sessions() {
 	syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
 	return 1;
+}
+
+void matoclserv_touch_sessions(void) {
+	session *asesdata;
+	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+        asesdata->disconnected = main_time();
+    }
 }
 
 /* old registration procedure */
@@ -662,6 +679,29 @@ void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	ofptr->inode = inode;
 	ofptr->next = *ofpptr;
 	*ofpptr = ofptr;
+}
+
+void matoclserv_release_sessions(uint32_t sessionid,uint32_t inode) {
+    session *asesdata;
+    filelist *ofptr,**ofpptr;
+
+    for (asesdata = sessionshead ; asesdata && asesdata->sessionid!=sessionid; asesdata=asesdata->next) ;
+    if (asesdata==NULL) {
+        return;
+    }
+
+    ofpptr = &(asesdata->openedfiles);
+    while ((ofptr=*ofpptr)) {
+        if (ofptr->inode==inode) {
+            *ofpptr=ofptr->next;
+            free(ofptr);
+            break;
+        }
+        if (ofptr->inode>inode) {
+            break;
+        }
+        ofpptr = &(ofptr->next);
+    }
 }
 
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
@@ -4109,9 +4149,12 @@ void matoclserv_reload(void) {
 	tcpclose(lsock);
 	lsock = newlsock;
 
-    if (fs_ismastermode() && chunk_get_missing_count()>100) {
+    if (fs_ismastermode() && !lastismastermode) {
+        matoclserv_load_sessions();
+        matoclserv_touch_sessions();
         starting = 12;
     }
+    lastismastermode = fs_ismastermode();
 }
 
 int matoclserv_networkinit(void) {
@@ -4124,6 +4167,7 @@ int matoclserv_networkinit(void) {
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+    lastismastermode = fs_ismastermode();
 
 	exiting = 0;
 	starting = 12;

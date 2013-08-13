@@ -5117,6 +5117,9 @@ uint8_t fs_log_acquire(uint32_t inode,uint32_t sessionid) {
 	cr->sessionid = sessionid;
 	cr->next = p->data.fdata.sessionids;
 	p->data.fdata.sessionids = cr;
+#ifndef METARESTORE
+	matoclserv_init_sessions(sessionid,p->id);
+#endif
 	metaversion++;
 	return STATUS_OK;
 }
@@ -5164,6 +5167,9 @@ uint8_t fs_log_release(uint32_t inode,uint32_t sessionid) {
 			*crp = cr->next;
 			sessionidrec_free(cr);
 			metaversion++;
+#ifndef METARESTORE
+            matoclserv_release_sessions(sessionid,p->id);
+#endif
 			return STATUS_OK;
 		} else {
 			crp = &(cr->next);

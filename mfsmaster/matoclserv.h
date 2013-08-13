@@ -24,6 +24,7 @@
 void matoclserv_stats(uint64_t stats[5]);
 void matoclserv_chunk_status(uint64_t chunkid,uint8_t status);
 void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode);
+void matoclserv_release_sessions(uint32_t sessionid,uint32_t inode);
 int matoclserv_sessionsinit(void);
 int matoclserv_networkinit(void);
 
