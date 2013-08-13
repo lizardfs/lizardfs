@@ -19,7 +19,7 @@
 #ifndef _OPLOG_H_
 #define _OPLOG_H_
 
-#include <fuse_lowlevel.h>
+#include <fuse/fuse_lowlevel.h>
 #include <inttypes.h>
 
 #ifndef __printflike

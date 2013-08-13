@@ -179,9 +179,9 @@ void masterconn_sendregister(masterconn *eptr) {
 	myport = csserv_getlistenport();
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2);
 	put8bit(&buff,50);
-	put16bit(&buff,VERSMAJ);
-	put8bit(&buff,VERSMID);
-	put8bit(&buff,VERSMIN);
+	put16bit(&buff,PACKAGE_VERSION_MAJOR);
+	put8bit(&buff,PACKAGE_VERSION_MINOR);
+	put8bit(&buff,PACKAGE_VERSION_MICRO);
 	put32bit(&buff,myip);
 	put16bit(&buff,myport);
 	put16bit(&buff,Timeout);
