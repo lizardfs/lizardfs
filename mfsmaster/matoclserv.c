@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
+#include <sys/event.h>
 
 #include "MFSCommunication.h"
 
@@ -143,12 +144,14 @@ typedef struct dirincache {
 	struct dirincache *nextnode;
 } dirincache;
 
-
 static dirincache **dirinodehash=NULL;
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
+static matoclserventry *writable[MFSMAXFILES+1];
+static int maxfd;
 static int lsock;
-static int32_t lsockpdescpos;
+static int pollfd;
+static int32_t pollfdpdescpos;
 static int exiting,starting;
 
 // from config
@@ -175,6 +178,70 @@ void matoclserv_stats(uint64_t stats[5]) {
 	stats_brcvd = 0;
 	stats_bsent = 0;
 	stats_notify = 0;
+}
+
+// epoll and kqueue 
+#define	AE_READ  1
+#define	AE_WRITE 2
+#define	AE_EOF   4
+
+struct ae_event {
+	int fd;
+	int mask;
+	void *data;
+};
+
+static int ae_create() {
+	return kqueue();
+}
+
+static int ae_add(int fd, void *data) {
+	struct kevent ev;
+	EV_SET(&ev, fd, EVFILT_READ, EV_ADD, 0, 0, data);
+	return kevent(pollfd, &ev, 1, NULL, 0, 0);
+}
+
+static int ae_update(int fd, int flag, void *data) {
+	struct kevent ev;
+	uint16_t filter = EVFILT_READ;
+	if (flag & AE_WRITE) filter |= EVFILT_WRITE;
+	EV_SET(&ev, fd, filter, EV_ADD, 0, 0, data);
+	return kevent(pollfd, &ev, 1, NULL, 0, 0);
+}
+
+static int ae_del(int fd) {
+	struct kevent ev;
+	int ret;
+	EV_SET(&ev, fd, EVFILT_READ|EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+	ret = kevent(pollfd, &ev, 1, NULL, 0, 0);
+	if (ret!=0) {
+		if (ret==-1 && errno!=ENOENT) {
+			fprintf(stderr, "del fd %d failed: %d errno: %d\n", fd, ret, errno);
+			fprintf(stderr, "%d %d %d %d %d %d %d %d\n", EACCES, EFAULT, EBADF, EINTR, EINVAL, ENOENT, ENOMEM, ESRCH);
+		}
+	}
+	return ret;
+}
+
+static int ae_poll(struct ae_event *events) {
+	static struct kevent evs[1024];
+	int i, ret = kevent(pollfd, NULL, 0, evs, 1024, NULL);
+	if (ret > 0) {
+		for (i=0; i<ret; i++) {
+			events[i].fd = evs[i].ident;
+			int mask = 0;
+			if (evs[i].filter == EVFILT_READ) {
+				mask |= AE_READ;
+				if (evs[i].flags & EV_EOF) {
+					mask |= AE_EOF;
+				}
+			}
+			if (evs[i].filter == EVFILT_WRITE) mask |= AE_WRITE;
+			events[i].mask = mask; 
+			events[i].data = evs[i].udata;
+		}
+	}
+	return ret;
 }
 
 // cache notification routines
@@ -679,6 +746,7 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
+	writable[eptr->sock] = eptr;
 	return ptr;
 }
 
@@ -3701,6 +3769,8 @@ void matoclserv_term(void) {
 	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
+	close(pollfd);
+
 	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
 		eptrn = eptr->next;
 		if (eptr->inputpacket.packet) {
@@ -3843,6 +3913,7 @@ void matoclserv_write(matoclserventry *eptr) {
 
 void matoclserv_wantexit(void) {
 	exiting=1;
+	ae_del(lsock);
 }
 
 int matoclserv_canexit(void) {
@@ -3859,54 +3930,25 @@ int matoclserv_canexit(void) {
 }
 
 void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
-	matoclserventry *eptr;
-
-	if (exiting==0) {
-		pdesc[pos].fd = lsock;
-		pdesc[pos].events = POLLIN;
-		lsockpdescpos = pos;
-		pos++;
-//		FD_SET(lsock,rset);
-//		max = lsock;
-	} else {
-		lsockpdescpos = -1;
-//		max = -1;
-	}
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = 0;
-		eptr->pdescpos = pos;
-//		i=eptr->sock;
-		if (exiting==0) {
-			pdesc[pos].events |= POLLIN;
-//			FD_SET(i,rset);
-//			if (i>max) {
-//				max=i;
-//			}
-		}
-		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events |= POLLOUT;
-//			FD_SET(i,wset);
-//			if (i>max) {
-//				max=i;
-//			}
-		}
-		pos++;
-	}
-	*ndesc = pos;
-//	return max;
+	pollfdpdescpos = *ndesc;
+	pdesc[pollfdpdescpos].fd = pollfd;
+	pdesc[pollfdpdescpos].events = POLLIN;
+	*ndesc = pollfdpdescpos+1;
 }
 
 
 void matoclserv_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
-	matoclserventry *eptr,**kptr;
-	packetstruct *pptr,*paptr;
-	int ns;
+	matoclserventry *eptr;
+	struct ae_event events[1024];
+	int i,ns, ret;
 
-	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
-//	if (FD_ISSET(lsock,rset)) {
+	if (pollfdpdescpos<0 || !(pdesc[pollfdpdescpos].revents & (POLLIN|POLLOUT))) {
+		return;
+	}
+	ret = ae_poll(events);
+	for (i=0; i<ret; i++) {
+		if (events[i].fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
@@ -3937,43 +3979,79 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->cacheddirs = 0;
 			memset(eptr->passwordrnd,0,32);
 //			eptr->openedfiles = NULL;
+			
+			ae_add(ns, eptr);
+			if (ns>maxfd) maxfd=ns;
+		}
+		continue;
+		}
+
+		eptr = events[i].data;
+		if (eptr->sock != events[i].fd) {
+			mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
+			continue;
+		}
+		if ((events[i].mask & AE_READ) && eptr->mode!=KILL) {
+			eptr->lastread = now;
+			matoclserv_read(eptr);
+			if (events[i].mask & AE_EOF) {
+				eptr->mode=KILL;
+			}
+		}
+		if ((eptr->outputhead || (events[i].mask & AE_WRITE)) && eptr->mode!=KILL) {
+			eptr->lastwrite = now;
+			matoclserv_write(eptr);
+			if (eptr->mode!=KILL) {
+				if ((events[i].mask & AE_WRITE) && !eptr->outputhead) {
+					ae_update(events[i].fd, AE_READ, eptr);
+				} else if (!(events[i].mask & AE_WRITE) && eptr->outputhead){
+					ae_update(events[i].fd, AE_WRITE, eptr);
+				}
+			}
+			writable[i] = NULL;
+		}
+		if (eptr->mode==KILL) {
+			ae_del(eptr->sock);
 		}
 	}
-
-// read
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->pdescpos>=0) {
-			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
-				eptr->mode = KILL;
+	for (i=0; i<maxfd; i++) {
+		if (writable[i]) {
+			eptr = writable[i];
+			if (eptr->mode!=KILL) {
+				eptr->lastwrite = now;
+				matoclserv_write(eptr);
+				if (eptr->outputhead && eptr->mode!=KILL) {
+					ae_update(eptr->sock, AE_WRITE, eptr);
+				}
 			}
-			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
-				eptr->lastread = now;
-				matoclserv_read(eptr);
-			}
+			writable[i] = NULL;
 		}
 	}
+}
 
-// write
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
+void matoclserv_nop(void) {
+	uint32_t now=main_time();
+	matoclserventry *eptr,**kptr;
+	packetstruct *pptr,*paptr;
+
+	kptr = &matoclservhead;
+	while ((eptr=*kptr)) {
 		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
 			uint8_t *ptr = matoclserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
 			*((uint32_t*)ptr) = 0;
-		}
-		if (eptr->pdescpos>=0) {
-			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
-				eptr->lastwrite = now;
-				matoclserv_write(eptr);
+			eptr->lastwrite = now;
+			matoclserv_write(eptr);
+			if (eptr->outputhead && eptr->mode!=KILL) {
+				ae_update(eptr->sock, AE_WRITE, eptr);
 			}
 		}
 		if (eptr->lastread+10<now && exiting==0) {
 			eptr->mode = KILL;
 		}
-	}
 
-// close
-	kptr = &matoclservhead;
-	while ((eptr=*kptr)) {
-		if (eptr->mode == KILL) {
+		if (eptr->mode==KILL) {
+			ae_del(eptr->sock);
+			writable[eptr->sock]=NULL;
 			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -4097,6 +4175,8 @@ void matoclserv_reload(void) {
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
+	ae_del(lsock);
+	ae_add(newlsock, NULL);
 	tcpclose(lsock);
 	lsock = newlsock;
 }
@@ -4114,6 +4194,14 @@ int matoclserv_networkinit(void) {
 
 	exiting = 0;
 	starting = 12;
+
+	maxfd = 0;
+	pollfd = ae_create();
+	if (pollfd < 0) {
+		mfs_errlog(LOG_ERR, "main master server module: create pollfd failed");
+		return -1;
+	}
+
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -4130,13 +4218,17 @@ int matoclserv_networkinit(void) {
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
+	if (ae_add(lsock, NULL) < 0) {
+		mfs_errlog(LOG_ERR, "main master server module: add event failed");
+		return -1;
+	}
 
 	matoclservhead = NULL;
 	matoclserv_dircache_init();
-
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_nop);
 	main_reloadregister(matoclserv_reload);
 	main_destructregister(matoclserv_term);
 	main_pollregister(matoclserv_desc,matoclserv_serve);
