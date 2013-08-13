@@ -1917,8 +1917,7 @@ void matocsserv_serve(int fd,int mask,void *data) {
 	if (mask & AE_EOF) {
 		eptr->mode = KILL;
 	}
-	if ((eptr->outputhead || (mask & AE_WRITE)) && eptr->mode!=KILL) {
-//			if (FD_ISSET(eptr->sock,wset) && eptr->mode!=KILL) {
+	if (eptr->outputhead && eptr->mode!=KILL) {
 		eptr->lastwrite = now;
 		matocsserv_write(eptr);
         if (mask&AE_WRITE) {
@@ -1941,7 +1940,7 @@ void matocsserv_flush(void) {
     uint32_t now=main_time();
     matocsserventry *eptr;
     int i;
-    for (i=0; i<maxfd; i++) {
+    for (i=0; i<=maxfd; i++) {
         if (writable[i]) {
             eptr = writable[i];
             if (eptr->mode!=KILL) {

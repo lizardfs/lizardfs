@@ -3938,7 +3938,7 @@ void matoclserv_flush(void) {
 	uint32_t now=main_time();
 	matoclserventry *eptr;
 	int i;
-	for (i=0; i<maxfd; i++) {
+	for (i=0; i<=maxfd; i++) {
 		if (writable[i]) {
 			eptr = writable[i];
 			if (eptr->mode!=KILL) {
