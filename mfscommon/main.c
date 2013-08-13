@@ -18,10 +18,6 @@
 
 #include "config.h"
 
-#ifndef MFSMAXFILES
-#define MFSMAXFILES 5000
-#endif
-
 #if defined(HAVE_MLOCKALL)
 #  if defined(HAVE_SYS_MMAN_H)
 #    include <sys/mman.h>

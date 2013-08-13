@@ -60,7 +60,7 @@ int event_add(int fd,int mask,event_cb fun,void *data) {
     ee.events = EPOLLIN|EPOLLERR|EPOLLHUP;
     if (mask & POLLOUT) ee.events |= EPOLLOUT;
     ee.data.fd = fd;
-    if (epoll_ctl(pollfd, pollevents[fd].fd?EPOLL_CTL_MOD:EPOLL_CTL_ADD,fd,&ee)==-1
+    if (epoll_ctl(pollfd, pollevents[fd].fun?EPOLL_CTL_MOD:EPOLL_CTL_ADD,fd,&ee)==-1
         && errno!=EEXIST) {
         fprintf(stderr, "epoll_ctl(%d) failed: %s\n",fd,strerror(errno));
         return -1;
