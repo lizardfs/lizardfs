@@ -51,9 +51,9 @@ struct {
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
 	{matomlserv_init,"communication with metalogger"},
-	{masterconn_init,"communication with master"},
 	{matocsserv_init,"communication with chunkserver"},
 	{matoclserv_networkinit,"communication with clients"},
+	{masterconn_init,"communication with master"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
 	{(runfn)0,"****"}
