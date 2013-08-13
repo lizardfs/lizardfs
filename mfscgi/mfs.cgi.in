@@ -8,6 +8,7 @@ import urllib
 import cgi
 import cgitb
 import sys
+import subprocess
 
 PROTO_BASE = @PROTO_BASE@
 
@@ -2633,9 +2634,17 @@ if "HELP" in sectionset:
         print """<br/>"""
 
 if "AUDIT" in sectionset:
-	print """testing in progress...."""
-
-
+#FIXME(jkogut) MFS_PATH should be read from /etc/mfs/mfsconfig or form RPC of Master server
+	MFS_PATH="/var/lib/mfs"
+	df = subprocess.Popen(["df", "-m", MFS_PATH], stdout=subprocess.PIPE)
+	output = df.communicate()[0]
+	device, size, used, available, percent, mountpoint = output.split("\n")[1].split()
+	print 'Disk available: %s MB<br />'%available
+	
+	free = subprocess.Popen(["free", "-m"], stdout=subprocess.PIPE)
+	output = free.communicate()[0]
+	type, total, used, free, shared, buffers, cached = output.split("\n")[1].split()
+	print 'All memory: %s MB <br />'%total	
 
 print """</div> <!-- end of container -->"""
 
