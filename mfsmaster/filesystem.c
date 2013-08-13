@@ -264,6 +264,7 @@ static uint32_t dirnodes;
 #ifndef METARESTORE
 
 static uint32_t BackMetaCopies;
+static uint8_t  NoAtime=0;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -2121,7 +2122,7 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 	fsnodes_attr_changed(dstobj,ts);
 #endif
 */
-	if (srcobj->atime!=ts) {
+	if ( ! NoAtime && srcobj->atime!=ts) {
 		srcobj->atime = ts;
 /*
 #ifdef CACHENOTIFY
@@ -3985,7 +3986,7 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 	}
 	*pleng = p->data.sdata.pleng;
 	*path = p->data.sdata.path;
-	if (p->atime!=ts) {
+	if (!NoAtime && p->atime!=ts) {
 		p->atime = ts;
 /*
 #ifdef CACHENOTIFY
@@ -4865,7 +4866,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	fsnode *p = (fsnode*)dnode;
 	uint32_t ts = main_time();
 
-	if (p->atime!=ts) {
+	if (!NoAtime && p->atime!=ts) {
 		p->atime = ts;
 		changelog(metaversion++,"%"PRIu32"|ACCESS(%"PRIu32")",ts,p->id);
 		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
@@ -5062,7 +5063,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 		*chunkid = p->data.fdata.chunktab[indx];
 	}
 	*length = p->data.fdata.length;
-	if (p->atime!=ts) {
+	if (! NoAtime && p->atime!=ts) {
 		p->atime = ts;
 		changelog(metaversion++,"%"PRIu32"|ACCESS(%"PRIu32")",ts,inode);
 /*
@@ -9044,6 +9045,7 @@ void fs_reload(void) {
 	if (BackMetaCopies>99) {
 		BackMetaCopies=99;
 	}
+	NoAtime = cfg_getuint8("NOATIME", 0);
 }
 
 int fs_init(void) {
@@ -9064,7 +9066,7 @@ int fs_init(void) {
 	if (BackMetaCopies>99) {
 		BackMetaCopies=99;
 	}
-
+	NoAtime = cfg_getuint8("NOATIME", 0);
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fsnodes_check_all_quotas);
