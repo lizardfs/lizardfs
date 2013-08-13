@@ -45,6 +45,7 @@
 #include "mfsstrerr.h"
 #include "hashfn.h"
 #include "event.h"
+#include "filesystem.h"
 
 #define MaxPacketSize 500000000
 
