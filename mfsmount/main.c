@@ -206,7 +206,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
-	MFS_OPT("mfsusedircache=%lf", usedircache, 0),
+	MFS_OPT("mfsusedircache=%u", usedircache, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
