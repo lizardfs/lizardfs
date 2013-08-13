@@ -174,6 +174,12 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
     uint32_t hash=inode_hash(parent);
 	dircache *d;
     
+	pthread_mutex_lock(&glock);
+    if (head[hash]&&head[hash]->parent==parent) {
+	    pthread_mutex_unlock(&glock);
+        return 0;
+    }
+
 	d = malloc(sizeof(dircache));
 	d->parent = parent;
 	d->dbuff = (uint8_t*)malloc(dsize);
@@ -183,7 +189,6 @@ uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	d->namehashtab = NULL;
     dcache_makeinodehash(d);
 
-	pthread_mutex_lock(&glock);
     if (head[hash]) {
         old = head[hash]->parent;
         dcache_free(head[hash]);

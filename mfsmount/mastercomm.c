@@ -1487,7 +1487,7 @@ void* fs_receive_thread(void *arg) {
 			if (flag&GETDIR_FLAG_DIRCACHE) {
 				uint32_t old = dcache_replace(inode,rec->ibuff,size);
 				// fprintf(stderr,"dcache cache %u %u\n",inode,old);
-				if (old > 0) {
+				if (old>0 && old!=inode) {
 					uint32_t buf[1];
 					uint8_t *p = (uint8_t*)buf;
 					put32bit(&p,old);
