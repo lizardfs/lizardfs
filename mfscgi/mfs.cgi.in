@@ -2625,7 +2625,7 @@ def print_file(name):
 
 if "HELP" in sectionset:
 #FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
-#	print_file("@CGIDIR@/help.html")
+#	print_file("@CGI_PATH@/help.html")
         print """please contact with help@lizardfs.org"""
         print """<br/>"""
 
