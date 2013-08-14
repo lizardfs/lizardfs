@@ -80,14 +80,6 @@ set(ETC_PATH "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
 set(RUN_PATH "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
 
 
-message(STATUS "Generating config.h.in")
-execute_process(COMMAND ./gen_config.h.in
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  RESULT_VARIABLE GEN_CONFIG_STATUS)
-if(NOT "${GEN_CONFIG_STATUS}" EQUAL 0)
-  message(STATUS "GEN_CONFIG_STATUS: ${GEN_CONFIG_STATUS}")
-  message(FATAL_ERROR "Error while generating config.h.in")
-endif()
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 
