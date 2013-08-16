@@ -50,6 +50,9 @@
 #include "sockets.h"
 #include "slogger.h"
 #include "massert.h"
+#include "event.h"
+
+#include "config.h"
 
 #define MaxPacketSize 1000000
 
@@ -60,27 +63,9 @@ enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define SESSION_STATS 16
 
-/* CACHENOTIFY
-// hash size should be at least 1.5 * 10000 * # of connected mounts
-// it also should be the prime number
-// const 10000 is defined in mfsmount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
-// current const is calculated as nextprime(1.5 * 10000 * 500) and is enough for up to about 500 mounts
-#define DIRINODE_HASH_SIZE 7500013
-*/
+#define DIRINODE_HASH_SIZE 1000003
 
-struct matoclserventry;
-
-/* CACHENOTIFY
-// directories in external caches
-typedef struct dirincache {
-	struct matoclserventry *eptr;
-	uint32_t dirinode;
-	struct dirincache *nextnode,**prevnode;
-	struct dirincache *nextcu,**prevcu;
-} dirincache;
-
-static dirincache **dirinodehash;
-*/
+#define MAX_NOTIFY_ATTR_PER_DIR 10
 
 // locked chunks
 typedef struct chunklist {
@@ -135,9 +120,6 @@ typedef struct packetstruct {
 typedef struct matoclserventry {
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
-/* CACHENOTIFY
-	uint8_t notifications;
-*/
 	int sock;				//socket number
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;		//time of last activity
@@ -150,18 +132,29 @@ typedef struct matoclserventry {
 	uint8_t passwordrnd[32];
 	session *sesdata;
 	chunklist *chunkdelayedops;
-/* CACHENOTIFY
-	dirincache *cacheddirs;
-*/
+	uint32_t cacheddirs;
+//	filelist *openedfiles;
 
 	struct matoclserventry *next;
 } matoclserventry;
 
+// directories in external caches
+typedef struct dirincache {
+	struct matoclserventry *eptr;
+	uint32_t dirinode;
+	uint32_t notify;
+	struct dirincache *nextnode;
+} dirincache;
+
+static dirincache **dirinodehash=NULL;
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
+static matoclserventry *writable[MFSMAXFILES+1];
+static int maxfd;
 static int lsock;
 static int32_t lsockpdescpos;
 static int exiting,starting;
+static int lastismastermode;
 
 // from config
 static char *ListenHost;
@@ -173,60 +166,61 @@ static uint32_t stats_prcvd = 0;
 static uint32_t stats_psent = 0;
 static uint64_t stats_brcvd = 0;
 static uint64_t stats_bsent = 0;
+static uint64_t stats_notify = 0;
 
 void matoclserv_stats(uint64_t stats[5]) {
 	stats[0] = stats_prcvd;
 	stats[1] = stats_psent;
 	stats[2] = stats_brcvd;
 	stats[3] = stats_bsent;
+	stats[4] = stats_notify;
 	stats_prcvd = 0;
 	stats_psent = 0;
 	stats_brcvd = 0;
 	stats_bsent = 0;
+	stats_notify = 0;
 }
 
-/* CACHENOTIFY
 // cache notification routines
 
 static inline void matoclserv_dircache_init(void) {
 	dirinodehash = (dirincache**)malloc(sizeof(dirincache*)*DIRINODE_HASH_SIZE);
+	memset(dirinodehash, 0, sizeof(dirincache*)*DIRINODE_HASH_SIZE);
 	passert(dirinodehash);
 }
 
 static inline void matoclserv_dircache_remove_entry(dirincache *dc) {
-	*(dc->prevnode) = dc->nextnode;
-	if (dc->nextnode) {
-		dc->nextnode->prevnode = dc->prevnode;
-	}
-	*(dc->prevcu) = dc->nextcu;
-	if (dc->nextcu) {
-		dc->nextcu->prevcu = dc->prevcu;
-	}
-	free(dc);
+	dc->eptr->cacheddirs--;
+	dc->eptr = NULL;
+	dc->dirinode = 0;
 }
 
 static inline void matoclserv_notify_add_dir(matoclserventry *eptr,uint32_t inode) {
 	uint32_t hash = (inode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->dirinode==inode && dc->eptr==eptr) {
+			return;
+		}
+	}
+	eptr->cacheddirs++;
+	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+		if (dc->eptr==NULL) {
+			dc->eptr = eptr;
+			dc->dirinode = inode;
+			dc->notify = 0;
+			return;
+		}
+	}
 	dc = (dirincache*)malloc(sizeof(dirincache));
 	passert(dc);
 	dc->eptr = eptr;
 	dc->dirinode = inode;
+	dc->notify = 0;
 	// by inode
 	dc->nextnode = dirinodehash[hash];
-	dc->prevnode = (dirinodehash+hash);
-	if (dirinodehash[hash]) {
-		dirinodehash[hash]->prevnode = &(dc->nextnode);
-	}
 	dirinodehash[hash] = dc;
-	// by eptr
-	dc->nextcu = eptr->cacheddirs;
-	dc->prevcu = &(eptr->cacheddirs);
-	if (eptr->cacheddirs) {
-		eptr->cacheddirs->prevcu = &(dc->nextcu);
-	}
-	eptr->cacheddirs = dc;
 
 //	syslog(LOG_NOTICE,"rcvd from: '%s' ; add inode: %" PRIu32,eptr->sesdata->info,inode);
 }
@@ -245,8 +239,18 @@ static inline void matoclserv_notify_remove_dir(matoclserventry *eptr,uint32_t i
 }
 
 static inline void matoclserv_notify_disconnected(matoclserventry *eptr) {
-	while (eptr->cacheddirs) {
-		matoclserv_dircache_remove_entry(eptr->cacheddirs);
+	uint32_t hash;
+	dirincache *dc, *ndc;
+
+	if (!eptr->cacheddirs) return;
+
+	for (hash=0; hash<DIRINODE_HASH_SIZE; hash++) {
+		for (dc=dirinodehash[hash]; dc; dc=ndc) {
+			ndc = dc->nextnode;
+			if (dc->eptr == eptr) {
+				matoclserv_dircache_remove_entry(dc);
+			}
+		}
 	}
 }
 
@@ -256,11 +260,12 @@ static inline void matoclserv_show_notification_dirs(void) {
 
 	for (hash=0 ; hash<DIRINODE_HASH_SIZE ; hash++) {
 		for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
-			syslog(LOG_NOTICE,"session: %u ; dir inode: %u",dc->eptr->sesdata->sessionid,dc->dirinode);
+			if (dc->eptr) {
+				syslog(LOG_NOTICE,"session: %u ; dir inode: %u",dc->eptr->sesdata->sessionid,dc->dirinode);
+			}
 		}
 	}
 }
-*/
 
 /* new registration procedure */
 session* matoclserv_new_session(uint8_t newsession,uint8_t nonewid) {
@@ -399,9 +404,9 @@ void matoclserv_store_sessions() {
 	}
 }
 
-int matoclserv_load_sessions() {
+int matoclserv_load_sessions(void) {
 	session *asesdata;
-	uint32_t ileng;
+	uint32_t ileng,sessionid;
 	uint8_t hdr[8];
 	uint8_t *fsesrecord;
 	const uint8_t *ptr;
@@ -482,9 +487,20 @@ int matoclserv_load_sessions() {
 		}
 		if (r==1) {
 			ptr = fsesrecord;
-			asesdata = (session*)malloc(sizeof(session));
-			passert(asesdata);
-			asesdata->sessionid = get32bit(&ptr);
+            sessionid = get32bit(&ptr);
+            for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+                if (asesdata->sessionid==sessionid) {
+                    break;
+                }
+            }
+            if (!asesdata) {
+                asesdata = (session*)malloc(sizeof(session));
+                passert(asesdata);
+                memset(asesdata,0,sizeof(session));
+                asesdata->sessionid = sessionid;
+                asesdata->next = sessionshead;
+                sessionshead = asesdata;
+            }
 			ileng = get32bit(&ptr);
 			asesdata->peerip = get32bit(&ptr);
 			asesdata->rootinode = get32bit(&ptr);
@@ -509,11 +525,8 @@ int matoclserv_load_sessions() {
 				asesdata->mapalluid = 0;
 				asesdata->mapallgid = 0;
 			}
-			asesdata->info = NULL;
 			asesdata->newsession = 1;
-			asesdata->openedfiles = NULL;
 			asesdata->disconnected = main_time();
-			asesdata->nsocks = 0;
 			for (i=0 ; i<SESSION_STATS ; i++) {
 				asesdata->currentopstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
@@ -524,6 +537,9 @@ int matoclserv_load_sessions() {
 				asesdata->lasthouropstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
 			if (ileng>0) {
+                if (asesdata->info) {
+                    free(asesdata->info);
+                }
 				asesdata->info = (char*) malloc(ileng+1);
 				passert(asesdata->info);
 				if (fread(asesdata->info,ileng,1,fd)!=1) {
@@ -536,8 +552,6 @@ int matoclserv_load_sessions() {
 				}
 				asesdata->info[ileng]=0;
 			}
-			asesdata->next = sessionshead;
-			sessionshead = asesdata;
 		}
 		if (ferror(fd)) {
 			free(fsesrecord);
@@ -550,6 +564,13 @@ int matoclserv_load_sessions() {
 	syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
 	return 1;
+}
+
+void matoclserv_touch_sessions(void) {
+	session *asesdata;
+	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+        asesdata->disconnected = main_time();
+    }
 }
 
 int matoclserv_insert_openfile(session* cr,uint32_t inode) {
@@ -626,11 +647,33 @@ void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	*ofpptr = ofptr;
 }
 
+void matoclserv_release_sessions(uint32_t sessionid,uint32_t inode) {
+    session *asesdata;
+    filelist *ofptr,**ofpptr;
+
+    for (asesdata = sessionshead ; asesdata && asesdata->sessionid!=sessionid; asesdata=asesdata->next) ;
+    if (asesdata==NULL) {
+        return;
+    }
+
+    ofpptr = &(asesdata->openedfiles);
+    while ((ofptr=*ofpptr)) {
+        if (ofptr->inode==inode) {
+            *ofpptr=ofptr->next;
+            free(ofptr);
+            break;
+        }
+        if (ofptr->inode>inode) {
+            break;
+        }
+        ofpptr = &(ofptr->next);
+    }
+}
+
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
 	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
-
 	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
@@ -644,6 +687,7 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
+	writable[eptr->sock] = eptr;
 	return ptr;
 }
 
@@ -1015,144 +1059,62 @@ void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	matomlserv_mloglist_data(ptr);
 }
 
-/* CACHENOTIFY
-void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[35]) {
+void matoclserv_notify_dir(uint32_t dirinode);
+
+void matoclserv_notify_attr(uint32_t inode,const uint8_t *pattr,matoclserventry *eptr) {
+	uint32_t hash;
+	dirincache *dc;
+	uint8_t *ptr,attr[35];
+	uint32_t dirinode, *parents;
+	uint32_t np, i;
+
+	np = fs_get_parents(inode, &parents);
+	if (!np) return;
+
+	for (i=0; i<np; i++) {
+		dirinode = parents[i];
+		hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
+		for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
+			if (dc->dirinode==dirinode) {
+				// syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %"PRIu32,dc->eptr->sesdata->info,inode);
+				dc->notify++;
+				if (dc->notify > MAX_NOTIFY_ATTR_PER_DIR) {
+					matoclserv_notify_dir(dirinode);
+					dc->notify = 0;
+					break;
+				}
+				if (!pattr) {
+					fs_getattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,0,0,0,0,attr);
+					pattr = attr;
+				}
+				ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_ATTR,4+4+4+35);
+				put32bit(&ptr,0);
+				put32bit(&ptr,dirinode==dc->eptr->sesdata->rootinode?MFS_ROOT_ID:dirinode);
+				put32bit(&ptr,inode);
+				memcpy(ptr,pattr,35);
+				stats_notify++;
+			}
+		}
+	}
+	free(parents);
+}
+
+void matoclserv_notify_dir(uint32_t dirinode) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
 
 	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
 		if (dc->dirinode==dirinode) {
-//			syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %" PRIu32,dc->eptr->sesdata->info,inode);
-			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_ATTR,43);
-			stats_notify++;
+			//syslog(LOG_NOTICE,"send to: '%s' ; attrs of inode: %"PRIu32,dc->eptr->sesdata->info,dirinode);
+			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_DIR,4+4);
 			put32bit(&ptr,0);
-			put32bit(&ptr,inode);
-			memcpy(ptr,attr,35);
-			if (dc->eptr->sesdata) {
-				dc->eptr->sesdata->currentopstats[16]++;
-			}
-			dc->eptr->notifications = 1;
+			put32bit(&ptr,dirinode==dc->eptr->sesdata->rootinode?MFS_ROOT_ID:dirinode);
+			stats_notify++;
 		}
 	}
 }
 
-void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const uint8_t attr[35],uint32_t ts) {
-	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
-	dirincache *dc;
-	uint8_t *ptr;
-
-	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
-		if (dc->dirinode==dirinode) {
-//			{
-//				char strname[256];
-//				memcpy(strname,name,nleng);
-//				strname[nleng]=0;
-//				syslog(LOG_NOTICE,"send to: '%s' ; new link (%" PRIu32 ",%s)->%" PRIu32,dc->eptr->sesdata->info,dirinode,strname,inode);
-//			}
-			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_LINK,52+nleng);
-			stats_notify++;
-			put32bit(&ptr,0);
-			put32bit(&ptr,ts);
-			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
-			} else {
-				put32bit(&ptr,dirinode);
-			}
-			put8bit(&ptr,nleng);
-			memcpy(ptr,name,nleng);
-			ptr+=nleng;
-			put32bit(&ptr,inode);
-			memcpy(ptr,attr,35);
-			if (dc->eptr->sesdata) {
-				dc->eptr->sesdata->currentopstats[17]++;
-			}
-			dc->eptr->notifications = 1;
-		}
-	}
-}
-
-void matoclserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t ts) {
-	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
-	dirincache *dc;
-	uint8_t *ptr;
-
-	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
-		if (dc->dirinode==dirinode) {
-//			{
-//				char strname[256];
-//				memcpy(strname,name,nleng);
-//				strname[nleng]=0;
-//				syslog(LOG_NOTICE,"send to: '%s' ; remove link (%" PRIu32 ",%s)",dc->eptr->sesdata->info,dirinode,strname);
-//			}
-			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_UNLINK,13+nleng);
-			stats_notify++;
-			put32bit(&ptr,0);
-			put32bit(&ptr,ts);
-			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
-			} else {
-				put32bit(&ptr,dirinode);
-			}
-			put8bit(&ptr,nleng);
-			memcpy(ptr,name,nleng);
-			if (dc->eptr->sesdata) {
-				dc->eptr->sesdata->currentopstats[18]++;
-			}
-			dc->eptr->notifications = 1;
-		}
-	}
-}
-
-void matoclserv_notify_remove(uint32_t dirinode) {
-	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
-	dirincache *dc;
-	uint8_t *ptr;
-
-	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
-		if (dc->dirinode==dirinode) {
-//			syslog(LOG_NOTICE,"send to: '%s' ; removed inode: %" PRIu32,dc->eptr->sesdata->info,dirinode);
-			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_REMOVE,8);
-			stats_notify++;
-			put32bit(&ptr,0);
-			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
-			} else {
-				put32bit(&ptr,dirinode);
-			}
-			if (dc->eptr->sesdata) {
-				dc->eptr->sesdata->currentopstats[19]++;
-			}
-			dc->eptr->notifications = 1;
-		}
-	}
-}
-
-void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
-	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
-	dirincache *dc;
-	uint8_t *ptr;
-
-	for (dc=dirinodehash[hash] ; dc ; dc=dc->nextnode) {
-		if (dc->dirinode==dirinode && dirinode!=dc->eptr->sesdata->rootinode) {
-//			syslog(LOG_NOTICE,"send to: '%s' ; new parent: %" PRIu32 "->%" PRIu32,dc->eptr->sesdata->info,dirinode,parent);
-			ptr = matoclserv_createpacket(dc->eptr,MATOCL_FUSE_NOTIFY_PARENT,12);
-			stats_notify++;
-			put32bit(&ptr,0);
-			put32bit(&ptr,dirinode);
-			if (parent==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
-			} else {
-				put32bit(&ptr,parent);
-			}
-			if (dc->eptr->sesdata) {
-				dc->eptr->sesdata->currentopstats[20]++;
-			}
-			dc->eptr->notifications = 1;
-		}
-	}
-}
-*/
 
 void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *rptr;
@@ -1771,6 +1733,9 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[2]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_attr(inode,attr,eptr);
+	}
 }
 
 void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1838,6 +1803,9 @@ void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[2]++;
+	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_attr(inode,attr,eptr);
 	}
 }
 
@@ -1924,6 +1892,9 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[6]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode);
+	}
 }
 
 void matoclserv_fuse_mknod(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1969,6 +1940,9 @@ void matoclserv_fuse_mknod(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[8]++;
+	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode);
 	}
 }
 
@@ -2019,6 +1993,9 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[4]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode);
+	}
 }
 
 void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2053,6 +2030,9 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[9]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode);
+	}
 }
 
 void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2086,6 +2066,9 @@ void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[5]++;
+	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode);
 	}
 }
 
@@ -2141,6 +2124,10 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[10]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode_src);
+		matoclserv_notify_dir(inode_dst);
+	}
 }
 
 void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2184,6 +2171,9 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[11]++;
 	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_dir(inode_dst);
+	}
 }
 
 void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2216,22 +2206,19 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		put8bit(&ptr,status);
 	} else {
 		fs_readdir_data(eptr->sesdata->rootinode,eptr->sesdata->sesflags,uid,gid,auid,agid,flags,custom,ptr);
-/* CACHENOTIFY
-		if (flags&GETDIR_FLAG_ADDTOCACHE) {
+		if (flags&GETDIR_FLAG_DIRCACHE) {
 			if (inode==MFS_ROOT_ID) {
 				matoclserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
 			} else {
 				matoclserv_notify_add_dir(eptr,inode);
 			}
 		}
-*/
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[12]++;
 	}
 }
 
-/* CACHENOTIFY
 void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	if (length%4!=0) {
@@ -2255,7 +2242,6 @@ void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint3
 		}
 	}
 }
-*/
 
 void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
@@ -2436,6 +2422,9 @@ void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,const uint8_t *data,u
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK_END,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
+	if (status==STATUS_OK) {
+		matoclserv_notify_attr(inode,NULL,eptr);
+	}
 }
 
 void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2463,6 +2452,9 @@ void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		put32bit(&ptr,chunksnotchanged);
 		put32bit(&ptr,chunkserased);
 		put32bit(&ptr,chunksrepaired);
+	}
+	if (status==STATUS_OK) {
+		matoclserv_notify_attr(inode,NULL,eptr);
 	}
 }
 
@@ -2927,6 +2919,9 @@ void matoclserv_fuse_append(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_APPEND,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
+	if (status == STATUS_OK) {
+		matoclserv_notify_attr(inode,NULL,eptr);
+	}
 }
 
 void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2962,6 +2957,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SNAPSHOT,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
+	if (status == STATUS_OK) 
+		matoclserv_notify_dir(inode_dst);
 }
 
 void matoclserv_fuse_quotacontrol(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -3205,6 +3202,7 @@ void matoclserv_fuse_undel(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_UNDEL,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
+	// TODO: notify clients
 }
 
 void matoclserv_fuse_purge(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -3268,6 +3266,7 @@ void matocl_session_check(void) {
 	session **sesdata,*asesdata;
 	uint32_t now;
 
+    if (!fs_ismastermode()) return;
 	now = main_time();
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
@@ -3313,9 +3312,7 @@ void matocl_beforedisconnect(matoclserventry *eptr) {
 			eptr->sesdata->disconnected = main_time();
 		}
 	}
-/* CACHENOTIFY
 	matoclserv_notify_disconnected(eptr);
-*/
 }
 
 void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
@@ -3328,6 +3325,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
 		return;
 	}
+    if (!fs_ismastermode() && type<CLTOMA_CSERV_LIST) {
+        eptr->mode = KILL; // refuse all packets except STATS
+        return;
+    }
 	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
 		switch (type) {
 			case CLTOMA_FUSE_REGISTER:
@@ -3428,11 +3429,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 			case CLTOMA_FUSE_GETDIR:
 				matoclserv_fuse_getdir(eptr,data,length);
 				break;
-/* CACHENOTIFY
 			case CLTOMA_FUSE_DIR_REMOVED:
 				matoclserv_fuse_dir_removed(eptr,data,length);
 				break;
-*/
 			case CLTOMA_FUSE_OPEN:
 				matoclserv_fuse_open(eptr,data,length);
 				break;
@@ -3767,6 +3766,7 @@ void matoclserv_write(matoclserventry *eptr) {
 
 void matoclserv_wantexit(void) {
 	exiting=1;
+	event_del(lsock);
 }
 
 int matoclserv_canexit(void) {
@@ -3809,17 +3809,18 @@ void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	*ndesc = pos;
 }
 
-
-void matoclserv_serve(struct pollfd *pdesc) {
+void matoclserv_serve(int fd,int mask,void *data) {
 	uint32_t now=main_time();
-	matoclserventry *eptr,**kptr;
-	packetstruct *pptr,*paptr;
+	matoclserventry *eptr = (matoclserventry*)data;
 	int ns;
 
-	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
+	while (fd==lsock) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			if (errno!=EAGAIN && errno!=EWOULDBLOCK) {
+				mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			}
+			return;
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -3831,9 +3832,6 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
 			eptr->registered = 0;
-/* CACHENOTIFY
-			eptr->notifications = 0;
-*/
 			eptr->version = 0;
 			eptr->mode = HEADER;
 			eptr->lastread = now;
@@ -3847,56 +3845,85 @@ void matoclserv_serve(struct pollfd *pdesc) {
 
 			eptr->chunkdelayedops = NULL;
 			eptr->sesdata = NULL;
-/* CACHENOTIFY
-			eptr->cacheddirs = NULL;
-*/
+			eptr->cacheddirs = 0;
 			memset(eptr->passwordrnd,0,32);
+			
+            event_add(ns,POLLIN,matoclserv_serve,eptr);
+
+			if (ns>maxfd) maxfd=ns;
 		}
 	}
 
-// read
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->pdescpos>=0) {
-			if (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP)) {
-				eptr->mode = KILL;
-			}
-			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
-				eptr->lastread = now;
-				matoclserv_read(eptr);
-			}
+	if (!eptr || eptr->sock != fd) {
+		mfs_errlog(LOG_ERR, "main master server module: sock fs not match!");
+        return;
+	}
+	if ((mask & POLLIN) && eptr->mode!=KILL) {
+		eptr->lastread = now;
+		matoclserv_read(eptr);
+		if (mask & POLLHUP) {
+			eptr->mode=KILL;
 		}
 	}
+	if (eptr->outputhead) {
+		eptr->lastwrite = now;
+		matoclserv_write(eptr);
+		if (eptr->mode!=KILL) {
+			if ((mask & POLLOUT) && !eptr->outputhead) {
+				event_add(fd,POLLIN, matoclserv_serve,eptr);
+			} else if (!(mask & POLLOUT) && eptr->outputhead){
+				event_add(fd,POLLOUT,matoclserv_serve,eptr);
+			}
+		}
+		writable[fd] = NULL;
+	}
+	if (eptr->mode==KILL) {
+		event_del(eptr->sock);
+	}
+}
 
-// write
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
+void matoclserv_flush(void) { 
+	uint32_t now=main_time();
+	matoclserventry *eptr;
+	int i;
+	for (i=0; i<=maxfd; i++) {
+		if (writable[i]) {
+			eptr = writable[i];
+			if (eptr->mode!=KILL) {
+				eptr->lastwrite = now;
+				matoclserv_write(eptr);
+				if (eptr->outputhead && eptr->mode!=KILL) {
+					event_add(eptr->sock,POLLOUT,matoclserv_serve,eptr);
+				}
+			}
+            if (eptr->mode==KILL) {
+                event_del(eptr->sock);
+            }
+			writable[i] = NULL;
+		}
+	}
+}
+
+void matoclserv_nop(void) {
+	uint32_t now=main_time();
+	matoclserventry *eptr,**kptr;
+	packetstruct *pptr,*paptr;
+
+	kptr = &matoclservhead;
+	while ((eptr=*kptr)) {
 		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
 			uint8_t *ptr = matoclserv_createpacket(eptr,ANTOAN_NOP,4);	// 4 byte length because of 'msgid'
 			*((uint32_t*)ptr) = 0;
-		}
-		if (eptr->pdescpos>=0) {
-/* CACHENOTIFY
-			if (eptr->notifications) {
-				if (eptr->version>=0x010616) {
-					uint8_t *ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_NOTIFY_END,4);	// transaction end
-					*((uint32_t*)ptr) = 0;
-				}
-				eptr->notifications = 0;
-			}
-*/
-			if ((((pdesc[eptr->pdescpos].events & POLLOUT)==0 && (eptr->outputhead)) || (pdesc[eptr->pdescpos].revents & POLLOUT)) && eptr->mode!=KILL) {
-				eptr->lastwrite = now;
-				matoclserv_write(eptr);
-			}
+			eptr->lastwrite = now;
+			matoclserv_write(eptr);
 		}
 		if (eptr->lastread+10<now && exiting==0) {
 			eptr->mode = KILL;
 		}
-	}
 
-// close
-	kptr = &matoclservhead;
-	while ((eptr=*kptr)) {
-		if (eptr->mode == KILL) {
+		if (eptr->mode==KILL) {
+			event_del(eptr->sock);
+			writable[eptr->sock]=NULL;
 			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -3965,6 +3992,7 @@ int matoclserv_sessionsinit(void) {
 void matoclserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
+    int ismastermode;
 
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
@@ -4020,8 +4048,18 @@ void matoclserv_reload(void) {
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
+    event_del(lsock);
+	event_add(newlsock,POLLIN,matoclserv_serve,NULL);
 	tcpclose(lsock);
 	lsock = newlsock;
+
+    ismastermode = (strcmp(cfg_getstr("RUN_MODE", "master"), "master") == 0);
+    if (ismastermode && !lastismastermode) {
+        matoclserv_load_sessions();
+        matoclserv_touch_sessions();
+        starting = 12;
+    }
+    lastismastermode = ismastermode;
 }
 
 int matoclserv_networkinit(void) {
@@ -4034,9 +4072,14 @@ int matoclserv_networkinit(void) {
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+    lastismastermode = fs_ismastermode();
 
 	exiting = 0;
 	starting = 12;
+
+	maxfd = 0;
+    event_init();
+
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -4053,18 +4096,20 @@ int matoclserv_networkinit(void) {
 		return -1;
 	}
 	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
+	if (event_add(lsock,POLLIN,matoclserv_serve,NULL) < 0) {
+		mfs_errlog(LOG_ERR, "main master server module: add event failed");
+		return -1;
+	}
 
 	matoclservhead = NULL;
-/* CACHENOTIFY
 	matoclserv_dircache_init();
-*/
-
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_nop);
+    main_eachloopregister(matoclserv_flush);
 	main_reloadregister(matoclserv_reload);
 	main_destructregister(matoclserv_term);
-	main_pollregister(matoclserv_desc,matoclserv_serve);
 	main_wantexitregister(matoclserv_wantexit);
 	main_canexitregister(matoclserv_canexit);
 	return 0;

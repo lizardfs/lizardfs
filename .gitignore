@@ -24,6 +24,7 @@ Makefile.in
 /ltmain.sh
 /m4
 /mfscgi/mfscgiserv
+/mfscgi/mfsrun
 /mfscgi/chart.cgi
 /mfscgi/mfs.cgi
 /mfschunkserver/mfschunkserver

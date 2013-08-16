@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+
+import sys
+import time
+import signal
+import optparse
+import subprocess
+import socket
+import logging
+import threading
+
+try:
+    from kazoo.client import KazooClient, KazooState
+    from kazoo.recipe.watchers import ChildrenWatch
+except ImportError:
+    print 'need kazoo: https://github.com/python-zk/kazoo'
+    sys.exit(1)
+
+class MasterDetector(object):
+    def __init__(self, zk, options):
+        self.zk = zk
+        self.options = options
+        self.seq = None
+        self.p = None
+        self.is_master = False
+
+    def update_conf(self, is_master):
+        run_mode = 'RUN_MODE = %s' % ('master' if is_master else 'slave')
+        
+        nd = d = open(self.options.conf, 'r').read()
+        if 'RUN_MODE' not in d:
+            if not is_master:
+                nd = d + '\n' + run_mode + '\n'
+        else:
+            lines = d.split('\n')
+            for i,line in enumerate(lines):
+                if line.strip().startswith('#'):
+                    continue
+                if line.strip().startswith('RUN_MODE'):
+                    logging.info("old : %s", line)
+                    lines[i] = run_mode
+                    break
+            nd = '\n'.join(lines)
+
+        if nd != d:
+            logging.info("update configuration %s", self.options.conf)
+            with open(self.options.conf, 'w') as f:
+                f.write(nd)
+
+    def become_master(self):
+        logging.info("become master")
+        if self.p:
+            self.update_conf(True)
+            self.p.send_signal(signal.SIGHUP)
+
+        if self.options.vip:
+            logging.info("add vip %s %s", self.options.vip, self.options.interface)
+            subprocess.call(['ip', 'addr', 'add', self.options.vip, 'dev', self.options.interface])
+            t = threading.Thread(target=self.heartbeat)
+            t.daemon=True
+            t.start()
+
+    def heartbeat(self):
+        while True:
+            logging.info("broadcast arp")
+            # it will take 2 seconds
+            ip = self.options.vip.split('/')[0]
+            try:
+                subprocess.call(('arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
+            except OSError:
+                logging.error("please install iputils-arp package")
+                self.stop()
+
+    def install_signal(self):
+        def handler(signm, frame):
+            logging.info("got signal %d", signm)
+            if signm not in (signal.SIGTERM, signal.SIGHUP):
+                signm = signal.SIGTERM
+            if self.p:
+                self.p.send_signal(signm)
+        signal.signal(signal.SIGTERM, handler)
+        signal.signal(signal.SIGHUP, handler)
+        signal.signal(signal.SIGABRT, handler)
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGQUIT, handler)
+
+    def session_lost(self, state):
+        if state in (KazooState.LOST,):
+            logging.info("session lost")
+            self.stop()
+
+    def choose(self, children):
+        minSeq = min(children)
+        logging.info("min seq is %s, mine is %s", minSeq, self.seq)
+        if minSeq != self.seq:
+            return True
+        if self.is_master:
+            return
+        self.is_master = True
+        self.become_master()
+
+    def start(self):
+        self.zk.start()
+        if not self.zk.exists(self.options.path):
+            self.zk.create(self.options.path, makepath=True)
+        
+        node = self.zk.create(self.options.path + '/' + 'master', socket.gethostname(),
+                ephemeral=True, sequence=True, makepath=True)
+        self.seq = node.rsplit('/',1)[-1]
+        ChildrenWatch(self.zk, self.options.path, self.choose)
+        
+        time.sleep(0.1) # wait for election in zk
+        self.update_conf(self.is_master)
+        self.p = subprocess.Popen([self.options.bin, '-d', '-c', self.options.conf],
+                close_fds=True)
+        self.install_signal()
+        self.zk.add_listener(self.session_lost)
+
+    def wait(self):
+        ret = self.p.wait()
+        self.p = None
+        return ret
+
+    def stop(self):
+        if self.p:
+            self.p.send_signal(signal.SIGTERM)
+            self.wait()
+        if self.options.vip:
+            subprocess.call(['ip', 'addr', 'del', self.options.vip, 'dev', self.options.interface])
+        self.zk.stop()
+    
+    def run(self):
+        self.start()
+        self.wait()
+        self.stop()
+
+if __name__ == '__main__':
+    parser = optparse.OptionParser(usage='%prog [options]')
+    parser.add_option('-z', '--hosts', default='127.0.0.1:2181',
+            help='hosts of ZooKeeper (default: 127.0.0.1:2181)')
+    parser.add_option('-p', '--path', default='/mfsmaster',
+            help='path used in ZooKeeper (default: /mfsmaster)')
+    parser.add_option('-c', '--conf', default='@ETC_PATH@/mfs/mfsmaster.cfg',
+            help='path for configuration for mfsmaster ''(default: @ETC_PATH@/mfs/mfsmaster.cfg)')
+    parser.add_option('-b', '--bin', default='@CGISERVDIR@/mfsmaster',
+            help='path for mfsmaster (default: @CGISERVDIR@/mfsmaster)')
+    parser.add_option('-P', '--vip',
+            help='bind virtual ip for master, such as 192.168.1.110/24')
+    parser.add_option('-i', '--interface', default='eth0',
+            help='network interface to bind vip (default: eth0)')
+
+    options, args = parser.parse_args()
+    logging.basicConfig(format='%(asctime)-15s [%(levelname)s] [%(name)-9s] %(message)s',
+            level=logging.INFO)
+
+    if options.vip and '/' not in options.vip:
+        options.vip += '/16'
+
+    zk = KazooClient(options.hosts, 10)
+    d = MasterDetector(zk, options)
+    d.run()

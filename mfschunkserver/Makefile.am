@@ -16,6 +16,7 @@ mfschunkserver_SOURCES= \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \
+	../mfscommon/event.cc ../mfscommon/event.h \
 	../mfscommon/sockets.cc ../mfscommon/sockets.h \
 	../mfscommon/charts.cc ../mfscommon/charts.h \
 	../mfscommon/strerr.cc ../mfscommon/strerr.h \
@@ -23,3 +24,4 @@ mfschunkserver_SOURCES= \
 	../mfscommon/slogger.h ../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h
 
+mfschunkserver_CFLAGS=$(PTHREAD_CFLAGS)

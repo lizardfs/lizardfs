@@ -171,9 +171,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint8_t *buff;
 	uint32_t chunks,myip;
 	uint16_t myport;
-	uint64_t usedspace,totalspace;
-	uint64_t tdusedspace,tdtotalspace;
-	uint32_t chunkcount,tdchunkcount;
+	uint64_t stats[6];
 
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
@@ -192,15 +190,15 @@ void masterconn_sendregister(masterconn *eptr) {
 		hdd_get_chunks_next_list_data(buff);
 	}
 	hdd_get_chunks_end();
-	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+	hdd_get_space(stats);
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+8+8+4+8+8+4);
 	put8bit(&buff,52);
-	put64bit(&buff,usedspace);
-	put64bit(&buff,totalspace);
-	put32bit(&buff,chunkcount);
-	put64bit(&buff,tdusedspace);
-	put64bit(&buff,tdtotalspace);
-	put32bit(&buff,tdchunkcount);
+	put64bit(&buff,stats[0]);
+	put64bit(&buff,stats[1]);
+	put32bit(&buff,(uint32_t)stats[2]);
+	put64bit(&buff,stats[3]);
+	put64bit(&buff,stats[4]);
+	put32bit(&buff,(uint32_t)stats[5]);
 }
 
 void masterconn_check_hdd_reports() {
@@ -208,18 +206,31 @@ void masterconn_check_hdd_reports() {
 	uint32_t errorcounter;
 	uint32_t chunkcounter;
 	uint8_t *buff;
+	uint64_t stats[6];
+	int i, changed=0;
+	static uint64_t laststats[6]={0};
+
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		if (hdd_spacechanged()) {
-			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
-			uint32_t chunkcount,tdchunkcount;
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-			hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-			put64bit(&buff,usedspace);
-			put64bit(&buff,totalspace);
-			put32bit(&buff,chunkcount);
-			put64bit(&buff,tdusedspace);
-			put64bit(&buff,tdtotalspace);
-			put32bit(&buff,tdchunkcount);
+			hdd_get_space(stats);
+			for (i=0; i<6; i++) {
+				if (abs(stats[i]-laststats[i]) > laststats[i] * 0.005) {
+					changed = 1;
+					break;
+				}
+			}
+			if (changed) {
+				buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
+				put64bit(&buff,stats[0]);
+				put64bit(&buff,stats[1]);
+				put32bit(&buff,(uint32_t)stats[2]);
+				put64bit(&buff,stats[3]);
+				put64bit(&buff,stats[4]);
+				put32bit(&buff,(uint32_t)stats[5]);
+				for (i=0; i<6; i++) {
+					laststats[i] = stats[i];
+				}
+			}
 		}
 		errorcounter = hdd_errorcounter();
 		while (errorcounter) {

@@ -31,8 +31,8 @@
 #include <errno.h>
 #include <pthread.h>
 #ifdef MMAP_ALLOC
-#include <sys/types.h>
-#include <sys/mman.h>
+	#include <sys/types.h>
+	#include <sys/mman.h>
 #endif
 #include <pwd.h>
 #include <grp.h>
@@ -43,6 +43,8 @@
 #include "strerr.h"
 #include "md5.h"
 #include "datapack.h"
+#include "dirattrcache.h"
+#include "mastercomm.h"
 
 typedef struct _threc {
 	pthread_t thid;
@@ -77,6 +79,12 @@ typedef struct _acquired_file {
 #define DEFAULT_INPUT_BUFFSIZE 0x10000
 
 #define RECEIVE_TIMEOUT 10
+
+#define LOOKUP_STAT_SIZE 1003
+#define LAST_INVALIDATE_SIZE 100003
+#define NOT_CACHE_TIME 10 // 10 seconds
+static uint32_t lookup_stats[LOOKUP_STAT_SIZE];
+static time_t   last_invalidates[LAST_INVALIDATE_SIZE];
 
 static threc *threchead=NULL;
 
@@ -146,6 +154,9 @@ void master_statsptr_init(void) {
 	statsptr[MASTER_BYTESRCVD] = stats_get_counterptr(stats_get_subnode(s,"bytes_received",0));
 	statsptr[MASTER_BYTESSENT] = stats_get_counterptr(stats_get_subnode(s,"bytes_sent",0));
 	statsptr[MASTER_CONNECTS] = stats_get_counterptr(stats_get_subnode(s,"reconnects",0));
+
+	memset(lookup_stats, 0, sizeof(lookup_stats));
+	memset(last_invalidates, 0, sizeof(last_invalidates));
 }
 
 void master_stats_inc(uint8_t id) {
@@ -171,6 +182,110 @@ static inline const char* mfs_strerror(uint8_t status) {
 		status=ERROR_MAX;
 	}
 	return errtab[status];
+}
+
+void fs_notify_attr(const uint8_t *buff,uint32_t size) {
+	uint32_t dirnode, inode;
+	while (size>=43) {
+		dirnode = get32bit(&buff);
+		inode = get32bit(&buff);
+		dcache_setattr(dirnode,inode,buff);
+//		fprintf(stderr,"dcache: invalidate attr %u %u\n", dirnode, inode);
+		buff += 35;
+		size -= 43;
+	}
+}
+
+void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes);
+
+void fs_notify_dir(const uint8_t *buff,uint32_t size) {
+	uint32_t inode;
+	uint32_t inodes[10], n=0;
+	while (size>=4) {
+		inode = get32bit(&buff);
+		if (dcache_remove(inode)) {
+			inodes[n++] = inode;
+			last_invalidates[inode%LAST_INVALIDATE_SIZE] = time(NULL);
+		}
+		size -= 4;
+	}
+	if (n) {
+		fs_notify_sendremoved(n, inodes);
+	}
+}
+
+void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes) {
+	static uint8_t *notify_buff=NULL;
+	static uint32_t notify_buff_size=0;
+	uint32_t size;
+	uint8_t *ptr;
+
+	if (cnt==0) {
+		return;
+	}
+
+	size = 12+4*cnt;
+
+	if (size>DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		if (notify_buff) {
+			munmap(notify_buff,notify_buff_size);
+		}
+		notify_buff = (uint8_t*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		if (notify_buff) {
+			free(notify_buff);
+		}
+		notify_buff = malloc(size);
+#endif
+		notify_buff_size = size;
+	} else if (notify_buff_size!=DEFAULT_OUTPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+		if (notify_buff) {
+			munmap(notify_buff,notify_buff_size);
+		}
+		notify_buff = (uint8_t*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+		if (notify_buff) {
+			free(notify_buff);
+		}
+		notify_buff = malloc(DEFAULT_OUTPUT_BUFFSIZE);
+#endif
+		notify_buff_size = DEFAULT_OUTPUT_BUFFSIZE;
+	}
+	if (notify_buff==NULL) {
+		notify_buff_size = 0;
+		disconnect=1;
+		return;
+	}
+
+	ptr = notify_buff;
+
+	put32bit(&ptr,CLTOMA_FUSE_DIR_REMOVED);
+	put32bit(&ptr,size-8);
+	put32bit(&ptr,0);
+
+	while (cnt) {
+		put32bit(&ptr,*inodes);
+		inodes++;
+		cnt--;
+	}
+
+	pthread_mutex_lock(&fdlock);
+	if (sessionlost || fd==-1 || masterversion<0x010615) {
+		pthread_mutex_unlock(&fdlock);
+		return;
+	}
+	if (tcptowrite(fd,notify_buff,size,1000)!=(int32_t)size) {
+		syslog(LOG_WARNING,"tcp send error: %s",strerr(errno));
+		disconnect = 1;
+		pthread_mutex_unlock(&fdlock);
+		return;
+	}
+	master_stats_add(MASTER_BYTESSENT,size);
+	master_stats_inc(MASTER_PACKETSSENT);
+	lastwrite = time(NULL);
+	pthread_mutex_unlock(&fdlock);
 }
 
 void fs_inc_acnt(uint32_t inode) {
@@ -272,7 +387,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (uint8_t*) (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (uint8_t*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -285,7 +400,7 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 		if (rec->obuff) {
 			munmap((void*)(rec->obuff),rec->obuffsize);
 		}
-		rec->obuff = (uint8_t*) (void*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->obuff = (uint8_t*)mmap(NULL,DEFAULT_OUTPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->obuff) {
 			free(rec->obuff);
@@ -305,7 +420,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (uint8_t*) (void*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (uint8_t*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -318,7 +433,7 @@ void fs_input_buffer_init(threc *rec,uint32_t size) {
 		if (rec->ibuff) {
 			munmap((void*)(rec->ibuff),rec->ibuffsize);
 		}
-		rec->ibuff = (uint8_t*) (void*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+		rec->ibuff = (uint8_t*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
 #else
 		if (rec->ibuff) {
 			free(rec->ibuff);
@@ -1071,6 +1186,8 @@ void* fs_receive_thread(void *arg) {
 	uint8_t hdr[12];
 	threc *rec;
 	uint32_t cmd,size,packetid;
+	static uint8_t *notify_buff=NULL;
+	static uint32_t notify_buff_size=0;
 	int r;
 
 	(void)arg;
@@ -1081,6 +1198,7 @@ void* fs_receive_thread(void *arg) {
 			return NULL;
 		}
 		if (disconnect) {
+			dcache_remove_all();
 			tcpclose(fd);
 			fd=-1;
 			disconnect=0;
@@ -1152,6 +1270,64 @@ void* fs_receive_thread(void *arg) {
 			if (cmd==ANTOAN_UNKNOWN_COMMAND || cmd==ANTOAN_BAD_COMMAND_SIZE) { // just ignore these packets with packetid==0
 				continue;
 			}
+			if (cmd==MATOCL_FUSE_NOTIFY_ATTR || cmd==MATOCL_FUSE_NOTIFY_DIR) {
+				if (size>DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+					if (notify_buff) {
+						munmap(notify_buff,notify_buff_size);
+					}
+					notify_buff = (uint8_t*)mmap(NULL,size,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+					if (notify_buff) {
+						free(notify_buff);
+					}
+					notify_buff = malloc(size);
+#endif
+					notify_buff_size = size;
+				} else if (notify_buff_size!=DEFAULT_INPUT_BUFFSIZE) {
+#ifdef MMAP_ALLOC
+					if (notify_buff) {
+						munmap(notify_buff,notify_buff_size);
+					}
+					notify_buff = (uint8_t*)mmap(NULL,DEFAULT_INPUT_BUFFSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
+#else
+					if (notify_buff) {
+						free(notify_buff);
+					}
+					notify_buff = malloc(DEFAULT_INPUT_BUFFSIZE);
+#endif
+					notify_buff_size = DEFAULT_INPUT_BUFFSIZE;
+				}
+				if (notify_buff==NULL) {
+					notify_buff_size = 0;
+					disconnect=1;
+					continue;
+				}
+				if (size>0) {
+					r = tcptoread(fd,notify_buff,size,1000);
+					// syslog(LOG_NOTICE,"master: data size: %d",r);
+					if (r==0) {
+						syslog(LOG_WARNING,"master: connection lost (2)");
+						disconnect=1;
+						continue;
+					}
+					if (r!=(int32_t)(size)) {
+						syslog(LOG_WARNING,"master: tcp recv error: %s (2)",strerr(errno));
+						disconnect=1;
+						continue;
+					}
+					master_stats_add(MASTER_BYTESRCVD,size);
+				}
+				switch (cmd) {
+					case MATOCL_FUSE_NOTIFY_ATTR:
+						fs_notify_attr(notify_buff,size);
+						break;
+					case MATOCL_FUSE_NOTIFY_DIR:
+						fs_notify_dir(notify_buff,size);
+						break;
+				}
+				continue;
+			}
 		}
 		rec = fs_get_threc_by_id(packetid);
 		if (rec==NULL) {
@@ -1190,6 +1366,21 @@ void* fs_receive_thread(void *arg) {
 		rec->rcvd_cmd = cmd;
 		// syslog(LOG_NOTICE,"master: unlock: %" PRIu32,rec->packetid);
 		rec->rcvd = 1;
+		if (cmd==MATOCL_FUSE_GETDIR) {
+			const uint8_t *tptr = rec->obuff+12; // HACK
+			uint32_t inode = get32bit(&tptr);
+			uint8_t flag = tptr[8];
+			if (flag&GETDIR_FLAG_DIRCACHE) {
+				uint32_t old = dcache_replace(inode,rec->ibuff,size);
+				// fprintf(stderr,"dcache cache %u %u\n",inode,old);
+				if (old>0 && old!=inode) {
+					uint32_t buf[1];
+					uint8_t *p = (uint8_t*)buf;
+					put32bit(&p,old);
+					fs_notify_sendremoved(1,buf);
+				}
+			}
+		}
 		if (rec->waiting) {
 			pthread_cond_signal(&(rec->cond));
 		}
@@ -1200,6 +1391,7 @@ void* fs_receive_thread(void *arg) {
 // called before fork
 int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t bgregister) {
 	master_statsptr_init();
+	dcache_init();
 
 	fd = -1;
 	sessionlost = bgregister;
@@ -1355,6 +1547,25 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	uint32_t i;
 	uint32_t t32;
 	uint8_t ret;
+	uint32_t now;
+	if (dcache_lookup(parent,nleng,name,inode,attr)) {
+		return *inode?STATUS_OK:ERROR_ENOENT;
+	}
+	now = time(NULL);
+	if (lookup_stats[parent%LOOKUP_STAT_SIZE]==parent &&
+			last_invalidates[parent%LAST_INVALIDATE_SIZE] + NOT_CACHE_TIME < now) {
+		const uint8_t *dbuff;
+		uint32_t dsize;
+		last_invalidates[parent%LAST_INVALIDATE_SIZE] = now;
+		if (fs_getdir_plus(parent,uid,gid,1,&dbuff,&dsize)==STATUS_OK) {
+			free((void*)dbuff);
+			if (dcache_lookup(parent,nleng,name,inode,attr)) {
+				return *inode?STATUS_OK:ERROR_ENOENT;
+			}
+		}
+	}
+	lookup_stats[parent % LOOKUP_STAT_SIZE] = parent;
+
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_LOOKUP,13+nleng);
 	if (wptr==NULL) {
@@ -1390,6 +1601,9 @@ uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
 	const uint8_t *rptr;
 	uint32_t i;
 	uint8_t ret;
+	if (dcache_getattr(inode,attr)) {
+		return STATUS_OK;
+	}
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETATTR,12);
 	if (wptr==NULL) {
@@ -1454,6 +1668,7 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	} else {
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_setattr(0,inode,attr);
 	}
 	return ret;
 }
@@ -1486,6 +1701,7 @@ uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	} else {
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_setattr(0,inode,attr);
 	}
 	return ret;
 }
@@ -1563,6 +1779,7 @@ uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8
 		*inode = t32;
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_remove(parent);
 	}
 	return ret;
 }
@@ -1602,6 +1819,7 @@ uint8_t fs_mknod(uint32_t parent,uint8_t nleng,const uint8_t *name,uint8_t type,
 		*inode = t32;
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_remove(parent);
 	}
 	return ret;
 }
@@ -1646,6 +1864,7 @@ uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode
 		*inode = t32;
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_remove(parent);
 	}
 	return ret;
 }
@@ -1671,6 +1890,9 @@ uint8_t fs_unlink(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 		ret = ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
+		if (ret == STATUS_OK) {
+			dcache_remove(parent);
+		}
 	} else {
 		pthread_mutex_lock(&fdlock);
 		disconnect = 1;
@@ -1701,6 +1923,9 @@ uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,
 		ret = ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
+		if (ret == STATUS_OK) {
+			dcache_remove(parent);
+		}
 	} else {
 		pthread_mutex_lock(&fdlock);
 		disconnect = 1;
@@ -1748,6 +1973,8 @@ uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,
 		*inode = t32;
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_remove(parent_src);
+		dcache_remove(parent_dst);
 	}
 	return ret;
 }
@@ -1785,6 +2012,7 @@ uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const u
 		*inode = t32;
 		memcpy(attr,rptr,35);
 		ret = STATUS_OK;
+		dcache_remove(parent_dst);
 	}
 	return ret;
 }
@@ -1821,6 +2049,9 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	uint32_t i;
 	uint8_t ret;
 	uint8_t flags;
+	if (addtocache && dcache_getdir(inode,dbuff,dbuffsize)) {
+		return STATUS_OK;
+	}
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETDIR,13);
 	if (wptr==NULL) {
@@ -1831,7 +2062,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	put32bit(&wptr,gid);
 	flags = GETDIR_FLAG_WITHATTR;
 	if (addtocache) {
-		flags |= GETDIR_FLAG_ADDTOCACHE;
+		flags |= GETDIR_FLAG_DIRCACHE;
 	}
 	put8bit(&wptr,flags);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDIR,&i);
@@ -1840,7 +2071,11 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
-		*dbuff = rptr;
+		*dbuff = (uint8_t*)malloc(i);
+		if (*dbuff==NULL) {
+			return ERROR_IO;
+		}
+		memcpy((uint8_t*)*dbuff,rptr,i);
 		*dbuffsize = i;
 		ret = STATUS_OK;
 	}

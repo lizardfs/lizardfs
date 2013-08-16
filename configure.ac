@@ -129,6 +129,8 @@ AC_CHECK_HEADERS([sys/mman.h])
 
 # optional I/O functions
 AC_CHECK_FUNCS([pread pwrite readv writev])
+AC_CHECK_HEADER([sys/epoll.h], AC_DEFINE([HAVE_EPOLL], , [for epoll support]))
+AC_CHECK_HEADER([sys/event.h], AC_DEFINE([HAVE_KQUEUE], , [for kqueue support]))
 
 # optional resource usage function and headers
 AC_CHECK_FUNCS([getrusage setitimer])

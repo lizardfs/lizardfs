@@ -663,7 +663,8 @@ void csserv_fwderror(csserventry *eptr) {
 	eptr->state = WRITEFINISH;
 }
 
-#else /* not BGJOBS */
+#endif
+#if 0 /* not BGJOBS (#else) */
 
 // fg reading
 
