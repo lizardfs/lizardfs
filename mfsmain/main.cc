@@ -1066,10 +1066,10 @@ int main(int argc,char **argv) {
 		mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 	}
 
-	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
-		makedaemon();
-	} else {
-		if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RM_START || runmode==RM_RESTART) {
+		if (rundaemon) {
+			makedaemon();
+		} else {
 			set_signal_handlers(0);
 		}
 	}
