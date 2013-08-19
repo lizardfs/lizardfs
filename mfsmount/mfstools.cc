@@ -52,9 +52,6 @@ using namespace std;
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
-const static char* LIZ_PREF = "lizardfs";
-const static char* MFS_PREF = "mfs";
-
 
 #define INODE_VALUE_MASK 0x1FFFFFFF
 #define INODE_TYPE_MASK 0x60000000
@@ -2036,102 +2033,6 @@ static inline void print_extra_attributes() {
 	}
 }
 
-void usage(int f) 
-{
-	switch (f) 
-	{
-		case MFSGETGOAL:
-			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			break;
-		case MFSSETGOAL:
-			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			fprintf(stderr," GOAL+ - increase goal to given value\n");
-			fprintf(stderr," GOAL- - decrease goal to given value\n");
-			fprintf(stderr," GOAL - just set goal to given value\n");
-			break;
-		case MFSGETTRASHTIME:
-			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			break;
-		case MFSSETTRASHTIME:
-			fprintf(stderr,"set objects trashtime (how many seconds file should be left in trash)\n\nusage: mfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			fprintf(stderr," SECONDS+ - increase trashtime to given value\n");
-			fprintf(stderr," SECONDS- - decrease trashtime to given value\n");
-			fprintf(stderr," SECONDS - just set trashtime to given value\n");
-			break;
-		case MFSCHECKFILE:
-			fprintf(stderr,"check files\n\nusage: mfscheckfile [-nhH] name [name ...]\n");
-			break;
-		case MFSFILEINFO:
-			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name [name ...]\n");
-			break;
-		case MFSAPPENDCHUNKS:
-			fprintf(stderr,"append file chunks to another file. If destination file doesn't exist then it's created as empty file and then chunks are appended\n\nusage: mfsappendchunks dstfile name [name ...]\n");
-			break;
-		case MFSDIRINFO:
-			fprintf(stderr,"show directories stats\n\nusage: mfsdirinfo [-nhH] name [name ...]\n");
-			print_numberformat_options();
-			fprintf(stderr,"\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n 'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage (usually size multiplied by current goal)\n");
-			break;
-		case MFSFILEREPAIR:
-			fprintf(stderr,"repair given file. Use it with caution. It forces file to be readable, so it could erase (fill with zeros) file when chunkservers are not currently connected.\n\nusage: mfsfilerepair [-nhH] name [name ...]\n");
-			print_numberformat_options();
-			break;
-		case MFSMAKESNAPSHOT:
-			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-o] src [src ...] dst\n");
-			fprintf(stderr,"-o - allow to overwrite existing objects\n");
-			break;
-		case MFSGETEATTR:
-			fprintf(stderr,"get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			break;
-		case MFSSETEATTR:
-			fprintf(stderr,"set objects extra attributes\n\nusage: mfsseteattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			fprintf(stderr," -f attrname - specify attribute to set\n");
-			print_extra_attributes();
-			break;
-		case MFSDELEATTR:
-			fprintf(stderr,"delete objects extra attributes\n\nusage: mfsdeleattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
-			print_numberformat_options();
-			print_recursive_option();
-			fprintf(stderr," -f attrname - specify attribute to delete\n");
-			print_extra_attributes();
-			break;
-		case MFSGETQUOTA:
-			fprintf(stderr,"get quota for given directory (directories)\n\nusage: mfsgetquota [-nhH] dirname [dirname ...]\n");
-			print_numberformat_options();
-			break;
-		case MFSSETQUOTA:
-			fprintf(stderr,"set quota for given directory (directories)\n\nusage: mfssetquota [-nhH] [-iI inodes] [-lL length] [-sS size] [-rR realsize] dirname [dirname ...]\n");
-			print_numberformat_options();
-			fprintf(stderr," -i/-I - set soft/hard limit for number of filesystem objects\n");
-			fprintf(stderr," -l/-L - set soft/hard limit for sum of files lengths\n");
-			fprintf(stderr," -s/-S - set soft/hard limit for sum of file sizes (chunk sizes)\n");
-			fprintf(stderr," -r/-R - set soft/hard limit for estimated hdd usage (usually size multiplied by goal)\n");
-			fprintf(stderr,"\nAll numbers can have decimal point and SI/IEC symbol prefix at the end\ndecimal (SI): (k - 10^3 , M - 10^6 , G - 10^9 , T - 10^12 , P - 10^15 , E - 10^18)\nbinary (IEC 60027): (Ki - 2^10 , Mi - 2^20 , Gi - 2^30 , Ti - 2^40 , Pi - 2^50 , Ei - 2^60 )\n");
-			break;
-		case MFSDELQUOTA:
-			fprintf(stderr,"delete quota for given directory (directories)\n\nusage: mfsdelquota [-nhHailsrAILSR] dirname [dirname ...]\n");
-			print_numberformat_options();
-			fprintf(stderr," -i/-I - delete inodes soft/hard quota\n");
-			fprintf(stderr," -l/-L - delete length soft/hard quota\n");
-			fprintf(stderr," -s/-S - delete size soft/hard quota\n");
-			fprintf(stderr," -r/-R - delete real size soft/hard quota\n");
-			fprintf(stderr," -a/-A - delete all soft/hard quotas\n");
-			break;
-	}
-	exit(1);
-}
 
 int main(int argc,char **argv) {
 	int f,status;
@@ -2213,7 +2114,7 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		if (argc<2) {
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		return snapshot(argv[argc-1],argv,argc-1,oflag);
 	case MFSGETGOAL:
@@ -2239,7 +2140,7 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		if ((f==MFSSETGOAL || f==MFSSETTRASHTIME) && argc==0) {
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		if (f==MFSSETGOAL) {
 			char *p = argv[0];
@@ -2252,7 +2153,7 @@ int main(int argc,char **argv) {
 				}
 			} else {
 				fprintf(stderr,"goal should be given as a digit between 1 and 9 optionally folowed by '-' or '+'\n");
-				usage(f);
+				lizardCmd.usage(f);
 			}
 			argc--;
 			argv++;
@@ -2273,7 +2174,7 @@ int main(int argc,char **argv) {
 				}
 			} else {
 				fprintf(stderr,"trashtime should be given as number of seconds optionally folowed by '-' or '+'\n");
-				usage(f);
+				lizardCmd.usage(f);
 			}
 			argc--;
 			argv++;
@@ -2325,7 +2226,7 @@ int main(int argc,char **argv) {
 				}
 				if (!found) {
 					fprintf(stderr,"unknown flag\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				break;
 			}
@@ -2338,7 +2239,7 @@ int main(int argc,char **argv) {
 			} else {
 				fprintf(stderr,"no attribute(s) to delete\n");
 			}
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		break;
 	case MFSFILEREPAIR:
@@ -2364,7 +2265,7 @@ int main(int argc,char **argv) {
 	case MFSSETQUOTA:
 		if (getuid()) {
 			fprintf(stderr,"only root can change quota\n");
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		while ((ch=getopt(argc,argv,"nhHi:I:l:L:s:S:r:R:"))!=-1) {
 			switch(ch) {
@@ -2380,11 +2281,11 @@ int main(int argc,char **argv) {
 			case 'i':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint32_t>::max(),0)<0) {
 					fprintf(stderr,"bad inodes limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_SINODES) {
 					fprintf(stderr,"'soft inodes' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				sinodes = v;
 				qflags |= QUOTA_FLAG_SINODES;
@@ -2392,11 +2293,11 @@ int main(int argc,char **argv) {
 			case 'I':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint32_t>::max(),0)<0) {
 					fprintf(stderr,"bad inodes limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_HINODES) {
 					fprintf(stderr,"'hard inodes' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				hinodes = v;
 				qflags |= QUOTA_FLAG_HINODES;
@@ -2404,11 +2305,11 @@ int main(int argc,char **argv) {
 			case 'l':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad length limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_SLENGTH) {
 					fprintf(stderr,"'soft length' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				slength = v;
 				qflags |= QUOTA_FLAG_SLENGTH;
@@ -2416,11 +2317,11 @@ int main(int argc,char **argv) {
 			case 'L':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad length limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_HLENGTH) {
 					fprintf(stderr,"'hard length' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				hlength = v;
 				qflags |= QUOTA_FLAG_HLENGTH;
@@ -2428,11 +2329,11 @@ int main(int argc,char **argv) {
 			case 's':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad size limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_SSIZE) {
 					fprintf(stderr,"'soft size' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				ssize = v;
 				qflags |= QUOTA_FLAG_SSIZE;
@@ -2440,11 +2341,11 @@ int main(int argc,char **argv) {
 			case 'S':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad size limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_HSIZE) {
 					fprintf(stderr,"'hard size' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				hsize = v;
 				qflags |= QUOTA_FLAG_HSIZE;
@@ -2452,11 +2353,11 @@ int main(int argc,char **argv) {
 			case 'r':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad real size limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_SREALSIZE) {
 					fprintf(stderr,"'soft realsize' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				srealsize = v;
 				qflags |= QUOTA_FLAG_SREALSIZE;
@@ -2464,11 +2365,11 @@ int main(int argc,char **argv) {
 			case 'R':
 				if (my_get_number(optarg,&v,std::numeric_limits<uint64_t>::max(),1)<0) {
 					fprintf(stderr,"bad real size limit\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				if (qflags & QUOTA_FLAG_HREALSIZE) {
 					fprintf(stderr,"'hard realsize' quota defined twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				hrealsize = v;
 				qflags |= QUOTA_FLAG_HREALSIZE;
@@ -2477,7 +2378,7 @@ int main(int argc,char **argv) {
 		}
 		if (qflags==0) {
 			fprintf(stderr,"quota options not defined\n");
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		argc -= optind;
 		argv += optind;
@@ -2485,7 +2386,7 @@ int main(int argc,char **argv) {
 	case MFSDELQUOTA:
 		if (getuid()) {
 			fprintf(stderr,"only root can change quota\n");
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		while ((ch=getopt(argc,argv,"nhHiIlLsSrRaA"))!=-1) {
 			switch(ch) {
@@ -2501,70 +2402,70 @@ int main(int argc,char **argv) {
 			case 'i':
 				if (qflags & QUOTA_FLAG_SINODES) {
 					fprintf(stderr,"'soft inodes' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_SINODES;
 				break;
 			case 'I':
 				if (qflags & QUOTA_FLAG_HINODES) {
 					fprintf(stderr,"'hard inodes' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_HINODES;
 				break;
 			case 'l':
 				if (qflags & QUOTA_FLAG_SLENGTH) {
 					fprintf(stderr,"'soft length' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_SLENGTH;
 				break;
 			case 'L':
 				if (qflags & QUOTA_FLAG_HLENGTH) {
 					fprintf(stderr,"'hard length' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_HLENGTH;
 				break;
 			case 's':
 				if (qflags & QUOTA_FLAG_SSIZE) {
 					fprintf(stderr,"'soft size' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_SSIZE;
 				break;
 			case 'S':
 				if (qflags & QUOTA_FLAG_HSIZE) {
 					fprintf(stderr,"'hard size' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_HSIZE;
 				break;
 			case 'r':
 				if (qflags & QUOTA_FLAG_SREALSIZE) {
 					fprintf(stderr,"'soft realsize' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_SREALSIZE;
 				break;
 			case 'R':
 				if (qflags & QUOTA_FLAG_HREALSIZE) {
 					fprintf(stderr,"'hard realsize' option given twice\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_HREALSIZE;
 				break;
 			case 'a':
 				if (qflags & QUOTA_FLAG_SALL) {
 					fprintf(stderr,"'all soft quotas' defined together with other soft quota options\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_SALL;
 				break;
 			case 'A':
 				if (qflags & QUOTA_FLAG_HALL) {
 					fprintf(stderr,"'all hard quotas' defined together with other hard quota options\n");
-					usage(f);
+					lizardCmd.usage(f);
 				}
 				qflags |= QUOTA_FLAG_HALL;
 				break;
@@ -2572,7 +2473,7 @@ int main(int argc,char **argv) {
 		}
 		if (qflags==0) {
 			fprintf(stderr,"quota options not defined\n");
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		argc -= optind;
 		argv += optind;
@@ -2585,7 +2486,7 @@ int main(int argc,char **argv) {
 
 	if (f==MFSAPPENDCHUNKS) {
 		if (argc<=1) {
-			usage(f);
+			lizardCmd.usage(f);
 		}
 		appendfname = argv[0];
 		i = open(appendfname,O_RDWR | O_CREAT,0666);
@@ -2599,7 +2500,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (argc<1) {
-		usage(f);
+		lizardCmd.usage(f);
 	}
 	status=0;
 	while (argc>0) {
@@ -2688,8 +2589,8 @@ int main(int argc,char **argv) {
 
 void LizardTools::usageInfo()
 {
-	fprintf(stderr,"%s multi tool\n\nusage:\n\t%stools create - create symlinks (%s<toolname> -> %s)\n", LIZ_PREF, LIZ_PREF, LIZ_PREF, m_ProgName.c_str() );
-	fprintf(stderr,"%s multi tool\n\nformer usage:\n\t%stools create - create symlinks (%s<toolname> -> %s)\n", MFS_PREF, MFS_PREF, MFS_PREF, m_ProgName.c_str() );
+	//fprintf(stderr,"%s multi tool\n\nusage:\n\t%stools create - create symlinks (%s<toolname> -> %s)\n", LIZ_PREF, LIZ_PREF, LIZ_PREF, m_ProgName.c_str() );
+	fprintf(stderr,"%s multi tool\n\n usage:\n\t%stools create - create symlinks	 ([%s|%s]<toolname> -> %s)\n", MFS_PREF, MFS_PREF, LIZ_PREF, MFS_PREF, m_ProgName.c_str() );
 }
 
 map< string, int > LizardTools::TOOLS_MAP;
@@ -2700,15 +2601,22 @@ const char* LizardTools::MFS_PREF = "mfs";
 
 bool LizardTools::loadStatic()
 {
-	LizardTools::TOOLS_MAP += make_pair( "getgoal", MFSGETGOAL ), make_pair( "setgoal", MFSSETGOAL ), make_pair( "gettrashtime", MFSGETTRASHTIME );
-	LizardTools::TOOLS_MAP += make_pair( "settrashtime", MFSSETTRASHTIME ), make_pair( "checkfile", MFSCHECKFILE ), make_pair( "fileinfo", MFSFILEINFO );
-	LizardTools::TOOLS_MAP += make_pair( "appendchunks", MFSAPPENDCHUNKS ), make_pair( "dirinfo", MFSDIRINFO ), make_pair( "filerepair", MFSFILEREPAIR );
-	LizardTools::TOOLS_MAP += make_pair( "makesnapshot", MFSMAKESNAPSHOT ), make_pair( "geteattr", MFSGETEATTR ), make_pair( "seteattr", MFSSETEATTR );
-	LizardTools::TOOLS_MAP += make_pair( "deleattr", MFSDELEATTR );
-	#if VERSHEX>=0x010700
-	LizardTools::TOOLS_MAP += make_pair( "getquota", MFSGETQUOTA ), make_pair( "setquota", MFSSETQUOTA ), make_pair( "delquota", MFSDELQUOTA );
-	#endif
-	
+	vector< string > prefixVec;
+	prefixVec.push_back( LIZ_PREF );
+	prefixVec.push_back( MFS_PREF );
+
+	for( vector< string >::iterator prefxIter = prefixVec.begin(); prefxIter != prefixVec.end();  ++prefxIter )
+	{
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "getgoal", MFSGETGOAL ), make_pair( *prefxIter + "setgoal", MFSSETGOAL ), make_pair( *prefxIter + "gettrashtime", MFSGETTRASHTIME );
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "settrashtime", MFSSETTRASHTIME ), make_pair( *prefxIter + "checkfile", MFSCHECKFILE ), make_pair( *prefxIter + "fileinfo", MFSFILEINFO );
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "appendchunks", MFSAPPENDCHUNKS ), make_pair( *prefxIter + "dirinfo", MFSDIRINFO ), make_pair( *prefxIter + "filerepair", MFSFILEREPAIR );
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "makesnapshot", MFSMAKESNAPSHOT ), make_pair( *prefxIter + "geteattr", MFSGETEATTR ), make_pair( *prefxIter + "seteattr", MFSSETEATTR );
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "deleattr", MFSDELEATTR );
+	  #if VERSHEX>=0x010700
+	  LizardTools::TOOLS_MAP += make_pair( *prefxIter + "getquota", MFSGETQUOTA ), make_pair( *prefxIter + "setquota", MFSSETQUOTA ), make_pair( *prefxIter + "delquota", MFSDELQUOTA );
+	  #endif
+	}
+	  
 	LizardTools::TOOLS_DEPRECATED_MAP += make_pair( "mfsrgetgoal", "mfsgetgoal" ), make_pair( "mfsrsetgoal", "mfssetgoal" ), make_pair( "mfsrgettrashtime", "mfsgettrashtime" );
 	LizardTools::TOOLS_DEPRECATED_MAP += make_pair( "mfsrsettrashtime", "mfssettrashtime" );
 	
@@ -2730,14 +2638,7 @@ void LizardTools::errorInfo()
 	//LIZARDFS usage
 	for( toolsIter = TOOLS_MAP.begin(); toolsIter != TOOLS_MAP.end(); ++toolsIter )
 	{
-		fprintf(stderr,"\t%s%s\n", LIZ_PREF, toolsIter->first.c_str() ); 
-	}
-
-	fprintf(stderr,"%s", "\n" ); 
-
-	for( toolsIter = TOOLS_MAP.begin(); toolsIter != TOOLS_MAP.end(); ++toolsIter )
-	{
-		fprintf(stderr,"\t%s%s\n", MFS_PREF, toolsIter->first.c_str() ); 
+		fprintf(stderr,"\t%s\n", toolsIter->first.c_str() ); 
 	}
 
 	//MFS usage ( backward compatibility )
@@ -2762,10 +2663,6 @@ bool LizardTools::checkCommandName( const string& pCommandName )
 	return false;
 }
 
-/*int LizardTools::symlink( const char* p1, const char* p2 )
-{
-	return -1;
-}*/
 
 //pFunAttr - pair< fun_enum, depr_flag >
 bool LizardTools::getFunctionEnum( pair< int, int >& pFunAttr )
@@ -2787,12 +2684,14 @@ bool LizardTools::getFunctionEnum( pair< int, int >& pFunAttr )
 		fprintf(stderr,"deprecated tool - use \"%s -r\"\n", deprIter->second.c_str() );
 		pFunAttr.second = 1; //deprecated flag on
 		command = deprIter->second;
+		return true;
 	}
 	
 	map< string, int >::iterator toolsIter = LizardTools::TOOLS_MAP.find( command );
 	if( toolsIter != LizardTools::TOOLS_MAP.end() )
 	{
 		pFunAttr.first = toolsIter->second;
+		return true;
 	}
 
 	return false;
@@ -2801,26 +2700,115 @@ bool LizardTools::getFunctionEnum( pair< int, int >& pFunAttr )
 
 void LizardTools::createFsLink()
 {
-	vector< string > prefixVec;
-	prefixVec.push_back( LIZ_PREF );
-	prefixVec.push_back( MFS_PREF );
 
-	for( vector< string >::iterator prefxIter = prefixVec.begin(); prefxIter != prefixVec.end();  ++prefxIter )
-	{
 		for( map< string, int >::iterator iter = LizardTools::TOOLS_MAP.begin(); iter != LizardTools::TOOLS_MAP.end(); ++iter )
 		{
-			if ( symlink( this->m_ProgName.c_str(), ( *( prefxIter ) + iter->first ).c_str() ) < 0 )  
+			if ( symlink( this->m_ProgName.c_str(), ( iter->first ).c_str() ) < 0 )  
 			{ 
-				perror( ( string( "error creating symlink '" ) + *( prefxIter ) + iter->first + "'").c_str() );
+				perror( ( string( "error creating symlink '" ) + iter->first + "'").c_str() );
 			}
 		}
 
 		for( map< string, string >::iterator iter = LizardTools::TOOLS_DEPRECATED_MAP.begin(); iter != LizardTools::TOOLS_DEPRECATED_MAP.end(); ++iter )
 		{
-			if ( symlink( this->m_ProgName.c_str(), ( *( prefxIter ) + iter->first ).c_str()  ) < 0 )  
+			if ( symlink( this->m_ProgName.c_str(), ( iter->first ).c_str() ) < 0 )  
 			{ 
-				perror( ( string( "error creating symlink '" ) + *( prefxIter ) + iter->first + "'").c_str() );
+				perror( ( string( "error creating symlink '" ) + iter->first + "'").c_str() );
 			}
 		}
+}
+
+void LizardTools::usage(const int& pFunctionEnum)
+{
+	switch ( pFunctionEnum ) 
+	{
+		case MFSGETGOAL:
+			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: %s [-nhHr] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			break;
+		case MFSSETGOAL:
+			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: %s [-nhHr] GOAL[-|+] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," GOAL+ - increase goal to given value\n");
+			fprintf(stderr," GOAL- - decrease goal to given value\n");
+			fprintf(stderr," GOAL - just set goal to given value\n");
+			break;
+		case MFSGETTRASHTIME:
+			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: %s [-nhHr] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			break;
+		case MFSSETTRASHTIME:
+			fprintf(stderr,"set objects trashtime (how many seconds file should be left in trash)\n\nusage: %s [-nhHr] SECONDS[-|+] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," SECONDS+ - increase trashtime to given value\n");
+			fprintf(stderr," SECONDS- - decrease trashtime to given value\n");
+			fprintf(stderr," SECONDS - just set trashtime to given value\n");
+			break;
+		case MFSCHECKFILE:
+			fprintf(stderr,"check files\n\nusage: %s [-nhH] name [name ...]\n", this->m_ProgName.c_str() );
+			break;
+		case MFSFILEINFO:
+			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: %s name [name ...]\n", this->m_ProgName.c_str() );
+			break;
+		case MFSAPPENDCHUNKS:
+			fprintf(stderr,"append file chunks to another file. If destination file doesn't exist then it's created as empty file and then chunks are appended\n\nusage: %s dstfile name [name ...]\n", this->m_ProgName.c_str() );
+			break;
+		case MFSDIRINFO:
+			fprintf(stderr,"show directories stats\n\nusage: %s [-nhH] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			fprintf(stderr,"\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n 'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage (usually size multiplied by current goal)\n");
+			break;
+		case MFSFILEREPAIR:
+			fprintf(stderr,"repair given file. Use it with caution. It forces file to be readable, so it could erase (fill with zeros) file when chunkservers are not currently connected.\n\nusage: %s [-nhH] name [name ...]\n",this->m_ProgName.c_str() );
+			print_numberformat_options();
+			break;
+		case MFSMAKESNAPSHOT:
+			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: %s [-o] src [src ...] dst\n",this->m_ProgName.c_str() );
+			break;
+		case MFSGETEATTR:
+			fprintf(stderr,"get objects extra attributes\n\nusage: %s [-nhHr] name [name ...]\n" ,this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			break;
+		case MFSSETEATTR:
+			fprintf(stderr,"set objects extra attributes\n\nusage: %s [-nhHr] -f attrname [-f attrname ...] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," -f attrname - specify attribute to set\n");
+			print_extra_attributes();
+			break;
+		case MFSDELEATTR:
+			fprintf(stderr,"delete objects extra attributes\n\nusage: %s [-nhHr] -f attrname [-f attrname ...] name [name ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			print_recursive_option();
+			fprintf(stderr," -f attrname - specify attribute to delete\n");
+			print_extra_attributes();
+			break;
+		case MFSGETQUOTA:
+			fprintf(stderr,"get quota for given directory (directories)\n\nusage: %s [-nhH] dirname [dirname ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			break;
+		case MFSSETQUOTA:
+			fprintf(stderr,"set quota for given directory (directories)\n\nusage: %s [-nhH] [-iI inodes] [-lL length] [-sS size] [-rR realsize] dirname [dirname ...]\n", this->m_ProgName.c_str() );;
+			print_numberformat_options();
+			fprintf(stderr," -i/-I - set soft/hard limit for number of filesystem objects\n");
+			fprintf(stderr," -l/-L - set soft/hard limit for sum of files lengths\n");
+			fprintf(stderr," -s/-S - set soft/hard limit for sum of file sizes (chunk sizes)\n");
+			fprintf(stderr," -r/-R - set soft/hard limit for estimated hdd usage (usually size multiplied by goal)\n");
+			fprintf(stderr,"\nAll numbers can have decimal point and SI/IEC symbol prefix at the end\ndecimal (SI): (k - 10^3 , M - 10^6 , G - 10^9 , T - 10^12 , P - 10^15 , E - 10^18)\nbinary (IEC 60027): (Ki - 2^10 , Mi - 2^20 , Gi - 2^30 , Ti - 2^40 , Pi - 2^50 , Ei - 2^60 )\n");
+			break;
+		case MFSDELQUOTA:
+			fprintf(stderr,"delete quota for given directory (directories)\n\nusage: %s [-nhHailsrAILSR] dirname [dirname ...]\n", this->m_ProgName.c_str() );
+			print_numberformat_options();
+			fprintf(stderr," -i/-I - delete inodes soft/hard quota\n");
+			fprintf(stderr," -l/-L - delete length soft/hard quota\n");
+			fprintf(stderr," -s/-S - delete size soft/hard quota\n");
+			fprintf(stderr," -r/-R - delete real size soft/hard quota\n");
+			fprintf(stderr," -a/-A - delete all soft/hard quotas\n");
+			break;
 	}
 }

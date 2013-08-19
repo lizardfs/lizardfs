@@ -29,10 +29,10 @@ class LizardTools
 		void errorInfo();
 		void createFsLink();
 		bool getFunctionEnum( pair< int, int>& pFunAttr );
+		void usage( const int& pFunctionEnum );
 
 	private:
 		void usageInfo();
-//		int symlink( const char* p1, const char* p2 );
 };
 
 
