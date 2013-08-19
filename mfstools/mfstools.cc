@@ -45,7 +45,7 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #define INODE_VALUE_MASK 0x1FFFFFFF
 #define INODE_TYPE_MASK 0x60000000
@@ -389,9 +389,9 @@ int master_register_old(int rfd) {
 	put32bit(&wptr,68);
 	memcpy(wptr,FUSE_REGISTER_BLOB_TOOLS_NOACL,64);
 	wptr+=64;
-	put16bit(&wptr,VERSMAJ);
-	put8bit(&wptr,VERSMID);
-	put8bit(&wptr,VERSMIN);
+	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,PACKAGE_VERSION_MICRO);
 	if (tcpwrite(rfd,regbuff,8+68)!=8+68) {
 		printf("register to master: send error\n");
 		return -1;
@@ -430,9 +430,9 @@ int master_register(int rfd,uint32_t cuid) {
 	wptr+=64;
 	put8bit(&wptr,REGISTER_TOOLS);
 	put32bit(&wptr,cuid);
-	put16bit(&wptr,VERSMAJ);
-	put8bit(&wptr,VERSMID);
-	put8bit(&wptr,VERSMIN);
+	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,PACKAGE_VERSION_MICRO);
 	if (tcpwrite(rfd,regbuff,8+73)!=8+73) {
 		printf("register to master: send error\n");
 		return -1;
