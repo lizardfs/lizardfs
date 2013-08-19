@@ -41,6 +41,8 @@
 #include "MFSCommunication.h"
 #include <vector>
 #include <string>
+#include <utility>
+#include "mfstools.h"
 
 using namespace std;
 
@@ -50,6 +52,9 @@ using namespace std;
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 const char id[]="@(#) version: " STR(VERSMAJ) "." STR(VERSMID) "." STR(VERSMIN) ", written by Jakub Kruszona-Zawadzki";
+const static char* LIZ_PREF = "lizardfs";
+const static char* MFS_PREF = "mfs";
+
 
 #define INODE_VALUE_MASK 0x1FFFFFFF
 #define INODE_TYPE_MASK 0x60000000
@@ -2031,8 +2036,10 @@ static inline void print_extra_attributes() {
 	}
 }
 
-void usage(int f) {
-	switch (f) {
+void usage(int f) 
+{
+	switch (f) 
+	{
 		case MFSGETGOAL:
 			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name ...]\n");
 			print_numberformat_options();
@@ -2126,72 +2133,8 @@ void usage(int f) {
 	exit(1);
 }
 
-
-
-int createFsLink( const char* pProgName, const char* pSysPrefix )
-{
-
-			vector<string> fsLinksVec;
-			string lsTmp( pSysPrefix );
-			fsLinksVec.push_back( string( lsTmp ) + "getgoal" );
-			fsLinksVec.push_back( string( lsTmp ) + "setgoal" );
-			fsLinksVec.push_back( string( lsTmp ) + "gettrashtime" );
-			fsLinksVec.push_back( string( lsTmp ) + "settrashtime" );
-			fsLinksVec.push_back( string( lsTmp ) + "checkfile" );
-			fsLinksVec.push_back( string( lsTmp ) + "fileinfo" );
-			fsLinksVec.push_back( string( lsTmp ) + "appendchunks" );
-			fsLinksVec.push_back( string( lsTmp ) + "dirinfo");
-			fsLinksVec.push_back( string( lsTmp ) + "filerepair" );
-			fsLinksVec.push_back( string( lsTmp ) + "makesnapshot");
-			fsLinksVec.push_back( string( lsTmp ) + "geteattr" );
-			fsLinksVec.push_back( string( lsTmp ) + "seteattr" );
-			fsLinksVec.push_back( string( lsTmp ) + "sdeleattr" );
-#if VERSHEX>=0x010700
-			fsLinksVec.push_back( string( lsTmp ) + "getquota" );
-			fsLinksVec.push_back( string( lsTmp ) + "setquota" );
-			fsLinksVec.push_back( string( lsTmp ) + "delquota", );
-#endif
-			// deprecated tools:
-			fsLinksVec.push_back( string( lsTmp ) + "rgetgoal" );
-			fsLinksVec.push_back( string( lsTmp ) + "rsetgoal" );
-			fsLinksVec.push_back( string( lsTmp ) + "rgettrashtime" );
-			fsLinksVec.push_back( string( lsTmp ) + "rsettrashtime" );
-
-			
-			for( vector<string>::iterator linkIter = fsLinksVec.begin(); linkIter != fsLinksVec.end(); ++linkIter )	
-			{
-				if ( symlink( pProgName, linkIter->c_str() ) < 0 )  
-				{ 
-				    perror( ( string( "error creating symlink '" ) + linkIter->c_str()  + "'").c_str() );
-				}
-			}
-
-	return 0;
-}
-
-
-int errorCommandInfo( const char* pProgName )
-{ 
-	fprintf(stderr,"[lizadfs|mfs] multi tool\n\nusage:\n\tmfstools create - create symlinks ([lizadfs|mfs]<toolname> -> %s)\n", pProgName);
-	fprintf(stderr,"\ntools:\n");
-	fprintf(stderr,"\t[lizadfs|mfs]getgoal\n\t[lizadfs|mfs]setgoal\n\t[lizadfs|mfs]gettrashtime\n\t[lizadfs|mfs]settrashtime\n");
-	fprintf(stderr,"\t[lizadfs|mfs]checkfile\n\tmfsfileinfo\n\t[lizadfs|mfs]appendchunks\n\t[lizadfs|mfs]dirinfo\n\t[lizadfs|mfs]filerepair\n");
-	fprintf(stderr,"\tmfsmakesnapshot\n");
-	fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
-#if VERSHEX>=0x010700
-	fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
-#endif
-	fprintf(stderr,"\ndeprecated tools:\n");
-	fprintf(stderr,"\t[lizadfs|mfs]rgetgoal = [lizadfs|mfs]getgoal -r\n");
-	fprintf(stderr,"\tmfsrsetgoal = mfssetgoal -r\n");
-	fprintf(stderr,"\tmfsrgettrashtime = mfsgettreshtime -r\n");
-	fprintf(stderr,"\tmfsrsettrashtime = mfssettreshtime -r\n");
-	return 0;
-
-}
-
 int main(int argc,char **argv) {
-	int l,f,status;
+	int f,status;
 	int i,found;
 	int ch;
 	int oflag=0;
@@ -2207,86 +2150,33 @@ int main(int argc,char **argv) {
 
 	strerr_init();
 
-	l = strlen(argv[0]);
-#define CHECKNAME(name) ((l==(int)(sizeof(name)-1) && strcmp(argv[0],name)==0) || (l>(int)(sizeof(name)-1) && strcmp((argv[0])+(l-sizeof(name)),"/" name)==0))
-	if (CHECKNAME("mfstools")) {
+	LizardTools lizardCmd( argv[ 0 ] ); 
+	
+	if ( lizardCmd.checkCommandName( "lizardfstools" ) || lizardCmd.checkCommandName( "mfstools") ) 
+	{
 		if (argc==2 && strcmp(argv[1],"create")==0) 
 		{
 			fprintf(stderr,"create symlinks\n");
-			
-			createFsLink( argv[0], "mfs" );
-			createFsLink( argv[0], "lizardfs" );
+			lizardCmd.createFsLink();
 			return 0;
 		} 
 		else 
 		{
-			fprintf(stderr,"mfs multi tool\n\nusage:\n\tmfstools create - create symlinks (mfs<toolname> -> %s)\n",argv[0]);
-			fprintf(stderr,"\ntools:\n");
-			fprintf(stderr,"\tmfsgetgoal\n\tmfssetgoal\n\tmfsgettrashtime\n\tmfssettrashtime\n");
-			fprintf(stderr,"\tmfscheckfile\n\tmfsfileinfo\n\tmfsappendchunks\n\tmfsdirinfo\n\tmfsfilerepair\n");
-			fprintf(stderr,"\tmfsmakesnapshot\n");
-			fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
-#if VERSHEX>=0x010700
-			fprintf(stderr,"\tmfsgetquota\n\tmfssetquota\n\tmfsdelquota\n");
-#endif
-			fprintf(stderr,"\ndeprecated tools:\n");
-			fprintf(stderr,"\tmfsrgetgoal = mfsgetgoal -r\n");
-			fprintf(stderr,"\tmfsrsetgoal = mfssetgoal -r\n");
-			fprintf(stderr,"\tmfsrgettrashtime = mfsgettreshtime -r\n");
-			fprintf(stderr,"\tmfsrsettrashtime = mfssettreshtime -r\n");
+			lizardCmd.errorInfo();
 			return 1;
 		}
-	} else if (CHECKNAME("mfsgetgoal")) {
-		f=MFSGETGOAL;
-	} else if (CHECKNAME("mfsrgetgoal")) {
-		f=MFSGETGOAL;
-		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfsgetgoal -r\"\n");
-	} else if (CHECKNAME("mfssetgoal")) {
-		f=MFSSETGOAL;
-	} else if (CHECKNAME("mfsrsetgoal")) {
-		f=MFSSETGOAL;
-		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfssetgoal -r\"\n");
-	} else if (CHECKNAME("mfsgettrashtime")) {
-		f=MFSGETTRASHTIME;
-	} else if (CHECKNAME("mfsrgettrashtime")) {
-		f=MFSGETTRASHTIME;
-		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfsgettrashtime -r\"\n");
-	} else if (CHECKNAME("mfssettrashtime")) {
-		f=MFSSETTRASHTIME;
-	} else if (CHECKNAME("mfsrsettrashtime")) {
-		f=MFSSETTRASHTIME;
-		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfssettrashtime -r\"\n");
-	} else if (CHECKNAME("mfscheckfile")) {
-		f=MFSCHECKFILE;
-	} else if (CHECKNAME("mfsfileinfo")) {
-		f=MFSFILEINFO;
-	} else if (CHECKNAME("mfsappendchunks")) {
-		f=MFSAPPENDCHUNKS;
-	} else if (CHECKNAME("mfsdirinfo")) {
-		f=MFSDIRINFO;
-	} else if (CHECKNAME("mfsgeteattr")) {
-		f=MFSGETEATTR;
-	} else if (CHECKNAME("mfsseteattr")) {
-		f=MFSSETEATTR;
-	} else if (CHECKNAME("mfsdeleattr")) {
-		f=MFSDELEATTR;
-	} else if (CHECKNAME("mfsgetquota")) {
-		f=MFSGETQUOTA;
-	} else if (CHECKNAME("mfssetquota")) {
-		f=MFSSETQUOTA;
-	} else if (CHECKNAME("mfsdelquota")) {
-		f=MFSDELQUOTA;
-	} else if (CHECKNAME("mfsfilerepair")) {
-		f=MFSFILEREPAIR;
-	} else if (CHECKNAME("mfsmakesnapshot")) {
-		f=MFSMAKESNAPSHOT;
-	} else {
-		fprintf(stderr,"unknown binary name\n");
+	} 
+	else
+	{
+	  pair< int, int > funAttr;
+	  if( !lizardCmd.getFunctionEnum( funAttr ) )
+	  {
+	  	fprintf(stderr,"unknown binary name\n");
 		return 1;
+	  }
+	  
+	  f = funAttr.first;
+	  rflag = funAttr.second;
 	}
 
 	hrformat = getenv("MFSHRFORMAT");
@@ -2794,4 +2684,143 @@ int main(int argc,char **argv) {
 		argv++;
 	}
 	return status;
+}
+
+void LizardTools::usageInfo()
+{
+	fprintf(stderr,"%s multi tool\n\nusage:\n\t%stools create - create symlinks (%s<toolname> -> %s)\n", LIZ_PREF, LIZ_PREF, LIZ_PREF, m_ProgName.c_str() );
+	fprintf(stderr,"%s multi tool\n\nformer usage:\n\t%stools create - create symlinks (%s<toolname> -> %s)\n", MFS_PREF, MFS_PREF, MFS_PREF, m_ProgName.c_str() );
+}
+
+map< string, int > LizardTools::TOOLS_MAP;
+map< string, string > LizardTools::TOOLS_DEPRECATED_MAP;
+
+const char* LizardTools::LIZ_PREF = "lizardfs";
+const char* LizardTools::MFS_PREF = "mfs";
+
+bool LizardTools::loadStatic()
+{
+	LizardTools::TOOLS_MAP += make_pair( "getgoal", MFSGETGOAL ), make_pair( "setgoal", MFSSETGOAL ), make_pair( "gettrashtime", MFSGETTRASHTIME );
+	LizardTools::TOOLS_MAP += make_pair( "settrashtime", MFSSETTRASHTIME ), make_pair( "checkfile", MFSCHECKFILE ), make_pair( "fileinfo", MFSFILEINFO );
+	LizardTools::TOOLS_MAP += make_pair( "appendchunks", MFSAPPENDCHUNKS ), make_pair( "dirinfo", MFSDIRINFO ), make_pair( "filerepair", MFSFILEREPAIR );
+	LizardTools::TOOLS_MAP += make_pair( "makesnapshot", MFSMAKESNAPSHOT ), make_pair( "geteattr", MFSGETEATTR ), make_pair( "seteattr", MFSSETEATTR );
+	LizardTools::TOOLS_MAP += make_pair( "deleattr", MFSDELEATTR );
+	#if VERSHEX>=0x010700
+	LizardTools::TOOLS_MAP += make_pair( "getquota", MFSGETQUOTA ), make_pair( "setquota", MFSSETQUOTA ), make_pair( "delquota", MFSDELQUOTA );
+	#endif
+	
+	LizardTools::TOOLS_DEPRECATED_MAP += make_pair( "mfsrgetgoal", "mfsgetgoal" ), make_pair( "mfsrsetgoal", "mfssetgoal" ), make_pair( "mfsrgettrashtime", "mfsgettrashtime" );
+	LizardTools::TOOLS_DEPRECATED_MAP += make_pair( "mfsrsettrashtime", "mfssettrashtime" );
+	
+	return true;
+}
+
+bool LizardTools::m_StatLoaded = loadStatic();
+
+LizardTools::LizardTools( const char* pProgName ): m_ProgName(  pProgName )
+{}
+
+void LizardTools::errorInfo()
+{
+	this->usageInfo();
+	
+	fprintf(stderr,"\ntools:\n");
+
+	map< string, int >::iterator toolsIter;
+	//LIZARDFS usage
+	for( toolsIter = TOOLS_MAP.begin(); toolsIter != TOOLS_MAP.end(); ++toolsIter )
+	{
+		fprintf(stderr,"\t%s%s\n", LIZ_PREF, toolsIter->first.c_str() ); 
+	}
+
+	fprintf(stderr,"%s", "\n" ); 
+
+	for( toolsIter = TOOLS_MAP.begin(); toolsIter != TOOLS_MAP.end(); ++toolsIter )
+	{
+		fprintf(stderr,"\t%s%s\n", MFS_PREF, toolsIter->first.c_str() ); 
+	}
+
+	//MFS usage ( backward compatibility )
+
+	//Deprecated
+	fprintf(stderr,"\ndeprecated tools:\n");
+	fprintf(stderr,"\t%srgetgoal = %sgetgoal -r\n", MFS_PREF, MFS_PREF );
+	fprintf(stderr,"\t%srsetgoal = %ssetgoal -r\n", MFS_PREF, MFS_PREF );
+	fprintf(stderr,"\t%srgettrashtime = %sgettreshtime -r\n", MFS_PREF, MFS_PREF );
+	fprintf(stderr,"\t%srsettrashtime = %ssettreshtime -r\n", MFS_PREF, MFS_PREF );
+}
+
+
+//#define CHECKNAME(name) ((l==(int)(sizeof(name)-1) && strcmp(argv[0],name)==0) || (l>(int)(sizeof(name)-1) && strcmp((argv[0])+(l-sizeof(name)),"/" name)==0))
+bool LizardTools::checkCommandName( const string& pCommandName )
+{
+	if( pCommandName == this->m_ProgName ) return true;
+	if( this->m_ProgName.size() > 1 )
+	{
+		return this->m_ProgName.substr( 1 ) == string( "/" ) + pCommandName;
+	}
+	return false;
+}
+
+/*int LizardTools::symlink( const char* p1, const char* p2 )
+{
+	return -1;
+}*/
+
+//pFunAttr - pair< fun_enum, depr_flag >
+bool LizardTools::getFunctionEnum( pair< int, int >& pFunAttr )
+{
+	pFunAttr = make_pair( 0, 0 );
+
+	string command( this->m_ProgName );
+	if( command.size() > 2 ) 
+	{
+		if( "/" == command.substr( 1, 1 ) )
+		{
+			command = command.substr( 2 );
+		}
+	}
+
+	map< string, string >::iterator deprIter = LizardTools::TOOLS_DEPRECATED_MAP.find( command );
+	if( deprIter != LizardTools::TOOLS_DEPRECATED_MAP.end() )
+	{
+		fprintf(stderr,"deprecated tool - use \"%s -r\"\n", deprIter->second.c_str() );
+		pFunAttr.second = 1; //deprecated flag on
+		command = deprIter->second;
+	}
+	
+	map< string, int >::iterator toolsIter = LizardTools::TOOLS_MAP.find( command );
+	if( toolsIter != LizardTools::TOOLS_MAP.end() )
+	{
+		pFunAttr.first = toolsIter->second;
+	}
+
+	return false;
+}
+
+
+void LizardTools::createFsLink()
+{
+	vector< string > prefixVec;
+	prefixVec.push_back( LIZ_PREF );
+	prefixVec.push_back( MFS_PREF );
+
+	for( vector< string >::iterator prefxIter = prefixVec.begin(); prefxIter != prefixVec.end();  ++prefxIter )
+	{
+		for( map< string, int >::iterator iter = LizardTools::TOOLS_MAP.begin(); iter != LizardTools::TOOLS_MAP.end(); ++iter )
+		{
+			if ( symlink( this->m_ProgName.c_str(), ( *( prefxIter ) + iter->first ).c_str() ) < 0 )  
+			{ 
+				perror( ( string( "error creating symlink '" ) + *( prefxIter ) + iter->first + "'").c_str() );
+			}
+		}
+
+		for( map< string, string >::iterator iter = LizardTools::TOOLS_DEPRECATED_MAP.begin(); iter != LizardTools::TOOLS_DEPRECATED_MAP.end(); ++iter )
+		{
+			if ( symlink( this->m_ProgName.c_str(), ( *( prefxIter ) + iter->first ).c_str()  ) < 0 )  
+			{ 
+				perror( ( string( "error creating symlink '" ) + *( prefxIter ) + iter->first + "'").c_str() );
+			}
+		}
+	}
 }
