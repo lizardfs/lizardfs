@@ -77,4 +77,4 @@ debian/mfs-metalogger.prerm.debhelper
 debian/mfs-metalogger.substvars
 debian/mfs-metalogger/
 debian/tmp/
-
+*kdev4*
