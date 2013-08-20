@@ -25,9 +25,8 @@ find_package(ZLIB REQUIRED)
 find_package(Socket)
 find_package(Threads)
 
-set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h
-    netinet/in.h stddef.h stdlib.h string.h sys/socket.h sys/statvfs.h
-    sys/time.h syslog.h unistd.h stdbool.h)
+set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h sys/resource.h
+    sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h stdbool.h)
 check_includes("${INCLUDES}")
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
@@ -65,4 +64,3 @@ check_functions("${OPTIONAL_FUNCTIONS}" false)
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")
 set(OPTIONAL_FUNCTIONS2 dup2 mlockall getcwd)
 check_functions("${OPTIONAL_FUNCTIONS2}" false)
-

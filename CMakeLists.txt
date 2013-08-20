@@ -79,7 +79,6 @@ set(DATA_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR}")
 set(ETC_PATH "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
 set(RUN_PATH "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
 
-
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 
