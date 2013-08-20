@@ -45,10 +45,6 @@
 #include "readdata.h"
 #include "MFSCommunication.h"
 
-// TODO: wtf?!
-// #define WORKER_DEBUG 1
-// #define BUFFER_DEBUG 1
-
 #ifndef EDQUOT
 #define EDQUOT ENOSPC
 #endif
