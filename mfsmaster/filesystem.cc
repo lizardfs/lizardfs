@@ -8392,19 +8392,15 @@ int fs_auto_restore(void) {
             firstlv = findfirstlogversion(dp->d_name);
             lastlv = findlastlogversion(dp->d_name);
             skip = lastlv<metaversion;
-            //if (vl>0) {
-                if (skip) {
-                    printf("skipping changelog file: %s (changes: %" PRIu64 " - %" PRIu64 ")\n",filenames[pos],firstlv,lastlv);
-                } else {
-                    printf("using changelog file: %s (changes: %" PRIu64 " - %" PRIu64 ")\n",filenames[pos],firstlv,lastlv);
-                }
-            //}*/
-            if (skip) {
-                free(filenames[pos]);
+			
+			if (skip) {
+				printf("skipping changelog file: %s (changes: %" PRIu64 " - %" PRIu64 ")\n",filenames[pos],firstlv,lastlv);
+				free(filenames[pos]);
                 files--;
-            } else {
-                pos++;
-            }
+			} else {
+				printf("using changelog file: %s (changes: %" PRIu64 " - %" PRIu64 ")\n",filenames[pos],firstlv,lastlv);
+				pos++;
+			}
         }
     }
     closedir(dd);
