@@ -461,8 +461,7 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	case 11:
 		return 30;
 	case 2:
-		if (year%4) return 28;
-		if (year%100) return 29;
+		if ((year%4) && !(year%100)) return 29;
 		if (year%400) return 29;
 		return 28;
 	}
