@@ -74,11 +74,9 @@ else:
 				print
 				print data,
 			else:
-				print "Content-Type: image/gif"
+				print "Content-Type: text"
 				print
-				f = open('err.gif')
-				print f.read(),
-				f.close()
+				print data
 		else:
 			print "Content-Type: image/gif"
 			print
