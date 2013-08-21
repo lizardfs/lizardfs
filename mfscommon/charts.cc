@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <string>
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #endif
@@ -84,8 +85,8 @@ static uint32_t pointers[RANGES];
 static uint32_t timepoint[RANGES];
 
 //chart times (for subscripts)
-static uint32_t shhour,shmin;
-static uint32_t medhour,medmin;
+static uint32_t shhour,shmin,shday,shmonth,shyear;
+static uint32_t medhour,medmin,medday,medmonth,medyear;
 static uint32_t lnghalfhour,lngmday,lngmonth,lngyear;
 static uint32_t vlngmday,vlngmonth,vlngyear;
 
@@ -93,6 +94,7 @@ static uint32_t vlngmday,vlngmonth,vlngyear;
 #define CBUFFSIZE (((RAWSIZE)*1001)/1000+16)
 
 static uint8_t chart[(XSIZE)*(YSIZE)];
+static std::string csv_data;
 static uint8_t rawchart[RAWSIZE];
 static uint8_t compbuff[CBUFFSIZE];
 static uint32_t compsize=0;
@@ -1018,9 +1020,17 @@ void charts_inittimepointers (void) {
 	timepoint[SHORTRANGE] = local / 60;
 	shmin = ts->tm_min;
 	shhour = ts->tm_hour;
+	shmin = ts->tm_min;
+	shhour = ts->tm_hour;
+	shday = ts->tm_mday;
+	shmonth = ts->tm_mon + 1;
+	shyear = ts->tm_year + 1900;
 	timepoint[MEDIUMRANGE] = local / (60 * 6);
 	medmin = ts->tm_min;
 	medhour = ts->tm_hour;
+	medday = ts->tm_mday;
+	medmonth = ts->tm_mon + 1;
+	medyear = ts->tm_year + 1900;
 	timepoint[LONGRANGE] = local / (60 * 30);
 	lnghalfhour = ts->tm_hour*2;
 	if (ts->tm_min>=30) {
@@ -1069,6 +1079,9 @@ void charts_add (uint64_t *data,uint32_t datats) {
 		timepoint[SHORTRANGE] = nowtime;
 		shmin = ts->tm_min;
 		shhour = ts->tm_hour;
+		shday = ts->tm_mday;
+		shmonth = ts->tm_mon + 1;
+		shyear = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[SHORTRANGE] + LENG + delta) % LENG;
@@ -1102,6 +1115,9 @@ void charts_add (uint64_t *data,uint32_t datats) {
 		timepoint[MEDIUMRANGE] = nowtime;
 		medmin = ts->tm_min;
 		medhour = ts->tm_hour;
+		medday = ts->tm_mday;
+		medmonth = ts->tm_mon + 1;
+		medyear = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[MEDIUMRANGE] + LENG + delta) % LENG;
@@ -1890,6 +1906,96 @@ int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *ds
 }
 #endif /* ! HAVE_ZLIB_H */
 
+
+uint32_t charts_make_csv(uint32_t number) {
+	uint32_t type, range;
+	uint32_t tm_year, tm_mon, tm_day, tm_hour, tm_min, tm_sec;
+	uint64_t c1dispdata[LENG];
+	uint64_t c2dispdata[LENG];
+	uint64_t c3dispdata[LENG];
+	time_t csv_time; /* Unix epoch in this system time_t */
+	struct tm tmepoch;
+	time_t timestamp_step = 0;
+	uint32_t pointer;
+
+	tm_year = tm_mon = tm_day = tm_hour = tm_min = tm_sec = 0;
+
+	type = number / 10;
+	range = number % 10;
+	charts_filltab(c1dispdata,range,type,1);
+	charts_filltab(c2dispdata,range,type,2);
+	charts_filltab(c3dispdata,range,type,3);
+	pointer = pointers[range];
+
+	if (range==3) {
+		tm_day = vlngmday;
+		tm_mon = vlngmonth;
+		tm_year = vlngyear;
+		timestamp_step = 24 * 60 * 60;
+	} else if (range==2) {
+		tm_min =0;
+		tm_hour = lnghalfhour/2;
+		tm_day = lngmday;
+		tm_mon = lngmonth;
+		tm_year = lngyear;
+		timestamp_step = 30 * 60;
+	} else if (range==1) {
+		tm_min= medmin;
+		tm_hour = medhour;
+		tm_day = medday;
+		tm_mon = medmonth;
+		tm_year = medyear;
+		timestamp_step = 6 *60;
+	} else {
+		tm_min = shmin;
+		tm_hour = shhour;
+		tm_day = shday;
+		tm_mon = shmonth;
+		tm_year = shyear;
+		timestamp_step = 60;
+	}
+
+	/* Prepare unix time epoch on this system */
+	memset(&tmepoch,0,sizeof tmepoch);
+	tmepoch.tm_year =tm_year-1900;
+	tmepoch.tm_mon = tm_mon-1;
+	tmepoch.tm_mday = tm_day;
+	tmepoch.tm_hour =tm_hour;
+	tmepoch.tm_min =tm_min;
+	tmepoch.tm_sec = 0;
+	csv_time = mktime(&tmepoch);
+
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+	csv_time += tmepoch.tm_gmtoff;
+#endif
+	csv_data ="timestamp,,,\n";
+	char buffer[50];
+	int z;
+	for(int i = 0; i < LENG; i++) {
+		z = (i+pointer+1)%LENG;
+
+		sprintf(buffer, "%" PRIu64 "", csv_time -(LENG-i-1) * timestamp_step);
+		csv_data += buffer;
+		csv_data += ",";
+		if(c1dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c1dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",";
+		if(c2dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c2dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",";
+		if(c3dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c3dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",\n";
+		}
+	return csv_data.length();
+}
+
 uint32_t charts_make_png(uint32_t number) {
 	uint32_t chtype,chrange;
 	chtype = number / 10;
@@ -1937,6 +2043,10 @@ uint32_t charts_make_png(uint32_t number) {
 #endif /* HAVE_ZLIB_H */
 
 	return sizeof(png_header)+compsize+sizeof(png_tailer);
+}
+
+void charts_get_csv(uint8_t *buff) {
+		memcpy(buff,csv_data.c_str(),csv_data.length());
 }
 
 void charts_get_png(uint8_t *buff) {

@@ -132,6 +132,8 @@ uint64_t charts_get (uint32_t chartnumber,uint32_t count);
 uint32_t charts_datasize(uint32_t chartid);
 void charts_makedata(uint8_t *buff,uint32_t chartid);
 uint32_t charts_make_png(uint32_t chartid);
+uint32_t charts_make_csv(uint32_t chartid);
+void charts_get_csv(uint8_t *buff);
 void charts_get_png(uint8_t *buff);
 
 void charts_add (uint64_t *data,uint32_t datats);
