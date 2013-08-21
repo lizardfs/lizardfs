@@ -1060,10 +1060,18 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 	chartid = get32bit(&data);
-	l = charts_make_png(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART,l);
-	if (l>0) {
-		charts_get_png(ptr);
+	if(chartid <= 90000) {
+		l = charts_make_png(chartid);
+		ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART,l);
+		if (l>0) {
+			charts_get_png(ptr);
+		}
+	} else {
+		l = charts_make_csv(chartid % 90000);//chartid
+		ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART,l);
+		if (l>0) {
+			charts_get_csv(ptr);
+		}
 	}
 }
 
