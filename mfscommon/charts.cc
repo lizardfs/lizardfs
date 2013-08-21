@@ -1446,7 +1446,7 @@ double charts_fixmax(uint64_t max,uint8_t *scale,uint8_t *mode,uint16_t *base) {
 void charts_makechart(uint32_t type,uint32_t range) {
 	static const uint8_t jtab[11]={MICRO,MILI,SPACE,KILO,MEGA,GIGA,TERA,PETA,EXA,ZETTA,YOTTA};
 	int32_t i,j;
-	uint32_t xy,xm,xd,xh,xs,xoff,xbold,ys;
+	uint32_t xyear,xmon,xday,xhour,xstep,xoff,xbold,ys;
 	uint64_t max;
 	double dmax;
 	uint64_t d,c1d,c2d,c3d;
@@ -1609,55 +1609,56 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		chart[(XSIZE)*(DATA-i+YPOS)+(XPOS+LENG)] = COLOR_AXIS;
 	}
 	// x scale
-	xy = xm = xd = xh = xs = 0;
+	xyear = xmon = xday = xhour = xstep = 0;
 	if (range<3) {
 		if (range==2) {
-			xs = 12;
+			xstep = 12; //1 pixel = 30 minutes
 			xoff = lnghalfhour%12;
 			xbold = 4;
-			xh = lnghalfhour/12;
-			xd = lngmday;
-			xm = lngmonth;
-			xy = lngyear;
+			xhour = lnghalfhour/12;
+			xday = lngmday;
+			xmon = lngmonth;
+			xyear = lngyear;
 		} else if (range==1) {
-			xs = 10;
-			xoff = medmin/6;
+			xstep = 10;  //1 pixel = 6 minutes
+			xoff = medmin/6; // offset
 			xbold = 6;
-			xh = medhour;
+			xhour = medhour;
 		} else {
-			xs = 60;
+			xstep = 60; //1 pixel = 1 minute
 			xoff = shmin;
 			xbold = 1;
-			xh = shhour;
+			xhour = shhour; //hours
 		}
-		for (i=LENG-xoff-1 ; i>=0 ; i-=xs) {
-			if (xh%xbold==0) {
+
+		for (i=LENG-xoff-1 ; i>=0 ; i-=xstep) {
+			if (xhour%xbold==0) {
 				ys=2;
-				if ((range==0 && xh%6==0) || (range==1 && xh==0) || (range==2 && xd==1)) {
+				if ((range==0 && xhour%6==0) || (range==1 && xhour==0) || (range==2 && xday==1)) {
 					ys=1;
 				}
 				if (range<2) {
-					text[0]=xh/10;
-					text[1]=xh%10;
+					text[0]=xhour/10;
+					text[1]=xhour%10;
 					text[2]=COLON;
 					text[3]=0;
 					text[4]=0;
 					charts_puttext(XPOS+i-14,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 				} else {
-					text[0]=xm/10;
-					text[1]=xm%10;
+					text[0]=xmon/10;
+					text[1]=xmon%10;
 					text[2]=FDOT;
-					text[3]=xd/10;
-					text[4]=xd%10;
+					text[3]=xday/10;
+					text[4]=xday%10;
 					charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
-					xd--;
-					if (xd==0) {
-						xm--;
-						if (xm==0) {
-							xm=12;
-							xy--;
+					xday--;
+					if (xday==0) {
+						xmon--;
+						if (xmon==0) {
+							xmon=12;
+							xyear--;
 						}
-						xd = getmonleng(xy,xm);
+						xday = getmonleng(xyear,xmon);
 					}
 				}
 				chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
@@ -1671,38 +1672,38 @@ void charts_makechart(uint32_t type,uint32_t range) {
 				}
 			}
 			if (range<2) {
-				if (xh==0) {
-					xh=23;
+				if (xhour==0) {
+					xhour=23;
 				} else {
-					xh--;
+					xhour--;
 				}
 			} else {
-				if (xh==0) {
-					xh=3;
+				if (xhour==0) {
+					xhour=3;
 				} else {
-					xh--;
+					xhour--;
 				}
 			}
 		}
 		if (range==2) {
-			i -= xs*xh;
-			text[0]=xm/10;
-			text[1]=xm%10;
+			i -= xstep*xhour;
+			text[0]=xmon/10;
+			text[1]=xmon%10;
 			text[2]=FDOT;
-			text[3]=xd/10;
-			text[4]=xd%10;
+			text[3]=xday/10;
+			text[4]=xday%10;
 			charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 		}
 	} else {
-		xy = lngyear;
-		xm = lngmonth;
+		xyear = lngyear;
+		xmon = lngmonth;
 		for (i=LENG-lngmday ; i>=0 ; ) {
-			text[0]=xm/10;
-			text[1]=xm%10;
-			charts_puttext(XPOS+i+(getmonleng(xy,xm)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+			text[0]=xmon/10;
+			text[1]=xmon%10;
+			charts_puttext(XPOS+i+(getmonleng(xyear,xmon)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 			chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
 			chart[(XSIZE)*(YPOS+DATA+2)+(i+XPOS)] = COLOR_AXIS;
-			if (xm!=1) {
+			if (xmon!=1) {
 				for (j=0 ; j<DATA ; j+=2) {
 					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_AUX;
 				}
@@ -1713,16 +1714,16 @@ void charts_makechart(uint32_t type,uint32_t range) {
 					}
 				}
 			}
-			xm--;
-			if (xm==0) {
-				xm=12;
-				xy--;
+			xmon--;
+			if (xmon==0) {
+				xmon=12;
+				xyear--;
 			}
-			i-=getmonleng(xy,xm);
+			i-=getmonleng(xyear,xmon);
 		}
-		text[0]=xm/10;
-		text[1]=xm%10;
-		charts_puttext(XPOS+i+(getmonleng(xy,xm)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+		text[0]=xmon/10;
+		text[1]=xmon%10;
+		charts_puttext(XPOS+i+(getmonleng(xyear,xmon)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 	}
 	// y scale
 
