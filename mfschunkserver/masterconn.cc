@@ -93,6 +93,8 @@ static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
+static double SpaceDelta = 0.0;
+
 static void* reconnect_hook;
 
 static uint64_t stats_bytesout=0;
@@ -214,7 +216,7 @@ void masterconn_check_hdd_reports() {
 		if (hdd_spacechanged()) {
 			hdd_get_space(stats);
 			for (i=0; i<6; i++) {
-				if (abs(stats[i]-laststats[i]) > laststats[i] * 0.005) {
+				if (abs(stats[i]-laststats[i]) > laststats[i] * SpaceDelta) {
 					changed = 1;
 					break;
 				}
@@ -1184,13 +1186,22 @@ int masterconn_init(void) {
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 //	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
-
+	SpaceDelta = cfg_getdouble("HDD_MIN_SPACE_CHANGE_UNTIL_REPORT", 0.0);
+	
 	if (Timeout>65536) {
 		Timeout=65535;
 	}
 	if (Timeout<10) {
 		Timeout=10;
 	}
+	
+	if (SpaceDelta > 1.0) {
+		SpaceDelta = 1.0;
+	}
+	if (SpaceDelta < 0.0) {
+		SpaceDelta = 0.0;
+	}
+	
 	eptr = masterconnsingleton = (masterconn*) malloc(sizeof(masterconn));
 	passert(eptr);
 
