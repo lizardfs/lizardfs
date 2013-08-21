@@ -47,8 +47,18 @@ void hdd_get_chunks_end();
 uint32_t hdd_get_chunks_next_list_count();
 void hdd_get_chunks_next_list_data(uint8_t *buff);
 
+enum HddStats {
+	HDD_USED_SPACE = 0,
+	HDD_TOTAL_SPACE = 1,
+	HDD_CHUNK_COUNT = 2,
+	HDD_TD_USED_SPACE = 3,
+	HDD_TD_TOTAL_SPACE = 4,
+	HDD_TD_CHUNK_COUNT = 5,
+	HDD_STATS = 6,
+};
+
 int hdd_spacechanged(void);
-void hdd_get_space(uint64_t stats[6]);
+void hdd_get_space(uint64_t stats[HDD_STATS]);
 
 /* I/O operations */
 int hdd_open(uint64_t chunkid);

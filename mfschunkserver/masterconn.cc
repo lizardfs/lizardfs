@@ -173,7 +173,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint8_t *buff;
 	uint32_t chunks,myip;
 	uint16_t myport;
-	uint64_t stats[6];
+	uint64_t stats[HDD_STATS];
 
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
@@ -195,12 +195,12 @@ void masterconn_sendregister(masterconn *eptr) {
 	hdd_get_space(stats);
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+8+8+4+8+8+4);
 	put8bit(&buff,52);
-	put64bit(&buff,stats[0]);
-	put64bit(&buff,stats[1]);
-	put32bit(&buff,(uint32_t)stats[2]);
-	put64bit(&buff,stats[3]);
-	put64bit(&buff,stats[4]);
-	put32bit(&buff,(uint32_t)stats[5]);
+	put64bit(&buff, stats[HDD_USED_SPACE]);
+	put64bit(&buff, stats[HDD_TOTAL_SPACE]);
+	put32bit(&buff, (uint32_t)stats[HDD_CHUNK_COUNT]);
+	put64bit(&buff, stats[HDD_TD_USED_SPACE]);
+	put64bit(&buff, stats[HDD_TD_TOTAL_SPACE]);
+	put32bit(&buff, (uint32_t)stats[HDD_TD_CHUNK_COUNT]);
 }
 
 void masterconn_check_hdd_reports() {
@@ -208,14 +208,14 @@ void masterconn_check_hdd_reports() {
 	uint32_t errorcounter;
 	uint32_t chunkcounter;
 	uint8_t *buff;
-	uint64_t stats[6];
+	uint64_t stats[HDD_STATS];
 	int i, changed=0;
-	static uint64_t laststats[6]={0};
+	static uint64_t laststats[HDD_STATS]={0};
 
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		if (hdd_spacechanged()) {
 			hdd_get_space(stats);
-			for (i=0; i<6; i++) {
+			for (i = HDD_USED_SPACE; i < HDD_STATS; i++) {
 				if (abs(stats[i]-laststats[i]) > laststats[i] * SpaceDelta) {
 					changed = 1;
 					break;
@@ -223,13 +223,14 @@ void masterconn_check_hdd_reports() {
 			}
 			if (changed) {
 				buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-				put64bit(&buff,stats[0]);
-				put64bit(&buff,stats[1]);
-				put32bit(&buff,(uint32_t)stats[2]);
-				put64bit(&buff,stats[3]);
-				put64bit(&buff,stats[4]);
-				put32bit(&buff,(uint32_t)stats[5]);
-				for (i=0; i<6; i++) {
+				
+				put64bit(&buff, stats[HDD_USED_SPACE]);
+				put64bit(&buff, stats[HDD_TOTAL_SPACE]);
+				put32bit(&buff, (uint32_t)stats[HDD_CHUNK_COUNT]);
+				put64bit(&buff, stats[HDD_TD_USED_SPACE]);
+				put64bit(&buff, stats[HDD_TD_TOTAL_SPACE]);
+				put32bit(&buff, (uint32_t)stats[HDD_TD_CHUNK_COUNT]);
+				for (i = HDD_USED_SPACE; i < HDD_STATS; i++) {
 					laststats[i] = stats[i];
 				}
 			}

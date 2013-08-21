@@ -49,6 +49,7 @@
 #include "slogger.h"
 #include "massert.h"
 #include "random.h"
+#include "hddspacemgr.h"
 
 #define PRESERVE_BLOCK 1
 
@@ -1406,7 +1407,7 @@ void hdd_get_chunks_next_list_data(uint8_t *buff) {
 	}
 }
 
-void hdd_get_space(uint64_t stats[6]) {
+void hdd_get_space(uint64_t stats[HDD_STATS]) {
 	folder *f;
 	uint64_t avail,total;
 	uint64_t tdavail,tdtotal;
@@ -1433,12 +1434,12 @@ void hdd_get_space(uint64_t stats[6]) {
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
-	stats[0] = total-avail;
-	stats[1] = total;
-	stats[2] = chunks;
-	stats[3] = tdtotal-tdavail;
-	stats[4] = tdtotal;
-	stats[5] = tdchunks;
+	stats[HDD_USED_SPACE] = total-avail;
+	stats[HDD_TOTAL_SPACE] = total;
+	stats[HDD_CHUNK_COUNT] = chunks;
+	stats[HDD_TD_USED_SPACE] = tdtotal-tdavail;
+	stats[HDD_TD_TOTAL_SPACE] = tdtotal;
+	stats[HDD_CHUNK_COUNT] = tdchunks;
 }
 
 static inline void chunk_emptycrc(chunk *c) {
