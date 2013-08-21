@@ -68,7 +68,7 @@ class MasterDetector(object):
             try:
                 subprocess.call(('arping -U -w 1 -q -I %s %s' % (self.options.interface, ip)).split(' '))
             except OSError:
-                logging.error("please install iputils-arp package")
+                logging.error("please install arping (e.g. iputils-arping/iputils-arp package in debian/ubuntu)")
                 self.stop()
 
     def install_signal(self):
