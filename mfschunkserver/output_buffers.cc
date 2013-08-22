@@ -24,7 +24,8 @@ AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCa
 		for (int i = 0; i <=1; ++i) {
 			eassert(close(internalPipeFileDescriptors_[i]) >= 0);
 		}
-		massert(false, "fcntl(internalPipeFileDescriptors[1], F_SETPIPE_SZ, internalBufferCapacity) >= 0");
+		massert(false,
+				"fcntl(internalPipeFileDescriptors[1], F_SETPIPE_SZ, internalBufferCapacity) >= 0");
 	}
 };
 
@@ -33,20 +34,25 @@ AvoidingCopyingOutputBuffer::~AvoidingCopyingOutputBuffer() {
 	eassert(close(internalPipeFileDescriptors_[1]) != -1);
 }
 
-ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(int inputFileDescriptor, size_t len, off_t* offset) {
+ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(
+		int inputFileDescriptor, size_t len, off_t* offset) {
 	eassert(len + bytesInABuffer_ <= internalBufferCapacity_);
-	off_t bytes_written = 0;
+	off_t bytesWritten = 0;
+	loff_t inputOffset;
 	while (len > 0) {
-		ssize_t ret = splice(inputFileDescriptor, (offset ? offset + bytes_written : NULL),
+		if (offset) {
+			inputOffset = *offset + bytesWritten;
+		}
+		ssize_t ret = splice(inputFileDescriptor, (offset ? &inputOffset : NULL),
 				internalPipeFileDescriptors_[1], NULL, len, SPLICE_F_MOVE);
 		if (ret <= 0) {
-			return bytes_written;
+			return bytesWritten;
 		}
 		len -= ret;
 		bytesInABuffer_ += ret;
-		bytes_written += ret;
+		bytesWritten += ret;
 	}
-	return bytes_written;
+	return bytesWritten;
 }
 
 ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(const void *mem, size_t len) {
@@ -64,10 +70,11 @@ ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(const void *mem, size_t len)
 	return bytes_written;
 }
 
-OutputBuffer::WriteStatus AvoidingCopyingOutputBuffer::writeOutToAFileDescriptor(int outputFileDescriptor) {
+OutputBuffer::WriteStatus AvoidingCopyingOutputBuffer::writeOutToAFileDescriptor(
+		int outputFileDescriptor) {
 	while (bytesInABuffer_ > 0) {
-		ssize_t ret = splice(internalPipeFileDescriptors_[0], NULL, outputFileDescriptor, NULL, bytesInABuffer_,
-				SPLICE_F_MOVE);
+		ssize_t ret = splice(internalPipeFileDescriptors_[0], NULL,
+				outputFileDescriptor, NULL, bytesInABuffer_, SPLICE_F_MOVE);
 		if (ret <= 0) {
 			if (errno == EAGAIN) {
 				return WRITE_AGAIN;
@@ -96,7 +103,8 @@ SimpleOutputBuffer::SimpleOutputBuffer(size_t internalBufferCapacity)
 
 OutputBuffer::WriteStatus SimpleOutputBuffer::writeOutToAFileDescriptor(int outputFileDescriptor) {
 	while (bytesInABuffer() > 0) {
-		ssize_t ret = ::write(outputFileDescriptor, &buffer_[bufferUnflushedDataFirstIndex_], bytesInABuffer());
+		ssize_t ret = ::write(outputFileDescriptor, &buffer_[bufferUnflushedDataFirstIndex_],
+				bytesInABuffer());
 		if (ret <= 0) {
 			if (errno == EAGAIN) {
 				return WRITE_AGAIN;
