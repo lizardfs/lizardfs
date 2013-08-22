@@ -9,3 +9,7 @@ tags
 /.cproject
 /.settings
 /build*
+
+# QtCreator user profiles #
+###########################
+*.user
