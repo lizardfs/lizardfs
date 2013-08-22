@@ -1,14 +1,25 @@
 *~
 .DS_Store
-.deps
+
+# Vim files #
+#############
 .clang_complete
 tags
 *.taghl
-*.kdev4
+
+# Commonly used build directory #
+#################################
+/build*
+
+# Eclipse project files #
+#########################
 /.project
 /.cproject
 /.settings
-/build*
+
+# KDevelop4 project file #
+##########################
+*.kdev4
 
 # QtCreator user profiles #
 ###########################
