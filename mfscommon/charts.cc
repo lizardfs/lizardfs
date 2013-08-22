@@ -461,8 +461,10 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	case 11:
 		return 30;
 	case 2:
-		if ((year%4) && !(year%100)) return 29;
-		if (year%400) return 29;
+		if (year % 400 == 0)
+			return 29;
+		if (year % 4 == 0 && year % 100 != 0)
+			return 29;
 		return 28;
 	}
 	return 0;
@@ -1019,7 +1021,6 @@ void charts_inittimepointers (void) {
 	timepoint[SHORTRANGE] = local / 60;
 	shmin = ts->tm_min;
 	shhour = ts->tm_hour;
-	shmin = ts->tm_min;
 	shhour = ts->tm_hour;
 	shday = ts->tm_mday;
 	shmonth = ts->tm_mon + 1;
@@ -1922,25 +1923,25 @@ uint32_t charts_make_csv(uint32_t number) {
 
 	type = number / 10;
 	range = number % 10;
-	charts_filltab(c1dispdata,range,type,1);
-	charts_filltab(c2dispdata,range,type,2);
-	charts_filltab(c3dispdata,range,type,3);
+	charts_filltab(c1dispdata, range, type, 1);
+	charts_filltab(c2dispdata, range, type, 2);
+	charts_filltab(c3dispdata, range, type, 3);
 	pointer = pointers[range];
 
-	if (range==3) {
+	if (range == 3) {
 		tm_day = vlngmday;
 		tm_mon = vlngmonth;
 		tm_year = vlngyear;
 		timestamp_step = 24 * 60 * 60;
-	} else if (range==2) {
+	} else if (range == 2) {
 		tm_min =0;
 		tm_hour = lnghalfhour/2;
 		tm_day = lngmday;
 		tm_mon = lngmonth;
 		tm_year = lngyear;
 		timestamp_step = 30 * 60;
-	} else if (range==1) {
-		tm_min= medmin;
+	} else if (range == 1) {
+		tm_min = medmin;
 		tm_hour = medhour;
 		tm_day = medday;
 		tm_mon = medmonth;
@@ -1956,12 +1957,12 @@ uint32_t charts_make_csv(uint32_t number) {
 	}
 
 	/* Prepare unix time epoch on this system */
-	memset(&tmepoch,0,sizeof tmepoch);
-	tmepoch.tm_year =tm_year-1900;
+	memset(&tmepoch, 0 ,sizeof tmepoch);
+	tmepoch.tm_year = tm_year-1900;
 	tmepoch.tm_mon = tm_mon-1;
 	tmepoch.tm_mday = tm_day;
-	tmepoch.tm_hour =tm_hour;
-	tmepoch.tm_min =tm_min;
+	tmepoch.tm_hour = tm_hour;
+	tmepoch.tm_min = tm_min;
 	tmepoch.tm_sec = 0;
 	csv_time = mktime(&tmepoch);
 
@@ -1972,7 +1973,7 @@ uint32_t charts_make_csv(uint32_t number) {
 	char buffer[50];
 	int z;
 	for(int i = 0; i < LENG; i++) {
-		z = (i+pointer+1)%LENG;
+		z = (i + pointer + 1) % LENG;
 
 		sprintf(buffer, "%" PRIu64 "", csv_time -(LENG-i-1) * timestamp_step);
 		csv_data += buffer;
@@ -1992,7 +1993,7 @@ uint32_t charts_make_csv(uint32_t number) {
 			csv_data += buffer;
 		}
 		csv_data += ",\n";
-		}
+	}
 	return csv_data.length();
 }
 
