@@ -134,17 +134,17 @@ void masterconn_sendregister(masterconn *eptr) {
 	if (currentlogversion>0) {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
 		put8bit(&buff,2);
-		put16bit(&buff,VERSMAJ);
-		put8bit(&buff,VERSMID);
-		put8bit(&buff,VERSMIN);
+		put16bit(&buff,PACKAGE_VERSION_MAJOR);
+		put8bit(&buff,PACKAGE_VERSION_MINOR);
+		put8bit(&buff,PACKAGE_VERSION_MICRO);
 		put16bit(&buff,Timeout);
 		put64bit(&buff,currentlogversion);
 	} else {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2);
 		put8bit(&buff,1);
-		put16bit(&buff,VERSMAJ);
-		put8bit(&buff,VERSMID);
-		put8bit(&buff,VERSMIN);
+		put16bit(&buff,PACKAGE_VERSION_MAJOR);
+		put8bit(&buff,PACKAGE_VERSION_MINOR);
+		put8bit(&buff,PACKAGE_VERSION_MICRO);
 		put16bit(&buff,Timeout);
 	}
 }
