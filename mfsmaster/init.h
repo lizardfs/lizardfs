@@ -30,6 +30,7 @@
 #include "random.h"
 #include "changelog.h"
 #include "chartsdata.h"
+#include "masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -54,6 +55,7 @@ run_tab RunTab[]={
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
 	{matoclserv_networkinit,"communication with clients"},
+	{masterconn_init,"communication with master"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
 	{(runfn)0,"****"}

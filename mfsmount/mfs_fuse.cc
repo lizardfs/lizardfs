@@ -46,7 +46,6 @@
 #include "strerr.h"
 #include "MFSCommunication.h"
 
-#include "dirattrcache.h"
 #include "symlinkcache.h"
 
 #if MFS_ROOT_ID != FUSE_ROOT_ID
@@ -103,7 +102,6 @@ typedef struct _dirbuf {
 	gid_t gid;
 	const uint8_t *p;
 	size_t size;
-	void *dcache;
 	pthread_mutex_t lock;
 } dirbuf;
 
@@ -116,7 +114,6 @@ typedef struct _finfo {
 } finfo;
 
 static int debug_mode = 0;
-static int usedircache = 1;
 static int keep_cache = 0;
 static double direntry_cache_timeout = 0.1;
 static double entry_cache_timeout = 0.0;
@@ -156,6 +153,7 @@ enum {
 	OP_GETXATTR,
 	OP_LISTXATTR,
 	OP_REMOVEXATTR,
+	OP_GETDIR_CACHED,
 	OP_GETDIR_FULL,
 	OP_GETDIR_SMALL,
 	STATNODES
@@ -194,16 +192,10 @@ void mfs_statsptr_init(void) {
 	statsptr[OP_DIRCACHE_GETATTR] = stats_get_counterptr(stats_get_subnode(s,"getattr-cached",0));
 	statsptr[OP_LOOKUP] = stats_get_counterptr(stats_get_subnode(s,"lookup",0));
 	statsptr[OP_LOOKUP_INTERNAL] = stats_get_counterptr(stats_get_subnode(s,"lookup-internal",0));
-	if (usedircache) {
-		statsptr[OP_DIRCACHE_LOOKUP] = stats_get_counterptr(stats_get_subnode(s,"lookup-cached",0));
-	}
 	statsptr[OP_ACCESS] = stats_get_counterptr(stats_get_subnode(s,"access",0));
 	statsptr[OP_STATFS] = stats_get_counterptr(stats_get_subnode(s,"statfs",0));
-	if (usedircache) {
-		statsptr[OP_GETDIR_FULL] = stats_get_counterptr(stats_get_subnode(s,"getdir-full",0));
-	} else {
-		statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
-	}
+	statsptr[OP_GETDIR_FULL] = stats_get_counterptr(stats_get_subnode(s,"getdir-full",0));
+	statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
 }
 
 void mfs_stats_inc(uint8_t id) {
@@ -669,20 +661,10 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			return ;
 		}
 	}
-	if (usedircache && dcache_lookup(ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
-		if (debug_mode) {
-			fprintf(stderr,"lookup: sending data from dircache\n");
-		}
-		mfs_stats_inc(OP_DIRCACHE_LOOKUP);
-		status = 0;
-		icacheflag = 1;
-//		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
-	} else {
-		mfs_stats_inc(OP_LOOKUP);
-		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
-		status = mfs_errorconv(status);
-		icacheflag = 0;
-	}
+	mfs_stats_inc(OP_LOOKUP);
+	status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx->uid,ctx->gid,&inode,attr);
+	status = mfs_errorconv(status);
+	icacheflag = 0;
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		oplog_printf(ctx,"lookup (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
@@ -749,17 +731,9 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		oplog_printf(ctx,"getattr (%lu) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return;
 	}
-	if (usedircache && dcache_getattr(ctx,ino,attr)) {
-		if (debug_mode) {
-			fprintf(stderr,"getattr: sending data from dircache\n");
-		}
-		mfs_stats_inc(OP_DIRCACHE_GETATTR);
-		status = 0;
-	} else {
-		mfs_stats_inc(OP_GETATTR);
-		status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
-		status = mfs_errorconv(status);
-	}
+	mfs_stats_inc(OP_GETATTR);
+	status = fs_getattr(ino,ctx->uid,ctx->gid,attr);
+	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 		oplog_printf(ctx,"getattr (%lu): %s",(unsigned long int)ino,strerr(status));
@@ -1301,7 +1275,6 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		pthread_mutex_lock(&(dirinfo->lock));	// make valgrind happy
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
-		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
 		pthread_mutex_unlock(&(dirinfo->lock));	// make valgrind happy
 		fi->fh = (unsigned long)dirinfo;
@@ -1316,7 +1289,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	int status;
-        dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+		dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char buffer[READDIR_BUFFSIZE];
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
@@ -1344,31 +1317,18 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 		const uint8_t *dbuff;
 		uint32_t dsize;
 		uint8_t needscopy;
-		if (usedircache) {
-			status = fs_getdir_plus(ino,ctx->uid,ctx->gid,0,&dbuff,&dsize);
-			if (status==0) {
-				mfs_stats_inc(OP_GETDIR_FULL);
-			}
-			needscopy = 1;
-			dirinfo->dataformat = 1;
-		} else {
-			status = fs_getdir(ino,ctx->uid,ctx->gid,&dbuff,&dsize);
-			if (status==0) {
-				mfs_stats_inc(OP_GETDIR_SMALL);
-			}
-			needscopy = 1;
-			dirinfo->dataformat = 0;
+		status = fs_getdir_plus(ino,ctx->uid,ctx->gid,1,&dbuff,&dsize);
+		if (status==0) {
+			mfs_stats_inc(OP_GETDIR_FULL);
 		}
+		needscopy = 0;
+		dirinfo->dataformat = 1;
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
 			pthread_mutex_unlock(&(dirinfo->lock));
 			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(status));
 			return;
-		}
-		if (dirinfo->dcache) {
-			dcache_release(dirinfo->dcache);
-			dirinfo->dcache = NULL;
 		}
 		if (dirinfo->p) {
 			free((uint8_t*)(dirinfo->p));
@@ -1387,9 +1347,6 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct 
 			dirinfo->p = dbuff;
 		}
 		dirinfo->size = dsize;
-		if (usedircache && dirinfo->dataformat==1) {
-			dirinfo->dcache = dcache_new(ctx,ino,dirinfo->p,dirinfo->size);
-		}
 	}
 	dirinfo->wasread=1;
 
@@ -1450,9 +1407,6 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	pthread_mutex_lock(&(dirinfo->lock));
 	pthread_mutex_unlock(&(dirinfo->lock));
 	pthread_mutex_destroy(&(dirinfo->lock));
-	if (dirinfo->dcache) {
-		dcache_release(dirinfo->dcache);
-	}
 	if (dirinfo->p) {
 		free((uint8_t*)(dirinfo->p));
 	}
@@ -1557,12 +1511,14 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (mknod): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
 		return;
 	}
-	status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
-	status = mfs_errorconv(status);
-	if (status!=0) {
-		fuse_reply_err(req, status);
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
-		return;
+	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+		status = fs_opencheck(inode,ctx->uid,ctx->gid,oflags,NULL);
+		status = mfs_errorconv(status);
+		if (status!=0) {
+			fuse_reply_err(req, status);
+			oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
+			return;
+		}
 	}
 
 	mattr = mfs_attr_get_mattr(attr);
@@ -1662,7 +1618,11 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
-	status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
+	if ((fi->flags & O_ACCMODE) == O_RDONLY) {
+		status = fs_getattr(ino,ctx->uid,ctx->gid,attr); //TODO permission check
+	} else {
+		status = fs_opencheck(ino,ctx->uid,ctx->gid,oflags,attr);
+	}
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1733,7 +1693,9 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (fileinfo!=NULL) {
 		mfs_removefileinfo(fileinfo);
 	}
-	fs_release(ino);
+	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+		fs_release(ino);
+	}
 	fuse_reply_err(req,0);
 	oplog_printf(ctx,"release (%lu): OK",(unsigned long int)ino);
 }

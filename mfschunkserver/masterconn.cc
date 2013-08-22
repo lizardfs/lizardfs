@@ -93,6 +93,8 @@ static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
+static double SpaceDelta = 0.0;
+
 static void* reconnect_hook;
 
 static uint64_t stats_bytesout=0;
@@ -171,9 +173,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint8_t *buff;
 	uint32_t chunks,myip;
 	uint16_t myport;
-	uint64_t usedspace,totalspace;
-	uint64_t tdusedspace,tdtotalspace;
-	uint32_t chunkcount,tdchunkcount;
+	uint64_t stats[HDD_STATS];
 
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
@@ -192,15 +192,15 @@ void masterconn_sendregister(masterconn *eptr) {
 		hdd_get_chunks_next_list_data(buff);
 	}
 	hdd_get_chunks_end();
-	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
+	hdd_get_space(stats);
 	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+8+8+4+8+8+4);
 	put8bit(&buff,52);
-	put64bit(&buff,usedspace);
-	put64bit(&buff,totalspace);
-	put32bit(&buff,chunkcount);
-	put64bit(&buff,tdusedspace);
-	put64bit(&buff,tdtotalspace);
-	put32bit(&buff,tdchunkcount);
+	put64bit(&buff, stats[HDD_USED_SPACE]);
+	put64bit(&buff, stats[HDD_TOTAL_SPACE]);
+	put32bit(&buff, (uint32_t)stats[HDD_CHUNK_COUNT]);
+	put64bit(&buff, stats[HDD_TD_USED_SPACE]);
+	put64bit(&buff, stats[HDD_TD_TOTAL_SPACE]);
+	put32bit(&buff, (uint32_t)stats[HDD_TD_CHUNK_COUNT]);
 }
 
 void masterconn_check_hdd_reports() {
@@ -208,18 +208,32 @@ void masterconn_check_hdd_reports() {
 	uint32_t errorcounter;
 	uint32_t chunkcounter;
 	uint8_t *buff;
+	uint64_t stats[HDD_STATS];
+	int i, changed=0;
+	static uint64_t laststats[HDD_STATS]={0};
+
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		if (hdd_spacechanged()) {
-			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
-			uint32_t chunkcount,tdchunkcount;
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-			hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-			put64bit(&buff,usedspace);
-			put64bit(&buff,totalspace);
-			put32bit(&buff,chunkcount);
-			put64bit(&buff,tdusedspace);
-			put64bit(&buff,tdtotalspace);
-			put32bit(&buff,tdchunkcount);
+			hdd_get_space(stats);
+			for (i = HDD_USED_SPACE; i < HDD_STATS; i++) {
+				if (abs(stats[i]-laststats[i]) > laststats[i] * SpaceDelta) {
+					changed = 1;
+					break;
+				}
+			}
+			if (changed) {
+				buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
+				
+				put64bit(&buff, stats[HDD_USED_SPACE]);
+				put64bit(&buff, stats[HDD_TOTAL_SPACE]);
+				put32bit(&buff, (uint32_t)stats[HDD_CHUNK_COUNT]);
+				put64bit(&buff, stats[HDD_TD_USED_SPACE]);
+				put64bit(&buff, stats[HDD_TD_TOTAL_SPACE]);
+				put32bit(&buff, (uint32_t)stats[HDD_TD_CHUNK_COUNT]);
+				for (i = HDD_USED_SPACE; i < HDD_STATS; i++) {
+					laststats[i] = stats[i];
+				}
+			}
 		}
 		errorcounter = hdd_errorcounter();
 		while (errorcounter) {
@@ -1173,13 +1187,22 @@ int masterconn_init(void) {
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 //	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
-
+	SpaceDelta = cfg_getdouble("HDD_MIN_SPACE_CHANGE_UNTIL_REPORT", 0.0);
+	
 	if (Timeout>65536) {
 		Timeout=65535;
 	}
 	if (Timeout<10) {
 		Timeout=10;
 	}
+	
+	if (SpaceDelta > 1.0) {
+		SpaceDelta = 1.0;
+	}
+	if (SpaceDelta < 0.0) {
+		SpaceDelta = 0.0;
+	}
+	
 	eptr = masterconnsingleton = (masterconn*) malloc(sizeof(masterconn));
 	passert(eptr);
 

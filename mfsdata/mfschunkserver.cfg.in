@@ -20,6 +20,8 @@
 # HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
 # HDD_TEST_FREQ = 10
 
+# HDD_MIN_SPACE_CHANGE_UNTIL_REPORT = 0.005
+
 # deprecated, to be removed in MooseFS 1.7
 # LOCK_FILE = @RUN_PATH@/mfschunkserver.lock
 # BACK_LOGS = 50

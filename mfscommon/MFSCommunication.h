@@ -259,6 +259,7 @@
 // getdir:
 #define GETDIR_FLAG_WITHATTR   0x01
 #define GETDIR_FLAG_ADDTOCACHE 0x02
+#define GETDIR_FLAG_DIRCACHE   0x04
 
 // register sesflags:
 #define SESFLAG_READONLY       0x01	// meaning is obvious
@@ -1068,7 +1069,6 @@
 
 
 
-/* Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
 // 0x01EA
 #define CLTOMA_FUSE_DIR_REMOVED (PROTO_BASE+490)
@@ -1077,33 +1077,12 @@
 // attributes of inode have changed
 // 0x01EB
 #define MATOCL_FUSE_NOTIFY_ATTR (PROTO_BASE+491)
-// msgid:32 N*[ inode:32 attr:35B ]
+// msgid:32 N*[ parent:32 inode:32 attr:35B ]
 
-// new entry has been added
+// children of dir has changed
 // 0x01EC
-#define MATOCL_FUSE_NOTIFY_LINK (PROTO_BASE+492)
-// msgid:32 timestamp:32 N*[ parent:32 name:NAME inode:32 attr:35B ]
-
-// entry has been deleted
-// 0x01ED
-#define MATOCL_FUSE_NOTIFY_UNLINK (PROTO_BASE+493)
-// msgid:32 timestamp:32 N*[ parent:32 name:NAME ]
-
-// whole directory needs to be removed
-// 0x01EE
-#define MATOCL_FUSE_NOTIFY_REMOVE (PROTO_BASE+494)
+#define MATOCL_FUSE_NOTIFY_DIR (PROTO_BASE+492)
 // msgid:32 N*[ inode:32 ]
-
-// parent inode has changed
-// 0x01EF
-#define MATOCL_FUSE_NOTIFY_PARENT (PROTO_BASE+495)
-// msgid:32 N*[ inode:32 parent:32 ]
-
-// last notification
-// 0x01F0
-#define MATOCL_FUSE_NOTIFY_END (PROTO_BASE+496)
-// msgid:32
-*/
 
 // special - reserved (opened) inodes - keep opened files.
 // 0x01F3

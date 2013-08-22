@@ -602,20 +602,15 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 }
 #endif
 
-
 #ifndef METARESTORE
 int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag) {
 	void* ptrs[65536];
 	uint16_t servcount;
 	slist *os,*s;
 	uint32_t i;
-#else
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
-#endif
 	chunk *oc,*c;
 
 	if (ochunkid==0) {	// new chunk
-#ifndef METARESTORE
 		servcount = matocsserv_getservers_wrandom(ptrs,goal);
 		if (servcount==0) {
 			uint16_t uscount,tscount;
@@ -627,15 +622,11 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 				return ERROR_NOCHUNKSERVERS;
 			}
 		}
-#endif
 		c = chunk_new(nextchunkid++);
 		c->version = 1;
-#ifndef METARESTORE
 		c->interrupted = 0;
 		c->operation = CREATE;
-#endif
 		chunk_add_file_int(c,goal);
-#ifndef METARESTORE
 		if (servcount<goal) {
 			c->allvalidcopies = servcount;
 			c->regularvalidcopies = servcount;
@@ -654,7 +645,6 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 		}
 		chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 		*opflag=1;
-#endif
 		*nchunkid = c->chunkid;
 	} else {
 		c = NULL;
@@ -662,15 +652,12 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 		if (oc==NULL) {
 			return ERROR_NOCHUNK;
 		}
-#ifndef METARESTORE
 		if (oc->lockedto>=(uint32_t)main_time()) {
 			return ERROR_LOCKED;
 		}
-#endif
 		if (oc->fcount==1) {	// refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
-#ifndef METARESTORE
 
 			if (c->operation!=NONE) {
 				return ERROR_CHUNKBUSY;
@@ -700,35 +687,22 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 			} else {
 				*opflag=0;
 			}
-#else
-			if (opflag) {
-				c->version++;
-			}
-#endif
 		} else {
-			if (oc->fcount==0) {	// it's serious structure error
-#ifndef METARESTORE
+			if (oc->fcount==0/* f==NULL */) {	// it's serious structure error
+//				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 " ; inode:%" PRIu32 " ; index:%" PRIu16 ")",ochunkid,inode,indx);
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-#else
-				printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
-#endif
 				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 			}
-#ifndef METARESTORE
 			i=0;
 			for (os=oc->slisthead ;os ; os=os->next) {
 				if (os->valid!=INVALID && os->valid!=DEL) {
 					if (c==NULL) {
-#endif
 						c = chunk_new(nextchunkid++);
 						c->version = 1;
-#ifndef METARESTORE
 						c->interrupted = 0;
 						c->operation = DUPLICATE;
-#endif
 						chunk_delete_file_int(oc,goal);
 						chunk_add_file_int(c,goal);
-#ifndef METARESTORE
 					}
 					s = slist_malloc();
 					s->ptr = os->ptr;
@@ -746,22 +720,55 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 				chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 			}
 			if (i>0) {
-#endif
 				*nchunkid = c->chunkid;
-#ifndef METARESTORE
 				*opflag=1;
 			} else {
 				return ERROR_CHUNKLOST;
 			}
-#endif
 		}
 	}
 
-#ifndef METARESTORE
 	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-#else
-	c->lockedto=ts+LOCKTIMEOUT;
+	return STATUS_OK;
+}
 #endif
+
+int chunk_log_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
+	chunk *oc,*c;
+
+	if (ochunkid==0) {	// new chunk
+//		servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,NULL,NULL);
+		c = chunk_new(nextchunkid++);
+		c->version = 1;
+		chunk_add_file_int(c,goal);
+		*nchunkid = c->chunkid;
+	} else {
+		c = NULL;
+		oc = chunk_find(ochunkid);
+		if (oc==NULL) {
+			return ERROR_NOCHUNK;
+		}
+		if (oc->fcount==1) {	// refcount==1
+			*nchunkid = ochunkid;
+			c = oc;
+			if (opflag) {
+				c->version++;
+			}
+		} else {
+			if (oc->fcount==0/* f==NULL */) {	// it's serious structure error
+//				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 " ; inode:%" PRIu32 " ; index:%" PRIu16 ")",ochunkid,inode,indx);
+				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
+				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+			}
+			c = chunk_new(nextchunkid++);
+			c->version = 1;
+			chunk_delete_file_int(oc,goal);
+			chunk_add_file_int(c,goal);
+			*nchunkid = c->chunkid;
+		}
+	}
+
+	c->lockedto=ts+LOCKTIMEOUT;
 	return STATUS_OK;
 }
 
@@ -769,9 +776,6 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal) {
 	slist *os,*s;
 	uint32_t i;
-#else
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
-#endif
 	chunk *oc,*c;
 
 	c=NULL;
@@ -779,15 +783,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 	if (oc==NULL) {
 		return ERROR_NOCHUNK;
 	}
-#ifndef METARESTORE
 	if (oc->lockedto>=(uint32_t)main_time()) {
 		return ERROR_LOCKED;
 	}
-#endif
 	if (oc->fcount==1) {	// refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
-#ifndef METARESTORE
 		if (c->operation!=NONE) {
 			return ERROR_CHUNKBUSY;
 		}
@@ -811,33 +812,22 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		} else {
 			return ERROR_CHUNKLOST;
 		}
-#else
-		c->version++;
-#endif
 	} else {
-		if (oc->fcount==0) {	// it's serious structure error
-#ifndef METARESTORE
+		if (oc->fcount==0/*f==NULL*/) {	// it's serious structure error
+//			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 " ; inode:%" PRIu32 " ; index:%" PRIu16 ")",ochunkid,inode,indx);
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-#else
-			printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
-#endif
 			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
 		}
-#ifndef METARESTORE
 		i=0;
 		for (os=oc->slisthead ;os ; os=os->next) {
 			if (os->valid!=INVALID && os->valid!=DEL) {
 				if (c==NULL) {
-#endif
 					c = chunk_new(nextchunkid++);
 					c->version = 1;
-#ifndef METARESTORE
 					c->interrupted = 0;
 					c->operation = DUPTRUNC;
-#endif
 					chunk_delete_file_int(oc,goal);
 					chunk_add_file_int(c,goal);
-#ifndef METARESTORE
 				}
 				s = slist_malloc();
 				s->ptr = os->ptr;
@@ -855,20 +845,43 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 			chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 		}
 		if (i>0) {
-#endif
 			*nchunkid = c->chunkid;
-#ifndef METARESTORE
 		} else {
 			return ERROR_CHUNKLOST;
 		}
-#endif
 	}
 
-#ifndef METARESTORE
 	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-#else
-	c->lockedto=ts+LOCKTIMEOUT;
+	return STATUS_OK;
+}
 #endif
+
+int chunk_log_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
+	chunk *oc,*c;
+
+	c=NULL;
+	oc = chunk_find(ochunkid);
+	if (oc==NULL) {
+		return ERROR_NOCHUNK;
+	}
+	if (oc->fcount==1) {	// refcount==1
+		*nchunkid = ochunkid;
+		c = oc;
+		c->version++;
+	} else {
+		if (oc->fcount==0/*f==NULL*/) {	// it's serious structure error
+//			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 " ; inode:%"PRIu32" ; index:%"PRIu16")",ochunkid,inode,indx);
+			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
+			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+		}
+		c = chunk_new(nextchunkid++);
+		c->version = 1;
+		chunk_delete_file_int(oc,goal);
+		chunk_add_file_int(c,goal);
+		*nchunkid = c->chunkid;
+	}
+
+	c->lockedto=ts+LOCKTIMEOUT;
 	return STATUS_OK;
 }
 
@@ -929,7 +942,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	c->needverincrease=1;
 	return 1;
 }
-#else
+#endif
 int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -939,7 +952,6 @@ int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	c->version = version;
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 void chunk_emergency_increase_version(chunk *c) {
@@ -967,7 +979,7 @@ void chunk_emergency_increase_version(chunk *c) {
 	}
 	fs_incversion(c->chunkid);
 }
-#else
+#endif
 int chunk_increase_version(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -977,7 +989,6 @@ int chunk_increase_version(uint64_t chunkid) {
 	c->version++;
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 
@@ -1494,12 +1505,26 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 //	syslog(LOG_WARNING,"chunk %016" PRIX64 ": ivc=%" PRIu32 " , tdc=%" PRIu32 " , vc=%" PRIu32 " , bc=%" PRIu32 " , tdb=%" PRIu32 " , dc=%" PRIu32 " , goal=%" PRIu8 " , scount=%" PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
 
 // step 2. check number of copies
-	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
-		syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
+	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */ && jobsnorepbefore<(uint32_t)main_time()) {
+        uint32_t max_version=0;
 		for (s=c->slisthead ; s ; s=s->next) {
-			syslog(LOG_NOTICE,"chunk %016" PRIX64 "_%08" PRIX32 " - invalid copy on (%s - ver:%08" PRIX32 ")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
+            if (s->version > max_version) {
+                max_version = s->version;
+            }
 		}
-		return ;
+	    syslog(LOG_WARNING, "chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - repair it successfully, new version is %" PRIX32 "",
+                c->chunkid,ivc,max_version);
+        c->version = max_version;
+        for (s=c->slisthead ; s ; s=s->next) {
+            if (s->version == max_version) {
+                s->valid = VALID;
+			    chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies+1,c->regularvalidcopies,c->regularvalidcopies+1);
+                c->regularvalidcopies ++;
+                c->allvalidcopies ++;
+                vc ++;
+                ivc --;
+            }
+        }
 	}
 
 // step 3. delete invalid copies
@@ -1837,7 +1862,7 @@ void chunk_jobs_main(void) {
 	} else if (tscount>lasttscount) {	// servers connected
 		if (tscount>=maxtscount) {
 			maxtscount = tscount;
-			jobsnorepbefore = main_time();
+			jobsnorepbefore = main_time()+ReplicationsDelayInit;
 		}
 	} else if (tscount<maxtscount && (uint32_t)main_time()>jobsnorepbefore) {
 		maxtscount = tscount;
@@ -1893,12 +1918,15 @@ void chunk_jobs_main(void) {
 #define CHUNKFSIZE 16
 #define CHUNKCNT 1000
 
-#ifdef METARESTORE
 
 void chunk_dump(void) {
 	chunk *c;
 	uint32_t i,lockedto,now;
+#ifndef METARESTORE
+	now = main_time();
+#else
 	now = time(NULL);
+#endif
 
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next) {
@@ -1910,8 +1938,6 @@ void chunk_dump(void) {
 		}
 	}
 }
-
-#endif
 
 int chunk_load(FILE *fd) {
 	uint8_t hdr[8];
