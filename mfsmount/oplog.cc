@@ -76,12 +76,13 @@ static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 	pthread_mutex_unlock(&opbufflock);
 }
 
-void oplog_printf(const struct fuse_ctx *ctx,const char *format,...) {
+void oplog_printf(const struct fuse_ctx &ctx,const char *format,...) {
 	va_list ap;
 	static char buff[LINELENG];
 	uint32_t leng;
 	struct timeval tv;
 	struct tm ltime;
+	time_t op_timestamp;
 
 	pthread_mutex_lock(&timelock);
 	gettimeofday(&tv,NULL);
@@ -95,7 +96,8 @@ void oplog_printf(const struct fuse_ctx *ctx,const char *format,...) {
 	ltime.tm_sec += leng%60;
 	ltime.tm_min += leng/60;
 	pthread_mutex_unlock(&timelock);
-	leng = snprintf(buff,LINELENG,"%02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",ltime.tm_mon+1,ltime.tm_mday,ltime.tm_hour,ltime.tm_min,ltime.tm_sec,(unsigned)(tv.tv_usec),(unsigned)(ctx->uid),(unsigned)(ctx->gid),(unsigned)(ctx->pid));
+	op_timestamp = mktime(&ltime);
+	leng = snprintf(buff,LINELENG,"%ld %02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",op_timestamp,ltime.tm_mon+1,ltime.tm_mday,ltime.tm_hour,ltime.tm_min,ltime.tm_sec,(unsigned)(tv.tv_usec),(unsigned)(ctx.uid),(unsigned)(ctx.gid),(unsigned)(ctx.pid));
 	if (leng<LINELENG) {
 		va_start(ap,format);
 		leng += vsnprintf(buff+leng,LINELENG-leng,format,ap);
