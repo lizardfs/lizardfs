@@ -19,9 +19,13 @@
 #ifndef _DIRATTRCACHE_H_
 #define _DIRATTRCACHE_H_
 
-void* dcache_new(const struct fuse_ctx *ctx,uint32_t parent,const uint8_t *dbuff,uint32_t dsize);
-void dcache_release(void *r);
-uint8_t dcache_lookup(const struct fuse_ctx *ctx,uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]);
-uint8_t dcache_getattr(const struct fuse_ctx *ctx,uint32_t inode,uint8_t attr[35]);
+void dcache_init();
+uint32_t dcache_replace(uint32_t parent,const uint8_t *dbuff,uint32_t dsize);
+uint8_t dcache_getdir(uint32_t parent,const uint8_t **dbuff,uint32_t *dsize);
+uint8_t dcache_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]);
+uint8_t dcache_getattr(uint32_t inode,uint8_t attr[35]);
+uint8_t dcache_setattr(uint32_t parent,uint32_t inode,const uint8_t attr[35]);
+uint8_t dcache_remove(uint32_t parent);
+void dcache_remove_all();
 
 #endif

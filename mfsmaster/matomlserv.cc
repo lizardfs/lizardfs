@@ -41,6 +41,8 @@
 #include "sockets.h"
 #include "slogger.h"
 #include "massert.h"
+#include "filesystem.h"
+#include "changelog.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -71,6 +73,9 @@ typedef struct matomlserventry {
 	uint32_t servip;
 
 	int metafd,chain1fd,chain2fd;
+    int logindex;
+    FILE *logf;
+    uint64_t currentversion;
 
 	struct matomlserventry *next;
 } matomlserventry;
@@ -175,6 +180,7 @@ void matomlserv_mloglist_data(uint8_t *ptr) {
 
 void matomlserv_status(void) {
 	matomlserventry *eptr;
+    if (!fs_ismastermode()) return;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->mode==HEADER || eptr->mode==DATA) {
 			return;
@@ -228,12 +234,93 @@ uint8_t* matomlserv_createpacket(matomlserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
+void matomlserv_send_archived_changes(matomlserventry *eptr) {
+    char buff[4096],logname[30],*ptr;
+    uint8_t *data;
+    uint64_t nextid;
+    int i,len;
+    for (i=0; i<50000 && eptr->logf; i++) {
+        if (fgets(buff,4096,eptr->logf)!=NULL) {
+            len=strlen(buff);
+            if (len==0 || buff[len-1]!='\n') {
+                syslog(LOG_WARNING,"meta logger broken changelog: len=%d", len);
+                fclose(eptr->logf);
+                eptr->logf=NULL;
+                return;
+            }
+            nextid=strtoull(buff,&ptr,10);
+            if (nextid<eptr->currentversion) continue;
+
+            ptr += 2; // ": "
+            len=strlen(ptr);
+            ptr[len-1]='\0'; // drop \n
+			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+len);
+			put8bit(&data,0xFF);
+			put64bit(&data,nextid);
+			memcpy(data,ptr,len);
+
+            eptr->currentversion++;
+
+            if (old_changes_head && eptr->currentversion==old_changes_head->minversion) {
+                fclose(eptr->logf);
+                eptr->logf=NULL;
+            }
+        } else {
+            // end of file
+            fclose(eptr->logf);
+            eptr->logf=NULL;
+            eptr->logindex--;
+
+            if (eptr->logindex>=0) {
+                data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,1);
+                put8bit(&data,0x55);
+
+                sprintf(logname,"changelog.%d.mfs",eptr->logindex);
+                if ((eptr->logf=fopen(logname,"r"))==NULL) {
+                    syslog(LOG_WARNING,"meta logger open %s failed", logname);
+                }
+            }
+        }
+    }
+}
+
 void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 	old_changes_block *oc;
 	old_changes_entry *oce;
 	uint8_t *data;
 	uint8_t start=0;
 	uint32_t i;
+    char logname[255];
+    uint64_t firstlv;
+
+    if (eptr->logf) {
+        matomlserv_send_archived_changes(eptr);
+        if (eptr->logf) {
+            return;
+        }
+        version=eptr->currentversion;
+    } else if (old_changes_head==NULL || old_changes_head->minversion>version) {
+        for (i=0; i<20; i++) {
+            sprintf(logname, "changelog.%d.mfs",i);
+            firstlv=findfirstlogversion(logname);
+            if (firstlv>version || firstlv==0) {
+                continue;
+            }
+            if ((eptr->logf=fopen(logname,"r"))!=NULL) {
+                eptr->logindex = i;
+                eptr->currentversion=version;
+                matomlserv_send_archived_changes(eptr);
+                if (eptr->logf) {
+                    return;
+                }
+                version=eptr->currentversion;
+            } else {
+                syslog(LOG_WARNING, "matomlserv open %s failed", logname);
+            }
+            break;
+        }
+	}
+
 	if (old_changes_head==NULL) {
 		// syslog(LOG_WARNING,"meta logger wants old changes, but storage is disabled");
 		return;
@@ -249,7 +336,7 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 		if (start) {
 			for (i=0 ; i<oc->entries ; i++) {
 				oce = oc->old_changes_block + i;
-				if (version>=oce->version) {
+				if (version<=oce->version) {  // guess that Davies Liu knows what to do... (before: >=)
 					data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+oce->length);
 					put8bit(&data,0xFF);
 					put64bit(&data,oce->version);
@@ -427,7 +514,7 @@ void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t lo
 	matomlserv_store_logstring(version,logstr,logstrsize);
 
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->version>0) {
+		if (eptr->version>0 && eptr->logf==NULL) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+logstrsize);
 			put8bit(&data,0xFF);
 			put64bit(&data,version);
@@ -441,7 +528,7 @@ void matomlserv_broadcast_logrotate() {
 	uint8_t *data;
 
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->version>0) {
+		if (eptr->version>0 && eptr->logf==NULL) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,1);
 			put8bit(&data,0x55);
 		}
@@ -461,6 +548,10 @@ void matomlserv_beforeclose(matomlserventry *eptr) {
 		close(eptr->chain2fd);
 		eptr->chain2fd=-1;
 	}
+    if (eptr->logf) {
+        fclose(eptr->logf);
+        eptr->logf=NULL;
+    }
 }
 
 void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
@@ -489,6 +580,17 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 	}
 }
 
+int matomlserv_canexit(void) {
+	matomlserventry *eptr = matomlservhead;
+	while (eptr) {
+		if (eptr->outputhead!=NULL) {
+            return 0;
+        }
+        eptr = eptr->next;
+    }
+    return 1;
+}
+
 void matomlserv_term(void) {
 	matomlserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
@@ -497,6 +599,7 @@ void matomlserv_term(void) {
 
 	eptr = matomlservhead;
 	while (eptr) {
+		matomlserv_beforeclose(eptr);
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
@@ -668,6 +771,9 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->metafd=-1;
 			eptr->chain1fd=-1;
 			eptr->chain2fd=-1;
+            eptr->logindex=-1;
+            eptr->logf=NULL;
+            eptr->currentversion=0;
 		}
 	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
@@ -683,6 +789,9 @@ void matomlserv_serve(struct pollfd *pdesc) {
 				eptr->lastwrite = now;
 				matomlserv_write(eptr);
 			}
+            if (eptr->mode!=KILL && eptr->logf && eptr->outputhead==NULL) {
+                matomlserv_send_old_changes(eptr, eptr->currentversion);
+            }
 		}
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
@@ -800,6 +909,7 @@ int matomlserv_init(void) {
 	}
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
+    main_canexitregister(matomlserv_canexit);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
 	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return 0;

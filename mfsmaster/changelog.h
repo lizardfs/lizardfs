@@ -24,5 +24,8 @@
 void changelog_rotate(void);
 void changelog(uint64_t version,const char *format,...);
 int changelog_init(void);
+uint64_t findfirstlogversion(const char *fname);
+uint64_t findlastlogversion(const char *fname);
+int changelog_checkname(const char *fname);
 
 #endif

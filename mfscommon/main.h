@@ -25,6 +25,10 @@
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1
 
+#ifndef MFSMAXFILES
+#define MFSMAXFILES 5000
+#endif
+
 void main_destructregister (void (*fun)(void));
 void main_canexitregister (int (*fun)(void));
 void main_wantexitregister (void (*fun)(void));

@@ -185,7 +185,7 @@ int do_access(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_access(ts,inode);
+	return fs_log_access(ts,inode);
 }
 
 int do_append(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -195,7 +195,7 @@ int do_append(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(inode_src,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_append(ts,inode,inode_src);
+	return fs_log_append(ts,inode,inode_src);
 }
 
 int do_acquire(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -206,7 +206,7 @@ int do_acquire(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(cuid,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_acquire(inode,cuid);
+	return fs_log_acquire(inode,cuid);
 }
 
 int do_attr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -224,7 +224,7 @@ int do_attr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(mtime,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_attr(ts,inode,mode,uid,gid,atime,mtime);
+	return fs_log_attr(ts,inode,mode,uid,gid,atime,mtime);
 }
 
 int do_create(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -248,7 +248,7 @@ int do_create(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_create(ts,parent,strlen((char*)name),name,type,mode,uid,gid,rdev,inode);
+	return fs_log_create(ts,parent,strlen((char*)name),name,type,mode,uid,gid,rdev,inode);
 }
 
 int do_session(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -258,7 +258,7 @@ int do_session(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(cuid,ptr);
-	return fs_session(cuid);
+	return fs_log_session(cuid);
 }
 
 int do_emptytrash(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -269,7 +269,7 @@ int do_emptytrash(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(freeinodes,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(reservedinodes,ptr);
-	return fs_emptytrash(ts,freeinodes,reservedinodes);
+	return fs_log_emptytrash(ts,freeinodes,reservedinodes);
 }
 
 int do_emptyreserved(const char *filename,uint64_t lv,uint32_t ts,char* ptr) {
@@ -278,7 +278,7 @@ int do_emptyreserved(const char *filename,uint64_t lv,uint32_t ts,char* ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(freeinodes,ptr);
-	return fs_emptyreserved(ts,freeinodes);
+	return fs_log_emptyreserved(ts,freeinodes);
 }
 
 int do_freeinodes(const char *filename,uint64_t lv,uint32_t ts,char* ptr) {
@@ -287,7 +287,7 @@ int do_freeinodes(const char *filename,uint64_t lv,uint32_t ts,char* ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(freeinodes,ptr);
-	return fs_freeinodes(ts,freeinodes);
+	return fs_log_freeinodes(ts,freeinodes);
 }
 
 int do_incversion(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -296,7 +296,7 @@ int do_incversion(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,'(');
 	GETU64(chunkid,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_incversion(chunkid);
+	return fs_log_incversion(chunkid);
 }
 
 int do_link(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -309,7 +309,7 @@ int do_link(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETNAME(name,ptr,filename,lv,')');
 	EAT(ptr,filename,lv,')');
-	return fs_link(ts,inode,parent,strlen((char*)name),name);
+	return fs_log_link(ts,inode,parent,strlen((char*)name),name);
 }
 
 int do_length(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -320,7 +320,7 @@ int do_length(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU64(length,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_length(ts,inode,length);
+	return fs_log_length(ts,inode,length);
 }
 
 int do_move(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -337,7 +337,7 @@ int do_move(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_move(ts,parent_src,strlen((char*)name_src),name_src,parent_dst,strlen((char*)name_dst),name_dst,inode);
+	return fs_log_move(ts,parent_src,strlen((char*)name_src),name_src,parent_dst,strlen((char*)name_dst),name_dst,inode);
 }
 
 int do_purge(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -345,7 +345,7 @@ int do_purge(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_purge(ts,inode);
+	return fs_log_purge(ts,inode);
 }
 
 int do_quota(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -378,7 +378,7 @@ int do_quota(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU64(hrealsize,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_quota(ts,inode,exceeded,flags,stimestamp,sinodes,hinodes,slength,hlength,ssize,hsize,srealsize,hrealsize);
+	return fs_log_quota(ts,inode,exceeded,flags,stimestamp,sinodes,hinodes,slength,hlength,ssize,hsize,srealsize,hrealsize);
 }
 
 int do_release(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -389,7 +389,7 @@ int do_release(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(cuid,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_release(inode,cuid);
+	return fs_log_release(inode,cuid);
 }
 
 int do_repair(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -402,7 +402,7 @@ int do_repair(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(version,ptr);
-	return fs_repair(ts,inode,indx,version);
+	return fs_log_repair(ts,inode,indx,version);
 }
 
 int do_seteattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -423,7 +423,7 @@ int do_seteattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(nci,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(npi,ptr);
-	return fs_seteattr(ts,inode,uid,eattr,smode,ci,nci,npi);
+	return fs_log_seteattr(ts,inode,uid,eattr,smode,ci,nci,npi);
 }
 
 int do_setgoal(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -455,9 +455,9 @@ int do_setgoal(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	} else {
 		qei = UINT32_C(0xFFFFFFFF);
 	}
-	return fs_setgoal(ts,inode,uid,goal,smode,ci,nci,npi,qei);
+	return fs_log_setgoal(ts,inode,uid,goal,smode,ci,nci,npi,qei);
 #else
-	return fs_setgoal(ts,inode,uid,goal,smode,ci,nci,npi);
+	return fs_log_setgoal(ts,inode,uid,goal,smode,ci,nci,npi);
 #endif
 }
 
@@ -471,7 +471,7 @@ int do_setpath(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETPATH(path,pathsize,ptr,filename,lv,')');
 	EAT(ptr,filename,lv,')');
-	return fs_setpath(inode,path);
+	return fs_log_setpath(inode,path);
 }
 
 int do_settrashtime(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -493,7 +493,7 @@ int do_settrashtime(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(nci,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(npi,ptr);
-	return fs_settrashtime(ts,inode,uid,trashtime,smode,ci,nci,npi);
+	return fs_log_settrashtime(ts,inode,uid,trashtime,smode,ci,nci,npi);
 }
 
 int do_setxattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -510,7 +510,7 @@ int do_setxattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(mode,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_setxattr(ts,inode,strlen((char*)name),name,valueleng,value,mode);
+	return fs_log_setxattr(ts,inode,strlen((char*)name),name,valueleng,value,mode);
 }
 
 int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -525,7 +525,7 @@ int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETU32(canoverwrite,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_snapshot(ts,inode,parent,strlen((char*)name),name,canoverwrite);
+	return fs_log_snapshot(ts,inode,parent,strlen((char*)name),name,canoverwrite);
 }
 
 int do_symlink(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -546,7 +546,7 @@ int do_symlink(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_symlink(ts,parent,strlen((char*)name),name,path,uid,gid,inode);
+	return fs_log_symlink(ts,parent,strlen((char*)name),name,path,uid,gid,inode);
 }
 
 int do_undel(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -554,7 +554,7 @@ int do_undel(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_undel(ts,inode);
+	return fs_log_undel(ts,inode);
 }
 
 int do_unlink(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -567,7 +567,7 @@ int do_unlink(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_unlink(ts,parent,strlen((char*)name),name,inode);
+	return fs_log_unlink(ts,parent,strlen((char*)name),name,inode);
 }
 
 int do_unlock(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -576,7 +576,7 @@ int do_unlock(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,'(');
 	GETU64(chunkid,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_unlock(chunkid);
+	return fs_log_unlock(chunkid);
 }
 
 int do_trunc(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -589,7 +589,7 @@ int do_trunc(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_trunc(ts,inode,indx,chunkid);
+	return fs_log_trunc(ts,inode,indx,chunkid);
 }
 
 int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -608,7 +608,7 @@ int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_write(ts,inode,indx,opflag,chunkid);
+	return fs_log_write(ts,inode,indx,opflag,chunkid);
 }
 
 

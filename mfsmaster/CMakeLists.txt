@@ -1,7 +1,7 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon ../mfsmetarestore)
 add_definitions(-DAPPNAME=mfsmaster)
 
 aux_source_directory(. MASTER_SOURCES)
-add_executable(mfsmaster ${MASTER_SOURCES} ${MAIN_SRC}) 
+add_executable(mfsmaster ${MASTER_SOURCES} ${MAIN_SRC} ../mfsmetarestore/merger.cc ../mfsmetarestore/restore.cc) 
 target_link_libraries(mfsmaster mfscommon ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS mfsmaster RUNTIME DESTINATION ${SBIN_SUBDIR})
