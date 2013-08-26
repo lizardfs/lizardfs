@@ -1502,7 +1502,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			}
 		}
 		if (max_version > c->version) {
-			syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - repair it successfully, new version is %"PRIX32"",
+			syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - repair it successfully, new version is %" PRIX32 "",
 					c->chunkid,ivc,max_version);
 			c->version = max_version;
 			for (s=c->slisthead ; s ; s=s->next) {
@@ -1516,9 +1516,9 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				}
 			}
 		} else {
-			syslog(LOG_WARNING,"chunk %016"PRIX64" has only invalid copies (%"PRIu32") - please repair it manually",c->chunkid,ivc);
+			syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
 			for (s=c->slisthead ; s ; s=s->next) {
-				syslog(LOG_NOTICE,"chunk %016"PRIX64"_%08"PRIX32" - invalid copy on (%s - ver:%08"PRIX32")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
+				syslog(LOG_NOTICE,"chunk %016" PRIX64 "_%08" PRIX32 " - invalid copy on (%s - ver:%08" PRIX32 ")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
 			}
 			return ;
 		}
