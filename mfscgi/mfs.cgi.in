@@ -61,6 +61,7 @@ except Exception:
 
 thsep = ''
 html_thsep = ''
+CHARTS_CSV_CHARTID_BASE = 90000
 
 def htmlentities(str):
 	return str.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace("'",'&apos;').replace('"','&quot;')
@@ -2316,7 +2317,7 @@ if "MC" in sectionset:
 		out.append("""		o.innerHTML = ma_idesc[no];""")
 		out.append("""		ma_cmp_refresh();""")
 		out.append("""	}""")
-		out.append("""	function ma_change_links(n) {""")
+		out.append("""	function ma_change_links(range) {""")
 		out.append("""		var table = document.getElementById("ma_stats_table");""")
 		out.append("""		var row;""")
 		out.append("""		var cells;""")
@@ -2326,9 +2327,9 @@ if "MC" in sectionset:
 		out.append("""			for (j in cells) {""")
 		out.append("""				if (cells[j].children !== undefined && cells[j].children[1] !== undefined){""")
 		out.append("""					str=cells[j].children[1].href;""")
-		out.append("""					cells[j].children[1].href=str.slice(0,-1)+n;""")
+		out.append("""					cells[j].children[1].href=str.slice(0,-1)+range;""")
 		out.append("""					str=cells[j].children[1].children[0].src;""")
-		out.append("""					cells[j].children[1].children[0].src = str.slice(0,-1 )+ n;""")
+		out.append("""					cells[j].children[1].children[0].src = str.slice(0,-1 )+ range;""")
 		out.append("""				}""")
 		out.append("""			}""")
 		out.append("""		}""")
@@ -2346,7 +2347,7 @@ if "MC" in sectionset:
 		for id,name,desc in charts:
 			out.append("""	<tr class="C2">""")
 			out.append("""		<td align="center" colspan="4">""")
-			out.append("""			%s:<br/><a href="chart.cgi?host=%s&amp;port=%u&amp;id=%u"> """ % (desc, urlescape(masterhost),masterport,id*10+90000))
+			out.append("""			%s:<br/><a href="chart.cgi?host=%s&amp;port=%u&amp;id=%u"> """ % (desc, urlescape(masterhost),masterport,CHARTS_CSV_CHARTID_BASE+id*10))
 			out.append("""			<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_%s" alt="%s" /></a>""" % (urlescape(masterhost),masterport,id*10,name,name))
 			out.append("""		</td>""")
 			out.append("""	</tr>""")
@@ -2529,7 +2530,7 @@ if "CC" in sectionset:
 			out.append("""		o.innerHTML = cs_idesc[no];""")
 			out.append("""		cs_cmp_refresh();""")
 			out.append("""	}""")
-			out.append("""	function cs_change_links(n) {""")
+			out.append("""	function cs_change_links(range) {""")
 			out.append("""		var table = document.getElementById("cs_stats_table");""")
 			out.append("""		var row;""")
 			out.append("""		var cells;""")
@@ -2539,9 +2540,9 @@ if "CC" in sectionset:
 			out.append("""			for (j in cells) {""")
 			out.append("""				if (cells[j].children !== undefined && cells[j].children[1] !== undefined){""")
 			out.append("""					str=cells[j].children[1].href;""")
-			out.append("""					cells[j].children[1].href=str.slice(0,-1)+n;""")
+			out.append("""					cells[j].children[1].href=str.slice(0,-1)range;""")
 			out.append("""					str=cells[j].children[1].children[0].src;""")
-			out.append("""					cells[j].children[1].children[0].src = str.slice(0,-1 )+ n;""")
+			out.append("""					cells[j].children[1].children[0].src = str.slice(0,-1 )+ range;""")
 			out.append("""				}""")
 			out.append("""			}""")
 			out.append("""		}""")
@@ -2559,7 +2560,7 @@ if "CC" in sectionset:
 			for id,name,desc in charts:
 				out.append("""	<tr class="C2">""")
 				out.append("""		<td align="center" colspan="4">""")
-				out.append("""			%s:<br/> <a href="chart.cgi?host=%s&amp;port=%s&amp;id=%u">""" % (desc,cshost,csport,90000+id*10))
+				out.append("""			%s:<br/> <a href="chart.cgi?host=%s&amp;port=%s&amp;id=%u">""" % (desc,cshost,csport,CHARTS_CSV_CHARTID_BASE+id*10))
 				out.append("""			<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_%s" alt="%s" /> </a>""" % (cshost,csport,id*10,name,name))
 				out.append("""		</td>""")
 				out.append("""	</tr>""")

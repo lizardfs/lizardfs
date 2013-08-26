@@ -858,14 +858,14 @@ void matoclserv_chart(matoclserventry *eptr,const uint8_t *data,uint32_t length)
 	}
 	chartid = get32bit(&data);
 
-	if(chartid <= 90000){
+	if(chartid <= CHARTS_CSV_CHARTID_BASE){
 		l = charts_make_png(chartid);
 		ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
 		if (l>0) {
 			charts_get_png(ptr);
 		}
 	} else {
-		l = charts_make_csv(chartid % 90000);//chartid
+		l = charts_make_csv(chartid % CHARTS_CSV_CHARTID_BASE);
 		ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
 		if (l>0) {
 			charts_get_csv(ptr);

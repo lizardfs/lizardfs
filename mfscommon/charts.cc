@@ -1447,7 +1447,7 @@ double charts_fixmax(uint64_t max,uint8_t *scale,uint8_t *mode,uint16_t *base) {
 void charts_makechart(uint32_t type,uint32_t range) {
 	static const uint8_t jtab[11]={MICRO,MILI,SPACE,KILO,MEGA,GIGA,TERA,PETA,EXA,ZETTA,YOTTA};
 	int32_t i,j;
-	uint32_t xyear,xmon,xday,xhour,xstep,xoff,xbold,ys;
+	uint32_t xyear,xmonth,xday,xhour,xstep,xoff,xbold,ystep;
 	uint64_t max;
 	double dmax;
 	uint64_t d,c1d,c2d,c3d;
@@ -1610,7 +1610,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		chart[(XSIZE)*(DATA-i+YPOS)+(XPOS+LENG)] = COLOR_AXIS;
 	}
 	// x scale
-	xyear = xmon = xday = xhour = xstep = 0;
+	xyear = xmonth = xday = xhour = xstep = 0;
 	if (range<3) {
 		if (range==2) {
 			xstep = 12; //1 pixel = 30 minutes
@@ -1618,7 +1618,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			xbold = 4;
 			xhour = lnghalfhour/12;
 			xday = lngmday;
-			xmon = lngmonth;
+			xmonth = lngmonth;
 			xyear = lngyear;
 		} else if (range==1) {
 			xstep = 10;  //1 pixel = 6 minutes
@@ -1634,9 +1634,9 @@ void charts_makechart(uint32_t type,uint32_t range) {
 
 		for (i=LENG-xoff-1 ; i>=0 ; i-=xstep) {
 			if (xhour%xbold==0) {
-				ys=2;
+				ystep=2;
 				if ((range==0 && xhour%6==0) || (range==1 && xhour==0) || (range==2 && xday==1)) {
-					ys=1;
+					ystep=1;
 				}
 				if (range<2) {
 					text[0]=xhour/10;
@@ -1646,29 +1646,29 @@ void charts_makechart(uint32_t type,uint32_t range) {
 					text[4]=0;
 					charts_puttext(XPOS+i-14,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 				} else {
-					text[0]=xmon/10;
-					text[1]=xmon%10;
+					text[0]=xmonth/10;
+					text[1]=xmonth%10;
 					text[2]=FDOT;
 					text[3]=xday/10;
 					text[4]=xday%10;
 					charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 					xday--;
 					if (xday==0) {
-						xmon--;
-						if (xmon==0) {
-							xmon=12;
+						xmonth--;
+						if (xmonth==0) {
+							xmonth=12;
 							xyear--;
 						}
-						xday = getmonleng(xyear,xmon);
+						xday = getmonleng(xyear,xmonth);
 					}
 				}
 				chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
 				chart[(XSIZE)*(YPOS+DATA+2)+(i+XPOS)] = COLOR_AXIS;
 			} else {
-				ys=4;
+				ystep=4;
 			}
-			for (j=0 ; j<DATA ; j+=ys) {
-				if (ys>1 || (j%4)!=0) {
+			for (j=0 ; j<DATA ; j+=ystep) {
+				if (ystep>1 || (j%4)!=0) {
 					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_AUX;
 				}
 			}
@@ -1688,8 +1688,8 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		}
 		if (range==2) {
 			i -= xstep*xhour;
-			text[0]=xmon/10;
-			text[1]=xmon%10;
+			text[0]=xmonth/10;
+			text[1]=xmonth%10;
 			text[2]=FDOT;
 			text[3]=xday/10;
 			text[4]=xday%10;
@@ -1697,14 +1697,14 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		}
 	} else {
 		xyear = lngyear;
-		xmon = lngmonth;
+		xmonth = lngmonth;
 		for (i=LENG-lngmday ; i>=0 ; ) {
-			text[0]=xmon/10;
-			text[1]=xmon%10;
-			charts_puttext(XPOS+i+(getmonleng(xyear,xmon)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+			text[0]=xmonth/10;
+			text[1]=xmonth%10;
+			charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 			chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
 			chart[(XSIZE)*(YPOS+DATA+2)+(i+XPOS)] = COLOR_AXIS;
-			if (xmon!=1) {
+			if (xmonth!=1) {
 				for (j=0 ; j<DATA ; j+=2) {
 					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_AUX;
 				}
@@ -1715,16 +1715,16 @@ void charts_makechart(uint32_t type,uint32_t range) {
 					}
 				}
 			}
-			xmon--;
-			if (xmon==0) {
-				xmon=12;
+			xmonth--;
+			if (xmonth==0) {
+				xmonth=12;
 				xyear--;
 			}
-			i-=getmonleng(xyear,xmon);
+			i-=getmonleng(xyear,xmonth);
 		}
-		text[0]=xmon/10;
-		text[1]=xmon%10;
-		charts_puttext(XPOS+i+(getmonleng(xyear,xmon)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+		text[0]=xmonth/10;
+		text[1]=xmonth%10;
+		charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 	}
 	// y scale
 
