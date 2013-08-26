@@ -73,10 +73,15 @@ else:
 				print "Content-Type: image/png"
 				print
 				print data,
-			else:
+			elif data[:9]=="timestamp":
 				print "Content-Type: text"
 				print
-				print data
+				print data,
+			else:
+				print "Content-Type: image/gif"
+				f = open('err.gif')
+				print f.read(),
+				f.close() 
 		else:
 			print "Content-Type: image/gif"
 			print
