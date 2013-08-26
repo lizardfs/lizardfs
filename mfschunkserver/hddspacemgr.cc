@@ -1616,9 +1616,16 @@ void hdd_test_show_openedchunks(void) {
 	}
 }
 
+static inline uint64_t get_usectime() {
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
+}
+
 void hdd_delayed_ops() {
 	dopchunk **ccp,*cc,*tcc;
 	uint32_t dhashpos;
+	uint64_t ts,te;
 	chunk *c;
 	zassert(pthread_mutex_lock(&doplock));
 	zassert(pthread_mutex_lock(&ndoplock));
@@ -1674,6 +1681,22 @@ void hdd_delayed_ops() {
 				if (c->opensteps>0) {	// decrease counter
 					c->opensteps--;
 				} else if (c->fd>=0) {	// close descriptor
+					ts = get_usectime();
+#ifdef F_FULLFSYNC
+					if (fcntl(c->fd,F_FULLFSYNC)<0) {
+						int errmem = errno;
+						mfs_arg_errlog_silent(LOG_WARNING,"hdd_delayed_ops: file:%s - fsync (via fcntl) error",c->filename);
+						errno = errmem;
+					}
+#else
+					if (fsync(c->fd)<0) {
+						int errmem = errno;
+						mfs_arg_errlog_silent(LOG_WARNING,"hdd_delayed_ops: file:%s - fsync (direct call) error",c->filename);
+						errno = errmem;
+					}
+#endif
+					te = get_usectime();
+					hdd_stats_datafsync(c->owner,te-ts);
 					if (close(c->fd)<0) {
 						hdd_error_occured(c);	// uses and preserves errno !!!
 						mfs_arg_errlog_silent(LOG_WARNING,"hdd_delayed_ops: file:%s - close error",c->filename);
@@ -1705,12 +1728,6 @@ void hdd_delayed_ops() {
 		}
 	}
 	zassert(pthread_mutex_unlock(&doplock));
-}
-
-static inline uint64_t get_usectime() {
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
 }
 
 static int hdd_io_begin(chunk *c,int newflag) {
@@ -1802,28 +1819,27 @@ static int hdd_io_end(chunk *c) {
 			errno = errmem;
 			return status;
 		}
-		ts = get_usectime();
-#ifdef F_FULLFSYNC
-		if (fcntl(c->fd,F_FULLFSYNC)<0) {
-			int errmem = errno;
-			mfs_arg_errlog_silent(LOG_WARNING,"hdd_io_end: file:%s - fsync (via fcntl) error",c->filename);
-			errno = errmem;
-			return ERROR_IO;
-		}
-#else
-		if (fsync(c->fd)<0) {
-			int errmem = errno;
-			mfs_arg_errlog_silent(LOG_WARNING,"hdd_io_end: file:%s - fsync (direct call) error",c->filename);
-			errno = errmem;
-			return ERROR_IO;
-		}
-#endif
-		te = get_usectime();
-		hdd_stats_datafsync(c->owner,te-ts);
 	}
 	c->crcrefcount--;
 	if (c->crcrefcount==0) {
 		if (OPENSTEPS==0) {
+			ts = get_usectime();
+#ifdef F_FULLFSYNC
+			if (fcntl(c->fd,F_FULLFSYNC)<0) {
+				int errmem = errno;
+				mfs_arg_errlog_silent(LOG_WARNING,"hdd_io_end: file:%s - fsync (via fcntl) error",c->filename);
+				errno = errmem;
+			}
+#else
+			if (fsync(c->fd)<0) {
+				int errmem = errno;
+				mfs_arg_errlog_silent(LOG_WARNING,"hdd_io_end: file:%s - fsync (direct call) error",c->filename);
+				errno = errmem;
+			}
+#endif
+			te = get_usectime();
+			hdd_stats_datafsync(c->owner,te-ts);
+
 			if (close(c->fd)<0) {
 				int errmem = errno;
 				c->fd = -1;
@@ -3348,6 +3364,8 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 
 static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 	chunk *c;
+	int blen = 256;
+	char buf[256];
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
@@ -3355,6 +3373,10 @@ static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
 		return ERROR_WRONGVERSION;
+	}
+	if ((blen = readlink(c->filename, buf, blen)) != -1) {
+		buf[blen] = 0;
+		unlink(buf);
 	}
 	if (unlink(c->filename)<0) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
@@ -3604,9 +3626,10 @@ static inline void hdd_add_chunk(folder *f,const char *fullname,uint64_t chunkid
 
 	prevf = NULL;
 	c = hdd_chunk_get(chunkid,CH_NEW_AUTO);
+	if (c == NULL) return;
 	if (c->filename!=NULL) {	// already have this chunk
 		if (version <= c->version) {	// current chunk is older
-			if (todel<2) { // this is R/W fs?
+			if (version < c->version && todel<2) { // this is R/W fs?
 				unlink(fullname); // if yes then remove file
 			}
 		} else {
@@ -4076,6 +4099,7 @@ int hdd_parseline(char *hddcfgline) {
 	if (l==0) {
 		return 0;
 	}
+	hddcfgline[l]='\0';
 	p = l;
 	while (p>0 && hddcfgline[p-1]!=' ' && hddcfgline[p-1]!='\t') {
 		p--;
