@@ -7,12 +7,12 @@ cgibin_SCRIPTS = \
 	mfs.cgi
 
 cgidata_DATA = \
-	err.gif \
+	media/err.gif \
 	index.html \
 	logomini.png \
 	favicon.ico \
-	help.html \
-	mfs.css
+	html/help.html \
+	css/lizard.css
 
 EXTRA_DIST = mfs.cgi.in chart.cgi.in cgiserv.py.in $(cgibin_SCRIPTS) $(cgidata_DATA)
 

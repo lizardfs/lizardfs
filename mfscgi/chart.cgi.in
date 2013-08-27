@@ -51,7 +51,7 @@ def myrecv(socket,leng):
 if host=='' or port==0 or chartid<0:
 	print "Content-Type: image/gif"
 	print
-	f = open('err.gif')
+	f = open('media/err.gif')
 	print f.read(),
 	f.close()
 else:
@@ -76,19 +76,19 @@ else:
 			else:
 				print "Content-Type: image/gif"
 				print
-				f = open('err.gif')
+				f = open('media/err.gif')
 				print f.read(),
 				f.close()
 		else:
 			print "Content-Type: image/gif"
 			print
-			f = open('err.gif')
+			f = open('media/err.gif')
 			print f.read(),
 			f.close()
 		s.close()
 	except Exception:
 		print "Content-Type: image/gif"
 		print
-		f = open('err.gif')
+		f = open('media/err.gif')
 		print f.read(),
 		f.close()
