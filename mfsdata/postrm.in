@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -e
+
+case "${1}" in
+	purge)
+		if [ -x /usr/sbin/deluser ]
+		then
+			deluser --quiet mfs > /dev/null || true
+		fi
+		;;
+		
+		if [[ -d "@DATA_PATH@" ]]
+                then
+			rm -rf "@DATA_PATH@"
+                fi
+
+	remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+
+		;;
+
+	*)
+		echo "postrm called with unknown argument \`${1}'" >&2
+		exit 1
+esac
+
+#DEBHELPER#
+
+exit 0
