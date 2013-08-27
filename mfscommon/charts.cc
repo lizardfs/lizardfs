@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <string>
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #endif
@@ -84,15 +85,16 @@ static uint32_t pointers[RANGES];
 static uint32_t timepoint[RANGES];
 
 //chart times (for subscripts)
-static uint32_t shhour,shmin;
-static uint32_t medhour,medmin;
-static uint32_t lnghalfhour,lngmday,lngmonth,lngyear;
-static uint32_t vlngmday,vlngmonth,vlngyear;
+static uint32_t shortrange_hour,shortrange_minute,shortrange_day,shortrange_month,shortrange_year;
+static uint32_t mediumrange_hour,mediumrange_minute,mediumrange_day,mediumrange_month,mediumrange_year;
+static uint32_t longrange_halfhour,longrange_day,longrange_month,longrange_year;
+static uint32_t verylongrange_day,verylongrange_month,verylongrange_year;
 
 #define RAWSIZE ((1+(((XSIZE)+1)>>1))*(YSIZE))
 #define CBUFFSIZE (((RAWSIZE)*1001)/1000+16)
 
 static uint8_t chart[(XSIZE)*(YSIZE)];
+static std::string csv_data;
 static uint8_t rawchart[RAWSIZE];
 static uint8_t compbuff[CBUFFSIZE];
 static uint32_t compsize=0;
@@ -459,9 +461,10 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	case 11:
 		return 30;
 	case 2:
-		if (year%4) return 28;
-		if (year%100) return 29;
-		if (year%400) return 29;
+		if (year % 400 == 0)
+			return 29;
+		if (year % 4 == 0 && year % 100 != 0)
+			return 29;
 		return 28;
 	}
 	return 0;
@@ -1016,23 +1019,29 @@ void charts_inittimepointers (void) {
 	}
 
 	timepoint[SHORTRANGE] = local / 60;
-	shmin = ts->tm_min;
-	shhour = ts->tm_hour;
+	shortrange_minute = ts->tm_min;
+	shortrange_hour = ts->tm_hour;
+	shortrange_day = ts->tm_mday;
+	shortrange_month = ts->tm_mon + 1;
+	shortrange_year = ts->tm_year + 1900;
 	timepoint[MEDIUMRANGE] = local / (60 * 6);
-	medmin = ts->tm_min;
-	medhour = ts->tm_hour;
+	mediumrange_minute = ts->tm_min;
+	mediumrange_hour = ts->tm_hour;
+	mediumrange_day = ts->tm_mday;
+	mediumrange_month = ts->tm_mon + 1;
+	mediumrange_year = ts->tm_year + 1900;
 	timepoint[LONGRANGE] = local / (60 * 30);
-	lnghalfhour = ts->tm_hour*2;
+	longrange_halfhour = ts->tm_hour*2;
 	if (ts->tm_min>=30) {
-		lnghalfhour++;
+		longrange_halfhour++;
 	}
-	lngmday = ts->tm_mday;
-	lngmonth = ts->tm_mon + 1;
-	lngyear = ts->tm_year + 1900;
+	longrange_day = ts->tm_mday;
+	longrange_month = ts->tm_mon + 1;
+	longrange_year = ts->tm_year + 1900;
 	timepoint[VERYLONGRANGE] = local / (60 * 60 * 24);
-	vlngmday = ts->tm_mday;
-	vlngmonth = ts->tm_mon + 1;
-	vlngyear = ts->tm_year + 1900;
+	verylongrange_day = ts->tm_mday;
+	verylongrange_month = ts->tm_mon + 1;
+	verylongrange_year = ts->tm_year + 1900;
 }
 
 void charts_add (uint64_t *data,uint32_t datats) {
@@ -1067,8 +1076,11 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[SHORTRANGE] = nowtime;
-		shmin = ts->tm_min;
-		shhour = ts->tm_hour;
+		shortrange_minute = ts->tm_min;
+		shortrange_hour = ts->tm_hour;
+		shortrange_day = ts->tm_mday;
+		shortrange_month = ts->tm_mon + 1;
+		shortrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[SHORTRANGE] + LENG + delta) % LENG;
@@ -1100,8 +1112,11 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[MEDIUMRANGE] = nowtime;
-		medmin = ts->tm_min;
-		medhour = ts->tm_hour;
+		mediumrange_minute = ts->tm_min;
+		mediumrange_hour = ts->tm_hour;
+		mediumrange_day = ts->tm_mday;
+		mediumrange_month = ts->tm_mon + 1;
+		mediumrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[MEDIUMRANGE] + LENG + delta) % LENG;
@@ -1134,13 +1149,13 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[LONGRANGE] = nowtime;
-		lnghalfhour = ts->tm_hour*2;
+		longrange_halfhour = ts->tm_hour*2;
 		if (ts->tm_min>=30) {
-			lnghalfhour++;
+			longrange_halfhour++;
 		}
-		lngmday = ts->tm_mday;
-		lngmonth = ts->tm_mon + 1;
-		lngyear = ts->tm_year + 1900;
+		longrange_day = ts->tm_mday;
+		longrange_month = ts->tm_mon + 1;
+		longrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[LONGRANGE] + LENG + delta) % LENG;
@@ -1171,9 +1186,9 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[VERYLONGRANGE] = nowtime;
-		vlngmday = ts->tm_mday;
-		vlngmonth = ts->tm_mon + 1;
-		vlngyear = ts->tm_year + 1900;
+		verylongrange_day = ts->tm_mday;
+		verylongrange_month = ts->tm_mon + 1;
+		verylongrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[VERYLONGRANGE] + LENG + delta) % LENG;
@@ -1431,7 +1446,7 @@ double charts_fixmax(uint64_t max,uint8_t *scale,uint8_t *mode,uint16_t *base) {
 void charts_makechart(uint32_t type,uint32_t range) {
 	static const uint8_t jtab[11]={MICRO,MILI,SPACE,KILO,MEGA,GIGA,TERA,PETA,EXA,ZETTA,YOTTA};
 	int32_t i,j;
-	uint32_t xy,xm,xd,xh,xs,xoff,xbold,ys;
+	uint32_t xyear,xmonth,xday,xhour,xstep,xoff,xbold,ystep;
 	uint64_t max;
 	double dmax;
 	uint64_t d,c1d,c2d,c3d;
@@ -1594,100 +1609,101 @@ void charts_makechart(uint32_t type,uint32_t range) {
 		chart[(XSIZE)*(DATA-i+YPOS)+(XPOS+LENG)] = COLOR_AXIS;
 	}
 	// x scale
-	xy = xm = xd = xh = xs = 0;
+	xyear = xmonth = xday = xhour = xstep = 0;
 	if (range<3) {
 		if (range==2) {
-			xs = 12;
-			xoff = lnghalfhour%12;
+			xstep = 12; //1 pixel = 30 minutes
+			xoff = longrange_halfhour%12;
 			xbold = 4;
-			xh = lnghalfhour/12;
-			xd = lngmday;
-			xm = lngmonth;
-			xy = lngyear;
+			xhour = longrange_halfhour/12;
+			xday = longrange_day;
+			xmonth = longrange_month;
+			xyear = longrange_year;
 		} else if (range==1) {
-			xs = 10;
-			xoff = medmin/6;
+			xstep = 10;  //1 pixel = 6 minutes
+			xoff = mediumrange_minute/6;
 			xbold = 6;
-			xh = medhour;
+			xhour = mediumrange_hour;
 		} else {
-			xs = 60;
-			xoff = shmin;
+			xstep = 60; //1 pixel = 1 minute
+			xoff = shortrange_minute;
 			xbold = 1;
-			xh = shhour;
+			xhour = shortrange_hour;
 		}
-		for (i=LENG-xoff-1 ; i>=0 ; i-=xs) {
-			if (xh%xbold==0) {
-				ys=2;
-				if ((range==0 && xh%6==0) || (range==1 && xh==0) || (range==2 && xd==1)) {
-					ys=1;
+
+		for (i=LENG-xoff-1 ; i>=0 ; i-=xstep) {
+			if (xhour%xbold==0) {
+				ystep=2;
+				if ((range==0 && xhour%6==0) || (range==1 && xhour==0) || (range==2 && xday==1)) {
+					ystep=1;
 				}
 				if (range<2) {
-					text[0]=xh/10;
-					text[1]=xh%10;
+					text[0]=xhour/10;
+					text[1]=xhour%10;
 					text[2]=COLON;
 					text[3]=0;
 					text[4]=0;
 					charts_puttext(XPOS+i-14,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 				} else {
-					text[0]=xm/10;
-					text[1]=xm%10;
+					text[0]=xmonth/10;
+					text[1]=xmonth%10;
 					text[2]=FDOT;
-					text[3]=xd/10;
-					text[4]=xd%10;
+					text[3]=xday/10;
+					text[4]=xday%10;
 					charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
-					xd--;
-					if (xd==0) {
-						xm--;
-						if (xm==0) {
-							xm=12;
-							xy--;
+					xday--;
+					if (xday==0) {
+						xmonth--;
+						if (xmonth==0) {
+							xmonth=12;
+							xyear--;
 						}
-						xd = getmonleng(xy,xm);
+						xday = getmonleng(xyear,xmonth);
 					}
 				}
 				chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
 				chart[(XSIZE)*(YPOS+DATA+2)+(i+XPOS)] = COLOR_AXIS;
 			} else {
-				ys=4;
+				ystep=4;
 			}
-			for (j=0 ; j<DATA ; j+=ys) {
-				if (ys>1 || (j%4)!=0) {
+			for (j=0 ; j<DATA ; j+=ystep) {
+				if (ystep>1 || (j%4)!=0) {
 					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_AUX;
 				}
 			}
 			if (range<2) {
-				if (xh==0) {
-					xh=23;
+				if (xhour==0) {
+					xhour=23;
 				} else {
-					xh--;
+					xhour--;
 				}
 			} else {
-				if (xh==0) {
-					xh=3;
+				if (xhour==0) {
+					xhour=3;
 				} else {
-					xh--;
+					xhour--;
 				}
 			}
 		}
 		if (range==2) {
-			i -= xs*xh;
-			text[0]=xm/10;
-			text[1]=xm%10;
+			i -= xstep*xhour;
+			text[0]=xmonth/10;
+			text[1]=xmonth%10;
 			text[2]=FDOT;
-			text[3]=xd/10;
-			text[4]=xd%10;
+			text[3]=xday/10;
+			text[4]=xday%10;
 			charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 		}
 	} else {
-		xy = lngyear;
-		xm = lngmonth;
-		for (i=LENG-lngmday ; i>=0 ; ) {
-			text[0]=xm/10;
-			text[1]=xm%10;
-			charts_puttext(XPOS+i+(getmonleng(xy,xm)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+		xyear = longrange_year;
+		xmonth = longrange_month;
+		for (i=LENG-longrange_day ; i>=0 ; ) {
+			text[0]=xmonth/10;
+			text[1]=xmonth%10;
+			charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 			chart[(XSIZE)*(YPOS+DATA+1)+(i+XPOS)] = COLOR_AXIS;
 			chart[(XSIZE)*(YPOS+DATA+2)+(i+XPOS)] = COLOR_AXIS;
-			if (xm!=1) {
+			if (xmonth!=1) {
 				for (j=0 ; j<DATA ; j+=2) {
 					chart[(XSIZE)*(j+YPOS)+(i+XPOS)] = COLOR_AUX;
 				}
@@ -1698,16 +1714,16 @@ void charts_makechart(uint32_t type,uint32_t range) {
 					}
 				}
 			}
-			xm--;
-			if (xm==0) {
-				xm=12;
-				xy--;
+			xmonth--;
+			if (xmonth==0) {
+				xmonth=12;
+				xyear--;
 			}
-			i-=getmonleng(xy,xm);
+			i-=getmonleng(xyear,xmonth);
 		}
-		text[0]=xm/10;
-		text[1]=xm%10;
-		charts_puttext(XPOS+i+(getmonleng(xy,xm)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
+		text[0]=xmonth/10;
+		text[1]=xmonth%10;
+		charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
 	}
 	// y scale
 
@@ -1890,6 +1906,96 @@ int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *ds
 }
 #endif /* ! HAVE_ZLIB_H */
 
+
+uint32_t charts_make_csv(uint32_t number) {
+	uint32_t type, range;
+	uint32_t tm_year, tm_mon, tm_day, tm_hour, tm_min, tm_sec;
+	uint64_t c1dispdata[LENG];
+	uint64_t c2dispdata[LENG];
+	uint64_t c3dispdata[LENG];
+	time_t csv_time; /* Unix epoch in this system time_t */
+	struct tm tmepoch;
+	time_t timestamp_step = 0;
+	uint32_t pointer;
+
+	tm_year = tm_mon = tm_day = tm_hour = tm_min = tm_sec = 0;
+
+	type = number / 10;
+	range = number % 10;
+	charts_filltab(c1dispdata, range, type, 1);
+	charts_filltab(c2dispdata, range, type, 2);
+	charts_filltab(c3dispdata, range, type, 3);
+	pointer = pointers[range];
+
+	if (range == 3) {
+		tm_day = verylongrange_day;
+		tm_mon = verylongrange_month;
+		tm_year = verylongrange_year;
+		timestamp_step = 24 * 60 * 60;
+	} else if (range == 2) {
+		tm_min =0;
+		tm_hour = longrange_halfhour/2;
+		tm_day = longrange_day;
+		tm_mon = longrange_month;
+		tm_year = longrange_year;
+		timestamp_step = 30 * 60;
+	} else if (range == 1) {
+		tm_min = mediumrange_minute;
+		tm_hour = mediumrange_hour;
+		tm_day = mediumrange_day;
+		tm_mon = mediumrange_month;
+		tm_year = mediumrange_year;
+		timestamp_step = 6 *60;
+	} else {
+		tm_min = shortrange_minute;
+		tm_hour = shortrange_hour;
+		tm_day = shortrange_day;
+		tm_mon = shortrange_month;
+		tm_year = shortrange_year;
+		timestamp_step = 60;
+	}
+
+	/* Prepare unix time epoch on this system */
+	memset(&tmepoch, 0 ,sizeof tmepoch);
+	tmepoch.tm_year = tm_year-1900;
+	tmepoch.tm_mon = tm_mon-1;
+	tmepoch.tm_mday = tm_day;
+	tmepoch.tm_hour = tm_hour;
+	tmepoch.tm_min = tm_min;
+	tmepoch.tm_sec = 0;
+	csv_time = mktime(&tmepoch);
+
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+	csv_time += tmepoch.tm_gmtoff;
+#endif
+	csv_data ="timestamp,,,\n";
+	char buffer[50];
+	int z;
+	for(int i = 0; i < LENG; i++) {
+		z = (i + pointer + 1) % LENG;
+
+		sprintf(buffer, "%" PRIu64 "", csv_time -(LENG-i-1) * timestamp_step);
+		csv_data += buffer;
+		csv_data += ",";
+		if(c1dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c1dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",";
+		if(c2dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c2dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",";
+		if(c3dispdata[z] != CHARTS_NODATA){
+			sprintf(buffer, "%" PRIu64 "", c3dispdata[z]);
+			csv_data += buffer;
+		}
+		csv_data += ",\n";
+	}
+	return csv_data.length();
+}
+
 uint32_t charts_make_png(uint32_t number) {
 	uint32_t chtype,chrange;
 	chtype = number / 10;
@@ -1937,6 +2043,10 @@ uint32_t charts_make_png(uint32_t number) {
 #endif /* HAVE_ZLIB_H */
 
 	return sizeof(png_header)+compsize+sizeof(png_tailer);
+}
+
+void charts_get_csv(uint8_t *buff) {
+		memcpy(buff,csv_data.c_str(),csv_data.length());
 }
 
 void charts_get_png(uint8_t *buff) {
