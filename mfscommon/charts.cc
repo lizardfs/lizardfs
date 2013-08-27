@@ -42,6 +42,7 @@
 #include "datapack.h"
 #include "massert.h"
 #include "slogger.h"
+#include "time_constants.h"
 
 #define USE_NET_ORDER 1
 
@@ -63,9 +64,6 @@ enum Ranges
 	RANGES			,
 };
 
-const int kMinute = 60;
-const int kHour = 60 * 60;
-const int kHoursInDay = 24;
 
 #define CHARTS_DEF_IS_DIRECT(x) ((x)>=CHARTS_DIRECT_START && (x)<CHARTS_DIRECT_START+statdefscount)
 #define CHARTS_DIRECT_POS(x) ((x)-CHARTS_DIRECT_START)
@@ -93,7 +91,7 @@ static uint32_t pointers[RANGES];
 static uint32_t timepoint[RANGES];
 
 //chart times (for subscripts)
-static uint32_t rtsec,rtmin,rthour,rtday,rtmonth,rtyear;
+static uint32_t realtimerange_second,realtimerange_minute,realtimerange_hour,realtimerange_day,realtimerange_month,realtimerange_year;
 static uint32_t shortrange_hour,shortrange_minute,shortrange_day,shortrange_month,shortrange_year;
 static uint32_t mediumrange_hour,mediumrange_minute,mediumrange_day,mediumrange_month,mediumrange_year;
 static uint32_t longrange_halfhour,longrange_day,longrange_month,longrange_year;
@@ -505,7 +503,7 @@ void charts_store (void) {
 	put32bit(&ptr,LENG);
 	put32bit(&ptr,statdefscount);
 	put32bit(&ptr,timepoint[SHORT_RANGE]);
-	if (write(fd,(void*)hdr,16)!=16) {
+	if (write(fd,(void*)hdr,sizeof(hdr))!=sizeof(hdr)) {
 		mfs_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
@@ -515,7 +513,7 @@ void charts_store (void) {
 	hdr[1]=LENG;
 	hdr[2]=statdefscount;
 	hdr[3]=timepoint[SHORT_RANGE];
-	if (write(fd,(void*)hdr,sizeof(uint32_t)*4)!=sizeof(uint32_t)*4) {
+	if (write(fd,(void*)hdr,sizeof(hdr)!=sizeof(hdr) {
 		mfs_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
@@ -566,7 +564,7 @@ int charts_import_from_old_4ranges_format(int fd) {
 	uint32_t hdr[21];
 	uint32_t i,j,p,fleng,fcharts;
 	uint64_t *tab;
-	if (read(fd,(void*)hdr,sizeof(uint32_t)*21)!=(ssize_t)(sizeof(uint32_t)*21)) {
+	if (read(fd,(void*)hdr,sizeof(hdr))!=sizeof(hdr)) {
 		return -1;
 	}
 	fcharts = hdr[0];
@@ -1028,14 +1026,14 @@ void charts_inittimepointers (void) {
 	}
 
 	timepoint[REALTIME] = local;
-	rtsec = ts->tm_sec;
-	rtmin = ts->tm_min;
-	rthour = ts->tm_hour;
-	rtmin = ts->tm_min;
-	rthour = ts->tm_hour;
-	rtday = ts->tm_mday;
-	rtmonth = ts->tm_mon + 1;
-	rtyear = ts->tm_year + 1900;
+	realtimerange_second = ts->tm_sec;
+	realtimerange_minute = ts->tm_min;
+	realtimerange_hour = ts->tm_hour;
+	realtimerange_minute = ts->tm_min;
+	realtimerange_hour = ts->tm_hour;
+	realtimerange_day = ts->tm_mday;
+	realtimerange_month = ts->tm_mon + 1;
+	realtimerange_year = ts->tm_year + 1900;
 	timepoint[SHORT_RANGE] = local / kMinute;
 	shortrange_minute = ts->tm_min;
 	shortrange_hour = ts->tm_hour;
@@ -1092,8 +1090,8 @@ void charts_add (uint64_t* data, uint32_t datats, bool add_realtime_data, bool a
 				delta--;
 			}
 			timepoint[REALTIME] = nowtime;
-			rtmin = ts->tm_min;
-			rthour = ts->tm_hour;
+			realtimerange_minute = ts->tm_min;
+			realtimerange_hour = ts->tm_hour;
 		}
 		if (delta<=0 && delta>-LENG && data) {
 			i = (pointers[REALTIME] + LENG + delta) % LENG;
@@ -1670,10 +1668,10 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	
 	if (range == REALTIME) {
 		xstep = kMinute;
-		xoff = rtsec;//fix
+		xoff = realtimerange_second;//fix
 		xbold = 1;
-		xhour = rthour;
-		xminute = rtmin;
+		xhour = realtimerange_hour;
+		xminute = realtimerange_minute;
 		ystep=2;
 		
 		for (i=LENG-xoff-1 ; i>=0 ; i-=xstep) {
@@ -1887,16 +1885,16 @@ void charts_makedata(uint8_t *buff,uint32_t number) {
 		ts = timepoint[chrange];
 		switch (chrange) {
             case SHORT_RANGE:
-				ts *= 60;
+				ts *= kMinute;
 				break;
             case MEDIUM_RANGE:
-				ts *= 60*6;
+				ts *= 6 * kMinute;
 				break;
             case LONG_RANGE:
-				ts *= 60*30;
+				ts *= 30 * kMinute;
 				break;
             case VERY_LONG_RANGE:
-				ts *= 60*60*24;
+				ts *= kSecondsInDay;
 				break;
 		}
 		put32bit(&buff,ts);
@@ -2007,7 +2005,7 @@ int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *ds
 
 uint32_t charts_make_csv(uint32_t number) {
 	uint32_t type, range;
-	uint32_t tm_year, tm_mon, tm_day, tm_hour, tm_min, tm_sec;
+	uint32_t tm_year, tm_month, tm_day, tm_hour, tm_minute, tm_second;
 	uint64_t c1dispdata[LENG];
 	uint64_t c2dispdata[LENG];
 	uint64_t c3dispdata[LENG];
@@ -2016,7 +2014,7 @@ uint32_t charts_make_csv(uint32_t number) {
 	time_t timestamp_step = 0;
 	uint32_t pointer;
 
-	tm_year = tm_mon = tm_day = tm_hour = tm_min = tm_sec = 0;
+	tm_year = tm_month = tm_day = tm_hour = tm_minute = tm_second = 0;
 
 	type = number / 10;
 	range = number % 10;
@@ -2027,48 +2025,48 @@ uint32_t charts_make_csv(uint32_t number) {
 
 	if (range == VERY_LONG_RANGE) {
 		tm_day = verylongrange_day;
-		tm_mon = verylongrange_month;
+		tm_month = verylongrange_month;
 		tm_year = verylongrange_year;
-		timestamp_step = 24 * 60 * 60;
+		timestamp_step = kSecondsInDay;
 	} else if (range == LONG_RANGE) {
-		tm_min =0;
+		tm_minute = 0;
 		tm_hour = longrange_halfhour/2;
 		tm_day = longrange_day;
-		tm_mon = longrange_month;
+		tm_month = longrange_month;
 		tm_year = longrange_year;
-		timestamp_step = 30 * 60;
+		timestamp_step = 30 * kHour;
 	} else if (range == MEDIUM_RANGE) {
-		tm_min = mediumrange_minute;
+		tm_minute = mediumrange_minute;
 		tm_hour = mediumrange_hour;
 		tm_day = mediumrange_day;
-		tm_mon = mediumrange_month;
+		tm_month = mediumrange_month;
 		tm_year = mediumrange_year;
-		timestamp_step = 6 *60;
+		timestamp_step = 6 * kMinute;
 	} else if (range == SHORT_RANGE) {
-		tm_min = shortrange_minute;
+		tm_minute = shortrange_minute;
 		tm_hour = shortrange_hour;
 		tm_day = shortrange_day;
-		tm_mon = shortrange_month;
+		tm_month = shortrange_month;
 		tm_year = shortrange_year;
-		timestamp_step = 60;
+		timestamp_step = kMinute;
 	} else {
-	tm_min = rtsec;
-	tm_min = rtmin;
-	tm_hour = rthour;
-	tm_day = rtday;
-	tm_mon = rtmonth;
-	tm_year = rtyear;
-	timestamp_step = 1;
-}
+		tm_second = realtimerange_second;
+		tm_minute = realtimerange_minute;
+		tm_hour = realtimerange_hour;
+		tm_day = realtimerange_day;
+		tm_month = realtimerange_month;
+		tm_year = realtimerange_year;
+		timestamp_step = 1;
+	}
 
 	/* Prepare unix time epoch on this system */
 	memset(&tmepoch, 0 ,sizeof tmepoch);
 	tmepoch.tm_year = tm_year-1900;
-	tmepoch.tm_mon = tm_mon-1;
+	tmepoch.tm_mon = tm_month-1;
 	tmepoch.tm_mday = tm_day;
 	tmepoch.tm_hour = tm_hour;
-	tmepoch.tm_min = tm_min;
-	tmepoch.tm_sec = 0;
+	tmepoch.tm_min = tm_minute;
+	tmepoch.tm_sec = tm_second;
 	csv_time = mktime(&tmepoch);
 
 #ifdef HAVE_STRUCT_TM_TM_GMTOFF

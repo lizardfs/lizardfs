@@ -873,20 +873,20 @@ void matoclserv_chart(matoclserventry *eptr,const uint8_t *data,uint32_t length)
 	}
 }
 
-void matoclserv_chart_data(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_chart_data(matoclserventry *eptr,const uint8_t *data,uint32_t data_length) {
 	uint32_t chartid;
 	uint8_t *ptr;
-	uint32_t l;
+	uint32_t length;
 
-	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
+	if (data_length!=4) {
+		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",data_length);
 		eptr->mode = KILL;
 		return;
 	}
 	chartid = get32bit(&data);
-	l = charts_datasize(chartid);
-	ptr = matoclserv_createpacket(eptr,ANTOCL_CHART_DATA,l);
-	if (l>0) {
+	length = charts_datasize(chartid);
+	ptr = matoclserv_createpacket(eptr,ANTOCL_CHART_DATA,length);
+	if (length>0) {
 		charts_makedata(ptr,chartid);
 	}
 }

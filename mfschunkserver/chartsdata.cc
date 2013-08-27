@@ -36,6 +36,7 @@
 #include "masterconn.h"
 #include "hddspacemgr.h"
 #include "replicator.h"
+#include "time_constants.h"
 
 #define CHARTS_FILENAME "csstats.mfs"
 
@@ -124,9 +125,6 @@
 	{CHARTS_NONE                       ,CHARTS_NONE                       ,CHARTS_NONE                       ,0              ,0,0                 ,   0, 0}  \
 };
 
-const uint32_t kSecond = 1;
-const uint32_t kMinute = 60;
-const uint32_t kHour = 3600;
 
 static const uint32_t calcdefs[]=CALCDEFS
 static const statdef statdefs[]=STATDEFS

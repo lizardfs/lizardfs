@@ -62,36 +62,42 @@
 #include "chunks.h"
 #include "filesystem.h"
 #include "matoclserv.h"
+#include "time_constants.h"
 
 #define CHARTS_FILENAME "stats.mfs"
 
-#define CHARTS_UCPU 0
-#define CHARTS_SCPU 1
-#define CHARTS_DELCHUNK 2
-#define CHARTS_REPLCHUNK 3
-#define CHARTS_STATFS 4
-#define CHARTS_GETATTR 5
-#define CHARTS_SETATTR 6
-#define CHARTS_LOOKUP 7
-#define CHARTS_MKDIR 8
-#define CHARTS_RMDIR 9
-#define CHARTS_SYMLINK 10
-#define CHARTS_READLINK 11
-#define CHARTS_MKNOD 12
-#define CHARTS_UNLINK 13
-#define CHARTS_RENAME 14
-#define CHARTS_LINK 15
-#define CHARTS_READDIR 16
-#define CHARTS_OPEN 17
-#define CHARTS_READ 18
-#define CHARTS_WRITE 19
-#define CHARTS_MEMORY 20
-#define CHARTS_PACKETSRCVD 21
-#define CHARTS_PACKETSSENT 22
-#define CHARTS_BYTESRCVD 23
-#define CHARTS_BYTESSENT 24
+enum CHARTS_TYPES
+{
+	CHARTS_UCPU = 0,
+	CHARTS_SCPU ,
+	CHARTS_DELCHUNK ,
+	CHARTS_REPLCHUNK ,
+	CHARTS_STATFS ,
+	CHARTS_GETATTR ,
+	CHARTS_SETATTR ,
+	CHARTS_LOOKUP ,
+	CHARTS_MKDIR ,
+	CHARTS_RMDIR ,
+	CHARTS_SYMLINK ,
+	CHARTS_READLINK ,
+	CHARTS_MKNOD ,
+	CHARTS_UNLINK ,
+	CHARTS_RENAME ,
+	CHARTS_LINK ,
+	CHARTS_READDIR ,
+	CHARTS_OPEN ,
+	CHARTS_READ ,
+	CHARTS_WRITE ,
+	CHARTS_MEMORY ,
+	CHARTS_PACKETSRCVD ,
+	CHARTS_PACKETSSENT ,
+	CHARTS_BYTESRCVD ,
+	CHARTS_BYTESSENT ,
 
-#define CHARTS 25
+	CHARTS ,
+};
+
+
 
 /* name , join mode , percent , scale , multiplier , divisor */
 #define STATDEFS { \
@@ -137,9 +143,6 @@ static const uint32_t calcdefs[]=CALCDEFS
 static const statdef statdefs[]=STATDEFS
 static const estatdef estatdefs[]=ESTATDEFS
 
-const uint32_t kSecond = 1;
-const uint32_t kMinute = 60;
-const uint32_t kHour = 3600;
 
 #ifdef CPU_USAGE
 static struct itimerval it_set;
@@ -223,11 +226,11 @@ void chartsdata_refresh(void) {
 	if (memusage==0) {
 		int fd = open("/proc/self/statm",O_RDONLY);
 		char statbuff[1000];
-		int l;
+		int length;
 		if (fd>=0) {
-			l = read(fd,statbuff,1000);
-			if (l<1000 && l>0) {
-				statbuff[l]=0;
+			length = read(fd,statbuff,1000);
+			if (length<1000 && length>0) {
+				statbuff[length]=0;
 				memusage = strtoul(statbuff,NULL,10)*getpagesize();
 			}
 			close(fd);
@@ -243,8 +246,8 @@ void chartsdata_refresh(void) {
 	data_realtime[CHARTS_DELCHUNK]=del;
 	data_realtime[CHARTS_REPLCHUNK]=repl;
 	fs_stats(fsdata);
-	for (i=0 ; i<16 ; i++) {
-		data_realtime[CHARTS_STATFS+i]=fsdata[i];
+	for (i=CHARTS_STATFS ; i<=CHARTS_WRITE ; i++) {
+		data_realtime[i]=fsdata[i-CHARTS_STATFS];
 	}
 	matoclserv_stats(data_realtime+CHARTS_PACKETSRCVD);
 
