@@ -124,8 +124,8 @@ int cs_read(int fd, uint64_t chunkid, uint32_t version, uint32_t offset,
 				syslog(LOG_NOTICE,"cs read; READ_DATA incorrect offset (got:%" PRIu16 " expected:%" PRIu32 ")", readoffset,  offset);
 				return -1;
 			}
-			if (readsize != size) {
-				syslog(LOG_NOTICE,"cs read; READ_DATA incorrect size (got:%" PRIu32 " expected:%" PRIu32 ")", readsize, size);
+			if (readsize > size) {
+				syslog(LOG_NOTICE,"cs read; READ_DATA incorrect size (got:%" PRIu32 " requested:%" PRIu32 ")", readsize, size);
 				return -1;
 			}
 			if (tcptoread(fd, buff, readsize, CSMSECTIMEOUT)
@@ -134,16 +134,14 @@ int cs_read(int fd, uint64_t chunkid, uint32_t version, uint32_t offset,
 						strerr(errno));
 				return -1;
 			}
-
-      /*
 			if (mycrc32(0, buff, readsize) != readcrc) {
 				syslog(LOG_NOTICE,"cs read; READ_DATA crc checksum error");
 				return -1;
 			}
-      */
 
 			size -= readsize;
 			buff += readsize;
+			offset += readsize;
 		} else if (cmd == ANTOAN_NOP) {
 			if (l != 0) {
 				syslog(LOG_NOTICE,"cs read; NOP incorrect message size (%" PRIu32 "/0)",l);

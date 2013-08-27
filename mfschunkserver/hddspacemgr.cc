@@ -1915,7 +1915,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size,
 	if (offset % MFSBLOCKSIZE != 0) {
 		return ERROR_WRONGOFFSET;
 	}
-	if (size % MFSBLOCKSIZE != 0) {
+	if (size != MFSBLOCKSIZE) {
 		return ERROR_WRONGSIZE;
 	}
 
@@ -1928,24 +1928,15 @@ int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size,
 		return ERROR_WRONGVERSION;
 	}
 
-	// TODO(alek) crc_combine blokow
-	uint32_t tmp_crc = 0xFEDCBA98;
-	outputBuffer->copyIntoBuffer(&tmp_crc, sizeof(tmp_crc));
+	// Put checksum of the block into buffer
+	uint16_t blockNr = offset / MFSBLOCKSIZE;
+	outputBuffer->copyIntoBuffer(c->crc + blockNr * sizeof(uint32_t), sizeof(uint32_t));
 
-	uint16_t blockNr = offset >> MFSBLOCKBITS;
-	while (size > 0) {
-		int status = hdd_read_block(c, blockNr, outputBuffer);
-		PRINTTHIS(status);
-		if (status != STATUS_OK) {
-			hdd_chunk_release(c);
-			return status;
-		}
-		size -= MFSBLOCKSIZE;
-		blockNr++;
-	}
-
+	// Put the block data into buffer
+	int status = hdd_read_block(c, blockNr, outputBuffer);
+	PRINTTHIS(status);
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return status;
 }
 
 int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {

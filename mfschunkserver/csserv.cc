@@ -405,6 +405,9 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
 		size = eptr->size;
+		if (size > MFSBLOCKSIZE) {
+			size = MFSBLOCKSIZE;
+		}
 		packetstruct* ps = csserv_create_detached_packet(CSTOCL_READ_DATA, 8 + 4 + 4 + 4 + size);
 		eptr->rpacket = (void*)ps;
 
