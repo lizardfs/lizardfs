@@ -4,14 +4,14 @@
 
 #define	distro	rh
 
-Summary:	MooseFS - distributed, fault tolerant file system
+Summary:	LizardFS - distributed, fault tolerant file system
 Name:		mfs
 Version:	1.6.27
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
-URL:		http://www.moosefs.com/
-Source0:	http://moosefs.com/tl_files/mfscode/%{name}-%{version}.tar.gz
+URL:		http://www.lizardfs.com/
+Source0:	http://lizardfs.com/lizardfs-code/%{name}-%{version}.tar.gz
 BuildRequires:	fuse-devel
 BuildRequires:	pkgconfig
 BuildRequires:	zlib-devel
@@ -21,52 +21,52 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %define		mfsconfdir	%{_sysconfdir}/mfs
 
 %description
-MooseFS is an Open Source, easy to deploy and maintain, distributed,
+LizardFS is an Open Source, easy to deploy and maintain, distributed,
 fault tolerant file system for POSIX compliant OSes.
 
 %package master
-Summary:	MooseFS master server
+Summary:	LizardFS master server
 Group:		System Environment/Daemons
 
 %description master
-MooseFS master (metadata) server together with metarestore utility.
+LizardFS master (metadata) server together with metarestore utility.
 
 %package metalogger
-Summary:	MooseFS metalogger server
+Summary:	LizardFS metalogger server
 Group:		System Environment/Daemons
 
 %description metalogger
-MooseFS metalogger (metadata replication) server.
+LizardFS metalogger (metadata replication) server.
 
 %package chunkserver
-Summary:	MooseFS data server
+Summary:	LizardFS data server
 Group:		System Environment/Daemons
 
 %description chunkserver
-MooseFS data server.
+LizardFS data server.
 
 %package client
-Summary:	MooseFS client
+Summary:	LizardFS client
 Group:		System Environment/Daemons
 
 %description client
-MooseFS client: mfsmount and mfstools.
+LizardFS client: mfsmount and mfstools.
 
 %package cgi
-Summary:	MooseFS CGI Monitor
+Summary:	LizardFS CGI Monitor
 Group:		System Environment/Daemons
 Requires:	python
 
 %description cgi
-MooseFS CGI Monitor.
+LizardFS CGI Monitor.
 
 %package cgiserv
-Summary:	Simple CGI-capable HTTP server to run MooseFS CGI Monitor
+Summary:	Simple CGI-capable HTTP server to run LizardFS CGI Monitor
 Group:		System Environment/Daemons
 Requires:	%{name}-cgi = %{version}-%{release}
 
 %description cgiserv
-Simple CGI-capable HTTP server to run MooseFS CGI Monitor.
+Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
 
 %prep
 %setup -q
@@ -102,8 +102,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man5/mfsexports.cfg.5*
 %{_mandir}/man5/mfstopology.cfg.5*
 %{_mandir}/man5/mfsmaster.cfg.5*
-%{_mandir}/man7/mfs.7*
-%{_mandir}/man7/moosefs.7*
+%{_mandir}/man7/lfs.7*
+%{_mandir}/man7/lizardfs.7*
 %{_mandir}/man8/mfsmaster.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{mfsconfdir}/mfsexports.cfg.dist
@@ -181,7 +181,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/mfssettrashtime.1*
 %{_mandir}/man1/mfstools.1*
 %{_mandir}/man7/mfs.7*
-%{_mandir}/man7/moosefs.7*
+%{_mandir}/man7/lizardfs.7*
 %{_mandir}/man8/mfsmount.8*
 %{mfsconfdir}/mfsmount.cfg.dist
 
