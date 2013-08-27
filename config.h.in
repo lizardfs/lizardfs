@@ -21,6 +21,8 @@
 #define DEFAULT_USER "@DEFAULT_USER@"
 #define DEFAULT_GROUP "@DEFAULT_GROUP@"
 
+#define CHARTS_CSV_CHARTID_BASE @CHARTS_CSV_CHARTID_BASE@
+
 /* [CMake] Includes */
 #cmakedefine HAVE_ARPA_INET_H
 #cmakedefine HAVE_FCNTL_H

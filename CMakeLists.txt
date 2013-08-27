@@ -71,6 +71,8 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
+set(CHARTS_CSV_CHARTID_BASE 90000)
+
 ## All the environment tests (libs, includes, etc.) live here:
 include(EnvTests.cmake)
 

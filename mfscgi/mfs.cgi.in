@@ -61,7 +61,7 @@ except Exception:
 
 thsep = ''
 html_thsep = ''
-CHARTS_CSV_CHARTID_BASE = 90000
+CHARTS_CSV_CHARTID_BASE = @CHARTS_CSV_CHARTID_BASE@
 
 def htmlentities(str):
 	return str.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace("'",'&apos;').replace('"','&quot;')

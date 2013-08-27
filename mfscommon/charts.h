@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#define CHARTS_CSV_CHARTID_BASE 90000
 
 #define CHARTS_MODE_ADD 0
 #define CHARTS_MODE_MAX 1
