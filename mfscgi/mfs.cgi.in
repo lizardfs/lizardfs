@@ -168,7 +168,7 @@ except Exception:
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 	print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-	print """<link rel="stylesheet" href="css/lizard.css" type="text/css" />"""
+	print """<link rel="stylesheet" href="/css/lizard.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
 	print """<h1 align="center">Can't connect to MFS master (IP:%s ; PORT:%u)</h1>""" % (htmlentities(masterhost),masterport)
@@ -185,7 +185,7 @@ if masterversion==(0,0,0):
 	print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 	print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-	print """<link rel="stylesheet" href="css/lizard.css" type="text/css" />"""
+	print """<link rel="stylesheet" href="/css/lizard.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
 	print """<h1 align="center">Can't detect MFS master version</h1>"""
@@ -251,7 +251,7 @@ if fields.has_key("CSremove"):
 		print """<meta http-equiv="Refresh" content="0; url=%s" />""" % url
 		print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-		print """<link rel="stylesheet" href="css/lizard.css" type="text/css" />"""
+		print """<link rel="stylesheet" href="/css/lizard.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
 		print """<h1 align="center"><a href="%s">If you see this then it means that redirection didn't work, so click here</a></h1>"""
@@ -267,7 +267,7 @@ if fields.has_key("CSremove"):
 		print """<meta http-equiv="Refresh" content="5; url=%s" />""" % url
 		print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 		print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-		print """<link rel="stylesheet" href="css/lizard.css" type="text/css" />"""
+		print """<link rel="stylesheet" href="/css/lizard.css" type="text/css" />"""
 		print """</head>"""
 		print """<body>"""
 		print """<h3 align="center">Can't remove server (%s) from list - wait 5 seconds for refresh</h3>""" % fields.getvalue("CSremove")
@@ -332,7 +332,7 @@ print """<head>"""
 print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
 print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-print """<link rel="stylesheet" href="css/lizard.css" type="text/css" />"""
+print """<link rel="stylesheet" href="/css/lizard.css" type="text/css" />"""
 print """</head>"""
 print """<body>"""
 
