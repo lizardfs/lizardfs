@@ -81,7 +81,7 @@ else:
 				print "Content-Type: image/gif"
 				f = open('err.gif')
 				print f.read(),
-				f.close() 
+				f.close()
 		else:
 			print "Content-Type: image/gif"
 			print

@@ -85,10 +85,10 @@ static uint32_t pointers[RANGES];
 static uint32_t timepoint[RANGES];
 
 //chart times (for subscripts)
-static uint32_t shhour,shmin,shday,shmonth,shyear;
-static uint32_t medhour,medmin,medday,medmonth,medyear;
-static uint32_t lnghalfhour,lngmday,lngmonth,lngyear;
-static uint32_t vlngmday,vlngmonth,vlngyear;
+static uint32_t shortrange_hour,shortrange_minute,shortrange_day,shortrange_month,shortrange_year;
+static uint32_t mediumrange_hour,mediumrange_minute,mediumrange_day,mediumrange_month,mediumrange_year;
+static uint32_t longrange_halfhour,longrange_day,longrange_month,longrange_year;
+static uint32_t verylongrange_day,verylongrange_month,verylongrange_year;
 
 #define RAWSIZE ((1+(((XSIZE)+1)>>1))*(YSIZE))
 #define CBUFFSIZE (((RAWSIZE)*1001)/1000+16)
@@ -1019,30 +1019,29 @@ void charts_inittimepointers (void) {
 	}
 
 	timepoint[SHORTRANGE] = local / 60;
-	shmin = ts->tm_min;
-	shhour = ts->tm_hour;
-	shhour = ts->tm_hour;
-	shday = ts->tm_mday;
-	shmonth = ts->tm_mon + 1;
-	shyear = ts->tm_year + 1900;
+	shortrange_minute = ts->tm_min;
+	shortrange_hour = ts->tm_hour;
+	shortrange_day = ts->tm_mday;
+	shortrange_month = ts->tm_mon + 1;
+	shortrange_year = ts->tm_year + 1900;
 	timepoint[MEDIUMRANGE] = local / (60 * 6);
-	medmin = ts->tm_min;
-	medhour = ts->tm_hour;
-	medday = ts->tm_mday;
-	medmonth = ts->tm_mon + 1;
-	medyear = ts->tm_year + 1900;
+	mediumrange_minute = ts->tm_min;
+	mediumrange_hour = ts->tm_hour;
+	mediumrange_day = ts->tm_mday;
+	mediumrange_month = ts->tm_mon + 1;
+	mediumrange_year = ts->tm_year + 1900;
 	timepoint[LONGRANGE] = local / (60 * 30);
-	lnghalfhour = ts->tm_hour*2;
+	longrange_halfhour = ts->tm_hour*2;
 	if (ts->tm_min>=30) {
-		lnghalfhour++;
+		longrange_halfhour++;
 	}
-	lngmday = ts->tm_mday;
-	lngmonth = ts->tm_mon + 1;
-	lngyear = ts->tm_year + 1900;
+	longrange_day = ts->tm_mday;
+	longrange_month = ts->tm_mon + 1;
+	longrange_year = ts->tm_year + 1900;
 	timepoint[VERYLONGRANGE] = local / (60 * 60 * 24);
-	vlngmday = ts->tm_mday;
-	vlngmonth = ts->tm_mon + 1;
-	vlngyear = ts->tm_year + 1900;
+	verylongrange_day = ts->tm_mday;
+	verylongrange_month = ts->tm_mon + 1;
+	verylongrange_year = ts->tm_year + 1900;
 }
 
 void charts_add (uint64_t *data,uint32_t datats) {
@@ -1077,11 +1076,11 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[SHORTRANGE] = nowtime;
-		shmin = ts->tm_min;
-		shhour = ts->tm_hour;
-		shday = ts->tm_mday;
-		shmonth = ts->tm_mon + 1;
-		shyear = ts->tm_year + 1900;
+		shortrange_minute = ts->tm_min;
+		shortrange_hour = ts->tm_hour;
+		shortrange_day = ts->tm_mday;
+		shortrange_month = ts->tm_mon + 1;
+		shortrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[SHORTRANGE] + LENG + delta) % LENG;
@@ -1113,11 +1112,11 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[MEDIUMRANGE] = nowtime;
-		medmin = ts->tm_min;
-		medhour = ts->tm_hour;
-		medday = ts->tm_mday;
-		medmonth = ts->tm_mon + 1;
-		medyear = ts->tm_year + 1900;
+		mediumrange_minute = ts->tm_min;
+		mediumrange_hour = ts->tm_hour;
+		mediumrange_day = ts->tm_mday;
+		mediumrange_month = ts->tm_mon + 1;
+		mediumrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[MEDIUMRANGE] + LENG + delta) % LENG;
@@ -1150,13 +1149,13 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[LONGRANGE] = nowtime;
-		lnghalfhour = ts->tm_hour*2;
+		longrange_halfhour = ts->tm_hour*2;
 		if (ts->tm_min>=30) {
-			lnghalfhour++;
+			longrange_halfhour++;
 		}
-		lngmday = ts->tm_mday;
-		lngmonth = ts->tm_mon + 1;
-		lngyear = ts->tm_year + 1900;
+		longrange_day = ts->tm_mday;
+		longrange_month = ts->tm_mon + 1;
+		longrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[LONGRANGE] + LENG + delta) % LENG;
@@ -1187,9 +1186,9 @@ void charts_add (uint64_t *data,uint32_t datats) {
 			delta--;
 		}
 		timepoint[VERYLONGRANGE] = nowtime;
-		vlngmday = ts->tm_mday;
-		vlngmonth = ts->tm_mon + 1;
-		vlngyear = ts->tm_year + 1900;
+		verylongrange_day = ts->tm_mday;
+		verylongrange_month = ts->tm_mon + 1;
+		verylongrange_year = ts->tm_year + 1900;
 	}
 	if (delta<=0 && delta>-LENG && data) {
 		i = (pointers[VERYLONGRANGE] + LENG + delta) % LENG;
@@ -1614,22 +1613,22 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	if (range<3) {
 		if (range==2) {
 			xstep = 12; //1 pixel = 30 minutes
-			xoff = lnghalfhour%12;
+			xoff = longrange_halfhour%12;
 			xbold = 4;
-			xhour = lnghalfhour/12;
-			xday = lngmday;
-			xmonth = lngmonth;
-			xyear = lngyear;
+			xhour = longrange_halfhour/12;
+			xday = longrange_day;
+			xmonth = longrange_month;
+			xyear = longrange_year;
 		} else if (range==1) {
 			xstep = 10;  //1 pixel = 6 minutes
-			xoff = medmin/6; // offset
+			xoff = mediumrange_minute/6;
 			xbold = 6;
-			xhour = medhour;
+			xhour = mediumrange_hour;
 		} else {
 			xstep = 60; //1 pixel = 1 minute
-			xoff = shmin;
+			xoff = shortrange_minute;
 			xbold = 1;
-			xhour = shhour; //hours
+			xhour = shortrange_hour;
 		}
 
 		for (i=LENG-xoff-1 ; i>=0 ; i-=xstep) {
@@ -1696,9 +1695,9 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			charts_puttext(XPOS+i+10,(YPOS+DATA)+4,COLOR_TEXT,text,5,XPOS-1,XPOS+LENG,0,YSIZE-1);
 		}
 	} else {
-		xyear = lngyear;
-		xmonth = lngmonth;
-		for (i=LENG-lngmday ; i>=0 ; ) {
+		xyear = longrange_year;
+		xmonth = longrange_month;
+		for (i=LENG-longrange_day ; i>=0 ; ) {
 			text[0]=xmonth/10;
 			text[1]=xmonth%10;
 			charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);
@@ -1929,30 +1928,30 @@ uint32_t charts_make_csv(uint32_t number) {
 	pointer = pointers[range];
 
 	if (range == 3) {
-		tm_day = vlngmday;
-		tm_mon = vlngmonth;
-		tm_year = vlngyear;
+		tm_day = verylongrange_day;
+		tm_mon = verylongrange_month;
+		tm_year = verylongrange_year;
 		timestamp_step = 24 * 60 * 60;
 	} else if (range == 2) {
 		tm_min =0;
-		tm_hour = lnghalfhour/2;
-		tm_day = lngmday;
-		tm_mon = lngmonth;
-		tm_year = lngyear;
+		tm_hour = longrange_halfhour/2;
+		tm_day = longrange_day;
+		tm_mon = longrange_month;
+		tm_year = longrange_year;
 		timestamp_step = 30 * 60;
 	} else if (range == 1) {
-		tm_min = medmin;
-		tm_hour = medhour;
-		tm_day = medday;
-		tm_mon = medmonth;
-		tm_year = medyear;
+		tm_min = mediumrange_minute;
+		tm_hour = mediumrange_hour;
+		tm_day = mediumrange_day;
+		tm_mon = mediumrange_month;
+		tm_year = mediumrange_year;
 		timestamp_step = 6 *60;
 	} else {
-		tm_min = shmin;
-		tm_hour = shhour;
-		tm_day = shday;
-		tm_mon = shmonth;
-		tm_year = shyear;
+		tm_min = shortrange_minute;
+		tm_hour = shortrange_hour;
+		tm_day = shortrange_day;
+		tm_mon = shortrange_month;
+		tm_year = shortrange_year;
 		timestamp_step = 60;
 	}
 
