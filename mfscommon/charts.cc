@@ -1090,8 +1090,12 @@ void charts_add (uint64_t* data, uint32_t datats, bool add_realtime_data, bool a
 				delta--;
 			}
 			timepoint[REALTIME] = nowtime;
+			realtimerange_second = ts->tm_sec;
 			realtimerange_minute = ts->tm_min;
 			realtimerange_hour = ts->tm_hour;
+			realtimerange_day = ts->tm_mday;
+			realtimerange_month = ts->tm_mon + 1;
+			realtimerange_year = ts->tm_year + 1900;
 		}
 		if (delta<=0 && delta>-LENG && data) {
 			i = (pointers[REALTIME] + LENG + delta) % LENG;
