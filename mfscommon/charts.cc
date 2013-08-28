@@ -2008,7 +2008,7 @@ int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *ds
 
 
 uint32_t charts_make_csv(uint32_t number) {
-	uint32_t type, range;
+	uint32_t type, range, statid;
 	uint32_t tm_year, tm_month, tm_day, tm_hour, tm_minute, tm_second;
 	uint64_t c1dispdata[LENG];
 	uint64_t c2dispdata[LENG];
@@ -2076,7 +2076,30 @@ uint32_t charts_make_csv(uint32_t number) {
 #ifdef HAVE_STRUCT_TM_TM_GMTOFF
 	csv_time += tmepoch.tm_gmtoff;
 #endif
-	csv_data ="timestamp,,,\n";
+	csv_data ="timestamp,";
+	if (CHARTS_IS_DIRECT_STAT(type)) {
+		csv_data += statdefs[type].name;
+		csv_data += ",,,\n";
+	} else if (CHARTS_IS_EXTENDED_STAT(type)) {
+		statid = estatdefs[CHARTS_EXTENDED_POS(type)].c1src;
+		if (CHARTS_DEF_IS_DIRECT(statid)) {
+			csv_data += statdefs[CHARTS_DIRECT_POS(statid)].name;
+		}
+		csv_data += ",";
+
+		statid = estatdefs[CHARTS_EXTENDED_POS(type)].c2src;
+		if (CHARTS_DEF_IS_DIRECT(statid)) {
+			csv_data += statdefs[CHARTS_DIRECT_POS(statid)].name;
+		}
+		csv_data += ",";
+
+		statid = estatdefs[CHARTS_EXTENDED_POS(type)].c3src;
+		if (CHARTS_DEF_IS_DIRECT(statid)) {
+			csv_data += statdefs[CHARTS_DIRECT_POS(statid)].name;
+		}
+		csv_data += ",\n";
+	}
+
 	char buffer[50];
 	int z;
 	for(int i = 0; i < LENG; i++) {
