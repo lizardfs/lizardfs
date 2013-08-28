@@ -146,12 +146,12 @@ void chartsdata_refresh(void) {
 	uint32_t ucusec,pcusec;
 
 	for (i=0 ; i<CHARTS ; i++) {		// initialisation
-		data_realtime[i]=0;
+		data_realtime[i]=CHARTS_NODATA;
 	}
 
 	if (counter_of_seconds == 0) {
 		for (i = 0; i < CHARTS; ++i) {	// initialisation & reset after a minute
-			data_every_minute[i] = 0;
+			data_every_minute[i] = CHARTS_NODATA;
 		}
 	}
 	
@@ -220,24 +220,44 @@ void chartsdata_refresh(void) {
 	
 	// Gathering data
 	for (i = 0; i < CHARTS; ++i) {
-		data_every_minute[i] += data_realtime[i];
+		if (data_realtime[i] == CHARTS_NODATA) {
+			continue;
+		} else if (data_every_minute[i] == CHARTS_NODATA) {
+			data_every_minute[i] = data_realtime[i];
+		} else if (statdefs[i].mode == CHARTS_MODE_ADD) {
+			data_every_minute[i] += data_realtime[i]; // mode add
+		} else if ( data_realtime[i] > data_every_minute[i]) {
+			data_every_minute[i] = data_realtime[i];  // mode max
+		}
 	}
 	++counter_of_seconds;
 	
 	if (counter_of_seconds == kMinute) {
 		// average needed stats
-		data_every_minute[CHARTS_UCPU]			/= kMinute;
-		data_every_minute[CHARTS_SCPU]			/= kMinute;
-		data_every_minute[CHARTS_MASTERIN]		/= kMinute;
-		data_every_minute[CHARTS_MASTEROUT]		/= kMinute;
-		data_every_minute[CHARTS_CSCONNIN]		/= kMinute;
-		data_every_minute[CHARTS_CSCONNOUT]		/= kMinute;
-		data_every_minute[CHARTS_CSSERVIN]		/= kMinute;
-		data_every_minute[CHARTS_CSSERVOUT]		/= kMinute;
-		data_every_minute[CHARTS_BYTESR]			/= kMinute;
-		data_every_minute[CHARTS_BYTESW]			/= kMinute;
-		data_every_minute[CHARTS_DATABYTESR]		/= kMinute;
-		data_every_minute[CHARTS_DATABYTESW]		/= kMinute;
+		if (data_every_minute[CHARTS_UCPU] != CHARTS_NODATA)
+			data_every_minute[CHARTS_UCPU] /= kMinute;
+		if (data_every_minute[CHARTS_SCPU] != CHARTS_NODATA)
+			data_every_minute[CHARTS_SCPU] /= kMinute;
+		if (data_every_minute[CHARTS_MASTERIN] != CHARTS_NODATA)
+			data_every_minute[CHARTS_MASTERIN] /= kMinute;
+		if (data_every_minute[CHARTS_MASTEROUT]	!= CHARTS_NODATA)
+			data_every_minute[CHARTS_MASTEROUT] /= kMinute;
+		if (data_every_minute[CHARTS_CSCONNIN] != CHARTS_NODATA)
+			data_every_minute[CHARTS_CSCONNIN] /= kMinute;
+		if (data_every_minute[CHARTS_CSCONNOUT]	!= CHARTS_NODATA)
+			data_every_minute[CHARTS_CSCONNOUT]	/= kMinute;
+		if (data_every_minute[CHARTS_CSSERVIN] != CHARTS_NODATA)
+			data_every_minute[CHARTS_CSSERVIN] /= kMinute;
+		if (data_every_minute[CHARTS_CSSERVOUT] != CHARTS_NODATA)
+			data_every_minute[CHARTS_CSSERVOUT]	/= kMinute;
+		if (data_every_minute[CHARTS_BYTESR] != CHARTS_NODATA)
+			data_every_minute[CHARTS_BYTESR] /= kMinute;
+		if (data_every_minute[CHARTS_BYTESW] != CHARTS_NODATA)
+			data_every_minute[CHARTS_BYTESW] /= kMinute;
+		if (data_every_minute[CHARTS_DATABYTESR] != CHARTS_NODATA)
+			data_every_minute[CHARTS_DATABYTESR] /= kMinute;
+		if (data_every_minute[CHARTS_DATABYTESW] != CHARTS_NODATA)
+			data_every_minute[CHARTS_DATABYTESW] /= kMinute;
 
 		// engage!
 		charts_add(data_every_minute, main_time() - kMinute, false, true);
