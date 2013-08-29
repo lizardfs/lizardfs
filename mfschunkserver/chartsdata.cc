@@ -40,38 +40,40 @@
 
 #define CHARTS_FILENAME "csstats.mfs"
 
-#define CHARTS_UCPU 0
-#define CHARTS_SCPU 1
-#define CHARTS_MASTERIN 2
-#define CHARTS_MASTEROUT 3
-#define CHARTS_CSCONNIN 4
-#define CHARTS_CSCONNOUT 5
-#define CHARTS_CSSERVIN 6
-#define CHARTS_CSSERVOUT 7
-#define CHARTS_BYTESR 8
-#define CHARTS_BYTESW 9
-#define CHARTS_LLOPR 10
-#define CHARTS_LLOPW 11
-#define CHARTS_DATABYTESR 12
-#define CHARTS_DATABYTESW 13
-#define CHARTS_DATALLOPR 14
-#define CHARTS_DATALLOPW 15
-#define CHARTS_HLOPR 16
-#define CHARTS_HLOPW 17
-#define CHARTS_RTIME 18
-#define CHARTS_WTIME 19
-#define CHARTS_REPL 20
-#define CHARTS_CREATE 21
-#define CHARTS_DELETE 22
-#define CHARTS_VERSION 23
-#define CHARTS_DUPLICATE 24
-#define CHARTS_TRUNCATE 25
-#define CHARTS_DUPTRUNC 26
-#define CHARTS_TEST 27
-#define CHARTS_CHUNKIOJOBS 28
-#define CHARTS_CHUNKOPJOBS 29
+enum CHARTS_TYPES {
+	CHARTS_UCPU,
+	CHARTS_SCPU,
+	CHARTS_MASTERIN,
+	CHARTS_MASTEROUT,
+	CHARTS_CSCONNIN,
+	CHARTS_CSCONNOUT,
+	CHARTS_CSSERVIN,
+	CHARTS_CSSERVOUT,
+	CHARTS_BYTESR,
+	CHARTS_BYTESW,
+	CHARTS_LLOPR,
+	CHARTS_LLOPW,
+	CHARTS_DATABYTESR,
+	CHARTS_DATABYTESW,
+	CHARTS_DATALLOPR,
+	CHARTS_DATALLOPW,
+	CHARTS_HLOPR,
+	CHARTS_HLOPW,
+	CHARTS_RTIME,
+	CHARTS_WTIME,
+	CHARTS_REPL,
+	CHARTS_CREATE,
+	CHARTS_DELETE,
+	CHARTS_VERSION,
+	CHARTS_DUPLICATE,
+	CHARTS_TRUNCATE,
+	CHARTS_DUPTRUNC,
+	CHARTS_TEST,
+	CHARTS_CHUNKIOJOBS,
+	CHARTS_CHUNKOPJOBS,
 
-#define CHARTS 30
+	CHART_COUNT
+};
 
 /* name , join mode , percent , scale , multiplier , divisor */
 #define STATDEFS { \
@@ -133,11 +135,11 @@ static const estatdef estatdefs[]=ESTATDEFS
 static struct itimerval it_set;
 
 // variables for stats gathered every 1 minute
-static uint64_t data_every_minute[CHARTS];
+static uint64_t data_every_minute[CHART_COUNT];
 static uint16_t counter_of_seconds = 0;
 
 void chartsdata_refresh(void) {
-	uint64_t data_realtime[CHARTS];
+	uint64_t data_realtime[CHART_COUNT];
 	uint64_t bin,bout;
 	uint32_t i,opr,opw,dbr,dbw,dopr,dopw,repl;
 	uint32_t op_cr,op_de,op_ve,op_du,op_tr,op_dt,op_te;
@@ -145,12 +147,12 @@ void chartsdata_refresh(void) {
 	struct itimerval uc,pc;
 	uint32_t ucusec,pcusec;
 
-	for (i=0 ; i<CHARTS ; i++) {		// initialisation
+	for (i=0 ; i<CHART_COUNT ; i++) {		// initialisation
 		data_realtime[i]=CHARTS_NODATA;
 	}
 
 	if (counter_of_seconds == 0) {
-		for (i = 0; i < CHARTS; ++i) {	// initialisation & reset after a minute
+		for (i = 0; i < CHART_COUNT; ++i) {	// initialisation & reset after a minute
 			data_every_minute[i] = CHARTS_NODATA;
 		}
 	}
@@ -219,7 +221,7 @@ void chartsdata_refresh(void) {
 	charts_add(data_realtime, main_time() - kSecond, true, false);
 	
 	// Gathering data
-	for (i = 0; i < CHARTS; ++i) {
+	for (i = 0; i < CHART_COUNT; ++i) {
 		if (data_realtime[i] == CHARTS_NODATA) {
 			continue;
 		} else if (data_every_minute[i] == CHARTS_NODATA) {
@@ -231,7 +233,7 @@ void chartsdata_refresh(void) {
 		}
 	}
 	++counter_of_seconds;
-	
+
 	if (counter_of_seconds == kMinute) {
 		// average needed stats
 		if (data_every_minute[CHARTS_UCPU] != CHARTS_NODATA)

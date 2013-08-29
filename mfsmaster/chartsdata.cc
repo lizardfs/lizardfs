@@ -94,7 +94,7 @@ enum CHARTS_TYPES
 	CHARTS_BYTESRCVD ,
 	CHARTS_BYTESSENT ,
 
-	CHARTS ,
+	CHART_COUNT ,
 };
 
 
@@ -156,11 +156,11 @@ uint64_t chartsdata_memusage(void) {  // used only in sections with MEMORY_USAGE
 #endif
 
 // variables for stats gathered every 1 minute
-static uint64_t data_every_minute[CHARTS];
+static uint64_t data_every_minute[CHART_COUNT];
 uint16_t counter_of_seconds = 0;
 
 void chartsdata_refresh(void) {
-	uint64_t data_realtime[CHARTS];
+	uint64_t data_realtime[CHART_COUNT];
 	uint32_t fsdata[16];
 	uint32_t i,del,repl; //,bin,bout,opr,opw,dbr,dbw,dopr,dopw,repl;
 #ifdef CPU_USAGE
@@ -171,12 +171,12 @@ void chartsdata_refresh(void) {
 	struct rusage ru;
 #endif
 
-	for (i=0 ; i<CHARTS ; i++) {
+	for (i=0 ; i<CHART_COUNT ; i++) {
 		data_realtime[i]= CHARTS_NODATA;	// Data initialisation
 	}
 	
 	if (counter_of_seconds == 0) {
-		for (i = 0; i < CHARTS; ++i) {
+		for (i = 0; i < CHART_COUNT; ++i) {
 			data_every_minute[i] = CHARTS_NODATA;	// Data initialisation & reset every minute
 		}
 	}
@@ -254,7 +254,7 @@ void chartsdata_refresh(void) {
 	charts_add(data_realtime, main_time() - kSecond, true, false);
 	
 	// Gathering data
-	for (i = 0; i < CHARTS; ++i) {
+	for (i = 0; i < CHART_COUNT; ++i) {
 		if (data_realtime[i] == CHARTS_NODATA) {
 			continue;
 		} else if (data_every_minute[i] == CHARTS_NODATA) {
@@ -266,7 +266,7 @@ void chartsdata_refresh(void) {
 		}
 	}
 	++counter_of_seconds;
-	
+
 	// when a minute passed
 	if (counter_of_seconds == kMinute) {
 		// average needed stats

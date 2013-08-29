@@ -59,7 +59,7 @@ enum Ranges
 	VERY_LONG_RANGE	,
 	REALTIME		,
 	
-	RANGES			,
+	RANGE_COUNT			,
 };
 
 
@@ -82,11 +82,11 @@ static estatdef *estatdefs;
 static uint32_t estatdefscount;
 static char* statsfilename;
 
-typedef uint64_t stat_record[RANGES][LENG];
+typedef uint64_t stat_record[RANGE_COUNT][LENG];
 
 static stat_record *series;
-static uint32_t pointers[RANGES];
-static uint32_t timepoint[RANGES];
+static uint32_t pointers[RANGE_COUNT];
+static uint32_t timepoint[RANGE_COUNT];
 
 //chart times (for subscripts)
 static uint32_t realtimerange_second,realtimerange_minute,realtimerange_hour,realtimerange_day,realtimerange_month,realtimerange_year;
@@ -575,7 +575,7 @@ void charts_load(void) {
 		namehdr[100]=0;
 		for (j=0 ; j<statdefscount && strcmp(statdefs[j].name,namehdr)!=0 ; j++) {}
 		if (j>=statdefscount) {
-			lseek(fd,RANGES*fleng*8,SEEK_CUR);
+			lseek(fd,RANGE_COUNT*fleng*8,SEEK_CUR);
 			// ignore data
 		} else {
 			for (k=SHORT_RANGE ; k<REALTIME ; k++) {
@@ -625,7 +625,7 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 	uint32_t src,*ops;
 	int64_t stack[50];
 	uint32_t sp;
-	if (range>=RANGES || cno==0 || cno>3) {
+	if (range>=RANGE_COUNT || cno==0 || cno>3) {
 		for (i=0 ; i<LENG ; i++) {
 			datatab[i] = CHARTS_NODATA;
 		}
@@ -1139,7 +1139,7 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 		memset(series+i,0xFF,sizeof(stat_record));
 	}
 
-	for (i=SHORT_RANGE ; i<RANGES ; i++) {
+	for (i=SHORT_RANGE ; i<RANGE_COUNT ; i++) {
 		pointers[i]=0;
 		timepoint[i]=0;
 	}
@@ -1653,7 +1653,7 @@ uint32_t charts_datasize(uint32_t number) {
 
 	chtype = number / 10;
 	chrange = number % 10;
-	return (chrange<RANGES && CHARTS_IS_DIRECT_STAT(chtype))?LENG*8+4:0;
+	return (chrange<RANGE_COUNT && CHARTS_IS_DIRECT_STAT(chtype))?LENG*8+4:0;
 }
 
 void charts_makedata(uint8_t *buff,uint32_t number) {
@@ -1662,7 +1662,7 @@ void charts_makedata(uint8_t *buff,uint32_t number) {
 
 	chtype = number / 10;
 	chrange = number % 10;
-	if (chrange<RANGES && CHARTS_IS_DIRECT_STAT(chtype)) {
+	if (chrange<RANGE_COUNT && CHARTS_IS_DIRECT_STAT(chtype)) {
 		tab = series[chtype][chrange];
 		pointer = pointers[chrange];
 		ts = timepoint[chrange];
@@ -1910,7 +1910,7 @@ uint32_t charts_make_png(uint32_t number) {
 	uint32_t chtype,chrange;
 	chtype = number / 10;
 	chrange = number % 10;
-	if (chrange>=RANGES) {
+	if (chrange>=RANGE_COUNT) {
 		compsize = 0;
 		return sizeof(png_1x1);
 	}
