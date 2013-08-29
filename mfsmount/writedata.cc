@@ -34,16 +34,17 @@
 #include <pthread.h>
 #include <inttypes.h>
 
-#include "mfscommon/datapack.h"
+#include "mfscommon/connection_pool.h"
 #include "mfscommon/crc.h"
-#include "mfscommon/strerr.h"
+#include "mfscommon/datapack.h"
+#include "mfscommon/MFSCommunication.h"
 #include "mfscommon/mfsstrerr.h"
 #include "mfscommon/pcqueue.h"
 #include "mfscommon/sockets.h"
+#include "mfscommon/strerr.h"
 #include "csdb.h"
 #include "mastercomm.h"
 #include "readdata.h"
-#include "mfscommon/MFSCommunication.h"
 
 // TODO: wtf?!
 // #define WORKER_DEBUG 1
@@ -54,6 +55,7 @@
 #endif
 
 #define WORKERS 10
+#define IDLE_CONNECTION_TIMEOUT 6
 
 #define WCHASHSIZE 256
 #define WCHASH(inode,indx) (((inode)*0xB239FB71+(indx)*193)%WCHASHSIZE)
@@ -111,6 +113,8 @@ static pthread_t dqueue_worker_th;
 static pthread_t write_worker_th[WORKERS];
 
 static void *jqueue,*dqueue;
+
+static ConnectionPool chunkserverConnectionPool;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
 
@@ -329,6 +333,44 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 	pthread_mutex_unlock(&glock);
 }
 
+int createNewChunkserverConnection(uint32_t ip, uint16_t port) {
+	uint32_t srcip = fs_getsrcip();
+	unsigned tryCounter = 0;
+	int fd = -1;
+	while (fd == -1 && tryCounter < 10) {
+		fd = tcpsocket();
+		if (fd < 0) {
+			syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
+			fd = -1;
+			break;
+		}
+		if (srcip) {
+			if (tcpnumbind(fd, srcip, 0) < 0) {
+				syslog(LOG_WARNING, "can't bind socket to given ip: %s", strerr(errno));
+				tcpclose(fd);
+				fd = -1;
+				break;
+			}
+		}
+		int timeout;
+		if (tryCounter % 2 == 0) {
+			timeout = 200 * (1 << (tryCounter / 2));
+		} else {
+			timeout = 300 * (1 << (tryCounter / 2));
+		}
+		if (tcpnumtoconnect(fd, ip, port, timeout) < 0) {
+			tryCounter++;
+			if (tryCounter >= 10) {
+				syslog(LOG_WARNING, "can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
+						ip, port, strerr(errno));
+			}
+			tcpclose(fd);
+			fd = -1;
+		}
+	}
+	return fd;
+}
+
 /* main working thread | glock:UNLOCKED */
 void* write_worker(void *arg) {
 	uint32_t z1,z2,z3;
@@ -367,7 +409,6 @@ void* write_worker(void *arg) {
 	uint32_t chindx;
 	uint32_t ip;
 	uint16_t port;
-	uint32_t srcip;
 	uint64_t mfleng;
 	uint64_t maxwroffset;
 	uint64_t chunkid;
@@ -417,7 +458,7 @@ void* write_worker(void *arg) {
 		}
 		pthread_mutex_unlock(&glock);
 
-		if (status) {
+		if (status != STATUS_OK) {
 			write_job_end(id,status,0);
 			continue;
 		}
@@ -461,6 +502,7 @@ void* write_worker(void *arg) {
 			}
 			continue;
 		}
+		// update chunkserver usage statistics
 		cp = csdata;
 		cpe = csdata+csdatasize;
 		while (cp<cpe && chainelements<10) {
@@ -470,39 +512,17 @@ void* write_worker(void *arg) {
 			chainelements++;
 		}
 
+		// connect to the first chunkserver from a chain
 		chain = csdata;
 		ip = get32bit(&chain);
 		port = get16bit(&chain);
 		chainsize = csdatasize-6;
 		gettimeofday(&start,NULL);
 
-		// make connection to cs
-		srcip = fs_getsrcip();
-		cnt=0;
-		while (cnt<10) {
-			fd = tcpsocket();
-			if (fd<0) {
-				syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
-				break;
-			}
-			if (srcip) {
-				if (tcpnumbind(fd,srcip,0)<0) {
-					syslog(LOG_WARNING,"can't bind socket to given ip: %s",strerr(errno));
-					tcpclose(fd);
-					fd=-1;
-					break;
-				}
-			}
-			if (tcpnumtoconnect(fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
-				cnt++;
-				if (cnt>=10) {
-					syslog(LOG_WARNING,"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",ip,port,strerr(errno));
-				}
-				tcpclose(fd);
-				fd=-1;
-			} else {
-				cnt=10;
-			}
+		fd = chunkserverConnectionPool.getConnection(ip, port);
+		if (fd == -1) {
+			// Connection not found in cache
+			fd = createNewChunkserverConnection(ip, port);
 		}
 		if (fd<0) {
 			fs_writeend(chunkid,id->inode,0);
@@ -538,7 +558,7 @@ void* write_worker(void *arg) {
 // debug:	syslog(LOG_NOTICE,"writeworker: init packet prepared");
 		cb = NULL;
 
-		status = 0;
+		status = STATUS_OK;
 		wrstatus = STATUS_OK;
 
 		lastrcvd.tv_sec = 0;
@@ -768,7 +788,11 @@ void* write_worker(void *arg) {
 			}
 		} while (waitforstatus>0 && now.tv_sec<(jobs?10:30));
 
-		tcpclose(fd);
+		if (waitforstatus == 0 && status == STATUS_OK) {
+			chunkserverConnectionPool.putConnection(fd, ip, port, IDLE_CONNECTION_TIMEOUT);
+		} else {
+			tcpclose(fd);
+		}
 
 #ifdef WORKER_DEBUG
 		gettimeofday(&now,NULL);

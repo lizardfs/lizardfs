@@ -543,6 +543,20 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data,
 	uint8_t *ptr;
 	uint8_t status;
 
+	// Reset connection to IDLE state if there was CLTOCS_WRITE before
+	if (eptr->state == WRITELAST || eptr->state == WRITEFWD) {
+		if (eptr->wjobid > 0) {
+			syslog(LOG_NOTICE, "CLTOCS_WRITE before previous write has been finished");
+			eptr->state = CLOSE;
+			return;
+		}
+		if (eptr->chunkisopen) {
+			job_close(jpool, NULL, NULL, eptr->chunkid);
+			eptr->chunkisopen = 0;
+		}
+		eptr->state = IDLE;
+	}
+
 	if (length < 12 || ((length - 12) % 6) != 0) {
 		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
 		eptr->state = CLOSE;
@@ -915,12 +929,6 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
 		case CLTOCS_WRITE:
 			csserv_write_init(eptr, data, length);
 			break;
-//		case CLTOCS_WRITE_DATA:
-//			csserv_write_data(eptr,data,length);
-//			break;
-//		case CLTOCS_WRITE_DONE:
-//			csserv_write_done(eptr,data,length);
-//			break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
 			csserv_get_chunk_blocks(eptr, data, length);
 			break;
@@ -948,14 +956,23 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
 			break;
 		}
 	} else if (eptr->state == WRITELAST) {
-		if (type == CLTOCS_WRITE_DATA) {
-			csserv_write_data(eptr, data, length);
-		} else {
+		switch (type) {
+		case CLTOCS_WRITE:
+			csserv_write_init(eptr, data, length);
+			break;
+		case CLTOCS_WRITE_DATA:
+			csserv_write_data(eptr,data,length);
+			break;
+		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
+			break;
 		}
 	} else if (eptr->state == WRITEFWD) {
 		switch (type) {
+		case CLTOCS_WRITE:
+			csserv_write_init(eptr, data, length);
+			break;
 		case CLTOCS_WRITE_DATA:
 			csserv_write_data(eptr, data, length);
 			break;

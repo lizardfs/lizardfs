@@ -19,6 +19,7 @@ mfsmount_SOURCES=\
 	oplog.cc oplog.h \
 	main.cc \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
+	../mfscommon/connection_pool.cc ../mfscommon/connection_pool.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \
 	../mfscommon/md5.cc ../mfscommon/md5.h \
 	../mfscommon/sockets.cc ../mfscommon/sockets.h \
