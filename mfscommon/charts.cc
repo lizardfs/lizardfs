@@ -44,8 +44,6 @@
 #include "slogger.h"
 #include "time_constants.h"
 
-#define USE_NET_ORDER 1
-
 #define LENG 950
 #define DATA 100
 #define XPOS 43
@@ -483,13 +481,9 @@ void charts_store (void) {
 	int fd;
 	uint32_t s,i,j,p;
 	uint64_t *tab;
-#ifdef USE_NET_ORDER
 	uint8_t *ptr;
 	uint8_t hdr[16];
 	uint8_t data[8*LENG];
-#else
-	uint32_t hdr[4];
-#endif
 	char namehdr[100];
 
 	fd = open(statsfilename,O_WRONLY | O_TRUNC | O_CREAT,0666);
@@ -497,7 +491,6 @@ void charts_store (void) {
 		mfs_errlog(LOG_WARNING,"error creating charts data file");
 		return;
 	}
-#ifdef USE_NET_ORDER
 	ptr = hdr;
 	put32bit(&ptr,CHARTS_FILE_VERSION);
 	put32bit(&ptr,LENG);
@@ -508,17 +501,6 @@ void charts_store (void) {
 		close(fd);
 		return;
 	}
-#else
-	hdr[0]=CHARTS_FILE_VERSION;
-	hdr[1]=LENG;
-	hdr[2]=statdefscount;
-	hdr[3]=timepoint[SHORT_RANGE];
-	if (write(fd,(void*)hdr,sizeof(hdr)!=sizeof(hdr) {
-		mfs_errlog(LOG_WARNING,"error writing charts data file");
-		close(fd);
-		return;
-	}
-#endif
 	for (i=0 ; i<statdefscount ; i++) {
 		s = strlen(statdefs[i].name);
 		memset(namehdr,0,100);
@@ -531,7 +513,6 @@ void charts_store (void) {
 		for (j=SHORT_RANGE ; j<REALTIME ; j++) {
 			tab = series[i][j];
 			p = pointers[j]+1;
-#ifdef USE_NET_ORDER
 			ptr = data;
 			for (s=0 ; s<LENG ; s++) {
 				put64bit(&ptr,tab[(p+s)%LENG]);
@@ -541,20 +522,6 @@ void charts_store (void) {
 				close(fd);
 				return;
 			}
-#else
-			if (p<LENG) {
-				if (write(fd,(void*)(tab+p),sizeof(uint64_t)*(LENG-p))!=(ssize_t)(sizeof(uint64_t)*(LENG-p))) {
-					mfs_errlog(LOG_WARNING,"error writing charts data file");
-					close(fd);
-					return;
-				}
-			}
-			if (write(fd,(void*)tab,sizeof(uint64_t)*p)!=(ssize_t)(sizeof(uint64_t)*p)) {
-				mfs_errlog(LOG_WARNING,"error writing charts data file");
-				close(fd);
-				return;
-			}
-#endif
 		}
 	}
 	close(fd);
@@ -689,14 +656,10 @@ void charts_load(void) {
 	int fd;
 	uint32_t i,j,k,fleng,fcharts;
 	uint64_t *tab;
-#ifdef USE_NET_ORDER
 	uint32_t l;
 	const uint8_t *ptr;
 	uint8_t hdr[16];
 	uint8_t data[8*LENG];
-#else
-	uint32_t hdr[3];
-#endif
 	char namehdr[101];
 
 	fd = open(statsfilename,O_RDONLY);
@@ -708,7 +671,6 @@ void charts_load(void) {
 		}
 		return;
 	}
-#ifdef USE_NET_ORDER
 	if (read(fd,(void*)hdr,16)!=16) {
 		mfs_errlog(LOG_WARNING,"error reading charts data file");
 		close(fd);
@@ -737,36 +699,6 @@ void charts_load(void) {
 	fcharts = get32bit(&ptr);
 	i = get32bit(&ptr);
 	timepoint[SHORT_RANGE]=i;
-#else
-	if (read(fd,(void*)hdr,sizeof(uint32_t))!=sizeof(uint32_t)) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
-		close(fd);
-		return;
-	}
-	if (hdr[0]!=CHARTS_FILE_VERSION) {
-		if (hdr[0]==4) {
-			if (charts_import_from_old_4ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
-			}
-		} else if (hdr[0]==3) {
-			if (charts_import_from_old_3ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
-			}
-		} else {
-			mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
-		}
-		close(fd);
-		return;
-	}
-	if (read(fd,(void*)hdr,sizeof(uint32_t)*3)!=sizeof(uint32_t)*3) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
-		close(fd);
-		return;
-	}
-	fleng = hdr[0];
-	fcharts = hdr[1];
-	timepoint[SHORT_RANGE]=hdr[2];
-#endif
 	pointers[SHORT_RANGE]=LENG-1;
 	pointers[MEDIUM_RANGE]=LENG-1;
 	pointers[LONG_RANGE]=LENG-1;
@@ -788,7 +720,6 @@ void charts_load(void) {
 				if (fleng>LENG) {
 					lseek(fd,(fleng-LENG)*sizeof(uint64_t),SEEK_CUR);
 				}
-#ifdef USE_NET_ORDER
 				if (fleng<LENG) {
 					if (read(fd,(void*)data,8*fleng)!=(ssize_t)(8*fleng)) {
 						mfs_errlog(LOG_WARNING,"error reading charts data file");
@@ -810,21 +741,6 @@ void charts_load(void) {
 						tab[l] = get64bit(&ptr);
 					}
 				}
-#else
-				if (fleng<LENG) {
-					if (read(fd,(void*)(tab+(LENG-fleng)),sizeof(uint64_t)*fleng)!=(ssize_t)(sizeof(uint64_t)*fleng)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
-						close(fd);
-						return;
-					}
-				} else {
-					if (read(fd,(void*)tab,sizeof(uint64_t)*LENG)!=(ssize_t)(sizeof(uint64_t)*LENG)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
-						close(fd);
-						return;
-					}
-				}
-#endif
 			}
 		}
 	}
