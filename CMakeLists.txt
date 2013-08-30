@@ -29,12 +29,18 @@ set(DEFAULT_USER "mfs" CACHE STRING "Default user to run daemons as")
 set(DEFAULT_GROUP "mfs" CACHE STRING "Default group to run daemons as")
 set(ENABLE_LIGHTMFS NO CACHE BOOL "Enable light version of LizardFS")
 set(ENABLE_DEBIAN_PATHS NO CACHE BOOL "Enable Debian-style install paths")
+set(BUILD_DEB NO CACHE BOOL "Enable package building for Debian (using dpkg)")
+set(BUILD_RPM NO CACHE BOOL "Enable package building for RedHat/Fedora (using rpmbuild)")
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
+message(STATUS "BUILD_DEB: ${BUILD_DEB}")
+message(STATUS "BUILD_RPM: ${BUILD_RPM}")
 
+
+# Switches
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
     message(WARNING "Debian paths enabled, but CMAKE_INSTALL_PREFIX is different than /")
@@ -71,6 +77,14 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
+if(BUILD_DEB)
+  set(GENERATOR_DEB "DEB")
+endif()
+if(BUILD_RPM)
+  set(GENERATOR_RPM "RPM")
+endif()
+
+# Inter-language constants
 set(CHARTS_CSV_CHARTID_BASE 90000)
 
 ## All the environment tests (libs, includes, etc.) live here:
