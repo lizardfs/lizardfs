@@ -1,0 +1,2 @@
+@ETC_PATH@/init.d/lizardfs-@DAEMON_NAME@ start || true
+

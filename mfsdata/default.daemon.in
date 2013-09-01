@@ -1,0 +1,10 @@
+# Control start from init.d script on boot.
+#   Only allowed values are "true" and "false".
+#   Unset defaults to "false".
+DAEMON_ENABLE=false
+
+# User-defined configuration file
+# DAEMON_CONFIG_PATH="@ETC_PATH@/mfs/mfsmaster.cfg"
+
+# Extra options passed to daemon
+# DAEMON_OPTS=

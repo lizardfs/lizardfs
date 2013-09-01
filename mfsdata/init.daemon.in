@@ -1,0 +1,122 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		lizardfs-@DAEMON_NAME@
+# Required-Start:	$network $remote_fs
+# Required-Stop:	$remote_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Start lizardsfs-@DAEMON_NAME@ at boot time
+# Description:		No description
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:@SBIN_PATH@:@BIN_PATH@
+DAEMON=@SBIN_PATH@/mfs@DAEMON_NAME@
+NAME=lizardfs-@DAEMON_NAME@
+DESC="LizardFS @DAEMON_NAME@ daemon"
+
+DEFAULT_WORKING_USER=@DEFAULT_USER@
+DEFAULT_WORKING_GROUP=@DEFAULT_GROUP@
+DEFAULT_DATA_PATH=@DATA_PATH@
+DEFAULT_CONFIG_PATH=@ETC_PATH@/mfs/mfs@DAEMON_NAME@.cfg
+DEFAULTS_PATH=@ETC_PATH@/default/lizardfs-@DAEMON_NAME@
+
+function isDaemonRunning()
+{
+   ("$DAEMON" test 2>&1 || true) | grep --silent "@DAEMON_NAME@ pid:"
+}
+
+test -e $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+DAEMON_ENABLE=false
+DAEMON_CONFIG_PATH=
+DAEMON_OPTS=
+
+if [ -s "$DEFAULTS_PATH" ]; then
+  . "$DEFAULTS_PATH"
+  case "x$DAEMON_ENABLE" in
+    xtrue) 
+      ;;
+    xfalse)
+      echo "$NAME Service is not enabled by configuration. Set \"DAEMON_ENABLE=true\" in $DEFAULTS_PATH"
+      log_warning_msg "$NAME Not enabled by configuration"
+      exit 0
+      ;;
+    *)
+      echo "$NAME Bad value of DAEMON_ENABLE in $DEFAULTS_PATH. Set either to true or false."
+      log_failure_msg "$NAME Bad value of DAEMON_ENABLE"
+      exit 1
+      ;;
+  esac
+fi
+
+set -e
+
+if [ -n "$DAEMON_CONFIG_PATH" ]; then
+  CFGFILE="$DAEMON_CONFIG_PATH"
+else
+  CFGFILE="$DEFAULT_CONFIG_PATH"
+fi
+
+get_config_value_from_CFGFILE()
+{
+  echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+}
+
+if [ -s "$CFGFILE" ]; then
+	DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
+fi
+
+: ${DATA_PATH:="${DEFAULT_DATA_PATH}"}
+: ${WORKING_USER:=$DEFAULT_WORKING_USER}
+: ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
+
+case "$1" in
+  start)
+    if isDaemonRunning; then
+      echo "Is already running."
+    else
+      echo "Starting $DESC:"
+      "$DAEMON" -c "$CFGFILE" $DAEMON_OPTS start || (log_failure_msg "Starting $NAME..." && false)
+    fi
+    log_success_msg "Starting $NAME..."
+    ;;
+  stop)
+    if isDaemonRunning; then
+      echo "Stopping $DESC:"
+      "$DAEMON" -c "$CFGFILE" stop || (log_failure_msg "Stopping $NAME..." && false)
+    else
+      echo "Is already not running."
+    fi
+    log_success_msg "Stopping $NAME..."
+    ;;
+  reload|force-reload)
+    echo "Reloading $DESC:"
+    "$DAEMON" -c "$CFGFILE" reload || (log_failure_msg $NAME && false)
+    log_success_msg "Reloading $NAME..."
+    ;;
+  restart)
+    echo "Restarting $DESC:"
+    "$DAEMON" -c "$CFGFILE" restart || (log_failure_msg $NAME && false)
+    log_success_msg "Restarting $NAME..."
+    ;;
+  status)
+    if isDaemonRunning; then
+      echo $NAME is running.
+    else
+      echo $NAME is not running.
+    fi
+    exit 0
+    ;;
+  *)
+    N=@ETC_PATH@/init.d/$NAME
+    echo "Usage: $N {start|stop|restart|reload|force-reload|reload|status}" >&2
+    exit 1
+    ;;
+esac
+exit 0
+

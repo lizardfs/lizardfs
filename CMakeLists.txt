@@ -114,5 +114,5 @@ if (FUSE_LIBRARY)
 endif()
 add_subdirectory(mfsdata)
 add_subdirectory(mfscgi)
+add_subdirectory(package)
 
-include(Packages.cmake)
