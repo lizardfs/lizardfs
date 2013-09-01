@@ -1,0 +1,92 @@
+set -e
+
+#In compilance with Securing Debian Manual section 9.2 Creating users and groups for software daemons
+#http://www.debian.org/doc/manuals/securing-debian-howto/ch9.en.html#s-bpp-lower-privs
+
+# find first and last SYSTEM_UID numbers
+FIRST_SYSTEM_UID=101
+FIRST_UID=1000
+
+while read -r LINE
+do
+  if [ -z "$(echo $LINE | grep UID | grep -v "^#")" ]
+  then
+    continue
+  fi
+
+  case $LINE in
+  SYS_UID_MIN*)
+    FIRST_SYSTEM_UID=$(echo $LINE | awk '{ print $2 }')
+    ;;
+  SYS_UID_MAX*)
+    LAST_SYSTEM_UID=$(echo $LINE | awk '{ print $2 }')
+    ;;
+  UID_MIN*)
+    FIRST_UID=$(echo $LINE | awk '{ print $2 }')
+    ;;
+  *)
+    ;;
+  esac
+done < /etc/login.defs
+
+if [ -z "$LAST_SYSTEM_UID" ]
+then
+  LAST_SYSTEM_UID=$(($FIRST_UID - 1))
+fi
+
+# Remove system account if necessary
+CREATEDUSER=@DEFAULT_USER@
+if USERID=`getent passwd $CREATEDUSER | cut -f 3 -d ':'`; then
+  if [ -n "$USERID" ]; then
+    if [ "$FIRST_SYSTEM_UID" -le "$USERID" ] && [ "$USERID" -le "$LAST_SYSTEM_UID" ]
+    then
+      echo -n "Removing $CREATEDUSER system user.."
+      userdel $CREATEDUSER || true
+      echo "..done"
+    fi
+  fi
+fi
+
+# find first and last SYSTEM_GID numbers
+FIRST_SYSTEM_GID=101
+FIRST_GID=1000
+
+while read -r LINE
+do
+  if [ -z "$(echo $LINE | grep GID | grep -v "^#")" ]
+  then
+    continue;
+  fi
+
+  case $LINE in
+  SYS_GID_MIN*)
+    FIRST_SYSTEM_GID=$(echo $LINE | awk '{print $2}')
+    ;;
+  SYS_GID_MAX*)
+    LAST_SYSTEM_GID=$(echo $LINE | awk '{print $2}')
+    ;;
+  GID_MIN*)
+    FIRST_GID=$(echo $LINE | awk '{ print $2 }')
+    ;;
+  *)
+    ;;
+  esac
+done < /etc/login.defs
+
+if [ -z "$LAST_SYSTEM_GID" ]
+then
+  LAST_SYSTEM_GID=$(($FIRST_GID - 1))
+fi
+
+# Remove system group if necessary
+CREATEDGROUP=@DEFAULT_GROUP@
+if GROUPID=$(getent group $CREATEDGROUP | cut -f 3 -d ':'); then
+  if [ -n "$GROUPID" ]; then
+    if [ "$FIRST_SYSTEM_GID" -le "$GROUPID" ] && [ "$GROUPID" -le "$LAST_SYSTEM_GID" ]; then
+      echo -n "Removing $CREATEDGROUP group.."
+      groupidel --only-if-empty $CREATEDGROUP || true
+      echo "..done"
+    fi
+  fi
+fi
+
