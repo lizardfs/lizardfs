@@ -18,6 +18,9 @@ public:
 
 	virtual ssize_t copyIntoBuffer(int inputFileDescriptor, size_t len, off_t* offset) = 0;
 	virtual ssize_t copyIntoBuffer(const void *mem, size_t len) = 0;
+	ssize_t copyIntoBuffer(const std::vector<uint8_t>& mem) {
+		return copyIntoBuffer(mem.data(), mem.size());
+	}
 	virtual WriteStatus writeOutToAFileDescriptor(int outputFileDescriptor) = 0;
 	virtual size_t bytesInABuffer() const = 0;
 	virtual ~OutputBuffer() {};

@@ -42,6 +42,8 @@
 #include <sys/mman.h>
 #endif
 
+#include <vector>
+
 #include "mfschunkserver/hddspacemgr.h"
 
 #include "mfscommon/MFSCommunication.h"
@@ -1886,24 +1888,25 @@ int hdd_read_block(chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 	if (blocknum >= MFSBLOCKSINCHUNK) {
 		return ERROR_BNUMTOOBIG;
 	}
-	if (blocknum >= c->blocks) {
-		/// TODO(alek) zapis zer!!!
 
-		return STATUS_OK;
+	if (blocknum >= c->blocks) {
+		static const std::vector<uint8_t> zeros_block(MFSBLOCKSIZE, 0);
+		ret = outputBuffer->copyIntoBuffer(zeros_block);
+	} else {
+		ts = get_usectime();
+		off_t off = CHUNK_HEADER_SIZE + (((uint32_t)blocknum) * MFSBLOCKSIZE);
+		ret = outputBuffer->copyIntoBuffer(c->fd, MFSBLOCKSIZE, &off);
+		te = get_usectime();
+		hdd_stats_dataread(c->owner, MFSBLOCKSIZE, te-ts);
+
+		if (ret != MFSBLOCKSIZE) {
+			hdd_error_occured(c);	// uses and preserves errno !!!
+			mfs_arg_errlog_silent(LOG_WARNING, "read_block_from_chunk: file:%s - read error", c->filename);
+			hdd_report_damaged_chunk(c->chunkid);
+		}
 	}
 
-	ts = get_usectime();
-
-	off_t off = CHUNK_HEADER_SIZE + (((uint32_t)blocknum) * MFSBLOCKSIZE);
-	ret = outputBuffer->copyIntoBuffer(c->fd, MFSBLOCKSIZE, &off);
-
-	te = get_usectime();
-	hdd_stats_dataread(c->owner, MFSBLOCKSIZE, te-ts);
-
 	if (ret != MFSBLOCKSIZE) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
-		mfs_arg_errlog_silent(LOG_WARNING, "read_block_from_chunk: file:%s - read error", c->filename);
-		hdd_report_damaged_chunk(c->chunkid);
 		return ERROR_IO;
 	}
 
@@ -1930,7 +1933,14 @@ int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size,
 
 	// Put checksum of the block into buffer
 	uint16_t blockNr = offset / MFSBLOCKSIZE;
-	outputBuffer->copyIntoBuffer(c->crc + blockNr * sizeof(uint32_t), sizeof(uint32_t));
+	uint8_t crcBuff[sizeof(uint32_t)];
+	if (blockNr >= c->blocks) {
+		uint8_t* crcBuffPointer = crcBuff;
+		put32bit(&crcBuffPointer, mycrc32_zeroblock(0, MFSBLOCKSIZE));
+	} else {
+		memcpy(crcBuff, c->crc + blockNr * sizeof(uint32_t), sizeof(uint32_t));
+	}
+	outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
 
 	// Put the block data into buffer
 	int status = hdd_read_block(c, blockNr, outputBuffer);
