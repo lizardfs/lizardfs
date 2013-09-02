@@ -60,7 +60,7 @@
 #include "cfg.h"
 #include "main.h"
 #include "strerr.h"
-#include "crc.h"
+#include <crc.h>
 #include "init.h"
 #include "massert.h"
 #include "slogger.h"
@@ -984,7 +984,9 @@ int main(int argc,char **argv) {
 	struct rlimit rls;
 
 	strerr_init();
-	mycrc32_init();
+    #if !CRC_HARDWARE_SUPPORT_ON() | CRC_COMPARATIVE_TEST()
+    mycrc32_init();
+    #endif
 
 	movewarning = 0;
 	cfgfile=strdup(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
