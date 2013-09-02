@@ -125,6 +125,10 @@ static uint8_t warning[50] = {
 #define COLOR_DATA3 7
 #define COLOR_NODATA 8
 
+
+#define ELEMENTS2AVG_MAX 950
+#define ELEMENTS2AVG_MIN 1
+
 static uint8_t png_header[] = {
 	137, 80, 78, 71, 13, 10, 26, 10,        // signature
 
@@ -847,7 +851,7 @@ void charts_add (uint64_t* data, uint32_t datats, bool add_realtime_data, bool a
 	time_t now = datats;
 	int32_t local;
 
-	int32_t nowtime,delta;
+	int32_t nowtime,delta,elements2avg=0;
 
 	ts = localtime(&now);
 #ifdef HAVE_STRUCT_TM_TM_GMTOFF
@@ -862,6 +866,13 @@ void charts_add (uint64_t* data, uint32_t datats, bool add_realtime_data, bool a
 
 		delta = nowtime - timepoint[REALTIME];
 
+		elements2avg = delta;
+		if (elements2avg < ELEMENTS2AVG_MIN) {
+			elements2avg = ELEMENTS2AVG_MIN;
+		}
+		if (elements2avg > ELEMENTS2AVG_MAX) {
+			elements2avg = ELEMENTS2AVG_MAX;
+		}
 		if (delta>0) {
 			if (delta>LENG) delta=LENG;
 			while (delta>0) {
@@ -881,14 +892,16 @@ void charts_add (uint64_t* data, uint32_t datats, bool add_realtime_data, bool a
 			realtimerange_year = ts->tm_year + 1900;
 		}
 		if (delta<=0 && delta>-LENG && data) {
-			i = (pointers[REALTIME] + LENG + delta) % LENG;
-			for (j=0 ; j<statdefscount ; j++) {
-				if (series[j][REALTIME][i]==CHARTS_NODATA) {   // no data
-					series[j][REALTIME][i] = data[j];
-				} else if (statdefs[j].mode==CHARTS_MODE_ADD) {  // add mode
-					series[j][REALTIME][i] += data[j];
-				} else if (data[j]>series[j][REALTIME][i]) {   // max mode
-					series[j][REALTIME][i] = data[j];
+			for(int z=0;z<elements2avg;z++) {
+				i = (pointers[REALTIME] + LENG + delta - z) % LENG;
+				for (j=0 ; j<statdefscount ; j++) {
+					if (series[j][REALTIME][i]==CHARTS_NODATA) {   // no data
+						series[j][REALTIME][i] = data[j];
+					} else if (statdefs[j].mode==CHARTS_MODE_ADD) {  // add mode
+						series[j][REALTIME][i] += data[j];
+					} else if (data[j]>series[j][REALTIME][i]) {   // max mode
+						series[j][REALTIME][i] = data[j]/elements2avg;
+					}
 				}
 			}
 		}
