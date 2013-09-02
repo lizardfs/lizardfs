@@ -77,13 +77,6 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
-if(BUILD_DEB)
-  set(GENERATOR_DEB "DEB")
-endif()
-if(BUILD_RPM)
-  set(GENERATOR_RPM "RPM")
-endif()
-
 # Inter-language constants
 set(CHARTS_CSV_CHARTID_BASE 90000)
 

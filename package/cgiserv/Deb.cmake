@@ -1,4 +1,4 @@
-set(CPACK_cgiserv_PACKAGE_DESCRIPTION_SUMMARY "LizardFS web client server (cgiserver)")
+set(CPACK_cgiserv_PACKAGE_DESCRIPTION_SUMMARY "LizardFS web client server (cgiserv)")
 
 set(CPACK_RPM_cgiserv_PACKAGE_REQUIRES "filesystem lizardfs-common" PARENT_SCOPE)
 set(CPACK_RPM_cgiserv_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/postinst PARENT_SCOPE)
@@ -12,10 +12,10 @@ set(CPACK_RPM_cgiserv_USER_FILELIST
 
 set(DAEMON_NAME "cgiserv")
 
-configure_file(default.in default @ONLY)
-configure_file(../init_daemon.in init @ONLY)
-configure_file(../postinst_daemon.in postinst @ONLY)
-configure_file(../prerm_daemon.in prerm @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/default.daemon.in default @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/init.daemon.in init @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/postinst.daemon.in postinst @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/prerm.daemon.in prerm @ONLY)
 
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/init 
         DESTINATION ${ETC_PATH}/init.d

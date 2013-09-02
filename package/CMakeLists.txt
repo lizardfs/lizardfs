@@ -1,11 +1,19 @@
 include(SetSystemArchitecture.cmake)
 
+# Add generators
+if(BUILD_DEB)
+#  set(GENERATOR_DEB "DEB")
+endif()
+if(BUILD_RPM)
+  set(GENERATOR_RPM "RPM")
+endif()
+
 # Common config
 set(CPACK_GENERATOR TGZ ${GENERATOR_DEB} ${GENERATOR_RPM})
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY FALSE)
 set(CPACK_PACKAGE_DESCRIPTION_FILE ${CMAKE_SOURCE_DIR}/README)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "LizardFS - distributed, fault tolerant file system")
-set(CPACK_PACKAGE_NAME lizardfs)
+set(CPACK_PACKAGE_NAME "lizardfs")
 set(CPACK_PACKAGE_VERSION_MAJOR ${PACKAGE_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${PACKAGE_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_MICRO ${PACKAGE_VERSION_MICRO})
@@ -17,7 +25,7 @@ set(CPACK_SOURCE_GENERATOR TGZ)
 
 # Generator choice
 if(BUILD_DEB)
-  include(PackageDeb.cmake)
+#  include(PackageDeb.cmake)
 endif()
 if(BUILD_RPM)
   include(PackageRpm.cmake)
@@ -25,3 +33,4 @@ endif()
 
 # Launch
 include(CPack)
+
