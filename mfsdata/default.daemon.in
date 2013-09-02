@@ -4,7 +4,7 @@
 DAEMON_ENABLE=false
 
 # User-defined configuration file
-# DAEMON_CONFIG_PATH="@ETC_PATH@/mfs/mfsmaster.cfg"
+# DAEMON_CONFIG_PATH="@ETC_PATH@/mfs/mfs@DAEMON_NAME@.cfg"
 
 # Extra options passed to daemon
 # DAEMON_OPTS=

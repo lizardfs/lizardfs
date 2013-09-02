@@ -12,10 +12,10 @@ set(CPACK_RPM_chunkserver_USER_FILELIST
 
 set(DAEMON_NAME "chunkserver")
 
-configure_file(default.in default @ONLY)
-configure_file(../init_daemon.in init @ONLY)
-configure_file(../postinst_daemon.in postinst @ONLY)
-configure_file(../prerm_daemon.in prerm @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/default.daemon.in default @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/init.daemon.in init @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/postinst.daemon.in postinst @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/mfsdata/prerm.daemon.in prerm @ONLY)
 
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/init 
         DESTINATION ${ETC_PATH}/init.d
