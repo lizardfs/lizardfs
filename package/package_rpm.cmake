@@ -15,12 +15,11 @@ set(CPACK_RPM_COMPONENT_INSTALL TRUE)
 set(CPACK_RPM_SPEC_MORE_DEFINE "%define ignore \#")
 
 # Configure components
-include(common/Rpm.cmake)
-include(master/Rpm.cmake)
-include(metalogger/Rpm.cmake)
-include(chunkserver/Rpm.cmake)
-include(cgiserv/Rpm.cmake)
-
-include(cgi/Rpm.cmake)
-include(client/Rpm.cmake)
+include(cgi/package_rpm.cmake)
+include(cgiserv/package_rpm.cmake)
+include(chunkserver/package_rpm.cmake)
+include(client/package_rpm.cmake)
+include(common/package_rpm.cmake)
+include(master/package_rpm.cmake)
+include(metalogger/package_rpm.cmake)
 

@@ -21,7 +21,7 @@ DEFAULT_DATA_PATH=@DATA_PATH@
 DEFAULT_CONFIG_PATH=@ETC_PATH@/mfs/mfs@DAEMON_NAME@.cfg
 DEFAULTS_PATH=@ETC_PATH@/default/lizardfs-@DAEMON_NAME@
 
-function isDaemonRunning()
+isDaemonRunning()
 {
    ("$DAEMON" test 2>&1 || true) | grep --silent "@DAEMON_NAME@ pid:"
 }

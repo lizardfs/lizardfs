@@ -1,8 +1,8 @@
-include(SetSystemArchitecture.cmake)
+include(set_system_architecture.cmake)
 
 # Add generators
 if(BUILD_DEB)
-#  set(GENERATOR_DEB "DEB")
+  set(GENERATOR_DEB "DEB")
 endif()
 if(BUILD_RPM)
   set(GENERATOR_RPM "RPM")
@@ -20,17 +20,18 @@ set(CPACK_PACKAGE_VERSION_MICRO ${PACKAGE_VERSION_MICRO})
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_${SYSTEM_ARCHITECTURE}")
 set(CPACK_PACKAGE_VENDOR "http://www.lizardfs.org")
-set(CPACK_PACKAGE_CONTACT "contact@lizardfs.org")
+set(CPACK_PACKAGE_CONTACT "zzzzzcontact@lizardfs.org")
 set(CPACK_SOURCE_GENERATOR TGZ)
 
-# Generator choice
+message(STATUS "Generator is ${CPACK_GENERATOR}")
+
 if(BUILD_DEB)
-#  include(PackageDeb.cmake)
+  include(package_deb.cmake)
 endif()
 if(BUILD_RPM)
-  include(PackageRpm.cmake)
+  include(package_rpm.cmake)
 endif()
 
-# Launch
+#must be the last one
 include(CPack)
 
