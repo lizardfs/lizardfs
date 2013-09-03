@@ -94,6 +94,7 @@ include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/mfsmain/main.cc)
 
+add_subdirectory(etc)
 add_subdirectory(man)
 add_subdirectory(mfscommon)
 add_subdirectory(mfschunkserver)
@@ -105,7 +106,6 @@ add_subdirectory(mfstools)
 if (FUSE_LIBRARY)
   add_subdirectory(mfsmount)
 endif()
-add_subdirectory(mfsdata)
 add_subdirectory(mfscgi)
 add_subdirectory(package)
 

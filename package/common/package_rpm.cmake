@@ -1,8 +1,9 @@
-set(CPACK_common_PACKAGE_DESCRIPTION_SUMMARY "LizardFS common files")
+set(COMPONENT_NAME "common")
+set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS common files")
 
-configure_file(common/postinst.in rpm.common.postinst)
-configure_file(common/prerm.in rpm.common.prerm)
+configure_file(${COMPONENT_NAME}/postinst.in rpm.${COMPONENT_NAME}.postinst)
+configure_file(${COMPONENT_NAME}/prerm.in rpm.${COMPONENT_NAME}.prerm)
 
-set(CPACK_RPM_common_PACKAGE_REQUIRES "coreutils gawk grep redhat-lsb shadow-utils" PARENT_SCOPE)
-set(CPACK_RPM_common_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.common.postinst PARENT_SCOPE)
-set(CPACK_RPM_common_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.common.prerm PARENT_SCOPE)
+set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "coreutils gawk grep redhat-lsb shadow-utils" PARENT_SCOPE)
+set(CPACK_RPM_${COMPONENT_NAME}_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.postinst PARENT_SCOPE)
+set(CPACK_RPM_${COMPONENT_NAME}_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.prerm PARENT_SCOPE)
