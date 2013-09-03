@@ -1,28 +1,6 @@
 set(COMPONENT_NAME "chunkserver")
 
-set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS chunk server")
-
-set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "filesystem lizardfs-common")
-set(CPACK_RPM_${COMPONENT_NAME}_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/postinst)
-set(CPACK_RPM_${COMPONENT_NAME}_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/prerm)
-
-set(CPACK_RPM_${COMPONENT_NAME}_USER_FILELIST
-  "%ignore /usr"        #Provided by filesystem
-  "%ignore /usr/sbin"
-  "%ignore ${DATA_PATH}" #Provided by lizardfs-common
-  PARENT_SCOPE)
-
-
-configure_file(${CMAKE_SOURCE_DIR}/mfsdata/default.daemon.in default @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/mfsdata/init.daemon.in init @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/mfsdata/postinst.daemon.in postinst @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/mfsdata/prerm.daemon.in prerm @ONLY)
-
-install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/init 
-        DESTINATION ${ETC_PATH}/init.d
-        RENAME lizardfs-${COMPONENT_NAME}
-        COMPONENT chunkserver)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/default 
-        DESTINATION ${ETC_PATH}/default
-        RENAME lizardfs-${COMPONENT_NAME}
-        COMPONENT chunkserver)
+configure_file(daemon.prerm.in deb.${COMPONENT_NAME}.prerm)
+configure_file(daemon.postinst.in deb.${COMPONENT_NAME}.postinst)
+set_deb_component_control_extra(${COMPONENT_NAME} "postinst" "${CMAKE_CURRENT_BINARY_DIR}/deb.${COMPONENT_NAME}.postinst")
+set_deb_component_control_extra(${COMPONENT_NAME} "prerm" "${CMAKE_CURRENT_BINARY_DIR}/deb.${COMPONENT_NAME}.prerm")
