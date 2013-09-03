@@ -1,7 +1,7 @@
 #In compilance with Securing Debian Manual section 9.2 Creating users and groups for software daemons
 #http://www.debian.org/doc/manuals/securing-debian-howto/ch9.en.html#s-bpp-lower-privs
 
-COMPONENT_NAME=master
+COMPONENT_NAME=lizardfs-@COMPONENT_NAME@
 
 # If the package has default file it could be sourced, so that
 # the local admin can overwrite the defaults
@@ -15,7 +15,7 @@ COMPONENT_NAME=master
 [ -z "$SERVER_GROUP" ] && SERVER_GROUP=@DEFAULT_GROUP@ 
 
 # Groups that the user will be added to, if undefined, then none.
-ADDGROUP=adm
+ADDGROUP=
 
 # create user to avoid running server as root
 # 1. create group if not existing
@@ -62,4 +62,3 @@ then
     usermod $SERVER_USER --groups $ADDGROUP
   fi
 fi
-
