@@ -1,10 +1,13 @@
+
 set(DAEMON_NAME "master")
 
 set(CPACK_master_PACKAGE_DESCRIPTION_SUMMARY "LizardFS master server")
-
 set(CPACK_RPM_master_PACKAGE_REQUIRES "filesystem lizardfs-common zlib" PARENT_SCOPE)
-set(CPACK_RPM_master_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/postinst.master PARENT_SCOPE)
-set(CPACK_RPM_master_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/prerm.master PARENT_SCOPE)
+
+configure_file(daemon.prerm.in rpm.master.prerm)
+configure_file(daemon.postinst.in rpm.master.postinst)
+set(CPACK_RPM_master_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.master.postinst PARENT_SCOPE)
+set(CPACK_RPM_master_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.master.prerm PARENT_SCOPE)
 
 set(CPACK_RPM_master_USER_FILELIST
     "%ignore /usr"        #Provided by filesystem
@@ -12,5 +15,3 @@ set(CPACK_RPM_master_USER_FILELIST
     "%ignore ${DATA_PATH}" #Provided by lizardfs-common
     PARENT_SCOPE)
 
-configure_file(postinst.daemon.in postinst.master @ONLY)
-configure_file(prerm.daemon.in prerm.master @ONLY)
