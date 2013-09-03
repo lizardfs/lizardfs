@@ -71,6 +71,9 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
+math(EXPR CUTOAN_CHART "${PROTO_BASE} + 504")
+math(EXPR ANTOCU_CHART "${PROTO_BASE} + 505")
+
 set(CHARTS_CSV_CHARTID_BASE 90000)
 
 ## All the environment tests (libs, includes, etc.) live here:
