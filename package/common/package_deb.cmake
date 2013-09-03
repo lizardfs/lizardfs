@@ -1,5 +1,6 @@
-configure_file(common/prerm.in deb.common.prerm)
-configure_file(common/postinst.in deb.common.postinst)
+set(COMPONENT_NAME "common")
+configure_file(${COMPONENT_NAME}/prerm.in deb.${COMPONENT_NAME}.prerm)
+configure_file(${COMPONENT_NAME}/postinst.in deb.${COMPONENT_NAME}.postinst)
 
-set_deb_component_control_extra("common" "postinst" "${CMAKE_CURRENT_BINARY_DIR}/deb.common.postinst")
-set_deb_component_control_extra("common" "prerm" "${CMAKE_CURRENT_BINARY_DIR}/deb.common.prerm")
+set_deb_component_control_extra(${COMPONENT_NAME} "postinst" "${CMAKE_CURRENT_BINARY_DIR}/deb.${COMPONENT_NAME}.postinst")
+set_deb_component_control_extra(${COMPONENT_NAME} "prerm" "${CMAKE_CURRENT_BINARY_DIR}/deb.${COMPONENT_NAME}.prerm")

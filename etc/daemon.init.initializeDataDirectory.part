@@ -1,0 +1,6 @@
+  # check that the metadata dir exists
+  if [ ! -d "$DATA_PATH" ]; then
+    mkdir -p "$DATA_PATH"
+  fi
+  chmod 0755 "$DATA_PATH"
+  chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"

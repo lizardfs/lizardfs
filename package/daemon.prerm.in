@@ -1,1 +1,1 @@
-@ETC_PATH@/init.d/lizardfs-@DAEMON_NAME@ stop
+@ETC_PATH@/init.d/lizardfs-@COMPONENT_NAME@ stop

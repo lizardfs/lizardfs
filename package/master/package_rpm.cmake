@@ -1,15 +1,14 @@
+set(COMPONENT_NAME "master")
 
-set(DAEMON_NAME "master")
+set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS master server")
+set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "filesystem lizardfs-common zlib" PARENT_SCOPE)
 
-set(CPACK_master_PACKAGE_DESCRIPTION_SUMMARY "LizardFS master server")
-set(CPACK_RPM_master_PACKAGE_REQUIRES "filesystem lizardfs-common zlib" PARENT_SCOPE)
+configure_file(daemon.prerm.in rpm.${COMPONENT_NAME}.prerm)
+configure_file(daemon.postinst.in rpm.${COMPONENT_NAME}.postinst)
+set(CPACK_RPM_${COMPONENT_NAME}_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.postinst PARENT_SCOPE)
+set(CPACK_RPM_${COMPONENT_NAME}_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.prerm PARENT_SCOPE)
 
-configure_file(daemon.prerm.in rpm.master.prerm)
-configure_file(daemon.postinst.in rpm.master.postinst)
-set(CPACK_RPM_master_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.master.postinst PARENT_SCOPE)
-set(CPACK_RPM_master_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.master.prerm PARENT_SCOPE)
-
-set(CPACK_RPM_master_USER_FILELIST
+set(CPACK_RPM_${COMPONENT_NAME}_USER_FILELIST
     "%ignore /usr"        #Provided by filesystem
     "%ignore /usr/sbin"
     "%ignore ${DATA_PATH}" #Provided by lizardfs-common
