@@ -17,4 +17,3 @@ function(close_deb_component_control_extra CTL_TYPE)
   set(DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE} "${DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE}}${BODY}")
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${CTL_TYPE}" "${DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE}}")
 endfunction()
-
