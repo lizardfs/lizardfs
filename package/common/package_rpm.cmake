@@ -1,4 +1,5 @@
 set(COMPONENT_NAME "common")
+
 set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS common files")
 
 configure_file(${COMPONENT_NAME}/postinst.in rpm.${COMPONENT_NAME}.postinst)

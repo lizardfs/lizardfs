@@ -1,7 +1,6 @@
 set(COMPONENT_NAME "metalogger")
 
 set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS metalogger")
-
 set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "filesystem lizardfs-common")
 
 configure_file(daemon.postinst.in rpm.${COMPONENT_NAME}.postinst @ONLY)
