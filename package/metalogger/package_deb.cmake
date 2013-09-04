@@ -1,6 +1,6 @@
 set(COMPONENT_NAME "metalogger")
 
-set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "lizardfs-common" PARENT_SCOPE)
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "lizardfs-common")
 
 configure_file(daemon.prerm.in deb.${COMPONENT_NAME}.prerm)
 configure_file(daemon.postinst.in deb.${COMPONENT_NAME}.postinst)

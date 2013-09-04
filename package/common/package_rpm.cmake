@@ -1,6 +1,6 @@
 set(COMPONENT_NAME "common")
 
-set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS common files")
+set(CPACK_RPM_PACKAGE_ARCHITECTURE "noarch")
 
 configure_file(${COMPONENT_NAME}/postinst.in rpm.${COMPONENT_NAME}.postinst)
 configure_file(${COMPONENT_NAME}/prerm.in rpm.${COMPONENT_NAME}.prerm)
