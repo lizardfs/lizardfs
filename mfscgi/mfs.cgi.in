@@ -2666,6 +2666,8 @@ def print_file(name):
 
 if "HELP" in sectionset:
 #FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
+# XXX(lamvak): when converting the following line, it would be better still to
+# extract the path to a variable at the beginning of the script
 #	print_file("@CGI_PATH@/help.html")
         print """please contact with help@lizardfs.org"""
         print """<br/>"""

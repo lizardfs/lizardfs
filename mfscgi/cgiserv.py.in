@@ -440,7 +440,7 @@ if __name__=="__main__":
 	for opt,val in opts:
 		if opt=='-h':
 			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-t locktimeout] [-f [-v]] [start|stop|restart|test]\n" % sys.argv[0]
-			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: @CGIDIR@)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr"
+			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: %s)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr" % CGI_PATH
 			os._exit(0)
 		elif opt=='-H':
 			host = val
