@@ -1,5 +1,7 @@
 set(COMPONENT_NAME "metalogger")
 
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "lizardfs-common" PARENT_SCOPE)
+
 configure_file(daemon.prerm.in deb.${COMPONENT_NAME}.prerm)
 configure_file(daemon.postinst.in deb.${COMPONENT_NAME}.postinst)
 set_deb_component_control_extra(${COMPONENT_NAME} "postinst" "${CMAKE_CURRENT_BINARY_DIR}/deb.${COMPONENT_NAME}.postinst")

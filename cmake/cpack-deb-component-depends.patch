@@ -1,0 +1,24 @@
+--- /usr/share/cmake-2.8/Modules/CPackDeb.cmake.bak	2013-09-04 00:24:27.699299013 +0200
++++ /usr/share/cmake-2.8/Modules/CPackDeb.cmake	2013-09-04 01:49:30.203254770 +0200
+@@ -36,6 +36,7 @@
+ ##end
+ ##variable
+ # CPACK_DEBIAN_PACKAGE_DEPENDS
++# CPACK_DEB_<component>_PACKAGE_DEPENDS
+ #     Mandatory : NO
+ #     Default   : -
+ #     May be used to set deb dependencies.
+@@ -295,6 +296,13 @@
+   ENDIF(CPACK_DEBIAN_PACKAGE_DEBUG)
+ ENDIF(CPACK_DEBIAN_PACKAGE_SHLIBDEPS)
+ 
++# Append component user depend if set
++IF (CPACK_DEB_PACKAGE_COMPONENT)
++  IF (CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_DEPENDS)
++    SET(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, ${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_DEPENDS}")
++  ENDIF()
++ENDIF() 
++
+ # Let's define the control file found in debian package:
+ 
+ # Binary package:
