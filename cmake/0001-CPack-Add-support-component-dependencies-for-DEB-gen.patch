@@ -1,0 +1,86 @@
+From 4183e838d9c12f9324bc74b88a164d127ab2bdd2 Mon Sep 17 00:00:00 2001
+From: pjanicki <pawel.janicki@skytechnology.pl>
+Date: Wed, 4 Sep 2013 09:53:31 +0200
+Subject: [PATCH] CPack: Add support component dependencies for DEB generator
+
+---
+ Modules/CPackDeb.cmake               | 28 ++++++++++++++++++++++------
+ Source/CPack/cmCPackDebGenerator.cxx |  2 +-
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/Modules/CPackDeb.cmake b/Modules/CPackDeb.cmake
+index 75ff3be..937127e 100644
+--- a/Modules/CPackDeb.cmake
++++ b/Modules/CPackDeb.cmake
+@@ -36,6 +36,7 @@
+ ##end
+ ##variable
+ # CPACK_DEBIAN_PACKAGE_DEPENDS
++# CPACK_DEB_<component>_PACKAGE_DEPENDS
+ #     Mandatory : NO
+ #     Default   : -
+ #     May be used to set deb dependencies.
+@@ -204,6 +205,18 @@ if(FAKEROOT_EXECUTABLE)
+   set(CPACK_DEBIAN_FAKEROOT_EXECUTABLE ${FAKEROOT_EXECUTABLE})
+ endif()
+ 
++unset(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP)
++
++function(append_comma_separated TARGET_VAR VALUE)
++  if(VALUE)
++    if(${TARGET_VAR})
++      set(${TARGET_VAR} "${${TARGET_VAR}}, ${VALUE}" PARENT_SCOPE)
++    else()
++      set(${TARGET_VAR} "${VALUE}" PARENT_SCOPE)
++    endif()
++  endif()
++endfunction()
++
+ if(CPACK_DEBIAN_PACKAGE_SHLIBDEPS)
+   # dpkg-shlibdeps is a Debian utility for generating dependency list
+   find_program(SHLIBDEPS_EXECUTABLE dpkg-shlibdeps)
+@@ -277,11 +290,7 @@ if(CPACK_DEBIAN_PACKAGE_SHLIBDEPS)
+     file(REMOVE_RECURSE "${CPACK_TEMPORARY_DIRECTORY}/debian")
+ 
+     # Append user depend if set
+-    if (CPACK_DEBIAN_PACKAGE_DEPENDS)
+-      set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}, ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
+-    else ()
+-      set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}")
+-    endif ()
++    append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}")
+ 
+   else ()
+     if(CPACK_DEBIAN_PACKAGE_DEBUG)
+@@ -335,7 +344,14 @@ endif()
+ # Depends:
+ # You should set: DEBIAN_PACKAGE_DEPENDS
+ # TODO: automate 'objdump -p | grep NEEDED'
+-if(NOT CPACK_DEBIAN_PACKAGE_DEPENDS)
++
++if(CPACK_DEB_PACKAGE_COMPONENT)
++  append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_DEPENDS}")
++else()
++  append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEBIAN_PACKAGE_DEPENDS}")
++endif()
++
++if(NOT CPACK_DEBIAN_PACKAGE_DEPENDS_TMP)
+   message(STATUS "CPACK_DEBIAN_PACKAGE_DEPENDS not set, the package will have no dependencies.")
+ endif()
+ 
+diff --git a/Source/CPack/cmCPackDebGenerator.cxx b/Source/CPack/cmCPackDebGenerator.cxx
+index 4494e8a..fb819f4 100644
+--- a/Source/CPack/cmCPackDebGenerator.cxx
++++ b/Source/CPack/cmCPackDebGenerator.cxx
+@@ -315,7 +315,7 @@ int cmCPackDebGenerator::createDeb()
+   const char* desc =       this->GetOption("CPACK_DEBIAN_PACKAGE_DESCRIPTION");
+ 
+   // optional entries
+-  const char* debian_pkg_dep = this->GetOption("CPACK_DEBIAN_PACKAGE_DEPENDS");
++  const char* debian_pkg_dep = this->GetOption("CPACK_DEBIAN_PACKAGE_DEPENDS_TMP");
+   const char* debian_pkg_rec =
+                             this->GetOption("CPACK_DEBIAN_PACKAGE_RECOMMENDS");
+   const char* debian_pkg_sug =
+-- 
+1.8.1.4
+
