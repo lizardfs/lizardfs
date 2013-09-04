@@ -1,6 +1,5 @@
 set(COMPONENT_NAME "master")
 
-set(CPACK_${COMPONENT_NAME}_PACKAGE_DESCRIPTION_SUMMARY "LizardFS master server")
 set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "filesystem lizardfs-common zlib")
 
 configure_file(daemon.prerm.in rpm.${COMPONENT_NAME}.prerm)
