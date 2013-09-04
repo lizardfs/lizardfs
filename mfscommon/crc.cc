@@ -235,13 +235,19 @@ uint32_t BOOST_PP_CAT( sse4_, mycrc32_combine(uint32_t crc1, uint32_t crc2, uint
 #endif
 
 #if CRC_HARDWARE_SUPPORT_ON()
+
 uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
-    return CrcContainer::mycrc32( crc, block, leng );
+	return LizardCrc< CRC_POLY >::mycrc32( crc, block, leng );
 }
 
-uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2) {
-    return CrcContainer::mycrc32_combine( crc1, crc2, leng2 );
+uint32_t mycrc32_combine( uint32_t crc1, uint32_t crc2, uint32_t leng2 ) {
+	return LizardCrc< CRC_POLY >::mycrc32_combine( crc1, crc2, leng2 );
 }
+
+//To use intel polynomial or any other call the function as following
+//1) mycrc32< INTEL_CRC >( ... ) - to calculate crc
+//2) mycrc32_combine< INTEL_CRC >( ... ) - to calculate crc
+
 
 #endif
 

@@ -35,7 +35,7 @@ uint32_t mycrc32_combine( uint32_t crc1, uint32_t crc2, uint32_t leng2 );
 
 #if CRC_COMPARATIVE_TEST()
 #include <boost/preprocessor.hpp>
-#if ~CRC_HARDWARE_SUPPORT_ON()
+#if !CRC_HARDWARE_SUPPORT_ON()
 #define CRC_HARDWARE_SUPPORT_ON() 0x0001
 #endif
 
