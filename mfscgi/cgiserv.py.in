@@ -16,6 +16,9 @@ import cStringIO
 import socket
 import select
 
+CGI_PATH = "@CGI_PATH@"
+DATA_PATH = "@DATA_PATH@"
+
 """Http server based on recipes 511453,511454 from code.activestate.com by Pierre Quentel"""
 """Added support for indexes, access tests, proper handle of SystemExit exception, fixed couple of errors and vulnerbilities, getopt, lockfiles, daemonize etc. by Jakub Kruszona-Zawadzki"""
 
@@ -430,14 +433,14 @@ if __name__=="__main__":
 	verbose = 0
 	host = 'any'
 	port = 9425
-	rootpath="@CGI_PATH@"
-	datapath="@DATA_PATH@"
+	rootpath = CGI_PATH
+	datapath = DATA_PATH
 
 	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:t:fv")
 	for opt,val in opts:
 		if opt=='-h':
 			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-t locktimeout] [-f [-v]] [start|stop|restart|test]\n" % sys.argv[0]
-			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: @CGIDIR@)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr"
+			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: %s)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr" % CGI_PATH
 			os._exit(0)
 		elif opt=='-H':
 			host = val

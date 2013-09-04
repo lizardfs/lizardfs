@@ -5,10 +5,11 @@ import struct
 import cgi
 import cgitb; cgitb.enable()
 
+# following constants are pulled in by CMake
 PROTO_BASE = @PROTO_BASE@
 
-CUTOAN_CHART = (PROTO_BASE+504)
-ANTOCU_CHART = (PROTO_BASE+505)
+CUTOAN_CHART = @CUTOAN_CHART@
+ANTOCU_CHART = @ANTOCU_CHART@
 
 fields = cgi.FieldStorage()
 
