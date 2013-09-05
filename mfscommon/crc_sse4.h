@@ -5,6 +5,7 @@
 #ifndef  _CRC_SSE4__H__
 #define  _CRC_SSE4__H__
 
+#include <pthread.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <utility>
@@ -16,18 +17,19 @@ using namespace std;
 
 typedef crcutil_interface::UINT64 CRC_UINT64;
 
-const CRC_UINT64 INTEL_CRC = 0x82F63B78;
+const CRC_UINT64 CRC_INTEL = 0x82F63B78;
 
 
-class CrcContainer
+class CrcPool
 {
 public:
-	typedef map< pair< __pid_t, CRC_UINT64 >, crcutil_interface::CRC* > CRC_BAG_TYPE;
+    typedef map< pair< pthread_t, CRC_UINT64 >, crcutil_interface::CRC* > CRC_BAG_TYPE;
     static crcutil_interface::CRC* getCrc( const CRC_UINT64& pPoly );
 
 private:
-	 static CRC_BAG_TYPE m_CrcBag;
-	 static crcutil_interface::CRC* createInstance( const CRC_UINT64& pPoly );
+    static pthread_mutex_t m_CrcPoolLock;
+    static CRC_BAG_TYPE m_CrcBag;
+    static crcutil_interface::CRC* createInstance( const CRC_UINT64& pPoly );
 };
 
 
@@ -37,7 +39,7 @@ class LizardCrc
     public:
 		static uint32_t mycrc32( uint32_t crc, const uint8_t* block,uint32_t leng )
 		{
-			crcutil_interface::CRC* crcCalc = CrcContainer::getCrc( T );
+            crcutil_interface::CRC* crcCalc = CrcPool::getCrc( T );
 		    CRC_UINT64 lo = 0;
 
 			if( 0 == crc )  {
@@ -54,7 +56,7 @@ class LizardCrc
 
         static uint32_t mycrc32_combine( uint32_t crc1, uint32_t crc2, uint32_t leng2 ) 
 		{
-			crcutil_interface::CRC* crcCalc = CrcContainer::getCrc( T );
+            crcutil_interface::CRC* crcCalc = CrcPool::getCrc( T );
 			CRC_UINT64 crcTmp1 = static_cast< CRC_UINT64 >( crc1 );
 			crcCalc->Concatenate( static_cast< CRC_UINT64 >( crc2 ), 0, static_cast< CRC_UINT64 >( leng2 ), &crcTmp1 );
 			return static_cast< uint32_t >( crcTmp1 );
