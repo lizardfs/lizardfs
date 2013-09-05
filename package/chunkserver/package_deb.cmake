@@ -1,6 +1,6 @@
 set(COMPONENT_NAME "chunkserver")
 
-set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "lizardfs-common zlib1g")
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "lizardfs-common, zlib1g")
 set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DESCRIPTION "LizardFS data server")
 
 configure_file(daemon.prerm.in deb.${COMPONENT_NAME}.prerm)
