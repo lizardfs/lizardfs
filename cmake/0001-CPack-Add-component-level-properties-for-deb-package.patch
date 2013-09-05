@@ -3,8 +3,8 @@ From: pjanicki <pawel.janicki@skytechnology.pl>
 Date: Thu, 5 Sep 2013 06:59:07 +0200
 Subject: [PATCH] CPack: Add component-level properties for deb packager
 
-Allow ARCHITECTURE, DEPENDS, DESCRIPTION and CONTROL_EXTRA to be
-specified per-component in DEB packager.
+Allow ARCHITECTURE, DEPENDS, DESCRIPTION to bespecified per-component in
+DEB packager.
 ---
  Modules/CPackDeb.cmake               | 61 +++++++++++++++++++++++++++++-------
  Source/CPack/cmCPackDebGenerator.cxx |  8 ++---
@@ -37,14 +37,6 @@ index 75ff3be..0244563 100644
  #     Mandatory : YES
  #     Default   : CPACK_PACKAGE_DESCRIPTION_SUMMARY
  #     The debian package description
-@@ -157,6 +160,7 @@
- ##end
- ##variable
- # CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-+# CPACK_DEB_<component>_PACKAGE_CONTROL_EXTRA
- #     Mandatory : NO
- #     Default   : -
- #     This variable allow advanced user to add custom script to the control.tar.gz
 @@ -204,6 +208,21 @@ if(FAKEROOT_EXECUTABLE)
    set(CPACK_DEBIAN_FAKEROOT_EXECUTABLE ${FAKEROOT_EXECUTABLE})
  endif()
@@ -142,18 +134,6 @@ index 75ff3be..0244563 100644
  endif()
  
  # Section: (recommended)
-@@ -381,6 +415,11 @@ endif()
- # Usage:
- # set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
- #    "${CMAKE_CURRENT_SOURCE_DIR/prerm;${CMAKE_CURRENT_SOURCE_DIR}/postrm")
-+if(CPACK_DEB_PACKAGE_COMPONENT)
-+  set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA_TMP "${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_CONTROL_EXTRA}")
-+else()
-+  set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA_TMP "${CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA}")
-+endif()
- 
- # Are we packaging components ?
- if(CPACK_DEB_PACKAGE_COMPONENT)
 diff --git a/Source/CPack/cmCPackDebGenerator.cxx b/Source/CPack/cmCPackDebGenerator.cxx
 index 4494e8a..c17f1ca 100644
 --- a/Source/CPack/cmCPackDebGenerator.cxx
@@ -174,15 +154,6 @@ index 4494e8a..c17f1ca 100644
    const char* debian_pkg_rec =
                              this->GetOption("CPACK_DEBIAN_PACKAGE_RECOMMENDS");
    const char* debian_pkg_sug =
-@@ -497,7 +497,7 @@ int cmCPackDebGenerator::createDeb()
-     cmd += cmakeExecutable;
-     cmd += "\" -E tar cfz control.tar.gz ./control ./md5sums";
-     const char* controlExtra =
--      this->GetOption("CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA");
-+      this->GetOption("CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA_TMP");
-   if( controlExtra )
-     {
-     std::vector<std::string> controlExtraList;
 -- 
 1.8.1.4
 
