@@ -1,10 +1,11 @@
 set(COMPONENT_NAME "common")
 
-set(CPACK_RPM_PACKAGE_ARCHITECTURE "noarch")
+set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "coreutils gawk grep redhat-lsb shadow-utils")
+set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_ARCHITECTURE "noarch")
 
 configure_file(${COMPONENT_NAME}/postinst.in rpm.${COMPONENT_NAME}.postinst)
 configure_file(${COMPONENT_NAME}/prerm.in rpm.${COMPONENT_NAME}.prerm)
 
-set(CPACK_RPM_${COMPONENT_NAME}_PACKAGE_REQUIRES "coreutils gawk grep redhat-lsb shadow-utils")
+
 set(CPACK_RPM_${COMPONENT_NAME}_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.postinst)
 set(CPACK_RPM_${COMPONENT_NAME}_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/rpm.${COMPONENT_NAME}.prerm)

@@ -1,4 +1,9 @@
 set(COMPONENT_NAME "common")
+
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DEPENDS "passwd, coreutils, grep")
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_DESCRIPTION "Files and services common for all LizardFS daemons")
+set(CPACK_DEB_${COMPONENT_NAME}_PACKAGE_ARCHITECTURE "all")
+
 configure_file(${COMPONENT_NAME}/prerm.in deb.${COMPONENT_NAME}.prerm)
 configure_file(${COMPONENT_NAME}/postinst.in deb.${COMPONENT_NAME}.postinst)
 
