@@ -1,0 +1,2 @@
+@DAEMON_PRERM_IN_BODY@
+update-rc.d lizardfs-master defaults
