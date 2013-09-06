@@ -1,9 +1,9 @@
 #COMPONENT -- component name
 #CTL_TYPE -- control type either "postinst" or "prerm"
-#PATH -- path to file containing script body
-function(set_deb_component_control_extra COMPONENT CTL_TYPE PATH )
+#FILEPATH -- path to file containing script body
+function(set_deb_component_control_extra COMPONENT CTL_TYPE FILEPATH )
   set(DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE} "${DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE}}-${COMPONENT}.)\n") 
-  file(READ ${PATH} BODY)
+  file(READ ${FILEPATH} BODY)
   set(DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE} "${DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE}}${BODY}")
   set(DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE} "${DEBIAN_PACKAGE_CONTROL_EXTRA_${CTL_TYPE}};;\n" PARENT_SCOPE) 
 endfunction()
