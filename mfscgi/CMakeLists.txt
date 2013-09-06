@@ -1,4 +1,4 @@
-configure_file(cgiserv.py.in   mfscgiserv.py)
+configure_file(cgiserv.py.in   mfscgiserv)
 configure_file(chart.cgi.in    chart.cgi)
 configure_file(mfs.cgi.in      mfs.cgi)
 
@@ -7,8 +7,8 @@ set(CGI_SCRIPTS
     ${CMAKE_CURRENT_BINARY_DIR}/mfs.cgi
     ${CMAKE_CURRENT_BINARY_DIR}/chart.cgi)
 set(CGI_SERVER
-    ${CMAKE_CURRENT_BINARY_DIR}/mfscgiserv.py)
+    ${CMAKE_CURRENT_BINARY_DIR}/mfscgiserv)
 
-install(FILES ${CGI_FILES} DESTINATION ${CGI_PATH} COMPONENT cgi)
-install(PROGRAMS ${CGI_SCRIPTS} DESTINATION ${CGI_PATH} COMPONENT cgi)
-install(PROGRAMS ${CGI_SERVER} DESTINATION ${SBIN_PATH} COMPONENT cgiserv)
+install(FILES ${CGI_FILES} DESTINATION ${CGI_SUBDIR} COMPONENT cgi)
+install(PROGRAMS ${CGI_SCRIPTS} DESTINATION ${CGI_SUBDIR} COMPONENT cgi)
+install(PROGRAMS ${CGI_SERVER} DESTINATION ${SBIN_SUBDIR} COMPONENT cgiserv)

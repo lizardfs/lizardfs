@@ -1,1 +1,1 @@
-install(FILES mfsmount.cfg DESTINATION ${ETC_PATH}/mfs RENAME mfsmount.cfg.dist COMPONENT client)
+install(FILES mfsmount.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsmount.cfg.dist COMPONENT client)

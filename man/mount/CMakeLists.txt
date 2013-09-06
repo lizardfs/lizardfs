@@ -1,6 +1,6 @@
 install(FILES
         mfsmount.8
-        DESTINATION ${MAN_PATH}/man8 COMPONENT client)
+        DESTINATION ${MAN_SUBDIR}/man8 COMPONENT client)
 install(FILES
         mfstools.1
         mfscheckfile.1
@@ -20,5 +20,5 @@ install(FILES
         mfsdeleattr.1
         mfsappendchunks.1
         mfsmakesnapshot.1
-        DESTINATION ${MAN_PATH}/man1 COMPONENT client)
+        DESTINATION ${MAN_SUBDIR}/man1 COMPONENT client)
 
