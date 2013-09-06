@@ -1,2 +1,2 @@
-install(FILES mfscgiserv.8 DESTINATION ${MAN_PATH}/man8 COMPONENT cgiserv)
+install(FILES mfscgiserv.8 DESTINATION ${MAN_SUBDIR}/man8 COMPONENT cgiserv)
 
