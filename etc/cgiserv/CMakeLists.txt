@@ -5,7 +5,6 @@ set(INIT_DAEMON_INITIALIZE_EXTRA "")
 configure_file(../daemon.init.in init @ONLY)
 configure_file(../daemon.default.in default)
 
-
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/init
         DESTINATION ${ETC_PATH}/init.d
         RENAME lizardfs-${DAEMON_NAME}

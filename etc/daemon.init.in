@@ -26,7 +26,7 @@ isDaemonRunning()
   ("$DAEMON" test 2>&1 || true) | grep --silent "@DAEMON_NAME@ pid:"
 }
 
-test -e $DAEMON || exit 0
+test -e "$DAEMON" || exit 0
 
 . /lib/lsb/init-functions
 
@@ -37,7 +37,7 @@ DAEMON_OPTS=
 if [ -s "$DEFAULTS_PATH" ]; then
   . "$DEFAULTS_PATH"
   case "x$DAEMON_ENABLE" in
-    xtrue) 
+    xtrue)
       ;;
     xfalse)
       echo "$NAME Service is not enabled by configuration. Set \"DAEMON_ENABLE=true\" in $DEFAULTS_PATH"
@@ -66,9 +66,9 @@ get_config_value_from_CFGFILE()
 }
 
 if [ -s "$CFGFILE" ]; then
-	DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
-	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
-	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
+  DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+  WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+  WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 fi
 
 : ${DATA_PATH:="${DEFAULT_DATA_PATH}"}

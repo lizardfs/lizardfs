@@ -1,4 +1,4 @@
-  # check that the metadata dir exists
+  # check that the data dir exists
   if [ ! -d "$DATA_PATH" ]; then
     mkdir -p "$DATA_PATH"
   fi
