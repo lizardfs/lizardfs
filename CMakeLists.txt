@@ -39,6 +39,14 @@ message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "BUILD_DEB: ${BUILD_DEB}")
 message(STATUS "BUILD_RPM: ${BUILD_RPM}")
 
+# Fix to sync installation prefixes to avoid problems with scripts using
+# absolute paths (eg. SBIN_PATH in init.d scripts). Without this fix depending
+# after cmake call only one make install or make package will produce proper 
+# absolute paths in output
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
+if(CPACK_PACKAGING_INSTALL_PREFIX STREQUAL "")
+  set(CPACK_PACKAGING_INSTALL_PREFIX "/.")
+endif()
 
 # Switches
 if(ENABLE_DEBIAN_PATHS)
