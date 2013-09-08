@@ -77,6 +77,7 @@ fi
 
 initialize()
 {
+true
 @INIT_DAEMON_INITIALIZE_EXTRA@
 }
 
