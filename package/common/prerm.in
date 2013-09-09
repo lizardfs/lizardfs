@@ -84,7 +84,7 @@ if GROUPID=$(getent group $CREATEDGROUP | cut -f 3 -d ':'); then
   if [ -n "$GROUPID" ]; then
     if [ "$FIRST_SYSTEM_GID" -le "$GROUPID" ] && [ "$GROUPID" -le "$LAST_SYSTEM_GID" ]; then
       echo -n "Removing $CREATEDGROUP group.."
-      groupidel --only-if-empty $CREATEDGROUP || true
+      groupdel --only-if-empty $CREATEDGROUP || true
       echo "..done"
     fi
   fi
