@@ -1,0 +1,3 @@
+@DAEMON_PRERM_IN_BODY@
+chkconfig --del lizardfs-@COMPONENT_NAME@
+

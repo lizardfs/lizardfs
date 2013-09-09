@@ -13,9 +13,6 @@ include(DebComponentControlExtra.cmake)
 open_deb_component_control_extra("postinst")
 open_deb_component_control_extra("prerm")
 
-file(READ "daemon.postinst.in" DAEMON_POSTINST_IN_BODY)
-file(READ "daemon.prerm.in" DAEMON_PRERM_IN_BODY)
-
 include(chunkserver/package_deb.cmake)
 include(cgi/package_deb.cmake)
 include(cgiserv/package_deb.cmake)
