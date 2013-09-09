@@ -24,6 +24,9 @@ set(CPACK_PACKAGE_VENDOR "http://www.lizardfs.org")
 set(CPACK_PACKAGE_CONTACT "contact@lizardfs.org")
 set(CPACK_SOURCE_GENERATOR TGZ)
 
+file(READ "daemon.postinst.in" DAEMON_POSTINST_IN_BODY)
+file(READ "daemon.prerm.in" DAEMON_PRERM_IN_BODY)
+
 message(STATUS "Generator is ${CPACK_GENERATOR}")
 
 if(BUILD_DEB)
