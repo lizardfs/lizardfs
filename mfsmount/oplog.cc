@@ -95,7 +95,7 @@ void oplog_printf(const struct fuse_ctx *ctx,const char *format,...) {
 	ltime.tm_sec += leng%60;
 	ltime.tm_min += leng/60;
 	pthread_mutex_unlock(&timelock);
-	leng = snprintf(buff,LINELENG,"%02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",ltime.tm_mon+1,ltime.tm_mday,ltime.tm_hour,ltime.tm_min,ltime.tm_sec,(unsigned)(tv.tv_usec),(unsigned)(ctx->uid),(unsigned)(ctx->gid),(unsigned)(ctx->pid));
+	leng = snprintf(buff,LINELENG,"%ld %02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",tv.tv_sec,ltime.tm_mon+1,ltime.tm_mday,ltime.tm_hour,ltime.tm_min,ltime.tm_sec,(unsigned)(tv.tv_usec),(unsigned)(ctx->uid),(unsigned)(ctx->gid),(unsigned)(ctx->pid));
 	if (leng<LINELENG) {
 		va_start(ap,format);
 		leng += vsnprintf(buff+leng,LINELENG-leng,format,ap);

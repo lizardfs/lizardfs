@@ -1,0 +1,159 @@
+From 2cd4a97ad72c0f9e85a237fa1ed5524dfde9dcc5 Mon Sep 17 00:00:00 2001
+From: pjanicki <pawel.janicki@skytechnology.pl>
+Date: Thu, 5 Sep 2013 06:59:07 +0200
+Subject: [PATCH] CPack: Add component-level properties for deb packager
+
+Allow ARCHITECTURE, DEPENDS, DESCRIPTION to bespecified per-component in
+DEB packager.
+---
+ Modules/CPackDeb.cmake               | 61 +++++++++++++++++++++++++++++-------
+ Source/CPack/cmCPackDebGenerator.cxx |  8 ++---
+ 2 files changed, 54 insertions(+), 15 deletions(-)
+
+diff --git a/Modules/CPackDeb.cmake b/Modules/CPackDeb.cmake
+index 75ff3be..0244563 100644
+--- a/Modules/CPackDeb.cmake
++++ b/Modules/CPackDeb.cmake
+@@ -30,12 +30,14 @@
+ ##end
+ ##variable
+ # CPACK_DEBIAN_PACKAGE_ARCHITECTURE
++# CPACK_DEB_<component>_PACKAGE_ARCHITECTURE
+ #     Mandatory : YES
+ #     Default   : Output of dpkg --print-architecture (or i386 if dpkg is not found)
+ #     The debian package architecture
+ ##end
+ ##variable
+ # CPACK_DEBIAN_PACKAGE_DEPENDS
++# CPACK_DEB_<component>_PACKAGE_DEPENDS
+ #     Mandatory : NO
+ #     Default   : -
+ #     May be used to set deb dependencies.
+@@ -48,6 +50,7 @@
+ ##end
+ ##variable
+ # CPACK_DEBIAN_PACKAGE_DESCRIPTION
++# CPACK_DEB_<component>_PACKAGE_DESCRIPTION
+ #     Mandatory : YES
+ #     Default   : CPACK_PACKAGE_DESCRIPTION_SUMMARY
+ #     The debian package description
+@@ -204,6 +208,21 @@ if(FAKEROOT_EXECUTABLE)
+   set(CPACK_DEBIAN_FAKEROOT_EXECUTABLE ${FAKEROOT_EXECUTABLE})
+ endif()
+ 
++unset(CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP)
++unset(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA_TMP)
++unset(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP)
++unset(CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP)
++
++function(append_comma_separated TARGET_VAR VALUE)
++  if(VALUE)
++    if(${TARGET_VAR})
++      set(${TARGET_VAR} "${${TARGET_VAR}}, ${VALUE}" PARENT_SCOPE)
++    else()
++      set(${TARGET_VAR} "${VALUE}" PARENT_SCOPE)
++    endif()
++  endif()
++endfunction()
++
+ if(CPACK_DEBIAN_PACKAGE_SHLIBDEPS)
+   # dpkg-shlibdeps is a Debian utility for generating dependency list
+   find_program(SHLIBDEPS_EXECUTABLE dpkg-shlibdeps)
+@@ -277,11 +296,7 @@ if(CPACK_DEBIAN_PACKAGE_SHLIBDEPS)
+     file(REMOVE_RECURSE "${CPACK_TEMPORARY_DIRECTORY}/debian")
+ 
+     # Append user depend if set
+-    if (CPACK_DEBIAN_PACKAGE_DEPENDS)
+-      set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}, ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
+-    else ()
+-      set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}")
+-    endif ()
++    append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEBIAN_PACKAGE_AUTO_DEPENDS}")
+ 
+   else ()
+     if(CPACK_DEBIAN_PACKAGE_DEBUG)
+@@ -316,16 +331,22 @@ if(NOT CPACK_DEBIAN_PACKAGE_VERSION)
+ endif()
+ 
+ # Architecture: (mandatory)
+-if(NOT CPACK_DEBIAN_PACKAGE_ARCHITECTURE)
++if(CPACK_DEB_PACKAGE_COMPONENT)
++  set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP "${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_ARCHITECTURE}")
++else()
++  set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP "${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
++endif()
++
++if(NOT CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP)
+   # There is no such thing as i686 architecture on debian, you should use i386 instead
+   # $ dpkg --print-architecture
+   find_program(DPKG_CMD dpkg)
+   if(NOT DPKG_CMD)
+     message(STATUS "CPackDeb: Can not find dpkg in your path, default to i386.")
+-    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE i386)
++    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP i386)
+   endif()
+   execute_process(COMMAND "${DPKG_CMD}" --print-architecture
+-    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
++    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP
+     OUTPUT_STRIP_TRAILING_WHITESPACE
+     )
+ endif()
+@@ -335,7 +356,14 @@ endif()
+ # Depends:
+ # You should set: DEBIAN_PACKAGE_DEPENDS
+ # TODO: automate 'objdump -p | grep NEEDED'
+-if(NOT CPACK_DEBIAN_PACKAGE_DEPENDS)
++
++if(CPACK_DEB_PACKAGE_COMPONENT)
++  append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_DEPENDS}")
++else()
++  append_comma_separated(CPACK_DEBIAN_PACKAGE_DEPENDS_TMP "${CPACK_DEBIAN_PACKAGE_DEPENDS}")
++endif()
++
++if(NOT CPACK_DEBIAN_PACKAGE_DEPENDS_TMP)
+   message(STATUS "CPACK_DEBIAN_PACKAGE_DEPENDS not set, the package will have no dependencies.")
+ endif()
+ 
+@@ -348,11 +376,17 @@ if(NOT CPACK_DEBIAN_PACKAGE_MAINTAINER)
+ endif()
+ 
+ # Description: (mandatory)
+-if(NOT CPACK_DEBIAN_PACKAGE_DESCRIPTION)
++if(CPACK_DEB_PACKAGE_COMPONENT)
++  set(CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP "${CPACK_DEB_${CPACK_DEB_PACKAGE_COMPONENT}_PACKAGE_DESCRIPTION}")
++else()
++  set(CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP "${CPACK_DEBIAN_PACKAGE_DESCRIPTION}")
++endif()
++
++if(NOT CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP)
+   if(NOT CPACK_PACKAGE_DESCRIPTION_SUMMARY)
+     message(FATAL_ERROR "CPackDeb: Debian package requires a summary for a package, set CPACK_PACKAGE_DESCRIPTION_SUMMARY or CPACK_DEBIAN_PACKAGE_DESCRIPTION")
+   endif()
+-  set(CPACK_DEBIAN_PACKAGE_DESCRIPTION ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
++  set(CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
+ endif()
+ 
+ # Section: (recommended)
+diff --git a/Source/CPack/cmCPackDebGenerator.cxx b/Source/CPack/cmCPackDebGenerator.cxx
+index 4494e8a..c17f1ca 100644
+--- a/Source/CPack/cmCPackDebGenerator.cxx
++++ b/Source/CPack/cmCPackDebGenerator.cxx
+@@ -310,12 +310,12 @@ int cmCPackDebGenerator::createDeb()
+   const char* debian_pkg_priority =
+                               this->GetOption("CPACK_DEBIAN_PACKAGE_PRIORITY");
+   const char* debian_pkg_arch =
+-                          this->GetOption("CPACK_DEBIAN_PACKAGE_ARCHITECTURE");
++                          this->GetOption("CPACK_DEBIAN_PACKAGE_ARCHITECTURE_TMP");
+   const char* maintainer =  this->GetOption("CPACK_DEBIAN_PACKAGE_MAINTAINER");
+-  const char* desc =       this->GetOption("CPACK_DEBIAN_PACKAGE_DESCRIPTION");
++  const char* desc =       this->GetOption("CPACK_DEBIAN_PACKAGE_DESCRIPTION_TMP");
+ 
+   // optional entries
+-  const char* debian_pkg_dep = this->GetOption("CPACK_DEBIAN_PACKAGE_DEPENDS");
++  const char* debian_pkg_dep = this->GetOption("CPACK_DEBIAN_PACKAGE_DEPENDS_TMP");
+   const char* debian_pkg_rec =
+                             this->GetOption("CPACK_DEBIAN_PACKAGE_RECOMMENDS");
+   const char* debian_pkg_sug =
+-- 
+1.8.1.4
+

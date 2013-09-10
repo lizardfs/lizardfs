@@ -1,0 +1,3 @@
+@DAEMON_POSTINST_IN_BODY@
+chkconfig --add lizardfs-@COMPONENT_NAME@
+
