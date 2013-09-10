@@ -1007,19 +1007,13 @@ int main(int argc,char **argv) {
 	lockmemory = 0;
 	appname = argv[0];
 
-	while ((ch = getopt(argc, argv, "uvdfsc:t:h?")) != -1) {
+    while ((ch = getopt(argc, argv, "c:dht:uv?")) != -1) {
 		switch(ch) {
 			case 'v':
-				printf("version: %u.%u.%u\n",VERSMAJ,VERSMID,VERSMIN);
+				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
 				return 0;
 			case 'd':
 				rundaemon=0;
-				break;
-			case 'f':
-				runmode=RM_START;
-				break;
-			case 's':
-				runmode=RM_STOP;
 				break;
 			case 't':
 				locktimeout=strtoul(optarg,NULL,10);
@@ -1066,10 +1060,10 @@ int main(int argc,char **argv) {
 		mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 	}
 
-	if ((runmode==RM_START || runmode==RM_RESTART) && rundaemon) {
-		makedaemon();
-	} else {
-		if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RM_START || runmode==RM_RESTART) {
+		if (rundaemon) {
+			makedaemon();
+		} else {
 			set_signal_handlers(0);
 		}
 	}

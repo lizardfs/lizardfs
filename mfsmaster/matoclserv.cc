@@ -857,10 +857,19 @@ void matoclserv_chart(matoclserventry *eptr,const uint8_t *data,uint32_t length)
 		return;
 	}
 	chartid = get32bit(&data);
-	l = charts_make_png(chartid);
-	ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
-	if (l>0) {
-		charts_get_png(ptr);
+
+	if(chartid <= CHARTS_CSV_CHARTID_BASE){
+		l = charts_make_png(chartid);
+		ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
+		if (l>0) {
+			charts_get_png(ptr);
+		}
+	} else {
+		l = charts_make_csv(chartid % CHARTS_CSV_CHARTID_BASE);
+		ptr = matoclserv_createpacket(eptr,ANTOCL_CHART,l);
+		if (l>0) {
+			charts_get_csv(ptr);
+		}
 	}
 }
 
@@ -896,11 +905,18 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 	}
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
+#ifdef MEMORY_USAGE
 	memusage = chartsdata_memusage();
+#else
+	/* XXX(lamvak): what exactly should be inserted here when there's no MEMORY_USAGE
+	 * probably needs a fix
+	 */
+	memusage = 0;
+#endif
 	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
-	put16bit(&ptr,VERSMAJ);
-	put8bit(&ptr,VERSMID);
-	put8bit(&ptr,VERSMIN);
+	put16bit(&ptr,PACKAGE_VERSION_MAJOR);
+	put8bit(&ptr,PACKAGE_VERSION_MINOR);
+	put8bit(&ptr,PACKAGE_VERSION_MICRO);
 	/* --- */
 	put64bit(&ptr,memusage);
 	/* --- */
@@ -1376,9 +1392,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (eptr->version==0x010615) {
 				put32bit(&wptr,0);
 			} else if (eptr->version>=0x010616) {
-				put16bit(&wptr,VERSMAJ);
-				put8bit(&wptr,VERSMID);
-				put8bit(&wptr,VERSMIN);
+				put16bit(&wptr,PACKAGE_VERSION_MAJOR);
+				put8bit(&wptr,PACKAGE_VERSION_MINOR);
+				put8bit(&wptr,PACKAGE_VERSION_MICRO);
 			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);
@@ -1454,9 +1470,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 			sessionid = eptr->sesdata->sessionid;
 			if (eptr->version>=0x010615) {
-				put16bit(&wptr,VERSMAJ);
-				put8bit(&wptr,VERSMID);
-				put8bit(&wptr,VERSMIN);
+				put16bit(&wptr,PACKAGE_VERSION_MAJOR);
+				put8bit(&wptr,PACKAGE_VERSION_MINOR);
+				put8bit(&wptr,PACKAGE_VERSION_MICRO);
 			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);

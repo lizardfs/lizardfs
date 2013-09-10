@@ -142,11 +142,11 @@ static struct itimerval it_set;
 #endif
 #ifdef MEMORY_USAGE
 static uint64_t memusage;
-#endif
 
-uint64_t chartsdata_memusage(void) {
+uint64_t chartsdata_memusage(void) {  // used only in sections with MEMORY_USAGE
 	return memusage;
 }
+#endif
 
 void chartsdata_refresh(void) {
 	uint64_t data[CHARTS];
