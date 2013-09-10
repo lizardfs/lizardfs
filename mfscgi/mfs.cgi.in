@@ -112,15 +112,6 @@ def humanize_number(number,sep=''):
 	else:
 		return "%s%s" % (nstr,sep)
 
-#def timeduration_to_shortstr(timeduration):
-#	for l,s in ((86400,'day'),(3600,'hour'),(60,'minute'),(1,'second')):
-#		if timeduration>=l:
-#			n = float(timeduration)/float(l)
-#			rn = round(n,0)
-#			irn = int(rn)
-#			return "%s%u&nbsp;%s%s" % (("about " if n!=rn else ""),irn,s,("" if irn==1 else "s"))
-#	return "0&nbsp;seconds"
-
 def timeduration_to_shortstr(timeduration):
 	for l,s in ((86400,'d'),(3600,'h'),(60,'m'),(1,'s')):
 		if timeduration>=l:
