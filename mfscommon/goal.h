@@ -1,5 +1,5 @@
-#ifndef LIZARDFS_MFSCOMMON_MESSAGE_RECEIVE_BUFFER_H
-#define LIZARDFS_MFSCOMMON_MESSAGE_RECEIVE_BUFFER_H
+#ifndef LIZARDFS_MFSCOMMON_GOAL_H
+#define LIZARDFS_MFSCOMMON_GOAL_H
 
 #include <inttypes.h>
 
@@ -16,4 +16,4 @@ GoalID ordinaryGoalID(uint8_t goalLevel);
 
 } // namespace lizardfs
 
-#endif // LIZARDFS_MFSCOMMON_MESSAGE_RECEIVE_BUFFER_H
+#endif // LIZARDFS_MFSCOMMON_GOAL_H
