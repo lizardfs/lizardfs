@@ -3,13 +3,13 @@
 #include "mfscommon/goal.h"
 #include "mfscommon/massert.h"
 
-using namespace lizardfs;
+namespace lizardfs {
 
-GoalID xorGoalID(uint8_t partitionsNumber) {
-	eassert(partitionsNumber >= MinXorPartitionsNumber);
-	eassert(partitionsNumber <= MaxXorPartitionsNumber);
+GoalID xorGoalID(uint8_t level) {
+	eassert(level >= MinXorLevel);
+	eassert(level <= MaxXorLevel);
 
-	return std::numeric_limits<GoalID>::max() - partitionsNumber + MinXorPartitionsNumber;
+	return std::numeric_limits<GoalID>::max() - level + MinXorLevel;
 }
 
 GoalID ordinaryGoalID(uint8_t goalLevel) {
@@ -17,3 +17,12 @@ GoalID ordinaryGoalID(uint8_t goalLevel) {
 
 	return goalLevel;
 }
+
+bool isValidXorGoal(uint8_t level) {
+	xorGoalID(MinXorLevel);
+	GoalID minXorGoal = xorGoalID(MinXorLevel);
+	GoalID maxXorGoal = xorGoalID(MaxXorLevel);
+	return level >= minXorGoal && level <= maxXorGoal;
+}
+
+};
