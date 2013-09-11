@@ -33,7 +33,6 @@
 
 #include "mfscommon/MFSCommunication.h"
 
-// TODO: wtf?!
 // #define CACHENOTIFY 1
 
 #ifndef METARESTORE
