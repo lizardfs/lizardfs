@@ -7,25 +7,63 @@ Copyright (C) 1994, 1995, 1996, 1999, 2000, 2001, 2002, 2004, 2005,
 This file is free documentation; the Free Software Foundation gives
 unlimited permission to copy, distribute and modify it.
 
-Basic Installation
-==================
+Generating packages (recommended)
+=================================
 
-The simplest way to install LizardFS is to execute following commands
-in project's top level directory:
+Packages allow better management of installed pieces of software
+including automatic system reconfiguration  for starting  services at
+boot than installation from sources. Thanks to packages you can
+install only selective components of this software distribution.
+Compiled packages can be obtained from http://www.lizardfs.org or
+build as described below.
 
-    mkdir build && cd build
-    cmake ..
-    make && make install
+There are some types of packages supported including .deb and .rpm.
+Depending on your system not all of them may be build and utilized.
 
-First command  creates a directory  for all content  generated during
-a building of a project and gets in it. Next one runs a build process
-which collects system-dependent  variables and prepares a source code
-to  build. It also generates 'Makefile'  which has  all  necessary
-information about compilation. The last command launches a compilation
-and installs LizardFS in default location.
+Create and change dir to shadow build directory as described in section
+'Installing from sources' below, call cmake providing at least one
+of the following options '-DBUILD_DEB=<YES|NO>' '-DBUILD_RPM=<YES|NO>'
+and optionally '-DCMAKE_INSTALL_PREFIX=<path>'. Be aware that the values
+of BUILD_* are cached, not specifying leaves the value as in last
+call when it was explicitly set.
 
-Configuration
-=============
+  cmake -DCMAKE_INSTALL_PREFIX="" -DBUILD_DEB=YES ../lizardfs
+  make package
+
+The package files will appear on current directory.
+
+Notes for building deb packages
+-----------------------------------
+
+Packages .deb due to missing feature in CPack have all the same summary and
+no dependencies. The required features can be introduced by using ptach
+provided in cmake driectory. See the .info file accompanying the patch.
+
+
+Installing from sources
+=======================
+
+Installing from source is a direct installation method but needs
+extra maintenance effort to setup services startup and adjust
+filesystem permissions.
+
+Create a shadow build directory, preferably on the same level as the
+source directory. Change dir to it and run cmake optionally providing
+'-DCMAKE_INSTALL_PREFIX=<path>' option specifying where the software
+will be installed which defaults to '/usr/local'. Run the installation
+by executing 'make install', assuming source directory is called
+'lizardfs':
+
+  mkdir lizardfs-build
+  cd lizardfs-build
+  cmake -DCMAKE_INSTALL_PREFIX="/usr/local" ../lizarfs
+  make install
+
+Configuration when installing from sources
+==========================================
+
+The configuration is done automatically when installing from packages,
+thus this section applies to installaton from sources only.
 
 It is suggested to create another user and group for LizardFS execution.
 To  do  it  please check  that  the chosen user name  is  unoccupied.
