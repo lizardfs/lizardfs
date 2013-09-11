@@ -55,7 +55,7 @@
 #include "csdb.h"
 #include "stats.h"
 #include "strerr.h"
-#include "crc.h"
+#include <crc.h>
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -825,7 +825,9 @@ int main(int argc, char *argv[]) {
 	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
 
 	strerr_init();
+    #if !CRC_HARDWARE_SUPPORT_ON() | CRC_COMPARATIVE_TEST()
 	mycrc32_init();
+    #endif
 
    init_fuse_lowlevel_ops();
 

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+   <FileVersion major="1" minor="6" />
+   <Project>
+      <Option title="crcutil" />
+      <Option makefile_is_custom="1" />
+      <Option compiler="gcc" />
+      <Option virtualFolders="CMake Files\;CMake Files\3rdparty\;CMake Files\3rdparty\crcutil\;CMake Files\mfscommon\;CMake Files\mfschunkserver\;CMake Files\mfsmaster\;CMake Files\mfsmetadump\;CMake Files\mfsmetalogger\;CMake Files\mfsmetarestore\;CMake Files\mfstools\;CMake Files\mfsmount\;CMake Files\mfsdata\;CMake Files\mfscgi\;CMake Files\doc\;CMake Files\mfstestwj\;" />
+      <Build>
+      <Target title="all">
+         <Option working_dir="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 all" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="crcutil">
+         <Option output="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/libcrcutil.a" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil" />
+         <Option object_output="./" />
+         <Option type="2" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add option="-D_LARGEFILE_SOURCE" />
+            <Add option="-D_FILE_OFFSET_BITS=64" />
+            <Add option="-DHAVE_CONFIG_H" />
+            <Add option="-D__STDC_LIMIT_MACROS" />
+            <Add option="-D__STDC_CONSTANT_MACROS" />
+            <Add option="-D__STDC_FORMAT_MACROS" />
+            <Add directory="/home/witekj/lizardfsdev/lizardfs" />
+            <Add directory="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 crcutil" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="crcutil/fast">
+         <Option output="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/libcrcutil.a" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil" />
+         <Option object_output="./" />
+         <Option type="2" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add option="-D_LARGEFILE_SOURCE" />
+            <Add option="-D_FILE_OFFSET_BITS=64" />
+            <Add option="-DHAVE_CONFIG_H" />
+            <Add option="-D__STDC_LIMIT_MACROS" />
+            <Add option="-D__STDC_CONSTANT_MACROS" />
+            <Add option="-D__STDC_FORMAT_MACROS" />
+            <Add directory="/home/witekj/lizardfsdev/lizardfs" />
+            <Add directory="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 crcutil/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      </Build>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/crc32c_sse4.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/multiword_128_64_gcc_amd64_sse2.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/multiword_64_64_cl_i386_mmx.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/multiword_64_64_gcc_amd64_asm.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/multiword_64_64_gcc_i386_mmx.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/multiword_64_64_intrinsic_i386_mmx.cc">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/code/crc32c_sse4.h">
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/EnvTests.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/CheckFunctions.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/CheckIncludes.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/CheckMembers.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/FindSocket.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/config.h.in">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/Packages.cmake">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\3rdparty\crcutil\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/3rdparty/crcutil/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\3rdparty\crcutil\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfscommon/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfscommon\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfschunkserver/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfschunkserver\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsmaster/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsmaster\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsmetadump/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsmetadump\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsmetalogger/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsmetalogger\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsmetarestore/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsmetarestore\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfstools/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfstools\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsmount/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsmount\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsdata/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfsdata\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsdata/mfsmaster.cfg.in">
+          <Option virtualFolder="CMake Files\mfsdata\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsdata/mfschunkserver.cfg.in">
+          <Option virtualFolder="CMake Files\mfsdata\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsdata/mfsmetalogger.cfg.in">
+          <Option virtualFolder="CMake Files\mfsdata\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfsdata/postinst.in">
+          <Option virtualFolder="CMake Files\mfsdata\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfscgi/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfscgi\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfscgi/cgiserv.py.in">
+          <Option virtualFolder="CMake Files\mfscgi\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfscgi/chart.cgi.in">
+          <Option virtualFolder="CMake Files\mfscgi\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfscgi/mfs.cgi.in">
+          <Option virtualFolder="CMake Files\mfscgi\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/doc/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\doc\" />
+      </Unit>
+      <Unit filename="/home/witekj/lizardfsdev/lizardfs/mfstestwj/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\mfstestwj\" />
+      </Unit>
+   </Project>
+</CodeBlocks_project_file>

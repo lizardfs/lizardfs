@@ -1,0 +1,185 @@
+Goals
+-----
+
+1. Performance. In distributed systems the data is CRC'ed
+   on every breath in and out, and often multiple times.
+   Having entire cluster spend 10% of all CPU computing
+   CRCs is not something unheard of.
+
+2. Functionality. Computing CRC is not enough. Oftentimes,
+   distributed systems need to perform various operations
+   using known CRC values (concatenation, data replacement,
+   etc.) without touching the actual data.
+
+3. Functionality verification: ability to catch even the most
+   subtle bugs in CRC implementation.
+
+4. Performance benchmarking: ability to evaluate performance
+   of known CRC algorithms and choose the right one for given
+   architecture and/or compiler.
+
+5. Support most popular and most advanced CPUs [typically
+   used in distributed environments]. That is, AMD64 and X86.
+
+6. Support most popular compilers used to compile code running
+   in distributed environments. That is, Microsoft's CL, GCC,
+   and Intel's ICL.
+
+7. Ability to easily (at run-time) create CRCs for arbitrary
+   generating polynomials. Many complex projects have to deal
+   with multiple CRC generating polynomials. Adding support
+   yet another one should be 1-line change, not 2-week journey.
+
+
+Caveats
+-------
+
+1. Only little-endian CPUs are supported. Reason: all the
+   optimizations makes sense only when CPU has multiple ALUs
+   and may execute multiple instructions in parallel. I cannot
+   easily recall big-endian CPUs like that (probably PPC and
+   IBM's Z-series?) -- and, unless CPU is powerful enough,
+   trivial byte-by-byte Sarwate algorithm is hard to beat.
+
+2. The only CPUs the code was tested are AMD64 and X86 family.
+   I do not have access to Itanium. I tried to do my best to
+   allow the code to work on Itanium as is, but I will not
+   be very surprised if I overlooked something.
+
+
+How it all works
+----------------
+
+Please read crc.pdf in "docs" directory -- it explains, slowly,
+step-by-step, how it all works, and provides small listings
+of respective algorithms that (hopefully, clearly) demonstrate
+how specific algorithm is implemented -- actual implementation
+is heavily optimized, a lot of loops are unrolled, and comments
+explain only the most subtle details of implementation.
+
+
+Usage
+-----
+
+"unittest.cc" is standalone unit test which perform extensive
+functionality validation and also tests performance of key scenarios.
+Please keep in mind that it takes almost a minute for GCC to compile
+it. Full performance test takes a couple of hours.
+
+"generic_crc.h" provides a set of implemenations of generic CRCs.
+"crc32c*" set of files implements CRC using Intel's CRC32 instruction.
+"multiword*" set of files implements specialized -- and heavily
+optimized -- versions of multiword CRC.
+
+However, including these files directly into your project may be
+a bad idea -- there is a lot of quite heavy-weight template code
+that you probably do not want to see included into every file that
+uses CRCs.
+
+Instead, use "interface.h" which hides all the details of the
+implementation. It declares on namespace, two types in that
+namespace, and brings in a couple of standard ANSI C headers.
+
+Another advantage of using "interface.h" is that actual
+implementation will pick the most efficient implementation
+of CRC for specific platform and compiler (applies to
+AMD64 and X86 platform and CL, ICL, and GCC compilers only).
+
+Please see "usage.cc" which provides an example how to use
+crcutil_interface::CRC class.
+
+
+Compiler optimization settings
+------------------------------
+
+Recommended compiler flags:
+CL: -O2 -Wall
+ICL: -O3 -Wall -Qdiag-disable:181 -Qdiag-disable:185 -Qdiag-disable:442 -Qdiag-disable:vec
+GCC 4.5+: -O3 -Wall -msse2 -mcrc32
+GCC 4.4-, AMD64: -O3 -Wall -msse2 -DCRCUTIL_USE_MM_CRC32=1
+GCC 4.4-, I386: -O3 -Wall -msse2 -DCRCUTIL_USE_MM_CRC32=1 -fomit-frame-pointer
+
+
+Compile-time constants
+----------------------
+
+CRCUTIL_USE_ASM
+    Allows the use of inline ASM for GCC on AMD64 and I386 platforms,
+    32-bit Intel and Microsoft compilers on Windows.
+
+    See multiword*.cc files.
+
+    By default, turned on.
+
+
+HAVE_MMX
+    MMX and respective intrinsics are available. When MMX is available, it
+    will be used on I386 platform to speed up computation of up to 64-bit
+    CRCs (1.3 CPU cycles/byte, see see *i386_mmx.cc files).
+
+    By default, enabled on AMD64 and I386 platforms, disabled otherwise.
+
+
+HAVE_SSE
+    By default, enabled on AMD64 and I386 platforms, disabled otherwise.
+
+
+HAVE_SSE2
+    By default, enabled on AMD64 and I386 platforms, disabled otherwise.
+
+    Allows the use of SSE2 instructions to compute 128-bit CRCs efficiently
+    (see uint128_sse2.h, multiword_128_64_gcc_amd64_sse2.cc).
+
+
+CRCUTIL_PREFETCH_WIDTH
+    Prefetch width (default is 0 -- read platform.h to see why).
+
+    When CRCUTIL_PREFETCH_WIDTH > 0 and HAVE_SSE, the code will try to
+    prefetch CRCUTIL_PREFETCH_WIDTH bytes ahead.
+
+
+CRCUTIL_MIN_ALIGN_SIZE
+    Align input pointer on word boundary when input length exceeds
+    CRCUTIL_MIN_ALIGN_SIZE bytes and when CRC implementation will read
+    input data by words.
+
+    Non-AMD64/I386 do not allow misaligned reads, so default value of
+    CRCUTIL_MIN_ALIGN_SIZE is 0.
+
+    On AMD64 and I386 platforms, default value is 1KB. Even though AMD64
+    and I386 allow non-aligned reads, crossing cache line boundary is not
+    free, and it makes sense to align large inputs first before processing
+    them (see generic_crc.h for more details).
+
+
+CRCUTIL_USE_MM_CRC32
+    Allows the use SSE4.2 crc32 instruction when computing CRC32C (0.13 CPU
+    cycles per byte, see crc32c_sse4* files).
+
+    If set to false (i.e. 0), _mm_crc32_u*() intrinsics will be simulated
+    (useful for debugging crc32_sse4 code on machines that do not support
+    SSE 4.2).
+
+    Hardware-assisted CRC32C is supported on AMD64 and I386 platforms only.
+
+    By default, enabled for Windows and for "g++ -msse4".
+
+    With GCC 4.5, it is possible to compile the code using "-msse2 -mcrc32
+    -DCRCUTIL_USE_MM_CRC32=1" flags.
+
+    GCC 4.4 and earlier do not support "-mcrc32" flag, but it is still
+    possible to use crc32c_sse4 code by compiling the code using "-msse2
+    -DCRCUTIL_USE_MM_CRC32=1" flags. In this case, inline asm code will be
+    used (see crc32c_sse4_intrin.h).
+
+
+CRCUTIL_FORCE_ASM_CRC32C
+    GCC 4.4 and earlier versions do not have -mcrc32 flag, so
+    _mm_crc32_u64/32/8 intrinsics there are not available from standard
+    headers. They are replaced by inline asm code (see
+    crc32c_sse4_intrin.h). To test backward compatibility using GCC 4.5+,
+    use "-Wall -O3 -msse2 --DCRCUTIL_USE_MM_CRC32=1
+    -DCRCUTIL_FORCE_ASM_CRC32C=1".
+
+
+[The end of the document]
