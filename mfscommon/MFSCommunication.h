@@ -58,8 +58,6 @@
 //UNIVERSAL
 #define VERSION_ANY 0
 
-#define CRC_POLY 0xEDB88320U
-
 #define MFS_ROOT_ID 1
 
 #define MFS_NAME_MAX 255
