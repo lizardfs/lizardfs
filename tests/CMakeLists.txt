@@ -13,4 +13,5 @@ add_subdirectory(googletest)
 include_directories(googletest/include)
 
 add_subdirectory(common)
-add_subdirectory(chunkserver_tests)
+add_subdirectory(mfschunkserver)
+add_subdirectory(mfscommon)
