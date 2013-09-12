@@ -20,9 +20,9 @@
 #define _FILESYSTEM_H_
 
 #include <inttypes.h>
+#include <sstream>
 
 #ifdef METARESTORE
-
 
 uint64_t fs_getversion(void);
 
@@ -106,6 +106,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,uint8_t attr[35]);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
+uint8_t fs_readparents(uint32_t inode, std::stringstream &parents_paths);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
 

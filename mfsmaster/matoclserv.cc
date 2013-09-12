@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
+#include <string>
 
 #include "MFSCommunication.h"
 
@@ -2362,6 +2363,40 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 	}
 }
 
+void matoclserv_fuse_read_parents(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	
+	uint8_t *ptr;
+	
+	if ((int32_t)length != CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_READ_PARENTS - wrong size (%" PRIu32 "/%d)", length, CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH);
+		eptr->mode = KILL;
+		return;
+	}
+	
+	uint32_t msgid = get32bit(&data);
+	uint32_t inode = get32bit(&data);
+	std::stringstream parents;
+	uint8_t status = fs_readparents(inode, parents);
+	
+	if (status != STATUS_OK) {
+		ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_READ_PARENTS, MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER1);
+		put32bit(&ptr, msgid);
+		put8bit(&ptr, status);
+		return;
+	}
+	
+	std::string parents_string = parents.str();
+	uint32_t parentslength = parents_string.length();
+	ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_READ_PARENTS, MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER2 + parentslength);
+	put32bit(&ptr, msgid);
+	put32bit(&ptr, parentslength);
+	memcpy(ptr, parents_string.data(), parentslength);
+	
+	if (eptr->sesdata) {
+		eptr->sesdata->currentopstats[14]++;
+	}
+}
+
 void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t status;
@@ -3460,6 +3495,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case CLTOMA_FUSE_WRITE_CHUNK_END:
 				matoclserv_fuse_write_chunk_end(eptr,data,length);
+				break;
+			case CLTOMA_FUSE_READ_PARENTS:
+				matoclserv_fuse_read_parents(eptr,data,length);
 				break;
 // fuse - meta
 			case CLTOMA_FUSE_GETTRASH:

@@ -325,6 +325,7 @@
 #define MFS_XATTR_SIZE_MAX 65536
 #define MFS_XATTR_LIST_MAX 65536
 
+const int MFS_MSG_HEADER_LENGTH = 8;
 
 // ANY <-> ANY
 
@@ -1066,6 +1067,17 @@
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 // msgid:32 status:8 
 
+// 0x01E1
+#define CLTOMA_FUSE_READ_PARENTS (PROTO_BASE+482)
+const int CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH = 8;
+// msgid:32 inode:32
+
+// 0x01E2
+#define MATOCL_FUSE_READ_PARENTS (PROTO_BASE+483)
+const int MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER1 = 5;
+const int MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER2 = 8;
+// msgid:32 status:8
+// msgid:32 length:32 parents:?
 
 
 /* Abandoned sub-project - directory entries cached on client side
