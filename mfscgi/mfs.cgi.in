@@ -2240,7 +2240,7 @@ if "MC" in sectionset:
 
 	try:
 		charts = (
-			(100,'cpu','cpu usage (percent)'),
+			(100,'cpu','cpu usage'),
 			(20,'memory','memory usage (if available)'),
 			(2,'dels','chunk deletions (per minute)'),
 			(3,'repl','chunk replications (per minute)'),
@@ -2432,7 +2432,7 @@ if "CC" in sectionset:
 		s.close()
 
 		charts = (
-			(100,'cpu','cpu usage (percent)'),
+			(100,'cpu','cpu usage'),
 			(101,'datain','traffic from clients and other chunkservers (bits/s)'),
 			(102,'dataout','traffic to clients and other chunkservers (bits/s)'),
 			(103,'bytesr','bytes read - data/other (bytes/s)'),

@@ -450,6 +450,12 @@ static uint8_t font[25][9]={
 #define SPACE 23
 #define SQUARE 24
 
+#define CHARTS_FILE_VERSION 0x00010000
+#define STAT_SAVE_FILE_HEADER_SIZE 16
+#define STAT_SAVE_FILE_VALUE_SIZE sizeof(uint64_t)
+#define STAT_BUFFER_SIZE STAT_SAVE_FILE_VALUE_SIZE * LENG
+#define STAT_NAME_SIZE 100
+
 uint32_t getmonleng(uint32_t year,uint32_t month) {
 	switch (month) {
 	case 1:
@@ -475,37 +481,35 @@ uint32_t getmonleng(uint32_t year,uint32_t month) {
 	return 0;
 }
 
-#define CHARTS_FILE_VERSION 0x00010000
-
 void charts_store (void) {
 	int fd;
 	uint32_t s,i,j,p;
 	uint64_t *tab;
 	uint8_t *ptr;
-	uint8_t hdr[16];
-	uint8_t data[8*LENG];
-	char namehdr[100];
+	uint8_t header[STAT_SAVE_FILE_HEADER_SIZE];
+	uint8_t statdata[STAT_BUFFER_SIZE];
+	char statname[STAT_NAME_SIZE];
 
 	fd = open(statsfilename,O_WRONLY | O_TRUNC | O_CREAT,0666);
 	if (fd<0) {
 		mfs_errlog(LOG_WARNING,"error creating charts data file");
 		return;
 	}
-	ptr = hdr;
+	ptr = header;
 	put32bit(&ptr,CHARTS_FILE_VERSION);
 	put32bit(&ptr,LENG);
 	put32bit(&ptr,statdefscount);
 	put32bit(&ptr,timepoint[SHORT_RANGE]);
-	if (write(fd,(void*)hdr,sizeof(hdr))!=sizeof(hdr)) {
+	if (write(fd,(void*)header,STAT_SAVE_FILE_HEADER_SIZE)!=STAT_SAVE_FILE_HEADER_SIZE) {
 		mfs_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
 	}
 	for (i=0 ; i<statdefscount ; i++) {
 		s = strlen(statdefs[i].name);
-		memset(namehdr,0,100);
-		memcpy(namehdr,statdefs[i].name,(s>100)?100:s);
-		if (write(fd,(void*)namehdr,100)!=100) {
+		memset(statname,0,STAT_NAME_SIZE);
+		memcpy(statname,statdefs[i].name,(s>STAT_NAME_SIZE)?STAT_NAME_SIZE:s);
+		if (write(fd,(void*)statname,STAT_NAME_SIZE)!=STAT_NAME_SIZE) {
 			mfs_errlog(LOG_WARNING,"error writing charts data file");
 			close(fd);
 			return;
@@ -513,11 +517,11 @@ void charts_store (void) {
 		for (j=SHORT_RANGE ; j<REALTIME ; j++) {
 			tab = series[i][j];
 			p = pointers[j]+1;
-			ptr = data;
+			ptr = statdata;
 			for (s=0 ; s<LENG ; s++) {
 				put64bit(&ptr,tab[(p+s)%LENG]);
 			}
-			if (write(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
+			if (write(fd,(void*)statdata,STAT_BUFFER_SIZE)!=STAT_BUFFER_SIZE) {
 				mfs_errlog(LOG_WARNING,"error writing charts data file");
 				close(fd);
 				return;
@@ -529,13 +533,13 @@ void charts_store (void) {
 
 void charts_load(void) {
 	int fd;
-	uint32_t i,j,k,fleng,fcharts;
+	uint32_t i,j,k,statlength,statcount;
 	uint64_t *tab;
 	uint32_t l;
 	const uint8_t *ptr;
-	uint8_t hdr[16];
-	uint8_t data[8*LENG];
-	char namehdr[101];
+	uint8_t header[STAT_SAVE_FILE_HEADER_SIZE];
+	uint8_t statdata[STAT_BUFFER_SIZE];
+	char statname[STAT_NAME_SIZE+sizeof('\0')];
 
 	fd = open(statsfilename,O_RDONLY);
 	if (fd<0) {
@@ -546,60 +550,60 @@ void charts_load(void) {
 		}
 		return;
 	}
-	if (read(fd,(void*)hdr,16)!=16) {
+	if (read(fd,(void*)header,STAT_SAVE_FILE_HEADER_SIZE)!=STAT_SAVE_FILE_HEADER_SIZE) {
 		mfs_errlog(LOG_WARNING,"error reading charts data file");
 		close(fd);
 		return;
 	}
-	ptr = hdr;
+	ptr = header;
 	i = get32bit(&ptr);
 	if (i!=CHARTS_FILE_VERSION) {
 		mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
 		close(fd);
 		return;
 	}
-	fleng = get32bit(&ptr);
-	fcharts = get32bit(&ptr);
+	statlength = get32bit(&ptr);
+	statcount = get32bit(&ptr);
 	i = get32bit(&ptr);
 	timepoint[SHORT_RANGE]=i;
 	pointers[SHORT_RANGE]=LENG-1;
 	pointers[MEDIUM_RANGE]=LENG-1;
 	pointers[LONG_RANGE]=LENG-1;
 	pointers[VERY_LONG_RANGE]=LENG-1;
-	for (i=0 ; i<fcharts ; i++) {
-		if (read(fd,namehdr,100)!=100) {
+	for (i=0 ; i<statcount ; i++) {
+		if (read(fd,statname,STAT_NAME_SIZE)!=STAT_NAME_SIZE) {
 			mfs_errlog(LOG_WARNING,"error reading charts data file");
 			close(fd);
 			return;
 		}
-		namehdr[100]=0;
-		for (j=0 ; j<statdefscount && strcmp(statdefs[j].name,namehdr)!=0 ; j++) {}
+		statname[STAT_NAME_SIZE]=0;
+		for (j=0 ; j<statdefscount && strcmp(statdefs[j].name,statname)!=0 ; j++) {}
 		if (j>=statdefscount) {
-			lseek(fd,RANGE_COUNT*fleng*8,SEEK_CUR);
+			lseek(fd,RANGE_COUNT*statlength*STAT_SAVE_FILE_VALUE_SIZE,SEEK_CUR);
 			// ignore data
 		} else {
 			for (k=SHORT_RANGE ; k<REALTIME ; k++) {
 				tab = series[j][k];
-				if (fleng>LENG) {
-					lseek(fd,(fleng-LENG)*sizeof(uint64_t),SEEK_CUR);
+				if (statlength>LENG) {
+					lseek(fd,(statlength-LENG)*STAT_SAVE_FILE_VALUE_SIZE,SEEK_CUR);
 				}
-				if (fleng<LENG) {
-					if (read(fd,(void*)data,8*fleng)!=(ssize_t)(8*fleng)) {
+				if (statlength<LENG) {
+					if (read(fd,(void*)statdata,STAT_SAVE_FILE_VALUE_SIZE*statlength)!=(ssize_t)(STAT_SAVE_FILE_VALUE_SIZE*statlength)) {
 						mfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
-					ptr = data;
-					for (l=LENG-fleng ; l<LENG ; l++) {
+					ptr = statdata;
+					for (l=LENG-statlength ; l<LENG ; l++) {
 						tab[l] = get64bit(&ptr);
 					}
 				} else {
-					if (read(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
+					if (read(fd,(void*)statdata,STAT_BUFFER_SIZE)!= STAT_BUFFER_SIZE) {
 						mfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
-					ptr = data;
+					ptr = statdata;
 					for (l=0 ; l<LENG ; l++) {
 						tab[l] = get64bit(&ptr);
 					}
@@ -1291,7 +1295,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	uint64_t c1dispdata[LENG];
 	uint64_t c2dispdata[LENG];
 	uint64_t c3dispdata[LENG];
-	uint8_t scale,mode=0,percent=0;
+	uint8_t scale,mode=0;percent=0;
 	uint16_t base=0;
 	uint32_t pointer;
 	uint8_t text[6];
@@ -1355,7 +1359,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 
 	if (CHARTS_IS_DIRECT_STAT(type)) {
 		scale += statdefs[type].scale;
-		percent = statdefs[type].percent;
+		percent = statdefs[type].percent
 		max *= statdefs[type].multiplier;
 		max /= statdefs[type].divisor;
 	} else if (CHARTS_IS_EXTENDED_STAT(type)) {
