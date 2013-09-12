@@ -24,23 +24,36 @@
 #include <syslog.h>
 #include <stdlib.h>
 
+#ifdef THROW_INSTEAD_OF_ABORT
+	#include <stdexcept>
+	#include <string>
+	#define ABORT_OR_THROW (throw std::runtime_error(std::string(__FILE__ ":") + \
+			std::to_string(__LINE__)))
+#else
+	#define ABORT_OR_THROW abort()
+#endif
+
 #include "mfscommon/strerr.h"
 
-#define massert(e,msg) ((e) ? (void)0 : (fprintf(stderr,"failed assertion '%s' : %s\n",#e,(msg)),syslog(LOG_ERR,"failed assertion '%s' : %s",#e,(msg)),abort()))
-#define passert(ptr) ((ptr!=NULL) ? (void)0 : (fprintf(stderr,"out of memory: %s is NULL\n",#ptr),syslog(LOG_ERR,"out of memory: %s is NULL",#ptr),abort()))
-#define sassert(e) ((e) ? (void)0 : (fprintf(stderr,"failed assertion '%s'\n",#e),syslog(LOG_ERR,"failed assertion '%s'",#e),abort()))
+#define massert(e, msg) ((e) ? (void)0 : (fprintf(stderr, "failed assertion '%s' : %s\n", #e, \
+		(msg)), syslog(LOG_ERR, "failed assertion '%s' : %s", #e, (msg)), ABORT_OR_THROW))
+#define passert(ptr) ((ptr != NULL) ? (void)0 : (fprintf(stderr, "out of memory: %s is NULL\n", \
+		#ptr), syslog(LOG_ERR,"out of memory: %s is NULL", #ptr), ABORT_OR_THROW))
+#define sassert(e) ((e) ? (void)0 : (fprintf(stderr, "failed assertion '%s'\n", #e), \
+		syslog(LOG_ERR, "failed assertion '%s'", #e), ABORT_OR_THROW))
 #define eassert(e) if (!(e)) { \
 		const char *_mfs_errorstring = strerr(errno); \
 		syslog(LOG_ERR,"failed assertion '%s', error: %s",#e,_mfs_errorstring); \
 		fprintf(stderr,"failed assertion '%s', error: %s\n",#e,_mfs_errorstring); \
-		abort(); \
+		ABORT_OR_THROW; \
 	}
 #define zassert(e) if ((e)!=0) { \
 		const char *_mfs_errorstring = strerr(errno); \
 		syslog(LOG_ERR,"unexpected status, '%s' returned: %s",#e,_mfs_errorstring); \
 		fprintf(stderr,"unexpected status, '%s' returned: %s\n",#e,_mfs_errorstring); \
-		abort(); \
+		ABORT_OR_THROW; \
 	}
-#define mabort(msg) do { fprintf(stderr,"abort '%s'\n", msg); syslog(LOG_ERR,"abort '%s'", msg); abort(); } while (false)
+#define mabort(msg) do { fprintf(stderr,"abort '%s'\n", msg); syslog(LOG_ERR, "abort '%s'", msg); \
+	ABORT_OR_THROW; } while (false)
 
 #endif
