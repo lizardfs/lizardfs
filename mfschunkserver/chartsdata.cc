@@ -218,7 +218,7 @@ void chartsdata_refresh(void) {
 	data_realtime[CHARTS_DUPTRUNC]=op_dt;
 	data_realtime[CHARTS_TEST]=op_te;
 
-	charts_add(data_realtime, main_time() - kSecond, true, false);
+
 	
 	// Gathering data
 	for (i = 0; i < CHART_COUNT; ++i) {
@@ -232,8 +232,19 @@ void chartsdata_refresh(void) {
 			data_every_minute[i] = data_realtime[i];  // mode max
 		}
 	}
-	++counter_of_seconds;
 
+	for (i = 0; i < CHART_COUNT; ++i) {
+		if (data_realtime[i] == CHARTS_NODATA)
+			continue;
+		if (i == CHARTS_UCPU || i == CHARTS_SCPU || i == CHARTS_MASTERIN || i == CHARTS_MASTEROUT || i == CHARTS_CSCONNIN || i == CHARTS_CSCONNOUT ||
+				i == CHARTS_CSSERVIN || i == CHARTS_CSSERVOUT || i == CHARTS_BYTESR || i == CHARTS_BYTESW || i == CHARTS_DATABYTESR || i == CHARTS_DATABYTESW ||
+				i == CHARTS_CHUNKOPJOBS|| i == CHARTS_CHUNKIOJOBS)
+			continue;
+		data_realtime[i] *= kMinute;
+	}
+	charts_add(data_realtime, main_time() - kSecond, true, false);
+
+	++counter_of_seconds;
 	if (counter_of_seconds == kMinute) {
 		// average needed stats
 		if (data_every_minute[CHARTS_UCPU] != CHARTS_NODATA)

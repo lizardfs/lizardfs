@@ -1308,7 +1308,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	uint64_t c1dispdata[LENG];
 	uint64_t c2dispdata[LENG];
 	uint64_t c3dispdata[LENG];
-	uint8_t scale,mode=0;percent=0;
+	uint8_t scale,mode=0;
 	uint16_t base=0;
 	uint32_t pointer;
 	uint8_t text[6];
@@ -1372,12 +1372,10 @@ void charts_makechart(uint32_t type,uint32_t range) {
 
 	if (CHARTS_IS_DIRECT_STAT(type)) {
 		scale += statdefs[type].scale;
-		percent = statdefs[type].percent
 		max *= statdefs[type].multiplier;
 		max /= statdefs[type].divisor;
 	} else if (CHARTS_IS_EXTENDED_STAT(type)) {
 		scale += estatdefs[CHARTS_EXTENDED_POS(type)].scale;
-		percent = estatdefs[CHARTS_EXTENDED_POS(type)].percent;
 		max *= estatdefs[CHARTS_EXTENDED_POS(type)].multiplier;
 		max /= estatdefs[CHARTS_EXTENDED_POS(type)].divisor;
 	}
@@ -1650,9 +1648,6 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			}
 		} else {
 			text[j++]=SQUARE;
-		}
-		if (percent) {
-			text[j++]=PERCENT;
 		}
 		charts_puttext(XPOS - 4 - (j*6),(YPOS+DATA-(20*i))-3,COLOR_TEXT,text,j,0,XSIZE-1,0,YSIZE-1);
 		chart[(XSIZE)*(YPOS+DATA-20*i)+(XPOS-2)] = COLOR_AXIS;

@@ -251,7 +251,7 @@ void chartsdata_refresh(void) {
 	}
 	matoclserv_stats(data_realtime+CHARTS_PACKETSRCVD);
 
-	charts_add(data_realtime, main_time() - kSecond, true, false);
+
 	
 	// Gathering data
 	for (i = 0; i < CHART_COUNT; ++i) {
@@ -265,8 +265,16 @@ void chartsdata_refresh(void) {
 			data_every_minute[i] = data_realtime[i];  // mode max
 		}
 	}
-	++counter_of_seconds;
+	for (i = 0; i < CHART_COUNT; ++i) {
+		if (data_realtime[i] == CHARTS_NODATA)
+			continue;
+		if (i == CHARTS_UCPU || i == CHARTS_SCPU || i == CHARTS_MEMORY || i == CHARTS_PACKETSRCVD || i == CHARTS_PACKETSSENT || i == CHARTS_BYTESRCVD || i == CHARTS_BYTESSENT)
+			continue;
+		data_realtime[i] *= kMinute;
+	}
+	charts_add(data_realtime, main_time() - kSecond, true, false);
 
+	++counter_of_seconds;
 	// when a minute passed
 	if (counter_of_seconds == kMinute) {
 		// average needed stats
