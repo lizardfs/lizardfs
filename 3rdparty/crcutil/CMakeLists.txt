@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 2.8)
+project(crcutil)
+
+set(CMAKE_CXX_FLAGS "-msse4.2")
+
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR})
+
+aux_source_directory(. COMMON_SOURCES )
+add_library(crcutil ${COMMON_SOURCES} )
+
+
