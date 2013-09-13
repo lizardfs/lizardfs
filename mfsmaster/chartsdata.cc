@@ -62,36 +62,42 @@
 #include "chunks.h"
 #include "filesystem.h"
 #include "matoclserv.h"
+#include "time_constants.h"
 
 #define CHARTS_FILENAME "stats.mfs"
 
-#define CHARTS_UCPU 0
-#define CHARTS_SCPU 1
-#define CHARTS_DELCHUNK 2
-#define CHARTS_REPLCHUNK 3
-#define CHARTS_STATFS 4
-#define CHARTS_GETATTR 5
-#define CHARTS_SETATTR 6
-#define CHARTS_LOOKUP 7
-#define CHARTS_MKDIR 8
-#define CHARTS_RMDIR 9
-#define CHARTS_SYMLINK 10
-#define CHARTS_READLINK 11
-#define CHARTS_MKNOD 12
-#define CHARTS_UNLINK 13
-#define CHARTS_RENAME 14
-#define CHARTS_LINK 15
-#define CHARTS_READDIR 16
-#define CHARTS_OPEN 17
-#define CHARTS_READ 18
-#define CHARTS_WRITE 19
-#define CHARTS_MEMORY 20
-#define CHARTS_PACKETSRCVD 21
-#define CHARTS_PACKETSSENT 22
-#define CHARTS_BYTESRCVD 23
-#define CHARTS_BYTESSENT 24
+enum CHARTS_TYPES
+{
+	CHARTS_UCPU = 0,
+	CHARTS_SCPU ,
+	CHARTS_DELCHUNK ,
+	CHARTS_REPLCHUNK ,
+	CHARTS_STATFS ,
+	CHARTS_GETATTR ,
+	CHARTS_SETATTR ,
+	CHARTS_LOOKUP ,
+	CHARTS_MKDIR ,
+	CHARTS_RMDIR ,
+	CHARTS_SYMLINK ,
+	CHARTS_READLINK ,
+	CHARTS_MKNOD ,
+	CHARTS_UNLINK ,
+	CHARTS_RENAME ,
+	CHARTS_LINK ,
+	CHARTS_READDIR ,
+	CHARTS_OPEN ,
+	CHARTS_READ ,
+	CHARTS_WRITE ,
+	CHARTS_MEMORY ,
+	CHARTS_PACKETSRCVD ,
+	CHARTS_PACKETSSENT ,
+	CHARTS_BYTESRCVD ,
+	CHARTS_BYTESSENT ,
 
-#define CHARTS 25
+	CHART_COUNT ,
+};
+
+
 
 /* name , join mode , percent , scale , multiplier , divisor */
 #define STATDEFS { \
@@ -137,6 +143,7 @@ static const uint32_t calcdefs[]=CALCDEFS
 static const statdef statdefs[]=STATDEFS
 static const estatdef estatdefs[]=ESTATDEFS
 
+
 #ifdef CPU_USAGE
 static struct itimerval it_set;
 #endif
@@ -148,8 +155,12 @@ uint64_t chartsdata_memusage(void) {  // used only in sections with MEMORY_USAGE
 }
 #endif
 
+// variables for stats gathered every 1 minute
+static uint64_t data_every_minute[CHART_COUNT];
+uint16_t counter_of_seconds = 0;
+
 void chartsdata_refresh(void) {
-	uint64_t data[CHARTS];
+	uint64_t data_realtime[CHART_COUNT];
 	uint32_t fsdata[16];
 	uint32_t i,del,repl; //,bin,bout,opr,opw,dbr,dbw,dopr,dopw,repl;
 #ifdef CPU_USAGE
@@ -160,9 +171,16 @@ void chartsdata_refresh(void) {
 	struct rusage ru;
 #endif
 
-	for (i=0 ; i<CHARTS ; i++) {
-		data[i]=CHARTS_NODATA;
+	for (i=0 ; i<CHART_COUNT ; i++) {
+		data_realtime[i]= CHARTS_NODATA;	// Data initialisation
 	}
+	
+	if (counter_of_seconds == 0) {
+		for (i = 0; i < CHART_COUNT; ++i) {
+			data_every_minute[i] = CHARTS_NODATA;	// Data initialisation & reset every minute
+		}
+	}
+		
 
 #ifdef CPU_USAGE
 // CPU usage
@@ -192,8 +210,8 @@ void chartsdata_refresh(void) {
 	} else {
 		pcusec=0;
 	}
-	data[CHARTS_UCPU] = ucusec;
-	data[CHARTS_SCPU] = pcusec;
+	data_realtime[CHARTS_UCPU] = ucusec;
+	data_realtime[CHARTS_SCPU] = pcusec;
 #endif
 
 // memory usage
@@ -208,11 +226,11 @@ void chartsdata_refresh(void) {
 	if (memusage==0) {
 		int fd = open("/proc/self/statm",O_RDONLY);
 		char statbuff[1000];
-		int l;
+		int length;
 		if (fd>=0) {
-			l = read(fd,statbuff,1000);
-			if (l<1000 && l>0) {
-				statbuff[l]=0;
+			length = read(fd,statbuff,1000);
+			if (length<1000 && length>0) {
+				statbuff[length]=0;
 				memusage = strtoul(statbuff,NULL,10)*getpagesize();
 			}
 			close(fd);
@@ -220,20 +238,63 @@ void chartsdata_refresh(void) {
 	}
 #  endif
 	if (memusage>0) {
-		data[CHARTS_MEMORY] = memusage;
+		data_realtime[CHARTS_MEMORY] = memusage;
 	}
 #endif
 
 	chunk_stats(&del,&repl);
-	data[CHARTS_DELCHUNK]=del;
-	data[CHARTS_REPLCHUNK]=repl;
+	data_realtime[CHARTS_DELCHUNK]=del;
+	data_realtime[CHARTS_REPLCHUNK]=repl;
 	fs_stats(fsdata);
-	for (i=0 ; i<16 ; i++) {
-		data[CHARTS_STATFS+i]=fsdata[i];
+	for (i=CHARTS_STATFS ; i<=CHARTS_WRITE ; i++) {
+		data_realtime[i]=fsdata[i-CHARTS_STATFS];
 	}
-	matoclserv_stats(data+CHARTS_PACKETSRCVD);
+	matoclserv_stats(data_realtime+CHARTS_PACKETSRCVD);
 
-	charts_add(data,main_time()-60);
+
+	
+	// Gathering data
+	for (i = 0; i < CHART_COUNT; ++i) {
+		if (data_realtime[i] == CHARTS_NODATA) {
+			continue;
+		} else if (data_every_minute[i] == CHARTS_NODATA) {
+			data_every_minute[i] = data_realtime[i];
+		} else if (statdefs[i].mode == CHARTS_MODE_ADD) {
+			data_every_minute[i] += data_realtime[i]; // mode add
+		} else if ( data_realtime[i] > data_every_minute[i]) {
+			data_every_minute[i] = data_realtime[i];  // mode max
+		}
+	}
+	for (i = 0; i < CHART_COUNT; ++i) {
+		if (data_realtime[i] == CHARTS_NODATA)
+			continue;
+		if (i == CHARTS_UCPU || i == CHARTS_SCPU || i == CHARTS_MEMORY || i == CHARTS_PACKETSRCVD || i == CHARTS_PACKETSSENT || i == CHARTS_BYTESRCVD || i == CHARTS_BYTESSENT)
+			continue;
+		data_realtime[i] *= kMinute;
+	}
+	charts_add(data_realtime, main_time() - kSecond, true, false);
+
+	++counter_of_seconds;
+	// when a minute passed
+	if (counter_of_seconds == kMinute) {
+		// average needed stats
+		if (data_every_minute[CHARTS_UCPU] != CHARTS_NODATA)
+			data_every_minute[CHARTS_UCPU] /= kMinute;
+		if (data_every_minute[CHARTS_SCPU] != CHARTS_NODATA)
+			data_every_minute[CHARTS_SCPU] /= kMinute;
+		if (data_every_minute[CHARTS_PACKETSRCVD] != CHARTS_NODATA)
+			data_every_minute[CHARTS_PACKETSRCVD] /= kMinute;
+		if (data_every_minute[CHARTS_PACKETSSENT]!= CHARTS_NODATA)
+			data_every_minute[CHARTS_PACKETSSENT] /= kMinute;
+		if (data_every_minute[CHARTS_BYTESRCVD]	!= CHARTS_NODATA)
+			data_every_minute[CHARTS_BYTESRCVD] /= kMinute;
+		if(data_every_minute[CHARTS_BYTESSENT]!= CHARTS_NODATA)
+			data_every_minute[CHARTS_BYTESSENT] /= kMinute;
+		
+		charts_add(data_every_minute, main_time() - kMinute, false, true);
+		
+		counter_of_seconds = 0;
+	}
 }
 
 void chartsdata_term(void) {
@@ -271,8 +332,8 @@ int chartsdata_init (void) {
 #  endif
 #endif
 
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
+	main_timeregister(TIMEMODE_RUN_LATE, kSecond, 0, chartsdata_refresh);
+	main_timeregister(TIMEMODE_RUN_LATE, kHour, 0, chartsdata_store);
 	main_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }

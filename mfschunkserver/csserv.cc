@@ -1075,20 +1075,20 @@ void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	}
 }
 
-void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
+void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t data_length) {
 	uint32_t chartid;
 	uint8_t *ptr;
-	uint32_t l;
+	uint32_t length;
 
-	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
+	if (data_length!=4) {
+		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",data_length);
 		eptr->state = CLOSE;
 		return;
 	}
 	chartid = get32bit(&data);
-	l = charts_datasize(chartid);
-	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART_DATA,l);
-	if (l>0) {
+	length = charts_datasize(chartid);
+	ptr = csserv_create_attached_packet(eptr,ANTOCL_CHART_DATA,length);
+	if (length>0) {
 		charts_makedata(ptr,chartid);
 	}
 }
