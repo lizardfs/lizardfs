@@ -100,5 +100,6 @@ endif()
 add_subdirectory(mfsdata)
 add_subdirectory(mfscgi)
 add_subdirectory(doc)
+add_subdirectory(test)
 
 include(Packages.cmake)

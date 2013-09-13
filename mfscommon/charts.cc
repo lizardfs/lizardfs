@@ -33,10 +33,8 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <string>
-#ifdef HAVE_ZLIB_H
-#include <zlib.h>
-#endif
 
+#include "png.h"
 #include "charts.h"
 #include "crc.h"
 #include "datapack.h"
@@ -1830,21 +1828,20 @@ void charts_chart_to_rawchart() {
 	}
 }
 
-void charts_fill_crc(uint8_t *buff,uint32_t leng) {
-	uint8_t *ptr,*eptr;
-	uint32_t crc,chleng;
-	ptr = buff+8;
-	eptr = buff+leng;
-	while (ptr+4<=eptr) {
-		chleng = get32bit((const uint8_t **)&ptr);
-		if (ptr+8+chleng<=eptr) {
-			crc = mycrc32(0,ptr,chleng+4);
-			ptr += chleng+4;
-			if (memcmp(ptr,"CRC#",4)==0) {
-				put32bit(&ptr,crc);
-			} else {
-				syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
-			}
+int charts_verify_chunk_crc_placeholder_value(const uint8_t *chunk) {
+	uint8_t phv[] = { 'C', 'R', 'C', '#' };
+	return png_chunk_get_crc(chunk) - *(uint32_t*)phv;
+}
+
+void charts_fill_crc(uint8_t *const png,const uint8_t *png_end) {
+	for (uint8_t *chunk = png_first_chunk(png)
+		;png_chunk_verify_limits(chunk,png_end) == 0
+		;chunk = png_next_chunk(chunk))
+	{
+		if (charts_verify_chunk_crc_placeholder_value(chunk) == 0) {
+			png_chunk_update_crc(chunk);
+		} else {
+			syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
 		}
 	}
 }
@@ -2059,7 +2056,7 @@ void charts_get_png(uint8_t *buff) {
 		put32bit(&ptr,compsize);
 		memcpy(buff+sizeof(png_header),compbuff,compsize);
 		memcpy(buff+sizeof(png_header)+compsize,png_tailer,sizeof(png_tailer));
-		charts_fill_crc(buff,sizeof(png_header)+compsize+sizeof(png_tailer));
+		charts_fill_crc(buff,buff+sizeof(png_header)+compsize+sizeof(png_tailer));
 	}
 	compsize=0;
 }
