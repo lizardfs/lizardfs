@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
+#include <string>
 
 #include "MFSCommunication.h"
 
@@ -59,6 +60,23 @@ enum {KILL,HEADER,DATA};
 enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define SESSION_STATS 16
+
+const uint8_t STATS_STATFS_INDEX = 0;
+const uint8_t STATS_GETATTR_INDEX = 1;
+const uint8_t STATS_SETATTR_INDEX = 2;
+const uint8_t STATS_LOOKUP_INDEX = 3;
+const uint8_t STATS_MKDIR_INDEX = 4;
+const uint8_t STATS_RMDIR_INDEX = 5;
+const uint8_t STATS_SYMLINK_INDEX = 6;
+const uint8_t STATS_READLINK_INDEX = 7;
+const uint8_t STATS_MKNOD_INDEX = 8;
+const uint8_t STATS_UNLINK_INDEX = 9;
+const uint8_t STATS_RENAME_INDEX = 10;
+const uint8_t STATS_LINK_INDEX = 11;
+const uint8_t STATS_READDIR_INDEX = 12;
+const uint8_t STATS_OPEN_INDEX = 13;
+const uint8_t STATS_READ_INDEX = 14;
+const uint8_t STATS_WRITE_INDEX = 15;
 
 /* CACHENOTIFY
 // hash size should be at least 1.5 * 10000 * # of connected mounts
@@ -1639,7 +1657,7 @@ void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	put64bit(&ptr,reservedspace);
 	put32bit(&ptr,inodes);
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[0]++;
+		eptr->sesdata->currentopstats[STATS_STATFS_INDEX]++;
 	}
 }
 
@@ -1703,7 +1721,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[3]++;
+		eptr->sesdata->currentopstats[STATS_LOOKUP_INDEX]++;
 	}
 }
 
@@ -1737,7 +1755,7 @@ void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[1]++;
+		eptr->sesdata->currentopstats[STATS_GETATTR_INDEX]++;
 	}
 }
 
@@ -1785,7 +1803,7 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[2]++;
+		eptr->sesdata->currentopstats[STATS_SETATTR_INDEX]++;
 	}
 }
 
@@ -1835,7 +1853,7 @@ void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t
 		cl->next = eptr->chunkdelayedops;
 		eptr->chunkdelayedops = cl;
 		if (eptr->sesdata) {
-			eptr->sesdata->currentopstats[2]++;
+			eptr->sesdata->currentopstats[STATS_SETATTR_INDEX]++;
 		}
 		return;
 	}
@@ -1853,7 +1871,7 @@ void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[2]++;
+		eptr->sesdata->currentopstats[STATS_SETATTR_INDEX]++;
 	}
 }
 
@@ -1884,7 +1902,7 @@ void matoclserv_fuse_readlink(matoclserventry *eptr,const uint8_t *data,uint32_t
 		ptr[pleng]=0;
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[7]++;
+		eptr->sesdata->currentopstats[STATS_READLINK_INDEX]++;
 	}
 }
 
@@ -1938,7 +1956,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[6]++;
+		eptr->sesdata->currentopstats[STATS_SYMLINK_INDEX]++;
 	}
 }
 
@@ -1984,7 +2002,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr,const uint8_t *data,uint32_t le
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[8]++;
+		eptr->sesdata->currentopstats[STATS_MKNOD_INDEX]++;
 	}
 }
 
@@ -2033,7 +2051,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[4]++;
+		eptr->sesdata->currentopstats[STATS_MKDIR_INDEX]++;
 	}
 }
 
@@ -2067,7 +2085,7 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[9]++;
+		eptr->sesdata->currentopstats[STATS_UNLINK_INDEX]++;
 	}
 }
 
@@ -2101,7 +2119,7 @@ void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[5]++;
+		eptr->sesdata->currentopstats[STATS_RMDIR_INDEX]++;
 	}
 }
 
@@ -2155,7 +2173,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		put8bit(&ptr,status);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[10]++;
+		eptr->sesdata->currentopstats[STATS_RENAME_INDEX]++;
 	}
 }
 
@@ -2198,7 +2216,7 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 		memcpy(ptr,attr,35);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[11]++;
+		eptr->sesdata->currentopstats[STATS_LINK_INDEX]++;
 	}
 }
 
@@ -2243,7 +2261,7 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 */
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[12]++;
+		eptr->sesdata->currentopstats[STATS_READDIR_INDEX]++;
 	}
 }
 
@@ -2312,7 +2330,7 @@ void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t len
 		put8bit(&ptr,status);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[13]++;
+		eptr->sesdata->currentopstats[STATS_OPEN_INDEX]++;
 	}
 }
 
@@ -2358,7 +2376,41 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 	put32bit(&ptr,version);
 	memcpy(ptr,loc,count*6);
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[14]++;
+		eptr->sesdata->currentopstats[STATS_READ_INDEX]++;
+	}
+}
+
+void matoclserv_fuse_read_parents(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	
+	uint8_t *ptr;
+	
+	if ((int32_t)length != CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_READ_PARENTS - wrong size (%" PRIu32 "/%d)", length, CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH);
+		eptr->mode = KILL;
+		return;
+	}
+	
+	uint32_t msgid = get32bit(&data);
+	uint32_t inode = get32bit(&data);
+	std::stringstream parents;
+	uint8_t status = fs_readparents(inode, parents);
+	
+	if (status != STATUS_OK) {
+		ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_READ_PARENTS, MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER1);
+		put32bit(&ptr, msgid);
+		put8bit(&ptr, status);
+		return;
+	}
+	
+	std::string parents_string = parents.str();
+	uint32_t parentslength = parents_string.length();
+	ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_READ_PARENTS, MATOCL_FUSE_READ_PARENTS_MSG_LENGTH_VER2 + parentslength);
+	put32bit(&ptr, msgid);
+	put32bit(&ptr, parentslength);
+	memcpy(ptr, parents_string.data(), parentslength);
+	
+	if (eptr->sesdata) {
+		eptr->sesdata->currentopstats[STATS_READ_INDEX]++;
 	}
 }
 
@@ -2423,7 +2475,7 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 		memcpy(ptr,loc,count*6);
 	}
 	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[15]++;
+		eptr->sesdata->currentopstats[STATS_WRITE_INDEX]++;
 	}
 }
 
@@ -3460,6 +3512,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case CLTOMA_FUSE_WRITE_CHUNK_END:
 				matoclserv_fuse_write_chunk_end(eptr,data,length);
+				break;
+			case CLTOMA_FUSE_READ_PARENTS:
+				matoclserv_fuse_read_parents(eptr,data,length);
 				break;
 // fuse - meta
 			case CLTOMA_FUSE_GETTRASH:

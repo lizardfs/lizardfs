@@ -4620,6 +4620,41 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 #endif
 
 #ifndef METARESTORE
+uint8_t fs_readparents(uint32_t inode, std::stringstream &parents_paths) {
+	
+	fsnode *p;
+	uint32_t ts = main_time();
+
+	p = fsnodes_id_to_node(inode);
+	if (!p) {
+		return ERROR_ENOENT;
+	}
+	
+	for (fsedge *parent = p->parents; parent != NULL; parent = parent->nextparent) {
+		uint32_t size = fsnodes_getpath_size(parent);
+		uint8_t *path = new uint8_t[size + 1];
+		fsnodes_getpath_data(parent, path, size);
+		path[size] = '\0';
+		parents_paths << path;
+		parents_paths << '\0';
+		delete[] path;
+	}
+	
+	if (p->atime!=ts) {
+		p->atime = ts;
+		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,inode);
+/*
+#ifdef CACHENOTIFY
+		fsnodes_attr_changed(p,ts);
+#endif
+*/
+	}
+	stats_read++;
+	return STATUS_OK;
+}
+#endif
+
+#ifndef METARESTORE
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag) {
 	int status;
 	uint32_t i;

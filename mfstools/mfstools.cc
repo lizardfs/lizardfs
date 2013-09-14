@@ -1324,7 +1324,8 @@ int ip_port_cmp(const void*a,const void*b) {
 	return memcmp(a,b,6);
 }
 
-int file_info(const char *fname) {
+int chunks_info(const char *fname) {
+	
 	uint8_t reqbuff[20],*wptr,*buff;
 	const uint8_t *rptr;
 	uint32_t indx,cmd,leng,inode,version;
@@ -1389,9 +1390,7 @@ int file_info(const char *fname) {
 			close_master_conn(1);
 			return -1;
 		}
-		if (indx==0) {
-			printf("%s:\n",fname);
-		}
+		
 		fleng = get64bit(&rptr);
 		chunkid = get64bit(&rptr);
 		version = get32bit(&rptr);
@@ -1423,6 +1422,113 @@ int file_info(const char *fname) {
 		indx++;
 	} while (indx<((fleng+MFSCHUNKMASK)>>MFSCHUNKBITS));
 	close_master_conn(0);
+	return 0;
+}
+
+int links_info(const char *fname) {
+	
+	const int CLTOMA_BUFF_SIZE = MFS_MSG_HEADER_LENGTH + CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH;
+	const int MATOCL_BUFF_SIZE = MFS_MSG_HEADER_LENGTH;
+	uint8_t cltoma_buff[CLTOMA_BUFF_SIZE];
+	uint8_t matocl_buff[MATOCL_BUFF_SIZE];
+	
+	uint32_t inode;
+	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
+	if (fd < 0) {
+		return -1;
+	}
+	uint8_t *wptr = cltoma_buff;
+	
+	put32bit(&wptr, CLTOMA_FUSE_READ_PARENTS);
+	put32bit(&wptr, CLTOMA_FUSE_READ_PARENTS_MSG_LENGTH);
+	put32bit(&wptr, 0);
+	put32bit(&wptr, inode);
+	
+	if (tcpwrite(fd, cltoma_buff, CLTOMA_BUFF_SIZE) != CLTOMA_BUFF_SIZE) {
+		printf("%s: master query: send error\n", fname);
+		close_master_conn(1);
+		return -1;
+	}
+	if (tcpread(fd, matocl_buff, MFS_MSG_HEADER_LENGTH) != MFS_MSG_HEADER_LENGTH) {
+		printf("%s: master query: receive error\n", fname);
+		close_master_conn(1);
+		return -1;
+	}
+	
+	const uint8_t *rptr = matocl_buff;
+	uint32_t cmd = get32bit(&rptr);
+	uint32_t leng = get32bit(&rptr);
+	
+	if (cmd != MATOCL_FUSE_READ_PARENTS) {
+		printf("%s: master query: wrong answer (type)\n",fname);
+		close_master_conn(1);
+		return -1;
+	}
+	
+	uint8_t *buff = new uint8_t[leng];
+	if (tcpread(fd, buff, leng) != (int32_t)leng) {
+		printf("%s: master query: receive error\n", fname);
+		delete[] buff;
+		close_master_conn(1);
+		return -1;
+	}
+	
+	rptr = buff;
+	cmd = get32bit(&rptr);	// queryid
+	if (cmd != 0) {
+		printf("%s: master query: wrong answer (queryid)\n", fname);
+		delete[] buff;
+		close_master_conn(1);
+		return -1;
+	}
+	
+	leng -= sizeof(uint32_t);
+	if (leng == sizeof(uint8_t)) {
+		printf("%s: %s (%d)\n",fname, mfsstrerr(*rptr), *rptr);
+		delete[] buff;
+		close_master_conn(1);
+		return -1;
+	} else if (leng < sizeof(uint32_t)) {
+		printf("%s: master query: wrong answer (leng)\n", fname);
+		delete[] buff;
+		close_master_conn(1);
+		return -1;
+	}
+	
+	uint32_t pathleng = get32bit(&rptr);
+	
+	printf("\tHard links:\n\t\t");
+	for (uint32_t i = 0; i < pathleng; ++i, ++rptr) {
+		if (*rptr == '\0') {
+			printf("\n");
+			if (i < pathleng - 1) {
+				printf("\t\t");
+			}
+			continue;
+		}
+		printf("%c", *rptr);
+	}
+	
+	delete[] buff;
+	close_master_conn(0);
+	return 0;
+}
+
+int file_info(const char *fname, int showlinks) {
+	
+	printf("%s:\n",fname);
+	
+	int status = 0;
+	if ((status = chunks_info(fname)) < 0) {
+		return status;
+	}
+	
+	if (showlinks) {
+		if ((status = links_info(fname)) < 0) {
+			return status;
+		}
+	}
+	
 	return 0;
 }
 
@@ -2060,6 +2166,7 @@ void usage(int f) {
 			break;
 		case MFSFILEINFO:
 			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name [name ...]\n");
+			fprintf(stderr," -l - show paths hard linked to the file\n");
 			break;
 		case MFSAPPENDCHUNKS:
 			fprintf(stderr,"append file chunks to another file. If destination file doesn't exist then it's created as empty file and then chunks are appended\n\nusage: mfsappendchunks dstfile name [name ...]\n");
@@ -2128,6 +2235,7 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
+	int lflag=0;
 	uint64_t v;
 	uint8_t eattr=0,goal=1,smode=SMODE_SET;
 	uint32_t trashtime=86400;
@@ -2639,6 +2747,17 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		break;
+	case MFSFILEINFO:
+		while ((ch = getopt(argc,argv,"l")) != -1) {
+			switch (ch) {
+			case 'l':
+				lflag = 1;
+				break;
+			}
+		}
+		argc -= optind;
+		argv += optind;
+		break;
 	default:
 		while (getopt(argc,argv,"")!=-1);
 		argc -= optind;
@@ -2692,7 +2811,7 @@ int main(int argc,char **argv) {
 			}
 			break;
 		case MFSFILEINFO:
-			if (file_info(*argv)<0) {
+			if (file_info(*argv, lflag)<0) {
 				status=1;
 			}
 			break;
