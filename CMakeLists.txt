@@ -82,11 +82,13 @@ set(ETC_PATH "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
 set(RUN_PATH "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
 
 configure_file(config.h.in config.h)
+include_directories(.) #enable providing paths relative to project's root
 include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/mfsmain/main.cc)
 
+add_subdirectory(3rdparty)
 add_subdirectory(mfscommon)
 add_subdirectory(mfschunkserver)
 add_subdirectory(mfsmaster)
