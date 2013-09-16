@@ -3,8 +3,6 @@
 
 #include <cstdint>
 
-namespace lizardfs {
-
 class ChunkType {
 public:
 	typedef uint8_t XorLevel;
@@ -31,7 +29,5 @@ private:
 	// (this class will be stored in RAM of master)
 	uint8_t chunkType_;
 };
-
-} // namespace lizardfs
 
 #endif // LIZARDFS_COMMON_CHUNK_TYPE_H_

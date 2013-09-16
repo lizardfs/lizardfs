@@ -3,8 +3,6 @@
 #include "mfscommon/goal.h"
 #include "mfscommon/massert.h"
 
-namespace lizardfs {
-
 GoalID xorGoalID(uint8_t level) {
 	eassert(level >= MinXorLevel);
 	eassert(level <= MaxXorLevel);
@@ -24,5 +22,3 @@ bool isValidXorGoal(uint8_t level) {
 	GoalID maxXorGoal = xorGoalID(MaxXorLevel);
 	return level >= minXorGoal && level <= maxXorGoal;
 }
-
-};

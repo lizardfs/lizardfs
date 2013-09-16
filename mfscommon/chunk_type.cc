@@ -2,8 +2,6 @@
 #include "mfscommon/goal.h"
 #include "mfscommon/massert.h"
 
-namespace lizardfs {
-
 ChunkType::ChunkType(uint8_t chunkType) : chunkType_(chunkType) {
 }
 
@@ -11,8 +9,7 @@ ChunkType ChunkType::getStandardChunkType() {
 	return ChunkType(ChunkType::StandardChunkType);
 }
 
-ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part)
-{
+ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
 	eassert(part <= level);
 	eassert(isValidXorGoal(level));
 	return ChunkType((MaxXorLevel + 1) * level + part);
@@ -40,5 +37,3 @@ ChunkType::XorPart ChunkType::getXorPart() {
 	eassert(isXorChunkType());
 	return chunkType_ % (MaxXorLevel + 1);
 }
-
-}; // namespace lizardfs

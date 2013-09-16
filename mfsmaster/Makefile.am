@@ -18,6 +18,8 @@ mfsmaster_SOURCES=\
 	init.h \
 	../mfsdaemonmain/main.cc ../mfsdaemonmain/main.h \
 	../mfscommon/cfg.cc ../mfscommon/cfg.h \
+	../mfscommon/chunk_type.cc ../mfscommon/chunk_type.h \
+	../mfscommon/goal.cc ../mfscommon/goal.h \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/md5.cc ../mfscommon/md5.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \

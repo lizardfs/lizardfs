@@ -1186,7 +1186,8 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			for (i=0 ; i<chunkcount ; i++) {
 				chunkid = get64bit(&data);
 				chunkversion = get32bit(&data);
-				chunk_server_has_chunk(eptr,chunkid,chunkversion);
+				chunk_server_has_chunk(eptr, chunkid, chunkversion,
+						ChunkType::getStandardChunkType());
 			}
 			return;
 		} else if (rversion==52) {
@@ -1247,7 +1248,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		for (i=0 ; i<chunkcount ; i++) {
 			chunkid = get64bit(&data);
 			chunkversion = get32bit(&data);
-			chunk_server_has_chunk(eptr,chunkid,chunkversion);
+			chunk_server_has_chunk(eptr, chunkid, chunkversion, ChunkType::getStandardChunkType());
 		}
 	}
 }
@@ -1331,7 +1332,7 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 		chunkid = get64bit(&data);
 		chunkversion = get32bit(&data);
 //		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
-		chunk_server_has_chunk(eptr,chunkid,chunkversion);
+		chunk_server_has_chunk(eptr, chunkid, chunkversion, ChunkType::getStandardChunkType());
 	}
 }
 

@@ -78,6 +78,7 @@ typedef struct _slist {
 	void *ptr;
 	uint8_t valid;
 	uint32_t version;
+	ChunkType chunkType;
 //	uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
 //	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
 	struct _slist *next;
@@ -1036,12 +1037,12 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	return STATUS_OK;
 }
 
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
+void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "_%08" PRIX32 "), so create it for future deletion",chunkid,version);
+		// chunkserver has nonexistent chunk, so create it for future deletion
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1055,6 +1056,12 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 		}
 	}
 	s = slist_malloc();
+	s->chunkType = chunkType;
+	/*
+	 * TODO(msulikowski)
+	 * As for now we ignore chunk type in master's structures, ie. we update all
+	 * statistics as if a part of xored chunk was a regular copy.
+	 */
 	s->ptr = ptr;
 	if (c->version!=(version&0x7FFFFFFF)) {
 		s->valid = INVALID;
