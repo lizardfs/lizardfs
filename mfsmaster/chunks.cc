@@ -1463,6 +1463,15 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 		return;
 	}
+
+	// temporary exclusion of chunk with xored copies
+	for (s=c->slisthead ; s ; s=s->next) {
+		if (s->chunkType.isXorChunkType()) {
+			return;
+		}
+	}
+
+
 // step 1. calculate number of valid and invalid copies
 	vc=tdc=ivc=bc=tdb=dc=0;
 	for (s=c->slisthead ; s ; s=s->next) {
