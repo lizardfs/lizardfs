@@ -984,7 +984,6 @@ int main(int argc,char **argv) {
 	struct rlimit rls;
 
 	strerr_init();
-	mycrc32_init();
 
 	movewarning = 0;
 	cfgfile=strdup(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
