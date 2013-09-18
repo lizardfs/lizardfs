@@ -16,6 +16,12 @@ ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
 	return ChunkType((kMaxXorLevel + 1) * level + part);
 }
 
+ChunkType ChunkType::getXorParityChunkType(XorLevel level) {
+	sassert(level >= kMinXorLevel);
+	sassert(level <= kMaxXorLevel);
+	return ChunkType((kMaxXorLevel + 1) * level + ChunkType::XorParityPart);
+}
+
 bool ChunkType::isStandardChunkType() const {
 	return chunkTypeId_ == ChunkType::StandardChunkTypeId;
 }

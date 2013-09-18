@@ -6,6 +6,8 @@ AM_LDFLAGS=$(PTHREAD_LIBS) $(ZLIB_LIBS)
 mfschunkserver_SOURCES= \
 	output_buffers.cc output_buffers.h \
 	bgjobs.cc bgjobs.h \
+	chunk.cc chunk.h \
+	chunk_signature.cc chunk_signature.h \
 	csserv.cc csserv.h \
 	hddspacemgr.cc hddspacemgr.h \
 	masterconn.cc masterconn.h \
@@ -14,6 +16,7 @@ mfschunkserver_SOURCES= \
 	init.h \
 	../mfsdaemonmain/main.cc ../mfsdaemonmain/main.h \
 	../mfscommon/cfg.cc ../mfscommon/cfg.h \
+	../mfscommon/chunk_type.cc ../mfscommon/chunk_type.h \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \

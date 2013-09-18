@@ -10,6 +10,7 @@ public:
 
 	static ChunkType getStandardChunkType();
 	static ChunkType getXorChunkType(XorLevel level, XorPart part);
+	static ChunkType getXorParityChunkType(XorLevel level);
 
 	bool isStandardChunkType() const;
 	bool isXorChunkType() const;
