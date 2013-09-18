@@ -76,9 +76,9 @@ enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
 typedef struct _slist {
 	void *ptr;
-	uint8_t valid;
 	uint32_t version;
 	ChunkType chunkType;
+	uint8_t valid;
 //	uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
 //	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
 	struct _slist *next;
