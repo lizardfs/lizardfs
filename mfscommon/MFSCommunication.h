@@ -573,9 +573,11 @@
 // chunkid:64 version:32 checksum:32
 // chunkid:64 version:32 status:8
 
-// 0x012E
-#define ANTOCS_CHUNK_CHECKSUM_TAB (PROTO_BASE+302)
-// chunkid:64 version:32
+// Following packet was removed, but number (PROTO_BASE+302)
+// cannot be reused for backward compatibility:
+//// 0x012E
+//#define ANTOCS_CHUNK_CHECKSUM_TAB (PROTO_BASE+302)
+//// chunkid:64 version:32
 
 // 0x012F
 #define CSTOAN_CHUNK_CHECKSUM_TAB (PROTO_BASE+303)

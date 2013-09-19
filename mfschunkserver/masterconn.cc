@@ -34,11 +34,14 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
+#include <list>
+
 #include "mfscommon/MFSCommunication.h"
 #include "mfscommon/datapack.h"
 #include "masterconn.h"
 #include "mfscommon/cfg.h"
 #include "mfsdaemonmain/main.h"
+#include "mfscommon/packet.h"
 #include "mfscommon/sockets.h"
 #include "hddspacemgr.h"
 #include "mfscommon/slogger.h"
@@ -59,26 +62,34 @@
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};
 
-typedef struct packetstruct {
-	struct packetstruct *next;
+struct InputPacket {
 	uint8_t *startptr;
 	uint32_t bytesleft;
 	uint8_t *packet;
-} packetstruct;
+};
 
-typedef struct masterconn {
+struct OutputPacket {
+	std::vector<uint8_t> packet;
+	uint32_t bytesSent;
+	void swap(OutputPacket& other) {
+		std::swap(packet, other.packet);
+		std::swap(bytesSent, other.bytesSent);
+	}
+};
+
+struct masterconn {
 	int mode;
 	int sock;
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
-	packetstruct inputpacket;
-	packetstruct *outputhead,**outputtail;
+	InputPacket inputpacket;
+	std::list<OutputPacket> outputPackets;
 	uint32_t bindip;
 	uint32_t masterip;
 	uint16_t masterport;
 	uint8_t masteraddrvalid;
-} masterconn;
+};
 
 static masterconn *masterconnsingleton=NULL;
 #ifdef BGJOBS
@@ -111,65 +122,51 @@ void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt) {
 }
 
 void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
-	packetstruct *outpacket;
-	uint8_t *ptr;
-	uint32_t psize;
-
-	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
-	passert(outpacket);
-	psize = size+8;
-	outpacket->packet = (uint8_t*) malloc(psize);
-	passert(outpacket->packet);
-	outpacket->bytesleft = psize;
-	ptr = outpacket->packet;
-	put32bit(&ptr,type);
-	put32bit(&ptr,size);
-	outpacket->startptr = (uint8_t*)(outpacket->packet);
-	outpacket->next = NULL;
+	OutputPacket* outpacket = new OutputPacket();
+	outpacket->packet.resize(size + PacketHeader::kSize);
+	outpacket->bytesSent = 0;
+	uint8_t *ptr = outpacket->packet.data();
+	put32bit(&ptr, type);
+	put32bit(&ptr, size);
 	return outpacket;
 }
 
 uint8_t* masterconn_get_packet_data(void *packet) {
-	packetstruct *outpacket = (packetstruct*)packet;
-	return outpacket->packet+8;
+	OutputPacket* outpacket = (OutputPacket*)packet;
+	return outpacket->packet.data() + PacketHeader::kSize;
 }
 
 void masterconn_delete_packet(void *packet) {
-	packetstruct *outpacket = (packetstruct*)packet;
-	free(outpacket->packet);
-	free(outpacket);
+	OutputPacket* outputPacket = (OutputPacket*)packet;
+	delete outputPacket;
 }
 
-void masterconn_attach_packet(masterconn *eptr,void *packet) {
-	packetstruct *outpacket = (packetstruct*)packet;
-	*(eptr->outputtail) = outpacket;
-	eptr->outputtail = &(outpacket->next);
+void masterconn_attach_packet(masterconn *eptr, void* packet) {
+	OutputPacket* outputPacket = (OutputPacket*) packet;
+	eptr->outputPackets.push_back(OutputPacket());
+	std::swap(eptr->outputPackets.back(), *outputPacket);
+	delete outputPacket;
 }
 
-uint8_t* masterconn_create_attached_packet(masterconn *eptr,uint32_t type,uint32_t size) {
-	packetstruct *outpacket;
-	uint8_t *ptr;
-	uint32_t psize;
+void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t>& serializedPacket) {
+	OutputPacket outputPacket;
+	outputPacket.packet.swap(serializedPacket);
+	outputPacket.bytesSent = 0;
 
-	outpacket = (packetstruct*)malloc(sizeof(packetstruct));
-	passert(outpacket);
-	psize = size+8;
-	outpacket->packet = (uint8_t*) malloc(psize);
-	passert(outpacket->packet);
-	outpacket->bytesleft = psize;
-	ptr = outpacket->packet;
-	put32bit(&ptr,type);
-	put32bit(&ptr,size);
-	outpacket->startptr = (uint8_t*)(outpacket->packet);
-	outpacket->next = NULL;
-	*(eptr->outputtail) = outpacket;
-	eptr->outputtail = &(outpacket->next);
-	return ptr;
+	eptr->outputPackets.push_back(OutputPacket());
+	std::swap(eptr->outputPackets.back(), outputPacket);
+}
+
+template<class... Data>
+void masterconn_create_attached_moosefs_packet(masterconn *eptr,
+		PacketHeader::Type type, const Data&... data) {
+	std::vector<uint8_t> buffer;
+	serializeMooseFsPacket(buffer, type, data...);
+	masterconn_create_attached_packet(eptr, buffer);
 }
 
 void masterconn_sendregister(masterconn *eptr) {
-	uint8_t *buff;
-	uint32_t chunks,myip;
+	uint32_t myip;
 	uint16_t myport;
 	uint64_t usedspace,totalspace;
 	uint64_t tdusedspace,tdtotalspace;
@@ -177,75 +174,66 @@ void masterconn_sendregister(masterconn *eptr) {
 
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
-	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+4+4+2+2);
-	put8bit(&buff,50);
-	put16bit(&buff,VERSMAJ);
-	put8bit(&buff,VERSMID);
-	put8bit(&buff,VERSMIN);
-	put32bit(&buff,myip);
-	put16bit(&buff,myport);
-	put16bit(&buff,Timeout);
+
+	std::vector<uint8_t> buffer;
+	masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
+			uint8_t(50), uint16_t(VERSMAJ), uint8_t(VERSMID), uint8_t(VERSMIN),
+			uint32_t(myip), uint16_t(myport), uint16_t(Timeout));
+
 	hdd_get_chunks_begin();
-	while ((chunks = hdd_get_chunks_next_list_count())) {
-		buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+chunks*(8+4));
-		put8bit(&buff,51);
-		hdd_get_chunks_next_list_data(buff);
+	std::vector<ChunkWithVersion> chunksWithVersions;
+	hdd_get_chunks_next_list_data(chunksWithVersions);
+	while (!chunksWithVersions.empty()) {
+		masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
+				uint8_t(51), chunksWithVersions);
+		chunksWithVersions.clear();
+		hdd_get_chunks_next_list_data(chunksWithVersions);
 	}
 	hdd_get_chunks_end();
+
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-	buff = masterconn_create_attached_packet(eptr,CSTOMA_REGISTER,1+8+8+4+8+8+4);
-	put8bit(&buff,52);
-	put64bit(&buff,usedspace);
-	put64bit(&buff,totalspace);
-	put32bit(&buff,chunkcount);
-	put64bit(&buff,tdusedspace);
-	put64bit(&buff,tdtotalspace);
-	put32bit(&buff,tdchunkcount);
+	masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
+			uint8_t(52), usedspace, totalspace, chunkcount,
+			tdusedspace, tdtotalspace, tdchunkcount);
 }
 
 void masterconn_check_hdd_reports() {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t errorcounter;
-	uint32_t chunkcounter;
-	uint8_t *buff;
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		if (hdd_spacechanged()) {
 			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
 			uint32_t chunkcount,tdchunkcount;
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_SPACE,8+8+4+8+8+4);
-			hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-			put64bit(&buff,usedspace);
-			put64bit(&buff,totalspace);
-			put32bit(&buff,chunkcount);
-			put64bit(&buff,tdusedspace);
-			put64bit(&buff,tdtotalspace);
-			put32bit(&buff,tdchunkcount);
+			hdd_get_space(&usedspace, &totalspace, &chunkcount, &tdusedspace, &tdtotalspace,
+					&tdchunkcount);
+			std::vector<uint8_t> buffer;
+			masterconn_create_attached_moosefs_packet(
+					eptr, CSTOMA_SPACE,
+					usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);
 		}
 		errorcounter = hdd_errorcounter();
 		while (errorcounter) {
-			masterconn_create_attached_packet(eptr,CSTOMA_ERROR_OCCURRED,0);
+			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_ERROR_OCCURRED);
 			errorcounter--;
 		}
-		chunkcounter = hdd_get_damaged_chunk_count();	// lock
-		if (chunkcounter) {
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_DAMAGED,8*chunkcounter);
-			hdd_get_damaged_chunk_data(buff);	// unlock
-		} else {
-			hdd_get_damaged_chunk_data(NULL);
+
+		std::vector<uint64_t> chunks;
+		hdd_get_damaged_chunks(chunks);
+		if (!chunks.empty()) {
+			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
 		}
-		chunkcounter = hdd_get_lost_chunk_count(LOSTCHUNKLIMIT);	// lock
-		if (chunkcounter) {
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_LOST,8*chunkcounter);
-			hdd_get_lost_chunk_data(buff,LOSTCHUNKLIMIT);	// unlock
-		} else {
-			hdd_get_lost_chunk_data(NULL,0);
+
+		chunks.clear();
+		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
+		if (!chunks.empty()) {
+			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
 		}
-		chunkcounter = hdd_get_new_chunk_count(NEWCHUNKLIMIT);	// lock
-		if (chunkcounter) {
-			buff = masterconn_create_attached_packet(eptr,CSTOMA_CHUNK_NEW,12*chunkcounter);
-			hdd_get_new_chunk_data(buff,NEWCHUNKLIMIT);	// unlock
-		} else {
-			hdd_get_new_chunk_data(NULL,0);
+
+		std::vector<ChunkWithVersion> chunksWithVersions;
+		hdd_get_new_chunks(chunksWithVersions, NEWCHUNKLIMIT);
+		if (!chunksWithVersions.empty()) {
+			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_NEW,
+					chunksWithVersions);
 		}
 	}
 }
@@ -663,7 +651,6 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
-	uint8_t *ptr;
 	uint8_t status;
 	uint32_t checksum;
 
@@ -676,45 +663,11 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	version = get32bit(&data);
 	status = hdd_get_checksum(chunkid,version,&checksum);
 	if (status!=STATUS_OK) {
-		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
+		masterconn_create_attached_moosefs_packet(
+				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, status);
 	} else {
-		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
-	}
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put32bit(&ptr,checksum);
-	}
-}
-
-void masterconn_chunk_checksum_tab(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	uint8_t status;
-	uint8_t crctab[4096];
-
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_checksum_tab(chunkid,version,crctab);
-	if (status!=STATUS_OK) {
-		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
-	} else {
-		ptr = masterconn_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
-	}
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		memcpy(ptr,crctab,4096);
+		masterconn_create_attached_moosefs_packet(
+				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, checksum);
 	}
 }
 
@@ -759,9 +712,6 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 		case ANTOCS_CHUNK_CHECKSUM:
 			masterconn_chunk_checksum(eptr,data,length);
 			break;
-		case ANTOCS_CHUNK_CHECKSUM_TAB:
-			masterconn_chunk_checksum_tab(eptr,data,length);
-			break;
 		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 			eptr->mode = KILL;
@@ -770,7 +720,6 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 
 
 void masterconn_term(void) {
-	packetstruct *pptr,*paptr;
 //	syslog(LOG_INFO,"closing %s:%s",MasterHost,MasterPort);
 	masterconn *eptr = masterconnsingleton;
 
@@ -782,18 +731,9 @@ void masterconn_term(void) {
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
-		pptr = eptr->outputhead;
-		while (pptr) {
-			if (pptr->packet) {
-				free(pptr->packet);
-			}
-			paptr = pptr;
-			pptr = pptr->next;
-			free(paptr);
-		}
 	}
 
-	free(eptr);
+	delete eptr;
 	masterconnsingleton = NULL;
 
 	free(MasterHost);
@@ -804,12 +744,9 @@ void masterconn_term(void) {
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
-	eptr->inputpacket.next = NULL;
-	eptr->inputpacket.bytesleft = 8;
+	eptr->inputpacket.bytesleft = PacketHeader::kSize;
 	eptr->inputpacket.startptr = eptr->hdrbuff;
 	eptr->inputpacket.packet = NULL;
-	eptr->outputhead = NULL;
-	eptr->outputtail = &(eptr->outputhead);
 
 	masterconn_sendregister(eptr);
 	eptr->lastread = eptr->lastwrite = main_time();
@@ -893,8 +830,6 @@ void masterconn_connecttest(masterconn *eptr) {
 
 void masterconn_read(masterconn *eptr) {
 	int32_t i;
-	uint32_t type,size;
-	const uint8_t *ptr;
 	for (;;) {
 #ifdef BGJOBS
 		if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
@@ -922,19 +857,19 @@ void masterconn_read(masterconn *eptr) {
 			return;
 		}
 
+		PacketHeader header;
+		deserializePacketHeader(eptr->hdrbuff, PacketHeader::kSize, header);
 		if (eptr->mode==HEADER) {
-			ptr = eptr->hdrbuff+4;
-			size = get32bit(&ptr);
-
-			if (size>0) {
-				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+			if (header.length > 0) {
+				if (header.length > MaxPacketSize) {
+					syslog(LOG_WARNING, "Master packet too long (%" PRIu32 "/%u)",
+							header.length, MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = (uint8_t*) malloc(size);
+				eptr->inputpacket.packet = (uint8_t*) malloc(header.length);
 				passert(eptr->inputpacket.packet);
-				eptr->inputpacket.bytesleft = size;
+				eptr->inputpacket.bytesleft = header.length;
 				eptr->inputpacket.startptr = eptr->inputpacket.packet;
 				eptr->mode = DATA;
 				continue;
@@ -943,15 +878,11 @@ void masterconn_read(masterconn *eptr) {
 		}
 
 		if (eptr->mode==DATA) {
-			ptr = eptr->hdrbuff;
-			type = get32bit(&ptr);
-			size = get32bit(&ptr);
-
 			eptr->mode=HEADER;
-			eptr->inputpacket.bytesleft = 8;
+			eptr->inputpacket.bytesleft = PacketHeader::kSize;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			masterconn_gotpacket(eptr,type,eptr->inputpacket.packet,size);
+			masterconn_gotpacket(eptr, header.type, eptr->inputpacket.packet, header.length);
 
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
@@ -962,14 +893,11 @@ void masterconn_read(masterconn *eptr) {
 }
 
 void masterconn_write(masterconn *eptr) {
-	packetstruct *pack;
 	int32_t i;
-	for (;;) {
-		pack = eptr->outputhead;
-		if (pack==NULL) {
-			return;
-		}
-		i=write(eptr->sock,pack->startptr,pack->bytesleft);
+	while (!eptr->outputPackets.empty()) {
+		auto pack = eptr->outputPackets.front();
+		i=write(eptr->sock, pack.packet.data() + pack.bytesSent,
+				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
 			if (errno!=EAGAIN) {
 				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
@@ -978,17 +906,11 @@ void masterconn_write(masterconn *eptr) {
 			return;
 		}
 		stats_bytesout+=i;
-		pack->startptr+=i;
-		pack->bytesleft-=i;
-		if (pack->bytesleft>0) {
+		pack.bytesSent += i;
+		if (pack.packet.size() != pack.bytesSent) {
 			return;
 		}
-		free(pack->packet);
-		eptr->outputhead = pack->next;
-		if (eptr->outputhead==NULL) {
-			eptr->outputtail = &(eptr->outputhead);
-		}
-		free(pack);
+		eptr->outputPackets.pop_front();
 	}
 }
 
@@ -1022,7 +944,8 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		pos++;
 #endif /* BGJOBS */
 	}
-	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
+	if (((eptr->mode==HEADER || eptr->mode==DATA) && !eptr->outputPackets.empty())
+			|| eptr->mode==CONNECTING) {
 		if (eptr->pdescpos>=0) {
 			pdesc[eptr->pdescpos].events |= POLLOUT;
 		} else {
@@ -1037,7 +960,6 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 
 void masterconn_serve(struct pollfd *pdesc) {
 	uint32_t now=main_time();
-	packetstruct *pptr,*paptr;
 	masterconn *eptr = masterconnsingleton;
 
 	if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLHUP | POLLERR))) {
@@ -1069,8 +991,8 @@ void masterconn_serve(struct pollfd *pdesc) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputhead==NULL) {
-				masterconn_create_attached_packet(eptr,ANTOAN_NOP,0);
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputPackets.empty()) {
+				masterconn_create_attached_moosefs_packet(eptr, ANTOAN_NOP);
 			}
 		}
 	}
@@ -1090,15 +1012,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
-		pptr = eptr->outputhead;
-		while (pptr) {
-			if (pptr->packet) {
-				free(pptr->packet);
-			}
-			paptr = pptr;
-			pptr = pptr->next;
-			free(paptr);
-		}
+		eptr->outputPackets.clear();
 		eptr->mode = FREE;
 	}
 }
@@ -1180,7 +1094,7 @@ int masterconn_init(void) {
 	if (Timeout<10) {
 		Timeout=10;
 	}
-	eptr = masterconnsingleton = (masterconn*) malloc(sizeof(masterconn));
+	eptr = masterconnsingleton = new masterconn;
 	passert(eptr);
 
 	eptr->masteraddrvalid = 0;

@@ -137,4 +137,25 @@ void deserializePacketDataSkipHeader(const std::vector<uint8_t>& source, Data&..
 	deserializePacketDataSkipHeader(source.data(), source.size(), data...);
 }
 
+template<class T, class... Data>
+inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+		const PacketHeader::Type& type,
+		const T& t,
+		const Data &...args) {
+	uint32_t length = serializedSize(t, args...);
+	serialize(buffer, type, length, t, args...);
+}
+
+inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+		const PacketHeader::Type& type) {
+	uint32_t length = 0;
+	serialize(buffer, type, length);
+}
+
+template<class... Data>
+inline void deserializeMooseFsPacketNoHeader(const std::vector<uint8_t>& buffer,
+		Data &...args) {
+	deserialize(buffer, args...);
+}
+
 #endif // LIZARDFS_MFSCOMMON_PACKET_H_

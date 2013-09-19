@@ -7,12 +7,12 @@ namespace cstoma {
 
 namespace registerHost {
 
-void serialize(std::vector<uint8_t>& destination,
+inline void serialize(std::vector<uint8_t>& destination,
 		uint32_t ip, uint16_t port, uint16_t timeout) {
 	serializePacket(destination, LIZ_CSTOMA_REGISTER_HOST, 0, ip, port, timeout);
 }
 
-void deserialize(const std::vector<uint8_t>& source,
+inline void deserialize(const std::vector<uint8_t>& source,
 		uint32_t& ip, uint16_t& port, uint16_t& timeout) {
 	deserializePacketDataNoHeader(source, ip, port, timeout);
 }

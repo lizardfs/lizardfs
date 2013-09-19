@@ -717,70 +717,6 @@ void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 	put8bit(&ptr, status);
 }
 
-void csserv_chunk_checksum(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
-	TRACETHIS();
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	uint8_t status;
-	uint32_t checksum;
-
-	if (length != 8 + 4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/12)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_checksum(chunkid, version, &checksum);
-	if (status != STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM, 8 + 4 + 1);
-	} else {
-		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM, 8 + 4 + 4);
-	}
-	put64bit(&ptr, chunkid);
-	put32bit(&ptr, version);
-	if (status != STATUS_OK) {
-		put8bit(&ptr, status);
-	} else {
-		put32bit(&ptr, checksum);
-	}
-}
-
-void csserv_chunk_checksum_tab(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
-	TRACETHIS();
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	uint8_t status;
-	uint8_t crctab[4096];
-
-	if (length != 8 + 4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM_TAB - wrong size (%" PRIu32 "/12)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_checksum_tab(chunkid, version, crctab);
-	if (status != STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM_TAB,
-				8 + 4 + 1);
-	} else {
-		ptr = csserv_create_attached_packet(eptr, CSTOAN_CHUNK_CHECKSUM_TAB,
-				8 + 4 + 4096);
-	}
-	put64bit(&ptr, chunkid);
-	put32bit(&ptr, version);
-	if (status != STATUS_OK) {
-		put8bit(&ptr, status);
-	} else {
-		memcpy(ptr, crctab, 4096);
-	}
-}
-
 void csserv_hdd_list_v1(csserventry *eptr, const uint8_t *data,
 		uint32_t length) {
 	TRACETHIS();
@@ -903,12 +839,6 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
 			break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
 			csserv_get_chunk_blocks(eptr, data, length);
-			break;
-		case ANTOCS_CHUNK_CHECKSUM:
-			csserv_chunk_checksum(eptr, data, length);
-			break;
-		case ANTOCS_CHUNK_CHECKSUM_TAB:
-			csserv_chunk_checksum_tab(eptr, data, length);
 			break;
 		case CLTOCS_HDD_LIST_V1:
 			csserv_hdd_list_v1(eptr, data, length);
