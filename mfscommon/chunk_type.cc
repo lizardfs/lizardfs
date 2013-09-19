@@ -2,38 +2,43 @@
 #include "mfscommon/goal.h"
 #include "mfscommon/massert.h"
 
-ChunkType::ChunkType(uint8_t chunkType) : chunkType_(chunkType) {
+ChunkType::ChunkType(uint8_t chunkTypeId) : chunkTypeId_(chunkTypeId) {
 }
 
 ChunkType ChunkType::getStandardChunkType() {
-	return ChunkType(ChunkType::StandardChunkType);
+	return ChunkType(ChunkType::StandardChunkTypeId);
 }
 
 ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
-	eassert(part <= level);
-	eassert(isValidXorGoal(level));
+	sassert(part <= level);
+	sassert(level >= MinXorLevel);
+	sassert(level <= MaxXorLevel);
 	return ChunkType((MaxXorLevel + 1) * level + part);
 }
 
-bool ChunkType::isStandardChunkType() {
-	return chunkType_ == ChunkType::StandardChunkType;
+bool ChunkType::isStandardChunkType() const {
+	return chunkTypeId_ == ChunkType::StandardChunkTypeId;
 }
 
-bool ChunkType::isXorChunkType() {
+bool ChunkType::isXorChunkType() const {
 	return !isStandardChunkType();
 }
 
-bool ChunkType::isXorParity() {
-	eassert(isXorChunkType());
+bool ChunkType::isXorParity() const {
+	sassert(isXorChunkType());
 	return getXorPart() == ChunkType::XorParityPart;
 }
 
-ChunkType::XorLevel ChunkType::getXorLevel() {
-	eassert(isXorChunkType());
-	return chunkType_ / (MaxXorLevel + 1);
+uint8_t ChunkType::chunkTypeId() const {
+	return chunkTypeId_;
 }
 
-ChunkType::XorPart ChunkType::getXorPart() {
-	eassert(isXorChunkType());
-	return chunkType_ % (MaxXorLevel + 1);
+ChunkType::XorLevel ChunkType::getXorLevel() const {
+	sassert(isXorChunkType());
+	return chunkTypeId_ / (MaxXorLevel + 1);
+}
+
+ChunkType::XorPart ChunkType::getXorPart() const {
+	sassert(isXorChunkType());
+	return chunkTypeId_ % (MaxXorLevel + 1);
 }
