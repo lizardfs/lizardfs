@@ -11,6 +11,7 @@ if(NOT IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/googletest)
 endif()
 add_subdirectory(googletest)
 include_directories(googletest/include)
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_subdirectory(common)
 add_subdirectory(mfschunkserver)

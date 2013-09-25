@@ -10,13 +10,7 @@
 
 #include "tests/common/TemporaryDirectory.h"
 
-class OutputBufferTests : public testing::Test {
-public:
-	static void SetUpTestCase() {
-	}
-};
-
-TEST_F(OutputBufferTests, outputBuffersTest) {
+TEST(OutputBufferTests, outputBuffersTest) {
 	std::vector<std::shared_ptr<OutputBuffer>> outputBuffers = {
 			std::shared_ptr<OutputBuffer>(new SimpleOutputBuffer(512*1024)),
 			std::shared_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512*1024)),

@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "mfschunkserver/chunk.h"
+
+#include <gtest/gtest.h>
 
 class ChunkTests : public testing::Test {
 public:

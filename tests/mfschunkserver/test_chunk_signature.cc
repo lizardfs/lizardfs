@@ -1,10 +1,11 @@
+#include "mfschunkserver/chunk_signature.h"
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <fstream>
 #include <string>
 #include <gtest/gtest.h>
 
-#include "mfschunkserver/chunk_signature.cc"
 #include "mfscommon/chunk_type.h"
 #include "tests/common/TemporaryDirectory.h"
 

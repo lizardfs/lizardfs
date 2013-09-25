@@ -15,14 +15,7 @@
 #include "mfscommon/crc.h"
 #include "tests/common/TemporaryDirectory.h"
 
-class MyCrc32Tests : public testing::Test {
-public:
-	static void SetUpTestCase() {
-		mycrc32_init();
-	}
-};
-
-TEST_F(MyCrc32Tests, testCombine) {
+TEST(MyCrc32Tests, MyCrc32Combine) {
 	std::vector<std::vector<uint8_t>> buffers;
 	std::vector<uint8_t> joinedBuffer;
 
