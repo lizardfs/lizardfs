@@ -132,7 +132,17 @@ typedef struct packetstruct {
 	uint8_t *packet;
 } packetstruct;
 
+/** Client entry in the server. */
 typedef struct matoclserventry {
+	/** This looks to be the client type. This is set in matoclserv_serve and matoclserv_fuse_register, and there are 3 possible values:
+	 * 
+	 *    0: new client (default, just after TCP accept)
+	 *       This is referred to as "unregistered clients".
+	 *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))
+	 *       This is referred to as "mounts and new tools" or "standard, registered clients".
+	 *  100: FUSE_REGISTER_BLOB_TOOLS_NOACL or (FUSE_REGISTER_BLOB_ACL and REGISTER_TOOLS)
+	 *       This is referred to as "old mfstools".
+	 */
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
 /* CACHENOTIFY
