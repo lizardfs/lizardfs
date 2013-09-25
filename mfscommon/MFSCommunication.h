@@ -402,6 +402,9 @@
 //      rver==52:	// version 5 / END
 //      	usedspace:64 totalspace:64 chunks:32 tdusedspace:64 tdtotalspace:64 tdchunks:32
 
+// 0x044C
+#define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
+
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
 // usedspace:64 totalspace:64
