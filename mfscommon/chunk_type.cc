@@ -1,8 +1,24 @@
 #include "mfscommon/chunk_type.h"
+
 #include "mfscommon/goal.h"
 #include "mfscommon/massert.h"
 
-ChunkType::ChunkType(uint8_t chunkTypeId) : chunkTypeId_(chunkTypeId) {
+bool ChunkType::validChunkTypeID(uint8_t chunkTypeId) {
+	if (chunkTypeId == ChunkType::StandardChunkTypeId) {
+		return true;
+	}
+	uint8_t xorLevel = chunkTypeId / (kMaxXorLevel + 1);
+	if (xorLevel < kMinXorLevel || xorLevel > kMaxXorLevel) {
+		return false;
+	}
+	uint8_t xorPart = chunkTypeId % (kMaxXorLevel + 1);
+	if (xorPart == ChunkType::XorParityPart) {
+		return true;
+	}
+	if (xorPart < 1 || xorPart > xorLevel) {
+		return false;
+	}
+	return true;
 }
 
 ChunkType ChunkType::getStandardChunkType() {

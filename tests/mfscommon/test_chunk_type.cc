@@ -1,8 +1,9 @@
 #include "mfscommon/chunk_type.h"
-#include "mfscommon/goal.h"
 
-#include <vector>
 #include <gtest/gtest.h>
+#include <vector>
+
+#include "mfscommon/goal.h"
 
 TEST(ChunkTypeTests, SerializeDeserialize) {
 	// Create array with all chunk types
@@ -21,5 +22,20 @@ TEST(ChunkTypeTests, SerializeDeserialize) {
 		serialize(buffer, chunkType);
 		deserialize(buffer, deserializedChunkType);
 		EXPECT_EQ(chunkType, deserializedChunkType);
+	}
+}
+
+TEST(ChunkTypeTests, validChunkTypeIDTest) {
+	std::vector<bool> chunkIDValidity(256, false);
+	chunkIDValidity[ChunkType::getStandardChunkType().chunkTypeId()] = true;
+	for (uint32_t xorLevel = kMinXorLevel; xorLevel <= kMaxXorLevel; ++xorLevel) {
+		chunkIDValidity[ChunkType::getXorParityChunkType(xorLevel).chunkTypeId()] = true;
+		for (uint32_t xorPart = 1; xorPart <= xorLevel; ++xorPart) {
+			chunkIDValidity[ChunkType::getXorChunkType(xorLevel, xorPart).chunkTypeId()] = true;
+		}
+	}
+	for (uint id = 0; id < 256; ++id) {
+		SCOPED_TRACE("ID: " + std::to_string(id));
+		EXPECT_EQ(chunkIDValidity[id], ChunkType::validChunkTypeID(id));
 	}
 }

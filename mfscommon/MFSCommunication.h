@@ -848,8 +848,6 @@
 #define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
 // msgid:32 status:8
 
-
-
 // 0x01B6
 #define CLTOMA_FUSE_APPEND (PROTO_BASE+438)
 // msgid:32 inode:32 srcinode:32 uid:32 gid:32 - append to existing element
@@ -1076,7 +1074,12 @@
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 // msgid:32 status:8
 
-
+//0x0578
+#define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 400U)
+//0x0579
+#define LIZ_MATOCL_FUSE_READ_CHUNK_DATA (1000U + 401U)
+//0x057A
+#define LIZ_MATOCL_FUSE_READ_CHUNK_STATUS (1000U + 402U)
 
 /* Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
