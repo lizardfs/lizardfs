@@ -15,10 +15,6 @@ class IncorrectDeserializationException : public std::exception {
 
 // serializedSize
 
-inline uint32_t serializedSize() {
-	return 0;
-}
-
 inline uint32_t serializedSize(const uint8_t&) {
 	return 1;
 }
@@ -46,9 +42,6 @@ inline uint32_t serializedSize(const T& t, const Args& ... args) {
 }
 
 // serialize for simple types
-
-inline void serialize(uint8_t** /*destination*/) {
-}
 
 inline void serialize(uint8_t** destination, const uint8_t& value) {
 	put8bit(destination, value);
@@ -89,9 +82,6 @@ inline void verifySize(const T& value, uint32_t bytesLeft) {
 }
 
 // deserialize functions for simple types
-
-inline void deserialize(const uint8_t** /*source*/, uint32_t& /*bytesLeftInBuffer*/) {
-}
 
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint8_t& value) {
 	verifySize(value, bytesLeftInBuffer);
@@ -154,7 +144,7 @@ void serialize(std::vector<uint8_t>& buffer, const Args&... args) {
 	sassert(buffer.empty());
 	buffer.resize(serializedSize(args...));
 	uint8_t* destination = buffer.data();
-	::serialize(&destination, args...);
+	serialize(&destination, args...);
 	sassert(std::distance(buffer.data(), destination) == (int32_t)buffer.size());
 }
 
