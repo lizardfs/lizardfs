@@ -3302,8 +3302,8 @@ void* hdd_folder_scan(void *arg) {
 	DIR *dd;
 	struct dirent *de,*destorage;
 	uint16_t subf;
-	char *fullname,*oldfullname;
-	uint8_t plen,oldplen;
+	char *fullname;
+	uint8_t plen;
 	uint64_t namechunkid;
 	uint32_t nameversion;
 	uint32_t tcheckcnt;
@@ -3319,7 +3319,6 @@ void* hdd_folder_scan(void *arg) {
 	zassert(pthread_mutex_unlock(&folderlock));
 
 	plen = strlen(f->path);
-	oldplen = plen;
 
 	/* size of name added to size of structure because on some os'es d_name has size of 1 byte */
 	destorage = (struct dirent*)malloc(sizeof(struct dirent)+pathconf(f->path,_PC_NAME_MAX)+1);
@@ -3351,42 +3350,9 @@ void* hdd_folder_scan(void *arg) {
 			fullname[plen-2]="0123456789ABCDEF"[subf&15];
 			mkdir(fullname,0755);
 		}
-
-/* move chunks from "X/name" to "XX/name" */
-
-		oldfullname = (char*) malloc(oldplen+38);
-		passert(oldfullname);
-		memcpy(oldfullname,f->path,oldplen);
-		oldfullname[oldplen++]='_';
-		oldfullname[oldplen++]='/';
-		oldfullname[oldplen]='\0';
-
-		for (subf=0 ; subf<16 ; subf++) {
-			oldfullname[oldplen-2]="0123456789ABCDEF"[subf];
-			oldfullname[oldplen]='\0';
-			dd = opendir(oldfullname);
-			if (dd==NULL) {
-				continue;
-			}
-			while (readdir_r(dd,destorage,&de)==0 && de!=NULL) {
-				if (hdd_check_filename(de->d_name,&namechunkid,&nameversion)<0) {
-					continue;
-				}
-				memcpy(oldfullname+oldplen,de->d_name,36);
-				memcpy(fullname+plen,de->d_name,36);
-				fullname[plen-3]="0123456789ABCDEF"[(namechunkid>>4)&15];
-				fullname[plen-2]="0123456789ABCDEF"[namechunkid&15];
-				rename(oldfullname,fullname);
-			}
-			oldfullname[oldplen]='\0';
-			rmdir(oldfullname);
-			closedir(dd);
-		}
-		free(oldfullname);
-
 	}
-/* scan new file names */
 
+	/* scan new file names */
 	tcheckcnt = 0;
 	lastperc = 0;
 	lasttime = time(NULL);
@@ -3431,7 +3397,6 @@ void* hdd_folder_scan(void *arg) {
 	}
 	free(fullname);
 	free(destorage);
-//	fprintf(stderr,"hdd space manager: %s: %" PRIu32 " chunks found\n",f->path,f->chunkcount);
 
 	hdd_testshuffle(f);
 
