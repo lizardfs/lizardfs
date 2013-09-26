@@ -46,7 +46,8 @@ uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void 
 uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid);
 
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer);
+		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer,
+		bool performHddOpen);
 
 uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff);
 

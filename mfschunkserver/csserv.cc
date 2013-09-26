@@ -351,7 +351,7 @@ void csserv_delayed_close(uint8_t status, void *e) {
 
 // bg reading
 
-void csserv_read_continue(csserventry *eptr);
+void csserv_read_continue(csserventry *eptr, bool isFirst = false);
 
 void csserv_read_finished(uint8_t status, void *e) {
 	TRACETHIS();
@@ -386,7 +386,7 @@ void csserv_send_finished(csserventry *eptr) {
 	}
 }
 
-void csserv_read_continue(csserventry *eptr) {
+void csserv_read_continue(csserventry *eptr, bool isFirst) {
 	TRACETHIS2(eptr->offset, eptr->size);
 	uint32_t size;
 	uint8_t *ptr;
@@ -419,7 +419,7 @@ void csserv_read_continue(csserventry *eptr) {
 		ps->outputBuffer->copyIntoBuffer(data, sizeof(data));
 
 		eptr->rjobid = job_read(jpool, csserv_read_finished, eptr, eptr->chunkid,
-					eptr->version, eptr->offset, size, ps->outputBuffer.get());
+					eptr->version, eptr->offset, size, ps->outputBuffer.get(), isFirst);
 
 		if (eptr->rjobid == 0) {
 			eptr->state = CLOSE;
@@ -434,7 +434,6 @@ void csserv_read_continue(csserventry *eptr) {
 void csserv_read_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS1(length);
 	uint8_t *ptr;
-	uint8_t status;
 
 	if (length != 8 + 4 + 4 + 4) {
 		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
@@ -446,13 +445,6 @@ void csserv_read_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	eptr->offset = get32bit(&data);
 	eptr->size = get32bit(&data);
 
-	status = hdd_check_version(eptr->chunkid, eptr->version);
-	if (status != STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, status);
-		return;
-	}
 	if (eptr->size == 0) {
 		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
 		put64bit(&ptr, eptr->chunkid);
@@ -472,19 +464,12 @@ void csserv_read_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 		put8bit(&ptr, ERROR_WRONGOFFSET);
 		return;
 	}
-	status = hdd_open(eptr->chunkid);
-	if (status != STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, status);
-		return;
-	}
 	stats_hlopr++;
 	eptr->chunkisopen = 1;
 	eptr->state = READ;
 	eptr->todocnt = 0;
 	eptr->rjobid = 0;
-	csserv_read_continue(eptr);
+	csserv_read_continue(eptr, true);
 }
 
 // bg writing
@@ -537,11 +522,9 @@ void csserv_write_finished(uint8_t status, void *e) {
 	csserv_check_nextpacket(eptr);
 }
 
-void csserv_write_init(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
+void csserv_write_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
-	uint8_t status;
 
 	// Reset connection to IDLE state if there was CLTOCS_WRITE before
 	if (eptr->state == WRITELAST || eptr->state == WRITEFWD) {
@@ -564,15 +547,6 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data,
 	}
 	eptr->chunkid = get64bit(&data);
 	eptr->version = get32bit(&data);
-	status = hdd_check_version(eptr->chunkid, eptr->version);
-	if (status != STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put32bit(&ptr, 0);
-		put8bit(&ptr, status);
-		eptr->state = WRITEFINISH;
-		return;
-	}
 
 	if (length > (8 + 4)) { // connect to another cs
 		eptr->fwdip = get32bit(&data);
@@ -603,8 +577,7 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data,
 	eptr->wjobid = job_open(jpool, csserv_write_finished, eptr, eptr->chunkid);
 }
 
-void csserv_write_data(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
+void csserv_write_data(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint64_t chunkid;
 	uint16_t blocknum;
@@ -642,8 +615,7 @@ void csserv_write_data(csserventry *eptr, const uint8_t *data,
 	eptr->wpacket = csserv_preserve_inputpacket(eptr);
 	eptr->wjobwriteid = writeid;
 	eptr->wjobid = job_write(jpool, csserv_write_finished, eptr, chunkid,
-			eptr->version, blocknum, data + 4, offset, size, data);
-//	syslog(LOG_NOTICE,"add write job (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ")",eptr->wjobid,chunkid,eptr->wjobwriteid);
+                eptr->version, blocknum, data + 4, offset, size, data);
 }
 
 void csserv_write_status(csserventry *eptr, const uint8_t *data,
@@ -1804,8 +1776,7 @@ int csserv_init(void) {
 		mfs_errlog(LOG_ERR, "main server module: can't listen on socket");
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost,
-			ListenPort);
+	mfs_arg_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost, ListenPort);
 
 	csservhead = NULL;
 	main_reloadregister(csserv_reload);

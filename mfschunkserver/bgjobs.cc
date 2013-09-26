@@ -79,6 +79,7 @@ typedef struct _chunk_rd_args {
 	uint8_t *buffer;
 	uint8_t *crcbuff;
 	OutputBuffer* outputBuffer;
+	bool performHddOpen;
 } chunk_rd_args;
 
 // for OP_WRITE
@@ -206,6 +207,12 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
+					if (rdargs->performHddOpen) {
+						status = hdd_open(rdargs->chunkid);
+						if (status != STATUS_OK) {
+							break;
+						}
+					}
 					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->offset, rdargs->size, rdargs->outputBuffer);
 				}
 				break;
@@ -443,7 +450,8 @@ uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void
 }
 
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
+		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer,
+		bool performHddOpen) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
@@ -454,6 +462,7 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	args->offset = offset;
 	args->size = size;
 	args->outputBuffer = outputBuffer;
+	args->performHddOpen = performHddOpen;
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 
