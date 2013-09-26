@@ -529,6 +529,13 @@
 #define CSTOCL_READ_DATA (PROTO_BASE+202)
 // chunkid:64 offset:32 size:32 crc:32 size*[ databyte:8 ]
 
+// 0x04B0
+#define LIZ_CLTOCS_READ (1000U + 200U)
+// 0x04B1
+#define LIZ_CSTOCL_READ_STATUS (1000U + 201U)
+// 0x04B2
+#define LIZ_CSTOCL_READ_DATA (1000U + 202U)
+
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
 // chunkid:64 version:32 N*[ ip:32 port:16 ]
@@ -1067,7 +1074,7 @@
 
 // 0x01E1
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
-// msgid:32 status:8 
+// msgid:32 status:8
 
 
 
