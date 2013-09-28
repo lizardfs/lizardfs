@@ -6,6 +6,12 @@
 
 class ChunkSignature {
 public:
+	static const size_t kSignatureIdOffset = 0;
+	static const size_t kSignatureIdSize = 8;
+	static const size_t kChunkIdOffset = kSignatureIdOffset + kSignatureIdSize;
+	static const size_t kVersionOffset = kChunkIdOffset + sizeof(uint64_t);
+	static const size_t kChunkTypeOffset = kVersionOffset + sizeof(uint32_t);
+
 	ChunkSignature();
 	bool readFromDescriptor(int fd, off_t offset);
 
@@ -26,7 +32,6 @@ public:
 	}
 
 private:
-	static const size_t kSignatureIdSize = 8;
 	static const char kMfsSignatureId[];
 	static const char kLizSignatureId[];
 

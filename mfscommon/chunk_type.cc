@@ -4,7 +4,7 @@
 #include "mfscommon/massert.h"
 
 bool ChunkType::validChunkTypeID(uint8_t chunkTypeId) {
-	if (chunkTypeId == ChunkType::StandardChunkTypeId) {
+	if (chunkTypeId == ChunkType::kStandardChunkTypeId) {
 		return true;
 	}
 	uint8_t xorLevel = chunkTypeId / (kMaxXorLevel + 1);
@@ -12,7 +12,7 @@ bool ChunkType::validChunkTypeID(uint8_t chunkTypeId) {
 		return false;
 	}
 	uint8_t xorPart = chunkTypeId % (kMaxXorLevel + 1);
-	if (xorPart == ChunkType::XorParityPart) {
+	if (xorPart == ChunkType::kXorParityPart) {
 		return true;
 	}
 	if (xorPart < 1 || xorPart > xorLevel) {
@@ -22,7 +22,7 @@ bool ChunkType::validChunkTypeID(uint8_t chunkTypeId) {
 }
 
 ChunkType ChunkType::getStandardChunkType() {
-	return ChunkType(ChunkType::StandardChunkTypeId);
+	return ChunkType(ChunkType::kStandardChunkTypeId);
 }
 
 ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
@@ -35,11 +35,11 @@ ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
 ChunkType ChunkType::getXorParityChunkType(XorLevel level) {
 	sassert(level >= kMinXorLevel);
 	sassert(level <= kMaxXorLevel);
-	return ChunkType((kMaxXorLevel + 1) * level + ChunkType::XorParityPart);
+	return ChunkType((kMaxXorLevel + 1) * level + ChunkType::kXorParityPart);
 }
 
 bool ChunkType::isStandardChunkType() const {
-	return chunkTypeId_ == ChunkType::StandardChunkTypeId;
+	return chunkTypeId_ == ChunkType::kStandardChunkTypeId;
 }
 
 bool ChunkType::isXorChunkType() const {
@@ -48,7 +48,7 @@ bool ChunkType::isXorChunkType() const {
 
 bool ChunkType::isXorParity() const {
 	sassert(isXorChunkType());
-	return getXorPart() == ChunkType::XorParityPart;
+	return getXorPart() == ChunkType::kXorParityPart;
 }
 
 uint8_t ChunkType::chunkTypeId() const {

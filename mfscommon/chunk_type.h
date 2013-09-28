@@ -6,12 +6,12 @@
 
 #include "mfscommon/serialization.h"
 
-#include "mfscommon/serialization.h"
-
 class ChunkType {
 public:
 	typedef uint8_t XorLevel;
 	typedef uint8_t XorPart;
+
+	static const uint8_t kStandardChunkType = 0;
 
 	static ChunkType getStandardChunkType();
 	static ChunkType getXorChunkType(XorLevel level, XorPart part);
@@ -30,11 +30,10 @@ public:
 	static bool validChunkTypeID(uint8_t chunkTypeId);
 
 private:
-	static const uint8_t StandardChunkTypeId = 0;
-	static const uint8_t XorParityPart = 0;
+	static const uint8_t kStandardChunkTypeId = 0;
+	static const uint8_t kXorParityPart = 0;
 
-	// just one 8b number to save space
-	// (this class will be stored in RAM of master)
+	// Just one 8 bytes to save space (this class will be stored in RAM of master)
 	uint8_t chunkTypeId_;
 
 	explicit ChunkType(uint8_t chunkType) : chunkTypeId_(chunkType) {

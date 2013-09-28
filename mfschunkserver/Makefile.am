@@ -14,9 +14,9 @@ mfschunkserver_SOURCES= \
 	replicator.cc replicator.h \
 	chartsdata.cc chartsdata.h \
 	init.h \
+	chunk_filename_parser.h chunk_filename_parser.cc \
 	../mfsdaemonmain/main.cc ../mfsdaemonmain/main.h \
 	../mfscommon/cfg.cc ../mfscommon/cfg.h \
-	../mfscommon/chunk_type.cc ../mfscommon/chunk_type.h \
 	../mfscommon/random.cc ../mfscommon/random.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \
@@ -25,5 +25,7 @@ mfschunkserver_SOURCES= \
 	../mfscommon/strerr.cc ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h \
 	../mfscommon/slogger.h ../mfscommon/mfsstrerr.h \
-	../mfscommon/MFSCommunication.h
-
+	../mfscommon/MFSCommunication.h\
+	../mfscommon/parser.h ../mfscommon/parser.cc \
+	../mfscommon/chunk_type.h ../mfscommon/chunk_type.cc \
+	../mfscommon/goal.h ../mfscommon/goal.cc

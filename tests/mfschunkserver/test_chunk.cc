@@ -114,3 +114,24 @@ TEST_F(ChunkTests, SetBlockCountFromFizeSize) {
 		EXPECT_EQ(342, chunk.blocks);
 	}
 }
+
+TEST_F(ChunkTests, GetFileName) {
+	folder f;
+	std::vector<char> folderPath = { '/', 'm', 'n', 't', '/', 0 };
+	f.path = folderPath.data();
+
+	standardChunk.chunkid = 0x123456;
+	standardChunk.owner = &f;
+	EXPECT_EQ("/mnt/56/chunk_0000000000123456_0000ABCD.mfs",
+			standardChunk.generateFilenameForVersion(0xabcd));
+
+	chunk_1_of_3.chunkid = 0x8765430d;
+	chunk_1_of_3.owner = &f;
+	EXPECT_EQ("/mnt/0D/chunk_xor_1_of_3_000000008765430D_00654321.mfs",
+			chunk_1_of_3.generateFilenameForVersion(0x654321));
+
+	chunk_p_of_3.chunkid = 0x1234567890abcdef;
+	chunk_p_of_3.owner = &f;
+	EXPECT_EQ("/mnt/EF/chunk_xor_parity_of_3_1234567890ABCDEF_12345678.mfs",
+			chunk_p_of_3.generateFilenameForVersion(0x12345678));
+}
