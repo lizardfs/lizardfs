@@ -2549,7 +2549,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 		c->crcchanged = 1;
 	} else {
 		uint32_t blocknum = length / MFSBLOCKSIZE;
-		uint32_t blocksize = blocknum * MFSBLOCKSIZE;
+		uint32_t blocksize = length - blocknum * MFSBLOCKSIZE;
 		if (ftruncate(c->fd, c->getHeaderSize() + length) < 0) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
