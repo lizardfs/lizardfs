@@ -837,6 +837,12 @@
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
 // msgid:32 length:64 srcs:8 srcs*[chunkid:64 version:32 ip:32 port:16] - not implemented
 
+//0x00598
+#define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 432U)
+
+//0x0599
+#define LIZ_MATOCL_FUSE_READ_CHUNK (1000U + 433U)
+
 // 0x01B2
 #define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
 // msgid:32 inode:32 chunkindx:32
@@ -1080,12 +1086,6 @@
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 // msgid:32 status:8
 
-//0x0578
-#define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 400U)
-//0x0579
-#define LIZ_MATOCL_FUSE_READ_CHUNK_DATA (1000U + 401U)
-//0x057A
-#define LIZ_MATOCL_FUSE_READ_CHUNK_STATUS (1000U + 402U)
 
 /* Abandoned sub-project - directory entries cached on client side
 // directory removed from cache

@@ -1,14 +1,16 @@
+#include "mfscommon/cltoma_communication.h"
+
 #include <gtest/gtest.h>
 
 #include "tests/common/packet.h"
-#include "mfscommon/cltoma_communication.h"
 
-TEST(CltomaCommunicationTests, fuseReadChunkDataTest) {
+TEST(CltomaCommunicationTests, FuseReadChunkData) {
+	uint32_t outMessageId, inMessageId = 512;
 	uint32_t outInode, inInode = 112;
 	uint32_t outDataBlockNumber, inDataBlockNumber = 1;
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltoma::fuseReadChunk::serialize(buffer, inInode, inDataBlockNumber));
+	ASSERT_NO_THROW(cltoma::fuseReadChunk::serialize(buffer, inMessageId, inInode, inDataBlockNumber));
 
 	PacketHeader header;
 	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
@@ -20,7 +22,8 @@ TEST(CltomaCommunicationTests, fuseReadChunkDataTest) {
 	EXPECT_EQ(0U, version);
 
 	ASSERT_NO_THROW(cltoma::fuseReadChunk::deserialize(
-			removeHeader(buffer), outInode, outDataBlockNumber));
+			removeHeader(buffer), outMessageId,  outInode, outDataBlockNumber));
+	EXPECT_EQ(inMessageId, outMessageId);
 	EXPECT_EQ(inInode, outInode);
 	EXPECT_EQ(inDataBlockNumber, outDataBlockNumber);
 }

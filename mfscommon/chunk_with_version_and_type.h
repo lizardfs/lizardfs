@@ -16,9 +16,8 @@ struct ChunkWithVersionAndType {
 			ChunkType type)
 		: id(id), version(version), type(type) {
 	}
-	ChunkWithVersionAndType() :
-		ChunkWithVersionAndType(0, 0, ChunkType::getStandardChunkType())
-		{}
+	ChunkWithVersionAndType() : id(0), version(0), type(ChunkType::getStandardChunkType()) {
+	}
 };
 inline uint32_t serializedSize(const ChunkWithVersionAndType& chunk) {
 	return serializedSize(chunk.id, chunk.version, chunk.type);

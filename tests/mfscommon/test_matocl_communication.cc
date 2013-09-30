@@ -1,36 +1,38 @@
+#include "mfscommon/matocl_communication.h"
+
 #include <gtest/gtest.h>
 
 #include "tests/common/packet.h"
-#include "mfscommon/matocl_communication.h"
 
-TEST(MatoclCommunicationTests, fuseReadChunkDataTest) {
+TEST(MatoclCommunicationTests, FuseReadChunkData) {
+	uint32_t /*outMessageId, */inMessageId = 512; //TODO(alek) check messageID
 	uint64_t outChunkId, inChunkId = 87;
 	uint32_t outChunkVersion, inChunkVersion = 52;
 	uint64_t outFileLength, inFileLength = 1024;
-	std::vector<ChunkserverHoldingPartOfChunk> outServerList;
-	std::vector<ChunkserverHoldingPartOfChunk> inServerList {
-		ChunkserverHoldingPartOfChunk(127001, 8080, ChunkType::getStandardChunkType()),
-		ChunkserverHoldingPartOfChunk(127002, 8081, ChunkType::getXorParityChunkType(5)),
-		ChunkserverHoldingPartOfChunk(127003, 8082, ChunkType::getXorChunkType(5, 1)),
-		ChunkserverHoldingPartOfChunk(127004, 8084, ChunkType::getXorChunkType(5, 5)),
+	std::vector<ChunkTypeWithAddress> outServerList;
+	std::vector<ChunkTypeWithAddress> inServerList {
+		ChunkTypeWithAddress(127001, 8080, ChunkType::getStandardChunkType()),
+		ChunkTypeWithAddress(127002, 8081, ChunkType::getXorParityChunkType(5)),
+		ChunkTypeWithAddress(127003, 8082, ChunkType::getXorChunkType(5, 1)),
+		ChunkTypeWithAddress(127004, 8084, ChunkType::getXorChunkType(5, 5)),
 	};
-	ChunkserverHoldingPartOfChunk outServer;
+	ChunkTypeWithAddress outServer;
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseReadChunkData::serialize(buffer, inChunkId, inChunkVersion,
-			inFileLength,inServerList));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer, inMessageId, inFileLength, inChunkId,
+			inChunkVersion, inServerList));
 
 	PacketHeader header;
 	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_MATOCL_FUSE_READ_CHUNK_DATA, header.type);
+	EXPECT_EQ(LIZ_MATOCL_FUSE_READ_CHUNK, header.type);
 	EXPECT_EQ(buffer.size() - serializedSize(header), header.length);
 
-	PacketVersion version = 1;
+	PacketVersion version = 0;
 	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0U, version);
+	EXPECT_EQ(1U, version);
 
-	ASSERT_NO_THROW(matocl::fuseReadChunkData::deserialize(
-			removeHeader(buffer), outChunkId, outChunkVersion, outFileLength, outServerList));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer, outFileLength,
+			outChunkId, outChunkVersion, outServerList));
 
 	EXPECT_EQ(inChunkId, outChunkId);
 	EXPECT_EQ(inChunkVersion, outChunkVersion);
@@ -44,20 +46,21 @@ TEST(MatoclCommunicationTests, fuseReadChunkDataTest) {
 	}
 }
 
-TEST(MatoclCommunicationTests, fuseReadChunkStatusTest) {
+TEST(MatoclCommunicationTests, FuseReadChunkStatus) {
+	uint32_t /*outMessageId, */inMessageId = 512; //TODO(alek) check messageID
 	uint8_t outStatus, inStatus = 0;
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseReadChunkStatus::serialize(buffer, inStatus));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer, inMessageId, inStatus));
 
 	PacketHeader header;
 	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_MATOCL_FUSE_READ_CHUNK_STATUS, header.type);
+	EXPECT_EQ(LIZ_MATOCL_FUSE_READ_CHUNK, header.type);
 	EXPECT_EQ(buffer.size() - serializedSize(header), header.length);
 
 	PacketVersion version = 1;
 	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
 	EXPECT_EQ(0U, version);
 
-	ASSERT_NO_THROW(matocl::fuseReadChunkStatus::deserialize(removeHeader(buffer), outStatus));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer, outStatus));
 	EXPECT_EQ(inStatus, outStatus);
 }
