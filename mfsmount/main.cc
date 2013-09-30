@@ -825,7 +825,6 @@ int main(int argc, char *argv[]) {
 	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
 
 	strerr_init();
-	mycrc32_init();
 
    init_fuse_lowlevel_ops();
 
