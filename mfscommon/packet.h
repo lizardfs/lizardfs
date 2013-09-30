@@ -158,4 +158,14 @@ inline void deserializeMooseFsPacketNoHeader(const std::vector<uint8_t>& buffer,
 	deserialize(buffer, args...);
 }
 
+// check whether a LizardFS packet has expected version
+inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& packetWithoutHeader,
+		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {
+	PacketVersion actualVersion;
+	deserializePacketVersionNoHeader(packetWithoutHeader, actualVersion);
+	if (actualVersion != expectedVersion) {
+		throw IncorrectDeserializationException();
+	}
+}
+
 #endif // LIZARDFS_MFSCOMMON_PACKET_H_
