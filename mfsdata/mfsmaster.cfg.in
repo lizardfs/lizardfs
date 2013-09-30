@@ -35,6 +35,9 @@
 # CHUNKS_READ_REP_LIMIT = 10
 # ACCEPTABLE_DIFFERENCE = 0.1
 
+# This option allows to update metadata with newer versions of chunks available in chunkservers
+# REPAIR_OLD_METADATA = 0
+
 # SESSION_SUSTAIN_TIME = 86400
 # REJECT_OLD_CLIENTS = 0
 
