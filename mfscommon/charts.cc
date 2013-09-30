@@ -41,6 +41,7 @@
 #include "crc.h"
 #include "datapack.h"
 #include "massert.h"
+#include "png.h"
 #include "slogger.h"
 
 #define USE_NET_ORDER 1
@@ -1829,22 +1830,20 @@ void charts_chart_to_rawchart() {
 		}
 	}
 }
+int charts_verify_chunk_crc_placeholder_value(const uint8_t *chunk) {
+	return memcmp( chunk + png_chunk_get_crc_offset(chunk), "CRC#", 4);
+}
 
-void charts_fill_crc(uint8_t *buff,uint32_t leng) {
-	uint8_t *ptr,*eptr;
-	uint32_t crc,chleng;
-	ptr = buff+8;
-	eptr = buff+leng;
-	while (ptr+4<=eptr) {
-		chleng = get32bit((const uint8_t **)&ptr);
-		if (ptr+8+chleng<=eptr) {
-			crc = mycrc32(0,ptr,chleng+4);
-			ptr += chleng+4;
-			if (memcmp(ptr,"CRC#",4)==0) {
-				put32bit(&ptr,crc);
-			} else {
-				syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
-			}
+void charts_fill_crc(uint8_t *const png, const uint32_t leng) {
+	const uint8_t *png_end = png + leng;
+	for (uint8_t *chunk = png_first_chunk(png);
+		 png_chunk_verify_limits(chunk,png_end) == 0;
+		 chunk = png_next_chunk(chunk))
+	{
+		if (charts_verify_chunk_crc_placeholder_value(chunk) == 0) {
+			png_chunk_update_crc(chunk);
+		} else {
+			syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
 		}
 	}
 }
