@@ -1,0 +1,5 @@
+  if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
+    if [ ! -e "$DATA_PATH"/metadata.mfs.back ]; then
+      echo "MFSM NEW" > "$DATA_PATH"/metadata.mfs
+    fi
+  fi

@@ -433,7 +433,7 @@ if __name__=="__main__":
 	rootpath="@CGI_PATH@"
 	datapath="@DATA_PATH@"
 
-	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:t:fv")
+	opts,args = getopt.getopt(sys.argv[1:],"c:hH:P:R:t:fv")
 	for opt,val in opts:
 		if opt=='-h':
 			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-t locktimeout] [-f [-v]] [start|stop|restart|test]\n" % sys.argv[0]

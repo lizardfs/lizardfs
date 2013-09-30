@@ -29,12 +29,24 @@ set(DEFAULT_USER "mfs" CACHE STRING "Default user to run daemons as")
 set(DEFAULT_GROUP "mfs" CACHE STRING "Default group to run daemons as")
 set(ENABLE_LIGHTMFS NO CACHE BOOL "Enable light version of LizardFS")
 set(ENABLE_DEBIAN_PATHS NO CACHE BOOL "Enable Debian-style install paths")
+set(BUILD_DEB NO CACHE BOOL "Enable package building for Debian (using dpkg)")
+set(BUILD_RPM NO CACHE BOOL "Enable package building for RedHat/Fedora (using rpmbuild)")
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
+message(STATUS "BUILD_DEB: ${BUILD_DEB}")
+message(STATUS "BUILD_RPM: ${BUILD_RPM}")
 
+# Sync installation prefixes to have proper absolute paths *_PATH
+# when building package or installing from sources
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
+if(CPACK_PACKAGING_INSTALL_PREFIX STREQUAL "")
+  set(CPACK_PACKAGING_INSTALL_PREFIX "/.")
+endif()
+
+# Switches
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
     message(WARNING "Debian paths enabled, but CMAKE_INSTALL_PREFIX is different than /")
@@ -71,6 +83,7 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
+# Inter-language constants
 set(CHARTS_CSV_CHARTID_BASE 90000)
 
 ## All the environment tests (libs, includes, etc.) live here:
@@ -78,8 +91,8 @@ include(EnvTests.cmake)
 
 # Create config.h file
 set(DATA_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR}")
-set(ETC_PATH "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
-set(RUN_PATH "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
+set(ETC_PATH  "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
+set(RUN_PATH  "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
 
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
@@ -87,6 +100,8 @@ include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/mfsmain/main.cc)
 
+add_subdirectory(etc)
+add_subdirectory(man)
 add_subdirectory(mfscommon)
 add_subdirectory(mfschunkserver)
 add_subdirectory(mfsmaster)
@@ -97,8 +112,6 @@ add_subdirectory(mfstools)
 if (FUSE_LIBRARY)
   add_subdirectory(mfsmount)
 endif()
-add_subdirectory(mfsdata)
 add_subdirectory(mfscgi)
-add_subdirectory(doc)
+add_subdirectory(package)
 
-include(Packages.cmake)

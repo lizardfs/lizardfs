@@ -1,0 +1,14 @@
+I've patched cmake's cpack DEB generator to support dependencies between
+components much like RPM generator. It should fix as well the problem with 
+deps build on top of another.
+
+To take advantage of patch you have to recompile cmake:
+$ git clone  git://cmake.org/cmake.git && cd cmake
+$ ./configure
+$ git checkout v2.8.11 # use version you like
+$ git apply <path_to_patch_file>
+$ make
+# make install
+
+Patched cmake allows you to specify dependencies between components with
+set(CPACK_DEB_<component>_PACKAGE_DEPENDS "somelib, mypackage-mycomponent")

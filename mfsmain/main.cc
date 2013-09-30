@@ -979,7 +979,6 @@ int main(int argc,char **argv) {
 	int lockmemory;
 	int32_t nicelevel;
 	uint32_t locktimeout;
-	int fd;
 	uint8_t movewarning;
 	struct rlimit rls;
 
@@ -989,17 +988,6 @@ int main(int argc,char **argv) {
 	movewarning = 0;
 	cfgfile=strdup(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
 	passert(cfgfile);
-	if ((fd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
-		free(cfgfile);
-		cfgfile=strdup(ETC_PATH "/" STR(APPNAME) ".cfg");
-		passert(cfgfile);
-		if ((fd = open(cfgfile,O_RDONLY))>=0) {
-			movewarning = 1;
-		}
-	}
-	if (fd>=0) {
-		close(fd);
-	}
 	locktimeout = 1800;
 	rundaemon = 1;
 	runmode = RM_RESTART;
