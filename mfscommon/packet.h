@@ -76,6 +76,46 @@ inline void serializePacket(std::vector<uint8_t>& destination,
 	serialize(destination, PacketHeader(type, length), version, data...);
 };
 
+/*
+ * Assembles initial segment of a packet, sets bigger length in the header to accommodate
+ * data appended later.
+ */
+template <class... Data>
+inline void serializePacketPrefix(std::vector<uint8_t>& destination, uint32_t extraLength,
+		PacketHeader::Type type, PacketVersion version, const Data&... data) {
+	uint32_t length = serializedSize(version, data...) + extraLength;
+	serialize(destination, PacketHeader(type, length), version, data...);
+};
+
+/*
+ * Assembles a whole MooseFS packet (packet without version)
+ */
+template<class T, class... Data>
+inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+		const PacketHeader::Type& type,
+		const T& t,
+		const Data &...args) {
+	uint32_t length = serializedSize(t, args...);
+	serialize(buffer, type, length, t, args...);
+}
+
+inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+		const PacketHeader::Type& type) {
+	uint32_t length = 0;
+	serialize(buffer, type, length);
+}
+
+/*
+ * Assembles initial segment of a MooseFS packet (without version),
+ * sets bigger length in the header to accommodate data appended later.
+ */
+template<class... Args>
+inline void serializeMooseFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t extraLength,
+		const PacketHeader::Type& type, const Args &...args) {
+	uint32_t length = serializedSize(args...) + extraLength;
+	serialize(buffer, type, length, args...);
+}
+
 // Partial deserialization for new, versioned packets
 //
 // Doesn't modify source and bytesInBuffer
@@ -137,25 +177,16 @@ void deserializePacketDataSkipHeader(const std::vector<uint8_t>& source, Data&..
 	deserializePacketDataSkipHeader(source.data(), source.size(), data...);
 }
 
-template<class T, class... Data>
-inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
-		const PacketHeader::Type& type,
-		const T& t,
-		const Data &...args) {
-	uint32_t length = serializedSize(t, args...);
-	serialize(buffer, type, length, t, args...);
-}
-
-inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
-		const PacketHeader::Type& type) {
-	uint32_t length = 0;
-	serialize(buffer, type, length);
+template<class... Data>
+inline void deserializeMooseFsPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+		Data &...args) {
+	deserialize(source, bytesInBuffer, args...);
 }
 
 template<class... Data>
-inline void deserializeMooseFsPacketNoHeader(const std::vector<uint8_t>& buffer,
+inline void deserializeMooseFsPacketDataNoHeader(const std::vector<uint8_t>& source,
 		Data &...args) {
-	deserialize(buffer, args...);
+	deserializeMooseFsPacketDataNoHeader(source.data(), source.size(), args...);
 }
 
 // check whether a LizardFS packet has expected version

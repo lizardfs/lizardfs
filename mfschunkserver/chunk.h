@@ -81,10 +81,10 @@ struct folder {
 class Chunk {
 public:
 	static const size_t kMaxSignatureBlockSize = 1024;
-	static const size_t kMaxCrcBlokSize = MFSBLOCKSINCHUNK * sizeof(uint32_t);
+	static const size_t kMaxCrcBlockSize = MFSBLOCKSINCHUNK * sizeof(uint32_t);
 	static const size_t kMaxPaddingBlockSize = 4096;
 	static const size_t kMaxHeaderSize =
-			kMaxSignatureBlockSize + kMaxCrcBlokSize + kMaxPaddingBlockSize;
+			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
 
 	uint64_t chunkid;
 	struct folder *owner;

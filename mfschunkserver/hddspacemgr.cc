@@ -18,7 +18,6 @@
 
 #define MMAP_ALLOC 1
 #include "config.h"
-
 #include "mfschunkserver/hddspacemgr.h"
 
 #include <inttypes.h>
@@ -1680,11 +1679,11 @@ static int hdd_io_end(Chunk *c) {
 
 /* I/O operations */
 
-int hdd_open(uint64_t chunkid) {
+int hdd_open(uint64_t chunkid, ChunkType chunkType) {
 	TRACETHIS1(chunkid);
 	int status;
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -1701,11 +1700,11 @@ int hdd_open(uint64_t chunkid) {
 	return status;
 }
 
-int hdd_close(uint64_t chunkid) {
+int hdd_close(uint64_t chunkid, ChunkType chunkType) {
 	TRACETHIS1(chunkid);
 	int status;
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -1756,7 +1755,8 @@ int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 	return STATUS_OK;
 }
 
-int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
+int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
 	TRACETHIS3(chunkid, offset, size);
 	if (offset % MFSBLOCKSIZE != 0) {
 		return ERROR_WRONGOFFSET;
@@ -1765,7 +1765,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size,
 		return ERROR_WRONGSIZE;
 	}
 
-	Chunk* c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	Chunk* c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}

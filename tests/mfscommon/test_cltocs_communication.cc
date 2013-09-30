@@ -25,8 +25,9 @@ TEST(CltocsCommunicationTests, Read) {
 
 	std::vector<uint8_t> bufferWithoutHeader(
 			buffer.begin() + serializedSize(header), buffer.end());
-	ASSERT_NO_THROW(cltocs::read::deserialize(bufferWithoutHeader, chunkIdOut,
-			chunkVersionOut, chunkTypeOut, readOffsetOut, readSizeOut));
+	ASSERT_NO_THROW(cltocs::read::deserialize(
+			bufferWithoutHeader.data(), bufferWithoutHeader.size(),
+			chunkIdOut, chunkVersionOut, chunkTypeOut, readOffsetOut, readSizeOut));
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(chunkVersionIn, chunkVersionOut);
 	EXPECT_EQ(chunkTypeIn, chunkTypeOut);

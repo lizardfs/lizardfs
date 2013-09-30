@@ -11,8 +11,6 @@ public:
 	typedef uint8_t XorLevel;
 	typedef uint8_t XorPart;
 
-	static const uint8_t kStandardChunkType = 0;
-
 	static ChunkType getStandardChunkType();
 	static ChunkType getXorChunkType(XorLevel level, XorPart part);
 	static ChunkType getXorParityChunkType(XorLevel level);

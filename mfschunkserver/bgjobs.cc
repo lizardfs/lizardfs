@@ -32,6 +32,7 @@
 #include <cassert>
 
 #include "devtools/TracePrinter.h"
+#include "mfscommon/chunk_type.h"
 #include "mfscommon/pcqueue.h"
 #include "mfscommon/datapack.h"
 #include "mfscommon/massert.h"
@@ -69,12 +70,14 @@ typedef struct _chunk_op_args {
 // for OP_OPEN and OP_CLOSE
 typedef struct _chunk_oc_args {
 	uint64_t chunkid;
+	ChunkType chunkType;
 } chunk_oc_args;
 
 // for OP_READ
 typedef struct _chunk_rd_args {
 	uint64_t chunkid;
 	uint32_t version;
+	ChunkType chunkType;
 	uint32_t offset,size;
 	uint8_t *buffer;
 	uint8_t *crcbuff;
@@ -193,14 +196,14 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_open(ocargs->chunkid);
+					status = hdd_open(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
 			case OP_CLOSE:
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_close(ocargs->chunkid);
+					status = hdd_close(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
 			case OP_READ:
@@ -208,12 +211,14 @@ void* job_worker(void *th_arg) {
 					status = ERROR_NOTDONE;
 				} else {
 					if (rdargs->performHddOpen) {
-						status = hdd_open(rdargs->chunkid);
+						status = hdd_open(rdargs->chunkid, rdargs->chunkType);
 						if (status != STATUS_OK) {
 							break;
 						}
 					}
-					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->offset, rdargs->size, rdargs->outputBuffer);
+					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
+							rdargs->offset, rdargs->size,
+							rdargs->outputBuffer);
 				}
 				break;
 			case OP_WRITE:
@@ -429,29 +434,33 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 	return job_new(jp,OP_CHUNKOP,args,callback,extra);
 }
 
-uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_open(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_OPEN,args,callback,extra);
 }
 
-uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_CLOSE,args,callback,extra);
 }
 
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer,
-		bool performHddOpen) {
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		OutputBuffer* outputBuffer, bool performHddOpen) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
@@ -459,6 +468,7 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
+	args->chunkType = chunkType;
 	args->offset = offset;
 	args->size = size;
 	args->outputBuffer = outputBuffer;

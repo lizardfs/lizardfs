@@ -31,21 +31,23 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
-
 #include <memory>
 
 #include "devtools/TracePrinter.h"
-#include "mfscommon/MFSCommunication.h"
+#include "mfschunkserver/csserv.h"
+#include "mfschunkserver/hddspacemgr.h"
+#include "mfschunkserver/bgjobs.h"
 #include "mfscommon/cfg.h"
+#include "mfscommon/charts.h"
+#include "mfscommon/cltocs_communication.h"
+#include "mfscommon/cstocl_communication.h"
 #include "mfscommon/datapack.h"
 #include "mfscommon/massert.h"
-#include "mfscommon/sockets.h"
-#include "mfscommon/charts.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/packet.h"
 #include "mfscommon/slogger.h"
+#include "mfscommon/sockets.h"
 #include "mfsdaemonmain/main.h"
-#include "csserv.h"
-#include "hddspacemgr.h"
-#include "bgjobs.h"
 
 // connection timeout in seconds
 #define CSSERV_TIMEOUT 5
@@ -54,6 +56,54 @@
 #define CONNECT_TIMEOUT(cnt) (((cnt)%2)?(300000*(1<<((cnt)>>1))):(200000*(1<<((cnt)>>1))))
 
 #define MaxPacketSize 100000
+
+class ReadResponseSerializer {
+public:
+	virtual void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint32_t offset, uint32_t size) = 0;
+	virtual void serializeCstoclReadStatus(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint8_t status) = 0;
+	virtual ~ReadResponseSerializer() {}
+};
+
+class MooseFsReadResponseSerializer : public ReadResponseSerializer {
+public:
+	static MooseFsReadResponseSerializer* getSingleton() {
+		static MooseFsReadResponseSerializer singleton;
+		return &singleton;
+	}
+
+	void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint32_t offset, uint32_t size) {
+		// This prefix requires CRC (uint32_t) and data (size * uint8_t) to be appended
+		uint32_t extraSpace = sizeof(uint32_t) + size;
+		serializeMooseFsPacketPrefix(buffer, extraSpace, CSTOCL_READ_DATA, chunkId, offset, size);
+	}
+
+	void serializeCstoclReadStatus(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint8_t status) {
+		serializeMooseFsPacket(buffer, CSTOCL_READ_STATUS, chunkId, status);
+	}
+};
+
+
+class LizardFsReadResponseSerializer : public ReadResponseSerializer {
+public:
+	static LizardFsReadResponseSerializer* getSingleton() {
+		static LizardFsReadResponseSerializer singleton;
+		return &singleton;
+	}
+
+	void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint32_t offset, uint32_t size) {
+		cstocl::readData::serializePrefix(buffer, chunkId, offset, size);
+	}
+
+	void serializeCstoclReadStatus(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint8_t status) {
+		cstocl::readStatus::serialize(buffer, chunkId, status);
+	}
+};
 
 //csserventry.mode
 enum {
@@ -78,13 +128,16 @@ typedef struct writestatus {
 	struct writestatus *next;
 } writestatus;
 
-typedef struct packetstruct {
-	struct packetstruct *next;
+struct packetstruct {
+	packetstruct *next;
 	uint8_t *startptr;
 	uint32_t bytesleft;
 	uint8_t *packet;
-	std::unique_ptr<OutputBuffer> outputBuffer; // TODO(alek) unia? uczciwa hierarchia klas?
-} packetstruct;
+	std::unique_ptr<OutputBuffer> outputBuffer;
+
+	packetstruct() : next(nullptr), startptr(nullptr), bytesleft(0), packet(nullptr) {
+	}
+};
 
 typedef struct csserventry {
 	uint8_t state;
@@ -125,8 +178,10 @@ typedef struct csserventry {
 	uint8_t chunkisopen;
 	uint64_t chunkid; // R+W
 	uint32_t version; // R+W
+	ChunkType chunkType; // R
 	uint32_t offset; // R
 	uint32_t size; // R
+	ReadResponseSerializer* readResponseSerializer; // R
 
 	struct csserventry *next;
 } csserventry;
@@ -167,30 +222,28 @@ void csserv_stats(uint64_t *bin, uint64_t *bout, uint32_t *hlopr,
 	stats_maxjobscnt = 0;
 }
 
-packetstruct* csserv_create_detached_packet(uint32_t type, uint32_t size) {
+packetstruct* csserv_create_detached_packet_with_output_buffer(
+		const std::vector<uint8_t>& packetPrefix) {
 	TRACETHIS();
-
-	packetstruct* outpacket = new packetstruct();
-
-	uint32_t psize = size + 8;
-#if defined(HAVE_SPLICE)
-	if (psize < 512 * 1024u) {
-		outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512 * 1024u));
+	PacketHeader header;
+	deserializePacketHeader(packetPrefix, header);
+	uint32_t sizeOfWholePacket = PacketHeader::kSize + header.length;
+	packetstruct* outPacket = new packetstruct();
+	passert(outPacket);
+#ifdef HAVE_SPLICE
+	if (sizeOfWholePacket < 512 * 1024u) {
+		outPacket->outputBuffer.reset(new AvoidingCopyingOutputBuffer(512 * 1024u));
 	} else {
-		outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new SimpleOutputBuffer(psize));
+		outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));
 	}
 #else /* HAVE_SPLICE */
-	outpacket->outputBuffer = std::unique_ptr<OutputBuffer>(new SimpleOutputBuffer(psize));
+	outPacket->outputBuffer.reset(SimpleOutputBuffer(sizeOfWholePacket));
 #endif /* HAVE_SPLICE */
-
-	uint8_t data[2 * sizeof(uint32_t)];
-	uint8_t* ptr = data;
-	put32bit(&ptr, type);
-	put32bit(&ptr, size);
-	eassert(outpacket->outputBuffer->copyIntoBuffer(data, sizeof(data)) == sizeof(data)); // TODO(alek) moze jednak nie assert?
-
-	outpacket->next = NULL;
-	return outpacket;
+	if (outPacket->outputBuffer->copyIntoBuffer(packetPrefix) != (ssize_t)packetPrefix.size()) {
+		delete outPacket;
+		return nullptr;
+	}
+	return outPacket;
 }
 
 uint8_t* csserv_get_packet_data(void *packet) {
@@ -206,7 +259,7 @@ void csserv_delete_packet(void *packet) {
   delete outpacket;
 }
 
-void csserv_attach_packet(csserventry *eptr,void *packet) {
+void csserv_attach_packet(csserventry *eptr, void *packet) {
   packetstruct *outpacket = (packetstruct*)packet;
   *(eptr->outputtail) = outpacket;
   eptr->outputtail = &(outpacket->next);
@@ -227,8 +280,19 @@ void csserv_delete_preserved(void *p) {
 	}
 }
 
-uint8_t* csserv_create_attached_packet(csserventry *eptr, uint32_t type,
-		uint32_t size) {
+void csserv_create_attached_packet(csserventry *eptr, const std::vector<uint8_t>& packet) {
+	TRACETHIS();
+	packetstruct* outpacket = new packetstruct();
+	passert(outpacket);
+	outpacket->packet = (uint8_t*) malloc(packet.size());
+	passert(outpacket->packet);
+	memcpy(outpacket->packet, packet.data(), packet.size());
+	outpacket->bytesleft = packet.size();
+	outpacket->startptr = outpacket->packet;
+	csserv_attach_packet(eptr, outpacket);
+}
+
+uint8_t* csserv_create_attached_packet(csserventry *eptr, uint32_t type, uint32_t size) {
 	TRACETHIS();
 	packetstruct *outpacket;
 	uint8_t *ptr;
@@ -245,8 +309,7 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr, uint32_t type,
 	put32bit(&ptr, size);
 	outpacket->startptr = (uint8_t*) (outpacket->packet);
 	outpacket->next = NULL;
-	*(eptr->outputtail) = outpacket;
-	eptr->outputtail = &(outpacket->next);
+	csserv_attach_packet(eptr, outpacket);
 	return ptr;
 }
 
@@ -343,7 +406,7 @@ void csserv_delayed_close(uint8_t status, void *e) {
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
-		job_close(jpool, NULL, NULL, eptr->chunkid);
+		job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 		eptr->chunkisopen = 0;
 	}
 	eptr->state = CLOSED;
@@ -356,7 +419,6 @@ void csserv_read_continue(csserventry *eptr, bool isFirst = false);
 void csserv_read_finished(uint8_t status, void *e) {
 	TRACETHIS();
 	csserventry *eptr = (csserventry*) e;
-	uint8_t *ptr;
 	eptr->rjobid = 0;
 	if (status == STATUS_OK) {
 		eptr->todocnt--;
@@ -368,10 +430,10 @@ void csserv_read_finished(uint8_t status, void *e) {
 			csserv_delete_packet(eptr->rpacket);
 			eptr->rpacket = NULL;
 		}
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, status);
-		job_close(jpool, NULL, NULL, eptr->chunkid);
+		std::vector<uint8_t> buffer;
+		eptr->readResponseSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, status);
+		csserv_create_attached_packet(eptr, buffer);
+		job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE; // after sending status even if there was an error it's possible to
 		// receive new requests on the same connection
@@ -389,7 +451,6 @@ void csserv_send_finished(csserventry *eptr) {
 void csserv_read_continue(csserventry *eptr, bool isFirst) {
 	TRACETHIS2(eptr->offset, eptr->size);
 	uint32_t size;
-	uint8_t *ptr;
 
 	if (eptr->rpacket) {
 		csserv_attach_packet(eptr, eptr->rpacket);
@@ -397,10 +458,10 @@ void csserv_read_continue(csserventry *eptr, bool isFirst) {
 		eptr->todocnt++;
 	}
 	if (eptr->size == 0) { // everything has been read
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, STATUS_OK);
-		job_close(jpool, NULL, NULL, eptr->chunkid);
+		std::vector<uint8_t> buffer;
+		eptr->readResponseSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, STATUS_OK);
+		csserv_create_attached_packet(eptr, buffer);
+		job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
@@ -408,19 +469,18 @@ void csserv_read_continue(csserventry *eptr, bool isFirst) {
 		if (size > MFSBLOCKSIZE) {
 			size = MFSBLOCKSIZE;
 		}
-		packetstruct* ps = csserv_create_detached_packet(CSTOCL_READ_DATA, 8 + 4 + 4 + 4 + size);
-		eptr->rpacket = (void*)ps;
-
-		uint8_t data[sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint32_t)];
-		uint8_t* ptr = data;
-		put64bit(&ptr, eptr->chunkid);
-		put32bit(&ptr, eptr->offset);
-		put32bit(&ptr, size);
-		ps->outputBuffer->copyIntoBuffer(data, sizeof(data));
-
+		std::vector<uint8_t> readDataPrefix;
+		eptr->readResponseSerializer->serializePrefixOfCstoclReadData(readDataPrefix,
+				eptr->chunkid, eptr->offset, size);
+		packetstruct* packet = csserv_create_detached_packet_with_output_buffer(readDataPrefix);
+		if (packet == nullptr) {
+			eptr->state = CLOSE;
+			return;
+		}
+		eptr->rpacket = (void*)packet;
 		eptr->rjobid = job_read(jpool, csserv_read_finished, eptr, eptr->chunkid,
-					eptr->version, eptr->offset, size, ps->outputBuffer.get(), isFirst);
-
+				eptr->version, eptr->chunkType, eptr->offset, size,
+				packet->outputBuffer.get(), isFirst);
 		if (eptr->rjobid == 0) {
 			eptr->state = CLOSE;
 			return;
@@ -431,41 +491,58 @@ void csserv_read_continue(csserventry *eptr, bool isFirst) {
 	}
 }
 
-void csserv_read_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
-	TRACETHIS1(length);
-	uint8_t *ptr;
+void csserv_read_init(csserventry *eptr, const uint8_t *data,
+		PacketHeader::Type type, PacketHeader::Length length) {
+	TRACETHIS2(type, length);
 
-	if (length != 8 + 4 + 4 + 4) {
-		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
+	// Deserialize request
+	sassert(type == LIZ_CLTOCS_READ || type == CLTOCS_READ);
+	try {
+		if (type == LIZ_CLTOCS_READ) {
+			cltocs::read::deserialize(data, length,
+					eptr->chunkid,
+					eptr->version,
+					eptr->chunkType,
+					eptr->offset,
+					eptr->size);
+			eptr->readResponseSerializer = LizardFsReadResponseSerializer::getSingleton();
+		} else {
+			deserializeMooseFsPacketDataNoHeader(data, length,
+					eptr->chunkid,
+					eptr->version,
+					eptr->offset,
+					eptr->size);
+			eptr->chunkType = ChunkType::getStandardChunkType();
+			eptr->readResponseSerializer = MooseFsReadResponseSerializer::getSingleton();
+		}
+	} catch (IncorrectDeserializationException&) {
+		syslog(LOG_NOTICE, "read_init: Cannot deserialize READ message (type:%"
+				PRIX32 ", length:%" PRIu32 ")", type, length);
 		eptr->state = CLOSE;
 		return;
 	}
-	eptr->chunkid = get64bit(&data);
-	eptr->version = get32bit(&data);
-	eptr->offset = get32bit(&data);
-	eptr->size = get32bit(&data);
 
+	// Check if the request is valid
+	std::vector<uint8_t> instantResponseBuffer;
 	if (eptr->size == 0) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, STATUS_OK); // no bytes to read - just return STATUS_OK
+		eptr->readResponseSerializer->serializeCstoclReadStatus(instantResponseBuffer,
+				eptr->chunkid, STATUS_OK);
+	} else if (eptr->size > MFSCHUNKSIZE) {
+		eptr->readResponseSerializer->serializeCstoclReadStatus(instantResponseBuffer,
+				eptr->chunkid, ERROR_WRONGSIZE);
+	} else if (eptr->offset >= MFSCHUNKSIZE || eptr->offset + eptr->size > MFSCHUNKSIZE) {
+		eptr->readResponseSerializer->serializeCstoclReadStatus(instantResponseBuffer,
+				eptr->chunkid, ERROR_WRONGOFFSET);
+	}
+	if (!instantResponseBuffer.empty()) {
+		csserv_create_attached_packet(eptr, instantResponseBuffer);
 		return;
+
 	}
 
-	if (eptr->size > MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, ERROR_WRONGSIZE);
-		return;
-	}
-	if (eptr->offset >= MFSCHUNKSIZE || eptr->offset + eptr->size > MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr, CSTOCL_READ_STATUS, 8 + 1);
-		put64bit(&ptr, eptr->chunkid);
-		put8bit(&ptr, ERROR_WRONGOFFSET);
-		return;
-	}
+	// Process the request
 	stats_hlopr++;
-	eptr->chunkisopen = 1;
+	eptr->chunkisopen = 1; // FIXME It's not open yet!
 	eptr->state = READ;
 	eptr->todocnt = 0;
 	eptr->rjobid = 0;
@@ -534,7 +611,7 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data, uint32_t length) 
 			return;
 		}
 		if (eptr->chunkisopen) {
-			job_close(jpool, NULL, NULL, eptr->chunkid);
+			job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 			eptr->chunkisopen = 0;
 		}
 		eptr->state = IDLE;
@@ -547,6 +624,7 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data, uint32_t length) 
 	}
 	eptr->chunkid = get64bit(&data);
 	eptr->version = get32bit(&data);
+	eptr->chunkType = ChunkType::getStandardChunkType();
 
 	if (length > (8 + 4)) { // connect to another cs
 		eptr->fwdip = get32bit(&data);
@@ -574,7 +652,7 @@ void csserv_write_init(csserventry *eptr, const uint8_t *data, uint32_t length) 
 	stats_hlopw++;
 
 	eptr->wjobwriteid = 0;
-	eptr->wjobid = job_open(jpool, csserv_write_finished, eptr, eptr->chunkid);
+	eptr->wjobid = job_open(jpool, csserv_write_finished, eptr, eptr->chunkid, eptr->chunkType);
 }
 
 void csserv_write_data(csserventry *eptr, const uint8_t *data, uint32_t length) {
@@ -809,7 +887,7 @@ void csserv_close(csserventry *eptr) {
 		eptr->state = CLOSEWAIT;
 	} else {
 		if (eptr->chunkisopen) {
-			job_close(jpool, NULL, NULL, eptr->chunkid);
+			job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 			eptr->chunkisopen = 0;
 		}
 		eptr->state = CLOSED;
@@ -832,7 +910,8 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
 	if (eptr->state == IDLE) {
 		switch (type) {
 		case CLTOCS_READ:
-			csserv_read_init(eptr, data, length);
+		case LIZ_CLTOCS_READ:
+			csserv_read_init(eptr, data, type, length);
 			break;
 		case CLTOCS_WRITE:
 			csserv_write_init(eptr, data, length);
@@ -913,7 +992,7 @@ void csserv_term(void) {
 	eptr = csservhead;
 	while (eptr) {
 		if (eptr->chunkisopen) {
-			hdd_close(eptr->chunkid);
+			hdd_close(eptr->chunkid, eptr->chunkType);
 		}
 		tcpclose(eptr->sock);
 		if (eptr->fwdsock >= 0) {
@@ -941,7 +1020,7 @@ void csserv_term(void) {
 			}
 			paptr = pptr;
 			pptr = pptr->next;
-			free(paptr);
+			delete paptr;
 		}
 		eaptr = eptr;
 		eptr = eptr->next;
@@ -1610,7 +1689,7 @@ void csserv_serve(struct pollfd *pdesc) {
 				}
 				paptr = pptr;
 				pptr = pptr->next;
-				free(paptr);
+				delete paptr;
 			}
 			*kptr = eptr->next;
 			free(eptr);

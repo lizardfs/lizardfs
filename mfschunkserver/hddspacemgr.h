@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "mfschunkserver/output_buffers.h"
+#include "mfscommon/chunk_type.h"
 #include "mfscommon/chunk_with_version.h"
 #include "mfscommon/chunk_with_version_and_type.h"
 #include "mfscommon/MFSCommunication.h"
@@ -50,10 +51,13 @@ int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
 
 /* I/O operations */
-int hdd_open(uint64_t chunkid);
-int hdd_close(uint64_t chunkid);
-int hdd_read(uint64_t chunkid, uint32_t version, uint32_t offset, uint32_t size, OutputBuffer* outputBuffer);
-int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff);
+int hdd_open(uint64_t chunkid, ChunkType chunkType);
+int hdd_close(uint64_t chunkid, ChunkType chunkType);
+int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer);
+int hdd_write(uint64_t chunkid, uint32_t version,
+		uint16_t blocknum, const uint8_t *buffer,
+		uint32_t offset, uint32_t size, const uint8_t *crcbuff);
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
