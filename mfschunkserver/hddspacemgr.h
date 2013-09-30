@@ -22,9 +22,10 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "mfscommon/chunk_with_version.h"
-#include "mfscommon/MFSCommunication.h"
 #include "mfschunkserver/output_buffers.h"
+#include "mfscommon/chunk_with_version.h"
+#include "mfscommon/chunk_with_version_and_type.h"
+#include "mfscommon/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test);
@@ -43,7 +44,7 @@ void hdd_diskinfo_v2_data(uint8_t *buff);
 void hdd_get_chunks_begin();
 void hdd_get_chunks_end();
 
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersion>& chunks);
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks);
 
 int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);

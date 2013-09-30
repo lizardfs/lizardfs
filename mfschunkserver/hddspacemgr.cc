@@ -18,6 +18,9 @@
 
 #define MMAP_ALLOC 1
 #include "config.h"
+
+#include "mfschunkserver/hddspacemgr.h"
+
 #include <inttypes.h>
 #include <syslog.h>
 #include <stdio.h>
@@ -44,16 +47,15 @@
 #include "mfschunkserver/chunk.h"
 #include "mfschunkserver/chunk_filename_parser.h"
 #include "mfschunkserver/chunk_signature.h"
-#include "mfschunkserver/hddspacemgr.h"
-#include "mfscommon/MFSCommunication.h"
 #include "mfscommon/cfg.h"
-#include "mfscommon/datapack.h"
 #include "mfscommon/crc.h"
+#include "mfscommon/datapack.h"
 #include "mfscommon/list.h"
-#include "mfsdaemonmain/main.h"
-#include "mfscommon/slogger.h"
 #include "mfscommon/massert.h"
+#include "mfscommon/MFSCommunication.h"
 #include "mfscommon/random.h"
+#include "mfscommon/slogger.h"
+#include "mfsdaemonmain/main.h"
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
 #define USE_PIO 1
@@ -1232,7 +1234,7 @@ static uint32_t hdd_internal_get_chunks_next_list_count() {
 	return res;
 }
 
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersion>& chunks) {
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks) {
 	TRACETHIS();
 	uint32_t res = 0;
 	uint32_t v;
@@ -1245,7 +1247,7 @@ void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersion>& chunks) {
 			if (c->todel) {
 				v |= 0x80000000;
 			}
-			chunks.push_back(ChunkWithVersion{c->chunkid, v});
+			chunks.push_back(ChunkWithVersionAndType(c->chunkid, v, c->type()));
 			res++;
 		}
 		hdd_get_chunks_pos++;

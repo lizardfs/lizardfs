@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include "mfschunkserver/masterconn.h"
+
 // TODO: wtf?!
 #define BGJOBS 1
 #define BGJOBSCNT 1000
@@ -36,17 +38,17 @@
 
 #include <list>
 
-#include "mfscommon/MFSCommunication.h"
-#include "mfscommon/datapack.h"
-#include "masterconn.h"
+#include "mfschunkserver/hddspacemgr.h"
 #include "mfscommon/cfg.h"
-#include "mfsdaemonmain/main.h"
-#include "mfscommon/packet.h"
-#include "mfscommon/sockets.h"
-#include "hddspacemgr.h"
-#include "mfscommon/slogger.h"
+#include "mfscommon/cstoma_communication.h"
+#include "mfscommon/datapack.h"
 #include "mfscommon/massert.h"
+#include "mfscommon/MFSCommunication.h"
+#include "mfscommon/packet.h"
+#include "mfscommon/slogger.h"
+#include "mfscommon/sockets.h"
 #include "mfscommon/random.h"
+#include "mfsdaemonmain/main.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
@@ -175,26 +177,27 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
 
-	std::vector<uint8_t> buffer;
-	masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
-			uint8_t(50), uint16_t(VERSMAJ), uint8_t(VERSMID), uint8_t(VERSMIN),
-			uint32_t(myip), uint16_t(myport), uint16_t(Timeout));
+	std::vector<uint8_t> serializedPacket;
+	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout, VERSHEX);
+	masterconn_create_attached_packet(eptr, serializedPacket);
 
 	hdd_get_chunks_begin();
-	std::vector<ChunkWithVersion> chunksWithVersions;
-	hdd_get_chunks_next_list_data(chunksWithVersions);
-	while (!chunksWithVersions.empty()) {
-		masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
-				uint8_t(51), chunksWithVersions);
-		chunksWithVersions.clear();
-		hdd_get_chunks_next_list_data(chunksWithVersions);
+	std::vector<ChunkWithVersionAndType> chunks;
+	hdd_get_chunks_next_list_data(chunks);
+	while (!chunks.empty()) {
+		serializedPacket.resize(0);
+		cstoma::registerChunks::serialize(serializedPacket, chunks);
+		masterconn_create_attached_packet(eptr, serializedPacket);
+		chunks.resize(0);
+		hdd_get_chunks_next_list_data(chunks);
 	}
 	hdd_get_chunks_end();
 
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-	masterconn_create_attached_moosefs_packet(eptr, CSTOMA_REGISTER,
-			uint8_t(52), usedspace, totalspace, chunkcount,
+	serializedPacket.clear();
+	cstoma::registerSpace::serialize(serializedPacket, usedspace, totalspace, chunkcount,
 			tdusedspace, tdtotalspace, tdchunkcount);
+	masterconn_create_attached_packet(eptr, serializedPacket);
 }
 
 void masterconn_check_hdd_reports() {

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 
+#include "mfscommon/chunk_type.h"
 #include "mfscommon/serialization.h"
 
 struct ChunkWithVersionAndType {
