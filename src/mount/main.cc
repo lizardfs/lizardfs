@@ -985,15 +985,17 @@ int main(int argc, char *argv[]) {
 
 	res = mainloop(&args,mountpoint,mt,fg);
 	fuse_opt_free_args(&args);
+	fuse_opt_free_args(&defaultargs);
 	free(mfsopts.masterhost);
 	free(mfsopts.masterport);
 	if (mfsopts.bindhost) {
 		free(mfsopts.bindhost);
 	}
 	free(mfsopts.subfolder);
-	if (defaultmountpoint) {
+	if (defaultmountpoint && defaultmountpoint != mountpoint) {
 		free(defaultmountpoint);
 	}
+	free(mountpoint);
 	stats_term();
 	strerr_term();
 	return res;
