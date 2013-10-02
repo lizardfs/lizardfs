@@ -40,6 +40,7 @@
 #ifdef MMAP_ALLOC
 #include <sys/mman.h>
 #endif
+#include <list>
 #include <vector>
 
 #include "devtools/TracePrinter.h"
@@ -69,7 +70,7 @@
 #define CRCSTEPS (CRCDELAY/DELAYEDSTEP)+1
 
 #define LOSTCHUNKSBLOCKSIZE 1024
-#define NEWCHUNKSBLOCKSIZE 4096
+#define NEWCHUNKSBLOCKSIZE 4096 // TODO consider sending more chunks in one packet
 
 #define ERRORLIMIT 2
 #define LASTERRTIME 60
@@ -97,12 +98,7 @@ typedef struct lostchunk {
 	struct lostchunk *next;
 } lostchunk;
 
-typedef struct newchunk {
-	uint64_t chunkidblock[NEWCHUNKSBLOCKSIZE];
-	uint32_t versionblock[NEWCHUNKSBLOCKSIZE];
-	uint32_t chunksinblock;
-	struct newchunk *next;
-} newchunk;
+typedef std::vector<ChunkWithVersionAndType> NewChunks;
 
 typedef struct dopchunk {
 	uint64_t chunkid;
@@ -126,7 +122,7 @@ static dopchunk *newdopchunks = NULL;
 // master reports
 static damagedchunk *damagedchunks = NULL;
 static lostchunk *lostchunks = NULL;
-static newchunk *newchunks = NULL;
+static std::list<NewChunks> gNewChunks;
 static uint32_t errorcounter = 0;
 static int hddspacechanged = 0;
 
@@ -302,49 +298,24 @@ void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit) {
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-void hdd_report_new_chunk(uint64_t chunkid, uint32_t version) {
+void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkType type) {
 	TRACETHIS();
-	newchunk *nc;
 	zassert(pthread_mutex_lock(&dclock));
-	if (newchunks && newchunks->chunksinblock<NEWCHUNKSBLOCKSIZE) {
-		newchunks->chunkidblock[newchunks->chunksinblock] = chunkid;
-		newchunks->versionblock[newchunks->chunksinblock] = version;
-		newchunks->chunksinblock++;
-	} else {
-		nc = (newchunk*) malloc(sizeof(newchunk));
-		passert(nc);
-		nc->chunkidblock[0] = chunkid;
-		nc->versionblock[0] = version;
-		nc->chunksinblock = 1;
-		nc->next = newchunks;
-		newchunks = nc;
+	if (gNewChunks.empty() || gNewChunks.back().size() >= NEWCHUNKSBLOCKSIZE) {
+		gNewChunks.push_back(NewChunks());
+		gNewChunks.back().reserve(NEWCHUNKSBLOCKSIZE);
 	}
+	gNewChunks.back().push_back(ChunkWithVersionAndType(chunkid, version, type));
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-void hdd_get_new_chunks(std::vector<ChunkWithVersion>& chunks, uint32_t limit) {
+void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks) {
 	TRACETHIS();
-	newchunk *nc,**ncptr;
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t i;
 	sassert(chunks.empty());
-	chunks.reserve(limit);
 	zassert(pthread_mutex_lock(&dclock));
-	ncptr = &newchunks;
-	while ((nc=*ncptr)) {
-		if (limit>nc->chunksinblock) {
-			for (i=0 ; i<nc->chunksinblock ; i++) {
-				chunkid = nc->chunkidblock[i];
-				version = nc->versionblock[i];
-				chunks.push_back(ChunkWithVersion{chunkid, version});
-			}
-			limit -= nc->chunksinblock;
-			*ncptr = nc->next;
-			free(nc);
-		} else {
-			ncptr = &(nc->next);
-		}
+	if (!gNewChunks.empty()) {
+		chunks.swap(gNewChunks.front());
+		gNewChunks.pop_front();
 	}
 	zassert(pthread_mutex_unlock(&dclock));
 }
@@ -1049,7 +1020,8 @@ void hdd_senddata(folder *f,int rmflag) {
 						c->state = CH_TOBEDELETED;
 					}
 				} else {
-					hdd_report_new_chunk(c->chunkid,c->version|((c->todel)?0x80000000:0));
+					hdd_report_new_chunk(c->chunkid,
+						c->version|((c->todel)?0x80000000:0), c->type());
 					cptr = &(c->next);
 				}
 			} else {
@@ -3086,7 +3058,7 @@ static inline void hdd_add_chunk(folder *f,
 		*(c->testprev) = c;
 		f->testtail = &(c->testnext);
 		zassert(pthread_mutex_unlock(&testlock));
-		hdd_report_new_chunk(c->chunkid,c->version|(todel?0x80000000:0));
+		hdd_report_new_chunk(c->chunkid, c->version|(todel?0x80000000:0), c->type());
 	}
 	hdd_chunk_release(c);
 	zassert(pthread_mutex_lock(&folderlock));
@@ -3244,7 +3216,6 @@ void hdd_term(void) {
 	dopchunk *dc,*dcn;
 	cntcond *cc,*ccn;
 	lostchunk *lc,*lcn;
-	newchunk *nc,*ncn;
 	damagedchunk *dmc,*dmcn;
 
 	zassert(pthread_attr_destroy(&thattr));
@@ -3336,10 +3307,6 @@ void hdd_term(void) {
 			zassert(pthread_cond_destroy(&(cc->cond)));
 		}
 		free(cc);
-	}
-	for (nc=newchunks ; nc ; nc=ncn) {
-		ncn = nc->next;
-		free(nc);
 	}
 	for (lc=lostchunks ; lc ; lc=lcn) {
 		lcn = lc->next;

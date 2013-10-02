@@ -7,6 +7,21 @@
 
 namespace cstoma {
 
+namespace chunkNew {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		const std::vector<ChunkWithVersionAndType>& chunks) {
+	serializePacket(destination, LIZ_CSTOMA_CHUNK_NEW, 0, chunks);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		std::vector<ChunkWithVersionAndType>& chunks) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializePacketDataNoHeader(source, chunks);
+}
+
+} // namespace chunkNew
+
 namespace registerHost {
 
 inline void serialize(std::vector<uint8_t>& destination,

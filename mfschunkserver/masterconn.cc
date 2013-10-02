@@ -58,8 +58,6 @@
 
 // has to be less than MaxPacketSize on master side divided by 8
 #define LOSTCHUNKLIMIT 25000
-// has to be less than MaxPacketSize on master side divided by 12
-#define NEWCHUNKLIMIT 25000
 
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};
@@ -232,11 +230,12 @@ void masterconn_check_hdd_reports() {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
 		}
 
-		std::vector<ChunkWithVersion> chunksWithVersions;
-		hdd_get_new_chunks(chunksWithVersions, NEWCHUNKLIMIT);
-		if (!chunksWithVersions.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_NEW,
-					chunksWithVersions);
+		std::vector<ChunkWithVersionAndType> chunksWithVersionAndType;
+		hdd_get_new_chunks(chunksWithVersionAndType);
+		if (!chunksWithVersionAndType.empty()) {
+			std::vector<uint8_t> buffer;
+			cstoma::chunkNew::serialize(buffer, chunksWithVersionAndType);
+			masterconn_create_attached_packet(eptr, buffer);
 		}
 	}
 }

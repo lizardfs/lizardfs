@@ -34,7 +34,7 @@ uint32_t hdd_errorcounter(void);
 
 void hdd_get_damaged_chunks(std::vector<uint64_t>& chunks);
 void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit);
-void hdd_get_new_chunks(std::vector<ChunkWithVersion>& chunks,uint32_t limit);
+void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks);
 
 /* lock/unlock pair */
 uint32_t hdd_diskinfo_v1_size();

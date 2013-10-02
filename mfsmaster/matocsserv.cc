@@ -1400,6 +1400,14 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
+void matocsserv_liz_chunk_new(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	std::vector<ChunkWithVersionAndType> chunks;
+	cstoma::chunkNew::deserialize(data, chunks);
+	for (auto& chunk : chunks) {
+		chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+	}
+}
+
 void matocsserv_error_occurred(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	(void)data;
 	if (length!=0) {
@@ -1461,6 +1469,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				break;
 			case CSTOMA_DUPTRUNC:
 				matocsserv_got_duptruncchunk_status(eptr, data.data(), length);
+				break;
+			case LIZ_CSTOMA_CHUNK_NEW:
+				matocsserv_liz_chunk_new(eptr, data);
 				break;
 			case LIZ_CSTOMA_REGISTER_HOST:
 				matocsserv_liz_register_host(eptr, data);
