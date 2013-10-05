@@ -22,14 +22,12 @@ public:
 	 */
 	void putConnection(int fd, IpAddress ip, Port port, int timeout);
 
+	/**
+	 * Removes timed out connections from the pool
+	 */
+	void cleanup();
+
 private:
-	typedef std::pair<IpAddress, Port> CacheKey;
-
-	// TODO(msulikowski) replace with steady_clock/monotonic_clock if available. This can be done
-	// after merging with a build system which checks for availability of these features
-	typedef std::chrono::system_clock Clock;
-	typedef std::chrono::time_point<Clock> TimePoint;
-
 	class Connection {
 	public:
 		Connection(int fd, int timeout) :
@@ -46,12 +44,20 @@ private:
 		}
 
 	private:
+		// TODO(msulikowski) replace with steady_clock/monotonic_clock if available. This can be done
+		// after merging with a build system which checks for availability of these features
+		typedef std::chrono::system_clock Clock;
+		typedef std::chrono::time_point<Clock> TimePoint;
+
 		int fd_;
 		TimePoint validUntil_;
 	};
 
+	typedef std::pair<IpAddress, Port> CacheKey;
+	typedef std::map<CacheKey, std::list<Connection>> ConnectionsContainer;
+
 	std::mutex mutex_;
-	std::map<CacheKey, std::list<Connection>> connections_;
+	ConnectionsContainer connections_;
 };
 
 #endif /* CONNECTION_POOL_H_ */
