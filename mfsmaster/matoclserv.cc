@@ -2339,11 +2339,6 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 	uint32_t inode;
 	uint32_t index;
 
-	if (length!=12) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_READ_CHUNK - wrong size (%" PRIu32 "/12)", length);
-		eptr->mode = KILL;
-		return;
-	}
 	std::vector<uint8_t> receivedData(data, data + length);
 	if (isMooseFsType) {
 		deserializeMooseFsPacketDataNoHeader(receivedData, messageId, inode, index);
@@ -2354,7 +2349,6 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 	status = fs_readchunk(inode, index, &chunkid, &fleng);
 
 	std::vector<ChunkTypeWithAddress> allChunkCopies;
-
 	if (status == STATUS_OK) {
 		if (chunkid > 0) {
 			status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
@@ -2373,7 +2367,6 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 		matoclserv_createpacket(eptr,buffer);
 		return;
 	}
-
 
 	dcm_access(inode, eptr->sesdata->sessionid);
 	if (isMooseFsType) {
