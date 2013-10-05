@@ -30,7 +30,6 @@
 #ifdef METARESTORE
 #include <time.h>
 #endif
-
 #include <algorithm>
 
 #include "mfscommon/MFSCommunication.h"
@@ -1077,7 +1076,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr==ptr) {
+		if (s->ptr == ptr && s->chunkType == chunkType) {
 			return;
 		}
 	}
