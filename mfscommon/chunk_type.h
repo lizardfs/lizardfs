@@ -21,11 +21,15 @@ public:
 	uint8_t chunkTypeId() const;
 	XorLevel getXorLevel() const;
 	XorPart getXorPart() const;
+	static bool validChunkTypeID(uint8_t chunkTypeId);
 
 	bool operator==(const ChunkType& otherChunkType) const {
 		return chunkTypeId_ == otherChunkType.chunkTypeId_;
 	}
-	static bool validChunkTypeID(uint8_t chunkTypeId);
+
+	bool operator<(const ChunkType& otherChunkType) const {
+		return chunkTypeId_ < otherChunkType.chunkTypeId_;
+	}
 
 private:
 	static const uint8_t kStandardChunkTypeId = 0;
@@ -50,8 +54,7 @@ inline void serialize(uint8_t **destination, const ChunkType& chunkType) {
 	serialize(destination, chunkType.chunkTypeId_);
 }
 
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		ChunkType& chunkType) {
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, ChunkType& chunkType) {
 	uint8_t chunkTypeId;
 	deserialize(source, bytesLeftInBuffer, chunkTypeId);
 	if (ChunkType::validChunkTypeID(chunkTypeId)) {
