@@ -1,4 +1,4 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../common)
 add_definitions(-DAPPNAME=mfsmetalogger)
 
 aux_source_directory(. METALOGGER_SOURCES)

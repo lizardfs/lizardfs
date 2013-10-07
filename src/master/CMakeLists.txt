@@ -1,4 +1,4 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../mfscommon)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../common)
 add_definitions(-DAPPNAME=mfsmaster)
 
 aux_source_directory(. MASTER_SOURCES)
