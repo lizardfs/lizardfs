@@ -333,7 +333,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 	pthread_mutex_unlock(&glock);
 }
 
-int createNewChunkserverConnection(uint32_t ip, uint16_t port) {
+int createNewChunkserverConnection(const NetworkAddress& address) {
 	uint32_t srcip = fs_getsrcip();
 	unsigned tryCounter = 0;
 	int fd = -1;
@@ -358,11 +358,11 @@ int createNewChunkserverConnection(uint32_t ip, uint16_t port) {
 		} else {
 			timeout = 300 * (1 << (tryCounter / 2));
 		}
-		if (tcpnumtoconnect(fd, ip, port, timeout) < 0) {
+		if (tcpnumtoconnect(fd, address.ip, address.port, timeout) < 0) {
 			tryCounter++;
 			if (tryCounter >= 10) {
 				syslog(LOG_WARNING, "can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
-						ip, port, strerr(errno));
+						address.ip, address.port, strerr(errno));
 			}
 			tcpclose(fd);
 			fd = -1;
@@ -407,8 +407,7 @@ void* write_worker(void *arg) {
 	uint16_t chainelements;
 
 	uint32_t chindx;
-	uint32_t ip;
-	uint16_t port;
+	NetworkAddress address;
 	uint64_t mfleng;
 	uint64_t maxwroffset;
 	uint64_t chunkid;
@@ -493,7 +492,9 @@ void* write_worker(void *arg) {
 			continue;	// get next job
 		}
 		if (csdata==NULL || csdatasize==0) {
-			syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",id->inode,chindx,chunkid,version);
+			syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", "
+					"version: %" PRIu32 " - there are no valid copies", id->inode, chindx,
+					chunkid, version);
 			id->trycnt+=6;
 			if (id->trycnt>=maxretries) {
 				write_job_end(id,ENXIO,0);
@@ -514,15 +515,15 @@ void* write_worker(void *arg) {
 
 		// connect to the first chunkserver from a chain
 		chain = csdata;
-		ip = get32bit(&chain);
-		port = get16bit(&chain);
+		address.ip = get32bit(&chain);
+		address.port = get16bit(&chain);
 		chainsize = csdatasize-6;
 		gettimeofday(&start,NULL);
 
-		fd = chunkserverConnectionPool.getConnection(ip, port);
+		fd = chunkserverConnectionPool.getConnection(address);
 		if (fd == -1) {
 			// Connection not found in cache
-			fd = createNewChunkserverConnection(ip, port);
+			fd = createNewChunkserverConnection(address);
 		}
 		if (fd<0) {
 			fs_writeend(chunkid,id->inode,0);
@@ -578,7 +579,11 @@ void* write_worker(void *arg) {
 				lrdiff.tv_sec -= lastrcvd.tv_sec;
 				lrdiff.tv_usec -= lastrcvd.tv_usec;
 				if (lrdiff.tv_sec>=2) {
-					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was timed out (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", "
+							"version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%"
+							PRIu16 ") was timed out (unfinished writes: %" PRIu8 "; try counter: %"
+							PRIu32 ")", id->inode, chindx, chunkid, version, address.ip,
+							address.port, waitforstatus, id->trycnt + 1);
 					break;
 				}
 			}
@@ -656,7 +661,11 @@ void* write_worker(void *arg) {
 			if (pfd[0].revents&POLLIN) {
 				i = read(fd,recvbuff+rcvd,21-rcvd);
 				if (i==0) { 	// connection reset by peer
-					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+					syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", "
+							"version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%"
+							PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; "
+							"try counter: %" PRIu32 ")", id->inode, chindx, chunkid, version,
+							address.ip, address.port, waitforstatus, id->trycnt + 1);
 					status=EIO;
 					break;
 				}
@@ -753,7 +762,11 @@ void* write_worker(void *arg) {
 						i = write(fd,chain+(sent-20),chainsize-(sent-20));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64
+								", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32
+								":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; "
+								"try counter: %" PRIu32 ")", id->inode, chindx, chunkid, version,
+								address.ip, address.port, waitforstatus, id->trycnt + 1);
 						status=EIO;
 						break;
 					}
@@ -776,7 +789,11 @@ void* write_worker(void *arg) {
 						i = write(fd,cb->data+cb->from+(sent-32),cb->to-cb->from-(sent-32));
 					}
 					if (i<0) {
-						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32 ":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; try counter: %" PRIu32 ")",id->inode,chindx,chunkid,version,ip,port,waitforstatus,id->trycnt+1);
+						syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64
+								", version: %" PRIu32 " - writeworker: connection with (%08" PRIX32
+								":%" PRIu16 ") was reset by peer (unfinished writes: %" PRIu8 "; "
+								"try counter: %" PRIu32 ")", id->inode, chindx, chunkid, version,
+								address.ip, address.port, waitforstatus, id->trycnt + 1);
 						status=EIO;
 						break;
 					}
@@ -789,7 +806,7 @@ void* write_worker(void *arg) {
 		} while (waitforstatus>0 && now.tv_sec<(jobs?10:30));
 
 		if (waitforstatus == 0 && status == STATUS_OK) {
-			chunkserverConnectionPool.putConnection(fd, ip, port, IDLE_CONNECTION_TIMEOUT);
+			chunkserverConnectionPool.putConnection(fd, address, IDLE_CONNECTION_TIMEOUT);
 		} else {
 			tcpclose(fd);
 		}

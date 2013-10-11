@@ -42,7 +42,7 @@
 #include "mfscommon/massert.h"
 #include "mfscommon/matocl_communication.h"
 #include "mfscommon/MFSCommunication.h"
-#include "mfscommon/server_address.h"
+#include "mfscommon/network_address.h"
 #include "mfscommon/slogger.h"
 #include "mfscommon/sockets.h"
 #include "mfscommon/random.h"
@@ -667,11 +667,11 @@ void matoclserv_createpacket(matoclserventry *eptr, const std::vector<uint8_t>& 
 }
 
 static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allCopies,
-		std::vector<ServerAddress>& standardCopies) {
+		std::vector<NetworkAddress>& standardCopies) {
 	sassert(standardCopies.empty());
 	for (auto& chunkCopy : allCopies) {
 		if (chunkCopy.chunkType.isStandardChunkType()) {
-			standardCopies.push_back(ServerAddress(chunkCopy.ip, chunkCopy.port));
+			standardCopies.push_back(chunkCopy.address);
 		}
 	}
 }
@@ -726,7 +726,7 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	if (status==STATUS_OK) {
 		dcm_modify(inode,eptr->sesdata->sessionid);
 	}
-	std::vector<ServerAddress> standardChunkCopies;
+	std::vector<NetworkAddress> standardChunkCopies;
 	std::vector<uint8_t> buffer;
 	switch (type) {
 	case FUSE_WRITE:
@@ -2370,7 +2370,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 
 	dcm_access(inode, eptr->sesdata->sessionid);
 	if (isMooseFsType) {
-		std::vector<ServerAddress> standardChunkCopies;
+		std::vector<NetworkAddress> standardChunkCopies;
 		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
 		serializeMooseFsPacket(buffer, MATOCL_FUSE_READ_CHUNK, messageId, fleng, chunkid, version,
 				standardChunkCopies);
@@ -2431,7 +2431,7 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 		std::vector<ChunkTypeWithAddress> allChunkCopies;
 		status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
 				kMaxNumberOfChunkCopies, allChunkCopies);
-		std::vector<ServerAddress> standardChunkCopies;
+		std::vector<NetworkAddress> standardChunkCopies;
 		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
 		if (status!=STATUS_OK) {
 			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);

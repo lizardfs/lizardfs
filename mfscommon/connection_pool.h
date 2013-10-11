@@ -6,21 +6,21 @@
 #include <map>
 #include <mutex>
 
+#include "mfscommon/network_address.h"
+
 class ConnectionPool {
 public:
-	typedef uint32_t IpAddress;
-	typedef uint16_t Port;
 
 	/**
 	 * Returns descriptor if connection found in the pool, -1 otherwise
 	 */
-	int getConnection(IpAddress ip, Port port);
+	int getConnection(const NetworkAddress& address);
 
 	/**
 	 * Puts connection in the pool for future use.
 	 * This connection will not be returned after the timeout has expired.
 	 */
-	void putConnection(int fd, IpAddress ip, Port port, int timeout);
+	void putConnection(int fd, const NetworkAddress& address, int timeout);
 
 	/**
 	 * Removes timed out connections from the pool
@@ -53,8 +53,7 @@ private:
 		TimePoint validUntil_;
 	};
 
-	typedef std::pair<IpAddress, Port> CacheKey;
-	typedef std::map<CacheKey, std::list<Connection>> ConnectionsContainer;
+	typedef std::map<NetworkAddress, std::list<Connection>> ConnectionsContainer;
 
 	std::mutex mutex_;
 	ConnectionsContainer connections_;

@@ -11,10 +11,10 @@ TEST(MatoclCommunicationTests, FuseReadChunkData) {
 	uint64_t outFileLength, inFileLength = 1024;
 	std::vector<ChunkTypeWithAddress> outServerList;
 	std::vector<ChunkTypeWithAddress> inServerList {
-		ChunkTypeWithAddress(127001, 8080, ChunkType::getStandardChunkType()),
-		ChunkTypeWithAddress(127002, 8081, ChunkType::getXorParityChunkType(5)),
-		ChunkTypeWithAddress(127003, 8082, ChunkType::getXorChunkType(5, 1)),
-		ChunkTypeWithAddress(127004, 8084, ChunkType::getXorChunkType(5, 5)),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), ChunkType::getStandardChunkType()),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), ChunkType::getXorParityChunkType(5)),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80003, 8082), ChunkType::getXorChunkType(5, 1)),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80004, 8084), ChunkType::getXorChunkType(5, 5)),
 	};
 	ChunkTypeWithAddress outServer;
 
@@ -40,8 +40,8 @@ TEST(MatoclCommunicationTests, FuseReadChunkData) {
 
 	for (uint i = 0; i < outServerList.size(); ++i){
 		SCOPED_TRACE("Server number: " + std::to_string(i));
-		EXPECT_EQ(inServerList[i].ip, outServerList[i].ip);
-		EXPECT_EQ(inServerList[i].port, outServerList[i].port);
+		EXPECT_EQ(inServerList[i].address.ip, outServerList[i].address.ip);
+		EXPECT_EQ(inServerList[i].address.port, outServerList[i].address.port);
 		EXPECT_EQ(inServerList[i].chunkType, outServerList[i].chunkType);
 	}
 }

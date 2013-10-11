@@ -3,18 +3,17 @@
 #include "mfscommon/massert.h"
 #include "mfscommon/sockets.h"
 
-#include <vector>
-
-void ConnectionPool::putConnection(int fd, IpAddress ip, Port port, int timeout) {
+void ConnectionPool::putConnection(int fd, const NetworkAddress& address, int timeout) {
+	sassert(fd > 0);
+	sassert(timeout > 0);
 	std::unique_lock<std::mutex> lock(mutex_);
-	connections_[CacheKey(ip, port)].push_back(Connection(fd, timeout));
+	connections_[address].push_back(Connection(fd, timeout));
 }
 
-int ConnectionPool::getConnection(IpAddress ip, Port port) {
-	CacheKey cacheKey = CacheKey(ip, port);
+int ConnectionPool::getConnection(const NetworkAddress& address) {
 	while (true) {
 		std::unique_lock<std::mutex> lock(mutex_);
-		auto connectionsIterator = connections_.find(cacheKey);
+		auto connectionsIterator = connections_.find(address);
 		if (connectionsIterator == connections_.end()) {
 			return -1;
 		}

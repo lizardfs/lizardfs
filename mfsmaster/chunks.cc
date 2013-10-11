@@ -1006,11 +1006,10 @@ int chunk_locsort_cmp(const void *aa,const void *bb) {
 }
 
 struct ChunkLocation {
-	ChunkLocation() : ip(0), port(0), chunkType(ChunkType::getStandardChunkType()),
+	ChunkLocation() : chunkType(ChunkType::getStandardChunkType()),
 			distance(0), random(0) {
 	}
-	uint32_t ip;
-	uint16_t port;
+	NetworkAddress address;
 	ChunkType chunkType;
 	uint32_t distance;
 	uint32_t random;
@@ -1044,9 +1043,11 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	for (s = c->slisthead; s; s = s->next) {
 		if (s->valid != INVALID && s->valid != DEL) {
 			if (cnt < maxNumberOfChunkCopies && matocsserv_getlocation(s->ptr,
-					&(chunkserverLocation.ip), &(chunkserverLocation.port)) == 0) {
-				chunkserverLocation.distance = topology_distance(chunkserverLocation.ip,
-						currentIp);	// in the future prepare more sophisticated distance function
+					&(chunkserverLocation.address.ip),
+					&(chunkserverLocation.address.port)) == 0) {
+				chunkserverLocation.distance =
+						topology_distance(chunkserverLocation.address.ip, currentIp);
+						// in the future prepare more sophisticated distance function
 				chunkserverLocation.random = rndu32();
 				chunkserverLocation.chunkType = s->chunkType;
 				chunkLocation.push_back(chunkserverLocation);
@@ -1057,7 +1058,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	std::sort(chunkLocation.begin(), chunkLocation.end());
 	for (uint i = 0; i < chunkLocation.size(); ++i) {
 		const ChunkLocation& loc = chunkLocation[i];
-		serversList.push_back(ChunkTypeWithAddress(loc.ip, loc.port, loc.chunkType));
+		serversList.push_back(ChunkTypeWithAddress(loc.address, loc.chunkType));
 	}
 	return STATUS_OK;
 }
