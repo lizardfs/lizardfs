@@ -897,7 +897,7 @@ void masterconn_read(masterconn *eptr) {
 void masterconn_write(masterconn *eptr) {
 	int32_t i;
 	while (!eptr->outputPackets.empty()) {
-		auto pack = eptr->outputPackets.front();
+		auto& pack = eptr->outputPackets.front();
 		i=write(eptr->sock, pack.packet.data() + pack.bytesSent,
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
