@@ -44,6 +44,18 @@ public:
 
 	PacketHeader() : type(0), length(0) {
 	}
+
+	bool isLizPacketType() const {
+		return kMinLizPacketType <= type && type <= kMaxLizPacketType;
+	}
+
+	bool isOldPacketType() const {
+		/*
+		 *  We do not check if type >= kMinOldPacketType to avoid gcc's warning:
+		 *     comparison of unsigned expression >= 0 is always true
+		 */
+		return type <= kMaxOldPacketType;
+	}
 };
 
 /*

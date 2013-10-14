@@ -31,7 +31,7 @@ TEST(MatoclCommunicationTests, FuseReadChunkData) {
 	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
 	EXPECT_EQ(1U, version);
 
-	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer, outFileLength,
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(removeHeader(buffer), outFileLength,
 			outChunkId, outChunkVersion, outServerList));
 
 	EXPECT_EQ(inChunkId, outChunkId);
@@ -61,6 +61,6 @@ TEST(MatoclCommunicationTests, FuseReadChunkStatus) {
 	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
 	EXPECT_EQ(0U, version);
 
-	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer, outStatus));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(removeHeader(buffer), outStatus));
 	EXPECT_EQ(inStatus, outStatus);
 }

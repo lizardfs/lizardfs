@@ -18,6 +18,7 @@ mfsmount_SOURCES=\
 	stats.cc stats.h \
 	oplog.cc oplog.h \
 	main.cc \
+	../mfscommon/chunk_type.cc ../mfscommon/chunk_type.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
 	../mfscommon/connection_pool.cc ../mfscommon/connection_pool.h \
 	../mfscommon/crc.cc ../mfscommon/crc.h \
