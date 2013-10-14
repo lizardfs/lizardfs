@@ -10,11 +10,13 @@ set(ENABLE_TESTS  NO CACHE STRING "Enable building tests")
 set(ENABLE_TRACES NO CACHE STRING "Enable traces")
 set(ENABLE_CRC NO CACHE STRING "Enable checksums")
 set(THROW_INSTEAD_OF_ABORT NO CACHE STRING "Throw std::exception instead of calling abort")
+set(USE_LEGACY_READ_MESSAGES NO CACHE STRING "Enable sending old type of messages by mount")
 
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
 message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
 message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
 
 if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
   message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
@@ -56,6 +58,10 @@ endif()
 
 if(THROW_INSTEAD_OF_ABORT)
   add_definitions(-DTHROW_INSTEAD_OF_ABORT)
+endif()
+
+if(USE_LEGACY_READ_MESSAGES)
+  add_definitions(-DUSE_LEGACY_READ_MESSAGES)
 endif()
 
 if(ENABLE_TESTS)

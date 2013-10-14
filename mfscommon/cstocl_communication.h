@@ -28,6 +28,14 @@ inline void deserialize(const std::vector<uint8_t>& buffer,
 	deserializePacketDataNoHeader(buffer, chunkId, readOffset, readSize, crc, data);
 }
 
+inline void deserializePrefix(const std::vector<uint8_t>& buffer,
+		uint64_t& chunkId, uint32_t& readOffset, uint32_t& readSize, uint32_t& crc) {
+	deserializePacketDataNoHeader(buffer, chunkId, readOffset, readSize, crc);
+}
+
+// kPrefixSize - version, chcunkId, readOffset, readSize, crc
+static const uint32_t kPrefixSize = 4 + 8 + 4 + 4 + 4;
+
 } // namespace readData
 
 namespace readStatus {

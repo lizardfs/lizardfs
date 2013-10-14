@@ -1,19 +1,32 @@
 #ifndef LIZARDFS_MFSCOMMON_NETWORK_ADDRESS_H_
 #define LIZARDFS_MFSCOMMON_NETWORK_ADDRESS_H_
 
+#include <arpa/inet.h>
+#include <sstream>
+
 #include "mfscommon/serialization.h"
 
 struct NetworkAddress {
-	NetworkAddress (uint32_t ip, uint16_t port) : ip(ip), port(port) {
+	uint32_t ip;
+	uint16_t port;
+
+	NetworkAddress(uint32_t ip, uint16_t port) : ip(ip), port(port) {
 	}
 
 	NetworkAddress() : ip(0), port(0) {
 	}
 
-	uint32_t ip;
-	uint16_t port;
 	bool operator<(const NetworkAddress& rhs) const {
 		return std::make_pair(ip, port) < std::make_pair(rhs.ip, rhs.port);
+	}
+
+	std::string toString() const {
+		std::stringstream ss;
+		for (int i = 24; i >= 0; i -= 8) {
+			ss << ((ip >> i) & 0xff) << (i > 0 ? '.' : ':');
+		}
+		ss << port;
+		return ss.str();
 	}
 };
 
