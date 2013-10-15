@@ -18,7 +18,7 @@ inline void serialize(std::vector<uint8_t>& buffer,
 inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
 		uint32_t& readOffset, uint32_t& readSize) {
-	deserializePacketDataNoHeader(buffer, bufferSize,
+	deserializeAllPacketDataNoHeader(buffer, bufferSize,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
 

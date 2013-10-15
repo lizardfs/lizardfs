@@ -2341,7 +2341,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 
 	std::vector<uint8_t> receivedData(data, data + length);
 	if (isMooseFsType) {
-		deserializeMooseFsPacketDataNoHeader(receivedData, messageId, inode, index);
+		deserializeAllMooseFsPacketDataNoHeader(receivedData, messageId, inode, index);
 	} else {
 		cltoma::fuseReadChunk::deserialize(receivedData, messageId, inode, index);
 	}

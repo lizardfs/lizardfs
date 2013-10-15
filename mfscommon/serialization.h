@@ -112,7 +112,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	size_t sizeOfElement = serializedSize(T());
 	sassert(vec.size() == 0);
 	sassert(sizeOfElement > 0);
-	sassert(bytesLeftInBuffer % sizeOfElement == 0);
+	if (bytesLeftInBuffer % sizeOfElement != 0) {
+		throw IncorrectDeserializationException();
+	}
 	size_t vecSize = bytesLeftInBuffer / sizeOfElement;
 	vec.resize(vecSize);
 	for (size_t i = 0; i < vecSize; ++i) {
@@ -130,7 +132,7 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& 
  * Advances deserialization state without reading data
  */
 template <class T>
-void inline deserializeAndIgnore(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
+inline void deserializeAndIgnore(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
 	verifySize(T(), bytesLeftInBuffer);
 	*source += serializedSize(T());
 	bytesLeftInBuffer -= serializedSize(T());
@@ -138,6 +140,11 @@ void inline deserializeAndIgnore(const uint8_t** source, uint32_t& bytesLeftInBu
 
 /*
  * The main interface of the serialization framework
+ */
+
+/*
+ * Serializes a tuple of variables into the buffer.
+ * The buffer must be empty when calling this function and will be properly resized
  */
 template <class... Args>
 void serialize(std::vector<uint8_t>& buffer, const Args&... args) {
@@ -148,14 +155,25 @@ void serialize(std::vector<uint8_t>& buffer, const Args&... args) {
 	sassert(std::distance(buffer.data(), destination) == (int32_t)buffer.size());
 }
 
+/*
+ * Deserializes a tuple of variables from the data in the sourceBuffer.
+ * Throws IncorrectDeserializationException when buffer is too short or malformed (some types
+ * may check if the input bytes represent an acceptable value).
+ * Returns number of bytes that were not used in the deserialization process (ie. this value
+ * is greater than zero is the buffer is longer than size of all the deserialized data).
+ */
 template<class... Args>
-inline void deserialize(const uint8_t* sourceBuffer, uint32_t sourceBufferSize, Args&... args) {
+inline uint32_t deserialize(const uint8_t* sourceBuffer, uint32_t sourceBufferSize, Args&... args) {
 	deserialize(&sourceBuffer, sourceBufferSize, args...);
+	return sourceBufferSize;
 }
 
+/*
+ * The same as the function above, but with the std::vector interface
+ */
 template<class... Args>
-inline void deserialize(const std::vector<uint8_t>& sourceBuffer, Args&... args) {
-	deserialize(sourceBuffer.data(), sourceBuffer.size(), args...);
+inline uint32_t deserialize(const std::vector<uint8_t>& sourceBuffer, Args&... args) {
+	return deserialize(sourceBuffer.data(), sourceBuffer.size(), args...);
 }
 
 #endif // LIZARDFS_MFSCOMMON_SERIALIZATION_H_

@@ -17,7 +17,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 inline void deserialize(const std::vector<uint8_t>& source,
 		std::vector<ChunkWithVersionAndType>& chunks) {
 	verifyPacketVersionNoHeader(source, 0);
-	deserializePacketDataNoHeader(source, chunks);
+	deserializeAllPacketDataNoHeader(source, chunks);
 }
 
 } // namespace chunkNew
@@ -31,7 +31,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint32_t& ip, uint16_t& port, uint16_t& timeout, uint32_t& csVersion) {
-	deserializePacketDataNoHeader(source, ip, port, timeout, csVersion);
+	deserializeAllPacketDataNoHeader(source, ip, port, timeout, csVersion);
 }
 
 } // namespace registerHost
@@ -45,7 +45,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		std::vector<ChunkWithVersionAndType>& chunks) {
-	deserializePacketDataNoHeader(source, chunks);
+	deserializeAllPacketDataNoHeader(source, chunks);
 }
 
 } // namespace registerChunks
@@ -62,7 +62,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& usedSpace, uint64_t& totalSpace, uint32_t& chunkCount, uint64_t& tdUsedSpace,
 		uint64_t& toDeleteTotalSpace, uint32_t& toDeleteChunksNumber) {
-	deserializePacketDataNoHeader(source, usedSpace, totalSpace,
+	deserializeAllPacketDataNoHeader(source, usedSpace, totalSpace,
 			chunkCount, tdUsedSpace, toDeleteTotalSpace, toDeleteChunksNumber);
 }
 

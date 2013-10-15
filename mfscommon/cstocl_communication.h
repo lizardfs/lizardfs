@@ -25,7 +25,7 @@ inline void serializePrefix(std::vector<uint8_t>& buffer,
 inline void deserialize(const std::vector<uint8_t>& buffer,
 		uint64_t& chunkId, uint32_t& readOffset, uint32_t& readSize,
 		uint32_t& crc, std::vector<uint8_t>& data) {
-	deserializePacketDataNoHeader(buffer, chunkId, readOffset, readSize, crc, data);
+	deserializeAllPacketDataNoHeader(buffer, chunkId, readOffset, readSize, crc, data);
 }
 
 inline void deserializePrefix(const std::vector<uint8_t>& buffer,
@@ -33,7 +33,7 @@ inline void deserializePrefix(const std::vector<uint8_t>& buffer,
 	deserializePacketDataNoHeader(buffer, chunkId, readOffset, readSize, crc);
 }
 
-// kPrefixSize - version, chcunkId, readOffset, readSize, crc
+// kPrefixSize - version:u32, chunkId:u64, readOffset:u32, readSize:u32, crc:u32
 static const uint32_t kPrefixSize = 4 + 8 + 4 + 4 + 4;
 
 } // namespace readData
@@ -45,7 +45,7 @@ inline void serialize(std::vector<uint8_t>& buffer, uint64_t chunkId, uint8_t st
 }
 
 inline void deserialize(const std::vector<uint8_t>& buffer, uint64_t& chunkId, uint8_t& status) {
-	deserializePacketDataNoHeader(buffer, chunkId, status);
+	deserializeAllPacketDataNoHeader(buffer, chunkId, status);
 }
 
 } // namespace readStatus

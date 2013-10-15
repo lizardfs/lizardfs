@@ -17,7 +17,7 @@ inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uin
 inline void deserialize(const std::vector<uint8_t>& source, uint32_t& messageId, uint32_t& inode,
 		uint32_t& chunkIndex) {
 	verifyPacketVersionNoHeader(source, 0);
-	deserializePacketDataNoHeader(source, messageId, inode, chunkIndex);
+	deserializeAllPacketDataNoHeader(source, messageId, inode, chunkIndex);
 }
 
 } // namespace fuseReadChunk

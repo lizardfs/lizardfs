@@ -82,7 +82,7 @@ struct masterconn {
 	int sock;
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;
-	uint8_t hdrbuff[8];
+	uint8_t hdrbuff[PacketHeader::kSize];
 	InputPacket inputpacket;
 	std::list<OutputPacket> outputPackets;
 	uint32_t bindip;

@@ -507,7 +507,7 @@ void csserv_read_init(csserventry *eptr, const uint8_t *data,
 					eptr->size);
 			eptr->readResponseSerializer = LizardFsReadResponseSerializer::getSingleton();
 		} else {
-			deserializeMooseFsPacketDataNoHeader(data, length,
+			deserializeAllMooseFsPacketDataNoHeader(data, length,
 					eptr->chunkid,
 					eptr->version,
 					eptr->offset,

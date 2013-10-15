@@ -128,13 +128,18 @@ inline void serializeMooseFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t 
 	serialize(buffer, type, length, args...);
 }
 
-// Partial deserialization for new, versioned packets
-//
-// Doesn't modify source and bytesInBuffer
-//
-// Some procedures have two versions:
-//   NoHeader   - version for headerless packet fragments
-//   SkipHeader - version for packets with full MooseFS header
+/*
+ * Partial deserialization for new, versioned packets
+ *
+ * Doesn't modify source and bytesInBuffer
+ *
+ * Some procedures have two versions:
+ *   NoHeader   - version for headerless packet fragments
+ *   SkipHeader - version for packets with full MooseFS header
+ *
+ * If the function name contains All infix, it means that the function will throw
+ * IncorrectDeserializationException when the buffer is too long
+ */
 
 inline void deserializePacketHeader(const uint8_t* source, uint32_t bytesInBuffer,
 		PacketHeader& header) {
@@ -158,7 +163,7 @@ inline void deserializePacketVersionNoHeader(const std::vector<uint8_t>& source,
 inline void deserializePacketVersionSkipHeader(const uint8_t* source, uint32_t bytesInBuffer,
 		PacketVersion& version) {
 	deserializeAndIgnore<PacketHeader>(&source, bytesInBuffer);
-	deserialize(&source, bytesInBuffer, version);
+	deserialize(source, bytesInBuffer, version);
 }
 
 inline void deserializePacketVersionSkipHeader(const std::vector<uint8_t>& source,
@@ -167,38 +172,58 @@ inline void deserializePacketVersionSkipHeader(const std::vector<uint8_t>& sourc
 }
 
 template <class... Data>
-void deserializePacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer, Data&... data) {
+inline void deserializePacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+		Data&... data) {
 	deserializeAndIgnore<PacketVersion>(&source, bytesInBuffer);
-	deserialize(&source, bytesInBuffer, data...);
+	deserialize(source, bytesInBuffer, data...);
 }
 
 template <class... Data>
-void deserializePacketDataNoHeader(const std::vector<uint8_t>& source, Data&... data) {
+inline void deserializePacketDataNoHeader(const std::vector<uint8_t>& source, Data&... data) {
 	deserializePacketDataNoHeader(source.data(), source.size(), data...);
 }
 
 template <class... Data>
-void deserializePacketDataSkipHeader(const uint8_t* source, uint32_t bytesInBuffer, Data&... data) {
-	deserializeAndIgnore<PacketHeader>(&source, bytesInBuffer);
+inline void deserializeAllPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+		Data&... data) {
 	deserializeAndIgnore<PacketVersion>(&source, bytesInBuffer);
-	deserialize(&source, bytesInBuffer, data...);
+	uint32_t bytesNotUsed = deserialize(source, bytesInBuffer, data...);
+	if (bytesNotUsed > 0) {
+		throw IncorrectDeserializationException();
+	}
 }
 
 template <class... Data>
-void deserializePacketDataSkipHeader(const std::vector<uint8_t>& source, Data&... data) {
+inline void deserializeAllPacketDataNoHeader(const std::vector<uint8_t>& source, Data&... data) {
+	deserializeAllPacketDataNoHeader(source.data(), source.size(), data...);
+}
+
+template <class... Data>
+inline void deserializePacketDataSkipHeader(const uint8_t* source, uint32_t bytesInBuffer,
+		Data&... data) {
+	deserializeAndIgnore<PacketHeader>(&source, bytesInBuffer);
+	deserializeAndIgnore<PacketVersion>(&source, bytesInBuffer);
+	deserialize(source, bytesInBuffer, data...);
+}
+
+template <class... Data>
+inline void deserializePacketDataSkipHeader(const std::vector<uint8_t>& source, Data&... data) {
 	deserializePacketDataSkipHeader(source.data(), source.size(), data...);
 }
 
 template<class... Data>
-inline void deserializeMooseFsPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+inline void deserializeAllMooseFsPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
 		Data &...args) {
-	deserialize(source, bytesInBuffer, args...);
+	uint32_t bytesNotUsed = deserialize(source, bytesInBuffer, args...);
+	if (bytesNotUsed > 0) {
+		throw IncorrectDeserializationException();
+	}
 }
 
 template<class... Data>
-inline void deserializeMooseFsPacketDataNoHeader(const std::vector<uint8_t>& source,
+inline void deserializeAllMooseFsPacketDataNoHeader(const std::vector<uint8_t>& source,
 		Data &...args) {
-	deserializeMooseFsPacketDataNoHeader(source.data(), source.size(), args...);
+	deserializeAllMooseFsPacketDataNoHeader(source.data(), source.size(), args...);
 }
 
 // check whether a LizardFS packet has expected version
