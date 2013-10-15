@@ -43,78 +43,80 @@ protected:
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard1) {
 	std::vector<ChunkType> chunks { standard, standard, standard };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard2) {
 	std::vector<ChunkType> chunks { standard, xor_1_of_2 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard3) {
 	std::vector<ChunkType> chunks { standard, xor_p_of_3 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard4) {
 	std::vector<ChunkType> chunks { standard, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor1) {
 	std::vector<ChunkType> chunks { xor_p_of_2, xor_1_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor2) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor3) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_3, xor_2_of_3, xor_3_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXorParity1) {
 	std::vector<ChunkType> chunks { xor_p_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXorParity2) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_2, xor_1_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXor1) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_3_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_3, xor_2_of_3, xor_3_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXor2) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_p_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXorParity1) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_3, xor_1_of_3, xor_2_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner().choosePartsToUse(chunks));
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks).chosenParts());
 }
 
 TEST_F(ReadOperationPlannerTests, GetPlanForStandard) {
-	ReadOperationPlanner::Plan plan = ReadOperationPlanner().getPlanFor(
-			{ standard },       // read from standard chunk
+	ReadOperationPlanner planner({
+			standard            // read from standard chunk
+			});
+	ReadOperationPlanner::Plan plan = planner.getPlanFor(
 			MFSBLOCKSIZE,       // offset = beginning of the second block
 			2 * MFSBLOCKSIZE);  // size = two blocks
 	EXPECT_EQ(2U * MFSBLOCKSIZE, plan.requiredBufferSize);
@@ -125,8 +127,11 @@ TEST_F(ReadOperationPlannerTests, GetPlanForStandard) {
 }
 
 TEST_F(ReadOperationPlannerTests, GetPlanForXor1) {
-	ReadOperationPlanner::Plan plan = ReadOperationPlanner().getPlanFor(
-			{ xor_1_of_2, xor_2_of_2 }, // read from xor level 2
+	ReadOperationPlanner planner({
+			xor_1_of_2,                 // read from xor level 2
+			xor_2_of_2
+			});
+	ReadOperationPlanner::Plan plan = planner.getPlanFor(
 			MFSBLOCKSIZE,               // offset = beginning of the second block
 			MFSBLOCKSIZE);              // size   = one block
 	EXPECT_EQ(1U * MFSBLOCKSIZE, plan.requiredBufferSize);
@@ -137,8 +142,11 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXor1) {
 }
 
 TEST_F(ReadOperationPlannerTests, GetPlanForXor2) {
-	ReadOperationPlanner::Plan plan = ReadOperationPlanner().getPlanFor(
-			{ xor_1_of_2, xor_2_of_2 }, // read from xor level 2
+	ReadOperationPlanner planner({
+			xor_1_of_2,                 // read from xor level 2
+			xor_2_of_2
+			});
+	ReadOperationPlanner::Plan plan = planner.getPlanFor(
 			MFSBLOCKSIZE,               // offset = beginning of the second block
 			3 * MFSBLOCKSIZE);          // size   = three blocks
 	EXPECT_EQ(3U * MFSBLOCKSIZE, plan.requiredBufferSize);
@@ -149,17 +157,17 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXor2) {
 	verifyRead(plan, xor_2_of_2, 0,                {0, 2 * MFSBLOCKSIZE});
 }
 
-TEST_F(ReadOperationPlannerTests, GetPlanForXorMaxLevel) {
+TEST_F(ReadOperationPlannerTests, GetPlanForMaxXorLevel) {
 	ChunkType::XorLevel level = kMaxXorLevel;
 	std::vector<ChunkType> parts;
-	for (ChunkType::XorPart part = 1; part < level; ++part) {
+	for (ChunkType::XorPart part = 1; part <= level; ++part) {
 		parts.push_back(ChunkType::getXorChunkType(level, part));
 	}
 
-	ReadOperationPlanner::Plan plan = ReadOperationPlanner().getPlanFor(
-			parts,              // read from highest available level
-			2 * MFSBLOCKSIZE,   // offset = beginning of the third block
-			4 * MFSBLOCKSIZE);  // size   = four blocks
+	ReadOperationPlanner planner(parts);  // read from highest available level
+	ReadOperationPlanner::Plan plan = planner.getPlanFor(
+			2 * MFSBLOCKSIZE,     // offset = beginning of the third block
+			4 * MFSBLOCKSIZE);    // size   = four blocks
 	ASSERT_GE(kMaxXorLevel, 6);
 	EXPECT_EQ(4U * MFSBLOCKSIZE, plan.requiredBufferSize);
 	EXPECT_EQ(0U, plan.xorOperations.size());

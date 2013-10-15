@@ -31,8 +31,9 @@ private:
 
 } // anonymous namespace
 
-std::vector<ChunkType> ReadOperationPlanner::choosePartsToUse(const std::vector<ChunkType>& parts) {
-	std::vector<ChunkType> uniqueParts = parts;
+ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& parts) {
+	partsToUse = parts;
+	std::vector<ChunkType>& uniqueParts(partsToUse);
 	std::sort(uniqueParts.begin(), uniqueParts.end());
 	uniqueParts.erase(std::unique(uniqueParts.begin(), uniqueParts.end()), uniqueParts.end());
 
@@ -58,13 +59,14 @@ std::vector<ChunkType> ReadOperationPlanner::choosePartsToUse(const std::vector<
 			auto newEnd = std::remove_if(
 					uniqueParts.begin(), uniqueParts.end(), IsNotXorLevel(level, false));
 			uniqueParts.erase(newEnd, uniqueParts.end());
-			return uniqueParts;
+			return;
 		}
 	}
 
 	// 2. If there is a full replica, choose it
 	if (isFullReplicaAvailable) {
-		return { ChunkType::getStandardChunkType() };
+		uniqueParts = { ChunkType::getStandardChunkType() };
+		return;
 	}
 
 	// 3. If there is a set of xor chunks with one missing and parity available, choose it
@@ -73,12 +75,21 @@ std::vector<ChunkType> ReadOperationPlanner::choosePartsToUse(const std::vector<
 			auto newEnd = std::remove_if(
 					uniqueParts.begin(), uniqueParts.end(), IsNotXorLevel(level, true));
 			uniqueParts.erase(newEnd, uniqueParts.end());
-			return uniqueParts;
+			return;
 		}
 	}
 
 	// 4. Chunk is unreadable
-	return std::vector<ChunkType>();
+	uniqueParts = std::vector<ChunkType>();
+	return;
+}
+
+bool ReadOperationPlanner::isPossible() const {
+	return !partsToUse.empty();
+}
+
+const std::vector<ChunkType>& ReadOperationPlanner::chosenParts() const {
+	return partsToUse;
 }
 
 static ReadOperationPlanner::Plan createPlanForStandardChunkType(uint32_t offset, uint32_t size) {
@@ -116,10 +127,8 @@ static ReadOperationPlanner::ReadOperation createXorReadOperationWithoutParity(
 	return read;
 }
 
-ReadOperationPlanner::Plan ReadOperationPlanner::getPlanFor(
-		const std::vector<ChunkType>& chosenParts,
-		uint32_t offset,
-		uint32_t size) {
+ReadOperationPlanner::Plan ReadOperationPlanner::getPlanFor(uint32_t offset, uint32_t size) const {
+	const std::vector<ChunkType>& chosenParts(partsToUse);
 	sassert(!chosenParts.empty());
 	sassert(offset % MFSBLOCKSIZE == 0);
 	sassert(size % MFSBLOCKSIZE == 0);
