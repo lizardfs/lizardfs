@@ -10,8 +10,8 @@ Version:	1.6.27
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
-URL:		http://www.moosefs.com/
-Source0:	http://moosefs.com/tl_files/mfscode/%{name}-%{version}.tar.gz
+URL:		http://www.lizardfs.org/
+Source0:	http://lizardfs.org/download/%{name}-%{version}.tar.gz
 BuildRequires:	fuse-devel
 BuildRequires:	pkgconfig
 BuildRequires:	zlib-devel
