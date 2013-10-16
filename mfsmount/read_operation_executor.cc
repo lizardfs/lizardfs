@@ -210,6 +210,8 @@ void ReadOperationExecutor::setState(ReadOperationState newState) {
 			destination_ = dataBuffer_ + readOperation_.offsetsOfBlocks[dataBlocksCompleted_];
 			bytesLeft_ = MFSBLOCKSIZE;
 			break;
+		case kFinished:
+			break;
 		default:
 			massert(false, "Unknown state in ReadOperationExecutor::setState");
 			break;
