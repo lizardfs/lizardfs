@@ -4,6 +4,12 @@ mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS)
 mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -DAPPNAME=mfsmount
 
 mfsmount_SOURCES=\
+	chunk_connector.cc chunk_connector.h \
+	chunk_locator.cc chunk_locator.h \
+	chunk_reader.cc chunk_reader.h \
+	read_operation_executor.cc read_operation_executor.h \
+	read_operation_planner.cc read_operation_planner.h \
+	read_plan_executor.cc read_plan_executor.h \
 	dirattrcache.cc dirattrcache.h \
 	symlinkcache.cc symlinkcache.h \
 	chunkloccache.cc chunkloccache.h \

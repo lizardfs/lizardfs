@@ -2,6 +2,8 @@ add_definitions(-DAPPNAME=mfsmount -DFUSE_USE_VERSION=26)
 
 add_library(mount
 	chunk_connector.cc chunk_connector.h
+	chunk_locator.cc chunk_locator.h
+	chunk_reader.cc chunk_reader.h
 	chunkloccache.cc chunkloccache.h
 	cscomm.cc cscomm.h
 	csdb.cc csdb.h
