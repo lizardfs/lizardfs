@@ -17,7 +17,6 @@ mfsmount_SOURCES=\
 	mfs_meta_fuse.cc mfs_meta_fuse.h \
 	mastercomm.cc mastercomm.h \
 	masterproxy.cc masterproxy.h \
-	cscomm.cc cscomm.h \
 	readdata.cc readdata.h \
 	writedata.cc writedata.h \
 	csdb.cc csdb.h \
@@ -32,5 +31,6 @@ mfsmount_SOURCES=\
 	../mfscommon/sockets.cc ../mfscommon/sockets.h \
 	../mfscommon/strerr.cc ../mfscommon/strerr.h \
 	../mfscommon/datapack.h ../mfscommon/massert.h \
+	../mfscommon/goal.cc ../mfscommon/goal.h \
 	../mfscommon/mfsstrerr.h \
 	../mfscommon/MFSCommunication.h

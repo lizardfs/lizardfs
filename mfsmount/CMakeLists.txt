@@ -5,7 +5,6 @@ add_library(mount
 	chunk_locator.cc chunk_locator.h
 	chunk_reader.cc chunk_reader.h
 	chunkloccache.cc chunkloccache.h
-	cscomm.cc cscomm.h
 	csdb.cc csdb.h
 	dirattrcache.cc dirattrcache.h
 	mastercomm.cc mastercomm.h
