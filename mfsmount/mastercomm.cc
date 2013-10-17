@@ -295,12 +295,6 @@ void fs_output_buffer_init(threc *rec,uint32_t size) {
 	}
 }
 
-void fs_input_buffer_init(threc *rec,uint32_t size) {
-	if (rec->inputBuffer.size() != size) {
-		rec->inputBuffer.resize(size);
-	}
-}
-
 uint8_t* fs_createpacket(threc *rec,uint32_t cmd,uint32_t size) {
 	uint8_t *ptr;
 	uint32_t hdrsize = size+4;
@@ -1170,18 +1164,20 @@ void* fs_receive_thread(void *arg) {
 			continue;
 		}
 		std::unique_lock<std::mutex> lock(rec->mutex);
-		fs_input_buffer_init(rec, responseSize);
 		if (rec->inputBuffer.size() != responseSize) {
-			lock.unlock();
-			setDisconnect(true);
-			continue;
+			rec->inputBuffer.resize(responseSize);
 		}
+		uint8_t *responsePointer = rec->inputBuffer.data();
 		if (packetHeader.isLizPacketType()) {
+			rec->inputBuffer.resize(0);	// make serialize() happy
 			serialize(rec->inputBuffer, packetVersion, messageId);
+			rec->inputBuffer.resize(responseSize);
+			responsePointer = rec->inputBuffer.data()
+				+ serializedSize(packetVersion, messageId);
 		}
 		// syslog(LOG_NOTICE,"master: expected data size: %" PRIu32,size);
 		if (messageSize > 0) {
-			r = tcptoread(fd, rec->inputBuffer.data(), messageSize, 1000);
+			r = tcptoread(fd, responsePointer, messageSize, 1000);
 			// syslog(LOG_NOTICE,"master: data size: %d",r);
 			if (r == 0) {
 				syslog(LOG_WARNING,"master: connection lost (2)");
