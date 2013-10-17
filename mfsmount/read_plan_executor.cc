@@ -82,9 +82,12 @@ void ReadPlanExecutor::executeReadOperations(
 				int fd = pollFd.fd;
 				ReadOperationExecutor& executor = executors.at(fd);
 				const NetworkAddress& server = executor.server();
-				if (!(pollFd.revents & POLLIN)
-						&& (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL))) {
-					throw ChunkserverConnectionError("Read from chunkserver (poll) error", server);
+				if (!(pollFd.revents & POLLIN)) {
+					if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
+						throw ChunkserverConnectionError(
+							"Read from chunkserver (poll) error", server);
+					}
+					continue;
 				}
 				executor.continueReading();
 				if (executor.isFinished()) {
