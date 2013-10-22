@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "mfscommon/chunk_type.h"
@@ -13,27 +14,27 @@ public:
 		/*
 		 * Offset to be sent in READ request
 		 */
-		uint32_t offset;
+		uint32_t requestOffset;
 
 		/*
 		 * Size to be sent in READ request
 		 */
-		uint32_t size;
+		uint32_t requestSize;
 
 		/*
 		 * offsetsOfBlocks[i] is equal to the offset in the buffer used to realize the plan,
 		 * where the i'th (starting from 0) block from this request should be placed
 		 */
-		std::vector<uint32_t> offsetsOfBlocks;
+		std::vector<uint32_t> destinationOffsets;
 	};
 
 	struct XorBlockOperation {
 		/*
 		 * Offset of a block, which will be xored in-place with the blocks from offsetsToXor
 		 * */
-		uint32_t offset;
+		uint32_t destinationOffset;
 
-		std::vector<uint32_t> offsetsToXor;
+		std::vector<uint32_t> blocksToXorOffsets;
 	};
 
 	struct Plan {
@@ -54,25 +55,55 @@ public:
 	 * - given: chunk_xor_1_of_2, chunk_xor_parity_of_2, chunk_xor_parity_of_3
 	 *   chooses: chunk_xor_1_of_2, chunk_xor_parity_of_2
 	 */
-	ReadOperationPlanner(const std::vector<ChunkType>& parts);
+	ReadOperationPlanner(const std::vector<ChunkType>& availableParts);
 
 	/*
 	 * Return stored chosen parts.
 	 */
-	const std::vector<ChunkType>& chosenParts() const;
+	std::vector<ChunkType> partsToUse() const;
 
 	/*
 	 * Is it possible to read from chunk using these parts?
 	 */
-	bool isPossible() const;
+	bool isReadingPossible() const;
 
 	/*
 	 * Generate plan of a read operation
 	 */
-	Plan getPlanFor(uint32_t offset, uint32_t size) const;
+	Plan buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const;
+
+	class PlanBuilder {
+	public:
+		PlanBuilder(uint32_t type) : type_(type) {}
+		virtual ~PlanBuilder() {}
+
+		virtual Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const = 0;
+
+		uint32_t type() const {
+			return type_;
+		}
+
+	private:
+		const uint32_t type_;
+	};
 
 private:
-	std::vector<ChunkType> partsToUse;
+
+	class StandardPlanBuilder;
+	class XorPlanBuilder;
+
+	void setCurrentBuilderToStandard();
+	void setCurrentBuilderToXor(ChunkType::XorLevel level, ChunkType::XorPart missingPart);
+	void unsetCurrentBuilder();
+
+	enum PlanBuilders {
+		BUILDER_NONE,
+		BUILDER_STANDARD,
+		BUILDER_XOR,
+	};
+
+	std::map<PlanBuilders, std::unique_ptr<PlanBuilder>> planBuilders_;
+	PlanBuilder* currentBuilder_;
 };
 
 #endif // LIZARDFS_MFSCOMMON_READ_OPERATION_PLANNER_H_

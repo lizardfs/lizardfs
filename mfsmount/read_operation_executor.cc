@@ -38,8 +38,8 @@ void ReadOperationExecutor::sendReadRequest() {
 	serializeMooseFsPacket(message, CLTOCS_READ,
 			chunkId_, chunkVersion_, readOperation_.offset, readOperation_.size);
 #else
-	cltocs::read::serialize(message,
-			chunkId_, chunkVersion_, chunkType_, readOperation_.offset, readOperation_.size);
+	cltocs::read::serialize(message, chunkId_, chunkVersion_, chunkType_,
+			readOperation_.requestOffset, readOperation_.requestSize);
 #endif
 	int32_t ret = tcptowrite(fd_,
 			message.data(),
@@ -136,7 +136,7 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 	}
 
 	uint32_t totalDataBytesReceived = dataBlocksCompleted_ * MFSBLOCKSIZE;
-	if (totalDataBytesReceived != readOperation_.size) {
+	if (totalDataBytesReceived != readOperation_.requestSize) {
 		throw ChunkserverConnectionError(
 				"READ_STATUS from chunkserver received too early", server_);
 	}
@@ -165,7 +165,7 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
 		throw ChunkserverConnectionError(ss.str(), server_);
 	}
-	uint32_t expectedOffset = readOperation_.offset + dataBlocksCompleted_ * MFSBLOCKSIZE;
+	uint32_t expectedOffset = readOperation_.requestOffset + dataBlocksCompleted_ * MFSBLOCKSIZE;
 	if (readOffset != expectedOffset) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
@@ -206,8 +206,8 @@ void ReadOperationExecutor::setState(ReadOperationState newState) {
 			break;
 		case kReceivingDataBlock:
 			sassert(state_ == kReceivingReadDataMessage);
-			sassert(readOperation_.offsetsOfBlocks.size() > dataBlocksCompleted_);
-			destination_ = dataBuffer_ + readOperation_.offsetsOfBlocks[dataBlocksCompleted_];
+			sassert(readOperation_.destinationOffsets.size() > dataBlocksCompleted_);
+			destination_ = dataBuffer_ + readOperation_.destinationOffsets[dataBlocksCompleted_];
 			bytesLeft_ = MFSBLOCKSIZE;
 			break;
 		case kFinished:

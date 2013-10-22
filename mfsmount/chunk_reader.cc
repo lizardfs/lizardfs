@@ -34,7 +34,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 		availableChunkTypes.push_back(chunkTypeWithAddress.chunkType);
 	}
 	planner_ = ReadOperationPlanner(availableChunkTypes);
-	if (!planner_.isPossible()) {
+	if (!planner_.isReadingPossible()) {
 		throw NoValidCopiesReadError("no valid copies");
 	}
 }
@@ -62,8 +62,9 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		buffer.resize(buffer.size() + availableSize, 0);
 	} else {
 		// We have to request for availableSize rounded up to MFSBLOCKSIZE
-		uint32_t requiredBytes = MFSBLOCKSIZE * ((availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE);
-		ReadOperationPlanner::Plan plan = planner_.getPlanFor(offset, requiredBytes);
+		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
+		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+		ReadOperationPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
 		ReadPlanExecutor executor(locator_.chunkId(), locator_.version(), plan);
 		uint32_t initialBufferSize = buffer.size();
 		executor.executePlan(buffer, chunkTypeLocations_, connectionPool_, connector_);
