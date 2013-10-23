@@ -1,4 +1,11 @@
-This file lists noteworthy changes in MooseFS.
+This file lists noteworthy changes in LizardFS.
+
+* LizardFS 1.6.28 (2013-10-16)
+
+  - (all) compile with g++ by default
+  - (deb) fix init scripts for debian packages
+  - (all) fix build on Mac OS X
+  - (cgi) introducing LizardFS logo
 
 * MooseFS 1.6.27 (2012-08-09)
 
