@@ -1,3 +1,12 @@
+mfs (1.6.28) unstable; urgency=medium
+
+  * (all) compile with g++ by default
+  * (deb) fix init scripts for debian packages
+  * (all) fix build on Mac OS X
+  * (cgi) introducing LizardFS logo
+
+ -- Peter aNeutrino <contact@lizardfs.org>  Wed, 16 Oct 2013 12:00:00 +0200
+
 mfs (1.6.27) unstable; urgency=medium
 
   * (mfsrestore) fixed bug - freeing filenames memory too early
