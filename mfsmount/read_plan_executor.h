@@ -36,7 +36,7 @@ private:
 			const ChunkTypeLocations& locations,
 			ConnectionPool& connectionPool,
 			ChunkConnector& connector);
-
+	void executeXorOperations(uint8_t* buffer);
 };
 
 #endif // LIZARDSFS_MFSMOUNT_READ_PLAN_EXECUTOR_H_

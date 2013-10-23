@@ -4,6 +4,7 @@ mfsmount_LDADD=$(PTHREAD_LIBS) $(FUSE_LIBS)
 mfsmount_CPPFLAGS=$(PTHREAD_CPPFLAGS) -D_USE_PTHREADS $(FUSE_CFLAGS) -DFUSE_USE_VERSION=26 -DAPPNAME=mfsmount
 
 mfsmount_SOURCES=\
+	block_xor.cc block_xor.h \
 	chunk_connector.cc chunk_connector.h \
 	chunk_locator.cc chunk_locator.h \
 	chunk_reader.cc chunk_reader.h \

@@ -4,9 +4,9 @@
 #include <sys/poll.h>
 
 #include "mfscommon/massert.h"
-#include "mfscommon/strerr.h"
-#include "mfsmount/exceptions.h"
 #include "mfscommon/sockets.h"
+#include "mfsmount/block_xor.h"
+#include "mfsmount/exceptions.h"
 #include "mfsmount/read_operation_executor.h"
 
 static const uint32_t kConnectionPoolTimeoutInSeconds = 2;
@@ -29,6 +29,7 @@ void ReadPlanExecutor::executePlan(
 	try {
 		uint8_t* dataBufferAddress = buffer.data() + initialSizeOfTheBuffer;
 		executeReadOperations(dataBufferAddress, locations, connectionPool, connector);
+		executeXorOperations(dataBufferAddress);
 	} catch (Exception&) {
 		buffer.resize(initialSizeOfTheBuffer);
 		throw;
@@ -101,5 +102,15 @@ void ReadPlanExecutor::executeReadOperations(
 			tcpclose(fdAndExecutor.first);
 		}
 		throw;
+	}
+}
+
+void ReadPlanExecutor::executeXorOperations(uint8_t* buffer) {
+	for (const ReadOperationPlanner::XorBlockOperation& xorOperation : plan_.xorOperations) {
+		uint8_t* destination = buffer + xorOperation.destinationOffset;
+		for (uint32_t sourceBlockOffset : xorOperation.blocksToXorOffsets) {
+			const uint8_t* source = buffer + sourceBlockOffset;
+			blockXor(destination, source, MFSBLOCKSIZE);
+		}
 	}
 }
