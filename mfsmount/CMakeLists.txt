@@ -12,6 +12,7 @@ add_library(mount
 	masterproxy.cc masterproxy.h
 	mfs_fuse.cc mfs_fuse.h
 	mfs_meta_fuse.cc mfs_meta_fuse.h
+	mount_config.cc mount_config.h
 	oplog.cc oplog.h
 	read_operation_executor.cc read_operation_executor.h
 	read_operation_planner.cc read_operation_planner.h
