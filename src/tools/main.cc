@@ -16,29 +16,28 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
-
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <math.h>
+#include <poll.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
-#include <limits.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <poll.h>
-#include <errno.h>
-
 #include <limits>
 
-#include "common/datapack.h"
-#include "common/strerr.h"
-#include "common/mfsstrerr.h"
-#include "common/sockets.h"
-#include "common/MFSCommunication.h"
+#include "config.h"
+#include "datapack.h"
+#include "human_readable_format.h"
+#include "MFSCommunication.h"
+#include "mfsstrerr.h"
+#include "sockets.h"
+#include "strerr.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
@@ -58,61 +57,6 @@ static const char* eattrdesc[EATTR_BITS]={EATTR_DESCRIPTIONS};
 
 static uint8_t humode=0;
 
-#define PHN_USESI       0x01
-#define PHN_USEIEC      0x00
-void print_humanized_number(const char *format,uint64_t number,uint8_t flags) {
-	char numbuf[6];	// [ "xxx" , "xx" , "x" , "x.x" ] + ["" , "X" , "Xi"]
-	uint64_t divisor;
-	uint16_t b;
-	uint8_t i;
-	uint8_t scale;
-
-	if (flags & PHN_USESI) {
-		divisor = 1000;
-	} else {
-		divisor = 1024;
-	}
-	if (number>(std::numeric_limits<uint64_t>::max()/100)) {
-		number /= divisor;
-		number *= 100;
-		scale = 1;
-	} else {
-		number *= 100;
-		scale = 0;
-	}
-	while (number>=99950) {
-		number /= divisor;
-		scale+=1;
-	}
-	i=0;
-	if (number<995 && scale>0) {
-		b = ((uint32_t)number + 5) / 10;
-		numbuf[i++]=(b/10)+'0';
-		numbuf[i++]='.';
-		numbuf[i++]=(b%10)+'0';
-	} else {
-		b = ((uint32_t)number + 50) / 100;
-		if (b>=100) {
-			numbuf[i++]=(b/100)+'0';
-			b%=100;
-		}
-		if (b>=10 || i>0) {
-			numbuf[i++]=(b/10)+'0';
-			b%=10;
-		}
-		numbuf[i++]=b+'0';
-	}
-	if (scale>0) {
-		if (flags&PHN_USESI) {
-			numbuf[i++]="-kMGTPE"[scale];
-		} else {
-			numbuf[i++]="-KMGTPE"[scale];
-			numbuf[i++]='i';
-		}
-	}
-	numbuf[i++]='\0';
-	printf(format,numbuf);
-}
 
 void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t mode32,uint8_t bytesflag,uint8_t dflag) {
 	if (prefix) {
@@ -122,15 +66,15 @@ void print_number(const char *prefix,const char *suffix,uint64_t number,uint8_t 
 		if (humode>0) {
 			if (bytesflag) {
 				if (humode==1 || humode==3) {
-					print_humanized_number("%5sB",number,PHN_USEIEC);
+					printf("%5sB", convertToIec(number).data());
 				} else {
-					print_humanized_number("%4sB",number,PHN_USESI);
+					printf("%4sB", convertToSi(number).data());
 				}
 			} else {
 				if (humode==1 || humode==3) {
-					print_humanized_number(" %5s",number,PHN_USEIEC);
+					printf(" %5s", convertToIec(number).data());
 				} else {
-					print_humanized_number(" %4s",number,PHN_USESI);
+					printf(" %4s", convertToSi(number).data());
 				}
 			}
 			if (humode>2) {
