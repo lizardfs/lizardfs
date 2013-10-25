@@ -3,26 +3,44 @@
 
 #include <chrono>
 #include <cstdint>
+#include <ratio>
+
 
 // Detect compilers that don't support std::chrono::steady_clock.
-//
+
 #if defined(__GNUC__) && defined(__GNUC_MINOR__)
 #  if (__GNUC__ == 4 && __GNUC_MINOR__ <= 6)
-#    define LIZARDFS_TIME_UTILS_GCC_MONOTONIC_FIX
+#    define LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
 #  endif
 #endif
 
+
 // SteadyClock is an alias for std::chrono::steady_clock or compatible class.
 // SteadyTimePoint is a matching time_point, SteadyDuration - matching duration.
-//
-#ifdef LIZARDFS_TIME_UTILS_GCC_MONOTONIC_FIX
-// GCC <= 4.6 calls it "monotonic_clock"
-typedef std::chrono::monotonic_clock SteadyClock;
+
+#ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
+
+// For platforms known to lack std::chrono::steady_clock support.
+class SteadyClock {
+public:
+	typedef int64_t rep;
+	typedef std::nano period;
+	typedef std::chrono::duration<rep, period> duration;
+	typedef std::chrono::time_point<SteadyClock> time_point;
+
+	static constexpr bool is_steady = true;
+
+	static time_point now();
+};
+
 #else
-// Default implementation, use std::chrono::steady_clock
+
+// Assume std::chrono::steady_clock is present.
 typedef std::chrono::steady_clock SteadyClock;
+
 #endif
-typedef std::chrono::time_point<SteadyClock> SteadyTimePoint;
+
+typedef SteadyClock::time_point SteadyTimePoint;
 typedef SteadyClock::duration SteadyDuration;
 
 // Measures time from creation or last call to reset()

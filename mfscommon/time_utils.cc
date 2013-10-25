@@ -3,6 +3,20 @@
 #include <chrono>
 #include <ratio>
 
+#ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
+#include <time.h>
+SteadyClock::time_point SteadyClock::now() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	rep count = 0;
+	count += ts.tv_sec;
+	count *= 1000*1000*1000;
+	count += ts.tv_nsec;
+	return time_point(duration(count));
+}
+constexpr bool SteadyClock::is_steady;
+#endif
+
 template <class Ratio2, class Dur>
 static int64_t duration_int64_cast(Dur duration) {
 	return std::chrono::duration_cast<std::chrono::duration<int64_t, Ratio2>>(duration).count();

@@ -42,6 +42,10 @@ find_required_library(M m)
 find_required_library(Z z)
 find_required_library(FUSE fuse)
 find_required_library(DL dl)
+if (UNIX AND NOT APPLE)
+	find_required_library(RT rt)
+endif (UNIX AND NOT APPLE)
+
 find_package(Boost COMPONENTS filesystem system regex thread)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/cmake_config)
