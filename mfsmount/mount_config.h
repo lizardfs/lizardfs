@@ -64,6 +64,7 @@ struct mfsopts_ {
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	uint32_t chunkserverreadto;
 
 	mfsopts_()
 		:	masterhost(NULL),
@@ -95,7 +96,9 @@ struct mfsopts_ {
 			ioretries(30),
 			attrcacheto(1.0),
 			entrycacheto(0.0),
-			direntrycacheto(1.0) {}
+			direntrycacheto(1.0),
+			chunkserverreadto(200) {
+	}
 };
 
 extern mfsopts_ gMountOptions;
