@@ -2,6 +2,8 @@
 #define LIZARDFS_MFSCOMMON_NETWORK_ADDRESS_H_
 
 #include <arpa/inet.h>
+
+#include <functional>
 #include <sstream>
 
 #include "mfscommon/serialization.h"
@@ -18,6 +20,10 @@ struct NetworkAddress {
 
 	bool operator<(const NetworkAddress& rhs) const {
 		return std::make_pair(ip, port) < std::make_pair(rhs.ip, rhs.port);
+	}
+
+	bool operator==(const NetworkAddress& rhs) const {
+		return std::make_pair(ip, port) == std::make_pair(rhs.ip, rhs.port);
 	}
 
 	std::string toString() const {
@@ -41,6 +47,16 @@ inline void serialize(uint8_t** destination, const NetworkAddress& server) {
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 		NetworkAddress& server) {
 	deserialize(source, bytesLeftInBuffer, server.ip, server.port);
+}
+
+namespace std {
+template <>
+struct hash<NetworkAddress> {
+	size_t operator()(const NetworkAddress& address) const {
+		// MooseFS CSDB hash function
+		return address.ip * 0x7b348943 + address.port;
+	}
+};
 }
 
 #endif // LIZARDFS_MFSCOMMON_NETWORK_ADDRESS_H_

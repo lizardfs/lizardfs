@@ -30,17 +30,17 @@
 #include "mfscommon/md5.h"
 #include "mfscommon/MFSCommunication.h"
 #include "mfscommon/strerr.h"
-#include "chunkloccache.h"
-#include "csdb.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "mfs_fuse.h"
-#include "mfs_meta_fuse.h"
-#include "mount_config.h"
-#include "readdata.h"
-#include "stats.h"
-#include "symlinkcache.h"
-#include "writedata.h"
+#include "mfsmount/chunkloccache.h"
+#include "mfsmount/chunkserver_stats.h"
+#include "mfsmount/mastercomm.h"
+#include "mfsmount/masterproxy.h"
+#include "mfsmount/mfs_fuse.h"
+#include "mfsmount/mfs_meta_fuse.h"
+#include "mfsmount/mount_config.h"
+#include "mfsmount/readdata.h"
+#include "mfsmount/stats.h"
+#include "mfsmount/symlinkcache.h"
+#include "mfsmount/writedata.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -252,7 +252,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	masterproxy_init();
 
 	if (gMountOptions.meta==0) {
-		csdb_init();
 		read_data_init(gMountOptions.ioretries);
 		write_data_init(gMountOptions.writecachesize*1024*1024, gMountOptions.ioretries);
 	}
@@ -269,7 +268,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -307,7 +305,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -332,7 +329,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -372,7 +368,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	if (gMountOptions.meta==0) {
 		write_data_term();
 		read_data_term();
-		csdb_term();
 	}
 	masterproxy_term();
 	fs_term();

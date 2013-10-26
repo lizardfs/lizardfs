@@ -9,7 +9,7 @@ mfsmount_SOURCES=\
 	chunk_locator.cc chunk_locator.h \
 	chunk_reader.cc chunk_reader.h \
 	chunkloccache.cc chunkloccache.h \
-	csdb.cc csdb.h \
+	chunkserver_stats.cc chunkserver_stats.h \
 	dirattrcache.cc dirattrcache.h \
 	mastercomm.cc mastercomm.h \
 	masterproxy.cc masterproxy.h \
@@ -35,4 +35,5 @@ mfsmount_SOURCES=\
 	../mfscommon/mfsstrerr.h \
 	../mfscommon/pcqueue.cc ../mfscommon/pcqueue.h \
 	../mfscommon/sockets.cc ../mfscommon/sockets.h \
-	../mfscommon/strerr.cc ../mfscommon/strerr.h
+	../mfscommon/strerr.cc ../mfscommon/strerr.h \
+	../mfscommon/time_utils.cc ../mfscommon/time_utils.h

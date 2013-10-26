@@ -39,10 +39,11 @@
 #include "mfscommon/datapack.h"
 #include "mfscommon/MFSCommunication.h"
 #include "mfscommon/mfsstrerr.h"
+#include "mfscommon/network_address.h"
 #include "mfscommon/pcqueue.h"
 #include "mfscommon/sockets.h"
 #include "mfscommon/strerr.h"
-#include "csdb.h"
+#include "mfsmount/chunkserver_stats.h"
 #include "mastercomm.h"
 #include "readdata.h"
 
@@ -435,7 +436,7 @@ void* write_worker(void *arg) {
 	(void)arg;
 	for (;;) {
 		for (cnt=0 ; cnt<chainelements ; cnt++) {
-			csdb_writedec(chainip[cnt],chainport[cnt]);
+			globalChunkserverStats.unregisterWriteOperation(NetworkAddress(chainip[cnt], chainport[cnt]));
 		}
 		chainelements=0;
 
@@ -509,7 +510,8 @@ void* write_worker(void *arg) {
 		while (cp<cpe && chainelements<10) {
 			chainip[chainelements] = get32bit(&cp);
 			chainport[chainelements] = get16bit(&cp);
-			csdb_writeinc(chainip[chainelements],chainport[chainelements]);
+			globalChunkserverStats.registerWriteOperation(
+				NetworkAddress(chainip[chainelements], chainport[chainelements]));
 			chainelements++;
 		}
 

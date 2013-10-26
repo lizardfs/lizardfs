@@ -41,7 +41,6 @@
 #include "mfsmount/chunk_connector.h"
 #include "mfsmount/chunk_locator.h"
 #include "mfsmount/chunk_reader.h"
-#include "mfsmount/csdb.h"
 #include "mfsmount/exceptions.h"
 #include "mfsmount/mastercomm.h"
 
