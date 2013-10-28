@@ -1,0 +1,91 @@
+/* Extra definitions used in code but not checked by anything */
+#define HAVE_PWD_H
+#define HAVE_STRERROR_R
+#define MASTERINFO_WITH_VERSION
+// #define WORKER_DEBUG  // camelon: transfered from code, commented when creating this file
+// #define BUFFER_DEBUG  // camelon: as above
+// #define HAVE_SYS_RUSAGE_H
+
+/* Definitions transfered to preprocessor */
+#define PACKAGE_VERSION_MAJOR @PACKAGE_VERSION_MAJOR@
+#define PACKAGE_VERSION_MINOR @PACKAGE_VERSION_MINOR@
+#define PACKAGE_VERSION_MICRO @PACKAGE_VERSION_MICRO@
+#define VERSHEX ((@PACKAGE_VERSION_MAJOR@)*0x10000+(@PACKAGE_VERSION_MINOR@)*0x100+(@PACKAGE_VERSION_MICRO@))
+#define VERSION "@PACKAGE_VERSION_MAJOR@.@PACKAGE_VERSION_MINOR@.@PACKAGE_VERSION_MICRO@"
+
+#define PROTO_BASE @PROTO_BASE@
+#define LIGHT_MFS @LIGHT_MFS@
+
+#define DATA_PATH "@DATA_PATH@"
+#define ETC_PATH "@ETC_PATH@"
+#define RUN_PATH "@RUN_PATH@"
+
+#define DEFAULT_USER "@DEFAULT_USER@"
+#define DEFAULT_GROUP "@DEFAULT_GROUP@"
+
+#define CHARTS_CSV_CHARTID_BASE @CHARTS_CSV_CHARTID_BASE@
+
+/* [CMake] Includes */
+#cmakedefine HAVE_ARPA_INET_H
+#cmakedefine HAVE_FCNTL_H
+#cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_LIMITS_H
+#cmakedefine HAVE_NETDB_H
+#cmakedefine HAVE_NETINET_IN_H
+#cmakedefine HAVE_STDDEF_H
+#cmakedefine HAVE_STDLIB_H
+#cmakedefine HAVE_STRING_H
+#cmakedefine HAVE_SYS_RESOURCE_H
+#cmakedefine HAVE_SYS_SOCKET_H
+#cmakedefine HAVE_SYS_STATVFS_H
+#cmakedefine HAVE_SYS_TIME_H
+#cmakedefine HAVE_SYSLOG_H
+#cmakedefine HAVE_UNISTD_H
+#cmakedefine HAVE_STDBOOL_H
+
+/* [CMake] Structures */
+#cmakedefine HAVE_STRUCT_STAT_ST_BLOCKS
+#cmakedefine HAVE_STRUCT_STAT_ST_RDEV
+#cmakedefine HAVE_STRUCT_STAT_ST_BIRTHTIME
+#cmakedefine HAVE_STRUCT_STAT_ST_BLKSIZE
+#cmakedefine HAVE_STRUCT_STAT_ST_FLAGS
+#cmakedefine HAVE_STRUCT_TM_TM_GMTOFF
+#cmakedefine HAVE_STRUCT_RUSAGE_RU_MAXRSS
+
+/* [CMake] Required functions */
+#cmakedefine HAVE_ATEXIT
+#cmakedefine HAVE_BZERO
+#cmakedefine HAVE_FTRUNCATE
+#cmakedefine HAVE_GETADDRINFO
+#cmakedefine HAVE_GETPASS
+#cmakedefine HAVE_GETTIMEOFDAY
+#cmakedefine HAVE_MEMMOVE
+#cmakedefine HAVE_MEMSET
+#cmakedefine HAVE_MKDIR
+#cmakedefine HAVE_REALPATH
+#cmakedefine HAVE_POLL
+#cmakedefine HAVE_SOCKET
+#cmakedefine HAVE_STRCHR
+#cmakedefine HAVE_STRDUP
+#cmakedefine HAVE_STRTOL
+#cmakedefine HAVE_STRTOUL
+#cmakedefine HAVE_FTELLO
+#cmakedefine HAVE_FSEEKO
+
+/* [CMake] Optional functions */
+#cmakedefine HAVE_STRERROR
+#cmakedefine HAVE_PERROR
+#cmakedefine HAVE_PREAD
+#cmakedefine HAVE_PWRITE
+#cmakedefine HAVE_READV
+#cmakedefine HAVE_WRITEV
+#cmakedefine HAVE_GETRUSAGE
+#cmakedefine HAVE_SETITIMER
+
+/* [CMake] Optional functions #2 */
+#cmakedefine HAVE_DUP2
+#cmakedefine HAVE_MLOCKALL
+#cmakedefine HAVE_GETCWD
+
+/* [CMake] Other */
+#cmakedefine WORDS_BIGENDIAN

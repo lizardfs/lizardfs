@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -e
+case "$1" in
+	configure)
+		if ! getent passwd @DEFAULT_USER@ &> /dev/null
+		then
+			adduser --quiet --system --group --no-create-home --home "@DATA_PATH@" @DEFAULT_USER@
+		fi
+                if ! [[ -d "@DATA_PATH@" ]]
+                then
+			mkdir -p "@DATA_PATH@"
+                fi
+		chown -R @DEFAULT_USER@:@DEFAULT_GROUP@ "@DATA_PATH@"
+		;;
+
+	abort-upgrade|abort-remove|abort-deconfigure)
+		;;
+
+	*)
+		echo "postinst called with unknown argument \`${1}'" >&2
+		exit 1
+		;;
+esac
+
+
+
+exit 0
