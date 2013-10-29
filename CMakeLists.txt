@@ -13,7 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "-std=gnu++0x -Wall -Wextra -Wshadow -pedantic -fwrapv")
+set(CMAKE_CXX_FLAGS "-std=gnu++0x -Wall -Wextra -pedantic -fwrapv")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
@@ -80,13 +80,13 @@ include(EnvTests.cmake)
 set(DATA_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR}")
 set(ETC_PATH "${CMAKE_INSTALL_PREFIX}/${ETC_SUBDIR}")
 set(RUN_PATH "${CMAKE_INSTALL_PREFIX}/${RUN_SUBDIR}")
-
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/src/main/main.cc)
 
+add_subdirectory(external)
 add_subdirectory(src/common)
 add_subdirectory(src/chunkserver)
 add_subdirectory(src/master)

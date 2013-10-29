@@ -1,6 +1,10 @@
 *~
 .DS_Store
 
+# External libraries #
+######################
+/external/crcutil-1.0
+
 # Vim files #
 #############
 .clang_complete
