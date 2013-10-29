@@ -17,13 +17,7 @@ include(CheckStructHasMember)
 include(CheckFunctions)
 include(CheckIncludes)
 include(CheckMembers)
-
-find_library(FUSE_LIBRARY fuse)
-message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
-
-find_package(ZLIB REQUIRED)
-find_package(Socket)
-find_package(Threads)
+include(Libraries)
 
 set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h sys/resource.h
     sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h stdbool.h)
