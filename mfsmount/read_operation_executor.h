@@ -82,6 +82,9 @@ private:
 	/* Number of complete data blocks received from the chunkserver */
 	uint32_t dataBlocksCompleted_;
 
+	/* checksum will be used to receive crc of complete data blocks */
+	uint32_t currentlyReadBlockCrc_;
+
 	/*
 	 * Four functions below are called when all the data
 	 * in the corresponding state has been received

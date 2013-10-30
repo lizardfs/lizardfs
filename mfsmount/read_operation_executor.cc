@@ -1,6 +1,7 @@
 #include "read_operation_executor.h"
 
 #include "mfscommon/cltocs_communication.h"
+#include "mfscommon/crc.h"
 #include "mfscommon/cstocl_communication.h"
 #include "mfscommon/massert.h"
 #include "mfscommon/MFSCommunication.h"
@@ -28,7 +29,8 @@ ReadOperationExecutor::ReadOperationExecutor(
 		  state_(kSendingRequest),
 		  destination_(nullptr),
 		  bytesLeft_(0),
-		  dataBlocksCompleted_(0) {
+		  dataBlocksCompleted_(0),
+		  currentlyReadBlockCrc_(0) {
 	messageBuffer_.reserve(cstocl::readData::kPrefixSize);
 }
 
@@ -150,9 +152,9 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 	uint64_t readChunkId;
 	uint32_t readOffset;
 	uint32_t readSize;
-	uint32_t readCrc;
-	cstocl::readData::deserializePrefix(messageBuffer_, readChunkId, readOffset, readSize, readCrc);
-	// TODO save CRC to check it after receiving the data block
+	cstocl::readData::deserializePrefix(messageBuffer_, readChunkId, readOffset, readSize,
+			currentlyReadBlockCrc_);
+
 	if (readChunkId != chunkId_) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect chunk ID ";
@@ -178,6 +180,11 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 void ReadOperationExecutor::processDataBlockReceived() {
 	sassert(state_ == kReceivingDataBlock);
 	sassert(bytesLeft_ == 0);
+
+	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
+		throw ChunkserverConnectionError("READ_DATA: corrupted data block (CRC mismatch)", server_);
+	}
+
 	dataBlocksCompleted_++;
 	setState(kReceivingHeader);
 }
