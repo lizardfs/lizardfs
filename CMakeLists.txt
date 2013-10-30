@@ -8,7 +8,7 @@ message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 set(ENABLE_TESTS  NO CACHE STRING "Enable building tests")
 set(ENABLE_TRACES NO CACHE STRING "Enable traces")
-set(ENABLE_CRC NO CACHE STRING "Enable checksums")
+set(ENABLE_CRC YES CACHE STRING "Enable checksums")
 set(THROW_INSTEAD_OF_ABORT NO CACHE STRING "Throw std::exception instead of calling abort")
 set(USE_LEGACY_READ_MESSAGES NO CACHE STRING "Enable sending old type of messages by mount")
 
