@@ -1,4 +1,4 @@
-#include "mfschunkserver/chunk_signature.h"
+#include "chunkserver/chunk_signature.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -6,7 +6,7 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "mfscommon/chunk_type.h"
+#include "common/chunk_type.h"
 #include "tests/common/TemporaryDirectory.h"
 
 TEST(ChunkSignatureTests, ReadingFromFile) {

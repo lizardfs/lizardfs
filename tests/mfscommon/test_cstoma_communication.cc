@@ -1,9 +1,9 @@
-#include "mfscommon/cstoma_communication.h"
+#include "common/cstoma_communication.h"
 
 #include <gtest/gtest.h>
 
-#include "mfscommon/crc.h"
-#include "mfscommon/strerr.h"
+#include "common/crc.h"
+#include "common/strerr.h"
 #include "tests/common/packet.h"
 
 TEST(CstomaCommunicationTests, RegisterHost) {

@@ -1,11 +1,11 @@
-#include "mfsmount/read_operation_planner.h"
+#include "mount/read_operation_planner.h"
 
 #include <algorithm>
 #include <sstream>
 #include <gtest/gtest.h>
 
-#include "mfscommon/goal.h"
-#include "mfscommon/MFSCommunication.h"
+#include "common/goal.h"
+#include "common/MFSCommunication.h"
 #include "tests/common/operators.h"
 
 class ReadOperationPlannerTests : public testing::Test {

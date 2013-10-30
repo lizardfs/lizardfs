@@ -6,12 +6,12 @@
 
 Summary:	MooseFS - distributed, fault tolerant file system
 Name:		mfs
-Version:	1.6.27
+Version:	1.6.28
 Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
-URL:		http://www.moosefs.com/
-Source0:	http://moosefs.com/tl_files/mfscode/%{name}-%{version}.tar.gz
+URL:		http://www.lizardfs.org/
+Source0:	http://lizardfs.org/download/%{name}-%{version}.tar.gz
 BuildRequires:	fuse-devel
 BuildRequires:	pkgconfig
 BuildRequires:	zlib-devel
@@ -23,6 +23,8 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %description
 MooseFS is an Open Source, easy to deploy and maintain, distributed,
 fault tolerant file system for POSIX compliant OSes.
+LizardFS is fork of MooseFS. For more information please visit
+http://lizardfs.org
 
 %package master
 Summary:	MooseFS master server
@@ -199,6 +201,12 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %changelog
+* Wed Oct 16 2013 Peter aNeutrino <contact@lizardfs.org> - 1.6.28-1
+- (all) compile with g++ by default
+- (deb) fix init scripts for debian packages
+- (all) fix build on Mac OS X
+- (cgi) introducing LizardFS logo
+
 * Thu Feb 16 2012 Jakub Bogusz <contact@moosefs.com> - 1.6.27-1
 - adjusted to keep configuration files in /etc/mfs
 - require just mfsexports.cfg (master) and mfshdd.cfg (chunkserver) in RH-like

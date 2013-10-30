@@ -12,7 +12,7 @@
 #include <boost/scoped_array.hpp>
 #include <gtest/gtest.h>
 
-#include "mfscommon/crc.h"
+#include "common/crc.h"
 #include "tests/common/TemporaryDirectory.h"
 
 TEST(MyCrc32Tests, MyCrc32Combine) {

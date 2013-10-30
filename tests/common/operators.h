@@ -3,7 +3,7 @@
 
 #include <ostream>
 
-#include "mfscommon/chunk_type.h"
+#include "common/chunk_type.h"
 
 std::ostream& operator<< (std::ostream& out, ChunkType chunkType) {
 	if (chunkType.isStandardChunkType()) {

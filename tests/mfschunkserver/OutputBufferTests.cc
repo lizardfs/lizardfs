@@ -1,4 +1,4 @@
-#include "mfschunkserver/output_buffers.h"
+#include "chunkserver/output_buffers.h"
 
 #include <cstdlib>
 #include <fcntl.h>
@@ -23,7 +23,7 @@ TEST(OutputBufferTests, outputBuffersTest) {
 	for (unsigned bufferNumber = 0; bufferNumber < outputBuffers.size(); ++bufferNumber) {
 		OutputBuffer* outputBuffer = outputBuffers[bufferNumber].get();
 
-		unsigned WRITE_SIZE = 10;
+		const unsigned WRITE_SIZE = 10;
 		unsigned VALUE = 17u;
 
 		uint8_t buf[WRITE_SIZE];

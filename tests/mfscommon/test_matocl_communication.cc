@@ -1,4 +1,4 @@
-#include "mfscommon/matocl_communication.h"
+#include "common/matocl_communication.h"
 
 #include <gtest/gtest.h>
 

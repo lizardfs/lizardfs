@@ -1,10 +1,10 @@
 Source: mfs
 Section: admin
 Priority: extra
-Maintainer: Jakub Bogusz <contact@moosefs.com>
+Maintainer: Peter aNeutrino <contact@lizardfs.org>
 Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-config, zlib1g-dev, python
 Standards-Version: 3.7.3
-Homepage: http://moosefs.com/
+Homepage: http://lizardfs.org/
 
 Package: mfs-common
 Architecture: any

@@ -1,8 +1,8 @@
-#include "mfscommon/cstocl_communication.h"
+#include "common/cstocl_communication.h"
 
 #include <gtest/gtest.h>
 
-#include "mfscommon/crc.h"
+#include "common/crc.h"
 
 TEST(CltocsCommunicationTests, ReadData) {
 	std::vector<uint8_t> buffer;
