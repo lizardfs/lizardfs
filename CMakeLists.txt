@@ -29,11 +29,16 @@ set(DEFAULT_USER "mfs" CACHE STRING "Default user to run daemons as")
 set(DEFAULT_GROUP "mfs" CACHE STRING "Default group to run daemons as")
 set(ENABLE_LIGHTMFS NO CACHE BOOL "Enable light version of LizardFS")
 set(ENABLE_DEBIAN_PATHS NO CACHE BOOL "Enable Debian-style install paths")
+set(ENABLE_TESTS  NO CACHE STRING "Enable building tests")
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
+message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+
+## All the environment tests (libs, includes, etc.) live here:
+include(EnvTests.cmake)
 
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
@@ -71,10 +76,14 @@ else()
   set(LIGHT_MFS 0)
 endif()
 
-set(CHARTS_CSV_CHARTID_BASE 90000)
+if(ENABLE_TESTS)
+  if(NOT Boost_FOUND)
+    message(FATAL_ERROR "Boost is required by LizardFS tests")
+  endif()
+  set(BUILD_TESTS ON)
+endif()
 
-## All the environment tests (libs, includes, etc.) live here:
-include(EnvTests.cmake)
+set(CHARTS_CSV_CHARTID_BASE 90000)
 
 # Create config.h file
 set(DATA_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR}")
