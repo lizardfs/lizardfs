@@ -20,16 +20,34 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
+#include <generic_crc.h>
+
 #include "MFSCommunication.h"
 
-#define FASTCRC 1
+/*
+ * CRC implementation from crcutil supports only little endian machines.
+ * For big endian we provide lagacy implementation.
+ */
+#ifndef WORDS_BIGENDIAN
 
-#ifdef FASTCRC
+static crcutil::GenericCrc<uint64_t, uint64_t, uint64_t, 4> gCrc(CRC_POLY, 32, true);
+
+uint32_t mycrc32(uint32_t crc, const uint8_t *block, uint32_t leng) {
+	return gCrc.CrcDefault(block, leng, crc);
+}
+
+uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2) {
+	return gCrc.Base().Concatenate(crc1, crc2, leng2);
+}
+
+void mycrc32_init(void) {
+	// This implementation does not need any initialization
+}
+
+#else // WORDS_BIGENDIAN; Use old code, which supports both big endian and little endian
+
 #define BYTEREV(w) (((w)>>24)+(((w)>>8)&0xff00)+(((w)&0xff00)<<8)+(((w)&0xff)<<24))
 static uint32_t crc_table[4][256];
-#else
-static uint32_t crc_table[256];
-#endif
 
 void crc_generate_main_tables(void) {
 	uint32_t c,poly,i;
@@ -45,18 +63,13 @@ void crc_generate_main_tables(void) {
 		c = (c&1) ? (poly^(c>>1)) : (c>>1);
 		c = (c&1) ? (poly^(c>>1)) : (c>>1);
 		c = (c&1) ? (poly^(c>>1)) : (c>>1);
-#ifdef FASTCRC
 #ifdef WORDS_BIGENDIAN
 		crc_table[0][i] = BYTEREV(c);
 #else /* little endian */
 		crc_table[0][i] = c;
 #endif
-#else
-		crc_table[i]=c;
-#endif
 	}
 
-#ifdef FASTCRC
 	for (i=0; i<256; i++) {
 #ifdef WORDS_BIGENDIAN
 		c = crc_table[0][i];
@@ -76,15 +89,10 @@ void crc_generate_main_tables(void) {
 		crc_table[3][i] = c;
 #endif
 	}
-#endif
 }
 
 uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
-#ifdef FASTCRC
 	const uint32_t *block4;
-#endif
-
-#ifdef FASTCRC
 #ifdef WORDS_BIGENDIAN
 #define CRC_REORDER crc=(BYTEREV(crc))^0xFFFFFFFF
 #define CRC_ONE_BYTE crc = crc_table[0][(crc >> 24) ^ *block++] ^ (crc << 8)
@@ -121,25 +129,6 @@ uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng) {
 	} while (--leng);
 	CRC_REORDER;
 	return crc;
-#else
-#define CRC_ONE_BYTE crc = (crc>>8)^crc_table[(crc^(*block++))&0xff]
-	crc^=0xFFFFFFFF;
-	while (leng>=8) {
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		CRC_ONE_BYTE;
-		leng-=8;
-	}
-	if (leng>0) do {
-		CRC_ONE_BYTE;
-	} while (--leng);
-	return crc^0xFFFFFFFF;
-#endif
 }
 
 /* crc_combine */
@@ -219,3 +208,5 @@ void mycrc32_init(void) {
 	crc_generate_main_tables();
 	crc_generate_combine_tables();
 }
+
+#endif // WORDS_BIGENDIAN
