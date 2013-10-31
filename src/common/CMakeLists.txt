@@ -4,6 +4,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CRCUTIL_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CRCUTIL_CXX_FLAGS}")
 
-aux_source_directory(. COMMON_SOURCES)
+collect_sources(COMMON)
 add_library(mfscommon ${COMMON_SOURCES})
 target_link_libraries(mfscommon crcutil)
+add_tests(mfscommon ${COMMON_TESTS})

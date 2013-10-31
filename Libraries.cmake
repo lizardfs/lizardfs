@@ -87,5 +87,6 @@ set(CRCUTIL_CXX_FLAGS "-mcrc32")
 
 # Find GoogleTest
 if(ENABLE_TESTS)
-  set(GTEST_INCLUDE_DIRS ${GTEST_NAME}/include)
+  set(GTEST_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${GTEST_NAME}/include)
+  set(TEST_LIBRARIES "" CACHE INTERNAL "" FORCE)
 endif()
