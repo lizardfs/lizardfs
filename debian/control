@@ -2,7 +2,7 @@ Source: mfs
 Section: admin
 Priority: extra
 Maintainer: Peter aNeutrino <contact@lizardfs.org>
-Build-Depends: debhelper (>= 5), autotools-dev, libc6-dev, libfuse-dev, pkg-config, zlib1g-dev, python
+Build-Depends: debhelper (>= 5), cmake (>= 2.8), libc6-dev, libfuse-dev, pkg-config, zlib1g-dev, python
 Standards-Version: 3.7.3
 Homepage: http://lizardfs.org/
 
