@@ -19,6 +19,7 @@
 #ifndef _MASSERT_H_
 #define _MASSERT_H_
 
+#include <errno.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <stdlib.h>
