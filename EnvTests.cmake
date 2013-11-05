@@ -1,7 +1,7 @@
 # comparing build config with (old) autotools build,
 # refer to ced2e72776fd01e71f1c7eece9c4414b1fe23c54 / configure.ac
 
-# discarded tests: 
+# discarded tests:
 # keywords tests for inline, volatile and const
 
 # functions marked here as required, that don't appear in the code: atexit strchr
@@ -19,8 +19,8 @@ include(CheckIncludes)
 include(CheckMembers)
 include(Libraries)
 
-set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h sys/resource.h
-    sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h stdbool.h)
+set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h
+	sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h stdbool.h)
 check_includes("${INCLUDES}")
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
@@ -51,8 +51,7 @@ set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
   strtoul ftello fseeko)
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
-set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer)
+set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage setitimer)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")

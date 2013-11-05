@@ -56,14 +56,13 @@
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
-
-#include "cfg.h"
-#include "main.h"
-#include "strerr.h"
-#include "crc.h"
+#include "common/cfg.h"
+#include "common/crc.h"
+#include "common/main.h"
+#include "common/massert.h"
+#include "common/slogger.h"
+#include "common/strerr.h"
 #include "init.h"
-#include "massert.h"
-#include "slogger.h"
 
 #define RM_RESTART 0
 #define RM_START 1

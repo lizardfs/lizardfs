@@ -4,10 +4,10 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "sockets.h"
+#include "common/sockets.h"
 #include "mastercomm.h"
-#include "datapack.h"
-#include "MFSCommunication.h"
+#include "common/datapack.h"
+#include "common/MFSCommunication.h"
 
 #define QUERYSIZE 10000
 #define ANSSIZE 10000

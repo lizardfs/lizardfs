@@ -37,11 +37,11 @@
 #include <zlib.h>
 #endif
 
-#include "charts.h"
-#include "crc.h"
-#include "datapack.h"
-#include "massert.h"
-#include "slogger.h"
+#include "common/charts.h"
+#include "common/crc.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/slogger.h"
 
 #define USE_NET_ORDER 1
 
@@ -1838,7 +1838,7 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 	while (ptr+4<=eptr) {
 		chleng = get32bit((const uint8_t **)&ptr);
 		if (ptr+8+chleng<=eptr) {
-			crc = mycrc32(0,ptr,chleng+4);
+			crc = mycrc32(0, ptr, chleng+4);
 			ptr += chleng+4;
 			if (memcmp(ptr,"CRC#",4)==0) {
 				put32bit(&ptr,crc);

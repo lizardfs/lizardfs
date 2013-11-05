@@ -17,42 +17,38 @@
  */
 
 #include "config.h"
+#include "filesystem.h"
 
+#include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <sys/types.h>
+
 #ifdef HAVE_PWD_H
-#include <pwd.h>
+#  include <pwd.h>
 #endif
-#include <sys/stat.h>
-#include <inttypes.h>
-#include <errno.h>
-
-#include "MFSCommunication.h"
-
-// TODO: wtf?!
-// #define CACHENOTIFY 1
 
 #ifndef METARESTORE
-#include "matoclserv.h"
-#include "matocsserv.h"
+#  include "changelog.h"
+#  include "common/cfg.h"
+#  include "common/main.h"
+#  include "datacachemgr.h"
+#  include "matoclserv.h"
+#  include "matocsserv.h"
 #endif
 
 #include "chunks.h"
-#include "filesystem.h"
-#include "datapack.h"
-#include "slogger.h"
-#include "massert.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 
-#ifndef METARESTORE
-#include "datacachemgr.h"
-#include "cfg.h"
-#include "main.h"
-#include "changelog.h"
-#endif
+// #define CACHENOTIFY 1
 
 #define USE_FREENODE_BUCKETS 1
 #define USE_CUIDREC_BUCKETS 1

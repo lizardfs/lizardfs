@@ -21,6 +21,9 @@
 
 #include <inttypes.h>
 
+#include "chunkserver/output_buffers.h"
+#include "common/chunk_type.h"
+
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);
 uint32_t job_pool_jobs_count(void *jpool);
 void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8_t status,void *extra));
@@ -41,13 +44,21 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 #define job_duplicate(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion) (((_newversion>0)&&(_copychunkid)>0)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,0xFFFFFFFF):job_inval(_jp,_cb,_ex))
 #define job_duptrunc(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):job_inval(_jp,_cb,_ex))
 
-uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid);
-uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid);
-uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff);
-uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff);
+uint32_t job_open(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType);
+uint32_t job_close(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType);
+uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		OutputBuffer* outputBuffer, bool performHddOpen);
+uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, uint16_t blocknum,
+		const uint8_t *buffer, uint32_t offset, uint32_t size,
+		const uint8_t *crcbuff);
 
 /* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
 uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs);
 uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port);
+
 
 #endif

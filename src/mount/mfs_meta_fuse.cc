@@ -23,6 +23,7 @@
 #endif
 
 #include "config.h"
+#include "mfs_meta_fuse.h"
 
 #include <fuse/fuse_lowlevel.h>
 #include <stdio.h>
@@ -33,10 +34,10 @@
 #include <time.h>
 #include <pthread.h>
 
-#include "datapack.h"
+#include "common/datapack.h"
+#include "common/MFSCommunication.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
-#include "MFSCommunication.h"
 
 #define READDIR_BUFFSIZE 50000
 

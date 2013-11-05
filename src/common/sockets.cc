@@ -33,7 +33,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "sockets.h"
+#include "common/sockets.h"
 /* Acid's simple socket library - ver 2.0 */
 
 /* ---------------SOCK ADDR--------------- */

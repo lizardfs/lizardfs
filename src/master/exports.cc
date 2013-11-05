@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "exports.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -29,14 +30,13 @@
 #include <grp.h>
 #include <inttypes.h>
 
-#include "MFSCommunication.h"
-#include "md5.h"
-#include "exports.h"
-#include "datapack.h"
-#include "main.h"
-#include "cfg.h"
-#include "slogger.h"
-#include "massert.h"
+#include "common/cfg.h"
+#include "common/datapack.h"
+#include "common/main.h"
+#include "common/massert.h"
+#include "common/md5.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 
 typedef struct _exports {
 	uint32_t pleng;

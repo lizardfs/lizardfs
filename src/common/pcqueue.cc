@@ -23,7 +23,8 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#include "massert.h"
+#include "devtools/TracePrinter.h"
+#include "common/massert.h"
 
 typedef struct _qentry {
 	uint32_t id;
@@ -45,6 +46,7 @@ typedef struct _queue {
 } queue;
 
 void* queue_new(uint32_t size) {
+	TRACETHIS();
 	queue *q;
 	q = (queue*)malloc(sizeof(queue));
 	passert(q);
@@ -64,6 +66,7 @@ void* queue_new(uint32_t size) {
 }
 
 void queue_delete(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe,*qen;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -84,6 +87,7 @@ void queue_delete(void *que) {
 }
 
 int queue_isempty(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	int r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -93,6 +97,7 @@ int queue_isempty(void *que) {
 }
 
 uint32_t queue_elements(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	uint32_t r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -102,6 +107,7 @@ uint32_t queue_elements(void *que) {
 }
 
 int queue_isfull(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	int r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -111,6 +117,7 @@ int queue_isfull(void *que) {
 }
 
 uint32_t queue_sizeleft(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	uint32_t r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -124,6 +131,7 @@ uint32_t queue_sizeleft(void *que) {
 }
 
 int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	qe = (qentry*) malloc(sizeof(qentry));
@@ -159,6 +167,7 @@ int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 }
 
 int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -194,6 +203,7 @@ int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) 
 }
 
 int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -230,6 +240,7 @@ int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng)
 }
 
 int queue_tryget(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));

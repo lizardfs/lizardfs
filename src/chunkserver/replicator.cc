@@ -30,14 +30,14 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 #include "hddspacemgr.h"
-#include "sockets.h"
-#include "crc.h"
-#include "slogger.h"
-#include "datapack.h"
-#include "massert.h"
-#include "mfsstrerr.h"
+#include "common/sockets.h"
+#include "common/crc.h"
+#include "common/slogger.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/mfsstrerr.h"
 
 #include "replicator.h"
 
@@ -387,7 +387,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 static void rep_cleanup(replication *r) {
 	int i;
 	if (r->opened) {
-		hdd_close(r->chunkid);
+		hdd_close(r->chunkid, ChunkType::getStandardChunkType());
 	}
 	if (r->created) {
 		hdd_delete(r->chunkid,0);
@@ -497,7 +497,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		return ERROR_CANTCONNECT;
 	}
 // open chunk
-	status = hdd_open(chunkid);
+	status = hdd_open(chunkid, ChunkType::getStandardChunkType());
 	if (status!=STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
@@ -775,7 +775,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		}
 	}
 // close chunk and change version
-	status = hdd_close(chunkid);
+	status = hdd_close(chunkid, ChunkType::getStandardChunkType());
 	if (status!=STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",mfsstrerr(status));
 		rep_cleanup(&r);

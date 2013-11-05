@@ -1,5 +1,4 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(../common)
 
 aux_source_directory(. METADUMP_SOURCES)
 add_executable(mfsmetadump ${METADUMP_SOURCES})

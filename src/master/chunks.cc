@@ -28,30 +28,31 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef METARESTORE
-#include <time.h>
+#  include <time.h>
 #endif
-
-#include "MFSCommunication.h"
-
-#ifndef METARESTORE
-#include "main.h"
-#include "cfg.h"
-#include "matocsserv.h"
-#include "matoclserv.h"
-#include "random.h"
-#include "topology.h"
-#endif
+#include <algorithm>
 
 #include "chunks.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/MFSCommunication.h"
+
+#ifndef METARESTORE
+#  include "common/cfg.h"
+#  include "common/main.h"
+#  include "common/random.h"
+#  include "matoclserv.h"
+#  include "matocsserv.h"
+#  include "topology.h"
+#endif
+
 #include "filesystem.h"
-#include "datapack.h"
-#include "massert.h"
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1
 #define USE_CHUNK_BUCKETS 1
 
-#define MINLOOPTIME 60
+#define MINLOOPTIME 1
 #define MAXLOOPTIME 7200
 #define MAXCPS 10000000
 #define MINCPS 10000
@@ -74,23 +75,28 @@ enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 /* TDVALID - want to be deleted */
 enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
-typedef struct _slist {
+struct slist {
 	void *ptr;
-	uint8_t valid;
 	uint32_t version;
+	ChunkType chunkType;
+	uint8_t valid;
 //	uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
 //	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
-	struct _slist *next;
-} slist;
+	slist *next;
+	slist() : chunkType(ChunkType::getStandardChunkType()) {
+	}
+};
 
 #ifdef USE_SLIST_BUCKETS
 #define SLIST_BUCKET_SIZE 5000
 
-typedef struct _slist_bucket {
+struct slist_bucket {
 	slist bucket[SLIST_BUCKET_SIZE];
 	uint32_t firstfree;
-	struct _slist_bucket *next;
-} slist_bucket;
+	slist_bucket *next;
+	slist_bucket() : firstfree(0) {
+	}
+};
 
 static slist_bucket *sbhead = NULL;
 static slist *slfreehead = NULL;
@@ -211,10 +217,9 @@ static inline slist* slist_malloc() {
 		return ret;
 	}
 	if (sbhead==NULL || sbhead->firstfree==SLIST_BUCKET_SIZE) {
-		sb = (slist_bucket*)malloc(sizeof(slist_bucket));
+		sb = new slist_bucket;
 		passert(sb);
 		sb->next = sbhead;
-		sb->firstfree = 0;
 		sbhead = sb;
 	}
 	ret = (sbhead->bucket)+(sbhead->firstfree);
@@ -229,14 +234,11 @@ static inline void slist_free(slist *p) {
 #else /* USE_SLIST_BUCKETS */
 
 static inline slist* slist_malloc() {
-	slist *sl;
-	sl = (slist*)malloc(sizeof(slist));
-	passert(sl);
-	return sl;
+	return new slist;
 }
 
 static inline void slist_free(slist* p) {
-	free(p);
+	delete p;
 }
 
 #endif /* USE_SLIST_BUCKETS */
@@ -1003,45 +1005,70 @@ int chunk_locsort_cmp(const void *aa,const void *bb) {
 	return 0;
 }
 
-int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[100*6]) {
+struct ChunkLocation {
+	ChunkLocation() : chunkType(ChunkType::getStandardChunkType()),
+			distance(0), random(0) {
+	}
+	NetworkAddress address;
+	ChunkType chunkType;
+	uint32_t distance;
+	uint32_t random;
+	bool operator<(const ChunkLocation& other) const {
+		if (distance < other.distance) {
+			return true;
+		} else if (distance > other.distance) {
+			return false;
+		} else {
+			return random < other.random;
+		}
+	}
+};
+
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList) {
 	chunk *c;
 	slist *s;
-	uint8_t i;
 	uint8_t cnt;
-	uint8_t *wptr;
-	locsort lstab[100];
 
+	sassert(serversList.empty());
 	c = chunk_find(chunkid);
-	if (c==NULL) {
+
+	if (c == NULL) {
 		return ERROR_NOCHUNK;
 	}
-	*version = c->version;
-	cnt=0;
-	for (s=c->slisthead ;s ; s=s->next) {
-		if (s->valid!=INVALID && s->valid!=DEL) {
-			if (cnt<100 && matocsserv_getlocation(s->ptr,&(lstab[cnt].ip),&(lstab[cnt].port))==0) {
-				lstab[cnt].dist = topology_distance(lstab[cnt].ip,cuip);	// in the future prepare more sofisticated distance function
-				lstab[cnt].rnd = rndu32();
+	version = c->version;
+	cnt = 0;
+	std::vector<ChunkLocation> chunkLocation;
+	ChunkLocation chunkserverLocation;
+	for (s = c->slisthead; s; s = s->next) {
+		if (s->valid != INVALID && s->valid != DEL) {
+			if (cnt < maxNumberOfChunkCopies && matocsserv_getlocation(s->ptr,
+					&(chunkserverLocation.address.ip),
+					&(chunkserverLocation.address.port)) == 0) {
+				chunkserverLocation.distance =
+						topology_distance(chunkserverLocation.address.ip, currentIp);
+						// in the future prepare more sophisticated distance function
+				chunkserverLocation.random = rndu32();
+				chunkserverLocation.chunkType = s->chunkType;
+				chunkLocation.push_back(chunkserverLocation);
 				cnt++;
 			}
 		}
 	}
-	qsort(lstab,cnt,sizeof(locsort),chunk_locsort_cmp);
-	wptr = loc;
-	for (i=0 ; i<cnt ; i++) {
-		put32bit(&wptr,lstab[i].ip);
-		put16bit(&wptr,lstab[i].port);
+	std::sort(chunkLocation.begin(), chunkLocation.end());
+	for (uint i = 0; i < chunkLocation.size(); ++i) {
+		const ChunkLocation& loc = chunkLocation[i];
+		serversList.push_back(ChunkTypeWithAddress(loc.address, loc.chunkType));
 	}
-	*count = cnt;
 	return STATUS_OK;
 }
 
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
+void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "_%08" PRIX32 "), so create it for future deletion",chunkid,version);
+		// chunkserver has nonexistent chunk, so create it for future deletion
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1050,11 +1077,17 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr==ptr) {
+		if (s->ptr == ptr && s->chunkType == chunkType) {
 			return;
 		}
 	}
 	s = slist_malloc();
+	s->chunkType = chunkType;
+	/*
+	 * TODO(msulikowski)
+	 * As for now we ignore chunk type in master's structures, ie. we update all
+	 * statistics as if a part of xored chunk was a regular copy.
+	 */
 	s->ptr = ptr;
 	if (c->version!=(version&0x7FFFFFFF)) {
 		s->valid = INVALID;
@@ -1456,6 +1489,15 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 		}
 		return;
 	}
+
+	// temporary exclusion of chunk with xored copies
+	for (s=c->slisthead ; s ; s=s->next) {
+		if (s->chunkType.isXorChunkType()) {
+			return;
+		}
+	}
+
+
 // step 1. calculate number of valid and invalid copies
 	vc=tdc=ivc=bc=tdb=dc=0;
 	for (s=c->slisthead ; s ; s=s->next) {
@@ -2041,14 +2083,14 @@ void chunk_term(void) {
 # ifdef USE_SLIST_BUCKETS
 	for (sb = sbhead ; sb ; sb = sbn) {
 		sbn = sb->next;
-		free(sb);
+		delete sb;
 	}
 # else
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
 			for (sl = ch->slisthead ; sl ; sl = sln) {
 				sln = sl->next;
-				free(sl);
+				delete sl;
 			}
 		}
 	}

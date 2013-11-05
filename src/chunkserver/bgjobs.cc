@@ -26,10 +26,16 @@
 #include <limits.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
+#include <cstdint>
 
-#include "pcqueue.h"
-#include "datapack.h"
-#include "massert.h"
+#include <cassert>
+
+#include "devtools/TracePrinter.h"
+#include "common/chunk_type.h"
+#include "common/pcqueue.h"
+#include "common/datapack.h"
+#include "common/massert.h"
 
 #include "hddspacemgr.h"
 #include "replicator.h"
@@ -64,16 +70,19 @@ typedef struct _chunk_op_args {
 // for OP_OPEN and OP_CLOSE
 typedef struct _chunk_oc_args {
 	uint64_t chunkid;
+	ChunkType chunkType;
 } chunk_oc_args;
 
 // for OP_READ
 typedef struct _chunk_rd_args {
 	uint64_t chunkid;
 	uint32_t version;
+	ChunkType chunkType;
 	uint32_t offset,size;
-	uint16_t blocknum;
 	uint8_t *buffer;
 	uint8_t *crcbuff;
+	OutputBuffer* outputBuffer;
+	bool performHddOpen;
 } chunk_rd_args;
 
 // for OP_WRITE
@@ -113,7 +122,8 @@ typedef struct _jobpool {
 	uint32_t nextjobid;
 } jobpool;
 
-static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
+static inline void job_send_status(jobpool *jp, uint32_t jobid, uint8_t status) {
+	TRACETHIS2(jobid, (int)status);
 	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	if (queue_isempty(jp->statusqueue)) {	// first status
 		eassert(write(jp->wpipe,&status,1)==1);	// write anything to wake up select
@@ -124,10 +134,13 @@ static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
 }
 
 static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status) {
+	TRACETHIS();
 	uint32_t qstatus;
 	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	queue_get(jp->statusqueue,jobid,&qstatus,NULL,NULL);
 	*status = qstatus;
+	PRINTTHIS(*jobid);
+	PRINTTHIS((int)*status);
 	if (queue_isempty(jp->statusqueue)) {
 		eassert(read(jp->rpipe,&qstatus,1)==1);	// make pipe empty
 		zassert(pthread_mutex_unlock(&(jp->pipelock)));
@@ -137,16 +150,19 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	return 1;	// not last
 }
 
+
 #define opargs ((chunk_op_args*)(jptr->args))
 #define ocargs ((chunk_oc_args*)(jptr->args))
 #define rdargs ((chunk_rd_args*)(jptr->args))
 #define wrargs ((chunk_wr_args*)(jptr->args))
 #define rpargs ((chunk_rp_args*)(jptr->args))
+
 void* job_worker(void *th_arg) {
+	TRACETHIS();
 	jobpool *jp = (jobpool*)th_arg;
 	job *jptr;
 	uint8_t *jptrarg;
-	uint8_t status,jstate;
+	uint8_t status, jstate;
 	uint32_t jobid;
 	uint32_t op;
 
@@ -154,6 +170,7 @@ void* job_worker(void *th_arg) {
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;
+		PRINTTHIS(op);
 		zassert(pthread_mutex_lock(&(jp->jobslock)));
 		if (jptr!=NULL) {
 			jstate=jptr->jstate;
@@ -179,21 +196,29 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_open(ocargs->chunkid);
+					status = hdd_open(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
 			case OP_CLOSE:
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_close(ocargs->chunkid);
+					status = hdd_close(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
 			case OP_READ:
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->blocknum,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
+					if (rdargs->performHddOpen) {
+						status = hdd_open(rdargs->chunkid, rdargs->chunkType);
+						if (status != STATUS_OK) {
+							break;
+						}
+					}
+					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
+							rdargs->offset, rdargs->size,
+							rdargs->outputBuffer);
 				}
 				break;
 			case OP_WRITE:
@@ -219,6 +244,7 @@ void* job_worker(void *th_arg) {
 }
 
 static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	uint32_t jobid = jp->nextjobid;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -242,6 +268,7 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 /* interface */
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
+	TRACETHIS();
 	int fd[2];
 	uint32_t i;
 	pthread_attr_t thattr;
@@ -279,11 +306,13 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 }
 
 uint32_t job_pool_jobs_count(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	return queue_elements(jp->jobqueue);
 }
 
 void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8_t status,void *extra)) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos;
 	job *jptr;
@@ -301,6 +330,7 @@ void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8
 }
 
 void job_pool_disable_job(void *jpool,uint32_t jobid) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -316,6 +346,7 @@ void job_pool_disable_job(void *jpool,uint32_t jobid) {
 }
 
 void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -328,6 +359,7 @@ void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_
 }
 
 void job_pool_check_jobs(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jobid,jhpos;
 	uint8_t status;
@@ -356,6 +388,7 @@ void job_pool_check_jobs(void *jpool) {
 }
 
 void job_pool_delete(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t i;
 //	syslog(LOG_WARNING,"deleting pool of workers (%p:%" PRIu8 ")",(void*)jp,jp->workers);
@@ -381,11 +414,13 @@ void job_pool_delete(void *jpool) {
 }
 
 uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	return job_new(jp,OP_INVAL,NULL,callback,extra);
 }
 
 uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_op_args *args;
 	args = (chunk_op_args*) malloc(sizeof(chunk_op_args));
@@ -399,40 +434,50 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 	return job_new(jp,OP_CHUNKOP,args,callback,extra);
 }
 
-uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_open(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_OPEN,args,callback,extra);
 }
 
-uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_oc_args *args;
 	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_CLOSE,args,callback,extra);
 }
 
-uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff) {
+uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		OutputBuffer* outputBuffer, bool performHddOpen) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rd_args *args;
 	args = (chunk_rd_args*) malloc(sizeof(chunk_rd_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
-	args->blocknum = blocknum;
-	args->buffer = buffer;
+	args->chunkType = chunkType;
 	args->offset = offset;
 	args->size = size;
-	args->crcbuff = crcbuff;
+	args->outputBuffer = outputBuffer;
+	args->performHddOpen = performHddOpen;
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 
 uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_wr_args *args;
 	args = (chunk_wr_args*) malloc(sizeof(chunk_wr_args));
@@ -448,6 +493,7 @@ uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void
 }
 
 uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rp_args *args;
 	uint8_t *ptr;
@@ -463,6 +509,7 @@ uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),
 }
 
 uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rp_args *args;
 	uint8_t *ptr;

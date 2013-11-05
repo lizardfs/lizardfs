@@ -24,6 +24,23 @@
 
 #include "MFSCommunication.h"
 
+#ifndef ENABLE_CRC
+
+static uint32_t FAKE_CRC = 0xFEDCBA98;
+
+uint32_t mycrc32(uint32_t, const uint8_t*, uint32_t) {
+	return FAKE_CRC;
+}
+
+uint32_t mycrc32_combine(uint32_t, uint32_t, uint32_t) {
+	return FAKE_CRC;
+}
+
+void mycrc32_init(void) {
+}
+
+#else // ENABLE_CRC
+
 /*
  * CRC implementation from crcutil supports only little endian machines.
  * For big endian we provide lagacy implementation.
@@ -210,3 +227,5 @@ void mycrc32_init(void) {
 }
 
 #endif // WORDS_BIGENDIAN
+
+#endif // ENABLE_CRC

@@ -20,16 +20,16 @@
 
 #include <stdio.h>
 
-#include "topology.h"
-#include "exports.h"
-#include "datacachemgr.h"
-#include "matomlserv.h"
-#include "matocsserv.h"
-#include "matoclserv.h"
-#include "filesystem.h"
-#include "random.h"
 #include "changelog.h"
 #include "chartsdata.h"
+#include "common/random.h"
+#include "datacachemgr.h"
+#include "exports.h"
+#include "filesystem.h"
+#include "matomlserv.h"
+#include "matoclserv.h"
+#include "matocsserv.h"
+#include "topology.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

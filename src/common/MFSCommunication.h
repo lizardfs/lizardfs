@@ -402,6 +402,15 @@
 //      rver==52:	// version 5 / END
 //      	usedspace:64 totalspace:64 chunks:32 tdusedspace:64 tdtotalspace:64 tdchunks:32
 
+// 0x044C
+#define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
+// 0x044D
+#define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
+// 0x044E
+#define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
+// 0x0453
+#define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
+
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
 // usedspace:64 totalspace:64
@@ -524,7 +533,14 @@
 
 // 0x00CA
 #define CSTOCL_READ_DATA (PROTO_BASE+202)
-// chunkid:64 blocknum:16 offset:16 size:32 crc:32 size*[ databyte:8 ]
+// chunkid:64 offset:32 size:32 crc:32 size*[ databyte:8 ]
+
+// 0x04B0
+#define LIZ_CLTOCS_READ (1000U + 200U)
+// 0x04B1
+#define LIZ_CSTOCL_READ_STATUS (1000U + 201U)
+// 0x04B2
+#define LIZ_CSTOCL_READ_DATA (1000U + 202U)
 
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
@@ -563,9 +579,11 @@
 // chunkid:64 version:32 checksum:32
 // chunkid:64 version:32 status:8
 
-// 0x012E
-#define ANTOCS_CHUNK_CHECKSUM_TAB (PROTO_BASE+302)
-// chunkid:64 version:32
+// Following packet was removed, but number (PROTO_BASE+302)
+// cannot be reused for backward compatibility:
+//// 0x012E
+//#define ANTOCS_CHUNK_CHECKSUM_TAB (PROTO_BASE+302)
+//// chunkid:64 version:32
 
 // 0x012F
 #define CSTOAN_CHUNK_CHECKSUM_TAB (PROTO_BASE+303)
@@ -821,6 +839,12 @@
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
 // msgid:32 length:64 srcs:8 srcs*[chunkid:64 version:32 ip:32 port:16] - not implemented
 
+//0x00598
+#define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 432U)
+
+//0x0599
+#define LIZ_MATOCL_FUSE_READ_CHUNK (1000U + 433U)
+
 // 0x01B2
 #define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
 // msgid:32 inode:32 chunkindx:32
@@ -837,8 +861,6 @@
 // 0x01B5
 #define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
 // msgid:32 status:8
-
-
 
 // 0x01B6
 #define CLTOMA_FUSE_APPEND (PROTO_BASE+438)
@@ -1064,8 +1086,7 @@
 
 // 0x01E1
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
-// msgid:32 status:8 
-
+// msgid:32 status:8
 
 
 /* Abandoned sub-project - directory entries cached on client side

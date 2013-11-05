@@ -21,6 +21,10 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include "common/chunk_type.h"
+#include "common/cltoma_communication.h"
+#include "common/chunk_type_with_address.h"
+
 #ifdef METARESTORE
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
@@ -52,8 +56,9 @@ int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t
 int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
-int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version);
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList);
+void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType);
 void chunk_damaged(void *ptr,uint64_t chunkid);
 void chunk_lost(void *ptr,uint64_t chunkid);
 void chunk_server_disconnected(void *ptr);

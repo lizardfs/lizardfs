@@ -32,7 +32,7 @@
 #include "chunks.h"
 #include "merger.h"
 #include "restore.h"
-#include "strerr.h"
+#include "common/strerr.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

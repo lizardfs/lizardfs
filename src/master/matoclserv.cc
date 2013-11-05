@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include "master/matoclserv.h"
+
 #include <stdio.h>
 #include <time.h>
 #include <sys/types.h>
@@ -32,24 +34,27 @@
 #include <netinet/in.h>
 #include <sys/resource.h>
 
-#include "MFSCommunication.h"
+#include "common/datapack.h"
+#include "common/cfg.h"
+#include "common/charts.h"
+#include "common/chunk_type_with_address.h"
+#include "common/cltoma_communication.h"
+#include "common/massert.h"
+#include "common/matocl_communication.h"
+#include "common/MFSCommunication.h"
+#include "common/network_address.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
+#include "common/random.h"
+#include "common/main.h"
+#include "master/chartsdata.h"
+#include "master/chunks.h"
+#include "master/datacachemgr.h"
+#include "master/exports.h"
+#include "master/matocsserv.h"
+#include "master/matomlserv.h"
+#include "master/filesystem.h"
 
-#include "datapack.h"
-#include "matoclserv.h"
-#include "matocsserv.h"
-#include "matomlserv.h"
-#include "chunks.h"
-#include "filesystem.h"
-#include "random.h"
-#include "exports.h"
-#include "datacachemgr.h"
-#include "charts.h"
-#include "chartsdata.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
-#include "slogger.h"
-#include "massert.h"
 
 #define MaxPacketSize 1000000
 
@@ -60,10 +65,12 @@ enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define SESSION_STATS 16
 
+const uint32_t kMaxNumberOfChunkCopies = 100U;
+
 /* CACHENOTIFY
 // hash size should be at least 1.5 * 10000 * # of connected mounts
 // it also should be the prime number
-// const 10000 is defined in mfsmount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
+// const 10000 is defined in mount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
 // current const is calculated as nextprime(1.5 * 10000 * 500) and is enough for up to about 500 mounts
 #define DIRINODE_HASH_SIZE 7500013
 */
@@ -637,24 +644,46 @@ void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 }
 
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
-	packetstruct *outpacket;
+	packetstruct *outpacket =(packetstruct*)malloc(sizeof(packetstruct));
 	uint8_t *ptr;
 	uint32_t psize;
-
-	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet= (uint8_t*) malloc(psize);
+	outpacket->packet = (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
-	outpacket->startptr = (uint8_t*)(outpacket->packet);
+	outpacket->startptr = outpacket->packet;
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
 	return ptr;
+}
+
+void matoclserv_createpacket(matoclserventry *eptr, const std::vector<uint8_t>& buffer) {
+	packetstruct *outpacket = (packetstruct*)malloc(sizeof(packetstruct));
+	passert(outpacket);
+	outpacket->packet = (uint8_t*) malloc(buffer.size());
+	passert(outpacket->packet);
+	outpacket->bytesleft = buffer.size();
+	// TODO unificate output packets and remove suboptimal memory copying
+	memcpy(outpacket->packet, buffer.data(), buffer.size());
+	outpacket->startptr = outpacket->packet;
+	outpacket->next = NULL;
+	*(eptr->outputtail) = outpacket;
+	eptr->outputtail = &(outpacket->next);
+}
+
+static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allCopies,
+		std::vector<NetworkAddress>& standardCopies) {
+	sassert(standardCopies.empty());
+	for (auto& chunkCopy : allCopies) {
+		if (chunkCopy.chunkType.isStandardChunkType()) {
+			standardCopies.push_back(chunkCopy.address);
+		}
+	}
 }
 
 void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
@@ -663,8 +692,6 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint8_t type,attr[35];
 	uint32_t version;
 	uint8_t *ptr;
-	uint8_t count;
-	uint8_t loc[100*6];
 	chunklist *cl,**acl;
 	matoclserventry *eptr,*eaptr;
 
@@ -709,10 +736,15 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	if (status==STATUS_OK) {
 		dcm_modify(inode,eptr->sesdata->sessionid);
 	}
+	std::vector<NetworkAddress> standardChunkCopies;
+	std::vector<uint8_t> buffer;
 	switch (type) {
 	case FUSE_WRITE:
 		if (status==STATUS_OK) {
-			status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
+			std::vector<ChunkTypeWithAddress> allChunkCopies;
+			status=chunk_getversionandlocations(chunkid, eptr->peerip, version,
+					kMaxNumberOfChunkCopies, allChunkCopies);
+			getStandardChunkCopies(allChunkCopies, standardChunkCopies);
 			//syslog(LOG_NOTICE,"get version for chunk %" PRIu64 " -> %" PRIu32,chunkid,version);
 		}
 		if (status!=STATUS_OK) {
@@ -722,12 +754,9 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,24+count*6);
-		put32bit(&ptr,qid);
-		put64bit(&ptr,fleng);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,version);
-		memcpy(ptr,loc,count*6);
+		serializeMooseFsPacket(buffer, MATOCL_FUSE_WRITE_CHUNK, qid, fleng, chunkid, version,
+				standardChunkCopies);
+		matoclserv_createpacket(eptr, buffer);
 		return;
 	case FUSE_TRUNCATE:
 		fs_end_setlength(chunkid);
@@ -2326,47 +2355,57 @@ void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
-void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
+void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint32_t length,
+		bool isMooseFsType) {
 	uint8_t status;
-	uint32_t inode;
-	uint32_t indx;
 	uint64_t chunkid;
 	uint64_t fleng;
 	uint32_t version;
-	uint8_t count;
-	uint8_t loc[100*6];
-	uint32_t msgid;
-	if (length!=12) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_READ_CHUNK - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
+	uint32_t messageId;
+	uint32_t inode;
+	uint32_t index;
+
+	std::vector<uint8_t> receivedData(data, data + length);
+	if (isMooseFsType) {
+		deserializeAllMooseFsPacketDataNoHeader(receivedData, messageId, inode, index);
+	} else {
+		cltoma::fuseReadChunk::deserialize(receivedData, messageId, inode, index);
 	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	indx = get32bit(&data);
-	status = fs_readchunk(inode,indx,&chunkid,&fleng);
-	if (status==STATUS_OK) {
-		if (chunkid>0) {
-			status = chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
+
+	status = fs_readchunk(inode, index, &chunkid, &fleng);
+
+	std::vector<ChunkTypeWithAddress> allChunkCopies;
+	if (status == STATUS_OK) {
+		if (chunkid > 0) {
+			status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
+					kMaxNumberOfChunkCopies, allChunkCopies);
 		} else {
 			version = 0;
-			count = 0;
 		}
 	}
-	if (status!=STATUS_OK) {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READ_CHUNK,5);
-		put32bit(&ptr,msgid);
-		put8bit(&ptr,status);
+	std::vector<uint8_t> buffer;
+	if (status != STATUS_OK) {
+		if (isMooseFsType) {
+			serializeMooseFsPacket(buffer, MATOCL_FUSE_READ_CHUNK, messageId, status);
+		} else {
+			matocl::fuseReadChunk::serialize(buffer, messageId, status);
+		}
+		matoclserv_createpacket(eptr,buffer);
 		return;
 	}
-	dcm_access(inode,eptr->sesdata->sessionid);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READ_CHUNK,24+count*6);
-	put32bit(&ptr,msgid);
-	put64bit(&ptr,fleng);
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	memcpy(ptr,loc,count*6);
+
+	dcm_access(inode, eptr->sesdata->sessionid);
+	if (isMooseFsType) {
+		std::vector<NetworkAddress> standardChunkCopies;
+		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
+		serializeMooseFsPacket(buffer, MATOCL_FUSE_READ_CHUNK, messageId, fleng, chunkid, version,
+				standardChunkCopies);
+	} else {
+		matocl::fuseReadChunk::serialize(buffer, messageId, fleng, chunkid, version,
+				allChunkCopies);
+	}
+	matoclserv_createpacket(eptr, buffer);
+
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[14]++;
 	}
@@ -2383,8 +2422,6 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 	uint8_t opflag;
 	chunklist *cl;
 	uint32_t version;
-	uint8_t count;
-	uint8_t loc[100*6];
 
 	if (length!=12) {
 		syslog(LOG_NOTICE,"CLTOMA_FUSE_WRITE_CHUNK - wrong size (%" PRIu32 "/12)",length);
@@ -2417,7 +2454,11 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 		eptr->chunkdelayedops = cl;
 	} else {	// return status immediately
 		dcm_modify(inode,eptr->sesdata->sessionid);
-		status=chunk_getversionandlocations(chunkid,eptr->peerip,&version,&count,loc);
+		std::vector<ChunkTypeWithAddress> allChunkCopies;
+		status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
+				kMaxNumberOfChunkCopies, allChunkCopies);
+		std::vector<NetworkAddress> standardChunkCopies;
+		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
 		if (status!=STATUS_OK) {
 			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
 			put32bit(&ptr,msgid);
@@ -2425,12 +2466,10 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
 			return;
 		}
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,24+count*6);
-		put32bit(&ptr,msgid);
-		put64bit(&ptr,fleng);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,version);
-		memcpy(ptr,loc,count*6);
+		std::vector<uint8_t> buffer;
+		serializeMooseFsPacket(buffer, MATOCL_FUSE_WRITE_CHUNK, msgid, fleng, chunkid, version,
+				standardChunkCopies);
+		matoclserv_createpacket(eptr, buffer);
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[15]++;
@@ -3405,180 +3444,192 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 			eptr->mode=KILL;
 			return;
 		}
-		switch (type) {
-			case CLTOMA_FUSE_REGISTER:
-				matoclserv_fuse_register(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RESERVED_INODES:
-				matoclserv_fuse_reserved_inodes(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_STATFS:
-				matoclserv_fuse_statfs(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_ACCESS:
-				matoclserv_fuse_access(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_LOOKUP:
-				matoclserv_fuse_lookup(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETATTR:
-				matoclserv_fuse_getattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETATTR:
-				matoclserv_fuse_setattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_READLINK:
-				matoclserv_fuse_readlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SYMLINK:
-				matoclserv_fuse_symlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_MKNOD:
-				matoclserv_fuse_mknod(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_MKDIR:
-				matoclserv_fuse_mkdir(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_UNLINK:
-				matoclserv_fuse_unlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RMDIR:
-				matoclserv_fuse_rmdir(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RENAME:
-				matoclserv_fuse_rename(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_LINK:
-				matoclserv_fuse_link(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDIR:
-				matoclserv_fuse_getdir(eptr,data,length);
-				break;
-/* CACHENOTIFY
-			case CLTOMA_FUSE_DIR_REMOVED:
-				matoclserv_fuse_dir_removed(eptr,data,length);
-				break;
-*/
-			case CLTOMA_FUSE_OPEN:
-				matoclserv_fuse_open(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_READ_CHUNK:
-				matoclserv_fuse_read_chunk(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_WRITE_CHUNK:
-				matoclserv_fuse_write_chunk(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_WRITE_CHUNK_END:
-				matoclserv_fuse_write_chunk_end(eptr,data,length);
-				break;
-// fuse - meta
-			case CLTOMA_FUSE_GETTRASH:
-				matoclserv_fuse_gettrash(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDETACHEDATTR:
-				matoclserv_fuse_getdetachedattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETTRASHPATH:
-				matoclserv_fuse_gettrashpath(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETTRASHPATH:
-				matoclserv_fuse_settrashpath(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_UNDEL:
-				matoclserv_fuse_undel(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_PURGE:
-				matoclserv_fuse_purge(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETRESERVED:
-				matoclserv_fuse_getreserved(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_CHECK:
-				matoclserv_fuse_check(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETTRASHTIME:
-				matoclserv_fuse_gettrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETTRASHTIME:
-				matoclserv_fuse_settrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETGOAL:
-				matoclserv_fuse_getgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETGOAL:
-				matoclserv_fuse_setgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_APPEND:
-				matoclserv_fuse_append(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDIRSTATS:
-				matoclserv_fuse_getdirstats_old(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_TRUNCATE:
-				matoclserv_fuse_truncate(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_REPAIR:
-				matoclserv_fuse_repair(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SNAPSHOT:
-				matoclserv_fuse_snapshot(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETEATTR:
-				matoclserv_fuse_geteattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETEATTR:
-				matoclserv_fuse_seteattr(eptr,data,length);
-				break;
-/* do not use in version before 1.7.x */
-			case CLTOMA_FUSE_GETXATTR:
-				matoclserv_fuse_getxattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETXATTR:
-				matoclserv_fuse_setxattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_QUOTACONTROL:
-				matoclserv_fuse_quotacontrol(eptr,data,length);
-				break;
-/* for tools - also should be available for registered clients */
-			case CLTOMA_CSERV_LIST:
-				matoclserv_cserv_list(eptr,data,length);
-				break;
-			case CLTOMA_SESSION_LIST:
-				matoclserv_session_list(eptr,data,length);
-				break;
-			case CLTOAN_CHART:
-				matoclserv_chart(eptr,data,length);
-				break;
-			case CLTOAN_CHART_DATA:
-				matoclserv_chart_data(eptr,data,length);
-				break;
-			case CLTOMA_INFO:
-				matoclserv_info(eptr,data,length);
-				break;
-			case CLTOMA_FSTEST_INFO:
-				matoclserv_fstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKSTEST_INFO:
-				matoclserv_chunkstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKS_MATRIX:
-				matoclserv_chunks_matrix(eptr,data,length);
-				break;
-			case CLTOMA_QUOTA_INFO:
-				matoclserv_quota_info(eptr,data,length);
-				break;
-			case CLTOMA_EXPORTS_INFO:
-				matoclserv_exports_info(eptr,data,length);
-				break;
-			case CLTOMA_MLOG_LIST:
-				matoclserv_mlog_list(eptr,data,length);
-				break;
-			case CLTOMA_CSSERV_REMOVESERV:
-				matoclserv_cserv_removeserv(eptr,data,length);
-				break;
-			default:
-				syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
-				eptr->mode=KILL;
+		try {
+			switch (type) {
+				case CLTOMA_FUSE_REGISTER:
+					matoclserv_fuse_register(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RESERVED_INODES:
+					matoclserv_fuse_reserved_inodes(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_STATFS:
+					matoclserv_fuse_statfs(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_ACCESS:
+					matoclserv_fuse_access(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_LOOKUP:
+					matoclserv_fuse_lookup(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETATTR:
+					matoclserv_fuse_getattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETATTR:
+					matoclserv_fuse_setattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_READLINK:
+					matoclserv_fuse_readlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SYMLINK:
+					matoclserv_fuse_symlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_MKNOD:
+					matoclserv_fuse_mknod(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_MKDIR:
+					matoclserv_fuse_mkdir(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_UNLINK:
+					matoclserv_fuse_unlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RMDIR:
+					matoclserv_fuse_rmdir(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RENAME:
+					matoclserv_fuse_rename(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_LINK:
+					matoclserv_fuse_link(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDIR:
+					matoclserv_fuse_getdir(eptr,data,length);
+					break;
+	/* CACHENOTIFY
+				case CLTOMA_FUSE_DIR_REMOVED:
+					matoclserv_fuse_dir_removed(eptr,data,length);
+					break;
+	*/
+				case CLTOMA_FUSE_OPEN:
+					matoclserv_fuse_open(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_READ_CHUNK:
+					matoclserv_fuse_read_chunk(eptr, data,length, false);
+					break;
+				case CLTOMA_FUSE_READ_CHUNK:
+					matoclserv_fuse_read_chunk(eptr, data, length, true);
+					break;
+				case CLTOMA_FUSE_WRITE_CHUNK:
+					matoclserv_fuse_write_chunk(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_WRITE_CHUNK_END:
+					matoclserv_fuse_write_chunk_end(eptr,data,length);
+					break;
+	// fuse - meta
+				case CLTOMA_FUSE_GETTRASH:
+					matoclserv_fuse_gettrash(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDETACHEDATTR:
+					matoclserv_fuse_getdetachedattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETTRASHPATH:
+					matoclserv_fuse_gettrashpath(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETTRASHPATH:
+					matoclserv_fuse_settrashpath(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_UNDEL:
+					matoclserv_fuse_undel(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_PURGE:
+					matoclserv_fuse_purge(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETRESERVED:
+					matoclserv_fuse_getreserved(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_CHECK:
+					matoclserv_fuse_check(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETTRASHTIME:
+					matoclserv_fuse_gettrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETTRASHTIME:
+					matoclserv_fuse_settrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETGOAL:
+					matoclserv_fuse_getgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETGOAL:
+					matoclserv_fuse_setgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_APPEND:
+					matoclserv_fuse_append(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDIRSTATS:
+					matoclserv_fuse_getdirstats_old(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_TRUNCATE:
+					matoclserv_fuse_truncate(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_REPAIR:
+					matoclserv_fuse_repair(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SNAPSHOT:
+					matoclserv_fuse_snapshot(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETEATTR:
+					matoclserv_fuse_geteattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETEATTR:
+					matoclserv_fuse_seteattr(eptr,data,length);
+					break;
+	/* do not use in version before 1.7.x */
+				case CLTOMA_FUSE_GETXATTR:
+					matoclserv_fuse_getxattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETXATTR:
+					matoclserv_fuse_setxattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_QUOTACONTROL:
+					matoclserv_fuse_quotacontrol(eptr,data,length);
+					break;
+	/* for tools - also should be available for registered clients */
+				case CLTOMA_CSERV_LIST:
+					matoclserv_cserv_list(eptr,data,length);
+					break;
+				case CLTOMA_SESSION_LIST:
+					matoclserv_session_list(eptr,data,length);
+					break;
+				case CLTOAN_CHART:
+					matoclserv_chart(eptr,data,length);
+					break;
+				case CLTOAN_CHART_DATA:
+					matoclserv_chart_data(eptr,data,length);
+					break;
+				case CLTOMA_INFO:
+					matoclserv_info(eptr,data,length);
+					break;
+				case CLTOMA_FSTEST_INFO:
+					matoclserv_fstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKSTEST_INFO:
+					matoclserv_chunkstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKS_MATRIX:
+					matoclserv_chunks_matrix(eptr,data,length);
+					break;
+				case CLTOMA_QUOTA_INFO:
+					matoclserv_quota_info(eptr,data,length);
+					break;
+				case CLTOMA_EXPORTS_INFO:
+					matoclserv_exports_info(eptr,data,length);
+					break;
+				case CLTOMA_MLOG_LIST:
+					matoclserv_mlog_list(eptr,data,length);
+					break;
+				case CLTOMA_CSSERV_REMOVESERV:
+					matoclserv_cserv_removeserv(eptr,data,length);
+					break;
+				default:
+					syslog(LOG_NOTICE,
+							"main master server module: got unknown message from mfsmount (type:%"
+							PRIu32 ")", type);
+					eptr->mode=KILL;
+			}
+		} catch (IncorrectDeserializationException& e) {
+			syslog(LOG_NOTICE,
+					"main master server module: got inconsistent message from mfsmount (type:%"
+					PRIu32 "), %s", type, e.what());
+			eptr->mode = KILL;
 		}
 	} else {	// old mfstools
 		if (eptr->sesdata==NULL) {
@@ -3592,7 +3643,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				matoclserv_fuse_register(eptr,data,length);
 				break;
 			case CLTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
-				matoclserv_fuse_read_chunk(eptr,data,length);
+				matoclserv_fuse_read_chunk(eptr, data, length, true);
 				break;
 			case CLTOMA_FUSE_CHECK:
 				matoclserv_fuse_check(eptr,data,length);
@@ -4062,7 +4113,7 @@ int matoclserv_networkinit(void) {
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 
 	exiting = 0;
-	starting = 12;
+	starting = 120;
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -4084,8 +4135,10 @@ int matoclserv_networkinit(void) {
 /* CACHENOTIFY
 	matoclserv_dircache_init();
 */
-
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matoclserv_start_cond_check);
+	matoclserv_start_cond_check();
+	if (starting) {
+		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
+	}
 	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	main_reloadregister(matoclserv_reload);

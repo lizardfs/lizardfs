@@ -6,8 +6,7 @@ project(lizardfs)
 set(PACKAGE_VERSION_MAJOR 1)
 set(PACKAGE_VERSION_MINOR 6)
 set(PACKAGE_VERSION_MICRO 28)
-set(PACKAGE_VERSION
-    "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}.${PACKAGE_VERSION_MICRO}")
+set(PACKAGE_VERSION "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}.${PACKAGE_VERSION_MICRO}")
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
@@ -24,21 +23,34 @@ add_definitions(-D__STDC_LIMIT_MACROS)
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_FORMAT_MACROS)
 
-# XXX(lamvak): what about OS X?
 set(DEFAULT_USER "mfs" CACHE STRING "Default user to run daemons as")
 set(DEFAULT_GROUP "mfs" CACHE STRING "Default group to run daemons as")
 set(ENABLE_LIGHTMFS NO CACHE BOOL "Enable light version of LizardFS")
 set(ENABLE_DEBIAN_PATHS NO CACHE BOOL "Enable Debian-style install paths")
 set(ENABLE_TESTS  NO CACHE STRING "Enable building tests")
+set(ENABLE_TRACES NO CACHE STRING "Enable traces")
+set(ENABLE_CRC YES CACHE STRING "Enable checksums")
+set(THROW_INSTEAD_OF_ABORT NO CACHE STRING "Throw std::exception instead of calling abort")
+set(USE_LEGACY_READ_MESSAGES NO CACHE STRING "Enable sending old type of messages by mount")
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
+message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
+message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
 
 ## All the environment tests (libs, includes, etc.) live here:
 include(EnvTests.cmake)
+
+if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
+  message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
+  set(THROW_INSTEAD_OF_ABORT YES)
+  message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+endif()
 
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
@@ -83,6 +95,30 @@ if(ENABLE_TESTS)
   set(BUILD_TESTS ON)
 endif()
 
+if(ENABLE_TRACES)
+  if(NOT Boost_FOUND)
+    message(FATAL_ERROR "Boost is required if traces are enabled")
+  endif()
+  add_definitions(-DENABLE_TRACES)
+  set(BUILD_DEVTOOLS ON)
+  set(MFSCOMMON_ADDITIONAL_LIBS devtools)
+endif()
+
+if(THROW_INSTEAD_OF_ABORT)
+  add_definitions(-DTHROW_INSTEAD_OF_ABORT)
+endif()
+
+if(USE_LEGACY_READ_MESSAGES)
+  add_definitions(-DUSE_LEGACY_READ_MESSAGES)
+endif()
+
+if(ENABLE_CRC)
+  message(STATUS "CRC checksums enabled")
+  add_definitions(-DENABLE_CRC)
+else()
+  message(STATUS "CRC checksums disabled")
+endif()
+
 set(CHARTS_CSV_CHARTID_BASE 90000)
 
 # Create config.h file
@@ -119,8 +155,13 @@ function(add_tests TESTED_LIBRARY)
   set(TEST_LIBRARIES ${TMP} CACHE INTERNAL "" FORCE)
 endfunction(add_tests)
 
+include_directories(${CMAKE_SOURCE_DIR}/src)
+
 add_subdirectory(external)
 add_subdirectory(src/common)
+if(BUILD_DEVTOOLS)
+  add_subdirectory(src/devtools)
+endif()
 add_subdirectory(src/chunkserver)
 add_subdirectory(src/master)
 add_subdirectory(src/metadump)

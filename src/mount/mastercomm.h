@@ -20,6 +20,9 @@
 #define _MASTERCOMM_H_
 
 #include <inttypes.h>
+#include <vector>
+
+#include "common/chunk_type_with_address.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
@@ -47,6 +50,7 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 void fs_release(uint32_t inode);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
+uint8_t fsLizReadChunk(std::vector<ChunkTypeWithAddress>& serverList, uint64_t& chunkid, uint32_t& version, uint64_t& fleng, uint32_t inode, uint32_t indx);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length);
 
