@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "common/crc.h"
+#include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 
 TEST(CltocsCommunicationTests, ReadData) {
@@ -17,16 +18,15 @@ TEST(CltocsCommunicationTests, ReadData) {
 			dataIn));
 
 	verifyHeader(buffer, LIZ_CSTOCL_READ_DATA);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
-
-	std::vector<uint8_t> bufferWithoutHeader = removeHeader(buffer);
-	ASSERT_NO_THROW(cstocl::readData::deserialize(bufferWithoutHeader, chunkIdOut, readOffsetOut,
+	ASSERT_NO_THROW(cstocl::readData::deserialize(buffer, chunkIdOut, readOffsetOut,
 			readSizeOut, crcOut, dataOut));
+
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(readOffsetIn, readOffsetOut);
 	EXPECT_EQ(readSizeIn, readSizeOut);
 	EXPECT_EQ(crcIn, crcOut);
-
 	for (uint i = 0; i < dataIn.size(); ++i) {
 		EXPECT_EQ(dataIn[i], dataOut[i]);
 	}
@@ -40,10 +40,28 @@ TEST(CltocsCommunicationTests, ReadStatus) {
 	ASSERT_NO_THROW(cstocl::readStatus::serialize(buffer, chunkIdIn, statusIn));
 
 	verifyHeader(buffer, LIZ_CSTOCL_READ_STATUS);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
+	ASSERT_NO_THROW(cstocl::readStatus::deserialize(buffer, chunkIdOut, statusOut));
 
-	std::vector<uint8_t> bufferWithoutHeader = removeHeader(buffer);
-	ASSERT_NO_THROW(cstocl::readStatus::deserialize(bufferWithoutHeader, chunkIdOut, statusOut));
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(statusIn, statusOut);
+}
+
+TEST(CltocsCommunicationTests, WriteStatus) {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,  0x987654321, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, writeId,  0x12345,     0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t,  status,   12,          0);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstocl::writeStatus::serialize(buffer, chunkIdIn, writeIdIn, statusIn));
+
+	verifyHeader(buffer, LIZ_CSTOCL_WRITE_STATUS);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(cstocl::writeStatus::deserialize(buffer, chunkIdOut, writeIdOut, statusOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(writeId);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
+
 }

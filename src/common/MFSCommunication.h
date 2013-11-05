@@ -557,18 +557,26 @@
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
 // chunkid:64 version:32 N*[ ip:32 port:16 ]
+// 0x04BA
+#define LIZ_CLTOCS_WRITE_INIT (1000U + 210U)
 
 // 0x00D3
 #define CSTOCL_WRITE_STATUS (PROTO_BASE+211)
 // chunkid:64 writeid:32 status:8
+// 0x04BB
+#define LIZ_CSTOCL_WRITE_STATUS (1000U + 211U)
 
 // 0x00D4
 #define CLTOCS_WRITE_DATA (PROTO_BASE+212)
 // chunkid:64 writeid:32 blocknum:16 offset:16 size:32 crc:32 size*[ databyte:8 ]
+// 0x04BC
+#define LIZ_CLTOCS_WRITE_DATA (1000U + 212U)
 
 // 0x00D5
 #define CLTOCS_WRITE_FINISH (PROTO_BASE+213)
 // chunkid:64 version:32
+// 0x04BD
+#define LIZ_CLTOCS_WRITE_FINISH (1000U + 213U)
 
 //CHUNKSERVER <-> CHUNKSERVER
 

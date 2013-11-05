@@ -6,16 +6,20 @@
 #include "common/serialization.h"
 
 struct ChunkTypeWithAddress {
-	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkType& chunkType)
-		: address(address), chunkType(chunkType) {
-	}
+	NetworkAddress address;
+	ChunkType chunkType;
 
 	ChunkTypeWithAddress() :
 		chunkType(ChunkType::getStandardChunkType()) {
 	}
 
-	NetworkAddress address;
-	ChunkType chunkType;
+	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkType& chunkType)
+		: address(address), chunkType(chunkType) {
+	}
+
+	bool operator==(const ChunkTypeWithAddress& other) const {
+		return std::make_pair(address, chunkType) == std::make_pair(other.address, other.chunkType);
+	}
 };
 
 inline uint32_t serializedSize(const ChunkTypeWithAddress& chunkTypeWithAddress) {

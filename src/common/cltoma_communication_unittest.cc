@@ -13,10 +13,11 @@ TEST(CltomaCommunicationTests, FuseReadChunk) {
 	ASSERT_NO_THROW(cltoma::fuseReadChunk::serialize(buffer, inMessageId, inInode, inDataBlockNumber));
 
 	verifyHeader(buffer, LIZ_CLTOMA_FUSE_READ_CHUNK);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
-
 	ASSERT_NO_THROW(cltoma::fuseReadChunk::deserialize(
-			removeHeader(buffer), outMessageId,  outInode, outDataBlockNumber));
+			buffer, outMessageId,  outInode, outDataBlockNumber));
+
 	EXPECT_EQ(inMessageId, outMessageId);
 	EXPECT_EQ(inInode, outInode);
 	EXPECT_EQ(inDataBlockNumber, outDataBlockNumber);
@@ -31,10 +32,11 @@ TEST(CltomaCommunicationTests, FuseWriteChunk) {
 	ASSERT_NO_THROW(cltoma::fuseWriteChunk::serialize(buffer, inMessageId, inInode, inChunkIndex));
 
 	verifyHeader(buffer, LIZ_CLTOMA_FUSE_WRITE_CHUNK);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
-
 	ASSERT_NO_THROW(cltoma::fuseWriteChunk::deserialize(
-			removeHeader(buffer), outMessageId,  outInode, outChunkIndex));
+			buffer, outMessageId,  outInode, outChunkIndex));
+
 	EXPECT_EQ(inMessageId, outMessageId);
 	EXPECT_EQ(inInode, outInode);
 	EXPECT_EQ(inChunkIndex, outChunkIndex);
@@ -51,10 +53,11 @@ TEST(CltomaCommunicationTests, FuseWriteChunkEnd) {
 			inChunkId, inInode, inFileLength));
 
 	verifyHeader(buffer, CLTOMA_FUSE_WRITE_CHUNK_END);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
-
 	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::deserialize(
-			removeHeader(buffer), outMessageId,  outChunkId, outInode, outFileLength));
+			buffer, outMessageId,  outChunkId, outInode, outFileLength));
+
 	EXPECT_EQ(inMessageId, outMessageId);
 	EXPECT_EQ(inChunkId, outChunkId);
 	EXPECT_EQ(inInode, outInode);

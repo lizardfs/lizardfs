@@ -15,17 +15,12 @@ TEST(MatocsCommunicationTests, SetVersion) {
 	ASSERT_NO_THROW(matocs::setVersion::serialize(buffer,
 			chunkIdIn, chunkVersionIn, chunkTypeIn, newVersionIn));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_MATOCS_SET_VERSION, header.type);
-	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
-
-	PacketVersion version;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0u, version);
-
-	ASSERT_NO_THROW(matocs::setVersion::deserialize(removeHeader(buffer),
+	verifyHeader(buffer, LIZ_MATOCS_SET_VERSION);
+	removeHeaderInPlace(buffer);
+	verifyVersion(buffer, 0U);
+	ASSERT_NO_THROW(matocs::setVersion::deserialize(buffer,
 			chunkIdOut, chunkVersionOut, chunkTypeOut, newVersionOut));
+
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(chunkVersionIn, chunkVersionOut);
 	EXPECT_EQ(chunkTypeIn, chunkTypeOut);
@@ -42,17 +37,12 @@ TEST(MatocsCommunicationTests, DeleteChunk) {
 	ASSERT_NO_THROW(matocs::deleteChunk::serialize(buffer,
 			chunkIdIn, chunkVersionIn, chunkTypeIn));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_MATOCS_DELETE_CHUNK, header.type);
-	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
-
-	PacketVersion version;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0u, version);
-
-	ASSERT_NO_THROW(matocs::deleteChunk::deserialize(removeHeader(buffer),
+	verifyHeader(buffer, LIZ_MATOCS_DELETE_CHUNK);
+	removeHeaderInPlace(buffer);
+	verifyVersion(buffer, 0U);
+	ASSERT_NO_THROW(matocs::deleteChunk::deserialize(buffer,
 			chunkIdOut, chunkVersionOut, chunkTypeOut));
+
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(chunkVersionIn, chunkVersionOut);
 	EXPECT_EQ(chunkTypeIn, chunkTypeOut);

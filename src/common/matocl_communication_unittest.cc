@@ -2,120 +2,116 @@
 
 #include <gtest/gtest.h>
 
+#include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 
 TEST(MatoclCommunicationTests, FuseReadChunkData) {
-	uint32_t /*outMessageId, */inMessageId = 512;
-	uint64_t outChunkId, inChunkId = 87;
-	uint32_t outChunkVersion, inChunkVersion = 52;
-	uint64_t outFileLength, inFileLength = 1024;
-	std::vector<ChunkTypeWithAddress> outServerList;
-	std::vector<ChunkTypeWithAddress> inServerList {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId,    512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,      87,  0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, fileLength,   124, 0);
+	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(ChunkTypeWithAddress, serverList) = {
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), ChunkType::getStandardChunkType()),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), ChunkType::getXorParityChunkType(5)),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80003, 8082), ChunkType::getXorChunkType(5, 1)),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80004, 8084), ChunkType::getXorChunkType(5, 5)),
 	};
-	ChunkTypeWithAddress outServer;
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer, inMessageId, inFileLength, inChunkId,
-			inChunkVersion, inServerList));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer,
+			messageIdIn, fileLengthIn, chunkIdIn, chunkVersionIn, serverListIn));
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_READ_CHUNK);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, matocl::fuseReadChunk::kResponsePacketVersion);
-	verifyMessageId(buffer, inMessageId);
+	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer,
+			fileLengthOut, chunkIdOut, chunkVersionOut, serverListOut));
 
-	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(removeHeader(buffer), outFileLength,
-			outChunkId, outChunkVersion, outServerList));
-
-	EXPECT_EQ(inChunkId, outChunkId);
-	EXPECT_EQ(inChunkVersion, outChunkVersion);
-	EXPECT_EQ(inFileLength, outFileLength);
-
-	for (uint i = 0; i < outServerList.size(); ++i){
-		SCOPED_TRACE("Server number: " + std::to_string(i));
-		EXPECT_EQ(inServerList[i].address.ip, outServerList[i].address.ip);
-		EXPECT_EQ(inServerList[i].address.port, outServerList[i].address.port);
-		EXPECT_EQ(inServerList[i].chunkType, outServerList[i].chunkType);
-	}
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkVersion);
+	LIZARDFS_VERIFY_INOUT_PAIR(fileLength);
+	LIZARDFS_VERIFY_INOUT_PAIR(serverList);
 }
 
 TEST(MatoclCommunicationTests, FuseReadChunkStatus) {
-	uint32_t /*outMessageId, */inMessageId = 512;
-	uint8_t outStatus, inStatus = 0;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t,  status,    10,  0);
+
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer, inMessageId, inStatus));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::serialize(buffer, messageIdIn, statusIn));
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_READ_CHUNK);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, matocl::fuseReadChunk::kStatusPacketVersion);
-	verifyMessageId(buffer, inMessageId);
+	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
+	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer, statusOut));
 
-	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(removeHeader(buffer), outStatus));
-	EXPECT_EQ(inStatus, outStatus);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
 }
 
 TEST(MatoclCommunicationTests, FuseWriteChunkData) {
-	uint32_t /*outMessageId, */inMessageId = 512; //TODO(alek) check messageID
-	uint64_t outChunkId, inChunkId = 87;
-	uint32_t outChunkVersion, inChunkVersion = 52;
-	uint64_t outFileLength, inFileLength = 1024;
-	std::vector<ChunkTypeWithAddress> outServerList;
-	std::vector<ChunkTypeWithAddress> inServerList {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId,    512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,      87,  0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, fileLength,   124, 0);
+	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(ChunkTypeWithAddress, serverList) = {
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), ChunkType::getStandardChunkType()),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), ChunkType::getXorParityChunkType(5)),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80003, 8082), ChunkType::getXorChunkType(5, 1)),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80004, 8084), ChunkType::getXorChunkType(5, 5)),
 	};
-	ChunkTypeWithAddress outServer;
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseWriteChunk::serialize(buffer, inMessageId, inFileLength, inChunkId,
-			inChunkVersion, inServerList));
+	ASSERT_NO_THROW(matocl::fuseWriteChunk::serialize(buffer,
+			messageIdIn, fileLengthIn, chunkIdIn, chunkVersionIn, serverListIn));
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_WRITE_CHUNK);
-	verifyVersion(buffer, matocl::fuseReadChunk::kResponsePacketVersion);
-	verifyMessageId(buffer, inMessageId);
+	removeHeaderInPlace(buffer);
+	verifyVersion(buffer, matocl::fuseWriteChunk::kResponsePacketVersion);
+	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
+	ASSERT_NO_THROW(matocl::fuseWriteChunk::deserialize(buffer,
+			fileLengthOut, chunkIdOut, chunkVersionOut, serverListOut));
 
-	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(removeHeader(buffer), outFileLength,
-			outChunkId, outChunkVersion, outServerList));
-
-	EXPECT_EQ(inChunkId, outChunkId);
-	EXPECT_EQ(inChunkVersion, outChunkVersion);
-	EXPECT_EQ(inFileLength, outFileLength);
-
-	for (uint i = 0; i < outServerList.size(); ++i){
-		SCOPED_TRACE("Server number: " + std::to_string(i));
-		EXPECT_EQ(inServerList[i].address.ip, outServerList[i].address.ip);
-		EXPECT_EQ(inServerList[i].address.port, outServerList[i].address.port);
-		EXPECT_EQ(inServerList[i].chunkType, outServerList[i].chunkType);
-	}
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkVersion);
+	LIZARDFS_VERIFY_INOUT_PAIR(fileLength);
+	LIZARDFS_VERIFY_INOUT_PAIR(serverList);
 }
 
 TEST(MatoclCommunicationTests, FuseWriteChunkStatus) {
-	uint32_t /*outMessageId, */inMessageId = 512;
-	uint8_t outStatus, inStatus = 0;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t,  status,    10,  0);
+
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseWriteChunk::serialize(buffer, inMessageId, inStatus));
+	ASSERT_NO_THROW(matocl::fuseWriteChunk::serialize(buffer, messageIdIn, statusIn));
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_WRITE_CHUNK);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, matocl::fuseReadChunk::kStatusPacketVersion);
-	verifyMessageId(buffer, inMessageId);
+	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
+	ASSERT_NO_THROW(matocl::fuseWriteChunk::deserialize(buffer, statusOut));
 
-	ASSERT_NO_THROW(matocl::fuseWriteChunk::deserialize(removeHeader(buffer), outStatus));
-	EXPECT_EQ(inStatus, outStatus);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
 }
 
 TEST(MatoclCommunicationTests, FuseWriteChunkEnd) {
-	uint32_t /*outMessageId, */inMessageId = 512;
-	uint8_t outStatus, inStatus = 0;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t,  status,    10,  0);
+
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocl::fuseWriteChunkEnd::serialize(buffer, inMessageId, inStatus));
+	ASSERT_NO_THROW(matocl::fuseWriteChunkEnd::serialize(buffer, messageIdIn, statusIn));
 
 	verifyHeader(buffer, MATOCL_FUSE_WRITE_CHUNK_END);
+	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
-	verifyMessageId(buffer, inMessageId);
+	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
+	ASSERT_NO_THROW(matocl::fuseWriteChunkEnd::deserialize(buffer, statusOut));
 
-	ASSERT_NO_THROW(matocl::fuseWriteChunkEnd::deserialize(removeHeader(buffer), outStatus));
-	EXPECT_EQ(inStatus, outStatus);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
 }

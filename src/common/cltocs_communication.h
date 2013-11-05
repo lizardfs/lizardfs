@@ -2,6 +2,7 @@
 #define LIZARDFS_MFSCOMMON_CLTOCS_COMMUNICATION_H_
 
 #include "common/chunk_type.h"
+#include "common/network_address.h"
 #include "common/packet.h"
 
 namespace cltocs {
@@ -18,11 +19,67 @@ inline void serialize(std::vector<uint8_t>& buffer,
 inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
 		uint32_t& readOffset, uint32_t& readSize) {
+	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
 	deserializeAllPacketDataNoHeader(buffer, bufferSize,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
 
 } // namespace read
+
+namespace writeInit {
+
+inline void serialize(std::vector<uint8_t>& buffer,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		const std::vector<NetworkAddress>& chain) {
+	serializePacket(buffer, LIZ_CLTOCS_WRITE_INIT, 0,
+			chunkId, chunkVersion, chunkType, chain);
+}
+
+inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
+		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
+		std::vector<NetworkAddress>& chain) {
+	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
+	deserializeAllPacketDataNoHeader(buffer, bufferSize,
+			chunkId, chunkVersion, chunkType, chain);
+}
+
+} // namespace writeInit
+
+namespace writeData {
+
+inline void serializePrefix(std::vector<uint8_t>& buffer,
+		uint64_t chunkId, uint32_t writeId,
+		uint16_t blockNumber, uint32_t offset, uint32_t size, uint32_t crc) {
+	serializePacketPrefix(buffer, size, LIZ_CLTOCS_WRITE_DATA, 0,
+			chunkId, writeId, blockNumber, offset, size, crc);
+}
+
+inline void deserializePrefix(const uint8_t* buffer, uint32_t bufferSize,
+		uint64_t& chunkId, uint32_t& writeId,
+		uint16_t& blockNumber, uint32_t& offset, uint32_t& size, uint32_t& crc) {
+	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
+	deserializePacketDataNoHeader(buffer, bufferSize,
+			chunkId, writeId, blockNumber, offset, size, crc);
+}
+
+// kPrefixSize is equal to:
+// version:u32 chunkId:u64 writeId:32 block:16 offset:32 size:32 crc:32
+static const uint32_t kPrefixSize = 4 + 8 + 4 + 2 + 4 + 4 + 4;
+
+} // namespace writeData
+
+namespace writeFinish {
+
+inline void serialize(std::vector<uint8_t>& buffer, uint64_t chunkId) {
+	serializePacket(buffer, LIZ_CLTOCS_WRITE_FINISH, 0, chunkId);
+}
+
+inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& chunkId) {
+	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
+	deserializeAllPacketDataNoHeader(buffer, bufferSize, chunkId);
+}
+
+} // namespace writeFinish
 
 } // namespace cltocs
 

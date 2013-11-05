@@ -6,34 +6,32 @@
 
 #include "common/packet.h"
 
-inline std::vector<uint8_t> removeHeader(const std::vector<uint8_t>& packet) {
-	std::vector<uint8_t> ret(packet.begin() + PacketHeader::kSize, packet.end());
-	return ret;
+inline void removeHeaderInPlace(std::vector<uint8_t>& packet) {
+	sassert(packet.size() >= PacketHeader::kSize);
+	packet.erase(packet.begin(), packet.begin() + PacketHeader::kSize);
 }
 
-inline std::vector<uint8_t> removeHeaderAndVersion(const std::vector<uint8_t>& packet) {
-	std::vector<uint8_t> ret(packet.begin() + PacketHeader::kSize + serializedSize(PacketVersion()),
-			packet.end());
-	return ret;
-}
-
-inline void verifyHeader(const std::vector<uint8_t>& buffer, PacketHeader::Type expectedType) {
+inline void verifyHeader(const std::vector<uint8_t>& messageWithHeader,
+		PacketHeader::Type expectedType) {
 	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
+	ASSERT_NO_THROW(deserializePacketHeader(messageWithHeader, header));
 	EXPECT_EQ(expectedType, header.type);
-	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
+	EXPECT_EQ(messageWithHeader.size() - PacketHeader::kSize, header.length);
 }
 
-inline void verifyVersion(const std::vector<uint8_t>& buffer, PacketVersion expectedVersion) {
+inline void verifyHeaderInPrefix(const std::vector<uint8_t>& messagePrefixWithHeader,
+		PacketHeader::Type type, uint32_t extraDataSize) {
+	PacketHeader header;
+	ASSERT_NO_THROW(deserializePacketHeader(messagePrefixWithHeader, header));
+	EXPECT_EQ(type, header.type);
+	EXPECT_EQ(messagePrefixWithHeader.size() + extraDataSize - PacketHeader::kSize, header.length);
+}
+
+inline void verifyVersion(const std::vector<uint8_t>& messageWithoutHeader,
+		PacketVersion expectedVersion) {
 	PacketVersion version = !expectedVersion;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
+	ASSERT_NO_THROW(deserializePacketVersionNoHeader(messageWithoutHeader, version));
 	EXPECT_EQ(expectedVersion, version);
-}
-
-inline void verifyMessageId(const std::vector<uint8_t>& buffer, uint32_t expectedMessageId) {
-	uint32_t messageId;
-	deserialize(removeHeaderAndVersion(buffer), messageId);
-	EXPECT_EQ(expectedMessageId, messageId);
 }
 
 #endif /* LIZARDFS_TESTS_COMMON_PACKET_H_ */
