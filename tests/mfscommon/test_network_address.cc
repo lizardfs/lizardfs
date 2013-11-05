@@ -1,4 +1,4 @@
-#include "mfscommon/network_address.h"
+#include "common/network_address.h"
 
 #include <gtest/gtest.h>
 

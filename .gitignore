@@ -1,46 +1,27 @@
-*.[oa]
 *~
 .DS_Store
-.deps
+/tests/googletest
+
+# Vim files #
+#############
 .clang_complete
 tags
 *.taghl
-Makefile
-Makefile.in
-/aclocal.m4
-/autom4te.cache/
-/config.guess
-/config.h
-/config.h.in
-/config.log
-/config.status
-/config.sub
-/configure
-/configure.scan
-/autoscan.log
-/depcomp
-/install-sh
-/libtool
-/ltmain.sh
-/m4
-/mfscgi/mfscgiserv
-/mfscgi/chart.cgi
-/mfscgi/mfs.cgi
-/mfschunkserver/mfschunkserver
-/mfsdata/mfschunkserver.cfg
-/mfsdata/mfsmaster.cfg
-/mfsdata/mfsmetalogger.cfg
-/mfsmaster/mfsmaster
-/mfsmetalogger/mfsmetalogger
-/mfsmetadump/mfsmetadump
-/mfsmetarestore/mfsmetarestore
-/mfsmount/mfsmount
-/mfsmount/mfstools
-/missing
-/stamp-h1
-*.tar.gz
+
+# Commonly used build directory #
+#################################
 /build*
-/tests/googletest
-/.cproject
+
+# Eclipse project files #
+#########################
 /.project
+/.cproject
 /.settings
+
+# KDevelop4 project file #
+##########################
+*.kdev4
+
+# QtCreator user profiles #
+###########################
+*.user

@@ -14,9 +14,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfschunkserver
 NAME=mfschunkserver
 DESC=mfs-chunkserver
-DEFAULT_USER=mfs
-DEFAULT_GROUP=mfs
-DEFAULT_DATADIR=/var/lib/mfs
+DEFAULT_WORKING_USER=mfs
+DEFAULT_WORKING_GROUP=mfs
+DEFAULT_DATA_PATH=/var/lib/mfs
 DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
 COMPAT_CFG=/etc/mfschunkserver.cfg
 
@@ -25,8 +25,9 @@ test -e $DAEMON || exit 0
 # Include mfs-chunkserver defaults if available
 . /lib/lsb/init-functions
 MFSCHUNKSERVER_ENABLE=false
-MFSCHUNKSERVER_DEFAULTS_FILE=/etc/default/mfs-chunkserver
 MFSCHUNKSERVER_CONFIG_FILE=
+MFSCHUNKSERVER_DEFAULTS_FILE=/etc/default/mfs-chunkserver
+
 if [ -s "$MFSCHUNKSERVER_DEFAULTS_FILE" ]; then
     . "$MFSCHUNKSERVER_DEFAULTS_FILE"
     case "x$MFSCHUNKSERVER_ENABLE" in
@@ -52,27 +53,32 @@ elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 else
 	CFGFILE="$COMPAT_CFG"
 fi
+
+get_config_value_from_CFGFILE()
+{
+        # parsing the value of config options from CFGFILE
+         echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+}
+
 if [ -s "$CFGFILE" ]; then
-	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSGROUP=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-else
-	DATADIR=
-	MFSUSER=
-	MFSGROUP=
+       DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+       WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+       WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
+
 fi
-: ${DATADIR:=$DEFAULT_DATADIR}
-: ${MFSUSER:=$DEFAULT_USER}
-: ${MFSGROUP:=$DEFAULT_GROUP}
+
+: ${DATA_PATH:=$DEFAULT_DATA_PATH}
+: ${WORKING_USER:=$DEFAULT_WORKING_USER}
+: ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
 
 check_dirs()
 {
 	# check that the metadata dir exists
-	if [ ! -d "$DATADIR" ]; then
-		mkdir "$DATADIR"
+	if [ ! -d "$DATA_PATH" ]; then
+		mkdir -p "$DATA_PATH"
 	fi
-	chmod 0755 "$DATADIR"
-	chown -R $MFSUSER:$MFSGROUP "$DATADIR"
+	chmod 0755 "$DATA_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
 }
 
 case "$1" in
@@ -88,11 +94,13 @@ case "$1" in
 		;;
 
 	reload|force-reload)
+		check_dirs
 		echo "Reloading $DESC:"
 		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} reload
 		;;
 
 	restart)
+		check_dirs
 		echo "Restarting $DESC:"
 		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS restart
 		;;

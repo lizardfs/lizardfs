@@ -14,9 +14,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfsmaster
 NAME=mfsmaster
 DESC=mfs-master
-DEFAULT_USER=mfs
-DEFAULT_GROUP=mfs
-DEFAULT_DATADIR=/var/lib/mfs
+DEFAULT_WORKING_USER=mfs
+DEFAULT_WORKING_GROUP=mfs
+DEFAULT_DATA_PATH=/var/lib/mfs
 DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
 COMPAT_CFG=/etc/mfsmaster.cfg
 
@@ -25,8 +25,8 @@ test -e $DAEMON || exit 0
 # Include mfs-master defaults if available
 . /lib/lsb/init-functions
 MFSMASTER_ENABLE=false
-MFSMASTER_DEFAULTS_FILE=/etc/default/mfs-master
 MFSMASTER_CONFIG_FILE=
+MFSMASTER_DEFAULTS_FILE=/etc/default/mfs-master
 if [ -s "$MFSMASTER_DEFAULTS_FILE" ]; then
     . "$MFSMASTER_DEFAULTS_FILE"
     case "x$MFSMASTER_ENABLE" in
@@ -52,30 +52,33 @@ elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 else
 	CFGFILE="$COMPAT_CFG"
 fi
+
+get_config_value_from_CFGFILE()
+{
+		echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+}
+
 if [ -s "$CFGFILE" ]; then
-	DATADIR=$(sed -e 's/[ 	]#.*$//' -n -e 's/^DATA_PATH[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSUSER=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_USER[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-	MFSGROUP=$(sed -e 's/[ 	]#.*$//' -n -e 's/^WORKING_GROUP[ 	]*=[ 	]*\([^ 	]*\)[ 	]*$/\1/p' "$CFGFILE")
-else
-	DATADIR=
-	MFSUSER=
-	MFSGROUP=
+	DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 fi
-: ${DATADIR:=$DEFAULT_DATADIR}
-: ${MFSUSER:=$DEFAULT_USER}
-: ${MFSGROUP:=$DEFAULT_GROUP}
+
+: ${DATA_PATH:=$DEFAULT_DATA_PATH}
+: ${WORKING_USER:=$DEFAULT_WORKING_USER}
+: ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
 
 check_dirs()
 {
 	# check that the metadata dir exists
-	if [ ! -d "$DATADIR" ]; then
-		mkdir "$DATADIR"
+	if [ ! -d "$DATA_PATH" ]; then
+		mkdir -p "$DATA_PATH"
 	fi
-	chmod 0755 "$DATADIR"
-	chown -R $MFSUSER:$MFSGROUP "$DATADIR"
-	if [ ! -e "$DATADIR"/metadata.mfs ]; then
-		if [ ! -e "$DATADIR"/metadata.mfs.back ]; then
-			echo "MFSM NEW" > "$DATADIR"/metadata.mfs
+	chmod 0755 "$DATA_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+	if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
+		if [ ! -e "$DATA_PATH"/metadata.mfs.back ]; then
+			echo "MFSM NEW" > "$DATA_PATH"/metadata.mfs
 		fi
 	fi
 }
@@ -98,6 +101,7 @@ case "$1" in
 		;;
 
 	restart)
+		check_dirs
 		echo "Restarting $DESC:"
 		$DAEMON ${MFSMASTER_CONFIG_FILE:+-c $MFSMASTER_CONFIG_FILE} restart
 		;;

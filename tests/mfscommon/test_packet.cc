@@ -1,4 +1,4 @@
-#include "mfscommon/packet.h"
+#include "common/packet.h"
 
 #include <gtest/gtest.h>
 

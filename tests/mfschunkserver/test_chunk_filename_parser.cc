@@ -1,4 +1,4 @@
-#include "mfschunkserver/chunk_filename_parser.h"
+#include "chunkserver/chunk_filename_parser.h"
 
 #include <gtest/gtest.h>
 

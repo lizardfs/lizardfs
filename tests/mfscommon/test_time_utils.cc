@@ -1,8 +1,7 @@
-#include "mfscommon/time_utils.h"
-
-#include <gtest/gtest.h>
+#include "common/time_utils.h"
 
 #include <chrono>
+#include <gtest/gtest.h>
 
 // without at least millisecond precision a timesource is pretty much useless for us
 TEST(TimeUtilsTests, SteadyClockResolutionAndArithmetic) {

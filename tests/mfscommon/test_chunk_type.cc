@@ -1,9 +1,9 @@
-#include "mfscommon/chunk_type.h"
+#include "common/chunk_type.h"
 
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "mfscommon/goal.h"
+#include "common/goal.h"
 
 TEST(ChunkTypeTests, SerializeDeserialize) {
 	// Create array with all chunk types

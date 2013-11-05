@@ -12,6 +12,7 @@ endif()
 add_subdirectory(googletest)
 include_directories(googletest/include)
 include_directories(${Boost_INCLUDE_DIRS})
+include_directories(${CMAKE_SOURCE_DIR})
 
 add_subdirectory(common)
 add_subdirectory(mfschunkserver)

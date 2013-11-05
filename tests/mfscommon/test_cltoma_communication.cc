@@ -1,4 +1,4 @@
-#include "mfscommon/cltoma_communication.h"
+#include "common/cltoma_communication.h"
 
 #include <gtest/gtest.h>
 
