@@ -454,9 +454,15 @@
 #define MATOCS_DELETE (PROTO_BASE+120)
 // chunkid:64 version:32
 
+// 0x0460
+#define LIZ_MATOCS_DELETE_CHUNK (1000U + 120U)
+
 // 0x0079
 #define CSTOMA_DELETE (PROTO_BASE+121)
 // chunkid:64 status:8
+
+// 0x0461
+#define LIZ_CSTOMA_DELETE_CHUNK (1000U + 121U)
 
 // 0x0082
 #define MATOCS_DUPLICATE (PROTO_BASE+130)
@@ -467,12 +473,18 @@
 // chunkid:64 status:8
 
 // 0x008C
-#define MATOCS_SET_VERSION (PROTO_BASE+140)
+#define MATOCS_SET_VERSION (PROTO_BASE + 140)
 // chunkid:64 version:32 oldversion:32
 
+// 0x0474
+#define LIZ_MATOCS_SET_VERSION (1000U + 140U)
+
 // 0x008D
-#define CSTOMA_SET_VERSION (PROTO_BASE+141)
+#define CSTOMA_SET_VERSION (PROTO_BASE + 141)
 // chunkid:64 status:8
+
+// 0x0475
+#define LIZ_CSTOMA_SET_VERSION (1000U + 141U)
 
 // 0x0096
 #define MATOCS_REPLICATE (PROTO_BASE+150)

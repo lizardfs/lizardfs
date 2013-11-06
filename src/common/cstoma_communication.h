@@ -68,6 +68,34 @@ inline void deserialize(const std::vector<uint8_t>& source,
 
 } // namespace registerSpace
 
+namespace setVersion {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, ChunkType chunkType, uint8_t status) {
+	serializePacket(destination, LIZ_CSTOMA_SET_VERSION, 0, chunkId, chunkType, status);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
+}
+
+} // namespace setVersion
+
+namespace deleteChunk {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, ChunkType chunkType, uint8_t status) {
+	serializePacket(destination, LIZ_CSTOMA_DELETE_CHUNK, 0, chunkId, chunkType, status);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
+}
+
+} // namespace deleteChunk
+
 } // namespace cstoma
 
 #endif /* LIZARDFS_MFSCOMMON_CSTOMA_COMMUNICATION_H_ */

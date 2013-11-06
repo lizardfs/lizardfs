@@ -33,7 +33,7 @@ TEST(CstomaCommunicationTests, RegisterHost) {
 	EXPECT_EQ(inCSVersion, outCSVersion);
 }
 
-TEST(CstomaCommunicationTests, registerChunksTest) {
+TEST(CstomaCommunicationTests, RegisterChunks) {
 	std::vector<ChunkWithVersionAndType> outChunks {
 		ChunkWithVersionAndType(0, 1000, ChunkType::getXorChunkType(3, 1)),
 		ChunkWithVersionAndType(1, 1001, ChunkType::getXorChunkType(7, 7)),
@@ -66,7 +66,7 @@ TEST(CstomaCommunicationTests, registerChunksTest) {
 	}
 }
 
-TEST(CstomaCommunicationTests, registerSpaceTest) {
+TEST(CstomaCommunicationTests, RegisterSpace) {
 	std::vector<uint8_t> buffer;
 
 	uint64_t usedSpace[2] {1, 2};
@@ -89,4 +89,54 @@ TEST(CstomaCommunicationTests, registerSpaceTest) {
 	EXPECT_EQ(tdUsedSpace[0], tdUsedSpace[1]);
 	EXPECT_EQ(toDeleteTotalSpace[0], toDeleteTotalSpace[1]);
 	EXPECT_EQ(toDeleteChunksNumber[0], toDeleteChunksNumber[1]);
+}
+
+TEST(CstomaCommunicationTests, SetVersion) {
+	uint64_t chunkIdOut, chunkIdIn = 62443697;
+	ChunkType chunkTypeOut = ChunkType::getStandardChunkType();
+	ChunkType chunkTypeIn = ChunkType::getXorChunkType(3, 2);
+	uint8_t statusOut, statusIn = 17;
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstoma::setVersion::serialize(buffer, chunkIdIn, chunkTypeIn, statusIn));
+
+	PacketHeader header;
+	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
+	EXPECT_EQ(LIZ_CSTOMA_SET_VERSION, header.type);
+	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
+
+	PacketVersion version;
+	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
+	EXPECT_EQ(0u, version);
+
+	ASSERT_NO_THROW(cstoma::setVersion::deserialize(removeHeader(buffer), chunkIdOut,
+			chunkTypeOut, statusOut));
+	EXPECT_EQ(chunkIdIn, chunkIdOut);
+	EXPECT_EQ(chunkTypeIn, chunkTypeOut);
+	EXPECT_EQ(statusIn, statusOut);
+}
+
+TEST(CstomaCommunicationTests, DeleteChunk) {
+	uint64_t chunkIdOut, chunkIdIn = 62443697;
+	ChunkType chunkTypeOut = ChunkType::getStandardChunkType();
+	ChunkType chunkTypeIn = ChunkType::getXorChunkType(3, 2);
+	uint8_t statusOut, statusIn = 17;
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstoma::deleteChunk::serialize(buffer, chunkIdIn, chunkTypeIn, statusIn));
+
+	PacketHeader header;
+	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
+	EXPECT_EQ(LIZ_CSTOMA_DELETE_CHUNK, header.type);
+	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
+
+	PacketVersion version;
+	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
+	EXPECT_EQ(0u, version);
+
+	ASSERT_NO_THROW(cstoma::deleteChunk::deserialize(removeHeader(buffer), chunkIdOut,
+			chunkTypeOut, statusOut));
+	EXPECT_EQ(chunkIdIn, chunkIdOut);
+	EXPECT_EQ(chunkTypeIn, chunkTypeOut);
+	EXPECT_EQ(statusIn, statusOut);
 }
