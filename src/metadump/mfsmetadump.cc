@@ -23,8 +23,8 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
-#include "MFSCommunication.h"
-#include "datapack.h"
+#include "common/MFSCommunication.h"
+#include "common/datapack.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

@@ -29,8 +29,8 @@
 #include <errno.h>
 #include <sys/resource.h>
 
-#include "charts.h"
-#include "main.h"
+#include "common/charts.h"
+#include "common/main.h"
 
 #include "csserv.h"
 #include "masterconn.h"

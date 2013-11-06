@@ -20,7 +20,7 @@
 
 #include <stdlib.h>
 
-#include "massert.h"
+#include "common/massert.h"
 #include "itree.h"
 
 typedef struct _itnode {

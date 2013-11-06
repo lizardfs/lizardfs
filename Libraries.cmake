@@ -79,6 +79,8 @@ find_package(ZLIB REQUIRED)
 find_package(Boost COMPONENTS filesystem system regex thread)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
+find_library(RT_LIBRARY rt)
+message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
 
 # Find crcutil
 set(CRCUTIL_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION}/code)

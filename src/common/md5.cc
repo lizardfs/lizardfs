@@ -18,7 +18,7 @@
 
 #include <string.h>
 #include <inttypes.h>
-#include "md5.h"
+#include "common/md5.h"
 
 #define S11 7
 #define S12 12

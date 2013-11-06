@@ -30,11 +30,11 @@
 #include <limits.h>
 #include <pthread.h>
 
-#include "MFSCommunication.h"
-#include "sockets.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "datapack.h"
+#include "common/MFSCommunication.h"
+#include "common/sockets.h"
+#include "common/strerr.h"
+#include "common/mfsstrerr.h"
+#include "common/datapack.h"
 #include "mastercomm.h"
 #include "cscomm.h"
 #include "csdb.h"

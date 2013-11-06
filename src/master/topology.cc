@@ -29,10 +29,10 @@
 
 #include "itree.h"
 
-#include "main.h"
-#include "cfg.h"
-#include "slogger.h"
-#include "massert.h"
+#include "common/main.h"
+#include "common/cfg.h"
+#include "common/slogger.h"
+#include "common/massert.h"
 
 static void *racktree;
 static char *TopologyFileName;

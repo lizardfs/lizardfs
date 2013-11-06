@@ -19,11 +19,12 @@
 #ifndef _MASSERT_H_
 #define _MASSERT_H_
 
+#include <errno.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <stdlib.h>
 
-#include "strerr.h"
+#include "common/strerr.h"
 
 #define massert(e,msg) ((e) ? (void)0 : (fprintf(stderr,"failed assertion '%s' : %s\n",#e,(msg)),syslog(LOG_ERR,"failed assertion '%s' : %s",#e,(msg)),abort()))
 #define passert(ptr) ((ptr!=NULL) ? (void)0 : (fprintf(stderr,"out of memory: %s is NULL\n",#ptr),syslog(LOG_ERR,"out of memory: %s is NULL",#ptr),abort()))

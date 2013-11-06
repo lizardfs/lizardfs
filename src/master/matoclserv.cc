@@ -32,24 +32,24 @@
 #include <netinet/in.h>
 #include <sys/resource.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
-#include "datapack.h"
+#include "common/datapack.h"
 #include "matoclserv.h"
 #include "matocsserv.h"
 #include "matomlserv.h"
 #include "chunks.h"
 #include "filesystem.h"
-#include "random.h"
+#include "common/random.h"
 #include "exports.h"
 #include "datacachemgr.h"
-#include "charts.h"
+#include "common/charts.h"
 #include "chartsdata.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
-#include "slogger.h"
-#include "massert.h"
+#include "common/cfg.h"
+#include "common/main.h"
+#include "common/sockets.h"
+#include "common/slogger.h"
+#include "common/massert.h"
 
 #define MaxPacketSize 1000000
 

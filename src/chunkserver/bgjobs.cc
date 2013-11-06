@@ -27,9 +27,9 @@
 #include <pthread.h>
 #include <errno.h>
 
-#include "pcqueue.h"
-#include "datapack.h"
-#include "massert.h"
+#include "common/pcqueue.h"
+#include "common/datapack.h"
+#include "common/massert.h"
 
 #include "hddspacemgr.h"
 #include "replicator.h"

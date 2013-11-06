@@ -23,7 +23,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#include "massert.h"
+#include "common/massert.h"
 
 typedef struct _qentry {
 	uint32_t id;
