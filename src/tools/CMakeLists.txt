@@ -12,7 +12,11 @@ set(MFSTOOL_LINKS
   mfsmakesnapshot
   mfsgeteattr
   mfsseteattr
-  mfsdeleattr)
+  mfsdeleattr
+  mfsrgetgoal
+  mfsrsetgoal
+  mfsrgettrashtime
+  mfsrsettrashtime)
 
 aux_source_directory(. TOOLS_SOURCES)
 add_executable(mfstools ${TOOLS_SOURCES})
