@@ -1,7 +1,8 @@
 #include "mount/chunkserver_write_chain.h"
 
-#include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "common/packet.h"
+#include "common/serializable_range.h"
 #include "mount/csdb.h"
 #include "mount/mastercomm.h"
 
@@ -26,22 +27,9 @@ int ChunkserverWriteChain::connect() {
 
 void ChunkserverWriteChain::createInitialMessage(std::vector<uint8_t>& message,
 		uint64_t chunkId, uint32_t version) {
-	size_t messageDataSize = 12 + 6 * (servers_.size() - 1);
-	message.resize(8 + messageDataSize); // 8 bytes of header + data
-
-	uint8_t* data = message.data();
-
-	// Message header
-	put32bit(&data, CLTOCS_WRITE);
-	put32bit(&data, messageDataSize);
-
-	// Message data: chunk ID, version and servers other then the first one
-	put64bit(&data, chunkId);
-	put32bit(&data, version);
-	for (size_t i = 1; i < servers_.size(); ++i) {
-		put32bit(&data, servers_[i].ip);
-		put16bit(&data, servers_[i].port);
-	}
+	sassert(!servers_.empty());
+	serializeMooseFsPacket(message, CLTOCS_WRITE, chunkId, version,
+			makeSerializableRange(servers_.begin() + 1, servers_.end()));
 }
 
 int ChunkserverWriteChain::createNewChunkserverConnection(const NetworkAddress& server) {
