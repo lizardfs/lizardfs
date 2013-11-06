@@ -191,6 +191,120 @@ static uint32_t stats_psent = 0;
 static uint64_t stats_brcvd = 0;
 static uint64_t stats_bsent = 0;
 
+static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allCopies,
+		std::vector<NetworkAddress>& standardCopies);
+
+class PacketSerializer {
+public:
+	static PacketSerializer& getSerializer(bool mooseFsSerializer);
+
+	virtual ~PacketSerializer() {}
+
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const = 0;
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const = 0;
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const = 0;
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const = 0;
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const = 0;
+	virtual void deserializeFuseWriteChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const = 0;
+};
+
+class MooseFsPacketSerializer : public PacketSerializer {
+public:
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const {
+		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_READ_CHUNK, messageId, status);
+	}
+
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		std::vector<NetworkAddress> standardChunkCopies;
+		getStandardChunkCopies(chunkCopies, standardChunkCopies);
+		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_READ_CHUNK, messageId, fileLength,
+				chunkId, chunkVersion, standardChunkCopies);
+	}
+
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
+		deserializeAllMooseFsPacketDataNoHeader(packet, messageId, inode, chunkIndex);
+	}
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const {
+		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_WRITE_CHUNK, messageId, status);
+	}
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		std::vector<NetworkAddress> standardChunkCopies;
+		getStandardChunkCopies(chunkCopies, standardChunkCopies);
+		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_WRITE_CHUNK, messageId, fileLength,
+						chunkId, chunkVersion, standardChunkCopies);
+	}
+
+	virtual void deserializeFuseWriteChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
+		deserializeAllMooseFsPacketDataNoHeader(packet, messageId, inode, chunkIndex);
+	}
+};
+
+class LizardFsPacketSerializer : public PacketSerializer {
+public:
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const {
+		matocl::fuseReadChunk::serialize(packetBuffer, messageId, status);
+	}
+
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		matocl::fuseReadChunk::serialize(packetBuffer, messageId, fileLength, chunkId, chunkVersion,
+				chunkCopies);
+	}
+
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
+		cltoma::fuseReadChunk::deserialize(packet, messageId, inode, chunkIndex);
+	}
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint8_t status) const {
+		matocl::fuseWriteChunk::serialize(packetBuffer, messageId, status);
+	}
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		matocl::fuseWriteChunk::serialize(packetBuffer, messageId,
+				fileLength, chunkId, chunkVersion, chunkCopies);
+	}
+
+	virtual void deserializeFuseWriteChunk(const std::vector<uint8_t> packet,
+			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
+		cltoma::fuseWriteChunk::deserialize(packet, messageId, inode, chunkIndex);
+	}
+};
+
+PacketSerializer& PacketSerializer::getSerializer(bool mooseFsSerializer) {
+	if (mooseFsSerializer) {
+		static MooseFsPacketSerializer singleton;
+		return singleton;
+	} else {
+		static LizardFsPacketSerializer singleton;
+		return singleton;
+	}
+}
+
 void matoclserv_stats(uint64_t stats[5]) {
 	stats[0] = stats_prcvd;
 	stats[1] = stats_psent;
@@ -2364,13 +2478,11 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 	uint32_t messageId;
 	uint32_t inode;
 	uint32_t index;
+	std::vector<uint8_t> outMessage;
+	PacketSerializer& serilizer = PacketSerializer::getSerializer(isMooseFsType);
 
 	std::vector<uint8_t> receivedData(data, data + length);
-	if (isMooseFsType) {
-		deserializeAllMooseFsPacketDataNoHeader(receivedData, messageId, inode, index);
-	} else {
-		cltoma::fuseReadChunk::deserialize(receivedData, messageId, inode, index);
-	}
+	serilizer.deserializeFuseReadChunk(receivedData, messageId, inode, index);
 
 	status = fs_readchunk(inode, index, &chunkid, &fleng);
 
@@ -2383,124 +2495,112 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 			version = 0;
 		}
 	}
-	std::vector<uint8_t> buffer;
+
 	if (status != STATUS_OK) {
-		if (isMooseFsType) {
-			serializeMooseFsPacket(buffer, MATOCL_FUSE_READ_CHUNK, messageId, status);
-		} else {
-			matocl::fuseReadChunk::serialize(buffer, messageId, status);
-		}
-		matoclserv_createpacket(eptr,buffer);
+		serilizer.serializeFuseReadChunk(outMessage, messageId, status);
+		matoclserv_createpacket(eptr, outMessage);
 		return;
 	}
 
 	dcm_access(inode, eptr->sesdata->sessionid);
-	if (isMooseFsType) {
-		std::vector<NetworkAddress> standardChunkCopies;
-		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
-		serializeMooseFsPacket(buffer, MATOCL_FUSE_READ_CHUNK, messageId, fleng, chunkid, version,
-				standardChunkCopies);
-	} else {
-		matocl::fuseReadChunk::serialize(buffer, messageId, fleng, chunkid, version,
-				allChunkCopies);
-	}
-	matoclserv_createpacket(eptr, buffer);
+	serilizer.serializeFuseReadChunk(outMessage, messageId, fleng, chunkid, version,
+			allChunkCopies);
+	matoclserv_createpacket(eptr, outMessage);
 
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[14]++;
 	}
 }
 
-void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
+void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uint32_t length,
+		bool isMooseFsType) {
 	uint8_t status;
 	uint32_t inode;
-	uint32_t indx;
-	uint64_t fleng;
-	uint64_t chunkid;
-	uint32_t msgid;
+	uint32_t chunkIndex;
+	uint64_t fileLength;
+	uint64_t chunkId;
+	uint32_t messageId;
 	uint8_t opflag;
 	chunklist *cl;
-	uint32_t version;
+	uint32_t chunkVersion;
+	std::vector<uint8_t> outMessage;
+	PacketSerializer& serilizer = PacketSerializer::getSerializer(isMooseFsType);
 
-	if (length!=12) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_WRITE_CHUNK - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	indx = get32bit(&data);
-	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
+	std::vector<uint8_t> receivedData(data, data + length);
+	serilizer.deserializeFuseWriteChunk(receivedData, messageId, inode, chunkIndex);
+
+	if (eptr->sesdata->sesflags & SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writechunk(inode,indx,&chunkid,&fleng,&opflag);
+		status = fs_writechunk(inode, chunkIndex, &chunkId, &fileLength, &opflag);
 	}
-	if (status!=STATUS_OK) {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
-		put32bit(&ptr,msgid);
-		put8bit(&ptr,status);
+
+	if (status != STATUS_OK) {
+		serilizer.serializeFuseWriteChunk(outMessage, messageId, status);
+		matoclserv_createpacket(eptr, outMessage);
 		return;
 	}
+
 	if (opflag) {	// wait for operation end
 		cl = (chunklist*)malloc(sizeof(chunklist));
 		passert(cl);
 		cl->inode = inode;
-		cl->chunkid = chunkid;
-		cl->qid = msgid;
-		cl->fleng = fleng;
+		cl->chunkid = chunkId;
+		cl->qid = messageId;
+		cl->fleng = fileLength;
 		cl->type = FUSE_WRITE;
 		cl->next = eptr->chunkdelayedops;
 		eptr->chunkdelayedops = cl;
 	} else {	// return status immediately
 		dcm_modify(inode,eptr->sesdata->sessionid);
 		std::vector<ChunkTypeWithAddress> allChunkCopies;
-		status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
+		status = chunk_getversionandlocations(chunkId, eptr->peerip, chunkVersion,
 				kMaxNumberOfChunkCopies, allChunkCopies);
-		std::vector<NetworkAddress> standardChunkCopies;
-		getStandardChunkCopies(allChunkCopies, standardChunkCopies);
-		if (status!=STATUS_OK) {
-			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
-			put32bit(&ptr,msgid);
-			put8bit(&ptr,status);
-			fs_writeend(0,0,chunkid);	// ignore status - just do it.
+
+		if (isMooseFsType) {
+			for (const ChunkTypeWithAddress& chunkCopy : allChunkCopies) {
+				if (!chunkCopy.chunkType.isStandardChunkType()) {
+					status = ERROR_NOCHUNK;
+				}
+			}
+		}
+
+		if (status != STATUS_OK) {
+			serilizer.serializeFuseWriteChunk(outMessage, messageId, status);
+			matoclserv_createpacket(eptr, outMessage);
+			fs_writeend(0, 0, chunkId);	// ignore status - just do it.
 			return;
 		}
-		std::vector<uint8_t> buffer;
-		serializeMooseFsPacket(buffer, MATOCL_FUSE_WRITE_CHUNK, msgid, fleng, chunkid, version,
-				standardChunkCopies);
-		matoclserv_createpacket(eptr, buffer);
+
+		serilizer.serializeFuseWriteChunk(outMessage, messageId, fileLength, chunkId,
+				chunkVersion, allChunkCopies);
+		matoclserv_createpacket(eptr, outMessage);
 	}
+
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[15]++;
 	}
 }
 
 void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	uint32_t msgid;
+	uint32_t messageId;
 	uint32_t inode;
-	uint64_t fleng;
-	uint64_t chunkid;
+	uint64_t fileLength;
+	uint64_t chunkId;
 	uint8_t status;
-	if (length!=24) {
-		syslog(LOG_NOTICE,"CLTOMA_WRITE_CHUNK_END - wrong size (%" PRIu32 "/24)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	chunkid = get64bit(&data);
-	inode = get32bit(&data);
-	fleng = get64bit(&data);
-	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
+	std::vector<uint8_t> outMessage;
+
+	std::vector<uint8_t> receivedData(data, data + length);
+	deserializeAllMooseFsPacketDataNoHeader(receivedData, messageId, chunkId, inode, fileLength);
+
+	if (eptr->sesdata->sesflags & SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writeend(inode,fleng,chunkid);
+		status = fs_writeend(inode, fileLength, chunkId);
 	}
 	dcm_modify(inode,eptr->sesdata->sessionid);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK_END,5);
-	put32bit(&ptr,msgid);
-	put8bit(&ptr,status);
+	serializeMooseFsPacket(outMessage, MATOCL_FUSE_WRITE_CHUNK_END, messageId, status);
+	matoclserv_createpacket(eptr, outMessage);
 }
 
 void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -3508,8 +3608,11 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_FUSE_READ_CHUNK:
 					matoclserv_fuse_read_chunk(eptr, data, length, true);
 					break;
+				case LIZ_CLTOMA_FUSE_WRITE_CHUNK:
+					matoclserv_fuse_write_chunk(eptr, data, length, false);
+					break;
 				case CLTOMA_FUSE_WRITE_CHUNK:
-					matoclserv_fuse_write_chunk(eptr,data,length);
+					matoclserv_fuse_write_chunk(eptr, data, length, true);
 					break;
 				case CLTOMA_FUSE_WRITE_CHUNK_END:
 					matoclserv_fuse_write_chunk_end(eptr,data,length);
