@@ -1,5 +1,5 @@
-#ifndef LIZARDFS_MFSCOMMON_PACKET_H_
-#define LIZARDFS_MFSCOMMON_PACKET_H_
+#ifndef LIZARDFS_COMMON_PACKET_H_
+#define LIZARDFS_COMMON_PACKET_H_
 
 #include <inttypes.h>
 #include <memory>
@@ -236,4 +236,4 @@ inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& packetWithou
 	}
 }
 
-#endif // LIZARDFS_MFSCOMMON_PACKET_H_
+#endif // LIZARDFS_COMMON_PACKET_H_

@@ -1,5 +1,5 @@
-#ifndef LIZARDFS_MFSCOMMON_SERIALIZATION_H_
-#define LIZARDFS_MFSCOMMON_SERIALIZATION_H_
+#ifndef LIZARDFS_COMMON_SERIALIZATION_H_
+#define LIZARDFS_COMMON_SERIALIZATION_H_
 
 #include <exception>
 #include <vector>
@@ -176,4 +176,4 @@ inline uint32_t deserialize(const std::vector<uint8_t>& sourceBuffer, Args&... a
 	return deserialize(sourceBuffer.data(), sourceBuffer.size(), args...);
 }
 
-#endif // LIZARDFS_MFSCOMMON_SERIALIZATION_H_
+#endif // LIZARDFS_COMMON_SERIALIZATION_H_

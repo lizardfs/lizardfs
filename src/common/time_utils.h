@@ -1,5 +1,5 @@
-#ifndef LIZARDFS_MFSCOMMON_TIME_UTILS_H_
-#define LIZARDFS_MFSCOMMON_TIME_UTILS_H_
+#ifndef LIZARDFS_COMMON_TIME_UTILS_H_
+#define LIZARDFS_COMMON_TIME_UTILS_H_
 
 #include <chrono>
 #include <cstdint>
@@ -74,4 +74,4 @@ private:
 	SteadyDuration timeout_;
 };
 
-#endif /* LIZARDFS_MFSCOMMON_TIME_UTILS_H_ */
+#endif /* LIZARDFS_COMMON_TIME_UTILS_H_ */

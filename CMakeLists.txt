@@ -155,8 +155,7 @@ function(add_tests TESTED_LIBRARY)
   set(TEST_LIBRARIES ${TMP} CACHE INTERNAL "" FORCE)
 endfunction(add_tests)
 
-include_directories(${CMAKE_SOURCE_DIR}/src)
-
+include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
 add_subdirectory(external)
 add_subdirectory(src/common)
 if(BUILD_DEVTOOLS)

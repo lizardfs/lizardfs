@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <generic_crc.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
 #ifndef ENABLE_CRC
 

@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "crc.h"
-#include "strerr.h"
+#include "common/crc.h"
+#include "common/strerr.h"
 
 int main(int argc, char **argv) {
 	::testing::InitGoogleTest(&argc, argv);

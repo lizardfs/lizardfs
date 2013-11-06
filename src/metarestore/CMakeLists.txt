@@ -1,5 +1,4 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(../master)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../master)
 add_definitions(-DMETARESTORE)
 add_definitions(-DAPPNAME=mfsmetarestore)
 
