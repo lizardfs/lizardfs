@@ -41,14 +41,14 @@
 #include <sys/mman.h>
 #endif
 
-#include "MFSCommunication.h"
-#include "cfg.h"
-#include "datapack.h"
-#include "crc.h"
-#include "main.h"
-#include "slogger.h"
-#include "massert.h"
-#include "random.h"
+#include "common/MFSCommunication.h"
+#include "common/cfg.h"
+#include "common/datapack.h"
+#include "common/crc.h"
+#include "common/main.h"
+#include "common/slogger.h"
+#include "common/massert.h"
+#include "common/random.h"
 
 #define PRESERVE_BLOCK 1
 

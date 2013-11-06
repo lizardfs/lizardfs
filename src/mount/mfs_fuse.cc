@@ -38,13 +38,13 @@
 
 #include "stats.h"
 #include "oplog.h"
-#include "datapack.h"
+#include "common/datapack.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
 #include "readdata.h"
 #include "writedata.h"
-#include "strerr.h"
-#include "MFSCommunication.h"
+#include "common/strerr.h"
+#include "common/MFSCommunication.h"
 
 #include "dirattrcache.h"
 #include "symlinkcache.h"

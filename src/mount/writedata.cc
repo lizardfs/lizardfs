@@ -34,16 +34,16 @@
 #include <pthread.h>
 #include <inttypes.h>
 
-#include "datapack.h"
-#include "crc.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "pcqueue.h"
-#include "sockets.h"
+#include "common/datapack.h"
+#include "common/crc.h"
+#include "common/strerr.h"
+#include "common/mfsstrerr.h"
+#include "common/pcqueue.h"
+#include "common/sockets.h"
 #include "csdb.h"
 #include "mastercomm.h"
 #include "readdata.h"
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
 #ifndef EDQUOT
 #define EDQUOT ENOSPC

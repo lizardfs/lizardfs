@@ -26,12 +26,12 @@
 #include <errno.h>
 #include <syslog.h>
 
-#include "MFSCommunication.h"
-#include "sockets.h"
-#include "datapack.h"
-#include "strerr.h"
-#include "mfsstrerr.h"
-#include "crc.h"
+#include "common/MFSCommunication.h"
+#include "common/sockets.h"
+#include "common/datapack.h"
+#include "common/strerr.h"
+#include "common/mfsstrerr.h"
+#include "common/crc.h"
 
 #define CSMSECTIMEOUT 5000
 

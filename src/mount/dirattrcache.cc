@@ -23,7 +23,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#include "datapack.h"
+#include "common/datapack.h"
 
 typedef struct _dircache {
 	struct fuse_ctx ctx;

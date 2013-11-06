@@ -33,10 +33,10 @@
 #include <time.h>
 #include <pthread.h>
 
-#include "datapack.h"
+#include "common/datapack.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
 #define READDIR_BUFFSIZE 50000
 

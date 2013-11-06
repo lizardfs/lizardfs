@@ -1,5 +1,4 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(../common)
 add_definitions(-DFUSE_USE_VERSION=26)
 add_definitions(-DAPPNAME=mfsmount)
 

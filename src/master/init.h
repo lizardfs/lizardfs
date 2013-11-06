@@ -27,7 +27,7 @@
 #include "matocsserv.h"
 #include "matoclserv.h"
 #include "filesystem.h"
-#include "random.h"
+#include "common/random.h"
 #include "changelog.h"
 #include "chartsdata.h"
 

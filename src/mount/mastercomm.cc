@@ -37,12 +37,12 @@
 #include <pwd.h>
 #include <grp.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 #include "stats.h"
-#include "sockets.h"
-#include "strerr.h"
-#include "md5.h"
-#include "datapack.h"
+#include "common/sockets.h"
+#include "common/strerr.h"
+#include "common/md5.h"
+#include "common/datapack.h"
 
 typedef struct _threc {
 	pthread_t thid;

@@ -1,9 +1,9 @@
-#include "crc.h"
+#include "common/crc.h"
 
 #include <string>
 #include <gtest/gtest.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
 TEST(CrcTests, MyCrc32) {
 	std::vector<std::pair<std::string, uint32_t>> data {

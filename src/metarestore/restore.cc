@@ -23,7 +23,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 #include "filesystem.h"
 
 #define EAT(clptr,fn,vno,c) { \

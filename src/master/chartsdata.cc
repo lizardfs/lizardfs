@@ -56,8 +56,8 @@
 #include <errno.h>
 
 
-#include "charts.h"
-#include "main.h"
+#include "common/charts.h"
+#include "common/main.h"
 
 #include "chunks.h"
 #include "filesystem.h"

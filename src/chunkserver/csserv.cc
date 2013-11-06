@@ -33,20 +33,20 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 
-#include "datapack.h"
+#include "common/datapack.h"
 #include "csserv.h"
-#include "cfg.h"
-#include "main.h"
-#include "sockets.h"
+#include "common/cfg.h"
+#include "common/main.h"
+#include "common/sockets.h"
 #include "hddspacemgr.h"
-#include "charts.h"
-#include "slogger.h"
+#include "common/charts.h"
+#include "common/slogger.h"
 #ifdef BGJOBS
 #include "bgjobs.h"
 #endif
-#include "massert.h"
+#include "common/massert.h"
 
 // connection timeout in seconds
 #define CSSERV_TIMEOUT 5

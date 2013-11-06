@@ -30,14 +30,14 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "MFSCommunication.h"
+#include "common/MFSCommunication.h"
 #include "hddspacemgr.h"
-#include "sockets.h"
-#include "crc.h"
-#include "slogger.h"
-#include "datapack.h"
-#include "massert.h"
-#include "mfsstrerr.h"
+#include "common/sockets.h"
+#include "common/crc.h"
+#include "common/slogger.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/mfsstrerr.h"
 
 #include "replicator.h"
 

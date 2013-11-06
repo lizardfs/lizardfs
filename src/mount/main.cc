@@ -44,8 +44,8 @@
 #include "mfs_fuse.h"
 #include "mfs_meta_fuse.h"
 
-#include "MFSCommunication.h"
-#include "md5.h"
+#include "common/MFSCommunication.h"
+#include "common/md5.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
 #include "chunkloccache.h"
@@ -54,8 +54,8 @@
 #include "writedata.h"
 #include "csdb.h"
 #include "stats.h"
-#include "strerr.h"
-#include "crc.h"
+#include "common/strerr.h"
+#include "common/crc.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
