@@ -16,14 +16,8 @@ TEST(CstomaCommunicationTests, RegisterHost) {
 	ASSERT_NO_THROW(cstoma::registerHost::serialize(buffer,
 			inIp, inPort, inTimeout, inCSVersion));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_CSTOMA_REGISTER_HOST, header.type);
-	EXPECT_EQ(buffer.size() - PacketHeader::kSize, header.length);
-
-	PacketVersion version = 1;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0u, version);
+	verifyHeader(buffer, LIZ_CSTOMA_REGISTER_HOST);
+	verifyVersion(buffer, 0U);
 
 	ASSERT_NO_THROW(cstoma::registerHost::deserialize(removeHeader(buffer),
 			outIp, outPort, outTimeout, outCSVersion));
@@ -44,15 +38,8 @@ TEST(CstomaCommunicationTests, RegisterChunks) {
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(cstoma::registerChunks::serialize(buffer, outChunks));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_CSTOMA_REGISTER_CHUNKS, header.type);
-	EXPECT_EQ(buffer.size() - serializedSize(header),
-			header.length);
-
-	PacketVersion version = 1;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0U, version);
+	verifyHeader(buffer, LIZ_CSTOMA_REGISTER_CHUNKS);
+	verifyVersion(buffer, 0U);
 
 	std::vector<ChunkWithVersionAndType> inChunks;
 	ASSERT_NO_THROW(cstoma::registerChunks::deserialize(
@@ -78,6 +65,9 @@ TEST(CstomaCommunicationTests, RegisterSpace) {
 	ASSERT_NO_THROW(cstoma::registerSpace::serialize(buffer,
 			usedSpace[0], totalSpace[0], chunksNumber[0], tdUsedSpace[0], toDeleteTotalSpace[0],
 			toDeleteChunksNumber[0]));
+
+	verifyHeader(buffer, LIZ_CSTOMA_REGISTER_SPACE);
+	verifyVersion(buffer, 0U);
 
 	ASSERT_NO_THROW(cstoma::registerSpace::deserialize(removeHeader(buffer),
 			usedSpace[1], totalSpace[1], chunksNumber[1], tdUsedSpace[1], toDeleteTotalSpace[1],

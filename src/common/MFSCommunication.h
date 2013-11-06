@@ -851,7 +851,7 @@
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
 // msgid:32 length:64 srcs:8 srcs*[chunkid:64 version:32 ip:32 port:16] - not implemented
 
-//0x00598
+//0x0598
 #define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 432U)
 
 //0x0599
@@ -865,6 +865,12 @@
 #define MATOCL_FUSE_WRITE_CHUNK (PROTO_BASE+435)
 // msgid:32 status:8
 // msgid:32 length:64 chunkid:64 version:32 N*[ip:32 port:16]
+
+// 0x059A
+#define LIZ_CLTOMA_FUSE_WRITE_CHUNK (1000U + 434U)
+
+// 0x059B
+#define LIZ_MATOCL_FUSE_WRITE_CHUNK (1000U + 435U)
 
 // 0x01B4
 #define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)

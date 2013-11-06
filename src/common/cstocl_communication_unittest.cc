@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "common/crc.h"
+#include "unittests/packet.h"
 
 TEST(CltocsCommunicationTests, ReadData) {
 	std::vector<uint8_t> buffer;
@@ -15,17 +16,10 @@ TEST(CltocsCommunicationTests, ReadData) {
 	ASSERT_NO_THROW(cstocl::readData::serialize(buffer, chunkIdIn, readOffsetIn, readSizeIn, crcIn,
 			dataIn));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_CSTOCL_READ_DATA, header.type);
-	EXPECT_EQ(buffer.size() - serializedSize(header), header.length);
+	verifyHeader(buffer, LIZ_CSTOCL_READ_DATA);
+	verifyVersion(buffer, 0U);
 
-	PacketVersion version = 1;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0U, version);
-
-	std::vector<uint8_t> bufferWithoutHeader(
-			buffer.begin() + serializedSize(header), buffer.end());
+	std::vector<uint8_t> bufferWithoutHeader = removeHeader(buffer);
 	ASSERT_NO_THROW(cstocl::readData::deserialize(bufferWithoutHeader, chunkIdOut, readOffsetOut,
 			readSizeOut, crcOut, dataOut));
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
@@ -45,17 +39,10 @@ TEST(CltocsCommunicationTests, ReadStatus) {
 
 	ASSERT_NO_THROW(cstocl::readStatus::serialize(buffer, chunkIdIn, statusIn));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_CSTOCL_READ_STATUS, header.type);
-	EXPECT_EQ(buffer.size() - serializedSize(header), header.length);
+	verifyHeader(buffer, LIZ_CSTOCL_READ_STATUS);
+	verifyVersion(buffer, 0U);
 
-	PacketVersion version = 1;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0U, version);
-
-	std::vector<uint8_t> bufferWithoutHeader(
-			buffer.begin() + serializedSize(header), buffer.end());
+	std::vector<uint8_t> bufferWithoutHeader = removeHeader(buffer);
 	ASSERT_NO_THROW(cstocl::readStatus::deserialize(bufferWithoutHeader, chunkIdOut, statusOut));
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(statusIn, statusOut);

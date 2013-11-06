@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "unittests/packet.h"
+
 TEST(CltocsCommunicationTests, Read) {
 	std::vector<uint8_t> buffer;
 	uint64_t chunkIdIn = 0x0123456789ABCDEF, chunkIdOut = 0;
@@ -14,17 +16,10 @@ TEST(CltocsCommunicationTests, Read) {
 	ASSERT_NO_THROW(cltocs::read::serialize(buffer, chunkIdIn, chunkVersionIn, chunkTypeIn,
 			readOffsetIn, readSizeIn));
 
-	PacketHeader header;
-	ASSERT_NO_THROW(deserializePacketHeader(buffer, header));
-	EXPECT_EQ(LIZ_CLTOCS_READ, header.type);
-	EXPECT_EQ(buffer.size() - serializedSize(header), header.length);
+	verifyHeader(buffer, LIZ_CLTOCS_READ);
+	verifyVersion(buffer, 0U);
 
-	PacketVersion version = 1;
-	ASSERT_NO_THROW(deserializePacketVersionSkipHeader(buffer, version));
-	EXPECT_EQ(0U, version);
-
-	std::vector<uint8_t> bufferWithoutHeader(
-			buffer.begin() + serializedSize(header), buffer.end());
+	std::vector<uint8_t> bufferWithoutHeader = removeHeader(buffer);
 	ASSERT_NO_THROW(cltocs::read::deserialize(
 			bufferWithoutHeader.data(), bufferWithoutHeader.size(),
 			chunkIdOut, chunkVersionOut, chunkTypeOut, readOffsetOut, readSizeOut));
