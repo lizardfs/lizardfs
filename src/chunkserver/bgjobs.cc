@@ -207,15 +207,15 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			case OP_READ:
+				if (rdargs->performHddOpen) {
+					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
+					if (status != STATUS_OK) {
+						break;
+					}
+				}
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					if (rdargs->performHddOpen) {
-						status = hdd_open(rdargs->chunkid, rdargs->chunkType);
-						if (status != STATUS_OK) {
-							break;
-						}
-					}
 					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
 							rdargs->offset, rdargs->size,
 							rdargs->outputBuffer);
