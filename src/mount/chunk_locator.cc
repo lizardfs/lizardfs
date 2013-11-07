@@ -53,3 +53,16 @@ void MountChunkLocator::locateChunk(uint32_t inode, uint32_t index) {
 	}
 #endif
 }
+
+ChunkLocationStore::ChunkLocationStore(const ChunkLocations& locations, uint64_t chunkId,
+		uint32_t version, uint64_t fileLength) {
+	locations_ = locations;
+	chunkId_ = chunkId;
+	version_ = version;
+	fileLength_ = fileLength;
+}
+
+void ChunkLocationStore::locateChunk(uint32_t inode, uint32_t index) {
+	inode_ = inode;
+	index_ = index;
+}

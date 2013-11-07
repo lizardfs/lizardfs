@@ -35,4 +35,11 @@ public:
 	void locateChunk(uint32_t inode, uint32_t index);
 };
 
+class ChunkLocationStore : public ChunkLocator {
+public:
+	ChunkLocationStore(const ChunkLocations& locations, uint64_t chunkId, uint32_t version,
+			uint64_t fileLength);
+	void locateChunk(uint32_t inode, uint32_t index);
+};
+
 #endif // LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_
