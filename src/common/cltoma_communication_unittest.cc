@@ -52,7 +52,7 @@ TEST(CltomaCommunicationTests, FuseWriteChunkEnd) {
 	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::serialize(buffer, inMessageId,
 			inChunkId, inInode, inFileLength));
 
-	verifyHeader(buffer, CLTOMA_FUSE_WRITE_CHUNK_END);
+	verifyHeader(buffer, LIZ_CLTOMA_FUSE_WRITE_CHUNK_END);
 	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
 	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::deserialize(

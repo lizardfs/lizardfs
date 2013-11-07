@@ -106,7 +106,7 @@ TEST(MatoclCommunicationTests, FuseWriteChunkEnd) {
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::fuseWriteChunkEnd::serialize(buffer, messageIdIn, statusIn));
 
-	verifyHeader(buffer, MATOCL_FUSE_WRITE_CHUNK_END);
+	verifyHeader(buffer, LIZ_MATOCL_FUSE_WRITE_CHUNK_END);
 	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
 	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));

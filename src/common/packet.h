@@ -84,6 +84,7 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, Pac
 template <class... Data>
 inline void serializePacket(std::vector<uint8_t>& destination,
 		PacketHeader::Type type, PacketVersion version, const Data&... data) {
+	sassert(type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType);
 	uint32_t length = serializedSize(version, data...);
 	serialize(destination, PacketHeader(type, length), version, data...);
 }
@@ -95,6 +96,7 @@ inline void serializePacket(std::vector<uint8_t>& destination,
 template <class... Data>
 inline void serializePacketPrefix(std::vector<uint8_t>& destination, uint32_t extraLength,
 		PacketHeader::Type type, PacketVersion version, const Data&... data) {
+	sassert(type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType);
 	uint32_t length = serializedSize(version, data...) + extraLength;
 	serialize(destination, PacketHeader(type, length), version, data...);
 }
@@ -107,12 +109,14 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 		const PacketHeader::Type& type,
 		const T& t,
 		const Data &...args) {
+	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = serializedSize(t, args...);
 	serialize(buffer, type, length, t, args...);
 }
 
 inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 		const PacketHeader::Type& type) {
+	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = 0;
 	serialize(buffer, type, length);
 }
@@ -124,6 +128,7 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 template<class... Args>
 inline void serializeMooseFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t extraLength,
 		const PacketHeader::Type& type, const Args &...args) {
+	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = serializedSize(args...) + extraLength;
 	serialize(buffer, type, length, args...);
 }

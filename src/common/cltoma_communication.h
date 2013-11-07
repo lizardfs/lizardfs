@@ -40,7 +40,7 @@ namespace fuseWriteChunkEnd {
 
 inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint64_t chunkId,
 		uint32_t inode, uint64_t fileLength) {
-	serializePacket(destination, CLTOMA_FUSE_WRITE_CHUNK_END, 0,
+	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK_END, 0,
 			messageId, chunkId, inode, fileLength);
 }
 

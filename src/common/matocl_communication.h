@@ -78,7 +78,7 @@ inline void deserialize(const std::vector<uint8_t>& source,
 namespace fuseWriteChunkEnd {
 
 inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
-	serializePacket(destination, MATOCL_FUSE_WRITE_CHUNK_END, 0, messageId, status);
+	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK_END, 0, messageId, status);
 }
 
 inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
