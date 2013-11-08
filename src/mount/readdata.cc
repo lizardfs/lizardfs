@@ -282,6 +282,19 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				sleep(1);
 				tryCounter++;
 			}
+		} catch (ChunkCrcError& ex) {
+			syslog(LOG_WARNING,
+					"read file error, inode: %" PRIu32
+					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
+					"(try counter: %" PRIu32 ")",
+					rrec->locator.inode(),
+					rrec->locator.index(),
+					rrec->locator.chunkId(),
+					rrec->locator.version(),
+					ex.what(),
+					tryCounter);
+			forcePrepare = true;
+			tryCounter++;
 		} catch (RecoverableReadError& ex) {
 			syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32

@@ -183,7 +183,7 @@ void ReadOperationExecutor::processDataBlockReceived() {
 
 #ifdef ENABLE_CRC
 	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
-		throw ChunkserverConnectionError("READ_DATA: corrupted data block (CRC mismatch)", server_);
+		throw ChunkCrcError("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
 	}
 #endif
 

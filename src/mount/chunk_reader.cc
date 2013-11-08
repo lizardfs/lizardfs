@@ -1,5 +1,6 @@
 #include "mount/chunk_reader.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "mount/exceptions.h"
@@ -10,13 +11,10 @@ ChunkReader::ChunkReader(
 	: connectionPool_(connectionPool), connector_(connector), locator_(locator), planner_({}) {
 }
 
-void ChunkReader::prepareReadingChunkIfNeeded(uint32_t inode, uint32_t index) {
-	if (locator_.inode() != inode || locator_.index() != index) {
-		prepareReadingChunk(inode, index);
-	}
-}
-
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
+	if (locator_.inode() != inode || locator_.index() != index) {
+		crcErrors_.clear();
+	}
 	chunkTypeLocations_.clear();
 	locator_.locateChunk(inode, index);
 	if (locator_.isChunkEmpty()) {
@@ -28,6 +26,9 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 		// TODO(msulikowski) use an object wrapping csdb to choose the chunkservers
 		// For now use the first location received from master. Master is supposed to send
 		// chunk locations in reasonable order.
+		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
+			continue;
+		}
 		if (chunkTypeLocations_.find(chunkTypeWithAddress.chunkType) == chunkTypeLocations_.end()) {
 			chunkTypeLocations_[chunkTypeWithAddress.chunkType] = chunkTypeWithAddress.address;
 		}
@@ -67,7 +68,12 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		ReadOperationPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
 		ReadPlanExecutor executor(locator_.chunkId(), locator_.version(), plan);
 		uint32_t initialBufferSize = buffer.size();
-		executor.executePlan(buffer, chunkTypeLocations_, connectionPool_, connector_);
+		try {
+			executor.executePlan(buffer, chunkTypeLocations_, connectionPool_, connector_);
+		} catch (ChunkCrcError &err) {
+			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
+			throw;
+		}
 		// Shrink the buffer. If availableSize is not divisible by MFSBLOCKSIZE
 		// we have to chop off the trailing zeros, that we've just read from a chunkserver.
 		buffer.resize(initialBufferSize + availableSize);

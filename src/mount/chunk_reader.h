@@ -8,6 +8,7 @@
 #include <string>
 #include <mutex>
 
+#include "common/chunk_type_with_address.h"
 #include "common/connection_pool.h"
 #include "common/massert.h"
 #include "common/network_address.h"
@@ -25,12 +26,6 @@ public:
 	void prepareReadingChunk(uint32_t inode, uint32_t index);
 
 	/*
-	 * The same as prepareReadingChunk, but is a noop if called with the same arguments
-	 * more than once in a row
-	 */
-	void prepareReadingChunkIfNeeded(uint32_t inode, uint32_t index);
-
-	/*
 	 * Reads data from the previously located chunk and appends it to the buffer
 	 */
 	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size);
@@ -41,6 +36,7 @@ private:
 	ChunkLocator& locator_;
 	ReadOperationPlanner planner_;
 	std::map<ChunkType, NetworkAddress> chunkTypeLocations_;
+	std::vector<ChunkTypeWithAddress> crcErrors_;
 };
 
 #endif /* CHUNK_READER_H_ */

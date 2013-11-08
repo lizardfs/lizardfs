@@ -1,6 +1,7 @@
 #ifndef LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
 #define LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
 
+#include "common/chunk_type.h"
 #include "common/mfsstrerr.h"
 #include "common/network_address.h"
 
@@ -55,6 +56,23 @@ public:
 
 private:
 	NetworkAddress server_;
+};
+
+class ChunkCrcError : public RecoverableReadError {
+public:
+	ChunkCrcError(const std::string& message, const NetworkAddress& server,
+			const ChunkType& chunkType)
+			: RecoverableReadError(message + " (server " + server.toString() + ")"),
+			  server_(server), chunkType_(chunkType) {
+	}
+
+	~ChunkCrcError() throw() {}
+	const NetworkAddress& server() const throw() { return server_; }
+	const ChunkType& chunkType() const throw() { return chunkType_; }
+
+private:
+	NetworkAddress server_;
+	ChunkType chunkType_;
 };
 
 #endif // LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
