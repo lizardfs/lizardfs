@@ -24,7 +24,6 @@ public:
 	 */
 	void executePlan(std::vector<uint8_t>& buffer,
 			const ChunkTypeLocations& locations,
-			ConnectionPool& connectionPool,
 			ChunkConnector& connector);
 
 private:
@@ -34,7 +33,6 @@ private:
 
 	void executeReadOperations(uint8_t* buffer,
 			const ChunkTypeLocations& locations,
-			ConnectionPool& connectionPool,
 			ChunkConnector& connector);
 	void executeXorOperations(uint8_t* buffer);
 };

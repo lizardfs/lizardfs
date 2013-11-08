@@ -67,8 +67,8 @@ struct readrec {
 	struct readrec *mapnext;        // gMutex
 
 	readrec(uint32_t inode, ConnectionPool& pool)
-			: connector(fs_getsrcip()),
-			  reader(connector, locator, pool),
+			: connector(fs_getsrcip(), pool),
+			  reader(connector, locator),
 			  inode(inode),
 			  refreshCounter(0),
 			  valid(1),

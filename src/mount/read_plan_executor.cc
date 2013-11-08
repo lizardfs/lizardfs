@@ -22,13 +22,12 @@ ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
 void ReadPlanExecutor::executePlan(
 		std::vector<uint8_t>& buffer,
 		const ChunkTypeLocations& locations,
-		ConnectionPool& connectionPool,
 		ChunkConnector& connector) {
 	const size_t initialSizeOfTheBuffer = buffer.size();
 	buffer.resize(initialSizeOfTheBuffer + plan_.requiredBufferSize);
 	try {
 		uint8_t* dataBufferAddress = buffer.data() + initialSizeOfTheBuffer;
-		executeReadOperations(dataBufferAddress, locations, connectionPool, connector);
+		executeReadOperations(dataBufferAddress, locations, connector);
 		executeXorOperations(dataBufferAddress);
 	} catch (Exception&) {
 		buffer.resize(initialSizeOfTheBuffer);
@@ -39,7 +38,6 @@ void ReadPlanExecutor::executePlan(
 void ReadPlanExecutor::executeReadOperations(
 		uint8_t* buffer,
 		const ChunkTypeLocations& locations,
-		ConnectionPool& connectionPool,
 		ChunkConnector& connector) {
 	std::map<int, ReadOperationExecutor> executors;
 	try {
@@ -49,10 +47,7 @@ void ReadPlanExecutor::executeReadOperations(
 			const ReadOperationPlanner::ReadOperation& readOperation = chunkTypeReadInfo.second;
 			sassert(locations.count(chunkType) == 1);
 			const NetworkAddress& server = locations.at(chunkType);
-			int fd = connectionPool.getConnection(server);
-			if (fd == -1) {
-				fd = connector.connect(server);
-			}
+			int fd = connector.connect(server);
 			ReadOperationExecutor executor(
 					readOperation, chunkId_, chunkVersion_, chunkType, server, fd, buffer);
 			executors.insert(std::make_pair(fd, executor));
@@ -92,7 +87,7 @@ void ReadPlanExecutor::executeReadOperations(
 				}
 				executor.continueReading();
 				if (executor.isFinished()) {
-					connectionPool.putConnection(fd, server, kConnectionPoolTimeoutInSeconds);
+					connector.returnToPool(fd, server, kConnectionPoolTimeoutInSeconds);
 					executors.erase(fd);
 				}
 			}

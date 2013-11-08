@@ -6,9 +6,8 @@
 #include "mount/exceptions.h"
 #include "mount/read_plan_executor.h"
 
-ChunkReader::ChunkReader(
-		ChunkConnector& connector, ChunkLocator& locator, ConnectionPool& connectionPool)
-	: connectionPool_(connectionPool), connector_(connector), locator_(locator), planner_({}) {
+ChunkReader::ChunkReader(ChunkConnector& connector, ChunkLocator& locator)
+	: connector_(connector), locator_(locator), planner_({}) {
 }
 
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
@@ -69,7 +68,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		ReadPlanExecutor executor(locator_.chunkId(), locator_.version(), plan);
 		uint32_t initialBufferSize = buffer.size();
 		try {
-			executor.executePlan(buffer, chunkTypeLocations_, connectionPool_, connector_);
+			executor.executePlan(buffer, chunkTypeLocations_, connector_);
 		} catch (ChunkCrcError &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
 			throw;

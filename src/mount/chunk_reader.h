@@ -18,7 +18,7 @@
 
 class ChunkReader {
 public:
-	ChunkReader(ChunkConnector& connector, ChunkLocator& locator, ConnectionPool& connectionPool);
+	ChunkReader(ChunkConnector& connector, ChunkLocator& locator);
 
 	/*
 	 * Uses locator to locate the chunk and chooses chunkservers to read from
@@ -31,7 +31,6 @@ public:
 	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size);
 
 private:
-	ConnectionPool& connectionPool_;
 	ChunkConnector& connector_;
 	ChunkLocator& locator_;
 	ReadOperationPlanner planner_;

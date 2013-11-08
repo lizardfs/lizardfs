@@ -12,12 +12,17 @@ static uint32_t timeoutTime(uint8_t tryCounter) {
 	return (tryCounter % 2) ? (300 * (1 << (tryCounter >> 1))) : (200 * (1 << (tryCounter >> 1)));
 }
 
-ChunkConnector::ChunkConnector(uint32_t sourceIp)
-		: sourceIp_(sourceIp) {
+ChunkConnector::ChunkConnector(uint32_t sourceIp, ConnectionPool& connectionPool)
+		: sourceIp_(sourceIp),
+		  connectionPool_(connectionPool){
 }
 
 int ChunkConnector::connect(const NetworkAddress& address) const {
-	int fd = -1;
+	int fd = connectionPool_.getConnection(address);
+	if (fd != -1) {
+		return fd;
+	}
+
 	for (uint8_t i = 0; i < kMaxConnectionRetries; ++i) {
 		fd = tcpsocket();
 		if (fd < 0) {
