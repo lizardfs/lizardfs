@@ -80,15 +80,15 @@ TEST(CltocsCommunicationTests, WriteData) {
 	LIZARDFS_VERIFY_INOUT_PAIR(crc);
 }
 
-TEST(CltocsCommunicationTests, WriteFinish) {
+TEST(CltocsCommunicationTests, WriteEnd) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0x987654321, 0);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltocs::writeFinish::serialize(buffer, chunkIdIn));
+	ASSERT_NO_THROW(cltocs::writeEnd::serialize(buffer, chunkIdIn));
 
-	verifyHeader(buffer, LIZ_CLTOCS_WRITE_FINISH);
+	verifyHeader(buffer, LIZ_CLTOCS_WRITE_END);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(cltocs::writeFinish::deserialize(buffer.data(), buffer.size(), chunkIdOut));
+	ASSERT_NO_THROW(cltocs::writeEnd::deserialize(buffer.data(), buffer.size(), chunkIdOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
 }

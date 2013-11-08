@@ -68,10 +68,10 @@ static const uint32_t kPrefixSize = 4 + 8 + 4 + 2 + 4 + 4 + 4;
 
 } // namespace writeData
 
-namespace writeFinish {
+namespace writeEnd {
 
 inline void serialize(std::vector<uint8_t>& buffer, uint64_t chunkId) {
-	serializePacket(buffer, LIZ_CLTOCS_WRITE_FINISH, 0, chunkId);
+	serializePacket(buffer, LIZ_CLTOCS_WRITE_END, 0, chunkId);
 }
 
 inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& chunkId) {
@@ -79,7 +79,7 @@ inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& ch
 	deserializeAllPacketDataNoHeader(buffer, bufferSize, chunkId);
 }
 
-} // namespace writeFinish
+} // namespace writeEnd
 
 } // namespace cltocs
 

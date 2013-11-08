@@ -50,7 +50,7 @@
 #include "common/sockets.h"
 
 // connection timeout in seconds
-#define CSSERV_TIMEOUT 5
+#define CSSERV_TIMEOUT 10
 
 #define CONNECT_RETRIES 10
 #define CONNECT_TIMEOUT(cnt) (((cnt)%2)?(300000*(1<<((cnt)>>1))):(200000*(1<<((cnt)>>1))))
@@ -104,22 +104,24 @@ public:
 		cstocl::readStatus::serialize(buffer, chunkId, status);
 	}
 };
+
 //csserventry.mode
-enum {
+enum ChunkserverEntryMode {
 	HEADER, DATA
 };
+
 //csserventry.state
-enum {
-	IDLE,
-	READ,
-	WRITELAST,
-	CONNECTING,
-	WRITEINIT,
-	WRITEFWD,
-	WRITEFINISH,
-	CLOSE,
-	CLOSEWAIT,
-	CLOSED
+enum ChunkserverEntryState {
+	IDLE,        // idle connection, new or used previously
+	READ,        // after CLTOCS_READ, but didn't send all of the CSTOCL_READ_(DATA|STAUS)
+	WRITELAST,   // connection ready for writing data; data is not forwarded to other chunkservers
+	CONNECTING,  // we are now connecting to other chunkserver to form a writing chain
+	WRITEINIT,   // we are sending packet forming a chain to the next chunkserver
+	WRITEFWD,    // connection ready for writing data; data will be forwarded to other chunkservers
+	WRITEFINISH, // write error occurred, will be closed after sending error status
+	CLOSE,       // close request, it will immediately be changed to CLOSEWAIT or CLOSED
+	CLOSEWAIT,   // waits for a worker to finish requested job, then will be closed
+	CLOSED       // ready to be deleted
 };
 
 typedef struct writestatus {
@@ -152,8 +154,8 @@ typedef struct csserventry {
 	int32_t pdescpos;
 	int32_t fwdpdescpos;
 	uint32_t activity;
-	uint8_t hdrbuff[8];
-	uint8_t fwdhdrbuff[8];
+	uint8_t hdrbuff[PacketHeader::kSize];
+	uint8_t fwdhdrbuff[PacketHeader::kSize];
 	packetstruct inputpacket;
 	uint8_t *fwdstartptr; // used for forwarding inputpacket data
 	uint32_t fwdbytesleft; // used for forwarding inputpacket data
@@ -317,6 +319,8 @@ uint8_t* csserv_create_attached_packet(csserventry *eptr, uint32_t type, uint32_
 int csserv_initconnect(csserventry *eptr) {
 	TRACETHIS();
 	int status;
+	// TODO(msulikowski) If we want to use a ConnectionPool, this is the right place
+	// to get a connection from it
 	eptr->fwdsock = tcpsocket();
 	if (eptr->fwdsock < 0) {
 		mfs_errlog(LOG_WARNING, "create socket, error");
@@ -336,11 +340,9 @@ int csserv_initconnect(csserventry *eptr) {
 		return -1;
 	}
 	if (status == 0) { // connected immediately
-//		syslog(LOG_NOTICE,"connected immediately");
 		tcpnodelay(eptr->fwdsock);
 		eptr->state = WRITEINIT;
 	} else {
-//		syslog(LOG_NOTICE,"connecting ...");
 		eptr->state = CONNECTING;
 		eptr->connstart = main_utime();
 	}
@@ -372,8 +374,7 @@ void csserv_retryconnect(csserventry *eptr) {
 	}
 }
 
-int csserv_makefwdpacket(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
+int csserv_makefwdpacket(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
 	uint32_t psize;
@@ -412,7 +413,6 @@ void csserv_delayed_close(uint8_t status, void *e) {
 	}
 	eptr->state = CLOSED;
 }
-
 
 // bg reading
 
@@ -576,9 +576,10 @@ void csserv_write_finished(uint8_t status, void *e) {
 	} else {
 		wpptr = &(eptr->todolist);
 		while ((wptr = *wpptr)) {
-			if (wptr->writeid == eptr->wjobwriteid) { // found - it means that it was added by status_receive
-				ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS,
-						8 + 4 + 1);
+			if (wptr->writeid == eptr->wjobwriteid) {
+				// found - it means that it was added by status_receive, ie. next chunkserver from
+				// a chain finished writing before our worker
+				ptr = csserv_create_attached_packet(eptr, CSTOCL_WRITE_STATUS, 8 + 4 + 1);
 				put64bit(&ptr, eptr->chunkid);
 				put32bit(&ptr, eptr->wjobwriteid);
 				put8bit(&ptr, STATUS_OK);
@@ -601,21 +602,6 @@ void csserv_write_finished(uint8_t status, void *e) {
 void csserv_write_init(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint8_t *ptr;
-
-	// Reset connection to IDLE state if there was CLTOCS_WRITE before
-	if (eptr->state == WRITELAST || eptr->state == WRITEFWD) {
-		if (eptr->wjobid > 0) {
-			syslog(LOG_NOTICE, "CLTOCS_WRITE before previous write has been finished");
-			eptr->state = CLOSE;
-			return;
-		}
-		if (eptr->chunkisopen) {
-			job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
-			eptr->chunkisopen = 0;
-		}
-		eptr->state = IDLE;
-	}
-
 	if (length < 12 || ((length - 12) % 6) != 0) {
 		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
 		eptr->state = CLOSE;
@@ -753,6 +739,48 @@ void csserv_write_status(csserventry *eptr, const uint8_t *data,
 	eptr->todolist = wptr;
 }
 
+void csserv_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
+	uint64_t chunkId;
+	try {
+		cltocs::writeEnd::deserialize(data, length, chunkId);
+	} catch (IncorrectDeserializationException&) {
+		syslog(LOG_NOTICE,"Received malformed WRITE_END message (length: %" PRIu32 ")", length);
+		eptr->state = WRITEFINISH;
+		return;
+	}
+	if (chunkId != eptr->chunkid) {
+		syslog(LOG_NOTICE,"Received malformed WRITE_END message "
+				"(got chunkId=%016" PRIX64 ", expected %016" PRIX64 ")",
+				chunkId, eptr->chunkid);
+		eptr->state = WRITEFINISH;
+		return;
+	}
+	if (eptr->wjobid > 0 || eptr->todolist != NULL || eptr->outputhead != NULL) {
+		/*
+		 * WRITE_END received too early:
+		 * eptr->wjobid > 0 -- hdd worker is working (writing some data)
+		 * eptr->todolist != NULL -- there are write tasks which have not been acked by our
+		 *         hdd worker EX-or next chunkserver from a chain
+		 * eptr->outputhead != NULL -- there is a status being send
+		 */
+		// TODO(msulikowski) temporary syslog message. May be useful until this code is fully tested
+		syslog(LOG_NOTICE, "Received WRITE_END message too early");
+		eptr->state = WRITEFINISH;
+		return;
+	}
+	if (eptr->chunkisopen) {
+		job_close(jpool, NULL, NULL, eptr->chunkid, eptr->chunkType);
+		eptr->chunkisopen = 0;
+	}
+	if (eptr->fwdsock > 0) {
+		// TODO(msulikowski) if we want to use a ConnectionPool, this the right place to put the
+		// connection to the pool.
+		tcpclose(eptr->fwdsock);
+		eptr->fwdsock = -1;
+	}
+	eptr->state = IDLE;
+}
+
 void csserv_fwderror(csserventry *eptr) {
 	TRACETHIS();
 	uint8_t *ptr;
@@ -856,8 +884,7 @@ void csserv_chart(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	}
 }
 
-void csserv_chart_data(csserventry *eptr, const uint8_t *data,
-		uint32_t length) {
+void csserv_chart_data(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 	uint32_t chartid;
 	uint8_t *ptr;
@@ -903,8 +930,7 @@ void csserv_close(csserventry *eptr) {
 	}
 }
 
-void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
-		uint32_t length) {
+void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
 //	syslog(LOG_NOTICE,"packet %u:%u",type,length);
 	if (type == ANTOAN_NOP) {
@@ -941,48 +967,48 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data,
 			csserv_chart_data(eptr, data, length);
 			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+			syslog(LOG_NOTICE, "Got invalid message in IDLE state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
 	} else if (eptr->state == WRITELAST) {
 		switch (type) {
-		case CLTOCS_WRITE:
-			csserv_write_init(eptr, data, length);
-			break;
 		case CLTOCS_WRITE_DATA:
 			csserv_write_data(eptr,data,length);
 			break;
+		case LIZ_CLTOCS_WRITE_END:
+			csserv_write_end(eptr, data, length);
+			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+			syslog(LOG_NOTICE, "Got invalid message in WRITELAST state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
 	} else if (eptr->state == WRITEFWD) {
 		switch (type) {
-		case CLTOCS_WRITE:
-			csserv_write_init(eptr, data, length);
-			break;
 		case CLTOCS_WRITE_DATA:
 			csserv_write_data(eptr, data, length);
 			break;
 		case CSTOCL_WRITE_STATUS:
 			csserv_write_status(eptr, data, length);
 			break;
+		case LIZ_CLTOCS_WRITE_END:
+			csserv_write_end(eptr, data, length);
+			break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+			syslog(LOG_NOTICE, "Got invalid message in WRITEFWD state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
 	} else if (eptr->state == WRITEFINISH) {
-		if (type == CLTOCS_WRITE_DATA) {
+		if (type == CLTOCS_WRITE_DATA || type == LIZ_CLTOCS_WRITE_END) {
 			return;
 		} else {
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+			syslog(LOG_NOTICE, "Got invalid message in WRITEFINISH state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}
 	} else {
-		syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+		syslog(LOG_NOTICE, "Got invalid message (type:%" PRIu32 ")",type);
 		eptr->state = CLOSE;
 	}
 }
@@ -1045,8 +1071,7 @@ void csserv_check_nextpacket(csserventry *eptr) {
 	uint32_t type, size;
 	const uint8_t *ptr;
 	if (eptr->state == WRITEFWD) {
-		if (eptr->mode == DATA && eptr->inputpacket.bytesleft == 0
-				&& eptr->fwdbytesleft == 0) {
+		if (eptr->mode == DATA && eptr->inputpacket.bytesleft == 0 && eptr->fwdbytesleft == 0) {
 			ptr = eptr->hdrbuff;
 			type = get32bit(&ptr);
 			size = get32bit(&ptr);
@@ -1212,13 +1237,9 @@ void csserv_fwdwrite(csserventry *eptr) {
 void csserv_forward(csserventry *eptr) {
 	TRACETHIS();
 	int32_t i;
-	uint32_t type, size;
-	const uint8_t *ptr;
 	if (eptr->mode == HEADER) {
-		i = read(eptr->sock, eptr->inputpacket.startptr,
-				eptr->inputpacket.bytesleft);
+		i = read(eptr->sock, eptr->inputpacket.startptr, eptr->inputpacket.bytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1235,27 +1256,37 @@ void csserv_forward(csserventry *eptr) {
 		if (eptr->inputpacket.bytesleft > 0) {
 			return;
 		}
-		ptr = eptr->hdrbuff + 4;
-		size = get32bit(&ptr);
-		if (size > MaxPacketSize) {
-			syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+		PacketHeader header;
+		try {
+			deserializePacketHeader(eptr->hdrbuff, sizeof(eptr->hdrbuff), header);
+		} catch (IncorrectDeserializationException&) {
+			syslog(LOG_WARNING, "(forward) Received malformed network packet");
 			eptr->state = CLOSE;
 			return;
 		}
-		eptr->inputpacket.packet = (uint8_t*) malloc(size + 8);
+		if (header.length > MaxPacketSize) {
+			syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",
+					header.length, MaxPacketSize);
+			eptr->state = CLOSE;
+			return;
+		}
+		uint32_t totalPacketLength = PacketHeader::kSize + header.length;
+		eptr->inputpacket.packet = static_cast<uint8_t*>(malloc(totalPacketLength));
 		passert(eptr->inputpacket.packet);
-		memcpy(eptr->inputpacket.packet, eptr->hdrbuff, 8);
-		eptr->inputpacket.bytesleft = size;
-		eptr->inputpacket.startptr = eptr->inputpacket.packet + 8;
-		eptr->fwdbytesleft = 8;
-		eptr->fwdstartptr = eptr->inputpacket.packet;
+		memcpy(eptr->inputpacket.packet, eptr->hdrbuff, PacketHeader::kSize);
+		eptr->inputpacket.bytesleft = header.length;
+		eptr->inputpacket.startptr = eptr->inputpacket.packet + PacketHeader::kSize;
+		if (header.type == CLTOCS_WRITE_DATA) {
+			// TODO(msulikowski) if we want to use a ConnectionPool, we have to forward also
+			// WRTE_END messages
+			eptr->fwdbytesleft = 8;
+			eptr->fwdstartptr = eptr->inputpacket.packet;
+		}
 		eptr->mode = DATA;
 	}
 	if (eptr->inputpacket.bytesleft > 0) {
-		i = read(eptr->sock, eptr->inputpacket.startptr,
-				eptr->inputpacket.bytesleft);
+		i = read(eptr->sock, eptr->inputpacket.startptr, eptr->inputpacket.bytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1269,12 +1300,14 @@ void csserv_forward(csserventry *eptr) {
 		stats_bytesin += i;
 		eptr->inputpacket.startptr += i;
 		eptr->inputpacket.bytesleft -= i;
-		eptr->fwdbytesleft += i;
+		if (eptr->fwdstartptr != NULL) {
+			eptr->fwdbytesleft += i;
+		}
 	}
 	if (eptr->fwdbytesleft > 0) {
+		sassert(eptr->fwdstartptr != NULL);
 		i = write(eptr->fwdsock, eptr->fwdstartptr, eptr->fwdbytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
@@ -1289,22 +1322,26 @@ void csserv_forward(csserventry *eptr) {
 		eptr->fwdstartptr += i;
 		eptr->fwdbytesleft -= i;
 	}
-	if (eptr->inputpacket.bytesleft == 0 && eptr->fwdbytesleft == 0
-			&& eptr->wjobid == 0) {
-		ptr = eptr->hdrbuff;
-		type = get32bit(&ptr);
-		size = get32bit(&ptr);
-
+	if (eptr->inputpacket.bytesleft == 0 && eptr->fwdbytesleft == 0 && eptr->wjobid == 0) {
+		PacketHeader header;
+		try {
+			deserializePacketHeader(eptr->hdrbuff, sizeof(eptr->hdrbuff), header);
+		} catch (IncorrectDeserializationException&) {
+			syslog(LOG_WARNING, "(forward) Received malformed network packet");
+			eptr->state = CLOSE;
+			return;
+		}
 		eptr->mode = HEADER;
 		eptr->inputpacket.bytesleft = 8;
 		eptr->inputpacket.startptr = eptr->hdrbuff;
 
-		csserv_gotpacket(eptr, type, eptr->inputpacket.packet + 8, size);
-
+		uint8_t* packetData = eptr->inputpacket.packet + PacketHeader::kSize;
+		csserv_gotpacket(eptr, header.type, packetData, header.length);
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
 		eptr->inputpacket.packet = NULL;
+		eptr->fwdstartptr = NULL;
 	}
 }
 
@@ -1474,10 +1511,10 @@ void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 				pdesc[pos].fd = eptr->sock;
 				pdesc[pos].events = 0;
 				eptr->pdescpos = pos;
-			if (eptr->inputpacket.bytesleft > 0) {
+				if (eptr->inputpacket.bytesleft > 0) {
 					pdesc[pos].events |= POLLIN;
 				}
-			if (eptr->outputhead != NULL) {
+				if (eptr->outputhead != NULL) {
 					pdesc[pos].events |= POLLOUT;
 				}
 				pos++;
@@ -1489,7 +1526,7 @@ void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 				pos++;
 				break;
 			case WRITEINIT:
-			if (eptr->fwdbytesleft > 0) {
+				if (eptr->fwdbytesleft > 0) {
 					pdesc[pos].fd = eptr->fwdsock;
 					pdesc[pos].events = POLLOUT;
 					eptr->fwdpdescpos = pos;
@@ -1500,7 +1537,7 @@ void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 				pdesc[pos].fd = eptr->fwdsock;
 				pdesc[pos].events = POLLIN;
 				eptr->fwdpdescpos = pos;
-			if (eptr->fwdbytesleft > 0) {
+				if (eptr->fwdbytesleft > 0) {
 					pdesc[pos].events |= POLLOUT;
 				}
 				pos++;
@@ -1508,16 +1545,16 @@ void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 				pdesc[pos].fd = eptr->sock;
 				pdesc[pos].events = 0;
 				eptr->pdescpos = pos;
-			if (eptr->inputpacket.bytesleft > 0) {
+				if (eptr->inputpacket.bytesleft > 0) {
 					pdesc[pos].events |= POLLIN;
 				}
-			if (eptr->outputhead != NULL) {
+				if (eptr->outputhead != NULL) {
 					pdesc[pos].events |= POLLOUT;
 				}
 				pos++;
 				break;
 			case WRITEFINISH:
-			if (eptr->outputhead != NULL) {
+				if (eptr->outputhead != NULL) {
 					pdesc[pos].fd = eptr->sock;
 					pdesc[pos].events = POLLOUT;
 					eptr->pdescpos = pos;
@@ -1597,8 +1634,7 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_fwderror(eptr);
 		}
 		lstate = eptr->state;
-		if (lstate == IDLE || lstate == READ || lstate == WRITELAST
-				|| lstate == WRITEFINISH) {
+		if (lstate == IDLE || lstate == READ || lstate == WRITELAST || lstate == WRITEFINISH) {
 			if (eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
 				eptr->activity = now;
 				csserv_read(eptr);
@@ -1652,7 +1688,7 @@ void csserv_serve(struct pollfd *pdesc) {
 		}
 		if (eptr->state != CLOSE && eptr->state != CLOSEWAIT
 				&& eptr->state != CLOSED && eptr->activity + CSSERV_TIMEOUT < now) {
-//			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
+			// Close connection if inactive for more than CSSERV_TIMEOUT seconds
 			eptr->state = CLOSE;
 		}
 		if (eptr->state == CLOSE) {

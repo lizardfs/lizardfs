@@ -32,6 +32,7 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/massert.h"
@@ -624,8 +625,16 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			&& wholeOperationTimer.elapsed_s() < (otherJobsAreWaiting ? 10 : 30));
 
 	if (requestsWaitingForStatus_ == 0 && status == STATUS_OK) {
-		gChunkserverConnectionPool.putConnection(
-				fd, chunkserverChain.head(), IDLE_CONNECTION_TIMEOUT);
+		// TODO(msulikowski) This code sending WRITE_END message is temporary.
+		// The whole class will soon be rewritten.
+		std::vector<uint8_t> endMessage;
+		cltocs::writeEnd::serialize(endMessage, chunkId_);
+		if (tcptowrite(fd, endMessage.data(), endMessage.size(), 3000) < (ssize_t)endMessage.size()) {
+			tcpclose(fd);
+		} else {
+			gChunkserverConnectionPool.putConnection(
+					fd, chunkserverChain.head(), IDLE_CONNECTION_TIMEOUT);
+		}
 	} else {
 		tcpclose(fd);
 	}
