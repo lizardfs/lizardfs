@@ -36,18 +36,18 @@
 
 #include "common/MFSCommunication.h"
 #include "common/datapack.h"
-#include "masterconn.h"
+#include "chunkserver/masterconn.h"
 #include "common/cfg.h"
 #include "common/main.h"
 #include "common/sockets.h"
-#include "hddspacemgr.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/slogger.h"
 #include "common/massert.h"
 #include "common/random.h"
 #ifdef BGJOBS
-#include "bgjobs.h"
+#include "chunkserver/bgjobs.h"
 #endif
-#include "csserv.h"
+#include "chunkserver/csserv.h"
 
 #define MaxPacketSize 10000
 

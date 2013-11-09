@@ -41,19 +41,19 @@
 #include <syslog.h>
 #include <errno.h>
 
-#include "mfs_fuse.h"
-#include "mfs_meta_fuse.h"
+#include "mount/mfs_fuse.h"
+#include "mount/mfs_meta_fuse.h"
 
 #include "common/MFSCommunication.h"
 #include "common/md5.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "chunkloccache.h"
-#include "symlinkcache.h"
-#include "readdata.h"
-#include "writedata.h"
-#include "csdb.h"
-#include "stats.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/chunkloccache.h"
+#include "mount/symlinkcache.h"
+#include "mount/readdata.h"
+#include "mount/writedata.h"
+#include "mount/csdb.h"
+#include "mount/stats.h"
 #include "common/strerr.h"
 #include "common/crc.h"
 

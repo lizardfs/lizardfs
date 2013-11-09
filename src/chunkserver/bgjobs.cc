@@ -31,8 +31,8 @@
 #include "common/datapack.h"
 #include "common/massert.h"
 
-#include "hddspacemgr.h"
-#include "replicator.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/replicator.h"
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)

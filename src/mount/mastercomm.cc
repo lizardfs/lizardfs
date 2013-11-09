@@ -38,7 +38,7 @@
 #include <grp.h>
 
 #include "common/MFSCommunication.h"
-#include "stats.h"
+#include "mount/stats.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/md5.h"

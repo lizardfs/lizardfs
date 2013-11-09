@@ -28,10 +28,10 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#include "filesystem.h"
-#include "chunks.h"
-#include "merger.h"
-#include "restore.h"
+#include "master/filesystem.h"
+#include "master/chunks.h"
+#include "metarestore/merger.h"
+#include "metarestore/restore.h"
 #include "common/strerr.h"
 
 #define STR_AUX(x) #x

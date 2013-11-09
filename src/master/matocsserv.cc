@@ -34,11 +34,11 @@
 #include "common/MFSCommunication.h"
 
 #include "common/datapack.h"
-#include "matocsserv.h"
+#include "master/matocsserv.h"
 #include "common/cfg.h"
 #include "common/main.h"
 #include "common/sockets.h"
-#include "chunks.h"
+#include "master/chunks.h"
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/massert.h"

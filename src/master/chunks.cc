@@ -36,14 +36,14 @@
 #ifndef METARESTORE
 #include "common/main.h"
 #include "common/cfg.h"
-#include "matocsserv.h"
-#include "matoclserv.h"
+#include "master/matocsserv.h"
+#include "master/matoclserv.h"
 #include "common/random.h"
-#include "topology.h"
+#include "master/topology.h"
 #endif
 
-#include "chunks.h"
-#include "filesystem.h"
+#include "master/chunks.h"
+#include "master/filesystem.h"
 #include "common/datapack.h"
 #include "common/massert.h"
 

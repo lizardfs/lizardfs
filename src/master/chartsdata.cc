@@ -59,9 +59,9 @@
 #include "common/charts.h"
 #include "common/main.h"
 
-#include "chunks.h"
-#include "filesystem.h"
-#include "matoclserv.h"
+#include "master/chunks.h"
+#include "master/filesystem.h"
+#include "master/matoclserv.h"
 
 #define CHARTS_FILENAME "stats.mfs"
 

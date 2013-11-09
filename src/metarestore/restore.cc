@@ -24,7 +24,7 @@
 #include <inttypes.h>
 
 #include "common/MFSCommunication.h"
-#include "filesystem.h"
+#include "master/filesystem.h"
 
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \

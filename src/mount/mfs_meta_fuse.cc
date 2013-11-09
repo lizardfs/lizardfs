@@ -34,8 +34,8 @@
 #include <pthread.h>
 
 #include "common/datapack.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
 #include "common/MFSCommunication.h"
 
 #define READDIR_BUFFSIZE 50000

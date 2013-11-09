@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 #include "common/sockets.h"
-#include "mastercomm.h"
+#include "mount/mastercomm.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 

@@ -24,8 +24,8 @@
 #include <unistd.h>
 
 #include "common/main.h"
-#include "changelog.h"
-#include "matomlserv.h"
+#include "master/changelog.h"
+#include "master/matomlserv.h"
 #include "common/cfg.h"
 
 #define MAXLOGLINESIZE 200000U

@@ -34,7 +34,7 @@
 #include "common/MFSCommunication.h"
 
 #include "common/datapack.h"
-#include "matomlserv.h"
+#include "master/matomlserv.h"
 #include "common/crc.h"
 #include "common/cfg.h"
 #include "common/main.h"

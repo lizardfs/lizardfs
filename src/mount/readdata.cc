@@ -35,9 +35,9 @@
 #include "common/strerr.h"
 #include "common/mfsstrerr.h"
 #include "common/datapack.h"
-#include "mastercomm.h"
-#include "cscomm.h"
-#include "csdb.h"
+#include "mount/mastercomm.h"
+#include "mount/cscomm.h"
+#include "mount/csdb.h"
 
 #define USECTICK 333333
 

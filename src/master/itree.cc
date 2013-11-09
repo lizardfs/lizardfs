@@ -21,7 +21,7 @@
 #include <stdlib.h>
 
 #include "common/massert.h"
-#include "itree.h"
+#include "master/itree.h"
 
 typedef struct _itnode {
 	uint32_t from,to;

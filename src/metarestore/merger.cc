@@ -3,7 +3,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "restore.h"
+#include "metarestore/restore.h"
 
 #define BSIZE 200000
 

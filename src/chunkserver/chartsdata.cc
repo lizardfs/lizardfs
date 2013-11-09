@@ -32,10 +32,10 @@
 #include "common/charts.h"
 #include "common/main.h"
 
-#include "csserv.h"
-#include "masterconn.h"
-#include "hddspacemgr.h"
-#include "replicator.h"
+#include "chunkserver/csserv.h"
+#include "chunkserver/masterconn.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/replicator.h"
 
 #define CHARTS_FILENAME "csstats.mfs"
 

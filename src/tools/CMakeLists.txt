@@ -1,4 +1,4 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../common)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 set(MFSTOOL_LINKS
   mfsgetgoal
   mfssetgoal

@@ -36,18 +36,18 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "stats.h"
-#include "oplog.h"
+#include "mount/stats.h"
+#include "mount/oplog.h"
 #include "common/datapack.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "readdata.h"
-#include "writedata.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/readdata.h"
+#include "mount/writedata.h"
 #include "common/strerr.h"
 #include "common/MFSCommunication.h"
 
-#include "dirattrcache.h"
-#include "symlinkcache.h"
+#include "mount/dirattrcache.h"
+#include "mount/symlinkcache.h"
 
 #if MFS_ROOT_ID != FUSE_ROOT_ID
 #error FUSE_ROOT_ID is not equal to MFS_ROOT_ID

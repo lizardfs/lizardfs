@@ -31,7 +31,7 @@
 
 #include "common/MFSCommunication.h"
 #include "common/md5.h"
-#include "exports.h"
+#include "master/exports.h"
 #include "common/datapack.h"
 #include "common/main.h"
 #include "common/cfg.h"

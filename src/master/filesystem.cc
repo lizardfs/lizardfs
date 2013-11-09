@@ -37,21 +37,21 @@
 // #define CACHENOTIFY 1
 
 #ifndef METARESTORE
-#include "matoclserv.h"
-#include "matocsserv.h"
+#include "master/matoclserv.h"
+#include "master/matocsserv.h"
 #endif
 
-#include "chunks.h"
-#include "filesystem.h"
+#include "master/chunks.h"
+#include "master/filesystem.h"
 #include "common/datapack.h"
 #include "common/slogger.h"
 #include "common/massert.h"
 
 #ifndef METARESTORE
-#include "datacachemgr.h"
+#include "master/datacachemgr.h"
 #include "common/cfg.h"
 #include "common/main.h"
-#include "changelog.h"
+#include "master/changelog.h"
 #endif
 
 #define USE_FREENODE_BUCKETS 1

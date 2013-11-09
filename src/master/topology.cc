@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#include "itree.h"
+#include "master/itree.h"
 
 #include "common/main.h"
 #include "common/cfg.h"

@@ -36,15 +36,15 @@
 #include "common/MFSCommunication.h"
 
 #include "common/datapack.h"
-#include "csserv.h"
+#include "chunkserver/csserv.h"
 #include "common/cfg.h"
 #include "common/main.h"
 #include "common/sockets.h"
-#include "hddspacemgr.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/charts.h"
 #include "common/slogger.h"
 #ifdef BGJOBS
-#include "bgjobs.h"
+#include "chunkserver/bgjobs.h"
 #endif
 #include "common/massert.h"
 

@@ -31,7 +31,7 @@
 #include <pthread.h>
 
 #include "common/MFSCommunication.h"
-#include "hddspacemgr.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/sockets.h"
 #include "common/crc.h"
 #include "common/slogger.h"
@@ -39,7 +39,7 @@
 #include "common/massert.h"
 #include "common/mfsstrerr.h"
 
-#include "replicator.h"
+#include "chunkserver/replicator.h"
 
 #define CONNMSECTO 5000
 #define SENDMSECTO 5000
