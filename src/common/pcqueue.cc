@@ -17,11 +17,12 @@
  */
 
 #include "config.h"
+#include "common/pcqueue.h"
 
-#include <stdlib.h>
-#include <pthread.h>
-#include <inttypes.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <pthread.h>
+#include <stdlib.h>
 
 #include "common/massert.h"
 

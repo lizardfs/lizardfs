@@ -18,21 +18,21 @@
 
 #include "config.h"
 
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <errno.h>
-#include <inttypes.h>
+#include <unistd.h>
 
-#include "master/filesystem.h"
+#include "common/strerr.h"
 #include "master/chunks.h"
+#include "master/filesystem.h"
 #include "metarestore/merger.h"
 #include "metarestore/restore.h"
-#include "common/strerr.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

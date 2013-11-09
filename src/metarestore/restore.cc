@@ -17,11 +17,12 @@
  */
 
 #include "config.h"
+#include "metarestore/restore.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
 
 #include "common/MFSCommunication.h"
 #include "master/filesystem.h"

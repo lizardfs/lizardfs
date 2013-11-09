@@ -19,6 +19,8 @@
 #ifndef _WRITEDATAALT_H_
 #define _WRITEDATAALT_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void write_data_init(uint32_t cachesize,uint32_t retries);

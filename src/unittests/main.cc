@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <gtest/gtest.h>
 
 #include "common/crc.h"

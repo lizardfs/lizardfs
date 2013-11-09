@@ -17,22 +17,22 @@
  */
 
 #include "config.h"
+#include "chunkserver/bgjobs.h"
 
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <syslog.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <pthread.h>
-#include <errno.h>
-
-#include "common/pcqueue.h"
-#include "common/datapack.h"
-#include "common/massert.h"
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <unistd.h>
 
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/replicator.h"
+#include "common/datapack.h"
+#include "common/massert.h"
+#include "common/pcqueue.h"
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)

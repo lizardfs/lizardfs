@@ -19,6 +19,8 @@
 #ifndef _MATOMLSERV_H_
 #define _MATOMLSERV_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 uint32_t matomlserv_mloglist_size(void);

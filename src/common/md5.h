@@ -19,6 +19,8 @@
 #ifndef _MD5_H_
 #define _MD5_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 typedef struct _md5ctx {

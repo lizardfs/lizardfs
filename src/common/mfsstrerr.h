@@ -19,6 +19,8 @@
 #ifndef _MFSSTRERR_H_
 #define _MFSSTRERR_H_
 
+#include "config.h"
+
 #include "common/MFSCommunication.h"
 
 static inline const char* mfsstrerr(uint8_t status) {

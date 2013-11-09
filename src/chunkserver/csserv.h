@@ -19,6 +19,8 @@
 #ifndef _CSSERV_H_
 #define _CSSERV_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt);

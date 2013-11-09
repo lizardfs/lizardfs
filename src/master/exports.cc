@@ -17,26 +17,26 @@
  */
 
 #include "config.h"
+#include "master/exports.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <syslog.h>
 #include <errno.h>
-#include <pwd.h>
+#include <fcntl.h>
 #include <grp.h>
 #include <inttypes.h>
+#include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-#include "common/md5.h"
-#include "master/exports.h"
+#include "common/cfg.h"
 #include "common/datapack.h"
 #include "common/main.h"
-#include "common/cfg.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/md5.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 
 typedef struct _exports {
 	uint32_t pleng;

@@ -17,17 +17,16 @@
  */
 
 #include "config.h"
+#include "mount/oplog.h"
 
+#include <errno.h>
+#include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
-#include <time.h>
 #include <sys/time.h>
-#include <errno.h>
-#include <pthread.h>
-
-#include "mount/oplog.h"
+#include <time.h>
 
 #define OPBUFFSIZE 0x1000000
 #define LINELENG 1000

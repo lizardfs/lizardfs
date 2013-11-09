@@ -19,6 +19,8 @@
 #ifndef _SYMLINKCACHE_H_
 #define _SYMLINKCACHE_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void symlink_cache_insert(uint32_t inode,const uint8_t *path);

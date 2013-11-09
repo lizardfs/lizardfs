@@ -19,6 +19,8 @@
 #ifndef _MFS_FUSE_H_
 #define _MFS_FUSE_H_
 
+#include "config.h"
+
 #include <fuse/fuse_lowlevel.h>
 
 #if FUSE_USE_VERSION >= 26

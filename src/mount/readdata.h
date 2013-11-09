@@ -19,6 +19,8 @@
 #ifndef _READDATA_H_
 #define _READDATA_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void read_inode_ops(uint32_t inode);

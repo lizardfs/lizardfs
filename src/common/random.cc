@@ -17,11 +17,12 @@
  */
 
 #include "config.h"
+#include "common/random.h"
 
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 static uint8_t i,j;
 static uint8_t p[256];

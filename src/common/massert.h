@@ -19,10 +19,12 @@
 #ifndef _MASSERT_H_
 #define _MASSERT_H_
 
+#include "config.h"
+
 #include <errno.h>
 #include <stdio.h>
-#include <syslog.h>
 #include <stdlib.h>
+#include <syslog.h>
 
 #include "common/strerr.h"
 

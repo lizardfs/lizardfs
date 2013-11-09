@@ -19,6 +19,8 @@
 #ifndef _MASTERPROXY_H_
 #define _MASTERPROXY_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void masterproxy_getlocation(uint8_t *masterinfo);

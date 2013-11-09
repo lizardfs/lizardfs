@@ -19,6 +19,8 @@
 #ifndef _REPLICATOR_H_
 #define _REPLICATOR_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void replicator_stats(uint32_t *repl);

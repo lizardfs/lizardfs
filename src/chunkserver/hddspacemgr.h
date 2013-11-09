@@ -19,6 +19,8 @@
 #ifndef _HDDSPACEMGR_H_
 #define _HDDSPACEMGR_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 #include "common/MFSCommunication.h"

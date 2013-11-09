@@ -18,27 +18,26 @@
 
 #include "config.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/statvfs.h>
-#include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <math.h>
 #include <poll.h>
-#include <errno.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <limits>
 
 #include "common/datapack.h"
-#include "common/strerr.h"
+#include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/sockets.h"
-#include "common/MFSCommunication.h"
+#include "common/strerr.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)

@@ -19,6 +19,8 @@
 #ifndef _STATS_H_
 #define _STATS_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void* stats_get_subnode(void *node,const char *name,uint8_t absolute);

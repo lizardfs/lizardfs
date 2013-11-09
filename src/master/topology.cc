@@ -17,22 +17,22 @@
  */
 
 #include "config.h"
+#include "master/topology.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <syslog.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <unistd.h>
 
-#include "master/itree.h"
-
-#include "common/main.h"
 #include "common/cfg.h"
-#include "common/slogger.h"
+#include "common/main.h"
 #include "common/massert.h"
+#include "common/slogger.h"
+#include "master/itree.h"
 
 static void *racktree;
 static char *TopologyFileName;

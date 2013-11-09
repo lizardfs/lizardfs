@@ -1,9 +1,10 @@
 #ifndef LIZARDFS_COMMON_SERIALIZATION_H_
 #define LIZARDFS_COMMON_SERIALIZATION_H_
 
+#include "config.h"
+
 #include <exception>
 #include <vector>
-
 #include "common/datapack.h"
 #include "common/massert.h"
 

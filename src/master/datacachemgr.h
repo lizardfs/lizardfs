@@ -19,6 +19,8 @@
 #ifndef _DATACACHEMGR_H_
 #define _DATACACHEMGR_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int dcm_open(uint32_t inode,uint32_t sessionid);

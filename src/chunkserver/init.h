@@ -20,11 +20,11 @@
 
 #include <stdio.h>
 
-#include "common/random.h"
+#include "chunkserver/chartsdata.h"
+#include "chunkserver/csserv.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/masterconn.h"
-#include "chunkserver/csserv.h"
-#include "chunkserver/chartsdata.h"
+#include "common/random.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

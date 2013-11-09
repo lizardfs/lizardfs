@@ -19,6 +19,8 @@
 #ifndef _HASHFN_H_
 #define _HASHFN_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 /* fast integer hash functions by Thomas Wang */

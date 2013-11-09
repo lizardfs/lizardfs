@@ -18,6 +18,8 @@
 
 #ifndef _CRC_H_
 #define _CRC_H_
+#include "config.h"
+
 #include <inttypes.h>
 
 uint32_t mycrc32(uint32_t crc,const uint8_t *block,uint32_t leng);

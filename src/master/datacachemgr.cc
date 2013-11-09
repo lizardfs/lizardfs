@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "master/datacachemgr.h"
 
 #include <inttypes.h>
 #include <stdio.h>

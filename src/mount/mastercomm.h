@@ -19,6 +19,8 @@
 #ifndef _MASTERCOMM_H_
 #define _MASTERCOMM_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void fs_getmasterlocation(uint8_t loc[14]);
