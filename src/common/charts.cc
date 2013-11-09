@@ -16,23 +16,19 @@
    along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#else
-#define HAVE_ZLIB_H 1
-#define HAVE_STRUCT_TM_TM_GMTOFF 1
-#endif
+#include "common/charts.h"
 
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/time.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string>
+#include <string.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #endif

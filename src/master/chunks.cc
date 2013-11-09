@@ -17,35 +17,33 @@
  */
 
 #include "config.h"
+#include "master/chunks.h"
 
-#include <inttypes.h>
-#include <stdlib.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <syslog.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
+#include <syslog.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #ifdef METARESTORE
 #include <time.h>
 #endif
 
-#include "common/MFSCommunication.h"
-
-#ifndef METARESTORE
-#include "common/main.h"
-#include "common/cfg.h"
-#include "master/matocsserv.h"
-#include "master/matoclserv.h"
-#include "common/random.h"
-#include "master/topology.h"
-#endif
-
-#include "master/chunks.h"
-#include "master/filesystem.h"
 #include "common/datapack.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
+#include "master/filesystem.h"
+#ifndef METARESTORE
+#include "common/cfg.h"
+#include "common/main.h"
+#include "common/random.h"
+#include "master/matoclserv.h"
+#include "master/matocsserv.h"
+#include "master/topology.h"
+#endif
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1
