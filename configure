@@ -1,0 +1,22 @@
+#!/bin/bash
+set -ue
+cd "$(dirname "$0")"
+mkdir -p build-pack
+cd build-pack
+cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=NO -DCMAKE_INSTALL_PREFIX=/ -DENABLE_DEBIAN_PATHS=YES
+cat >../Makefile <<END
+all:
+	make -C build-pack all
+
+clean:
+	make -C build-pack clean
+
+install:
+	make -C build-pack install
+
+distclean:
+	rm -rf build-pack
+	rm -rf external/gtest*
+	rm -rf external/crcutil*
+	rm -f Makefile
+END
