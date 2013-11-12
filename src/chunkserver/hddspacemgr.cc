@@ -2337,11 +2337,12 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	return STATUS_OK;
 }
 
-static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion) {
+static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversion,
+		ChunkType chunkType) {
 	TRACETHIS();
 	int status;
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -2793,10 +2794,10 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	return STATUS_OK;
 }
 
-static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
+static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	TRACETHIS();
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -2823,18 +2824,20 @@ static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 // newversion==0 && length==0                             -> delete
 // newversion==0 && length==1                             -> create
 // newversion==0 && length==2                             -> check chunk contents
-int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint32_t chunkNewVersion, uint64_t copyChunkId, uint32_t copyChunkVersion,
+		uint32_t length) {
 	TRACETHIS();
 	zassert(pthread_mutex_lock(&statslock));
-	if (newversion>0) {
+	if (chunkNewVersion>0) {
 		if (length==0xFFFFFFFF) {
-			if (copychunkid==0) {
+			if (copyChunkId==0) {
 				stats_version++;
 			} else {
 				stats_duplicate++;
 			}
 		} else if (length<=MFSCHUNKSIZE) {
-			if (copychunkid==0) {
+			if (copyChunkId==0) {
 				stats_truncate++;
 			} else {
 				stats_duptrunc++;
@@ -2850,29 +2853,29 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 		}
 	}
 	zassert(pthread_mutex_unlock(&statslock));
-	if (newversion>0) {
+	if (chunkNewVersion>0) {
 		if (length==0xFFFFFFFF) {
-			if (copychunkid==0) {
-				return hdd_int_version(chunkid,version,newversion);
+			if (copyChunkId==0) {
+				return hdd_int_version(chunkId, chunkVersion, chunkNewVersion, chunkType);
 			} else {
-				return hdd_int_duplicate(chunkid,version,newversion,copychunkid,copyversion);
+				return hdd_int_duplicate(chunkId,chunkVersion,chunkNewVersion,copyChunkId,copyChunkVersion);
 			}
 		} else if (length<=MFSCHUNKSIZE) {
-			if (copychunkid==0) {
-				return hdd_int_truncate(chunkid,version,newversion,length);
+			if (copyChunkId==0) {
+				return hdd_int_truncate(chunkId,chunkVersion,chunkNewVersion,length);
 			} else {
-				return hdd_int_duptrunc(chunkid,version,newversion,copychunkid,copyversion,length);
+				return hdd_int_duptrunc(chunkId,chunkVersion,chunkNewVersion,copyChunkId,copyChunkVersion,length);
 			}
 		} else {
 			return ERROR_EINVAL;
 		}
 	} else {
 		if (length==0) {
-			return hdd_int_delete(chunkid,version);
+			return hdd_int_delete(chunkId, chunkVersion, chunkType);
 		} else if (length==1) {
-			return hdd_int_create(chunkid,version);
+			return hdd_int_create(chunkId,chunkVersion);
 		} else if (length==2) {
-			return hdd_int_test(chunkid,version);
+			return hdd_int_test(chunkId,chunkVersion);
 		} else {
 			return ERROR_EINVAL;
 		}

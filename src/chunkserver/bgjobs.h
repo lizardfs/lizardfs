@@ -34,31 +34,63 @@ void job_pool_delete(void *jpool);
 
 
 uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra);
-uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length);
+uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType, uint32_t newChunkVersion,
+		uint64_t copyChunkId, uint32_t copyChunkVersion, uint32_t length);
 
-#define job_delete(_jp,_cb,_ex,_chunkid,_version) job_chunkop(_jp,_cb,_ex,_chunkid,_version,0,0,0,0)
-#define job_create(_jp,_cb,_ex,_chunkid,_version) job_chunkop(_jp,_cb,_ex,_chunkid,_version,0,0,0,1)
-#define job_test(_jp,_cb,_ex,_chunkid,_version) job_chunkop(_jp,_cb,_ex,_chunkid,_version,0,0,0,2)
-#define job_version(_jp,_cb,_ex,_chunkid,_version,_newversion) (((_newversion)>0)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,0,0,0xFFFFFFFF):job_inval(_jp,_cb,_ex))
-#define job_truncate(_jp,_cb,_ex,_chunkid,_version,_newversion,_length) (((_newversion)>0&&(_length)!=0xFFFFFFFF)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,0,0,_length):job_inval(_jp,_cb,_ex))
-#define job_duplicate(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion) (((_newversion>0)&&(_copychunkid)>0)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,0xFFFFFFFF):job_inval(_jp,_cb,_ex))
-#define job_duptrunc(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?job_chunkop(_jp,_cb,_ex,_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):job_inval(_jp,_cb,_ex))
+#define job_delete(jobPool, callback, extra, chunkId, chunkVersion, chunkType) \
+	job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, 0, 0, 0, 0)
+
+#define job_create(jobPool, callback, extra, chunkId, chunkVersion) job_chunkop(jobPool, callback, \
+		extra, chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 1)
+
+#define job_test(jobPool, callback, extra, chunkId, chunkVersion) job_chunkop(jobPool, callback, \
+		extra, chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 2)
+
+#define job_version(jobPool, callback, extra, chunkId, chunkVersion, chunkType, \
+		newChunkVersion) \
+	(((newChunkVersion)>0) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, newChunkVersion, 0, \
+			0, 0xFFFFFFFF) \
+	: job_inval(jobPool, callback, extra))
+
+#define job_truncate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, length) \
+	(((newChunkVersion) > 0 && (length) != 0xFFFFFFFF) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
+			ChunkType::getStandardChunkType(), newChunkVersion, 0, 0, length) \
+	: job_inval(jobPool, callback, extra))
+
+#define job_duplicate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, \
+		chunkIdCopy, chunkVersionCopy) \
+	(((newChunkVersion > 0) && (chunkIdCopy) > 0) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
+			ChunkType::getStandardChunkType(), newChunkVersion, chunkIdCopy, chunkVersionCopy, \
+			0xFFFFFFFF) \
+	: job_inval(jobPool, callback, extra))
+
+#define job_duptrunc(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, \
+		chunkIdCopy, chunkVersionCopy, length) \
+	(((newChunkVersion > 0) && (chunkIdCopy) > 0 && (length) != 0xFFFFFFFF) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
+			ChunkType::getStandardChunkType(), newChunkVersion, chunkIdCopy, chunkVersionCopy, \
+			length) \
+	: job_inval(jobPool, callback, extra))
 
 uint32_t job_open(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkid, ChunkType chunkType);
 uint32_t job_close(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkid, ChunkType chunkType);
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		uint64_t chunkid, uint32_t chunkVersion, ChunkType chunkType, uint32_t offset, uint32_t size,
 		OutputBuffer* outputBuffer, bool performHddOpen);
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, uint16_t blocknum,
+		uint64_t chunkid, uint32_t chunkVersion, uint16_t blocknum,
 		const uint8_t *buffer, uint32_t offset, uint32_t size,
 		const uint8_t *crcbuff);
 
-/* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
-uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs);
-uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port);
+/* srcs: srccnt * (chunkid:64 chunkVersion:32 ip:32 port:16) */
+uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint8_t srccnt,const uint8_t *srcs);
+uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint32_t ip,uint16_t port);
 
 
 #endif

@@ -4,7 +4,29 @@
 
 #include "common/crc.h"
 #include "common/strerr.h"
+#include "unittests/inout_pair.h"
 #include "unittests/packet.h"
+
+TEST(CstomaCommunicationTests, OverwriteStatusField) {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, ChunkType::getXorParityChunkType(3), ChunkType::getStandardChunkType());
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 2, 2);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstoma::serializeStatus(buffer, LIZ_CSTOMA_SET_VERSION, chunkIdIn, chunkTypeIn, statusIn));
+	statusIn = ERROR_WRONGOFFSET;
+	cstoma::overwriteStatusField(buffer, statusIn);
+
+	verifyHeader(buffer, LIZ_CSTOMA_SET_VERSION);
+	removeHeaderInPlace(buffer);
+	verifyVersion(buffer, 0U);
+	ASSERT_NO_THROW(cstoma::setVersion::deserialize(buffer,
+				chunkIdOut, chunkTypeOut, statusOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkType);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
+}
 
 TEST(CstomaCommunicationTests, RegisterHost) {
 	uint32_t outIp, inIp = 127001;

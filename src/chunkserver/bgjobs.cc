@@ -65,6 +65,7 @@ typedef struct _chunk_op_args {
 	uint64_t chunkid,copychunkid;
 	uint32_t version,newversion,copyversion;
 	uint32_t length;
+	ChunkType chunkType;
 } chunk_op_args;
 
 // for OP_OPEN and OP_CLOSE
@@ -189,7 +190,9 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_chunkop(opargs->chunkid,opargs->version,opargs->newversion,opargs->copychunkid,opargs->copyversion,opargs->length);
+					status = hdd_chunkop(opargs->chunkid, opargs->version, opargs->chunkType,
+							opargs->newversion, opargs->copychunkid, opargs->copyversion,
+							opargs->length);
 				}
 				break;
 			case OP_OPEN:
@@ -419,7 +422,9 @@ uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void
 	return job_new(jp,OP_INVAL,NULL,callback,extra);
 }
 
-uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t newversion,
+		uint64_t copychunkid, uint32_t copyversion, uint32_t length) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_op_args *args;
@@ -431,6 +436,7 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 	args->copychunkid = copychunkid;
 	args->copyversion = copyversion;
 	args->length = length;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_CHUNKOP,args,callback,extra);
 }
 

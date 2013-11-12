@@ -40,6 +40,7 @@
 #include "chunkserver/hddspacemgr.h"
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
+#include "common/matocs_communication.h"
 #include "common/datapack.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -63,8 +64,9 @@ enum {FREE,CONNECTING,HEADER,DATA,KILL};
 
 struct InputPacket {
 	uint8_t *startptr;
-	uint32_t bytesleft;
-	uint8_t *packet;
+	uint32_t bytesLeft;
+	std::vector<uint8_t> packet;
+	InputPacket() : startptr(NULL), bytesLeft(0) {}
 };
 
 struct OutputPacket {
@@ -234,13 +236,24 @@ void masterconn_check_hdd_reports() {
 }
 
 #ifdef BGJOBS
-void masterconn_jobfinished(uint8_t status,void *packet) {
+void masterconn_jobfinished(uint8_t status, void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[8]=status;
 		masterconn_attach_packet(eptr,packet);
+	} else {
+		masterconn_delete_packet(packet);
+	}
+}
+
+void masterconn_lizjobfinished(uint8_t status, void *packet) {
+	OutputPacket* outputPacket = static_cast<OutputPacket*>(packet);
+	masterconn *eptr = masterconnsingleton;
+	if (eptr->mode == DATA || eptr->mode == HEADER) {
+		cstoma::overwriteStatusField(outputPacket->packet, status);
+		masterconn_attach_packet(eptr, packet);
 	} else {
 		masterconn_delete_packet(packet);
 	}
@@ -308,66 +321,44 @@ void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
 #endif /* BGJOBS */
 }
 
-void masterconn_delete(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-#ifdef BGJOBS
-	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
+void masterconn_delete(masterconn *eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DELETE - wrong size (%" PRIu32 "/12)",length);
+	try {
+		matocs::deleteChunk::deserialize(data, chunkId, chunkVersion, chunkType);
+	}
+	catch (IncorrectDeserializationException& e) {
+		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
+				"(details: matocs::deleteChunk::deserialize failed in masterconn_delete");
 		eptr->mode = KILL;
 		return;
 	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-#ifdef BGJOBS
-	packet = masterconn_create_detached_packet(CSTOMA_DELETE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_delete(jpool,masterconn_jobfinished,packet,chunkid,version);
-#else /* BGJOBS */
-	status = hdd_delete(chunkid,version);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DELETE,8+1);
-	put64bit(&ptr,chunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::deleteChunk::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_delete(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType);
 }
 
-void masterconn_setversion(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t newversion;
-	uint8_t *ptr;
-#ifdef BGJOBS
-	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
+void masterconn_setversion(masterconn *eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	uint32_t newVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%" PRIu32 "/16)",length);
+	try {
+		matocs::setVersion::deserialize(data, chunkId, chunkVersion, chunkType, newVersion);
+	}
+	catch (IncorrectDeserializationException& e) {
+		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
+				"(details: matocs::setVersion::deserialize failed in masterconn_setversion");
 		eptr->mode = KILL;
 		return;
 	}
-	chunkid = get64bit(&data);
-	newversion = get32bit(&data);
-	version = get32bit(&data);
-#ifdef BGJOBS
-	packet = masterconn_create_detached_packet(CSTOMA_SET_VERSION,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_version(jpool,masterconn_jobfinished,packet,chunkid,version,newversion);
-#else /* BGJOBS */
-	status = hdd_version(chunkid,version,newversion);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_SET_VERSION,8+1);
-	put64bit(&ptr,chunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::setVersion::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_version(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType,
+			newVersion);
 }
 
 void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -507,7 +498,8 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	put64bit(&ptr,copychunkid);
 	put32bit(&ptr,copyversion);
 	put32bit(&ptr,leng);
-	job_chunkop(jpool,masterconn_chunkopfinished,packet,chunkid,version,newversion,copychunkid,copyversion,leng);
+	job_chunkop(jpool, masterconn_chunkopfinished, packet, chunkid, version,
+			ChunkType::getStandardChunkType(), newversion, copychunkid, copyversion, leng);
 #else /* BGJOBS */
 	status = hdd_chunkop(chunkid,version,newversion,copychunkid,copyversion,leng);
 	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
@@ -666,7 +658,7 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
-void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
+void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint8_t>& data, uint32_t length) {
 	switch (type) {
 		case ANTOAN_NOP:
 			break;
@@ -675,28 +667,28 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
 		case MATOCS_CREATE:
-			masterconn_create(eptr,data,length);
+			masterconn_create(eptr, data.data() ,length);
 			break;
-		case MATOCS_DELETE:
-			masterconn_delete(eptr,data,length);
+		case LIZ_MATOCS_DELETE_CHUNK:
+			masterconn_delete(eptr, data);
 			break;
-		case MATOCS_SET_VERSION:
-			masterconn_setversion(eptr,data,length);
+		case LIZ_MATOCS_SET_VERSION:
+			masterconn_setversion(eptr, data);
 			break;
 		case MATOCS_DUPLICATE:
-			masterconn_duplicate(eptr,data,length);
+			masterconn_duplicate(eptr, data.data(), length);
 			break;
 		case MATOCS_REPLICATE:
-			masterconn_replicate(eptr,data,length);
+			masterconn_replicate(eptr, data.data(), length);
 			break;
 		case MATOCS_CHUNKOP:
-			masterconn_chunkop(eptr,data,length);
+			masterconn_chunkop(eptr, data.data(), length);
 			break;
 		case MATOCS_TRUNCATE:
-			masterconn_truncate(eptr,data,length);
+			masterconn_truncate(eptr,data.data(),length);
 			break;
 		case MATOCS_DUPTRUNC:
-			masterconn_duptrunc(eptr,data,length);
+			masterconn_duptrunc(eptr,data.data(),length);
 			break;
 //		case MATOCS_STRUCTURE_LOG:
 //			masterconn_structure_log(eptr,data,length);
@@ -705,7 +697,7 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 //			masterconn_structure_log_rotate(eptr,data,length);
 //			break;
 		case ANTOCS_CHUNK_CHECKSUM:
-			masterconn_chunk_checksum(eptr,data,length);
+			masterconn_chunk_checksum(eptr,data.data(),length);
 			break;
 		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
@@ -722,10 +714,7 @@ void masterconn_term(void) {
 
 	if (eptr->mode!=FREE && eptr->mode!=CONNECTING) {
 		tcpclose(eptr->sock);
-
-		if (eptr->inputpacket.packet) {
-			free(eptr->inputpacket.packet);
-		}
+		eptr->inputpacket.packet.clear();
 	}
 
 	delete eptr;
@@ -739,9 +728,9 @@ void masterconn_term(void) {
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
-	eptr->inputpacket.bytesleft = PacketHeader::kSize;
+	eptr->inputpacket.bytesLeft = PacketHeader::kSize;
 	eptr->inputpacket.startptr = eptr->hdrbuff;
-	eptr->inputpacket.packet = NULL;
+	eptr->inputpacket.packet.clear();
 
 	masterconn_sendregister(eptr);
 	eptr->lastread = eptr->lastwrite = main_time();
@@ -831,7 +820,7 @@ void masterconn_read(masterconn *eptr) {
 			return;
 		}
 #endif
-		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
+		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesLeft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection reset by Master");
 			eptr->mode = KILL;
@@ -846,9 +835,9 @@ void masterconn_read(masterconn *eptr) {
 		}
 		stats_bytesin+=i;
 		eptr->inputpacket.startptr+=i;
-		eptr->inputpacket.bytesleft-=i;
+		eptr->inputpacket.bytesLeft-=i;
 
-		if (eptr->inputpacket.bytesleft>0) {
+		if (eptr->inputpacket.bytesLeft>0) {
 			return;
 		}
 
@@ -862,10 +851,9 @@ void masterconn_read(masterconn *eptr) {
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->inputpacket.packet = (uint8_t*) malloc(header.length);
-				passert(eptr->inputpacket.packet);
-				eptr->inputpacket.bytesleft = header.length;
-				eptr->inputpacket.startptr = eptr->inputpacket.packet;
+				eptr->inputpacket.packet.resize(header.length);
+				eptr->inputpacket.bytesLeft = header.length;
+				eptr->inputpacket.startptr = eptr->inputpacket.packet.data();
 				eptr->mode = DATA;
 				continue;
 			}
@@ -875,15 +863,12 @@ void masterconn_read(masterconn *eptr) {
 		if (eptr->mode==DATA) {
 
 			eptr->mode=HEADER;
-			eptr->inputpacket.bytesleft = PacketHeader::kSize;
+			eptr->inputpacket.bytesLeft = PacketHeader::kSize;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
 			masterconn_gotpacket(eptr, header.type, eptr->inputpacket.packet, header.length);
 
-			if (eptr->inputpacket.packet) {
-				free(eptr->inputpacket.packet);
-			}
-			eptr->inputpacket.packet=NULL;
+			eptr->inputpacket.packet.clear();
 		}
 	}
 }
@@ -1005,9 +990,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 		job_pool_disable_and_change_callback_all(jpool,masterconn_unwantedjobfinished);
 #endif /* BGJOBS */
 		tcpclose(eptr->sock);
-		if (eptr->inputpacket.packet) {
-			free(eptr->inputpacket.packet);
-		}
+		eptr->inputpacket.packet.clear();
 		eptr->outputPackets.clear();
 		eptr->mode = FREE;
 	}

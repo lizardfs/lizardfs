@@ -67,22 +67,49 @@ int hdd_get_checksum(uint64_t chunkid, uint32_t version, uint32_t *checksum);
 /* chunk operations */
 
 /* all chunk operations in one call */
-// newversion>0 && length==0xFFFFFFFF && copychunkid==0    -> change version
-// newversion>0 && length==0xFFFFFFFF && copycnunkid>0     -> duplicate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid==0     -> truncate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid>0      -> duplicate and truncate
-// newversion==0 && length==0                              -> delete
-// newversion==0 && length==1                              -> create
-// newversion==0 && length==2                              -> test
-int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length);
+// chunkNewVersion>0 && length==0xFFFFFFFF && chunkIdCopy==0    -> change version
+// chunkNewVersion>0 && length==0xFFFFFFFF && chunkIdCopy>0     -> duplicate
+// chunkNewVersion>0 && length<=MFSCHUNKSIZE && chunkIdCopy==0     -> truncate
+// chunkNewVersion>0 && length<=MFSCHUNKSIZE && chunkIdCopy>0      -> duplicate and truncate
+// chunkNewVersion==0 && length==0                              -> delete
+// chunkNewVersion==0 && length==1                              -> create
+// chunkNewVersion==0 && length==2                              -> test
+int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
+		uint32_t chunkNewVersion, uint64_t chunkIdCopy, uint32_t chunkVersionCopy, uint32_t length);
 
-#define hdd_delete(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,0)
-#define hdd_create(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,1)
-#define hdd_test(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,2)
-#define hdd_version(_chunkid,_version,_newversion) (((_newversion)>0)?hdd_chunkop(_chunkid,_version,_newversion,0,0,0xFFFFFFFF):ERROR_EINVAL)
-#define hdd_truncate(_chunkid,_version,_newversion,_length) (((_newversion)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,0,0,_length):ERROR_EINVAL)
-#define hdd_duplicate(_chunkid,_version,_newversion,_copychunkid,_copyversion) (((_newversion>0)&&(_copychunkid)>0)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,0xFFFFFFFF):ERROR_EINVAL)
-#define hdd_duptrunc(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):ERROR_EINVAL)
+#define hdd_delete(chunkId, chunkVersion) \
+	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 0)
+
+#define hdd_create(chunkId, chunkVersion) \
+	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 1)
+
+#define hdd_test(chunkId, chunkVersion) \
+	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 2)
+
+#define hdd_version(chunkId, chunkVersion, chunkNewVersion) \
+	(((chunkNewVersion) > 0) \
+	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, 0, 0, \
+			0xFFFFFFFF) \
+	: ERROR_EINVAL)
+
+#define hdd_truncate(chunkId, chunkVersion, chunkNewVersion, length) \
+	(((chunkNewVersion) > 0 && (length) != 0xFFFFFFFF) \
+	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, 0, 0, \
+			length, ChunkType::getStandardChunkType()) \
+	: ERROR_EINVAL)
+
+#define hdd_duplicate(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy) \
+	(((chunkNewVersion > 0) && (chunkIdCopy) > 0) \
+	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, \
+			chunkIdCopy, chunkVersionCopy, 0xFFFFFFFF) \
+	: ERROR_EINVAL)
+
+#define hdd_duptrunc(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy, \
+		length) \
+	(((chunkNewVersion > 0) && (chunkIdCopy) > 0 && (length) != 0xFFFFFFFF) \
+	? hdd_chunkop(chunkId, chunkVersion, , ChunkType::getStandardChunkType(), chunkNewVersion, \
+			chunkIdCopy, chunkVersionCopy, length) \
+	: ERROR_EINVAL)
 
 /* initialization */
 int hdd_late_init(void);
