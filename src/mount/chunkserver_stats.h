@@ -43,14 +43,14 @@ public:
 			return pendingWrites_;
 		}
 
-		bool isDefective() const;
+		float score() const;
 
 	private:
-		static constexpr int defectiveTimeout_ms = 500;
+		static constexpr int defectiveTimeout_ms = 2000;
 
 		uint32_t pendingReads_;
 		uint32_t pendingWrites_;
-		bool defective_;
+		uint32_t defects_;
 		Timeout defectiveTimeout_;
 
 		friend class ChunkserverStats;

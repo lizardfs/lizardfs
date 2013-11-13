@@ -26,6 +26,25 @@ public:
 			  xor_5_of_6(ChunkType::getXorChunkType(6, 5)),
 			  xor_6_of_6(ChunkType::getXorChunkType(6, 6)),
 			  xor_p_of_6(ChunkType::getXorParityChunkType(6)) {
+
+		scores[standard] = 1;
+
+		scores[xor_1_of_2] = 1;
+		scores[xor_2_of_2] = 1;
+		scores[xor_p_of_2] = 1;
+
+		scores[xor_1_of_3] = 1;
+		scores[xor_2_of_3] = 1;
+		scores[xor_3_of_3] = 1;
+		scores[xor_p_of_3] = 1;
+
+		scores[xor_1_of_6] = 1;
+		scores[xor_2_of_6] = 1;
+		scores[xor_3_of_6] = 1;
+		scores[xor_4_of_6] = 1;
+		scores[xor_5_of_6] = 1;
+		scores[xor_6_of_6] = 1;
+		scores[xor_p_of_6] = 1;
 	}
 
 protected:
@@ -33,6 +52,8 @@ protected:
 	const ChunkType xor_1_of_2, xor_2_of_2, xor_p_of_2;
 	const ChunkType xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3;
 	const ChunkType xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_4_of_6, xor_5_of_6, xor_6_of_6, xor_p_of_6;
+
+	std::map<ChunkType, float> scores;
 
 	void verifyRead(const ReadOperationPlanner::Plan& plan, ChunkType part,
 			uint32_t expectedOffset, const std::vector<uint32_t>& expectedOffsetsOfBlocks) {
@@ -72,99 +93,99 @@ protected:
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard1) {
 	std::vector<ChunkType> chunks { standard, standard, standard };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard2) {
 	std::vector<ChunkType> chunks { standard, xor_1_of_2 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard3) {
 	std::vector<ChunkType> chunks { standard, xor_p_of_3 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseStandard4) {
 	std::vector<ChunkType> chunks { standard, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { standard };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor1) {
 	std::vector<ChunkType> chunks { xor_p_of_2, xor_1_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor2) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXor3) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_3, xor_2_of_3, xor_3_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXorParity1) {
 	std::vector<ChunkType> chunks { xor_p_of_2, xor_2_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseXorParity2) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_2, xor_1_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXor1) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_3_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_3, xor_2_of_3, xor_3_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXor2) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_p_of_3 };
 	std::vector<ChunkType> expected { xor_1_of_2, xor_2_of_2 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseHighestXorParity1) {
 	std::vector<ChunkType> chunks { xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_1_of_2, xor_p_of_2 };
 	std::vector<ChunkType> expected { xor_p_of_3, xor_1_of_3, xor_2_of_3 };
-	EXPECT_EQ(expected, ReadOperationPlanner(chunks).partsToUse());
+	EXPECT_EQ(expected, ReadOperationPlanner(chunks, scores).partsToUse());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseImpossible1) {
 	std::vector<ChunkType> chunks { };
-	EXPECT_FALSE(ReadOperationPlanner(chunks).isReadingPossible());
+	EXPECT_FALSE(ReadOperationPlanner(chunks, scores).isReadingPossible());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseImpossible2) {
 	std::vector<ChunkType> chunks { xor_1_of_2, xor_2_of_3, xor_3_of_3 };
-	EXPECT_FALSE(ReadOperationPlanner(chunks).isReadingPossible());
+	EXPECT_FALSE(ReadOperationPlanner(chunks, scores).isReadingPossible());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseImpossible3) {
 	std::vector<ChunkType> chunks { xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6 };
-	EXPECT_FALSE(ReadOperationPlanner(chunks).isReadingPossible());
+	EXPECT_FALSE(ReadOperationPlanner(chunks, scores).isReadingPossible());
 }
 
 TEST_F(ReadOperationPlannerTests, ChoosePartsToUseImpossible4) {
 	std::vector<ChunkType> chunks { xor_p_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6 };
-	EXPECT_FALSE(ReadOperationPlanner(chunks).isReadingPossible());
+	EXPECT_FALSE(ReadOperationPlanner(chunks, scores).isReadingPossible());
 }
 
 TEST_F(ReadOperationPlannerTests, GetPlanForStandard) {
 	ReadOperationPlanner planner({
 			standard            // read from standard chunk
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,       // beginning of the second block
 			2);      // two blocks
@@ -179,7 +200,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXor1) {
 	ReadOperationPlanner planner({
 			xor_1_of_2,                 // read from xor level 2
 			xor_2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			1);              // one block
@@ -194,7 +215,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXor2) {
 	ReadOperationPlanner planner({
 			xor_1_of_2,                 // read from xor level 2
 			xor_2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			3);              // three blocks
@@ -210,10 +231,12 @@ TEST_F(ReadOperationPlannerTests, GetPlanForMaxXorLevel) {
 	ChunkType::XorLevel level = kMaxXorLevel;
 	std::vector<ChunkType> parts;
 	for (ChunkType::XorPart part = 1; part <= level; ++part) {
-		parts.push_back(ChunkType::getXorChunkType(level, part));
+		ChunkType type = ChunkType::getXorChunkType(level, part);
+		parts.push_back(type);
+		scores[type] = 1;
 	}
 
-	ReadOperationPlanner planner(parts);  // read from highest available level
+	ReadOperationPlanner planner(parts, scores);  // read from highest available level
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			2,     // beginning of the third block
 			4);    // four blocks
@@ -232,7 +255,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity1) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			0,                          // beginning of the chunk
 			1);                         // one block
@@ -249,7 +272,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity2) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			1);              // one block
@@ -265,7 +288,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity3) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			0,                          // offset = beginning of the chunk
 			2);                         // two blocks
@@ -282,7 +305,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity4) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			2);              // two blocks
@@ -299,7 +322,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity5) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			0,                          // offset = beginning of the chunk
 			1);                         // one block
@@ -314,7 +337,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity6) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			1);              // one block
@@ -332,7 +355,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity7) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			0,                          // offset = beginning of the chunk
 			2);                         // two blocks
@@ -349,7 +372,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity8) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,               // beginning of the second block
 			2 );             // two blocks
@@ -366,7 +389,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity9) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1023,        // last block
 			1);          // one block
@@ -381,7 +404,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity10) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1023,           // last block
 			1);             // one block
@@ -398,7 +421,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity11) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_2_of_2                  // read from xor level 2 without 1_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1022,        // two last blocks
 			2);          // two blocks
@@ -415,7 +438,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorParity12) {
 	ReadOperationPlanner planner({
 			xor_p_of_2,
 			xor_1_of_2                  // read from xor level 2 without 2_of_2
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1022,        // two last blocks
 			2);          // two blocks
@@ -436,7 +459,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel6Parity1) {
 			xor_5_of_6,
 			xor_p_of_6,
 			xor_4_of_6
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			2,   // beginning of the third block
 			4);  // four blocks
@@ -468,7 +491,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel6Parity2) {
 			xor_5_of_6,
 			xor_p_of_6,
 			xor_4_of_6
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			3,   // beginning of the fourth block
 			4);  // four blocks
@@ -490,7 +513,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel6Parity3) {
 			xor_5_of_6,
 			xor_p_of_6,
 			xor_4_of_6
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,   // beginning of the second block
 			4);  // four blocks
@@ -519,7 +542,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel3MultiParity1) {
 			xor_1_of_3,  // read from xor level 3 without 2_of_3
 			xor_3_of_3,
 			xor_p_of_3
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			0,   // beginning of the first block
 			6);  // six blocks
@@ -546,7 +569,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel3MultiParity2) {
 			xor_1_of_3,  // read from xor level 3 without 2_of_3
 			xor_3_of_3,
 			xor_p_of_3
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			1,   // beginning of the second block
 			6);  // six blocks
@@ -573,7 +596,7 @@ TEST_F(ReadOperationPlannerTests, GetPlanForXorLevel3MultiParity3) {
 			xor_1_of_3,  // read from xor level 3 without 2_of_3
 			xor_3_of_3,
 			xor_p_of_3
-			});
+			}, scores);
 	ReadOperationPlanner::Plan plan = planner.buildPlanFor(
 			2,   // beginning of the third block
 			6);  // six blocks

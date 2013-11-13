@@ -55,7 +55,8 @@ public:
 	 * - given: chunk_xor_1_of_2, chunk_xor_parity_of_2, chunk_xor_parity_of_3
 	 *   chooses: chunk_xor_1_of_2, chunk_xor_parity_of_2
 	 */
-	ReadOperationPlanner(const std::vector<ChunkType>& availableParts);
+	ReadOperationPlanner(const std::vector<ChunkType>& availableParts,
+			const std::map<ChunkType, float> serverScores);
 
 	/*
 	 * Return stored chosen parts.

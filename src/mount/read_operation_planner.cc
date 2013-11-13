@@ -249,7 +249,30 @@ ReadOperationPlanner::Plan ReadOperationPlanner::XorPlanBuilder::buildPlan(
 	return plan;
 }
 
-ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availableParts) {
+float xorPlanScore(const std::map<ChunkType, float> serverScores, int level) {
+	float score = 1;
+	for (ChunkType::XorPart part = 1; part <= level; part++) {
+		ChunkType type = ChunkType::getXorChunkType(level, part);
+		score *= serverScores.at(type);
+	}
+	return score;
+}
+
+float xorPlanScore(const std::map<ChunkType, float> serverScores, int level, int missing) {
+	float score = 1;
+	for (ChunkType::XorPart part = 1; part <= level; part++) {
+		if (part == missing) {
+			continue;
+		}
+		ChunkType type = ChunkType::getXorChunkType(level, part);
+		score *= serverScores.at(type);
+	}
+	score *= serverScores.at(ChunkType::getXorParityChunkType(level));
+	return score;
+}
+
+ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availableParts,
+		const std::map<ChunkType, float> serverScores): currentBuilder_(nullptr) {
 	planBuilders_[BUILDER_STANDARD].reset(new StandardPlanBuilder);
 	planBuilders_[BUILDER_XOR].reset(new XorPlanBuilder(0, 0));
 
@@ -257,12 +280,20 @@ ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availab
 	std::sort(partsToUse.begin(), partsToUse.end());
 	partsToUse.erase(std::unique(partsToUse.begin(), partsToUse.end()), partsToUse.end());
 
-	bool isFullReplicaAvailable = false;
+	float bestScore = -1;
+
 	std::vector<bool> isParityForLevelAvailable(kMaxXorLevel + 1, false);
 	std::vector<int> partsForLevelAvailable(kMaxXorLevel + 1, 0);
+
 	for (const ChunkType& chunkType : partsToUse) {
 		if (chunkType.isStandardChunkType()) {
-			isFullReplicaAvailable = true;
+			// standard chunk replica available
+			float score = serverScores.at(chunkType);
+			if (score > bestScore) {
+				bestScore = score;
+				setCurrentBuilderToStandard();
+			}
+
 		} else {
 			sassert(chunkType.isXorChunkType());
 			if (chunkType.isXorParity()) {
@@ -273,46 +304,73 @@ ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availab
 		}
 	}
 
-	// 1. If we can read from xor chunks without using a parity choose the highest level
 	for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level) {
-			auto newEnd = std::remove_if(
-					partsToUse.begin(), partsToUse.end(), IsNotXorLevel(level, false));
-			partsToUse.erase(newEnd, partsToUse.end());
-			setCurrentBuilderToXor(level, 0);
-			return;
-		}
-	}
+			if (isParityForLevelAvailable[level]) {
+				// use scores to decide whether to use parity or not
+				ChunkType::XorPart worstPart = 0;
+				float worstScore = serverScores.at(ChunkType::getXorParityChunkType(level));
 
-	// 2. If there is a full replica, choose it
-	if (isFullReplicaAvailable) {
-		setCurrentBuilderToStandard();
-		return;
+				for (ChunkType::XorPart part = 1; part <= level; part++) {
+					ChunkType type = ChunkType::getXorChunkType(level, part);
+					float score = serverScores.at(type);
+					if (score < worstScore) {
+					       worstScore = score;
+					       worstPart = part;
+					}
+				}
+
+				if (worstPart == 0) {
+					float score = xorPlanScore(serverScores, level);
+					if (score > bestScore) {
+						bestScore = score;
+						setCurrentBuilderToXor(level, 0);
+					}
+				} else {
+					float score = xorPlanScore(serverScores, level, worstPart);
+					if (score > bestScore) {
+						bestScore = score;
+						setCurrentBuilderToXor(level, worstPart);
+					}
+				}
+			} else {
+				// no parity, but all normal parts available
+				float score = xorPlanScore(serverScores, level);
+				if (score > bestScore) {
+					bestScore = score;
+					setCurrentBuilderToXor(level, 0);
+				}
+			}
+		}
 	}
 
 	// 3. If there is a set of xor chunks with one missing and parity available, choose it
 	for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level - 1 && isParityForLevelAvailable[level]) {
-			auto newEnd = std::remove_if(
-					partsToUse.begin(), partsToUse.end(), IsNotXorLevel(level, true));
-			partsToUse.erase(newEnd, partsToUse.end());
-			// find missing part, partsToUse_ contains:
-			//      0   1 2 ... k-1        k        .. level-1
-			//   parity 1 2 ... k-1 <k missing> k+1 ... level
+			// partsToUse contains our level's parts sorted in ascending order
+			// let's find out which one is missing
+			ChunkType::XorPart lastPartSeen = 0;
 			ChunkType::XorPart missingPart = level;
-			for (int i = 1; i < level; i++) {
-				if (partsToUse[i].getXorPart() > i) {
-					missingPart = i;
-					break;
+			for (ChunkType type : partsToUse) {
+				if (type.isXorChunkType() && !type.isXorParity() &&
+						type.getXorLevel() == level) {
+					ChunkType::XorPart part = type.getXorPart();
+					if (part > lastPartSeen + 1) {
+						missingPart = lastPartSeen + 1;
+						break;
+					} else {
+						lastPartSeen = part;
+					}
+
 				}
 			}
-			setCurrentBuilderToXor(level, missingPart);
-			return;
+			float score = xorPlanScore(serverScores, level, missingPart);
+			if (score > bestScore) {
+				bestScore = score;
+				setCurrentBuilderToXor(level, missingPart);
+			}
 		}
 	}
-
-	// 4. Chunk is unreadable
-	unsetCurrentBuilder();
 }
 
 ReadOperationPlanner::Plan ReadOperationPlanner::buildPlanFor(

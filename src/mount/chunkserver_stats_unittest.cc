@@ -50,11 +50,11 @@ TEST(ChunkserverStatsTests, ChunkserverStatsCounters) {
 TEST(ChunkserverStatsTests, ChunkserverStatsDefectTracking) {
 	ChunkserverStats stats;
 	NetworkAddress server1(1111, 11);
-	EXPECT_FALSE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_EQ(stats.getStatisticsFor(server1).score(), 1.);
 	stats.markDefective(server1);
-	EXPECT_TRUE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_LT(stats.getStatisticsFor(server1).score(), 1.);
 	stats.markWorking(server1);
-	EXPECT_FALSE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_EQ(stats.getStatisticsFor(server1).score(), 1.);
 }
 
 TEST(ChunkserverStatsTests, ChunkserverStatsProxy) {
@@ -88,9 +88,9 @@ TEST(ChunkserverStatsTests, AllPendingDefectiveRead) {
 	ChunkserverStatsProxy proxy(stats);
 
 	proxy.registerReadOperation(server1);
-	EXPECT_FALSE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_EQ(stats.getStatisticsFor(server1).score(), 1.);
 	proxy.allPendingDefective();
-	EXPECT_TRUE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_LT(stats.getStatisticsFor(server1).score(), 1.);
 }
 
 TEST(ChunkserverStatsTests, AllPendingDefectiveWrite) {
@@ -99,9 +99,9 @@ TEST(ChunkserverStatsTests, AllPendingDefectiveWrite) {
 	ChunkserverStatsProxy proxy(stats);
 
 	proxy.registerWriteOperation(server1);
-	EXPECT_FALSE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_EQ(stats.getStatisticsFor(server1).score(), 1.);
 	proxy.allPendingDefective();
-	EXPECT_TRUE(stats.getStatisticsFor(server1).isDefective());
+	EXPECT_LT(stats.getStatisticsFor(server1).score(), 1.);
 }
 
 TEST(ChunkserverStatsTests, AllPendingDefectiveLonger) {
@@ -116,6 +116,6 @@ TEST(ChunkserverStatsTests, AllPendingDefectiveLonger) {
 	proxy.unregisterReadOperation(server1);
 	proxy.unregisterReadOperation(server2);
 	proxy.allPendingDefective();
-	EXPECT_FALSE(stats.getStatisticsFor(server1).isDefective());
-	EXPECT_TRUE(stats.getStatisticsFor(server2).isDefective());
+	EXPECT_EQ(stats.getStatisticsFor(server1).score(), 1.);
+	EXPECT_LT(stats.getStatisticsFor(server2).score(), 1.);
 }

@@ -4,37 +4,52 @@
 #include <cstring>
 
 #include "common/time_utils.h"
+#include "mount/chunkserver_stats.h"
 #include "mount/exceptions.h"
 #include "mount/read_plan_executor.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, ChunkLocator& locator)
-	: connector_(connector), locator_(locator), planner_({}) {
+	: connector_(connector), locator_(locator),
+	  planner_({}, std::map<ChunkType, float>()) {
 }
 
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 	if (locator_.inode() != inode || locator_.index() != index) {
 		crcErrors_.clear();
 	}
-	chunkTypeLocations_.clear();
 	locator_.locateChunk(inode, index);
 	if (locator_.isChunkEmpty()) {
 		return;
 	}
+	chunkTypeLocations_.clear();
 	std::vector<ChunkType> availableChunkTypes;
-	// For nonempty chunks we have to choose some locations, which will be used to read the chunk
+	std::map<ChunkType, float> bestScores;
+
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : locator_.locations()) {
-		// TODO(msulikowski) use an object wrapping csdb to choose the chunkservers
-		// For now use the first location received from master. Master is supposed to send
-		// chunk locations in reasonable order.
+		const ChunkType &type = chunkTypeWithAddress.chunkType;
+		const NetworkAddress &address = chunkTypeWithAddress.address;
+
 		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
 			continue;
 		}
-		if (chunkTypeLocations_.find(chunkTypeWithAddress.chunkType) == chunkTypeLocations_.end()) {
-			chunkTypeLocations_[chunkTypeWithAddress.chunkType] = chunkTypeWithAddress.address;
+
+		float score = globalChunkserverStats.getStatisticsFor(address).score();
+
+		if (chunkTypeLocations_.count(type) == 0) {
+			// first location of this type, choose it (for now)
+			chunkTypeLocations_[type] = address;
+			bestScores[type] = score;
+			availableChunkTypes.push_back(type);
+		} else {
+			// we already know other locations
+			if (score > bestScores[type]) {
+				// this location is better, switch to it
+				chunkTypeLocations_[type] = address;
+				bestScores[type] = score;
+			}
 		}
-		availableChunkTypes.push_back(chunkTypeWithAddress.chunkType);
 	}
-	planner_ = ReadOperationPlanner(availableChunkTypes);
+	planner_ = ReadOperationPlanner(availableChunkTypes, bestScores);
 	if (!planner_.isReadingPossible()) {
 		throw NoValidCopiesReadError("no valid copies");
 	}

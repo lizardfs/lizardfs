@@ -13,7 +13,7 @@ ChunkserverStats globalChunkserverStats;
 constexpr int ChunkserverStats::ChunkserverEntry::defectiveTimeout_ms;
 
 ChunkserverStats::ChunkserverEntry::ChunkserverEntry(): pendingReads_(0), pendingWrites_(0),
-		defective_(false), defectiveTimeout_(std::chrono::milliseconds(defectiveTimeout_ms)) {
+		defects_(0), defectiveTimeout_(std::chrono::milliseconds(defectiveTimeout_ms)) {
 }
 
 // ChunkserverStats implementation
@@ -46,18 +46,24 @@ void ChunkserverStats::unregisterWriteOperation(const NetworkAddress& address) {
 
 void ChunkserverStats::markWorking(const NetworkAddress& address) {
 	std::unique_lock<std::mutex> lock(mutex_);
-	chunkserverEntries_[address].defective_ = false;
+	chunkserverEntries_[address].defects_ = 0;
 }
 
 void ChunkserverStats::markDefective(const NetworkAddress& address) {
 	std::unique_lock<std::mutex> lock(mutex_);
 	ChunkserverEntry &chunkserver = chunkserverEntries_[address];
-	chunkserver.defective_ = true;
+	if (chunkserver.defects_ < 1000) {   // don't be too pedantic to prevent overflows
+		chunkserver.defects_++;
+	}
 	chunkserver.defectiveTimeout_.reset();
 }
 
-bool ChunkserverStats::ChunkserverEntry::isDefective() const {
-	return (defective_ && !defectiveTimeout_.expired());
+float ChunkserverStats::ChunkserverEntry::score() const {
+	if (defects_ > 0 && !defectiveTimeout_.expired()) {
+		return 1. / (defects_ + 1);
+	} else {
+		return 1;
+	}
 }
 
 // ChunkserverStatsProxy implementation
