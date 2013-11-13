@@ -5,11 +5,12 @@
 
 #include "common/sockets.h"
 #include "common/strerr.h"
+#include "common/time_utils.h"
 #include "mount/exceptions.h"
 
-static uint32_t timeoutTime(uint8_t tryCounter) {
+static int64_t timeoutTime(uint8_t tryCounter) {
 	// JKZ's algorithm
-	return (tryCounter % 2) ? (300 * (1 << (tryCounter >> 1))) : (200 * (1 << (tryCounter >> 1)));
+	return (tryCounter % 2) ? (30 * (1 << (tryCounter >> 1))) : (20 * (1 << (tryCounter >> 1)));
 }
 
 ChunkConnector::ChunkConnector(uint32_t sourceIp, ConnectionPool& connectionPool)
@@ -17,13 +18,13 @@ ChunkConnector::ChunkConnector(uint32_t sourceIp, ConnectionPool& connectionPool
 		  connectionPool_(connectionPool){
 }
 
-int ChunkConnector::connect(const NetworkAddress& address) const {
+int ChunkConnector::connect(const NetworkAddress& address, const Timeout& timeout) const {
 	int fd = connectionPool_.getConnection(address);
 	if (fd != -1) {
 		return fd;
 	}
-
-	for (uint8_t i = 0; i < kMaxConnectionRetries; ++i) {
+	int retries = 0;
+	while (!timeout.expired()) {
 		fd = tcpsocket();
 		if (fd < 0) {
 			syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
@@ -37,18 +38,15 @@ int ChunkConnector::connect(const NetworkAddress& address) const {
 				break;
 			}
 		}
-		if (tcpnumtoconnect(fd, address.ip, address.port, timeoutTime(i)) < 0) {
-			if (i >= kMaxConnectionRetries) {
-				syslog(LOG_WARNING, "can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
-						address.ip,
-						address.port,
-						strerr(errno));
-			}
+		int64_t connectTimeout = std::min(timeoutTime(retries), timeout.remaining_ms());
+		connectTimeout = std::max(int64_t(1), connectTimeout); // tcpnumtoconnect doesn't like 0
+		if (tcpnumtoconnect(fd, address.ip, address.port, connectTimeout) < 0) {
 			tcpclose(fd);
 			fd = -1;
 		} else {
 			break;
 		}
+		retries++;
 	}
 	if (fd < 0) {
 		throw ChunkserverConnectionError(

@@ -97,7 +97,7 @@ struct mfsopts_ {
 			attrcacheto(1.0),
 			entrycacheto(0.0),
 			direntrycacheto(1.0),
-			chunkserverreadto(200) {
+			chunkserverreadto(100) {
 	}
 };
 

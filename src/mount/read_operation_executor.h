@@ -5,6 +5,7 @@
 
 #include "common/network_address.h"
 #include "common/packet.h"
+#include "common/time_utils.h"
 #include "mount/read_operation_planner.h"
 
 class ReadOperationExecutor {
@@ -21,7 +22,7 @@ public:
 	/*
 	 * Prepares (LIZ_)CLTOCS_READ message and sends it to the chunkserver
 	 */
-	void sendReadRequest();
+	void sendReadRequest(const Timeout& timeout);
 
 	/*
 	 * Executes read operation on the socket and processes the received data.

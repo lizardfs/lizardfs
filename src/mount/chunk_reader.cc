@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "common/time_utils.h"
 #include "mount/exceptions.h"
 #include "mount/read_plan_executor.h"
 
@@ -39,7 +40,8 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 	}
 }
 
-uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size) {
+uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
+		const Timeout& communicationTimeout) {
 	if (size == 0) {
 		return 0;
 	}
@@ -68,7 +70,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		ReadPlanExecutor executor(locator_.chunkId(), locator_.version(), plan);
 		uint32_t initialBufferSize = buffer.size();
 		try {
-			executor.executePlan(buffer, chunkTypeLocations_, connector_);
+			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);
 		} catch (ChunkCrcError &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
 			throw;

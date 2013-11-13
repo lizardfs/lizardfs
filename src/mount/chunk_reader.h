@@ -12,6 +12,7 @@
 #include "common/connection_pool.h"
 #include "common/massert.h"
 #include "common/network_address.h"
+#include "common/time_utils.h"
 #include "mount/chunk_connector.h"
 #include "mount/chunk_locator.h"
 #include "mount/read_operation_planner.h"
@@ -25,10 +26,11 @@ public:
 	 */
 	void prepareReadingChunk(uint32_t inode, uint32_t index);
 
-	/*
+/*
 	 * Reads data from the previously located chunk and appends it to the buffer
 	 */
-	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size);
+	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
+		const Timeout& communicationTimeout);
 
 private:
 	ChunkConnector& connector_;

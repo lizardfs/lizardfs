@@ -6,6 +6,7 @@
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
+#include "common/time_utils.h"
 #include "mount/exceptions.h"
 
 static const uint32_t kSocketWriteTimeoutInMilliseconds = 2000;
@@ -34,7 +35,7 @@ ReadOperationExecutor::ReadOperationExecutor(
 	messageBuffer_.reserve(cstocl::readData::kPrefixSize);
 }
 
-void ReadOperationExecutor::sendReadRequest() {
+void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 	std::vector<uint8_t> message;
 #ifdef USE_LEGACY_READ_MESSAGES
 	serializeMooseFsPacket(message, CLTOCS_READ,
@@ -46,7 +47,7 @@ void ReadOperationExecutor::sendReadRequest() {
 	int32_t ret = tcptowrite(fd_,
 			message.data(),
 			message.size(),
-			kSocketWriteTimeoutInMilliseconds);
+			timeout.remaining_ms());
 	if (ret != (int32_t)message.size()) {
 		throw ChunkserverConnectionError(
 				"Cannot send READ request to the chunkserver: " + std::string(strerr(errno)),

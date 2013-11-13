@@ -1,16 +1,20 @@
 #include "read_plan_executor.h"
 
+#include <chrono>
+#include <cstring>
 #include <map>
 #include <sys/poll.h>
 
 #include "common/massert.h"
 #include "common/sockets.h"
+#include "common/strerr.h"
+#include "common/time_utils.h"
 #include "mount/block_xor.h"
+#include "mount/chunkserver_stats.h"
 #include "mount/exceptions.h"
 #include "mount/read_operation_executor.h"
 
 static const uint32_t kConnectionPoolTimeoutInSeconds = 2;
-static const uint32_t kPollTimeoutInMilliseconds = 5000;
 
 ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
 		const ReadOperationPlanner::Plan& plan)
@@ -22,12 +26,13 @@ ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
 void ReadPlanExecutor::executePlan(
 		std::vector<uint8_t>& buffer,
 		const ChunkTypeLocations& locations,
-		ChunkConnector& connector) {
+		ChunkConnector& connector,
+		const Timeout& communicationTimeout) {
 	const size_t initialSizeOfTheBuffer = buffer.size();
 	buffer.resize(initialSizeOfTheBuffer + plan_.requiredBufferSize);
 	try {
 		uint8_t* dataBufferAddress = buffer.data() + initialSizeOfTheBuffer;
-		executeReadOperations(dataBufferAddress, locations, connector);
+		executeReadOperations(dataBufferAddress, locations, connector, communicationTimeout);
 		executeXorOperations(dataBufferAddress);
 	} catch (Exception&) {
 		buffer.resize(initialSizeOfTheBuffer);
@@ -38,16 +43,19 @@ void ReadPlanExecutor::executePlan(
 void ReadPlanExecutor::executeReadOperations(
 		uint8_t* buffer,
 		const ChunkTypeLocations& locations,
-		ChunkConnector& connector) {
+		ChunkConnector& connector,
+		const Timeout& communicationTimeout) {
 	std::map<int, ReadOperationExecutor> executors;
 	try {
+		ChunkserverStatsProxy statsProxy(globalChunkserverStats);
 		// Connect to all needed chunkservers
 		for (const auto& chunkTypeReadInfo : plan_.readOperations) {
 			const ChunkType chunkType = chunkTypeReadInfo.first;
 			const ReadOperationPlanner::ReadOperation& readOperation = chunkTypeReadInfo.second;
 			sassert(locations.count(chunkType) == 1);
 			const NetworkAddress& server = locations.at(chunkType);
-			int fd = connector.connect(server);
+			statsProxy.registerReadOperation(server);
+			int fd = connector.connect(server, communicationTimeout);
 			ReadOperationExecutor executor(
 					readOperation, chunkId_, chunkVersion_, chunkType, server, fd, buffer);
 			executors.insert(std::make_pair(fd, executor));
@@ -55,9 +63,10 @@ void ReadPlanExecutor::executeReadOperations(
 
 		// Send all the read requests
 		for (auto& fdAndExecutor : executors) {
-			fdAndExecutor.second.sendReadRequest();
+			fdAndExecutor.second.sendReadRequest(communicationTimeout);
 		}
 
+		// Receive responses
 		while (!executors.empty()) {
 			std::vector<pollfd> pollFds;
 			for (const auto& fdAndExecutor : executors) {
@@ -67,11 +76,19 @@ void ReadPlanExecutor::executeReadOperations(
 				pollFds.back().revents = 0;
 			}
 
-			int status = poll(pollFds.data(), pollFds.size(), kPollTimeoutInMilliseconds);
+			int status = poll(pollFds.data(), pollFds.size(), communicationTimeout.remaining_ms());
 			if (status < 0) {
-				throw RecoverableReadError("Poll: " + std::string(strerr(errno)));
+				if (errno == EINTR) {
+					continue;
+				} else {
+					throw RecoverableReadError("Poll error: " + std::string(strerror(errno)));
+				}
 			} else if (status == 0) {
-				throw RecoverableReadError("Poll timeout");
+				// The time is out, our chunkservers appear to be unresponsive.
+				statsProxy.allPendingDefective();
+				// Report the first offender to callers.
+				throw ChunkserverConnectionError(
+					"Chunkserver communication timed out", executors.begin()->second.server());
 			}
 
 			for (pollfd& pollFd : pollFds) {
@@ -87,11 +104,19 @@ void ReadPlanExecutor::executeReadOperations(
 				}
 				executor.continueReading();
 				if (executor.isFinished()) {
+					statsProxy.unregisterReadOperation(server);
+					statsProxy.markWorking(server);
 					connector.returnToPool(fd, server, kConnectionPoolTimeoutInSeconds);
 					executors.erase(fd);
 				}
 			}
 		}
+	} catch (ChunkserverConnectionError &err) {
+		globalChunkserverStats.markDefective(err.server());
+		for (const auto& fdAndExecutor : executors) {
+			tcpclose(fdAndExecutor.first);
+		}
+		throw;
 	} catch (Exception&) {
 		for (const auto& fdAndExecutor : executors) {
 			tcpclose(fdAndExecutor.first);

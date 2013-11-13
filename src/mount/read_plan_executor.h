@@ -8,6 +8,7 @@
 #include "common/MFSCommunication.h"
 #include "common/network_address.h"
 #include "common/packet.h"
+#include "common/time_utils.h"
 #include "mount/chunk_connector.h"
 #include "mount/read_operation_planner.h"
 
@@ -24,7 +25,7 @@ public:
 	 */
 	void executePlan(std::vector<uint8_t>& buffer,
 			const ChunkTypeLocations& locations,
-			ChunkConnector& connector);
+			ChunkConnector& connector, const Timeout& communicationTimeout);
 
 private:
 	const uint64_t chunkId_;
@@ -33,7 +34,7 @@ private:
 
 	void executeReadOperations(uint8_t* buffer,
 			const ChunkTypeLocations& locations,
-			ChunkConnector& connector);
+			ChunkConnector& connector, const Timeout& communicationTimeout);
 	void executeXorOperations(uint8_t* buffer);
 };
 

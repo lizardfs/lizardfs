@@ -38,11 +38,13 @@
 #include "common/strerr.h"
 #include "common/mfsstrerr.h"
 #include "common/datapack.h"
+#include "common/time_utils.h"
 #include "mount/chunk_connector.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
+#include "mount/mount_config.h"
 
 #define USECTICK 333333
 #define REFRESHTICKS 15
@@ -197,6 +199,14 @@ void read_inode_ops(uint32_t inode) { // attributes of inode have been changed -
 	}
 }
 
+int read_data_sleep_time_ms(int tryCounter) {
+	if (tryCounter <= 13) {            // 2^13 = 8192
+		return (1 << tryCounter);  // 2^tryCounter milliseconds
+	} else {
+		return 1000 * 10;          // 10 seconds
+	}
+}
+
 int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	readrec *rrec = (readrec*)rr;
 	sassert(size != NULL);
@@ -231,7 +241,17 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 
 	uint32_t preparedInode = 0; // this is always different than any real inode
 	uint32_t preparedChunkIndex = 0;
+
+	// forced sleep between retries caused by recoverable failures
+	uint32_t sleepTime_ms = 0;
+
 	while (bytesToReadLeft > 0) {
+		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
+		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
+		// than short poll() followed by nonproductive usleep().
+		uint32_t timeout_ms = std::max(gMountOptions.chunkserverreadto, sleepTime_ms);
+		Timeout communicationTimeout = Timeout(std::chrono::milliseconds(timeout_ms));
+		sleepTime_ms = 0;
 		try {
 			uint32_t chunkIndex = currentOffset / MFSCHUNKSIZE;
 			if (forcePrepare || preparedInode != rrec->inode || preparedChunkIndex != chunkIndex) {
@@ -251,7 +271,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				sizeInChunk = bytesToReadLeft;
 			}
 			uint32_t bytesReadFromChunk = rrec->reader.readData(
-					rrec->readBufer, offsetInChunk, sizeInChunk);
+					rrec->readBufer, offsetInChunk, sizeInChunk, communicationTimeout);
 			// No exceptions thrown. We can increase the counters and go to the next chunk
 			bytesRead += bytesReadFromChunk;
 			currentOffset += bytesReadFromChunk;
@@ -296,21 +316,26 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			forcePrepare = true;
 			tryCounter++;
 		} catch (RecoverableReadError& ex) {
-			syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
-					"(try counter: %" PRIu32 ")",
-					rrec->locator.inode(),
-					rrec->locator.index(),
-					rrec->locator.chunkId(),
-					rrec->locator.version(),
-					ex.what(),
-					tryCounter);
+			if (tryCounter > 0) {
+				// report only repeated errors
+				syslog(LOG_WARNING,
+						"read file error, inode: %" PRIu32
+						", index: %" PRIu32 ", chunk: %" PRIu64
+						", version: %" PRIu32 " - %s "
+						"(try counter: %" PRIu32 ")",
+						rrec->locator.inode(),
+						rrec->locator.index(),
+						rrec->locator.chunkId(),
+						rrec->locator.version(),
+						ex.what(),
+						tryCounter);
+			}
 			forcePrepare = true;
 			if (tryCounter > maxRetries) {
 				return EIO;
-			} else if (tryCounter > 0) {
-				sleep (1 + ((tryCounter < 30) ? (tryCounter / 3) : 10));
+			} else {
+				usleep(sleepTimeout.remaining_us());
+				sleepTime_ms = read_data_sleep_time_ms(tryCounter);
 			}
 			tryCounter++;
 		} catch (UnrecoverableReadError& ex) {
