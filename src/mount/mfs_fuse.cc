@@ -23,31 +23,31 @@
 #endif
 
 #include "config.h"
+#include "mount/mfs_fuse.h"
 
-#include <fuse/fuse_lowlevel.h>
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <assert.h>
 #include <syslog.h>
-#include <inttypes.h>
-#include <pthread.h>
+#include <unistd.h>
+#include <fuse/fuse_lowlevel.h>
 
-#include "stats.h"
-#include "oplog.h"
 #include "common/datapack.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "readdata.h"
-#include "writedata.h"
-#include "common/strerr.h"
 #include "common/MFSCommunication.h"
-
-#include "dirattrcache.h"
-#include "symlinkcache.h"
+#include "common/strerr.h"
+#include "mount/dirattrcache.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/oplog.h"
+#include "mount/readdata.h"
+#include "mount/stats.h"
+#include "mount/symlinkcache.h"
+#include "mount/writedata.h"
 
 #if MFS_ROOT_ID != FUSE_ROOT_ID
 #error FUSE_ROOT_ID is not equal to MFS_ROOT_ID

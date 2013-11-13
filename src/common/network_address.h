@@ -1,8 +1,9 @@
 #ifndef LIZARDFS_COMMON_NETWORK_ADDRESS_H_
 #define LIZARDFS_COMMON_NETWORK_ADDRESS_H_
 
-#include <arpa/inet.h>
+#include "config.h"
 
+#include <arpa/inet.h>
 #include <functional>
 #include <sstream>
 

@@ -19,8 +19,10 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
-#include <poll.h>
+#include "config.h"
+
 #include <inttypes.h>
+#include <poll.h>
 
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1

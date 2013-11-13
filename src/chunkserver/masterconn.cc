@@ -17,10 +17,8 @@
  */
 
 #include "config.h"
-
-// TODO: wtf?!
 #define BGJOBS 1
-#define BGJOBSCNT 1000
+#include "chunkserver/masterconn.h"
 
 #include <time.h>
 #include <sys/types.h>
@@ -34,21 +32,22 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "common/MFSCommunication.h"
-#include "common/datapack.h"
-#include "masterconn.h"
+#include "chunkserver/csserv.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/masterconn.h"
 #include "common/cfg.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/sockets.h"
-#include "hddspacemgr.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
 #include "common/random.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
 #ifdef BGJOBS
-#include "bgjobs.h"
+#include "chunkserver/bgjobs.h"
 #endif
-#include "csserv.h"
 
+#define BGJOBSCNT 1000
 #define MaxPacketSize 10000
 
 // has to be less than MaxPacketSize on master side divided by 8

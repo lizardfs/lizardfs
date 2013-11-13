@@ -1,9 +1,12 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
+#include "config.h"
+#include "metarestore/merger.h"
 
-#include "restore.h"
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "metarestore/restore.h"
 
 #define BSIZE 200000
 

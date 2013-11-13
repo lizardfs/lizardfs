@@ -19,6 +19,8 @@
 #ifndef _ITREE_H_
 #define _ITREE_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void* itree_rebalance(void *o);

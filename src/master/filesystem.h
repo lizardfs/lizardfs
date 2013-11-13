@@ -19,6 +19,8 @@
 #ifndef _FILESYSTEM_H_
 #define _FILESYSTEM_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 #ifdef METARESTORE

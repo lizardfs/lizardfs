@@ -1,6 +1,8 @@
 #ifndef LIZARDFS_COMMON_MULTI_BUFFER_WRITER_H
 #define LIZARDFS_COMMON_MULTI_BUFFER_WRITER_H
 
+#include "config.h"
+
 #include <sys/uio.h>
 #include <vector>
 

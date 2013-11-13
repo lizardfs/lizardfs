@@ -19,9 +19,10 @@
 #ifndef _CHARTS_H_
 #define _CHARTS_H_
 
-#include <stdio.h>
-#include <inttypes.h>
+#include "config.h"
 
+#include <inttypes.h>
+#include <stdio.h>
 
 #define CHARTS_MODE_ADD 0
 #define CHARTS_MODE_MAX 1

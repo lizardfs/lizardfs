@@ -19,6 +19,8 @@
 #ifndef _DATAPACK_H_
 #define _DATAPACK_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 /* MFS data pack */

@@ -17,33 +17,32 @@
  */
 
 #include "config.h"
+#include "master/matocsserv.h"
 
+#include <errno.h>
+#include <inttypes.h>
+#include <netinet/in.h>
 #include <stdio.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-
-#include "common/datapack.h"
-#include "matocsserv.h"
 #include "common/cfg.h"
+#include "common/datapack.h"
+#include "common/hashfn.h"
 #include "common/main.h"
-#include "common/sockets.h"
-#include "chunks.h"
+#include "common/massert.h"
+#include "common/MFSCommunication.h"
+#include "common/mfsstrerr.h"
 #include "common/random.h"
 #include "common/slogger.h"
-#include "common/massert.h"
-#include "common/mfsstrerr.h"
-#include "common/hashfn.h"
+#include "common/sockets.h"
+#include "master/chunks.h"
 
 #define MaxPacketSize 500000000
 

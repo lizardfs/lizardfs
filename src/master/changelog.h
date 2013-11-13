@@ -19,6 +19,8 @@
 #ifndef _CHANGELOG_H_
 #define _CHANGELOG_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void changelog_rotate(void);

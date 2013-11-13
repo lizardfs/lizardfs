@@ -19,6 +19,8 @@
 #ifndef _CSDB_H_
 #define _CSDB_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void csdb_init(void);

@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "masterconn.h"
+#include "metalogger/masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

@@ -19,6 +19,8 @@
 #ifndef _RESTORE_H_
 #define _RESTORE_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int restore(const char *filename,uint64_t lv,char *ptr);

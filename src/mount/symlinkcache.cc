@@ -17,16 +17,16 @@
  */
 
 #include "config.h"
+#include "mount/symlinkcache.h"
 
-#include <stdlib.h>
-#include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
-
+#include <stdlib.h>
+#include <string.h>
 #include <limits>
 
-#include "stats.h"
 #include "common/MFSCommunication.h"
+#include "mount/stats.h"
 
 #define HASH_FUNCTIONS 4
 #define HASH_BUCKET_SIZE 16

@@ -19,6 +19,8 @@
 #ifndef _MASTERCONN_H_
 #define _MASTERCONN_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 

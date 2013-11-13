@@ -19,6 +19,8 @@
 #ifndef _RC4RANDOM_H_
 #define _RC4RANDOM_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int rnd_init(void);

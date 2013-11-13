@@ -1,11 +1,13 @@
 #ifndef LIZARDFS_COMMON_PACKET_H_
 #define LIZARDFS_COMMON_PACKET_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <memory>
 
-#include "common/serialization.h"
 #include "common/MFSCommunication.h"
+#include "common/serialization.h"
 
 // Legacy MooseFS packet format:
 //

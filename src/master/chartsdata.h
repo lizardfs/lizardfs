@@ -19,6 +19,8 @@
 #ifndef _CHARTSDATA_H_
 #define _CHARTSDATA_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 uint64_t chartsdata_memusage(void);

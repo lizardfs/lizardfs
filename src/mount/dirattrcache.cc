@@ -17,11 +17,12 @@
  */
 
 #include "config.h"
+#include "mount/dirattrcache.h"
 
-#include <fuse/fuse_lowlevel.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#include <fuse/fuse_lowlevel.h>
 
 #include "common/datapack.h"
 

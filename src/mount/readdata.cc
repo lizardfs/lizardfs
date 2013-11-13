@@ -17,27 +17,28 @@
  */
 
 #include "config.h"
+#include "mount/readdata.h"
 
+#include <errno.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <syslog.h>
 #include <sys/time.h>
 #include <time.h>
-#include <syslog.h>
-#include <inttypes.h>
-#include <errno.h>
-#include <limits.h>
-#include <pthread.h>
+#include <unistd.h>
 
+#include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "common/mfsstrerr.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
-#include "common/mfsstrerr.h"
-#include "common/datapack.h"
-#include "mastercomm.h"
-#include "cscomm.h"
-#include "csdb.h"
+#include "mount/cscomm.h"
+#include "mount/csdb.h"
+#include "mount/mastercomm.h"
 
 #define USECTICK 333333
 

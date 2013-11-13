@@ -1,10 +1,11 @@
 #ifndef LIZARDFS_COMMON_TIME_UTILS_H_
 #define LIZARDFS_COMMON_TIME_UTILS_H_
 
+#include "config.h"
+
 #include <chrono>
 #include <cstdint>
 #include <ratio>
-
 
 // Detect compilers that don't support std::chrono::steady_clock.
 

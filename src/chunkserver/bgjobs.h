@@ -19,6 +19,8 @@
 #ifndef _BGJOBS_H_
 #define _BGJOBS_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);

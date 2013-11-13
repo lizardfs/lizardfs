@@ -17,28 +17,28 @@
  */
 
 #include "config.h"
-
 #define MMAP_ALLOC 1
+#include "mount/mastercomm.h"
 
+#include <errno.h>
+#include <grp.h>
+#include <limits.h>
+#include <pthread.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/poll.h>
 #include <syslog.h>
+#include <sys/poll.h>
 #include <time.h>
-#include <limits.h>
-#include <errno.h>
-#include <pthread.h>
+#include <unistd.h>
 #ifdef MMAP_ALLOC
-#include <sys/types.h>
 #include <sys/mman.h>
+#include <sys/types.h>
 #endif
-#include <pwd.h>
-#include <grp.h>
 
 #include "common/MFSCommunication.h"
-#include "stats.h"
+#include "mount/stats.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/md5.h"

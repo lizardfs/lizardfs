@@ -1,6 +1,8 @@
 #ifndef LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H
 #define LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <vector>
 

@@ -19,6 +19,8 @@
 #ifndef _EXPORTS_H_
 #define _EXPORTS_H_
 
+#include "config.h"
+
 #include <inttypes.h>
 
 uint32_t exports_info_size(uint8_t versmode);

@@ -18,8 +18,10 @@
 
 #ifndef _CHUNKS_H_
 #define _CHUNKS_H_
-#include <stdio.h>
+#include "config.h"
+
 #include <inttypes.h>
+#include <stdio.h>
 
 #ifdef METARESTORE
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);

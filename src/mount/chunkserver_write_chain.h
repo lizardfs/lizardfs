@@ -1,11 +1,12 @@
 #ifndef CHUNKSERVER_WRITE_CHAIN_H
 #define CHUNKSERVER_WRITE_CHAIN_H
 
+#include "config.h"
+
+#include <vector>
 #include "common/massert.h"
 #include "common/network_address.h"
 #include "common/sockets.h"
-
-#include <vector>
 
 /*
  * A chain of chunkservers used to replicate the data
