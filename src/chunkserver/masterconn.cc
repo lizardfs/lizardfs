@@ -72,6 +72,9 @@ struct InputPacket {
 struct OutputPacket {
 	std::vector<uint8_t> packet;
 	uint32_t bytesSent;
+
+	OutputPacket() : bytesSent(0) {
+	};
 	void swap(OutputPacket& other) {
 		std::swap(packet, other.packet);
 		std::swap(bytesSent, other.bytesSent);
@@ -125,7 +128,6 @@ void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt) {
 void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
 	OutputPacket* outpacket = new OutputPacket();
 	outpacket->packet.resize(size + PacketHeader::kSize);
-	outpacket->bytesSent = 0;
 	uint8_t *ptr = outpacket->packet.data();
 	put32bit(&ptr, type);
 	put32bit(&ptr, size);
@@ -152,7 +154,6 @@ void masterconn_attach_packet(masterconn *eptr, void* packet) {
 void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t>& serializedPacket) {
 	OutputPacket outputPacket;
 	outputPacket.packet.swap(serializedPacket);
-	outputPacket.bytesSent = 0;
 
 	eptr->outputPackets.push_back(OutputPacket());
 	std::swap(eptr->outputPackets.back(), outputPacket);
