@@ -42,6 +42,7 @@
 #include "common/hashfn.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/packet.h"
@@ -794,34 +795,42 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data
 	}
 }
 
-int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version) {
+int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_DELETE,8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < 0x01061C) {
+			// send old packet when version is < 1.6.28
+			sassert(chunkType == ChunkType::getStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_DELETE,
+					chunkId, chunkVersion);
+		}
+		else {
+			matocs::deleteChunk::serialize(eptr->outputPackets.back().packet,
+					chunkId, chunkVersion, chunkType);
+		}
 		eptr->delcounter++;
 	}
 	return 0;
 }
 
-void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_deletechunk_status(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DELETE - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+
+	if (eptr->version < 0x01061C) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::deleteChunk::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
+
+	chunk_got_delete_status(eptr, chunkId, chunkType, status);
 	eptr->delcounter--;
-	chunk_got_delete_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+	if (status != 0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
@@ -897,33 +906,41 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	}
 }
 
-int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,uint32_t oldversion) {
+int matocsserv_send_setchunkversion(void *e, uint64_t chunkId, uint32_t newVersion,
+		uint32_t chunkVersion, ChunkType chunkType) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_SET_VERSION,8+4+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put32bit(&data,oldversion);
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < 0x01061C) {
+			// send old packet when version is < 1.6.28
+			sassert(chunkType == ChunkType::getStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_SET_VERSION,
+					chunkId, newVersion, chunkVersion);
+		}
+		else {
+			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, chunkVersion,
+					chunkType, newVersion);
+		}
 	}
 	return 0;
 }
 
-void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_setchunkversion_status(matocsserventry *eptr,
+		const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_SET_VERSION - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+
+	if (eptr->version < 0x01061C) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::setVersion::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_setversion_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+
+	chunk_got_setversion_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
@@ -1453,7 +1470,8 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				matocsserv_got_createchunk_status(eptr, data.data(), length);
 				break;
 			case CSTOMA_DELETE:
-				matocsserv_got_deletechunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_DELETE_CHUNK:
+				matocsserv_got_deletechunk_status(eptr, data);
 				break;
 			case CSTOMA_REPLICATE:
 				matocsserv_got_replicatechunk_status(eptr, data.data(), length);
@@ -1462,7 +1480,8 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				matocsserv_got_duplicatechunk_status(eptr, data.data(), length);
 				break;
 			case CSTOMA_SET_VERSION:
-				matocsserv_got_setchunkversion_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_SET_VERSION:
+				matocsserv_got_setchunkversion_status(eptr, data);
 				break;
 			case CSTOMA_TRUNCATE:
 				matocsserv_got_truncatechunk_status(eptr, data.data(), length);

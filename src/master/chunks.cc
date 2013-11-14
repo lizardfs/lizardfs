@@ -687,7 +687,8 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 							s->valid = BUSY;
 						}
 						s->version = c->version+1;
-						matocsserv_send_setchunkversion(s->ptr,ochunkid,c->version+1,c->version);
+						matocsserv_send_setchunkversion(s->ptr, ochunkid, c->version+1, c->version,
+								s->chunkType);
 						i++;
 					}
 				}
@@ -956,7 +957,8 @@ void chunk_emergency_increase_version(chunk *c) {
 				s->valid = BUSY;
 			}
 			s->version = c->version+1;
-			matocsserv_send_setchunkversion(s->ptr,c->chunkid,c->version+1,c->version);
+			matocsserv_send_setchunkversion(s->ptr, c->chunkid, c->version+1,c->version,
+					s->chunkType);
 			i++;
 		}
 	}
@@ -1230,17 +1232,17 @@ void chunk_server_disconnected(void *ptr) {
 	fs_cs_disconnected();
 }
 
-void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_delete_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
 	chunk *c;
 	slist *s,**st;
-	c = chunk_find(chunkid);
+	c = chunk_find(chunkId);
 	if (c==NULL) {
 		return ;
 	}
 	st = &(c->slisthead);
 	while (*st) {
 		s = *st;
-		if (s->ptr == ptr) {
+		if (s->ptr == ptr && s->chunkType == chunkType) {
 			if (s->valid!=DEL) {
 				if (s->valid==TDBUSY || s->valid==TDVALID) {
 					chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies);
@@ -1303,13 +1305,13 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 }
 
 
-void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
+void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *ptr) {
 	uint8_t valid,vs;
 	slist *s;
 	vs=0;
 	valid=1;
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr == ptr) {
+		if (s->ptr == ptr && s->chunkType == chunkType) {
 			if (status!=0) {
 				c->interrupted = 1;	// increase version after finish, just in case
 				if (s->valid==TDBUSY || s->valid==TDVALID) {
@@ -1360,7 +1362,7 @@ void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
 void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -1369,7 +1371,7 @@ void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
 void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -1378,16 +1380,16 @@ void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
-void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_setversion_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
 	chunk *c;
-	c = chunk_find(chunkid);
+	c = chunk_find(chunkId);
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, chunkType, status, ptr);
 }
 
 void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -1396,7 +1398,7 @@ void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
 void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -1405,7 +1407,7 @@ void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c,status,ptr);
+	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
 /* ----------------------- */
@@ -1554,7 +1556,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				}
 				s->valid = DEL;
 				stats_deletions++;
-				matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
+				matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
 				inforec.done.del_invalid++;
 				deldone++;
 				dc++;
@@ -1596,7 +1598,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr,c->chunkid,c->version);
+					matocsserv_send_deletechunk(s->ptr, c->chunkid, c->version, s->chunkType);
 					inforec.done.del_unused++;
 					deldone++;
 				}
@@ -1659,7 +1661,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
+					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
 					inforec.done.del_overgoal++;
 					inforec.notdone.del_overgoal--;
 					deldone++;
@@ -1687,7 +1689,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 					c->needverincrease=1;
 					s->valid = DEL;
 					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
+					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
 					inforec.done.del_diskclean++;
 					tdc--;
 					dc++;
