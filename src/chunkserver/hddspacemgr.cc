@@ -1764,13 +1764,14 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 	return status;
 }
 
-int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
+int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
 	TRACETHIS3(chunkid, offset, size);
 	Chunk *c;
 	int ret;
 	uint8_t *wcrcptr;
 	const uint8_t *rcrcptr;
-	uint32_t crc,bcrc,precrc,postcrc,combinedcrc,chcrc;
+	uint32_t bcrc, precrc, postcrc, combinedcrc, chcrc;
 	uint32_t i;
 	uint64_t ts,te;
 	uint8_t *blockbuffer;
@@ -1784,7 +1785,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -1792,7 +1793,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		hdd_chunk_release(c);
 		return ERROR_WRONGVERSION;
 	}
-	if (blocknum>=MFSBLOCKSINCHUNK) {
+	if (blocknum >= c->maxBlocksInFile()) {
 		hdd_chunk_release(c);
 		return ERROR_BNUMTOOBIG;
 	}
@@ -1804,7 +1805,6 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		hdd_chunk_release(c);
 		return ERROR_WRONGOFFSET;
 	}
-	crc = get32bit(&crcbuff);
 	if (crc!=mycrc32(0,buffer,size)) {
 		hdd_chunk_release(c);
 		return ERROR_CRC;

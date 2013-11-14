@@ -55,9 +55,8 @@ int hdd_open(uint64_t chunkid, ChunkType chunkType);
 int hdd_close(uint64_t chunkid, ChunkType chunkType);
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer);
-int hdd_write(uint64_t chunkid, uint32_t version,
-		uint16_t blocknum, const uint8_t *buffer,
-		uint32_t offset, uint32_t size, const uint8_t *crcbuff);
+int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);

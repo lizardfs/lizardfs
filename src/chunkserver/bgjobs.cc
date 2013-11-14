@@ -88,12 +88,13 @@ typedef struct _chunk_rd_args {
 
 // for OP_WRITE
 typedef struct _chunk_wr_args {
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t offset,size;
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
 	uint16_t blocknum;
+	uint32_t offset, size;
+	uint32_t crc;
 	const uint8_t *buffer;
-	const uint8_t *crcbuff;
 } chunk_wr_args;
 
 typedef struct _chunk_rp_args {
@@ -228,7 +229,9 @@ void* job_worker(void *th_arg) {
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_write(wrargs->chunkid,wrargs->version,wrargs->blocknum,wrargs->buffer,wrargs->offset,wrargs->size,wrargs->crcbuff);
+					status = hdd_write(wrargs->chunkId, wrargs->chunkVersion, wrargs->chunkType,
+							wrargs->blocknum, wrargs->offset, wrargs->size, wrargs->crc,
+							wrargs->buffer);
 				}
 				break;
 			case OP_REPLICATE:
@@ -482,20 +485,23 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 
-uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
+uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_wr_args *args;
 	args = (chunk_wr_args*) malloc(sizeof(chunk_wr_args));
 	passert(args);
-	args->chunkid = chunkid;
-	args->version = version;
+	args->chunkId = chunkId;
+	args->chunkVersion = chunkVersion;
+	args->chunkType = chunkType,
 	args->blocknum = blocknum;
-	args->buffer = buffer;
 	args->offset = offset;
 	args->size = size;
-	args->crcbuff = crcbuff;
-	return job_new(jp,OP_WRITE,args,callback,extra);
+	args->crc = crc;
+	args->buffer = buffer;
+	return job_new(jp, OP_WRITE, args, callback, extra);
 }
 
 uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {

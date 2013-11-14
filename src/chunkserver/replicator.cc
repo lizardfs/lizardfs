@@ -87,56 +87,6 @@ void replicator_stats(uint32_t *repl) {
 	pthread_mutex_unlock(&statslock);
 }
 
-static void xordata(uint8_t *dst,const uint8_t *src,uint32_t leng) {
-	uint32_t *dst4;
-	const uint32_t *src4;
-#define XOR_ONE_BYTE (*dst++)^=(*src++)
-#define XOR_FOUR_BYTES (*dst4++)^=(*src4++)
-	if (((unsigned long)dst&3)==((unsigned long)src&3)) {
-		while (leng && ((unsigned long)src & 3)) {
-			XOR_ONE_BYTE;
-			leng--;
-		}
-		dst4 = (uint32_t*)dst;
-		src4 = (const uint32_t*)src;
-		while (leng>=32) {
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			XOR_FOUR_BYTES;
-			leng-=32;
-		}
-		while (leng>=4) {
-			XOR_FOUR_BYTES;
-			leng-=4;
-		}
-		src = (const uint8_t*)src4;
-		dst = (uint8_t*)dst4;
-		if (leng) do {
-			XOR_ONE_BYTE;
-		} while (--leng);
-	} else {
-		while (leng>=8) {
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			XOR_ONE_BYTE;
-			leng-=8;
-		}
-		if (leng>0) do {
-			XOR_ONE_BYTE;
-		} while (--leng);
-	}
-}
-
 static int rep_read(repsrc *rs) {
 	int32_t i;
 	uint32_t size;
@@ -414,9 +364,8 @@ static void rep_cleanup(replication *r) {
 /* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
 uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
 	replication r;
-	uint8_t status,i,vbuffs,first;
-	uint16_t b,blocks;
-	uint32_t xcrc,crc;
+	uint8_t status, i, vbuffs;
+	uint16_t b, blocks;
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	int s;
@@ -615,6 +564,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		}
 // check packets
 		vbuffs = 0;
+		uint32_t crc;
 		for (i=0 ; i<srccnt ; i++) {
 			if (r.repsources[i].mode!=IDLE) {
 				uint32_t type,size;
@@ -650,6 +600,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 					pblocknum = get16bit(&rptr);
 					poffset = get16bit(&rptr);
 					psize = get32bit(&rptr);
+					crc = get32bit(&rptr);
 					if (pchid!=r.repsources[i].chunkid) {
 						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
@@ -679,55 +630,23 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			}
 		}
 // write data
+		sassert(vbuffs <= 1); // xor not needed, so just find block and write it
 		if (vbuffs==0) {	// no buffers ? - it should never happen
 			syslog(LOG_WARNING,"replicator: no data received for block: %" PRIu16,b);
 			rep_cleanup(&r);
 			return ERROR_DISCONNECTED;
-		} else if (vbuffs==1) { // xor not needed, so just find block and write it
+		} else {
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
-					status = hdd_write(chunkid,0,b,rptr+20,0,MFSBLOCKSIZE,rptr+16);
+					status = hdd_write(chunkid, 0, ChunkType::getStandardChunkType(),
+							b, 0, MFSBLOCKSIZE, crc, rptr + 20);
 					if (status!=STATUS_OK) {
 						syslog(LOG_WARNING,"replicator: write status: %s",mfsstrerr(status));
 						rep_cleanup(&r);
 						return status;
 					}
 				}
-			}
-		} else {
-			first=1;
-			if (vbuffs&1) {
-				xcrc = 0;
-			} else {
-				xcrc = MFSCRCEMPTY;
-			}
-			for (i=0 ; i<srccnt ; i++) {
-				if (r.repsources[i].mode!=IDLE) {
-					rptr = r.repsources[i].packet;
-					rptr+=16;	// skip chunkid,blockno,offset and size
-					if (first) {
-						memcpy(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
-						first=0;
-					} else {
-						xordata(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
-					}
-					crc = get32bit(&rptr);
-					if (crc!=mycrc32(0,rptr,MFSBLOCKSIZE)) {
-						syslog(LOG_WARNING,"replicator: received data with wrong checksum from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
-						rep_cleanup(&r);
-						return ERROR_CRC;
-					}
-					xcrc^=crc;
-				}
-			}
-			wptr = r.xorbuff;
-			put32bit(&wptr,xcrc);
-			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,MFSBLOCKSIZE,r.xorbuff);
-			if (status!=STATUS_OK) {
-				syslog(LOG_WARNING,"replicator: xor write status: %s",mfsstrerr(status));
-				rep_cleanup(&r);
-				return status;
 			}
 		}
 	}

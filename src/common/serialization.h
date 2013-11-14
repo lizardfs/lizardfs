@@ -83,30 +83,35 @@ inline void verifySize(const T& value, uint32_t bytesLeft) {
 
 // deserialize functions for simple types
 
+// deserialize uint8_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint8_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 1;
 	value = get8bit(source);
 }
 
+// deserialize uint16_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint16_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 2;
 	value = get16bit(source);
 }
 
+// deserialize uint32_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint32_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 4;
 	value = get32bit(source);
 }
 
+// deserialize uint64_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint64_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 8;
 	value = get64bit(source);
 }
 
+// deserialize a vector
 template<class T>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::vector<T>& vec) {
 	size_t sizeOfElement = serializedSize(T());
@@ -120,6 +125,15 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	for (size_t i = 0; i < vecSize; ++i) {
 		deserialize(source, bytesLeftInBuffer, vec[i]);
 	}
+}
+
+// deserialize uint8_t* (as a pointer to the serialized data)
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, const uint8_t*& value) {
+	if (bytesLeftInBuffer == 0) {
+		throw IncorrectDeserializationException();
+	}
+	bytesLeftInBuffer = 0;
+	value = *source;
 }
 
 template<class T, class... Args>
