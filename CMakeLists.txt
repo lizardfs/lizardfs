@@ -106,8 +106,6 @@ if(ENABLE_TRACES)
     message(FATAL_ERROR "Boost is required if traces are enabled")
   endif()
   add_definitions(-DENABLE_TRACES)
-  set(BUILD_DEVTOOLS ON)
-  set(MFSCOMMON_ADDITIONAL_LIBS devtools)
 endif()
 
 if(THROW_INSTEAD_OF_ABORT)

@@ -9,15 +9,14 @@
 #define TRACEPRINTER_H_
 
 #ifdef ENABLE_TRACES
-#include <cstdio>
 #include <pthread.h>
 #include <sys/time.h>
+#include <cstdio>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <string>
-
-#include <boost/assign/list_of.hpp>
 #include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/thread.hpp>
 
 class ThreadPrinter {
 private:
@@ -32,22 +31,23 @@ private:
 	}
 
 	static const std::string& nextColour() {
-		static std::vector<std::string> allColours_ = boost::assign::list_of
-			("\033[37;1m")
-			("\033[30;1m")
-			("\033[31;1m")
-			("\033[32;1m")
-			("\033[33;1m")
-			("\033[34;1m")
-			("\033[35;1m")
-			("\033[36;1m")
-			("\033[31m")
-			("\033[32m")
-			("\033[33m")
-			("\033[34m")
-			("\033[35m")
-			("\033[36m")
-			("\033[37m");
+		static std::vector<std::string> allColours_ = {
+			"\033[37;1m",
+			"\033[30;1m",
+			"\033[31;1m",
+			"\033[32;1m",
+			"\033[33;1m",
+			"\033[34;1m",
+			"\033[35;1m",
+			"\033[36;1m",
+			"\033[31m",
+			"\033[32m",
+			"\033[33m",
+			"\033[34m",
+			"\033[35m",
+			"\033[36m",
+			"\033[37m",
+		};
 
 		static unsigned nextColour_;
 		if (nextColour_ == allColours_.size()) {
@@ -56,8 +56,8 @@ private:
 		return allColours_[nextColour_++];
 	}
 
-	static boost::mutex& getMutex() {
-		static boost::mutex mutex;
+	static std::mutex& getMutex() {
+		static std::mutex mutex;
 		return mutex;
 	}
 
@@ -65,7 +65,7 @@ public:
 	static void printMessage(const std::string& message) {
 		pthread_t myId = pthread_self();
 
-		boost::unique_lock<boost::mutex> lock(getMutex());
+		std::unique_lock<std::mutex> lock(getMutex());
 		std::string indentStr(indent(myId), ' ');
 		std::string& colourStr = colour(myId);
 		if (colourStr.empty()) {
@@ -80,7 +80,7 @@ public:
 
 protected:
 	static void changeIndent(int delta) {
-		boost::unique_lock<boost::mutex> lock(getMutex());
+		std::unique_lock<std::mutex> lock(getMutex());
 		indent(pthread_self()) += delta;
 	}
 };
@@ -105,7 +105,7 @@ public:
 		usecs += endTimestamp.tv_usec;
 		usecs -= functionCallTimestamp_.tv_usec;
 		changeIndent(-4);
-		printMessage("<== " + functionName_ + ", usecs=" + boost::lexical_cast<std::string>(usecs));
+		printMessage("<== " + functionName_ + ", usecs=" + std::to_string(usecs));
 	}
 };
 
