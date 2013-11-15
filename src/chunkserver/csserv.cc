@@ -1050,7 +1050,9 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			break;
 		}
 	} else if (eptr->state == WRITEFINISH) {
-		if (type == CLTOCS_WRITE_DATA || type == LIZ_CLTOCS_WRITE_END) {
+		if (type == CLTOCS_WRITE_DATA
+				|| type == LIZ_CLTOCS_WRITE_DATA
+				|| type == LIZ_CLTOCS_WRITE_END) {
 			return;
 		} else {
 			syslog(LOG_NOTICE, "Got invalid message in WRITEFINISH state (type:%" PRIu32 ")",type);
@@ -1314,9 +1316,9 @@ void csserv_forward(csserventry *eptr) {
 		memcpy(eptr->inputpacket.packet, eptr->hdrbuff, PacketHeader::kSize);
 		eptr->inputpacket.bytesleft = header.length;
 		eptr->inputpacket.startptr = eptr->inputpacket.packet + PacketHeader::kSize;
-		if (header.type == CLTOCS_WRITE_DATA) {
-			// TODO(msulikowski) if we want to use a ConnectionPool, we have to forward also
-			// WRTE_END messages
+		if (header.type == CLTOCS_WRITE_DATA
+				|| header.type == LIZ_CLTOCS_WRITE_DATA
+				|| header.type == LIZ_CLTOCS_WRITE_END) {
 			eptr->fwdbytesleft = 8;
 			eptr->fwdstartptr = eptr->inputpacket.packet;
 		}
