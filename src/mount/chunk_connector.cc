@@ -3,10 +3,10 @@
 #include <errno.h>
 #include <algorithm>
 
+#include "common/exceptions.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
-#include "mount/exceptions.h"
 
 static int64_t timeoutTime(uint8_t tryCounter) {
 	// JKZ's algorithm
@@ -53,7 +53,7 @@ int ChunkConnector::connect(const NetworkAddress& address, const Timeout& timeou
 		retries++;
 	}
 	if (fd < 0) {
-		throw ChunkserverConnectionError(
+		throw ChunkserverConnectionException(
 				"Connection error: " + std::string(strerr(err)), address);
 	}
 	if (tcpnodelay(fd) < 0) {

@@ -5,13 +5,13 @@
 #include <map>
 #include <sys/poll.h>
 
+#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
 #include "mount/block_xor.h"
 #include "mount/chunkserver_stats.h"
-#include "mount/exceptions.h"
 #include "mount/read_operation_executor.h"
 
 static const uint32_t kConnectionPoolTimeoutInSeconds = 2;
@@ -81,13 +81,13 @@ void ReadPlanExecutor::executeReadOperations(
 				if (errno == EINTR) {
 					continue;
 				} else {
-					throw RecoverableReadError("Poll error: " + std::string(strerror(errno)));
+					throw RecoverableReadException("Poll error: " + std::string(strerror(errno)));
 				}
 			} else if (status == 0) {
 				// The time is out, our chunkservers appear to be unresponsive.
 				statsProxy.allPendingDefective();
 				// Report the first offender to callers.
-				throw ChunkserverConnectionError(
+				throw ChunkserverConnectionException(
 					"Chunkserver communication timed out", executors.begin()->second.server());
 			}
 
@@ -97,7 +97,7 @@ void ReadPlanExecutor::executeReadOperations(
 				const NetworkAddress& server = executor.server();
 				if (!(pollFd.revents & POLLIN)) {
 					if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
-						throw ChunkserverConnectionError(
+						throw ChunkserverConnectionException(
 							"Read from chunkserver (poll) error", server);
 					}
 					continue;
@@ -111,7 +111,7 @@ void ReadPlanExecutor::executeReadOperations(
 				}
 			}
 		}
-	} catch (ChunkserverConnectionError &err) {
+	} catch (ChunkserverConnectionException &err) {
 		globalChunkserverStats.markDefective(err.server());
 		for (const auto& fdAndExecutor : executors) {
 			tcpclose(fdAndExecutor.first);

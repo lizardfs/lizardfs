@@ -39,34 +39,34 @@ private:
 		~name() throw() {} \
 	}
 
-LIZARDFS_CREATE_EXCEPTION_CLASS(ReadError, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadError, ReadError);
-LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadError, ReadError);
-LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadError, RecoverableReadError);
+LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
+LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadException, RecoverableReadException);
 
-class ChunkserverConnectionError : public RecoverableReadError {
+class ChunkserverConnectionException : public RecoverableReadException {
 public:
-	ChunkserverConnectionError(const std::string& message, const NetworkAddress& server)
-			: RecoverableReadError(message + " (server " + server.toString() + ")"),
+	ChunkserverConnectionException(const std::string& message, const NetworkAddress& server)
+			: RecoverableReadException(message + " (server " + server.toString() + ")"),
 			  server_(server) {
 	}
 
-	~ChunkserverConnectionError() throw() {}
+	~ChunkserverConnectionException() throw() {}
 	const NetworkAddress& server() const throw() { return server_; }
 
 private:
 	NetworkAddress server_;
 };
 
-class ChunkCrcError : public RecoverableReadError {
+class ChunkCrcException : public RecoverableReadException {
 public:
-	ChunkCrcError(const std::string& message, const NetworkAddress& server,
+	ChunkCrcException(const std::string& message, const NetworkAddress& server,
 			const ChunkType& chunkType)
-			: RecoverableReadError(message + " (server " + server.toString() + ")"),
+			: RecoverableReadException(message + " (server " + server.toString() + ")"),
 			  server_(server), chunkType_(chunkType) {
 	}
 
-	~ChunkCrcError() throw() {}
+	~ChunkCrcException() throw() {}
 	const NetworkAddress& server() const throw() { return server_; }
 	const ChunkType& chunkType() const throw() { return chunkType_; }
 

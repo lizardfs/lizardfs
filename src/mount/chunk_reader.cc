@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <cstring>
 
+#include "common/exceptions.h"
 #include "common/time_utils.h"
 #include "mount/chunkserver_stats.h"
-#include "mount/exceptions.h"
 #include "mount/read_plan_executor.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, ChunkLocator& locator)
@@ -51,7 +51,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 	}
 	planner_ = ReadOperationPlanner(availableChunkTypes, bestScores);
 	if (!planner_.isReadingPossible()) {
-		throw NoValidCopiesReadError("no valid copies");
+		throw NoValidCopiesReadException("no valid copies");
 	}
 }
 
@@ -86,7 +86,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);
-		} catch (ChunkCrcError &err) {
+		} catch (ChunkCrcException &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
 			throw;
 		}

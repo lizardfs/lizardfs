@@ -33,6 +33,7 @@
 #include <mutex>
 
 #include "common/connection_pool.h"
+#include "common/exceptions.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
@@ -42,7 +43,6 @@
 #include "mount/chunk_connector.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
-#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 #include "mount/mount_config.h"
 
@@ -281,7 +281,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				break;
 			}
 			tryCounter = 0;
-		} catch (NoValidCopiesReadError& ex) {
+		} catch (NoValidCopiesReadException& ex) {
 			syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
@@ -302,7 +302,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				sleep(1);
 				tryCounter++;
 			}
-		} catch (ChunkCrcError& ex) {
+		} catch (ChunkCrcException& ex) {
 			syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
@@ -315,7 +315,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					tryCounter);
 			forcePrepare = true;
 			tryCounter++;
-		} catch (RecoverableReadError& ex) {
+		} catch (RecoverableReadException& ex) {
 			if (tryCounter > 0) {
 				// report only repeated errors
 				syslog(LOG_WARNING,
@@ -338,7 +338,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				sleepTime_ms = read_data_sleep_time_ms(tryCounter);
 			}
 			tryCounter++;
-		} catch (UnrecoverableReadError& ex) {
+		} catch (UnrecoverableReadException& ex) {
 			syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s",

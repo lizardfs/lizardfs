@@ -1,9 +1,9 @@
 #include "mount/chunk_locator.h"
 
+#include "common/exceptions.h"
 #include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/strerr.h"
-#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 
 #include <map>
@@ -32,9 +32,9 @@ void MountChunkLocator::locateChunk(uint32_t inode, uint32_t index) {
 
 	if (status != 0) {
 		if (status == ERROR_ENOENT) {
-			throw UnrecoverableReadError("Chunk locator: error sent by master server", status);
+			throw UnrecoverableReadException("Chunk locator: error sent by master server", status);
 		} else {
-			throw RecoverableReadError("Chunk locator: error sent by master server", status);
+			throw RecoverableReadException("Chunk locator: error sent by master server", status);
 		}
 	}
 

@@ -3,11 +3,11 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
+#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
-#include "mount/exceptions.h"
 
 static const uint32_t kSocketWriteTimeoutInMilliseconds = 2000;
 static const uint32_t kMaxMessageLength = 65 * 1024;
@@ -49,7 +49,7 @@ void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 			message.size(),
 			timeout.remaining_ms());
 	if (ret != (int32_t)message.size()) {
-		throw ChunkserverConnectionError(
+		throw ChunkserverConnectionException(
 				"Cannot send READ request to the chunkserver: " + std::string(strerr(errno)),
 				server_);
 	}
@@ -64,10 +64,10 @@ void ReadOperationExecutor::continueReading() {
 
 	ssize_t readBytes = read(fd_, destination_, bytesLeft_);
 	if (readBytes == 0) {
-		throw ChunkserverConnectionError(
+		throw ChunkserverConnectionException(
 				"Read from chunkserver error: connection reset by peer", server_);
 	} else if (readBytes < 0) {
-		throw ChunkserverConnectionError(
+		throw ChunkserverConnectionException(
 				"Read from chunkserver error: " + std::string(strerr(errno)), server_);
 	}
 	destination_ += readBytes;
@@ -102,7 +102,7 @@ void ReadOperationExecutor::processHeaderReceived() {
 		std::stringstream ss;
 		ss << "Message 0x" << std::hex << packetHeader_.type;
 		ss << " sent by chunkserver too long (" << packetHeader_.length << " bytes)";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	// TODO(msulikowski) Handle CSTOCL_READ_DATA and CSTOCL_READ_STATUS!
 	if (packetHeader_.type == LIZ_CSTOCL_READ_DATA) {
@@ -113,7 +113,7 @@ void ReadOperationExecutor::processHeaderReceived() {
 		std::stringstream ss;
 		ss << "Unknown message 0x" << std::hex << packetHeader_.type;
 		ss << " sent by chunkserver";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 }
 
@@ -129,18 +129,18 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 		ss << "Malformed LIZ_CSTOCL_READ_STATUS message from chunkserver, ";
 		ss << "incorrect chunk ID ";
 		ss << "(got: " << readChunkId << ", expected: " << chunkId_ << ")";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 
 	if (readStatus != STATUS_OK) {
 		std::stringstream ss;
 		ss << "Status '" << mfsstrerr(readStatus) << "'sent by chunkserver";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 
 	uint32_t totalDataBytesReceived = dataBlocksCompleted_ * MFSBLOCKSIZE;
 	if (totalDataBytesReceived != readOperation_.requestSize) {
-		throw ChunkserverConnectionError(
+		throw ChunkserverConnectionException(
 				"READ_STATUS from chunkserver received too early", server_);
 	}
 
@@ -160,20 +160,20 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect chunk ID ";
 		ss << "(got: " << readChunkId << ", excpected: " << chunkId_ << ")";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	if (readSize != MFSBLOCKSIZE) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect size ";
 		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	uint32_t expectedOffset = readOperation_.requestOffset + dataBlocksCompleted_ * MFSBLOCKSIZE;
 	if (readOffset != expectedOffset) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
 		ss << "(got: " << readOffset << ", excpected: " << expectedOffset << ")";
-		throw ChunkserverConnectionError(ss.str(), server_);
+		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	setState(kReceivingDataBlock);
 }
@@ -184,7 +184,7 @@ void ReadOperationExecutor::processDataBlockReceived() {
 
 #ifdef ENABLE_CRC
 	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
-		throw ChunkCrcError("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
+		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
 	}
 #endif
 
