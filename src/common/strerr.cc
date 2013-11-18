@@ -462,6 +462,12 @@ static errent errtab[] = {
 #ifdef EXFULL
 	{EXFULL,"EXFULL (Exchange full)"},
 #endif
+
+// This doesn't exist in errno.h, but we define it to better handle bugs involving passing
+// wrong error code to strerr.
+	{0,"ESUCCESS (Success)"},
+
+// List terminator, str must be NULL.
 	{0,NULL}
 };
 
