@@ -1,18 +1,28 @@
-This package was debianized by Jakub Bogusz on Fri, 11 Jul 2008 13:05:21 +0200.
+This package was debianized by Peter aNeutrino after Fri, 15 Nov 2013 13:05:21 +0200.
 
-Sources are available for download at <http://moosefs.com/>.
+Sources are available for download at <http://lizardfs.org/>.
 
 Author(s):
 
+    Peter aNeutrino
+    Stanislaw Findeisen
+    Janusz Gralak
+    Paweł Janicki
     Jakub Kruszona-Zawadzki
+    Marcin lamvak Grabowski
+    Marcin Malich
+    Jakub Milewski
+    Kamil Pachulski
+    Kamil Skalski
+    Marcin Sulikowski
 
 Copyright:
 
-    Copyright (C) 2001-2008 Gemius S.A.
+    Copyright (C) 2001-2008 Gemius S.A., 2013 Skytechnology sp. z o.o.
 
 Contact:
 
-    <contact (at) moosefs.com>
+    <contact (at) lizardfs.org>
 
 License:
 
