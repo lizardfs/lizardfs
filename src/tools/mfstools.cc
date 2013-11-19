@@ -35,10 +35,11 @@
 #include <limits>
 
 #include "common/datapack.h"
-#include "common/strerr.h"
+#include "common/goal.h"
+#include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/sockets.h"
-#include "common/MFSCommunication.h"
+#include "common/strerr.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
@@ -801,7 +802,13 @@ int get_goal(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		printf("%s: %" PRIu8 "\n",fname,goal);
+		if (isOrdinaryGoal(goal)) {
+			printf("%s: %" PRIu8 "\n", fname, goal);
+		} else if (isXorGoal(goal)) {
+			printf("%s: xor%" PRIu8 "\n", fname, goalToXorLevel(goal));
+		} else {
+			printf("%s : unknown goal (0x%02" PRIX8 ")\n", fname, goal);
+		}
 	} else {
 		fn = get8bit(&rptr);
 		dn = get8bit(&rptr);
@@ -809,13 +816,25 @@ int get_goal(const char *fname,uint8_t mode) {
 		for (i=0 ; i<fn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" files with goal        %" PRIu8 " :",goal);
+			if (isOrdinaryGoal(goal)) {
+				printf(" files with goal        %" PRIu8 " :", goal);
+			} else if (isXorGoal(goal)) {
+				printf(" files with goal     xor%" PRIu8 " :", goalToXorLevel(goal));
+			} else {
+				printf(" files with unknown goal (0x%02" PRIX8 ") :", goal);
+			}
 			print_number(" ","\n",cnt,1,0,1);
 		}
 		for (i=0 ; i<dn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" directories with goal  %" PRIu8 " :",goal);
+			if (isOrdinaryGoal(goal)) {
+				printf(" directories with goal  %" PRIu8 " :", goal);
+			} else if (isXorGoal(goal)) {
+				printf(" directories with goal xor%" PRIu8 " :", goalToXorLevel(goal));
+			} else {
+				printf(" directories with unknown goal (0x%02" PRIX8 ") :", goal);
+			}
 			print_number(" ","\n",cnt,1,0,1);
 		}
 	}
@@ -1141,9 +1160,15 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	}
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			printf("%s: %" PRIu8 "\n",fname,goal);
+			if (isOrdinaryGoal(goal)) {
+				printf("%s: %" PRIu8 "\n", fname, goal);
+			} else if (isXorGoal(goal)) {
+				printf("%s: xor%" PRIu8 "\n", fname, goalToXorLevel(goal));
+			} else {
+				printf("%s: unknown goal (0x%02" PRIX8 ")\n", fname, goal);
+			}
 		} else {
-			printf("%s: goal not changed\n",fname);
+			printf("%s: goal not changed\n", fname);
 		}
 	} else {
 		printf("%s:\n",fname);
@@ -2035,12 +2060,14 @@ void usage(int f) {
 			print_recursive_option();
 			break;
 		case MFSSETGOAL:
-			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
+			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal <operation> name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
-			fprintf(stderr," GOAL+ - increase goal to given value\n");
-			fprintf(stderr," GOAL- - decrease goal to given value\n");
-			fprintf(stderr," GOAL - just set goal to given value\n");
+			fprintf(stderr, "<operation> is one of:\n");
+			fprintf(stderr, " GOAL+ - increase goal to given value, GOAL = 1..9\n");
+			fprintf(stderr, " GOAL- - decrease goal to given value, GOAL = 1..9\n");
+			fprintf(stderr, " GOAL - just set goal to given value, GOAL = 1..9\n");
+			fprintf(stderr, " xorN - just set goal to xor with level N, N = 2..9\n");
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
@@ -2120,6 +2147,44 @@ void usage(int f) {
 			break;
 	}
 	exit(1);
+}
+
+bool parseSetXorGoalParameter(const std::string& param, uint8_t& goal) {
+	if (param.length() < 4 || param.substr(0, 3) != "xor") {
+		return false;
+	}
+	std::string levelString = param.substr(3);
+	int level = atoi(levelString.c_str());
+	if (std::to_string(level) != levelString || level < kMinXorLevel || level > kMaxXorLevel) {
+		return false;
+	}
+	goal = xorLevelToGoal(level);
+	return true;
+}
+
+bool parseSetOrdinaryGoalParameter(const std::string& param, uint8_t& goal, uint8_t& setMode) {
+	std::string operation = param;
+	setMode = SMODE_SET;
+	if (operation.back() == '+' || operation.back() == '-') {
+		setMode = (operation.back() == '+' ? SMODE_INCREASE : SMODE_DECREASE);
+		operation.resize(operation.size() - 1);
+	}
+	goal = atoi(operation.c_str());
+	if (std::to_string(goal) != operation || goal < kMinOrdinaryGoal || goal > kMaxOrdinaryGoal) {
+		return false;
+	}
+	return true;
+}
+
+bool parseSetGoalParameter(const std::string& param, uint8_t& goal, uint8_t& setMode) {
+	if (parseSetOrdinaryGoalParameter(param, goal, setMode)) {
+		return true;
+	}
+	if (parseSetXorGoalParameter(param, goal)) {
+		setMode = SMODE_SET;
+		return true;
+	}
+	return false;
 }
 
 int main(int argc,char **argv) {
@@ -2304,16 +2369,8 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		if (f==MFSSETGOAL) {
-			char *p = argv[0];
-			if (p[0]>'0' && p[0]<='9' && (p[1]=='\0' || ((p[1]=='-' || p[1]=='+') && p[2]=='\0'))) {
-				goal = p[0]-'0';
-				if (p[1]=='-') {
-					smode=SMODE_DECREASE;
-				} else if (p[1]=='+') {
-					smode=SMODE_INCREASE;
-				}
-			} else {
-				fprintf(stderr,"goal should be given as a digit between 1 and 9 optionally folowed by '-' or '+'\n");
+			if (!parseSetGoalParameter(argv[0], goal, smode)) {
+				fprintf(stderr, "Wrong setgoal operation '%s'\n", argv[1]);
 				usage(f);
 			}
 			argc--;
