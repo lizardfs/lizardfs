@@ -1,3 +1,5 @@
+timeout_set 90 seconds
+
 CHUNKSERVERS=3 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
@@ -16,8 +18,8 @@ fi
 echo "Increasing goal"
 mfssetgoal 3 file
 
-# We will wait for 90 seconds, no longer!
-timeout=90
+# We will wait for 60 seconds, no longer!
+timeout=60
 end_time=$((timeout + $(date +%s)))
 is_goal_ok=
 while (( $(date +%s) < end_time )); do
