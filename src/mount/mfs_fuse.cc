@@ -488,6 +488,7 @@ void mfs_statfs(fuse_req_t req,fuse_ino_t ino) {
 #else
 void mfs_statfs(fuse_req_t req) {
 #endif
+	const struct fuse_ctx ctx = *fuse_req_ctx(req);
 	uint64_t totalspace,availspace,trashspace,reservedspace;
 	uint32_t inodes;
 	uint32_t bsize;
@@ -497,9 +498,9 @@ void mfs_statfs(fuse_req_t req) {
 	mfs_stats_inc(OP_STATFS);
 	if (debug_mode) {
 #if FUSE_USE_VERSION >= 26
-		oplog_printf(*fuse_req_ctx(req),"statfs (%lu)",(unsigned long int)ino);
+		oplog_printf(ctx, "statfs (%lu)", (unsigned long int)ino);
 #else
-		oplog_printf(*fuse_req_ctx(req),"statfs ()");
+		oplog_printf(ctx, "statfs ()");
 #endif
 	}
 #if FUSE_USE_VERSION >= 26
@@ -547,9 +548,11 @@ void mfs_statfs(fuse_req_t req) {
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
 #if FUSE_USE_VERSION >= 26
-	oplog_printf(*fuse_req_ctx(req),"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",(unsigned long int)ino,totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(ctx, "statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
+			(unsigned long int)ino, totalspace, availspace, trashspace, reservedspace, inodes);
 #else
-	oplog_printf(*fuse_req_ctx(req),"statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",totalspace,availspace,trashspace,reservedspace,inodes);
+	oplog_printf(ctx, "statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
+			totalspace, availspace, trashspace, reservedspace, inodes);
 #endif
 }
 

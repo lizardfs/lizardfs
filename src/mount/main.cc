@@ -641,15 +641,17 @@ int main(int argc, char *argv[]) try {
 
 	res = mainloop(&args,mountpoint,mt,fg);
 	fuse_opt_free_args(&args);
+	fuse_opt_free_args(&defaultargs);
 	free(gMountOptions.masterhost);
 	free(gMountOptions.masterport);
 	if (gMountOptions.bindhost) {
 		free(gMountOptions.bindhost);
 	}
 	free(gMountOptions.subfolder);
-	if (gDefaultMountpoint) {
+	if (gDefaultMountpoint && gDefaultMountpoint != mountpoint) {
 		free(gDefaultMountpoint);
 	}
+	free(mountpoint);
 	stats_term();
 	strerr_term();
 	return res;
