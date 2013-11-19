@@ -17,31 +17,25 @@ timeout_set 1 minute
 CHUNKSERVERS=3 \
 	DISK_PER_CHUNKSERVER=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
-filename=${info[mount0]}/file
-cs0_disk=$(cat ${info[chunkserver0_hdd]})
-cs1_disk=$(cat ${info[chunkserver1_hdd]})
-cs2_disk=$(cat ${info[chunkserver2_hdd]})
+dir="${info[mount0]}/dir"
+mkdir "$dir"
+mfssetgoal xor2 "$dir"
+FILE_SIZE=123456789 file-generate "$dir/file"
 
-mfschunkserver -c "${info[chunkserver2_config]}" stop
-mfschunkserver -c "${info[chunkserver1_config]}" stop
-FILE_SIZE=123456789 BLOCK_SIZE=12345 file-generate $filename
-mfschunkserver -c "${info[chunkserver0_config]}" stop
+# Find any chunkserver serving part 1 of some chunk
+csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_2*')
+port=${info[chunkserver${csid}_port]}
+config=${info[chunkserver${csid}_config]}
 
-convert_to_xor_and_place_all_chunks 2 "$cs0_disk" "$cs0_disk" "$cs1_disk" "$cs2_disk"
-remove_standard_chunks "$cs0_disk"
-
-mfschunkserver -c "${info[chunkserver0_config]}" start
-mfschunkserver -c "${info[chunkserver1_config]}" start
-
-port=${info[chunkserver2_port]}
-config=${info[chunkserver2_config]}
-# Limit data transfer from chunkserver serving part 2
+# Limit data transfer from this chunkserver
 start_proxy $port $((port + 1000))
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
-sleep 3
+mfschunkserver -c "${config}" stop
+LD_PRELOAD="${TEST_UTILS_ROOT}/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
+sleep 1
 
-if ! file-validate "$filename"; then
+if ! file-validate "$dir/file"; then
 	test_add_failure "Data read from file is different than written"
 fi
