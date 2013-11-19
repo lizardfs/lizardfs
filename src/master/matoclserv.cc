@@ -2479,10 +2479,10 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 	uint32_t inode;
 	uint32_t index;
 	std::vector<uint8_t> outMessage;
-	PacketSerializer& serilizer = PacketSerializer::getSerializer(isMooseFsType);
+	PacketSerializer& serializer = PacketSerializer::getSerializer(isMooseFsType);
 
 	std::vector<uint8_t> receivedData(data, data + length);
-	serilizer.deserializeFuseReadChunk(receivedData, messageId, inode, index);
+	serializer.deserializeFuseReadChunk(receivedData, messageId, inode, index);
 
 	status = fs_readchunk(inode, index, &chunkid, &fleng);
 
@@ -2497,13 +2497,13 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, const uint8_t *data, uint
 	}
 
 	if (status != STATUS_OK) {
-		serilizer.serializeFuseReadChunk(outMessage, messageId, status);
+		serializer.serializeFuseReadChunk(outMessage, messageId, status);
 		matoclserv_createpacket(eptr, outMessage);
 		return;
 	}
 
 	dcm_access(inode, eptr->sesdata->sessionid);
-	serilizer.serializeFuseReadChunk(outMessage, messageId, fleng, chunkid, version,
+	serializer.serializeFuseReadChunk(outMessage, messageId, fleng, chunkid, version,
 			allChunkCopies);
 	matoclserv_createpacket(eptr, outMessage);
 
@@ -2524,10 +2524,10 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 	chunklist *cl;
 	uint32_t chunkVersion;
 	std::vector<uint8_t> outMessage;
-	PacketSerializer& serilizer = PacketSerializer::getSerializer(isMooseFsType);
+	PacketSerializer& serializer = PacketSerializer::getSerializer(isMooseFsType);
 
 	std::vector<uint8_t> receivedData(data, data + length);
-	serilizer.deserializeFuseWriteChunk(receivedData, messageId, inode, chunkIndex);
+	serializer.deserializeFuseWriteChunk(receivedData, messageId, inode, chunkIndex);
 
 	if (eptr->sesdata->sesflags & SESFLAG_READONLY) {
 		status = ERROR_EROFS;
@@ -2536,7 +2536,7 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 	}
 
 	if (status != STATUS_OK) {
-		serilizer.serializeFuseWriteChunk(outMessage, messageId, status);
+		serializer.serializeFuseWriteChunk(outMessage, messageId, status);
 		matoclserv_createpacket(eptr, outMessage);
 		return;
 	}
@@ -2566,13 +2566,13 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 		}
 
 		if (status != STATUS_OK) {
-			serilizer.serializeFuseWriteChunk(outMessage, messageId, status);
+			serializer.serializeFuseWriteChunk(outMessage, messageId, status);
 			matoclserv_createpacket(eptr, outMessage);
 			fs_writeend(0, 0, chunkId);	// ignore status - just do it.
 			return;
 		}
 
-		serilizer.serializeFuseWriteChunk(outMessage, messageId, fileLength, chunkId,
+		serializer.serializeFuseWriteChunk(outMessage, messageId, fileLength, chunkId,
 				chunkVersion, allChunkCopies);
 		matoclserv_createpacket(eptr, outMessage);
 	}
