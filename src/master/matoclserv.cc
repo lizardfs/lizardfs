@@ -61,7 +61,7 @@
 // matoclserventry.mode
 enum {KILL,HEADER,DATA};
 // chunklis.type
-enum {FUSE_WRITE,FUSE_TRUNCATE};
+enum {FUSE_WRITE,FUSE_TRUNCATE,LIZ_FUSE_WRITE};
 
 #define SESSION_STATS 16
 
@@ -800,11 +800,39 @@ static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allC
 	}
 }
 
+uint8_t matoclserv_fuse_write_chunk_respond(matoclserventry *eptr, uint64_t chunkId,
+		uint32_t messageId, uint64_t fileLength, bool isMooseFsType) {
+	uint32_t chunkVersion;
+	std::vector<ChunkTypeWithAddress> allChunkCopies;
+	uint8_t status = chunk_getversionandlocations(chunkId, eptr->peerip, chunkVersion,
+			kMaxNumberOfChunkCopies, allChunkCopies);
+
+	// don't allow old clients to modify standard copy of a xor chunk
+	if (status == STATUS_OK && isMooseFsType) {
+		for (const ChunkTypeWithAddress& chunkCopy : allChunkCopies) {
+			if (!chunkCopy.chunkType.isStandardChunkType()) {
+				status = ERROR_NOCHUNK;
+				break;
+			}
+		}
+	}
+
+	std::vector<uint8_t> outMessage;
+	PacketSerializer& serializer = PacketSerializer::getSerializer(isMooseFsType);
+	if (status == STATUS_OK) {
+		serializer.serializeFuseWriteChunk(outMessage, messageId, fileLength,
+				chunkId, chunkVersion, allChunkCopies);
+	} else {
+		serializer.serializeFuseWriteChunk(outMessage, messageId, status);
+	}
+	matoclserv_createpacket(eptr, outMessage);
+	return status;
+}
+
 void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	uint32_t qid,inode,uid,gid,auid,agid;
 	uint64_t fleng;
 	uint8_t type,attr[35];
-	uint32_t version;
 	uint8_t *ptr;
 	chunklist *cl,**acl;
 	matoclserventry *eptr,*eaptr;
@@ -850,27 +878,25 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	if (status==STATUS_OK) {
 		dcm_modify(inode,eptr->sesdata->sessionid);
 	}
-	std::vector<NetworkAddress> standardChunkCopies;
-	std::vector<uint8_t> buffer;
+
+	bool isMooseFsType = false;
 	switch (type) {
 	case FUSE_WRITE:
-		if (status==STATUS_OK) {
-			std::vector<ChunkTypeWithAddress> allChunkCopies;
-			status=chunk_getversionandlocations(chunkid, eptr->peerip, version,
-					kMaxNumberOfChunkCopies, allChunkCopies);
-			getStandardChunkCopies(allChunkCopies, standardChunkCopies);
-			//syslog(LOG_NOTICE,"get version for chunk %" PRIu64 " -> %" PRIu32,chunkid,version);
+		isMooseFsType = true;
+	case LIZ_FUSE_WRITE:
+		if (status != STATUS_OK) {
+			PacketSerializer& serializer =
+				PacketSerializer::getSerializer(isMooseFsType);
+			std::vector<uint8_t> buffer;
+			serializer.serializeFuseWriteChunk(buffer, qid, status);
+			matoclserv_createpacket(eptr, buffer);
+		} else {
+			status = matoclserv_fuse_write_chunk_respond(eptr, chunkid, qid, fleng,
+				isMooseFsType);
 		}
-		if (status!=STATUS_OK) {
-			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
-			put32bit(&ptr,qid);
-			put8bit(&ptr,status);
+		if (status != STATUS_OK) {
 			fs_writeend(0,0,chunkid);	// ignore status - just do it.
-			return;
 		}
-		serializeMooseFsPacket(buffer, MATOCL_FUSE_WRITE_CHUNK, qid, fleng, chunkid, version,
-				standardChunkCopies);
-		matoclserv_createpacket(eptr, buffer);
 		return;
 	case FUSE_TRUNCATE:
 		fs_end_setlength(chunkid);
@@ -2522,7 +2548,6 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 	uint32_t messageId;
 	uint8_t opflag;
 	chunklist *cl;
-	uint32_t chunkVersion;
 	std::vector<uint8_t> outMessage;
 	PacketSerializer& serializer = PacketSerializer::getSerializer(isMooseFsType);
 
@@ -2548,33 +2573,16 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 		cl->chunkid = chunkId;
 		cl->qid = messageId;
 		cl->fleng = fileLength;
-		cl->type = FUSE_WRITE;
+		cl->type = isMooseFsType ? FUSE_WRITE : LIZ_FUSE_WRITE;
 		cl->next = eptr->chunkdelayedops;
 		eptr->chunkdelayedops = cl;
 	} else {	// return status immediately
 		dcm_modify(inode,eptr->sesdata->sessionid);
-		std::vector<ChunkTypeWithAddress> allChunkCopies;
-		status = chunk_getversionandlocations(chunkId, eptr->peerip, chunkVersion,
-				kMaxNumberOfChunkCopies, allChunkCopies);
-
-		if (isMooseFsType) {
-			for (const ChunkTypeWithAddress& chunkCopy : allChunkCopies) {
-				if (!chunkCopy.chunkType.isStandardChunkType()) {
-					status = ERROR_NOCHUNK;
-				}
-			}
-		}
-
+		status = matoclserv_fuse_write_chunk_respond(eptr, chunkId, messageId, fileLength,
+			isMooseFsType);
 		if (status != STATUS_OK) {
-			serializer.serializeFuseWriteChunk(outMessage, messageId, status);
-			matoclserv_createpacket(eptr, outMessage);
 			fs_writeend(0, 0, chunkId);	// ignore status - just do it.
-			return;
 		}
-
-		serializer.serializeFuseWriteChunk(outMessage, messageId, fileLength, chunkId,
-				chunkVersion, allChunkCopies);
-		matoclserv_createpacket(eptr, outMessage);
 	}
 
 	if (eptr->sesdata) {
