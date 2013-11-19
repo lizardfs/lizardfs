@@ -183,6 +183,7 @@ if(BUILD_UTILS)
 endif()
 if(BUILD_TESTS)
   add_subdirectory(src/unittests)
+  add_subdirectory(tests)
 endif()
 add_subdirectory(doc)
 
