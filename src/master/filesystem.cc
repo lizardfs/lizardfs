@@ -2185,30 +2185,39 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 
 #ifndef METARESTORE
 
-static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+static inline void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalStats& goalStats) {
 	fsedge *e;
 
-	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,9);
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,1);
+	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {
+		if (isOrdinaryGoal(node->goal)) {
+			goalStats.filesWithGoal[node->goal]++;
+		} else if (isXorGoal(node->goal)) {
+			goalStats.filesWithXorLevel[goalToXorLevel(node->goal)]++;
+		} else {
+			syslog(LOG_WARNING, "inode %" PRIu32 ": unknown goal!!! fixing", node->id);
+			sassert(node->parents);
+			sassert(node->parents->parent);
+			fsnodes_changefilegoal(node, node->parents->parent->goal);
 		}
-		fgtab[node->goal]++;
-	} else if (node->type==TYPE_DIRECTORY) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			node->goal=9;
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			node->goal=1;
+	} else if (node->type == TYPE_DIRECTORY) {
+		if (isOrdinaryGoal(node->goal)) {
+			goalStats.directoriesWithGoal[node->goal]++;
+		} else if (isXorGoal(node->goal)) {
+			goalStats.directoriesWithXorLevel[goalToXorLevel(node->goal)]++;
+		} else {
+			syslog(LOG_WARNING,"inode %" PRIu32 ": unknown goal!!! fixing",	node->id);
+			if (node->id == 1) {
+				// Root node
+				node->goal = 1;
+			} else {
+				sassert(node->parents);
+				sassert(node->parents->parent);
+				node->goal = node->parents->parent->goal;
+			}
 		}
-		dgtab[node->goal]++;
-		if (gmode==GMODE_RECURSIVE) {
-			for (e = node->data.ddata.children ; e ; e=e->nextchild) {
-				fsnodes_getgoal_recursive(e->child,gmode,fgtab,dgtab);
+		if (gmode == GMODE_RECURSIVE) {
+			for (e = node->data.ddata.children; e; e = e->nextchild) {
+				fsnodes_getgoal_recursive(e->child, gmode, goalStats);
 			}
 		}
 	}
@@ -2291,49 +2300,50 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 #endif
 
 #if VERSHEX>=0x010700
-static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t uid,uint8_t quota,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes,uint32_t *qeinodes) {
+static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t quota,
+		uint8_t goal, uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes,
+		uint32_t *qeinodes) {
 #else
-static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes) {
+static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal,
+		uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 #endif
 	fsedge *e;
-	uint8_t set;
 
-	if (node->type==TYPE_FILE || node->type==TYPE_DIRECTORY || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		if ((node->mode&(EATTR_NOOWNER<<12))==0 && uid!=0 && node->uid!=uid) {
+	if (node->type==TYPE_FILE
+			|| node->type==TYPE_DIRECTORY
+			|| node->type==TYPE_TRASH
+			|| node->type==TYPE_RESERVED) {
+		if ((node->mode & (EATTR_NOOWNER << 12)) == 0 && uid != 0 && node->uid != uid) {
 			(*nsinodes)++;
 		} else {
-			set=0;
-			switch (smode&SMODE_TMASK) {
+			bool set = false;
+			switch (smode & SMODE_TMASK) {
 			case SMODE_SET:
-				if (node->goal!=goal) {
-					set=1;
-				}
+				set = (node->goal != goal);
 				break;
 			case SMODE_INCREASE:
-				if (node->goal<goal) {
-					set=1;
-				}
+				sassert(isOrdinaryGoal(goal));
+				set = (isOrdinaryGoal(node->goal) && node->goal < goal);
 				break;
 			case SMODE_DECREASE:
-				if (node->goal>goal) {
-					set=1;
-				}
+				sassert(isOrdinaryGoal(goal));
+				set = (isOrdinaryGoal(node->goal) && node->goal > goal);
 				break;
 			}
 			if (set) {
-				if (node->type!=TYPE_DIRECTORY) {
+				if (node->type != TYPE_DIRECTORY) {
 #if VERSHEX>=0x010700
-					if (quota && goal>node->goal) {
+					if (quota && goal > node->goal) {
 						(*qeinodes)++;
 					} else {
 #endif
-						fsnodes_changefilegoal(node,goal);
+						fsnodes_changefilegoal(node, goal);
 						(*sinodes)++;
 #if VERSHEX>=0x010700
 					}
 #endif
 				} else {
-					node->goal=goal;
+					node->goal = goal;
 					(*sinodes)++;
 				}
 				node->ctime = ts;
@@ -2348,7 +2358,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 				(*ncinodes)++;
 			}
 		}
-		if (node->type==TYPE_DIRECTORY && (smode&SMODE_RMASK)) {
+		if (node->type == TYPE_DIRECTORY && (smode & SMODE_RMASK)) {
 #if VERSHEX>=0x010700
 			if (quota==0 && node->data.ddata.quota && node->data.ddata.quota->exceeded) {
 				quota=1;
@@ -4889,11 +4899,10 @@ uint8_t fs_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion) {
 #endif
 
 #ifndef METARESTORE
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
+		GoalStats& goalStats) {
 	fsnode *p,*rn;
 	(void)sesflags;
-	memset(fgtab,0,10*sizeof(uint32_t));
-	memset(dgtab,0,10*sizeof(uint32_t));
 	if (!GMODE_ISVALID(gmode)) {
 		return ERROR_EINVAL;
 	}
@@ -4925,7 +4934,7 @@ uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gm
 	if (p->type!=TYPE_DIRECTORY && p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	fsnodes_getgoal_recursive(p,gmode,fgtab,dgtab);
+	fsnodes_getgoal_recursive(p, gmode, goalStats);
 	return STATUS_OK;
 }
 
@@ -5066,7 +5075,8 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 	qei = 0;
 #endif
 #endif
-	if (!SMODE_ISVALID(smode) || goal>9 || goal<1) {
+	if (!SMODE_ISVALID(smode) || !isGoalValid(goal) ||
+			(smode & (SMODE_INCREASE | SMODE_DECREASE) && isXorGoal(goal))) {
 		return ERROR_EINVAL;
 	}
 #ifndef METARESTORE

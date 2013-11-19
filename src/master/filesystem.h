@@ -20,9 +20,25 @@
 #define _FILESYSTEM_H_
 
 #include <inttypes.h>
+#include <string.h>
+
+#include "common/goal.h"
+
+struct GoalStats {
+	uint32_t filesWithXorLevel[kMaxXorLevel + 1];
+	uint32_t filesWithGoal[kMaxOrdinaryGoal + 1];
+	uint32_t directoriesWithXorLevel[kMaxXorLevel + 1];
+	uint32_t directoriesWithGoal[kMaxOrdinaryGoal + 1];
+
+	GoalStats() {
+		memset(filesWithXorLevel, 0, sizeof(filesWithXorLevel));
+		memset(filesWithGoal, 0, sizeof(filesWithGoal));
+		memset(directoriesWithXorLevel, 0, sizeof(directoriesWithXorLevel));
+		memset(directoriesWithGoal, 0, sizeof(directoriesWithGoal));
+	}
+};
 
 #ifdef METARESTORE
-
 
 uint64_t fs_getversion(void);
 
@@ -111,7 +127,8 @@ uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
 
 uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);
 
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]);
+uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
+		GoalStats& goalStats);
 #if VERSHEX>=0x010700
 uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes,uint32_t *qeinodes);
 #else

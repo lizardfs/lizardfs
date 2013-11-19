@@ -451,20 +451,31 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 		c->goal = newgoal;
 	} else {
 		if (c->ftab==NULL) {
-			c->ftab = (uint32_t*) malloc(sizeof(uint32_t)*10);
-			passert(c->ftab);
-			memset(c->ftab,0,sizeof(uint32_t)*10);
-			c->ftab[c->goal]=c->fcount-1;
-			c->ftab[newgoal]=1;
-			if (newgoal > c->goal) {
-				c->goal = newgoal;
+			c->ftab = new uint32_t[kMaxOrdinaryGoal + 1];
+			memset(c->ftab, 0, sizeof(uint32_t) * (kMaxOrdinaryGoal + 1));
+			if (isOrdinaryGoal(c->goal)) {
+				c->ftab[c->goal]=c->fcount-1;
+			}
+			if (isOrdinaryGoal(newgoal)) {
+				c->ftab[newgoal]=1;
+			}
+			if (isOrdinaryGoal(c->goal) && isOrdinaryGoal(newgoal)) {
+				if (newgoal > c->goal) {
+					c->goal = newgoal;
+				}
 			}
 		} else {
-			c->ftab[prevgoal]--;
-			c->ftab[newgoal]++;
-			c->goal = 9;
-			while (c->ftab[c->goal]==0) {
-				c->goal--;
+			if (isOrdinaryGoal(prevgoal)) {
+				c->ftab[prevgoal]--;
+			}
+			if (isOrdinaryGoal(newgoal)) {
+				c->ftab[newgoal]++;
+			}
+			if (isOrdinaryGoal(c->goal)) {
+				c->goal = kMaxOrdinaryGoal;
+				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
+					c->goal--;
+				}
 			}
 		}
 	}
@@ -499,15 +510,19 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 #endif
 	} else {
 		if (c->ftab) {
-			c->ftab[goal]--;
-			c->goal = 9;
-			while (c->ftab[c->goal]==0) {
-				c->goal--;
+			if (isOrdinaryGoal(goal)) {
+				c->ftab[goal]--;
+			}
+			if (isOrdinaryGoal(c->goal)) {
+				c->goal = kMaxOrdinaryGoal;
+				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
+					c->goal--;
+				}
 			}
 		}
 		c->fcount--;
 		if (c->fcount==1 && c->ftab) {
-			free(c->ftab);
+			delete[] c->ftab;
 			c->ftab = NULL;
 		}
 	}
@@ -531,26 +546,35 @@ static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
 		c->fcount = 1;
 	} else if (goal==c->goal) {
 		c->fcount++;
-		if (c->ftab) {
+		if (c->ftab && isOrdinaryGoal(goal)) {
 			c->ftab[goal]++;
 		}
 	} else {
 		if (c->ftab==NULL) {
-			c->ftab = (uint32_t*) malloc(sizeof(uint32_t)*10);
-			passert(c->ftab);
-			memset(c->ftab,0,sizeof(uint32_t)*10);
-			c->ftab[c->goal]=c->fcount;
-			c->ftab[goal]=1;
+			c->ftab = new uint32_t[kMaxOrdinaryGoal + 1];
+			memset(c->ftab, 0, sizeof(uint32_t) * (kMaxOrdinaryGoal + 1));
+			if (isOrdinaryGoal(c->goal)) {
+				c->ftab[c->goal]=c->fcount;
+			}
+			if (isOrdinaryGoal(goal)) {
+				c->ftab[goal]=1;
+			}
 			c->fcount++;
-			if (goal > c->goal) {
-				c->goal = goal;
+			if (isOrdinaryGoal(goal) && isOrdinaryGoal(c->goal)) {
+				if (goal > c->goal) {
+					c->goal = goal;
+				}
 			}
 		} else {
-			c->ftab[goal]++;
+			if (isOrdinaryGoal(goal)) {
+				c->ftab[goal]++;
+			}
 			c->fcount++;
-			c->goal = 9;
-			while (c->ftab[c->goal]==0) {
-				c->goal--;
+			if (isOrdinaryGoal(c->goal)) {
+				c->goal = kMaxOrdinaryGoal;
+				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
+					c->goal--;
+				}
 			}
 		}
 	}

@@ -31,9 +31,14 @@ inline uint32_t serializedSize(const uint64_t&) {
 	return 8;
 }
 
+template<class T1, class T2>
+inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
+	return serializedSize(pair.first) + serializedSize(pair.second);
+}
+
 template<class T>
-inline uint32_t serializedSize(const std::vector<T>& vec) {
-	return vec.size() * serializedSize(T());
+inline uint32_t serializedSize(const std::vector<T>& vector) {
+	return vector.size() * serializedSize(T());
 }
 
 template<class T, class ... Args>
@@ -59,9 +64,15 @@ inline void serialize(uint8_t** destination, const uint64_t& value) {
 	put64bit(destination, value);
 }
 
+template<class T1, class T2>
+inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
+	serialize(destination, pair.first);
+	serialize(destination, pair.second);
+}
+
 template<class T>
-inline void serialize(uint8_t** destination, const std::vector<T>& vec) {
-	for (const T& t : vec) {
+inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
+	for (const T& t : vector) {
 		serialize(destination, t);
 	}
 }
@@ -111,19 +122,28 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uin
 	value = get64bit(source);
 }
 
+// deserialize a pair
+template<class T1, class T2>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::pair<T1, T2>& pair) {
+	deserialize(source, bytesLeftInBuffer, pair.first);
+	deserialize(source, bytesLeftInBuffer, pair.second);
+}
+
 // deserialize a vector
 template<class T>
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::vector<T>& vec) {
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::vector<T>& vector) {
 	size_t sizeOfElement = serializedSize(T());
-	sassert(vec.size() == 0);
+	sassert(vector.size() == 0);
 	sassert(sizeOfElement > 0);
 	if (bytesLeftInBuffer % sizeOfElement != 0) {
 		throw IncorrectDeserializationException();
 	}
 	size_t vecSize = bytesLeftInBuffer / sizeOfElement;
-	vec.resize(vecSize);
+	vector.resize(vecSize);
 	for (size_t i = 0; i < vecSize; ++i) {
-		deserialize(source, bytesLeftInBuffer, vec[i]);
+		deserialize(source, bytesLeftInBuffer, vector[i]);
 	}
 }
 

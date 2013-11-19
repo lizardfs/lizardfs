@@ -39,6 +39,7 @@
 #include "common/charts.h"
 #include "common/chunk_type_with_address.h"
 #include "common/cltoma_communication.h"
+#include "common/goal.h"
 #include "common/massert.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
@@ -2769,127 +2770,92 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matoclserv_fuse_getgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getgoal(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId;
 	uint32_t inode;
-	uint32_t msgid;
-	uint32_t fgtab[10],dgtab[10];
-	uint8_t i,fn,dn,gmode;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETGOAL - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode = KILL;
+	uint8_t gmode;
+	GoalStats goalStats;
+
+	deserializeAllMooseFsPacketDataNoHeader(data, length, messageId, inode, gmode);
+	uint8_t status = fs_getgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, gmode, goalStats);
+	if (status != STATUS_OK) {
+		std::vector<uint8_t> outMessage;
+		serializeMooseFsPacket(outMessage, MATOCL_FUSE_GETGOAL, messageId, status);
+		matoclserv_createpacket(eptr, outMessage);
 		return;
 	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	gmode = get8bit(&data);
-	status = fs_getgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,fgtab,dgtab);
-	fn=0;
-	dn=0;
-	if (status==STATUS_OK) {
-		for (i=1 ; i<10 ; i++) {
-			if (fgtab[i]) {
-				fn++;
-			}
-			if (dgtab[i]) {
-				dn++;
-			}
+
+	uint8_t fn = 0;
+	uint8_t dn = 0;
+	std::vector<std::pair<uint8_t, uint32_t>> goalData;
+	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+		if (goalStats.filesWithGoal[i] > 0) {
+			goalData.push_back({i, goalStats.filesWithGoal[i]});
+			fn++;
 		}
 	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETGOAL,(status!=STATUS_OK)?5:6+5*(fn+dn));
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put8bit(&ptr,fn);
-		put8bit(&ptr,dn);
-		for (i=1 ; i<10 ; i++) {
-			if (fgtab[i]) {
-				put8bit(&ptr,i);
-				put32bit(&ptr,fgtab[i]);
-			}
-		}
-		for (i=1 ; i<10 ; i++) {
-			if (dgtab[i]) {
-				put8bit(&ptr,i);
-				put32bit(&ptr,dgtab[i]);
-			}
+	for (uint8_t i = kMinXorLevel; i <= kMaxXorLevel; ++i) {
+		if (goalStats.filesWithXorLevel[i] > 0) {
+			goalData.push_back({xorLevelToGoal(i), goalStats.filesWithXorLevel[i]});
+			fn++;
 		}
 	}
+	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+		if (goalStats.directoriesWithGoal[i] > 0) {
+			goalData.push_back({i, goalStats.directoriesWithGoal[i]});
+			dn++;
+		}
+	}
+	for (uint8_t i = kMinXorLevel; i <= kMaxXorLevel; ++i) {
+		if (goalStats.directoriesWithXorLevel[i]) {
+			goalData.push_back({xorLevelToGoal(i), goalStats.directoriesWithXorLevel[i]});
+			dn++;
+		}
+	}
+	std::vector<uint8_t> outMessage;
+	serializeMooseFsPacket(outMessage, MATOCL_FUSE_GETGOAL, messageId, fn, dn, goalData);
+	matoclserv_createpacket(eptr, outMessage);
 }
 
-void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid;
-	uint32_t msgid;
-	uint8_t goal,smode;
-#if VERSHEX>=0x010700
-	uint32_t changed,notchanged,notpermitted,quotaexceeded;
-#else
-	uint32_t changed,notchanged,notpermitted;
-#endif
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=14) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETGOAL - wrong size (%" PRIu32 "/14)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	uid = get32bit(&data);
+void matoclserv_fuse_setgoal(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t inode, uid;
+	uint32_t messageId;
+	uint8_t goal, smode;
+
+	deserializeAllMooseFsPacketDataNoHeader(data, length, messageId, inode, uid, goal, smode);
 	matoclserv_ugid_remap(eptr,&uid,NULL);
-	goal = get8bit(&data);
-	smode = get8bit(&data);
-// limits check
-	status = STATUS_OK;
-	switch (smode&SMODE_TMASK) {
-	case SMODE_SET:
-		if (goal<eptr->sesdata->mingoal || goal>eptr->sesdata->maxgoal) {
-			status = ERROR_EPERM;
-		}
-		break;
-	case SMODE_INCREASE:
-		if (goal>eptr->sesdata->maxgoal) {
-			status = ERROR_EPERM;
-		}
-		break;
-	case SMODE_DECREASE:
-		if (goal<eptr->sesdata->mingoal) {
-			status = ERROR_EPERM;
-		}
-		break;
-	}
-	if (goal<1 || goal>9) {
+
+	uint8_t status = STATUS_OK;
+	if (!isGoalValid(goal)) {
+		status = ERROR_EINVAL;
+	} else if (isOrdinaryGoal(goal) && (goal < eptr->sesdata->mingoal || goal > eptr->sesdata->maxgoal)) {
+		status = ERROR_EPERM;
+	} else if (isXorGoal(goal) && (smode & SMODE_TMASK) != SMODE_SET) {
 		status = ERROR_EINVAL;
 	}
-	if (status==STATUS_OK) {
+
+	uint32_t changed = 0, notchanged = 0, notpermitted = 0, quotaexceeded = 0;
+	if (status == STATUS_OK) {
 #if VERSHEX>=0x010700
-		status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted,&quotaexceeded);
+		status = fs_setgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, uid, goal,
+				smode, &changed, &notchanged, &notpermitted, &quotaexceeded);
 #else
-		status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
+		status = fs_setgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, uid, goal,
+				smode, &changed, &notchanged, &notpermitted);
 #endif
 	}
-	if (eptr->version>=0x010700) {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:20);
+
+	std::vector<uint8_t> outMessage;
+	if (status != STATUS_OK) {
+		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL, messageId, status);
+	} else if (eptr->version >= 0x010700) {
+		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL,
+				messageId, changed, notchanged, notpermitted, quotaexceeded);
 	} else {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
+		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL,
+				messageId, changed, notchanged, notpermitted);
 	}
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put32bit(&ptr,changed);
-		put32bit(&ptr,notchanged);
-		put32bit(&ptr,notpermitted);
-		if (eptr->version>=0x010700) {
-#if VERSHEX>=0x010700
-			put32bit(&ptr,quotaexceeded);
-#else
-			put32bit(&ptr,0);
-#endif
-		}
-	}
+	matoclserv_createpacket(eptr, outMessage);
 }
 
 void matoclserv_fuse_geteattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
