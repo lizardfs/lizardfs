@@ -14,10 +14,7 @@
 // We check whether dest and source are well-aligned and hope that compiler will perform XORs using
 // vector instructions. Some architectures don't support unaligned vector loads and stores, others
 // (e.g. x86) support them but aligned versions still are faster.
-//
-// Currently it does not make sense to use alignment bigger then 32, but it does not have any real
-// cost either. With such big alignment we are prepared for architectures that future will bring!
-#define ALIGNMENT size_t(1024)
+#define ALIGNMENT size_t(16)
 
 
 // Assumes that dest and source are properly aligned:
@@ -32,10 +29,14 @@ void blockXor(uint8_t* dest, const uint8_t* source, size_t size) {
 	intptr_t d = reinterpret_cast<intptr_t>(dest);
 	intptr_t s = reinterpret_cast<intptr_t>(source);
 	if (d % ALIGNMENT == s % ALIGNMENT) {
-		size_t unalignedPrefixSize = std::min(size, (ALIGNMENT - d % ALIGNMENT) % ALIGNMENT);
-		blockXorUnaligned(dest, source, unalignedPrefixSize);
-		blockXorAligned(dest + unalignedPrefixSize, source + unalignedPrefixSize,
-				size - unalignedPrefixSize);
+		size_t unalignedPrefixSize = (ALIGNMENT - d % ALIGNMENT) % ALIGNMENT;
+		if (size < unalignedPrefixSize) {
+			blockXorUnaligned(dest, source, size);
+		} else {
+			blockXorUnaligned(dest, source, unalignedPrefixSize);
+			blockXorAligned(dest + unalignedPrefixSize, source + unalignedPrefixSize,
+					size - unalignedPrefixSize);
+		}
 	} else {
 		blockXorUnaligned(dest, source, size);
 	}
