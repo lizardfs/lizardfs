@@ -1,7 +1,6 @@
 #include "read_plan_executor.h"
 
 #include <chrono>
-#include <cstring>
 #include <map>
 #include <sys/poll.h>
 
@@ -81,7 +80,7 @@ void ReadPlanExecutor::executeReadOperations(
 				if (errno == EINTR) {
 					continue;
 				} else {
-					throw RecoverableReadException("Poll error: " + std::string(strerror(errno)));
+					throw RecoverableReadException("Poll error: " + std::string(strerr(errno)));
 				}
 			} else if (status == 0) {
 				// The time is out, our chunkservers appear to be unresponsive.
