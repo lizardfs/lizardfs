@@ -631,8 +631,6 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 #ifndef METARESTORE
 int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag) {
-	void* ptrs[65536];
-	uint16_t servcount;
 	slist *os,*s;
 	uint32_t i;
 #else
@@ -642,12 +640,13 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 
 	if (ochunkid==0) {	// new chunk
 #ifndef METARESTORE
-		servcount = matocsserv_getservers_wrandom(ptrs,goal);
-		if (servcount==0) {
+		auto serversWithChunkTypes = matocsserv_getservers_for_new_chunk(goal);
+		if (serversWithChunkTypes.empty()) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
-			if (uscount>0 && (uint32_t)(main_time())>(starttime+600)) {	// if there are chunkservers and it's at least one minute after start then it means that there is no space left
+			// if there are chunkservers and it's at least one minute after start then it means that there is no space left
+			if (uscount > 0 && (uint32_t)(main_time()) > (starttime + 600)) {
 				return ERROR_NOSPACE;
 			} else {
 				return ERROR_NOCHUNKSERVERS;
@@ -662,21 +661,17 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 #endif
 		chunk_add_file_int(c,goal);
 #ifndef METARESTORE
-		if (servcount<goal) {
-			c->allvalidcopies = servcount;
-			c->regularvalidcopies = servcount;
-		} else {
-			c->allvalidcopies = goal;
-			c->regularvalidcopies = goal;
-		}
+		c->allvalidcopies = serversWithChunkTypes.size();
+		c->regularvalidcopies = serversWithChunkTypes.size();
 		for (i=0 ; i<c->allvalidcopies ; i++) {
 			s = slist_malloc();
-			s->ptr = ptrs[i];
+			s->ptr = serversWithChunkTypes[i].first;
+			s->chunkType = serversWithChunkTypes[i].second;
 			s->valid = BUSY;
 			s->version = c->version;
 			s->next = c->slisthead;
 			c->slisthead = s;
-			matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
+			matocsserv_send_createchunk(s->ptr, c->chunkid, s->chunkType, c->version);
 		}
 		chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
 		*opflag=1;
@@ -1389,13 +1384,13 @@ void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
 }
 
-void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_create_status(void *ptr,uint64_t chunkId, ChunkType chunkType, uint8_t status) {
 	chunk *c;
-	c = chunk_find(chunkid);
+	c = chunk_find(chunkId);
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
+	chunk_operation_status(c, chunkType, status, ptr);
 }
 
 void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {

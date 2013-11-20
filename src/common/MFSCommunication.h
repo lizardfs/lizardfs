@@ -446,9 +446,15 @@
 #define MATOCS_CREATE (PROTO_BASE+110)
 // chunkid:64 version:32
 
+// 0x0456
+#define LIZ_MATOCS_CREATE_CHUNK (1000U + 110U)
+
 // 0x006F
 #define CSTOMA_CREATE (PROTO_BASE+111)
 // chunkid:64 status:8
+
+// 0x0457
+#define LIZ_CSTOMA_CREATE_CHUNK (1000U + 111U)
 
 // 0x0078
 #define MATOCS_DELETE (PROTO_BASE+120)

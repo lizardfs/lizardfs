@@ -18,7 +18,6 @@ ChunkSignature::ChunkSignature()
 		  hasValidSignatureId_(false) {
 }
 
-
 bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
 	const ssize_t maxSignatureSize = kSignatureIdSize + 13;
 	uint8_t buffer[maxSignatureSize];

@@ -2038,7 +2038,7 @@ static int hdd_chunk_overwrite_version(Chunk* c, uint32_t newVersion) {
 	return STATUS_OK;
 }
 
-static int hdd_int_create(uint64_t chunkid,uint32_t version) {
+static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	TRACETHIS2(chunkid, version);
 	folder *f;
 	Chunk *c;
@@ -2052,7 +2052,7 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 		zassert(pthread_mutex_unlock(&folderlock));
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f, chunkid, ChunkType::getStandardChunkType(), version);
+	c = hdd_chunk_create(f, chunkid, chunkType, version);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		return ERROR_CHUNKEXIST;
@@ -2073,10 +2073,12 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 		return ERROR_IO;
 	}
 	memset(hdrbuffer, 0, c->getHeaderSize());
-	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
-	ptr = hdrbuffer+8;
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
+	std::string signature(ChunkSignature::kLizSignatureId);
+	memcpy(hdrbuffer, signature.c_str(), signature.length());
+	ptr = hdrbuffer + signature.length();
+	put64bit(&ptr, chunkid);
+	put32bit(&ptr, version);
+	put8bit(&ptr, chunkType.chunkTypeId());
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
@@ -2873,7 +2875,7 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		if (length==0) {
 			return hdd_int_delete(chunkId, chunkVersion, chunkType);
 		} else if (length==1) {
-			return hdd_int_create(chunkId,chunkVersion);
+			return hdd_int_create(chunkId, chunkVersion, chunkType);
 		} else if (length==2) {
 			return hdd_int_test(chunkId,chunkVersion);
 		} else {

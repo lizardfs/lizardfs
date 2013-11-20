@@ -41,8 +41,8 @@ uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra),
 #define job_delete(jobPool, callback, extra, chunkId, chunkVersion, chunkType) \
 	job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, 0, 0, 0, 0)
 
-#define job_create(jobPool, callback, extra, chunkId, chunkVersion) job_chunkop(jobPool, callback, \
-		extra, chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 1)
+#define job_create(jobPool, callback, extra, chunkId, chunkType, chunkVersion) \
+	job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, 0, 0, 0, 1)
 
 #define job_test(jobPool, callback, extra, chunkId, chunkVersion) job_chunkop(jobPool, callback, \
 		extra, chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 2)

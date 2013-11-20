@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
+#include <algorithm>
 #include <list>
 #include <vector>
 
@@ -118,6 +119,7 @@ struct matocsserventry {
 	matocsserventry *next;
 };
 
+static const double kCarryThreshold = 1.;
 static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
@@ -563,64 +565,106 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 }
 
 struct rservsort {
-  double w;
-  double carry;
-  matocsserventry *ptr;
-};
-int matocsserv_carry_compare(const void *a,const void *b) {
- const rservsort *aa=(const rservsort*)a, *bb=(const rservsort*)b;
-	if (aa->carry > bb->carry) {
-		return -1;
-	}
-	if (aa->carry < bb->carry) {
-		return 1;
-	}
-	return 0;
-}
-
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
-  rservsort servtab[65536];
-	matocsserventry *eptr;
+	double selectionFrequency;
 	double carry;
-	uint32_t i;
-	uint32_t allcnt;
-	uint32_t availcnt;
-	if (maxtotalspace==0) {
-		return 0;
+	matocsserventry *ptr;
+	bool operator<(const rservsort &r) const {
+		return carry < r.carry;
 	}
-	allcnt=0;
-	availcnt=0;
-	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
-			servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
-			servtab[allcnt].carry = eptr->carry;
-			servtab[allcnt].ptr = eptr;
-			allcnt++;
-			if (eptr->carry>=1.0) {
-				availcnt++;
+};
+
+std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_new_chunk(
+		uint8_t desiredGoal) {
+	std::vector<std::pair<matocsserventry*, ChunkType>> ret;
+
+	matocsserventry *eptr;
+	if (maxtotalspace == 0) {
+		return ret;
+	}
+
+	std::vector<rservsort> availableServers;
+	for (eptr = matocsservhead; eptr && availableServers.size() < 65536; eptr = eptr->next) {
+		if (isXorGoal(desiredGoal) && eptr->version  < 0x01061C) {
+			// can't store XOR chunks on chunkservers with version < 1.6.28
+			continue;
+		}
+		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
+				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
+			rservsort serv;
+			serv.selectionFrequency = (double)eptr->totalspace / (double)maxtotalspace;
+			serv.carry = eptr->carry;
+			serv.ptr = eptr;
+			availableServers.push_back(serv);
+		}
+	}
+
+	// Check if it is possible to create requested chunk
+	uint32_t serversDemanded;
+	if (isXorGoal(desiredGoal)) {
+		serversDemanded = goalToXorLevel(desiredGoal) + 1;
+	} else {
+		sassert(isOrdinaryGoal(desiredGoal));
+		serversDemanded = desiredGoal;
+	}
+	uint32_t chunksToBeCreated = serversDemanded;
+	if (serversDemanded > availableServers.size()) {
+		// The cannot provide security level that was demanded
+		if (isOrdinaryGoal(desiredGoal)) {
+			if (availableServers.size() > 0) {
+				// We'll store a chunk in fewer copies then demanded, but we'll create a chunk
+				chunksToBeCreated = availableServers.size();
+			} else {
+				// Nothing can be done, chunk won't be created
+				return ret;
+			}
+		} else {
+			sassert(isXorGoal(desiredGoal));
+			if (availableServers.size() == goalToXorLevel(desiredGoal)) {
+				// We won't store the parity part, but we'll create a chunk
+				chunksToBeCreated = goalToXorLevel(desiredGoal);
+			} else {
+				// Nothing can be done, chunk won't be created
+				return ret;
 			}
 		}
 	}
-	if (demand>allcnt) {
-		demand=allcnt;
-	}
-	while (availcnt<demand) {
-		availcnt=0;
-		for (i=0 ; i<allcnt ; i++) {
-			carry = servtab[i].carry + servtab[i].w;
-			servtab[i].carry = carry;
-			servtab[i].ptr->carry = carry;
-			if (carry>=1.0) {
-				availcnt++;
+
+	// Choose servers to be used to store new chunks.
+	std::vector<rservsort> choosenServers;
+	while (choosenServers.size() < chunksToBeCreated) {
+		for (size_t i = 0; i < availableServers.size(); i++) {
+			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
+			if (carry > kCarryThreshold) {
+				choosenServers.push_back(availableServers[i]);
+				carry -= kCarryThreshold;
 			}
+			availableServers[i].carry = carry;
+			availableServers[i].ptr->carry = carry;
 		}
 	}
-	qsort(servtab,allcnt,sizeof(struct rservsort),matocsserv_carry_compare);
-	for (i=0 ; i<demand ; i++) {
-		ptrs[i] = servtab[i].ptr;
-		servtab[i].ptr->carry-=1.0;
+	std::sort(choosenServers.rbegin(), choosenServers.rend());
+	// After loops above more then chunksToBeCreated servers might have been found, let's
+	// correct carry values for those that won't be used
+	for (size_t i = chunksToBeCreated; i < choosenServers.size(); i++) {
+		choosenServers[i].ptr->carry += kCarryThreshold;
 	}
-	return demand;
+
+	// Assign chunk types to choosen servers
+	for (size_t i = 0; i < chunksToBeCreated; i++) {
+		ChunkType ct = ChunkType::getStandardChunkType();
+		if (isXorGoal(desiredGoal)) {
+			ChunkType::XorLevel level = goalToXorLevel(desiredGoal);
+			if (i == 0) {
+				ct = ChunkType::getXorParityChunkType(level);
+			} else {
+				ct = ChunkType::getXorChunkType(level, i);
+			}
+		} else {
+			sassert(isOrdinaryGoal(desiredGoal));
+		}
+		ret.push_back(std::make_pair(choosenServers[i].ptr, ct));
+	}
+	return ret;
 }
 
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
@@ -766,32 +810,39 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	(void)version;
 }
 
-int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version) {
+int matocsserv_send_createchunk(void *e, uint64_t chunkId, ChunkType chunkType,
+		uint32_t chunkVersion) {
 	matocsserventry *eptr = (matocsserventry *)e;
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_CREATE,8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < 0x01061C) {
+			// get old packet when version is < 1.6.28
+			sassert(chunkType.isStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_CREATE, chunkId,
+					chunkType, chunkVersion);
+		} else {
+			matocs::createChunk::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
+					chunkVersion);
+		}
 	}
 	return 0;
 }
 
-void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_createchunk_status(matocsserventry *eptr, const std::vector<uint8_t> &data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_CREATE - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+	if (eptr->version < 0x01061C) {
+		// get old packet when version is < 1.6.28
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_create_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+	else {
+		cstoma::createChunk::deserialize(data, chunkId, chunkType, status);
+	}
+	chunk_got_create_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
@@ -1467,7 +1518,8 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				matocsserv_got_chunk_checksum(eptr, data.data(), length);
 				break;
 			case CSTOMA_CREATE:
-				matocsserv_got_createchunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_CREATE_CHUNK:
+				matocsserv_got_createchunk_status(eptr, data);
 				break;
 			case CSTOMA_DELETE:
 			case LIZ_CSTOMA_DELETE_CHUNK:

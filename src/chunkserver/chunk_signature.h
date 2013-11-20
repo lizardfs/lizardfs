@@ -31,10 +31,10 @@ public:
 		return chunkTypeId_;
 	}
 
-private:
 	static const char kMfsSignatureId[];
 	static const char kLizSignatureId[];
 
+private:
 	uint64_t chunkId_;
 	uint32_t chunkVersion_;
 	uint8_t chunkTypeId_;

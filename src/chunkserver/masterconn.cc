@@ -292,34 +292,23 @@ void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
 
 #endif /* BGJOBS */
 
-void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-#ifdef BGJOBS
-	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
+void masterconn_create(masterconn *eptr, const std::vector<uint8_t> &data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t chunkVersion;
 
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_CREATE - wrong size (%" PRIu32 "/12)",length);
+	try {
+		matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
+	}
+	catch (IncorrectDeserializationException &e) {
+		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
+				"(details: matocs::createChunk::deserialize failed in masterconn_create");
 		eptr->mode = KILL;
 		return;
 	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-#ifdef BGJOBS
-	packet = masterconn_create_detached_packet(CSTOMA_CREATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_create(jpool,masterconn_jobfinished,packet,chunkid,version);
-#else /* BGJOBS */
-	status = hdd_create(chunkid,version);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CREATE,8+1);
-	put64bit(&ptr,chunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
+	OutputPacket *outputPacket = new OutputPacket;
+	cstoma::createChunk::serialize(outputPacket->packet, chunkId, chunkType, STATUS_OK);
+	job_create(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, chunkVersion);
 }
 
 void masterconn_delete(masterconn *eptr, const std::vector<uint8_t>& data) {
@@ -667,8 +656,8 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 			break;
 		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
-		case MATOCS_CREATE:
-			masterconn_create(eptr, data.data() ,length);
+		case LIZ_MATOCS_CREATE_CHUNK:
+			masterconn_create(eptr, data);
 			break;
 		case LIZ_MATOCS_DELETE_CHUNK:
 			masterconn_delete(eptr, data);

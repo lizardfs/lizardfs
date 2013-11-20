@@ -6,7 +6,7 @@
 
 ChunkType::XorLevel goalToXorLevel(uint8_t goal) {
 	sassert(isXorGoal(goal));
-	return  ~goal + kMinXorLevel;
+	return ~goal + kMinXorLevel;
 }
 
 bool isGoalValid(uint8_t goal) {

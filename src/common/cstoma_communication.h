@@ -108,6 +108,20 @@ inline void deserialize(const std::vector<uint8_t>& source,
 
 } // namespace deleteChunk
 
+namespace createChunk {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, ChunkType chunkType, uint8_t status) {
+	serializeStatus(destination, LIZ_CSTOMA_CREATE_CHUNK, chunkId, chunkType, status);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
+}
+
+} // namespace createChunk
+
 } // namespace cstoma
 
 #endif /* LIZARDFS_MFSCOMMON_CSTOMA_COMMUNICATION_H_ */

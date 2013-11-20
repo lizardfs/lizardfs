@@ -20,13 +20,18 @@
 #define _MATOCSSERV_H_
 
 #include <inttypes.h>
+#include <vector>
 
 #include "common/chunk_type.h"
+#include "common/goal.h"
+
+struct matocsserventry;
 
 int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port);
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);
+std::vector<std::pair<matocsserventry*, ChunkType>>
+		matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit);
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
 const char* matocsserv_getstrip(void *e);
@@ -41,7 +46,7 @@ int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version
 int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng);
 int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion,
 		ChunkType chunkType);
-int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version);
+int matocsserv_send_createchunk(void *e, uint64_t chunkid, ChunkType chunkType, uint32_t version);
 int matocsserv_send_setchunkversion(void *e, uint64_t chunkId, uint32_t newVersion,
 		uint32_t chunkVersion, ChunkType chunkType);
 int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion);
