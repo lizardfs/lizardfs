@@ -1,19 +1,19 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file is part of MooseFS.
+   This file was part of MooseFS and is part of LizardFS.
 
-   MooseFS is free software: you can redistribute it and/or modify
+   LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation, version 3.
 
-   MooseFS is distributed in the hope that it will be useful,
+   LizardFS is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with MooseFS.  If not, see <http://www.gnu.org/licenses/>.
+   along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #if defined(__APPLE__)
@@ -548,10 +548,12 @@ void mfs_statfs(fuse_req_t req) {
 	//stfsbuf.f_flag = ST_RDONLY;
 	fuse_reply_statfs(req,&stfsbuf);
 #if FUSE_USE_VERSION >= 26
-	oplog_printf(ctx, "statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
+	oplog_printf(ctx,
+			"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
 			(unsigned long int)ino, totalspace, availspace, trashspace, reservedspace, inodes);
 #else
-	oplog_printf(ctx, "statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
+	oplog_printf(ctx,
+			"statfs (): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
 			totalspace, availspace, trashspace, reservedspace, inodes);
 #endif
 }

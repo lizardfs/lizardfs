@@ -36,11 +36,13 @@ TEST(CrcTests, MyCrc32Combine) {
 		data[i] = i;
 	}
 	uint32_t crc = mycrc32(0, data.data(), data.size());
-	for (size_t length : {1, 50, 100, 1024, 1025, 32767, 32768, 32769, 65534, 65535}) {
-		SCOPED_TRACE("Testing combine for length=" + std::to_string(length));
-		uint32_t crc1 = mycrc32(0, data.data(), data.size() - length);
-		uint32_t crc2 = mycrc32(0, data.data() + data.size() - length, length);
-		uint32_t combined = mycrc32_combine(crc1, crc2, length);
-		EXPECT_EQ(crc, combined);
+	for (size_t length = 2; length < MFSBLOCKSIZE; length *= 2) {
+		for (int8_t offset : {-1, 0, 1}) { // (1, 2, 3), (3, 4, 5), (7, 8, 9), (15, 16, 17)...
+			SCOPED_TRACE("MFSBLOCKSIZE = " + std::to_string(MFSBLOCKSIZE) + ". Testing combine for length=" + std::to_string(length + offset));
+			uint32_t crc1 = mycrc32(0, data.data(), data.size() - (length + offset));
+			uint32_t crc2 = mycrc32(0, data.data() + data.size() - (length + offset), (length + offset));
+			uint32_t combined = mycrc32_combine(crc1, crc2, (length + offset));
+			EXPECT_EQ(crc, combined);
+		}
 	}
 }

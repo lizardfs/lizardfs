@@ -22,14 +22,6 @@ fi
 # Make this script safe and bug-free ;)
 set -eux
 
-echo Looking for required tools
-if ! svn --help &>/dev/null; then
-	echo "svn not installed!" >&2
-	echo "Install it manually: apt-get install subversion" >&2
-	echo "Then run this script again">&2
-	exit 1
-fi
-
 echo Add user lizardfstest
 if ! getent passwd lizardfstest > /dev/null; then
 	useradd --system --user-group --home /var/lib/lizardfstest lizardfstest
