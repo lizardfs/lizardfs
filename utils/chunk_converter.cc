@@ -127,11 +127,22 @@ int main(int argc, char **argv) {
 		return ERROR_BAD_CHUNK_HEADER;
 	}
 
-	for (uint i = 0; i < kOldChunkSignature.size(); ++i) {
-		if (kOldChunkSignature[i] != buffer[i]) {
-			std::cerr << "Incorrect chunk file signature!" << std::endl;
-			return ERROR_BAD_CHUNK_HEADER;
+	bool signatureIsValid = true;
+        std::vector<std::vector<char>> signatures = {kNewChunkSignature, kOldChunkSignature};
+	for (const std::vector<char>& signature : signatures) {
+		signatureIsValid = true;
+		for (size_t i = 0; i < signature.size(); ++i) {
+			if (signature[i] != buffer[i]) {
+				signatureIsValid = false;
+			}
 		}
+		if (signatureIsValid) {
+			break;
+		}
+	}
+	if (!signatureIsValid) {
+		std::cerr << "Incorrect chunk file signature!" << std::endl;
+		return ERROR_BAD_CHUNK_HEADER;
 	}
 
 	for (size_t part = 0; part <= xorLevel; ++part) {
