@@ -12,7 +12,7 @@ public:
 
 	Exception(const std::string& message, uint8_t status) : message_(message), status_(status) {
 		if (status != STATUS_OK) {
-			message_ += "(" + std::string(mfsstrerr(status)) + ")";
+			message_ += " (" + std::string(mfsstrerr(status)) + ")";
 		}
 	}
 
@@ -43,11 +43,14 @@ LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadException, RecoverableReadException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(WriteException, Exception);
+LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableWriteException, WriteException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableWriteException, WriteException);
 
-class ChunkserverConnectionException : public RecoverableReadException {
+class ChunkserverConnectionException : public Exception {
 public:
 	ChunkserverConnectionException(const std::string& message, const NetworkAddress& server)
-			: RecoverableReadException(message + " (server " + server.toString() + ")"),
+			: Exception(message + " (server " + server.toString() + ")"),
 			  server_(server) {
 	}
 

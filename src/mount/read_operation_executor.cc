@@ -9,7 +9,6 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 
-static const uint32_t kSocketWriteTimeoutInMilliseconds = 2000;
 static const uint32_t kMaxMessageLength = 65 * 1024;
 
 ReadOperationExecutor::ReadOperationExecutor(
@@ -66,6 +65,8 @@ void ReadOperationExecutor::continueReading() {
 	if (readBytes == 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver error: connection reset by peer", server_);
+	} else if (readBytes < 0 && errno == EINTR) {
+		return;
 	} else if (readBytes < 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver error: " + std::string(strerr(errno)), server_);
@@ -134,7 +135,7 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 
 	if (readStatus != STATUS_OK) {
 		std::stringstream ss;
-		ss << "Status '" << mfsstrerr(readStatus) << "'sent by chunkserver";
+		ss << "Status '" << mfsstrerr(readStatus) << "' sent by chunkserver";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 

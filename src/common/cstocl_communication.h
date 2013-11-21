@@ -57,7 +57,7 @@ inline void serialize(std::vector<uint8_t>& buffer,
 	serializePacket(buffer, LIZ_CSTOCL_WRITE_STATUS, 0, chunkId, writeId, status);
 }
 
-inline void deserialize(std::vector<uint8_t>& buffer,
+inline void deserialize(const std::vector<uint8_t>& buffer,
 		uint64_t& chunkId, uint32_t& writeId, uint8_t& status) {
 	verifyPacketVersionNoHeader(buffer, 0);
 	deserializeAllPacketDataNoHeader(buffer, chunkId, writeId, status);

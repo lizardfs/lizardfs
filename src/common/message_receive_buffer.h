@@ -16,7 +16,7 @@ public:
 	/*
 	 * @param size - maximum size of a message to read
 	 */
-	MessageReceiveBuffer(size_t size) : buffer_(size), bytesReveived_(0) {
+	MessageReceiveBuffer(size_t size) : buffer_(size), bytesReceived_(0) {
 	}
 
 	/*
@@ -33,7 +33,7 @@ public:
 	 * If this is true, one can access this->getMessageHeader()
 	 */
 	bool hasMessageHeader() const {
-		return bytesReveived_ >= PacketHeader::kSize;
+		return bytesReceived_ >= PacketHeader::kSize;
 	}
 
 	/*
@@ -43,7 +43,7 @@ public:
 		if (!hasMessageHeader()) {
 			return false;
 		}
-		return bytesReveived_ >= PacketHeader::kSize + getMessageHeader().length;
+		return bytesReceived_ >= PacketHeader::kSize + getMessageHeader().length;
 	}
 
 	/*
@@ -70,7 +70,7 @@ public:
 
 private:
 	std::vector<uint8_t> buffer_;
-	size_t bytesReveived_;
+	size_t bytesReceived_;
 };
 
 #endif /* LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H */

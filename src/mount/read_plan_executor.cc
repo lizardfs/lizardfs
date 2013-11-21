@@ -13,8 +13,6 @@
 #include "mount/chunkserver_stats.h"
 #include "mount/read_operation_executor.h"
 
-static const uint32_t kConnectionPoolTimeoutInSeconds = 2;
-
 ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
 		const ReadOperationPlanner::Plan& plan)
 		: chunkId_(chunkId),
@@ -105,7 +103,7 @@ void ReadPlanExecutor::executeReadOperations(
 				if (executor.isFinished()) {
 					statsProxy.unregisterReadOperation(server);
 					statsProxy.markWorking(server);
-					connector.returnToPool(fd, server, kConnectionPoolTimeoutInSeconds);
+					connector.returnToPool(fd, server);
 					executors.erase(fd);
 				}
 			}
