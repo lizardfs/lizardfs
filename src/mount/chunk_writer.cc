@@ -191,9 +191,7 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 							chunkId_, chunkVersion_, chunkType,
 							executor.server(), fd, buffers_[chunkType][block].data());
 					readExecutor.sendReadRequest(timeout);
-					while (!readExecutor.isFinished()) {
-						readExecutor.continueReading();
-					}
+					readExecutor.readAll(timeout);
 					connector_.returnToPool(fd, executor.server());
 				} catch (...) {
 					tcpclose(fd);
@@ -228,9 +226,7 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 							parityWriteExecutor->server(), fd,
 							buffers_[parityChunkType][block].data());
 					readExecutor.sendReadRequest(timeout);
-					while (!readExecutor.isFinished()) {
-						readExecutor.continueReading();
-					}
+					readExecutor.readAll(timeout);
 					connector_.returnToPool(fd, parityWriteExecutor->server());
 				} catch (...) {
 					tcpclose(fd);

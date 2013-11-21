@@ -1,5 +1,7 @@
 #include "read_operation_executor.h"
 
+#include <poll.h>
+
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
@@ -92,6 +94,33 @@ void ReadOperationExecutor::continueReading() {
 		default:
 			massert(false, "Unknown state in ReadOperationExecutor::continueReading");
 			break;
+	}
+}
+
+void ReadOperationExecutor::readAll(const Timeout& timeout) {
+	struct pollfd pfd;
+	pfd.fd = fd_;
+	pfd.events = POLLIN;
+
+	while (!isFinished()) {
+		if (timeout.expired()) {
+			throw ChunkserverConnectionException("Read from chunkserver: timeout", server_);
+		}
+		pfd.revents = 0;
+		int ret = poll(&pfd, 1, 50);
+		if (ret < 0 && errno == EINTR) {
+			continue;
+		} else if (ret < 0) {
+			throw ChunkserverConnectionException(
+					"Poll error: " + std::string(strerr(errno)),
+					server_);
+		}
+		if (pfd.revents & POLLIN) {
+			continueReading();
+		}
+		if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+			throw ChunkserverConnectionException("Read (poll) from chunkserver error", server_);
+		}
 	}
 }
 

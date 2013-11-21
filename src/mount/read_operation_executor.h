@@ -32,6 +32,11 @@ public:
 	 */
 	void continueReading();
 
+	/*
+	 * Executes continueReading() until the operation is finished
+	 */
+	void readAll(const Timeout& timeout);
+
 	bool isFinished() const {
 		return state_ == kFinished;
 	}
