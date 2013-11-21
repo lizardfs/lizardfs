@@ -50,7 +50,8 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 void fs_release(uint32_t inode);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
-uint8_t fsLizReadChunk(std::vector<ChunkTypeWithAddress>& serverList, uint64_t& chunkid, uint32_t& version, uint64_t& fleng, uint32_t inode, uint32_t indx);
+uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t &chunkId,
+		uint32_t &chunkVersion, uint64_t &fileLength, uint32_t inode, uint32_t index);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
 uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLength,
 		uint64_t &chunkId, uint32_t &chunkVersion, std::vector<ChunkTypeWithAddress> &chunkservers);

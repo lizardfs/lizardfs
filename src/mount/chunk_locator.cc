@@ -27,7 +27,7 @@ void MountChunkLocator::locateChunk(uint32_t inode, uint32_t index) {
 	uint8_t status = fs_readchunk(inode_, index_, &fileLength_, &chunkId_, &version_,
 			&chunkserversData, &chunkserversDataSize);
 #else
-	uint8_t status = fsLizReadChunk(locations_, chunkId_, version_, fileLength_, inode_, index_);
+	uint8_t status = fs_lizreadchunk(locations_, chunkId_, version_, fileLength_, inode_, index_);
 #endif
 
 	if (status != 0) {

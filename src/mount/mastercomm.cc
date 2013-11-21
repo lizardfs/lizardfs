@@ -1902,8 +1902,8 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 	return ret;
 }
 
-uint8_t fsLizReadChunk(std::vector<ChunkTypeWithAddress>& serverList, uint64_t& chunkId,
-		uint32_t& chunkVersion, uint64_t& fileLength, uint32_t inode, uint32_t chunkIndex) {
+uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t &chunkId,
+		uint32_t &chunkVersion, uint64_t &fileLength, uint32_t inode, uint32_t chunkIndex) {
 	threc *rec = fs_get_my_threc();
 
 	std::vector<uint8_t> message;
@@ -1924,9 +1924,10 @@ uint8_t fsLizReadChunk(std::vector<ChunkTypeWithAddress>& serverList, uint64_t& 
 			matocl::fuseReadChunk::deserialize(message, status);
 			return status;
 		} else if (packetVersion == matocl::fuseReadChunk::kResponsePacketVersion) {
-			matocl::fuseReadChunk::deserialize(message, fileLength, chunkId, chunkVersion, serverList);
+			matocl::fuseReadChunk::deserialize(message, fileLength,
+					chunkId, chunkVersion, serverList);
 		} else {
-			syslog(LOG_NOTICE,"LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
 		}
 	} catch (IncorrectDeserializationException&) {
 		setDisconnect(true);
