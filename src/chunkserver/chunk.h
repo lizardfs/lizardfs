@@ -44,6 +44,8 @@ struct ioerror {
 	int errornumber;
 };
 
+class Chunk;
+
 struct folder {
 	char *path;
 #define SCST_SCANNEEDED 0u
@@ -74,7 +76,7 @@ struct folder {
 	int lfd;
 	double carry;
 	pthread_t scanthread;
-	struct Chunk *testhead,**testtail;
+	Chunk *testhead,**testtail;
 	struct folder *next;
 };
 
@@ -100,8 +102,8 @@ public:
 	int fd;
 	uint8_t validattr;
 	uint8_t todel;
-	struct Chunk *testnext,**testprev;
-	struct Chunk *next;
+	Chunk *testnext,**testprev;
+	Chunk *next;
 
 	Chunk(uint64_t chunkId, ChunkType type, ChunkState state);
 	const std::string& filename() const { return filename_; };
