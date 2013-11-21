@@ -35,6 +35,7 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
 #include "common/MFSCommunication.h"
@@ -44,6 +45,9 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
+#include "mount/chunk_connector.h"
+#include "mount/chunk_writer.h"
+#include "mount/chunkserver_stats.h"
 #include "mount/chunkserver_write_chain.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
@@ -338,17 +342,14 @@ public:
 
 private:
 	void reset();
-	bool tryGetNewBlockToWrite();
-	int processReceivedMessage(const MessageReceiveBuffer& messageBuffer);
-	int processReceivedStatusMessage(const uint8_t* statusMessageData);
+	bool tryGetNewBlockToWrite(int pendingOperationCount);
+	void processCompletedOperation(const uint32_t receivedWriteId);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
 	uint64_t fileLength_;
 	uint64_t chunkId_;
 	uint32_t chunkVersion_;
 	cblock* currentBlock_;
-	bool sendingCurrentBlockData_;
-	int requestsWaitingForStatus_;
 };
 
 InodeChunkWriter::InodeChunkWriter()
@@ -357,20 +358,16 @@ InodeChunkWriter::InodeChunkWriter()
 		  fileLength_(0),
 		  chunkId_(0),
 		  chunkVersion_(0),
-		  currentBlock_(NULL),
-		  sendingCurrentBlockData_(false),
-		  requestsWaitingForStatus_(0) {
+		  currentBlock_(nullptr) {
 }
 
 void InodeChunkWriter::reset() {
 	inodeData_ = NULL;
-	currentBlock_ = NULL;
-	sendingCurrentBlockData_ = false;
-	requestsWaitingForStatus_ = 0;
+	currentBlock_ = nullptr;
 }
 
 void InodeChunkWriter::processJob(inodedata* inodeData) {
-	uint8_t pipebuff[1024];
+	ChunkConnector connector(fs_getsrcip(), gChunkserverConnectionPool);
 	int status;
 
 	reset();
@@ -393,14 +390,13 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	}
 
 	// Get chunk data from master and acquire a lock on the chunk
-	const uint8_t *chunkserverData;
-	uint32_t chunkserverDataSize;
-	int writeChunkStatus = fs_writechunk(inodeData_->inode, chunkIndex_,
-			&fileLength_, &chunkId_, &chunkVersion_, &chunkserverData, &chunkserverDataSize);
+	std::vector<ChunkTypeWithAddress> chunkLocations;
+	int writeChunkStatus = fs_lizwritechunk(inodeData_->inode, chunkIndex_,
+			fileLength_, chunkId_, chunkVersion_, chunkLocations);
 	if (writeChunkStatus != STATUS_OK) {
 		syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
-				" - fs_writechunk returns status: %s",
+				" - fs_lizwritechunk returns status: %s",
 				inodeData_->inode, chunkIndex_, mfsstrerr(writeChunkStatus));
 		if (writeChunkStatus != ERROR_LOCKED) {
 			if (writeChunkStatus == ERROR_ENOENT) {
@@ -427,7 +423,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		return;
 	}
 
-	if (chunkserverData == NULL || chunkserverDataSize == 0) {
+	if (chunkLocations.empty()) {
 		syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
 				", chunk: %" PRIu64 ", version: %" PRIu32
@@ -442,21 +438,12 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		return;
 	}
 
-	// Create a chain of chunkservers that we will write to
-	ChunkserverWriteChain chunkserverChain;
-	const uint8_t* cp = chunkserverData;
-	const uint8_t* cpe = chunkserverData + chunkserverDataSize;
-	while (cp < cpe && chunkserverChain.size() < 10) {
-		uint32_t ip = get32bit(&cp);
-		uint16_t port = get16bit(&cp);
-		chunkserverChain.add(NetworkAddress(ip, port));
-	}
-
+	ChunkWriter writer(globalChunkserverStats, connector, chunkId_, chunkVersion_);
 	Timer wholeOperationTimer;
 
-	// Connect to the first chunkserver from a chain
-	int fd = chunkserverChain.connectUsingConnectionPool(gChunkserverConnectionPool);
-	if (fd < 0) {
+	try {
+		writer.init(chunkLocations, 3000);
+	} catch(ChunkserverConnectionException &ex) {
 		fs_writeend(chunkId_, inodeData_->inode, 0);
 		inodeData_->trycnt++;
 		if (inodeData_->trycnt >= maxretries) {
@@ -466,177 +453,95 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 		return;
 	}
-	if (tcpnodelay(fd) < 0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
-	}
 
-	// Prepare initial message
-	std::vector<uint8_t> message;
-	MultiBufferWriter sendBuffer;
-	chunkserverChain.createInitialMessage(message, chunkId_, chunkVersion_);
-	sendBuffer.addBufferToSend(message.data(), message.size());
-	requestsWaitingForStatus_++;
-
-	// Prepare buffer for CSTOCL_WRITE_STATUS messages
-	MessageReceiveBuffer receiveBuffer(21); // 21 == size of CSTOCL_WRITE_STATUS
-
-	// Identifier of the first WRITE_DATA message we will send.
-	// It has to be different than 0, so that we can distinguish status of the initial message
-	// from statuses of the WRITE_DATA messages.
-	uint32_t nextWriteId = 1;
 	status = STATUS_OK;
-	Timer lastMessageReceiveTimer;
-
 	bool otherJobsAreWaiting;
-	do {
+	std::vector<ChunkWriter::WriteId> operations;
+
+	static constexpr char* write_file_error_format =
+			"write file error, inode: %" PRIu32
+			", index: %" PRIu32 ", chunk: %" PRIu64
+			", version: %" PRIu32 " - %s "
+			"(try counter: %" PRIu32 ")";
+
+	while (true) {
 		otherJobsAreWaiting = !queue_isempty(jqueue);
-		if (lastMessageReceiveTimer.elapsed_ms() >= 2000) {
-			syslog(LOG_WARNING,
-					"file: %" PRIu32 ", index: %" PRIu32
-					", chunk: %" PRIu64 ", version: %" PRIu32
-					" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
-					") was timed out (unfinished writes: %" PRIu8
-					"; try counter: %" PRIu32 ")",
-					inodeData_->inode, chunkIndex_,
-					chunkId_, chunkVersion_,
-					chunkserverChain.head().ip, chunkserverChain.head().port,
-					requestsWaitingForStatus_,
-					inodeData_->trycnt + 1);
-			break;
-		}
 
 		// If we have sent the previous message and have some time left, we can take
 		// another block from current chunk to process it simultaneously. We won't take anything
 		// new if we've already sent 15 blocks and didn't receive status from the chunkserver.
-		if (!sendBuffer.hasDataToSend()
-				&& wholeOperationTimer.elapsed_s() < (otherJobsAreWaiting ? 5 : 25)
-				&& requestsWaitingForStatus_ < 15) {
+		if (wholeOperationTimer.elapsed_s() < (otherJobsAreWaiting ? 5 : 25)
+				&& writer.getUnfinishedOperationsCount() < 15) {
 			pthread_mutex_lock(&glock);
-			bool haveNewData = tryGetNewBlockToWrite();
-			// If there was any block worth sending, we create a new CLTOCS_WRITE_DATA message
-			// and put it in our send buffer
-			if (haveNewData) {
-				currentBlock_->writeid = nextWriteId++;
-				message.resize(32);
-				size_t blockSize = currentBlock_->to - currentBlock_->from;
-				uint8_t *wptr = message.data();
-				put32bit(&wptr, CLTOCS_WRITE_DATA);
-				put32bit(&wptr, 24 + blockSize);
-				put64bit(&wptr, chunkId_);
-				put32bit(&wptr, currentBlock_->writeid);
-				put16bit(&wptr, currentBlock_->pos);
-				put16bit(&wptr, currentBlock_->from);
-				put32bit(&wptr, blockSize);
-				put32bit(&wptr,mycrc32(0, currentBlock_->data + currentBlock_->from, blockSize));
-
-				sendBuffer.reset();
-				sendBuffer.addBufferToSend(message.data(), message.size());
-				sendBuffer.addBufferToSend(currentBlock_->data + currentBlock_->from, blockSize);
-				requestsWaitingForStatus_++;
-				sendingCurrentBlockData_ = true;
+			// While there is any block worth sending, we add new write operation
+			try {
+				while (tryGetNewBlockToWrite(writer.getUnfinishedOperationsCount())) {
+					uint32_t offset = currentBlock_->pos * MFSBLOCKSIZE
+							+ currentBlock_->from;
+					uint32_t size = currentBlock_->to - currentBlock_->from;
+					ChunkWriter::WriteId newOperation = writer.addOperation(
+							currentBlock_->data + currentBlock_->from,
+							offset, size);
+					currentBlock_->writeid = newOperation;
+					operations.push_back(newOperation);
+				}
+			} catch (Exception &ex) {
+				syslog(LOG_WARNING,
+						write_file_error_format,
+						inodeData_->inode,
+						chunkIndex_,
+						chunkId_,
+						chunkVersion_,
+						ex.what(),
+						inodeData_->trycnt);
+				status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
 			}
 			pthread_mutex_unlock(&glock);
+			if (status != STATUS_OK) {
+				break;
+			}
 		}
 
-		struct pollfd pfd[2];
-		pfd[0].fd = fd;
-		pfd[0].events = POLLIN | (sendBuffer.hasDataToSend() ? POLLOUT : 0);
-		pfd[0].revents = 0;
-		pfd[1].fd = inodeData_->pipe[0];
-		pfd[1].events = POLLIN;
-		pfd[1].revents = 0;
-		if (poll(pfd, 2, 100) < 0) { /* correct timeout - in msec */
-			syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
-			status = EIO;
+		if (writer.getUnfinishedOperationsCount() == 0) {
+			try {
+				writer.finish(1000);
+			} catch (Exception &ex) {
+				syslog(LOG_WARNING,
+						write_file_error_format,
+						inodeData_->inode,
+						chunkIndex_,
+						chunkId_,
+						chunkVersion_,
+						ex.what(),
+						inodeData_->trycnt);
+				status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
+			}
 			break;
 		}
-		pthread_mutex_lock(&glock);	// make helgrind happy
-		inodeData_->waitingworker = 0;
-		pthread_mutex_unlock(&glock); // make helgrind happy
 
-		if (pfd[1].revents & POLLIN) {
-			// used just to break poll - so just read all data from pipe to empty it
-			ssize_t ret = read(inodeData_->pipe[0], pipebuff, 1024);
-			if (ret < 0) { // mainly to make happy static code analyzers
-				syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
-			}
+		if (wholeOperationTimer.elapsed_s() > (otherJobsAreWaiting ? 10 : 30)) {
+			status = ETIMEDOUT;
+			break;
 		}
 
-		if (pfd[0].revents & POLLIN) {
-			lastMessageReceiveTimer.reset();
-			ssize_t ret = receiveBuffer.readFrom(fd);
-			if (ret == 0) { 	// connection reset by peer
-				syslog(LOG_WARNING,
-						"file: %" PRIu32 ", index: %" PRIu32
-						", chunk: %" PRIu64 ", version: %" PRIu32
-						" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
-						") was reset by peer (unfinished writes: %" PRIu8
-						"; try counter: %" PRIu32 ")",
-						inodeData_->inode, chunkIndex_,
-						chunkId_, chunkVersion_,
-						chunkserverChain.head().ip, chunkserverChain.head().port,
-						requestsWaitingForStatus_,
-						inodeData_->trycnt + 1);
-				status = EIO;
-				break;
-			}
+		try {
+			const auto& finishedOperations = writer.processOperations(50);
 
-			if (receiveBuffer.isMessageTooBig()) {
-				PacketHeader header = receiveBuffer.getMessageHeader();
-				syslog(LOG_WARNING,
-						"writeworker: got unrecognized packet from chunkserver (cmd:%" PRIu32
-						",leng:%" PRIu32 ")", header.type, header.length);
-				status = EIO;
-				break;
+			for (ChunkWriter::WriteId operation : finishedOperations) {
+				processCompletedOperation(operation);
 			}
-
-			while (receiveBuffer.hasMessageData()) {
-				int messageProcessingStatus = processReceivedMessage(receiveBuffer);
-				receiveBuffer.removeMessage();
-				if (messageProcessingStatus != STATUS_OK) {
-					status = messageProcessingStatus;
-					break;
-				}
-			}
+		} catch (Exception &ex) {
+			syslog(LOG_WARNING,
+					write_file_error_format,
+					inodeData_->inode,
+					chunkIndex_,
+					chunkId_,
+					chunkVersion_,
+					ex.what(),
+					inodeData_->trycnt);
+			status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
+			break;
 		}
-
-		if (sendBuffer.hasDataToSend() && (pfd[0].revents & POLLOUT)) {
-			ssize_t ret = sendBuffer.writeTo(fd);
-			if (ret < 0) {
-				syslog(LOG_WARNING,
-						"file: %" PRIu32 ", index: %" PRIu32
-						", chunk: %" PRIu64 ", version: %" PRIu32
-						" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
-						") was reset by peer (unfinished writes: %" PRIu8
-						"; try counter: %" PRIu32 ")",
-						inodeData_->inode, chunkIndex_,
-						chunkId_, chunkVersion_,
-						chunkserverChain.head().ip, chunkserverChain.head().port,
-						requestsWaitingForStatus_,
-						inodeData_->trycnt + 1);
-				status = EIO;
-				break;
-			}
-			if (!sendBuffer.hasDataToSend()) {
-				sendingCurrentBlockData_ = false;
-			}
-		}
-	} while (requestsWaitingForStatus_ > 0
-			&& wholeOperationTimer.elapsed_s() < (otherJobsAreWaiting ? 10 : 30));
-
-	if (requestsWaitingForStatus_ == 0 && status == STATUS_OK) {
-		// TODO(msulikowski) This code sending WRITE_END message is temporary.
-		// The whole class will soon be rewritten.
-		std::vector<uint8_t> endMessage;
-		cltocs::writeEnd::serialize(endMessage, chunkId_);
-		if (tcptowrite(fd, endMessage.data(), endMessage.size(), 3000) < (ssize_t)endMessage.size()) {
-			tcpclose(fd);
-		} else {
-			gChunkserverConnectionPool.putConnection(
-					fd, chunkserverChain.head(), IDLE_CONNECTION_TIMEOUT);
-		}
-	} else {
-		tcpclose(fd);
 	}
 
 	int writeEndStatus;
@@ -669,120 +574,63 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
  * We will avoid sending blocks of size different than MFSBLOCKSIZE.
  * These can be taken only if we are close to run out of tasks to do.
  */
-bool InodeChunkWriter::tryGetNewBlockToWrite() {
-	if (currentBlock_ == NULL) {
-		if (inodeData_->datachainhead) {
-			uint32_t writeSize = inodeData_->datachainhead->to -
-					inodeData_->datachainhead->from;
-			if (writeSize == MFSBLOCKSIZE || requestsWaitingForStatus_ <= 1) {
-				currentBlock_ = inodeData_->datachainhead;
-				return true;
-			}
-		}
+bool InodeChunkWriter::tryGetNewBlockToWrite(int pendingOperationCount) {
+	cblock *candidateBlock = nullptr;
+	if (currentBlock_ == nullptr) {
+		candidateBlock = inodeData_->datachainhead;
 	} else {
-		if (currentBlock_->next) {
-			if (currentBlock_->next->chindx == chunkIndex_) {
-				if (currentBlock_->next->to - currentBlock_->next->from == MFSBLOCKSIZE
-						|| requestsWaitingForStatus_ <= 1) {
-					currentBlock_ = currentBlock_->next;
-					return true;
-				}
-			}
-		} else {
-			inodeData_->waitingworker = 1;
+		candidateBlock = currentBlock_->next;
+	}
+	if (candidateBlock && candidateBlock->chindx == chunkIndex_) {
+		uint32_t writeSize = candidateBlock->to - candidateBlock->from;
+		if (writeSize == MFSBLOCKSIZE || pendingOperationCount <= 1) {
+			currentBlock_ = candidateBlock;
+			return true;
 		}
 	}
 	return false;
 }
 
-int InodeChunkWriter::processReceivedMessage(const MessageReceiveBuffer& messageBuffer) {
-	PacketHeader header = messageBuffer.getMessageHeader();
-	if (header.type == ANTOAN_NOP && header.length == 0) {
-		return STATUS_OK;
-	} else if (header.type == CSTOCL_WRITE_STATUS && header.length == 13) {
-		return processReceivedStatusMessage(messageBuffer.getMessageData());
-	} else {
+void InodeChunkWriter::processCompletedOperation(const uint32_t receivedWriteId) {
+	pthread_mutex_lock(&glock);
+	// Find the block corresponding to this WriteId
+	cblock* acknowledgedBlock = inodeData_->datachainhead;
+	while (acknowledgedBlock != nullptr
+			&& acknowledgedBlock->writeid != receivedWriteId) {
+		acknowledgedBlock = acknowledgedBlock->next;
+	}
+	if (acknowledgedBlock == nullptr) {
 		syslog(LOG_WARNING,
-				"writeworker: got unrecognized packet from chunkserver (cmd:%" PRIu32
-				",leng:%" PRIu32 ")", header.type, header.length);
-		return EIO;
-	}
-}
-
-int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageData) {
-	const uint8_t* rptr = statusMessageData;
-	uint64_t receivedChunkId = get64bit(&rptr);
-	uint32_t receivedWriteId = get32bit(&rptr);
-	uint8_t receivedStatus = get8bit(&rptr);
-
-	if (receivedChunkId != chunkId_) {
-		syslog(LOG_WARNING,
-				"writeworker: got unexpected packet (expected chunkdid:%" PRIu64
-				",packet chunkid:%" PRIu64 ")",
-				chunkId_, receivedChunkId);
-		return EIO;
-	}
-
-	if (receivedStatus != STATUS_OK) {
-		syslog(LOG_WARNING, "writeworker: write error: %s", mfsstrerr(receivedStatus));
-		// convert MFS status to OS errno
-		if (receivedStatus == ERROR_NOSPACE) {
-			return ENOSPC;
-		} else {
-			return EIO;
-		}
-	}
-
-	if (receivedWriteId > 0) { // TODO(msulikowski) Isn't this condition always true?
-		pthread_mutex_lock(&glock);
-		// Find the block, for which we've just received status
-		cblock* acknowledgedBlock = inodeData_->datachainhead;
-		while (acknowledgedBlock != NULL
-				&& acknowledgedBlock->writeid != receivedWriteId) {
-			acknowledgedBlock = acknowledgedBlock->next;
-		}
-		if (acknowledgedBlock == NULL) {
-			syslog(LOG_WARNING,
-					"writeworker: got unexpected status (writeid:%" PRIu32 ")",
-					receivedWriteId);
-			pthread_mutex_unlock(&glock);
-			return EIO;
-		}
-		if (acknowledgedBlock == currentBlock_) {
-			if (sendingCurrentBlockData_) {
-				syslog(LOG_WARNING,
-					"writeworker: got status OK before all data has been sent");
-				pthread_mutex_unlock(&glock);
-				return EIO;
-			} else {
-				currentBlock_ = NULL;
-			}
-		}
-
-		// Remove the block from the list of blocks to write
-		if (acknowledgedBlock->prev) {
-			acknowledgedBlock->prev->next = acknowledgedBlock->next;
-		} else {
-			inodeData_->datachainhead = acknowledgedBlock->next;
-		}
-		if (acknowledgedBlock->next) {
-			acknowledgedBlock->next->prev = acknowledgedBlock->prev;
-		} else {
-			inodeData_->datachaintail = acknowledgedBlock->prev;
-		}
-
-		// Update file size if changed
-		uint64_t writtenOffset = static_cast<uint64_t>(chunkIndex_) * MFSCHUNKSIZE;
-		writtenOffset += static_cast<uint64_t>(acknowledgedBlock->pos) * MFSBLOCKSIZE;
-		writtenOffset += acknowledgedBlock->to;
-		if (writtenOffset > fileLength_) {
-			fileLength_ = writtenOffset;
-		}
-		write_cb_release(inodeData_, acknowledgedBlock);
+				"writeworker: got status for unexpected writeid: %" PRIu32,
+				receivedWriteId);
 		pthread_mutex_unlock(&glock);
+		return;
 	}
-	requestsWaitingForStatus_--;
-	return STATUS_OK;
+	if (acknowledgedBlock == currentBlock_) {
+		currentBlock_ = currentBlock_->prev;
+	}
+
+	// Remove the block from the list of blocks to write
+	if (acknowledgedBlock->prev) {
+		acknowledgedBlock->prev->next = acknowledgedBlock->next;
+	} else {
+		inodeData_->datachainhead = acknowledgedBlock->next;
+	}
+	if (acknowledgedBlock->next) {
+		acknowledgedBlock->next->prev = acknowledgedBlock->prev;
+	} else {
+		inodeData_->datachaintail = acknowledgedBlock->prev;
+	}
+
+	// Update file size if changed
+	uint64_t writtenOffset = static_cast<uint64_t>(chunkIndex_) * MFSCHUNKSIZE;
+	writtenOffset += static_cast<uint64_t>(acknowledgedBlock->pos) * MFSBLOCKSIZE;
+	writtenOffset += acknowledgedBlock->to;
+	if (writtenOffset > fileLength_) {
+		fileLength_ = writtenOffset;
+	}
+	write_cb_release(inodeData_, acknowledgedBlock);
+	pthread_mutex_unlock(&glock);
 }
 
 /* main working thread | glock:UNLOCKED */

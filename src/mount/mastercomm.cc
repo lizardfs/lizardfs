@@ -1975,6 +1975,42 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 	return ret;
 }
 
+uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLength,
+		uint64_t &chunkId, uint32_t &chunkVersion,
+		std::vector<ChunkTypeWithAddress> &chunkservers) {
+	threc *rec = fs_get_my_threc();
+
+	std::vector<uint8_t> message;
+	cltoma::fuseWriteChunk::serialize(message, rec->packetid, inode, chunkIndex);
+	if (!fsLizCreatePacket(rec, message)) {
+		return ERROR_IO;
+	}
+
+	try {
+		if (!fsLizSendAndReceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK, message)) {
+			return ERROR_IO;
+		}
+
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseWriteChunk::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseWriteChunk::deserialize(message, status);
+			return status;
+		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
+			matocl::fuseWriteChunk::deserialize(message, fileLength, chunkId, chunkVersion,
+					chunkservers);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException&) {
+		setDisconnect(true);
+		return ERROR_IO;
+	}
+
+	return STATUS_OK;
+}
+
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
