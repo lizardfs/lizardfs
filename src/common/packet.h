@@ -3,9 +3,10 @@
 
 #include <inttypes.h>
 #include <memory>
+#include <string>
 
-#include "common/serialization.h"
 #include "common/MFSCommunication.h"
+#include "common/serialization.h"
 
 // Legacy MooseFS packet format:
 //
@@ -194,7 +195,7 @@ inline void deserializeAllPacketDataNoHeader(const uint8_t* source, uint32_t byt
 	deserializeAndIgnore<PacketVersion>(&source, bytesInBuffer);
 	uint32_t bytesNotUsed = deserialize(source, bytesInBuffer, data...);
 	if (bytesNotUsed > 0) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException("buffer longer than expected");
 	}
 }
 
@@ -221,7 +222,7 @@ inline void deserializeAllMooseFsPacketDataNoHeader(const uint8_t* source, uint3
 		Data &...args) {
 	uint32_t bytesNotUsed = deserialize(source, bytesInBuffer, args...);
 	if (bytesNotUsed > 0) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException("buffer longer than expected");
 	}
 }
 
@@ -237,7 +238,9 @@ inline void verifyPacketVersionNoHeader(const uint8_t* source, uint32_t bytesInB
 	PacketVersion actualVersion;
 	deserializePacketVersionNoHeader(source, bytesInBuffer, actualVersion);
 	if (actualVersion != expectedVersion) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException(
+				"expected packet version " + std::to_string(expectedVersion) +
+				", got " + std::to_string(actualVersion));
 	}
 }
 

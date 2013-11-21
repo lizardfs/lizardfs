@@ -1,9 +1,9 @@
-#ifndef LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
-#define LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
+#ifndef LIZARDFS_COMMON_EXCEPTIONS_H_
+#define LIZARDFS_COMMON_EXCEPTIONS_H_
 
-#include "common/chunk_type.h"
+#include <string>
+
 #include "common/mfsstrerr.h"
-#include "common/network_address.h"
 
 class Exception : public std::exception {
 public:
@@ -39,43 +39,4 @@ private:
 		~name() throw() {} \
 	}
 
-LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
-LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);
-LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadException, RecoverableReadException);
-LIZARDFS_CREATE_EXCEPTION_CLASS(WriteException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableWriteException, WriteException);
-LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableWriteException, WriteException);
-
-class ChunkserverConnectionException : public Exception {
-public:
-	ChunkserverConnectionException(const std::string& message, const NetworkAddress& server)
-			: Exception(message + " (server " + server.toString() + ")"),
-			  server_(server) {
-	}
-
-	~ChunkserverConnectionException() throw() {}
-	const NetworkAddress& server() const throw() { return server_; }
-
-private:
-	NetworkAddress server_;
-};
-
-class ChunkCrcException : public RecoverableReadException {
-public:
-	ChunkCrcException(const std::string& message, const NetworkAddress& server,
-			const ChunkType& chunkType)
-			: RecoverableReadException(message + " (server " + server.toString() + ")"),
-			  server_(server), chunkType_(chunkType) {
-	}
-
-	~ChunkCrcException() throw() {}
-	const NetworkAddress& server() const throw() { return server_; }
-	const ChunkType& chunkType() const throw() { return chunkType_; }
-
-private:
-	NetworkAddress server_;
-	ChunkType chunkType_;
-};
-
-#endif // LIZARDFS_MFSMOUNT_EXCEPTIONS_H_
+#endif // LIZARDFS_COMMON_EXCEPTIONS_H_

@@ -1,16 +1,19 @@
 #ifndef LIZARDFS_COMMON_SERIALIZATION_H_
 #define LIZARDFS_COMMON_SERIALIZATION_H_
 
-#include <exception>
 #include <vector>
 
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/massert.h"
 
 /*
  * Exception thrown on deserialization error
  */
-class IncorrectDeserializationException : public std::exception {
+class IncorrectDeserializationException : public Exception {
+public:
+	IncorrectDeserializationException(const std::string& message):
+			Exception("Deserialization error: " + message) {}
 };
 
 // serializedSize
@@ -88,7 +91,7 @@ inline void serialize(uint8_t** destination, const T& t, const Args&... args) {
 template <class T>
 inline void verifySize(const T& value, uint32_t bytesLeft) {
 	if (bytesLeft < serializedSize(value)) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException("unexpected end of buffer");
 	}
 }
 
@@ -138,7 +141,8 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	sassert(vector.size() == 0);
 	sassert(sizeOfElement > 0);
 	if (bytesLeftInBuffer % sizeOfElement != 0) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException(
+				"vector: buffer size not divisible by element size");
 	}
 	size_t vecSize = bytesLeftInBuffer / sizeOfElement;
 	vector.resize(vecSize);
@@ -150,7 +154,7 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 // deserialize uint8_t* (as a pointer to the serialized data)
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, const uint8_t*& value) {
 	if (bytesLeftInBuffer == 0) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException("unexpected end of buffer");
 	}
 	bytesLeftInBuffer = 0;
 	value = *source;

@@ -6,7 +6,7 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
-#include "common/exceptions.h"
+#include "mount/exceptions.h"
 
 const uint32_t kReceiveBufferSize = 1024;
 

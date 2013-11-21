@@ -2,7 +2,7 @@
 #define LIZARDFS_MFSCOMMON_CHUNK_TYPE_H_
 
 #include <cstdint>
-#include <exception>
+#include <string>
 
 #include "common/serialization.h"
 
@@ -60,7 +60,8 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, Chu
 	if (ChunkType::validChunkTypeID(chunkTypeId)) {
 		chunkType.chunkTypeId_ = chunkTypeId;
 	} else {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException(
+				"unknown chunk type id: " + std::to_string(chunkTypeId));
 	}
 }
 

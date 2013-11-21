@@ -5,11 +5,11 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
-#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
+#include "mount/exceptions.h"
 
 static const uint32_t kMaxMessageLength = 65 * 1024;
 

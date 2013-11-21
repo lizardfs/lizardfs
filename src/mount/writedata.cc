@@ -35,7 +35,6 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/datapack.h"
-#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
 #include "common/MFSCommunication.h"
@@ -49,6 +48,7 @@
 #include "mount/chunk_writer.h"
 #include "mount/chunkserver_stats.h"
 #include "mount/chunkserver_write_chain.h"
+#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
 
@@ -443,7 +443,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 	try {
 		writer.init(chunkLocations, 3000);
-	} catch(ChunkserverConnectionException &ex) {
+	} catch(Exception &ex) {
 		fs_writeend(chunkId_, inodeData_->inode, 0);
 		inodeData_->trycnt++;
 		if (inodeData_->trycnt >= maxretries) {

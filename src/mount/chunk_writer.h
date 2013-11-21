@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "common/chunk_type_with_address.h"
-#include "common/exceptions.h"
 
 class ChunkserverStats;
 class ChunkConnector;
