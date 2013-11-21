@@ -13,7 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "-std=gnu++0x -Wall -Wextra -pedantic -fwrapv")
+set(CMAKE_CXX_FLAGS "-std=c++0x -Wall -Wextra -pedantic -fwrapv")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
