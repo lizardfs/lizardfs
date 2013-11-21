@@ -458,7 +458,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	bool otherJobsAreWaiting;
 	std::vector<ChunkWriter::WriteId> operations;
 
-	static constexpr char* write_file_error_format =
+	static const char* write_file_error_format =
 			"write file error, inode: %" PRIu32
 			", index: %" PRIu32 ", chunk: %" PRIu64
 			", version: %" PRIu32 " - %s "
