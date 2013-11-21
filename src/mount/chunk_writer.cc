@@ -28,6 +28,9 @@ ChunkWriter::~ChunkWriter() {
 
 void ChunkWriter::init(const std::vector<ChunkTypeWithAddress>& chunkLocations,
 		uint32_t msTimeout) {
+	sassert(currentWriteId_ == 0);
+	sassert(unfinishedOperationCounters_.empty());
+	sassert(executors_.empty());
 	Timeout connectTimeout{std::chrono::milliseconds(msTimeout)};
 	for (const ChunkTypeWithAddress& location : chunkLocations) {
 		bool addedToChain = false;
@@ -49,6 +52,7 @@ void ChunkWriter::init(const std::vector<ChunkTypeWithAddress>& chunkLocations,
 	}
 	for (const auto& fdAndExecutor : executors_) {
 		fdAndExecutor.second->addInitPacket();
+		unfinishedOperationCounters_[currentWriteId_]++;
 	}
 }
 
@@ -95,12 +99,10 @@ std::vector<ChunkWriter::WriteId> ChunkWriter::processOperations(uint32_t msTime
 				if (status.status != STATUS_OK) {
 					throw RecoverableWriteException("Chunk write error", status.status);
 				}
-				if (status.writeId == 0) {
-					// Status of the write init message
-					continue;
-				}
 				if (--unfinishedOperationCounters_[status.writeId] == 0) {
-					finishedOperations.push_back(status.writeId);
+					if (status.writeId != 0) {
+						finishedOperations.push_back(status.writeId);
+					}
 					unfinishedOperationCounters_.erase(status.writeId);
 				}
 			}
@@ -123,9 +125,11 @@ void ChunkWriter::finish(uint32_t msTimeout) {
 		processOperations(timeout.remaining_ms());
 		std::vector<int> closedFds;
 		for (auto& fdAndExecutor : executors_) {
-			if (fdAndExecutor.second->getPendingPacketCount() == 0) {
-				connector_.returnToPool(fdAndExecutor.first, fdAndExecutor.second->server());
-				closedFds.push_back(fdAndExecutor.first);
+			int fd = fdAndExecutor.first;
+			const WriteExecutor& executor = *fdAndExecutor.second;
+			if (executor.getPendingPacketCount() == 0) {
+				connector_.returnToPool(fd, executor.server());
+				closedFds.push_back(fd);
 			}
 		}
 		for (int fd : closedFds) {
@@ -260,11 +264,5 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 }
 
 uint32_t ChunkWriter::getUnfinishedOperationsCount() {
-	uint32_t counter = 0;
-	for (const auto& pair : unfinishedOperationCounters_) {
-		if (pair.second) {
-			++counter;
-		}
-	}
-	return counter;
+	return unfinishedOperationCounters_.size();
 }
