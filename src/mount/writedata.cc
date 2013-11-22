@@ -455,7 +455,8 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	}
 
 	status = STATUS_OK;
-	bool otherJobsAreWaiting;
+	bool otherJobsAreWaiting = false;
+	uint32_t maximumTime = 30;
 	std::vector<ChunkWriter::WriteId> operations;
 
 	static const char* write_file_error_format =
@@ -465,17 +466,27 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			"(try counter: %" PRIu32 ")";
 
 	while (true) {
-		otherJobsAreWaiting = !queue_isempty(jqueue);
+		bool newOtherJobsAreWaiting = !queue_isempty(jqueue);
+		if (!otherJobsAreWaiting && newOtherJobsAreWaiting) {
+			// Some new jobs have just arrived in the queue -- we should finish faster.
+			maximumTime = 10;
+			// But we need at least 5 seconds to finish the operations that are in progress
+			uint32_t elapsedSeconds = wholeOperationTimer.elapsed_s();
+			if (elapsedSeconds + 5 >= maximumTime) {
+				maximumTime = elapsedSeconds + 5;
+			}
+		}
+		otherJobsAreWaiting = newOtherJobsAreWaiting;
 
 		// If we have sent the previous message and have some time left, we can take
 		// another block from current chunk to process it simultaneously. We won't take anything
 		// new if we've already sent 15 blocks and didn't receive status from the chunkserver.
-		if (wholeOperationTimer.elapsed_s() < (otherJobsAreWaiting ? 5 : 25)
-				&& writer.getUnfinishedOperationsCount() < 15) {
+		if (wholeOperationTimer.elapsed_s() + 5 < maximumTime) {
 			pthread_mutex_lock(&glock);
 			// While there is any block worth sending, we add new write operation
 			try {
-				while (tryGetNewBlockToWrite(writer.getUnfinishedOperationsCount())) {
+				while (writer.getUnfinishedOperationsCount() < 15
+						&& tryGetNewBlockToWrite(writer.getUnfinishedOperationsCount())) {
 					uint32_t offset = currentBlock_->pos * MFSBLOCKSIZE
 							+ currentBlock_->from;
 					uint32_t size = currentBlock_->to - currentBlock_->from;
@@ -519,15 +530,23 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			break;
 		}
 
-		if (wholeOperationTimer.elapsed_s() > (otherJobsAreWaiting ? 10 : 30)) {
+		if (wholeOperationTimer.elapsed_s() >= maximumTime) {
+			std::stringstream ss;
+			ss << "Timeout after " << wholeOperationTimer.elapsed_ms() << " ms";
+			syslog(LOG_WARNING,
+					write_file_error_format,
+					inodeData_->inode,
+					chunkIndex_,
+					chunkId_,
+					chunkVersion_,
+					ss.str().c_str(),
+					inodeData_->trycnt);
 			status = ETIMEDOUT;
 			break;
 		}
 
 		try {
-			const auto& finishedOperations = writer.processOperations(50);
-
-			for (ChunkWriter::WriteId operation : finishedOperations) {
+			for (ChunkWriter::WriteId operation : writer.processOperations(50)) {
 				processCompletedOperation(operation);
 			}
 		} catch (Exception &ex) {
