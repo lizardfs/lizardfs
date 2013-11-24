@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CFG_H_
-#define _CFG_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -40,5 +39,3 @@ _CONFIG_MAKE_PROTOTYPE(int32,int32_t);
 _CONFIG_MAKE_PROTOTYPE(uint64,uint64_t);
 _CONFIG_MAKE_PROTOTYPE(int64,int64_t);
 _CONFIG_MAKE_PROTOTYPE(double,double);
-
-#endif

@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SYMLINKCACHE_H_
-#define _SYMLINKCACHE_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -25,5 +24,3 @@ void symlink_cache_insert(uint32_t inode,const uint8_t *path);
 int symlink_cache_search(uint32_t inode,const uint8_t **path);
 void symlink_cache_init(void);
 void symlink_cache_term(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef _SLOGGER_H_
-#define _SLOGGER_H_
+#pragma once
 
 #include <stdio.h>
 #include <syslog.h>
@@ -32,5 +31,3 @@
 
 #define mfs_errlog_silent(priority,msg) syslog((priority),"%s: %s", msg, strerr(errno));
 #define mfs_arg_errlog_silent(priority,format, ...) syslog((priority),format ": %s", __VA_ARGS__ , strerr(errno));
-
-#endif

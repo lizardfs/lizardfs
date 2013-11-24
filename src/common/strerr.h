@@ -16,11 +16,8 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STRERR_H_
-#define _STRERR_H_
+#pragma once
 
 const char* strerr(int error);
 void strerr_init(void);
 void strerr_term(void);
-
-#endif

@@ -16,13 +16,11 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _FILESYSTEM_H_
-#define _FILESYSTEM_H_
+#pragma once
 
 #include <inttypes.h>
 
 #ifdef METARESTORE
-
 
 uint64_t fs_getversion(void);
 
@@ -163,7 +161,4 @@ void fs_incversion(uint64_t chunkid);
 void fs_cs_disconnected(void);
 
 int fs_init(void);
-#endif
-
-
 #endif

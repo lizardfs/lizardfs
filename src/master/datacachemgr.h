@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DATACACHEMGR_H_
-#define _DATACACHEMGR_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -25,5 +24,3 @@ int dcm_open(uint32_t inode,uint32_t sessionid);
 void dcm_access(uint32_t inode,uint32_t sessionid);
 void dcm_modify(uint32_t inode,uint32_t sessionid);
 int dcm_init(void);
-
-#endif

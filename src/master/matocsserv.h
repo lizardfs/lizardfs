@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MATOCSSERV_H_
-#define _MATOCSSERV_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -44,5 +43,3 @@ int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uin
 int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion);
 int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
 int matocsserv_init(void);
-
-#endif

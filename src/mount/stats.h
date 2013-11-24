@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STATS_H_
-#define _STATS_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -28,5 +27,3 @@ void stats_show_all(char **buff,uint32_t *leng);
 void stats_lock(void);
 void stats_unlock(void);
 void stats_term(void);
-
-#endif

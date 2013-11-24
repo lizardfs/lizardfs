@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _RC4RANDOM_H_
-#define _RC4RANDOM_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -28,5 +27,3 @@ uint64_t rndu64();
 
 uint64_t rndu64_ranged(uint64_t range);
 uint32_t rndu32_ranged(uint32_t range);
-
-#endif

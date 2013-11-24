@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MFSSTRERR_H_
-#define _MFSSTRERR_H_
+#pragma once
 
 #include "common/MFSCommunication.h"
 
@@ -28,5 +27,3 @@ static inline const char* mfsstrerr(uint8_t status) {
 	}
 	return errtab[status];
 }
-
-#endif

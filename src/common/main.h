@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MAIN_H_
-#define _MAIN_H_
+#pragma once
 
 #include <poll.h>
 #include <inttypes.h>
@@ -35,5 +34,3 @@ void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(v
 int main_timechange(void *x,int mode,uint32_t seconds,uint32_t offset);
 uint32_t main_time(void);
 uint64_t main_utime(void);
-
-#endif

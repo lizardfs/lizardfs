@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_SERIALIZATION_H_
-#define LIZARDFS_COMMON_SERIALIZATION_H_
+#pragma once
 
 #include <exception>
 #include <vector>
@@ -175,5 +174,3 @@ template<class... Args>
 inline uint32_t deserialize(const std::vector<uint8_t>& sourceBuffer, Args&... args) {
 	return deserialize(sourceBuffer.data(), sourceBuffer.size(), args...);
 }
-
-#endif // LIZARDFS_COMMON_SERIALIZATION_H_

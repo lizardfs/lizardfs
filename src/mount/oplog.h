@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _OPLOG_H_
-#define _OPLOG_H_
+#pragma once
 
 #include <fuse/fuse_lowlevel.h>
 #include <inttypes.h>
@@ -35,5 +34,3 @@ unsigned long oplog_newhandle(int hflag);
 void oplog_releasehandle(unsigned long fh);
 void oplog_getdata(unsigned long fh,uint8_t **buff,uint32_t *leng,uint32_t maxleng);
 void oplog_releasedata(unsigned long fh);
-
-#endif

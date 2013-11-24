@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DATAPACK_H_
-#define _DATAPACK_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -83,5 +82,3 @@ static inline uint8_t get8bit(const uint8_t **ptr) {
 	(*ptr)++;
 	return t8;
 }
-
-#endif

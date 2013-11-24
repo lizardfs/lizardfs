@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MASTERCOMM_H_
-#define _MASTERCOMM_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -70,5 +69,3 @@ int fs_init_master_connection(const char *bindhostname,const char *masterhostnam
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);
-
-#endif
