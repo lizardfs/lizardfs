@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MFS_FUSE_H_
-#define _MFS_FUSE_H_
+#pragma once
 
 #include <fuse/fuse_lowlevel.h>
 
@@ -58,5 +57,3 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name);
 void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_NETWORK_ADDRESS_H_
-#define LIZARDFS_COMMON_NETWORK_ADDRESS_H_
+#pragma once
 
 #include <arpa/inet.h>
 
@@ -58,5 +57,3 @@ struct hash<NetworkAddress> {
 	}
 };
 }
-
-#endif // LIZARDFS_COMMON_NETWORK_ADDRESS_H_

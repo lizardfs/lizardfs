@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_UTILS_CONFIGURATION_H_
-#define LIZARDFS_UTILS_CONFIGURATION_H_
+#pragma once
 
 #include <signal.h>
 #include <stdlib.h>
@@ -62,5 +61,3 @@ private:
 		}
 	}
 };
-
-#endif /* LIZARDFS_UTILS_CONFIGURATION_H_ */

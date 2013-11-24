@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_MULTI_BUFFER_WRITER_H
-#define LIZARDFS_COMMON_MULTI_BUFFER_WRITER_H
+#pragma once
 
 #include <sys/uio.h>
 #include <vector>
@@ -32,5 +31,3 @@ private:
 	std::vector<struct iovec> buffers_;
 	size_t buffersCompletelySent_;
 };
-
-#endif /* LIZARDFS_COMMON_MULTI_BUFFER_WRITER_H */

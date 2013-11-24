@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CSDB_H_
-#define _CSDB_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -30,5 +29,3 @@ void csdb_readinc(uint32_t ip,uint16_t port);
 void csdb_readdec(uint32_t ip,uint16_t port);
 void csdb_writeinc(uint32_t ip,uint16_t port);
 void csdb_writedec(uint32_t ip,uint16_t port);
-
-#endif

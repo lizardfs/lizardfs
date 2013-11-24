@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_UTILS_ASSERTS_H_
-#define LIZARDFS_UTILS_ASSERTS_H_
+#pragma once
 
 #include <cassert>
 #include <cstdio>
@@ -38,5 +37,3 @@
 				abort(); \
 			} \
 	} while(0)
-
-#endif /* LIZARDFS_UTILS_ASSERTS_H_ */

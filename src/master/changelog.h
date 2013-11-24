@@ -16,13 +16,10 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CHANGELOG_H_
-#define _CHANGELOG_H_
+#pragma once
 
 #include <inttypes.h>
 
 void changelog_rotate(void);
 void changelog(uint64_t version,const char *format,...);
 int changelog_init(void);
-
-#endif

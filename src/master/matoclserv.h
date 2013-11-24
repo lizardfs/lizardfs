@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MATOCLSERV_H_
-#define _MATOCLSERV_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -33,5 +32,3 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status);
 void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode);
 int matoclserv_sessionsinit(void);
 int matoclserv_networkinit(void);
-
-#endif

@@ -16,12 +16,9 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _RESTORE_H_
-#define _RESTORE_H_
+#pragma once
 
 #include <inttypes.h>
 
 int restore(const char *filename,uint64_t lv,char *ptr);
 void restore_setverblevel(uint8_t _vlevel);
-
-#endif

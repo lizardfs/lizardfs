@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MASSERT_H_
-#define _MASSERT_H_
+#pragma once
 
 #include <errno.h>
 #include <stdio.h>
@@ -41,5 +40,3 @@
 		fprintf(stderr,"unexpected status, '%s' returned: %s\n",#e,_mfs_errorstring); \
 		abort(); \
 	}
-
-#endif

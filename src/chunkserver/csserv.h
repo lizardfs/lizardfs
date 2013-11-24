@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CSSERV_H_
-#define _CSSERV_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -25,5 +24,3 @@ void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,u
 uint32_t csserv_getlistenip();
 uint16_t csserv_getlistenport();
 int csserv_init(void);
-
-#endif

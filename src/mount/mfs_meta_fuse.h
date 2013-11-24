@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MFS_META_FUSE_H_
-#define _MFS_META_FUSE_H_
+#pragma once
 
 #include <fuse/fuse_lowlevel.h>
 
@@ -39,5 +38,3 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 void mfs_meta_init(int debug_mode_in,double entry_cache_timeout_in,double attr_cache_timeout_in);
-
-#endif
