@@ -24,31 +24,19 @@
  */
 class DataGenerator {
 public:
-	static void createFile(const std::string& name, size_t size) {
+	static void createFile(const std::string& name, uint64_t size) {
 		int fd = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, (mode_t)0644);
 		utils_passert(fd >= 0);
+		fillFileWithProperData(fd, size);
+		utils_zassert(close(fd));
+	}
 
-		/* Write the size of the file */
-		uint64_t serializedSize = htobe64(size);
-		utils_massert(size >= sizeof(serializedSize));
-		utils_passert(write(fd, &serializedSize, sizeof(serializedSize))
-				== sizeof(serializedSize));
-
-		/* Write the data */
-		size -= sizeof(serializedSize);
-		off_t currentOffset = sizeof(serializedSize);
-		std::vector<char> buffer(Configuration::blockSize());
-		while (size > 0) {
-			size_t bytesToWrite = size;
-			if (bytesToWrite > buffer.size()) {
-				bytesToWrite = buffer.size();
-			}
-			buffer.resize(bytesToWrite);
-			fillBufferWithProperData(buffer, currentOffset);
-			utils_passert(write(fd, buffer.data(), bytesToWrite) == (ssize_t)bytesToWrite);
-			size -= bytesToWrite;
-			currentOffset += bytesToWrite;
-		}
+	static void overwriteFile(const std::string& name) {
+		struct stat fileInformation;
+		utils_zassert(stat(name.c_str(), &fileInformation));
+		int fd = open(name.c_str(), O_WRONLY, (mode_t)0644);
+		utils_passert(fd >= 0);
+		fillFileWithProperData(fd, fileInformation.st_size);
 		utils_zassert(close(fd));
 	}
 
@@ -158,6 +146,31 @@ protected:
 			BlockType block = htobe64(0x0807060504030201ULL + offset);
 			blocks[i] = block;
 			offset += sizeof(BlockType);
+		}
+	}
+
+	static void fillFileWithProperData(int fd, uint64_t size) {
+		utils_massert(fd >= 0);
+
+		/* Write the size of the file */
+		uint64_t serializedSize = htobe64(size);
+		utils_massert(size >= sizeof(serializedSize));
+		utils_passert(write(fd, &serializedSize, sizeof(serializedSize))== sizeof(serializedSize));
+
+		/* Write the data */
+		size -= sizeof(serializedSize);
+		off_t currentOffset = sizeof(serializedSize);
+		std::vector<char> buffer(Configuration::blockSize());
+		while (size > 0) {
+			size_t bytesToWrite = size;
+			if (bytesToWrite > buffer.size()) {
+				bytesToWrite = buffer.size();
+			}
+			buffer.resize(bytesToWrite);
+			fillBufferWithProperData(buffer, currentOffset);
+			utils_passert(write(fd, buffer.data(), bytesToWrite) == (ssize_t)bytesToWrite);
+			size -= bytesToWrite;
+			currentOffset += bytesToWrite;
 		}
 	}
 };
