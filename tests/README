@@ -1,0 +1,104 @@
+LizardFS functional tests
+*************************
+
+
+How to configure testing environment?
+=====================================
+
+Functional tests configure and run testing LizardFS installation several times.
+Test installation runs all system modules on a single computer.
+To prepare the testing environment safely, please use the following script:
+
+    <SOURCE_DIRECTORY>/tests/setup_machine.sh
+
+What 'setup_machine.sh' does?
+ -  Creates a new user - 'lizardfstest' - on the machine;
+ -  Grants this user permissions to mount fuse filesystems and runs
+        '/bin/sh -c echo 1 > /proc/sys/vm/drop_caches' as a root;
+ -  Grants everyone permissions to run processes as lizardfstests using
+        'sudo -u lizardfstest' without any authentication;
+ -  Grants everyone permissions to run 'sudo pkill -9 -u lizardfstest'
+        to kill the tests in case something goes wrong;
+ -  Creates a 2GB ramdisk in '/mnt/ramdisk'.
+
+You also have to provide directories which will be used by chunkservers
+during the tests to store any generated data.
+You have to add entry similar to the one below:
+
+    : ${LIZARDFS_DISKS:="/mnt/disk_one /mnt/disk_two /mnt/disk_three"}
+
+to '/etc/lizardfs_tests.conf' file.
+
+These directories may be located on one physical disk. Long tests, however, may not work
+in such configuration (they generate heavy traffic). It's OK for sanity checks.
+There should be about 60 GB of disk space available for the tests.
+At least three directories have to be provided in order to run some of the test cases.
+Remember that user 'lizardfstest' needs permissions to write files in these
+directories. All the contents of these directories will be erased during tests.
+
+How to compile the tests?
+=========================
+
+To use tests, LizardFS has to be compiled with an option ENABLE_TESTS, e.g.:
+
+    cmake .. -DENABLE_TESTS=YES
+
+Test installation has to be prepared. Default location for tests is
+'$HOME/local' but it can be changed in tests config file, e.g.:
+
+    : ${LIZARDFS_ROOT:="$HOME/LizardFS"}
+
+After that, the tests are ready to be run.
+
+How to launch the tests?
+========================
+
+Test binary is installed together with the file system. The path leading to it
+is the following:
+
+    <INSTALL_PREFIX>/bin/lizardfs_tests
+
+Alternatively, it can be run from build directory:
+
+    <SOURCE_DIRECTORY>/tests/lizardfs_tests
+
+This binary runs all the bash scripts using googletest framework. This makes
+it easy to generate a report after all the tests are finished. Part of the source code
+of 'lizardfs_tests' binary (list of tests) is generated automatically when tests are added
+or removed. Launched without any parameters, it executes all available tests.
+By using a parameter '--gtest_filter' you can choose which tests are to be run.
+The above parameter uses a pattern to select the tests, e.g.:
+
+    ./lizardfs_tests --gtest_filter='SanityChecks*'
+
+The command above runs all tests from 'SanityChecks' suite.
+A 'lizardfs_tests' binary uses an interface delivered by googletest which is displayed after:
+
+    ./lizardfs_tests --help
+
+
+How to make your own test?
+==========================
+
+To create a new test simply create a file:
+
+    <SOURCE_DIRECTORY>/tests/test_suites/<SUITE>/test_<TEST_NAME>.sh
+
+where:
+    <SUITE> is a test suite that you want your test to be a part of.
+        Existing test suites:
+         -  SanityChecks – basic tests of LizardFS functionality; these tests
+                should last a couple of minutes,
+         -  SystemTestingSuite – these tests last a couple of hours and perform
+                complex verification of LizardFS work;
+    <TEST_NAME> is a name of your test.
+
+Tests which you write are run inside a kind of sandbox. They use UID
+of a special user 'lizardfstest', so you can safely spawn any processes
+(they will be killed after the test).
+Our testing framework provides numerous bash functions and structures. They are
+implemented in the following directory:
+
+    <SOURCE_DIRECTORY>/tests/tools
+
+Merry testing!
