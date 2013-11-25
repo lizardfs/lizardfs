@@ -4,9 +4,9 @@
 #include <poll.h>
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <vector>
 #include <string>
-#include <mutex>
 
 #include "common/chunk_type_with_address.h"
 #include "common/connection_pool.h"
@@ -19,22 +19,38 @@
 
 class ChunkReader {
 public:
-	ChunkReader(ChunkConnector& connector, ChunkLocator& locator);
+	ChunkReader(ChunkConnector& connector, ReadChunkLocator& locator);
 
 	/*
 	 * Uses locator to locate the chunk and chooses chunkservers to read from
 	 */
 	void prepareReadingChunk(uint32_t inode, uint32_t index);
 
-/*
+	/*
 	 * Reads data from the previously located chunk and appends it to the buffer
 	 */
 	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
 		const Timeout& communicationTimeout);
 
+	uint32_t inode() {
+		return inode_;
+	}
+	uint32_t index() {
+		return index_;
+	}
+	uint64_t chunkId() {
+		return location_->chunkId;
+	}
+	uint32_t version() {
+		return location_->version;
+	}
+
 private:
 	ChunkConnector& connector_;
-	ChunkLocator& locator_;
+	ReadChunkLocator& locator_;
+	uint32_t inode_;
+	uint32_t index_;
+	std::shared_ptr<const ChunkLocationInfo> location_;
 	ReadOperationPlanner planner_;
 	std::map<ChunkType, NetworkAddress> chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;

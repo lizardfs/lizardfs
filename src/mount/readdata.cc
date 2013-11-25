@@ -56,7 +56,7 @@
 
 struct readrec {
 	ChunkConnector connector;
-	MountChunkLocator locator;
+	ReadChunkLocator locator;
 	ChunkReader reader;
 	std::vector<uint8_t> readBufer; // this->locked
 	uint32_t inode;                 // this->locked
@@ -286,10 +286,10 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
 					"(try counter: %" PRIu32 ")",
-					rrec->locator.inode(),
-					rrec->locator.index(),
-					rrec->locator.chunkId(),
-					rrec->locator.version(),
+					rrec->reader.inode(),
+					rrec->reader.index(),
+					rrec->reader.chunkId(),
+					rrec->reader.version(),
 					ex.what(),
 					tryCounter);
 			forcePrepare = true;
@@ -307,10 +307,10 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
 					"(try counter: %" PRIu32 ")",
-					rrec->locator.inode(),
-					rrec->locator.index(),
-					rrec->locator.chunkId(),
-					rrec->locator.version(),
+					rrec->reader.inode(),
+					rrec->reader.index(),
+					rrec->reader.chunkId(),
+					rrec->reader.version(),
 					ex.what(),
 					tryCounter);
 			forcePrepare = true;
@@ -319,10 +319,10 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s",
-					rrec->locator.inode(),
-					rrec->locator.index(),
-					rrec->locator.chunkId(),
-					rrec->locator.version(),
+					rrec->reader.inode(),
+					rrec->reader.index(),
+					rrec->reader.chunkId(),
+					rrec->reader.version(),
 					ex.what());
 			if (ex.status() == ERROR_ENOENT) {
 				return EBADF; // stale handle
@@ -337,10 +337,10 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 						", index: %" PRIu32 ", chunk: %" PRIu64
 						", version: %" PRIu32 " - %s "
 						"(try counter: %" PRIu32 ")",
-						rrec->locator.inode(),
-						rrec->locator.index(),
-						rrec->locator.chunkId(),
-						rrec->locator.version(),
+						rrec->reader.inode(),
+						rrec->reader.index(),
+						rrec->reader.chunkId(),
+						rrec->reader.version(),
 						ex.what(),
 						tryCounter);
 			}

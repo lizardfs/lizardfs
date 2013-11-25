@@ -8,24 +8,30 @@
 #include "mount/exceptions.h"
 #include "mount/read_plan_executor.h"
 
-ChunkReader::ChunkReader(ChunkConnector& connector, ChunkLocator& locator)
-	: connector_(connector), locator_(locator),
+ChunkReader::ChunkReader(ChunkConnector& connector, ReadChunkLocator& locator)
+	: connector_(connector), locator_(locator), inode_(0), index_(0),
 	  planner_({}, std::map<ChunkType, float>()) {
 }
 
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
-	if (locator_.inode() != inode || locator_.index() != index) {
+	if (inode != inode_ || index != index_) {
+		// we moved to a new chunk
 		crcErrors_.clear();
+	} else {
+		// we are called due to an error
+		locator_.invalidateCache(inode, index);
 	}
-	locator_.locateChunk(inode, index);
-	if (locator_.isChunkEmpty()) {
+	inode_ = inode;
+	index_ = index;
+	location_ = locator_.locateChunk(inode, index);
+	if (location_->isEmptyChunk()) {
 		return;
 	}
 	chunkTypeLocations_.clear();
 	std::vector<ChunkType> availableChunkTypes;
 	std::map<ChunkType, float> bestScores;
 
-	for (const ChunkTypeWithAddress& chunkTypeWithAddress : locator_.locations()) {
+	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
 		const ChunkType &type = chunkTypeWithAddress.chunkType;
 		const NetworkAddress &address = chunkTypeWithAddress.address;
 
@@ -61,20 +67,20 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		return 0;
 	}
 	sassert(offset + size <= MFSCHUNKSIZE);
-	uint64_t offsetInFile = static_cast<uint64_t>(locator_.index()) * MFSCHUNKSIZE + offset;
+	uint64_t offsetInFile = static_cast<uint64_t>(index_) * MFSCHUNKSIZE + offset;
 	uint32_t availableSize = size;	// requested data may lie beyond end of file
-	if (offsetInFile >= locator_.fileLength()) {
+	if (offsetInFile >= location_->fileLength) {
 		// read request entirely beyond EOF, can't read anything
 		availableSize = 0;
-	} else if (offsetInFile + availableSize > locator_.fileLength()) {
+	} else if (offsetInFile + availableSize > location_->fileLength) {
 		// read request partially beyond EOF, truncate request to EOF
-		availableSize = locator_.fileLength() - offsetInFile;
+		availableSize = location_->fileLength - offsetInFile;
 	}
 	if (availableSize == 0) {
 		return 0;
 	}
 
-	if (locator_.isChunkEmpty()) {
+	if (location_->isEmptyChunk()) {
 		// We just have to append some zeros to the buffer
 		buffer.resize(buffer.size() + availableSize, 0);
 	} else {
@@ -82,7 +88,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 		ReadOperationPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
-		ReadPlanExecutor executor(locator_.chunkId(), locator_.version(), plan);
+		ReadPlanExecutor executor(location_->chunkId, location_->version, plan);
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);

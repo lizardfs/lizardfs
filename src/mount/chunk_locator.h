@@ -2,44 +2,59 @@
 #define LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_
 
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 #include "common/chunk_type_with_address.h"
 
-class ChunkLocator {
-public:
+struct ChunkLocationInfo {
 	typedef std::vector<ChunkTypeWithAddress> ChunkLocations;
 
-	ChunkLocator();
-	virtual ~ChunkLocator() {}
-	uint64_t chunkId() const { return chunkId_; }
-	uint64_t fileLength() const { return fileLength_; }
-	uint32_t inode() const { return inode_; }
-	uint32_t index() const { return index_; }
-	bool isChunkEmpty() const;
-	virtual void locateChunk(uint32_t inode, uint32_t index) = 0;
-	const ChunkLocations& locations() const { return locations_; }
-	uint32_t version() const { return version_; }
+	uint64_t chunkId;
+	uint32_t version;
+	uint64_t fileLength;
+	ChunkLocations locations;
 
-protected:
+	ChunkLocationInfo()
+			: chunkId(0),
+			  version(0),
+			  fileLength(0) {
+	}
+
+	ChunkLocationInfo(
+			const uint64_t chunkId,
+			const uint32_t version,
+			const uint64_t fileLength,
+			const ChunkLocations locations) :
+		chunkId(chunkId),
+		version(version),
+		fileLength(fileLength),
+		locations(locations) {
+	}
+
+	bool isEmptyChunk() const {
+		return chunkId == 0;
+	}
+};
+
+// Intended to be instantiated per descriptor.
+// May cache locations of previously queried chunks.
+// Thread safe.
+class ReadChunkLocator {
+public:
+	ReadChunkLocator(const ReadChunkLocator&) = delete;
+	ReadChunkLocator() {}
+
+	std::shared_ptr<const ChunkLocationInfo> locateChunk(uint32_t inode, uint32_t index);
+	void invalidateCache(uint32_t inode, uint32_t index);
+
+private:
 	uint32_t inode_;
 	uint32_t index_;
-	uint64_t chunkId_;
-	uint32_t version_;
-	uint64_t fileLength_;
-	ChunkLocations locations_;
-};
 
-class MountChunkLocator : public ChunkLocator {
-public:
-	void locateChunk(uint32_t inode, uint32_t index);
-};
-
-class ChunkLocationStore : public ChunkLocator {
-public:
-	ChunkLocationStore(const ChunkLocations& locations, uint64_t chunkId, uint32_t version,
-			uint64_t fileLength);
-	void locateChunk(uint32_t inode, uint32_t index);
+	std::shared_ptr<const ChunkLocationInfo> cache_;
+	std::mutex mutex_;
 };
 
 #endif // LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_
