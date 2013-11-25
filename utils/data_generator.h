@@ -23,31 +23,19 @@
  */
 class DataGenerator {
 public:
-	static void createFile(const std::string& name, size_t size) {
+	static void createFile(const std::string& name, uint64_t size) {
 		int fd = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, (mode_t)0644);
 		utils_passert(fd >= 0);
+		fillFileWithProperData(fd, size);
+		utils_zassert(close(fd));
+	}
 
-		/* Write the size of the file */
-		uint64_t serializedSize = htobe64(size);
-		utils_massert(size >= sizeof(serializedSize));
-		utils_passert(write(fd, &serializedSize, sizeof(serializedSize))
-				== sizeof(serializedSize));
-
-		/* Write the data */
-		size -= sizeof(serializedSize);
-		off_t currentOffset = sizeof(serializedSize);
-		std::vector<char> buffer(Configuration::blockSize());
-		while (size > 0) {
-			size_t bytesToWrite = size;
-			if (bytesToWrite > buffer.size()) {
-				bytesToWrite = buffer.size();
-			}
-			buffer.resize(bytesToWrite);
-			fillBufferWithProperData(buffer, currentOffset);
-			utils_passert(write(fd, buffer.data(), bytesToWrite) == (ssize_t)bytesToWrite);
-			size -= bytesToWrite;
-			currentOffset += bytesToWrite;
-		}
+	static void overwriteFile(const std::string& name) {
+		struct stat fileInformation;
+		utils_zassert(stat(name.c_str(), &fileInformation));
+		int fd = open(name.c_str(), O_WRONLY, (mode_t)0644);
+		utils_passert(fd >= 0);
+		fillFileWithProperData(fd, fileInformation.st_size);
 		utils_zassert(close(fd));
 	}
 
@@ -57,7 +45,7 @@ public:
 	 * * -1 if the file is not corrupted
 	 * * position of the first corrupted byte otherwise
 	 */
-	static ssize_t validateFile(const std::string& name) {
+	static off_t validateFile(const std::string& name) {
 		int fd = open(name.c_str(), O_RDONLY);
 		utils_passert(fd != -1);
 
@@ -70,17 +58,17 @@ public:
 		fileSize = be64toh(fileSize);
 		struct stat fileInformation;
 		utils_zassert(stat(name.c_str(), &fileInformation));
-		if (fileSize != (size_t)fileInformation.st_size) {
+		if (fileSize != (uint64_t)fileInformation.st_size) {
 			return 0; // The first bytes are corrupted!
 		}
 
 		/* Check the data */
 		off_t currentOffset = sizeof(fileSize);
-		size_t size = fileSize - sizeof(fileSize);
+		uint64_t size = fileSize - sizeof(fileSize);
 		std::vector<char> actualBuffer(Configuration::blockSize());
 		std::vector<char> properBuffer(Configuration::blockSize());
 		while (size > 0) {
-			size_t bytesToRead = size;
+			uint64_t bytesToRead = size;
 			if (bytesToRead > properBuffer.size()) {
 				bytesToRead = properBuffer.size();
 			}
@@ -102,7 +90,7 @@ public:
 			utils_mabort("memcmp returned non-zero, but there is no difference");
 		}
 		utils_zassert(close(fd));
-		return -1;
+		return static_cast<off_t>(-1);
 	}
 
 protected:
@@ -137,6 +125,31 @@ protected:
 			BlockType block = htobe64(0x0807060504030201ULL + offset);
 			blocks[i] = block;
 			offset += sizeof(BlockType);
+		}
+	}
+
+	static void fillFileWithProperData(int fd, uint64_t size) {
+		utils_massert(fd >= 0);
+
+		/* Write the size of the file */
+		uint64_t serializedSize = htobe64(size);
+		utils_massert(size >= sizeof(serializedSize));
+		utils_passert(write(fd, &serializedSize, sizeof(serializedSize))== sizeof(serializedSize));
+
+		/* Write the data */
+		size -= sizeof(serializedSize);
+		off_t currentOffset = sizeof(serializedSize);
+		std::vector<char> buffer(Configuration::blockSize());
+		while (size > 0) {
+			size_t bytesToWrite = size;
+			if (bytesToWrite > buffer.size()) {
+				bytesToWrite = buffer.size();
+			}
+			buffer.resize(bytesToWrite);
+			fillBufferWithProperData(buffer, currentOffset);
+			utils_passert(write(fd, buffer.data(), bytesToWrite) == (ssize_t)bytesToWrite);
+			size -= bytesToWrite;
+			currentOffset += bytesToWrite;
 		}
 	}
 };

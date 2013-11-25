@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
 	for (int i = 1; i < argc; ++i) {
 		std::string file = argv[i];
 		off_t offset = DataGenerator::validateFile(file);
-		if (offset != -1) {
+		if (offset != static_cast<off_t>(-1)) {
 			std::cerr << "Data at offset " << offset
 					<< " in file " << file << " corrupted" << std::endl;
 			error = 2;

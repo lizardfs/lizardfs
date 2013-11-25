@@ -7,12 +7,10 @@ int main(int argc, char** argv) {
 		std::cerr << "Usage:" << std::endl
 				<< "    " << argv[0] << " <file>" << std::endl
 				<< "Command uses the following environment variables: " << std::endl
-				<< "* FILE_SIZE" << std::endl
 				<< "* BLOCK_SIZE" << std::endl;
 		return 1;
 	}
 
-	std::string file = argv[1];
-	DataGenerator::createFile(file, Configuration::fileSize());
+	DataGenerator::overwriteFile(argv[1]);
 	return 0;
 }
