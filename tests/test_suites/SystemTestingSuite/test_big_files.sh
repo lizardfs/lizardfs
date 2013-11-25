@@ -1,4 +1,4 @@
-timeout_set 2 hours
+timeout_set 3 hours
 
 CHUNKSERVERS=3 \
 	MOUNTS=2 \
