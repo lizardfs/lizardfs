@@ -8,9 +8,11 @@ LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadException, RecoverableReadException);
+
 LIZARDFS_CREATE_EXCEPTION_CLASS(WriteException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableWriteException, WriteException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableWriteException, WriteException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesWriteException, RecoverableWriteException);
 
 class ChunkserverConnectionException : public Exception {
 public:

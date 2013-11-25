@@ -57,4 +57,40 @@ private:
 	std::mutex mutex_;
 };
 
+class WriteChunkLocator {
+public:
+	WriteChunkLocator()
+		: inode_(0),
+		  index_(0),
+		  isChunkLocked_(false),
+		  locationInfo_(0, 0, 0, {}) {
+	}
+
+	void locateAndLockChunk(uint32_t inode, uint32_t index);
+	void unlockChunk();
+
+	void updateFileLength(uint64_t fileLength) {
+		locationInfo_. fileLength = fileLength;
+	}
+
+	const ChunkLocationInfo& locationInfo() const {
+		return locationInfo_;
+	}
+
+	~WriteChunkLocator() {
+		try {
+			if (isChunkLocked_) {
+				unlockChunk();
+			}
+		} catch (...) {
+		}
+	}
+
+private:
+	uint32_t inode_;
+	uint32_t index_;
+	bool isChunkLocked_;
+	ChunkLocationInfo locationInfo_;
+};
+
 #endif // LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_

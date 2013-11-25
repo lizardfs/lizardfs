@@ -346,18 +346,12 @@ private:
 	void processCompletedOperation(const uint32_t receivedWriteId);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
-	uint64_t fileLength_;
-	uint64_t chunkId_;
-	uint32_t chunkVersion_;
 	cblock* currentBlock_;
 };
 
 InodeChunkWriter::InodeChunkWriter()
 		: inodeData_(NULL),
 		  chunkIndex_(0),
-		  fileLength_(0),
-		  chunkId_(0),
-		  chunkVersion_(0),
 		  currentBlock_(nullptr) {
 }
 
@@ -389,46 +383,29 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		return;
 	}
 
-	// Get chunk data from master and acquire a lock on the chunk
-	std::vector<ChunkTypeWithAddress> chunkLocations;
-	int writeChunkStatus = fs_lizwritechunk(inodeData_->inode, chunkIndex_,
-			fileLength_, chunkId_, chunkVersion_, chunkLocations);
-	if (writeChunkStatus != STATUS_OK) {
+	ChunkWriter writer(globalChunkserverStats, connector);
+	Timer wholeOperationTimer;
+
+	try {
+		writer.init(inodeData_->inode, chunkIndex_, 5000);
+	} catch (UnrecoverableWriteException& e) {
 		syslog(LOG_WARNING,
-				"file: %" PRIu32 ", index: %" PRIu32
-				" - fs_lizwritechunk returns status: %s",
-				inodeData_->inode, chunkIndex_, mfsstrerr(writeChunkStatus));
-		if (writeChunkStatus != ERROR_LOCKED) {
-			if (writeChunkStatus == ERROR_ENOENT) {
-				write_job_end(inodeData_, EBADF, 0);
-			} else if (writeChunkStatus == ERROR_QUOTA) {
-				write_job_end(inodeData_, EDQUOT, 0);
-			} else if (writeChunkStatus == ERROR_NOSPACE) {
-				write_job_end(inodeData_, ENOSPC, 0);
-			} else {
-				inodeData_->trycnt++;
-				if (inodeData_->trycnt >= maxretries) {
-					if (writeChunkStatus == ERROR_NOCHUNKSERVERS) {
-						write_job_end(inodeData_, ENOSPC, 0);
-					} else {
-						write_job_end(inodeData_, EIO, 0);
-					}
-				} else {
-					write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3));
-				}
-			}
+				"write file error, inode: %" PRIu32 ", index: %" PRIu32 " -  %s",
+				inodeData_->inode, chunkIndex_, e.what());
+		if (e.status() == ERROR_ENOENT) {
+			write_job_end(inodeData_, EBADF, 0);
+		} else if (e.status() == ERROR_QUOTA) {
+			write_job_end(inodeData_, EDQUOT, 0);
+		} else if (e.status() == ERROR_NOSPACE) {
+			write_job_end(inodeData_, ENOSPC, 0);
 		} else {
-			write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3));
+			write_job_end(inodeData_, EIO, 0);
 		}
 		return;
-	}
-
-	if (chunkLocations.empty()) {
+	} catch (NoValidCopiesWriteException& e) {
 		syslog(LOG_WARNING,
-				"file: %" PRIu32 ", index: %" PRIu32
-				", chunk: %" PRIu64 ", version: %" PRIu32
-				" - there are no valid copies",
-				inodeData_->inode, chunkIndex_, chunkId_, chunkVersion_);
+				"write file error, inode: %" PRIu32 ", index: %" PRIu32 " -  %s",
+				inodeData_->inode, chunkIndex_, e.what());
 		inodeData_->trycnt += 6;
 		if (inodeData_->trycnt >= maxretries) {
 			write_job_end(inodeData_, ENXIO, 0);
@@ -436,20 +413,23 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			write_delayed_enqueue(inodeData_, 60);
 		}
 		return;
-	}
-
-	ChunkWriter writer(globalChunkserverStats, connector, chunkId_, chunkVersion_);
-	Timer wholeOperationTimer;
-
-	try {
-		writer.init(chunkLocations, 3000);
-	} catch(Exception &ex) {
-		fs_writeend(chunkId_, inodeData_->inode, 0);
-		inodeData_->trycnt++;
-		if (inodeData_->trycnt >= maxretries) {
-			write_job_end(inodeData_, EIO, 0);
-		} else {
+	} catch (Exception& e) {
+		syslog(LOG_WARNING,
+				"write file error, inode: %" PRIu32 ", index: %" PRIu32 " -  %s",
+				inodeData_->inode, chunkIndex_, e.what());
+		if (e.status() == ERROR_LOCKED) {
 			write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3));
+		} else {
+			inodeData_->trycnt++;
+			if (inodeData_->trycnt >= maxretries) {
+				if (e.status() == ERROR_NOCHUNKSERVERS) {
+					write_job_end(inodeData_, ENOSPC, 0);
+				} else {
+					write_job_end(inodeData_, EIO, 0);
+				}
+			} else {
+				write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3));
+			}
 		}
 		return;
 	}
@@ -461,8 +441,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 	static const char* write_file_error_format =
 			"write file error, inode: %" PRIu32
-			", index: %" PRIu32 ", chunk: %" PRIu64
-			", version: %" PRIu32 " - %s "
+			", index: %" PRIu32 " - %s "
 			"(try counter: %" PRIu32 ")";
 
 	while (true) {
@@ -496,13 +475,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 					currentBlock_->writeid = newOperation;
 					operations.push_back(newOperation);
 				}
-			} catch (Exception &ex) {
+			} catch (Exception& ex) {
 				syslog(LOG_WARNING,
 						write_file_error_format,
 						inodeData_->inode,
 						chunkIndex_,
-						chunkId_,
-						chunkVersion_,
 						ex.what(),
 						inodeData_->trycnt);
 				status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
@@ -514,19 +491,6 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 
 		if (writer.getUnfinishedOperationsCount() == 0) {
-			try {
-				writer.finish(1000);
-			} catch (Exception &ex) {
-				syslog(LOG_WARNING,
-						write_file_error_format,
-						inodeData_->inode,
-						chunkIndex_,
-						chunkId_,
-						chunkVersion_,
-						ex.what(),
-						inodeData_->trycnt);
-				status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
-			}
 			break;
 		}
 
@@ -537,8 +501,6 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 					write_file_error_format,
 					inodeData_->inode,
 					chunkIndex_,
-					chunkId_,
-					chunkVersion_,
 					ss.str().c_str(),
 					inodeData_->trycnt);
 			status = ETIMEDOUT;
@@ -549,13 +511,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			for (ChunkWriter::WriteId operation : writer.processOperations(50)) {
 				processCompletedOperation(operation);
 			}
-		} catch (Exception &ex) {
+		} catch (Exception& ex) {
 			syslog(LOG_WARNING,
 					write_file_error_format,
 					inodeData_->inode,
 					chunkIndex_,
-					chunkId_,
-					chunkVersion_,
 					ex.what(),
 					inodeData_->trycnt);
 			status = (ex.status() == ERROR_NOSPACE) ? ENOSPC : EIO;
@@ -563,14 +523,22 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 	}
 
-	int writeEndStatus;
-	for (int retryCount = 0 ; retryCount < 10 ; ++retryCount) {
-		writeEndStatus = fs_writeend(chunkId_, inodeData_->inode, fileLength_);
-		if (writeEndStatus != STATUS_OK) {
-			usleep(100000 + (10000 << retryCount));
+	uint8_t writeEndStatus;
+	try {
+		if (status == STATUS_OK) {
+			writer.finish(1000);
 		} else {
-			break;
+			writer.abort();
 		}
+		writeEndStatus = STATUS_OK;
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING,
+				write_file_error_format,
+				inodeData_->inode,
+				chunkIndex_,
+				ex.what(),
+				inodeData_->trycnt);
+		writeEndStatus = ex.status();
 	}
 
 	if (writeEndStatus != STATUS_OK) {
@@ -641,13 +609,6 @@ void InodeChunkWriter::processCompletedOperation(const uint32_t receivedWriteId)
 		inodeData_->datachaintail = acknowledgedBlock->prev;
 	}
 
-	// Update file size if changed
-	uint64_t writtenOffset = static_cast<uint64_t>(chunkIndex_) * MFSCHUNKSIZE;
-	writtenOffset += static_cast<uint64_t>(acknowledgedBlock->pos) * MFSBLOCKSIZE;
-	writtenOffset += acknowledgedBlock->to;
-	if (writtenOffset > fileLength_) {
-		fileLength_ = writtenOffset;
-	}
 	write_cb_release(inodeData_, acknowledgedBlock);
 	pthread_mutex_unlock(&glock);
 }
