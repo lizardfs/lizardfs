@@ -40,6 +40,7 @@
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
+#include "mount/chunk_locator.h"
 #include "dirattrcache.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
@@ -112,7 +113,8 @@ enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 typedef struct _finfo {
 	uint8_t mode;
 	void *data;
-	pthread_mutex_t lock;
+	pthread_rwlock_t rwlock;
+	pthread_mutex_t flushlock;
 } finfo;
 
 static int debug_mode = 0;
@@ -1455,8 +1457,9 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 	finfo *fileinfo;
 	fileinfo = (finfo*) malloc(sizeof(finfo));
-	pthread_mutex_init(&(fileinfo->lock),NULL);
-	pthread_mutex_lock(&(fileinfo->lock)); // make helgrind happy
+	pthread_mutex_init(&(fileinfo->flushlock),NULL);
+	pthread_rwlock_init(&(fileinfo->rwlock),NULL);
+	pthread_rwlock_wrlock(&(fileinfo->rwlock)); // make helgrind happy
 #ifdef __FreeBSD__
 	/* old FreeBSD fuse reads whole file when opening with O_WRONLY|O_APPEND,
 	 * so can't open it write-only */
@@ -1467,7 +1470,7 @@ static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 #else
 	if (accmode == O_RDONLY) {
 		fileinfo->mode = IO_READONLY;
-		fileinfo->data = read_data_new(inode);
+		fileinfo->data = new ReadChunkLocator();
 	} else if (accmode == O_WRONLY) {
 		fileinfo->mode = IO_WRITEONLY;
 		fileinfo->data = write_data_new(inode);
@@ -1476,19 +1479,26 @@ static finfo* mfs_newfileinfo(uint8_t accmode,uint32_t inode) {
 		fileinfo->data = NULL;
 	}
 #endif
-	pthread_mutex_unlock(&(fileinfo->lock)); // make helgrind happy
+	pthread_rwlock_unlock(&(fileinfo->rwlock)); // make helgrind happy
 	return fileinfo;
 }
 
+static void delete_read_chunk_locator(void *locatorp) {
+	ReadChunkLocator* locator = static_cast<ReadChunkLocator*>(locatorp);
+	delete locator;
+}
+
 static void mfs_removefileinfo(finfo* fileinfo) {
-	pthread_mutex_lock(&(fileinfo->lock));
+	pthread_rwlock_wrlock(&(fileinfo->rwlock));
 	if (fileinfo->mode == IO_READONLY || fileinfo->mode == IO_READ) {
-		read_data_end(fileinfo->data);
+		delete_read_chunk_locator(fileinfo->data);
+		fileinfo->data = NULL;
 	} else if (fileinfo->mode == IO_WRITEONLY || fileinfo->mode == IO_WRITE) {
 		write_data_end(fileinfo->data);
 	}
-	pthread_mutex_unlock(&(fileinfo->lock));
-	pthread_mutex_destroy(&(fileinfo->lock));
+	pthread_rwlock_unlock(&(fileinfo->rwlock));
+	pthread_rwlock_destroy(&(fileinfo->rwlock));
+	pthread_mutex_destroy(&(fileinfo->flushlock));
 	free(fileinfo);
 }
 
@@ -1800,9 +1810,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
-	pthread_mutex_lock(&(fileinfo->lock));
+	// acquire read lock, from now we only have to deal with other readers
+	pthread_rwlock_rdlock(&(fileinfo->rwlock));
+	// serialize the following checks and preparations
+	pthread_mutex_lock(&(fileinfo->flushlock));
 	if (fileinfo->mode==IO_WRITEONLY) {
-		pthread_mutex_unlock(&(fileinfo->lock));
+		pthread_mutex_unlock(&(fileinfo->flushlock));
+		pthread_rwlock_unlock(&(fileinfo->rwlock));
 		fuse_reply_err(req,EACCES);
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		return;
@@ -1810,7 +1824,8 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	if (fileinfo->mode==IO_WRITE) {
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
-			pthread_mutex_unlock(&(fileinfo->lock));
+			pthread_mutex_unlock(&(fileinfo->flushlock));
+			pthread_rwlock_unlock(&(fileinfo->rwlock));
 			fuse_reply_err(req,err);
 			if (debug_mode) {
 				fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
@@ -1820,10 +1835,15 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		}
 		write_data_end(fileinfo->data);
 	}
-	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_NONE) {
+	if (fileinfo->mode == IO_WRITE || fileinfo->mode == IO_NONE) {
 		fileinfo->mode = IO_READ;
-		fileinfo->data = read_data_new(ino);
+		fileinfo->data = new ReadChunkLocator();
 	}
+	pthread_mutex_unlock(&(fileinfo->flushlock));
+	// end of reader critical section
+
+	void *rrec = read_data_new(ino, static_cast<ReadChunkLocator*>(fileinfo->data));
+
 	write_data_flush_inode(ino);
 
 	// Lizardfs chunkserver supports only requests aligned to MFSBLOCKSIZE
@@ -1834,7 +1854,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 
 	uint32_t ssize = alignedSize;
 	buff = NULL;	// use internal 'readdata' buffer
-	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
+	err = read_data(rrec, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		fuse_reply_err(req,err);
 		if (debug_mode) {
@@ -1858,8 +1878,8 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		}
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ssize);
 	}
-	read_data_freebuff(fileinfo->data);
-	pthread_mutex_unlock(&(fileinfo->lock));
+	read_data_end(rrec);
+	pthread_rwlock_unlock(&(fileinfo->rwlock));
 }
 
 void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi) {
@@ -1898,15 +1918,16 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
-	pthread_mutex_lock(&(fileinfo->lock));
+	pthread_rwlock_wrlock(&(fileinfo->rwlock));
 	if (fileinfo->mode==IO_READONLY) {
-		pthread_mutex_unlock(&(fileinfo->lock));
+		pthread_rwlock_unlock(&(fileinfo->rwlock));
 		fuse_reply_err(req,EACCES);
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		return;
 	}
 	if (fileinfo->mode==IO_READ) {
-		read_data_end(fileinfo->data);
+		delete_read_chunk_locator(fileinfo->data);
+		fileinfo->data = NULL;
 	}
 	if (fileinfo->mode==IO_READ || fileinfo->mode==IO_NONE) {
 		fileinfo->mode = IO_WRITE;
@@ -1914,14 +1935,14 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	}
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	if (err!=0) {
-		pthread_mutex_unlock(&(fileinfo->lock));
+		pthread_rwlock_unlock(&(fileinfo->rwlock));
 		fuse_reply_err(req,err);
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 		}
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
 	} else {
-		pthread_mutex_unlock(&(fileinfo->lock));
+		pthread_rwlock_unlock(&(fileinfo->rwlock));
 		fuse_reply_write(req,size);
 		if (debug_mode) {
 			fprintf(stderr,"%" PRIu64 " bytes have been written to inode %lu\n",(uint64_t)size,(unsigned long int)ino);
@@ -1952,11 +1973,11 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	}
 //	syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
-	pthread_mutex_lock(&(fileinfo->lock));
+	pthread_rwlock_wrlock(&(fileinfo->rwlock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
-	pthread_mutex_unlock(&(fileinfo->lock));
+	pthread_rwlock_unlock(&(fileinfo->rwlock));
 	fuse_reply_err(req,err);
 	if (err!=0) {
 		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(err));
@@ -1986,11 +2007,11 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 		return;
 	}
 	err = 0;
-	pthread_mutex_lock(&(fileinfo->lock));
+	pthread_rwlock_wrlock(&(fileinfo->rwlock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
-	pthread_mutex_unlock(&(fileinfo->lock));
+	pthread_rwlock_unlock(&(fileinfo->rwlock));
 	fuse_reply_err(req,err);
 	if (err!=0) {
 		oplog_printf(ctx,"fsync (%lu,%d): %s",(unsigned long int)ino,datasync,strerr(err));

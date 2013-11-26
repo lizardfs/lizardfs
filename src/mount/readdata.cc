@@ -56,26 +56,20 @@
 
 struct readrec {
 	ChunkConnector connector;
-	ReadChunkLocator locator;
 	ChunkReader reader;
-	std::vector<uint8_t> readBufer; // this->locked
-	uint32_t inode;                 // this->locked
+	std::vector<uint8_t> readBufer;
+	uint32_t inode;
 	uint8_t refreshCounter;         // gMutex
-	uint8_t valid;                  // gMutex
-	uint8_t locked;                 // gMutex
-	uint16_t waiting;               // gMutex
-	std::condition_variable cond;   // gMutex
+	bool expired;                   // gMutex
 	struct readrec *next;           // gMutex
 	struct readrec *mapnext;        // gMutex
 
-	readrec(uint32_t inode, ConnectionPool& pool)
+	readrec(uint32_t inode, ConnectionPool& pool, ReadChunkLocator& locator)
 			: connector(fs_getsrcip(), pool),
 			  reader(connector, locator),
 			  inode(inode),
 			  refreshCounter(0),
-			  valid(1),
-			  locked(0),
-			  waiting(0),
+			  expired(false),
 			  next(nullptr),
 			  mapnext(nullptr) {
 	}
@@ -104,21 +98,17 @@ void* read_data_delayed_ops(void *arg) {
 			if (rrec->refreshCounter < REFRESHTICKS) {
 				rrec->refreshCounter++;
 			}
-			if (rrec->locked == 0) {
-				if (rrec->valid == 0) {
-					*rrecp = rrec->next;
-					rrecmap = &(rdinodemap[MAPINDX(rrec->inode)]);
-					while (*rrecmap) {
-						if ((*rrecmap)==rrec) {
-							*rrecmap = rrec->mapnext;
-						} else {
-							rrecmap = &((*rrecmap)->mapnext);
-						}
+			if (rrec->expired) {
+				*rrecp = rrec->next;
+				rrecmap = &(rdinodemap[MAPINDX(rrec->inode)]);
+				while (*rrecmap) {
+					if ((*rrecmap)==rrec) {
+						*rrecmap = rrec->mapnext;
+					} else {
+						rrecmap = &((*rrecmap)->mapnext);
 					}
-					delete rrec;
-				} else {
-					rrecp = &(rrec->next);
 				}
+				delete rrec;
 			} else {
 				rrecp = &(rrec->next);
 			}
@@ -128,8 +118,8 @@ void* read_data_delayed_ops(void *arg) {
 	}
 }
 
-void* read_data_new(uint32_t inode) {
-	readrec *rrec = new readrec(inode, readConnectionPool);
+void* read_data_new(uint32_t inode, ReadChunkLocator *locator) {
+	readrec *rrec = new readrec(inode, readConnectionPool, *locator);
 	std::unique_lock<std::mutex> lock(gMutex);
 	rrec->next = rdhead;
 	rdhead = rrec;
@@ -142,17 +132,7 @@ void read_data_end(void* rr) {
 	readrec *rrec = (readrec*)rr;
 
 	std::unique_lock<std::mutex> lock(gMutex);
-	rrec->waiting++;
-	while (rrec->locked) {
-		rrec->cond.wait(lock);
-	}
-	rrec->waiting--;
-	rrec->locked = 1;
-	rrec->valid = 0;
-	if (rrec->waiting) {
-		rrec->cond.notify_one();
-	}
-	rrec->locked = 0;
+	rrec->expired = true;
 }
 
 void read_data_init(uint32_t retries) {
@@ -216,12 +196,6 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	sassert(offset % MFSBLOCKSIZE == 0);
 
 	std::unique_lock<std::mutex> lock(gMutex);
-	rrec->waiting++;
-	while (rrec->locked) {
-		rrec->cond.wait(lock);
-	}
-	rrec->waiting--;
-	rrec->locked=1;
 	bool forcePrepare = (rrec->refreshCounter == REFRESHTICKS);
 	lock.unlock();
 
@@ -358,13 +332,4 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	*size = bytesRead;
 	*buff = rrec->readBufer.data();
 	return 0;
-}
-
-void read_data_freebuff(void *rr) {
-	std::unique_lock<std::mutex> lock(gMutex);
-	readrec *rrec = (readrec*)rr;
-	if (rrec->waiting) {
-		rrec->cond.notify_one();
-	}
-	rrec->locked = 0;
 }
