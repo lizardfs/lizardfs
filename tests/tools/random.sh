@@ -22,7 +22,6 @@ parse_si_suffix() {
 #    random 1K 1G
 #    random 1 1K
 random() {
-	[[ $1 && $2 ]] || return 1
 	local min=$(parse_si_suffix $1)
 	local max=$(parse_si_suffix $2)
 	shuf -n 1 --input-range=$min-$max
@@ -36,4 +35,44 @@ unique_file() {
 		suffix="_$1"
 	fi
 	echo "temp_$(date +%s.%N)_$$$suffix"
+}
+
+# pseudorandom_init [<seed>] -- sets a seed (default or specified) for pseudorandom generator
+pseudorandom_init() {
+	pseudorandom_seed_file_="$TEMP_DIR/$(unique_file pseudorandom_seed)"
+
+	if (( $# >= 1 )); then
+		local seed=$1
+	else
+		local seed=115249 # some prime number
+	fi
+	echo $seed > "$pseudorandom_seed_file_"
+}
+
+# pseudo random number generator with glibc algorithm (drawing bits 0..30)
+prng() {
+	if [ ! -e "$pseudorandom_seed_file_" ]; then
+		return 1
+	fi
+
+	local seed=$(cat "$pseudorandom_seed_file_")
+	seed=$(( (1103515245 * seed + 12345) % 2147483648 ))
+	echo $seed | tee "$pseudorandom_seed_file_"
+}
+
+# pseudorandom <min> <max> -- echoes random number >= min and <= max up to 2^62
+# Examples:
+#    pseudorandom 0 1
+#    pseudorandom 1K 1G
+#    pseudorandom 1 1K
+pseudorandom() {
+	local min=$(parse_si_suffix $1)
+	local max=$(parse_si_suffix $2)
+
+	local shift=2147483648 # 2^31
+	local pass1=$(prng)
+	local pass2=$(( $shift * $(prng) ))
+	local pass3=$(( $shift * $shift * $(prng) ))
+	local result=$(( min + (pass1 + pass2) % (max - min + 1) ))
+	echo $result
 }
