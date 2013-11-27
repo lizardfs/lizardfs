@@ -9,9 +9,11 @@ cd ${info[mount0]}
 test_worker() {
 	local min_size=$1
 	local max_size=$2
+	local seed=$(($(parse_si_suffix $min_size) + $(parse_si_suffix $max_size)))
+	pseudorandom_init $seed
 	while ! test_frozen; do
-		local block_size=$(random 1024 128K)
-		local file_size=$(random $min_size $max_size)
+		local block_size=$(pseudorandom 1024 128K)
+		local file_size=$(pseudorandom $min_size $max_size)
 		local file=$(unique_file)
 		echo FILE_SIZE=$file_size BLOCK_SIZE=$block_size file-generate "$file"
 		if FILE_SIZE=$file_size BLOCK_SIZE=$block_size file-generate "$file"; then
@@ -33,7 +35,7 @@ test_worker 8  5M  &
 test_worker 1M 50M &
 test_worker 1M 1G  &
 test_worker 1G 6G  &
-sleep 2700
+sleep 45m
 
 # Stop workers by killing
 test_freeze_result
