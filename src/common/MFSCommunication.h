@@ -337,7 +337,11 @@
 #define ANTOAN_BAD_COMMAND_SIZE 2
 // [msgid:32] cmdno:32 size:32 version:32 (msgid - only in communication from master to client)
 
+#define ANTOAN_PING 3
+// size:32
 
+#define ANTOAN_PING_REPLY 4
+// data:BYTES
 
 // METALOGGER <-> MASTER
 

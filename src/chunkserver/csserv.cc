@@ -531,6 +531,17 @@ void csserv_read_continue(csserventry *eptr, bool isFirst) {
 	}
 }
 
+void csserv_ping(csserventry *eptr, const uint8_t *data, PacketHeader::Length length) {
+	if (length != 4) {
+		eptr->state = CLOSE;
+		return;
+	}
+
+	uint32_t size;
+	deserialize(data, length, size);
+	csserv_create_attached_packet(eptr, ANTOAN_PING_REPLY, size);
+}
+
 void csserv_read_init(csserventry *eptr, const uint8_t *data,
 		PacketHeader::Type type, PacketHeader::Length length) {
 	TRACETHIS2(type, length);
@@ -989,6 +1000,9 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 	}
 	if (eptr->state == IDLE) {
 		switch (type) {
+		case ANTOAN_PING:
+			csserv_ping(eptr, data, length);
+			break;
 		case CLTOCS_READ:
 		case LIZ_CLTOCS_READ:
 			csserv_read_init(eptr, data, type, length);

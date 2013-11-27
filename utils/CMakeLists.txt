@@ -25,3 +25,13 @@ install(TARGETS file-overwrite RUNTIME DESTINATION ${BIN_SUBDIR})
 # test files validator
 add_executable(file-validate file_validate.cc)
 install(TARGETS file-validate RUNTIME DESTINATION ${BIN_SUBDIR})
+
+# ping client
+add_executable(mfsping mfs_ping.cc)
+target_link_libraries(mfsping mfscommon)
+install(TARGETS mfsping RUNTIME DESTINATION ${BIN_SUBDIR})
+
+# ping server
+add_executable(mfspingserv mfs_pingserv.cc)
+target_link_libraries(mfspingserv mfscommon)
+install(TARGETS mfspingserv RUNTIME DESTINATION ${BIN_SUBDIR})
