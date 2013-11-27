@@ -436,8 +436,12 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 	status = STATUS_OK;
 	bool otherJobsAreWaiting = false;
-	uint32_t maximumTime = 30;
 	std::vector<ChunkWriter::WriteId> operations;
+	// Maximum time of writing one chunk
+	uint32_t maximumTime = 45;                 // 30 in MFS 1.6.27
+	uint32_t maximumTimeWhenJobsWaiting = 25;  // 10 in MFS 1.6.27
+	// For the last 'timeToFinishOperations' seconds of maximumTime we won't start new operations
+	uint32_t timeToFinishOperations = 15;      //  5 in MFS 1.6.27
 
 	static const char* write_file_error_format =
 			"write file error, inode: %" PRIu32
@@ -448,11 +452,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		bool newOtherJobsAreWaiting = !queue_isempty(jqueue);
 		if (!otherJobsAreWaiting && newOtherJobsAreWaiting) {
 			// Some new jobs have just arrived in the queue -- we should finish faster.
-			maximumTime = 10;
+			maximumTime = maximumTimeWhenJobsWaiting;
 			// But we need at least 5 seconds to finish the operations that are in progress
 			uint32_t elapsedSeconds = wholeOperationTimer.elapsed_s();
-			if (elapsedSeconds + 5 >= maximumTime) {
-				maximumTime = elapsedSeconds + 5;
+			if (elapsedSeconds + timeToFinishOperations >= maximumTime) {
+				maximumTime = elapsedSeconds + timeToFinishOperations;
 			}
 		}
 		otherJobsAreWaiting = newOtherJobsAreWaiting;
@@ -460,7 +464,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		// If we have sent the previous message and have some time left, we can take
 		// another block from current chunk to process it simultaneously. We won't take anything
 		// new if we've already sent 15 blocks and didn't receive status from the chunkserver.
-		if (wholeOperationTimer.elapsed_s() + 5 < maximumTime) {
+		if (wholeOperationTimer.elapsed_s() + timeToFinishOperations < maximumTime) {
 			pthread_mutex_lock(&glock);
 			// While there is any block worth sending, we add new write operation
 			try {
@@ -526,7 +530,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	uint8_t writeEndStatus;
 	try {
 		if (status == STATUS_OK) {
-			writer.finish(1000);
+			int timeLeftInSeconds = maximumTime - wholeOperationTimer.elapsed_s();
+			if (timeLeftInSeconds < 1) {
+				timeLeftInSeconds = 1;
+			}
+			writer.finish(timeLeftInSeconds * 1000);
 		} else {
 			writer.abort();
 		}

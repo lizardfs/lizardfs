@@ -188,7 +188,7 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 	sassert(offset % MFSBLOCKSIZE + size <= MFSBLOCKSIZE);
 	unfinishedOperationCounters_[++currentWriteId_] = 0;
 	const ChunkLocationInfo& chunkLocationInfo = locator_.locationInfo();
-	Timeout timeout{std::chrono::seconds(3)};
+	Timeout timeout{std::chrono::seconds(10)};
 	// TODO this method assumes, that each chunkType has ONLY ONE executor!
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
