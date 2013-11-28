@@ -19,7 +19,7 @@
 #include "config.h"
 
 #define BGJOBSCNT 1000
-#define NR_OF_BGJOBS_WORKERS 10
+#define NR_OF_BGJOBS_WORKERS 40
 
 #include <time.h>
 #include <sys/types.h>
