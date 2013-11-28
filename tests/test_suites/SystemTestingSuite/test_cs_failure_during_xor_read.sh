@@ -33,7 +33,7 @@ config=${info[chunkserver${csid}_config]}
 # Limit data transfer from this chunkserver
 start_proxy $port $((port + 1000))
 mfschunkserver -c "${config}" stop
-LD_PRELOAD="${TEST_UTILS_ROOT}/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
+LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
 sleep 1
 
 if ! file-validate "$dir/file"; then
