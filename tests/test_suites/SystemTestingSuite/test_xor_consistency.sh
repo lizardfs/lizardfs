@@ -54,7 +54,7 @@ verifying_thread() {
 	local thread_id=$1
 	for file in $(find . -name "*_${thread_id}.*"); do
 		if ! file-validate "$file" ; then
-			test_add_failure "Validating $file_name with file-validate failed"
+			test_add_failure "Validating $file with file-validate failed"
 		fi
 	done
 }
