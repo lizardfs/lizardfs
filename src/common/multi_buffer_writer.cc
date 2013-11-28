@@ -24,6 +24,7 @@ ssize_t MultiBufferWriter::writeTo(int fd) {
 			buffersCompletelySent_++;
 		} else {
 			nextBuffer.iov_base = (uint8_t*)nextBuffer.iov_base + bytesToBeRemovedFromIovec;
+			nextBuffer.iov_len -= bytesToBeRemovedFromIovec;
 			bytesToBeRemovedFromIovec = 0;
 		}
 	}
