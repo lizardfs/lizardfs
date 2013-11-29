@@ -630,24 +630,27 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	}
 
 	// Choose servers to be used to store new chunks.
-	std::vector<rservsort> choosenServers;
-	while (choosenServers.size() < chunksToBeCreated) {
+	std::vector<rservsort> chosenServers;
+	while (chosenServers.size() < chunksToBeCreated) {
 		for (size_t i = 0; i < availableServers.size(); i++) {
 			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
 			if (carry > kCarryThreshold) {
-				choosenServers.push_back(availableServers[i]);
+				chosenServers.push_back(availableServers[i]);
 				carry -= kCarryThreshold;
 			}
 			availableServers[i].carry = carry;
 			availableServers[i].ptr->carry = carry;
 		}
 	}
-	std::sort(choosenServers.rbegin(), choosenServers.rend());
+	std::sort(chosenServers.rbegin(), chosenServers.rend());
 	// After loops above more then chunksToBeCreated servers might have been found, let's
 	// correct carry values for those that won't be used
-	for (size_t i = chunksToBeCreated; i < choosenServers.size(); i++) {
-		choosenServers[i].ptr->carry += kCarryThreshold;
+	for (size_t i = chunksToBeCreated; i < chosenServers.size(); i++) {
+		chosenServers[i].ptr->carry += kCarryThreshold;
 	}
+
+	// Shuffle servers to store the parity file (in case of XOR chunks) on a random one
+	std::random_shuffle(chosenServers.begin(), chosenServers.end());
 
 	// Assign chunk types to choosen servers
 	for (size_t i = 0; i < chunksToBeCreated; i++) {
@@ -662,7 +665,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 		} else {
 			sassert(isOrdinaryGoal(desiredGoal));
 		}
-		ret.push_back(std::make_pair(choosenServers[i].ptr, ct));
+		ret.push_back(std::make_pair(chosenServers[i].ptr, ct));
 	}
 	return ret;
 }
