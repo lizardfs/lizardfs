@@ -27,6 +27,26 @@ random() {
 	shuf -n 1 --input-range=$min-$max
 }
 
+# random_log <base> <power> -- echoes random number with log distribution from 0 up to <base>^(power)-1
+# warning: this function doesn't check if the number limit (64-bit int?) is exceeded
+random_log() {
+	if ((($1 < 1) || ($2 < 0))); then
+		return 1
+	fi
+
+	local base=$1
+	local max_figure=$((base - 1))
+	local max_power=$2
+	local power=$(shuf -n 1 -i 0-$((max_power - 1)))
+	local result=0
+	while ((power >= 0)); do
+		figure=$(shuf -n 1 -i 0-$max_figure)
+		result=$(echo "$result + $figure * $base ^ $power" | bc)
+		power=$((--power))
+	done
+	echo $result
+}
+
 # unique_file [<suffix>] -- generates an unique string
 # files created by this function are automatically removed at the end of a test
 unique_file() {
