@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _FILESYSTEM_H_
-#define _FILESYSTEM_H_
+#pragma once
 
 #include <inttypes.h>
 #include <string.h>
@@ -180,7 +179,5 @@ void fs_incversion(uint64_t chunkid);
 void fs_cs_disconnected(void);
 
 int fs_init(void);
-#endif
-
 
 #endif

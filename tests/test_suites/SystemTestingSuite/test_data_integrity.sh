@@ -5,21 +5,24 @@ CHUNKSERVERS=3 \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}
-directories=""
+directories=()
 for goal in 1 2 xor2; do
 	dir="goal_$goal"
 	mkdir "$dir"
 	mfssetgoal "$goal" "$dir"
-	directories="$directories $dir"
+	directories+=("$dir")
 done
 
 test_worker() {
 	local min_size=$1
 	local max_size=$2
+	local seed=$(($(parse_si_suffix $min_size) + $(parse_si_suffix $max_size)))
+	pseudorandom_init $seed
 	while ! test_frozen; do
-		local block_size=$(random 1024 128K)
-		local file_size=$(random $min_size $max_size)
-		local file="$(shuf -n1 -e $directories)/$(unique_file)"
+		local block_size=$(pseudorandom 1024 128K)
+		local file_size=$(pseudorandom $min_size $max_size)
+		local dirindex=$(pseudorandom 0 $((${#directories[@]} - 1)))
+		local file="${directories[dirindex]}/$(unique_file)"
 		echo FILE_SIZE=$file_size BLOCK_SIZE=$block_size file-generate "$file"
 		if FILE_SIZE=$file_size BLOCK_SIZE=$block_size file-generate "$file"; then
 			if ! file-validate "$file"; then

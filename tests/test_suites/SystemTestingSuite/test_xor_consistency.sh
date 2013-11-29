@@ -4,8 +4,13 @@ writing_thread() {
 	local thread_id=$1
 	local n=0
 	local written_bytes=0
+	pseudorandom_init $thread_id
 	while (( written_bytes < data_size_per_thread )); do
-		local file_size=$(shuf -n1 -e $(random 10 500K) $(random 10 50M) $(random 10 500M))
+		case $(pseudorandom 1 3) in
+			1) local file_size=$(pseudorandom 10 500K);;
+			2) local file_size=$(pseudorandom 10 50M);;
+			3) local file_size=$(pseudorandom 10 500M);;
+		esac
 		# Do not overflow more than 200 MB...
 		if (( written_bytes + file_size > data_size_per_thread + 200000000 )); then
 			continue
@@ -14,7 +19,7 @@ writing_thread() {
 		local file_type=$(shuf -n1 -e empty generated)
 		local file_name="${file_type}_${thread_id}.$((n++))_size_${file_size}"
 		if [[ $file_type == generated ]]; then
-			local block_size=$(random 1K 16K)
+			local block_size=$(pseudorandom 1K 16K)
 			if ! BLOCK_SIZE=$block_size FILE_SIZE=$file_size file-generate "$file_name"; then
 				test_add_failure "Generating $file_name using file-generate failed"
 			fi
@@ -29,8 +34,9 @@ writing_thread() {
 
 overwriting_thread() {
 	local thread_id=$1
+	pseudorandom_init $thread_id
 	for file in $(find . -name "empty_${thread_id}.*"); do
-		local block_size=$(random 1K 16K)
+		local block_size=$(pseudorandom 1K 16K)
 		if ! BLOCK_SIZE=$block_size file-overwrite "$file" ; then
 			test_add_failure "Overwriting $file_name with file-overwrite failed"
 		fi
@@ -38,12 +44,13 @@ overwriting_thread() {
 }
 
 spoiling_thread() {
+	pseudorandom_init
 	# Change directory to make it possible to unmount the filesystem after the test
 	cd
 	while true; do
 		for i in 0 1 2; do
 			mfschunkserver -c "${info[chunkserver${i}_config]}" stop
-			sleep $(random 1 30)
+			sleep $(pseudorandom 1 30)
 			mfschunkserver -c "${info[chunkserver${i}_config]}" start
 			sleep 5
 		done

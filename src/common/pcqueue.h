@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PCQUEUE_H_
-#define _PCQUEUE_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -31,5 +30,3 @@ void queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng);
 int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng);
 void queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng);
 int queue_tryget(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng);
-
-#endif

@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _READDATA_H_
-#define _READDATA_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -30,5 +29,3 @@ int read_data(void *rr,uint64_t offset,uint32_t *size,uint8_t **buff);
 void read_data_freebuff(void *rr);
 void read_data_init(uint32_t retries);
 void read_data_term(void);
-
-#endif

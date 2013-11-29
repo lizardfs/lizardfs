@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H
-#define LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H
+#pragma once
 
 #include <inttypes.h>
 #include <vector>
@@ -72,5 +71,3 @@ private:
 	std::vector<uint8_t> buffer_;
 	size_t bytesReceived_;
 };
-
-#endif /* LIZARDFS_COMMON_MESSAGE_RECEIVE_BUFFER_H */

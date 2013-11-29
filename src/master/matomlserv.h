@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MATOMLSERV_H_
-#define _MATOMLSERV_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -27,5 +26,3 @@ void matomlserv_mloglist_data(uint8_t *ptr);
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 void matomlserv_broadcast_logrotate();
 int matomlserv_init(void);
-
-#endif

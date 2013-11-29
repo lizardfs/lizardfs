@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_PACKET_H_
-#define LIZARDFS_COMMON_PACKET_H_
+#pragma once
 
 #include <inttypes.h>
 #include <memory>
@@ -248,5 +247,3 @@ inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& source,
 		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {
 	verifyPacketVersionNoHeader(source.data(), source.size(), expectedVersion);
 }
-
-#endif // LIZARDFS_COMMON_PACKET_H_

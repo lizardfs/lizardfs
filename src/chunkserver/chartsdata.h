@@ -16,11 +16,8 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CHARTSDATA_H_
-#define _CHARTSDATA_H_
+#pragma once
 
 #include <inttypes.h>
 
 int chartsdata_init (void);
-
-#endif

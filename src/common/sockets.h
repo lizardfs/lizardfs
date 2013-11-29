@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SOCKETS_H_
-#define _SOCKETS_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -58,5 +57,3 @@ int udpstrlisten(int sock,const char *hostname,const char *service);
 int udpwrite(int sock,uint32_t ip,uint16_t port,const void *buff,uint16_t leng);
 int udpread(int sock,uint32_t *ip,uint16_t *port,void *buff,uint16_t leng);
 int udpclose(int sock);
-
-#endif

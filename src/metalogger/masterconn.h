@@ -16,12 +16,9 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MASTERCONN_H_
-#define _MASTERCONN_H_
+#pragma once
 
 #include <inttypes.h>
 #include <stdio.h>
 
 int masterconn_init(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_UTILS_DATA_GENERATOR_H_
-#define LIZARDFS_UTILS_DATA_GENERATOR_H_
+#pragma once
 
 #include <endian.h>
 #include <fcntl.h>
@@ -153,6 +152,3 @@ protected:
 		}
 	}
 };
-
-
-#endif /* LIZARDFS_UTILS_DATA_GENERATOR_H_ */

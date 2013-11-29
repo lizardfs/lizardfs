@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HASHFN_H_
-#define _HASHFN_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -71,5 +70,3 @@ static inline uint64_t hash64(uint64_t key) {
 	key = key + (key << 31);
 	return key;
 }
-
-#endif

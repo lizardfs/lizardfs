@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MASSERT_H_
-#define _MASSERT_H_
+#pragma once
 
 #include <errno.h>
 #include <stdio.h>
@@ -55,5 +54,3 @@
 	}
 #define mabort(msg) do { fprintf(stderr,"abort '%s'\n", msg); syslog(LOG_ERR, "abort '%s'", msg); \
 	ABORT_OR_THROW; } while (false)
-
-#endif

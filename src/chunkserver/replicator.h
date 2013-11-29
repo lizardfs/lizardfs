@@ -16,13 +16,10 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _REPLICATOR_H_
-#define _REPLICATOR_H_
+#pragma once
 
 #include <inttypes.h>
 
 void replicator_stats(uint32_t *repl);
 /* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
 uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs);
-
-#endif

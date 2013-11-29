@@ -16,8 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _BGJOBS_H_
-#define _BGJOBS_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -90,6 +89,3 @@ uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), v
 /* srcs: srccnt * (chunkid:64 chunkVersion:32 ip:32 port:16) */
 uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint8_t srccnt,const uint8_t *srcs);
 uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint32_t ip,uint16_t port);
-
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef CHUNKSERVER_WRITE_CHAIN_H
-#define CHUNKSERVER_WRITE_CHAIN_H
+#pragma once
 
 #include "common/connection_pool.h"
 #include "common/massert.h"
@@ -45,5 +44,3 @@ private:
 
 	std::vector<NetworkAddress> servers_;
 };
-
-#endif /* CHUNKSERVER_WRITE_CHAIN_H */

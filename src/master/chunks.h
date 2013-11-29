@@ -16,8 +16,8 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CHUNKS_H_
-#define _CHUNKS_H_
+#pragma once
+
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -81,5 +81,3 @@ void chunk_store(FILE *fd);
 void chunk_term(void);
 void chunk_newfs(void);
 int chunk_strinit(void);
-
-#endif
