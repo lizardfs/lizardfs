@@ -78,7 +78,7 @@ static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 
 void oplog_printf(const struct fuse_ctx &ctx,const char *format,...) {
 	va_list ap;
-	static char buff[LINELENG];
+	char buff[LINELENG];
 	uint32_t leng;
 	struct timeval tv;
 	struct tm ltime;
