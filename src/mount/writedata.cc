@@ -536,7 +536,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			}
 			writer.finish(timeLeftInSeconds * 1000);
 		} else {
-			writer.abort();
+			writer.abortOperations();
 		}
 		writeEndStatus = STATUS_OK;
 	} catch (Exception& ex) {

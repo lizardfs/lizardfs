@@ -61,9 +61,17 @@ public:
 	 * Immediately closes write operations and connection chains,
 	 * releases all the acquired  locks.
 	 */
-	void abort();
+	void abortOperations();
 
 private:
+	struct Operation {
+		Operation(WriteId id, const uint8_t* data, uint32_t offset, uint32_t size);
+		WriteId id;
+		const uint8_t* data;
+		uint32_t offset;
+		uint32_t size;
+	};
+
 	ChunkserverStats& chunkserverStats_;
 	ChunkConnector& connector_;
 	WriteChunkLocator locator_;
@@ -77,8 +85,10 @@ private:
 	std::list<std::vector<uint8_t>> paritiesBeingSent_;
 	std::map<WriteId, uint32_t> unfinishedOperationCounters_;
 	std::map<WriteId, uint64_t> offsetOfEnd_;
+	std::vector<Operation> newOperations;
 
 	void releaseChunk();
+	void startOperation(const Operation& operation);
 };
 
 #endif //LIZARDFS_MOUNT_CHUNK_WRITER_H_

@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <cstring>
 
+#include "common/massert.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "mount/block_xor.h"
@@ -12,6 +13,19 @@
 #include "mount/mastercomm.h"
 #include "mount/read_operation_executor.h"
 #include "mount/write_executor.h"
+
+ChunkWriter::Operation::Operation(WriteId id, const uint8_t* data, uint32_t offset, uint32_t size)
+		: id(id),
+		  data(data),
+		  offset(offset),
+		  size(size) {
+	sassert(size != 0);
+	sassert(data != nullptr);
+	sassert(size > 0);
+	sassert((offset + size) <= MFSCHUNKSIZE);
+	sassert(offset % MFSBLOCKSIZE + size <= MFSBLOCKSIZE);
+}
+
 
 ChunkWriter::ChunkWriter(
 		ChunkserverStats& chunkserverStats,
@@ -25,7 +39,7 @@ ChunkWriter::ChunkWriter(
 
 ChunkWriter::~ChunkWriter() {
 	try {
-		abort();
+		abortOperations();
 	} catch (...) {
 	}
 }
@@ -66,6 +80,13 @@ void ChunkWriter::init(uint32_t inode, uint32_t index, uint32_t msTimeout) {
 }
 
 std::vector<ChunkWriter::WriteId> ChunkWriter::processOperations(uint32_t msTimeout) {
+	if (!newOperations.empty()) {
+		for (const auto& operation : newOperations) {
+			startOperation(operation);
+		}
+		newOperations.clear();
+	}
+
 	std::vector<pollfd> pollFds;
 	for (const auto& pair : executors_) {
 		pollFds.push_back(pollfd());
@@ -154,7 +175,7 @@ void ChunkWriter::finish(uint32_t msTimeout) {
 	releaseChunk();
 }
 
-void ChunkWriter::abort() {
+void ChunkWriter::abortOperations() {
 	for (const auto& pair : executors_) {
 		if (pair.first < 0) {
 			continue;
@@ -181,24 +202,25 @@ void ChunkWriter::releaseChunk() {
 }
 
 ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t offset, uint32_t size) {
-	sassert(size != 0);
-	sassert(data != nullptr);
-	sassert(size > 0);
-	sassert((offset + size) <= MFSCHUNKSIZE);
-	sassert(offset % MFSBLOCKSIZE + size <= MFSBLOCKSIZE);
-	unfinishedOperationCounters_[++currentWriteId_] = 0;
+	newOperations.push_back(Operation(++currentWriteId_, data, offset, size));
+	return currentWriteId_;
+}
+
+void ChunkWriter::startOperation(const Operation& operation) {
+	unfinishedOperationCounters_[operation.id] = 0;
 	const ChunkLocationInfo& chunkLocationInfo = locator_.locationInfo();
 	Timeout timeout{std::chrono::seconds(10)};
 	// TODO this method assumes, that each chunkType has ONLY ONE executor!
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
 		ChunkType chunkType = fdAndExecutor.second->chunkType();
-		offsetOfEnd_[currentWriteId_] = index_ * MFSCHUNKSIZE + offset + size;
+		offsetOfEnd_[operation.id] = index_ * MFSCHUNKSIZE + operation.offset + operation.size;
 		if (chunkType.isStandardChunkType()) {
-			uint32_t block = offset / MFSBLOCKSIZE;
-			uint32_t offsetInBlock = offset - block * MFSBLOCKSIZE;
-			executor.addDataPacket(currentWriteId_, block, offsetInBlock, size, data);
-			++unfinishedOperationCounters_[currentWriteId_];
+			uint32_t block = operation.offset / MFSBLOCKSIZE;
+			uint32_t offsetInBlock = operation.offset - block * MFSBLOCKSIZE;
+			executor.addDataPacket(operation.id, block, offsetInBlock,
+					operation.size, operation.data);
+			++unfinishedOperationCounters_[operation.id];
 		} else {
 			if (chunkType.isXorParity()) {
 				continue;
@@ -206,7 +228,7 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 			ChunkType::XorLevel level = chunkType.getXorLevel();
 			ChunkType::XorPart part = chunkType.getXorPart();
 			ChunkType parityChunkType = ChunkType::getXorParityChunkType(level);
-			uint32_t blockOfChunk = offset / MFSBLOCKSIZE;
+			uint32_t blockOfChunk = operation.offset / MFSBLOCKSIZE;
 			if (blockOfChunk % level + 1 != part) {
 				continue;
 			}
@@ -258,7 +280,7 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 			if (parityBlock.empty()) {
 				uint32_t chunkOffset = index_ * MFSCHUNKSIZE;
 				uint32_t xorBlockSize = level * MFSBLOCKSIZE;
-				uint32_t firstXorBlockOffset = (offset / xorBlockSize) * xorBlockSize;
+				uint32_t firstXorBlockOffset = (operation.offset / xorBlockSize) * xorBlockSize;
 				if (chunkOffset + firstXorBlockOffset >= chunkLocationInfo.fileLength) {
 					parityBlock.resize(MFSBLOCKSIZE);
 					memset(parityBlock.data(), 0, MFSBLOCKSIZE);
@@ -285,30 +307,30 @@ ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t off
 			}
 
 			// Update parity part in our cache
-			uint32_t offsetInBlock = offset - MFSBLOCKSIZE * (offset / MFSBLOCKSIZE);
+			uint32_t offsetInBlock = operation.offset - MFSBLOCKSIZE * (operation.offset / MFSBLOCKSIZE);
 			blockXor(parityBlock.data() + offsetInBlock,
 					dataBlock.data() + offsetInBlock,
-					size);
-			blockXor(parityBlock.data() + offsetInBlock, data, size);
+					operation.size);
+			blockXor(parityBlock.data() + offsetInBlock, operation.data, operation.size);
 
 			// Update data in our cache
-			memcpy(dataBlock.data() + offsetInBlock, data, size);
+			memcpy(dataBlock.data() + offsetInBlock, operation.data, operation.size);
 
 			// Send a parity update request
 			paritiesBeingSent_.push_back(std::move(std::vector<uint8_t>(
 					parityBlock.data() + offsetInBlock,
-					parityBlock.data() + offsetInBlock + size)));
-			parityWriteExecutor->addDataPacket(currentWriteId_, block, offsetInBlock, size,
-					paritiesBeingSent_.back().data());
+					parityBlock.data() + offsetInBlock + operation.size)));
+			parityWriteExecutor->addDataPacket(operation.id, block, offsetInBlock,
+					operation.size, paritiesBeingSent_.back().data());
 
 			// Send data update request
-			executor.addDataPacket(currentWriteId_, block, offsetInBlock, size, data);
-			unfinishedOperationCounters_[currentWriteId_] += 2;
+			executor.addDataPacket(operation.id, block,
+					offsetInBlock, operation.size, operation.data);
+			unfinishedOperationCounters_[operation.id] += 2;
 		}
 	}
-	return currentWriteId_;
 }
 
 uint32_t ChunkWriter::getUnfinishedOperationsCount() {
-	return unfinishedOperationCounters_.size();
+	return unfinishedOperationCounters_.size() + newOperations.size();
 }
