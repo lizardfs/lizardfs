@@ -526,6 +526,12 @@
 #define CSTOMA_TRUNCATE (PROTO_BASE+161)
 // chunkid:64 status:8
 
+// 0x0488
+#define LIZ_MATOCS_TRUNCATE (PROTO_BASE + 1000U + 160U)
+
+// 0x0489
+#define LIZ_CSTOMA_TRUNCATE (PROTO_BASE + 1000U + 161U)
+
 // 0x00AA
 #define MATOCS_DUPTRUNC (PROTO_BASE+170)
 // chunkid:64 version:32 oldchunkid:64 oldversion:32 length:32

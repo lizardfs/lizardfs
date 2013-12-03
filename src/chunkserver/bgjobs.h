@@ -53,10 +53,10 @@ uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra),
 			0, 0xFFFFFFFF) \
 	: job_inval(jobPool, callback, extra))
 
-#define job_truncate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, length) \
-	(((newChunkVersion) > 0 && (length) != 0xFFFFFFFF) \
+#define job_truncate(jobPool, callback, extra, chunkId, chunkType, chunkVersion, newChunkVersion, \
+		length) (((newChunkVersion) > 0 && (length) != 0xFFFFFFFF) \
 	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
-			ChunkType::getStandardChunkType(), newChunkVersion, 0, 0, length) \
+			chunkType, newChunkVersion, 0, 0, length) \
 	: job_inval(jobPool, callback, extra))
 
 #define job_duplicate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, \

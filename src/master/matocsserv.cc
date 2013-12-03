@@ -778,6 +778,7 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	outpacket.packet.resize(PacketHeader::kSize + size);
 	return outpacket.packet.data() + PacketHeader::kSize;
 }
+
 /* for future use */
 int matocsserv_send_chunk_checksum(void *e,uint64_t chunkid,uint32_t version) {
 	matocsserventry *eptr = (matocsserventry *)e;
@@ -862,7 +863,7 @@ int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion
 		}
 		else {
 			matocs::deleteChunk::serialize(eptr->outputPackets.back().packet,
-					chunkId, chunkVersion, chunkType);
+					chunkId, chunkType, chunkVersion);
 		}
 		eptr->delcounter++;
 	}
@@ -972,8 +973,8 @@ int matocsserv_send_setchunkversion(void *e, uint64_t chunkId, uint32_t newVersi
 					chunkId, newVersion, chunkVersion);
 		}
 		else {
-			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, chunkVersion,
-					chunkType, newVersion);
+			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
+					chunkVersion, newVersion);
 		}
 	}
 	return 0;
@@ -1030,21 +1031,31 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	}
 }
 
-int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion) {
+void matocsserv_send_truncatechunk(void *e, uint64_t chunkid, ChunkType chunkType, uint32_t length,
+		uint32_t newVersion,uint32_t oldVersion) {
 	matocsserventry *eptr = (matocsserventry *)e;
 	uint8_t *data;
 
-	if (eptr->mode!=KILL) {
+	if (eptr->mode == KILL) {
+		return;
+	}
+
+	if (chunkType.isStandardChunkType() && eptr->version  < 0x01061C) {
+		// For MooseFS 1.6.27
 		data = matocsserv_createpacket(eptr,MATOCS_TRUNCATE,8+4+4+4);
 		put64bit(&data,chunkid);
 		put32bit(&data,length);
-		put32bit(&data,version);
-		put32bit(&data,oldversion);
+		put32bit(&data,newVersion);
+		put32bit(&data,oldVersion);
+	} else {
+		eptr->outputPackets.push_back(OutputPacket());
+		matocs::truncateChunk::serialize(eptr->outputPackets.back().packet,
+				chunkid, chunkType, length, newVersion, oldVersion);
 	}
-	return 0;
 }
 
-void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
+void matocsserv_got_truncatechunk_status(matocsserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
@@ -1055,9 +1066,24 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
-	chunk_got_truncate_status(eptr,chunkid,status);
+	chunk_got_truncate_status(eptr, chunkid, ChunkType::getStandardChunkType(), status);
 	if (status!=0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+	}
+}
+
+void matocsserv_got_liz_truncatechunk_status(matocsserventry *eptr,
+		const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint8_t status;
+	cstoma::truncate::deserialize(data, chunkId, chunkType, status);
+
+	chunk_got_truncate_status(eptr, chunkId, chunkType, status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %08" PRIX32
+				" truncate status: %s", eptr->servstrip, eptr->servport, chunkId,
+				chunkType.chunkTypeId(), mfsstrerr(status));
 	}
 }
 
@@ -1541,6 +1567,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 			case CSTOMA_TRUNCATE:
 				matocsserv_got_truncatechunk_status(eptr, data.data(), length);
 				break;
+			case LIZ_CSTOMA_TRUNCATE:
+				matocsserv_got_liz_truncatechunk_status(eptr, data);
+				break;
 			case CSTOMA_DUPTRUNC:
 				matocsserv_got_duptruncchunk_status(eptr, data.data(), length);
 				break;
@@ -1565,7 +1594,7 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 	} catch (IncorrectDeserializationException& e) {
 		syslog(LOG_NOTICE,
 				"master <-> chunkservers module: got inconsistent message "
-				"(type:%" PRIu32 "), %s", type, e.what());
+				"(type:%" PRIu32 ", length:%" PRIu32"), %s", type, length, e.what());
 		eptr->mode = KILL;
 	}
 }

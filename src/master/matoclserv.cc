@@ -3704,8 +3704,8 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 			}
 		} catch (IncorrectDeserializationException& e) {
 			syslog(LOG_NOTICE,
-					"main master server module: got inconsistent message from mfsmount (type:%"
-					PRIu32 "), %s", type, e.what());
+					"main master server module: got inconsistent message from mfsmount "
+					"(type:%" PRIu32 ", length:%" PRIu32"), %s", type, length, e.what());
 			eptr->mode = KILL;
 		}
 	} else {	// old mfstools

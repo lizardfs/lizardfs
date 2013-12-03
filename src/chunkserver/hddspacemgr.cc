@@ -2384,8 +2384,9 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 	return status;
 }
 
-static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint32_t length) {
-	TRACETHIS4(chunkid, version, newversion, length);
+static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldVersion,
+		uint32_t newVersion, uint32_t length) {
+	TRACETHIS4(chunkId, oldVersion, newVersion, length);
 	int status;
 	Chunk *c;
 	uint32_t blocks;
@@ -2404,16 +2405,17 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	if (length>MFSCHUNKSIZE) {
 		return ERROR_WRONGSIZE;
 	}
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkId, chunkType);
+
 	// step 1 - change version
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	if (c->version!=version && version>0) {
+	if (c->version!=oldVersion && oldVersion>0) {
 		hdd_chunk_release(c);
 		return ERROR_WRONGVERSION;
 	}
-	if (c->renameChunkFile(c->generateFilenameForVersion(newversion)) < 0) {
+	if (c->renameChunkFile(c->generateFilenameForVersion(newVersion)) < 0) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"truncate_chunk: file:%s - rename error", c->filename().c_str());
@@ -2426,7 +2428,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_chunk_release(c);
 		return status;	//can't change file version
 	}
-	status = hdd_chunk_overwrite_version(c, newversion);
+	status = hdd_chunk_overwrite_version(c, newVersion);
 	if (status != STATUS_OK) {
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
@@ -2864,7 +2866,7 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 			}
 		} else if (length<=MFSCHUNKSIZE) {
 			if (copyChunkId==0) {
-				return hdd_int_truncate(chunkId,chunkVersion,chunkNewVersion,length);
+				return hdd_int_truncate(chunkId, chunkType, chunkVersion, chunkNewVersion, length);
 			} else {
 				return hdd_int_duptrunc(chunkId,chunkVersion,chunkNewVersion,copyChunkId,copyChunkVersion,length);
 			}

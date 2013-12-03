@@ -31,6 +31,30 @@ public:
 		return chunkTypeId_ < otherChunkType.chunkTypeId_;
 	}
 
+	static uint32_t chunkLengthToChunkTypeLength(ChunkType ct, uint32_t chunkLength) {
+		if (ct.isStandardChunkType()) {
+			return chunkLength;
+		}
+		eassert(ct.isXorChunkType());
+
+		uint32_t fullBlocks = chunkLength / (ct.getXorLevel() * MFSBLOCKSIZE);
+		uint32_t baseLen = fullBlocks * MFSBLOCKSIZE;
+		uint32_t base = fullBlocks * MFSBLOCKSIZE * ct.getXorLevel();
+		uint32_t rest = chunkLength - base;
+
+		uint32_t tmp = 0;
+		if (!ct.isXorParity()) {
+			tmp = ct.getXorPart() - 1;
+		}
+		int32_t restLen = rest - tmp * MFSBLOCKSIZE;
+		if (restLen < 0) {
+			restLen = 0;
+		} else if (restLen > MFSBLOCKSIZE) {
+			restLen = MFSBLOCKSIZE;
+		}
+		return baseLen + restLen;
+	}
+
 private:
 	static const uint8_t kStandardChunkTypeId = 0;
 	static const uint8_t kXorParityPart = 0;

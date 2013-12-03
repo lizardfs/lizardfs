@@ -13,13 +13,13 @@ TEST(MatocsCommunicationTests, SetVersion) {
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocs::setVersion::serialize(buffer,
-			chunkIdIn, chunkVersionIn, chunkTypeIn, newVersionIn));
+			chunkIdIn, chunkTypeIn, chunkVersionIn, newVersionIn));
 
 	verifyHeader(buffer, LIZ_MATOCS_SET_VERSION);
 	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
 	ASSERT_NO_THROW(matocs::setVersion::deserialize(buffer,
-			chunkIdOut, chunkVersionOut, chunkTypeOut, newVersionOut));
+			chunkIdOut, chunkTypeOut, chunkVersionOut, newVersionOut));
 
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(chunkVersionIn, chunkVersionOut);
@@ -35,13 +35,13 @@ TEST(MatocsCommunicationTests, DeleteChunk) {
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocs::deleteChunk::serialize(buffer,
-			chunkIdIn, chunkVersionIn, chunkTypeIn));
+			chunkIdIn, chunkTypeIn, chunkVersionIn));
 
 	verifyHeader(buffer, LIZ_MATOCS_DELETE_CHUNK);
 	removeHeaderInPlace(buffer);
 	verifyVersion(buffer, 0U);
 	ASSERT_NO_THROW(matocs::deleteChunk::deserialize(buffer,
-			chunkIdOut, chunkVersionOut, chunkTypeOut));
+			chunkIdOut, chunkTypeOut, chunkVersionOut));
 
 	EXPECT_EQ(chunkIdIn, chunkIdOut);
 	EXPECT_EQ(chunkVersionIn, chunkVersionOut);

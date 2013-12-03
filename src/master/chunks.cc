@@ -822,7 +822,11 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 					s->valid = BUSY;
 				}
 				s->version = c->version+1;
-				matocsserv_send_truncatechunk(s->ptr,ochunkid,length,c->version+1,c->version);
+
+				uint32_t chunkTypeLength =
+						ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length);
+				matocsserv_send_truncatechunk(s->ptr, ochunkid, s->chunkType, chunkTypeLength,
+						c->version + 1, c->version);
 				i++;
 			}
 		}
@@ -1411,13 +1415,13 @@ void chunk_got_setversion_status(void *ptr, uint64_t chunkId, ChunkType chunkTyp
 	chunk_operation_status(c, chunkType, status, ptr);
 }
 
-void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_truncate_status(void *ptr, uint64_t chunkid, ChunkType chunkType, uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
+	chunk_operation_status(c, chunkType, status, ptr);
 }
 
 void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {

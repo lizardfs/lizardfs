@@ -292,59 +292,35 @@ void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
 
 #endif /* BGJOBS */
 
-void masterconn_create(masterconn *eptr, const std::vector<uint8_t> &data) {
+void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
 	uint64_t chunkId;
 	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint32_t chunkVersion;
 
-	try {
-		matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
-	}
-	catch (IncorrectDeserializationException &e) {
-		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
-				"(details: matocs::createChunk::deserialize failed in masterconn_create");
-		eptr->mode = KILL;
-		return;
-	}
+	matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
 	OutputPacket *outputPacket = new OutputPacket;
 	cstoma::createChunk::serialize(outputPacket->packet, chunkId, chunkType, STATUS_OK);
 	job_create(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, chunkVersion);
 }
 
-void masterconn_delete(masterconn *eptr, const std::vector<uint8_t>& data) {
+void masterconn_delete(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
 	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	try {
-		matocs::deleteChunk::deserialize(data, chunkId, chunkVersion, chunkType);
-	}
-	catch (IncorrectDeserializationException& e) {
-		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
-				"(details: matocs::deleteChunk::deserialize failed in masterconn_delete");
-		eptr->mode = KILL;
-		return;
-	}
+	matocs::deleteChunk::deserialize(data, chunkId, chunkType, chunkVersion);
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::deleteChunk::serialize(outputPacket->packet, chunkId, chunkType, 0);
 	job_delete(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType);
 }
 
-void masterconn_setversion(masterconn *eptr, const std::vector<uint8_t>& data) {
+void masterconn_setversion(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
 	uint32_t newVersion;
 	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	try {
-		matocs::setVersion::deserialize(data, chunkId, chunkVersion, chunkType, newVersion);
-	}
-	catch (IncorrectDeserializationException& e) {
-		syslog(LOG_NOTICE,"chunkservers <-> master module: got unknown message "
-				"(details: matocs::setVersion::deserialize failed in masterconn_setversion");
-		eptr->mode = KILL;
-		return;
-	}
+	matocs::setVersion::deserialize(data, chunkId, chunkType, chunkVersion, newVersion);
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::setVersion::serialize(outputPacket->packet, chunkId, chunkType, 0);
 	job_version(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType,
@@ -385,38 +361,22 @@ void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 #endif /* BGJOBS */
 }
 
-void masterconn_truncate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint32_t version;
-	uint32_t leng;
-	uint32_t newversion;
-	uint8_t *ptr;
-#ifdef BGJOBS
-	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
+	uint32_t chunkLength;
+	uint32_t newVersion;
 
-	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_TRUNCATE - wrong size (%" PRIu32 "/20)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	leng = get32bit(&data);
-	newversion = get32bit(&data);
-	version = get32bit(&data);
-#ifdef BGJOBS
-	packet = masterconn_create_detached_packet(CSTOMA_TRUNCATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_truncate(jpool,masterconn_jobfinished,packet,chunkid,version,newversion,leng);
-#else /* BGJOBS */
-	status = hdd_truncate(chunkid,version,newversion,leng);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_TRUNCATE,8+1);
-	put64bit(&ptr,chunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
+#ifndef BGJOBS
+	// TODO(kto bądź) !BGJOBS branch is outdated, to be removed!
+#endif
+
+	matocs::truncateChunk::deserialize(data, chunkId, chunkType, chunkLength, newVersion, version);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::truncate::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_truncate(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, version,
+			newVersion, chunkLength);
 }
 
 void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -648,50 +608,58 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
-void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint8_t>& data, uint32_t length) {
-	switch (type) {
-		case ANTOAN_NOP:
-			break;
-		case ANTOAN_UNKNOWN_COMMAND: // for future use
-			break;
-		case ANTOAN_BAD_COMMAND_SIZE: // for future use
-			break;
-		case LIZ_MATOCS_CREATE_CHUNK:
-			masterconn_create(eptr, data);
-			break;
-		case LIZ_MATOCS_DELETE_CHUNK:
-			masterconn_delete(eptr, data);
-			break;
-		case LIZ_MATOCS_SET_VERSION:
-			masterconn_setversion(eptr, data);
-			break;
-		case MATOCS_DUPLICATE:
-			masterconn_duplicate(eptr, data.data(), length);
-			break;
-		case MATOCS_REPLICATE:
-			masterconn_replicate(eptr, data.data(), length);
-			break;
-		case MATOCS_CHUNKOP:
-			masterconn_chunkop(eptr, data.data(), length);
-			break;
-		case MATOCS_TRUNCATE:
-			masterconn_truncate(eptr,data.data(),length);
-			break;
-		case MATOCS_DUPTRUNC:
-			masterconn_duptrunc(eptr,data.data(),length);
-			break;
-//		case MATOCS_STRUCTURE_LOG:
-//			masterconn_structure_log(eptr,data,length);
-//			break;
-//		case MATOCS_STRUCTURE_LOG_ROTATE:
-//			masterconn_structure_log_rotate(eptr,data,length);
-//			break;
-		case ANTOCS_CHUNK_CHECKSUM:
-			masterconn_chunk_checksum(eptr,data.data(),length);
-			break;
-		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
-			eptr->mode = KILL;
+void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint8_t>& data) {
+	try {
+		switch (type) {
+			case ANTOAN_NOP:
+				break;
+			case ANTOAN_UNKNOWN_COMMAND: // for future use
+				break;
+			case ANTOAN_BAD_COMMAND_SIZE: // for future use
+				break;
+			case LIZ_MATOCS_CREATE_CHUNK:
+				masterconn_create(eptr, data);
+				break;
+			case LIZ_MATOCS_DELETE_CHUNK:
+				masterconn_delete(eptr, data);
+				break;
+			case LIZ_MATOCS_SET_VERSION:
+				masterconn_setversion(eptr, data);
+				break;
+			case MATOCS_DUPLICATE:
+				masterconn_duplicate(eptr, data.data(), data.size());
+				break;
+			case MATOCS_REPLICATE:
+				masterconn_replicate(eptr, data.data(), data.size());
+				break;
+			case MATOCS_CHUNKOP:
+				masterconn_chunkop(eptr, data.data(), data.size());
+				break;
+			case LIZ_MATOCS_TRUNCATE:
+				masterconn_truncate(eptr, data);
+				break;
+			case MATOCS_DUPTRUNC:
+				masterconn_duptrunc(eptr,data.data(), data.size());
+				break;
+	//		case MATOCS_STRUCTURE_LOG:
+	//			masterconn_structure_log(eptr,data,length);
+	//			break;
+	//		case MATOCS_STRUCTURE_LOG_ROTATE:
+	//			masterconn_structure_log_rotate(eptr,data,length);
+	//			break;
+			case ANTOCS_CHUNK_CHECKSUM:
+				masterconn_chunk_checksum(eptr,data.data(), data.size());
+				break;
+			default:
+				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+				eptr->mode = KILL;
+		}
+	} catch (IncorrectDeserializationException& e) {
+		syslog(LOG_NOTICE,
+				"chunkserver <-> master module: got inconsistent message "
+				"(type:%" PRIu32 ", length:%" PRIu32"), %s",
+				type, uint32_t(data.size()), e.what());
+		eptr->mode = KILL;
 	}
 }
 
@@ -856,7 +824,7 @@ void masterconn_read(masterconn *eptr) {
 			eptr->inputpacket.bytesLeft = PacketHeader::kSize;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			masterconn_gotpacket(eptr, header.type, eptr->inputpacket.packet, header.length);
+			masterconn_gotpacket(eptr, header.type, eptr->inputpacket.packet);
 
 			eptr->inputpacket.packet.clear();
 		}

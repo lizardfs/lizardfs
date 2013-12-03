@@ -39,3 +39,34 @@ TEST(ChunkTypeTests, validChunkTypeIDTest) {
 		EXPECT_EQ(chunkIDValidity[id], ChunkType::validChunkTypeID(id));
 	}
 }
+
+#define CHECK_CHUNK_TYPE_LENGTH(chunkType, expectedChunkTypeLen, wholeChunkLen) \
+	EXPECT_EQ(expectedChunkTypeLen, \
+			ChunkType::chunkLengthToChunkTypeLength(chunkType, wholeChunkLen))
+
+TEST(ChunkTypeTests, chunkTypeLengthTest) {
+	ChunkType parity2 = ChunkType::getXorParityChunkType(2);
+	ChunkType part1 = ChunkType::getXorChunkType(2, 1);
+	ChunkType part2 = ChunkType::getXorChunkType(2, 2);
+	ChunkType standard = ChunkType::getStandardChunkType();
+
+	CHECK_CHUNK_TYPE_LENGTH(parity2 , 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(parity2 , 2 * MFSBLOCKSIZE + 1, 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(parity2 , 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(parity2 , 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE + 1);
+
+	CHECK_CHUNK_TYPE_LENGTH(part1   , 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(part1   , 2 * MFSBLOCKSIZE + 1, 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(part1   , 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(part1   , 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE + 1);
+
+	CHECK_CHUNK_TYPE_LENGTH(part2   , 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(part2   , 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(part2   , 2 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(part2   , 2 * MFSBLOCKSIZE + 1, 5 * MFSBLOCKSIZE + 1);
+
+	CHECK_CHUNK_TYPE_LENGTH(standard, 4 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(standard, 4 * MFSBLOCKSIZE +1 , 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(standard, 5 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(standard, 5 * MFSBLOCKSIZE + 1, 5 * MFSBLOCKSIZE + 1);
+}
