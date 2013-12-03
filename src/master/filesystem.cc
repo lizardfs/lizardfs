@@ -7871,6 +7871,8 @@ void fs_new(void) {
 	metaversion = 0;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
+	freelist = NULL;
+	freetail = &(freelist);
 	root = (fsnode*) malloc(sizeof(fsnode));
 	passert(root);
 	root->id = MFS_ROOT_ID;
