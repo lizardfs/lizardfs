@@ -214,7 +214,8 @@ void ChunkWriter::startOperation(const Operation& operation) {
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
 		ChunkType chunkType = fdAndExecutor.second->chunkType();
-		offsetOfEnd_[operation.id] = index_ * MFSCHUNKSIZE + operation.offset + operation.size;
+		offsetOfEnd_[operation.id] = static_cast<uint64_t>(index_) * MFSCHUNKSIZE +
+				operation.offset + operation.size;
 		if (chunkType.isStandardChunkType()) {
 			uint32_t block = operation.offset / MFSBLOCKSIZE;
 			uint32_t offsetInBlock = operation.offset - block * MFSBLOCKSIZE;
