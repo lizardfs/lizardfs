@@ -28,4 +28,6 @@ for goal in 1 2 3; do
 	mfssetgoal "$goal" "goal_$goal"
 	test_worker "goal_$goal" &
 done
-wait
+wait %1
+wait %2
+wait %3
