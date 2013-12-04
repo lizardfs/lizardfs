@@ -13,7 +13,7 @@ To prepare the testing environment safely, please use the following script:
 
 What 'setup_machine.sh' does?
  -  Creates a new user - 'lizardfstest' - on the machine;
- -  Grants this user permissions to mount fuse filesystems and runs
+ -  Grants this user permissions to mount fuse filesystems and to run
         '/bin/sh -c echo 1 > /proc/sys/vm/drop_caches' as a root;
  -  Grants everyone permissions to run processes as lizardfstests using
         'sudo -u lizardfstest' without any authentication;
@@ -35,6 +35,15 @@ There should be about 60 GB of disk space available for the tests.
 At least three directories have to be provided in order to run some of the test cases.
 Remember that user 'lizardfstest' needs permissions to write files in these
 directories. All the contents of these directories will be erased during tests.
+
+The tests need to know which binaries should be tested. The default location is
+/var/lib/lizardfstest/local and this means eg. that the master server will run code
+from the /var/lib/lizardfstest/local/sbin/mfsmaster file. You can change this
+default directory by adding an entry like this to /etc/lizardfs_tests.conf file:
+
+    : ${LIZARDFS_ROOT:=/home/you/local}
+
+Make sure that the user lizardfstest is able to read files from this directory.
 
 How to compile the tests?
 =========================

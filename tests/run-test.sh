@@ -33,7 +33,7 @@ fi
 cd "$(dirname "$0")"
 stop_tests
 test_script="source tools/test_main.sh; source '$1'; test_end"
-nice nice sudo -Eu lizardfstest bash -c "$test_script"
+nice nice sudo -HEu lizardfstest bash -c "$test_script"
 status=$?
 stop_tests
 exit $status
