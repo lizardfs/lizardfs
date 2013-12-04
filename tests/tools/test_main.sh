@@ -7,4 +7,5 @@ set -u
 . tools/test.sh
 . tools/lizardfs.sh
 . tools/timeout.sh
+. tools/assert.sh
 test_begin

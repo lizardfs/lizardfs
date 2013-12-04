@@ -1,0 +1,39 @@
+About the wireshark plugin
+==========================
+
+This directory contains a script, which generates a plugin for wireshark (http://www.wireshark.org/)
+which adds support for the LizardFS protocol. This plugin is compiled into a .so shared library
+to make it easily redistributable, because the build process is a bit complicated:
+
+* Checkout the wireshark sources, eg:
+      ( cd ~ && git clone http://code.wireshark.org/git/wireshark )
+* Checkout your version of wireshark
+      wireshark --version
+      ( cd ~/wireshark && git checkout wireshark-1.8.2 )
+* Copy contents of this directory to the wireshark source directory
+      tar -C lizardfs/utils/wireshark -c . | tar -C ~/wireshark -vx
+* Run the generate.sh script (provide path to the MFSCommunication file as an argument)
+      ~/wireshark/plugins/lizardfs/generate.sh lizardfs/src/common/MFSCommunication.h
+* Edit the main CMakeLists.txt file in the wireshark source tree to add the new plugin
+      vim ~/wireshark/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -413,6 +413,7 @@ if(ENABLE_PLUGINS)
+                plugins/ethercat
+                plugins/gryphon
+                plugins/irda
++               plugins/lizardfs
+                plugins/m2m
+                plugins/mate
+                plugins/opcua
+* Build the wireshark using cmake (you don't have to build the GUI)
+      mkdir ~/wireshark/build
+      cd ~/wireshark/build
+      cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_wireshark=NO
+      make -j8
+* Install the plugin, eg. on Debian-like distros:
+      sudo cp ~/wireshark/build/lib/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
+* Enjoy! This plugin recognizes the LizardFS proocol using TCP port numbers. If you use
+  non-standard ports (9419-9422) you have to change it in Edit->Preferences->Protocols->LizardFS,
+  eg. to parse the communication in our test suite:
+      LizardFS TCP Ports: 9419-9422,25000-25015

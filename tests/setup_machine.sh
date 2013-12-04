@@ -29,6 +29,13 @@ if ! getent passwd lizardfstest > /dev/null; then
 	usermod -a -G fuse lizardfstest
 fi
 
+echo Create home directory /var/lib/lizardfstest
+if [[ ! -d /var/lib/lizardfstest ]]; then
+	mkdir -p /var/lib/lizardfstest
+	chown lizardfstest:lizardfstest /var/lib/lizardfstest
+	chmod 755 /var/lib/lizardfstest
+fi
+
 echo Prepare sudo configuration
 if ! [[ -d /etc/sudoers.d ]]; then
 	# Sudo is not installed bydefault on Debian machines
@@ -57,7 +64,7 @@ if ! [[ -f /etc/lizardfs_tests.conf ]]; then
 	cat >/etc/lizardfs_tests.conf <<-'END'
 		# : ${TEMP_DIR:=/tmp/LizardFS-autotests}
 		# : ${LIZARDFS_DISKS:="/mnt/hd1 /mnt/hd2 /mnt/hd3"}
-		# : ${LIZARDFS_ROOT:=$HOME/local}
+		# : ${LIZARDFS_ROOT:=/home/<some_user>/local}
 		# : ${FIRST_PORT_TO_USE:=25000}
 	END
 fi
