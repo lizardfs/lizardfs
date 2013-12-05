@@ -3,15 +3,13 @@ test_add_failure() {
 	if test_frozen; then
 		return
 	fi
+	local message="[$(date +"%F %T")] $*"
 	# Env. valiable ERROR_FILE can be used to store error messages in a file
-	if [[ ${ERROR_FILE-} ]]; then
-		echo "$*" | tee -a "$ERROR_FILE" >> "$test_result_file"
-	else
-		echo "$*" >> "$test_result_file"
-	fi
+	echo "$message" | tee -a "${ERROR_FILE:-/dev/null}" >> "$test_result_file"
+	# Print bold red message to the console
 	tput setaf 1
 	tput bold
-	echo "FAILURE $*"
+	echo "FAILURE $message"
 	tput sgr0
 }
 
