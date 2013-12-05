@@ -1,20 +1,22 @@
 timeout_set 1 hour
+assert_program_installed dbench
+
+# Runs dbench for half an hour with 6 clients
+dbench_tester() {
+	local dir="$1"
+	cd "$dir"
+	MESSAGE="Testing directory $dir" expect_success dbench -s -S -t 1800 5
+}
 
 CHUNKSERVERS=3 \
-	MOUNTS=2 \
+	MOUNTS=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
-
-if ! dbench --help &>/dev/null; then
-	test_fail "dbench not installed"
-fi
-
-# Let dbench run for half an hour with 16 clients
-start=$(date +%s)
-if ! dbench -s -S -t 1800 16; then
-	status=$?
-	elapsed=$(($(date +%s)-start))
-	test_add_failure "dbench returned status $? after $elapsed seconds"
-fi
+for goal in 1 2; do
+	mkdir "goal_$goal"
+	mfssetgoal "$goal" "goal_$goal"
+	dbench_tester "goal_$goal" &
+done
+wait
