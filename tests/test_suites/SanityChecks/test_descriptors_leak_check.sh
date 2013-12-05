@@ -1,6 +1,6 @@
 CHUNKSERVERS=1 \
 	DISK_PER_CHUNKSERVER=1 \
-	USE_RAMDISK="yes" \
+	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
 max_files=100
