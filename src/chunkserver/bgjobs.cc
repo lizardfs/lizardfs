@@ -30,7 +30,6 @@
 #include <cassert>
 #include <cstdint>
 
-#include "devtools/TracePrinter.h"
 #include "chunkserver/chunk_replicator.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/legacy_replicator.h"
@@ -39,6 +38,8 @@
 #include "common/pcqueue.h"
 #include "common/datapack.h"
 #include "common/massert.h"
+#include "devtools/request_log.h"
+#include "devtools/TracePrinter.h"
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)
@@ -229,6 +230,8 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			case OP_READ:
+			{
+				LOG_AVG_TILL_END_OF_SCOPE0("job_read");
 				if (rdargs->performHddOpen) {
 					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
 					if (status != STATUS_OK) {
@@ -243,6 +246,7 @@ void* job_worker(void *th_arg) {
 							rdargs->outputBuffer);
 				}
 				break;
+			}
 			case OP_WRITE:
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;

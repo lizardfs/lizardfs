@@ -50,6 +50,7 @@
 #include "common/random.h"
 #include "chunkserver/bgjobs.h"
 #include "chunkserver/network_main_thread.h"
+#include "devtools/request_log.h"
 
 #define MaxPacketSize 10000
 
@@ -796,6 +797,7 @@ void masterconn_write(masterconn *eptr) {
 
 
 void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	LOG_AVG_TILL_END_OF_SCOPE0("master_desc");
 	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
@@ -832,6 +834,7 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 }
 
 void masterconn_serve(struct pollfd *pdesc) {
+	LOG_AVG_TILL_END_OF_SCOPE0("master_serve");
 	uint32_t now=main_time();
 	masterconn *eptr = masterconnsingleton;
 

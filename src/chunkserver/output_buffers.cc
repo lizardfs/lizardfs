@@ -12,11 +12,13 @@
 #include "config.h"
 
 #include "common/massert.h"
+#include "devtools/request_log.h"
 
 #ifdef HAVE_SPLICE
 AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCapacity)
 	: internalBufferCapacity_(internalBufferCapacity),
-	  bytesInABuffer_(0) { 
+	  bytesInABuffer_(0) {
+	LOG_AVG_TILL_END_OF_SCOPE0("pipe2");
 	eassert(internalBufferCapacity_ > 0);
 	eassert(pipe2(internalPipeFileDescriptors_, O_NONBLOCK) != -1);
 	if (fcntl(internalPipeFileDescriptors_[1], F_SETPIPE_SZ, internalBufferCapacity_) == -1) {
@@ -29,6 +31,7 @@ AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCa
 }
 
 AvoidingCopyingOutputBuffer::~AvoidingCopyingOutputBuffer() {
+	LOG_AVG_TILL_END_OF_SCOPE0("pipe_close");
 	eassert(close(internalPipeFileDescriptors_[0]) != -1);
 	eassert(close(internalPipeFileDescriptors_[1]) != -1);
 }
@@ -55,6 +58,7 @@ ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(
 }
 
 ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(const void *mem, size_t len) {
+	LOG_AVG_TILL_END_OF_SCOPE0("splice_file");
 	eassert(len + bytesInABuffer_ <= internalBufferCapacity_);
 	ssize_t bytes_written = 0;
 	while (len > 0) {
@@ -71,6 +75,7 @@ ssize_t AvoidingCopyingOutputBuffer::copyIntoBuffer(const void *mem, size_t len)
 
 OutputBuffer::WriteStatus AvoidingCopyingOutputBuffer::writeOutToAFileDescriptor(
 		int outputFileDescriptor) {
+	LOG_AVG_TILL_END_OF_SCOPE0("splice_socket");
 	while (bytesInABuffer_ > 0) {
 		ssize_t ret = splice(internalPipeFileDescriptors_[0], NULL,
 				outputFileDescriptor, NULL, bytesInABuffer_, SPLICE_F_MOVE);

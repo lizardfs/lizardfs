@@ -12,6 +12,7 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
+#include "devtools/request_log.h"
 
 ReadPlanExecutor::ReadPlanExecutor(
 		ChunkserverStats& chunkserverStats,
@@ -66,6 +67,7 @@ void ReadPlanExecutor::executeReadOperations(
 			fdAndExecutor.second.sendReadRequest(communicationTimeout);
 		}
 
+		LOG_AVG_TILL_END_OF_SCOPE0("ReadPlanExecutor::executeReadOperations#recv");
 		// Receive responses
 		while (!executors.empty()) {
 			std::vector<pollfd> pollFds;

@@ -24,6 +24,7 @@ std::shared_ptr<const ChunkLocationInfo> ReadChunkLocator::locateChunk(uint32_t 
 			return cache_;
 		}
 	}
+	LOG_AVG_TILL_END_OF_SCOPE0("ReadChunkLocator::locateChunk");
 	uint64_t chunkId;
 	uint32_t version;
 	uint64_t fileLength;

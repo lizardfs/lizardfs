@@ -1736,6 +1736,7 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 }
 
 void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
+	LOG_AVG_TILL_END_OF_SCOPE0("mfs_read");
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	uint8_t *buff;
 	int err;

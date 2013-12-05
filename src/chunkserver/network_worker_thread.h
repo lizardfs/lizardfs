@@ -12,6 +12,7 @@
 #include "common/network_address.h"
 #include "chunkserver/network_stats.h"
 #include "chunkserver/output_buffers.h"
+#include "devtools/request_log.h"
 
 //entry.mode
 enum ChunkserverEntryMode {
@@ -96,6 +97,8 @@ struct csserventry {
 	uint32_t offset; // R
 	uint32_t size; // R
 	MessageSerializer* messageSerializer; // R+W
+
+	LOG_AVG_TYPE readOperationTimer;
 
 	struct csserventry *next;
 

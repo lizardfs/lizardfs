@@ -376,7 +376,8 @@ private:
 #define LOG_AVG_TILL_END_OF_SCOPE0(operation) \
 		FunctionCallAvgLog REQUEST_LOG_UNIQ_NAME1(operation)
 #define LOG_AVG_TYPE std::unique_ptr<FunctionCallAvgLog>
-#define LOG_AVG_START(obj, operation, key1) obj.reset(new FunctionCallAvgLog(operation, key1))
+#define LOG_AVG_START0(obj, operation) obj.reset(new FunctionCallAvgLog(operation))
+#define LOG_AVG_START1(obj, operation, key1) obj.reset(new FunctionCallAvgLog(operation, key1))
 #define LOG_AVG_STOP(obj) obj.reset()
 #else
 struct DummyRTTimer {};
@@ -388,6 +389,7 @@ struct DummyRTTimer {};
 #define LOG_AVG_TILL_END_OF_SCOPE1(operation, key1) (void)0
 #define LOG_AVG_TILL_END_OF_SCOPE0(operation) (void)0
 #define LOG_AVG_TYPE DummyRTTimer
-#define LOG_AVG_START(obj, operation, key1) (void)0
+#define LOG_AVG_START0(obj, operation) (void)0
+#define LOG_AVG_START1(obj, operation, key1) (void)0
 #define LOG_AVG_STOP(obj) (void)0
 #endif /* ENABLE_REQUEST_LOG */

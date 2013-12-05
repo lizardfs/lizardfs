@@ -44,7 +44,6 @@
 #include <thread>
 #include <vector>
 
-#include "devtools/TracePrinter.h"
 #include "chunkserver/chunk.h"
 #include "chunkserver/chunk_filename_parser.h"
 #include "chunkserver/chunk_signature.h"
@@ -61,6 +60,8 @@
 #include "common/time_utils.h"
 #include "common/unique_queue.h"
 #include "common/wrong_crc_notifier.h"
+#include "devtools/request_log.h"
+#include "devtools/TracePrinter.h"
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
 #define USE_PIO 1
@@ -849,6 +850,7 @@ static Chunk* hdd_chunk_create(folder *f, uint64_t chunkid, ChunkType chunkType,
 }
 
 static inline Chunk* hdd_chunk_find(uint64_t chunkId, ChunkType chunkType) {
+	LOG_AVG_TILL_END_OF_SCOPE0("chunk_find");
 	return hdd_chunk_get(chunkId, chunkType, CH_NEW_NONE);
 }
 
@@ -1531,6 +1533,7 @@ static inline uint64_t get_usectime() {
 }
 
 static int hdd_io_begin(Chunk *c,int newflag) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_io_begin");
 	TRACETHIS();
 	dopchunk *cc;
 	int status;
@@ -1654,6 +1657,7 @@ static int hdd_io_end(Chunk *c) {
 /* I/O operations */
 
 int hdd_open(uint64_t chunkid, ChunkType chunkType) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_open");
 	TRACETHIS1(chunkid);
 	int status;
 	Chunk *c;
@@ -1696,6 +1700,7 @@ int hdd_close(uint64_t chunkid, ChunkType chunkType) {
 }
 
 int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read_block");
 	TRACETHIS2(c->chunkid, blocknum);
 	int ret;
 	uint64_t ts, te;
@@ -1731,6 +1736,7 @@ int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read");
 	TRACETHIS3(chunkid, offset, size);
 	if (offset % MFSBLOCKSIZE != 0) {
 		return ERROR_WRONGOFFSET;
@@ -1768,6 +1774,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 
 int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_write");
 	TRACETHIS3(chunkid, offset, size);
 	Chunk *c;
 	int ret;

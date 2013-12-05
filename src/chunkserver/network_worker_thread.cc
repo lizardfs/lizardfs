@@ -34,6 +34,7 @@
 #include "common/packet.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "devtools/request_log.h"
 #include "devtools/TracePrinter.h"
 
 #define MaxPacketSize 100000
@@ -312,6 +313,7 @@ void worker_read_finished(uint8_t status, void *e) {
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE; // after sending status even if there was an error it's possible to
 		// receive new requests on the same connection
+		LOG_AVG_STOP(eptr->readOperationTimer);
 	}
 }
 
@@ -339,6 +341,7 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
+		LOG_AVG_STOP(eptr->readOperationTimer);
 	} else {
 			size = eptr->size;
 		if (size > MFSBLOCKSIZE) {
@@ -429,6 +432,7 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 	eptr->state = READ;
 	eptr->todocnt = 0;
 	eptr->rjobid = 0;
+	LOG_AVG_START0(eptr->readOperationTimer, "csserv_read");
 	worker_read_continue(eptr, true);
 }
 
@@ -1452,6 +1456,7 @@ void NetworkWorkerThread::terminate() {
 }
 
 void NetworkWorkerThread::preparePollFds() {
+	LOG_AVG_TILL_END_OF_SCOPE0("preparePollFds");
 	TRACETHIS();
 	pdesc.clear();
 	pdesc.emplace_back();
@@ -1529,6 +1534,7 @@ void NetworkWorkerThread::preparePollFds() {
 }
 
 void NetworkWorkerThread::servePoll() {
+	LOG_AVG_TILL_END_OF_SCOPE0("servePoll");
 	TRACETHIS();
 	uint32_t now = main_time();
 	uint64_t usecnow = main_utime();
