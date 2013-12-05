@@ -27,6 +27,13 @@ assert_template_success_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_equal <expected> <actual>
+assert_template_equal_() {
+	if [[ $1 != $2 ]]; then
+		$FAIL_FUNCTION "Expected: '$1', got: '$2'"
+	fi
+}
+
 # Internal functions
 
 add_custom_error_message_() {
