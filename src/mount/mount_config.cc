@@ -61,6 +61,8 @@ struct fuse_opt gMfsOptsStage2[] = {
 };
 
 void usage(const char *progname) {
+#define STR_AUX(x) #x
+#define STR(x) STR_AUX(x)
 	fprintf(stderr,
 "usage: %s mountpoint [options]\n"
 "\n", progname);
@@ -103,7 +105,7 @@ void usage(const char *progname) {
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
-"    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: 200)\n"
+"    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK
@@ -139,6 +141,8 @@ void usage(const char *progname) {
 "    operation - chown(-1,-1) which is usually converted by a kernel into something\n"
 "    like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'\n"
 "\n");
+#undef STR_AUX
+#undef STR
 }
 
 void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {

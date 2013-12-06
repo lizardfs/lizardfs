@@ -35,6 +35,8 @@ enum {
 	KEY_VERSION,
 };
 
+#define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO 2000
+
 struct mfsopts_ {
 	char *masterhost;
 	char *masterport;
@@ -97,7 +99,7 @@ struct mfsopts_ {
 			attrcacheto(1.0),
 			entrycacheto(0.0),
 			direntrycacheto(1.0),
-			chunkserverreadto(100) {
+			chunkserverreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) {
 	}
 };
 
