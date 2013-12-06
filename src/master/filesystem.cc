@@ -1025,9 +1025,88 @@ static inline uint8_t fsnodes_test_quota(fsnode *node) {
 }
 
 // stats
+
 #ifndef METARESTORE
+
+// does the last chunk exist and contain non-zero data?
+static bool last_chunk_nonempty(fsnode *node) {
+	const uint32_t chunks = node->data.fdata.chunks;
+	if (chunks == 0) {
+		// no non-zero chunks, return now
+		return false;
+	}
+	// file has non-zero length and contains at least one chunk
+	const uint64_t last_byte = node->data.fdata.length - 1;
+	const uint32_t last_chunk = last_byte / MFSCHUNKSIZE;
+	if (last_chunk < chunks) {
+		// last chunk exists, check if it isn't the zero chunk
+		return (node->data.fdata.chunktab[last_chunk] != 0);
+	} else {
+		// last chunk hasn't been allocated yet
+		return false;
+	}
+}
+
+// number of blocks in the last chunk before EOF
+static uint32_t last_chunk_blocks(fsnode *node) {
+	const uint64_t last_byte = node->data.fdata.length - 1;
+	const uint32_t last_byte_offset = last_byte % MFSCHUNKSIZE;
+	const uint32_t last_block = last_byte_offset / MFSBLOCKSIZE;
+	const uint32_t block_count = last_block + 1;
+	return block_count;
+}
+
+// count chunks in a file, disregard sparse file holes
+static uint32_t file_chunks(fsnode *node) {
+	uint32_t count = 0;
+	for (uint64_t i = 0; i < node->data.fdata.chunks; i++) {
+		if (node->data.fdata.chunktab[i] != 0) {
+			count++;
+		}
+	}
+	return count;
+}
+
+// compute the "size" statistic for a file node
+static uint64_t file_size(fsnode *node, uint32_t nonzero_chunks) {
+	uint64_t size = (uint64_t)nonzero_chunks * (MFSCHUNKSIZE + MFSHDRSIZE);
+	if (last_chunk_nonempty(node)) {
+		size -= MFSCHUNKSIZE;
+		size += last_chunk_blocks(node) * MFSBLOCKSIZE;
+	}
+	return size;
+}
+
+// compute the disk space cost of all parts of a xor chunk of given size
+static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
+	const uint32_t stripes = (blocks + level - 1) / level;
+	uint32_t size = blocks * MFSBLOCKSIZE;  // file data
+	size += stripes * MFSBLOCKSIZE;         // parity data
+	size += 4096 * (level + 1);             // headers of data and parity parts
+	return size;
+}
+
+// compute the "realsize" statistic for a file node
+static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t file_size) {
+	const uint8_t goal = node->goal;
+	if (isOrdinaryGoal(goal)) {
+		return file_size * goal;
+	}
+	if (isXorGoal(goal)) {
+		const ChunkType::XorLevel level = goalToXorLevel(goal);
+		const uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
+		uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
+		if (last_chunk_nonempty(node)) {
+			size -= full_chunk_realsize;
+			size += xor_chunk_realsize(last_chunk_blocks(node), level);
+		}
+		return size;
+	}
+	syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id, node->goal);
+	return 0;
+}
+
 static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
-	uint32_t i,lastchunk,lastchunksize;
 	switch (node->type) {
 	case TYPE_DIRECTORY:
 		*sr = *(node->data.ddata.stats);
@@ -1040,27 +1119,10 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 		sr->inodes = 1;
 		sr->dirs = 0;
 		sr->files = 1;
-		sr->chunks = 0;
+		sr->chunks = file_chunks(node);
 		sr->length = node->data.fdata.length;
-		sr->size = 0;
-		if (node->data.fdata.length>0) {
-			lastchunk = (node->data.fdata.length-1)>>MFSCHUNKBITS;
-			lastchunksize = ((((node->data.fdata.length-1)&MFSCHUNKMASK)+MFSBLOCKSIZE)&MFSBLOCKNEGMASK)+MFSHDRSIZE;
-		} else {
-			lastchunk = 0;
-			lastchunksize = MFSHDRSIZE;
-		}
-		for (i=0 ; i<node->data.fdata.chunks ; i++) {
-			if (node->data.fdata.chunktab[i]>0) {
-				if (i<lastchunk) {
-					sr->size+=MFSCHUNKSIZE+MFSHDRSIZE;
-				} else if (i==lastchunk) {
-					sr->size+=lastchunksize;
-				}
-				sr->chunks++;
-			}
-		}
-		sr->realsize = sr->size * node->goal;
+		sr->size = file_size(node, sr->chunks);
+		sr->realsize = file_realsize(node, sr->chunks, sr->size);
 		break;
 	case TYPE_SYMLINK:
 		sr->inodes = 1;
@@ -1836,23 +1898,26 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 
 static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
 	uint32_t i;
+	uint8_t old_goal = obj->goal;
 #ifndef METARESTORE
 	statsrecord psr,nsr;
 	fsedge *e;
 
 	fsnodes_get_stats(obj,&psr);
+	obj->goal = goal;
 	nsr = psr;
-	nsr.realsize = goal * nsr.size;
+	nsr.realsize = file_realsize(obj, nsr.chunks, nsr.size);
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+#else
+	obj->goal = goal;
 #endif
 	for (i=0 ; i<obj->data.fdata.chunks ; i++) {
 		if (obj->data.fdata.chunktab[i]>0) {
-			chunk_change_file(obj->data.fdata.chunktab[i],obj->goal,goal);
+			chunk_change_file(obj->data.fdata.chunktab[i],old_goal,goal);
 		}
 	}
-	obj->goal = goal;
 }
 
 static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
