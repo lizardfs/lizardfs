@@ -1,18 +1,21 @@
 timeout_set 4 minutes
 
-CHUNKSERVERS=3 \
+CHUNKSERVERS=4 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
-	
+
 # Create a file consising of a couple of chunks and remove it
 file="${info[mount0]}/file"
-touch "$file"
+xorfile="${info[mount0]}/xorfile"
+touch "$file" "$xorfile"
 mfssetgoal 3 "$file"
+mfssetgoal xor3 "$xorfile"
 dd if=/dev/zero of="$file" bs=1MiB count=130
-mfssettrashtime 0 "$file"
-rm -f "$file"
+dd if=/dev/zero of="$xorfile" bs=1MiB count=130
+mfssettrashtime 0 "$file" "$xorfile"
+rm -f "$file" "$xorfile"
 
 # Wait for removing all the chunks
 hdds=$(cat "${info[chunkserver0_hdd]}" "${info[chunkserver1_hdd]}" "${info[chunkserver2_hdd]}")
@@ -26,4 +29,6 @@ while (( $(date +%s) < end_time )); do
 	fi
 	sleep 1
 done
-test_add_failure "$chunk_count chunks were not removed within $timeout"
+chunks=$(find $hdds -name 'chunk*')
+test_add_failure "$chunk_count chunks were not removed within $timeout:
+$chunks"
