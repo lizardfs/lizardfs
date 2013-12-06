@@ -4,16 +4,17 @@ assert_program_installed cmake
 assert_program_installed rsync
 
 test_worker() {
+	export MESSAGE="Testing directory $1"
 	cd "$1"
-	git clone https://github.com/lizardfs/lizardfs.git
+	assertlocal_success git clone https://github.com/lizardfs/lizardfs.git
 	mkdir lizardfs/build
 	cd lizardfs/build
-	cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install
+	assertlocal_success cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install
 	make -j5 install
 	cd ../..
-	rsync -a lizardfs/ copy_lizardfs
+	assertlocal_success rsync -a lizardfs/ copy_lizardfs
 	find lizardfs -type f | while read file; do
-		MESSAGE="Data after rsync is corrupted" expect_files_equal "$file" "copy_$file"
+		expect_files_equal "$file" "copy_$file"
 	done
 }
 
@@ -28,6 +29,4 @@ for goal in 1 2 3; do
 	mfssetgoal "$goal" "goal_$goal"
 	test_worker "goal_$goal" &
 done
-wait %1
-wait %2
-wait %3
+wait

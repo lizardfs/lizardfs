@@ -3,15 +3,13 @@ test_add_failure() {
 	if test_frozen; then
 		return
 	fi
+	local message="[$(date +"%F %T")] $*"
 	# Env. valiable ERROR_FILE can be used to store error messages in a file
-	if [[ ${ERROR_FILE-} ]]; then
-		echo "$*" | tee -a "$ERROR_FILE" >> "$test_result_file"
-	else
-		echo "$*" >> "$test_result_file"
-	fi
+	echo "$message" | tee -a "${ERROR_FILE:-/dev/null}" >> "$test_result_file"
+	# Print bold red message to the console
 	tput setaf 1
 	tput bold
-	echo "FAILURE $*"
+	echo "FAILURE $message"
 	tput sgr0
 }
 
@@ -43,6 +41,9 @@ test_end() {
 	local errors=$(cat "$test_result_file")
 	cd # To make unmount possible if someone changed directory to the mountpoint
 	test_cleanup
+	# Disable error checking (we want to be able to return non-zero status) and end the test
+	trap - ERR
+	set +eE
 	[[ -z $errors ]] # This sets the exit status to non-zero if there are errors
 	exit
 }
@@ -55,6 +56,8 @@ test_begin() {
 	check_configuration
 	test_cleanup
 	touch "$test_result_file"
+	trap 'trap - ERR; set +eEu; catch_error_ "$BASH_SOURCE" "$LINENO" "$FUNCNAME"; exit 1' ERR
+	set -E
 	timeout_init
 }
 
@@ -86,4 +89,17 @@ test_cleanup() {
 	for d in $LIZARDFS_DISKS; do
 		rm -rf "$d"/[0-9A-F][0-9A-F]
 	done
+}
+
+catch_error_() {
+	local file=$1
+	local line=$2
+	local funcname=$3
+	local line_contents=$(sed -n "${line}s/^[[:blank:]]*//p" "$file")
+	if [[ $funcname ]]; then
+		local location="in function $funcname ($file:$line)"
+	else
+		local location="($file:$line)"
+	fi
+	test_add_failure "Command '$line_contents' failed $location"
 }

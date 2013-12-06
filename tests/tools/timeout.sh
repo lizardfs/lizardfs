@@ -1,15 +1,16 @@
 DEFAULT_TEST_TIMEOUT="30 seconds"
 
 timeout_killer_thread() {
-	while true; do
+	while ! test_frozen; do
 		sleep 1
 		if test_frozen; then
 			return
 		fi
-		end_ts=$(cat "$test_timeout_end_ts_file")
+		end_ts=$(cat "$test_timeout_end_ts_file") || true
 		now_ts=$(date +%s)
 		if [[ -z $end_ts ]]; then
 			# A race with timeout_set occured (it truncates the endTS file and then writes it)
+			# or a race with test_cleanup (test_timeout_end_ts_file has just been removed)
 			continue
 		fi
 		if (( now_ts >= end_ts )); then

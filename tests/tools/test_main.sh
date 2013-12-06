@@ -1,11 +1,10 @@
-set -e
-set -u
-. tools/config.sh
+set -eu
+. tools/config.sh # This has to be the first one
+. tools/assert.sh
+. tools/lizardfs.sh
+. tools/network.sh
 . tools/random.sh
 . tools/system.sh
-. tools/network.sh
 . tools/test.sh
-. tools/lizardfs.sh
 . tools/timeout.sh
-. tools/assert.sh
 test_begin
