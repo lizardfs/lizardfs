@@ -20,9 +20,7 @@ writing_thread() {
 		local file_name="${file_type}_${thread_id}.$((n++))_size_${file_size}"
 		if [[ $file_type == generated ]]; then
 			local block_size=$(pseudorandom 1K 16K)
-			if ! BLOCK_SIZE=$block_size FILE_SIZE=$file_size file-generate "$file_name"; then
-				test_add_failure "Generating $file_name using file-generate failed"
-			fi
+			BLOCK_SIZE=$block_size FILE_SIZE=$file_size expect_success file-generate "$file_name"
 		else
 			if ! head -c "$file_size" /dev/zero > "$file_name"; then
 				test_add_failure "Generating $file_name from /dev/zero failed"
@@ -36,10 +34,8 @@ overwriting_thread() {
 	local thread_id=$1
 	pseudorandom_init $thread_id
 	for file in $(find . -name "empty_${thread_id}.*"); do
-		local block_size=$(pseudorandom 1K 16K)
-		if ! BLOCK_SIZE=$block_size file-overwrite "$file" ; then
-			test_add_failure "Overwriting $file_name with file-overwrite failed"
-		fi
+		export BLOCK_SIZE=$(pseudorandom 1K 16K)
+		MESSAGE="Overwring using block size $BLOCK_SIZE B" expect_success file-overwrite "$file"
 	done
 }
 
@@ -60,9 +56,7 @@ spoiling_thread() {
 verifying_thread() {
 	local thread_id=$1
 	for file in $(find . -name "*_${thread_id}.*"); do
-		if ! file-validate "$file" ; then
-			test_add_failure "Validating $file with file-validate failed"
-		fi
+		expect_success file-validate "$file"
 	done
 }
 
@@ -75,8 +69,8 @@ cd "${info[mount0]}/dir"
 mfssetgoal xor2 .
 
 # Some configuration goes here
-data_size_per_thread=$(parse_si_suffix 3G)
-thread_count=10
+data_size_per_thread=$(parse_si_suffix 5G)
+thread_count=5
 
 # Generate some files
 for i in $(seq 1 $thread_count); do
