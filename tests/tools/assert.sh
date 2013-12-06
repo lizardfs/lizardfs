@@ -20,6 +20,20 @@ assert_template_files_equal_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_less_or_equal <number1> <number2>
+assert_template_less_or_equal_() {
+  if (( $1 > $2 )); then
+    $FAIL_FUNCTION "Expected: '$1' <= '$2'"
+  fi
+}
+
+# (assert|assertlocal|expect)_equals <string1> <string2>
+assert_template_equals_() {
+  if [[ $1 != $2 ]]; then
+    $FAIL_FUNCTION "Expected: '$1', got:'$2'"
+  fi
+}
+
 # (assert|assertlocal|expect)_success <command> [<args>...]
 assert_template_success_() {
 	if ! "$@"; then
