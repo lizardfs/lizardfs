@@ -40,7 +40,8 @@ void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 	std::vector<uint8_t> message;
 #ifdef USE_LEGACY_READ_MESSAGES
 	serializeMooseFsPacket(message, CLTOCS_READ,
-			chunkId_, chunkVersion_, readOperation_.offset, readOperation_.size);
+			chunkId_, chunkVersion_, readOperation_.requestOffset,
+			readOperation_.requestSize);
 #else
 	cltocs::read::serialize(message, chunkId_, chunkVersion_, chunkType_,
 			readOperation_.requestOffset, readOperation_.requestSize);

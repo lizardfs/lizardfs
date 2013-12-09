@@ -52,7 +52,8 @@ std::shared_ptr<const ChunkLocationInfo> ReadChunkLocator::locateChunk(uint32_t 
 				rptr += entrySize) {
 			deserialize(rptr, entrySize, ip, port);
 			locations.push_back(
-					ChunkTypeWithAddress(ip, port, ChunkType::getStandardChunkType()));
+					ChunkTypeWithAddress(NetworkAddress(ip, port),
+						ChunkType::getStandardChunkType()));
 		}
 	}
 #endif
