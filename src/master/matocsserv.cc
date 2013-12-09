@@ -652,15 +652,16 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	// Shuffle servers to store the parity file (in case of XOR chunks) on a random one
 	std::random_shuffle(chosenServers.begin(), chosenServers.end());
 
-	// Assign chunk types to choosen servers
+	// Assign chunk types to chosen servers
 	for (size_t i = 0; i < chunksToBeCreated; i++) {
 		ChunkType ct = ChunkType::getStandardChunkType();
 		if (isXorGoal(desiredGoal)) {
 			ChunkType::XorLevel level = goalToXorLevel(desiredGoal);
-			if (i == 0) {
-				ct = ChunkType::getXorParityChunkType(level);
+			if (i < level) {
+				ct = ChunkType::getXorChunkType(level, i + 1);
 			} else {
-				ct = ChunkType::getXorChunkType(level, i);
+				eassert(i == level);
+				ct = ChunkType::getXorParityChunkType(level);
 			}
 		} else {
 			sassert(isOrdinaryGoal(desiredGoal));
