@@ -591,6 +591,14 @@
 #define CSTOCS_GET_CHUNK_BLOCKS_STATUS (PROTO_BASE+251)
 /// chunkid:64 chunkversion:32 blocks:16 status:8
 
+// 0x04E2
+#define LIZ_CSTOCS_GET_CHUNK_BLOCKS (1000U + 250U)
+/// chunkid:64 chunkversion:32 chunktype:8
+
+// 0x04E3
+#define LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS (1000U + 251U)
+/// chunkid:64 chunkversion:32 chunktype:8 blocks:16 status:8
+
 //ANY <-> CHUNKSERVER
 
 // 0x012C
