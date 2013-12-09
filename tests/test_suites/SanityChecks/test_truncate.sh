@@ -8,8 +8,7 @@ cd ${info[mount0]}
 block_size=65536
 chunk_size=$((1024 * block_size))
 
-#TODO(alewandowski) test goal = xor2 once the truncate is fixed for xor files
-for goal in 2; do
+for goal in 2 xor2; do
 	for filesize in 90 $((5 * block_size)) $((9 * block_size - 30)) $((chunk_size - 30)) \
 			$(($chunk_size + 30)); do
 		echo "Testing size $filesize goal $goal"

@@ -263,22 +263,18 @@ void ChunkWriter::startOperation(const Operation& operation) {
 				}
 			}
 
-			// Find an executor writing parity part of the current level
+			// Find an executor writing parity part of the current level. Might be equal to nullptr
 			WriteExecutor* parityWriteExecutor = nullptr;
 			for (const auto& fdAndExecutor2 : executors_) {
 				if (fdAndExecutor2.second->chunkType() == parityChunkType) {
 					parityWriteExecutor = fdAndExecutor2.second.get();
 				}
 			}
-			if (parityWriteExecutor == nullptr) {
-				throw UnrecoverableWriteException(
-						"No parity part for level" + std::to_string(level));
-			}
 
 			// Read previous state of the parity
 			// TODO optimization possible if we know, that there are zeros!
 			std::vector<uint8_t>& parityBlock = buffers_[parityChunkType][block];
-			if (parityBlock.empty()) {
+			if (parityWriteExecutor != nullptr && parityBlock.empty()) {
 				uint32_t chunkOffset = index_ * MFSCHUNKSIZE;
 				uint32_t xorBlockSize = level * MFSBLOCKSIZE;
 				uint32_t firstXorBlockOffset = (operation.offset / xorBlockSize) * xorBlockSize;
@@ -308,26 +304,32 @@ void ChunkWriter::startOperation(const Operation& operation) {
 			}
 
 			// Update parity part in our cache
-			uint32_t offsetInBlock = operation.offset - MFSBLOCKSIZE * (operation.offset / MFSBLOCKSIZE);
-			blockXor(parityBlock.data() + offsetInBlock,
-					dataBlock.data() + offsetInBlock,
-					operation.size);
-			blockXor(parityBlock.data() + offsetInBlock, operation.data, operation.size);
+			uint32_t offsetInBlock = operation.offset -
+					MFSBLOCKSIZE * (operation.offset / MFSBLOCKSIZE);
+			if (parityWriteExecutor != nullptr) {
+				blockXor(parityBlock.data() + offsetInBlock,
+						dataBlock.data() + offsetInBlock,
+						operation.size);
+				blockXor(parityBlock.data() + offsetInBlock, operation.data, operation.size);
+			}
 
 			// Update data in our cache
 			memcpy(dataBlock.data() + offsetInBlock, operation.data, operation.size);
 
 			// Send a parity update request
-			paritiesBeingSent_.push_back(std::move(std::vector<uint8_t>(
-					parityBlock.data() + offsetInBlock,
-					parityBlock.data() + offsetInBlock + operation.size)));
-			parityWriteExecutor->addDataPacket(operation.id, block, offsetInBlock,
-					operation.size, paritiesBeingSent_.back().data());
+			if (parityWriteExecutor != nullptr) {
+				paritiesBeingSent_.push_back(std::move(std::vector<uint8_t>(
+						parityBlock.data() + offsetInBlock,
+						parityBlock.data() + offsetInBlock + operation.size)));
+				parityWriteExecutor->addDataPacket(operation.id, block, offsetInBlock,
+						operation.size, paritiesBeingSent_.back().data());
+				unfinishedOperationCounters_[operation.id] += 1;
+			}
 
 			// Send data update request
 			executor.addDataPacket(operation.id, block,
 					offsetInBlock, operation.size, operation.data);
-			unfinishedOperationCounters_[operation.id] += 2;
+			unfinishedOperationCounters_[operation.id] += 1;
 		}
 	}
 }
