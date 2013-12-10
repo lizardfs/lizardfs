@@ -7,4 +7,3 @@ set -eu
 . tools/system.sh
 . tools/test.sh
 . tools/timeout.sh
-test_begin

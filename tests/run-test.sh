@@ -30,10 +30,17 @@ if [[ $# != 1 ]]; then
 	exit 1
 fi
 
+# Run the tests
 cd "$(dirname "$0")"
 stop_tests
-test_script="source tools/test_main.sh; source '$1'; test_end"
+test_script="source tools/test_main.sh; test_begin; source '$1'; test_end"
 nice nice sudo -HEu lizardfstest bash -c "$test_script"
 status=$?
 stop_tests
+
+# Remove files left by tests
+nice nice sudo -HEu lizardfstest bash -c "source tools/test_main.sh; test_cleanup"
+stop_tests # Kill processes left by cleanup
+
+# Return proper status
 exit $status
