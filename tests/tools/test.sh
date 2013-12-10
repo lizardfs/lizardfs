@@ -39,8 +39,6 @@ test_frozen() {
 test_end() {
 	test_freeze_result
 	local errors=$(cat "$test_result_file")
-	cd # To make unmount possible if someone changed directory to the mountpoint
-	test_cleanup
 	# Disable error checking (we want to be able to return non-zero status) and end the test
 	trap - ERR
 	set +eE
@@ -66,7 +64,7 @@ test_begin() {
 test_cleanup() {
 	# Unmount all mfsmounts
 	retries=0
-	killall -9 mfsmount || true
+	pkill -9 mfsmount || true
 	while list_of_mounts=$(cat /etc/mtab | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
