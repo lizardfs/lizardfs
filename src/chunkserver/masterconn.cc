@@ -19,8 +19,7 @@
 #include "config.h"
 
 #include "chunkserver/masterconn.h"
-// TODO: wtf?!
-#define BGJOBS 1
+
 #define BGJOBSCNT 1000
 
 #include <time.h>
@@ -49,9 +48,7 @@
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/random.h"
-#ifdef BGJOBS
 #include "bgjobs.h"
-#endif
 #include "csserv.h"
 
 #define MaxPacketSize 10000
@@ -96,11 +93,9 @@ struct masterconn {
 };
 
 static masterconn *masterconnsingleton=NULL;
-#ifdef BGJOBS
 static void *jpool;
 static int jobfd;
 static int32_t jobfdpdescpos;
-#endif
 
 // from config
 // static uint32_t BackLogsNumber;
@@ -236,7 +231,6 @@ void masterconn_check_hdd_reports() {
 	}
 }
 
-#ifdef BGJOBS
 void masterconn_jobfinished(uint8_t status, void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
@@ -290,7 +284,6 @@ void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
 	masterconn_delete_packet(packet);
 }
 
-#endif /* BGJOBS */
 
 void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
 	uint64_t chunkId;
@@ -333,11 +326,7 @@ void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	uint64_t copychunkid;
 	uint32_t copyversion;
 	uint8_t *ptr;
-#ifdef BGJOBS
 	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
 
 	if (length!=8+4+8+4) {
 		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%" PRIu32 "/24)",length);
@@ -348,17 +337,10 @@ void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	copyversion = get32bit(&data);
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-#ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_DUPLICATE,8+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,copychunkid);
 	job_duplicate(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
-#else /* BGJOBS */
-	status = hdd_duplicate(chunkid,version,version,copychunkid,copyversion);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPLICATE,8+1);
-	put64bit(&ptr,copychunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
 }
 
 void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
@@ -367,10 +349,6 @@ void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data)
 	uint32_t version;
 	uint32_t chunkLength;
 	uint32_t newVersion;
-
-#ifndef BGJOBS
-	// TODO(kto bądź) !BGJOBS branch is outdated, to be removed!
-#endif
 
 	matocs::truncateChunk::deserialize(data, chunkId, chunkType, chunkLength, newVersion, version);
 	OutputPacket* outputPacket = new OutputPacket;
@@ -386,11 +364,7 @@ void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t copyversion;
 	uint32_t leng;
 	uint8_t *ptr;
-#ifdef BGJOBS
 	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
 
 	if (length!=8+4+8+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%" PRIu32 "/28)",length);
@@ -402,17 +376,10 @@ void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	leng = get32bit(&data);
-#ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_DUPTRUNC,8+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,copychunkid);
 	job_duptrunc(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
-#else /* BGJOBS */
-	status = hdd_duptrunc(chunkid,version,version,copychunkid,copyversion,leng);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_DUPTRUNC,8+1);
-	put64bit(&ptr,copychunkid);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
 }
 
 void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -422,11 +389,7 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t copyversion;
 	uint32_t leng;
 	uint8_t *ptr;
-#ifdef BGJOBS
 	void *packet;
-#else /* BGJOBS */
-	uint8_t status;
-#endif /* BGJOBS */
 
 	if (length!=8+4+8+4+4+4) {
 		syslog(LOG_NOTICE,"MATOCS_CHUNKOP - wrong size (%" PRIu32 "/32)",length);
@@ -439,7 +402,6 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	copychunkid = get64bit(&data);
 	copyversion = get32bit(&data);
 	leng = get32bit(&data);
-#ifdef BGJOBS
 	packet = masterconn_create_detached_packet(CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
@@ -450,20 +412,8 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	put32bit(&ptr,leng);
 	job_chunkop(jpool, masterconn_chunkopfinished, packet, chunkid, version,
 			ChunkType::getStandardChunkType(), newversion, copychunkid, copyversion, leng);
-#else /* BGJOBS */
-	status = hdd_chunkop(chunkid,version,newversion,copychunkid,copyversion,leng);
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_CHUNKOP,8+4+4+8+4+4+1);
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	put32bit(&ptr,newversion);
-	put64bit(&ptr,copychunkid);
-	put32bit(&ptr,copyversion);
-	put32bit(&ptr,leng);
-	put8bit(&ptr,status);
-#endif /* BGJOBS */
 }
 
-#ifdef BGJOBS
 void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
@@ -492,30 +442,6 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 		job_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
 	}
 }
-
-#else /* BGJOBS */
-
-void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-
-	syslog(LOG_WARNING,"This version of chunkserver can perform replication only in background, but was compiled without bgjobs");
-
-	if (length!=8+4+4+2) {
-		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%" PRIu32 "/18)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-
-	ptr = masterconn_create_attached_packet(eptr,CSTOMA_REPLICATE,8+4+1);
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,version);
-	put8bit(&ptr,ERROR_CANTCONNECT);	// any error
-}
-#endif
 
 /*
 void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -773,11 +699,9 @@ void masterconn_connecttest(masterconn *eptr) {
 void masterconn_read(masterconn *eptr) {
 	int32_t i;
 	for (;;) {
-#ifdef BGJOBS
 		if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
 			return;
 		}
-#endif
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesLeft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection reset by Master");
@@ -865,7 +789,6 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		return;
 	}
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
-#ifdef BGJOBS
 		pdesc[pos].fd = jobfd;
 		pdesc[pos].events = POLLIN;
 		jobfdpdescpos = pos;
@@ -876,12 +799,6 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 			eptr->pdescpos = pos;
 			pos++;
 		}
-#else /* BGJOBS */
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
-		pos++;
-#endif /* BGJOBS */
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && !eptr->outputPackets.empty())
 			|| eptr->mode==CONNECTING) {
@@ -913,11 +830,9 @@ void masterconn_serve(struct pollfd *pdesc) {
 			masterconn_connecttest(eptr);
 		}
 	} else {
-#ifdef BGJOBS
 		if ((eptr->mode==HEADER || eptr->mode==DATA) && jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
 			job_pool_check_jobs(jpool);
 		}
-#endif /* BGJOBS */
 		if (eptr->pdescpos>=0) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
 				eptr->lastread = now;
@@ -935,18 +850,14 @@ void masterconn_serve(struct pollfd *pdesc) {
 			}
 		}
 	}
-#ifdef BGJOBS
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
 		uint32_t jobscnt = job_pool_jobs_count(jpool);
 		if (jobscnt>=stats_maxjobscnt) {
 			stats_maxjobscnt=jobscnt;
 		}
 	}
-#endif
 	if (eptr->mode == KILL) {
-#ifdef BGJOBS
 		job_pool_disable_and_change_callback_all(jpool,masterconn_unwantedjobfinished);
-#endif /* BGJOBS */
 		tcpclose(eptr->sock);
 		eptr->inputpacket.packet.clear();
 		eptr->outputPackets.clear();
@@ -1043,12 +954,10 @@ int masterconn_init(void) {
 		return -1;
 	}
 
-#ifdef BGJOBS
 	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
 	if (jpool==NULL) {
 		return -1;
 	}
-#endif
 
 	main_eachloopregister(masterconn_check_hdd_reports);
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rndu32_ranged(ReconnectionDelay),masterconn_reconnect);
