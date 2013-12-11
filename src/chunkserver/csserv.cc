@@ -18,8 +18,6 @@
 
 #include "config.h"
 
-// TODO: wtf?!
-#define BGJOBS 1
 #define BGJOBSCNT 1000
 
 #include <time.h>
@@ -43,9 +41,7 @@
 #include "hddspacemgr.h"
 #include "common/charts.h"
 #include "common/slogger.h"
-#ifdef BGJOBS
 #include "bgjobs.h"
-#endif
 #include "common/massert.h"
 
 // connection timeout in seconds
@@ -61,12 +57,10 @@ enum {HEADER,DATA};
 //csserventry.state
 enum {IDLE,READ,WRITELAST,CONNECTING,WRITEINIT,WRITEFWD,WRITEFINISH,CLOSE,CLOSEWAIT,CLOSED};
 
-#ifdef BGJOBS
 typedef struct writestatus {
 	uint32_t writeid;
 	struct writestatus *next;
 } writestatus;
-#endif
 
 typedef struct packetstruct {
 	struct packetstruct *next;
@@ -99,7 +93,6 @@ typedef struct csserventry {
 	packetstruct *outputhead,**outputtail;
 
 
-#ifdef BGJOBS
 	/* write */
 	uint32_t wjobid;
 	uint32_t wjobwriteid;
@@ -112,7 +105,6 @@ typedef struct csserventry {
 	/* common for read and write but meaning is different !!! */
 	void *rpacket;
 	void *wpacket;
-#endif
 
 	uint8_t chunkisopen;
 	uint64_t chunkid;		// R+W
@@ -127,11 +119,9 @@ static csserventry *csservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
 
-#ifdef BGJOBS
 static void *jpool;
 static int jobfd;
 static int32_t jobfdpdescpos;
-#endif
 
 static uint32_t mylistenip;
 static uint16_t mylistenport;
@@ -308,7 +298,6 @@ int csserv_makefwdpacket(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	return 0;
 }
 
-#ifdef BGJOBS
 
 void csserv_check_nextpacket(csserventry *eptr);
 
@@ -663,280 +652,6 @@ void csserv_fwderror(csserventry *eptr) {
 	eptr->state = WRITEFINISH;
 }
 
-#else /* not BGJOBS */
-
-// fg reading
-
-void csserv_read_continue(csserventry *eptr) {
-	uint16_t blocknum;
-	uint16_t blockoffset;
-	uint32_t size;
-	uint8_t *ptr;
-	uint8_t status;
-	void *packet;
-
-	blocknum = (eptr->offset)>>MFSBLOCKBITS;
-	blockoffset = (eptr->offset)&MFSBLOCKMASK;
-	if ((eptr->offset+eptr->size-1)>>MFSBLOCKBITS == blocknum) {	// last block
-		size = eptr->size;
-		packet = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
-		ptr = csserv_get_packet_data(packet);
-		put64bit(&ptr,eptr->chunkid);
-		put16bit(&ptr,blocknum);
-		put16bit(&ptr,blockoffset);
-		put32bit(&ptr,size);
-		status = hdd_read(eptr->chunkid,eptr->version,blocknum,ptr+4,blockoffset,size,ptr);
-		if (status!=STATUS_OK) {
-			csserv_delete_packet(packet);
-		} else {
-			csserv_attach_packet(eptr,packet);
-		}
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
-		hdd_close(eptr->chunkid);
-		eptr->chunkisopen = 0;
-		eptr->state = IDLE;
-	} else {
-		size = MFSBLOCKSIZE-blockoffset;
-		packet = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
-		ptr = csserv_get_packet_data(packet);
-		put64bit(&ptr,eptr->chunkid);
-		put16bit(&ptr,blocknum);
-		put16bit(&ptr,blockoffset);
-		put32bit(&ptr,size);
-		status = hdd_read(eptr->chunkid,eptr->version,blocknum,ptr+4,blockoffset,size,ptr);
-		if (status!=STATUS_OK) {
-			csserv_delete_packet(packet);
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-			put64bit(&ptr,eptr->chunkid);
-			put8bit(&ptr,status);
-			hdd_close(eptr->chunkid);
-			eptr->chunkisopen = 0;
-			eptr->state = IDLE;
-		} else {
-			csserv_attach_packet(eptr,packet);
-			eptr->offset+=size;
-			eptr->size-=size;
-		}
-	}
-}
-
-void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	uint8_t status;
-
-	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_READ - wrong size (%" PRIu32 "/20)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	eptr->chunkid = get64bit(&data);
-	eptr->version = get32bit(&data);
-	eptr->offset = get32bit(&data);
-	eptr->size = get32bit(&data);
-	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
-		return;
-	}
-	if (eptr->size==0) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);
-		return;
-	}
-	if (eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGSIZE);
-		return;
-	}
-	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGOFFSET);
-		return;
-	}
-	status = hdd_open(eptr->chunkid);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
-		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,status);
-		return;
-	}
-	stats_hlopr++;
-	eptr->chunkisopen = 1;
-	eptr->state = READ;
-	csserv_read_continue(eptr);
-}
-
-// fg writing
-
-void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	uint8_t status,ver;
-	uint64_t chunkid,copychunkid;
-	uint32_t version,newversion,copyversion,leng;
-
-	if (length<12 || ((length-12)%6)!=0) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE - wrong size (%" PRIu32 "/12+N*6)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	eptr->wop_chunkid=0;
-	eptr->chunkid = get64bit(&data);
-	eptr->version = get32bit(&data);
-	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,0);
-		put8bit(&ptr,status);
-		eptr->state = WRITEFINISH;
-		return;
-	}
-	if (length>(8+4)) {	// connect to another cs
-		eptr->fwdip = get32bit(&data);
-		eptr->fwdport = get16bit(&data);
-		eptr->connretrycnt = 0;
-		if (csserv_makefwdpacket(eptr,data,length-12-6)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
-			eptr->state = WRITEFINISH;
-			return;
-		}
-		if (csserv_initconnect(eptr)<0) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
-			eptr->state = WRITEFINISH;
-			return;
-		}
-		status = hdd_open(eptr->chunkid);
-		if (status!=STATUS_OK) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,status);
-			eptr->state = WRITEFINISH;
-			return;
-		}
-		stats_hlopw++;
-		eptr->chunkisopen = 1;
-	} else {	// you are the last one
-		status = hdd_open(eptr->chunkid);
-		if (status!=STATUS_OK) {
-			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-			put64bit(&ptr,eptr->chunkid);
-			put32bit(&ptr,0);
-			put8bit(&ptr,status);
-			eptr->state = WRITEFINISH;
-			return;
-		}
-		stats_hlopw++;
-		eptr->chunkisopen = 1;
-		eptr->state = WRITELAST;	//i'm last in the chain
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,eptr->chunkid);
-		put32bit(&ptr,0);
-		put8bit(&ptr,STATUS_OK);
-	}
-}
-
-void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint16_t blocknum;
-	uint16_t offset;
-	uint32_t size;
-	uint32_t writeid;
-	uint8_t *ptr;
-	uint8_t status;
-
-	if (length<8+4+2+2+4+4) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+size)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	chunkid = get64bit(&data);
-	writeid = get32bit(&data);
-	blocknum = get16bit(&data);
-	offset = get16bit(&data);
-	size = get32bit(&data);
-	if (length!=8+4+2+2+4+4+size) {
-		syslog(LOG_NOTICE,"CLTOCS_WRITE_DATA - wrong size (%" PRIu32 "/24+%" PRIu32 ")",length,size);
-		eptr->state = CLOSE;
-		return;
-	}
-	if (chunkid!=eptr->chunkid) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,writeid);
-		put8bit(&ptr,ERROR_WRONGCHUNKID);
-		eptr->state = WRITEFINISH;
-		return;
-	}
-	status = hdd_write(chunkid,eptr->version,blocknum,data+4,offset,size,data);
-	if (status!=STATUS_OK) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,writeid);
-		put8bit(&ptr,status);
-		eptr->state = WRITEFINISH;
-		return;
-	}
-	if (eptr->state==WRITELAST) {
-		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-		put64bit(&ptr,chunkid);
-		put32bit(&ptr,writeid);
-		put8bit(&ptr,STATUS_OK);
-	}
-}
-
-void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	uint64_t chunkid;
-	uint32_t writeid;
-	uint8_t status;
-
-	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOCL_WRITE_STATUS - wrong size (%" PRIu32 "/13)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	chunkid = get64bit(&data);
-	writeid = get32bit(&data);
-	status = get8bit(&data);
-
-	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-	put64bit(&ptr,chunkid);
-	put32bit(&ptr,writeid);
-	put8bit(&ptr,status);
-	if (status!=STATUS_OK) {
-		eptr->state = WRITEFINISH;
-	}
-}
-
-void csserv_fwderror(csserventry *eptr) {
-	uint8_t *ptr;
-	ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
-	put64bit(&ptr,eptr->chunkid);
-	put32bit(&ptr,0);
-	if (eptr->state==CONNECTING) {
-		put8bit(&ptr,ERROR_CANTCONNECT);
-	} else {
-		put8bit(&ptr,ERROR_DISCONNECTED);
-	}
-	eptr->state = WRITEFINISH;
-}
-
-#endif /* BGJOBS */
-
 /* IDLE operations */
 
 void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1096,16 +811,11 @@ void csserv_chart_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 
 void csserv_outputcheck(csserventry *eptr) {
 	if (eptr->state==READ) {
-#ifdef BGJOBS
 		csserv_send_finished(eptr);
-#else /* BGJOBS */
-		csserv_read_continue(eptr);
-#endif
 	}
 }
 
 void csserv_close(csserventry *eptr) {
-#ifdef BGJOBS
 	if (eptr->rjobid>0) {
 		job_pool_disable_job(jpool,eptr->rjobid);
 		job_pool_change_callback(jpool,eptr->rjobid,csserv_delayed_close,eptr);
@@ -1121,13 +831,6 @@ void csserv_close(csserventry *eptr) {
 		}
 		eptr->state = CLOSED;
 	}
-#else /* BGJOBS */
-	if (eptr->chunkisopen) {
-		hdd_close(eptr->chunkid);
-		eptr->chunkisopen=0;
-	}
-	eptr->state = CLOSED;
-#endif /* BGJOBS */
 }
 
 void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
@@ -1217,16 +920,12 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 void csserv_term(void) {
 	csserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
-#ifdef BGJOBS
 	writestatus *wptr,*waptr;
-#endif
 
 	syslog(LOG_NOTICE,"closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
-#ifdef BGJOBS
 	job_pool_delete(jpool);
-#endif
 
 	eptr = csservhead;
 	while (eptr) {
@@ -1246,14 +945,12 @@ void csserv_term(void) {
 		if (eptr->fwdinitpacket) {
 			free(eptr->fwdinitpacket);
 		}
-#ifdef BGJOBS
 		wptr = eptr->todolist;
 		while (wptr) {
 			waptr = wptr;
 			wptr = wptr->next;
 			free(waptr);
 		}
-#endif
 		pptr = eptr->outputhead;
 		while (pptr) {
 			if (pptr->packet) {
@@ -1511,11 +1208,7 @@ void csserv_forward(csserventry *eptr) {
 		eptr->fwdstartptr+=i;
 		eptr->fwdbytesleft-=i;
 	}
-#ifdef BGJOBS
 	if (eptr->inputpacket.bytesleft==0 && eptr->fwdbytesleft==0 && eptr->wjobid==0) {
-#else
-	if (eptr->inputpacket.bytesleft==0 && eptr->fwdbytesleft==0) {
-#endif
 		ptr = eptr->hdrbuff;
 		type = get32bit(&ptr);
 		size = get32bit(&ptr);
@@ -1599,9 +1292,7 @@ void csserv_read(csserventry *eptr) {
 				return;
 			}
 		}
-#ifdef BGJOBS
 		if (eptr->wjobid==0) {
-#endif
 		ptr = eptr->hdrbuff;
 		type = get32bit(&ptr);
 		size = get32bit(&ptr);
@@ -1616,9 +1307,7 @@ void csserv_read(csserventry *eptr) {
 			free(eptr->inputpacket.packet);
 		}
 		eptr->inputpacket.packet=NULL;
-#ifdef BGJOBS
 		}
-#endif
 	}
 }
 
@@ -1666,13 +1355,11 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	pdesc[pos].events = POLLIN;
 	lsockpdescpos = pos;
 	pos++;
-#ifdef BGJOBS
 	pdesc[pos].fd = jobfd;
 	pdesc[pos].events = POLLIN;
 	jobfdpdescpos = pos;
 	pos++;
 
-#endif
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
 		eptr->pdescpos = -1;
 		eptr->fwdpdescpos = -1;
@@ -1743,10 +1430,8 @@ void csserv_serve(struct pollfd *pdesc) {
 	uint64_t usecnow=main_utime();
 	csserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
-#ifdef BGJOBS
 	writestatus *wptr,*waptr;
 	uint32_t jobscnt;
-#endif
 	int ns;
 	uint8_t lstate;
 
@@ -1755,12 +1440,10 @@ void csserv_serve(struct pollfd *pdesc) {
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"accept error");
 		} else {
-#ifdef BGJOBS
 			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
 				syslog(LOG_WARNING,"jobs queue is full !!!");
 				tcpclose(ns);
 			} else {
-#endif
 				tcpnonblock(ns);
 				tcpnodelay(ns);
 				eptr = (csserventry*) malloc(sizeof(csserventry));
@@ -1785,7 +1468,6 @@ void csserv_serve(struct pollfd *pdesc) {
 				eptr->outputhead = NULL;
 				eptr->outputtail = &(eptr->outputhead);
 				eptr->chunkisopen = 0;
-#ifdef BGJOBS
 				eptr->wjobid = 0;
 				eptr->wjobwriteid = 0;
 				eptr->todolist = NULL;
@@ -1796,14 +1478,11 @@ void csserv_serve(struct pollfd *pdesc) {
 				eptr->rpacket = NULL;
 				eptr->wpacket = NULL;
 			}
-#endif
 		}
 	}
-#ifdef BGJOBS
 	if (jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) {
 		job_pool_check_jobs(jpool);
 	}
-#endif
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLERR|POLLHUP))) {
 			eptr->state = CLOSE;
@@ -1863,12 +1542,10 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_close(eptr);
 		}
 	}
-#ifdef BGJOBS
 	jobscnt = job_pool_jobs_count(jpool);
 	if (jobscnt>=stats_maxjobscnt) {
 		stats_maxjobscnt=jobscnt;
 	}
-#endif
 	kptr = &csservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->state == CLOSED) {
@@ -1891,14 +1568,12 @@ void csserv_serve(struct pollfd *pdesc) {
 			if (eptr->fwdinitpacket) {
 				free(eptr->fwdinitpacket);
 			}
-#ifdef BGJOBS
 			wptr = eptr->todolist;
 			while (wptr) {
 				waptr = wptr;
 				wptr = wptr->next;
 				free(waptr);
 			}
-#endif
 			pptr = eptr->outputhead;
 			while (pptr) {
 				if (pptr->packet) {
@@ -1997,9 +1672,7 @@ int csserv_init(void) {
 	main_destructregister(csserv_term);
 	main_pollregister(csserv_desc,csserv_serve);
 
-#ifdef BGJOBS
 	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
-#endif
 
 	return 0;
 }
