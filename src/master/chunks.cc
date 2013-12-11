@@ -790,7 +790,8 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 }
 
 #ifndef METARESTORE
-int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal) {
+int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
+		bool truncatingUpwards) {
 	slist *os,*s;
 	uint32_t i;
 #else
@@ -823,8 +824,10 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 				} else {
 					s->valid = BUSY;
 				}
-				if (s->chunkType.isXorChunkType() && s->chunkType.isXorParity() &&
-						(length % (MFSBLOCKSIZE * s->chunkType.getXorLevel()) != 0)) {
+				if (!truncatingUpwards
+						&& s->chunkType.isXorChunkType()
+						&& s->chunkType.isXorParity()
+						&& (length % (MFSBLOCKSIZE * s->chunkType.getXorLevel()) != 0)) {
 					syslog(LOG_WARNING, "Trying to truncate parity chunk: %016" PRIX64
 							" - currently unsupported!!!", ochunkid);
 					uint8_t oldRegularValidCopies = c->regularvalidcopies;

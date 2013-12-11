@@ -3296,7 +3296,15 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (ochunkid>0) {
 				uint8_t status;
 				uint64_t nchunkid;
-				status = chunk_multi_truncate(&nchunkid,ochunkid,length&MFSCHUNKMASK,p->goal);
+				bool truncatingUpwards = (length >= p->data.fdata.length);
+				if (!truncatingUpwards) {
+					syslog(LOG_WARNING,
+							"Potentially dangerous (not fully supported) truncate downwards - "
+							"inode %" PRIu32 " old length: %" PRIu64 " ; new length: %" PRIu64 ")",
+							inode, p->data.fdata.length, length);
+				}
+				status = chunk_multi_truncate(&nchunkid, ochunkid, length & MFSCHUNKMASK, p->goal,
+						truncatingUpwards);
 				if (status!=STATUS_OK) {
 					return status;
 				}
