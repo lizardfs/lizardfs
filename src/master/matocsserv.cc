@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <list>
+#include <set>
 #include <vector>
 
 #include "common/cfg.h"
@@ -631,12 +632,14 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 
 	// Choose servers to be used to store new chunks.
 	std::vector<rservsort> chosenServers;
+	std::set<size_t> chosenServersIds;
 	while (chosenServers.size() < chunksToBeCreated) {
 		for (size_t i = 0; i < availableServers.size(); i++) {
 			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
-			if (carry > kCarryThreshold) {
+			if ((chosenServersIds.count(i)) == 0 && (carry > kCarryThreshold)) {
 				chosenServers.push_back(availableServers[i]);
 				carry -= kCarryThreshold;
+				chosenServersIds.insert(i);
 			}
 			availableServers[i].carry = carry;
 			availableServers[i].ptr->carry = carry;
