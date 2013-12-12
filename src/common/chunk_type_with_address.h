@@ -20,6 +20,10 @@ struct ChunkTypeWithAddress {
 	bool operator==(const ChunkTypeWithAddress& other) const {
 		return std::make_pair(address, chunkType) == std::make_pair(other.address, other.chunkType);
 	}
+
+	bool operator<(const ChunkTypeWithAddress& other) const {
+		return std::make_pair(address, chunkType) < std::make_pair(other.address, other.chunkType);
+	}
 };
 
 inline uint32_t serializedSize(const ChunkTypeWithAddress& chunkTypeWithAddress) {
