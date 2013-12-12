@@ -179,5 +179,19 @@ find_first_chunkserver_with_chunks_matching() {
 	return 1
 }
 
+# print absolute paths of all chunk files on all servers used in test, one per line
+find_all_chunks() {
+	local count=${lizardfs_info[chunkserver_count]}
+	local chunkserver
+	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
+		local hdds=$(cat "${lizardfs_info[chunkserver${chunkserver}_hdd]}")
+		if (( $# > 0 )); then
+			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+		else
+			find $hdds -name "chunk*.mfs"
+		fi
+	done
+}
+
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))
 LIZARDFS_CHUNK_SIZE=$((1024 * LIZARDFS_BLOCK_SIZE))
