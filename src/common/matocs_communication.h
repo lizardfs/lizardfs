@@ -1,7 +1,7 @@
 #ifndef LIZARDFS_MFSCOMMON_MATOCS_COMMUNICATION_H_
 #define LIZARDFS_MFSCOMMON_MATOCS_COMMUNICATION_H_
 
-#include "common/chunk_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/packet.h"
 
 namespace matocs {
@@ -65,6 +65,24 @@ inline void deserialize(const std::vector<uint8_t>& source,
 }
 
 } // namespace truncateChunk
+
+namespace replicate {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		const std::vector<ChunkTypeWithAddress> sources) {
+	serializePacket(destination, LIZ_MATOCS_REPLICATE, 0, chunkId, chunkVersion, chunkType,
+			sources);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
+		std::vector<ChunkTypeWithAddress>& sources) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType, sources);
+}
+
+} // namespace replicate
 
 } // namespace matocs
 

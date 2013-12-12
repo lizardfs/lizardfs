@@ -141,3 +141,24 @@ TEST(CstomaCommunicationTests, DeleteChunk) {
 	EXPECT_EQ(chunkTypeIn, chunkTypeOut);
 	EXPECT_EQ(statusIn, statusOut);
 }
+
+TEST(CstomaCommunicationTests, Replicate) {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x87654321, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, ChunkType::getXorParityChunkType(3), ChunkType::getStandardChunkType());
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 2, 0);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstoma::replicate::serialize(buffer,
+			chunkIdIn, chunkVersionIn, chunkTypeIn, statusIn));
+
+	verifyHeader(buffer, LIZ_CSTOMA_REPLICATE);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(cstoma::replicate::deserialize(buffer,
+			chunkIdOut, chunkVersionOut, chunkTypeOut, statusOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkVersion);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkType);
+	LIZARDFS_VERIFY_INOUT_PAIR(status);
+}
