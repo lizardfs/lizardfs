@@ -47,6 +47,7 @@
 #include "common/matocl_communication.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
+#include "common/packet.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "stats.h"
@@ -456,16 +457,25 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 		}
 		*received_cmd = rec->rcvd_cmd;
 		const uint8_t *answer = rec->inputBuffer.data();
-		if (rec->rcvd_cmd <= PacketHeader::kMaxOldPacketType) {
-			// old code isn't prepared to get message ids; remove them
-			answer += 4;
-			*answer_leng -= 4;
-		}
 		lock.unlock();
 		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - received",rec->packetid);
 		return answer;
 	}
 	return NULL;
+}
+
+bool fsLizSendAndReceiveAny(threc *rec, std::vector<uint8_t>& messageData) {
+	PacketHeader header;
+	uint32_t hsize = serializedSize(header);
+	const uint8_t* ret = fs_sendandreceive_any(rec, &header.type, &header.length);
+	if (ret == NULL) {
+		return false;
+	}
+	messageData.clear();
+	serialize(messageData, header);
+	messageData.resize(hsize + header.length);
+	memcpy(messageData.data() + hsize, ret, header.length);
+	return true;
 }
 
 int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname) {
@@ -2394,28 +2404,44 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	return ret;
 }
 
-uint8_t fs_custom(uint32_t qcmd,const uint8_t *query,uint32_t queryleng,uint32_t *acmd,uint8_t *answer,uint32_t *answerleng) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint8_t ret;
+static uint32_t* msgIdPtr(const std::vector<uint8_t>& buffer) {
+	PacketHeader header;
+	deserializePacketHeader(buffer, header);
+	uint32_t msgIdOffset = 0;
+	if (header.isOldPacketType()) {
+		msgIdOffset = serializedSize(PacketHeader());
+	} else if (header.isLizPacketType()) {
+		msgIdOffset = serializedSize(PacketHeader(), PacketVersion());
+	} else {
+		sassert(!"unrecognized packet header");
+	}
+	if (msgIdOffset + serializedSize(uint32_t()) > buffer.size()) {
+		return nullptr;
+	}
+	return (uint32_t*) (buffer.data() + msgIdOffset);
+}
+
+uint8_t fs_custom(std::vector<uint8_t>& buffer) {
 	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,qcmd,queryleng);
-	if (wptr==NULL) {
+	uint32_t *ptr = nullptr;
+	ptr = msgIdPtr(buffer);
+	if (!ptr) {
+		// packet too short
+		return ERROR_EINVAL;
+	}
+	const uint32_t origMsgIdBigEndian = *ptr;
+	*ptr = htonl(rec->packetid);
+	if (!fsLizCreatePacket(rec, buffer)) {
 		return ERROR_IO;
 	}
-	memcpy(wptr,query,queryleng);
-	rptr = fs_sendandreceive_any(rec,acmd,&i);
-	if (rptr==NULL) {
-		ret = ERROR_IO;
-	} else {
-		if (*answerleng<i) {
-			ret = ERROR_EINVAL;
-		} else {
-			*answerleng = i;
-			memcpy(answer,rptr,i);
-			ret = STATUS_OK;
-		}
+	if (!fsLizSendAndReceiveAny(rec, buffer)) {
+		return ERROR_IO;
 	}
-	return ret;
+	ptr = msgIdPtr(buffer);
+	if (!ptr) {
+		// reply too short
+		return ERROR_EINVAL;
+	}
+	*ptr = origMsgIdBigEndian;
+	return STATUS_OK;
 }
