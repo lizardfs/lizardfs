@@ -382,9 +382,15 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 			sleep(1+((cnt<30)?(cnt/3):10));
 			continue;
 		}
+		const uint8_t *answer = rec->inputBuffer.data();
+		if (rec->rcvd_cmd <= PacketHeader::kMaxOldPacketType) {
+			// old code isn't prepared to get message ids; remove them
+			answer += 4;
+			*answer_leng -= 4;
+		}
 		lock.unlock();
 		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - received",rec->packetid);
-		return rec->inputBuffer.data();
+		return answer;
 	}
 	return NULL;
 }
@@ -449,8 +455,15 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 			continue;
 		}
 		*received_cmd = rec->rcvd_cmd;
+		const uint8_t *answer = rec->inputBuffer.data();
+		if (rec->rcvd_cmd <= PacketHeader::kMaxOldPacketType) {
+			// old code isn't prepared to get message ids; remove them
+			answer += 4;
+			*answer_leng -= 4;
+		}
+		lock.unlock();
 		//syslog(LOG_NOTICE,"threc(%" PRIu32 ") - received",rec->packetid);
-		return rec->inputBuffer.data();
+		return answer;
 	}
 	return NULL;
 }
@@ -1139,16 +1152,25 @@ void* fs_receive_thread(void *arg) {
 		messageSize = packetHeader.length;
 
 		if (packetHeader.isLizPacketType()) {
+			if (messageSize < serializedSize(packetVersion, messageId)) {
+				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				setDisconnect(true);
+				continue;
+			}
 			if (!fsTryReadFromMaster(messageSize, packetVersion, messageId)) {
 				continue;
 			}
-			responseSize = packetHeader.length;
 		} else {
+			if (messageSize < serializedSize(messageId)) {
+				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				setDisconnect(true);
+				continue;
+			}
 			if (!fsTryReadFromMaster(messageSize, messageId)) {
 				continue;
 			}
-			responseSize = packetHeader.length - 4; // we will strip out messageId
 		}
+		responseSize = packetHeader.length;
 
 		if (messageId == 0) {
 			if (packetHeader.type == ANTOAN_NOP && messageSize == 0) {
@@ -1166,17 +1188,15 @@ void* fs_receive_thread(void *arg) {
 			continue;
 		}
 		std::unique_lock<std::mutex> lock(rec->mutex);
-		if (rec->inputBuffer.size() != responseSize) {
-			rec->inputBuffer.resize(responseSize);
-		}
-		uint8_t *responsePointer = rec->inputBuffer.data();
+		rec->inputBuffer.clear();
 		if (packetHeader.isLizPacketType()) {
-			rec->inputBuffer.resize(0);	// make serialize() happy
 			serialize(rec->inputBuffer, packetVersion, messageId);
-			rec->inputBuffer.resize(responseSize);
-			responsePointer = rec->inputBuffer.data()
-				+ serializedSize(packetVersion, messageId);
+		} else {
+			serialize(rec->inputBuffer, messageId);
 		}
+		const uint32_t dataOffset = rec->inputBuffer.size();
+		rec->inputBuffer.resize(responseSize);
+		uint8_t *responsePointer = rec->inputBuffer.data() + dataOffset;
 		// syslog(LOG_NOTICE,"master: expected data size: %" PRIu32,size);
 		if (messageSize > 0) {
 			r = tcptoread(fd, responsePointer, messageSize, 1000);
