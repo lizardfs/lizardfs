@@ -396,12 +396,19 @@
 
 // 0x044C
 #define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
+/// ip:32 port:16 timeout:16 vershex:32
+
 // 0x044D
 #define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
+/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+
 // 0x044E
 #define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
+/// usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunkcount:32
+
 // 0x0453
 #define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
+/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
 
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
@@ -440,6 +447,7 @@
 
 // 0x0456
 #define LIZ_MATOCS_CREATE_CHUNK (1000U + 110U)
+/// chunkid:64 chunktype:8 chunkversion:32
 
 // 0x006F
 #define CSTOMA_CREATE (PROTO_BASE+111)
@@ -447,6 +455,7 @@
 
 // 0x0457
 #define LIZ_CSTOMA_CREATE_CHUNK (1000U + 111U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0078
 #define MATOCS_DELETE (PROTO_BASE+120)
@@ -454,6 +463,7 @@
 
 // 0x0460
 #define LIZ_MATOCS_DELETE_CHUNK (1000U + 120U)
+/// chunkid:64 chunkversion:32 chunktype:8
 
 // 0x0079
 #define CSTOMA_DELETE (PROTO_BASE+121)
@@ -461,6 +471,7 @@
 
 // 0x0461
 #define LIZ_CSTOMA_DELETE_CHUNK (1000U + 121U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0082
 #define MATOCS_DUPLICATE (PROTO_BASE+130)
@@ -476,6 +487,7 @@
 
 // 0x0474
 #define LIZ_MATOCS_SET_VERSION (1000U + 140U)
+/// chunkid:64 chunkversion:32 chunktype:8 newchunkversion:32
 
 // 0x008D
 #define CSTOMA_SET_VERSION (PROTO_BASE + 141)
@@ -483,6 +495,7 @@
 
 // 0x0475
 #define LIZ_CSTOMA_SET_VERSION (1000U + 141U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0096
 #define MATOCS_REPLICATE (PROTO_BASE+150)
@@ -526,9 +539,11 @@
 
 // 0x0488
 #define LIZ_MATOCS_TRUNCATE (PROTO_BASE + 1000U + 160U)
+/// chunkid:64 chunktype:8 chunklength:32 newchunkversion:32 chunkversion:32
 
 // 0x0489
 #define LIZ_CSTOMA_TRUNCATE (PROTO_BASE + 1000U + 161U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x00AA
 #define MATOCS_DUPTRUNC (PROTO_BASE+170)
@@ -554,12 +569,15 @@
 
 // 0x04B0
 #define LIZ_CLTOCS_READ (1000U + 200U)
+/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
 
 // 0x04B1
 #define LIZ_CSTOCL_READ_STATUS (1000U + 201U)
+/// chunkid:64 status:8
 
 // 0x04B2
 #define LIZ_CSTOCL_READ_DATA (1000U + 202U)
+/// chunkid:64 offset:32 size:32 crc:32 data:BYTES[size]
 
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
@@ -567,6 +585,7 @@
 
 // 0x04BA
 #define LIZ_CLTOCS_WRITE_INIT (1000U + 210U)
+/// chunkid:64 chunkversion:32 chunktype:8 chain:(N * [ip:32 port:16])
 
 // 0x00D3
 #define CSTOCL_WRITE_STATUS (PROTO_BASE+211)
@@ -574,6 +593,7 @@
 
 // 0x04BB
 #define LIZ_CSTOCL_WRITE_STATUS (1000U + 211U)
+/// chunkid:64 writeid:32 status:8
 
 // 0x00D4
 #define CLTOCS_WRITE_DATA (PROTO_BASE+212)
@@ -581,6 +601,7 @@
 
 // 0x04BC
 #define LIZ_CLTOCS_WRITE_DATA (1000U + 212U)
+/// chunkid:64 writeid:32 blocknum:16 offset:32 size:32 crc:32 data:BYTES[size]
 
 // 0x00D5
 #define CLTOCS_WRITE_FINISH (PROTO_BASE+213)
@@ -588,6 +609,7 @@
 
 // 0x04BD
 #define LIZ_CLTOCS_WRITE_END (1000U + 213U)
+/// chunkid:64
 
 //CHUNKSERVER <-> CHUNKSERVER
 
@@ -871,9 +893,12 @@
 
 //0x0598
 #define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 432U)
+/// msgid:32 inode:32 chunkindex:32
 
 //0x0599
 #define LIZ_MATOCL_FUSE_READ_CHUNK (1000U + 433U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:8])
 
 // 0x01B2
 #define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
@@ -886,9 +911,12 @@
 
 // 0x059A
 #define LIZ_CLTOMA_FUSE_WRITE_CHUNK (1000U + 434U)
+/// msgid:32 inode:32 chunkindex:32
 
 // 0x059B
 #define LIZ_MATOCL_FUSE_WRITE_CHUNK (1000U + 435U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:8])
 
 // 0x01B4
 #define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
@@ -896,6 +924,7 @@
 
 // 0x059C
 #define LIZ_CLTOMA_FUSE_WRITE_CHUNK_END (1000U + 436U)
+/// msgid:32 chunkid:64 inode:32 filelength:64
 
 // 0x01B5
 #define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
@@ -903,6 +932,7 @@
 
 // 0x059D
 #define LIZ_MATOCL_FUSE_WRITE_CHUNK_END (1000U + 437U)
+/// msgid:32 status:8
 
 // 0x01B6
 #define CLTOMA_FUSE_APPEND (PROTO_BASE+438)
