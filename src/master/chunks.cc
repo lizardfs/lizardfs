@@ -1751,7 +1751,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	// temporary exclusion of other operations for chunk with xored copies
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->chunkType.isXorChunkType()) {
-			return;
+			goto step9;
 		}
 	}
 
@@ -1820,12 +1820,14 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
+step9:
 	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
 	if (c->goal >= vc && vc + tdc>0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
 		if (min>0 || max>0) {
+			ChunkType chunkType = ChunkType::getStandardChunkType();
 			void *srcserv=NULL;
 			void *dstserv=NULL;
 			if (max>0) {
@@ -1833,7 +1835,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
 						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
-							srcserv=s->ptr;
+							srcserv = s->ptr;
+							chunkType = s->chunkType;
 						}
 					}
 				}
@@ -1842,7 +1845,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
 						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
-							srcserv=s->ptr;
+							srcserv = s->ptr;
+							chunkType = s->chunkType;
 						}
 					}
 				}
@@ -1851,8 +1855,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 				if (min>0) {
 					for (uint32_t i=0 ; i<min && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
-							if (s==NULL) {
+							if (!chunkPresentOnServer(c, ptrs[i])) {
 								dstserv=ptrs[i];
 							}
 						}
@@ -1860,18 +1863,16 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 				} else {
 					for (uint32_t i=0 ; i<serverCount_-max && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
-							if (s==NULL) {
+							if (!chunkPresentOnServer(c, ptrs[i])) {
 								dstserv=ptrs[i];
 							}
 						}
 					}
 				}
 				if (dstserv!=NULL) {
-					stats_replications++;
-					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
-					c->needverincrease=1;
-					inforec_.copy_rebalance++;
+					if (tryReplication(c, chunkType, dstserv)) {
+						inforec_.copy_rebalance++;
+					}
 				}
 			}
 		}
