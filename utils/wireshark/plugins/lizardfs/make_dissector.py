@@ -9,7 +9,7 @@ oct_fields = ['mode', 'modemask']
 hex_fields = ['vershex', 'rver', 'ip', 'crc']
 for pfx in chunk_prefixes:
     hex_fields += [pfx + 'chunkid', pfx + 'chunkversion']
-fields_with_dictionary = ['type', 'gmode', 'smode', 'status', 'nodetype']
+fields_with_dictionary = ['type', 'gmode', 'smode', 'status', 'nodetype', 'chunktype', 'goal']
 
 class Types:
     int_dec = 1
@@ -114,14 +114,24 @@ class PacketDissectionVariant(object):
         info_format = ""
         info_args = []
         numvariables = {name for (type, name, _, _) in self.elements if Types.is_number(type)}
+        # Find chunks with type and print them at the beginning in the format like this:
+        # chunk_xor_1_of_2_000000000000026F_00000001
+        for prefix in ['', 'old', 'new', 'copy']:
+            fields = [prefix + 'chunk' + name for name in ['id', 'version', 'type']]
+            if all(name in numvariables for name in fields):
+                info_format += ' {}chunk_%s_%016lX_%08X'.format(prefix + ':' if prefix else '')
+                info_args += ['val_to_str({}chunktype, dictionary_chunktype, "UNKNOWN(%02X)")'.format(prefix)]
+                info_args += [prefix + 'chunkid', prefix + 'chunkversion']
+                for var in fields:
+                    numvariables.remove(var)
         # Find chunks and print them at the beginning in the format like this:
         # chunk_000000000000026F_00000001
         for prefix in ['', 'old', 'new', 'copy']:
-            with_version = [prefix + 'chunk' + name for name in ['id', 'version']]
-            if all(name in numvariables for name in with_version):
+            fields = [prefix + 'chunk' + name for name in ['id', 'version']]
+            if all(name in numvariables for name in fields):
                 info_format += ' {}chunk_%016lX_%08X'.format(prefix + ':' if prefix else '')
                 info_args += [prefix + 'chunkid', prefix + 'chunkversion']
-                for var in with_version:
+                for var in fields:
                     numvariables.remove(var)
         # Print all other arguments as numbers
         for (type, name, pos, length) in self.elements:
