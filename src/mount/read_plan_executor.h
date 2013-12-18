@@ -8,16 +8,16 @@
 #include "common/MFSCommunication.h"
 #include "common/network_address.h"
 #include "common/packet.h"
+#include "common/read_planner.h"
 #include "common/time_utils.h"
 #include "mount/chunk_connector.h"
-#include "mount/read_operation_planner.h"
 
 class ReadPlanExecutor {
 public:
 	typedef std::map<ChunkType, NetworkAddress> ChunkTypeLocations;
 
 	ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
-			const ReadOperationPlanner::Plan& plan);
+			const ReadPlanner::Plan& plan);
 
 	/*
 	 * Executes the plan using given locations, connection pool and connector.
@@ -30,7 +30,7 @@ public:
 private:
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
-	const ReadOperationPlanner::Plan plan_;
+	const ReadPlanner::Plan plan_;
 
 	void executeReadOperations(uint8_t* buffer,
 			const ChunkTypeLocations& locations,

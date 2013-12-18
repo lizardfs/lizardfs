@@ -5,13 +5,13 @@
 
 #include "common/network_address.h"
 #include "common/packet.h"
+#include "common/read_planner.h"
 #include "common/time_utils.h"
-#include "mount/read_operation_planner.h"
 
 class ReadOperationExecutor {
 public:
 	ReadOperationExecutor(
-			const ReadOperationPlanner::ReadOperation& readOperation,
+			const ReadPlanner::ReadOperation& readOperation,
 			uint64_t chunkId,
 			uint32_t chunkVersion,
 			const ChunkType& chunkType,
@@ -62,7 +62,7 @@ private:
 	PacketHeader packetHeader_;
 
 	/* Read operation that this object will execute */
-	const ReadOperationPlanner::ReadOperation readOperation_;
+	const ReadPlanner::ReadOperation readOperation_;
 
 	/* The buffer, where the data will be placed according to readOperation_.offsetsOfBlocks */
 	uint8_t* const dataBuffer_;

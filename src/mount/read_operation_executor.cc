@@ -14,7 +14,7 @@
 static const uint32_t kMaxMessageLength = 65 * 1024;
 
 ReadOperationExecutor::ReadOperationExecutor(
-		const ReadOperationPlanner::ReadOperation& readOperation,
+		const ReadPlanner::ReadOperation& readOperation,
 		uint64_t chunkId,
 		uint32_t chunkVersion,
 		const ChunkType& chunkType,
@@ -247,8 +247,8 @@ void ReadOperationExecutor::setState(ReadOperationState newState) {
 			break;
 		case kReceivingDataBlock:
 			sassert(state_ == kReceivingReadDataMessage);
-			sassert(readOperation_.destinationOffsets.size() > dataBlocksCompleted_);
-			destination_ = dataBuffer_ + readOperation_.destinationOffsets[dataBlocksCompleted_];
+			sassert(readOperation_.readDataOffsets.size() > dataBlocksCompleted_);
+			destination_ = dataBuffer_ + readOperation_.readDataOffsets[dataBlocksCompleted_];
 			bytesLeft_ = MFSBLOCKSIZE;
 			break;
 		case kFinished:

@@ -9,8 +9,7 @@
 #include "mount/read_plan_executor.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, ReadChunkLocator& locator)
-	: connector_(connector), locator_(locator), inode_(0), index_(0),
-	  planner_({}, std::map<ChunkType, float>()) {
+	: connector_(connector), locator_(locator), inode_(0), index_(0) {
 }
 
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
@@ -55,7 +54,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 			}
 		}
 	}
-	planner_ = ReadOperationPlanner(availableChunkTypes, bestScores);
+	planner_.prepare(availableChunkTypes, bestScores);
 	if (!planner_.isReadingPossible()) {
 		throw NoValidCopiesReadException("no valid copies");
 	}
@@ -87,7 +86,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		// We have to request for availableSize rounded up to MFSBLOCKSIZE
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
-		ReadOperationPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
+		ReadPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
 		ReadPlanExecutor executor(location_->chunkId, location_->version, plan);
 		uint32_t initialBufferSize = buffer.size();
 		try {

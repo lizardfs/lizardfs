@@ -14,7 +14,7 @@
 #include "mount/read_operation_executor.h"
 
 ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
-		const ReadOperationPlanner::Plan& plan)
+		const ReadPlanner::Plan& plan)
 		: chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
 		  plan_(plan) {
@@ -48,7 +48,7 @@ void ReadPlanExecutor::executeReadOperations(
 		// Connect to all needed chunkservers
 		for (const auto& chunkTypeReadInfo : plan_.readOperations) {
 			const ChunkType chunkType = chunkTypeReadInfo.first;
-			const ReadOperationPlanner::ReadOperation& readOperation = chunkTypeReadInfo.second;
+			const ReadPlanner::ReadOperation& readOperation = chunkTypeReadInfo.second;
 			sassert(locations.count(chunkType) == 1);
 			const NetworkAddress& server = locations.at(chunkType);
 			statsProxy.registerReadOperation(server);
@@ -123,7 +123,7 @@ void ReadPlanExecutor::executeReadOperations(
 }
 
 void ReadPlanExecutor::executeXorOperations(uint8_t* buffer) {
-	for (const ReadOperationPlanner::XorBlockOperation& xorOperation : plan_.xorOperations) {
+	for (const ReadPlanner::XorBlockOperation& xorOperation : plan_.xorOperations) {
 		uint8_t* destination = buffer + xorOperation.destinationOffset;
 		for (uint32_t sourceBlockOffset : xorOperation.blocksToXorOffsets) {
 			const uint8_t* source = buffer + sourceBlockOffset;

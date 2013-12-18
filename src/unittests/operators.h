@@ -1,11 +1,11 @@
-#ifndef LIZARDFS_TESTS_COMMON_OPERATORS_H_
-#define LIZARDFS_TESTS_COMMON_OPERATORS_H_
+#pragma once
 
+#include <gtest/gtest.h>
 #include <ostream>
 
 #include "common/chunk_type.h"
 
-std::ostream& operator<< (std::ostream& out, ChunkType chunkType) {
+inline std::ostream& operator<< (std::ostream& out, ChunkType chunkType) {
 	if (chunkType.isStandardChunkType()) {
 		out << "standard";
 	} else {
@@ -18,6 +18,3 @@ std::ostream& operator<< (std::ostream& out, ChunkType chunkType) {
 	}
 	return out;
 }
-
-
-#endif // LIZARDFS_TESTS_COMMON_OPERATORS_H_

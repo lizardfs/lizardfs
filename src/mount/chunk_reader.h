@@ -12,10 +12,10 @@
 #include "common/connection_pool.h"
 #include "common/massert.h"
 #include "common/network_address.h"
+#include "common/standard_chunk_read_planner.h"
 #include "common/time_utils.h"
 #include "mount/chunk_connector.h"
 #include "mount/chunk_locator.h"
-#include "mount/read_operation_planner.h"
 
 class ChunkReader {
 public:
@@ -51,7 +51,7 @@ private:
 	uint32_t inode_;
 	uint32_t index_;
 	std::shared_ptr<const ChunkLocationInfo> location_;
-	ReadOperationPlanner planner_;
+	StandardChunkReadPlanner planner_;
 	std::map<ChunkType, NetworkAddress> chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
 };

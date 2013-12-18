@@ -1,10 +1,9 @@
-#include "read_operation_planner.h"
+#include "common/standard_chunk_read_planner.h"
 
 #include <algorithm>
 
 #include "common/goal.h"
 #include "common/MFSCommunication.h"
-
 
 namespace {
 
@@ -32,32 +31,32 @@ private:
 
 } // anonymous namespace
 
-class ReadOperationPlanner::StandardPlanBuilder : public ReadOperationPlanner::PlanBuilder {
+class StandardChunkReadPlanner::StandardPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
-	StandardPlanBuilder(): ReadOperationPlanner::PlanBuilder(BUILDER_STANDARD) {}
-	virtual ReadOperationPlanner::Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
+	StandardPlanBuilder(): PlanBuilder(BUILDER_STANDARD) {}
+	virtual Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
 };
 
-ReadOperationPlanner::Plan ReadOperationPlanner::StandardPlanBuilder::buildPlan(
+ReadPlanner::Plan StandardChunkReadPlanner::StandardPlanBuilder::buildPlan(
 		uint32_t firstBlock, uint32_t blockCount) const {
-	ReadOperationPlanner::ReadOperation readOp;
+	ReadPlanner::ReadOperation readOp;
 	readOp.requestOffset = firstBlock * MFSBLOCKSIZE;
 	readOp.requestSize = blockCount * MFSBLOCKSIZE;
 	for (uint32_t block = 0; block < blockCount; ++block) {
-		readOp.destinationOffsets.push_back(block * MFSBLOCKSIZE);
+		readOp.readDataOffsets.push_back(block * MFSBLOCKSIZE);
 	}
 
-	ReadOperationPlanner::Plan plan;
+	Plan plan;
 	ChunkType chunkType = ChunkType::getStandardChunkType();
 	plan.readOperations[chunkType] = readOp;
 	plan.requiredBufferSize = readOp.requestSize;
 	return plan;
 }
 
-class ReadOperationPlanner::XorPlanBuilder : public ReadOperationPlanner::PlanBuilder {
+class StandardChunkReadPlanner::XorPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
 	XorPlanBuilder(ChunkType::XorLevel level, ChunkType::XorPart missingPart)
-		:	ReadOperationPlanner::PlanBuilder(BUILDER_XOR),
+		:	PlanBuilder(BUILDER_XOR),
 			level_(level),
 			missingPart_(missingPart) {
 	}
@@ -67,7 +66,7 @@ public:
 		missingPart_ = missingPart;
 	}
 
-	ReadOperationPlanner::Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
+	Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
 
 	ChunkType::XorLevel level() {
 		return level_;
@@ -157,17 +156,17 @@ private:
 	}
 
 	// build single ReadOperation for one XOR part
-	inline void buildReadOperationForPart(ReadOperationPlanner::Plan& plan, uint32_t part,
+	inline void buildReadOperationForPart(Plan& plan, uint32_t part,
 			uint32_t readOffset, uint32_t readSize, uint32_t firstBlock,
 			uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
 		plan.requiredBufferSize += toBytes(readSize);
-		ReadOperationPlanner::ReadOperation readOp;
+		ReadOperation readOp;
 		readOp.requestOffset = toBytes(readOffset);
 		readOp.requestSize = toBytes(readSize);
 
 		for (uint32_t stripe = readOffset; stripe < readOffset + readSize; stripe++) {
-			readOp.destinationOffsets.push_back(toBytes(
+			readOp.readDataOffsets.push_back(toBytes(
 					destinationOffset(stripe, part, firstBlock, lastBlock)));
 		}
 		// add this ReadOperation to the plan
@@ -176,7 +175,7 @@ private:
 	}
 
 	// build ReadOperations for all parts
-	inline void buildReadOperations(ReadOperationPlanner::Plan& plan,
+	inline void buildReadOperations(Plan& plan,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
 		for (uint32_t part = 1; part <= level_; part++) {
@@ -208,10 +207,10 @@ private:
 	}
 
 	// build single XorBlockOperation to recover one missing block
-	inline void buildXorOperationForStripe(ReadOperationPlanner::Plan& plan, uint32_t stripe,
+	inline void buildXorOperationForStripe(Plan& plan, uint32_t stripe,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
-		ReadOperationPlanner::XorBlockOperation xorOp;
+		XorBlockOperation xorOp;
 		xorOp.destinationOffset =
 				toBytes(destinationOffset(stripe, missingPart_, firstBlock, lastBlock));
 		for (uint32_t part = 1; part <= level_; ++part) {
@@ -224,7 +223,7 @@ private:
 	}
 
 	// build all required XorOperations
-	inline void buildXorOperations(ReadOperationPlanner::Plan& plan,
+	inline void buildXorOperations(Plan& plan,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
 		for (uint32_t stripe = firstStripe(firstBlock); stripe <= lastStripe(lastBlock); ++stripe) {
@@ -239,9 +238,9 @@ private:
 	}
 };
 
-ReadOperationPlanner::Plan ReadOperationPlanner::XorPlanBuilder::buildPlan(
+ReadPlanner::Plan StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
 		uint32_t firstBlock, uint32_t blockCount) const {
-	ReadOperationPlanner::Plan plan;
+	Plan plan;
 	buildReadOperations(plan, firstBlock, blockCount);
 	if (missingPart_ != 0) {
 		buildXorOperations(plan, firstBlock, blockCount);
@@ -271,8 +270,9 @@ float xorPlanScore(const std::map<ChunkType, float> serverScores, int level, int
 	return score;
 }
 
-ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availableParts,
-		const std::map<ChunkType, float> serverScores): currentBuilder_(nullptr) {
+void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts,
+		const std::map<ChunkType, float>& serverScores) {
+	currentBuilder_ = nullptr;
 	planBuilders_[BUILDER_STANDARD].reset(new StandardPlanBuilder);
 	planBuilders_[BUILDER_XOR].reset(new XorPlanBuilder(0, 0));
 
@@ -373,18 +373,18 @@ ReadOperationPlanner::ReadOperationPlanner(const std::vector<ChunkType>& availab
 	}
 }
 
-ReadOperationPlanner::Plan ReadOperationPlanner::buildPlanFor(
+ReadPlanner::Plan StandardChunkReadPlanner::buildPlanFor(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	sassert(firstBlock + blockCount <= MFSBLOCKSINCHUNK);
 	sassert(currentBuilder_ != nullptr);
 	return currentBuilder_->buildPlan(firstBlock, blockCount);
 }
 
-bool ReadOperationPlanner::isReadingPossible() const {
+bool StandardChunkReadPlanner::isReadingPossible() const {
 	return (bool)currentBuilder_;
 }
 
-std::vector<ChunkType> ReadOperationPlanner::partsToUse() const {
+std::vector<ChunkType> StandardChunkReadPlanner::partsToUse() const {
 	std::vector<ChunkType> parts;
 	if (currentBuilder_ == nullptr) {
 		return parts;
@@ -420,17 +420,17 @@ std::vector<ChunkType> ReadOperationPlanner::partsToUse() const {
 	return parts;
 }
 
-void ReadOperationPlanner::setCurrentBuilderToStandard() {
+void StandardChunkReadPlanner::setCurrentBuilderToStandard() {
 	currentBuilder_ = planBuilders_.at(BUILDER_STANDARD).get();
 }
 
-void ReadOperationPlanner::setCurrentBuilderToXor(
+void StandardChunkReadPlanner::setCurrentBuilderToXor(
 		ChunkType::XorLevel level, ChunkType::XorPart missingPart) {
 	XorPlanBuilder* builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
 	builder->reset(level, missingPart);
 	currentBuilder_ = builder;
 }
 
-void ReadOperationPlanner::unsetCurrentBuilder() {
+void StandardChunkReadPlanner::unsetCurrentBuilder() {
 	currentBuilder_ = nullptr;
 }

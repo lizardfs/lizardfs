@@ -243,10 +243,10 @@ void ChunkWriter::startOperation(const Operation& operation) {
 					dataBlock.resize(MFSBLOCKSIZE);
 					memset(dataBlock.data(), 0, MFSBLOCKSIZE);
 				} else {
-					ReadOperationPlanner::ReadOperation readOperation;
+					ReadPlanner::ReadOperation readOperation;
 					readOperation.requestOffset = block * MFSBLOCKSIZE;
 					readOperation.requestSize = MFSBLOCKSIZE;
-					readOperation.destinationOffsets.push_back(0);
+					readOperation.readDataOffsets.push_back(0);
 					buffers_[chunkType][block].resize(MFSBLOCKSIZE);
 					int fd = connector_.connect(executor.server(), timeout);
 					try {
@@ -282,10 +282,10 @@ void ChunkWriter::startOperation(const Operation& operation) {
 					parityBlock.resize(MFSBLOCKSIZE);
 					memset(parityBlock.data(), 0, MFSBLOCKSIZE);
 				} else {
-					ReadOperationPlanner::ReadOperation readOperation;
+					ReadPlanner::ReadOperation readOperation;
 					readOperation.requestOffset = block * MFSBLOCKSIZE;
 					readOperation.requestSize = MFSBLOCKSIZE;
-					readOperation.destinationOffsets.push_back(0);
+					readOperation.readDataOffsets.push_back(0);
 					buffers_[parityChunkType][block].resize(MFSBLOCKSIZE);
 					int fd = connector_.connect(parityWriteExecutor->server(), timeout);
 					try {
