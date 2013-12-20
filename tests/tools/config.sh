@@ -12,6 +12,7 @@ fi
 : ${ERROR_FILE:=}
 : ${RAMDISK_DIR:=/mnt/ramdisk}
 : ${TEST_OUTPUT_DIR:=$TEMP_DIR}
+: ${USE_VALGRIND:=}
 
 # This has to be an absolute path!
 TEMP_DIR=$(readlink -m "$TEMP_DIR")
@@ -52,7 +53,7 @@ check_configuration() {
 		fi
 	done
 
-	if ! touch "$TEST_OUTPUT_DIR/$(unique_file)"; then
+	if [[ ! -w ${TEST_OUTPUT_DIR} ]]; then
 		test_fail "Configuration error, cannot create files in $TEST_OUTPUT_DIR"
 	fi
 
