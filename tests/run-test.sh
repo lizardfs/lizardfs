@@ -30,6 +30,11 @@ if [[ $# != 1 ]]; then
 	exit 1
 fi
 
+export ERROR_DIR=/tmp/lizardfs_error_dir
+rm -rf "${ERROR_DIR}"
+mkdir "${ERROR_DIR}"
+chmod 0777 "${ERROR_DIR}"
+
 # Run the tests
 cd "$(dirname "$0")"
 stop_tests
@@ -41,6 +46,21 @@ stop_tests
 # Remove files left by tests
 nice nice sudo -HEu lizardfstest bash -c "source tools/test_main.sh; test_cleanup"
 stop_tests # Kill processes left by cleanup
+
+nice nice sudo -HEu lizardfstest bash -c "chmod -Rf a+rwX ${ERROR_DIR}"
+for log_file_name in `ls "${ERROR_DIR}"` ; do
+	log_file="${ERROR_DIR}/${log_file_name}"
+	if [[ -s ${log_file} ]]; then
+		status=1
+		echo "Error in ${log_file_name}" | tee "${ERROR_FILE}"
+		cat "${log_file}"
+		if [[ $TEST_OUTPUT_DIR ]]; then
+			cp "${log_file}" "$TEST_OUTPUT_DIR/$(date '+%F_%T')__$(basename -s .sh $1)__${log_file_name}"
+		fi
+	fi
+done
+
+rm -rf "${ERROR_DIR}"
 
 # Return proper status
 exit $status

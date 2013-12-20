@@ -37,6 +37,10 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
+	cd
+	# terminate valgrind processes to get complete memcheck logs from them
+	{ pkill -TERM memcheck &> /dev/null && sleep 3; } || true
 	test_freeze_result
 	local errors=$(cat "$test_result_file")
 	# Disable error checking (we want to be able to return non-zero status) and end the test
@@ -49,7 +53,7 @@ test_end() {
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {
-	test_result_file=$TEMP_DIR/$(unique_file)_results.txt
+	test_result_file="$TEMP_DIR/$(unique_file)_results.txt"
 	test_end_file=$test_result_file.end
 	check_configuration
 	test_cleanup
@@ -57,6 +61,9 @@ test_begin() {
 	trap 'trap - ERR; set +eEu; catch_error_ "$BASH_SOURCE" "$LINENO" "$FUNCNAME"; exit 1' ERR
 	set -E
 	timeout_init
+	if [[ ${USE_VALGRIND} ]]; then
+		enable_valgrind
+	fi
 }
 
 # Do not use directly
@@ -64,7 +71,8 @@ test_begin() {
 test_cleanup() {
 	# Unmount all mfsmounts
 	retries=0
-	pkill -9 mfsmount || true
+	pkill -KILL mfsmount || true
+	pkill -KILL memcheck || true
 	while list_of_mounts=$(cat /etc/mtab | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1

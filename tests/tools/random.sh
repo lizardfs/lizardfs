@@ -1,14 +1,21 @@
 parse_si_suffix() {
-	if [[ $1 =~ ([0-9]+)((K|M|G|T)?) ]]; then
+	if [[ $1 =~ ([0-9]+)(([A-Z]+)?) ]]; then
 		local value=${BASH_REMATCH[1]}
 		local unit=${BASH_REMATCH[2]}
 		local mult=""
+		if [[ $unit == "" ]]; then
+			echo $value
+			return 0
+		fi
 		case $unit in
+			B) mult=1 ;;
 			K) mult=1024 ;;
 			M) mult=$((1024*1024)) ;;
 			G) mult=$((1024*1024*1024)) ;;
 			T) mult=$((1024*1024*1024*1024)) ;;
-			*) mult=1 ;;
+			P) mult=$((1024*1024*1024*1024*1024)) ;;
+			E) mult=$((1024*1024*1024*1024*1024*1024)) ;;
+			*) return 1 ;;
 		esac
 		echo $((mult*value))
 	else
