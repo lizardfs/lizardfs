@@ -231,6 +231,8 @@ inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& packetWithou
 	PacketVersion actualVersion;
 	deserializePacketVersionNoHeader(packetWithoutHeader, actualVersion);
 	if (actualVersion != expectedVersion) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException(
+				"expected packet version " + std::to_string(expectedVersion) +
+				", got " + std::to_string(actualVersion));
 	}
 }
