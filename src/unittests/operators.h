@@ -5,7 +5,7 @@
 
 #include "common/chunk_type.h"
 
-inline std::ostream& operator<< (std::ostream& out, ChunkType chunkType) {
+inline std::ostream& operator<<(std::ostream& out, const ChunkType& chunkType) {
 	if (chunkType.isStandardChunkType()) {
 		out << "standard";
 	} else {

@@ -42,6 +42,7 @@
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
 #include "common/hashfn.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocs_communication.h"
@@ -330,7 +331,8 @@ int matocsserv_replication_find(uint64_t chunkid,uint32_t version,void *dst) {
 	return 0;
 }
 
-void matocsserv_replication_begin(uint64_t chunkid,uint32_t version,void *dst,uint8_t srccnt,void **src) {
+void matocsserv_replication_begin(uint64_t chunkid, uint32_t version, void *dst, uint8_t srccnt,
+		void *const*src) {
 	uint32_t hash = REPHASHFN(chunkid,version);
 	uint8_t i;
 	repdst *r;
@@ -674,29 +676,17 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	return ret;
 }
 
-uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {
+void matocsserv_getservers_lessrepl(std::vector<void*>& ptrs, uint16_t replimit) {
 	matocsserventry *eptr;
-	uint32_t j,k,r;
-	void *x;
-	j=0;
-	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(eptr->totalspace/100) && eptr->wrepcounter<replimit) {
-			ptrs[j] = (void*)eptr;
-			j++;
+	sassert(ptrs.empty());
+	for (eptr = matocsservhead; eptr && ptrs.size() < 65535; eptr = eptr->next) {
+		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace &&
+				(eptr->totalspace - eptr->usedspace) > (eptr->totalspace / 100) &&
+				eptr->wrepcounter < replimit) {
+			ptrs.push_back(static_cast<void*>(eptr));
 		}
 	}
-	if (j==0) {
-		return 0;
-	}
-	for (k=0 ; k<j-1 ; k++) {
-		r = k + rndu32_ranged(j-k);
-		if (r!=k) {
-			x = ptrs[k];
-			ptrs[k] = ptrs[r];
-			ptrs[r] = x;
-		}
-	}
-	return j;
+	std::random_shuffle(ptrs.begin(), ptrs.end());
 }
 
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
@@ -913,35 +903,38 @@ int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,voi
 	return 0;
 }
 
-int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,void **src,uint64_t *srcchunkid,uint32_t *srcversion) {
-	matocsserventry *eptr = (matocsserventry *)e;
-	matocsserventry *srceptr;
-	uint8_t i;
-	uint8_t *data;
-
-	if (matocsserv_replication_find(chunkid,version,eptr)) {
+int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t version, ChunkType type,
+		const std::vector<void*> &sourcePointers, const std::vector<ChunkType> &sourceTypes) {
+	matocsserventry *eptr = static_cast<matocsserventry *>(e);
+	if (matocsserv_replication_find(chunkid, version, eptr)) {
 		return -1;
 	}
-	if (eptr->mode!=KILL) {
-		for (i=0 ; i<cnt ; i++) {
-			srceptr = (matocsserventry *)(src[i]);
-			if (srceptr->mode==KILL) {
-				return 0;
-			}
-		}
-		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+cnt*(8+4+4+2));
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		for (i=0 ; i<cnt ; i++) {
-			srceptr = (matocsserventry *)(src[i]);
-			put64bit(&data,srcchunkid[i]);
-			put32bit(&data,srcversion[i]);
-			put32bit(&data,srceptr->servip);
-			put16bit(&data,srceptr->servport);
-		}
-		matocsserv_replication_begin(chunkid,version,eptr,cnt,src);
-		eptr->carry = 0;
+	if (sourcePointers.size() != sourceTypes.size()) {
+		syslog(LOG_ERR, "Inconsistent arguments for liz_replicatechunk (%u != %u)",
+				static_cast<unsigned>(sourcePointers.size()),
+				static_cast<unsigned>(sourceTypes.size()));
+		return -1;
 	}
+	if (eptr->mode == KILL) {
+		return 0;
+	}
+	for (void *source : sourcePointers) {
+		if (static_cast<matocsserventry *>(source)->mode == KILL) {
+			return 0;
+		}
+	}
+	std::vector<ChunkTypeWithAddress> sources;
+	for (size_t i = 0; i < sourcePointers.size(); ++i) {
+		matocsserventry *src = static_cast<matocsserventry *>(sourcePointers[i]);
+		sources.push_back(ChunkTypeWithAddress(
+				NetworkAddress(src->servip, src->servport), sourceTypes[i]));
+	}
+	eptr->outputPackets.push_back(OutputPacket());
+	matocs::replicate::serialize(eptr->outputPackets.back().packet,
+			chunkid, version, type, sources);
+	matocsserv_replication_begin(chunkid, version,
+			eptr, sourcePointers.size(), sourcePointers.data());
+	eptr->carry = 0;
 	return 0;
 }
 
@@ -1853,6 +1846,10 @@ void matocsserv_reload(void) {
 	free(oldListenPort);
 	tcpclose(lsock);
 	lsock = newlsock;
+}
+
+uint32_t matocsserv_get_version(void *e) {
+	return static_cast<matocsserventry *>(e)->version;
 }
 
 int matocsserv_init(void) {

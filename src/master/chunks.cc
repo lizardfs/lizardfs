@@ -34,8 +34,10 @@
 
 #include "chunks.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
+#include "master/chunk_copies_calculator.h"
 
 #ifndef METARESTORE
 #  include "common/cfg.h"
@@ -73,8 +75,9 @@ enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 /* TDVALID - want to be deleted */
 enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
+/* List of servers containing the chunk */
 struct slist {
-	void *ptr;
+	void *ptr; // server data as matocsserventry
 	uint32_t version;
 	ChunkType chunkType;
 	uint8_t valid;
@@ -1482,6 +1485,8 @@ public:
 	void doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage);
 
 private:
+	bool tryReplication(chunk *c, ChunkType type, void *destinationServer);
+
 	uint16_t serverCount_;
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
@@ -1536,17 +1541,58 @@ void ChunkWorker::doEverySecondTasks() {
 	serverCount_ = 0;
 }
 
+static bool chunkPresentOnServer(chunk *c, void *server) {
+	for (slist *s = c->slisthead ; s ; s = s->next) {
+		if (s->ptr == server) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *destinationServer) {
+	// we don't support replicating xor chunks from pre-1.6.28 chunkservers
+	const uint32_t minSourceServerVersion =
+			(chunkTypeToRecover.isStandardChunkType()) ? 0 : lizardfsVersion(1, 6, 28);
+	std::vector<void*> sources;
+	ChunkCopiesCalculator sourcesCalculator(c->goal);
+	for (slist *s = c->slisthead ; s ; s = s->next) {
+		if (s->valid != VALID && s->valid != TDVALID) {
+			continue;
+		}
+		if (matocsserv_get_version(s->ptr) < minSourceServerVersion) {
+			continue;
+		}
+		if (chunkTypeToRecover.isStandardChunkType() && s->chunkType.isStandardChunkType()) {
+			// Let's use legacy replication if possible
+			stats_replications++;
+			matocsserv_send_replicatechunk(destinationServer,
+					c->chunkid, c->version, s->ptr);
+			c->needverincrease = 1;
+			return true;
+		} else {
+			sources.push_back(s->ptr);
+			sourcesCalculator.addPart(s->chunkType);
+		}
+	}
+	if (!sourcesCalculator.isRecoveryPossible()) {
+		return false;
+	}
+	stats_replications++;
+	matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
+			chunkTypeToRecover, sources, sourcesCalculator.availableParts());
+	c->needverincrease = 1;
+	return true;
+}
+
 void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage) {
 	slist *s;
 	static void* ptrs[65535];
 	static uint32_t min,max;
-	void* rptrs[65536];
-	uint16_t rservcount;
-	void *srcptr;
-	uint16_t i;
-	uint32_t vc, tdc, ivc, bc, tdb, dc;
 
-// step 1. calculate number of valid and invalid copies
+	// step 1. calculate number of valid and invalid copies
+	uint32_t vc, tdc, ivc, bc, tdb, dc;
+	ChunkCopiesCalculator allCopies(c->goal), regularCopies(c->goal);
 	vc = tdc = ivc = bc = tdb = dc = 0;
 	for (s = c->slisthead ; s ; s = s->next) {
 		switch (s->valid) {
@@ -1555,15 +1601,21 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			break;
 		case TDVALID:
 			tdc++;
+			allCopies.addPart(s->chunkType);
 			break;
 		case VALID:
 			vc++;
+			regularCopies.addPart(s->chunkType);
+			allCopies.addPart(s->chunkType);
 			break;
 		case TDBUSY:
 			tdb++;
+			allCopies.addPart(s->chunkType);
 			break;
 		case BUSY:
 			bc++;
+			regularCopies.addPart(s->chunkType);
+			allCopies.addPart(s->chunkType);
 			break;
 		case DEL:
 			dc++;
@@ -1581,9 +1633,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		c->regularvalidcopies = vc+bc;
 	}
 
-//	syslog(LOG_WARNING,"chunk %016" PRIX64 ": ivc=%" PRIu32 " , tdc=%" PRIu32 " , vc=%" PRIu32 " , bc=%" PRIu32 " , tdb=%" PRIu32 " , dc=%" PRIu32 " , goal=%" PRIu8 " , scount=%" PRIu16,c->chunkid,ivc,tdc,vc,bc,tdb,dc,c->goal,scount);
-
-// step 2. check number of copies
+	// step 2. check number of copies
 	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
 		syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
@@ -1592,8 +1642,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return ;
 	}
 
-// step 3. delete invalid copies
-
+	// step 3. delete invalid copies
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 			if (s->valid==INVALID || s->valid==DEL) {
@@ -1616,20 +1665,19 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		}
 	}
 
-// step 4. return if chunk is during some operation
+	// step 4. return if chunk is during some operation
 	if (c->operation!=NONE || (c->lockedto>=(uint32_t)main_time())) {
 		return ;
 	}
 
-// step 5. check busy count
+	// step 5. check busy count
 	if ((bc+tdb)>0) {
 		syslog(LOG_WARNING,"chunk %016" PRIX64 " has unexpected BUSY copies",c->chunkid);
 		return ;
 	}
 
-// step 6. delete unused chunk
-	if (c->fcount==0/* c->flisthead==NULL */) {
-//		syslog(LOG_WARNING,"unused - delete");
+	// step 6. delete unused chunk
+	if (c->fcount == 0) {
 		for (s=c->slisthead ; s ; s=s->next) {
 			if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 				if (s->valid==VALID || s->valid==TDVALID) {
@@ -1658,53 +1706,65 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return ;
 	}
 
-	// temporary exclusion of chunk with xored copies
+	// step 7a. if chunk needs replication, do it before removing any copies
+	std::vector<ChunkType> copiesToRecover = regularCopies.getPartsToRecover();
+	if (!copiesToRecover.empty()) {
+		if (jobsnorepbefore >= main_time() || !allCopies.isRecoveryPossible()) {
+			inforec_.notdone.copy_undergoal++;
+			return;
+		}
+		const ChunkType chunkTypeToRecover = copiesToRecover.front();
+		// get list of chunkservers which can be written to
+		std::vector<void*> possibleDestinations;
+		matocsserv_getservers_lessrepl(possibleDestinations, MaxWriteRepl);
+		// find the first one which does not contain any copy of the chunk
+		// TODO(msulikowski) if we want to support converting between different goals
+		// (eg. xor2 -> 3) on installations with small number of chunkservers this condition
+		// has to be loosen
+		uint32_t minServerVersion = 0;
+		if (!chunkTypeToRecover.isStandardChunkType()) {
+			minServerVersion = lizardfsVersion(1, 6, 28);
+		}
+		void *destination = nullptr;
+		for (void* server : possibleDestinations) {
+			if (matocsserv_get_version(server) < minServerVersion) {
+				continue;
+			}
+			if (chunkPresentOnServer(c, server)) {
+				continue;
+			}
+			destination = server;
+			break;
+		}
+		if (destination == nullptr) {
+			inforec_.notdone.copy_undergoal++;
+			return;
+		}
+		if (tryReplication(c, chunkTypeToRecover, destination)) {
+			inforec_.done.copy_undergoal++;
+		} else {
+			inforec_.notdone.copy_undergoal++;
+		}
+		return;
+	}
+
+	// temporary exclusion of other operations for chunk with xored copies
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->chunkType.isXorChunkType()) {
 			return;
 		}
 	}
 
-// step 7a. if chunk has too many copies and some of them have status TODEL then delete them
-/* Do not delete TDVALID copies ; td no longer means 'to delete', it's more like 'to disconnect', so replicate those chunks, but do no delete them afterwards
-	if (vc+tdc>c->goal && tdc>0) {
-		if (delcount<TmpMaxDel) {
-			for (s=c->slisthead ; s && vc+tdc>c->goal && tdc>0 ; s=s->next) {
-				if (s->valid==TDVALID) {
-					chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies);
-					c->allvalidcopies--;
-					c->needverincrease=1;
-					s->valid = DEL;
-					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-					delcount++;
-					inforec_.done.del_diskclean++;
-					tdc--;
-					dc++;
-				}
-			}
-		} else {
-			if (vc>=c->goal) {
-				inforec_.notdone.del_diskclean+=tdc;
-			} else {
-				inforec_.notdone.del_diskclean+=((vc+tdc)-(c->goal));
-			}
-		}
-		return;
-	}
-*/
-
-// step 7b. if chunk has too many copies then delete some of them
+	// step 7b. if chunk has too many copies then delete some of them
 	if (vc > c->goal) {
 		uint8_t prevdone;
-//		syslog(LOG_WARNING,"vc (%" PRIu32 ") > goal (%" PRIu32 ") - delete",vc,c->goal);
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
 		inforec_.notdone.del_overgoal+=(vc-(c->goal));
 		deleteNotDone_+=(vc-(c->goal));
 		prevdone = 1;
-		for (i=0 ; i<serverCount_ && vc>c->goal && prevdone; i++) {
+		for (uint32_t i=0 ; i<serverCount_ && vc>c->goal && prevdone; i++) {
 			for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next) {}
 			if (s && s->valid==VALID) {
 				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
@@ -1729,7 +1789,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
+	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
 	if (vc + tdc >= serverCount && vc < c->goal && tdc > 0 && vc + tdc > 1) {
 		uint8_t prevdone;
 //		syslog(LOG_WARNING,"vc+tdc (%" PRIu32 ") >= scount (%" PRIu32 ") and vc (%" PRIu32 ") < goal (%" PRIu32 ") and tdc (%" PRIu32 ") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal,tdc);
@@ -1755,109 +1815,12 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-//step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	if (c->goal > vc && vc+tdc > 0) {
-		if (jobsnorepbefore<(uint32_t)main_time()) {
-			uint32_t rgvc,rgtdc;
-			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
-			rgvc=0;
-			rgtdc=0;
-			for (s=c->slisthead ; s ; s=s->next) {
-				if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl) {
-					if (s->valid==VALID) {
-						rgvc++;
-					} else if (s->valid==TDVALID) {
-						rgtdc++;
-					}
-				}
-			}
-			if (rgvc+rgtdc>0 && rservcount>0) { // have at least one server to read from and at least one to write to
-				for (i=0 ; i<rservcount ; i++) {
-					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
-					if (!s) {
-						uint32_t r;
-						if (rgvc>0) {	// if there are VALID copies then make copy of one VALID chunk
-							r = 1+rndu32_ranged(rgvc);
-							srcptr = NULL;
-							for (s=c->slisthead ; s && r>0 ; s=s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						} else {	// if not then use TDVALID chunks.
-							r = 1+rndu32_ranged(rgtdc);
-							srcptr = NULL;
-							for (s=c->slisthead ; s && r>0 ; s=s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						}
-						if (srcptr) {
-							stats_replications++;
-							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
-							c->needverincrease=1;
-							inforec_.done.copy_undergoal++;
-							return;
-						}
-					}
-				}
-			}
-		}
-		inforec_.notdone.copy_undergoal++;
-	}
 
-// step 8. if chunk has number of copies less than goal then make another copy of this chunk
-/*
-	if (c->goal > vc && vc+tdc > 0) {
-		if (jobscopycount<MaxRepl && maxusage<=0.99 && jobsnorepbefore<(uint32_t)main_time()) {
-			if (servcount==0) {
-				servcount = matocsserv_getservers_ordered(ptrs,MINMAXRND,&min,&max);
-			}
-			for (i=0 ; i<servcount ; i++) {
-				for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next) {}
-				if (!s) {
-					uint32_t r;
-					if (vc>0) {	// if there are VALID copies then make copy of one VALID chunk
-						r = 1+rndu32_ranged(vc);
-						srcptr = NULL;
-						for (s=c->slisthead ; s && r>0 ; s=s->next) {
-							if (s->valid==VALID) {
-								r--;
-								srcptr = s->ptr;
-							}
-						}
-					} else {	// if not then use TDVALID chunks.
-						r = 1+rndu32_ranged(tdc);
-						srcptr = NULL;
-						for (s=c->slisthead ; s && r>0 ; s=s->next) {
-							if (s->valid==TDVALID) {
-								r--;
-								srcptr = s->ptr;
-							}
-						}
-					}
-					if (srcptr) {
-						stats_replications++;
-						matocsserv_getlocation(srcptr,&ip,&port);
-						matocsserv_send_replicatechunk(ptrs[i],c->chunkid,c->version,ip,port);
-						inforec_.done.copy_undergoal++;
-					}
-					return;
-				}
-			}
-		} else {
-			inforec_.notdone.copy_undergoal++;
-		}
-	}
-*/
 	if (chunksinfo.notdone.copy_undergoal>0 && chunksinfo.done.copy_undergoal>0) {
 		return;
 	}
 
-// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
+	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
 	if (c->goal >= vc && vc + tdc>0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
@@ -1866,7 +1829,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			void *srcserv=NULL;
 			void *dstserv=NULL;
 			if (max>0) {
-				for (i=0 ; i<max && srcserv==NULL ; i++) {
+				for (uint32_t i=0 ; i<max && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
 						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
@@ -1875,7 +1838,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					}
 				}
 			} else {
-				for (i=0 ; i<(serverCount_-min) && srcserv==NULL ; i++) {
+				for (uint32_t i=0 ; i<(serverCount_-min) && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
 						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
@@ -1886,7 +1849,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			}
 			if (srcserv!=NULL) {
 				if (min>0) {
-					for (i=0 ; i<min && dstserv==NULL ; i++) {
+					for (uint32_t i=0 ; i<min && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
 							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
 							if (s==NULL) {
@@ -1895,7 +1858,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 						}
 					}
 				} else {
-					for (i=0 ; i<serverCount_-max && dstserv==NULL ; i++) {
+					for (uint32_t i=0 ; i<serverCount_-max && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
 							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
 							if (s==NULL) {
