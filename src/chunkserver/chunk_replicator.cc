@@ -1,5 +1,6 @@
 #include "chunkserver/chunk_replicator.h"
 
+#include <unistd.h>
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
