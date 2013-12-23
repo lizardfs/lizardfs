@@ -3,15 +3,13 @@
 #include <poll.h>
 #include <cstring>
 
+#include "common/block_xor.h"
 #include "common/massert.h"
+#include "common/read_operation_executor.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
-#include "mount/block_xor.h"
-#include "mount/chunk_connector.h"
-#include "mount/chunkserver_stats.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
-#include "mount/read_operation_executor.h"
 #include "mount/write_executor.h"
 
 ChunkWriter::Operation::Operation(WriteId id, const uint8_t* data, uint32_t offset, uint32_t size)

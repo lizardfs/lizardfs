@@ -39,7 +39,7 @@
 #include "common/massert.h"
 #include "common/mfsstrerr.h"
 
-#include "replicator.h"
+#include "chunkserver/legacy_replicator.h"
 
 #define CONNMSECTO 5000
 #define SENDMSECTO 5000
@@ -340,7 +340,7 @@ static void rep_cleanup(replication *r) {
 		hdd_close(r->chunkid, ChunkType::getStandardChunkType());
 	}
 	if (r->created) {
-		hdd_delete(r->chunkid,0);
+		hdd_delete(r->chunkid, 0, ChunkType::getStandardChunkType());
 	}
 	for (i=0 ; i<r->srccnt ; i++) {
 		if (r->repsources[i].sock>=0) {
@@ -362,7 +362,7 @@ static void rep_cleanup(replication *r) {
 }
 
 /* srcs: srccnt * (chunkid:64 version:32 ip:32 port:16) */
-uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
 	replication r;
 	uint8_t status, i, vbuffs;
 	uint16_t b, blocks;
@@ -397,7 +397,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		r.xorbuff = NULL;
 	}
 // create chunk
-	status = hdd_create(chunkid,0);
+	status = hdd_create(chunkid, 0, ChunkType::getStandardChunkType());
 	if (status!=STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
@@ -701,7 +701,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 		return status;
 	}
 	r.opened = 0;
-	status = hdd_version(chunkid,0,version);
+	status = hdd_version(chunkid, 0, ChunkType::getStandardChunkType(), version);
 	if (status!=STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",mfsstrerr(status));
 		rep_cleanup(&r);

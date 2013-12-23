@@ -21,6 +21,7 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "chunkserver/chunk_file_creator.h"
 #include "chunkserver/output_buffers.h"
 #include "common/chunk_type.h"
 #include "common/chunk_with_version.h"
@@ -59,7 +60,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
-int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks);
+int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks);
 int hdd_get_checksum(uint64_t chunkid, uint32_t version, uint32_t *checksum);
 
 /* chunk operations */
@@ -75,18 +76,18 @@ int hdd_get_checksum(uint64_t chunkid, uint32_t version, uint32_t *checksum);
 int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
 		uint32_t chunkNewVersion, uint64_t chunkIdCopy, uint32_t chunkVersionCopy, uint32_t length);
 
-#define hdd_delete(chunkId, chunkVersion) \
-	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 0)
+#define hdd_delete(chunkId, chunkVersion, chunkType) \
+	hdd_chunkop(chunkId, chunkVersion, chunkType, 0, 0, 0, 0)
 
-#define hdd_create(chunkId, chunkVersion) \
-	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 1)
+#define hdd_create(chunkId, chunkVersion, chunkType) \
+	hdd_chunkop(chunkId, chunkVersion, chunkType, 0, 0, 0, 1)
 
 #define hdd_test(chunkId, chunkVersion) \
 	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 2)
 
-#define hdd_version(chunkId, chunkVersion, chunkNewVersion) \
+#define hdd_version(chunkId, chunkVersion, chunkType, chunkNewVersion) \
 	(((chunkNewVersion) > 0) \
-	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, 0, 0, \
+	? hdd_chunkop(chunkId, chunkVersion, chunkType, chunkNewVersion, 0, 0, \
 			0xFFFFFFFF) \
 	: ERROR_EINVAL)
 
@@ -116,3 +117,17 @@ int hdd_init(void);
 /* debug only */
 void hdd_test_show_chunks(void);
 void hdd_test_show_openedchunks(void);
+
+class HddspacemgrChunkFileCreator : public ChunkFileCreator {
+public:
+	HddspacemgrChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+	~HddspacemgrChunkFileCreator();
+	virtual void create();
+	virtual void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
+	virtual void commit();
+
+private:
+	bool isCreated_;
+	bool isOpen_;
+	bool isCommited_;
+};

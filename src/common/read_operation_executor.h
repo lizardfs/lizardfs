@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_READ_OPERATION_EXECUTOR_H_
-#define LIZARDFS_MFSMOUNT_READ_OPERATION_EXECUTOR_H_
+#pragma once
 
 #include <unistd.h>
 
@@ -106,5 +105,3 @@ private:
 	 */
 	void setState(ReadOperationState newState);
 };
-
-#endif // LIZARDFS_MFSMOUNT_READ_OPERATION_EXECUTOR_H_

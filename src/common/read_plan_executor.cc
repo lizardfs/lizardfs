@@ -1,21 +1,24 @@
-#include "read_plan_executor.h"
+#include "common/read_plan_executor.h"
 
 #include <chrono>
 #include <map>
 #include <sys/poll.h>
 
+#include "common/block_xor.h"
+#include "common/chunkserver_stats.h"
+#include "common/exceptions.h"
 #include "common/massert.h"
+#include "common/read_operation_executor.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
-#include "mount/block_xor.h"
-#include "mount/chunkserver_stats.h"
-#include "mount/exceptions.h"
-#include "mount/read_operation_executor.h"
 
-ReadPlanExecutor::ReadPlanExecutor(uint64_t chunkId, uint32_t chunkVersion,
+ReadPlanExecutor::ReadPlanExecutor(
+		ChunkserverStats& chunkserverStats,
+		uint64_t chunkId, uint32_t chunkVersion,
 		const ReadPlanner::Plan& plan)
-		: chunkId_(chunkId),
+		: chunkserverStats_(chunkserverStats),
+		  chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
 		  plan_(plan) {
 }
@@ -44,7 +47,7 @@ void ReadPlanExecutor::executeReadOperations(
 		const Timeout& communicationTimeout) {
 	std::map<int, ReadOperationExecutor> executors;
 	try {
-		ChunkserverStatsProxy statsProxy(globalChunkserverStats);
+		ChunkserverStatsProxy statsProxy(chunkserverStats_);
 		// Connect to all needed chunkservers
 		for (const auto& chunkTypeReadInfo : plan_.readOperations) {
 			const ChunkType chunkType = chunkTypeReadInfo.first;
@@ -109,7 +112,7 @@ void ReadPlanExecutor::executeReadOperations(
 			}
 		}
 	} catch (ChunkserverConnectionException &err) {
-		globalChunkserverStats.markDefective(err.server());
+		chunkserverStats_.markDefective(err.server());
 		for (const auto& fdAndExecutor : executors) {
 			tcpclose(fdAndExecutor.first);
 		}

@@ -511,7 +511,7 @@
 
 // 0x047f
 #define LIZ_CSTOMA_REPLICATE (1000U + 151U)
-/// chunkid:64 chunkversion:32 chunktype:8 status:8
+/// chunkid:64 chunktype:8 status:8 chunkversion:32
 
 // 0x0098
 #define MATOCS_CHUNKOP (PROTO_BASE+152)

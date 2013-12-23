@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "common/datapack.h"
-#include "common/exceptions.h"
+#include "common/exception.h"
 #include "common/massert.h"
 
 /*

@@ -32,6 +32,7 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "common/chunk_connector.h"
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/datapack.h"
@@ -44,11 +45,10 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
-#include "mount/chunk_connector.h"
 #include "mount/chunk_writer.h"
-#include "mount/chunkserver_stats.h"
 #include "mount/chunkserver_write_chain.h"
 #include "mount/exceptions.h"
+#include "mount/global_chunkserver_stats.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
 

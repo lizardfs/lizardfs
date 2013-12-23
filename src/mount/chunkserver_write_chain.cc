@@ -3,7 +3,7 @@
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
-#include "mount/chunkserver_stats.h"
+#include "mount/global_chunkserver_stats.h"
 #include "mount/mastercomm.h"
 
 ChunkserverWriteChain::ChunkserverWriteChain() {

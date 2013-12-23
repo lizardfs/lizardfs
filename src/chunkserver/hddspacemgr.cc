@@ -1969,10 +1969,10 @@ int hdd_check_version(uint64_t chunkid, uint32_t version) {
 	return STATUS_OK;
 }
 
-int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks) {
+int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks) {
 	TRACETHIS1(chunkid);
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -2810,10 +2810,15 @@ static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 		return ERROR_WRONGVERSION;
 	}
 	if (unlink(c->filename().c_str()) < 0) {
+		uint8_t err = errno;
 		hdd_error_occured(c);	// uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"delete_chunk: file:%s - unlink error", c->filename().c_str());
-		hdd_chunk_release(c);
+		if (err == ENOENT) {
+			hdd_chunk_delete(c);
+		} else {
+			hdd_chunk_release(c);
+		}
 		return ERROR_IO;
 	}
 	hdd_chunk_delete(c);
@@ -3832,4 +3837,63 @@ int hdd_init(void) {
 	zassert(pthread_mutex_unlock(&termlock));
 
 	return 0;
+}
+
+HddspacemgrChunkFileCreator::HddspacemgrChunkFileCreator(
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+		: ChunkFileCreator(chunkId, chunkVersion, chunkType),
+		  isCreated_(false),
+		  isOpen_(false),
+		  isCommited_(false) {
+}
+
+HddspacemgrChunkFileCreator::~HddspacemgrChunkFileCreator() {
+	if (isOpen_) {
+		hdd_close(chunkId(), chunkType());
+	}
+	if (isCreated_ && !isCommited_) {
+		hdd_delete(chunkId(), 0, chunkType());
+	}
+}
+
+void HddspacemgrChunkFileCreator::create() {
+	sassert(!isCreated_);
+	uint8_t status = hdd_create(chunkId(), 0, chunkType());
+	if (status == STATUS_OK) {
+		isCreated_ = true;
+	} else {
+		throw Exception("failed to create chunk", status);
+	}
+	status = hdd_open(chunkId(), chunkType());
+	if (status == STATUS_OK) {
+		isOpen_ = true;
+	} else {
+		throw Exception("failed to open created chunk", status);
+	}
+}
+
+void HddspacemgrChunkFileCreator::write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
+	sassert(isOpen_ && !isCommited_);
+	uint16_t blocknum = offset / MFSBLOCKSIZE;
+	offset = offset % MFSBLOCKSIZE;
+	uint8_t status = hdd_write(chunkId(), 0, chunkType(), blocknum, offset, size, crc, buffer);
+	if (status != STATUS_OK) {
+		throw Exception("failed to write chunk", status);
+	}
+}
+
+void HddspacemgrChunkFileCreator::commit() {
+	sassert(isOpen_ && !isCommited_);
+	uint8_t status = hdd_close(chunkId(), chunkType());
+	if (status == STATUS_OK) {
+		isOpen_ = false;
+	} else {
+		throw Exception("failed to close chunk", status);
+	}
+	status = hdd_version(chunkId(), 0, chunkType(), chunkVersion());
+	if (status == STATUS_OK) {
+		isCommited_ = true;
+	} else {
+		throw Exception("failed to set chunk's version", status);
+	}
 }

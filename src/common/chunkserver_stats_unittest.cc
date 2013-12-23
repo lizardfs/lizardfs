@@ -1,4 +1,4 @@
-#include "mount/chunkserver_stats.h"
+#include "common/chunkserver_stats.h"
 
 #include <gtest/gtest.h>
 

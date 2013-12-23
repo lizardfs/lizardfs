@@ -31,7 +31,6 @@
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
 #include "mount/chunkloccache.h"
-#include "mount/chunkserver_stats.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/mfs_fuse.h"

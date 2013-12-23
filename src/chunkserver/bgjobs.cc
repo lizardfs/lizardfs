@@ -27,18 +27,18 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include <cassert>
 #include <cstdint>
 
-#include <cassert>
-
 #include "devtools/TracePrinter.h"
+#include "chunkserver/chunk_replicator.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/legacy_replicator.h"
 #include "common/chunk_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/pcqueue.h"
 #include "common/datapack.h"
 #include "common/massert.h"
-
-#include "hddspacemgr.h"
-#include "replicator.h"
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)
@@ -57,6 +57,7 @@ enum {
 	OP_CLOSE,
 	OP_READ,
 	OP_WRITE,
+	OP_LEGACY_REPLICATE,
 	OP_REPLICATE
 };
 
@@ -97,10 +98,18 @@ typedef struct _chunk_wr_args {
 	const uint8_t *buffer;
 } chunk_wr_args;
 
-typedef struct _chunk_rp_args {
+typedef struct _chunk_legacy_rp_args {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t srccnt;
+} chunk_legacy_rp_args;
+
+typedef struct _chunk_rp_args {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
+	uint32_t sourcesBufferSize;
+	uint8_t* sourcesBuffer;
 } chunk_rp_args;
 
 typedef struct _job {
@@ -157,6 +166,7 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 #define ocargs ((chunk_oc_args*)(jptr->args))
 #define rdargs ((chunk_rd_args*)(jptr->args))
 #define wrargs ((chunk_wr_args*)(jptr->args))
+#define lrpargs ((chunk_legacy_rp_args*)(jptr->args))
 #define rpargs ((chunk_rp_args*)(jptr->args))
 
 void* job_worker(void *th_arg) {
@@ -234,11 +244,29 @@ void* job_worker(void *th_arg) {
 							wrargs->buffer);
 				}
 				break;
+			case OP_LEGACY_REPLICATE:
+				if (jstate==JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+				} else {
+					status = legacy_replicate(lrpargs->chunkid, lrpargs->version, lrpargs->srccnt,
+							((uint8_t*)(jptr->args)) + sizeof(chunk_legacy_rp_args));
+				}
+				break;
 			case OP_REPLICATE:
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = replicate(rpargs->chunkid,rpargs->version,rpargs->srccnt,((uint8_t*)(jptr->args))+sizeof(chunk_rp_args));
+					try {
+						std::vector<ChunkTypeWithAddress> sources;
+						deserialize(rpargs->sourcesBuffer, rpargs->sourcesBufferSize, sources);
+						HddspacemgrChunkFileCreator creator(
+								rpargs->chunkId, rpargs->chunkVersion, rpargs->chunkType);
+						gReplicator.replicate(creator, sources);
+						status = STATUS_OK;
+					} catch (Exception& ex) {
+						syslog(LOG_WARNING, "replication error: %s", ex.what());
+						status = ex.status();
+					}
 				}
 				break;
 			default: // OP_EXIT
@@ -504,31 +532,53 @@ uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), v
 	return job_new(jp, OP_WRITE, args, callback, extra);
 }
 
-uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_rp_args *args;
+	// It's an ugly hack to allocate the memory for the structure and for the "sources" in a single
+	// call, but as long as the whole 'args' are allocated with malloc I can't do much about it
+	args = (chunk_rp_args*) malloc(sizeof(chunk_rp_args) + sourcesBufferSize);
+	passert(args);
+	args->chunkId = chunkId;
+	args->chunkVersion = chunkVersion;
+	args->chunkType = chunkType;
+	args->sourcesBufferSize = sourcesBufferSize;
+
+	// Ugly.
+	args->sourcesBuffer = (uint8_t*)args + sizeof(chunk_rp_args);
+	memcpy((void*)args->sourcesBuffer, (void*)sourcesBuffer, sourcesBufferSize);
+
+	return job_new(jp, OP_REPLICATE, args, callback, extra);
+}
+
+uint32_t job_legacy_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+	TRACETHIS();
+	jobpool* jp = (jobpool*)jpool;
+	chunk_legacy_rp_args *args;
 	uint8_t *ptr;
-	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+srccnt*18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_legacy_rp_args) + srccnt*18);
 	passert(ptr);
-	args = (chunk_rp_args*)ptr;
-	ptr += sizeof(chunk_rp_args);
+	args = (chunk_legacy_rp_args*)ptr;
+	ptr += sizeof(chunk_legacy_rp_args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->srccnt = srccnt;
 	memcpy(ptr,srcs,srccnt*18);
-	return job_new(jp,OP_REPLICATE,args,callback,extra);
+	return job_new(jp,OP_LEGACY_REPLICATE,args,callback,extra);
 }
 
-uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
+uint32_t job_legacy_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_rp_args *args;
+	chunk_legacy_rp_args *args;
 	uint8_t *ptr;
-	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_legacy_rp_args)+18);
 	passert(ptr);
-	args = (chunk_rp_args*)ptr;
-	ptr += sizeof(chunk_rp_args);
+	args = (chunk_legacy_rp_args*)ptr;
+	ptr += sizeof(chunk_legacy_rp_args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->srccnt = 1;
@@ -536,5 +586,5 @@ uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *
 	put32bit(&ptr,version);
 	put32bit(&ptr,ip);
 	put16bit(&ptr,port);
-	return job_new(jp,OP_REPLICATE,args,callback,extra);
+	return job_new(jp,OP_LEGACY_REPLICATE,args,callback,extra);
 }

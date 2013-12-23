@@ -414,7 +414,22 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 			ChunkType::getStandardChunkType(), newversion, copychunkid, copyversion, leng);
 }
 
-void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
+void masterconn_replicate(const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t chunkVersion;
+	uint32_t sourcesBufferSize;
+	const uint8_t* sourcesBuffer;
+
+	matocs::replicate::deserializePartial(data, chunkId, chunkVersion, chunkType, sourcesBuffer);
+	sourcesBufferSize = data.size() - (sourcesBuffer - data.data());
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::replicate::serialize(outputPacket->packet, chunkId, chunkVersion, chunkType, STATUS_OK);
+	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
+			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
+}
+
+void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t ip;
@@ -437,9 +452,9 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 		ip = get32bit(&data);
 		port = get16bit(&data);
 //		syslog(LOG_NOTICE,"start job replication (%08" PRIX64 ":%04" PRIX32 ":%04" PRIX32 ":%02" PRIX16 ")",chunkid,version,ip,port);
-		job_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
+		job_legacy_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
 	} else {
-		job_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
+		job_legacy_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
 	}
 }
 
@@ -556,7 +571,10 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 				masterconn_duplicate(eptr, data.data(), data.size());
 				break;
 			case MATOCS_REPLICATE:
-				masterconn_replicate(eptr, data.data(), data.size());
+				masterconn_legacy_replicate(eptr, data.data(), data.size());
+				break;
+			case LIZ_MATOCS_REPLICATE:
+				masterconn_replicate(data);
 				break;
 			case MATOCS_CHUNKOP:
 				masterconn_chunkop(eptr, data.data(), data.size());

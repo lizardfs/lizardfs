@@ -1,12 +1,7 @@
-#include "mount/chunkserver_stats.h"
+#include "common/chunkserver_stats.h"
 
 #include <mutex>
 #include <unordered_map>
-
-
-// global chunkserver statistics for this mount instance
-ChunkserverStats globalChunkserverStats;
-
 
 // ChunkserverEntry implementation
 

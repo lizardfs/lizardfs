@@ -19,9 +19,10 @@
 #pragma once
 
 #include <inttypes.h>
+#include <vector>
 
 #include "chunkserver/output_buffers.h"
-#include "common/chunk_type.h"
+#include "common/chunk_type_with_address.h"
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);
 uint32_t job_pool_jobs_count(void *jpool);
@@ -85,7 +86,10 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), voi
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer);
+uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer);
 
 /* srcs: srccnt * (chunkid:64 chunkVersion:32 ip:32 port:16) */
-uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint8_t srccnt,const uint8_t *srcs);
-uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint32_t ip,uint16_t port);
+uint32_t job_legacy_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint8_t srccnt,const uint8_t *srcs);
+uint32_t job_legacy_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t chunkVersion,uint32_t ip,uint16_t port);

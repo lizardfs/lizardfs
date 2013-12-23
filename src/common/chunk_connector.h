@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_CHUNK_CONNECTOR_H_
-#define LIZARDFS_MFSMOUNT_CHUNK_CONNECTOR_H_
+#pragma once
 
 #include "common/connection_pool.h"
 #include "common/time_utils.h"
@@ -19,5 +18,3 @@ private:
 	uint32_t sourceIp_;
 	ConnectionPool& connectionPool_;
 };
-
-#endif // LIZARDFS_MFSMOUNT_CHUNK_CONNECTOR_H_

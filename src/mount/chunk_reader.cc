@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <cstring>
 
+#include "common/read_plan_executor.h"
 #include "common/time_utils.h"
-#include "mount/chunkserver_stats.h"
 #include "mount/exceptions.h"
-#include "mount/read_plan_executor.h"
+#include "mount/global_chunkserver_stats.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, ReadChunkLocator& locator)
 	: connector_(connector), locator_(locator), inode_(0), index_(0) {
@@ -87,7 +87,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 		ReadPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
-		ReadPlanExecutor executor(location_->chunkId, location_->version, plan);
+		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version, plan);
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);

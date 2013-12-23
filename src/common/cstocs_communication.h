@@ -13,10 +13,10 @@ inline void serialize(std::vector<uint8_t>& destination, uint64_t chunkId, uint3
 	serializePacket(destination, LIZ_CSTOCS_GET_CHUNK_BLOCKS, 0, chunkId, chunkVersion, chunkType);
 }
 
-inline void deserialize(const std::vector<uint8_t>& source, uint64_t& chunkId,
+inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& chunkId,
 		uint32_t& chunkVersion, ChunkType& chunkType) {
-	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType);
+	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
+	deserializeAllPacketDataNoHeader(buffer, bufferSize, chunkId, chunkVersion, chunkType);
 }
 
 } // namespace getChunkBlocks

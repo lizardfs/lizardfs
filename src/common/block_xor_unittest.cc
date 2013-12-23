@@ -1,4 +1,4 @@
-#include "mount/block_xor.h"
+#include "common/block_xor.h"
 
 #include <gtest/gtest.h>
 

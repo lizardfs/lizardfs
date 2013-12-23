@@ -57,3 +57,18 @@ struct hash<NetworkAddress> {
 	}
 };
 }
+
+class ChunkserverConnectionException : public Exception {
+public:
+	ChunkserverConnectionException(const std::string& message, const NetworkAddress& server)
+			: Exception(message + " (server " + server.toString() + ")"),
+			  server_(server) {
+	}
+
+	~ChunkserverConnectionException() throw() {}
+	const NetworkAddress& server() const throw() { return server_; }
+
+private:
+	NetworkAddress server_;
+};
+

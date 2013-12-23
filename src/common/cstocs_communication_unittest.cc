@@ -17,7 +17,7 @@ TEST(CstocsCommunicationTests, GetChunkBlocks) {
 
 	verifyHeader(buffer, LIZ_CSTOCS_GET_CHUNK_BLOCKS);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(cstocs::getChunkBlocks::deserialize(buffer,
+	ASSERT_NO_THROW(cstocs::getChunkBlocks::deserialize(buffer.data(), buffer.size(),
 			chunkIdOut, chunkVersionOut, chunkTypeOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);

@@ -247,3 +247,6 @@ inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& source,
 		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {
 	verifyPacketVersionNoHeader(source.data(), source.size(), expectedVersion);
 }
+
+void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,
+		uint32_t timeout_ms) throw (Exception);

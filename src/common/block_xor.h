@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_BLOCK_XOR_H_
-#define LIZARDFS_MFSMOUNT_BLOCK_XOR_H_
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -12,5 +11,3 @@
  * by vector width.
  */
 void blockXor(uint8_t* dest, const uint8_t* source, size_t size);
-
-#endif // LIZARDFS_MFSMOUNT_BLOCK_XOR_H_

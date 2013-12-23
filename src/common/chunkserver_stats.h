@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_CHUNKSERVER_STATS_H_
-#define LIZARDFS_MFSMOUNT_CHUNKSERVER_STATS_H_
+#pragma once
 
 #include "common/network_address.h"
 #include "common/time_utils.h"
@@ -110,6 +109,3 @@ private:
 	std::unordered_map<NetworkAddress, uint32_t> readOperations_;
 	std::unordered_map<NetworkAddress, uint32_t> writeOperations_;
 };
-
-
-#endif /* LIZARDFS_MFSMOUNT_CHUNKSERVER_STATS_H_ */

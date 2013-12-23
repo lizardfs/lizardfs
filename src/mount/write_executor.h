@@ -2,10 +2,10 @@
 #define LIZARDFS_MOUNT_WRITE_EXECUTOR_H_
 
 #include "common/chunk_type.h"
+#include "common/chunkserver_stats.h"
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
 #include "mount/chunk_reader.h"
-#include "mount/chunkserver_stats.h"
 #include "mount/chunkserver_write_chain.h"
 
 class WriteExecutor {

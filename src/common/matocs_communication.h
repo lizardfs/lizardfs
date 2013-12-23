@@ -82,6 +82,12 @@ inline void deserialize(const std::vector<uint8_t>& source,
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType, sources);
 }
 
+inline void deserializePartial(const std::vector<uint8_t>& source,
+		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType, const uint8_t*& sources) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType, sources);
+}
+
 } // namespace replicate
 
 } // namespace matocs

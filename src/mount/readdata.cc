@@ -39,7 +39,6 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
-#include "mount/chunk_connector.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
 #include "mount/exceptions.h"

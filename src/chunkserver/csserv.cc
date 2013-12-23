@@ -42,6 +42,7 @@
 #include "common/charts.h"
 #include "common/cltocs_communication.h"
 #include "common/cstocl_communication.h"
+#include "common/cstocs_communication.h"
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/main.h"
@@ -854,6 +855,21 @@ void csserv_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
 
 /* IDLE operations */
 
+void csserv_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_t length) {
+	TRACETHIS();
+	uint64_t chunkid;
+	uint32_t version;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint8_t status;
+	uint16_t blocks;
+
+	cstocs::getChunkBlocks::deserialize(data, length, chunkid, version, chunkType);
+	status = hdd_get_blocks(chunkid, chunkType, version, &blocks);
+	std::vector<uint8_t> buffer;
+	cstocs::getChunkBlocksStatus::serialize(buffer, chunkid, version, chunkType, blocks, status);
+	csserv_create_attached_packet(eptr, buffer);
+}
+
 void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 		uint32_t length) {
 	TRACETHIS();
@@ -870,7 +886,7 @@ void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	status = hdd_get_blocks(chunkid, version, &blocks);
+	status = hdd_get_blocks(chunkid, ChunkType::getStandardChunkType(), version, &blocks);
 	ptr = csserv_create_attached_packet(eptr, CSTOCS_GET_CHUNK_BLOCKS_STATUS,
 			8 + 4 + 2 + 1);
 	put64bit(&ptr, chunkid);
@@ -1013,6 +1029,9 @@ void csserv_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
 			csserv_get_chunk_blocks(eptr, data, length);
+			break;
+		case LIZ_CSTOCS_GET_CHUNK_BLOCKS:
+			csserv_liz_get_chunk_blocks(eptr, data, length);
 			break;
 		case CLTOCS_HDD_LIST_V1:
 			csserv_hdd_list_v1(eptr, data, length);

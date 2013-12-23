@@ -10,13 +10,15 @@ namespace cstoma {
 
 inline void overwriteStatusField(std::vector<uint8_t>& destination, uint8_t status) {
 	// 9 - sizeof chunkId + chunkType, 1 - sizeof status
-	sassert(destination.size() == PacketHeader::kSize + sizeof(PacketVersion) + 9 + 1);
+	uint32_t statusOffset = PacketHeader::kSize + serializedSize(PacketVersion()) + 9;
+	sassert(destination.size() >= statusOffset + 1);
 	destination[PacketHeader::kSize + sizeof(PacketVersion) + 9] = status;
 }
 
+template <class... Data>
 inline void serializeStatus(std::vector<uint8_t>& destination, PacketHeader::Type type,
-		uint64_t chunkId, ChunkType chunkType, uint8_t status) {
-	serializePacket(destination, type, 0, chunkId, chunkType, status);
+		uint64_t chunkId, ChunkType chunkType, uint8_t status, const Data&... data) {
+	serializePacket(destination, type, 0, chunkId, chunkType, status, data...);
 }
 
 namespace chunkNew {
@@ -140,13 +142,13 @@ namespace replicate {
 
 inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType, uint8_t status) {
-	serializePacket(destination, LIZ_CSTOMA_REPLICATE, 0, chunkId, chunkVersion, chunkType, status);
+	serializeStatus(destination, LIZ_CSTOMA_REPLICATE, chunkId, chunkType, status, chunkVersion);
 }
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType, uint8_t& status) {
 	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType, status);
+	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status, chunkVersion);
 }
 
 } // namespace replicate
