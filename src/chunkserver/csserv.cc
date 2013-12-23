@@ -341,6 +341,7 @@ void csserv_delete_preserved(void *p) {
 	TRACETHIS();
 	if (p) {
 		free(p);
+		p = NULL;
 	}
 }
 
@@ -1119,6 +1120,9 @@ void csserv_term(void) {
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
+		if (eptr->wpacket) {
+			csserv_delete_preserved(eptr->wpacket);
+		}
 		if (eptr->fwdinputpacket.packet) {
 			free(eptr->fwdinputpacket.packet);
 		}
@@ -1344,6 +1348,9 @@ void csserv_forward(csserventry *eptr) {
 			return;
 		}
 		uint32_t totalPacketLength = PacketHeader::kSize + header.length;
+		if (eptr->inputpacket.packet) {
+			free(eptr->inputpacket.packet);
+		}
 		eptr->inputpacket.packet = static_cast<uint8_t*>(malloc(totalPacketLength));
 		passert(eptr->inputpacket.packet);
 		memcpy(eptr->inputpacket.packet, eptr->hdrbuff, PacketHeader::kSize);
@@ -1456,6 +1463,9 @@ void csserv_read(csserventry *eptr) {
 				eptr->state = CLOSE;
 				return;
 			}
+			if (eptr->inputpacket.packet) {
+				free(eptr->inputpacket.packet);
+			}
 			eptr->inputpacket.packet = (uint8_t*) malloc(size);
 			passert(eptr->inputpacket.packet);
 			eptr->inputpacket.startptr = eptr->inputpacket.packet;
@@ -1488,19 +1498,19 @@ void csserv_read(csserventry *eptr) {
 			}
 		}
 		if (eptr->wjobid == 0) {
-		ptr = eptr->hdrbuff;
-		type = get32bit(&ptr);
-		size = get32bit(&ptr);
+			ptr = eptr->hdrbuff;
+			type = get32bit(&ptr);
+			size = get32bit(&ptr);
 
-		eptr->mode = HEADER;
-		eptr->inputpacket.bytesleft = 8;
-		eptr->inputpacket.startptr = eptr->hdrbuff;
+			eptr->mode = HEADER;
+			eptr->inputpacket.bytesleft = 8;
+			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-			csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
+				csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
 
-		if (eptr->inputpacket.packet) {
-			free(eptr->inputpacket.packet);
-		}
+			if (eptr->inputpacket.packet) {
+				free(eptr->inputpacket.packet);
+			}
 			eptr->inputpacket.packet = NULL;
 		}
 	}
