@@ -34,6 +34,24 @@ static void checkRecoveryPossible(std::vector<ChunkType> availableParts, bool ex
 	EXPECT_EQ(expectedAnswer, calculator.isRecoveryPossible());
 }
 
+static void checkPartsToRemove(
+		std::vector<ChunkType> available,
+		uint8_t goal,
+		std::vector<ChunkType> expectedPartsToRemove) {
+	SCOPED_TRACE("Testing goal " + (isXorGoal(goal)
+			? "xor" + std::to_string(goalToXorLevel(goal))
+			: std::to_string(goal)));
+	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
+	ChunkCopiesCalculator calculator(goal);
+	for (auto part : available) {
+		calculator.addPart(part);
+	}
+	std::vector<ChunkType> actualPartsToRemove = calculator.getPartsToRemove();
+	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());
+	std::sort(actualPartsToRemove.begin(), actualPartsToRemove.end());
+	EXPECT_EQ(expectedPartsToRemove, actualPartsToRemove);
+}
+
 TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 	checkPartsToRecover({standard, standard, standard, standard, standard}, 3, {});
 	checkPartsToRecover({standard, standard, standard, standard}, 3, {});
@@ -135,4 +153,56 @@ TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
 		available.push_back(standard);
 		checkRecoveryPossible(available, true);
 	}
+}
+
+TEST(ChunkCopiesCalculatorTests, GetPartsToRemove) {
+	checkPartsToRemove({standard}, 1, {});
+	checkPartsToRemove({standard, standard}, 1, {standard});
+	checkPartsToRemove({standard, standard, standard}, 1, {standard, standard});
+	checkPartsToRemove({standard}, 4, {});
+	checkPartsToRemove({standard, standard}, 4, {});
+	checkPartsToRemove({standard, standard, standard}, 4, {});
+	checkPartsToRemove({standard, standard, standard, standard}, 4, {});
+	checkPartsToRemove({standard, standard, standard, standard, standard}, 4, {standard});
+	checkPartsToRemove({standard}, xorLevelToGoal(2), {standard});
+
+	checkPartsToRemove({xor_1_of_2}, 1, {xor_1_of_2});
+	checkPartsToRemove({xor_1_of_2, xor_1_of_3}, xorLevelToGoal(2), {xor_1_of_3});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_1_of_3}, xorLevelToGoal(2), {xor_1_of_3});
+	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
+			xor_1_of_2, xor_2_of_2, xor_p_of_2},
+			xorLevelToGoal(2),
+			{xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
+	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
+			xor_1_of_2, xor_2_of_2, xor_p_of_2},
+			xorLevelToGoal(3),
+			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, xor_1_of_3},
+			xorLevelToGoal(3),
+			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
+
+	checkPartsToRemove({xor_1_of_2, standard}, 1, {xor_1_of_2});
+	checkPartsToRemove({xor_1_of_2, standard}, xorLevelToGoal(2), {standard});
+	checkPartsToRemove({xor_1_of_2, standard}, xorLevelToGoal(3), {xor_1_of_2, standard});
+	checkPartsToRemove({xor_1_of_2, standard, standard}, 1, {xor_1_of_2, standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, 1, {xor_1_of_2, xor_2_of_2});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, xorLevelToGoal(2), {standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
+			1,
+			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
+			xorLevelToGoal(2),
+			{standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
+			1,
+			{xor_1_of_2, xor_2_of_3, xor_p_of_7});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
+			xorLevelToGoal(2),
+			{xor_2_of_3, xor_p_of_7, standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
+			xorLevelToGoal(3),
+			{xor_1_of_2, xor_p_of_7, standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
+			xorLevelToGoal(7),
+			{xor_1_of_2, xor_2_of_3, standard});
 }

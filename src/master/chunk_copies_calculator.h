@@ -8,6 +8,7 @@ public:
 	void addPart(ChunkType chunkType);
 
 	std::vector<ChunkType> getPartsToRecover();
+	std::vector<ChunkType> getPartsToRemove();
 	bool isRecoveryPossible();
 	const std::vector<ChunkType>& availableParts() const { return availableParts_; }
 

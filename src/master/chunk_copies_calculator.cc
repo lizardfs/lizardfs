@@ -1,5 +1,7 @@
 #include "master/chunk_copies_calculator.h"
 
+#include <algorithm>
+
 #include "common/goal.h"
 
 ChunkCopiesCalculator::ChunkCopiesCalculator(uint8_t goal): goal_(goal) {}
@@ -39,7 +41,56 @@ std::vector<ChunkType> ChunkCopiesCalculator::getPartsToRecover() {
 			}
 		}
 		if (availableCopies < goal_) {
-			ret.insert(ret.begin(), goal_ - availableCopies, ChunkType::getStandardChunkType());
+			ret.insert(ret.end(), goal_ - availableCopies, ChunkType::getStandardChunkType());
+		}
+	}
+	return std::move(ret);
+}
+
+std::vector<ChunkType> ChunkCopiesCalculator::getPartsToRemove() {
+	std::vector<ChunkType> ret;
+
+	if (isXorGoal(goal_)) {
+		ChunkType::XorLevel level = goalToXorLevel(goal_);
+		uint16_t partsBitmask = 0;
+
+		for (const ChunkType& part : availableParts_) {
+			// Remove standard copies
+			if (part.isStandardChunkType()) {
+				ret.push_back(ChunkType::getStandardChunkType());
+			// Remove other levels' parts
+			} else if (part.getXorLevel() != level) {
+				ret.push_back(part);
+			// Remove excessive parts
+			} else if (part.isXorChunkType()) {
+				if (part.isXorParity()) {
+					if (partsBitmask & (1 << 0)) {
+						ret.push_back(ChunkType::getXorParityChunkType(level));
+					} else {
+						partsBitmask |= (1 << 0);
+					}
+				} else {
+					if (partsBitmask & (1 << part.getXorPart())) {
+						ret.push_back(ChunkType::getXorChunkType(level, part.getXorPart()));
+					} else {
+						partsBitmask |= (1 << part.getXorPart());
+					}
+				}
+			}
+		}
+	} else {
+		uint32_t availableCopies = 0;
+		for (const ChunkType& part : availableParts_) {
+			// Remove excessive copies
+			if (part.isStandardChunkType()) {
+				++availableCopies;
+			// Remove xor parts
+			} else {
+				ret.push_back(part);
+			}
+		}
+		if (availableCopies > goal_) {
+			ret.insert(ret.begin(), availableCopies - goal_, ChunkType::getStandardChunkType());
 		}
 	}
 	return std::move(ret);
@@ -56,7 +107,6 @@ bool ChunkCopiesCalculator::isRecoveryPossible() {
 		if (part.isStandardChunkType()) {
 			return true;
 		}
-		sassert(part.isXorChunkType());
 		ChunkType::XorLevel level = part.getXorLevel();
 		uint32_t bitmaskForPart = (1 << 0); // bit 0 -> parity
 		if (!part.isXorParity()) {
