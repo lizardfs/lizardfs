@@ -144,6 +144,7 @@ enum ChunkserverEntryMode {
 enum ChunkserverEntryState {
 	IDLE,        // idle connection, new or used previously
 	READ,        // after CLTOCS_READ, but didn't send all of the CSTOCL_READ_(DATA|STAUS)
+	GET_BLOCK,   // after CSTOCS_GET_CHUNK_BLOCKS, but didn't send response
 	WRITELAST,   // connection ready for writing data; data is not forwarded to other chunkservers
 	CONNECTING,  // we are now connecting to other chunkserver to form a writing chain
 	WRITEINIT,   // we are sending packet forming a chain to the next chunkserver
@@ -868,6 +869,7 @@ void csserv_liz_get_chunk_blocks_finished(uint8_t status, void *extra) {
 	cstocs::getChunkBlocksStatus::serialize(buffer, eptr->chunkid, eptr->version, eptr->chunkType,
 			eptr->getBlocksJobResult, status);
 	csserv_create_attached_packet(eptr, buffer);
+	eptr->state = IDLE;
 }
 
 void csserv_get_chunk_blocks_finished(uint8_t status, void *extra) {
@@ -878,6 +880,7 @@ void csserv_get_chunk_blocks_finished(uint8_t status, void *extra) {
 	serializeMooseFsPacket(buffer, CSTOCS_GET_CHUNK_BLOCKS_STATUS,
 			eptr->chunkid, eptr->version, eptr->getBlocksJobResult, status);
 	csserv_create_attached_packet(eptr, buffer);
+	eptr->state = IDLE;
 }
 
 void csserv_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_t length) {
@@ -885,6 +888,7 @@ void csserv_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_
 			eptr->chunkid, eptr->version, eptr->chunkType);
 	eptr->getBlocksJobId = job_get_blocks(jpool, csserv_liz_get_chunk_blocks_finished, eptr,
 			eptr->chunkid, eptr->version, eptr->chunkType, &(eptr->getBlocksJobResult));
+	eptr->state = GET_BLOCK;
 }
 
 void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
@@ -893,6 +897,7 @@ void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 	eptr->chunkType = ChunkType::getStandardChunkType();
 	eptr->getBlocksJobId = job_get_blocks(jpool, csserv_get_chunk_blocks_finished, eptr,
 			eptr->chunkid, eptr->version, eptr->chunkType, &(eptr->getBlocksJobResult));
+	eptr->state = GET_BLOCK;
 }
 
 /* IDLE operations */
@@ -1511,7 +1516,7 @@ void csserv_read(csserventry *eptr) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 
-				csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
+			csserv_gotpacket(eptr, type, eptr->inputpacket.packet, size);
 
 			if (eptr->inputpacket.packet) {
 				free(eptr->inputpacket.packet);
@@ -1547,23 +1552,23 @@ void csserv_write(csserventry *eptr) {
 		} else {
 			i = write(eptr->sock, pack->startptr, pack->bytesleft);
 			if (i == 0) {
-//			syslog(LOG_NOTICE,"(write) connection closed");
-			eptr->state = CLOSE;
-			return;
-		}
+//				syslog(LOG_NOTICE,"(write) connection closed");
+				eptr->state = CLOSE;
+				return;
+			}
 			if (i < 0) {
 				if (errno != EAGAIN) {
 					mfs_errlog_silent(LOG_NOTICE, "(write) write error");
-				eptr->state = CLOSE;
+					eptr->state = CLOSE;
+				}
+				return;
 			}
-			return;
-		}
 			stats_bytesout += i;
 			pack->startptr += i;
 			pack->bytesleft -= i;
 			if (pack->bytesleft > 0) {
-			return;
-		}
+				return;
+			}
 		}
 		// packet has been sent
 		free(pack->packet);
@@ -1595,6 +1600,7 @@ void csserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 		switch (eptr->state) {
 			case IDLE:
 			case READ:
+			case GET_BLOCK:
 			case WRITELAST:
 				pdesc[pos].fd = eptr->sock;
 				pdesc[pos].events = 0;
@@ -1694,7 +1700,8 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_fwderror(eptr);
 		}
 		lstate = eptr->state;
-		if (lstate == IDLE || lstate == READ || lstate == WRITELAST || lstate == WRITEFINISH) {
+		if (lstate == IDLE || lstate == READ || lstate == WRITELAST || lstate == WRITEFINISH
+				|| lstate == GET_BLOCK) {
 			if (eptr->pdescpos >= 0 && (pdesc[eptr->pdescpos].revents & POLLIN)) {
 				eptr->activity = now;
 				csserv_read(eptr);
