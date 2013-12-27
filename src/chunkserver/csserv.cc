@@ -198,6 +198,10 @@ struct csserventry {
 	uint32_t rjobid;
 	uint8_t todocnt; // R (read finished + send finished)
 
+	/* get blocks */
+	uint32_t getBlocksJobId;
+	uint16_t getBlocksJobResult;
+
 	/* common for read and write but meaning is different !!! */
 	void *rpacket;
 	void *wpacket;
@@ -231,6 +235,8 @@ struct csserventry {
 			  wjobwriteid(0),
 			  rjobid(0),
 			  todocnt(0),
+			  getBlocksJobId(0),
+			  getBlocksJobResult(0),
 			  rpacket(nullptr),
 			  wpacket(nullptr),
 			  chunkisopen(0),
@@ -854,47 +860,42 @@ void csserv_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
 	eptr->state = IDLE;
 }
 
-/* IDLE operations */
+void csserv_liz_get_chunk_blocks_finished(uint8_t status, void *extra) {
+	TRACETHIS();
+	csserventry *eptr = (csserventry*) extra;
+	eptr->getBlocksJobId = 0;
+	std::vector<uint8_t> buffer;
+	cstocs::getChunkBlocksStatus::serialize(buffer, eptr->chunkid, eptr->version, eptr->chunkType,
+			eptr->getBlocksJobResult, status);
+	csserv_create_attached_packet(eptr, buffer);
+}
+
+void csserv_get_chunk_blocks_finished(uint8_t status, void *extra) {
+	TRACETHIS();
+	csserventry *eptr = (csserventry*) extra;
+	eptr->getBlocksJobId = 0;
+	std::vector<uint8_t> buffer;
+	serializeMooseFsPacket(buffer, CSTOCS_GET_CHUNK_BLOCKS_STATUS,
+			eptr->chunkid, eptr->version, eptr->getBlocksJobResult, status);
+	csserv_create_attached_packet(eptr, buffer);
+}
 
 void csserv_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_t length) {
-	TRACETHIS();
-	uint64_t chunkid;
-	uint32_t version;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
-	uint8_t status;
-	uint16_t blocks;
-
-	cstocs::getChunkBlocks::deserialize(data, length, chunkid, version, chunkType);
-	status = hdd_get_blocks(chunkid, chunkType, version, &blocks);
-	std::vector<uint8_t> buffer;
-	cstocs::getChunkBlocksStatus::serialize(buffer, chunkid, version, chunkType, blocks, status);
-	csserv_create_attached_packet(eptr, buffer);
+	cstocs::getChunkBlocks::deserialize(data, length,
+			eptr->chunkid, eptr->version, eptr->chunkType);
+	eptr->getBlocksJobId = job_get_blocks(jpool, csserv_liz_get_chunk_blocks_finished, eptr,
+			eptr->chunkid, eptr->version, eptr->chunkType, &(eptr->getBlocksJobResult));
 }
 
 void csserv_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 		uint32_t length) {
-	TRACETHIS();
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	uint8_t status;
-	uint16_t blocks;
-
-	if (length != 8 + 4) {
-		syslog(LOG_NOTICE,"CSTOCS_GET_CHUNK_BLOCKS - wrong size (%" PRIu32 "/12)",length);
-		eptr->state = CLOSE;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_blocks(chunkid, ChunkType::getStandardChunkType(), version, &blocks);
-	ptr = csserv_create_attached_packet(eptr, CSTOCS_GET_CHUNK_BLOCKS_STATUS,
-			8 + 4 + 2 + 1);
-	put64bit(&ptr, chunkid);
-	put32bit(&ptr, version);
-	put16bit(&ptr, blocks);
-	put8bit(&ptr, status);
+	deserializeAllMooseFsPacketDataNoHeader(data, length, eptr->chunkid, eptr->version);
+	eptr->chunkType = ChunkType::getStandardChunkType();
+	eptr->getBlocksJobId = job_get_blocks(jpool, csserv_get_chunk_blocks_finished, eptr,
+			eptr->chunkid, eptr->version, eptr->chunkType, &(eptr->getBlocksJobResult));
 }
+
+/* IDLE operations */
 
 void csserv_hdd_list_v1(csserventry *eptr, const uint8_t *data,
 		uint32_t length) {
@@ -993,6 +994,10 @@ void csserv_close(csserventry *eptr) {
 	} else if (eptr->wjobid > 0) {
 		job_pool_disable_job(jpool, eptr->wjobid);
 		job_pool_change_callback(jpool, eptr->wjobid, csserv_delayed_close, eptr);
+		eptr->state = CLOSEWAIT;
+	} else if (eptr->getBlocksJobId > 0) {
+		job_pool_disable_job(jpool, eptr->getBlocksJobId);
+		job_pool_change_callback(jpool, eptr->getBlocksJobId, csserv_delayed_close, eptr);
 		eptr->state = CLOSEWAIT;
 	} else {
 		if (eptr->chunkisopen) {

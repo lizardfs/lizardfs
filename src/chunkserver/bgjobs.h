@@ -86,6 +86,8 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), voi
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer);
+uint32_t job_get_blocks(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t version, ChunkType chunkType, uint16_t* blocks);
 uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer);
