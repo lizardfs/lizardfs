@@ -92,7 +92,7 @@ test_cleanup() {
 		rm -rf "$RAMDISK_DIR"/*
 	fi
 	# Clean the disks used by chunkservers
-	for d in $LIZARDFS_DISKS; do
+	for d in $LIZARDFS_DISKS $LIZARDFS_LOOP_DISKS; do
 		rm -rf "$d"/[0-9A-F][0-9A-F]
 	done
 }

@@ -4,7 +4,8 @@
 # If out_var provided an associative array with name $out_var
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
-	local use_ramdisk=${USE_RAMDISK-}
+	local use_ramdisk=${USE_RAMDISK:-}
+	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_chunkservers=${CHUNKSERVERS:-1}
 	local number_of_mounts=${MOUNTS:-1}
 	local disks_per_chunkserver=${DISK_PER_CHUNKSERVER:-1}
@@ -21,11 +22,18 @@ setup_local_empty_lizardfs() {
 	run_master_server
 
 	# Start chunkservers, but first check if he have enough disks
-	local disks_needed=$((number_of_chunkservers * disks_per_chunkserver))
-	local disks_available=$(echo "$LIZARDFS_DISKS" | wc -w)
-	if [[ ! $use_ramdisk ]] && (( disks_available < disks_needed )); then
-		test_fail "Test needs $disks_needed disks"\
-			"but only $disks_available ($LIZARDFS_DISKS) available"
+	if [[ ! $use_ramdisk ]]; then 
+		if [[ $use_loop ]]; then
+			local disks=($LIZARDFS_LOOP_DISKS)
+		else
+			local disks=($LIZARDFS_DISKS)
+		fi
+		local disks_needed=$((number_of_chunkservers * disks_per_chunkserver))
+		local disks_available=${#disks[@]}
+		if (( disks_available < disks_needed )); then
+			test_fail "Test needs $disks_needed disks"\
+					"but only $disks_available (${disks[@]-}) are available"
+		fi
 	fi
 	for ((csid=0 ; csid<number_of_chunkservers; ++csid)); do
 		add_chunkserver $csid
@@ -92,7 +100,6 @@ create_mfshdd_cfg() {
 			echo $disk_dir
 		done
 	else
-		local disks=($LIZARDFS_DISKS)
 		for d in "${disks[@]:$((n * chunkserver_id)):$n}"; do
 			echo "$d"
 		done

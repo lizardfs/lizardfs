@@ -11,23 +11,11 @@ To prepare the testing environment safely, please use the following script:
 
     <SOURCE_DIRECTORY>/tests/setup_machine.sh
 
-What 'setup_machine.sh' does?
- -  Creates a new user - 'lizardfstest' - on the machine;
- -  Grants this user permissions to mount fuse filesystems and to run
-        '/bin/sh -c echo 1 > /proc/sys/vm/drop_caches' as a root;
- -  Grants everyone permissions to run processes as lizardfstests using
-        'sudo -u lizardfstest' without any authentication;
- -  Grants everyone permissions to run 'sudo pkill -9 -u lizardfstest'
-        to kill the tests in case something goes wrong;
- -  Creates a 2GB ramdisk in '/mnt/ramdisk'.
-
-You also have to provide directories which will be used by chunkservers
-during the tests to store any generated data.
-You have to add entry similar to the one below:
-
-    : ${LIZARDFS_DISKS:="/mnt/disk_one /mnt/disk_two /mnt/disk_three"}
-
-to '/etc/lizardfs_tests.conf' file.
+You will need root permissions to use it. When running it, you may want to provide
+directories which will be used by chunkservers during the tests to store any
+generated data as arguments for this script, eg:
+    
+    sudo setup_machine.sh setup /mnt/hdb /mnt/hdc /mnt/hdd /mnt/hde
 
 These directories may be located on one physical disk. Long tests, however, may not work
 in such configuration (they generate heavy traffic). It's OK for sanity checks.
@@ -35,6 +23,18 @@ There should be about 60 GB of disk space available for the tests.
 At least three directories have to be provided in order to run some of the test cases.
 Remember that user 'lizardfstest' needs permissions to write files in these
 directories. All the contents of these directories will be erased during tests.
+
+What 'setup_machine.sh' does?
+ -  Creates /etc/lizardfs_tests.conf file
+ -  Creates a new user - 'lizardfstest' - on the machine;
+ -  Grants this user permissions to mount fuse filesystems and to run
+        '/bin/sh -c echo 1 > /proc/sys/vm/drop_caches' as a root;
+ -  Grants everyone permissions to run processes as lizardfstests using
+        'sudo -u lizardfstest' without any authentication;
+ -  Grants everyone permissions to run 'sudo pkill -9 -u lizardfstest'
+        to kill the tests in case something goes wrong;
+ -  Creates a 2GB ramdisk in '/mnt/ramdisk';
+ -  Creates some filesystems mounted using loop device (if disks are provided).
 
 The tests need to know which binaries should be tested. The default location is
 /var/lib/lizardfstest/local and this means eg. that the master server will run code
