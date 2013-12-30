@@ -1748,51 +1748,60 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-	// temporary exclusion of other operations for chunk with xored copies
-	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->chunkType.isXorChunkType()) {
-			goto step9;
-		}
-	}
-
 	// step 7b. if chunk has too many copies then delete some of them
-	if (vc > c->goal) {
-		uint8_t prevdone;
-		if (serverCount_==0) {
+	std::vector<ChunkType> copiesToRemove = allCopies.getPartsToRemove();
+	if (!copiesToRemove.empty()) {
+		if (serverCount_ == 0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
-		inforec_.notdone.del_overgoal+=(vc-(c->goal));
-		deleteNotDone_+=(vc-(c->goal));
-		prevdone = 1;
-		for (uint32_t i=0 ; i<serverCount_ && vc>c->goal && prevdone; i++) {
-			for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next) {}
-			if (s && s->valid==VALID) {
-				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
-					chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies-1);
+		uint32_t copiesRemoved = 0;
+		for (uint32_t i = 0; i < serverCount_ && !copiesToRemove.empty(); ++i) {
+			for (s = c->slisthead; s && s->ptr != ptrs[serverCount_ - 1 - i]; s = s->next) {}
+			if (s && s->valid == VALID) {
+				auto it = std::find(copiesToRemove.begin(), copiesToRemove.end(), s->chunkType);
+				if (it == copiesToRemove.end()) {
+					continue;
+				}
+				if (matocsserv_deletion_counter(s->ptr) < TmpMaxDel) {
+					chunk_state_change(c->goal, c->goal,
+							c->allvalidcopies, c->allvalidcopies - 1,
+							c->regularvalidcopies, c->regularvalidcopies - 1);
 					c->allvalidcopies--;
 					c->regularvalidcopies--;
-					c->needverincrease=1;
+					c->needverincrease = 1;
 					s->valid = DEL;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
-					inforec_.done.del_overgoal++;
-					inforec_.notdone.del_overgoal--;
-					deleteDone_++;
-					deleteNotDone_--;
+					copiesToRemove.erase(it);
+					copiesRemoved++;
 					vc--;
 					dc++;
 				} else {
-					prevdone=0;
+					break;
 				}
 			}
 		}
+		inforec_.done.del_overgoal += copiesRemoved;
+		deleteDone_ += copiesRemoved;
+		inforec_.notdone.del_overgoal += (copiesToRemove.size() - copiesRemoved);
+		deleteNotDone_ += (copiesToRemove.size() - copiesRemoved);
 		return;
 	}
 
 	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
-	if (vc + tdc >= serverCount && vc < c->goal && tdc > 0 && vc + tdc > 1) {
+	bool hasXorCopies = false;
+	for (s=c->slisthead ; s ; s=s->next) {
+		if (!s->chunkType.isStandardChunkType()) {
+			hasXorCopies = true;
+		}
+	}
+	if (isOrdinaryGoal(c->goal)
+			&& !hasXorCopies
+			&& vc + tdc >= serverCount
+			&& vc < c->goal
+			&& tdc > 0
+			&& vc + tdc > 1) {
 		uint8_t prevdone;
-//		syslog(LOG_WARNING,"vc+tdc (%" PRIu32 ") >= scount (%" PRIu32 ") and vc (%" PRIu32 ") < goal (%" PRIu32 ") and tdc (%" PRIu32 ") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal,tdc);
 		prevdone = 0;
 		for (s=c->slisthead ; s && prevdone==0 ; s=s->next) {
 			if (s->valid==TDVALID) {
@@ -1815,12 +1824,10 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-
-	if (chunksinfo.notdone.copy_undergoal>0 && chunksinfo.done.copy_undergoal>0) {
+	if (chunksinfo.notdone.copy_undergoal > 0 && chunksinfo.done.copy_undergoal > 0) {
 		return;
 	}
 
-step9:
 	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
 	if (c->goal >= vc && vc + tdc>0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
