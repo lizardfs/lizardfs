@@ -5,7 +5,7 @@ rebalancing_timeout=90
 # 9 9 2 1 -- one chunk of one of the chunkservers, two on another, 9 on the last two chunkservers
 get_rebalancing_status() {
 	find_all_chunks ! -name '*_00000000.mfs' \
-			| sed -e 's|/../chunk_[0-9A-F_]*.mfs||' \
+			| sed -e 's|/../chunk_[a-z0-9A-F_]*.mfs||' \
 			| sort \
 			| uniq -c \
 			| sort -rn \
@@ -13,7 +13,7 @@ get_rebalancing_status() {
 			| sed -e 's/ $//'
 }
 
-CHUNKSERVERS=4 \
+CHUNKSERVERS=5 \
 	USE_LOOP_DISKS=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="CHUNKS_WRITE_REP_LIMIT = 1|CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0|ACCEPTABLE_DIFFERENCE = 0.0015" \
@@ -23,17 +23,20 @@ CHUNKSERVERS=4 \
 mfschunkserver -c "${info[chunkserver0_config]}" stop
 mfschunkserver -c "${info[chunkserver1_config]}" stop
 cd "${info[mount0]}"
-mkdir dir
+mkdir dir dirxor
 mfssetgoal 2 dir
-for i in {1..20}; do
+mfssetgoal xor2 dirxor
+for i in {1..10}; do
+	 # Each loop creates 2 standard chunks and 3 xor chunks, ~1 MB each
 	( FILE_SIZE=1M expect_success file-generate "dir/file_$i" ) &
+	( FILE_SIZE=2M expect_success file-generate "dirxor/file_$i" ) &
 done
 wait
 mfschunkserver -c "${info[chunkserver0_config]}" start
 mfschunkserver -c "${info[chunkserver1_config]}" start
 
 echo "Waiting for rebalancing..."
-expected_rebalancing_status="10 10 10 10"
+expected_rebalancing_status="10 10 10 10 10"
 status=
 end_time=$((rebalancing_timeout + $(date +%s)))
 while [[ $status != $expected_rebalancing_status ]] && (( $(date +%s) < end_time )); do
@@ -43,9 +46,10 @@ while [[ $status != $expected_rebalancing_status ]] && (( $(date +%s) < end_time
 done
 MESSAGE="Chunks are not rebalanced properly" assert_equals "$expected_rebalancing_status" "$status"
 
-for csid in {0..3}; do
+for csid in {0..4}; do
 	config=${info[chunkserver${csid}_config]}
 	mfschunkserver -c "${config}" stop
 	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dir/*
+	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dirxor/*
 	mfschunkserver -c "${config}" start
 done
