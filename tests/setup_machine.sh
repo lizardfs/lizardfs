@@ -1,7 +1,7 @@
 #!/bin/bash
 
 usage() {
-	echo "Usage: $0 setup"
+	echo "Usage: $0 setup hdd..."
 	echo
 	echo "This scripts prepares the machine to run LizardFS tests here."
 	echo "Specifically:"
@@ -10,6 +10,8 @@ usage() {
 	echo "* grants all users rights to run programs as lizardfstest"
 	echo "* grants all users rights to run 'pkill -9 -u lizardfstest"
 	echo "* allow all users to mount fuse filesystem with allow_other option"
+	echo "* creates a 2G ramdisk in /mnt/ramdisk"
+	echo "* creates 6 files mounted using loop device"
 	echo
 	echo "You need root permissions to run this script"
 	exit 1
@@ -18,25 +20,25 @@ usage() {
 if [[ $1 != setup ]]; then
 	usage >&2
 fi
+shift
 
 # Make this script safe and bug-free ;)
 set -eux
 
-echo Add user lizardfstest
+echo ; echo Add user lizardfstest
 if ! getent passwd lizardfstest > /dev/null; then
 	useradd --system --user-group --home /var/lib/lizardfstest lizardfstest
-	groupadd fuse
 	usermod -a -G fuse lizardfstest
 fi
 
-echo Create home directory /var/lib/lizardfstest
+echo ; echo Create home directory /var/lib/lizardfstest
 if [[ ! -d /var/lib/lizardfstest ]]; then
 	mkdir -p /var/lib/lizardfstest
 	chown lizardfstest:lizardfstest /var/lib/lizardfstest
 	chmod 755 /var/lib/lizardfstest
 fi
 
-echo Prepare sudo configuration
+echo ; echo Prepare sudo configuration
 if ! [[ -d /etc/sudoers.d ]]; then
 	# Sudo is not installed bydefault on Debian machines
 	echo "sudo not installed!" >&2
@@ -54,27 +56,55 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 	chmod 0440 /etc/sudoers.d/lizardfstest
 fi
 
-echo Prepare /etc/fuse.conf
+echo ; echo Prepare /etc/fuse.conf
 if ! grep '^[[:blank:]]*user_allow_other' /etc/fuse.conf >/dev/null; then
 	echo "user_allow_other" >> /etc/fuse.conf
 fi
 
-echo Prepare empty /etc/lizardfs_tests.conf
+echo ; echo Prepare empty /etc/lizardfs_tests.conf
 if ! [[ -f /etc/lizardfs_tests.conf ]]; then
-	cat >/etc/lizardfs_tests.conf <<-'END'
-		# : ${TEMP_DIR:=/tmp/LizardFS-autotests}
-		# : ${LIZARDFS_DISKS:="/mnt/hd1 /mnt/hd2 /mnt/hd3"}
-		# : ${LIZARDFS_ROOT:=/home/<some_user>/local}
-		# : ${FIRST_PORT_TO_USE:=25000}
+	cat >/etc/lizardfs_tests.conf <<-END
+		: \${LIZARDFS_DISKS:="$*"}
+		# : \${TEMP_DIR:=/tmp/LizardFS-autotests}
+		# : \${LIZARDFS_ROOT:=$HOME/local}
+		# : \${FIRST_PORT_TO_USE:=25000}
 	END
 fi
 
-echo Prepare ramdisk
+echo ; echo Prepare ramdisk
 if ! grep /mnt/ramdisk /etc/fstab >/dev/null; then
 	echo "# Ramdisk used in LizardFS tests" >> /etc/fstab
 	echo "ramdisk  /mnt/ramdisk  tmpfs  mode=1777,size=2g" >> /etc/fstab
 	mkdir -p /mnt/ramdisk
 	mount /mnt/ramdisk
+	echo ': ${RAMDISK_DIR:=/mnt/ramdisk}' >> /etc/lizardfs_tests.conf
+fi
+
+echo ; echo Prepare loop devices
+if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
+	i=0
+	devices=6
+	loops=()
+	echo "# Loop devices used in LizardFS tests" >> /etc/fstab
+	for disk in "$@" "$@" "$@" "$@" "$@" "$@"; do
+		if (( i == devices )); then
+			break
+		fi
+		mkdir -p "$disk/lizardfstest_images"
+		# Create image file
+		image="$disk/lizardfstest_images/image_$i"
+		truncate -s 1G "$image"
+		mkfs.ext4 -Fq "$image"
+		# Add it to fstab
+		echo "$(readlink -m "$image") /mnt/lizardfstest_loop_$i  ext4  loop" >> /etc/fstab
+		mkdir -p /mnt/lizardfstest_loop_$i
+		# Mount and set permissions
+		mount /mnt/lizardfstest_loop_$i
+		chmod 1777 /mnt/lizardfstest_loop_$i
+		loops+=(/mnt/lizardfstest_loop_$i)
+		(( ++i ))
+	done
+	echo ": \${LIZARDFS_LOOP_DISKS:=\"${loops[*]}\"}" >> /etc/lizardfs_tests.conf
 fi
 
 set +x

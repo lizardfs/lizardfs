@@ -6,6 +6,7 @@ fi
 # Set up the default configuration values if not set yet
 # This is a list of all configuration variables, that these tests use
 : ${LIZARDFS_DISKS:=}
+: ${LIZARDFS_LOOP_DISKS:=}
 : ${TEMP_DIR:=/tmp/LizardFS-autotests}
 : ${LIZARDFS_ROOT:=$HOME/local}
 : ${FIRST_PORT_TO_USE:=25000}
@@ -44,19 +45,16 @@ check_configuration() {
 		fi
 	done
 
-	for dir in "$TEMP_DIR" $LIZARDFS_DISKS; do
-		if ! touch "$dir/permissions_check"; then
-			test_fail "Configuration error, cannot create files in $dir"
-		fi
-		if ! rm "$dir/permissions_check"; then
-			test_fail "Configuration error, cannot remove files in $dir"
-		fi
-	done
-
-	if [[ ! -w ${TEST_OUTPUT_DIR} ]]; then
-		test_fail "Configuration error, cannot create files in $TEST_OUTPUT_DIR"
+	if ! df -T "$RAMDISK_DIR" | grep "tmpfs\|ramfs" >/dev/null; then
+		test_fail "Configuration error, ramdisk ($RAMDISK_DIR) is missing"
 	fi
 
+	for dir in "$TEMP_DIR" "$RAMDISK_DIR" "$TEST_OUTPUT_DIR" $LIZARDFS_DISKS $LIZARDFS_LOOP_DISKS; do
+		if [[ ! -w $dir ]]; then
+			test_fail "Configuration error, cannot create files in $dir"
+		fi
+	done
+	
 	if ! cat /etc/fuse.conf >/dev/null; then
 		test_fail "Configuration error, user $(whoami) is not a member of the fuse group"
 	fi
@@ -64,12 +62,4 @@ check_configuration() {
 	if ! grep '[[:blank:]]*user_allow_other' /etc/fuse.conf >/dev/null; then
 		test_fail "Configuration error, user_allow_other not enabled in /etc/fuse.conf"
 	fi
-
-	if ! df -T $RAMDISK_DIR | grep "tmpfs\|ramfs" >/dev/null; then
-		test_fail "Configuration error, ramdisk ($RAMDISK_DIR) is missing"
-	fi
-	if ! touch "$RAMDISK_DIR/$(unique_file)"; then
-		test_fail "Configuration error, cannot create file in $RAMDISK_DIR"
-	fi
-
 }
