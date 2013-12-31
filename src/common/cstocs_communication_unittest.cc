@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "unittests/inout_pair.h"
+#include "unittests/operators.h"
 #include "unittests/packet.h"
 
 TEST(CstocsCommunicationTests, GetChunkBlocks) {

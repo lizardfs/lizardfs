@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "common/chunk_type.h"
+#include "unittests/operators.h"
 #include "unittests/TemporaryDirectory.h"
 
 TEST(ChunkSignatureTests, ReadingFromFile) {

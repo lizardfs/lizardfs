@@ -5,6 +5,7 @@
 #include "common/crc.h"
 #include "common/strerr.h"
 #include "unittests/inout_pair.h"
+#include "unittests/operators.h"
 #include "unittests/packet.h"
 
 TEST(CstomaCommunicationTests, OverwriteStatusField) {

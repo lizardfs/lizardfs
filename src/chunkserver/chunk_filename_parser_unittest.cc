@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "unittests/operators.h"
+
 TEST(ChunkFilenameParser, ParseStandardChunkFilename) {
 	ChunkFilenameParser filenameParser("chunk_0000000000550A00_00000001.mfs");
 	ASSERT_EQ(ChunkFilenameParser::OK, filenameParser.parse());

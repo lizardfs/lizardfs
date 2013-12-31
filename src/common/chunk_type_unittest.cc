@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "common/goal.h"
+#include "unittests/operators.h"
 
 TEST(ChunkTypeTests, SerializeDeserialize) {
 	// Create array with all chunk types
