@@ -13,7 +13,8 @@ setup_local_empty_lizardfs() {
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
 	local mntdir=$TEMP_DIR/mnt
-	declare -A lizardfs_info
+	declare -gA lizardfs_info
+	lizardfs_info[chunkserver_count]=$number_of_chunkservers
 
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
@@ -161,7 +162,7 @@ add_mount() {
 	exit 2
 }
 
-function mfs_dir_info() {
+mfs_dir_info() {
     if (( $# != 2 )); then
         echo "Incorrect usage of mfs_dir_info with args $*";
         exit 2;
@@ -169,6 +170,20 @@ function mfs_dir_info() {
     field=$1
     file=$2
     mfsdirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
+}
+
+# print absolute paths of all chunk files on all servers used in test, one per line
+find_all_chunks() {
+	local count=${lizardfs_info[chunkserver_count]}
+	local chunkserver
+	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
+		local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' "${lizardfs_info[chunkserver${chunkserver}_hdd]}")
+		if (( $# > 0 )); then
+			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+		else
+			find $hdds -name "chunk*.mfs"
+		fi
+	done
 }
 
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))
