@@ -94,11 +94,7 @@ if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
 		# Create image file
 		image="$disk/lizardfstest_images/image_$i"
 		truncate -s 1G "$image"
-		# Create ext4 filesystem in the file
-		dev=$(losetup -f)
-		losetup "$dev" "$image"
-		mkfs.ext4 -q "$dev"
-		losetup -d "$dev"
+		mkfs.ext4 -Fq "$image"
 		# Add it to fstab
 		echo "$(readlink -m "$image") /mnt/lizardfstest_loop_$i  ext4  loop" >> /etc/fstab
 		mkdir -p /mnt/lizardfstest_loop_$i
