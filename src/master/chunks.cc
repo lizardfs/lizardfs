@@ -1311,44 +1311,46 @@ void chunk_got_delete_status(void *ptr, uint64_t chunkId, ChunkType chunkType, u
 	}
 }
 
-void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
-	chunk *c;
+void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType, uint8_t status) {
 	slist *s;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ;
+	chunk *c = chunk_find(chunkId);
+	if (c == NULL || status != 0) {
+		return;
 	}
-	if (status!=0) {
-		return ;
-	}
-	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr == ptr) {
-			syslog(LOG_WARNING,"got replication status from server which had had that chunk before (chunk:%016" PRIX64 "_%08" PRIX32 ")",chunkid,version);
-			if (s->valid==VALID && version!=c->version) {
-				chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies-1,c->regularvalidcopies,c->regularvalidcopies-1);
+
+	for (s = c->slisthead; s; s = s->next) {
+		if (s->chunkType == chunkType && s->ptr == ptr) {
+			syslog(LOG_WARNING,
+					"got replication status from server which had had that chunk before (chunk:%016"
+					PRIX64 "_%08" PRIX32 ")", chunkId, chunkVersion);
+			if (s->valid == VALID && chunkVersion != c->version) {
+				chunk_state_change(c->goal, c->goal, c->allvalidcopies, c->allvalidcopies - 1,
+						c->regularvalidcopies, c->regularvalidcopies - 1);
 				c->allvalidcopies--;
 				c->regularvalidcopies--;
 				s->valid = INVALID;
-				s->version = version;
+				s->version = chunkVersion;
 			}
 			return;
 		}
 	}
 	s = slist_malloc();
 	s->ptr = ptr;
-	if (c->lockedto>=(uint32_t)main_time() || version!=c->version) {
+	if (c->lockedto >= main_time() || chunkVersion != c->version) {
 		s->valid = INVALID;
 	} else {
-		chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies+1,c->regularvalidcopies,c->regularvalidcopies+1);
+		chunk_state_change(c->goal, c->goal, c->allvalidcopies, c->allvalidcopies + 1,
+				c->regularvalidcopies, c->regularvalidcopies + 1);
 		c->allvalidcopies++;
 		c->regularvalidcopies++;
 		s->valid = VALID;
 	}
-	s->version = version;
+	s->version = chunkVersion;
+	s->chunkType = chunkType;
 	s->next = c->slisthead;
 	c->slisthead = s;
 }
-
 
 void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *ptr) {
 	uint8_t valid,vs;

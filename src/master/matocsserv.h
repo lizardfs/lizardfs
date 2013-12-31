@@ -41,7 +41,7 @@ uint16_t matocsserv_deletion_counter(void *e);
 uint32_t matocsserv_cservlist_size(void);
 void matocsserv_cservlist_data(uint8_t *ptr);
 int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *src);
-int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t version, ChunkType type,
+int matocsserv_send_liz_replicatechunk(void* e, uint64_t chunkid, uint32_t version, ChunkType type,
 		const std::vector<void*> &sourcePointers, const std::vector<ChunkType> &sourceTypes);
 int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng);
 int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion,
