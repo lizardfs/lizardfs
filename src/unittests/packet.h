@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_TESTS_COMMON_PACKET_H_
-#define LIZARDFS_TESTS_COMMON_PACKET_H_
+#pragma once
 
 #include <cstdint>
 #include <vector>
@@ -33,5 +32,3 @@ inline void verifyVersion(const std::vector<uint8_t>& messageWithoutHeader,
 	ASSERT_NO_THROW(deserializePacketVersionNoHeader(messageWithoutHeader, version));
 	EXPECT_EQ(expectedVersion, version);
 }
-
-#endif /* LIZARDFS_TESTS_COMMON_PACKET_H_ */

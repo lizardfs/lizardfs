@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CSTOMA_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_CSTOMA_COMMUNICATION_H_
+#pragma once
 
 #include "common/chunk_type.h"
 #include "common/chunk_with_version_and_type.h"
@@ -154,5 +153,3 @@ inline void deserialize(const std::vector<uint8_t>& source,
 } // namespace replicate
 
 } // namespace cstoma
-
-#endif /* LIZARDFS_MFSCOMMON_CSTOMA_COMMUNICATION_H_ */

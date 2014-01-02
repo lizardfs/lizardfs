@@ -5,8 +5,7 @@
  *      Author: Marcin Sulikowski
  */
 
-#ifndef TEMPORARYDIRECORY_H_
-#define TEMPORARYDIRECORY_H_
+#pragma once
 
 #include <sys/time.h>
 #include <unistd.h>
@@ -49,5 +48,3 @@ public:
 		return name_;
 	}
 };
-
-#endif /* TEMPORARYDIRECORY_H_ */

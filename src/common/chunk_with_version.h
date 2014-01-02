@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CHUNK_WITH_VERSION_H_
-#define LIZARDFS_MFSCOMMON_CHUNK_WITH_VERSION_H_
+#pragma once
 
 #include <cstdint>
 
@@ -19,5 +18,3 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 		ChunkWithVersion& chunk) {
 	return deserialize(source, bytesLeftInBuffer, chunk.id, chunk.version);
 }
-
-#endif // LIZARDFS_MFSCOMMON_CHUNK_WITH_VERSION_H_

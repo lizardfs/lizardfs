@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCHUNKSERVER_CHUNK_FILENAME_PARSER_H_
-#define LIZARDFS_MFSCHUNKSERVER_CHUNK_FILENAME_PARSER_H_
+#pragma once
 
 #include <string>
 
@@ -34,5 +33,3 @@ private:
 
 	Status parseChunkType();
 };
-
-#endif // LIZARDFS_MFSCHUNKSERVER_CHUNK_FILENAME_PARSER_H_

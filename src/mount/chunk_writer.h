@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MOUNT_CHUNK_WRITER_H_
-#define LIZARDFS_MOUNT_CHUNK_WRITER_H_
+#pragma once
 
 #include <cstdint>
 #include <list>
@@ -90,5 +89,3 @@ private:
 	void releaseChunk();
 	void startOperation(const Operation& operation);
 };
-
-#endif //LIZARDFS_MOUNT_CHUNK_WRITER_H_

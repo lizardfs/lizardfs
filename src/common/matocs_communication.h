@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_MATOCS_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_MATOCS_COMMUNICATION_H_
+#pragma once
 
 #include "common/chunk_type_with_address.h"
 #include "common/packet.h"
@@ -91,5 +90,3 @@ inline void deserializePartial(const std::vector<uint8_t>& source,
 } // namespace replicate
 
 } // namespace matocs
-
-#endif // LIZARDFS_MFSCOMMON_MATOCS_COMMUNICATION_H_

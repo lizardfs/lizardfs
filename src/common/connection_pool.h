@@ -1,5 +1,4 @@
-#ifndef CONNECTION_POOL_H_
-#define CONNECTION_POOL_H_
+#pragma once
 
 #include <chrono>
 #include <list>
@@ -54,5 +53,3 @@ private:
 	std::mutex mutex_;
 	ConnectionsContainer connections_;
 };
-
-#endif /* CONNECTION_POOL_H_ */

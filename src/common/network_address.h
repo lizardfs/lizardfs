@@ -71,4 +71,3 @@ public:
 private:
 	NetworkAddress server_;
 };
-

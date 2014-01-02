@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CHUNK_TYPE_WITH_ADDRESS_H_
-#define LIZARDFS_MFSCOMMON_CHUNK_TYPE_WITH_ADDRESS_H_
+#pragma once
 
 #include "common/chunk_type.h"
 #include "common/network_address.h"
@@ -39,5 +38,3 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	deserialize(source, bytesLeftInBuffer, chunkTypeWithAddress.address,
 			chunkTypeWithAddress.chunkType);
 }
-
-#endif // LIZARDFS_MFSCOMMON_CHUNK_TYPE_WITH_ADDRESS_H_

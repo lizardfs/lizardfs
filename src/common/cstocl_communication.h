@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CSTOCL_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_CSTOCL_COMMUNICATION_H_
+#pragma once
 
 #include "common/chunk_type.h"
 #include "common/packet.h"
@@ -66,5 +65,3 @@ inline void deserialize(const std::vector<uint8_t>& buffer,
 } // namespace writeStatus
 
 } // namespace cstocl
-
-#endif // LIZARDFS_MFSCOMMON_CSTOCL_COMMUNICATION_H_

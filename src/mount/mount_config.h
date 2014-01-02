@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_MFSMOUNT_CFG_H_
-#define LIZARDFS_MFSMOUNT_MFSMOUNT_CFG_H_
+#pragma once
 
 #include "config.h"
 
@@ -113,5 +112,3 @@ void usage(const char *progname);
 void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs);
 int mfs_opt_proc_stage1(void *data, const char *arg, int key, struct fuse_args *outargs);
 int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *outargs);
-
-#endif // LIZARDFS_MFSMOUNT_MFSMOUNT_CFG_H_

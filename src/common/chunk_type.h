@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CHUNK_TYPE_H_
-#define LIZARDFS_MFSCOMMON_CHUNK_TYPE_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -88,5 +87,3 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, Chu
 				"unknown chunk type id: " + std::to_string(chunkTypeId));
 	}
 }
-
-#endif // LIZARDFS_MFSCOMMON_CHUNK_TYPE_H_

@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCHUNKSERVER_CHUNK_SIGNATURE_H
-#define LIZARDFS_MFSCHUNKSERVER_CHUNK_SIGNATURE_H
+#pragma once
 
 #include <inttypes.h>
 #include <cstdlib>
@@ -40,5 +39,3 @@ private:
 	uint8_t chunkTypeId_;
 	bool hasValidSignatureId_;
 };
-
-#endif /* LIZARDFS_MFSCHUNKSERVER_CHUNK_SIGNATURE_H */

@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CLTOCS_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_CLTOCS_COMMUNICATION_H_
+#pragma once
 
 #include "common/chunk_type.h"
 #include "common/network_address.h"
@@ -82,5 +81,3 @@ inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& ch
 } // namespace writeEnd
 
 } // namespace cltocs
-
-#endif // LIZARDFS_MFSCOMMON_CLTOCS_COMMUNICATION_H_

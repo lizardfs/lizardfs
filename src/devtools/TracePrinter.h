@@ -5,8 +5,7 @@
  *      Author: Marcin Sulikowski
  */
 
-#ifndef TRACEPRINTER_H_
-#define TRACEPRINTER_H_
+#pragma once
 
 #ifdef ENABLE_TRACES
 #include <pthread.h>
@@ -138,5 +137,3 @@ public:
 #	define PRINTTHISMSG(a) (void)0
 #   define MARKTHIS() (void)0
 #endif /* ENABLE_TRACES */
-
-#endif /* TRACEPRINTER_H_ */

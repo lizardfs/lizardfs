@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_MATOCL_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_MATOCL_COMMUNICATION_H_
+#pragma once
 
 #include "common/chunk_type_with_address.h"
 #include "common/MFSCommunication.h"
@@ -89,5 +88,3 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 } //namespace fuseWriteChunkEnd
 
 } // namespace matocl
-
-#endif // LIZARDFS_MFSCOMMON_MATOCL_COMMUNICATION_H_

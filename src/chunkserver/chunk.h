@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCHUNKSERVER_CHUNK_H_
-#define LIZARDFS_MFSCHUNKSERVER_CHUNK_H_
+#pragma once
 
 #include <cstdint>
 #include <cstdlib>
@@ -125,5 +124,3 @@ private:
 	ChunkType type_;
 	std::string filename_;
 };
-
-#endif // LIZARDFS_MFSCHUNKSERVER_CHUNK_H_

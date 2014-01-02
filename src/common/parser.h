@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_PARSER_H_
-#define LIZARDFS_MFSCOMMON_PARSER_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -64,6 +63,3 @@ private:
 		return T(std::stoll(number.substr(position, length), nullptr, 10));
 	}
 };
-
-#endif // LIZARDFS_MFSCOMMON_PARSER_H_
-

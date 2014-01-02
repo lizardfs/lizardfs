@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_
-#define LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_
+#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -92,5 +91,3 @@ private:
 	bool isChunkLocked_;
 	ChunkLocationInfo locationInfo_;
 };
-
-#endif // LIZARDFS_MFSMOUNT_CHUNK_LOCATOR_H_

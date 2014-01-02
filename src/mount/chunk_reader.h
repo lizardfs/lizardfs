@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSMOUNT_CHUNK_READER_H_
-#define LIZARDFS_MFSMOUNT_CHUNK_READER_H_
+#pragma once
 
 #include <poll.h>
 #include <cstdint>
@@ -55,5 +54,3 @@ private:
 	std::map<ChunkType, NetworkAddress> chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
 };
-
-#endif /* CHUNK_READER_H_ */

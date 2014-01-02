@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_COMMON_GOAL_H_
-#define LIZARDFS_COMMON_GOAL_H_
+#pragma once
 
 #include <cstdint>
 
@@ -15,5 +14,3 @@ bool isGoalValid(uint8_t goal);
 bool isOrdinaryGoal(uint8_t goal);
 bool isXorGoal(uint8_t goal);
 uint8_t xorLevelToGoal(ChunkType::XorLevel xorLevel);
-
-#endif // LIZARDFS_COMMON_GOAL_H_

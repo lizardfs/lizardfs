@@ -1,5 +1,4 @@
-#ifndef OUTPUT_BUFFERS_H
-#define OUTPUT_BUFFERS_H
+#pragma once
 
 #include <cstdint>
 #include <cstring>
@@ -66,5 +65,3 @@ private:
 	size_t bufferUnflushedDataFirstIndex_;
 	size_t bufferUnflushedDataOneAfterLastIndex_;
 };
-
-#endif /* OUTPUT_BUFFERS_H */

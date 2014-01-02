@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_LIST_H_
-#define LIZARDFS_MFSCOMMON_LIST_H_
+#pragma once
 
 #include <stdlib.h>
 #include <cstdint>
@@ -12,5 +11,3 @@ uint32_t list_length(MooseFSStyleList* list) {
 	}
 	return result;
 }
-
-#endif /* LIZARDFS_MFSCOMMON_LIST_H_ */

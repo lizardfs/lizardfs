@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MOUNT_WRITE_EXECUTOR_H_
-#define LIZARDFS_MOUNT_WRITE_EXECUTOR_H_
+#pragma once
 
 #include "common/chunk_type.h"
 #include "common/chunkserver_stats.h"
@@ -77,5 +76,3 @@ private:
 
 	Status processStatusMessage(const std::vector<uint8_t>& message);
 };
-
-#endif //LIZARDFS_MOUNT_WRITE_EXECUTOR_H_

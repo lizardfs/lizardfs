@@ -1,5 +1,4 @@
-#ifndef LIZARDFS_MFSCOMMON_CLTOMA_COMMUNICATION_H_
-#define LIZARDFS_MFSCOMMON_CLTOMA_COMMUNICATION_H_
+#pragma once
 
 #include "common/MFSCommunication.h"
 #include "common/packet.h"
@@ -52,5 +51,3 @@ inline void deserialize(const std::vector<uint8_t>& source, uint32_t& messageId,
 } // namespace fuseWriteChunkEnd
 
 } // namespace cltoma
-
-#endif // LIZARDFS_MFSCOMMON_CLTOMA_COMMUNICATION_H_
