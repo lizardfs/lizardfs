@@ -12,22 +12,7 @@
 #include "mount/mastercomm.h"
 #include "mount/write_executor.h"
 
-ChunkWriter::Operation::Operation(WriteId id, const uint8_t* data, uint32_t offset, uint32_t size)
-		: id(id),
-		  data(data),
-		  offset(offset),
-		  size(size) {
-	sassert(size != 0);
-	sassert(data != nullptr);
-	sassert(size > 0);
-	sassert((offset + size) <= MFSCHUNKSIZE);
-	sassert(offset % MFSBLOCKSIZE + size <= MFSBLOCKSIZE);
-}
-
-
-ChunkWriter::ChunkWriter(
-		ChunkserverStats& chunkserverStats,
-		ChunkConnector& connector)
+ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& connector)
 	: chunkserverStats_(chunkserverStats),
 	  connector_(connector),
 	  inode_(0),
@@ -44,7 +29,7 @@ ChunkWriter::~ChunkWriter() {
 
 void ChunkWriter::init(uint32_t inode, uint32_t index, uint32_t msTimeout) {
 	sassert(currentWriteId_ == 0);
-	sassert(unfinishedOperationCounters_.empty());
+	sassert(pendingOperations_.empty());
 	sassert(executors_.empty());
 
 	Timeout connectTimeout{std::chrono::milliseconds(msTimeout)};
@@ -73,16 +58,16 @@ void ChunkWriter::init(uint32_t inode, uint32_t index, uint32_t msTimeout) {
 	}
 	for (const auto& fdAndExecutor : executors_) {
 		fdAndExecutor.second->addInitPacket();
-		unfinishedOperationCounters_[currentWriteId_]++;
+		pendingOperations_[currentWriteId_].unfinishedWrites++;
 	}
 }
 
-std::vector<ChunkWriter::WriteId> ChunkWriter::processOperations(uint32_t msTimeout) {
-	if (!newOperations.empty()) {
-		for (const auto& operation : newOperations) {
-			startOperation(operation);
+void ChunkWriter::processOperations(uint32_t msTimeout) {
+	if (!newOperations_.empty()) {
+		for (auto& operation : newOperations_) {
+			startOperation(std::move(operation));
 		}
-		newOperations.clear();
+		newOperations_.clear();
 	}
 
 	std::vector<pollfd> pollFds;
@@ -100,15 +85,13 @@ std::vector<ChunkWriter::WriteId> ChunkWriter::processOperations(uint32_t msTime
 	if (status < 0) {
 		throw RecoverableWriteException("Poll error: " + std::string(strerr(errno)));
 	} else if (status == 0) {
-		return std::move(std::vector<ChunkWriter::WriteId>());
+		return;
 	}
 
-	std::vector<ChunkWriter::WriteId> finishedOperations;
 	for (pollfd& pollFd : pollFds) {
 		auto it = executors_.find(pollFd.fd);
 		sassert(it != executors_.end());
 		WriteExecutor& executor = *it->second;
-		const NetworkAddress& server = executor.server();
 
 		if (pollFd.revents & POLLOUT) {
 			executor.sendData();
@@ -117,36 +100,19 @@ std::vector<ChunkWriter::WriteId> ChunkWriter::processOperations(uint32_t msTime
 		if (pollFd.revents & POLLIN) {
 			std::vector<WriteExecutor::Status> statuses = executor.receiveData();
 			for (const auto& status : statuses) {
-				if (status.chunkId != locator_.locationInfo().chunkId) {
-					throw ChunkserverConnectionException(
-							"Received inconsistent write status message"
-							", expected chunk " + std::to_string(locator_.locationInfo().chunkId) +
-							", got chunk " + std::to_string(status.chunkId),
-							server);
-				}
-				if (status.status != STATUS_OK) {
-					throw RecoverableWriteException("Chunk write error", status.status);
-				}
-				if (--unfinishedOperationCounters_[status.writeId] == 0) {
-					if (status.writeId != 0) {
-						finishedOperations.push_back(status.writeId);
-					}
-					unfinishedOperationCounters_.erase(status.writeId);
-					// Update file size if changed
-					uint64_t writtenOffset = offsetOfEnd_[status.writeId];
-					offsetOfEnd_.erase(status.writeId);
-					if (writtenOffset > locator_.locationInfo().fileLength) {
-						locator_.updateFileLength(writtenOffset);
-					}
-				}
+				processStatus(executor, status);
 			}
 		}
+
 		if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
 			throw ChunkserverConnectionException(
 					"Write to chunkserver (poll) error", executor.server());
 		}
 	}
-	return std::move(finishedOperations);
+}
+
+uint32_t ChunkWriter::getUnfinishedOperationsCount() {
+	return pendingOperations_.size() + newOperations_.size();
 }
 
 void ChunkWriter::finish(uint32_t msTimeout) {
@@ -184,6 +150,12 @@ void ChunkWriter::abortOperations() {
 	releaseChunk();
 }
 
+std::list<WriteCacheBlock> ChunkWriter::releaseJournal() {
+	std::list<WriteCacheBlock> tmp;
+	std::swap(tmp, journal_);
+	return tmp;
+}
+
 void ChunkWriter::releaseChunk() {
 	int retryCount = 0;
 	while (true) {
@@ -199,27 +171,27 @@ void ChunkWriter::releaseChunk() {
 	}
 }
 
-ChunkWriter::WriteId ChunkWriter::addOperation(const uint8_t* data, uint32_t offset, uint32_t size) {
-	newOperations.push_back(Operation(++currentWriteId_, data, offset, size));
-	return currentWriteId_;
+void ChunkWriter::addOperation(WriteCacheBlock&& block) {
+	sassert(block.chunkIndex == index_);
+	Operation operation;
+	operation.offsetOfEnd = block.offsetInFile() + block.size();
+	journal_.push_back(std::move(block));
+	operation.journalPosition = std::prev(journal_.end());
+	newOperations_.push_back(std::move(operation));
 }
 
-void ChunkWriter::startOperation(const Operation& operation) {
-	unfinishedOperationCounters_[operation.id] = 0;
+void ChunkWriter::startOperation(Operation&& operation) {
 	const ChunkLocationInfo& chunkLocationInfo = locator_.locationInfo();
 	Timeout timeout{std::chrono::seconds(10)};
+	WriteId id = ++currentWriteId_;
+	const WriteCacheBlock& block = *operation.journalPosition;
 	// TODO this method assumes, that each chunkType has ONLY ONE executor!
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
 		ChunkType chunkType = fdAndExecutor.second->chunkType();
-		offsetOfEnd_[operation.id] = static_cast<uint64_t>(index_) * MFSCHUNKSIZE +
-				operation.offset + operation.size;
 		if (chunkType.isStandardChunkType()) {
-			uint32_t block = operation.offset / MFSBLOCKSIZE;
-			uint32_t offsetInBlock = operation.offset - block * MFSBLOCKSIZE;
-			executor.addDataPacket(operation.id, block, offsetInBlock,
-					operation.size, operation.data);
-			++unfinishedOperationCounters_[operation.id];
+			executor.addDataPacket(id, block.blockIndex, block.from, block.size(), block.data());
+			operation.unfinishedWrites++;
 		} else {
 			if (chunkType.isXorParity()) {
 				continue;
@@ -227,30 +199,29 @@ void ChunkWriter::startOperation(const Operation& operation) {
 			ChunkType::XorLevel level = chunkType.getXorLevel();
 			ChunkType::XorPart part = chunkType.getXorPart();
 			ChunkType parityChunkType = ChunkType::getXorParityChunkType(level);
-			uint32_t blockOfChunk = operation.offset / MFSBLOCKSIZE;
-			if (blockOfChunk % level + 1 != part) {
+			if (block.blockIndex % level + 1 != part) {
 				continue;
 			}
-			uint32_t block = blockOfChunk / level;
+
+			uint32_t stripe = block.blockIndex / level;
 
 			// Read previous state of the data
-			std::vector<uint8_t>& dataBlock = buffers_[chunkType][block];
-			if (dataBlock.empty()) {
-				uint64_t blockOffsetInFile = index_ * MFSCHUNKSIZE + blockOfChunk * MFSBLOCKSIZE;
-				if (blockOffsetInFile >= chunkLocationInfo.fileLength) {
-					dataBlock.resize(MFSBLOCKSIZE);
-					memset(dataBlock.data(), 0, MFSBLOCKSIZE);
+			std::vector<uint8_t>& dataBuffer = buffers_[chunkType][stripe];
+			if (dataBuffer.empty()) {
+				if (block.offsetInFile() >= chunkLocationInfo.fileLength) {
+					dataBuffer.resize(MFSBLOCKSIZE);
+					memset(dataBuffer.data(), 0, MFSBLOCKSIZE);
 				} else {
 					ReadPlanner::ReadOperation readOperation;
-					readOperation.requestOffset = block * MFSBLOCKSIZE;
+					readOperation.requestOffset = stripe * MFSBLOCKSIZE;
 					readOperation.requestSize = MFSBLOCKSIZE;
 					readOperation.readDataOffsets.push_back(0);
-					buffers_[chunkType][block].resize(MFSBLOCKSIZE);
+					buffers_[chunkType][stripe].resize(MFSBLOCKSIZE);
 					int fd = connector_.connect(executor.server(), timeout);
 					try {
 						ReadOperationExecutor readExecutor(readOperation,
 								chunkLocationInfo.chunkId, chunkLocationInfo.version, chunkType,
-								executor.server(), fd, buffers_[chunkType][block].data());
+								executor.server(), fd, buffers_[chunkType][stripe].data());
 						readExecutor.sendReadRequest(timeout);
 						readExecutor.readAll(timeout);
 						connector_.returnToPool(fd, executor.server());
@@ -271,26 +242,26 @@ void ChunkWriter::startOperation(const Operation& operation) {
 
 			// Read previous state of the parity
 			// TODO optimization possible if we know, that there are zeros!
-			std::vector<uint8_t>& parityBlock = buffers_[parityChunkType][block];
-			if (parityWriteExecutor != nullptr && parityBlock.empty()) {
+			std::vector<uint8_t>& parityBuffer = buffers_[parityChunkType][stripe];
+			if (parityWriteExecutor != nullptr && parityBuffer.empty()) {
 				uint32_t chunkOffset = index_ * MFSCHUNKSIZE;
 				uint32_t xorBlockSize = level * MFSBLOCKSIZE;
-				uint32_t firstXorBlockOffset = (operation.offset / xorBlockSize) * xorBlockSize;
+				uint32_t firstXorBlockOffset = (block.offsetInChunk() / xorBlockSize) * xorBlockSize;
 				if (chunkOffset + firstXorBlockOffset >= chunkLocationInfo.fileLength) {
-					parityBlock.resize(MFSBLOCKSIZE);
-					memset(parityBlock.data(), 0, MFSBLOCKSIZE);
+					parityBuffer.resize(MFSBLOCKSIZE);
+					memset(parityBuffer.data(), 0, MFSBLOCKSIZE);
 				} else {
 					ReadPlanner::ReadOperation readOperation;
-					readOperation.requestOffset = block * MFSBLOCKSIZE;
+					readOperation.requestOffset = stripe * MFSBLOCKSIZE;
 					readOperation.requestSize = MFSBLOCKSIZE;
 					readOperation.readDataOffsets.push_back(0);
-					buffers_[parityChunkType][block].resize(MFSBLOCKSIZE);
+					buffers_[parityChunkType][stripe].resize(MFSBLOCKSIZE);
 					int fd = connector_.connect(parityWriteExecutor->server(), timeout);
 					try {
 						ReadOperationExecutor readExecutor(readOperation,
 								chunkLocationInfo.chunkId, chunkLocationInfo.version, parityChunkType,
 								parityWriteExecutor->server(), fd,
-								buffers_[parityChunkType][block].data());
+								buffers_[parityChunkType][stripe].data());
 						readExecutor.sendReadRequest(timeout);
 						readExecutor.readAll(timeout);
 						connector_.returnToPool(fd, parityWriteExecutor->server());
@@ -302,36 +273,61 @@ void ChunkWriter::startOperation(const Operation& operation) {
 			}
 
 			// Update parity part in our cache
-			uint32_t offsetInBlock = operation.offset -
-					MFSBLOCKSIZE * (operation.offset / MFSBLOCKSIZE);
 			if (parityWriteExecutor != nullptr) {
-				blockXor(parityBlock.data() + offsetInBlock,
-						dataBlock.data() + offsetInBlock,
-						operation.size);
-				blockXor(parityBlock.data() + offsetInBlock, operation.data, operation.size);
+				blockXor(parityBuffer.data() + block.from,
+						dataBuffer.data() + block.from,
+						block.size());
+				blockXor(parityBuffer.data() + block.from, block.data(), block.size());
 			}
 
 			// Update data in our cache
-			memcpy(dataBlock.data() + offsetInBlock, operation.data, operation.size);
+			memcpy(dataBuffer.data() + block.from, block.data(), block.size());
 
 			// Send a parity update request
 			if (parityWriteExecutor != nullptr) {
-				paritiesBeingSent_.push_back(std::move(std::vector<uint8_t>(
-						parityBlock.data() + offsetInBlock,
-						parityBlock.data() + offsetInBlock + operation.size)));
-				parityWriteExecutor->addDataPacket(operation.id, block, offsetInBlock,
-						operation.size, paritiesBeingSent_.back().data());
-				unfinishedOperationCounters_[operation.id] += 1;
+				operation.parityBuffers.push_back(std::move(std::vector<uint8_t>(
+						parityBuffer.data() + block.from,
+						parityBuffer.data() + block.from + block.size())));
+				parityWriteExecutor->addDataPacket(id, stripe, block.from,
+						block.size(), operation.parityBuffers.back().data());
+				operation.unfinishedWrites += 1;
 			}
 
 			// Send data update request
-			executor.addDataPacket(operation.id, block,
-					offsetInBlock, operation.size, operation.data);
-			unfinishedOperationCounters_[operation.id] += 1;
+			executor.addDataPacket(id, stripe, block.from, block.size(), block.data());
+			operation.unfinishedWrites += 1;
 		}
 	}
+	pendingOperations_[id] = std::move(operation);
 }
 
-uint32_t ChunkWriter::getUnfinishedOperationsCount() {
-	return unfinishedOperationCounters_.size() + newOperations.size();
+void ChunkWriter::processStatus(const WriteExecutor& executor,
+		const WriteExecutor::Status& status) {
+	if (status.chunkId != locator_.locationInfo().chunkId) {
+		throw ChunkserverConnectionException(
+				"Received inconsistent write status message"
+				", expected chunk " + std::to_string(locator_.locationInfo().chunkId) +
+				", got chunk " + std::to_string(status.chunkId),
+				executor.server());
+	}
+	if (status.status != STATUS_OK) {
+		throw RecoverableWriteException("Chunk write error", status.status);
+	}
+	if (pendingOperations_.count(status.writeId) == 0) {
+		throw RecoverableWriteException(
+				"Chunk write error: unexpected status for operation #" +
+				std::to_string(status.writeId));
+	}
+	auto& operation = pendingOperations_[status.writeId];
+	if (--operation.unfinishedWrites == 0) {
+		// Operation has just finished: update file size if changed and delete the operation
+		if (status.writeId != 0) {
+			// This was a WRITE_DATA operation, not WRITE_INIT
+			if (operation.offsetOfEnd > locator_.locationInfo().fileLength) {
+				locator_.updateFileLength(operation.offsetOfEnd);
+			}
+			journal_.erase(operation.journalPosition);
+		}
+		pendingOperations_.erase(status.writeId);
+	}
 }

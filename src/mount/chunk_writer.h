@@ -8,19 +8,18 @@
 
 #include "common/chunk_type_with_address.h"
 #include "mount/chunk_locator.h"
+#include "mount/write_cache_block.h"
+#include "mount/write_executor.h"
 
 class ChunkserverStats;
 class ChunkConnector;
-class WriteExecutor;
 
 class ChunkWriter {
 public:
-	typedef uint32_t WriteId;
-
 	ChunkWriter(ChunkserverStats& stats, ChunkConnector& connector);
 	ChunkWriter(const ChunkWriter&) = delete;
-	ChunkWriter& operator=(const ChunkWriter&) = delete;
 	~ChunkWriter();
+	ChunkWriter& operator=(const ChunkWriter&) = delete;
 
 	/*
 	 * Creates connection chain between client and all chunkservers
@@ -37,13 +36,12 @@ public:
 	/*
 	 * Adds a new pending write operation.
 	 */
-	WriteId addOperation(const uint8_t* data, uint32_t offset, uint32_t size);
+	void addOperation(WriteCacheBlock&& block);
 
 	/*
 	 * Processes all pending operations for at most specified time (0 - asap)
-	 * Returns ID's of write operations, which have been completed in this call.
 	 */
-	std::vector<WriteId> processOperations(uint32_t msTimeout);
+	void processOperations(uint32_t msTimeout);
 
 	/*
 	 * Returns number of pending write operations.
@@ -62,13 +60,26 @@ public:
 	 */
 	void abortOperations();
 
+	/*
+	 * Removes writer's journal and returns it
+	 */
+	std::list<WriteCacheBlock> releaseJournal();
+
 private:
+	typedef uint32_t WriteId;
+	typedef std::list<WriteCacheBlock>::iterator JournalPosition;
+
 	struct Operation {
-		Operation(WriteId id, const uint8_t* data, uint32_t offset, uint32_t size);
-		WriteId id;
-		const uint8_t* data;
-		uint32_t offset;
-		uint32_t size;
+		JournalPosition journalPosition;  // position in the journal being written in this operation
+		std::list<std::vector<uint8_t>> parityBuffers; // memory allocated for parity blocks
+		uint32_t unfinishedWrites;                     // number of write request sent
+		uint64_t offsetOfEnd;                          // offset in the file
+
+		Operation() : unfinishedWrites(0), offsetOfEnd(0) {}
+		Operation(Operation&&) = default;
+		Operation(const Operation&) = delete;
+		Operation& operator=(const Operation&) = delete;
+		Operation& operator=(Operation&&) = default;
 	};
 
 	ChunkserverStats& chunkserverStats_;
@@ -79,13 +90,12 @@ private:
 	WriteId currentWriteId_;
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
 
-	// TODO(msulikowski) data from buffers_ and paritiesBeingSent_ should be removed when not needed
+	std::list<WriteCacheBlock> journal_;
+	std::list<Operation> newOperations_;
+	std::map<WriteId, Operation> pendingOperations_;
 	std::map<ChunkType, std::map<uint32_t, std::vector<uint8_t>>> buffers_;
-	std::list<std::vector<uint8_t>> paritiesBeingSent_;
-	std::map<WriteId, uint32_t> unfinishedOperationCounters_;
-	std::map<WriteId, uint64_t> offsetOfEnd_;
-	std::vector<Operation> newOperations;
 
 	void releaseChunk();
-	void startOperation(const Operation& operation);
+	void startOperation(Operation&& operation);
+	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
 };

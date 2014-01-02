@@ -26,9 +26,8 @@ public:
 			const NetworkAddress& headAddress, int headFd,
 			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
 	WriteExecutor(const WriteExecutor&) = delete;
-	WriteExecutor& operator=(const WriteExecutor&) = delete;
 	~WriteExecutor();
-
+	WriteExecutor& operator=(const WriteExecutor&) = delete;
 	void addChunkserverToChain(const NetworkAddress& address);
 	void addInitPacket();
 	void addDataPacket(uint32_t writeId,
