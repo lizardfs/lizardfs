@@ -80,6 +80,8 @@ private:
 	ChunkType::XorLevel level_;
 	ChunkType::XorPart missingPart_;
 
+	static const uint32_t lastBlockInChunk = MFSBLOCKSINCHUNK - 1;
+
 	// convert size in blocks to bytes
 	inline uint32_t toBytes(uint32_t blockCount) const {
 		return blockCount * MFSBLOCKSIZE;
@@ -105,6 +107,12 @@ private:
 	}
 	inline bool isManyStripes(uint32_t firstBlock, uint32_t lastBlock) const {
 		return stripeCount(firstBlock, lastBlock) > 1;
+	}
+
+	// what's the last part in this stripe? (last stripe in chunk may be shorter than others)
+	inline uint32_t lastPartInStripe(uint32_t stripe) const {
+	       return (stripe < stripeOf(lastBlockInChunk)) ?
+				level_ : partOf(lastBlockInChunk);
 	}
 
 	// do we need block from the first/last stripe and this part?
@@ -135,6 +143,12 @@ private:
 		return level_ - part;
 	}
 
+	// compute succeeding parts, take into account end-of-chunk
+	inline uint32_t actualSucceedingPartsCount(uint32_t block) const {
+		return succeedingPartsCount(partOf(block)) -
+			succeedingPartsCount(lastPartInStripe(stripeOf(block)));
+	}
+
 	// where should this block end up in the buffer?
 	// buffer layout: [requested] [lastStripeExtra] [firstStripeExtra]
 	inline uint32_t destinationOffset(uint32_t stripe, uint32_t part,
@@ -142,7 +156,7 @@ private:
 		if (stripe == firstStripe(firstBlock) && part < partOf(firstBlock)) {
 			return lastBlock - firstBlock + 1
 				+ (lastStripeRecovery(firstBlock, lastBlock) ?
-					succeedingPartsCount(partOf(lastBlock)) : 0)
+					actualSucceedingPartsCount(lastBlock) : 0)
 				+ precedingPartsCount(part);
 		}
 		return stripe * level_ + precedingPartsCount(part) - firstBlock;
@@ -185,14 +199,15 @@ private:
 				|| firstStripeRecovery(firstBlock, lastBlock);
 			const bool lastBlockNeeded =
 				isLastStripeRequestedFor(part, firstBlock, lastBlock)
-				|| lastStripeRecovery(firstBlock, lastBlock);
+				|| (lastStripeRecovery(firstBlock, lastBlock) &&
+					part <= lastPartInStripe(lastStripe(lastBlock)));
 
 			uint32_t readOffset = firstStripe(firstBlock);  // some initial
 			int32_t readSize = stripeCount(firstBlock, lastBlock);  // approximation
 
 			if (!firstBlockNeeded) {   // let's
 				readOffset++;
-				readSize--;            // correct
+				readSize--;        // correct
 			}
 			if (!lastBlockNeeded) {    // it
 				readSize--;
@@ -213,7 +228,7 @@ private:
 		XorBlockOperation xorOp;
 		xorOp.destinationOffset =
 				toBytes(destinationOffset(stripe, missingPart_, firstBlock, lastBlock));
-		for (uint32_t part = 1; part <= level_; ++part) {
+		for (uint32_t part = 1; part <= lastPartInStripe(stripe); ++part) {
 			if (part != missingPart_) {
 				xorOp.blocksToXorOffsets.push_back(toBytes(
 					destinationOffset(stripe, part, firstBlock, lastBlock)));

@@ -211,9 +211,7 @@ TEST_F(StandardReadPlannerTests, GetPlanForXorLevel2WithoutPart1) {
 }
 
 TEST_F(StandardReadPlannerTests, GetPlanForXorLevel6WithoutPart3) {
-	/* TODO(msulikowski) Temporarily turned off because of a bug in the planner
 	verifyPlanner({xor_1_of_6, xor_6_of_6, xor_2_of_6, xor_5_of_6, xor_p_of_6, xor_4_of_6});
-	*/
 }
 
 TEST_F(StandardReadPlannerTests, GetPlanForXorLevel3) {
