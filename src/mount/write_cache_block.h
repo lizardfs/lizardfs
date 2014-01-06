@@ -21,4 +21,5 @@ public:
 	uint32_t offsetInChunk() const;
 	uint32_t size() const;
 	const uint8_t* data() const;
+	uint8_t* data();
 };

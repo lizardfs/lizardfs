@@ -10,6 +10,7 @@ WriteCacheBlock::WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex)
 		  blockIndex(blockIndex),
 		  from(0),
 		  to(0) {
+	sassert(blockIndex < MFSBLOCKSINCHUNK);
 	blockData = new uint8_t[MFSBLOCKSIZE];
 }
 
@@ -61,5 +62,9 @@ uint32_t WriteCacheBlock::size() const {
 }
 
 const uint8_t* WriteCacheBlock::data() const {
+	return blockData + from;
+}
+
+uint8_t* WriteCacheBlock::data() {
 	return blockData + from;
 }

@@ -69,17 +69,37 @@ private:
 	typedef uint32_t WriteId;
 	typedef std::list<WriteCacheBlock>::iterator JournalPosition;
 
-	struct Operation {
-		JournalPosition journalPosition;  // position in the journal being written in this operation
-		std::list<std::vector<uint8_t>> parityBuffers; // memory allocated for parity blocks
+	class Operation {
+	public:
+		std::vector<JournalPosition> journalPositions; // stripe in the journal being written
+		std::list<WriteCacheBlock> parityBuffers;      // memory allocated for parity blocks
 		uint32_t unfinishedWrites;                     // number of write request sent
 		uint64_t offsetOfEnd;                          // offset in the file
 
-		Operation() : unfinishedWrites(0), offsetOfEnd(0) {}
+		Operation();
+		Operation(JournalPosition journalPosition);
 		Operation(Operation&&) = default;
 		Operation(const Operation&) = delete;
 		Operation& operator=(const Operation&) = delete;
 		Operation& operator=(Operation&&) = default;
+
+		/*
+		 * Tries to add a new journal position to an existing operation.
+		 * Returns true if succeeded, false if the operation wasn't modified.
+		 */
+		bool expand(JournalPosition journalPosition, uint32_t stripeSize);
+
+		/*
+		 * Returns true if two operations write the same place in a file.
+		 * One of these operations have to be complete, ie. contain a full stripe
+		 */
+		bool collidesWith(const Operation& operation) const;
+
+		/*
+		 * Returns true if the operation is not a partial-stripe write operation
+		 * for a given stripe size
+		 */
+		bool isFullStripe(uint32_t stripeSize) const;
 	};
 
 	ChunkserverStats& chunkserverStats_;
@@ -88,14 +108,15 @@ private:
 	uint32_t inode_;
 	uint32_t index_;
 	WriteId currentWriteId_;
+	uint32_t stripeSize_;
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
-
 	std::list<WriteCacheBlock> journal_;
 	std::list<Operation> newOperations_;
 	std::map<WriteId, Operation> pendingOperations_;
-	std::map<ChunkType, std::map<uint32_t, std::vector<uint8_t>>> buffers_;
 
 	void releaseChunk();
+	bool canStartOperation(const Operation& operation);
 	void startOperation(Operation&& operation);
+	WriteCacheBlock readBlock(uint32_t blockIndex);
 	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
 };

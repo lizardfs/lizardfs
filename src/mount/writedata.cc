@@ -500,12 +500,8 @@ bool InodeChunkWriter::haveBlockToWrite(int pendingOperationCount) {
 		return false;
 	}
 	const auto& block = inodeData_->dataChain.front();
-	if (block.chunkIndex == chunkIndex_
-			&& (block.size() == MFSBLOCKSIZE || pendingOperationCount <= 1)) {
-		return true;
-	} else {
-		return false;
-	}
+	return (block.chunkIndex == chunkIndex_
+			&& (block.size() == MFSBLOCKSIZE || pendingOperationCount <= 1));
 }
 
 /* main working thread | glock:UNLOCKED */
