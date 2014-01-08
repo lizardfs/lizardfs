@@ -64,8 +64,8 @@ public:
 		/* Check the data */
 		off_t currentOffset = sizeof(fileSize);
 		uint64_t size = fileSize - sizeof(fileSize);
-		std::vector<char> actualBuffer(Configuration::blockSize());
-		std::vector<char> properBuffer(Configuration::blockSize());
+		std::vector<char> actualBuffer(UtilsConfiguration::blockSize());
+		std::vector<char> properBuffer(UtilsConfiguration::blockSize());
 		while (size > 0) {
 			uint64_t bytesToRead = size;
 			if (bytesToRead > properBuffer.size()) {
@@ -138,7 +138,7 @@ protected:
 		/* Write the data */
 		size -= sizeof(serializedSize);
 		off_t currentOffset = sizeof(serializedSize);
-		std::vector<char> buffer(Configuration::blockSize());
+		std::vector<char> buffer(UtilsConfiguration::blockSize());
 		while (size > 0) {
 			size_t bytesToWrite = size;
 			if (bytesToWrite > buffer.size()) {

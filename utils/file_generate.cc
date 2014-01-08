@@ -13,6 +13,6 @@ int main(int argc, char** argv) {
 	}
 
 	std::string file = argv[1];
-	DataGenerator::createFile(file, Configuration::fileSize());
+	DataGenerator::createFile(file, UtilsConfiguration::fileSize());
 	return 0;
 }
