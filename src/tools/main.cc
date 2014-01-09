@@ -2082,10 +2082,14 @@ void usage(int f) {
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr, "<operation> is one of:\n");
-			fprintf(stderr, " GOAL+ - increase goal to given value, GOAL = 1..9\n");
-			fprintf(stderr, " GOAL- - decrease goal to given value, GOAL = 1..9\n");
-			fprintf(stderr, " GOAL - just set goal to given value, GOAL = 1..9\n");
-			fprintf(stderr, " xorN - just set goal to xor with level N, N = 2..9\n");
+			fprintf(stderr, " GOAL+ - increase goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
+					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+			fprintf(stderr, " GOAL- - decrease goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
+					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+			fprintf(stderr, " GOAL - just set goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
+					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+			fprintf(stderr, " xorN - just set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
+					kMinXorLevel, kMaxXorLevel);
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
