@@ -69,8 +69,8 @@ cd "${info[mount0]}/dir"
 mfssetgoal xor2 .
 
 # Some configuration goes here
-data_size_per_thread=$(parse_si_suffix 5G)
-thread_count=5
+data_size_per_thread=$(parse_si_suffix 3G)
+thread_count=10
 
 # Generate some files
 for i in $(seq 1 $thread_count); do
