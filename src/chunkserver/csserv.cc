@@ -52,7 +52,7 @@
 #include "common/sockets.h"
 
 // connection timeout in seconds
-#define CSSERV_TIMEOUT 30
+#define CSSERV_TIMEOUT 10
 
 #define CONNECT_RETRIES 10
 #define CONNECT_TIMEOUT(cnt) (((cnt)%2)?(300000*(1<<((cnt)>>1))):(200000*(1<<((cnt)>>1))))

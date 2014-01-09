@@ -361,10 +361,10 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	status = STATUS_OK;
 	bool otherJobsAreWaiting = false;
 	// Maximum time of writing one chunk
-	uint32_t maximumTime = 45;                 // 30 in MFS 1.6.27
-	uint32_t maximumTimeWhenJobsWaiting = 25;  // 10 in MFS 1.6.27
+	uint32_t maximumTime = 30;
+	uint32_t maximumTimeWhenJobsWaiting = 10;
 	// For the last 'timeToFinishOperations' seconds of maximumTime we won't start new operations
-	uint32_t timeToFinishOperations = 15;      //  5 in MFS 1.6.27
+	uint32_t timeToFinishOperations = 5;
 
 	static const char* write_file_error_format =
 			"write file error, inode: %" PRIu32
@@ -431,7 +431,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 
 		try {
-			writer.processOperations(50);
+			writer.processOperations(25);
 		} catch (Exception& ex) {
 			syslog(LOG_WARNING,
 					write_file_error_format,

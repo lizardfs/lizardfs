@@ -357,7 +357,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 }
 
 WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
-	Timeout timeout{std::chrono::seconds(2)};
+	Timeout timeout{std::chrono::seconds(1)};
 
 	// Find a server from which we will be able to read the block
 	NetworkAddress sourceServer;
