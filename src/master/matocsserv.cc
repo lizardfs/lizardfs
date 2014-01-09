@@ -959,7 +959,8 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 	if (packetType == LIZ_CSTOMA_REPLICATE) {
 		cstoma::replicate::deserialize(data, chunkId, chunkVersion, chunkType, status);
 	} else {
-		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+		sassert(packetType == CSTOMA_REPLICATE);
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, chunkVersion, status);
 	}
 
 	matocsserv_replication_end(chunkId, chunkVersion, chunkType, eptr);
