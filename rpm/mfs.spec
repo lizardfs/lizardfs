@@ -99,6 +99,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmaster
+%attr(755,root,root) %{_sbindir}/mfsrestoremaster
 %attr(755,root,root) %{_sbindir}/mfsmetadump
 %attr(755,root,root) %{_sbindir}/mfsmetarestore
 %{_mandir}/man5/mfsexports.cfg.5*
