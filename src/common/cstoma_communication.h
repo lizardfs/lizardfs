@@ -44,6 +44,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint32_t& ip, uint16_t& port, uint16_t& timeout, uint32_t& csVersion) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, ip, port, timeout, csVersion);
 }
 
@@ -58,6 +59,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		std::vector<ChunkWithVersionAndType>& chunks) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunks);
 }
 
@@ -75,6 +77,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& usedSpace, uint64_t& totalSpace, uint32_t& chunkCount, uint64_t& tdUsedSpace,
 		uint64_t& toDeleteTotalSpace, uint32_t& toDeleteChunksNumber) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, usedSpace, totalSpace,
 			chunkCount, tdUsedSpace, toDeleteTotalSpace, toDeleteChunksNumber);
 }
@@ -90,6 +93,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
 }
 
@@ -104,6 +108,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
 }
 
@@ -118,6 +123,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
 }
 
@@ -132,6 +138,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint8_t& status) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, status);
 }
 

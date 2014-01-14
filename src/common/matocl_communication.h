@@ -56,8 +56,8 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
 }
 
-inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId,
-		uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
 		const std::vector<ChunkTypeWithAddress>& serversList) {
 	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kResponsePacketVersion,
 			messageId, fileLength, chunkId, chunkVersion, serversList);
@@ -82,6 +82,7 @@ inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uin
 
 inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
 }
 

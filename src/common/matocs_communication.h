@@ -15,6 +15,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint32_t& chunkVersion, uint32_t& newVersion) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType, newVersion);
 }
 
@@ -29,6 +30,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint32_t& chunkVersion) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkVersion, chunkType);
 }
 
@@ -43,6 +45,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint32_t& chunkVersion) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, chunkVersion);
 }
 
@@ -60,6 +63,7 @@ inline void serialize(std::vector<uint8_t>& destination,
 inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, ChunkType& chunkType, uint32_t& length, uint32_t& newVersion,
 		uint32_t& oldVersion) {
+	verifyPacketVersionNoHeader(source, 0);
 	deserializeAllPacketDataNoHeader(source, chunkId, chunkType, length, newVersion, oldVersion);
 }
 

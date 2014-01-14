@@ -8,18 +8,18 @@ namespace cltocs {
 
 namespace read {
 
-inline void serialize(std::vector<uint8_t>& buffer,
+inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		uint32_t readOffset, uint32_t readSize) {
-	serializePacket(buffer, LIZ_CLTOCS_READ, 0,
+	serializePacket(destination, LIZ_CLTOCS_READ, 0,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
 
-inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
 		uint32_t& readOffset, uint32_t& readSize) {
-	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
-	deserializeAllPacketDataNoHeader(buffer, bufferSize,
+	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	deserializeAllPacketDataNoHeader(source, sourceSize,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
 
@@ -27,18 +27,18 @@ inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
 
 namespace writeInit {
 
-inline void serialize(std::vector<uint8_t>& buffer,
+inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		const std::vector<NetworkAddress>& chain) {
-	serializePacket(buffer, LIZ_CLTOCS_WRITE_INIT, 0,
+	serializePacket(destination, LIZ_CLTOCS_WRITE_INIT, 0,
 			chunkId, chunkVersion, chunkType, chain);
 }
 
-inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType,
 		std::vector<NetworkAddress>& chain) {
-	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
-	deserializeAllPacketDataNoHeader(buffer, bufferSize,
+	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	deserializeAllPacketDataNoHeader(source, sourceSize,
 			chunkId, chunkVersion, chunkType, chain);
 }
 
@@ -46,18 +46,18 @@ inline void deserialize(const uint8_t* buffer, uint32_t bufferSize,
 
 namespace writeData {
 
-inline void serializePrefix(std::vector<uint8_t>& buffer,
+inline void serializePrefix(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t writeId,
 		uint16_t blockNumber, uint32_t offset, uint32_t size, uint32_t crc) {
-	serializePacketPrefix(buffer, size, LIZ_CLTOCS_WRITE_DATA, 0,
+	serializePacketPrefix(destination, size, LIZ_CLTOCS_WRITE_DATA, 0,
 			chunkId, writeId, blockNumber, offset, size, crc);
 }
 
-inline void deserializePrefix(const uint8_t* buffer, uint32_t bufferSize,
+inline void deserializePrefix(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& writeId,
 		uint16_t& blockNumber, uint32_t& offset, uint32_t& size, uint32_t& crc) {
-	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
-	deserializePacketDataNoHeader(buffer, bufferSize,
+	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	deserializePacketDataNoHeader(source, sourceSize,
 			chunkId, writeId, blockNumber, offset, size, crc);
 }
 
@@ -69,13 +69,13 @@ static const uint32_t kPrefixSize = 4 + 8 + 4 + 2 + 4 + 4 + 4;
 
 namespace writeEnd {
 
-inline void serialize(std::vector<uint8_t>& buffer, uint64_t chunkId) {
-	serializePacket(buffer, LIZ_CLTOCS_WRITE_END, 0, chunkId);
+inline void serialize(std::vector<uint8_t>& destination, uint64_t chunkId) {
+	serializePacket(destination, LIZ_CLTOCS_WRITE_END, 0, chunkId);
 }
 
-inline void deserialize(const uint8_t* buffer, uint32_t bufferSize, uint64_t& chunkId) {
-	verifyPacketVersionNoHeader(buffer, bufferSize, 0);
-	deserializeAllPacketDataNoHeader(buffer, bufferSize, chunkId);
+inline void deserialize(const uint8_t* source, uint32_t sourceSize, uint64_t& chunkId) {
+	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	deserializeAllPacketDataNoHeader(source, sourceSize, chunkId);
 }
 
 } // namespace writeEnd
