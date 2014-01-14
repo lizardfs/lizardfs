@@ -57,19 +57,20 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 }
 
 inline void serialize(std::vector<uint8_t>& destination,
-		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+		uint32_t messageId, uint64_t fileLength,
+		uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
 		const std::vector<ChunkTypeWithAddress>& serversList) {
 	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kResponsePacketVersion,
-			messageId, fileLength, chunkId, chunkVersion, serversList);
+			messageId, fileLength, chunkId, chunkVersion, lockId, serversList);
 }
 
 inline void deserialize(const std::vector<uint8_t>& source,
-		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion, uint32_t& lockId,
 		std::vector<ChunkTypeWithAddress>& serversList) {
 	uint32_t dummyMessageId;
 	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
 	deserializeAllPacketDataNoHeader(source, dummyMessageId,
-			fileLength, chunkId, chunkVersion, serversList);
+			fileLength, chunkId, chunkVersion, lockId, serversList);
 }
 
 } //namespace fuseWriteChunk

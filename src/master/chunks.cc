@@ -108,6 +108,9 @@ static slist *slfreehead = NULL;
 typedef struct chunk {
 	uint64_t chunkid;
 	uint32_t version;
+	uint32_t lockid;
+	uint32_t lockedto;
+	uint32_t fcount;
 	uint8_t goal;
 #ifndef METARESTORE
 	uint8_t allvalidcopies;
@@ -115,10 +118,6 @@ typedef struct chunk {
 	unsigned needverincrease:1;
 	unsigned interrupted:1;
 	unsigned operation:4;
-#endif
-	uint32_t lockedto;
-	uint32_t fcount;
-#ifndef METARESTORE
 	slist *slisthead;
 #endif
 	uint32_t *ftab;
@@ -302,6 +301,7 @@ chunk* chunk_new(uint64_t chunkid) {
 	newchunk->chunkid = chunkid;
 	newchunk->version = 0;
 	newchunk->goal = 0;
+	newchunk->lockid = 0;
 	newchunk->lockedto = 0;
 #ifndef METARESTORE
 	newchunk->allvalidcopies = 0;
@@ -615,7 +615,8 @@ int chunk_unlock(uint64_t chunkid) {
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	c->lockedto=0;
+	c->lockid = 0;
+	c->lockedto = 0;
 	return STATUS_OK;
 }
 
@@ -635,11 +636,13 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 
 #ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag) {
+int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid,
+		uint8_t goal, uint8_t *opflag, uint32_t *lockid) {
 	slist *os,*s;
 	uint32_t i;
 #else
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag) {
+int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
+		uint8_t goal, uint8_t opflag, uint32_t lockid) {
 #endif
 	chunk *oc,*c;
 
@@ -689,8 +692,15 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 			return ERROR_NOCHUNK;
 		}
 #ifndef METARESTORE
-		if (oc->lockedto>=(uint32_t)main_time()) {
-			return ERROR_LOCKED;
+		if (oc->lockedto >= main_time()) {
+			// Chunk is locked
+			if (*lockid == 0) {
+				return ERROR_LOCKED;
+			} else if (*lockid != oc->lockid) {
+				return ERROR_WRONGLOCKID;
+			}
+		} else if (*lockid != 0) {
+			return ERROR_NOTLOCKED;
 		}
 #endif
 		if (oc->fcount==1) {	// refcount==1
@@ -785,9 +795,15 @@ int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t 
 	}
 
 #ifndef METARESTORE
-	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
+	c->lockedto = main_time() + LOCKTIMEOUT;
+	if (*lockid == 0) {
+		// TODO(msulikowski) generate some lockid>1 if lock requested using LIZ_FUSE_WRITE_CHUNK
+		*lockid = 1;
+	}
+	c->lockid = *lockid;
 #else
 	c->lockedto=ts+LOCKTIMEOUT;
+	c->lockid = lockid;
 #endif
 	return STATUS_OK;
 }

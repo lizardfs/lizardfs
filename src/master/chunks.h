@@ -29,7 +29,8 @@
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag);
+int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
+		uint8_t goal, uint8_t opflag, uint32_t lockid);
 int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal);
 int chunk_unlock(uint64_t chunkid);
 int chunk_increase_version(uint64_t chunkid);
@@ -52,7 +53,8 @@ int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
 int chunk_unlock(uint64_t chunkid);
 
-int chunk_multi_modify(uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t *opflag);
+int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid,
+		uint8_t goal, uint8_t *opflag, uint32_t *lockid);
 int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
 		bool truncatingUpwards);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);

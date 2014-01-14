@@ -4699,7 +4699,8 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 #endif
 
 #ifndef METARESTORE
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag) {
+uint8_t fs_writechunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t *length,
+		uint8_t *opflag, uint32_t *lockid) {
 	int status;
 	uint32_t i;
 	uint64_t ochunkid,nchunkid;
@@ -4746,7 +4747,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,p->goal,opflag);
+	status = chunk_multi_modify(&nchunkid,ochunkid,p->goal,opflag,lockid);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -4770,7 +4771,8 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 	return STATUS_OK;
 }
 #else
-uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid) {
+uint8_t fs_write(uint32_t ts, uint32_t inode, uint32_t indx,
+		uint8_t opflag, uint64_t chunkid, uint32_t lockid) {
 	int status;
 	uint32_t i;
 	uint64_t ochunkid,nchunkid;
@@ -4810,7 +4812,7 @@ uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(ts,&nchunkid,ochunkid,p->goal,opflag);
+	status = chunk_multi_modify(ts,&nchunkid,ochunkid,p->goal,opflag,lockid);
 	if (status!=STATUS_OK) {
 		return status;
 	}

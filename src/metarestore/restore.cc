@@ -608,7 +608,8 @@ int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_write(ts,inode,indx,opflag,chunkid);
+	// TODO(msulikowski) restore lock ID -- it can be different than 1
+	return fs_write(ts,inode,indx,opflag,chunkid,1);
 }
 
 

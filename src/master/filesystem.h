@@ -62,7 +62,7 @@ uint8_t fs_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name
 uint8_t fs_purge(uint32_t ts,uint32_t inode);
 uint8_t fs_undel(uint32_t ts,uint32_t inode);
 uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
-uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid);
+uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid,uint32_t lockid);
 uint8_t fs_unlock(uint64_t chunkid);
 uint8_t fs_incversion(uint64_t chunkid);
 #if VERSHEX>=0x010700
@@ -121,7 +121,8 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,uint8_t attr[35]);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
-uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length,uint8_t *opflag);
+uint8_t fs_writechunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t *length,
+		uint8_t *opflag, uint32_t *lockid);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
 
 uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);

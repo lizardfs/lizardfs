@@ -24,14 +24,15 @@ inline void deserialize(const std::vector<uint8_t>& source,
 namespace fuseWriteChunk {
 
 inline void serialize(std::vector<uint8_t>& destination,
-		uint32_t messageId, uint32_t inode, uint32_t chunkIndex) {
-	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK, 0, messageId, inode, chunkIndex);
+		uint32_t messageId, uint32_t inode, uint32_t chunkIndex, uint32_t lockId) {
+	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK, 0,
+			messageId, inode, chunkIndex, lockId);
 }
 
-inline void deserialize(const std::vector<uint8_t>& source, uint32_t& messageId, uint32_t& inode,
-		uint32_t& chunkIndex) {
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex, uint32_t& lockId) {
 	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, messageId, inode, chunkIndex);
+	deserializeAllPacketDataNoHeader(source, messageId, inode, chunkIndex, lockId);
 }
 
 } // namespace fuseWriteChunk
@@ -39,15 +40,18 @@ inline void deserialize(const std::vector<uint8_t>& source, uint32_t& messageId,
 namespace fuseWriteChunkEnd {
 
 inline void serialize(std::vector<uint8_t>& destination,
-		uint32_t messageId, uint64_t chunkId, uint32_t inode, uint64_t fileLength) {
+		uint32_t messageId, uint64_t chunkId, uint32_t lockId,
+		uint32_t inode, uint64_t fileLength) {
 	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK_END, 0,
-			messageId, chunkId, inode, fileLength);
+			messageId, chunkId, lockId, inode, fileLength);
 }
 
+
 inline void deserialize(const std::vector<uint8_t>& source,
-		uint32_t& messageId, uint64_t& chunkId, uint32_t& inode, uint64_t& fileLength) {
+		uint32_t& messageId, uint64_t& chunkId, uint32_t& lockId,
+		uint32_t& inode, uint64_t& fileLength) {
 	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, messageId, chunkId, inode, fileLength);
+	deserializeAllPacketDataNoHeader(source, messageId, chunkId, lockId, inode, fileLength);
 }
 
 } // namespace fuseWriteChunkEnd

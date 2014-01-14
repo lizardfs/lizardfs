@@ -2012,7 +2012,8 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLeng
 	threc *rec = fs_get_my_threc();
 
 	std::vector<uint8_t> message;
-	cltoma::fuseWriteChunk::serialize(message, rec->packetid, inode, chunkIndex);
+
+	cltoma::fuseWriteChunk::serialize(message, rec->packetid, inode, chunkIndex, 0);
 	if (!fsLizCreatePacket(rec, message)) {
 		return ERROR_IO;
 	}
@@ -2029,8 +2030,10 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLeng
 			matocl::fuseWriteChunk::deserialize(message, status);
 			return status;
 		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
-			matocl::fuseWriteChunk::deserialize(message, fileLength, chunkId, chunkVersion,
-					chunkservers);
+			uint32_t lockId;
+			matocl::fuseWriteChunk::deserialize(message,
+					fileLength, chunkId, chunkVersion, lockId, chunkservers);
+			sassert(lockId == 1); // TODO(msulikowski) remember lockId and use it to unlock chunk
 		} else {
 			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
 		}
