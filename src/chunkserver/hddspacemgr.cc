@@ -2665,7 +2665,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		}
 	} else { // shrinking
 		uint32_t blocksize = (length / MFSBLOCKSIZE) * MFSBLOCKSIZE;
-		if (blocksize==0) { // aligned shring
+		if (blocksize==0) { // aligned shrink
 			for (block=0 ; block<blocks ; block++) {
 				retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
@@ -2694,6 +2694,9 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					return ERROR_IO;
 				}
 				hdd_stats_write(MFSBLOCKSIZE);
+			}
+		} else { // misaligned shrink
+			for (block=0 ; block<blocks-1 ; block++) {
 				retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
 					hdd_error_occured(oc);	// uses and preserves errno !!!
