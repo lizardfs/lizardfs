@@ -2,64 +2,60 @@
 
 #include <gtest/gtest.h>
 
+#include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 
 TEST(CltomaCommunicationTests, FuseReadChunk) {
-	uint32_t outMessageId, inMessageId = 512;
-	uint32_t outInode, inInode = 112;
-	uint32_t outDataBlockNumber, inDataBlockNumber = 1;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 112, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, index, 1583, 0);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltoma::fuseReadChunk::serialize(buffer, inMessageId, inInode, inDataBlockNumber));
+	ASSERT_NO_THROW(cltoma::fuseReadChunk::serialize(buffer, messageIdIn, inodeIn, indexIn));
 
 	verifyHeader(buffer, LIZ_CLTOMA_FUSE_READ_CHUNK);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, 0U);
-	ASSERT_NO_THROW(cltoma::fuseReadChunk::deserialize(
-			buffer, outMessageId,  outInode, outDataBlockNumber));
+	ASSERT_NO_THROW(cltoma::fuseReadChunk::deserialize(buffer, messageIdOut, inodeOut, indexOut));
 
-	EXPECT_EQ(inMessageId, outMessageId);
-	EXPECT_EQ(inInode, outInode);
-	EXPECT_EQ(inDataBlockNumber, outDataBlockNumber);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(inode);
+	LIZARDFS_VERIFY_INOUT_PAIR(index);
 }
 
 TEST(CltomaCommunicationTests, FuseWriteChunk) {
-	uint32_t outMessageId, inMessageId = 512;
-	uint32_t outInode, inInode = 112;
-	uint32_t outChunkIndex, inChunkIndex = 1583;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 112, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, index, 1583, 0);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltoma::fuseWriteChunk::serialize(buffer, inMessageId, inInode, inChunkIndex));
+	ASSERT_NO_THROW(cltoma::fuseWriteChunk::serialize(buffer, messageIdIn, inodeIn, indexIn));
 
 	verifyHeader(buffer, LIZ_CLTOMA_FUSE_WRITE_CHUNK);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, 0U);
-	ASSERT_NO_THROW(cltoma::fuseWriteChunk::deserialize(
-			buffer, outMessageId,  outInode, outChunkIndex));
+	ASSERT_NO_THROW(cltoma::fuseWriteChunk::deserialize(buffer, messageIdOut, inodeOut, indexOut));
 
-	EXPECT_EQ(inMessageId, outMessageId);
-	EXPECT_EQ(inInode, outInode);
-	EXPECT_EQ(inChunkIndex, outChunkIndex);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(inode);
+	LIZARDFS_VERIFY_INOUT_PAIR(index);
 }
 
 TEST(CltomaCommunicationTests, FuseWriteChunkEnd) {
-	uint32_t outMessageId, inMessageId = 512;
-	uint64_t outChunkId, inChunkId = 4254;
-	uint32_t outInode, inInode = 112;
-	uint64_t outFileLength, inFileLength = 1583;
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 512, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 4254, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 112, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, fileLength, 1583, 0);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::serialize(buffer, inMessageId,
-			inChunkId, inInode, inFileLength));
+	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::serialize(buffer,
+			messageIdIn, chunkIdIn, inodeIn, fileLengthIn));
 
 	verifyHeader(buffer, LIZ_CLTOMA_FUSE_WRITE_CHUNK_END);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, 0U);
-	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::deserialize(
-			buffer, outMessageId,  outChunkId, outInode, outFileLength));
+	ASSERT_NO_THROW(cltoma::fuseWriteChunkEnd::deserialize(buffer,
+			messageIdOut, chunkIdOut, inodeOut, fileLengthOut));
 
-	EXPECT_EQ(inMessageId, outMessageId);
-	EXPECT_EQ(inChunkId, outChunkId);
-	EXPECT_EQ(inInode, outInode);
-	EXPECT_EQ(inFileLength, outFileLength);
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(inode);
+	LIZARDFS_VERIFY_INOUT_PAIR(fileLength);
 }

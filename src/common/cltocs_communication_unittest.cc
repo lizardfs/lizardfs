@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
 #include "unittests/operators.h"
 #include "unittests/packet.h"
@@ -9,8 +10,7 @@
 TEST(CltocsCommunicationTests, Read) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0x0123456789ABCDEF, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x01234567, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType,
-			ChunkType::getXorParityChunkType(8), ChunkType::getStandardChunkType());
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_7, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, readOffset, 2 * MFSBLOCKSIZE, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, readSize, 5 * MFSBLOCKSIZE, 0);
 
@@ -33,8 +33,7 @@ TEST(CltocsCommunicationTests, Read) {
 TEST(CltocsCommunicationTests, WriteInit) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,  0x987654321, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x01234567, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType,
-			ChunkType::getXorParityChunkType(8), ChunkType::getStandardChunkType());
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_7, standard);
 	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(NetworkAddress, chain) = {
 			NetworkAddress(0x0A000001, 12388),
 			NetworkAddress(0x0A000002, 12389),
