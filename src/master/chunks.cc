@@ -660,7 +660,7 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 #ifndef METARESTORE
 int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid,
-		uint8_t goal, uint8_t *opflag, uint32_t *lockid) {
+		uint8_t goal, uint8_t *opflag, uint32_t *lockid, bool usedummylockid) {
 	slist *os,*s;
 	uint32_t i;
 #else
@@ -820,8 +820,11 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #ifndef METARESTORE
 	c->lockedto = main_time() + LOCKTIMEOUT;
 	if (*lockid == 0) {
-		// TODO(msulikowski) generate some lockid>1 if lock requested using LIZ_FUSE_WRITE_CHUNK
-		*lockid = 1;
+		if (usedummylockid) {
+			*lockid = 1;
+		} else {
+			*lockid = 2 + rndu32_ranged(0xFFFFFFF0); // some random number greater than 1
+		}
 	}
 	c->lockid = *lockid;
 #else
@@ -2004,7 +2007,8 @@ void chunk_jobs_main(void) {
 
 #endif
 
-#define CHUNKFSIZE 16
+constexpr uint32_t kSerializedChunkSizeNoLockId = 16;
+constexpr uint32_t kSerializedChunkSizeWithLockId = 20;
 #define CHUNKCNT 1000
 
 #ifdef METARESTORE
@@ -2027,9 +2031,8 @@ void chunk_dump(void) {
 
 #endif
 
-int chunk_load(FILE *fd) {
+int chunk_load(FILE *fd, bool loadLockIds) {
 	uint8_t hdr[8];
-	uint8_t loadbuff[CHUNKFSIZE];
 	const uint8_t *ptr;
 	int32_t r;
 	chunk *c;
@@ -2045,19 +2048,23 @@ int chunk_load(FILE *fd) {
 	}
 	ptr = hdr;
 	nextchunkid = get64bit(&ptr);
+	int32_t serializedChunkSize = (loadLockIds
+			? kSerializedChunkSizeWithLockId : kSerializedChunkSizeNoLockId);
+	std::vector<uint8_t> loadbuff(serializedChunkSize);
 	for (;;) {
-		r = fread(loadbuff,1,CHUNKFSIZE,fd);
-		if (r!=CHUNKFSIZE) {
+		r = fread(loadbuff.data(), 1, serializedChunkSize, fd);
+		if (r != serializedChunkSize) {
 			return -1;
 		}
-		ptr = loadbuff;
+		ptr = loadbuff.data();
 		chunkid = get64bit(&ptr);
 		if (chunkid>0) {
 			c = chunk_new(chunkid);
-			version = get32bit(&ptr);
-			c->version = version;
-			lockedto = get32bit(&ptr);
-			c->lockedto = lockedto;
+			c->version = get32bit(&ptr);
+			c->lockedto = get32bit(&ptr);
+			if (loadLockIds) {
+				c->lockid = get32bit(&ptr);
+			}
 		} else {
 			version = get32bit(&ptr);
 			lockedto = get32bit(&ptr);
@@ -2073,14 +2080,14 @@ int chunk_load(FILE *fd) {
 
 void chunk_store(FILE *fd) {
 	uint8_t hdr[8];
-	uint8_t storebuff[CHUNKFSIZE*CHUNKCNT];
+	uint8_t storebuff[kSerializedChunkSizeWithLockId * CHUNKCNT];
 	uint8_t *ptr;
 	uint32_t i,j;
 	chunk *c;
 // chunkdata
 	uint64_t chunkid;
 	uint32_t version;
-	uint32_t lockedto,now;
+	uint32_t lockedto,lockid,now;
 #ifndef METARESTORE
 	now = main_time();
 #else
@@ -2100,13 +2107,17 @@ void chunk_store(FILE *fd) {
 			version = c->version;
 			put32bit(&ptr,version);
 			lockedto = c->lockedto;
+			lockid = c->lockid;
 			if (lockedto<now) {
 				lockedto = 0;
+				lockid = 0;
 			}
 			put32bit(&ptr,lockedto);
+			put32bit(&ptr,lockid);
 			j++;
 			if (j==CHUNKCNT) {
-				if (fwrite(storebuff,1,CHUNKFSIZE*CHUNKCNT,fd)!=(size_t)(CHUNKFSIZE*CHUNKCNT)) {
+				size_t writtenBlockSize = kSerializedChunkSizeWithLockId * CHUNKCNT;
+				if (fwrite(storebuff, 1, writtenBlockSize, fd) != writtenBlockSize) {
 					return;
 				}
 				j=0;
@@ -2114,9 +2125,10 @@ void chunk_store(FILE *fd) {
 			}
 		}
 	}
-	memset(ptr,0,CHUNKFSIZE);
+	memset(ptr, 0, kSerializedChunkSizeWithLockId);
 	j++;
-	if (fwrite(storebuff,1,CHUNKFSIZE*j,fd)!=(size_t)(CHUNKFSIZE*j)) {
+	size_t writtenBlockSize = kSerializedChunkSizeWithLockId * j;
+	if (fwrite(storebuff, 1, writtenBlockSize, fd) != writtenBlockSize) {
 		return;
 	}
 }

@@ -595,6 +595,7 @@ int do_trunc(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,indx,opflag;
 	uint64_t chunkid;
+	uint32_t lockid;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,',');
@@ -605,11 +606,16 @@ int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	} else {
 		opflag=1;
 	}
+	if (*ptr==',') {
+		EAT(ptr,filename,lv,',');
+		GETU32(lockid,ptr);
+	} else {
+		lockid=1;
+	}
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	// TODO(msulikowski) restore lock ID -- it can be different than 1
-	return fs_write(ts,inode,indx,opflag,chunkid,1);
+	return fs_write(ts,inode,indx,opflag,chunkid,lockid);
 }
 
 

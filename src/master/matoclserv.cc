@@ -876,6 +876,7 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	matoclserventry *eptr,*eaptr;
 
 	eptr=NULL;
+	lockid=0;
 	qid=0;
 	fleng=0;
 	type=0;
@@ -2599,7 +2600,9 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, const uint8_t *data, uin
 	if (eptr->sesdata->sesflags & SESFLAG_READONLY) {
 		status = ERROR_EROFS;
 	} else {
-		status = fs_writechunk(inode, chunkIndex, &chunkId, &fileLength, &opflag, &lockId);
+		bool useDummyLockId = isMooseFsType; // Original MooseFS (1.6.27) does not use lock ID's
+		status = fs_writechunk(inode, chunkIndex, useDummyLockId,
+				&chunkId, &fileLength, &opflag, &lockId);
 	}
 
 	if (status != STATUS_OK) {

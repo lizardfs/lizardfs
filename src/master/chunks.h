@@ -55,7 +55,7 @@ int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 int chunk_unlock(uint64_t chunkid);
 
 int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid,
-		uint8_t goal, uint8_t *opflag, uint32_t *lockid);
+		uint8_t goal, uint8_t *opflag, uint32_t *lockid, bool usedummylockid);
 int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
 		bool truncatingUpwards);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
@@ -81,7 +81,7 @@ void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status);
 
 #endif
 
-int chunk_load(FILE *fd);
+int chunk_load(FILE *fd, bool loadLockIds);
 void chunk_store(FILE *fd);
 void chunk_term(void);
 void chunk_newfs(void);
