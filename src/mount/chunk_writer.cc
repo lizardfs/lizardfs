@@ -1,6 +1,7 @@
 #include "mount/chunk_writer.h"
 
 #include <poll.h>
+#include <algorithm>
 #include <bitset>
 #include <cstring>
 
@@ -14,6 +15,19 @@
 #include "mount/mastercomm.h"
 #include "mount/write_executor.h"
 
+static uint32_t gcd(uint32_t a, uint32_t b) {
+	for (;;) {
+		if (a == 0) {
+			return b;
+		}
+		b %= a;
+		if (b == 0) {
+			return a;
+		}
+		a %= b;
+	}
+}
+
 ChunkWriter::Operation::Operation() : unfinishedWrites(0), offsetOfEnd(0) {}
 
 ChunkWriter::Operation::Operation(JournalPosition journalPosition)
@@ -22,11 +36,11 @@ ChunkWriter::Operation::Operation(JournalPosition journalPosition)
 		  offsetOfEnd(journalPosition->offsetInFile() + journalPosition->size()) {
 }
 
-bool ChunkWriter::Operation::expand(JournalPosition newPosition, uint32_t stripeSize) {
+bool ChunkWriter::Operation::isExpandPossible(JournalPosition newPosition, uint32_t stripeSize) {
 	// If the operation is not empty, the new JournalPosition has to be compatible with
 	// the previous elements of the operation, ie. we can only expand by a new block
 	// of the same stripe and the same (from, to) range
-	for (const auto& position : journalPositions) {
+	for (const JournalPosition& position : journalPositions) {
 		sassert(newPosition->chunkIndex == position->chunkIndex);
 		if (newPosition->from != position->from
 				|| newPosition->to != position->to
@@ -35,6 +49,14 @@ bool ChunkWriter::Operation::expand(JournalPosition newPosition, uint32_t stripe
 			return false;
 		}
 	}
+	return true;
+}
+
+bool ChunkWriter::Operation::expand(JournalPosition newPosition, uint32_t stripeSize) {
+	if (!isExpandPossible(newPosition, stripeSize)) {
+		return false;
+	}
+
 	uint64_t newOffsetOfEnd = newPosition->offsetInFile() + newPosition->size();
 	if (newOffsetOfEnd > offsetOfEnd) {
 		offsetOfEnd = newOffsetOfEnd;
@@ -76,7 +98,7 @@ ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& con
 	  connector_(connector),
 	  locator_(nullptr),
 	  currentWriteId_(0),
-	  stripeSize_(0) {
+	  combinedStripeSize_(0) {
 }
 
 ChunkWriter::~ChunkWriter() {
@@ -92,7 +114,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 	sassert(executors_.empty());
 
 	Timeout connectTimeout{std::chrono::milliseconds(msTimeout)};
-	stripeSize_ = 0;
+	combinedStripeSize_ = 0;
 	locator_ = locator;
 
 	for (const ChunkTypeWithAddress& location : locator_->locationInfo().locations) {
@@ -108,14 +130,13 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 			continue;
 		}
 
-		// Update stripeSize_
-		uint32_t locationStripeSize =
-				location.chunkType.isXorChunkType() ? location.chunkType.getXorLevel() : 1;
-		if (stripeSize_ == 0) {
-			stripeSize_ = locationStripeSize;
-		}
-		if (stripeSize_ != locationStripeSize) {
-			throw RecoverableWriteException("Writing to more than one xor level (unimplemented)");
+		// Update combinedStripeSize_
+		uint32_t stripeSize = location.chunkType.getStripeSize();
+		if (combinedStripeSize_ == 0) {
+			combinedStripeSize_ = stripeSize;
+		} else {
+			combinedStripeSize_ =
+					stripeSize * combinedStripeSize_ / gcd(combinedStripeSize_, stripeSize);
 		}
 
 		// Create an executor
@@ -143,7 +164,7 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 		// one can) and we have anything else to do
 		if (i == std::prev(newOperations_.end())
 				&& pendingOperations_.size() > 0
-				&& operation.isFullStripe(stripeSize_)) {
+				&& operation.isFullStripe(combinedStripeSize_)) {
 			break;
 		}
 		if (!canStartOperation(operation)) {
@@ -238,8 +259,11 @@ void ChunkWriter::addOperation(WriteCacheBlock&& block) {
 	sassert(block.chunkIndex == locator_->chunkIndex());
 	journal_.push_back(std::move(block));
 	JournalPosition journalPosition = std::prev(journal_.end());
-	if (newOperations_.empty() || !newOperations_.back().expand(journalPosition, stripeSize_)) {
+	if (newOperations_.empty()
+			|| !newOperations_.back().isExpandPossible(journalPosition, combinedStripeSize_)) {
 		newOperations_.push_back(Operation(journalPosition));
+	} else {
+		newOperations_.back().expand(journalPosition, combinedStripeSize_);
 	}
 }
 
@@ -255,21 +279,20 @@ bool ChunkWriter::canStartOperation(const Operation& operation) {
 	return true;
 }
 
-
 void ChunkWriter::startOperation(Operation&& operation) {
-	uint32_t stripe = operation.journalPositions.front()->blockIndex / stripeSize_;
+	uint32_t combinedStripe = operation.journalPositions.front()->blockIndex / combinedStripeSize_;
 	uint32_t size = operation.journalPositions.front()->size();
 
 	// If the operation is a partial-stripe write, read all the missing blocks first
-	std::bitset<kMaxXorLevel> stripeElementsPresent;
+	std::vector<bool> stripeElementsPresent(combinedStripeSize_);
 	for (const auto& position : operation.journalPositions) {
-		stripeElementsPresent[position->blockIndex % stripeSize_] = true;
+		stripeElementsPresent[position->blockIndex % combinedStripeSize_] = true;
 	}
-	for (uint32_t indexInStripe = 0; indexInStripe < stripeSize_; ++indexInStripe) {
+	for (uint32_t indexInStripe = 0; indexInStripe < combinedStripeSize_; ++indexInStripe) {
 		if (stripeElementsPresent[indexInStripe]) {
 			continue;
 		}
-		uint32_t blockIndex = stripeSize_ * stripe + indexInStripe;
+		uint32_t blockIndex = combinedStripe * combinedStripeSize_ + indexInStripe;
 		if (blockIndex >= MFSBLOCKSINCHUNK) {
 			break;
 		}
@@ -282,54 +305,67 @@ void ChunkWriter::startOperation(Operation&& operation) {
 	}
 
 	// Now operation.journalElements is a complete stripe.
-	sassert(operation.isFullStripe(stripeSize_));
-
-	// Calculate the parity if needed
-	if (stripeSize_ > 1) {
-		operation.parityBuffers.push_back(WriteCacheBlock(locator_->chunkIndex(), stripe));
-		auto& parityBuffer = operation.parityBuffers.back();
-		bool isFirst = true;
-		for (const auto& position : operation.journalPositions) {
-			sassert(position->size() == size);
-			if (isFirst) {
-				bool expanded = parityBuffer.expand(position->from, position->to, position->data());
-				sassert(expanded);
-				isFirst = false;
-			} else {
-				blockXor(parityBuffer.data(), position->data(), size);
-			}
-		}
-	}
+	sassert(operation.isFullStripe(combinedStripeSize_));
 
 	// Send all the data
 	WriteId id = ++currentWriteId_;
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
 		ChunkType chunkType = executor.chunkType();
-		WriteCacheBlock *block = nullptr;
+		uint32_t stripeSize = chunkType.getStripeSize();
+		sassert(combinedStripeSize_ % stripeSize == 0);
+		std::vector<WriteCacheBlock*> blocksToWrite;
+
 		if (chunkType.isStandardChunkType()) {
-			sassert(operation.journalPositions.size() == 1);
-			block = &(*operation.journalPositions.front());
-		} else if (chunkType.isXorChunkType() && chunkType.isXorParity()) {
-			sassert(operation.parityBuffers.size() == 1);
-			sassert(chunkType.getXorLevel() == stripeSize_);
-			block = &operation.parityBuffers.front();
-		} else {
-			sassert(chunkType.isXorChunkType() && !chunkType.isXorParity());
-			sassert(chunkType.getXorLevel() == stripeSize_);
-			for (const auto& position : operation.journalPositions) {
-				uint32_t indexInStripe = position->blockIndex % stripeSize_;
-				if (!stripeElementsPresent[indexInStripe]) {
+			for (const JournalPosition& position : operation.journalPositions) {
+				uint32_t indexCombinedInStripe = position->blockIndex % combinedStripeSize_;
+				if (!stripeElementsPresent[indexCombinedInStripe]) {
 					// Don't write the data, which has just been read
 					continue;
 				}
-				if (indexInStripe + 1 == chunkType.getXorPart()) {
-					block = &(*position);
+				blocksToWrite.push_back(&(*position));
+			}
+		} else if (chunkType.isXorChunkType() && chunkType.isXorParity()) {
+			uint32_t substripeCount = combinedStripeSize_ / stripeSize;
+			std::vector<WriteCacheBlock*> parityBlocks;
+			for (uint32_t i = 0; i < substripeCount; ++i) {
+				// Block index will be added later
+				operation.parityBuffers.push_back(WriteCacheBlock(locator_->chunkIndex(), 0));
+				parityBlocks.push_back(&operation.parityBuffers.back());
+				blocksToWrite.push_back(&operation.parityBuffers.back());
+			}
+			for (const JournalPosition& position : operation.journalPositions) {
+				sassert(position->size() == size);
+				uint32_t currentParityBlock =
+						(position->blockIndex - combinedStripe * combinedStripeSize_) / stripeSize;
+				if (parityBlocks[currentParityBlock]->size() == 0) {
+					// We need a block index in ordinary chunk
+					//  - it'll be converted to a block index in xor parity later
+					parityBlocks[currentParityBlock]->blockIndex = position->blockIndex;
+					bool expanded = parityBlocks[currentParityBlock]->expand(
+							position->from, position->to, position->data());
+					sassert(expanded);
+				} else {
+					blockXor(parityBlocks[currentParityBlock]->data(), position->data(), size);
+				}
+			}
+		} else {
+			for (const JournalPosition& position : operation.journalPositions) {
+				uint32_t indexInCombinedStripe = position->blockIndex % combinedStripeSize_;
+				if (!stripeElementsPresent[indexInCombinedStripe]) {
+					// Don't write the data, which has just been read
+					continue;
+				}
+
+				if ((position->blockIndex % stripeSize) + 1 == chunkType.getXorPart()) {
+					blocksToWrite.push_back(&(*position));
 				}
 			}
 		}
-		if (block) {
-			executor.addDataPacket(id, stripe, block->from, block->size(), block->data());
+
+		for (const WriteCacheBlock* block : blocksToWrite) {
+			executor.addDataPacket(id,
+					block->blockIndex / stripeSize, block->from, block->size(), block->data());
 			++operation.unfinishedWrites;
 		}
 	}
@@ -382,8 +418,8 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 		block.from = 0;
 		block.to = MFSBLOCKSIZE;
 		ReadOperationExecutor readExecutor(readOperation,
-				locator_->locationInfo().chunkId, locator_->locationInfo().version, sourceChunkType,
-				sourceServer, fd, block.data());
+				locator_->locationInfo().chunkId, locator_->locationInfo().version,
+				sourceChunkType, sourceServer, fd, block.data());
 		readExecutor.sendReadRequest(timeout);
 		readExecutor.readAll(timeout);
 		connector_.returnToPool(fd, sourceServer);

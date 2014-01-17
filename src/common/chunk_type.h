@@ -30,6 +30,10 @@ public:
 		return chunkTypeId_ < otherChunkType.chunkTypeId_;
 	}
 
+	uint32_t getStripeSize() const {
+		return isXorChunkType() ? getXorLevel() : 1;
+	}
+
 	static uint32_t chunkLengthToChunkTypeLength(ChunkType ct, uint32_t chunkLength) {
 		if (ct.isStandardChunkType()) {
 			return chunkLength;

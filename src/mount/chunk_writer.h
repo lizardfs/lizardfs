@@ -65,10 +65,10 @@ private:
 
 	class Operation {
 	public:
-		std::vector<JournalPosition> journalPositions; // stripe in the journal being written
-		std::list<WriteCacheBlock> parityBuffers;      // memory allocated for parity blocks
-		uint32_t unfinishedWrites;                     // number of write request sent
-		uint64_t offsetOfEnd;                          // offset in the file
+		std::vector<JournalPosition> journalPositions;  // stripe in the written journal
+		std::list<WriteCacheBlock> parityBuffers;       // memory for parity blocks
+		uint32_t unfinishedWrites;                      // number of write request sent
+		uint64_t offsetOfEnd;                           // offset in the file
 
 		Operation();
 		Operation(JournalPosition journalPosition);
@@ -77,6 +77,10 @@ private:
 		Operation& operator=(const Operation&) = delete;
 		Operation& operator=(Operation&&) = default;
 
+		/**
+		 * Checks if expansion can be performed for given stripe
+		 */
+		bool isExpandPossible(ChunkWriter::JournalPosition newPosition, uint32_t stripeSize);
 		/*
 		 * Tries to add a new journal position to an existing operation.
 		 * Returns true if succeeded, false if the operation wasn't modified.
@@ -100,7 +104,8 @@ private:
 	ChunkConnector& connector_;
 	WriteChunkLocator* locator_;
 	WriteId currentWriteId_;
-	uint32_t stripeSize_;
+
+	uint32_t combinedStripeSize_;
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
 	std::list<WriteCacheBlock> journal_;
 	std::list<Operation> newOperations_;
