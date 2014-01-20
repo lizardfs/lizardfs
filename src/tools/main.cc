@@ -1393,8 +1393,7 @@ int file_info(const char *fileName) {
 			} else {
 				if (version == matocl::fuseReadChunk::kStatusPacketVersion) {
 					matocl::fuseReadChunk::deserialize(buffer, status);
-				}
-				if (version != matocl::fuseReadChunk::kResponsePacketVersion) {
+				} else if (version != matocl::fuseReadChunk::kResponsePacketVersion) {
 					printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
 							fileName, chunkIndex);
 					close_master_conn(1);
