@@ -123,7 +123,7 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writechunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t *length,
 		uint8_t *opflag, uint32_t *lockid);
-uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
+uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid);
 
 uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);
 

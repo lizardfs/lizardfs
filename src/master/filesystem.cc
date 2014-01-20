@@ -4828,8 +4828,12 @@ uint8_t fs_write(uint32_t ts, uint32_t inode, uint32_t indx,
 
 
 #ifndef METARESTORE
-uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid) {
+uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid) {
 	uint32_t ts = main_time();
+	uint8_t status = chunk_can_unlock(chunkid, lockid);
+	if (status != STATUS_OK) {
+		return status;
+	}
 	if (length>0) {
 		fsnode *p;
 		p = fsnodes_id_to_node(inode);

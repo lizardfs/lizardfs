@@ -609,13 +609,36 @@ int chunk_add_file(uint64_t chunkid,uint8_t goal) {
 	return chunk_add_file_int(c,goal);
 }
 
+int chunk_can_unlock(uint64_t chunkid, uint32_t lockid) {
+	chunk *c;
+	c = chunk_find(chunkid);
+	if (c==NULL) {
+		return ERROR_NOCHUNK;
+	}
+	if (lockid == 0) {
+		// lockid == 0 -> force unlock
+		return STATUS_OK;
+	}
+	// We will let client to unlock the chunk even if c->lockedto < main_time()
+	// if he provides lockId that was used to lock the chunk -- this means that nobody
+	// else used this chunk since it was locked (operations like truncate or replicate
+	// would remove such a stale lock before modifying the chunk)
+	if (c->lockid == lockid) {
+		return STATUS_OK;
+	} else if (c->lockedto == 0) {
+		return ERROR_NOTLOCKED;
+	} else {
+		return ERROR_WRONGLOCKID;
+	}
+}
+
 int chunk_unlock(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	c->lockid = 0;
+	// Don't remove lockid to safely accept retransmission of FUSE_CHUNK_UNLOCK message
 	c->lockedto = 0;
 	return STATUS_OK;
 }
@@ -827,6 +850,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 	if (oc->lockedto>=(uint32_t)main_time()) {
 		return ERROR_LOCKED;
 	}
+	oc->lockid = 0; // remove stale lock if exists
 #endif
 	if (oc->fcount==1) {	// refcount==1
 		*nchunkid = ochunkid;
@@ -954,6 +978,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	if (c->lockedto>=(uint32_t)main_time()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
 		return 0;
 	}
+	c->lockid = 0; // remove stale lock if exists
 	bestversion = 0;
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) {	// found chunk that is ok - so return
@@ -1138,6 +1163,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 		c = chunk_new(chunkid);
 		c->version = version;
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
+		c->lockid = 0;
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
@@ -1599,6 +1625,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *d
 	stats_replications++;
 	matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
 			chunkTypeToRecover, sources, sourcesCalculator.availableParts());
+	c->lockid = 0; // remove stale lock
 	c->needverincrease = 1;
 	return true;
 }

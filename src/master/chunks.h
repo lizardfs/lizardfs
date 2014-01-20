@@ -51,6 +51,7 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
+int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 int chunk_unlock(uint64_t chunkid);
 
 int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid,
