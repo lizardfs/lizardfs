@@ -2192,30 +2192,33 @@ void chunk_newfs(void) {
 
 #ifndef METARESTORE
 void chunk_reload(void) {
-	uint32_t oldMaxDelSoftLimit,oldMaxDelHardLimit;
 	uint32_t repl;
 	uint32_t looptime;
 
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
 
-
-	oldMaxDelSoftLimit = MaxDelSoftLimit;
-	oldMaxDelHardLimit = MaxDelHardLimit;
-
-	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
-	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
-		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
-		if (MaxDelHardLimit<MaxDelSoftLimit) {
-			MaxDelSoftLimit = MaxDelHardLimit;
-			syslog(LOG_WARNING,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both");
-		}
+	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
+	if (disableChunksDel) {
+		MaxDelSoftLimit = MaxDelHardLimit = 0;
 	} else {
-		MaxDelHardLimit = 3 * MaxDelSoftLimit;
-	}
-	if (MaxDelSoftLimit==0) {
-		MaxDelSoftLimit = oldMaxDelSoftLimit;
-		MaxDelHardLimit = oldMaxDelHardLimit;
+		uint32_t oldMaxDelSoftLimit = MaxDelSoftLimit;
+		uint32_t oldMaxDelHardLimit = MaxDelHardLimit;
+
+		MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
+		if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
+			MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
+			if (MaxDelHardLimit<MaxDelSoftLimit) {
+				MaxDelSoftLimit = MaxDelHardLimit;
+				syslog(LOG_WARNING,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both");
+			}
+		} else {
+			MaxDelHardLimit = 3 * MaxDelSoftLimit;
+		}
+		if (MaxDelSoftLimit==0) {
+			MaxDelSoftLimit = oldMaxDelSoftLimit;
+			MaxDelHardLimit = oldMaxDelHardLimit;
+		}
 	}
 	if (TmpMaxDelFrac<MaxDelSoftLimit) {
 		TmpMaxDelFrac = MaxDelSoftLimit;
@@ -2229,7 +2232,6 @@ void chunk_reload(void) {
 	if (TmpMaxDel>MaxDelHardLimit) {
 		TmpMaxDel = MaxDelHardLimit;
 	}
-
 
 	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",2);
 	if (repl>0) {
@@ -2292,21 +2294,26 @@ int chunk_strinit(void) {
 	uint32_t j;
 	uint32_t looptime;
 
+	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
-	MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
-	if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
-		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
-		if (MaxDelHardLimit<MaxDelSoftLimit) {
-			MaxDelSoftLimit = MaxDelHardLimit;
-			fprintf(stderr,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both\n");
-		}
+	if (disableChunksDel) {
+		MaxDelHardLimit = MaxDelSoftLimit = 0;
 	} else {
-		MaxDelHardLimit = 3 * MaxDelSoftLimit;
-	}
-	if (MaxDelSoftLimit==0) {
-		fprintf(stderr,"delete limit is zero !!!\n");
-		return -1;
+		MaxDelSoftLimit = cfg_getuint32("CHUNKS_SOFT_DEL_LIMIT",10);
+		if (cfg_isdefined("CHUNKS_HARD_DEL_LIMIT")) {
+			MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
+			if (MaxDelHardLimit<MaxDelSoftLimit) {
+				MaxDelSoftLimit = MaxDelHardLimit;
+				fprintf(stderr,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both\n");
+			}
+		} else {
+			MaxDelHardLimit = 3 * MaxDelSoftLimit;
+		}
+		if (MaxDelSoftLimit == 0) {
+			fprintf(stderr,"delete limit is zero !!!\n");
+			return -1;
+		}
 	}
 	TmpMaxDelFrac = MaxDelSoftLimit;
 	TmpMaxDel = MaxDelSoftLimit;
