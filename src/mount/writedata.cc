@@ -286,15 +286,25 @@ private:
 void InodeChunkWriter::processJob(inodedata* inodeData) {
 	inodeData_ = inodeData;
 
-	/* Chek if we can process this job */
-	int status;
+	// First, choose index of some chunk to write
 	pthread_mutex_lock(&glock);
-	if (!inodeData_->dataChain.empty()) {
+	int status = inodeData_->status;
+	bool haveDataToWrite;
+	if (inodeData_->locator) {
+		// There is a chunk lock left by a previous unfinished job -- let's finish it!
+		chunkIndex_ = inodeData_->locator->chunkIndex();
+		haveDataToWrite = (!inodeData_->dataChain.empty())
+				&& inodeData_->dataChain.front().chunkIndex == chunkIndex_;
+	} else if (!inodeData_->dataChain.empty()) {
+		// There is no unfinished job, but there is some data to write -- let's start a new job
 		chunkIndex_ = inodeData_->dataChain.front().chunkIndex;
-		status = inodeData_->status;
+		haveDataToWrite = true;
 	} else {
-		syslog(LOG_WARNING, "writeworker got inode with no data to write !!!");
-		status = EINVAL; // this should never happen, so status is not important - just anything
+		// No data, no unfinished jobs -- something wrong!
+		// This should never happen, so the status doesn't really matter
+		syslog(LOG_WARNING, "got inode with no data to write!!!");
+		haveDataToWrite = false;
+		status = EINVAL;
 	}
 	pthread_mutex_unlock(&glock);
 	if (status != STATUS_OK) {
@@ -314,9 +324,13 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	try {
 		try {
 			locator->locateAndLockChunk(inodeData_->inode, chunkIndex_);
-			writer.init(locator.get(), 5000);
-			processDataChain(writer);
-			writer.finish(5000);
+			if (haveDataToWrite) {
+				// Optimization -- don't talk with chunkservers if we have just to release
+				// some previously unlocked lock
+				writer.init(locator.get(), 5000);
+				processDataChain(writer);
+				writer.finish(5000);
+			}
 			locator->unlockChunk();
 			read_inode_ops(inodeData_->inode);
 			write_job_end(inodeData_, STATUS_OK);

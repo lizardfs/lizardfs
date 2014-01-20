@@ -91,22 +91,15 @@ void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
 
 void WriteChunkLocator::unlockChunk() {
 	sassert(lockId_ != 0);
-	int retryCount = 0;
-	while (true) {
-		uint8_t status = fs_lizwriteend(locationInfo_.chunkId, lockId_,
-				inode_, locationInfo_.fileLength);
-		if (status == ERROR_IO) {
-			// Communication with the master server failed
-			if (++retryCount == 10) {
-				throw RecoverableWriteException("Sending WRITE_END to the master failed", status);
-			}
-			usleep(100000 + (10000 << retryCount));
-		} else {
-			lockId_ = 0;
-			if (status != STATUS_OK) {
-				throw UnrecoverableWriteException("Sending WRITE_END to the master failed", status);
-			}
-			return;
-		}
+	uint8_t status = fs_lizwriteend(locationInfo_.chunkId, lockId_,
+			inode_, locationInfo_.fileLength);
+	if (status == ERROR_IO) {
+		// Communication with the master server failed
+		throw RecoverableWriteException("Sending WRITE_END to the master failed", status);
+	}
+	// Master unlocked the chunk and returned some status
+	lockId_ = 0;
+	if (status != STATUS_OK) {
+		throw UnrecoverableWriteException("Sending WRITE_END to the master failed", status);
 	}
 }
