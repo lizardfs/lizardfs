@@ -314,7 +314,7 @@ uint8_t* fs_createpacket(threc *rec,uint32_t cmd,uint32_t size) {
 	return ptr;
 }
 
-bool fsLizCreatePacket(threc *rec, const std::vector<uint8_t>& message) {
+bool fs_lizcreatepacket(threc *rec, const std::vector<uint8_t>& message) {
 	std::unique_lock<std::mutex> lock(rec->mutex);
 	fs_output_buffer_init(rec, message.size());
 	if (rec->obuff == NULL) {
@@ -330,7 +330,6 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 	static uint8_t notsup = ERROR_ENOTSUP;
 
 	for (cnt=0 ; cnt<maxretries ; cnt++) {
-
 		std::unique_lock<std::mutex> fdLock(fdMutex);
 		if (sessionlost) {
 			return NULL;
@@ -396,9 +395,7 @@ const uint8_t* fs_sendandreceive(threc *rec,uint32_t expected_cmd,uint32_t *answ
 	return NULL;
 }
 
-bool fsLizSendAndReceive(threc *rec, uint32_t expectedCommand,
-		std::vector<uint8_t>& messageData) {
-
+bool fs_lizsendandreceive(threc *rec, uint32_t expectedCommand, std::vector<uint8_t>& messageData) {
 	uint32_t size;
 	const uint8_t* ret = fs_sendandreceive(rec, expectedCommand, &size);
 	if (ret == NULL) {
@@ -464,7 +461,7 @@ const uint8_t* fs_sendandreceive_any(threc *rec,uint32_t *received_cmd,uint32_t 
 	return NULL;
 }
 
-bool fsLizSendAndReceiveAny(threc *rec, std::vector<uint8_t>& messageData) {
+bool fs_lizsendandreceiveany(threc *rec, std::vector<uint8_t>& messageData) {
 	PacketHeader header;
 	uint32_t hsize = serializedSize(header);
 	const uint8_t* ret = fs_sendandreceive_any(rec, &header.type, &header.length);
@@ -1938,12 +1935,12 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 
 	std::vector<uint8_t> message;
 	cltoma::fuseReadChunk::serialize(message, rec->packetid, inode, chunkIndex);
-	if (!fsLizCreatePacket(rec, message)) {
+	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
 
 	try {
-		if (!fsLizSendAndReceive(rec, LIZ_MATOCL_FUSE_READ_CHUNK, message)) {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_READ_CHUNK, message)) {
 			return ERROR_IO;
 		}
 		PacketVersion packetVersion;
@@ -2006,20 +2003,19 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 	return ret;
 }
 
-uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLength,
-		uint64_t &chunkId, uint32_t &chunkVersion,
+uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
+		uint64_t &fileLength, uint64_t &chunkId, uint32_t &chunkVersion,
 		std::vector<ChunkTypeWithAddress> &chunkservers) {
 	threc *rec = fs_get_my_threc();
 
 	std::vector<uint8_t> message;
-
-	cltoma::fuseWriteChunk::serialize(message, rec->packetid, inode, chunkIndex, 0);
-	if (!fsLizCreatePacket(rec, message)) {
+	cltoma::fuseWriteChunk::serialize(message, rec->packetid, inode, chunkIndex, lockId);
+	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
 
 	try {
-		if (!fsLizSendAndReceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK, message)) {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK, message)) {
 			return ERROR_IO;
 		}
 
@@ -2028,21 +2024,52 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint64_t &fileLeng
 		if (packetVersion == matocl::fuseWriteChunk::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseWriteChunk::deserialize(message, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_WRITE_CHUNK with version"
+						" %d" PRIu32, matocl::fuseWriteChunk::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
 			return status;
 		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
-			uint32_t lockId;
 			matocl::fuseWriteChunk::deserialize(message,
 					fileLength, chunkId, chunkVersion, lockId, chunkservers);
-			sassert(lockId == 1); // TODO(msulikowski) remember lockId and use it to unlock chunk
 		} else {
 			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
 		}
-	} catch (IncorrectDeserializationException&) {
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
 		return ERROR_IO;
 	}
 
 	return STATUS_OK;
+}
+
+uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64_t length) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseWriteChunkEnd::serialize(message, rec->packetid, chunkId, lockId, inode, length);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK_END, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseWriteChunkEnd::deserialize(message, status);
+		return status;
+	} catch (Exception& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK_END message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
+	}
 }
 
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length) {
@@ -2434,10 +2461,10 @@ uint8_t fs_custom(std::vector<uint8_t>& buffer) {
 	}
 	const uint32_t origMsgIdBigEndian = *ptr;
 	*ptr = htonl(rec->packetid);
-	if (!fsLizCreatePacket(rec, buffer)) {
+	if (!fs_lizcreatepacket(rec, buffer)) {
 		return ERROR_IO;
 	}
-	if (!fsLizSendAndReceiveAny(rec, buffer)) {
+	if (!fs_lizsendandreceiveany(rec, buffer)) {
 		return ERROR_IO;
 	}
 	ptr = msgIdPtr(buffer);

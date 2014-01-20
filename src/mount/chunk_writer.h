@@ -26,12 +26,7 @@ public:
 	 * This method will throw an exception if all the connections can't be established
 	 * within the given timeout.
 	 */
-	void init(uint32_t inode, uint32_t index, uint32_t msTimeout);
-
-	/*
-	 * Returns information about the location of the currently written chunk
-	 */
-	const ChunkLocationInfo& chunkLocationInfo() const;
+	void init(WriteChunkLocator* locator, uint32_t msTimeout);
 
 	/*
 	 * Adds a new pending write operation.
@@ -55,8 +50,7 @@ public:
 	void finish(uint32_t msTimeout);
 
 	/*
-	 * Immediately closes write operations and connection chains,
-	 * releases all the acquired  locks.
+	 * Immediately closes write operations and connection chains.
 	 */
 	void abortOperations();
 
@@ -104,9 +98,7 @@ private:
 
 	ChunkserverStats& chunkserverStats_;
 	ChunkConnector& connector_;
-	WriteChunkLocator locator_;
-	uint32_t inode_;
-	uint32_t index_;
+	WriteChunkLocator* locator_;
 	WriteId currentWriteId_;
 	uint32_t stripeSize_;
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
@@ -114,7 +106,6 @@ private:
 	std::list<Operation> newOperations_;
 	std::map<WriteId, Operation> pendingOperations_;
 
-	void releaseChunk();
 	bool canStartOperation(const Operation& operation);
 	void startOperation(Operation&& operation);
 	WriteCacheBlock readBlock(uint32_t blockIndex);

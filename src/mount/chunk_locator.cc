@@ -1,5 +1,7 @@
 #include "mount/chunk_locator.h"
 
+#include <unistd.h>
+
 #include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/strerr.h"
@@ -67,28 +69,44 @@ std::shared_ptr<const ChunkLocationInfo> ReadChunkLocator::locateChunk(uint32_t 
 }
 
 void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
-	uint8_t status = fs_lizwritechunk(inode, index, locationInfo_.fileLength,
-			locationInfo_.chunkId, locationInfo_.version, locationInfo_.locations);
-	if (status != STATUS_OK) {
-		if (status == ERROR_ENOENT || status == ERROR_QUOTA || status == ERROR_NOSPACE) {
-			throw UnrecoverableWriteException("Chunk locator: error sent by master server", status);
-		} else {
-			throw RecoverableWriteException("Chunk locator: error sent by master server", status);
-		}
-	}
+	sassert(inode_ == 0 || (inode_ == inode && index_ == index));
 	inode_ = inode;
 	index_ = index;
-	isChunkLocked_ = true;
+	locationInfo_.locations.clear();
+	uint8_t status = fs_lizwritechunk(inode, index, lockId_, locationInfo_.fileLength,
+			locationInfo_.chunkId, locationInfo_.version, locationInfo_.locations);
+	if (status != STATUS_OK) {
+		if (status == ERROR_IO
+				|| status == ERROR_NOCHUNKSERVERS
+				|| status == ERROR_LOCKED
+				|| status == ERROR_CHUNKBUSY
+				|| status == ERROR_CHUNKLOST) {
+			throw RecoverableWriteException("error sent by master server", status);
+		} else {
+			lockId_ = 0;
+			throw UnrecoverableWriteException("error sent by master server", status);
+		}
+	}
 }
 
 void WriteChunkLocator::unlockChunk() {
-	if (!isChunkLocked_) {
-		return;
-	}
-	uint8_t status = fs_writeend(locationInfo_.chunkId, inode_, locationInfo_.fileLength);
-	if (status == STATUS_OK) {
-		isChunkLocked_ = false;
-	} else {
-		throw RecoverableWriteException("Sending WRITE_END to the master failed", status);
+	sassert(lockId_ != 0);
+	int retryCount = 0;
+	while (true) {
+		uint8_t status = fs_lizwriteend(locationInfo_.chunkId, lockId_,
+				inode_, locationInfo_.fileLength);
+		if (status == ERROR_IO) {
+			// Communication with the master server failed
+			if (++retryCount == 10) {
+				throw RecoverableWriteException("Sending WRITE_END to the master failed", status);
+			}
+			usleep(100000 + (10000 << retryCount));
+		} else {
+			lockId_ = 0;
+			if (status != STATUS_OK) {
+				throw UnrecoverableWriteException("Sending WRITE_END to the master failed", status);
+			}
+			return;
+		}
 	}
 }

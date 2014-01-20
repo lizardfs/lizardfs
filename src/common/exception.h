@@ -23,6 +23,10 @@ public:
 		return message_.c_str();
 	}
 
+	std::string message() throw() {
+		return message_;
+	}
+
 	uint8_t status() const throw() {
 		return status_;
 	}

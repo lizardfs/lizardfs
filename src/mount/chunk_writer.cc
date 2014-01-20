@@ -74,8 +74,7 @@ bool ChunkWriter::Operation::isFullStripe(uint32_t stripeSize) const {
 ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& connector)
 	: chunkserverStats_(chunkserverStats),
 	  connector_(connector),
-	  inode_(0),
-	  index_(0),
+	  locator_(nullptr),
 	  currentWriteId_(0),
 	  stripeSize_(0) {
 }
@@ -87,19 +86,16 @@ ChunkWriter::~ChunkWriter() {
 	}
 }
 
-void ChunkWriter::init(uint32_t inode, uint32_t index, uint32_t msTimeout) {
+void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 	sassert(currentWriteId_ == 0);
 	sassert(pendingOperations_.empty());
 	sassert(executors_.empty());
 
 	Timeout connectTimeout{std::chrono::milliseconds(msTimeout)};
-	locator_.locateAndLockChunk(inode, index);
-	inode_ = inode;
-	index_ = index;
 	stripeSize_ = 0;
+	locator_ = locator;
 
-	const ChunkLocationInfo& chunkLocationInfo = locator_.locationInfo();
-	for (const ChunkTypeWithAddress& location : locator_.locationInfo().locations) {
+	for (const ChunkTypeWithAddress& location : locator_->locationInfo().locations) {
 		// If we have an executor writing the same chunkType, use it
 		bool addedToChain = false;
 		for (auto& fdAndExecutor : executors_) {
@@ -126,7 +122,8 @@ void ChunkWriter::init(uint32_t inode, uint32_t index, uint32_t msTimeout) {
 		int fd = connector_.connect(location.address, connectTimeout);
 		std::unique_ptr<WriteExecutor> executor(new WriteExecutor(
 				chunkserverStats_, location.address, fd,
-				chunkLocationInfo.chunkId, chunkLocationInfo.version, location.chunkType));
+				locator_->locationInfo().chunkId, locator_->locationInfo().version,
+				location.chunkType));
 		executors_.insert(std::make_pair(fd, std::move(executor)));
 	}
 
@@ -221,7 +218,6 @@ void ChunkWriter::finish(uint32_t msTimeout) {
 			executors_.erase(fd);
 		}
 	}
-	releaseChunk();
 }
 
 void ChunkWriter::abortOperations() {
@@ -232,30 +228,14 @@ void ChunkWriter::abortOperations() {
 		tcpclose(pair.first);
 	}
 	executors_.clear();
-	releaseChunk();
 }
 
 std::list<WriteCacheBlock> ChunkWriter::releaseJournal() {
 	return std::move(journal_);
 }
 
-void ChunkWriter::releaseChunk() {
-	int retryCount = 0;
-	while (true) {
-		try {
-			locator_.unlockChunk();
-			break;
-		} catch (Exception& ex) {
-			if (++retryCount == 10) {
-				throw;
-			}
-			usleep(100000 + (10000 << retryCount));
-		}
-	}
-}
-
 void ChunkWriter::addOperation(WriteCacheBlock&& block) {
-	sassert(block.chunkIndex == index_);
+	sassert(block.chunkIndex == locator_->chunkIndex());
 	journal_.push_back(std::move(block));
 	JournalPosition journalPosition = std::prev(journal_.end());
 	if (newOperations_.empty() || !newOperations_.back().expand(journalPosition, stripeSize_)) {
@@ -306,7 +286,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 
 	// Calculate the parity if needed
 	if (stripeSize_ > 1) {
-		operation.parityBuffers.push_back(WriteCacheBlock(index_, stripe));
+		operation.parityBuffers.push_back(WriteCacheBlock(locator_->chunkIndex(), stripe));
 		auto& parityBuffer = operation.parityBuffers.back();
 		bool isFirst = true;
 		for (const auto& position : operation.journalPositions) {
@@ -398,12 +378,11 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 	// Connect to the chunkserver and execute the read operation
 	int fd = connector_.connect(sourceServer, timeout);
 	try {
-		const auto& locationInfo = locator_.locationInfo();
-		WriteCacheBlock block(index_, blockIndex);
+		WriteCacheBlock block(locator_->chunkIndex(), blockIndex);
 		block.from = 0;
 		block.to = MFSBLOCKSIZE;
 		ReadOperationExecutor readExecutor(readOperation,
-				locationInfo.chunkId, locationInfo.version, sourceChunkType,
+				locator_->locationInfo().chunkId, locator_->locationInfo().version, sourceChunkType,
 				sourceServer, fd, block.data());
 		readExecutor.sendReadRequest(timeout);
 		readExecutor.readAll(timeout);
@@ -417,10 +396,10 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 
 void ChunkWriter::processStatus(const WriteExecutor& executor,
 		const WriteExecutor::Status& status) {
-	if (status.chunkId != locator_.locationInfo().chunkId) {
+	if (status.chunkId != locator_->locationInfo().chunkId) {
 		throw ChunkserverConnectionException(
 				"Received inconsistent write status message"
-				", expected chunk " + std::to_string(locator_.locationInfo().chunkId) +
+				", expected chunk " + std::to_string(locator_->locationInfo().chunkId) +
 				", got chunk " + std::to_string(status.chunkId),
 				executor.server());
 	}
@@ -437,8 +416,8 @@ void ChunkWriter::processStatus(const WriteExecutor& executor,
 		// Operation has just finished: update file size if changed and delete the operation
 		if (status.writeId != 0) {
 			// This was a WRITE_DATA operation, not WRITE_INIT
-			if (operation.offsetOfEnd > locator_.locationInfo().fileLength) {
-				locator_.updateFileLength(operation.offsetOfEnd);
+			if (operation.offsetOfEnd > locator_->locationInfo().fileLength) {
+				locator_->updateFileLength(operation.offsetOfEnd);
 			}
 			for (const auto& position : operation.journalPositions) {
 				journal_.erase(position);

@@ -117,11 +117,12 @@
 #define ERROR_NOTLOCKED       41        // No such lock
 #define ERROR_WRONGLOCKID     42        // Wrong lock id
 
-#define ERROR_RESERVED1       43        // To be used in future
-#define ERROR_RESERVED2       44
-#define ERROR_RESERVED3       45
-#define ERROR_RESERVED4       46
-#define ERROR_MAX             47
+#define ERROR_TIMEOUT         43        // Timeout
+#define ERROR_RESERVED1       44        // To be used in future
+#define ERROR_RESERVED2       45
+#define ERROR_RESERVED3       46
+#define ERROR_RESERVED4       47
+#define ERROR_MAX             48
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -167,6 +168,7 @@
 	"Result too large", \
 	"No such lock", \
 	"Wrong lock id", \
+	"Timeout", \
 	"Unknown MFS error", \
 	"Unknown MFS error", \
 	"Unknown MFS error", \
@@ -924,12 +926,12 @@
 
 // 0x059A
 #define LIZ_CLTOMA_FUSE_WRITE_CHUNK (1000U + 434U)
-/// version==0 msgid:32 inode:32 chunkindex:32 continueWrite:8
+/// version==0 msgid:32 inode:32 chunkindex:32 lockid:32
 
 // 0x059B
 #define LIZ_MATOCL_FUSE_WRITE_CHUNK (1000U + 435U)
 /// version==0 msgid:32 status:8
-/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:8])
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 lockid:32 locations:(N * [ip:32 port:16 chunktype:8])
 
 // 0x01B4
 #define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
@@ -937,7 +939,7 @@
 
 // 0x059C
 #define LIZ_CLTOMA_FUSE_WRITE_CHUNK_END (1000U + 436U)
-/// msgid:32 chunkid:64 inode:32 filelength:64
+/// msgid:32 chunkid:64 lockid:32 inode:32 filelength:64
 
 // 0x01B5
 #define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)

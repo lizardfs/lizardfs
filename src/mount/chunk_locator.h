@@ -58,15 +58,26 @@ private:
 
 class WriteChunkLocator {
 public:
-	WriteChunkLocator()
-		: inode_(0),
-		  index_(0),
-		  isChunkLocked_(false),
-		  locationInfo_(0, 0, 0, {}) {
+	WriteChunkLocator()	: inode_(0), index_(0), lockId_(0) {}
+
+	~WriteChunkLocator() {
+		try {
+			if (lockId_) {
+				unlockChunk();
+			}
+		} catch (Exception& ex) {
+			syslog (LOG_WARNING,
+					"unlocking chunk error, inode: %" PRIu32 ", index: %" PRIu32 " - %s",
+					inode_, index_, ex.what());
+		}
 	}
 
 	void locateAndLockChunk(uint32_t inode, uint32_t index);
 	void unlockChunk();
+
+	uint32_t chunkIndex() {
+		return index_;
+	}
 
 	void updateFileLength(uint64_t fileLength) {
 		locationInfo_. fileLength = fileLength;
@@ -76,18 +87,9 @@ public:
 		return locationInfo_;
 	}
 
-	~WriteChunkLocator() {
-		try {
-			if (isChunkLocked_) {
-				unlockChunk();
-			}
-		} catch (...) {
-		}
-	}
-
 private:
 	uint32_t inode_;
 	uint32_t index_;
-	bool isChunkLocked_;
+	uint32_t lockId_;
 	ChunkLocationInfo locationInfo_;
 };
