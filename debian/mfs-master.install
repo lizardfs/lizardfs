@@ -2,6 +2,7 @@ etc/mfs/mfsexports.cfg.dist
 etc/mfs/mfstopology.cfg.dist
 etc/mfs/mfsmaster.cfg.dist
 usr/sbin/mfsmaster
+usr/sbin/mfsrestoremaster
 usr/sbin/mfsmetarestore
 usr/sbin/mfsmetadump
 usr/share/man/man5/mfsexports.cfg.5

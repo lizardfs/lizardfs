@@ -10,3 +10,6 @@ add_tests(master ${MASTER_TESTS})
 add_executable(mfsmaster ${MAIN_SRC})
 target_link_libraries(mfsmaster master)
 install(TARGETS mfsmaster RUNTIME DESTINATION ${SBIN_SUBDIR})
+
+configure_file(mfsrestoremaster.in mfsrestoremaster @ONLY)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mfsrestoremaster DESTINATION ${SBIN_SUBDIR})

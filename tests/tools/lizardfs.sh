@@ -70,6 +70,18 @@ create_mfsmaster_cfg() {
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
+start_master_daemon() {
+	mfsmaster -c "${lizardfs_info[master_cfg]}" start
+}
+
+stop_master_daemon() {
+	mfsmaster -c "${lizardfs_info[master_cfg]}" stop
+}
+
+kill_master_daemon() {
+	pkill -KILL mfsmaster
+}
+
 run_master_server() {
 	local matoml_port
 	local matocl_port
@@ -83,12 +95,28 @@ run_master_server() {
 	echo -n 'MFSM NEW' > "$master_data_path/metadata.mfs"
 	create_mfsexports_cfg > "$etcdir/mfsexports.cfg"
 	create_mfsmaster_cfg > "$etcdir/mfsmaster.cfg"
-	mfsmaster -c "$etcdir/mfsmaster.cfg" start
 
 	lizardfs_info[master_cfg]=$etcdir/mfsmaster.cfg
 	lizardfs_info[master_data_path]=$master_data_path
+	lizardfs_info[matoml]=$matoml_port
 	lizardfs_info[matocl]=$matocl_port
 	lizardfs_info[matocs]=$matocs_port
+
+	start_master_daemon
+}
+
+create_mfsmetalogger_cfg() {
+	echo "WORKING_USER = $(id -nu)"
+	echo "WORKING_GROUP = $(id -ng)"
+	echo "DATA_PATH = ${lizardfs_info[master_data_path]}"
+	echo "MASTER_HOST = $(get_ip_addr)"
+	echo "MASTER_PORT = ${lizardfs_info[matoml]}"
+	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
+}
+
+run_metalogger() {
+	create_mfsmetalogger_cfg > "$TEMP_DIR/mfs/etc/mfsmetalogger.cfg"
+	mfsmetalogger -c "$TEMP_DIR/mfs/etc/mfsmetalogger.cfg"
 }
 
 create_mfshdd_cfg() {
