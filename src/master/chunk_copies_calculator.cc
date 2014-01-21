@@ -1,6 +1,7 @@
 #include "master/chunk_copies_calculator.h"
 
 #include <algorithm>
+#include <bitset>
 
 #include "common/goal.h"
 
@@ -98,26 +99,36 @@ std::vector<ChunkType> ChunkCopiesCalculator::getPartsToRemove() {
 
 bool ChunkCopiesCalculator::isRecoveryPossible() {
 	// partsAvailableForLevelBitmask[level][i] <=> part i of level is available (i == 0 -> parity)
-	uint16_t partsAvailableForLevelBitmask[kMaxXorLevel + 1] = {0};
-
-	// partsAvailableForLevelCounter[level] == number of different parts available for level
-	uint16_t partsAvailableForLevelCounter[kMaxXorLevel + 1] = {0};
+	std::bitset<kMaxXorLevel + 1> partsAvailableForLevelBitmask[kMaxXorLevel + 1];
 
 	for (auto part: availableParts_) {
 		if (part.isStandardChunkType()) {
 			return true;
 		}
 		ChunkType::XorLevel level = part.getXorLevel();
-		uint32_t bitmaskForPart = (1 << 0); // bit 0 -> parity
-		if (!part.isXorParity()) {
-			bitmaskForPart = (1 << part.getXorPart());
+		uint32_t position = (part.isXorParity() ? 0 : part.getXorPart());
+		partsAvailableForLevelBitmask[level][position] = true;
+		if (partsAvailableForLevelBitmask[level].count() == level) {
+			return true;
 		}
-		if ((partsAvailableForLevelBitmask[level] & bitmaskForPart) == 0) {
-			// we haven't seen this part
-			partsAvailableForLevelBitmask[level] |= bitmaskForPart;
-			if (++partsAvailableForLevelCounter[level] == level) {
-				return true;
-			}
+	}
+	return false;
+}
+
+bool ChunkCopiesCalculator::isWritingPossible() {
+	// Writing is currently possible if there is a standard chunk or
+	// all non-parity parts of some level available
+	std::bitset<kMaxXorLevel + 1> partsAvailableForLevel[kMaxXorLevel + 1];
+	for (auto part: availableParts_) {
+		if (part.isStandardChunkType()) {
+			return true;
+		} else	if (part.isXorParity()) {
+			continue;
+		}
+		uint32_t level = part.getXorLevel();
+		partsAvailableForLevel[level][part.getXorPart()] = true;
+		if (partsAvailableForLevel[level].count() == level) {
+			return true;
 		}
 	}
 	return false;

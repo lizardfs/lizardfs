@@ -725,7 +725,17 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		} else if (*lockid != 0) {
 			return ERROR_NOTLOCKED;
 		}
+		ChunkCopiesCalculator calculator(oc->goal);
+		for (s = oc->slisthead; s; s = s->next) {
+			if (s->valid != INVALID && s->valid != DEL) {
+				calculator.addPart(s->chunkType);
+			}
+		}
+		if (!calculator.isWritingPossible()) {
+			return ERROR_CHUNKLOST;
+		}
 #endif
+
 		if (oc->fcount==1) {	// refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
@@ -755,6 +765,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 					c->version++;
 					*opflag=1;
 				} else {
+					// This should never happen - we verified this using ChunkCopiesCalculator
 					return ERROR_CHUNKLOST;
 				}
 			} else {

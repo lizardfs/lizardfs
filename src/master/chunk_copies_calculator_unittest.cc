@@ -25,13 +25,12 @@ static void checkPartsToRecover(
 	EXPECT_EQ(expectedPartsToRecover, actualPartsToRecover);
 }
 
-static void checkRecoveryPossible(std::vector<ChunkType> availableParts, bool expectedAnswer) {
-	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(availableParts));
-	ChunkCopiesCalculator calculator(1);
-	for (auto part : availableParts) {
+static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 1) {
+	ChunkCopiesCalculator calculator(goal);
+	for (auto part : parts) {
 		calculator.addPart(part);
 	}
-	EXPECT_EQ(expectedAnswer, calculator.isRecoveryPossible());
+	return calculator;
 }
 
 static void checkPartsToRemove(
@@ -103,55 +102,55 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 }
 
 TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
-	checkRecoveryPossible({}, false);
-	checkRecoveryPossible({standard}, true);
-	checkRecoveryPossible({standard, standard}, true);
-	checkRecoveryPossible({standard, standard, standard}, true);
+	EXPECT_FALSE(calculator({}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({standard, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({standard, standard, standard}).isRecoveryPossible());
 
-	checkRecoveryPossible({xor_1_of_2, xor_2_of_2, xor_p_of_2}, true);
-	checkRecoveryPossible({xor_1_of_2, xor_2_of_2}, true);
-	checkRecoveryPossible({xor_1_of_2, xor_p_of_2}, true);
-	checkRecoveryPossible({xor_2_of_2, xor_p_of_2}, true);
-	checkRecoveryPossible({xor_1_of_2}, false);
-	checkRecoveryPossible({xor_2_of_2}, false);
-	checkRecoveryPossible({xor_p_of_2}, false);
-	checkRecoveryPossible({xor_1_of_2, xor_1_of_2}, false);
-	checkRecoveryPossible({xor_2_of_2, xor_2_of_2}, false);
-	checkRecoveryPossible({xor_p_of_2, xor_p_of_2}, false);
-	checkRecoveryPossible({xor_1_of_2, standard}, true);
-	checkRecoveryPossible({xor_2_of_2, standard}, true);
-	checkRecoveryPossible({xor_p_of_2, standard}, true);
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_p_of_2}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_2_of_2, xor_p_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_p_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_1_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2, xor_2_of_2}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_p_of_2, xor_p_of_2}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_2_of_2, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_p_of_2, standard}).isRecoveryPossible());
 
-	checkRecoveryPossible({xor_1_of_3, xor_2_of_3, xor_p_of_3}, true);
-	checkRecoveryPossible({xor_1_of_3, xor_2_of_3}, false);
-	checkRecoveryPossible({xor_1_of_3, xor_p_of_3}, false);
-	checkRecoveryPossible({xor_1_of_3}, false);
-	checkRecoveryPossible({xor_2_of_3}, false);
-	checkRecoveryPossible({xor_3_of_3}, false);
-	checkRecoveryPossible({xor_p_of_3}, false);
-	checkRecoveryPossible({xor_1_of_3, standard}, true);
-	checkRecoveryPossible({xor_2_of_3, standard}, true);
-	checkRecoveryPossible({xor_3_of_3, standard}, true);
-	checkRecoveryPossible({xor_p_of_3, standard}, true);
+	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3, xor_p_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_2_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_3_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_p_of_3}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_1_of_3, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_2_of_3, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_3_of_3, standard}).isRecoveryPossible());
+	EXPECT_TRUE(calculator({xor_p_of_3, standard}).isRecoveryPossible());
 
-	checkRecoveryPossible({xor_1_of_2, xor_2_of_3}, false);
-	checkRecoveryPossible({xor_1_of_2, xor_p_of_3}, false);
-	checkRecoveryPossible({xor_2_of_2, xor_p_of_3}, false);
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_2_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isRecoveryPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isRecoveryPossible());
 
 	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(kMaxXorLevel)};
 	for (ChunkType::XorPart part = 1; part <= kMaxXorLevel; ++part) {
 		chunkTypesMax.push_back(ChunkType::getXorChunkType(kMaxXorLevel, part));
 	}
 
-	checkRecoveryPossible(chunkTypesMax, true);
+	EXPECT_TRUE(calculator(chunkTypesMax).isRecoveryPossible());
 	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
 		std::vector<ChunkType> available = chunkTypesMax;
-		available.erase(available.begin() + i);
-		checkRecoveryPossible(available, true);
-		available.erase(available.begin());
-		checkRecoveryPossible(available, false);
+		available.erase(available.begin() + i); // Only i'th part is missing
+		EXPECT_TRUE(calculator(available).isRecoveryPossible());
+		available.erase(available.begin()); // Now two parts are missing
+		EXPECT_FALSE(calculator(available).isRecoveryPossible());
 		available.push_back(standard);
-		checkRecoveryPossible(available, true);
+		EXPECT_TRUE(calculator(available).isRecoveryPossible());
 	}
 }
 
@@ -205,4 +204,64 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRemove) {
 	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
 			xorLevelToGoal(7),
 			{xor_1_of_2, xor_2_of_3, standard});
+}
+
+TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
+	EXPECT_FALSE(calculator({}).isWritingPossible());
+	EXPECT_TRUE(calculator({standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({standard, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({standard, standard, standard}).isWritingPossible());
+
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_p_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_1_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2, xor_2_of_2}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_p_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_2_of_2, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_p_of_2, standard}).isWritingPossible());
+
+	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3, xor_p_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_2_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_3_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_p_of_3}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_3, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_2_of_3, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_3_of_3, standard}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_p_of_3, standard}).isWritingPossible());
+
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_2_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isWritingPossible());
+	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isWritingPossible());
+
+	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(kMaxXorLevel)};
+	for (ChunkType::XorPart part = 1; part <= kMaxXorLevel; ++part) {
+		chunkTypesMax.push_back(ChunkType::getXorChunkType(kMaxXorLevel, part));
+	}
+
+	EXPECT_TRUE(calculator(chunkTypesMax).isWritingPossible());
+	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
+		std::vector<ChunkType> available = chunkTypesMax;
+		available.erase(available.begin() + i);
+		if (i == 0) {
+			// Parity is missing
+			EXPECT_TRUE(calculator(available).isWritingPossible());
+		} else {
+			// Non-parity is missing
+			EXPECT_FALSE(calculator(available).isWritingPossible());
+		}
+		available.erase(available.begin()); // Now two parts are missing
+		EXPECT_FALSE(calculator(available).isWritingPossible());
+		available.push_back(standard);
+		EXPECT_TRUE(calculator(available).isWritingPossible());
+	}
 }

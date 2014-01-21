@@ -10,6 +10,7 @@ public:
 	std::vector<ChunkType> getPartsToRecover();
 	std::vector<ChunkType> getPartsToRemove();
 	bool isRecoveryPossible();
+	bool isWritingPossible();
 	const std::vector<ChunkType>& availableParts() const { return availableParts_; }
 
 private:
