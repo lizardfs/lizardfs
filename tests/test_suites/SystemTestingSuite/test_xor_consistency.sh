@@ -1,7 +1,8 @@
-timeout_set 2 hours
+timeout_set 3 hours
 
 writing_thread() {
-	local thread_id=$1
+	local dir=$1
+	local thread_id=$2
 	local n=0
 	local written_bytes=0
 	pseudorandom_init $thread_id
@@ -17,7 +18,7 @@ writing_thread() {
 		fi
 		# Some files will be empty (ie. full of 0's), some will have generated data
 		local file_type=$(shuf -n1 -e empty generated)
-		local file_name="${file_type}_${thread_id}.$((n++))_size_${file_size}"
+		local file_name="${dir}/${file_type}_${thread_id}.$((n++))_size_${file_size}"
 		if [[ $file_type == generated ]]; then
 			local block_size=$(pseudorandom 1K 16K)
 			BLOCK_SIZE=$block_size FILE_SIZE=$file_size expect_success file-generate "$file_name"
@@ -31,18 +32,27 @@ writing_thread() {
 }
 
 overwriting_thread() {
-	local thread_id=$1
+	local dir=$1
+	local thread_id=$2
 	pseudorandom_init $thread_id
-	for file in $(find . -name "empty_${thread_id}.*"); do
+	for file in $(find "${dir}" -name "empty_${thread_id}.*"); do
 		export BLOCK_SIZE=$(pseudorandom 1K 16K)
 		MESSAGE="Overwring using block size $BLOCK_SIZE B" expect_success file-overwrite "$file"
 	done
 }
 
+restarting_thread() {
+	pseudorandom_init
+	while true; do
+		expect_success lizardfs_master_daemon stop
+		sleep $(pseudorandom 1 30)
+		expect_success lizardfs_master_daemon start
+		sleep $(pseudorandom 45 90)
+	done
+}
+
 spoiling_thread() {
 	pseudorandom_init
-	# Change directory to make it possible to unmount the filesystem after the test
-	cd
 	while true; do
 		for i in 0 1 2; do
 			mfschunkserver -c "${info[chunkserver${i}_config]}" stop
@@ -54,8 +64,9 @@ spoiling_thread() {
 }
 
 verifying_thread() {
-	local thread_id=$1
-	for file in $(find . -name "*_${thread_id}.*"); do
+	local dir=$1
+	local thread_id=$2
+	for file in $(find "${dir}" -name "*_${thread_id}.*"); do
 		expect_success file-validate "$file"
 	done
 }
@@ -64,23 +75,26 @@ verifying_thread() {
 CHUNKSERVERS=3 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
-mkdir "${info[mount0]}/dir"
-cd "${info[mount0]}/dir"
-mfssetgoal xor2 .
+dir="${info[mount0]}/dir"
+mkdir "$dir"
+mfssetgoal xor2 "$dir"
 
 # Some configuration goes here
 data_size_per_thread=$(parse_si_suffix 3G)
 thread_count=10
 
+# Make the master server a bit faulty in this test
+( restarting_thread & )
+
 # Generate some files
 for i in $(seq 1 $thread_count); do
-	writing_thread $i &
+	writing_thread "$dir" $i &
 done
 wait
 
 # Some files are empty. Overwrite them using file-generate
 for i in $(seq 1 $thread_count); do
-	overwriting_thread $i &
+	overwriting_thread "$dir" $i &
 done
 wait
 
@@ -89,6 +103,6 @@ wait
 
 # Validate files using many threads
 for i in $(seq 1 $thread_count); do
-	verifying_thread $i &
+	verifying_thread "$dir" $i &
 done
 wait
