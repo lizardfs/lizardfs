@@ -164,7 +164,7 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 		// one can) and we have anything else to do
 		if (i == std::prev(newOperations_.end())
 				&& pendingOperations_.size() > 0
-				&& operation.isFullStripe(combinedStripeSize_)) {
+				&& !operation.isFullStripe(combinedStripeSize_)) {
 			break;
 		}
 		if (!canStartOperation(operation)) {
