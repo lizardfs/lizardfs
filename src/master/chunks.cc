@@ -1808,7 +1808,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 7b. if chunk has too many copies then delete some of them
-	std::vector<ChunkType> copiesToRemove = allCopies.getPartsToRemove();
+	std::vector<ChunkType> copiesToRemove = regularCopies.getPartsToRemove();
 	if (!copiesToRemove.empty()) {
 		if (serverCount_ == 0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
