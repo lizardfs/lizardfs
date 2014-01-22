@@ -53,6 +53,8 @@
 #include <grp.h>
 #include <pwd.h>
 
+#include <atomic>
+
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
@@ -131,8 +133,8 @@ typedef struct timeentry {
 
 static timeentry *timehead=NULL;
 
-static uint32_t now;
-static uint64_t usecnow;
+static std::atomic<uint32_t> now;
+static std::atomic<uint64_t> usecnow;
 
 static int signalpipe[2];
 
@@ -320,9 +322,7 @@ void mainloop() {
 		}
 		i = poll(pdesc,ndesc,50);
 		gettimeofday(&tv,NULL);
-		usecnow = tv.tv_sec;
-		usecnow *= 1000000;
-		usecnow += tv.tv_usec;
+		usecnow = tv.tv_sec * uint64_t(1000000) + tv.tv_usec;
 		now = tv.tv_sec;
 		if (i<0) {
 			if (errno==EAGAIN) {

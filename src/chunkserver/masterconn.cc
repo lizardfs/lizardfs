@@ -48,8 +48,8 @@
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/random.h"
-#include "bgjobs.h"
-#include "csserv.h"
+#include "chunkserver/bgjobs.h"
+#include "chunkserver/network_main_thread.h"
 
 #define MaxPacketSize 10000
 
@@ -169,8 +169,8 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint64_t tdusedspace,tdtotalspace;
 	uint32_t chunkcount,tdchunkcount;
 
-	myip = csserv_getlistenip();
-	myport = csserv_getlistenport();
+	myip = mainNetworkThreadGetListenIp();
+	myport = mainNetworkThreadGetListenPort();
 	std::vector<uint8_t> serializedPacket;
 	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout, VERSHEX);
 	masterconn_create_attached_packet(eptr, serializedPacket);

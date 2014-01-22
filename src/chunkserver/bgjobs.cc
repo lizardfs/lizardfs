@@ -327,7 +327,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	if (pipe(fd)<0) {
 		return NULL;
 	}
-       	jp= (jobpool*) malloc(sizeof(jobpool));
+	jp = (jobpool*) malloc(sizeof(jobpool));
 	passert(jp);
 //	syslog(LOG_WARNING,"new pool of workers (%p:%" PRIu8 ")",(void*)jp,workers);
 	*wakeupdesc = fd[0];

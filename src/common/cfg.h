@@ -39,3 +39,28 @@ _CONFIG_MAKE_PROTOTYPE(int32,int32_t);
 _CONFIG_MAKE_PROTOTYPE(uint64,uint64_t);
 _CONFIG_MAKE_PROTOTYPE(int64,int64_t);
 _CONFIG_MAKE_PROTOTYPE(double,double);
+
+template <class T>
+T cfg_get(const char* name, T defaultValue);
+
+template <class T>
+T cfg_get_minvalue(const char* name, T defaultValue, T minValue) {
+	T configValue = cfg_get(name, defaultValue);
+	if (configValue < minValue) {
+		syslog(LOG_WARNING,
+				"config value %s was set to %" PRId64
+				", but minimal value is %" PRId64 " - increasing",
+				name, int64_t(configValue), int64_t(minValue));
+		configValue = minValue;
+	}
+	return configValue;
+}
+
+template <class T>
+void cfg_warning_on_value_change(const char* name, T expectedValue) {
+	T newValue = cfg_get(name, expectedValue);
+	if (expectedValue != newValue) {
+		syslog(LOG_WARNING,
+				"config value %s has changed, but changing it requires restart", name);
+	}
+}

@@ -186,3 +186,18 @@ _CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%" PRIu32)
 _CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%" PRId64)
 _CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%" PRIu64)
 _CONFIG_GEN_FUNCTION(double,double,double,"%f")
+
+template <>
+uint16_t cfg_get(const char* name, uint16_t defaultValue) {
+	return cfg_getint16(name, defaultValue);
+}
+
+template <>
+uint32_t cfg_get(const char* name, uint32_t defaultValue) {
+	return cfg_getint32(name, defaultValue);
+}
+
+template <>
+uint64_t cfg_get(const char* name, uint64_t defaultValue) {
+	return cfg_getint64(name, defaultValue);
+}

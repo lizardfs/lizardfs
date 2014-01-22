@@ -21,10 +21,10 @@
 #include <stdio.h>
 
 #include "common/random.h"
-#include "hddspacemgr.h"
-#include "masterconn.h"
-#include "csserv.h"
-#include "chartsdata.h"
+#include "chunkserver/chartsdata.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/masterconn.h"
+#include "chunkserver/network_main_thread.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -40,7 +40,7 @@ struct run_tab {
 run_tab RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
-	{csserv_init,"main server module"},	/* it has to be before "masterconn" */
+	{mainNetworkThreadInit,"main server module"},	/* it has to be before "masterconn" */
 	{masterconn_init,"master connection module"},
 	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}

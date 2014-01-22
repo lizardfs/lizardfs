@@ -30,10 +30,10 @@
 #include <sys/resource.h>
 
 #include "chunkserver/chunk_replicator.h"
-#include "chunkserver/csserv.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/legacy_replicator.h"
 #include "chunkserver/masterconn.h"
+#include "chunkserver/network_stats.h"
 #include "common/charts.h"
 #include "common/main.h"
 
@@ -178,7 +178,7 @@ void chartsdata_refresh(void) {
 	data[CHARTS_CHUNKOPJOBS]=masterjobs;
 	data[CHARTS_CSCONNIN]=0;
 	data[CHARTS_CSCONNOUT]=0;
-	csserv_stats(&bin,&bout,&opr,&opw,&csservjobs);
+	networkStats(&bin,&bout,&opr,&opw,&csservjobs);
 	data[CHARTS_CSSERVIN]=bin;
 	data[CHARTS_CSSERVOUT]=bout;
 	data[CHARTS_CHUNKIOJOBS]=csservjobs;
