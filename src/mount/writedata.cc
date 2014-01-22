@@ -240,7 +240,7 @@ void* write_dqueue_worker(void *arg) {
 
 /* glock: UNLOCKED */
 void write_job_end(inodedata *id, int status) {
-	id->locator.release();
+	id->locator.reset();
 	pthread_mutex_lock(&glock);
 	if (status) {
 		errno = status;
