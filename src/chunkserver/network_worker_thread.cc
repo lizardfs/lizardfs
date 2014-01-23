@@ -1366,7 +1366,7 @@ void worker_write(csserventry *eptr) {
 }
 
 NetworkWorkerThread::NetworkWorkerThread(uint32_t nrOfBgjobsWorkers, uint32_t bgjobsCount)
-		: doTerminate(false), ndesc(0) {
+		: doTerminate(false) {
 	TRACETHIS();
 	eassert(pipe(notify_pipe) != -1);
 	eassert(fcntl(notify_pipe[1], F_SETPIPE_SZ, 4096*32));
@@ -1377,7 +1377,7 @@ void NetworkWorkerThread::operator()() {
 	TRACETHIS();
 	while (!doTerminate) {
 		preparePollFds();
-		int i = poll(pdesc.data(), ndesc, 50);
+		int i = poll(pdesc.data(), pdesc.size(), 50);
 		if (i < 0) {
 			if (errno == EAGAIN) {
 				syslog(LOG_WARNING, "poll returned EAGAIN");
@@ -1437,15 +1437,14 @@ void NetworkWorkerThread::terminate() {
 
 void NetworkWorkerThread::preparePollFds() {
 	TRACETHIS();
-	pdesc.resize(2 + csservEntries.size());
-	uint32_t pos = 0;
-	pdesc[pos].fd = notify_pipe[0];
-	pdesc[pos].events = POLLIN;
-	pos++;
-	pdesc[pos].fd = bgJobPoolWakeUpFd_;
-	pdesc[pos].events = POLLIN;
-	sassert(JOB_FD_PDESC_POS == pos);
-	pos++;
+	pdesc.clear();
+	pdesc.emplace_back();
+	pdesc.back().fd = notify_pipe[0];
+	pdesc.back().events = POLLIN;
+	pdesc.emplace_back();
+	pdesc.back().fd = bgJobPoolWakeUpFd_;
+	pdesc.back().events = POLLIN;
+	sassert(JOB_FD_PDESC_POS == (pdesc.size() - 1));
 
 	std::unique_lock<std::mutex> lock(csservheadLock);
 	for (auto& entry : csservEntries) {
@@ -1456,62 +1455,61 @@ void NetworkWorkerThread::preparePollFds() {
 			case READ:
 			case GET_BLOCK:
 			case WRITELAST:
-				pdesc[pos].fd = entry.sock;
-				pdesc[pos].events = 0;
-				entry.pdescpos = pos;
+				pdesc.emplace_back();
+				pdesc.back().fd = entry.sock;
+				pdesc.back().events = 0;
+				entry.pdescpos = pdesc.size() - 1;
 				if (entry.inputpacket.bytesleft > 0) {
-					pdesc[pos].events |= POLLIN;
+					pdesc.back().events |= POLLIN;
 				}
 				if (entry.outputhead != NULL) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 				break;
 			case CONNECTING:
-				pdesc[pos].fd = entry.fwdsock;
-				pdesc[pos].events = POLLOUT;
-				entry.fwdpdescpos = pos;
-				pos++;
+				pdesc.emplace_back();
+				pdesc.back().fd = entry.fwdsock;
+				pdesc.back().events = POLLOUT;
+				entry.fwdpdescpos = pdesc.size() - 1;
 				break;
 			case WRITEINIT:
 				if (entry.fwdbytesleft > 0) {
-					pdesc[pos].fd = entry.fwdsock;
-					pdesc[pos].events = POLLOUT;
-					entry.fwdpdescpos = pos;
-					pos++;
+					pdesc.emplace_back();
+					pdesc.back().fd = entry.fwdsock;
+					pdesc.back().events = POLLOUT;
+					entry.fwdpdescpos = pdesc.size() - 1;
 				}
 				break;
 			case WRITEFWD:
-				pdesc[pos].fd = entry.fwdsock;
-				pdesc[pos].events = POLLIN;
-				entry.fwdpdescpos = pos;
+				pdesc.emplace_back();
+				pdesc.back().fd = entry.fwdsock;
+				pdesc.back().events = POLLIN;
+				entry.fwdpdescpos = pdesc.size() - 1;
 				if (entry.fwdbytesleft > 0) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 
-				pdesc[pos].fd = entry.sock;
-				pdesc[pos].events = 0;
-				entry.pdescpos = pos;
+				pdesc.emplace_back();
+				pdesc.back().fd = entry.sock;
+				pdesc.back().events = 0;
+				entry.pdescpos = pdesc.size() - 1;
 				if (entry.inputpacket.bytesleft > 0) {
-					pdesc[pos].events |= POLLIN;
+					pdesc.back().events |= POLLIN;
 				}
 				if (entry.outputhead != NULL) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 				break;
 			case WRITEFINISH:
 				if (entry.outputhead != NULL) {
-					pdesc[pos].fd = entry.sock;
-					pdesc[pos].events = POLLOUT;
-					entry.pdescpos = pos;
-					pos++;
+					pdesc.emplace_back();
+					pdesc.back().fd = entry.sock;
+					pdesc.back().events = POLLOUT;
+					entry.pdescpos = pdesc.size() - 1;
 				}
 				break;
 		}
 	}
-	ndesc = pos;
 }
 
 void NetworkWorkerThread::servePoll() {

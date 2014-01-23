@@ -167,7 +167,6 @@ private:
 	int bgJobPoolWakeUpFd_;
 	static const uint32_t JOB_FD_PDESC_POS = 1;
 	std::vector<struct pollfd> pdesc;
-	uint32_t ndesc;
 	int notify_pipe[2];
 };
 
