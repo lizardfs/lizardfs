@@ -13,7 +13,7 @@ fi
 : ${ERROR_FILE:=}
 : ${RAMDISK_DIR:=/mnt/ramdisk}
 : ${TEST_OUTPUT_DIR:=$TEMP_DIR}
-: ${USE_VALGRIND:=}
+: ${USE_VALGRIND:=NO}
 
 # This has to be an absolute path!
 TEMP_DIR=$(readlink -m "$TEMP_DIR")
