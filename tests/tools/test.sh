@@ -48,6 +48,7 @@ test_end() {
 	else
 		# Remove syslog.log from ERROR_DIR, because it would cause the test to fail
 		rm -f "$ERROR_DIR/syslog.log"
+		exit 0
 	fi
 }
 
