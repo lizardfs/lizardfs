@@ -350,9 +350,9 @@ int masterconn_metadata_check(const char *name) {
 		close(fd);
 		return -1;
 	}
-	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0) {
+	if (memcmp(chkbuff,MFSSIGNATURE "M 1.",7) == 0 && chkbuff[7] >= '5' && chkbuff[7] <= '6') {
 		memset(eofmark,0,16);
-	} else if (memcmp(chkbuff,MFSSIGNATURE "M 1.7",8)==0) {
+	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8) == 0) {
 		memcpy(eofmark,"[MFS EOF MARKER]",16);
 	} else {
 		syslog(LOG_WARNING,"bad metadata file format");
