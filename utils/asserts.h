@@ -7,7 +7,7 @@
 /* Check if condition if true; if no -- abort */
 #define utils_massert(condition) do { \
 			if(!(condition)) { \
-				fprintf(stderr, "Assert failure: %s\n", #condition); \
+				fprintf(stderr, "Assertion %s failed.\n", #condition); \
 				fflush(stdout); \
 				abort(); \
 			} \
@@ -23,7 +23,7 @@
 /* Check if condition if true; if no -- perror and abort */
 #define utils_passert(condition) do { \
 			if(!(condition)) { \
-				perror(#condition); \
+				perror("Assertion " #condition " failed"); \
 				fflush(stdout); \
 				abort(); \
 			} \
