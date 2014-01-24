@@ -73,6 +73,9 @@ void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
 	inode_ = inode;
 	index_ = index;
 	locationInfo_.locations.clear();
+	uint32_t oldLockId = lockId_;
+	uint64_t oldFileLength = locationInfo_.fileLength;
+
 	uint8_t status = fs_lizwritechunk(inode, index, lockId_, locationInfo_.fileLength,
 			locationInfo_.chunkId, locationInfo_.version, locationInfo_.locations);
 	if (status != STATUS_OK) {
@@ -86,6 +89,10 @@ void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
 			lockId_ = 0;
 			throw UnrecoverableWriteException("error sent by master server", status);
 		}
+	}
+
+	if (oldLockId != 0) {
+		locationInfo_.fileLength = oldFileLength;
 	}
 }
 
