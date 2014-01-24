@@ -14,10 +14,10 @@ int main(int argc, char** argv) {
 	int error = 0;
 	for (int i = 1; i < argc; ++i) {
 		std::string file = argv[i];
-		off_t offset = DataGenerator::validateFile(file);
-		if (offset != static_cast<off_t>(-1)) {
-			std::cerr << "Data at offset " << offset
-					<< " in file " << file << " corrupted" << std::endl;
+		try {
+			DataGenerator::validateFile(file);
+		} catch (std::exception& ex) {
+			std::cerr << "File " << file << ": " << ex.what() << std::endl;
 			error = 2;
 		}
 	}

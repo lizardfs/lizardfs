@@ -43,16 +43,19 @@ test_end() {
 	{ pkill -TERM memcheck &> /dev/null && sleep 3; } || true
 	test_freeze_result
 	local errors=$(cat "$test_result_file")
-	# Disable error checking (we want to be able to return non-zero status) and end the test
-	trap - ERR
-	set +eE
-	[[ -z $errors ]] # This sets the exit status to non-zero if there are errors
-	exit
+	if [[ $errors ]]; then
+		exit 1
+	else
+		# Remove syslog.log from ERROR_DIR, because it would cause the test to fail
+		rm -f "$ERROR_DIR/syslog.log"
+		exit 0
+	fi
 }
 
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {
+	( tail -n0 -f /var/log/syslog | stdbuf -oL tee "$ERROR_DIR/syslog.log" & )
 	test_result_file="$TEMP_DIR/$(unique_file)_results.txt"
 	test_end_file=$test_result_file.end
 	check_configuration

@@ -28,8 +28,13 @@ set -eux
 echo ; echo Add user lizardfstest
 if ! getent passwd lizardfstest > /dev/null; then
 	useradd --system --user-group --home /var/lib/lizardfstest lizardfstest
-	usermod -a -G fuse lizardfstest
 fi
+if ! groups lizardfstest | grep -w fuse > /dev/null; then
+	usermod -a -G fuse lizardfstest # allow this user to mount fuse filesystem
+fi
+if ! groups lizardfstest | grep -w adm > /dev/null; then
+	usermod -a -G adm lizardfstest # allow this user to read files from /var/log
+fi	 
 
 echo ; echo Create home directory /var/lib/lizardfstest
 if [[ ! -d /var/lib/lizardfstest ]]; then
