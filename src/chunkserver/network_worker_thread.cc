@@ -1401,6 +1401,7 @@ void NetworkWorkerThread::operator()() {
 
 void NetworkWorkerThread::terminate() {
 	TRACETHIS();
+	job_pool_delete(bgJobPool_);
 	std::unique_lock<std::mutex> lock(csservheadLock);
 	while (!csservEntries.empty()) {
 		auto& entry = csservEntries.back();
@@ -1431,8 +1432,6 @@ void NetworkWorkerThread::terminate() {
 		}
 		csservEntries.pop_back();
 	}
-
-	job_pool_delete(bgJobPool_);
 }
 
 void NetworkWorkerThread::preparePollFds() {
