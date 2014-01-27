@@ -155,7 +155,7 @@ void mainNetworkThreadServe(struct pollfd *pdesc) {
 				nextNetworkThread = networkThreadObjects.begin();
 			}
 			if (job_pool_jobs_count(nextNetworkThread->bgJobPool())
-					>= (gNrOfHddWorkersPerNetworkWorker * 9) / 10) {
+					>= (gBgjobsCountPerNetworkWorker * 9) / 10) {
 				syslog(LOG_WARNING, "jobs queue is full !!!");
 				tcpclose(newSocketFD);
 			} else {
