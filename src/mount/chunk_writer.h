@@ -44,6 +44,19 @@ public:
 	uint32_t getUnfinishedOperationsCount();
 
 	/*
+	 * Tells ChunkWriter that no more operations will be added and it can flush all the data
+	 * to chunkservers. No new operations can be started after calling this method.
+	 */
+	void startFlushMode();
+
+	/*
+	 * Tells ChunkWriter, that it may not start any operation, that did't start yet, because writing
+	 * this chunk will be finished later and any then data left in the journal will be written.
+	 * No new operations can be started after calling this method.
+	 */
+	void dropNewOperations();
+
+	/*
 	 * Closes connection chain, releases all the acquired locks.
 	 * This method can be called when all the write operations have been finished.
 	 */
@@ -58,6 +71,8 @@ public:
 	 * Removes writer's journal and returns it
 	 */
 	std::list<WriteCacheBlock> releaseJournal();
+
+	bool acceptsNewOperations() { return acceptsNewOperations_; }
 
 private:
 	typedef uint32_t WriteId;
@@ -105,6 +120,7 @@ private:
 	WriteChunkLocator* locator_;
 	WriteId currentWriteId_;
 
+	bool acceptsNewOperations_;
 	uint32_t combinedStripeSize_;
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
 	std::list<WriteCacheBlock> journal_;

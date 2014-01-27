@@ -269,6 +269,7 @@ public:
 
 private:
 	void processDataChain(ChunkWriter& writer);
+	void returnJournalToDataChain(std::list<WriteCacheBlock>&& journal);
 	bool haveBlockToWrite(int pendingOperationCount);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
@@ -328,6 +329,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 				writer.init(locator.get(), 5000);
 				processDataChain(writer);
 				writer.finish(5000);
+				returnJournalToDataChain(writer.releaseJournal());
 			}
 			locator->unlockChunk();
 			read_inode_ops(inodeData_->inode);
@@ -343,13 +345,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			// Keep the lock
 			inodeData_->locator = std::move(locator);
 			// Move data left in the journal into front of the write cache
-			std::list<WriteCacheBlock> journal = writer.releaseJournal();
-			if (!journal.empty()) {
-				pthread_mutex_lock(&glock);
-				write_cb_acquire_blocks(journal.size());
-				inodeData_->dataChain.splice(inodeData_->dataChain.begin(), journal);
-				pthread_mutex_unlock(&glock);
-			}
+			returnJournalToDataChain(writer.releaseJournal());
 			if (inodeData_->trycnt >= maxretries) {
 				// Convert error to an unrecoverable error
 				throw UnrecoverableWriteException(e.message(), e.status());
@@ -408,6 +404,19 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 				throw;
 			}
 			pthread_mutex_unlock(&glock);
+		} else if (writer.acceptsNewOperations()) {
+			pthread_mutex_lock(&glock);
+			if(!inodeData_->dataChain.empty()
+					&& inodeData_->dataChain.front().chunkIndex == chunkIndex_) {
+				// We want to finish as soon as possible. There is no need to start any new
+				// operations, because we can start them on the next time slice for this chunk
+				writer.dropNewOperations();
+			} else {
+				// It looks like there is nothing more to write to this chunk, so tell the writer
+				// to finish faster by starting all new operations that can start now.
+				writer.startFlushMode();
+			}
+			pthread_mutex_unlock(&glock);
 		}
 
 		if (writer.getUnfinishedOperationsCount() == 0) {
@@ -422,6 +431,15 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 		}
 
 		writer.processOperations(50);
+	}
+}
+
+void InodeChunkWriter::returnJournalToDataChain(std::list<WriteCacheBlock>&& journal) {
+	if (!journal.empty()) {
+		pthread_mutex_lock(&glock);
+		write_cb_acquire_blocks(journal.size());
+		inodeData_->dataChain.splice(inodeData_->dataChain.begin(), journal);
+		pthread_mutex_unlock(&glock);
 	}
 }
 

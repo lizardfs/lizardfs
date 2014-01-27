@@ -103,6 +103,7 @@ ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& con
 	  connector_(connector),
 	  locator_(nullptr),
 	  currentWriteId_(0),
+	  acceptsNewOperations_(true),
 	  combinedStripeSize_(0) {
 }
 
@@ -169,6 +170,7 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 		// one can) and we have anything else to do
 		if (i == std::prev(newOperations_.end())
 				&& pendingOperations_.size() > 0
+				&& acceptsNewOperations_
 				&& !operation.isFullStripe(combinedStripeSize_)) {
 			break;
 		}
@@ -223,6 +225,17 @@ uint32_t ChunkWriter::getUnfinishedOperationsCount() {
 	return pendingOperations_.size() + newOperations_.size();
 }
 
+void ChunkWriter::startFlushMode() {
+	sassert(acceptsNewOperations_);
+	acceptsNewOperations_ = false;
+}
+
+void ChunkWriter::dropNewOperations() {
+	sassert(acceptsNewOperations_);
+	newOperations_.clear();
+	acceptsNewOperations_ = false;
+}
+
 void ChunkWriter::finish(uint32_t msTimeout) {
 	sassert(getUnfinishedOperationsCount() == 0);
 	for (auto& pair : executors_) {
@@ -261,6 +274,7 @@ std::list<WriteCacheBlock> ChunkWriter::releaseJournal() {
 }
 
 void ChunkWriter::addOperation(WriteCacheBlock&& block) {
+	sassert(acceptsNewOperations_);
 	sassert(block.chunkIndex == locator_->chunkIndex());
 	if (block.type == WriteCacheBlock::kWritableBlock) {
 		// Block is writeable until the first try of writing it to chunkservers, ie. until now
