@@ -75,6 +75,8 @@ struct inodedata {
 	pthread_cond_t writecond; // wait for flushwaiting==0 (write)
 	inodedata *next;
 	std::unique_ptr<WriteChunkLocator> locator;
+	int newDataInChainPipe[2];
+	bool workerWaitingForData;
 
 	inodedata(uint32_t inode)
 			: inode(inode),
@@ -85,14 +87,42 @@ struct inodedata {
 			  lcnt(0),
 			  trycnt(0),
 			  inqueue(false),
-			  next(nullptr) {
+			  next(nullptr),
+			  workerWaitingForData(false) {
 		pthread_cond_init(&flushcond, nullptr);
 		pthread_cond_init(&writecond, nullptr);
+		if (pipe(newDataInChainPipe) < 0) {
+			syslog(LOG_WARNING, "creating pipe error: %s", strerr(errno));
+			newDataInChainPipe[0] = -1;
+		}
 	}
 
 	~inodedata() {
 		pthread_cond_destroy(&flushcond);
 		pthread_cond_destroy(&writecond);
+		if (isDataChainPipeValid()) {
+			close(newDataInChainPipe[0]);
+			close(newDataInChainPipe[1]);
+		}
+	}
+
+	/* glock: LOCKED */
+	void wakeUpWorkerIfNecessary() {
+		/*
+		 * Write worker always looks for the first block in chain and we modify or add always the
+		 * last block in chain so it is necessary to wake up write worker only if the first block
+		 * is the last one, ie. dataChain.szie() == 1.
+		 */
+		if (workerWaitingForData && dataChain.size() == 1 && isDataChainPipeValid()) {
+			if (write(newDataInChainPipe[1], " ", 1) != 1) {
+				syslog(LOG_ERR, "write pipe error: %s", strerr(errno));
+			}
+			workerWaitingForData = false;
+		}
+	}
+
+	bool isDataChainPipeValid() {
+		return newDataInChainPipe[0] >= 0;
 	}
 };
 
@@ -164,6 +194,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 			return id;
 		}
 	}
+
 	id = new inodedata(inode);
 	id->next = idhash[idh];
 	idhash[idh] = id;
@@ -270,7 +301,7 @@ public:
 private:
 	void processDataChain(ChunkWriter& writer);
 	void returnJournalToDataChain(std::list<WriteCacheBlock>&& journal);
-	bool haveBlockToWrite(int pendingOperationCount);
+	bool haveBlockToWrite(uint32_t pendingOperationCount);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
 	Timer wholeOperationTimer;
@@ -280,6 +311,7 @@ private:
 	static const uint32_t kMaximumTimeWhenJobsWaiting = 10;
 	// For the last 'kTimeToFinishOperations' seconds of maximumTime we won't start new operations
 	static const uint32_t kTimeToFinishOperations = 5;
+	static const uint8_t kMaxUnfinishedOperations = 15;
 };
 
 void InodeChunkWriter::processJob(inodedata* inodeData) {
@@ -313,7 +345,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 	/*  Process the job */
 	ChunkConnector connector(fs_getsrcip(), gChunkserverConnectionPool);
-	ChunkWriter writer(globalChunkserverStats, connector);
+	ChunkWriter writer(globalChunkserverStats, connector, inodeData_->newDataInChainPipe[0]);
 	wholeOperationTimer.reset();
 	std::unique_ptr<WriteChunkLocator> locator = std::move(inodeData_->locator);
 	if (!locator) {
@@ -392,8 +424,7 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 			pthread_mutex_lock(&glock);
 			// While there is any block worth sending, we add new write operation
 			try {
-				uint32_t unfinishedOperations = writer.getUnfinishedOperationsCount();
-				while (haveBlockToWrite(unfinishedOperations)) {
+				while (haveBlockToWrite(writer.getUnfinishedOperationsCount())) {
 					// Remove block from cache and pass it to the writer
 					writer.addOperation(std::move(inodeData_->dataChain.front()));
 					inodeData_->dataChain.pop_front();
@@ -403,6 +434,11 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 				pthread_mutex_unlock(&glock);
 				throw;
 			}
+
+			if (writer.getUnfinishedOperationsCount() < kMaxUnfinishedOperations) {
+				inodeData_->workerWaitingForData = true;
+			}
+
 			pthread_mutex_unlock(&glock);
 		} else if (writer.acceptsNewOperations()) {
 			pthread_mutex_lock(&glock);
@@ -448,7 +484,7 @@ void InodeChunkWriter::returnJournalToDataChain(std::list<WriteCacheBlock>&& jou
  * We will avoid sending blocks of size different than MFSBLOCKSIZE.
  * These can be taken only if we are close to run out of tasks to do.
  */
-bool InodeChunkWriter::haveBlockToWrite(int pendingOperationCount) {
+bool InodeChunkWriter::haveBlockToWrite(uint32_t pendingOperationCount) {
 	if (inodeData_->dataChain.empty()) {
 		return false;
 	}
@@ -459,12 +495,14 @@ bool InodeChunkWriter::haveBlockToWrite(int pendingOperationCount) {
 	} else if (block.type != WriteCacheBlock::kWritableBlock) {
 		// Always write data, that was previously written
 		return true;
-	} else if (pendingOperationCount >= 15) {
+	} else if (pendingOperationCount >= kMaxUnfinishedOperations) {
 		// Don't start new operations if there is already a lot of pending writes
 		return false;
 	} else {
 		// Always start full blocks; start partial blocks only if we are running out of tasks
-		return (block.size() == MFSBLOCKSIZE || pendingOperationCount <= 1);
+		return (block.size() == MFSBLOCKSIZE
+				|| pendingOperationCount <= 1
+				|| inodeData_->dataChain.size() > 1);
 	}
 }
 
@@ -555,6 +593,7 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 				&& lastBlock.blockIndex == pos
 				&& lastBlock.type == WriteCacheBlock::kWritableBlock
 				&& lastBlock.expand(from, to, data)) {
+			id->wakeUpWorkerIfNecessary();
 			pthread_mutex_unlock(&glock);
 			return 0;
 		}
@@ -565,7 +604,9 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 	write_cb_acquire_blocks(1);
 	id->dataChain.push_back(WriteCacheBlock(chindx, pos, WriteCacheBlock::kWritableBlock));
 	sassert(id->dataChain.back().expand(from, to, data));
-	if (!id->inqueue) {
+	if (id->inqueue) {
+		id->wakeUpWorkerIfNecessary();
+	} else {
 		id->inqueue = true;
 		write_enqueue(id);
 	}

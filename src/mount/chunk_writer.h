@@ -16,7 +16,7 @@ class ChunkConnector;
 
 class ChunkWriter {
 public:
-	ChunkWriter(ChunkserverStats& stats, ChunkConnector& connector);
+	ChunkWriter(ChunkserverStats& stats, ChunkConnector& connector, int dataChainFd);
 	ChunkWriter(const ChunkWriter&) = delete;
 	~ChunkWriter();
 	ChunkWriter& operator=(const ChunkWriter&) = delete;
@@ -119,9 +119,10 @@ private:
 	ChunkConnector& connector_;
 	WriteChunkLocator* locator_;
 	WriteId currentWriteId_;
-
 	bool acceptsNewOperations_;
 	uint32_t combinedStripeSize_;
+	int dataChainFd_;
+
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
 	std::list<WriteCacheBlock> journal_;
 	std::list<Operation> newOperations_;

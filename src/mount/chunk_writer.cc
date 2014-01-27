@@ -98,13 +98,15 @@ bool ChunkWriter::Operation::isFullStripe(uint32_t stripeSize) const {
 	return (journalPositions.size() == elementsInStripe);
 }
 
-ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& connector)
+ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& connector,
+		int dataChainFd)
 	: chunkserverStats_(chunkserverStats),
 	  connector_(connector),
 	  locator_(nullptr),
 	  currentWriteId_(0),
 	  acceptsNewOperations_(true),
-	  combinedStripeSize_(0) {
+	  combinedStripeSize_(0),
+	  dataChainFd_(dataChainFd) {
 }
 
 ChunkWriter::~ChunkWriter() {
@@ -181,6 +183,12 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 	}
 
 	std::vector<pollfd> pollFds;
+	if (dataChainFd_ >= 0) {
+		pollFds.push_back(pollfd());
+		pollFds.back().fd = dataChainFd_;
+		pollFds.back().events = POLLIN;
+		pollFds.back().revents = 0;
+	}
 	for (const auto& pair : executors_) {
 		pollFds.push_back(pollfd());
 		pollFds.back().fd = pair.first;
@@ -199,24 +207,34 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 	}
 
 	for (pollfd& pollFd : pollFds) {
-		auto it = executors_.find(pollFd.fd);
-		sassert(it != executors_.end());
-		WriteExecutor& executor = *it->second;
-
-		if (pollFd.revents & POLLOUT) {
-			executor.sendData();
-		}
-
-		if (pollFd.revents & POLLIN) {
-			std::vector<WriteExecutor::Status> statuses = executor.receiveData();
-			for (const auto& status : statuses) {
-				processStatus(executor, status);
+		if (pollFd.fd == dataChainFd_) {
+			if (pollFd.revents & POLLIN) {
+				const uint32_t dataFdBufferSize = 1024;
+				uint8_t dataFdBuffer[dataFdBufferSize];
+				if (read(dataChainFd_, dataFdBuffer, dataFdBufferSize) < 0) {
+					syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
+				}
 			}
-		}
+		} else {
+			auto it = executors_.find(pollFd.fd);
+			sassert(it != executors_.end());
+			WriteExecutor& executor = *it->second;
 
-		if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
-			throw ChunkserverConnectionException(
-					"Write to chunkserver (poll) error", executor.server());
+			if (pollFd.revents & POLLOUT) {
+				executor.sendData();
+			}
+
+			if (pollFd.revents & POLLIN) {
+				std::vector<WriteExecutor::Status> statuses = executor.receiveData();
+				for (const auto& status : statuses) {
+					processStatus(executor, status);
+				}
+			}
+
+			if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
+				throw ChunkserverConnectionException(
+						"Write to chunkserver (poll) error", executor.server());
+			}
 		}
 	}
 }
