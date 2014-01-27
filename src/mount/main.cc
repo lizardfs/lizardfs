@@ -252,7 +252,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 	if (gMountOptions.meta==0) {
 		read_data_init(gMountOptions.ioretries);
-		write_data_init(gMountOptions.writecachesize*1024*1024, gMountOptions.ioretries);
+		write_data_init(gMountOptions.writecachesize*1024*1024,
+				gMountOptions.ioretries,
+				gMountOptions.writeworkers);
 	}
 
 	ch = fuse_mount(mp, args);
@@ -616,11 +618,13 @@ int main(int argc, char *argv[]) try {
 				gMountOptions.writecachesize);
 		gMountOptions.writecachesize=2048;
 	}
-
+	if (gMountOptions.writeworkers<1) {
+		fprintf(stderr,"no write workers - increasing number of workers to 1\n");
+		gMountOptions.writeworkers=1;
+	}
 	if (gMountOptions.nostdmountoptions==0) {
 		fuse_opt_add_arg(&args, "-o" DEFAULT_OPTIONS);
 	}
-
 
 	make_fsname(&args);
 

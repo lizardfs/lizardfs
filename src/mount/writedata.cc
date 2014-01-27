@@ -57,9 +57,7 @@
 #define EDQUOT ENOSPC
 #endif
 
-#define WORKERS 10
 #define IDLE_CONNECTION_TIMEOUT 6
-
 #define IDHASHSIZE 256
 #define IDHASH(inode) (((inode)*0xB239FB71)%IDHASHSIZE)
 
@@ -111,7 +109,7 @@ static inodedata **idhash;
 static pthread_mutex_t glock;
 
 static pthread_t dqueue_worker_th;
-static pthread_t write_worker_th[WORKERS];
+static std::vector<pthread_t> write_worker_th;
 
 static void *jqueue, *dqueue;
 
@@ -460,7 +458,7 @@ void* write_worker(void*) {
 }
 
 /* API | glock: INITIALIZED,UNLOCKED */
-void write_data_init(uint32_t cachesize, uint32_t retries) {
+void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers) {
 	uint32_t cacheblockcount = (cachesize / MFSBLOCKSIZE);
 	uint32_t i;
 	pthread_attr_t thattr;
@@ -486,8 +484,9 @@ void write_data_init(uint32_t cachesize, uint32_t retries) {
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr, 0x100000);
 	pthread_create(&dqueue_worker_th, &thattr, write_dqueue_worker, NULL);
-	for (i = 0; i < WORKERS; i++) {
-		pthread_create(write_worker_th + i, &thattr, write_worker, (void*) (unsigned long) (i));
+	write_worker_th.resize(workers);
+	for (auto& th : write_worker_th) {
+		pthread_create(&th, &thattr, write_worker, (void*) (unsigned long) (i));
 	}
 	pthread_attr_destroy(&thattr);
 }
@@ -497,10 +496,10 @@ void write_data_term(void) {
 	inodedata *id, *idn;
 
 	queue_put(dqueue, 0, 0, NULL, 0);
-	for (i = 0; i < WORKERS; i++) {
+	for (i = 0; i < write_worker_th.size(); i++) {
 		queue_put(jqueue, 0, 0, NULL, 0);
 	}
-	for (i = 0; i < WORKERS; i++) {
+	for (i = 0; i < write_worker_th.size(); i++) {
 		pthread_join(write_worker_th[i], NULL);
 	}
 	pthread_join(dqueue_worker_th, NULL);

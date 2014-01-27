@@ -20,11 +20,11 @@
 
 #include <inttypes.h>
 
-void write_data_init(uint32_t cachesize,uint32_t retries);
+void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers);
 void write_data_term(void);
 void* write_data_new(uint32_t inode);
 int write_data_end(void *vid);
 int write_data_flush(void *vid);
 uint64_t write_data_getmaxfleng(uint32_t inode);
 int write_data_flush_inode(uint32_t inode);
-int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *buff);
+int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t *buff);

@@ -29,6 +29,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsmemlock", memlock, 1),
 #endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
+	MFS_OPT("mfswriteworkers=%u", writeworkers, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
@@ -112,6 +113,7 @@ void usage(const char *progname) {
 "    -o mfsmemlock               try to lock memory\n"
 #endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
+"    -o mfswriteworkers=N        define number of write workers (default: 10)\n"
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
