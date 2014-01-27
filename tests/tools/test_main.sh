@@ -5,7 +5,7 @@ unalias -a
 shopt -s expand_aliases
 
 command_prefix=
-for i in mfsmaster mfschunkserver mfsmount; do
+for i in mfsmaster mfschunkserver mfsmount mfsmetarestore mfsmetalogger; do
 	alias $i="\${command_prefix} $i"
 done
 

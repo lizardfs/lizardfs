@@ -5,8 +5,7 @@ oldmeta="${TEMP_DIR}/old_metadata"
 newmeta="${TEMP_DIR}/new_metadata"
 
 # hack: metadata restoration doesn't work on fresh installations
-stop_master_daemon
-start_master_daemon
+lizardfs_master_daemon restart
 run_metalogger
 
 cd "${info[mount0]}"
@@ -60,11 +59,11 @@ print_metadata >"$oldmeta"
 # simulate master server failure and recovery
 sleep 3
 cd
-kill_master_daemon
+lizardfs_master_daemon kill
 # leave only files written by metalogger
 rm ${info[master_data_path]}/{changelog,metadata,sessions}.*
 mfsmetarestore -a -d "${info[master_data_path]}"
-start_master_daemon
+lizardfs_master_daemon start
 
 # check restored filesystem
 cd "${info[mount0]}"
