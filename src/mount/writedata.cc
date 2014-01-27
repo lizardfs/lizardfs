@@ -397,7 +397,7 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 			// While there is any block worth sending, we add new write operation
 			try {
 				uint32_t unfinishedOperations = writer.getUnfinishedOperationsCount();
-				while (unfinishedOperations < 15 && haveBlockToWrite(unfinishedOperations)) {
+				while (haveBlockToWrite(unfinishedOperations)) {
 					// Remove block from cache and pass it to the writer
 					writer.addOperation(std::move(inodeData_->dataChain.front()));
 					inodeData_->dataChain.pop_front();
@@ -435,8 +435,19 @@ bool InodeChunkWriter::haveBlockToWrite(int pendingOperationCount) {
 		return false;
 	}
 	const auto& block = inodeData_->dataChain.front();
-	return (block.chunkIndex == chunkIndex_
-			&& (block.size() == MFSBLOCKSIZE || pendingOperationCount <= 1));
+	if (block.chunkIndex != chunkIndex_) {
+		// Don't write other chunks
+		return false;
+	} else if (block.type != WriteCacheBlock::kWritableBlock) {
+		// Always write data, that was previously written
+		return true;
+	} else if (pendingOperationCount >= 15) {
+		// Don't start new operations if there is already a lot of pending writes
+		return false;
+	} else {
+		// Always start full blocks; start partial blocks only if we are running out of tasks
+		return (block.size() == MFSBLOCKSIZE || pendingOperationCount <= 1);
+	}
 }
 
 /* main working thread | glock:UNLOCKED */
@@ -524,6 +535,7 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 		auto& lastBlock = id->dataChain.back();
 		if (lastBlock.chunkIndex == chindx
 				&& lastBlock.blockIndex == pos
+				&& lastBlock.type == WriteCacheBlock::kWritableBlock
 				&& lastBlock.expand(from, to, data)) {
 			pthread_mutex_unlock(&glock);
 			return 0;
@@ -533,7 +545,7 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 	// Didn't manage to expand an existing block, so allocate a new one
 	write_cb_wait_for_block(id);
 	write_cb_acquire_blocks(1);
-	id->dataChain.push_back(WriteCacheBlock(chindx, pos));
+	id->dataChain.push_back(WriteCacheBlock(chindx, pos, WriteCacheBlock::kWritableBlock));
 	sassert(id->dataChain.back().expand(from, to, data));
 	if (!id->inqueue) {
 		id->inqueue = true;

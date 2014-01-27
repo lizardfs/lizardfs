@@ -5,11 +5,12 @@
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 
-WriteCacheBlock::WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex)
+WriteCacheBlock::WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex, Type type)
 		: chunkIndex(chunkIndex),
 		  blockIndex(blockIndex),
 		  from(0),
-		  to(0) {
+		  to(0),
+		  type(type) {
 	sassert(blockIndex < MFSBLOCKSINCHUNK);
 	blockData = new uint8_t[MFSBLOCKSIZE];
 }
@@ -20,6 +21,7 @@ WriteCacheBlock::WriteCacheBlock(WriteCacheBlock&& block) {
 	blockIndex = block.blockIndex;
 	from = block.from;
 	to = block.to;
+	type = block.type;
 	block.blockData = nullptr;
 }
 

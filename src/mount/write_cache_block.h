@@ -4,13 +4,21 @@
 
 struct WriteCacheBlock {
 public:
+	enum Type {
+		kWritableBlock, // normal block, written by clients
+		kReadOnlyBlock, // a kWriteableBlock after it is passed to ChunkWriter for the first time
+		kJournalBlock   // a block that was added by ChunkWriter directly to its journal
+		                // (eg. a block read from a chunkserver to calculate a parity)
+	};
+
 	uint8_t* blockData;
 	uint32_t chunkIndex;
 	uint32_t blockIndex;
 	uint32_t from;
 	uint32_t to;
+	Type type;
 
-	WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex);
+	WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex, Type type);
 	WriteCacheBlock(const WriteCacheBlock&) = delete;
 	WriteCacheBlock(WriteCacheBlock&& block);
 	~WriteCacheBlock();

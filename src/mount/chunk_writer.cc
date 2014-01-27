@@ -34,6 +34,11 @@ ChunkWriter::Operation::Operation(JournalPosition journalPosition)
 		: journalPositions{journalPosition},
 		  unfinishedWrites(0),
 		  offsetOfEnd(journalPosition->offsetInFile() + journalPosition->size()) {
+	// Blocks of type WriteCacheBlock::kJournalBlock (ie. these that were read from chunkservers,
+	// not written by clients), should not influence the length of the file
+	if (journalPosition->type == WriteCacheBlock::kJournalBlock) {
+		offsetOfEnd = 0;
+	}
 }
 
 bool ChunkWriter::Operation::isExpandPossible(JournalPosition newPosition, uint32_t stripeSize) {
@@ -58,7 +63,7 @@ bool ChunkWriter::Operation::expand(JournalPosition newPosition, uint32_t stripe
 	}
 
 	uint64_t newOffsetOfEnd = newPosition->offsetInFile() + newPosition->size();
-	if (newOffsetOfEnd > offsetOfEnd) {
+	if (newPosition->type != WriteCacheBlock::kJournalBlock && newOffsetOfEnd > offsetOfEnd) {
 		offsetOfEnd = newOffsetOfEnd;
 	}
 	journalPositions.push_back(newPosition);
@@ -257,6 +262,10 @@ std::list<WriteCacheBlock> ChunkWriter::releaseJournal() {
 
 void ChunkWriter::addOperation(WriteCacheBlock&& block) {
 	sassert(block.chunkIndex == locator_->chunkIndex());
+	if (block.type == WriteCacheBlock::kWritableBlock) {
+		// Block is writeable until the first try of writing it to chunkservers, ie. until now
+		block.type = WriteCacheBlock::kReadOnlyBlock;
+	}
 	journal_.push_back(std::move(block));
 	JournalPosition journalPosition = std::prev(journal_.end());
 	if (newOperations_.empty()
@@ -330,7 +339,8 @@ void ChunkWriter::startOperation(Operation&& operation) {
 			std::vector<WriteCacheBlock*> parityBlocks;
 			for (uint32_t i = 0; i < substripeCount; ++i) {
 				// Block index will be added later
-				operation.parityBuffers.push_back(WriteCacheBlock(locator_->chunkIndex(), 0));
+				operation.parityBuffers.push_back(WriteCacheBlock(
+						locator_->chunkIndex(), 0, WriteCacheBlock::kJournalBlock));
 				parityBlocks.push_back(&operation.parityBuffers.back());
 				blocksToWrite.push_back(&operation.parityBuffers.back());
 			}
@@ -414,7 +424,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 	// Connect to the chunkserver and execute the read operation
 	int fd = connector_.connect(sourceServer, timeout);
 	try {
-		WriteCacheBlock block(locator_->chunkIndex(), blockIndex);
+		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kJournalBlock);
 		block.from = 0;
 		block.to = MFSBLOCKSIZE;
 		ReadOperationExecutor readExecutor(readOperation,
