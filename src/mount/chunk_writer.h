@@ -86,7 +86,6 @@ private:
 		uint64_t offsetOfEnd;                           // offset in the file
 
 		Operation();
-		Operation(JournalPosition journalPosition);
 		Operation(Operation&&) = default;
 		Operation(const Operation&) = delete;
 		Operation& operator=(const Operation&) = delete;
@@ -100,7 +99,7 @@ private:
 		 * Tries to add a new journal position to an existing operation.
 		 * Returns true if succeeded, false if the operation wasn't modified.
 		 */
-		bool expand(JournalPosition journalPosition, uint32_t stripeSize);
+		void expand(JournalPosition journalPosition);
 
 		/*
 		 * Returns true if two operations write the same place in a file.

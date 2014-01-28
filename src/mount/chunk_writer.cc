@@ -30,17 +30,6 @@ static uint32_t gcd(uint32_t a, uint32_t b) {
 
 ChunkWriter::Operation::Operation() : unfinishedWrites(0), offsetOfEnd(0) {}
 
-ChunkWriter::Operation::Operation(JournalPosition journalPosition)
-		: journalPositions{journalPosition},
-		  unfinishedWrites(0),
-		  offsetOfEnd(journalPosition->offsetInFile() + journalPosition->size()) {
-	// Blocks of type WriteCacheBlock::kJournalBlock (ie. these that were read from chunkservers,
-	// not written by clients), should not influence the length of the file
-	if (journalPosition->type == WriteCacheBlock::kJournalBlock) {
-		offsetOfEnd = 0;
-	}
-}
-
 bool ChunkWriter::Operation::isExpandPossible(JournalPosition newPosition, uint32_t stripeSize) {
 	// If the operation is not empty, the new JournalPosition has to be compatible with
 	// the previous elements of the operation, ie. we can only expand by a new block
@@ -57,17 +46,13 @@ bool ChunkWriter::Operation::isExpandPossible(JournalPosition newPosition, uint3
 	return true;
 }
 
-bool ChunkWriter::Operation::expand(JournalPosition newPosition, uint32_t stripeSize) {
-	if (!isExpandPossible(newPosition, stripeSize)) {
-		return false;
-	}
-
+void ChunkWriter::Operation::expand(JournalPosition newPosition) {
+	sassert(newPosition->type != WriteCacheBlock::kParityBlock);
 	uint64_t newOffsetOfEnd = newPosition->offsetInFile() + newPosition->size();
-	if (newPosition->type != WriteCacheBlock::kJournalBlock && newOffsetOfEnd > offsetOfEnd) {
+	if (newPosition->type != WriteCacheBlock::kReadBlock && newOffsetOfEnd > offsetOfEnd) {
 		offsetOfEnd = newOffsetOfEnd;
 	}
 	journalPositions.push_back(newPosition);
-	return true;
 }
 
 bool ChunkWriter::Operation::collidesWith(const Operation& operation) const {
@@ -292,6 +277,7 @@ std::list<WriteCacheBlock> ChunkWriter::releaseJournal() {
 }
 
 void ChunkWriter::addOperation(WriteCacheBlock&& block) {
+	sassert(block.type != WriteCacheBlock::kParityBlock);
 	sassert(acceptsNewOperations_);
 	sassert(block.chunkIndex == locator_->chunkIndex());
 	if (block.type == WriteCacheBlock::kWritableBlock) {
@@ -302,9 +288,10 @@ void ChunkWriter::addOperation(WriteCacheBlock&& block) {
 	JournalPosition journalPosition = std::prev(journal_.end());
 	if (newOperations_.empty()
 			|| !newOperations_.back().isExpandPossible(journalPosition, combinedStripeSize_)) {
-		newOperations_.push_back(Operation(journalPosition));
+		newOperations_.push_back(Operation());
+		newOperations_.back().expand(journalPosition);
 	} else {
-		newOperations_.back().expand(journalPosition, combinedStripeSize_);
+		newOperations_.back().expand(journalPosition);
 	}
 }
 
@@ -359,12 +346,9 @@ void ChunkWriter::startOperation(Operation&& operation) {
 
 		if (chunkType.isStandardChunkType()) {
 			for (const JournalPosition& position : operation.journalPositions) {
-				uint32_t indexCombinedInStripe = position->blockIndex % combinedStripeSize_;
-				if (!stripeElementsPresent[indexCombinedInStripe]) {
-					// Don't write the data, which has just been read
-					continue;
+				if (position->type != WriteCacheBlock::kReadBlock) {
+					blocksToWrite.push_back(&(*position));
 				}
-				blocksToWrite.push_back(&(*position));
 			}
 		} else if (chunkType.isXorChunkType() && chunkType.isXorParity()) {
 			uint32_t substripeCount = combinedStripeSize_ / stripeSize;
@@ -372,7 +356,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 			for (uint32_t i = 0; i < substripeCount; ++i) {
 				// Block index will be added later
 				operation.parityBuffers.push_back(WriteCacheBlock(
-						locator_->chunkIndex(), 0, WriteCacheBlock::kJournalBlock));
+						locator_->chunkIndex(), 0, WriteCacheBlock::kParityBlock));
 				parityBlocks.push_back(&operation.parityBuffers.back());
 				blocksToWrite.push_back(&operation.parityBuffers.back());
 			}
@@ -393,13 +377,8 @@ void ChunkWriter::startOperation(Operation&& operation) {
 			}
 		} else {
 			for (const JournalPosition& position : operation.journalPositions) {
-				uint32_t indexInCombinedStripe = position->blockIndex % combinedStripeSize_;
-				if (!stripeElementsPresent[indexInCombinedStripe]) {
-					// Don't write the data, which has just been read
-					continue;
-				}
-
-				if ((position->blockIndex % stripeSize) + 1 == chunkType.getXorPart()) {
+				if (position->type != WriteCacheBlock::kReadBlock &&
+						(position->blockIndex % stripeSize) + 1 == chunkType.getXorPart()) {
 					blocksToWrite.push_back(&(*position));
 				}
 			}
@@ -456,7 +435,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 	// Connect to the chunkserver and execute the read operation
 	int fd = connector_.connect(sourceServer, timeout);
 	try {
-		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kJournalBlock);
+		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kReadBlock);
 		block.from = 0;
 		block.to = MFSBLOCKSIZE;
 		ReadOperationExecutor readExecutor(readOperation,

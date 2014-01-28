@@ -7,8 +7,8 @@ public:
 	enum Type {
 		kWritableBlock, // normal block, written by clients
 		kReadOnlyBlock, // a kWriteableBlock after it is passed to ChunkWriter for the first time
-		kJournalBlock   // a block that was added by ChunkWriter directly to its journal
-		                // (eg. a block read from a chunkserver to calculate a parity)
+		kParityBlock,   // a parity block
+		kReadBlock      // a block read from a chunkserver to calculate a parity
 	};
 
 	uint8_t* blockData;
