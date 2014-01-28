@@ -70,16 +70,8 @@ create_mfsmaster_cfg() {
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
-start_master_daemon() {
-	mfsmaster -c "${lizardfs_info[master_cfg]}" start
-}
-
-stop_master_daemon() {
-	mfsmaster -c "${lizardfs_info[master_cfg]}" stop
-}
-
-kill_master_daemon() {
-	pkill -KILL mfsmaster
+lizardfs_master_daemon() {
+	mfsmaster -c "${lizardfs_info[master_cfg]}" "$1"
 }
 
 run_master_server() {
@@ -102,7 +94,7 @@ run_master_server() {
 	lizardfs_info[matocl]=$matocl_port
 	lizardfs_info[matocs]=$matocs_port
 
-	start_master_daemon
+	lizardfs_master_daemon start
 }
 
 create_mfsmetalogger_cfg() {

@@ -57,11 +57,13 @@ public:
 		uint64_t expectedSize;
 		if(read(fd, &expectedSize, sizeof(expectedSize)) != sizeof(expectedSize)) {
 			// The file if too short, so the first bytes are corrupted.
-			throw std::length_error("file too short (" + std::to_string(actualSize) + " bytes)");
+			throw std::length_error("(inode " + std::to_string(fileInformation.st_ino) + ")"
+					" file too short (" + std::to_string(actualSize) + " bytes)");
 		}
 		expectedSize = be64toh(expectedSize);
 		if (expectedSize != (uint64_t)fileInformation.st_size) {
-			error = "file should be " + std::to_string(expectedSize) +
+			error = "(inode " + std::to_string(fileInformation.st_ino) + ")"
+					" file should be " + std::to_string(expectedSize) +
 					" bytes long, but is " + std::to_string(actualSize) + " bytes long\n";
 		}
 
@@ -88,7 +90,8 @@ public:
 			for (size_t i = 0; i < bytesToRead; ++i) {
 				if (actualBuffer[i] != properBuffer[i]) {
 					std::stringstream ss;
-					ss << "data mismatch at offset " << i << ". Expected/actual:\n";
+					ss << "(inode " << fileInformation.st_ino << ")"
+							<< " data mismatch at offset " << i << ". Expected/actual:\n";
 					for (size_t j = i; j < bytesToRead && j < i + 32; ++j) {
 						ss << std::hex << std::setfill('0') << std::setw(2)
 								<< static_cast<int>(static_cast<unsigned char>(properBuffer[j]))

@@ -499,6 +499,9 @@ void matomlserv_term(void) {
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
 		}
+		if (eptr->servstrip) {
+			free(eptr->servstrip);
+		}
 		pptr = eptr->outputhead;
 		while (pptr) {
 			if (pptr->packet) {
