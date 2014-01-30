@@ -33,6 +33,10 @@ for goal in 1 2 xor2 xor3; do
 	read_speed=$(echo "scale=3;${file_size_mb}/${read_time}" | bc)
 
 	# write test results to a csv file
-	echo -e "Write speed (goal $goal),Read speed (goal $goal)\n${write_speed}, ${read_speed}" \
-			| tee "${TEST_OUTPUT_DIR}/disk_speed_results_goal_${goal}.csv"
+	echo -e "Goal ${goal}\n${write_speed}" > "${TEMP_DIR}/write_${goal}.csv"
+	echo -e "Goal ${goal}\n${read_speed}" > "${TEMP_DIR}/read_$goal.csv"
 done
+
+# Create a file with all the results in the test's output dir
+paste -d, $TEMP_DIR/write_*.csv | tee "${TEST_OUTPUT_DIR}/disk_write_speed_results.csv"
+paste -d, $TEMP_DIR/read_*.csv | tee "${TEST_OUTPUT_DIR}/disk_read_speed_results.csv"
