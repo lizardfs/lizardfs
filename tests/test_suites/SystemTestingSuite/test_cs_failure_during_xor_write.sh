@@ -46,6 +46,7 @@ mfssetgoal xor3 "${info[mount0]}/dir"
 # Create a small file by writing it using 10 clients concurrently
 src="$RAMDISK_DIR/src"
 FILE_SIZE=2000K file-generate "$src"
+touch "${info[mount2]}/dir/small"
 for i in {0..9}; do
 	dd if="$src" of="${info[mount${i}]}/dir/small" \
 			bs=200K count=1 seek=$i skip=$i conv=notrunc status=none &
