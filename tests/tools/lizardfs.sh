@@ -174,7 +174,7 @@ add_mount() {
 	lizardfs_info[mount${mount_id}]="$mount_dir"
 	max_tries=30
 	for try in $(seq 1 $max_tries); do
-		mfsmount -c "$mount_cfg" "$mount_dir" && return 0
+		mfsmount -o big_writes -c "$mount_cfg" "$mount_dir" && return 0
 		echo "Retrying in 1 second ($try/$max_tries)..."
 		sleep 1
 	done
