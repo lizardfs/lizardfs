@@ -323,7 +323,25 @@ void ChunkWriter::startOperation(Operation&& operation) {
 		if (blockIndex >= MFSBLOCKSINCHUNK) {
 			break;
 		}
-		WriteCacheBlock newBlock = readBlock(blockIndex);
+		ChunkType newBlockChunkType = ChunkType::getStandardChunkType();
+		WriteCacheBlock newBlock = readBlock(blockIndex, newBlockChunkType);
+		if (newBlockChunkType.isXorChunkType() && newBlockChunkType.isXorParity()) {
+			// Recover data if a parity was read
+			uint32_t stripeSize = newBlockChunkType.getStripeSize();
+			uint32_t firstBlockInStripe = (blockIndex / stripeSize) * stripeSize;
+			for (uint32_t i = firstBlockInStripe; i < firstBlockInStripe + stripeSize; ++i) {
+				if (i == newBlock.blockIndex) {
+					continue;
+				}
+				// Unxor data
+				ChunkType chunkTypeToXor = ChunkType::getStandardChunkType();
+				WriteCacheBlock blockToXor = readBlock(i, chunkTypeToXor);
+				if (chunkTypeToXor.isXorChunkType() && chunkTypeToXor.isXorParity()) {
+					throw RecoverableWriteException("Can't recover missing data from parity part");
+				}
+				blockXor(newBlock.data(), blockToXor.data(), newBlock.size());
+			}
+		}
 		newBlock.from = operation.journalPositions.front()->from;
 		newBlock.to = operation.journalPositions.front()->to;
 		// Insert the new block into the journal just after the last block of the operation
@@ -394,7 +412,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 	pendingOperations_[operationId] = std::move(operation);
 }
 
-WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
+WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromChunkType) {
 	Timeout timeout{std::chrono::seconds(1)};
 
 	// Find a server from which we will be able to read the block
@@ -410,9 +428,16 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 		} else {
 			sassert(chunkType.isXorChunkType());
 			if (chunkType.isXorParity()) {
-				continue;
-			}
-			if (blockIndex % chunkType.getXorLevel() + 1 == chunkType.getXorPart()) {
+				if (sourceServer == NetworkAddress() ||
+						(sourceChunkType.isXorChunkType() && sourceChunkType.isXorParity()
+						&& chunkType.getXorLevel() < sourceChunkType.getXorLevel())) {
+					// Find a parity with the smallest XOR level
+					sourceServer = executor.server();
+					sourceChunkType = chunkType;
+				} else {
+					continue;
+				}
+			} else if (blockIndex % chunkType.getXorLevel() + 1 == chunkType.getXorPart()) {
 				sourceServer = executor.server();
 				sourceChunkType = chunkType;
 				break;
@@ -445,6 +470,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
 		readExecutor.sendReadRequest(timeout);
 		readExecutor.readAll(timeout);
 		connector_.returnToPool(fd, sourceServer);
+		readFromChunkType = sourceChunkType;
 		return block;
 	} catch (...) {
 		tcpclose(fd);

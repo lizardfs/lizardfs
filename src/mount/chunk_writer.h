@@ -131,7 +131,7 @@ private:
 
 	bool canStartOperation(const Operation& operation);
 	void startOperation(Operation&& operation);
-	WriteCacheBlock readBlock(uint32_t blockIndex);
+	WriteCacheBlock readBlock(uint32_t blockIndex, ChunkType& readFromChunkType);
 	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
 	uint32_t allocateId() {
 		// we never return id=0 because it's reserved for WRITE_INIT
