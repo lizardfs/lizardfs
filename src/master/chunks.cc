@@ -715,15 +715,16 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			return ERROR_NOCHUNK;
 		}
 #ifndef METARESTORE
-		if (oc->lockedto >= main_time()) {
-			// Chunk is locked
-			if (*lockid == 0) {
-				return ERROR_LOCKED;
-			} else if (*lockid != oc->lockid) {
+		if (*lockid != 0 && *lockid != oc->lockid) {
+			if (oc->lockid == 0 || oc->lockedto == 0) {
+				// Lock was removed by some chunk operation or by a different client
+				return ERROR_NOTLOCKED;
+			} else {
 				return ERROR_WRONGLOCKID;
 			}
-		} else if (*lockid != 0) {
-			return ERROR_NOTLOCKED;
+		}
+		if (*lockid == 0 && oc->lockedto >= main_time()) {
+			return ERROR_LOCKED;
 		}
 		ChunkCopiesCalculator calculator(oc->goal);
 		for (s = oc->slisthead; s; s = s->next) {
