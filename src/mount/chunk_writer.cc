@@ -88,7 +88,7 @@ ChunkWriter::ChunkWriter(ChunkserverStats& chunkserverStats, ChunkConnector& con
 	: chunkserverStats_(chunkserverStats),
 	  connector_(connector),
 	  locator_(nullptr),
-	  currentWriteId_(0),
+	  idCounter_(0),
 	  acceptsNewOperations_(true),
 	  combinedStripeSize_(0),
 	  dataChainFd_(dataChainFd) {
@@ -102,7 +102,6 @@ ChunkWriter::~ChunkWriter() {
 }
 
 void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
-	sassert(currentWriteId_ == 0);
 	sassert(pendingOperations_.empty());
 	sassert(executors_.empty());
 
@@ -141,10 +140,10 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 		executors_.insert(std::make_pair(fd, std::move(executor)));
 	}
 
-	// Initialize all the executors
+	// Initialize all the executors -- this is a special operation with id=0
 	for (const auto& fdAndExecutor : executors_) {
 		fdAndExecutor.second->addInitPacket();
-		pendingOperations_[currentWriteId_].unfinishedWrites++;
+		pendingOperations_[0].unfinishedWrites++;
 	}
 }
 
@@ -336,7 +335,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 	sassert(operation.isFullStripe(combinedStripeSize_));
 
 	// Send all the data
-	WriteId id = ++currentWriteId_;
+	OperationId operationId = allocateId();
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
 		ChunkType chunkType = executor.chunkType();
@@ -385,12 +384,14 @@ void ChunkWriter::startOperation(Operation&& operation) {
 		}
 
 		for (const WriteCacheBlock* block : blocksToWrite) {
-			executor.addDataPacket(id,
+			WriteId writeId = allocateId();
+			writeIdToOperationId_[writeId] = operationId;
+			executor.addDataPacket(writeId,
 					block->blockIndex / stripeSize, block->from, block->size(), block->data());
 			++operation.unfinishedWrites;
 		}
 	}
-	pendingOperations_[id] = std::move(operation);
+	pendingOperations_[operationId] = std::move(operation);
 }
 
 WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex) {
@@ -463,15 +464,27 @@ void ChunkWriter::processStatus(const WriteExecutor& executor,
 	if (status.status != STATUS_OK) {
 		throw RecoverableWriteException("Chunk write error", status.status);
 	}
-	if (pendingOperations_.count(status.writeId) == 0) {
-		throw RecoverableWriteException(
+
+	// Translate writeId to operationId
+	OperationId operationId = 0;
+	if (status.writeId != 0) {
+		try {
+			operationId = writeIdToOperationId_.at(status.writeId);
+			writeIdToOperationId_.erase(status.writeId);
+		} catch (std::out_of_range &e) {
+			throw RecoverableWriteException(
 				"Chunk write error: unexpected status for operation #" +
 				std::to_string(status.writeId));
+		}
+	} else if (pendingOperations_.count(0) == 0) {
+		throw RecoverableWriteException("Chunk write error: unexpected status for WRITE_INIT");
 	}
-	auto& operation = pendingOperations_[status.writeId];
+
+	sassert(pendingOperations_.count(operationId) == 1);
+	auto& operation = pendingOperations_[operationId];
 	if (--operation.unfinishedWrites == 0) {
 		// Operation has just finished: update file size if changed and delete the operation
-		if (status.writeId != 0) {
+		if (operationId != 0) {
 			// This was a WRITE_DATA operation, not WRITE_INIT
 			if (operation.offsetOfEnd > locator_->locationInfo().fileLength) {
 				locator_->updateFileLength(operation.offsetOfEnd);
@@ -480,6 +493,6 @@ void ChunkWriter::processStatus(const WriteExecutor& executor,
 				journal_.erase(position);
 			}
 		}
-		pendingOperations_.erase(status.writeId);
+		pendingOperations_.erase(operationId);
 	}
 }

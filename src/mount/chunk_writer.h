@@ -76,6 +76,7 @@ public:
 
 private:
 	typedef uint32_t WriteId;
+	typedef uint32_t OperationId;
 	typedef std::list<WriteCacheBlock>::iterator JournalPosition;
 
 	class Operation {
@@ -117,7 +118,7 @@ private:
 	ChunkserverStats& chunkserverStats_;
 	ChunkConnector& connector_;
 	WriteChunkLocator* locator_;
-	WriteId currentWriteId_;
+	uint32_t idCounter_;
 	bool acceptsNewOperations_;
 	uint32_t combinedStripeSize_;
 	int dataChainFd_;
@@ -125,10 +126,16 @@ private:
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
 	std::list<WriteCacheBlock> journal_;
 	std::list<Operation> newOperations_;
-	std::map<WriteId, Operation> pendingOperations_;
+	std::map<WriteId, OperationId> writeIdToOperationId_;
+	std::map<OperationId, Operation> pendingOperations_;
 
 	bool canStartOperation(const Operation& operation);
 	void startOperation(Operation&& operation);
 	WriteCacheBlock readBlock(uint32_t blockIndex);
 	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
+	uint32_t allocateId() {
+		// we never return id=0 because it's reserved for WRITE_INIT
+		idCounter_++;
+		return idCounter_;
+	}
 };
