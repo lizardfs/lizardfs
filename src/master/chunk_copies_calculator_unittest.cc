@@ -214,8 +214,8 @@ TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
 
 	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).isWritingPossible());
 	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_2, xor_p_of_2}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_2_of_2, xor_p_of_2}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_1_of_2}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_2_of_2}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_p_of_2}).isWritingPossible());
@@ -226,7 +226,7 @@ TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
 	EXPECT_TRUE(calculator({xor_2_of_2, standard}).isWritingPossible());
 	EXPECT_TRUE(calculator({xor_p_of_2, standard}).isWritingPossible());
 
-	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isWritingPossible());
+	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isWritingPossible());
 	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_1_of_3, xor_p_of_3}).isWritingPossible());
@@ -251,14 +251,8 @@ TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
 	EXPECT_TRUE(calculator(chunkTypesMax).isWritingPossible());
 	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
 		std::vector<ChunkType> available = chunkTypesMax;
-		available.erase(available.begin() + i);
-		if (i == 0) {
-			// Parity is missing
-			EXPECT_TRUE(calculator(available).isWritingPossible());
-		} else {
-			// Non-parity is missing
-			EXPECT_FALSE(calculator(available).isWritingPossible());
-		}
+		available.erase(available.begin() + i); // One part is missing
+		EXPECT_TRUE(calculator(available).isWritingPossible());
 		available.erase(available.begin()); // Now two parts are missing
 		EXPECT_FALSE(calculator(available).isWritingPossible());
 		available.push_back(standard);

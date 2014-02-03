@@ -116,20 +116,6 @@ bool ChunkCopiesCalculator::isRecoveryPossible() {
 }
 
 bool ChunkCopiesCalculator::isWritingPossible() {
-	// Writing is currently possible if there is a standard chunk or
-	// all non-parity parts of some level available
-	std::bitset<kMaxXorLevel + 1> partsAvailableForLevel[kMaxXorLevel + 1];
-	for (auto part: availableParts_) {
-		if (part.isStandardChunkType()) {
-			return true;
-		} else	if (part.isXorParity()) {
-			continue;
-		}
-		uint32_t level = part.getXorLevel();
-		partsAvailableForLevel[level][part.getXorPart()] = true;
-		if (partsAvailableForLevel[level].count() == level) {
-			return true;
-		}
-	}
-	return false;
+	// we allow writing if and only if all blocks are fully recoverable
+	return isRecoveryPossible();
 }
