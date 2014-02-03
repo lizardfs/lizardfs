@@ -19,3 +19,4 @@ done
 . tools/test.sh
 . tools/timeout.sh
 . tools/valgrind.sh
+. tools/time.sh
