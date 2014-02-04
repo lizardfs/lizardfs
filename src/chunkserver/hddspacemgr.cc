@@ -128,11 +128,7 @@ static int hddspacechanged = 0;
 
 static pthread_attr_t thattr;
 
-static pthread_t foldersthread,delayedthread;
-
-#ifdef ENABLE_CHUNK_TESTING
-static pthread_t testerthread;
-#endif
+static pthread_t foldersthread, delayedthread, testerthread;
 
 static uint8_t term = 0;
 static uint8_t folderactions = 0;
@@ -2101,7 +2097,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	return STATUS_OK;
 }
 
-static int hdd_int_test(uint64_t chunkid,uint32_t version) {
+static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	TRACETHIS2(chunkid, version);
 	const uint8_t *ptr;
 	uint16_t block;
@@ -2120,7 +2116,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
@@ -2887,7 +2883,7 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		} else if (length==1) {
 			return hdd_int_create(chunkId, chunkVersion, chunkType);
 		} else if (length==2) {
-			return hdd_int_test(chunkId,chunkVersion);
+			return hdd_int_test(chunkId, chunkVersion, chunkType);
 		} else {
 			return ERROR_EINVAL;
 		}
@@ -2900,6 +2896,7 @@ void* hdd_tester_thread(void* arg) {
 	Chunk *c;
 	uint64_t chunkid;
 	uint32_t version;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint32_t freq;
 	uint32_t cnt;
 	uint64_t st,en;
@@ -2941,6 +2938,7 @@ void* hdd_tester_thread(void* arg) {
 				if (c && c->state==CH_AVAIL) {
 					chunkid = c->chunkid;
 					version = c->version;
+					chunkType = c->type();
 					path = c->filename();
 				}
 			}
@@ -2950,7 +2948,7 @@ void* hdd_tester_thread(void* arg) {
 		zassert(pthread_mutex_unlock(&folderlock));
 		if (!path.empty()) {
 			syslog(LOG_NOTICE, "testing chunk: %s", path.c_str());
-			if (hdd_int_test(chunkid,version)!=STATUS_OK) {
+			if (hdd_int_test(chunkid, version, chunkType) != STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid);
 			}
 			path.clear();
@@ -3239,9 +3237,7 @@ void hdd_term(void) {
 	term = 1;
 	zassert(pthread_mutex_unlock(&termlock));
 	if (i==0) {
-#ifdef ENABLE_CHUNK_TESTING
 		zassert(pthread_join(testerthread,NULL));
-#endif
 		zassert(pthread_join(foldersthread,NULL));
 		zassert(pthread_join(delayedthread,NULL));
 	}
@@ -3773,9 +3769,7 @@ int hdd_late_init(void) {
 	zassert(pthread_mutex_lock(&termlock));
 	term = 0;
 	zassert(pthread_mutex_unlock(&termlock));
-#ifdef ENABLE_CHUNK_TESTING
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
-#endif
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
 	return 0;
