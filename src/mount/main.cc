@@ -21,7 +21,6 @@
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <new>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -29,7 +28,9 @@
 #include "common/massert.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
+#include "common/sockets.h"
 #include "common/strerr.h"
+#include "common/wrong_crc_notifier.h"
 #include "mount/chunkloccache.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
@@ -249,6 +250,17 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	symlink_cache_init();
 	fs_init_threads(gMountOptions.ioretries);
 	masterproxy_init();
+
+	uint32_t bindIp;
+	if (tcpresolve(gMountOptions.bindhost, NULL, &bindIp, NULL, 1) < 0) {
+		bindIp = 0;
+	}
+	try {
+		gWrongCrcNotifier.init(bindIp);
+	} catch (std::system_error &e) {
+		syslog(LOG_ERR, "Failed to create wrong CRC notifier thread: %s", e.what());
+		abort();
+	}
 
 	if (gMountOptions.meta==0) {
 		read_data_init(gMountOptions.ioretries);

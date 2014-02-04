@@ -57,8 +57,10 @@
 #include "common/MFSCommunication.h"
 #include "common/random.h"
 #include "common/slogger.h"
+#include "common/sockets.h"
 #include "common/time_utils.h"
 #include "common/unique_queue.h"
+#include "common/wrong_crc_notifier.h"
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
 #define USE_PIO 1
@@ -3813,6 +3815,12 @@ int hdd_late_init(void) {
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
+	try {
+		gWrongCrcNotifier.init(0);
+	} catch (std::system_error &e) {
+		syslog(LOG_ERR, "Failed to create wrong CRC notifier thread: %s", e.what());
+		abort();
+	}
 	try {
 		test_chunk_thread = std::thread(hdd_test_chunk_thread);
 	} catch (std::system_error &e) {

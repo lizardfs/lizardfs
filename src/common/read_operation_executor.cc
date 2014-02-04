@@ -9,6 +9,7 @@
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
+#include "common/wrong_crc_notifier.h"
 #include "mount/exceptions.h"
 
 static const uint32_t kMaxMessageLength = 65 * 1024;
@@ -215,6 +216,7 @@ void ReadOperationExecutor::processDataBlockReceived() {
 
 #ifdef ENABLE_CRC
 	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
+		gWrongCrcNotifier.reportBadCrc(server_, chunkId_, chunkVersion_, chunkType_);
 		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
 	}
 #endif
