@@ -25,7 +25,7 @@ public:
 	virtual ~OutputBuffer() {};
 };
 
-#if defined(HAVE_SPLICE)
+#ifdef HAVE_SPLICE
 class AvoidingCopyingOutputBuffer : public OutputBuffer {
 public:
 	AvoidingCopyingOutputBuffer(size_t internalBufferCapacity);

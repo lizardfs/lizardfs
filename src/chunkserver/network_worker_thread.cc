@@ -134,7 +134,7 @@ packetstruct* worker_create_detached_packet_with_output_buffer(
 		outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));
 	}
 #else /* HAVE_SPLICE */
-	outPacket->outputBuffer.reset(SimpleOutputBuffer(sizeOfWholePacket));
+	outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));
 #endif /* HAVE_SPLICE */
 	if (outPacket->outputBuffer->copyIntoBuffer(packetPrefix) != (ssize_t)packetPrefix.size()) {
 		delete outPacket;
