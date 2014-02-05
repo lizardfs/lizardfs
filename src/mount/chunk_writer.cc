@@ -147,15 +147,18 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 	}
 }
 
+uint32_t ChunkWriter::getMinimumBlockCountWorthWriting() {
+	return combinedStripeSize_;
+}
+
 void ChunkWriter::processOperations(uint32_t msTimeout) {
 	// Start all possible operations. Break at the first operation that can't be started, because
 	// we have to preserve the order of operations in order to ensure the files contain proper data
 	for (auto i = newOperations_.begin(); i != newOperations_.end(); i = newOperations_.erase(i)) {
 		Operation& operation = *i;
-		// Don't start partial-stripe writes if they can be extended in the future (only the last
-		// one can) and we have anything else to do
+		// Don't start partial-stripe writes if they can be extended in the future.
+		// Only the last one can be expanded and only if we accept new data.
 		if (i == std::prev(newOperations_.end())
-				&& pendingOperations_.size() > 0
 				&& acceptsNewOperations_
 				&& !operation.isFullStripe(combinedStripeSize_)) {
 			break;

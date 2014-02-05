@@ -29,6 +29,12 @@ public:
 	void init(WriteChunkLocator* locator, uint32_t msTimeout);
 
 	/*
+	 * Returns minimum number of blocks which will be written to chunkservers by
+	 * the ChunkWriter if the flush mode is off.
+	 */
+	uint32_t getMinimumBlockCountWorthWriting();
+
+	/*
 	 * Adds a new pending write operation.
 	 */
 	void addOperation(WriteCacheBlock&& block);
