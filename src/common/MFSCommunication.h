@@ -626,6 +626,10 @@
 #define LIZ_CLTOCS_WRITE_END (1000U + 213U)
 /// chunkid:64
 
+// 0x04BE
+#define LIZ_CLTOCS_TEST_CHUNK (1000U + 214U)
+/// chunkid:64 chunkversion:32 chunktype:8
+
 //CHUNKSERVER <-> CHUNKSERVER
 
 // 0x00FA

@@ -811,6 +811,19 @@ void worker_chart_data(csserventry *eptr, const uint8_t *data, uint32_t length) 
 	}
 }
 
+void worker_test_chunk(csserventry *eptr, const uint8_t *data, uint32_t length) {
+	try {
+		ChunkWithVersionAndType chunk;
+		cltocs::testChunk::deserialize(data, length, chunk.id, chunk.version, chunk.type);
+		hdd_test_chunk(chunk);
+	} catch (IncorrectDeserializationException &e) {
+		syslog(LOG_NOTICE, "LIZ_CLTOCS_TEST_CHUNK - bad packet: %s (length: %" PRIu32 ")",
+				e.what(), length);
+		eptr->state = CLOSE;
+		return;
+	}
+}
+
 
 void worker_outputcheck(csserventry *eptr) {
 	TRACETHIS();
@@ -885,6 +898,9 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 		case CLTOAN_CHART_DATA:
 			worker_chart_data(eptr, data, length);
 			break;
+		case LIZ_CLTOCS_TEST_CHUNK:
+			worker_test_chunk(eptr, data, length);
+			break;
 		default:
 			syslog(LOG_NOTICE, "Got invalid message in IDLE state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
@@ -923,11 +939,12 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			break;
 		}
 	} else if (eptr->state == WRITEFINISH) {
-		if (type == CLTOCS_WRITE_DATA
-				|| type == LIZ_CLTOCS_WRITE_DATA
-				|| type == LIZ_CLTOCS_WRITE_END) {
+		switch (type) {
+		case CLTOCS_WRITE_DATA:
+		case LIZ_CLTOCS_WRITE_DATA:
+		case LIZ_CLTOCS_WRITE_END:
 			return;
-		} else {
+		default:
 			syslog(LOG_NOTICE, "Got invalid message in WRITEFINISH state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}

@@ -44,7 +44,7 @@ struct packetstruct {
 	}
 };
 
-struct MessageSerializer;
+class MessageSerializer;
 
 struct csserventry {
 	void* workerJobPool; // Job pool assigned to a given network worker thread

@@ -80,4 +80,19 @@ inline void deserialize(const uint8_t* source, uint32_t sourceSize, uint64_t& ch
 
 } // namespace writeEnd
 
+namespace testChunk {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType) {
+	serializePacket(destination, LIZ_CLTOCS_TEST_CHUNK, 0, chunkId, chunkVersion, chunkType);
+}
+
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
+		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType) {
+	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	deserializeAllPacketDataNoHeader(source, sourceSize, chunkId, chunkVersion, chunkType);
+}
+
+} // namespace testChunk
+
 } // namespace cltocs

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <iomanip>
+#include <sstream>
+#include <tuple>
 
 #include "common/chunk_type.h"
 #include "common/serialization.h"
@@ -18,6 +21,19 @@ struct ChunkWithVersionAndType {
 			  type(type) {
 	}
 
+	std::string toString() const {
+		std::stringstream ss;
+		ss << std::hex << std::setfill('0');
+		ss << std::setw(16) << id << '_';
+		ss << std::setw(8) << version;
+		ss << " (" << type.toString() << ")";
+		return ss.str();
+	}
+
+	bool operator<(const ChunkWithVersionAndType& other) const {
+		return std::make_tuple(id, version, type)
+			< std::make_tuple(other.id, other.version, other.type);
+	}
 	bool operator==(const ChunkWithVersionAndType& other) const {
 		return id == other.id && version == other.version && type == other.type;
 	}

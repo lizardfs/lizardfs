@@ -41,6 +41,7 @@
 #include <sys/mman.h>
 #endif
 #include <list>
+#include <thread>
 #include <vector>
 
 #include "devtools/TracePrinter.h"
@@ -56,6 +57,8 @@
 #include "common/MFSCommunication.h"
 #include "common/random.h"
 #include "common/slogger.h"
+#include "common/time_utils.h"
+#include "common/unique_queue.h"
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
 #define USE_PIO 1
@@ -129,6 +132,7 @@ static int hddspacechanged = 0;
 static pthread_attr_t thattr;
 
 static pthread_t foldersthread, delayedthread, testerthread;
+static std::thread test_chunk_thread;
 
 static uint8_t term = 0;
 static uint8_t folderactions = 0;
@@ -2890,6 +2894,38 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 	}
 }
 
+static UniqueQueue<ChunkWithVersionAndType> test_chunk_queue;
+
+static void hdd_test_chunk_thread() {
+	bool terminate = false;
+	while (!terminate) {
+		Timeout time(std::chrono::seconds(1));
+		try {
+			ChunkWithVersionAndType chunk = test_chunk_queue.get();
+			std::string name = chunk.toString();
+			if (hdd_int_test(chunk.id, chunk.version, chunk.type) != STATUS_OK) {
+				syslog(LOG_NOTICE, "Chunk %s corrupted (detected by a client)",
+						name.c_str());
+				hdd_report_damaged_chunk(chunk.id);
+			} else {
+				syslog(LOG_NOTICE, "Chunk %s spuriously reported as corrupted",
+						name.c_str());
+			}
+		} catch (UniqueQueueEmptyException&) {
+			// hooray, nothing to do
+		}
+		// rate-limit to 1/sec
+		usleep(time.remaining_us());
+		zassert(pthread_mutex_lock(&termlock));
+		terminate = term;
+		zassert(pthread_mutex_unlock(&termlock));
+	};
+}
+
+void hdd_test_chunk(ChunkWithVersionAndType chunk) {
+	test_chunk_queue.put(chunk);
+}
+
 void* hdd_tester_thread(void* arg) {
 	TRACETHIS();
 	folder *f,*of;
@@ -3240,6 +3276,11 @@ void hdd_term(void) {
 		zassert(pthread_join(testerthread,NULL));
 		zassert(pthread_join(foldersthread,NULL));
 		zassert(pthread_join(delayedthread,NULL));
+		try {
+			test_chunk_thread.join();
+		} catch (std::system_error &e) {
+			syslog(LOG_NOTICE, "Failed to join test chunk thread: %s", e.what());
+		}
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	i = 0;
@@ -3772,6 +3813,12 @@ int hdd_late_init(void) {
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
+	try {
+		test_chunk_thread = std::thread(hdd_test_chunk_thread);
+	} catch (std::system_error &e) {
+		syslog(LOG_ERR, "Failed to create test chunk thread: %s", e.what());
+		abort();
+	}
 	return 0;
 }
 

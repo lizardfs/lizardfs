@@ -110,6 +110,9 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
 			chunkIdCopy, chunkVersionCopy, length) \
 	: ERROR_EINVAL)
 
+/* chunk testing */
+void hdd_test_chunk(ChunkWithVersionAndType chunk);
+
 /* initialization */
 int hdd_late_init(void);
 int hdd_init(void);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <sstream>
 #include <string>
 
 #include "common/serialization.h"
@@ -56,6 +57,22 @@ public:
 			restLen = MFSBLOCKSIZE;
 		}
 		return baseLen + restLen;
+	}
+
+	std::string toString() const {
+		if (isStandardChunkType()) {
+			return std::string("standard");
+		} else {
+			std::stringstream ss;
+			if (isXorParity()) {
+				ss << "xor_parity_of_" <<
+						static_cast<unsigned>(getXorLevel());
+			} else {
+				ss << "xor_" << static_cast<unsigned>(getXorPart())
+					<< "_of_" << static_cast<unsigned>(getXorLevel());
+			}
+			return ss.str();
+		}
 	}
 
 private:

@@ -92,3 +92,22 @@ TEST(CltocsCommunicationTests, WriteEnd) {
 
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
 }
+
+TEST(CltocsCommunicationTests, TestChunk) {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,  0x987654321, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x01234567, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_7, standard);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cltocs::testChunk::serialize(buffer,
+			chunkIdIn, chunkVersionIn, chunkTypeIn));
+
+	verifyHeader(buffer, LIZ_CLTOCS_TEST_CHUNK);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(cltocs::testChunk::deserialize(buffer.data(), buffer.size(),
+			chunkIdOut, chunkVersionOut, chunkTypeOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkVersion);
+	LIZARDFS_VERIFY_INOUT_PAIR(chunkType);
+}
