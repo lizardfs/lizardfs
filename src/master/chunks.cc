@@ -116,6 +116,30 @@ struct slist {
 			sassert(!"slist::unmark_busy(): wrong state");
 		}
 	}
+	void mark_todel() {
+		switch (valid) {
+		case VALID:
+			valid = TDVALID;
+			break;
+		case BUSY:
+			valid = TDBUSY;
+			break;
+		default:
+			sassert(!"slist::mark_todel(): wrong state");
+		}
+	}
+	void unmark_todel() {
+		switch (valid) {
+		case TDVALID:
+			valid = VALID;
+			break;
+		case TDBUSY:
+			valid = BUSY;
+			break;
+		default:
+			sassert(!"slist::unmark_todel(): wrong state");
+		}
+	}
 };
 
 #ifdef USE_SLIST_BUCKETS
@@ -1138,6 +1162,42 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
+			// This server already notified us about its copy.
+			// We normally don't get repeated notifications about the same copy, but
+			// they can arrive after chunkserver configuration reload (particularly,
+			// when folders change their 'to delete' status) or due to bugs.
+			// Let's try to handle them as well as we can.
+			switch (s->valid) {
+			case DEL:
+				// We requested deletion, but the chunkserver 'has' this copy again.
+				// Repeat deletion request.
+				c->invalidate_copy(s);
+				// fallthrough
+			case INVALID:
+				// leave this copy alone
+				return;
+			default:
+				break;
+			}
+			if (s->version != new_version) {
+				syslog(LOG_WARNING, "chunk %016" PRIX64 ": master data indicated "
+						"version %08" PRIX32 ", chunkserver reports %08"
+						PRIX32 "!!! Updating master data.", c->chunkid,
+						s->version, new_version);
+				s->version = new_version;
+			}
+			if (s->version != c->version) {
+				c->copy_has_wrong_version(s);
+				return;
+			}
+			if (!s->is_todel() && todel) {
+				s->mark_todel();
+				c->adjust_regularvalidcopies(-1);
+			}
+			if (s->is_todel() && !todel) {
+				s->unmark_todel();
+				c->adjust_regularvalidcopies(+1);
+			}
 			return;
 		}
 	}
