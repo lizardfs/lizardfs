@@ -48,7 +48,6 @@
 #include "common/md5.h"
 #include "mastercomm.h"
 #include "masterproxy.h"
-#include "chunkloccache.h"
 #include "symlinkcache.h"
 #include "readdata.h"
 #include "writedata.h"
@@ -565,7 +564,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
-	chunkloc_cache_init();
 	symlink_cache_init();
 	fs_init_threads(mfsopts.ioretries);
 	masterproxy_init();
@@ -593,7 +591,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -622,7 +619,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -647,7 +643,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -687,7 +682,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	masterproxy_term();
 	fs_term();
 	symlink_cache_term();
-	chunkloc_cache_term();
 	return err ? 1 : 0;
 }
 
