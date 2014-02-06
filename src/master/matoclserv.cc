@@ -207,7 +207,7 @@ public:
 	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
 			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
 			const std::vector<ChunkTypeWithAddress>& chunkCopies) const = 0;
-	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t>& packetBuffer,
 			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const = 0;
 
 	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
@@ -242,9 +242,9 @@ public:
 				chunkId, chunkVersion, standardChunkCopies);
 	}
 
-	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t>& packetBuffer,
 			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
-		deserializeAllMooseFsPacketDataNoHeader(packet, messageId, inode, chunkIndex);
+		deserializeAllMooseFsPacketDataNoHeader(packetBuffer, messageId, inode, chunkIndex);
 	}
 
 	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
@@ -297,9 +297,9 @@ public:
 				chunkCopies);
 	}
 
-	virtual void deserializeFuseReadChunk(const std::vector<uint8_t> packet,
+	virtual void deserializeFuseReadChunk(const std::vector<uint8_t>& packetBuffer,
 			uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) const {
-		cltoma::fuseReadChunk::deserialize(packet, messageId, inode, chunkIndex);
+		cltoma::fuseReadChunk::deserialize(packetBuffer, messageId, inode, chunkIndex);
 	}
 
 	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
