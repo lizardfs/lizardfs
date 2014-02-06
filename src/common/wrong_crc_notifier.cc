@@ -10,12 +10,12 @@ void WrongCrcNotifier::operator()() {
 		if (inconsistentChunks_.empty()) {
 			cond_.wait_for(lock, std::chrono::seconds(1));
 		}
-		decltype(inconsistentChunks_) oldinconsistentChunks;
-		std::swap(inconsistentChunks_, oldinconsistentChunks);
+		decltype(inconsistentChunks_) oldInconsistentChunks;
+		std::swap(inconsistentChunks_, oldInconsistentChunks);
 		lock.unlock();
 		connectionPool_.cleanup();
 
-		for (const auto& addressAndChunk : inconsistentChunks_) {
+		for (const auto& addressAndChunk : oldInconsistentChunks) {
 			const auto& address = addressAndChunk.first;
 			const auto& chunkWithVersionAndType = addressAndChunk.second;
 			int fd;
