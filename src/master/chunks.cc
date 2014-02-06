@@ -1157,7 +1157,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 			nextchunkid=chunkid+1;
 		}
 		c = chunk_new(chunkid);
-		c->version = version;
+		c->version = new_version;
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
