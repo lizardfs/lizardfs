@@ -5,7 +5,6 @@
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
 #include "mount/chunk_reader.h"
-#include "mount/chunkserver_write_chain.h"
 
 class WriteExecutor {
 public:

@@ -46,7 +46,6 @@
 #include "common/strerr.h"
 #include "common/time_utils.h"
 #include "mount/chunk_writer.h"
-#include "mount/chunkserver_write_chain.h"
 #include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
 #include "mount/mastercomm.h"
