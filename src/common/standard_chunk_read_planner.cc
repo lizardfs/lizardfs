@@ -263,7 +263,7 @@ ReadPlanner::Plan StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
 	return plan;
 }
 
-float xorPlanScore(const std::map<ChunkType, float> serverScores, int level) {
+float xorPlanScore(const std::map<ChunkType, float>& serverScores, int level) {
 	float score = 1;
 	for (ChunkType::XorPart part = 1; part <= level; part++) {
 		ChunkType type = ChunkType::getXorChunkType(level, part);
@@ -272,7 +272,7 @@ float xorPlanScore(const std::map<ChunkType, float> serverScores, int level) {
 	return score;
 }
 
-float xorPlanScore(const std::map<ChunkType, float> serverScores, int level, int missing) {
+float xorPlanScore(const std::map<ChunkType, float>& serverScores, int level, int missing) {
 	float score = 1;
 	for (ChunkType::XorPart part = 1; part <= level; part++) {
 		if (part == missing) {
