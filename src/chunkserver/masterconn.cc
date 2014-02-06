@@ -201,7 +201,6 @@ void masterconn_check_hdd_reports() {
 			uint32_t chunkcount,tdchunkcount;
 			hdd_get_space(&usedspace, &totalspace, &chunkcount, &tdusedspace, &tdtotalspace,
 					&tdchunkcount);
-			std::vector<uint8_t> buffer;
 			masterconn_create_attached_moosefs_packet(
 					eptr, CSTOMA_SPACE,
 					usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);

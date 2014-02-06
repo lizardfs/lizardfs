@@ -460,7 +460,6 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 		}
 
 		if (wholeOperationTimer.elapsed_s() >= maximumTime) {
-			std::stringstream ss;
 			throw RecoverableWriteException(
 					"Timeout after " + std::to_string(wholeOperationTimer.elapsed_ms()) + " ms",
 					ERROR_TIMEOUT);
