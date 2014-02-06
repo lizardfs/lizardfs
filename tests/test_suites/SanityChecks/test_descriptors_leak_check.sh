@@ -3,6 +3,7 @@ CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
+timeout_set_multiplier 10
 max_files=100
 max_open_descriptors=10
 time_limit=15
@@ -14,8 +15,9 @@ done
 wait
 
 # wait for lizardfs to close files
+cs_pid=$(mfschunkserver -c "${info[chunkserver0_config]}" test 2>&1 | sed 's/.*: //')
 for ((time_elapsed=0; time_elapsed < time_limit; ++time_elapsed)); do
-	leaked_descriptors_number=$(lsof +D $RAMDISK_DIR -p$(pidof mfschunkserver) 2>/dev/null | \
+	leaked_descriptors_number=$(lsof +D $RAMDISK_DIR -p$cs_pid 2>/dev/null | \
 			grep -v 'lock' | grep chunk_ | wc -l)
 	if ((leaked_descriptors_number < max_open_descriptors)); then
 		break
