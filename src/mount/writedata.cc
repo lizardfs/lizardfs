@@ -30,6 +30,8 @@
 #include <limits.h>
 #include <pthread.h>
 #include <inttypes.h>
+#include <condition_variable>
+#include <mutex>
 #include <vector>
 
 #include "common/chunk_connector.h"
@@ -73,8 +75,8 @@ struct inodedata {
 	bool inqueue; // true it this inode is waiting in one of the queues or is being processed
 	uint32_t minimumBlocksToWrite;
 	std::list<WriteCacheBlock> dataChain;
-	pthread_cond_t flushcond; // wait for !inqueue (flush)
-	pthread_cond_t writecond; // wait for flushwaiting==0 (write)
+	std::condition_variable flushcond; // wait for !inqueue (flush)
+	std::condition_variable writecond; // wait for flushwaiting==0 (write)
 	inodedata *next;
 	std::unique_ptr<WriteChunkLocator> locator;
 	int newDataInChainPipe[2];
@@ -92,8 +94,6 @@ struct inodedata {
 			  minimumBlocksToWrite(1),
 			  next(nullptr),
 			  workerWaitingForData(false) {
-		pthread_cond_init(&flushcond, nullptr);
-		pthread_cond_init(&writecond, nullptr);
 		if (pipe(newDataInChainPipe) < 0) {
 			syslog(LOG_WARNING, "creating pipe error: %s", strerr(errno));
 			newDataInChainPipe[0] = -1;
@@ -101,8 +101,6 @@ struct inodedata {
 	}
 
 	~inodedata() {
-		pthread_cond_destroy(&flushcond);
-		pthread_cond_destroy(&writecond);
 		if (isDataChainPipeValid()) {
 			close(newDataInChainPipe[0]);
 			close(newDataInChainPipe[1]);
@@ -142,58 +140,50 @@ struct DelayedQueueEntry {
 
 } // anonymous namespace
 
-// static pthread_mutex_t fcblock;
+static std::mutex gMutex;
+typedef std::unique_lock<std::mutex> Glock;
 
-static pthread_cond_t fcbcond;
+static std::condition_variable fcbcond;
 static uint8_t fcbwaiting;
 static int32_t freecacheblocks;
 
 static uint32_t maxretries;
 
-static inodedata **idhash;
-
-static pthread_mutex_t glock;
+static inodedata** idhash;
 
 static pthread_t delayed_queue_worker_th;
 static std::vector<pthread_t> write_worker_th;
 
-static void *jqueue;
+static void* jqueue;
 static std::list<DelayedQueueEntry> delayedQueue;
 
 static ConnectionPool gChunkserverConnectionPool;
 
-#define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
-
-/* glock: LOCKED */
-void write_cb_release_blocks(uint32_t count) {
+void write_cb_release_blocks(uint32_t count, Glock&) {
 	freecacheblocks += count;
 	if (fcbwaiting) {
-		pthread_cond_signal(&fcbcond);
+		fcbcond.notify_all();
 	}
 }
 
-/* glock: LOCKED */
-void write_cb_acquire_blocks(uint32_t count) {
+void write_cb_acquire_blocks(uint32_t count, Glock&) {
 	freecacheblocks -= count;
 }
 
-/* glock: LOCKED */
-void write_cb_wait_for_block(inodedata *id) {
+void write_cb_wait_for_block(inodedata* id, Glock& glock) {
 	fcbwaiting++;
 	while (freecacheblocks <= 0
 			|| static_cast<int32_t>(id->dataChain.size()) > (freecacheblocks / 3)) {
-		pthread_cond_wait(&fcbcond, &glock);
+		fcbcond.wait(glock);
 	}
 	fcbwaiting--;
 }
 
 /* inode */
 
-/* glock: LOCKED */
-inodedata* write_find_inodedata(uint32_t inode) {
+inodedata* write_find_inodedata(uint32_t inode, Glock&) {
 	uint32_t idh = IDHASH(inode);
-	inodedata *id;
-	for (id = idhash[idh]; id; id = id->next) {
+	for (inodedata* id = idhash[idh]; id; id = id->next) {
 		if (id->inode == inode) {
 			return id;
 		}
@@ -201,25 +191,21 @@ inodedata* write_find_inodedata(uint32_t inode) {
 	return NULL;
 }
 
-/* glock: LOCKED */
-inodedata* write_get_inodedata(uint32_t inode) {
+inodedata* write_get_inodedata(uint32_t inode, Glock&) {
 	uint32_t idh = IDHASH(inode);
-	inodedata *id;
-
-	for (id = idhash[idh]; id; id = id->next) {
+	inodedata* id;
+	for (inodedata* id = idhash[idh]; id; id = id->next) {
 		if (id->inode == inode) {
 			return id;
 		}
 	}
-
 	id = new inodedata(inode);
 	id->next = idhash[idh];
 	idhash[idh] = id;
 	return id;
 }
 
-/* glock: LOCKED */
-void write_free_inodedata(inodedata *fid) {
+void write_free_inodedata(inodedata* fid, Glock&) {
 	uint32_t idh = IDHASH(fid->inode);
 	inodedata *id, **idp;
 	idp = &(idhash[idh]);
@@ -235,13 +221,11 @@ void write_free_inodedata(inodedata *fid) {
 
 /* delayed queue */
 
-/* glock: LOCKED */
-static void delayed_queue_put(inodedata *id, uint32_t seconds) {
+static void delayed_queue_put(inodedata* id, uint32_t seconds, Glock&) {
 	delayedQueue.push_back(DelayedQueueEntry(id, seconds * DelayedQueueEntry::kTicksPerSecond));
 }
 
-/* glock: LOCKED */
-static bool delayed_queue_remove(inodedata *id) {
+static bool delayed_queue_remove(inodedata* id, Glock&) {
 	for (auto it = delayedQueue.begin(); it != delayedQueue.end(); ++it) {
 		if (it->inodeData == id) {
 			delayedQueue.erase(it);
@@ -251,15 +235,13 @@ static bool delayed_queue_remove(inodedata *id) {
 	return false;
 }
 
-/* glock: UNLOCKED */
-void* delayed_queue_worker(void *) {
+void* delayed_queue_worker(void*) {
 	for (;;) {
 		Timeout timeout(std::chrono::microseconds(1000000 / DelayedQueueEntry::kTicksPerSecond));
-		pthread_mutex_lock(&glock);
+		Glock lock(gMutex);
 		auto it = delayedQueue.begin();
 		while (it != delayedQueue.end()) {
 			if (it->inodeData == NULL) {
-				pthread_mutex_unlock(&glock);
 				return NULL;
 			}
 			if (--it->ticksLeft <= 0) {
@@ -269,7 +251,7 @@ void* delayed_queue_worker(void *) {
 				++it;
 			}
 		}
-		pthread_mutex_unlock(&glock);
+		lock.unlock();
 		usleep(timeout.remaining_us());
 	}
 	return NULL;
@@ -277,22 +259,19 @@ void* delayed_queue_worker(void *) {
 
 /* queues */
 
-/* glock: LOCKED */
-void write_delayed_enqueue(inodedata *id, uint32_t seconds) {
+void write_delayed_enqueue(inodedata* id, uint32_t seconds, Glock& lock) {
 	if (seconds > 0) {
-		delayed_queue_put(id, seconds);
+		delayed_queue_put(id, seconds, lock);
 	} else {
 		queue_put(jqueue, 0, 0, (uint8_t*) id, 0);
 	}
 }
 
-/* glock: LOCKED */
-void write_enqueue(inodedata *id) {
+void write_enqueue(inodedata* id, Glock&) {
 	queue_put(jqueue, 0, 0, (uint8_t*) id, 0);
 }
 
-/* glock: LOCKED */
-void write_job_delayed_end(inodedata *id, int status, int seconds) {
+void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) {
 	id->locator.reset();
 	if (status) {
 		errno = status;
@@ -306,21 +285,20 @@ void write_job_delayed_end(inodedata *id, int status, int seconds) {
 	}
 	if (!id->dataChain.empty() && status == 0) { // still have some work to do
 		id->trycnt = 0;	// on good write reset try counter
-		write_delayed_enqueue(id, seconds);
+		write_delayed_enqueue(id, seconds, lock);
 	} else {	// no more work or error occured
 		// if this is an error then release all data blocks
-		write_cb_release_blocks(id->dataChain.size());
+		write_cb_release_blocks(id->dataChain.size(), lock);
 		id->dataChain.clear();
 		id->inqueue = false;
 		if (id->flushwaiting > 0) {
-			pthread_cond_broadcast(&(id->flushcond));
+			id->flushcond.notify_all();
 		}
 	}
 }
 
-/* glock: LOCKED */
-void write_job_end(inodedata *id, int status) {
-	write_job_delayed_end(id, status, 0);
+void write_job_end(inodedata *id, int status, Glock &lock) {
+	write_job_delayed_end(id, status, 0, lock);
 }
 
 class InodeChunkWriter {
@@ -330,9 +308,9 @@ public:
 
 private:
 	void processDataChain(ChunkWriter& writer);
-	void returnJournalToDataChain(std::list<WriteCacheBlock>&& journal);
-	bool haveAnyBlockInCurrentChunk();
-	bool haveBlockWorthWriting(uint32_t pendingOperationCount);
+	void returnJournalToDataChain(std::list<WriteCacheBlock>&& journal, Glock&);
+	bool haveAnyBlockInCurrentChunk(Glock&);
+	bool haveBlockWorthWriting(uint32_t pendingOperationCount, Glock&);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
 	Timer wholeOperationTimer;
@@ -349,13 +327,13 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	inodeData_ = inodeData;
 
 	// First, choose index of some chunk to write
-	pthread_mutex_lock(&glock);
+	Glock lock(gMutex);
 	int status = inodeData_->status;
 	bool haveDataToWrite;
 	if (inodeData_->locator) {
 		// There is a chunk lock left by a previous unfinished job -- let's finish it!
 		chunkIndex_ = inodeData_->locator->chunkIndex();
-		haveDataToWrite = haveAnyBlockInCurrentChunk();
+		haveDataToWrite = haveAnyBlockInCurrentChunk(lock);
 	} else if (!inodeData_->dataChain.empty()) {
 		// There is no unfinished job, but there is some data to write -- let's start a new job
 		chunkIndex_ = inodeData_->dataChain.front().chunkIndex;
@@ -368,11 +346,10 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		status = EINVAL;
 	}
 	if (status != STATUS_OK) {
-		write_job_end(inodeData_, status);
-		pthread_mutex_unlock(&glock);
+		write_job_end(inodeData_, status, lock);
 		return;
 	}
-	pthread_mutex_unlock(&glock);
+	lock.unlock();
 
 	/*  Process the job */
 	ChunkConnector connector(fs_getsrcip(), gChunkserverConnectionPool);
@@ -392,16 +369,17 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 				writer.init(locator.get(), 5000);
 				processDataChain(writer);
 				writer.finish(5000);
-				pthread_mutex_lock(&glock);
-				returnJournalToDataChain(writer.releaseJournal());
-				pthread_mutex_unlock(&glock);
+
+				Glock lock(gMutex);
+				returnJournalToDataChain(writer.releaseJournal(), lock);
 			}
 			locator->unlockChunk();
 			read_inode_ops(inodeData_->inode);
-			pthread_mutex_lock(&glock);
+
+			Glock lock(gMutex);
 			inodeData_->minimumBlocksToWrite = writer.getMinimumBlockCountWorthWriting();
 			bool canWait = inodeData_->flushwaiting == 0;
-			if (!haveAnyBlockInCurrentChunk()) {
+			if (!haveAnyBlockInCurrentChunk(lock)) {
 				// There is no need to wait if we have just finished writing some chunk.
 				// Let's immediately start writing the next chunk (if there is any).
 				canWait = false;
@@ -412,11 +390,10 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 				// has to be flushed, because no more data will be added to it
 				canWait = false;
 			}
-			write_job_delayed_end(inodeData_, STATUS_OK, (canWait ? 1 : 0));
-			pthread_mutex_unlock(&glock);
+			write_job_delayed_end(inodeData_, STATUS_OK, (canWait ? 1 : 0), lock);
 		} catch (Exception& e) {
 			std::string errorString = e.what();
-			pthread_mutex_lock(&glock);
+			Glock lock(gMutex);
 			if (e.status() != ERROR_LOCKED) {
 				inodeData_->trycnt++;
 				errorString += " (try counter: " + std::to_string(inodeData->trycnt) + ")";
@@ -429,8 +406,8 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			// Keep the lock
 			inodeData_->locator = std::move(locator);
 			// Move data left in the journal into front of the write cache
-			returnJournalToDataChain(writer.releaseJournal());
-			pthread_mutex_unlock(&glock);
+			returnJournalToDataChain(writer.releaseJournal(), lock);
+			lock.unlock();
 
 			syslog(LOG_WARNING, "write file error, inode: %" PRIu32 ", index: %" PRIu32 " - %s",
 					inodeData_->inode, chunkIndex_, errorString.c_str());
@@ -443,21 +420,19 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			}
 		}
 	} catch (UnrecoverableWriteException& e) {
-		pthread_mutex_lock(&glock);
+		Glock lock(gMutex);
 		if (e.status() == ERROR_ENOENT) {
-			write_job_end(inodeData_, EBADF);
+			write_job_end(inodeData_, EBADF, lock);
 		} else if (e.status() == ERROR_QUOTA) {
-			write_job_end(inodeData_, EDQUOT);
+			write_job_end(inodeData_, EDQUOT, lock);
 		} else if (e.status() == ERROR_NOSPACE || e.status() == ERROR_NOCHUNKSERVERS) {
-			write_job_end(inodeData_, ENOSPC);
+			write_job_end(inodeData_, ENOSPC, lock);
 		} else {
-			write_job_end(inodeData_, EIO);
+			write_job_end(inodeData_, EIO, lock);
 		}
-		pthread_mutex_unlock(&glock);
 	} catch (Exception& e) {
-		pthread_mutex_lock(&glock);
-		write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3));
-		pthread_mutex_unlock(&glock);
+		Glock lock(gMutex);
+		write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3), lock);
 	}
 }
 
@@ -482,32 +457,24 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 		// new if we've already sent 15 blocks and didn't receive status from the chunkserver.
 		if (wholeOperationTimer.elapsed_s() + kTimeToFinishOperations < maximumTime
 				&& writer.acceptsNewOperations()) {
-			pthread_mutex_lock(&glock);
+			Glock lock(gMutex);
 			// While there is any block worth sending, we add new write operation
-			try {
-				while (haveBlockWorthWriting(writer.getUnfinishedOperationsCount())) {
-					// Remove block from cache and pass it to the writer
-					writer.addOperation(std::move(inodeData_->dataChain.front()));
-					inodeData_->dataChain.pop_front();
-					write_cb_release_blocks(1);
-				}
-				if (inodeData_->flushwaiting > 0 && !haveAnyBlockInCurrentChunk()) {
-					// No more data will arrive, so flush everything
-					writer.startFlushMode();
-				}
-			} catch (...) {
-				pthread_mutex_unlock(&glock);
-				throw;
+			while (haveBlockWorthWriting(writer.getUnfinishedOperationsCount(), lock)) {
+				// Remove block from cache and pass it to the writer
+				writer.addOperation(std::move(inodeData_->dataChain.front()));
+				inodeData_->dataChain.pop_front();
+				write_cb_release_blocks(1, lock);
 			}
-
+			if (inodeData_->flushwaiting > 0 && !haveAnyBlockInCurrentChunk(lock)) {
+				// No more data will arrive, so flush everything
+				writer.startFlushMode();
+			}
 			if (writer.getUnfinishedOperationsCount() < kMaxUnfinishedOperations) {
 				inodeData_->workerWaitingForData = true;
 			}
-
-			pthread_mutex_unlock(&glock);
 		} else if (writer.acceptsNewOperations()) {
 			// We are running out of time...
-			pthread_mutex_lock(&glock);
+			Glock lock(gMutex);
 			if (inodeData_->flushwaiting == 0) {
 				// Nobody is waiting for the data to be flushed. Let's postpone any operations
 				// that didn't start yet and finish them in the next time slice for this chunk
@@ -516,7 +483,6 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 				// Somebody if waiting for a flush, so we have to finish writing everything.
 				writer.startFlushMode();
 			}
-			pthread_mutex_unlock(&glock);
 		}
 
 		if (writer.getUnfinishedOperationsCount() == 0) {
@@ -533,19 +499,17 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 	}
 }
 
-/* glock: LOCKED */
-void InodeChunkWriter::returnJournalToDataChain(std::list<WriteCacheBlock>&& journal) {
+void InodeChunkWriter::returnJournalToDataChain(std::list<WriteCacheBlock>&& journal, Glock& lock) {
 	if (!journal.empty()) {
-		write_cb_acquire_blocks(journal.size());
+		write_cb_acquire_blocks(journal.size(), lock);
 		inodeData_->dataChain.splice(inodeData_->dataChain.begin(), journal);
 	}
 }
 
 /*
  * Check if there is any data in the same chunk waiting to be written.
- * glock: LOCKED
  */
-bool InodeChunkWriter::haveAnyBlockInCurrentChunk() {
+bool InodeChunkWriter::haveAnyBlockInCurrentChunk(Glock&) {
 	if (inodeData_->dataChain.empty()) {
 		return false;
 	} else {
@@ -559,8 +523,8 @@ bool InodeChunkWriter::haveAnyBlockInCurrentChunk() {
  * These can be taken only if we are close to run out of tasks to do.
  * glock: LOCKED
  */
-bool InodeChunkWriter::haveBlockWorthWriting(uint32_t pendingOperationCount) {
-	if (!haveAnyBlockInCurrentChunk()) {
+bool InodeChunkWriter::haveBlockWorthWriting(uint32_t pendingOperationCount, Glock& lock) {
+	if (!haveAnyBlockInCurrentChunk(lock)) {
 		return false;
 	}
 	const auto& block = inodeData_->dataChain.front();
@@ -607,9 +571,7 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers) {
 	if (cacheblockcount < 10) {
 		cacheblockcount = 10;
 	}
-	pthread_mutex_init(&glock, NULL);
 
-	pthread_cond_init(&fcbcond, NULL);
 	fcbwaiting = 0;
 	freecacheblocks = cacheblockcount;
 
@@ -634,9 +596,10 @@ void write_data_term(void) {
 	uint32_t i;
 	inodedata *id, *idn;
 
-	pthread_mutex_lock(&glock);
-	delayed_queue_put(nullptr, 0);
-	pthread_mutex_unlock(&glock);
+	{
+		Glock lock(gMutex);
+		delayed_queue_put(nullptr, 0, lock);
+	}
 	for (i = 0; i < write_worker_th.size(); i++) {
 		queue_put(jqueue, 0, 0, NULL, 0);
 	}
@@ -652,13 +615,11 @@ void write_data_term(void) {
 		}
 	}
 	free(idhash);
-	pthread_cond_destroy(&fcbcond);
-	pthread_mutex_destroy(&glock);
 }
 
 /* glock: UNLOCKED */
 int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uint32_t to, const uint8_t *data) {
-	pthread_mutex_lock(&glock);
+	Glock lock(gMutex);
 	// Try to expand the last block
 	if (!id->dataChain.empty()) {
 		auto& lastBlock = id->dataChain.back();
@@ -667,14 +628,13 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 				&& lastBlock.type == WriteCacheBlock::kWritableBlock
 				&& lastBlock.expand(from, to, data)) {
 			id->wakeUpWorkerIfNecessary();
-			pthread_mutex_unlock(&glock);
 			return 0;
 		}
 	}
 
 	// Didn't manage to expand an existing block, so allocate a new one
-	write_cb_wait_for_block(id);
-	write_cb_acquire_blocks(1);
+	write_cb_wait_for_block(id, lock);
+	write_cb_acquire_blocks(1, lock);
 	id->dataChain.push_back(WriteCacheBlock(chindx, pos, WriteCacheBlock::kWritableBlock));
 	sassert(id->dataChain.back().expand(from, to, data));
 	if (id->inqueue) {
@@ -683,21 +643,20 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 		// - there are at least two chunks in the write chain
 		if (id->trycnt == 0 && (id->dataChain.size() > id->minimumBlocksToWrite
 			|| id->dataChain.front().chunkIndex != id->dataChain.back().chunkIndex)) {
-			if (delayed_queue_remove(id)) {
-				write_enqueue(id);
+			if (delayed_queue_remove(id, lock)) {
+				write_enqueue(id, lock);
 			}
 		}
 		id->wakeUpWorkerIfNecessary();
 	} else {
 		id->inqueue = true;
-		write_enqueue(id);
+		write_enqueue(id, lock);
 	}
-	pthread_mutex_unlock(&glock);
 	return 0;
 }
 
 /* API | glock: UNLOCKED */
-int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t *data) {
+int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 	uint32_t chindx;
 	uint16_t pos;
 	uint32_t from;
@@ -707,9 +666,7 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t *data) {
 		return EIO;
 	}
 
-//	gettimeofday(&s,NULL);
-	pthread_mutex_lock(&glock);
-//	syslog(LOG_NOTICE,"write_data: inode:%" PRIu32 " offset:%" PRIu32 " size:%" PRIu32,id->inode,offset,size);
+	Glock lock(gMutex);
 	status = id->status;
 	if (status == 0) {
 		if (offset + size > id->maxfleng) {	// move fleng
@@ -717,11 +674,12 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t *data) {
 		}
 		id->writewaiting++;
 		while (id->flushwaiting > 0) {
-			pthread_cond_wait(&(id->writecond), &glock);
+			id->writecond.wait(lock);
 		}
 		id->writewaiting--;
 	}
-	pthread_mutex_unlock(&glock);
+	lock.unlock();
+
 	if (status != 0) {
 		return status;
 	}
@@ -749,134 +707,79 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t *data) {
 			size = 0;
 		}
 	}
-//	gettimeofday(&e,NULL);
-//	syslog(LOG_NOTICE,"write_data time: %" PRId64,TIMEDIFF(e,s));
 	return 0;
 }
 
-/* API | glock: UNLOCKED */
 void* write_data_new(uint32_t inode) {
 	inodedata* id;
-	pthread_mutex_lock(&glock);
-	id = write_get_inodedata(inode);
+	Glock lock(gMutex);
+	id = write_get_inodedata(inode, lock);
 	if (id == NULL) {
-		pthread_mutex_unlock(&glock);
 		return NULL;
 	}
 	id->lcnt++;
-	pthread_mutex_unlock(&glock);
 	return id;
 }
 
-int write_data_flush(void *vid) {
+
+static int write_data_flush(void* vid, bool decReferenceCounter, Glock& lock) {
 	inodedata* id = (inodedata*) vid;
 	int ret;
 	if (id == NULL) {
 		return EIO;
 	}
 
-//	gettimeofday(&s,NULL);
-	pthread_mutex_lock(&glock);
 	id->flushwaiting++;
 	// If there are no errors (trycnt==0) and inode is waiting in the delayed queue, speed it up
-	if (id->trycnt == 0 && delayed_queue_remove(id)) {
-		write_enqueue(id);
+	if (id->trycnt == 0 && delayed_queue_remove(id, lock)) {
+		write_enqueue(id, lock);
 	}
 	// Wait for the data to be flushed
 	while (id->inqueue) {
-//		syslog(LOG_NOTICE,"flush: wait ...");
-		pthread_cond_wait(&(id->flushcond), &glock);
-//		syslog(LOG_NOTICE,"flush: woken up");
+		id->flushcond.wait(lock);
 	}
 	id->flushwaiting--;
 	if (id->flushwaiting == 0 && id->writewaiting > 0) {
-		pthread_cond_broadcast(&(id->writecond));
+		id->writecond.notify_all();
 	}
 	ret = id->status;
-	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
-		write_free_inodedata(id);
+	if (decReferenceCounter) {
+		id->lcnt--;
 	}
-	pthread_mutex_unlock(&glock);
-//	gettimeofday(&e,NULL);
-//	syslog(LOG_NOTICE,"write_data_flush time: %" PRId64,TIMEDIFF(e,s));
+	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
+		write_free_inodedata(id, lock);
+	}
 	return ret;
+}
+
+int write_data_flush(void* vid) {
+	Glock lock(gMutex);
+	return 	write_data_flush(vid, false, lock);
 }
 
 uint64_t write_data_getmaxfleng(uint32_t inode) {
 	uint64_t maxfleng;
 	inodedata* id;
-	pthread_mutex_lock(&glock);
-	id = write_find_inodedata(inode);
+	Glock lock(gMutex);
+	id = write_find_inodedata(inode, lock);
 	if (id) {
 		maxfleng = id->maxfleng;
 	} else {
 		maxfleng = 0;
 	}
-	pthread_mutex_unlock(&glock);
 	return maxfleng;
 }
 
-/* API | glock: UNLOCKED */
 int write_data_flush_inode(uint32_t inode) {
-	inodedata* id;
-	int ret;
-	pthread_mutex_lock(&glock);
-	id = write_find_inodedata(inode);
+	Glock lock(gMutex);
+	inodedata* id = write_find_inodedata(inode, lock);
 	if (id == NULL) {
-		pthread_mutex_unlock(&glock);
 		return 0;
 	}
-	id->flushwaiting++;
-	// If there are no errors (trycnt==0) and inode is waiting in the delayed queue, speed it up
-	if (id->trycnt == 0 && delayed_queue_remove(id)) {
-		write_enqueue(id);
-	}
-	// Wait for the data to be flushed
-	while (id->inqueue) {
-//		syslog(LOG_NOTICE,"flush_inode: wait ...");
-		pthread_cond_wait(&(id->flushcond), &glock);
-//		syslog(LOG_NOTICE,"flush_inode: woken up");
-	}
-	id->flushwaiting--;
-	if (id->flushwaiting == 0 && id->writewaiting > 0) {
-		pthread_cond_broadcast(&(id->writecond));
-	}
-	ret = id->status;
-	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
-		write_free_inodedata(id);
-	}
-	pthread_mutex_unlock(&glock);
-	return ret;
+	return write_data_flush(id, false, lock);
 }
 
-/* API | glock: UNLOCKED */
-int write_data_end(void *vid) {
-	inodedata* id = (inodedata*) vid;
-	int ret;
-	if (id == NULL) {
-		return EIO;
-	}
-	pthread_mutex_lock(&glock);
-	id->flushwaiting++;
-	// If there are no errors (trycnt==0) and inode is waiting in the delayed queue, speed it up
-	if (id->trycnt == 0 && delayed_queue_remove(id)) {
-		write_enqueue(id);
-	}
-	// Wait for the data to be flushed
-	while (id->inqueue) {
-//		syslog(LOG_NOTICE,"write_end: wait ...");
-		pthread_cond_wait(&(id->flushcond), &glock);
-//		syslog(LOG_NOTICE,"write_end: woken up");
-	}
-	id->flushwaiting--;
-	if (id->flushwaiting == 0 && id->writewaiting > 0) {
-		pthread_cond_broadcast(&(id->writecond));
-	}
-	ret = id->status;
-	id->lcnt--;
-	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
-		write_free_inodedata(id);
-	}
-	pthread_mutex_unlock(&glock);
-	return ret;
+int write_data_end(void* vid) {
+	Glock lock(gMutex);
+	return write_data_flush(vid, true, lock);
 }
