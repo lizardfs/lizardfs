@@ -1047,12 +1047,35 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 		}
 		c = chunk_new(chunkid);
 		c->version = version;
-		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
+		c->lockedto = main_time() + UNUSED_DELETE_TIMEOUT;
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr==ptr) {
+
+	// do we already know about this chunk part on this server?
+	for (s = c->slisthead; s; s = s->next) {
+		if (s->ptr != ptr) {
+			continue;
+		}
+		uint32_t oldVersion = s->version & 0x7fffffff;
+		uint32_t newVersion = version & 0x7fffffff;
+		if (oldVersion != newVersion) {
+			syslog(LOG_WARNING, "chunk %016" PRIu64 ": master data indicated"
+					" version %08" PRIu32 ", chunkserver reports %08"
+					PRIu32 "!!!", c->chunkid, oldVersion, newVersion);
+			s->valid = INVALID;
+		}
+		bool td = version & 0x80000000;
+		bool changeTD = td
+				? (s->valid == VALID || s->valid == BUSY)
+				: (s->valid == TDVALID || s->valid == TDBUSY);
+		if (!changeTD) {
 			return;
 		}
+		int8_t rvcDelta = td ? -1 : 1;
+		chunk_state_change(c->goal, c->goal,
+				c->allvalidcopies, c->allvalidcopies,
+				c->regularvalidcopies, c->regularvalidcopies + rvcDelta);
+		c->regularvalidcopies += rvcDelta;
+		return;
 	}
 	s = slist_malloc();
 	s->ptr = ptr;
