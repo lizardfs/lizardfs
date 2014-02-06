@@ -2,6 +2,7 @@ CHUNKSERVERS=4 \
 	USE_RAMDISK="yes" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=never" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
+	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
 	setup_local_empty_lizardfs info
 
 damage_start=6K
