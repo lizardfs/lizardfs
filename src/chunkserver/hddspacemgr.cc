@@ -1828,15 +1828,6 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 #endif /* USE_PIO */
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,MFSBLOCKSIZE,te-ts);
-		if (crc!=mycrc32(0,buffer,MFSBLOCKSIZE)) {
-			errno = 0;
-			hdd_error_occured(c);
-			syslog(LOG_WARNING,
-					"write_block_to_chunk: file:%s - crc error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_CRC;
-		}
 		wcrcptr = (c->crc)+(4*blocknum);
 		put32bit(&wcrcptr,crc);
 		c->crcchanged = 1;
