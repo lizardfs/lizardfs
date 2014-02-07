@@ -310,7 +310,7 @@ private:
 	void processDataChain(ChunkWriter& writer);
 	void returnJournalToDataChain(std::list<WriteCacheBlock>&& journal, Glock&);
 	bool haveAnyBlockInCurrentChunk(Glock&);
-	bool haveBlockWorthWriting(uint32_t pendingOperationCount, Glock&);
+	bool haveBlockWorthWriting(uint32_t unfinishedOperationCount, Glock&);
 	inodedata* inodeData_;
 	uint32_t chunkIndex_;
 	Timer wholeOperationTimer;
@@ -485,16 +485,14 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 			}
 		}
 
-		if (writer.getUnfinishedOperationsCount() == 0) {
+		writer.startNewOperations();
+		if (writer.getPendingOperationsCount() == 0) {
 			return;
-		}
-
-		if (wholeOperationTimer.elapsed_s() >= maximumTime) {
+		} else if (wholeOperationTimer.elapsed_s() >= maximumTime) {
 			throw RecoverableWriteException(
 					"Timeout after " + std::to_string(wholeOperationTimer.elapsed_ms()) + " ms",
 					ERROR_TIMEOUT);
 		}
-
 		writer.processOperations(50);
 	}
 }
@@ -523,7 +521,7 @@ bool InodeChunkWriter::haveAnyBlockInCurrentChunk(Glock&) {
  * These can be taken only if we are close to run out of tasks to do.
  * glock: LOCKED
  */
-bool InodeChunkWriter::haveBlockWorthWriting(uint32_t pendingOperationCount, Glock& lock) {
+bool InodeChunkWriter::haveBlockWorthWriting(uint32_t unfinishedOperationCount, Glock& lock) {
 	if (!haveAnyBlockInCurrentChunk(lock)) {
 		return false;
 	}
@@ -531,7 +529,7 @@ bool InodeChunkWriter::haveBlockWorthWriting(uint32_t pendingOperationCount, Glo
 	if (block.type != WriteCacheBlock::kWritableBlock) {
 		// Always write data, that was previously written
 		return true;
-	} else if (pendingOperationCount >= kMaxUnfinishedOperations) {
+	} else if (unfinishedOperationCount >= kMaxUnfinishedOperations) {
 		// Don't start new operations if there is already a lot of pending writes
 		return false;
 	} else {

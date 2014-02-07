@@ -35,19 +35,29 @@ public:
 	uint32_t getMinimumBlockCountWorthWriting();
 
 	/*
-	 * Adds a new pending write operation.
+	 * Adds a new write operation.
 	 */
 	void addOperation(WriteCacheBlock&& block);
 
 	/*
-	 * Processes all pending operations for at most specified time (0 - asap)
+	 * Starts these added operations, which are worth starting right now
+	 */
+	void startNewOperations();
+
+	/*
+	 * Processes all started operations for at most specified time (0 - asap)
 	 */
 	void processOperations(uint32_t msTimeout);
 
 	/*
-	 * Returns number of pending write operations.
+	 * Returns number of new and pending write operations.
 	 */
 	uint32_t getUnfinishedOperationsCount();
+
+	/*
+	 * Returns number of pending write operations.
+	 */
+	uint32_t getPendingOperationsCount();
 
 	/*
 	 * Tells ChunkWriter that no more operations will be added and it can flush all the data

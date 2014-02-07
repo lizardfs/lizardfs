@@ -151,7 +151,7 @@ uint32_t ChunkWriter::getMinimumBlockCountWorthWriting() {
 	return combinedStripeSize_;
 }
 
-void ChunkWriter::processOperations(uint32_t msTimeout) {
+void ChunkWriter::startNewOperations() {
 	// Start all possible operations. Break at the first operation that can't be started, because
 	// we have to preserve the order of operations in order to ensure the files contain proper data
 	for (auto i = newOperations_.begin(); i != newOperations_.end(); i = newOperations_.erase(i)) {
@@ -168,7 +168,9 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 		}
 		startOperation(std::move(operation));
 	}
+}
 
+void ChunkWriter::processOperations(uint32_t msTimeout) {
 	std::vector<pollfd> pollFds;
 	if (dataChainFd_ >= 0) {
 		pollFds.push_back(pollfd());
@@ -230,6 +232,11 @@ uint32_t ChunkWriter::getUnfinishedOperationsCount() {
 	return pendingOperations_.size() + newOperations_.size();
 }
 
+uint32_t ChunkWriter::getPendingOperationsCount() {
+	return pendingOperations_.size();
+}
+
+
 void ChunkWriter::startFlushMode() {
 	sassert(acceptsNewOperations_);
 	acceptsNewOperations_ = false;
@@ -242,7 +249,7 @@ void ChunkWriter::dropNewOperations() {
 }
 
 void ChunkWriter::finish(uint32_t msTimeout) {
-	sassert(getUnfinishedOperationsCount() == 0);
+	sassert(getPendingOperationsCount() == 0);
 	for (auto& pair : executors_) {
 		pair.second->addEndPacket();
 	}
