@@ -148,6 +148,7 @@ static uint8_t fcbwaiting;
 static int32_t freecacheblocks;
 
 static uint32_t maxretries;
+static uint32_t gWriteWindowSize = 15;
 
 static inodedata** idhash;
 
@@ -320,7 +321,6 @@ private:
 	static const uint32_t kMaximumTimeWhenJobsWaiting = 10;
 	// For the last 'kTimeToFinishOperations' seconds of maximumTime we won't start new operations
 	static const uint32_t kTimeToFinishOperations = 5;
-	static const uint8_t kMaxUnfinishedOperations = 15;
 };
 
 void InodeChunkWriter::processJob(inodedata* inodeData) {
@@ -469,7 +469,7 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 				// No more data will arrive, so flush everything
 				writer.startFlushMode();
 			}
-			if (writer.getUnfinishedOperationsCount() < kMaxUnfinishedOperations) {
+			if (writer.getUnfinishedOperationsCount() < gWriteWindowSize) {
 				inodeData_->workerWaitingForData = true;
 			}
 		} else if (writer.acceptsNewOperations()) {
@@ -529,7 +529,7 @@ bool InodeChunkWriter::haveBlockWorthWriting(uint32_t unfinishedOperationCount, 
 	if (block.type != WriteCacheBlock::kWritableBlock) {
 		// Always write data, that was previously written
 		return true;
-	} else if (unfinishedOperationCount >= kMaxUnfinishedOperations) {
+	} else if (unfinishedOperationCount >= gWriteWindowSize) {
 		// Don't start new operations if there is already a lot of pending writes
 		return false;
 	} else {
@@ -560,11 +560,13 @@ void* write_worker(void*) {
 }
 
 /* API | glock: INITIALIZED,UNLOCKED */
-void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers) {
+void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
+		uint32_t writewindowsize) {
 	uint32_t cacheblockcount = (cachesize / MFSBLOCKSIZE);
 	uint32_t i;
 	pthread_attr_t thattr;
 
+	gWriteWindowSize = writewindowsize;
 	maxretries = retries;
 	if (cacheblockcount < 10) {
 		cacheblockcount = 10;

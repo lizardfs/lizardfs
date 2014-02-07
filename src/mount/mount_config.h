@@ -63,6 +63,7 @@ struct mfsopts_ {
 	unsigned writecachesize;
 	unsigned writeworkers;
 	unsigned ioretries;
+	unsigned writewindowsize;
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
@@ -97,6 +98,7 @@ struct mfsopts_ {
 			writecachesize(0),
 			writeworkers(10),
 			ioretries(30),
+			writewindowsize(15),
 			attrcacheto(1.0),
 			entrycacheto(0.0),
 			direntrycacheto(1.0),

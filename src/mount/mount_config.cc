@@ -31,6 +31,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
 	MFS_OPT("mfswriteworkers=%u", writeworkers, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
+	MFS_OPT("mfswritewindowsize=%u", writewindowsize, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfsdelayedinit", delayedinit, 1),
@@ -115,6 +116,7 @@ void usage(const char *progname) {
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
 "    -o mfswriteworkers=N        define number of write workers (default: 10)\n"
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
+"    -o mfswritewindowsize=N     define write window size (in blocks) for each chunk (default: 15)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
 "    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - choosen automatically by OS)\n"

@@ -266,7 +266,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		read_data_init(gMountOptions.ioretries);
 		write_data_init(gMountOptions.writecachesize*1024*1024,
 				gMountOptions.ioretries,
-				gMountOptions.writeworkers);
+				gMountOptions.writeworkers,
+				gMountOptions.writewindowsize);
 	}
 
 	ch = fuse_mount(mp, args);
@@ -621,18 +622,22 @@ int main(int argc, char *argv[]) try {
 		gMountOptions.writecachesize=128;
 	}
 	if (gMountOptions.writecachesize<16) {
-		fprintf(stderr,"write cache size to low (%u MiB) - increased to 16 MiB\n",
+		fprintf(stderr,"write cache size too low (%u MiB) - increased to 16 MiB\n",
 				gMountOptions.writecachesize);
 		gMountOptions.writecachesize=16;
 	}
 	if (gMountOptions.writecachesize>2048) {
-		fprintf(stderr,"write cache size to big (%u MiB) - decreased to 2048 MiB\n",
+		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 2048 MiB\n",
 				gMountOptions.writecachesize);
 		gMountOptions.writecachesize=2048;
 	}
 	if (gMountOptions.writeworkers<1) {
 		fprintf(stderr,"no write workers - increasing number of workers to 1\n");
 		gMountOptions.writeworkers=1;
+	}
+	if (gMountOptions.writewindowsize < 1) {
+		fprintf(stderr,"write window size is 0 - increasing to 1\n");
+		gMountOptions.writewindowsize = 1;
 	}
 	if (gMountOptions.nostdmountoptions==0) {
 		fuse_opt_add_arg(&args, "-o" DEFAULT_OPTIONS);
