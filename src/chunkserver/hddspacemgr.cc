@@ -1908,11 +1908,10 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 #endif /* USE_PIO */
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,size,te-ts);
-		chcrc = mycrc32(0,blockbuffer+offset,size);
 		if (offset==0) {
-			combinedcrc = mycrc32_combine(chcrc,postcrc,MFSBLOCKSIZE-(offset+size));
+			combinedcrc = mycrc32_combine(crc,postcrc,MFSBLOCKSIZE-(offset+size));
 		} else {
-			combinedcrc = mycrc32_combine(precrc,chcrc,size);
+			combinedcrc = mycrc32_combine(precrc,crc,size);
 			if ((offset+size)<MFSBLOCKSIZE) {
 				combinedcrc = mycrc32_combine(combinedcrc,postcrc,MFSBLOCKSIZE-(offset+size));
 			}
@@ -1920,15 +1919,6 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		wcrcptr = (c->crc)+(4*blocknum);
 		put32bit(&wcrcptr,combinedcrc);
 		c->crcchanged = 1;
-		if (crc!=chcrc) {
-			errno = 0;
-			hdd_error_occured(c);	// uses and preserves errno !!!
-			syslog(LOG_WARNING,
-					"write_block_to_chunk: file:%s - crc error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_CRC;
-		}
 		if (ret!=(int)size) {
 			hdd_error_occured(c);	// uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
