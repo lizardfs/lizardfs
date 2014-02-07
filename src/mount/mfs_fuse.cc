@@ -40,6 +40,7 @@
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
+#include "devtools/request_log.h"
 #include "mount/chunk_locator.h"
 #include "dirattrcache.h"
 #include "mastercomm.h"
@@ -1883,6 +1884,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 }
 
 void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi) {
+	LOG_AVG_TILL_END_OF_SCOPE0("mfs_write");
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	int err;
 	const struct fuse_ctx ctx = *fuse_req_ctx(req);

@@ -47,6 +47,7 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/time_utils.h"
+#include "devtools/request_log.h"
 #include "mount/chunk_writer.h"
 #include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
@@ -172,6 +173,7 @@ void write_cb_acquire_blocks(uint32_t count, Glock&) {
 }
 
 void write_cb_wait_for_block(inodedata* id, Glock& glock) {
+	LOG_AVG_TILL_END_OF_SCOPE0("write_cb_wait_for_block");
 	fcbwaiting++;
 	while (freecacheblocks <= 0
 			|| static_cast<int32_t>(id->dataChain.size()) > (freecacheblocks / 3)) {
@@ -273,6 +275,8 @@ void write_enqueue(inodedata* id, Glock&) {
 }
 
 void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) {
+	LOG_AVG_TILL_END_OF_SCOPE0("write_job_delayed_end");
+	LOG_AVG_TILL_END_OF_SCOPE1("write_job_delayed_end#sec", seconds);
 	id->locator.reset();
 	if (status) {
 		errno = status;
@@ -324,6 +328,7 @@ private:
 };
 
 void InodeChunkWriter::processJob(inodedata* inodeData) {
+	LOG_AVG_TILL_END_OF_SCOPE0("InodeChunkWriter::processJob");
 	inodeData_ = inodeData;
 
 	// First, choose index of some chunk to write
@@ -437,6 +442,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 }
 
 void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
+	LOG_AVG_TILL_END_OF_SCOPE0("InodeChunkWriter::processDataChain");
 	uint32_t maximumTime = kMaximumTime;
 	bool otherJobsAreWaiting = false;
 	while (true) {
@@ -548,12 +554,16 @@ void* write_worker(void*) {
 		// get next job
 		uint32_t z1, z2, z3;
 		uint8_t *data;
-		queue_get(jqueue, &z1, &z2, &data, &z3);
+		{
+			LOG_AVG_TILL_END_OF_SCOPE0("write_worker#idle");
+			queue_get(jqueue, &z1, &z2, &data, &z3);
+		}
 		if (data == NULL) {
 			return NULL;
 		}
 
 		// process the job
+		LOG_AVG_TILL_END_OF_SCOPE0("write_worker#working");
 		inodeDataWriter.processJob((inodedata*) data);
 	}
 	return NULL;
@@ -655,8 +665,8 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 	return 0;
 }
 
-/* API | glock: UNLOCKED */
 int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
+	LOG_AVG_TILL_END_OF_SCOPE0("write_data");
 	uint32_t chindx;
 	uint16_t pos;
 	uint32_t from;
@@ -684,6 +694,7 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 		return status;
 	}
 
+	LOG_AVG_TILL_END_OF_SCOPE0("write_blocks");
 	chindx = offset >> MFSCHUNKBITS;
 	pos = (offset & MFSCHUNKMASK) >> MFSBLOCKBITS;
 	from = offset & MFSBLOCKMASK;

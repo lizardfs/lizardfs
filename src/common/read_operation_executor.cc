@@ -10,6 +10,7 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "common/wrong_crc_notifier.h"
+#include "devtools/request_log.h"
 #include "mount/exceptions.h"
 
 static const uint32_t kMaxMessageLength = 65 * 1024;
@@ -100,6 +101,7 @@ void ReadOperationExecutor::continueReading() {
 }
 
 void ReadOperationExecutor::readAll(const Timeout& timeout) {
+	LOG_AVG_TILL_END_OF_SCOPE0("ReadOperationExecutor::readAll");
 	struct pollfd pfd;
 	pfd.fd = fd_;
 	pfd.events = POLLIN;

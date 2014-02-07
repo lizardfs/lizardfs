@@ -5,6 +5,7 @@
 #include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
 #include "common/strerr.h"
+#include "devtools/request_log.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 
@@ -69,6 +70,7 @@ std::shared_ptr<const ChunkLocationInfo> ReadChunkLocator::locateChunk(uint32_t 
 }
 
 void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
+	LOG_AVG_TILL_END_OF_SCOPE0("WriteChunkLocator::locateAndLockChunk");
 	sassert(inode_ == 0 || (inode_ == inode && index_ == index));
 	inode_ = inode;
 	index_ = index;
@@ -97,6 +99,7 @@ void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
 }
 
 void WriteChunkLocator::unlockChunk() {
+	LOG_AVG_TILL_END_OF_SCOPE0("WriteChunkLocator::unlockChunk");
 	sassert(lockId_ != 0);
 	uint8_t status = fs_lizwriteend(locationInfo_.chunkId, lockId_,
 			inode_, locationInfo_.fileLength);

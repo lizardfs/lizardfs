@@ -11,6 +11,7 @@
 #include "common/read_operation_executor.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
+#include "devtools/request_log.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 #include "mount/write_executor.h"
@@ -102,6 +103,7 @@ ChunkWriter::~ChunkWriter() {
 }
 
 void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::init");
 	sassert(pendingOperations_.empty());
 	sassert(executors_.empty());
 
@@ -152,6 +154,7 @@ uint32_t ChunkWriter::getMinimumBlockCountWorthWriting() {
 }
 
 void ChunkWriter::startNewOperations() {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startNewOperations");
 	// Start all possible operations. Break at the first operation that can't be started, because
 	// we have to preserve the order of operations in order to ensure the files contain proper data
 	for (auto i = newOperations_.begin(); i != newOperations_.end(); i = newOperations_.erase(i)) {
@@ -171,6 +174,8 @@ void ChunkWriter::startNewOperations() {
 }
 
 void ChunkWriter::processOperations(uint32_t msTimeout) {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::processOperations");
+	LOG_AVG_TILL_END_OF_SCOPE1("ChunkWriter::processOperations#op", getPendingOperationsCount());
 	std::vector<pollfd> pollFds;
 	if (dataChainFd_ >= 0) {
 		pollFds.push_back(pollfd());
@@ -249,6 +254,7 @@ void ChunkWriter::dropNewOperations() {
 }
 
 void ChunkWriter::finish(uint32_t msTimeout) {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::finish");
 	sassert(getPendingOperationsCount() == 0);
 	for (auto& pair : executors_) {
 		pair.second->addEndPacket();
@@ -272,6 +278,7 @@ void ChunkWriter::finish(uint32_t msTimeout) {
 }
 
 void ChunkWriter::abortOperations() {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::abortOperations");
 	for (const auto& pair : executors_) {
 		if (pair.first < 0) {
 			continue;
@@ -317,6 +324,7 @@ bool ChunkWriter::canStartOperation(const Operation& operation) {
 }
 
 void ChunkWriter::startOperation(Operation&& operation) {
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation");
 	uint32_t combinedStripe = operation.journalPositions.front()->blockIndex / combinedStripeSize_;
 	uint32_t size = operation.journalPositions.front()->size();
 
@@ -326,6 +334,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 		stripeElementsPresent[position->blockIndex % combinedStripeSize_] = true;
 	}
 	for (uint32_t indexInStripe = 0; indexInStripe < combinedStripeSize_; ++indexInStripe) {
+		LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::fillStripe");
 		if (stripeElementsPresent[indexInStripe]) {
 			continue;
 		}
@@ -378,6 +387,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 				}
 			}
 		} else if (chunkType.isXorChunkType() && chunkType.isXorParity()) {
+			LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::calculateParity");
 			uint32_t substripeCount = combinedStripeSize_ / stripeSize;
 			std::vector<WriteCacheBlock*> parityBlocks;
 			for (uint32_t i = 0; i < substripeCount; ++i) {
@@ -412,6 +422,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 		}
 
 		for (const WriteCacheBlock* block : blocksToWrite) {
+			LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::addDataPackets");
 			WriteId writeId = allocateId();
 			writeIdToOperationId_[writeId] = operationId;
 			executor.addDataPacket(writeId,
@@ -424,6 +435,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 
 WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromChunkType) {
 	Timeout timeout{std::chrono::seconds(1)};
+	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::readBlock");
 
 	// Find a server from which we will be able to read the block
 	NetworkAddress sourceServer;

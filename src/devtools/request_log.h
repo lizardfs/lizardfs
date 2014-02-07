@@ -353,8 +353,16 @@ private:
 	DummyRTTimer timer;
 };
 
+#define CONCAT1(x,y) x ## y
+#define CONCAT2(x,y) CONCAT1(x,y)
+#define REQUEST_LOG_UNIQ_NAME1(y1) CONCAT2(LogObject, __LINE__) (y1)
+#define REQUEST_LOG_UNIQ_NAME2(y1, y2) CONCAT2(LogObject, __LINE__) (y1, y2)
+#define REQUEST_LOG_UNIQ_NAME3(y1, y2, y3) CONCAT2(LogObject, __LINE__) (y1, y2, y3)
+#define REQUEST_LOG_UNIQ_NAME4(y1, y2, y3, y4) CONCAT2(LogObject, __LINE__) (y1, y2, y3, y4)
+
+
 #define LOG_TILL_END_OF_SCOPE(operation, chunkID, offset, size) \
-		FunctionCallLog FunctionCallLog__(operation, chunkID, offset, size)
+		FunctionCallLog REQUEST_LOG_UNIQ_NAME4(operation, chunkID, offset, size)
 #define LOG_REQUEST(operation, chunkID, offset, size, timer) \
 		RequestsLog::instance().log(operation, chunkID, offset, size, timer)
 #define LOG_REQUEST_RESET_TIMER(operation, chunkID, offset, size, timer) \
@@ -362,11 +370,11 @@ private:
 #define LOG_POINT_IN_TIME(operation, chunkID, offset, size) \
 		RequestsLog::instance().log(operation, chunkID, offset, size)
 #define LOG_AVG_TILL_END_OF_SCOPE2(operation, key1, key2) \
-		FunctionCallAvgLog FunctionCallAvgLog__(operation, key1, key2)
+		FunctionCallAvgLog REQUEST_LOG_UNIQ_NAME3(operation, key1, key2)
 #define LOG_AVG_TILL_END_OF_SCOPE1(operation, key1) \
-		FunctionCallAvgLog FunctionCallAvgLog__(operation, key1)
+		FunctionCallAvgLog REQUEST_LOG_UNIQ_NAME2(operation, key1)
 #define LOG_AVG_TILL_END_OF_SCOPE0(operation) \
-		FunctionCallAvgLog FunctionCallAvgLog__(operation)
+		FunctionCallAvgLog REQUEST_LOG_UNIQ_NAME1(operation)
 #define LOG_AVG_TYPE std::unique_ptr<FunctionCallAvgLog>
 #define LOG_AVG_START(obj, operation, key1) obj.reset(new FunctionCallAvgLog(operation, key1))
 #define LOG_AVG_STOP(obj) obj.reset()

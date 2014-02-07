@@ -6,6 +6,7 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
+#include "devtools/request_log.h"
 #include "mount/exceptions.h"
 
 const uint32_t kReceiveBufferSize = 1024;
@@ -48,7 +49,11 @@ void WriteExecutor::addInitPacket() {
 void WriteExecutor::addDataPacket(uint32_t writeId,
 		uint16_t block, uint32_t offset, uint32_t size, const uint8_t* data) {
 	sassert(isRunning_);
-	uint32_t crc = mycrc32(0, data, size);
+	uint32_t crc;
+	{
+		LOG_AVG_TILL_END_OF_SCOPE0("WriteExecutor::addDataPacket::mycrc32");
+		crc = mycrc32(0, data, size);
+	}
 	pendingPackets_.push_back(Packet());
 	Packet& packet = pendingPackets_.back();
 	cltocs::writeData::serializePrefix(packet.buffer,
@@ -65,6 +70,7 @@ void WriteExecutor::addEndPacket() {
 }
 
 void WriteExecutor::sendData() {
+	LOG_AVG_TILL_END_OF_SCOPE0("WriteExecutor::sendData");
 	if (!bufferWriter_.hasDataToSend()) {
 		if (pendingPackets_.empty()) {
 			return;
