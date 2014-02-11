@@ -31,7 +31,6 @@
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/wrong_crc_notifier.h"
-#include "mount/chunkloccache.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/mfs_fuse.h"
@@ -246,7 +245,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
-	chunkloc_cache_init();
 	symlink_cache_init();
 	fs_init_threads(gMountOptions.ioretries);
 	masterproxy_init();
@@ -286,7 +284,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -323,7 +320,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -347,7 +343,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		masterproxy_term();
 		fs_term();
 		symlink_cache_term();
-		chunkloc_cache_term();
 		return 1;
 	}
 
@@ -386,7 +381,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	masterproxy_term();
 	fs_term();
 	symlink_cache_term();
-	chunkloc_cache_term();
 	return err ? 1 : 0;
 }
 
