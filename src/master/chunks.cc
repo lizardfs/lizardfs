@@ -1660,37 +1660,40 @@ static bool chunkPresentOnServer(chunk *c, void *server) {
 }
 
 bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *destinationServer) {
-	// we don't support replicating xor chunks from pre-1.6.28 chunkservers
-	const uint32_t minSourceServerVersion =
-			(chunkTypeToRecover.isStandardChunkType()) ? 0 : lizardfsVersion(1, 6, 28);
-	std::vector<void*> sources;
-	ChunkCopiesCalculator sourcesCalculator(c->goal);
+	// NOTE: we don't allow replicating xor chunks from pre-1.6.28 chunkservers
+	const uint32_t newServerVersion = lizardfsVersion(1, 6, 28);
+	std::vector<void*> standardSources;
+	std::vector<void*> newServerSources;
+	ChunkCopiesCalculator newSourcesCalculator(c->goal);
+
 	for (slist *s = c->slisthead ; s ; s = s->next) {
-		if (s->valid != VALID && s->valid != TDVALID) {
-			continue;
-		}
-		if (matocsserv_get_version(s->ptr) < minSourceServerVersion) {
-			continue;
-		}
-		if (chunkTypeToRecover.isStandardChunkType() && s->chunkType.isStandardChunkType()) {
-			// Let's use legacy replication if possible
-			stats_replications++;
-			matocsserv_send_replicatechunk(destinationServer,
-					c->chunkid, c->version, s->ptr);
-			c->needverincrease = 1;
-			return true;
-		} else {
-			sources.push_back(s->ptr);
-			sourcesCalculator.addPart(s->chunkType);
+		if (s->is_valid() && !s->is_busy()) {
+			if (matocsserv_get_version(s->ptr) >= newServerVersion) {
+				newServerSources.push_back(s->ptr);
+				newSourcesCalculator.addPart(s->chunkType);
+			}
+			if (s->chunkType.isStandardChunkType()) {
+				standardSources.push_back(s->ptr);
+			}
 		}
 	}
-	if (!sourcesCalculator.isRecoveryPossible()) {
+
+	if (newSourcesCalculator.isRecoveryPossible() &&
+			matocsserv_get_version(destinationServer) >= newServerVersion) {
+		// new replication possible - use it
+		matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
+				chunkTypeToRecover, newServerSources,
+				newSourcesCalculator.availableParts());
+	} else if (chunkTypeToRecover.isStandardChunkType() && !standardSources.empty()) {
+		// fall back to legacy replication
+		matocsserv_send_replicatechunk(destinationServer, c->chunkid, c->version,
+				standardSources[rndu32_ranged(standardSources.size())]);
+	} else {
+		// no replication possible
 		return false;
 	}
 	stats_replications++;
-	matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
-			chunkTypeToRecover, sources, sourcesCalculator.availableParts());
-	c->lockid = 0; // remove stale lock
+	c->lockid = 0;             // remove stale lock
 	c->needverincrease = 1;
 	return true;
 }
