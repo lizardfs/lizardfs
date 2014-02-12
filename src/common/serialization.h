@@ -1,16 +1,20 @@
 #pragma once
 
-#include <exception>
 #include <vector>
 
 #include "common/datapack.h"
+#include "common/exception.h"
 #include "common/massert.h"
 
 /*
  * Exception thrown on deserialization error
  */
-class IncorrectDeserializationException : public std::exception {
+class IncorrectDeserializationException : public Exception {
+public:
+	IncorrectDeserializationException(const std::string& message):
+			Exception("Deserialization error: " + message) {}
 };
+
 
 // serializedSize
 
@@ -76,7 +80,7 @@ inline void serialize(uint8_t** destination, const T& t, const Args&... args) {
 template <class T>
 inline void verifySize(const T& value, uint32_t bytesLeft) {
 	if (bytesLeft < serializedSize(value)) {
-		throw IncorrectDeserializationException();
+		throw IncorrectDeserializationException("unexpected end of buffer");
 	}
 }
 
