@@ -39,6 +39,13 @@ SteadyDuration Timer::elapsedTime() const {
 	return now() - startTime_;
 }
 
+SteadyDuration Timer::lap() {
+	SteadyTimePoint t = now();
+	SteadyDuration elapsed = t - startTime_;
+	startTime_ = t;
+	return elapsed;
+}
+
 int64_t Timer::elapsed_ns() const {
 	return duration_int64_cast<std::nano>(elapsedTime());
 }
@@ -54,6 +61,23 @@ int64_t Timer::elapsed_ms() const {
 int64_t Timer::elapsed_s() const {
 	return duration_int64_cast<std::ratio<1>>(elapsedTime());
 }
+
+int64_t Timer::lap_ns() {
+	return duration_int64_cast<std::nano>(lap());
+}
+
+int64_t Timer::lap_us() {
+	return duration_int64_cast<std::micro>(lap());
+}
+
+int64_t Timer::lap_ms() {
+	return duration_int64_cast<std::milli>(lap());
+}
+
+int64_t Timer::lap_s() {
+	return duration_int64_cast<std::ratio<1>>(lap());
+}
+
 
 // Timeout implementation
 
