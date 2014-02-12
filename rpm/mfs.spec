@@ -11,7 +11,7 @@ Release:	1%{?distro}
 License:	GPL v3
 Group:		System Environment/Daemons
 URL:		http://www.lizardfs.org/
-Source0:	http://lizardfs.org/download/%{name}-%{version}.tar.gz
+Source0:	https://github.com/lizardfs/lizardfs/archive/v%{version}.tar.gz
 BuildRequires:	fuse-devel
 BuildRequires:	pkgconfig
 BuildRequires:	zlib-devel
