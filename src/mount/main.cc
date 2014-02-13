@@ -41,20 +41,20 @@
 #include <syslog.h>
 #include <errno.h>
 
-#include "mfs_fuse.h"
-#include "mfs_meta_fuse.h"
-
-#include "common/MFSCommunication.h"
-#include "common/md5.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "symlinkcache.h"
-#include "readdata.h"
-#include "writedata.h"
-#include "csdb.h"
-#include "stats.h"
-#include "common/strerr.h"
 #include "common/crc.h"
+#include "common/md5.h"
+#include "common/MFSCommunication.h"
+#include "common/strerr.h"
+#include "mount/csdb.h"
+#include "mount/global_io_limiter.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/mfs_fuse.h"
+#include "mount/mfs_meta_fuse.h"
+#include "mount/readdata.h"
+#include "mount/stats.h"
+#include "mount/symlinkcache.h"
+#include "mount/writedata.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -147,6 +147,7 @@ struct mfsopts {
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	char *iolimits;
 };
 
 static struct mfsopts mfsopts;
@@ -200,6 +201,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
@@ -275,6 +277,7 @@ static void usage(const char *progname) {
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
+"    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "\n");
 	fprintf(stderr,
 "CMODE can be set to:\n"
@@ -569,6 +572,17 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	masterproxy_init();
 
 	if (mfsopts.meta==0) {
+		try {
+			if (mfsopts.iolimits) {
+				gIoLimiter.readConfiguration(mfsopts.iolimits);
+			}
+		} catch (Exception& ex) {
+			fprintf(stderr, "Can't initialize I/O limiting: %s", ex.what());
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
+			return 1;
+		}
 		csdb_init();
 		read_data_init(mfsopts.ioretries);
 		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
@@ -988,6 +1002,9 @@ int main(int argc, char *argv[]) {
 	free(mfsopts.subfolder);
 	if (defaultmountpoint && defaultmountpoint != mountpoint) {
 		free(defaultmountpoint);
+	}
+	if (mfsopts.iolimits) {
+		free(mfsopts.iolimits);
 	}
 	free(mountpoint);
 	stats_term();

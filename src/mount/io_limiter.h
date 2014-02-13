@@ -72,5 +72,7 @@ public:
 	void waitForWrite(pid_t pid, uint64_t bytes);
 
 private:
+	bool isEnabled_;
+	std::string subsystem_;
 	IoLimitQueueCollection queues_;
 };
