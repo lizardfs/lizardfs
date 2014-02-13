@@ -48,11 +48,22 @@ class Timer {
 public:
 	Timer();
 	void reset();
+
+	// Returns time since last reset
 	SteadyDuration elapsedTime() const;
+
+	// Returns time since last reset and resets the timer
+	SteadyDuration lap();
+
 	int64_t elapsed_ns() const;
 	int64_t elapsed_us() const;
 	int64_t elapsed_ms() const;
 	int64_t elapsed_s() const;
+	int64_t lap_ns();
+	int64_t lap_us();
+	int64_t lap_ms();
+	int64_t lap_s();
+
 private:
 	SteadyTimePoint now() const;
 	SteadyTimePoint startTime_;
