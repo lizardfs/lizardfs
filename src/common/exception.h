@@ -23,7 +23,7 @@ public:
 		return message_.c_str();
 	}
 
-	std::string message() throw() {
+	const std::string& message() const throw() {
 		return message_;
 	}
 

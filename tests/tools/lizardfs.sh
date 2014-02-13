@@ -23,7 +23,7 @@ setup_local_empty_lizardfs() {
 	run_master_server
 
 	# Start chunkservers, but first check if he have enough disks
-	if [[ ! $use_ramdisk ]]; then 
+	if [[ ! $use_ramdisk ]]; then
 		if [[ $use_loop ]]; then
 			local disks=($LIZARDFS_LOOP_DISKS)
 		else
@@ -45,7 +45,10 @@ setup_local_empty_lizardfs() {
 		add_mount $mntid
 	done
 
-	# Return array containing informationa about the installation
+	# Wait for chunkservers
+	lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+
+	# Return array containing information about the installation
 	local out_var=$1
 	unset "$out_var"
 	declare -gA "$out_var" # Create global associative array, requires bash 4.2
@@ -217,6 +220,15 @@ find_all_chunks() {
 		else
 			find $hdds -name "chunk*.mfs"
 		fi
+	done
+}
+
+# lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
+lizardfs_wait_for_ready_chunkservers() {
+	local chunkservers=$1
+	local port=${lizardfs_info[matocl]}
+	while (( $(lizardfs-probe ready-chunkservers localhost $port) < $chunkservers )); do
+		sleep 0.1
 	done
 }
 

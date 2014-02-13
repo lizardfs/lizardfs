@@ -15,6 +15,7 @@ public:
 			Exception("Deserialization error: " + message) {}
 };
 
+
 // serializedSize
 
 inline uint32_t serializedSize(const uint8_t&) {
