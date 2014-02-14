@@ -105,11 +105,10 @@ catch_error_() {
 	local file=$1
 	local line=$2
 	local funcname=$3
-	local line_contents=$(sed -n "${line}s/^[[:blank:]]*//p" "$file")
 	if [[ $funcname ]]; then
 		local location="in function $funcname ($file:$line)"
 	else
 		local location="($file:$line)"
 	fi
-	test_add_failure "Command '$line_contents' failed $location"
+	test_add_failure "Command '$(get_source_line "$file" "$line")' failed $location"
 }
