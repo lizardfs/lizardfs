@@ -1779,8 +1779,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 	Chunk *c;
 	int ret;
 	uint8_t *wcrcptr;
-	const uint8_t *rcrcptr;
-	uint32_t bcrc, precrc, postcrc, combinedcrc, chcrc;
+	uint32_t precrc, postcrc, combinedcrc, chcrc;
 	uint32_t i;
 	uint64_t ts,te;
 	uint8_t *blockbuffer;
@@ -1876,9 +1875,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 					combinedcrc = mycrc32_combine(combinedcrc,postcrc,MFSBLOCKSIZE-(offset+size));
 				}
 			}
-			rcrcptr = (c->crc)+(4*blocknum);
-			bcrc = get32bit(&rcrcptr);
-			if (bcrc!=combinedcrc) {
+			if (c->getCrc(blocknum) != combinedcrc) {
 				errno = 0;
 				hdd_error_occured(c);	// uses and preserves errno !!!
 				syslog(LOG_WARNING,
@@ -2093,9 +2090,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 
 static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	TRACETHIS2(chunkid, version);
-	const uint8_t *ptr;
 	uint16_t block;
-	uint32_t bcrc;
 	int32_t retsize;
 	int status;
 	Chunk *c;
@@ -2126,7 +2121,6 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 		return status;
 	}
 	lseek(c->fd, c->getDataBlockOffset(0), SEEK_SET);
-	ptr = c->crc;
 	for (block=0 ; block<c->blocks ; block++) {
 		retsize = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 		if (retsize!=MFSBLOCKSIZE) {
@@ -2138,16 +2132,16 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 			return ERROR_IO;
 		}
 		hdd_stats_read(MFSBLOCKSIZE);
-		bcrc = get32bit(&ptr);
-		if (bcrc!=mycrc32(0,blockbuffer,MFSBLOCKSIZE)) {
+#ifdef ENABLE_CRC
+		if (c->getCrc(block) != mycrc32(0, blockbuffer, MFSBLOCKSIZE)) {
 			errno = 0;	// set anything to errno
 			hdd_error_occured(c);	// uses and preserves errno !!!
-			syslog(LOG_WARNING,
-					"test_chunk: file:%s - crc error", c->filename().c_str());
+			syslog(LOG_WARNING, "test_chunk: file:%s - crc error", c->filename().c_str());
 			hdd_io_end(c);
 			hdd_chunk_release(c);
 			return ERROR_CRC;
 		}
+#endif
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {

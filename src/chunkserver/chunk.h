@@ -108,7 +108,8 @@ public:
 	const std::string& filename() const { return filename_; };
 	off_t getCrcOffset() const;
 	size_t getCrcSize() const;
-	off_t getDataBlockOffset(uint32_t blockNumber) const;
+	uint32_t getCrc(uint16_t blockNumber) const;
+	off_t getDataBlockOffset(uint16_t blockNumber) const;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const;
 	size_t getHeaderSize() const;
 	off_t getSignatureOffset() const;

@@ -53,8 +53,14 @@ size_t Chunk::getCrcSize() const {
 	return 4 * maxBlocksInFile();
 }
 
-off_t Chunk::getDataBlockOffset(uint32_t blockNumber) const {
-	return getHeaderSize() + blockNumber * MFSBLOCKSIZE;
+uint32_t Chunk::getCrc(uint16_t blockNumber) const {
+	sassert(blockNumber < blocks);
+	const uint8_t *ptr = crc + (blockNumber * serializedSize(uint32_t()));
+	return get32bit(&ptr);
+}
+
+off_t Chunk::getDataBlockOffset(uint16_t blockNumber) const {
+	return getHeaderSize() + static_cast<uint32_t>(blockNumber) * MFSBLOCKSIZE;
 }
 
 off_t Chunk::getFileSizeFromBlockCount(uint32_t blockCount) const {
