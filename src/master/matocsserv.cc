@@ -1048,6 +1048,12 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 	}
 }
 
+static void update_maxtotalspace(uint64_t totalspace) {
+	if (totalspace > maxtotalspace) {
+		maxtotalspace = totalspace;
+	}
+}
+
 void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t chunkversion;
@@ -1204,6 +1210,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 			ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 			syslog(LOG_NOTICE,"chunkserver register end (packet version: 5) - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
+			update_maxtotalspace(eptr->totalspace);
 			return;
 		} else {
 			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%" PRIu8 "/1..4)",rversion);
@@ -1231,9 +1238,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		if (eptr->totalspace>maxtotalspace) {
-			maxtotalspace=eptr->totalspace;
-		}
+		update_maxtotalspace(eptr->totalspace);
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
@@ -1261,9 +1266,7 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
-	if (eptr->totalspace>maxtotalspace) {
-		maxtotalspace=eptr->totalspace;
-	}
+	update_maxtotalspace(eptr->totalspace);
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
