@@ -7,11 +7,7 @@
 
 #include "common/exception.h"
 
-class GetIoLimitGroupIdException : public Exception {
-public:
-	GetIoLimitGroupIdException(const std::string& msg) : Exception(msg) {
-	}
-};
+LIZARDFS_CREATE_EXCEPTION_CLASS(GetIoLimitGroupIdException, Exception);
 
 std::string getIoLimitGroupId(std::istream& is, const std::string& subsystem);
-std::string getIoLimitGroupId(const pid_t pid, const std::string subsystem);
+std::string getIoLimitGroupId(const pid_t pid, const std::string& subsystem);
