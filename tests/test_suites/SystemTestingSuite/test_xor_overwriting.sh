@@ -1,3 +1,4 @@
+timeout_set 1 minute
 CHUNKSERVERS=3 \
 	DISK_PER_CHUNKSERVER=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
