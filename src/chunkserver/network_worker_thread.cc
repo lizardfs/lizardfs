@@ -37,7 +37,7 @@
 #include "devtools/request_log.h"
 #include "devtools/TracePrinter.h"
 
-#define MaxPacketSize 100000
+#define MaxPacketSize (100000 + MFSBLOCKSIZE)
 
 // connection timeout in seconds
 #define CSSERV_TIMEOUT 10

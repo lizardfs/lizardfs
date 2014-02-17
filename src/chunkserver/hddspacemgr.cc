@@ -892,9 +892,9 @@ static inline void hdd_refresh_usage(folder *f) {
 			calcsize = knownblocks;
 			calcsize *= f->chunkcount;
 			calcsize /= knowncount;
-			calcsize *= 64;
-			calcsize += f->chunkcount*5;
-			calcsize *= 1024;
+			// now calcsize is an estimated number of blocks, calculate number of bytes
+			calcsize *= MFSBLOCKSIZE;
+			calcsize += static_cast<uint64_t>(f->chunkcount) * MFSHDRSIZE;
 		} else { // unknown result;
 			calcsize = 0;
 		}

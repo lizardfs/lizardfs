@@ -5,12 +5,23 @@ CHUNKSERVERS=3 \
 
 cd ${info[mount0]}
 
-block_size=65536
-chunk_size=$((1024 * block_size))
+block_size=$LIZARDFS_BLOCK_SIZE
+chunk_size=$LIZARDFS_CHUNK_SIZE
+first_loop=yes
 
 for goal in 2 xor2; do
+	if [[ $first_loop == no ]]; then
+		# Empty the ramdisk to prevent running out of space in case of big chunks
+		find_all_chunks | xargs rm -f
+		mfschunkserver -c "${info[chunkserver0_config]}" restart &
+		mfschunkserver -c "${info[chunkserver1_config]}" restart &
+		mfschunkserver -c "${info[chunkserver2_config]}" restart &
+		wait
+	else
+		first_loop=no
+	fi
 	for filesize in 90 $((5 * block_size)) $((9 * block_size - 30)) $((chunk_size - 30)) \
-			$(($chunk_size + 30)); do
+			$((chunk_size + 30)); do
 		echo "Testing size $filesize goal $goal"
 		mkdir -p tmp;
 		mfssetgoal $goal tmp

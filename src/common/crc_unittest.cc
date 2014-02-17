@@ -21,13 +21,9 @@ TEST(CrcTests, MyCrc32) {
 	}
 }
 
-TEST(CrcTests, MfsCrcEmpty) {
-	std::vector<uint8_t>data(MFSBLOCKSIZE);
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32(0, data.data(), MFSBLOCKSIZE));
-}
-
 TEST(CrcTests, MfsCrc32Zeroblock) {
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32_zeroblock(0, MFSBLOCKSIZE));
+	std::vector<uint8_t>data(MFSBLOCKSIZE);
+	EXPECT_EQ(mycrc32(0, data.data(), MFSBLOCKSIZE), mycrc32_zeroblock(0, MFSBLOCKSIZE));
 }
 
 TEST(CrcTests, MyCrc32Combine) {

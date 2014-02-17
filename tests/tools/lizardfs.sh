@@ -231,6 +231,3 @@ lizardfs_wait_for_ready_chunkservers() {
 		sleep 0.1
 	done
 }
-
-LIZARDFS_BLOCK_SIZE=$((64 * 1024))
-LIZARDFS_CHUNK_SIZE=$((1024 * LIZARDFS_BLOCK_SIZE))

@@ -27,31 +27,51 @@
 #include "config.h"
 #endif
 
-#define MFSBLOCKSINCHUNK 0x400
-#if LIGHT_MFS == 1
-# define MFSSIGNATURE "LFS"
-# define MFSCHUNKSIZE 0x00400000
-# define MFSCHUNKMASK 0x003FFFFF
-# define MFSCHUNKBITS 22
-# define MFSCHUNKBLOCKMASK 0x003FF000
-# define MFSBLOCKSIZE 0x1000
-# define MFSBLOCKMASK 0x0FFF
-# define MFSBLOCKNEGMASK 0x7FFFF000
-# define MFSBLOCKBITS 12
-# define MFSCRCEMPTY 0xC71C0011U
-# define MFSHDRSIZE 0x1080
-#else
-# define MFSSIGNATURE "MFS"
-# define MFSCHUNKSIZE 0x04000000
-# define MFSCHUNKMASK 0x03FFFFFF
-# define MFSCHUNKBITS 26
-# define MFSCHUNKBLOCKMASK 0x03FF0000
-# define MFSBLOCKSIZE 0x10000
-# define MFSBLOCKMASK 0x0FFFF
-# define MFSBLOCKNEGMASK 0x7FFF0000
-# define MFSBLOCKBITS 16
-# define MFSCRCEMPTY 0xD7978EEBU
-# define MFSHDRSIZE 0x1400
+#define MSB_1 0
+#define MSB_2 1
+#define MSB_4 2
+#define MSB_8 3
+#define MSB_16 4
+#define MSB_32 5
+#define MSB_64 6
+#define MSB_128 7
+#define MSB_256 8
+#define MSB_512 9
+#define MSB_1024 10
+#define MSB_2048 11
+#define MSB_4096 12
+#define MSB_8192 13
+#define MSB_16384 14
+#define MSB_32768 15
+#define MSB_65536 16
+#define MSB_131072 17
+#define MSB_262144 18
+#define MSB_524288 19
+#define MSB_1048576 20
+#define MSB_2097152 21
+#define MSB_4194304 22
+#define MSB_8388608 23
+#define MSB_16777216 24
+#define MSB_33554432 25
+#define MSB_67108864 26
+#define MSB_AUX(x) MSB_##x
+#define MSB(x) MSB_AUX(x)
+
+#define MFSBLOCKSINCHUNKBITS MSB(MFSBLOCKSINCHUNK)
+#define MFSSIGNATURE "MFS"
+#define MFSBLOCKBITS MSB(MFSBLOCKSIZE)
+#define MFSBLOCKMASK (MFSBLOCKSIZE - 1)
+#define MFSCHUNKSIZE (MFSBLOCKSIZE * MFSBLOCKSINCHUNK)
+#define MFSCHUNKBITS (MFSBLOCKSINCHUNKBITS + MFSBLOCKBITS)
+#define MFSCHUNKMASK (MFSCHUNKSIZE - 1)
+#define MFSCHUNKBLOCKMASK (MFSCHUNKMASK ^ MFSBLOCKMASK)
+#define MFSHDRSIZE (4 * MFSBLOCKSINCHUNK + 1024)
+
+#if ((1 << MFSBLOCKSINCHUNKBITS) != MFSBLOCKSINCHUNK)
+#  error "Wrong value of MFSBLOCKSINCHUNK: only powers of two (max 67108864) are supported"
+#endif
+#if ((1 << MFSBLOCKBITS) != MFSBLOCKSIZE)
+#  error "Wrong value of MFSBLOCKSIZE: only powers of two (max 67108864) are supported"
 #endif
 
 //UNIVERSAL
@@ -666,7 +686,7 @@
 // 0x012F
 #define CSTOAN_CHUNK_CHECKSUM_TAB (PROTO_BASE+303)
 /// length==13 chunkid:64 chunkversion:32 status:8
-/// length==12+MFSBLOCKSINCHUNK*4 chunkid:64 chunkversion:32 checksums:(1024 * [checksum:32])
+/// length==12+MFSBLOCKSINCHUNK*4 chunkid:64 chunkversion:32 checksums:(MFSBLOCKSINCHUNK * [checksum:32])
 
 // CLIENT <-> MASTER
 

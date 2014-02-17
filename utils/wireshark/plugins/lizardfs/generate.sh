@@ -10,7 +10,10 @@ fi
 input_file=$(readlink -m "$1")
 cd "$(dirname "$0")"
 
-echo -e "#define PROTO_BASE 0\n#include \"$input_file\"" > includes.h
+echo "#define PROTO_BASE 0" > includes.h
+echo "#define MFSBLOCKSINCHUNK 1024" >> includes.h
+echo "#define MFSBLOCKSIZE 65536" >> includes.h
+echo "#include \"$input_file\"" >> includes.h
 
 cat "$input_file" \
         | egrep -o '^#define (LIZ_)?(AN|CS|CL|MA|ML)TO(AN|CS|CL|MA|ML)_[A-Z0-9_]+' \

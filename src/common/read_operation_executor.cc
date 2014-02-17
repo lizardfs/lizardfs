@@ -13,7 +13,7 @@
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
 
-static const uint32_t kMaxMessageLength = 65 * 1024;
+static const uint32_t kMaxMessageLength = MFSBLOCKSIZE + 1024;
 
 ReadOperationExecutor::ReadOperationExecutor(
 		const ReadPlanner::ReadOperation& readOperation,

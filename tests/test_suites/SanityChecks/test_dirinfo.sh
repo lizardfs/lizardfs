@@ -3,6 +3,11 @@ CHUNKSERVERS=4 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
+if ((LIZARDFS_BLOCKS_IN_CHUNK != 1024 || LIZARDFS_BLOCK_SIZE != 65536)); then
+	# TODO fix this test for different sizes
+	test_end
+fi
+
 # Some constants
 header_size=$((5 * 1024))
 xor_header_size=$((4 * 1024))

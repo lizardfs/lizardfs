@@ -5,7 +5,7 @@ CHUNKSERVERS=4 \
 	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
 	setup_local_empty_lizardfs info
 
-damage_start=6K
+damage_start=100K
 damage_length=12
 
 get_damaged_area() {

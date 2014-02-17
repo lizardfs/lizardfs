@@ -707,7 +707,7 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 			data += (MFSBLOCKSIZE - from);
 			from = 0;
 			pos++;
-			if (pos == 1024) {
+			if (pos == MFSBLOCKSINCHUNK) {
 				pos = 0;
 				chindx++;
 			}
