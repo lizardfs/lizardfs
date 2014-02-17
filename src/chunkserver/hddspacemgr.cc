@@ -268,8 +268,8 @@ static uint64_t stats_bytesr = 0;
 static uint64_t stats_bytesw = 0;
 static uint32_t stats_opr = 0;
 static uint32_t stats_opw = 0;
-static uint32_t stats_databytesr = 0;
-static uint32_t stats_databytesw = 0;
+static uint64_t stats_databytesr = 0;
+static uint64_t stats_databytesw = 0;
 static uint32_t stats_dataopr = 0;
 static uint32_t stats_dataopw = 0;
 static uint64_t stats_rtime = 0;
@@ -491,7 +491,7 @@ int hdd_spacechanged(void) {
 	return result;
 }
 
-void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint32_t *dbr,uint32_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
+void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
 	zassert(pthread_mutex_lock(&statslock));
 	*br = stats_bytesr;
 	*bw = stats_bytesw;
