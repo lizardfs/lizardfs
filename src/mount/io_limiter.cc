@@ -61,6 +61,10 @@ void IoLimitQueueCollection::createQueue(const std::string& name, uint32_t kilob
 	queues_[name] = std::move(queue);
 }
 
+bool IoLimitQueueCollection::hasQueue(const std::string& name) const {
+	return (queues_.count(name) != 0);
+}
+
 void IoLimiter::readConfiguration(const std::string& filename) {
 	IoLimitConfigLoader loader;
 	loader.load(std::ifstream(filename));
@@ -69,6 +73,9 @@ void IoLimiter::readConfiguration(const std::string& filename) {
 		queues_.createQueue(entry.first, entry.second);
 	}
 	isEnabled_ = true;
+	if (subsystem_ != "") {
+		usesCgroups_ = true;
+	}
 }
 
 void IoLimiter::waitForRead(pid_t pid, uint64_t bytes) {
@@ -76,10 +83,25 @@ void IoLimiter::waitForRead(pid_t pid, uint64_t bytes) {
 		// I/O limits are not used
 		return;
 	}
-	try {
-		queues_.getQueue(getIoLimitGroupId(pid, subsystem_)).wait(bytes);
-	} catch (WrongIoLimitQueueException&) {
-		// Hooray, we are not limited!
+
+	// Find group for a given pid
+	std::string group = "unclassified";
+	if (usesCgroups_) {
+		try {
+			group = getIoLimitGroupId(pid, subsystem_);
+		} catch (Exception& ex) {
+			if (lastErrorTimer.elapsed_s() >= 1) {
+				syslog(LOG_WARNING, "I/O group classification error: %s", ex.what());
+				lastErrorTimer.reset();
+			}
+		}
+	}
+
+	// Limit I/O if some limit is specified
+	if (queues_.hasQueue(group)) {
+		queues_.getQueue(group).wait(bytes);
+	} else if (queues_.hasQueue("unclassified")) {
+		queues_.getQueue("unclassified").wait(bytes);
 	}
 }
 

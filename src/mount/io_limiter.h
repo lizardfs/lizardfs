@@ -47,6 +47,11 @@ public:
 	 */
 	void createQueue(const std::string& name, uint32_t kilobytesPerSecond);
 
+	/*
+	 * Returns true if the given queue exists
+	 */
+	bool hasQueue(const std::string& name) const;
+
 private:
 	std::map<std::string, std::unique_ptr<IoLimitQueue>> queues_;
 	std::mutex mutex_;
@@ -54,6 +59,8 @@ private:
 
 class IoLimiter {
 public:
+	IoLimiter() : isEnabled_(false), usesCgroups_(false) {}
+
 	/*
 	 * Initializes the limiter
 	 */
@@ -73,6 +80,8 @@ public:
 
 private:
 	bool isEnabled_;
+	bool usesCgroups_;
 	std::string subsystem_;
 	IoLimitQueueCollection queues_;
+	Timer lastErrorTimer;
 };

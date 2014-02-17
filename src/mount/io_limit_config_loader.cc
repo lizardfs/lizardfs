@@ -9,6 +9,7 @@ inline static bool streamReadFailed(const std::istream& stream) {
 void IoLimitConfigLoader::load(std::istream&& stream) {
 	limits_.clear();
 
+	bool cgroupsInUse = false;
 	while (!stream.eof()) {
 		std::string command;
 		std::string group;
@@ -34,6 +35,7 @@ void IoLimitConfigLoader::load(std::istream&& stream) {
 						"' specified more then once.");
 			}
 			limits_[group] = limit;
+			cgroupsInUse |= (group != "unclassified");
 		} else if (!command.empty() && command.front() == '#') {
 			stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 		} else {
@@ -41,7 +43,7 @@ void IoLimitConfigLoader::load(std::istream&& stream) {
 		}
 	}
 
-	if (subsystem_.empty()) {
+	if (cgroupsInUse && subsystem_.empty()) {
 		throw ParseException("Subsystem not specified.");
 	}
 }

@@ -14,23 +14,33 @@ TEST(IoLimitConfigLoaderTest, CorrectFile) {
 			"limit a 1\n"
 			"limit b 2\n"
 			"limit c 3\n"
+			"limit unclassified 4\n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_NO_THROW(loader.load(std::move(ss)));
+	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
 	ASSERT_EQ("lubie_placuszki", loader.subsystem());
-	ASSERT_LIMITS_EQ(loader, PAIR("a", 1), PAIR("b", 2), PAIR("c", 3));
+	ASSERT_LIMITS_EQ(loader, PAIR("a", 1), PAIR("b", 2), PAIR("c", 3), PAIR("unclassified", 4));
 }
 
-TEST(IoLimitConfigLoaderTest, SubsystemNotSpecified) {
+TEST(IoLimitConfigLoaderTest, SubsystemNotSpecified1) {
+	std::string config(
+			"limit a 1\n"
+			"limit b 2\n"
+			"limit c 3\n"
+			"limit unclassified 4\n"
+			);
+	IoLimitConfigLoader loader;
+	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitConfigLoader::ParseException);
+}
+
+TEST(IoLimitConfigLoaderTest, SubsystemNotSpecified2) {
 	std::string config(
 			"limit a 1\n"
 			"limit b 2\n"
 			"limit c 3\n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_THROW(loader.load(std::move(ss)), IoLimitConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitConfigLoader::ParseException);
 }
 
 TEST(IoLimitConfigLoaderTest, IncorrectLimit) {
@@ -40,9 +50,8 @@ TEST(IoLimitConfigLoaderTest, IncorrectLimit) {
 			"limit b cookie_monster\n"
 			"limit c 3\n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_THROW(loader.load(std::move(ss)), IoLimitConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitConfigLoader::ParseException);
 }
 
 TEST(IoLimitConfigLoaderTest, UnknownKeyword) {
@@ -53,9 +62,8 @@ TEST(IoLimitConfigLoaderTest, UnknownKeyword) {
 			"Agnieszka"
 			"limit c 3\n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_THROW(loader.load(std::move(ss)), IoLimitConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitConfigLoader::ParseException);
 }
 
 TEST(IoLimitConfigLoaderTest, RepeatedGroup) {
@@ -65,9 +73,8 @@ TEST(IoLimitConfigLoaderTest, RepeatedGroup) {
 			"limit b 45\n"
 			"limit a 3\n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_THROW(loader.load(std::move(ss)), IoLimitConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitConfigLoader::ParseException);
 }
 
 TEST(IoLimitConfigLoaderTest, Comment) {
@@ -79,9 +86,16 @@ TEST(IoLimitConfigLoaderTest, Comment) {
 			"#limit a 3\n"
 			"  limit c 1#RANDOM_TEXT  \n"
 			);
-	std::istringstream ss(config);
 	IoLimitConfigLoader loader;
-	ASSERT_NO_THROW(loader.load(std::move(ss)));
+	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
 	ASSERT_EQ("trololo", loader.subsystem());
 	ASSERT_LIMITS_EQ(loader, PAIR("b", 45), PAIR("c", 1));
+}
+
+TEST(IoLimitConfigLoaderTest, OnlyUnclassified) {
+	std::string config("limit unclassified 1024\n");
+	IoLimitConfigLoader loader;
+	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
+	ASSERT_EQ("", loader.subsystem());
+	ASSERT_LIMITS_EQ(loader, PAIR("unclassified", 1024));
 }

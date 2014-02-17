@@ -19,5 +19,4 @@ public:
 private:
 	LimitsMap limits_;
 	std::string subsystem_;
-
 };
