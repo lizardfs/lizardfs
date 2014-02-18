@@ -3,7 +3,6 @@ CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
-timeout_set_multiplier 10
 max_files=100
 max_open_descriptors=10
 time_limit=15
