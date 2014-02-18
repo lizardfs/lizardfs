@@ -37,11 +37,22 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	test_freeze_result
 	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
 	cd
 	# terminate valgrind processes to get complete memcheck logs from them
 	{ pkill -TERM memcheck &> /dev/null && sleep 3; } || true
-	test_freeze_result
+	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
+	if [[ ${GENTLY_KILL:-} ]]; then
+		for i in {1..50}; do
+			pkill -TERM -u $(whoami) mfs || true
+			if ! pgrep -u $(whoami) mfs >/dev/null; then
+				echo "All LizardFS processes terminated"
+				break
+			fi
+			sleep 0.2
+		done
+	fi
 	local errors=$(cat "$test_result_file")
 	if [[ $errors ]]; then
 		exit 1
