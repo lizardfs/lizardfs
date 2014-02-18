@@ -24,6 +24,8 @@
 
 #include "config.h"
 
+#include "mount/mfs_fuse.h"
+
 #include <fuse/fuse_lowlevel.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,18 +38,18 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#include "stats.h"
-#include "oplog.h"
 #include "common/datapack.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "readdata.h"
-#include "writedata.h"
-#include "common/strerr.h"
 #include "common/MFSCommunication.h"
-
-#include "dirattrcache.h"
-#include "symlinkcache.h"
+#include "common/strerr.h"
+#include "mount/dirattrcache.h"
+#include "mount/global_io_limiter.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/oplog.h"
+#include "mount/readdata.h"
+#include "mount/stats.h"
+#include "mount/symlinkcache.h"
+#include "mount/writedata.h"
 
 #if MFS_ROOT_ID != FUSE_ROOT_ID
 #error FUSE_ROOT_ID is not equal to MFS_ROOT_ID
@@ -1800,6 +1802,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
+	try {
+		gIoLimiter.waitForRead(ctx.pid, size);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		fuse_reply_err(req, EIO);
+		return;
+	}
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITEONLY) {
 		pthread_mutex_unlock(&(fileinfo->lock));
@@ -1879,6 +1888,13 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req, EFBIG);
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
+		return;
+	}
+	try {
+		gIoLimiter.waitForWrite(ctx.pid, size);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		fuse_reply_err(req, EIO);
 		return;
 	}
 	pthread_mutex_lock(&(fileinfo->lock));
