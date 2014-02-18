@@ -22,16 +22,23 @@ assert_template_files_equal_() {
 
 # (assert|assertlocal|expect)_less_or_equal <number1> <number2>
 assert_template_less_or_equal_() {
-  if (( $1 > $2 )); then
-    $FAIL_FUNCTION "Expected: '$1' <= '$2'"
-  fi
+	if (( $1 > $2 )); then
+		$FAIL_FUNCTION "Expected: $1 <= $2"
+	fi
 }
 
-# (assert|assertlocal|expect)_equals <string1> <string2>
+# (assert|assertlocal|expect)_equals <expected_string> <actual_string>
 assert_template_equals_() {
-  if [[ $1 != $2 ]]; then
-    $FAIL_FUNCTION "Expected: '$1', got:'$2'"
-  fi
+	if [[ $1 != $2 ]]; then
+		$FAIL_FUNCTION "Expected: $1, got: $2"
+	fi
+}
+
+# (assert|assertlocal|expect)_near <expected_number> <actual_number> <max_absolute_error>
+assert_template_near_() {
+	if ! (( $1 - $3 <= $2 && $2 <= $1 + $3 )); then
+		$FAIL_FUNCTION "Expected: $1 +/- $3, got: $2"
+	fi
 }
 
 # (assert|assertlocal|expect)_success <command> [<args>...]

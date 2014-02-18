@@ -39,25 +39,31 @@ static bool searchSubsystems(std::istream& is, const std::string& subsystem) {
 }
 
 std::string getIoLimitGroupId(std::istream& input, const std::string& subsystem) {
-	for (std::string line; std::getline(input, line); ) {
-		try {
-			std::stringstream ss(line);
-			ss.exceptions(std::stringstream::eofbit);
-			skipHierarchy(ss);
-			if (searchSubsystems(ss, subsystem)) {
-				ss.exceptions(std::stringstream::goodbit);
-				std::string groupId;
-				std::getline(ss, groupId);
-				return groupId;
+	try {
+		for (std::string line; std::getline(input, line); ) {
+			try {
+				std::stringstream ss(line);
+				ss.exceptions(std::stringstream::eofbit);
+				skipHierarchy(ss);
+				if (searchSubsystems(ss, subsystem)) {
+					ss.exceptions(std::stringstream::goodbit);
+					std::string groupId;
+					std::getline(ss, groupId);
+					return groupId;
+				}
+			} catch (std::ios_base::failure&) {
+				throw GetIoLimitGroupIdException("Parse error");
 			}
-		} catch (std::ios_base::failure) {
-			throw GetIoLimitGroupIdException("Parse error");
+		}
+	} catch (std::ios_base::failure&) {
+		if (!input.eof()) {
+			throw;
 		}
 	}
 	throw GetIoLimitGroupIdException("Can't find subsystem '" + subsystem + "'");
 }
 
-std::string getIoLimitGroupId(const pid_t pid, const std::string subsystem) {
+std::string getIoLimitGroupId(const pid_t pid, const std::string& subsystem) {
 	char filename[32];
 	sprintf(filename, "/proc/%u/cgroup", pid);
 	try {
@@ -65,7 +71,8 @@ std::string getIoLimitGroupId(const pid_t pid, const std::string subsystem) {
 		ifs.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		ifs.open(filename);
 		return getIoLimitGroupId(ifs, subsystem);
-	} catch (std::ios_base::failure) {
-		throw GetIoLimitGroupIdException("Error reading '" + std::string(filename) + "'");
+	} catch (std::ios_base::failure& ex) {
+		throw GetIoLimitGroupIdException(
+				"Error reading '" + std::string(filename) + ": " + ex.what());
 	}
 }

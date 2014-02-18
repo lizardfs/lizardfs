@@ -43,3 +43,10 @@ TEST(IoLimitQueueCollection, CreateAndGetQueue) {
 	ASSERT_THROW(limiter.getQueue("q").wait(130), WrongIoLimitQueueException);
 	ASSERT_THROW(limiter.getQueue("q").wait(30), WrongIoLimitQueueException);
 }
+
+TEST(IoLimitQueueCollection, HasQueue) {
+	IoLimitQueueCollection limiter;
+	ASSERT_NO_THROW(limiter.createQueue("q1", 100));
+	ASSERT_TRUE(limiter.hasQueue("q1"));
+	ASSERT_FALSE(limiter.hasQueue("q"));
+}
