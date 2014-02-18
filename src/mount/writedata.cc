@@ -145,7 +145,7 @@ static std::mutex gMutex;
 typedef std::unique_lock<std::mutex> Glock;
 
 static std::condition_variable fcbcond;
-static uint8_t fcbwaiting;
+static uint32_t fcbwaiting = 0;
 static int32_t freecacheblocks;
 
 static uint32_t maxretries;
@@ -163,7 +163,7 @@ static ConnectionPool gChunkserverConnectionPool;
 
 void write_cb_release_blocks(uint32_t count, Glock&) {
 	freecacheblocks += count;
-	if (fcbwaiting) {
+	if (fcbwaiting > 0 && freecacheblocks > 0) {
 		fcbcond.notify_all();
 	}
 }
@@ -582,7 +582,6 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
 		cacheblockcount = 10;
 	}
 
-	fcbwaiting = 0;
 	freecacheblocks = cacheblockcount;
 
 	idhash = (inodedata**) malloc(sizeof(inodedata*) * IDHASHSIZE);
