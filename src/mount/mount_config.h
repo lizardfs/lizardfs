@@ -67,6 +67,7 @@ struct mfsopts_ {
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	char *iolimits;
 	uint32_t chunkserverreadto;
 
 	mfsopts_()
@@ -102,6 +103,7 @@ struct mfsopts_ {
 			attrcacheto(1.0),
 			entrycacheto(0.0),
 			direntrycacheto(1.0),
+			iolimits(NULL),
 			chunkserverreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) {
 	}
 };

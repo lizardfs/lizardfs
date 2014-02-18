@@ -91,8 +91,8 @@ for field in length size realsize; do
 	for file in "${!length[@]}"; do
 		eval "expected=\${$field[$file]}"
 		actual=$(mfs_dir_info "$field" "$file")
-		MESSAGE="$field for $file mismatch" expect_equal "$expected" "$actual"
+		MESSAGE="$field for $file mismatch" expect_equals "$expected" "$actual"
 		fieldsum=$((fieldsum + expected))
 	done
-	MESSAGE="$field for directory mismatch" expect_equal $fieldsum $(mfs_dir_info "$field" dir)
+	MESSAGE="$field for directory mismatch" expect_equals $fieldsum $(mfs_dir_info "$field" dir)
 done

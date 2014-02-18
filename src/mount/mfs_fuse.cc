@@ -23,33 +23,35 @@
 #endif
 
 #include "config.h"
-#include "mfs_fuse.h"
 
-#include <assert.h>
-#include <errno.h>
+#include "mount/mfs_fuse.h"
+
 #include <fuse/fuse_lowlevel.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
+#include <assert.h>
+#include <syslog.h>
+#include <inttypes.h>
+#include <pthread.h>
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
 #include "devtools/request_log.h"
 #include "mount/chunk_locator.h"
-#include "dirattrcache.h"
-#include "mastercomm.h"
-#include "masterproxy.h"
-#include "oplog.h"
-#include "readdata.h"
-#include "stats.h"
-#include "symlinkcache.h"
-#include "writedata.h"
+#include "mount/dirattrcache.h"
+#include "mount/global_io_limiter.h"
+#include "mount/mastercomm.h"
+#include "mount/masterproxy.h"
+#include "mount/oplog.h"
+#include "mount/readdata.h"
+#include "mount/stats.h"
+#include "mount/symlinkcache.h"
+#include "mount/writedata.h"
 
 #if MFS_ROOT_ID != FUSE_ROOT_ID
 #  error FUSE_ROOT_ID is not equal to MFS_ROOT_ID
@@ -1812,6 +1814,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
 		return;
 	}
+	try {
+		gIoLimiter.waitForRead(ctx.pid, size);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		fuse_reply_err(req, EIO);
+		return;
+	}
 	// acquire read lock, from now we only have to deal with other readers
 	pthread_rwlock_rdlock(&(fileinfo->rwlock));
 	// serialize the following checks and preparations
@@ -1919,6 +1928,13 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
 		fuse_reply_err(req, EFBIG);
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
+		return;
+	}
+	try {
+		gIoLimiter.waitForWrite(ctx.pid, size);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		fuse_reply_err(req, EIO);
 		return;
 	}
 	pthread_rwlock_wrlock(&(fileinfo->rwlock));

@@ -25,12 +25,12 @@
 #include <sys/resource.h>
 
 #include "common/crc.h"
-#include "common/massert.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 #include "common/wrong_crc_notifier.h"
+#include "mount/global_io_limiter.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/mfs_fuse.h"
@@ -261,6 +261,17 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 
 	if (gMountOptions.meta==0) {
+		try {
+			if (gMountOptions.iolimits) {
+				gIoLimiter.readConfiguration(gMountOptions.iolimits);
+			}
+		} catch (Exception& ex) {
+			fprintf(stderr, "Can't initialize I/O limiting: %s", ex.what());
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
+			return 1;
+		}
 		read_data_init(gMountOptions.ioretries);
 		write_data_init(gMountOptions.writecachesize*1024*1024,
 				gMountOptions.ioretries,
@@ -664,6 +675,9 @@ int main(int argc, char *argv[]) try {
 	free(gMountOptions.subfolder);
 	if (gDefaultMountpoint && gDefaultMountpoint != mountpoint) {
 		free(gDefaultMountpoint);
+	}
+	if (gMountOptions.iolimits) {
+		free(gMountOptions.iolimits);
 	}
 	free(mountpoint);
 	stats_term();

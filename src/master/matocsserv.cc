@@ -1172,6 +1172,11 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
 	}
 }
+static void update_maxtotalspace(uint64_t totalspace) {
+	if (totalspace > maxtotalspace) {
+		maxtotalspace = totalspace;
+	}
+}
 
 void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t servip,
 		uint16_t servport, uint16_t timeout) {
@@ -1209,12 +1214,13 @@ void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t 
 	return;
 }
 
-void register_space_syslog_entry(matocsserventry* eptr) {
+void register_space(matocsserventry* eptr) {
 	double us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 	double ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 	syslog(LOG_NOTICE, "chunkserver register end (packet version: 5) - ip: %s, port: %"
 			PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",
 			eptr->servstrip, eptr->servport, eptr->usedspace, us, eptr->totalspace, ts);
+	update_maxtotalspace(eptr->totalspace);
 }
 
 void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1347,7 +1353,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->todelusedspace = get64bit(&data);
 			eptr->todeltotalspace = get64bit(&data);
 			eptr->todelchunkscount = get32bit(&data);
-			return register_space_syslog_entry(eptr);
+			return register_space(eptr);
 		} else {
 			syslog(LOG_NOTICE,"CSTOMA_REGISTER - wrong version (%" PRIu8 "/1..4)",rversion);
 			eptr->mode=KILL;
@@ -1374,9 +1380,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		if (eptr->totalspace>maxtotalspace) {
-			maxtotalspace=eptr->totalspace;
-		}
+		update_maxtotalspace(eptr->totalspace);
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
@@ -1404,9 +1408,7 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
-	if (eptr->totalspace>maxtotalspace) {
-		maxtotalspace=eptr->totalspace;
-	}
+	update_maxtotalspace(eptr->totalspace);
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
@@ -1445,7 +1447,7 @@ void matocsserv_liz_register_space(matocsserventry *eptr, const std::vector<uint
 	verifyPacketVersionNoHeader(data, 0);
 	cstoma::registerSpace::deserialize(data, eptr->usedspace, eptr->totalspace, eptr->chunkscount,
 			eptr->todelusedspace, eptr->todeltotalspace, eptr->todelchunkscount);
-	return register_space_syslog_entry(eptr);
+	return register_space(eptr);
 }
 
 void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t length) {

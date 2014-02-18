@@ -43,6 +43,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 	MFS_OPT("mfschunkserverreadto=%d", chunkserverreadto, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
@@ -124,6 +125,7 @@ void usage(const char *progname) {
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
+"    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "\n");
 	fprintf(stderr,
 "CMODE can be set to:\n"

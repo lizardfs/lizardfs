@@ -55,4 +55,4 @@ chunks_info=$(mfsfileinfo "${files[@]}" \
 
 chunks_real=$(find_all_chunks | sort)
 
-expect_equal "$chunks_real" "$chunks_info"
+expect_equals "$chunks_real" "$chunks_info"
