@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/chunk_type.h"
+#include "unittests/operators.h"
 
 extern const ChunkType standard;
 extern const ChunkType xor_1_of_2;

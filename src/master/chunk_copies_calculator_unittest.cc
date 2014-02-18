@@ -23,9 +23,10 @@ static void checkPartsToRecover(
 	std::sort(expectedPartsToRecover.begin(), expectedPartsToRecover.end());
 	std::sort(actualPartsToRecover.begin(), actualPartsToRecover.end());
 	EXPECT_EQ(expectedPartsToRecover, actualPartsToRecover);
+	EXPECT_EQ(expectedPartsToRecover.size(), calculator.countPartsToRecover());
 }
 
-static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 1) {
+static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 2) {
 	ChunkCopiesCalculator calculator(goal);
 	for (auto part : parts) {
 		calculator.addPart(part);
@@ -49,9 +50,14 @@ static void checkPartsToRemove(
 	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());
 	std::sort(actualPartsToRemove.begin(), actualPartsToRemove.end());
 	EXPECT_EQ(expectedPartsToRemove, actualPartsToRemove);
+	EXPECT_EQ(expectedPartsToRemove.size(), calculator.countPartsToRemove());
 }
 
 TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
+	checkPartsToRecover({standard, standard, standard, standard, standard}, 0, {});
+	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, 0, {});
+	checkPartsToRecover({xor_1_of_3}, 0, {});
+
 	checkPartsToRecover({standard, standard, standard, standard, standard}, 3, {});
 	checkPartsToRecover({standard, standard, standard, standard}, 3, {});
 	checkPartsToRecover({standard, standard, standard}, 3, {});
@@ -155,6 +161,13 @@ TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
 }
 
 TEST(ChunkCopiesCalculatorTests, GetPartsToRemove) {
+	checkPartsToRemove({standard}, 0, {standard});
+	checkPartsToRemove({standard, standard}, 0, {standard, standard});
+	checkPartsToRemove({xor_1_of_2}, 0, {xor_1_of_2});
+	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
+	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
+	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
+
 	checkPartsToRemove({standard}, 1, {});
 	checkPartsToRemove({standard, standard}, 1, {standard});
 	checkPartsToRemove({standard, standard, standard}, 1, {standard, standard});
@@ -258,4 +271,50 @@ TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
 		available.push_back(standard);
 		EXPECT_TRUE(calculator(available).isWritingPossible());
 	}
+}
+
+TEST(ChunkCopiesCalculatorTests, GetState) {
+	/* Simple scenarios */
+	EXPECT_EQ(ChunksAvailabilityState::kSafe,
+			calculator({}, 0).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kSafe,
+			calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kSafe,
+			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_2, xor_p_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_2, xor_2_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({}, xorLevelToGoal(2)).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({}, 1).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({xor_1_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({xor_1_of_3, xor_2_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({xor_1_of_3, xor_p_of_3}).getState());
+
+	/* More complicated */
+	EXPECT_EQ(ChunksAvailabilityState::kSafe,
+			calculator({standard, standard, xor_1_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kSafe,
+			calculator({xor_1_of_3, xor_1_of_2, xor_2_of_2, xor_p_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_2, xor_2_of_2}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
+			calculator({standard, xor_1_of_2, xor_1_of_3, xor_p_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({xor_1_of_2, xor_2_of_3}).getState());
+	EXPECT_EQ(ChunksAvailabilityState::kLost,
+			calculator({xor_p_of_2, xor_1_of_3}).getState());
 }
