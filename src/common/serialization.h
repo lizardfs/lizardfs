@@ -34,6 +34,11 @@ inline uint32_t serializedSize(const uint64_t&) {
 	return 8;
 }
 
+template <class T, int N>
+inline uint32_t serializedSize(const T (&array)[N]) {
+	return N * serializedSize(array[0]);
+}
+
 template<class T1, class T2>
 inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 	return serializedSize(pair.first) + serializedSize(pair.second);
@@ -51,28 +56,42 @@ inline uint32_t serializedSize(const T& t, const Args& ... args) {
 
 // serialize for simple types
 
+// serialize uint8_t
 inline void serialize(uint8_t** destination, const uint8_t& value) {
 	put8bit(destination, value);
 }
 
+// serialize uint16_t
 inline void serialize(uint8_t** destination, const uint16_t& value) {
 	put16bit(destination, value);
 }
 
+// serialize uint32_t
 inline void serialize(uint8_t** destination, const uint32_t& value) {
 	put32bit(destination, value);
 }
 
+// serialize uint64_t
 inline void serialize(uint8_t** destination, const uint64_t& value) {
 	put64bit(destination, value);
 }
 
+// serialize fixed size array ("type name[number];")
+template <class T, int N>
+inline void serialize(uint8_t** destination, const T (&array)[N]) {
+	for (int i = 0; i < N; i++) {
+		serialize(destination, array[i]);
+	}
+}
+
+// serialize a pair
 template<class T1, class T2>
 inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 	serialize(destination, pair.first);
 	serialize(destination, pair.second);
 }
 
+// serialize a vector
 template<class T>
 inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
 	for (const T& t : vector) {
@@ -123,6 +142,14 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uin
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 8;
 	value = get64bit(source);
+}
+
+// deserialize fixed size array ("type name[number];")
+template <class T, int N>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]) {
+	for (int i = 0; i < N; i++) {
+		deserialize(source, bytesLeftInBuffer, array[i]);
+	}
 }
 
 // deserialize a pair

@@ -61,3 +61,11 @@ TEST(GoalTests, IsGoalValid) {
 		}
 	}
 }
+
+TEST(GoalTests, XorGoalConstants) {
+	for (uint8_t level = kMinXorLevel; level <= kMaxXorLevel; level++) {
+		uint8_t goal = xorLevelToGoal(level);
+		EXPECT_GE(goal, kMinXorGoal);
+		EXPECT_LE(goal, kMaxXorGoal);
+	}
+}
