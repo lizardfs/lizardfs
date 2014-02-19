@@ -15,6 +15,7 @@ endif()
 set(CMAKE_CXX_FLAGS "-std=c++0x -Wall -Wextra -pedantic -fwrapv")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_COVERAGE "-O0 -g --coverage")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -ftree-vectorize -DNDEBUG -g")
 
 add_definitions(-D_LARGEFILE_SOURCE)
