@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include "master/chunks.h"
+
 #include <inttypes.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -32,23 +34,23 @@
 #endif
 #include <algorithm>
 
-#include "chunks.h"
+#include "common/chunks_availability_state.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/lizardfs_version.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "master/chunk_copies_calculator.h"
+#include "master/filesystem.h"
 
 #ifndef METARESTORE
 #  include "common/cfg.h"
 #  include "common/main.h"
 #  include "common/random.h"
-#  include "matoclserv.h"
-#  include "matocsserv.h"
-#  include "topology.h"
+#  include "master/matoclserv.h"
+#  include "master/matocsserv.h"
+#  include "master/topology.h"
 #endif
-
-#include "filesystem.h"
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1
@@ -84,15 +86,22 @@ struct slist {
 //	uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
 //	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
 	slist *next;
-	slist() : chunkType(ChunkType::getStandardChunkType()) {
+	slist()
+			: ptr(nullptr),
+			  version(0),
+			  chunkType(ChunkType::getStandardChunkType()),
+			  valid(INVALID),
+			  next(nullptr) {
 	}
 
 	bool is_busy() const {
 		return valid == BUSY || valid == TDBUSY;
 	}
+
 	bool is_valid() const {
 		return valid != INVALID && valid != DEL;
 	}
+
 	bool is_todel() const {
 		return valid == TDVALID || valid == TDBUSY;
 	}
@@ -165,84 +174,143 @@ static slist *slfreehead = NULL;
 #endif /* METARESTORE */
 
 #ifndef METARESTORE
-static inline void chunk_state_change(
-		uint8_t oldgoal, uint8_t newgoal,
-		uint8_t oldavc, uint8_t newavc,
-		uint8_t oldrvc, uint8_t newrvc
-		);
 static inline slist* slist_malloc();
 static inline void slist_free(slist *p);
 #endif
 
-struct chunk {
+class chunk {
+public:
 	uint64_t chunkid;
+	struct chunk *next;
+	uint32_t *ftab;
+#ifndef METARESTORE
+	slist *slisthead;
+#endif
 	uint32_t version;
 	uint32_t lockid;
 	uint32_t lockedto;
 	uint32_t fcount;
 	uint8_t goal;
 #ifndef METARESTORE
-	uint8_t allvalidcopies;
-	uint8_t regularvalidcopies;
-	unsigned needverincrease:1;
-	unsigned interrupted:1;
-	unsigned operation:4;
-	slist *slisthead;
-#endif
-	uint32_t *ftab;
-	struct chunk *next;
+	uint8_t needverincrease:1;
+	uint8_t interrupted:1;
+	uint8_t operation:4;
+private:
+	uint8_t goalInStats_;
+	uint8_t allMissingParts_, regularMissingParts_;
+	uint8_t allRedundantParts_, regularRedundantParts_;
+	uint8_t allStandardCopies_, regularStandardCopies_;
+	uint8_t allAvailabilityState_, regularAvailabilityState_;
+public:
+	static ChunksAvailabilityState allChunksAvailability, regularChunksAvailability;
+	static ChunksReplicationState allChunksReplicationState, regularChunksReplicationState;
+	static uint64_t count;
+	static uint64_t allStandardChunkCopies[11][11], regularStandardChunkCopies[11][11];
 
-#ifndef METARESTORE
+	/*
+	 * This method should be called on a new chunk
+	 */
+	void initStats() {
+		count++;
+		allMissingParts_ = regularMissingParts_ = 0;
+		allRedundantParts_ = regularRedundantParts_ = 0;
+		allStandardCopies_ = regularStandardCopies_ = 0;
+		allAvailabilityState_ = regularAvailabilityState_ = ChunksAvailabilityState::kSafe;
+		goalInStats_ = 0;
+		addToStats();
+		updateStats();
+	}
+
+	/*
+	 * This method should be called when chunk is removed
+	 */
+	void freeStats() {
+		count--;
+		removeFromStats();
+	}
+
+	/*
+	 * Updates statistics of all chunks
+	 */
+	void updateStats() {
+		removeFromStats();
+		allStandardCopies_ = regularStandardCopies_ = 0;
+		ChunkCopiesCalculator all(goal), regular(goal);
+		for (slist* s = slisthead; s != nullptr; s = s->next) {
+			if (!s->is_valid()) {
+				continue;
+			}
+			all.addPart(s->chunkType);
+			if (s->chunkType.isStandardChunkType() && allStandardCopies_ < 10) {
+				allStandardCopies_++;
+			}
+			if (!s->is_todel()) {
+				regular.addPart(s->chunkType);
+				if (s->chunkType.isStandardChunkType() && regularStandardCopies_ < 10) {
+					regularStandardCopies_++;
+				}
+			}
+		}
+		allAvailabilityState_ = all.getState();
+		allMissingParts_ = std::min(200U, all.countPartsToRecover());
+		allRedundantParts_ = std::min(200U, all.countPartsToRemove());
+		regularAvailabilityState_ = regular.getState();
+		regularMissingParts_ = std::min(200U, regular.countPartsToRecover());
+		regularRedundantParts_ = std::min(200U, regular.countPartsToRemove());
+		addToStats();
+	}
+
+	bool isSafe() const {
+		return allAvailabilityState_ == ChunksAvailabilityState::kSafe;
+	}
+
+	bool isEndangered() const {
+		return allAvailabilityState_ == ChunksAvailabilityState::kEndangered;
+	}
+
+	bool isLost() const {
+		return allAvailabilityState_ == ChunksAvailabilityState::kLost;
+	}
+
+	bool needsReplication() const {
+		return regularMissingParts_ > 0;
+	}
+
+	bool needsDeletion() const {
+		return regularRedundantParts_ > 0;
+	}
+
+	uint8_t getStandardCopiesCount() const {
+		return allStandardCopies_;
+	}
+
 	bool is_locked() const {
 		return lockedto >= main_time();
 	}
-	void adjust_allvalidcopies(int8_t diff) {
-		chunk_state_change(goal, goal,
-				allvalidcopies, allvalidcopies + diff,
-				regularvalidcopies, regularvalidcopies);
-		allvalidcopies += diff;
-	}
-	void adjust_regularvalidcopies(int8_t diff) {
-		chunk_state_change(goal, goal,
-				allvalidcopies, allvalidcopies,
-				regularvalidcopies, regularvalidcopies + diff);
-		regularvalidcopies += diff;
-	}
-	void new_copy_update_stats(slist *s) {
-		if (s->is_valid()) {
-			adjust_allvalidcopies(+1);
-			if (!s->is_todel()) {
-				adjust_regularvalidcopies(+1);
-			}
-		}
-	}
-	void lost_copy_update_stats(slist *s) {
-		if (s->is_valid()) {
-			adjust_allvalidcopies(-1);
-			if (!s->is_todel()) {
-				adjust_regularvalidcopies(-1);
-			}
-		}
-	}
+
 	void copy_has_wrong_version(slist *s) {
-		lost_copy_update_stats(s);
 		s->valid = INVALID;
+		updateStats();
 	}
+
 	void invalidate_copy(slist *s) {
-		lost_copy_update_stats(s);
 		s->valid = INVALID;
 		s->version = 0;
+		updateStats();
 	}
+
 	void delete_copy(slist *s) {
-		lost_copy_update_stats(s);
 		s->valid = DEL;
+		updateStats();
 	}
+
 	void unlink_copy(slist *s, slist **prev_next) {
-		lost_copy_update_stats(s);
 		*prev_next = s->next;
 		slist_free(s);
+		updateStats();
 	}
-	slist * add_copy_no_stats_update(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
+
+	slist *add_copy_no_stats_update(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
 		slist *s = slist_malloc();
 		s->ptr = ptr;
 		s->valid = valid;
@@ -252,8 +320,72 @@ struct chunk {
 		slisthead = s;
 		return s;
 	}
+
+	slist *addCopy(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
+		slist *s = add_copy_no_stats_update(ptr, valid, version, type);
+		updateStats();
+		return s;
+	}
+
+	ChunkCopiesCalculator makeRegularCopiesCalculator() const {
+		ChunkCopiesCalculator calculator(goal);
+		for (const slist *s = slisthead; s != nullptr; s = s->next) {
+			if (s->is_valid() && !s->is_todel()) {
+				calculator.addPart(s->chunkType);
+			}
+		}
+		return calculator;
+	}
+
+private:
+	void removeFromStats() {
+		ChunksAvailabilityState::State chunkState;
+
+		chunkState = static_cast<ChunksAvailabilityState::State>(allAvailabilityState_);
+		allChunksAvailability.removeChunk(goalInStats_, chunkState);
+		allChunksReplicationState.removeChunk(goalInStats_, allMissingParts_, allRedundantParts_);
+
+		chunkState = static_cast<ChunksAvailabilityState::State>(regularAvailabilityState_);
+		regularChunksAvailability.removeChunk(goalInStats_, chunkState);
+		regularChunksReplicationState.removeChunk(goalInStats_,
+				regularMissingParts_, regularRedundantParts_);
+
+		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
+			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
+			allStandardChunkCopies[limitedGoal][allStandardCopies_]--;
+			regularStandardChunkCopies[limitedGoal][regularStandardCopies_]--;
+		}
+	}
+
+	void addToStats() {
+		goalInStats_ = goal;
+		ChunksAvailabilityState::State chunkState;
+
+		chunkState = static_cast<ChunksAvailabilityState::State>(allAvailabilityState_);
+		allChunksAvailability.addChunk(goalInStats_, chunkState);
+		allChunksReplicationState.addChunk(goalInStats_, allMissingParts_, allRedundantParts_);
+
+		chunkState = static_cast<ChunksAvailabilityState::State>(regularAvailabilityState_);
+		regularChunksAvailability.addChunk(goalInStats_, chunkState);
+		regularChunksReplicationState.addChunk(goalInStats_,
+				regularMissingParts_, regularRedundantParts_);
+
+		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
+			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
+			allStandardChunkCopies[limitedGoal][allStandardCopies_]++;
+			regularStandardChunkCopies[limitedGoal][regularStandardCopies_]++;
+		}
+	}
 #endif
 };
+
+#ifndef METARESTORE
+ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
+ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
+uint64_t chunk::count = 0;
+uint64_t chunk::allStandardChunkCopies[11][11] = {{0}};
+uint64_t chunk::regularStandardChunkCopies[11][11] = {{0}};
+#endif
 
 #ifdef USE_CHUNK_BUCKETS
 #define CHUNK_BUCKET_SIZE 20000
@@ -314,15 +446,6 @@ static uint32_t chunksinfo_loopstart=0,chunksinfo_loopend=0;
 
 static uint64_t lastchunkid=0;
 static chunk* lastchunkptr=NULL;
-
-#ifndef METARESTORE
-static uint32_t chunks;
-#endif
-
-#ifndef METARESTORE
-uint32_t allchunkcounts[11][11];
-uint32_t regularchunkcounts[11][11];
-#endif
 
 #ifndef METARESTORE
 static uint32_t stats_deletions=0;
@@ -422,11 +545,6 @@ chunk* chunk_new(uint64_t chunkid) {
 #ifdef METARESTORE
 	printf("N%" PRIu64 "\n",chunkid);
 #endif
-#ifndef METARESTORE
-	chunks++;
-	allchunkcounts[0][0]++;
-	regularchunkcounts[0][0]++;
-#endif
 	newchunk->next = chunkhash[chunkpos];
 	chunkhash[chunkpos] = newchunk;
 	newchunk->chunkid = chunkid;
@@ -434,16 +552,15 @@ chunk* chunk_new(uint64_t chunkid) {
 	newchunk->goal = 0;
 	newchunk->lockid = 0;
 	newchunk->lockedto = 0;
+	newchunk->fcount = 0;
+	newchunk->ftab = NULL;
 #ifndef METARESTORE
-	newchunk->allvalidcopies = 0;
-	newchunk->regularvalidcopies = 0;
 	newchunk->needverincrease = 1;
 	newchunk->interrupted = 0;
 	newchunk->operation = NONE;
 	newchunk->slisthead = NULL;
+	newchunk->initStats();
 #endif
-	newchunk->fcount = 0;
-	newchunk->ftab = NULL;
 	lastchunkid = chunkid;
 	lastchunkptr = newchunk;
 	return newchunk;
@@ -474,56 +591,25 @@ void chunk_delete(chunk* c) {
 		lastchunkid=0;
 		lastchunkptr=NULL;
 	}
-	chunks--;
-	uint8_t goal = c->goal;
-	if (goal >= 10) {
-		goal = 10;
-	}
-	allchunkcounts[goal][0]--;
-	regularchunkcounts[goal][0]--;
+	c->freeStats();
 	chunk_free(c);
 }
 
-static inline void chunk_state_change(uint8_t oldgoal,uint8_t newgoal,uint8_t oldavc,uint8_t newavc,uint8_t oldrvc,uint8_t newrvc) {
-	if (oldgoal>9) {
-		oldgoal=10;
-	}
-	if (newgoal>9) {
-		newgoal=10;
-	}
-	if (oldavc>9) {
-		oldavc=10;
-	}
-	if (newavc>9) {
-		newavc=10;
-	}
-	if (oldrvc>9) {
-		oldrvc=10;
-	}
-	if (newrvc>9) {
-		newrvc=10;
-	}
-	allchunkcounts[oldgoal][oldavc]--;
-	allchunkcounts[newgoal][newavc]++;
-	regularchunkcounts[oldgoal][oldrvc]--;
-	regularchunkcounts[newgoal][newrvc]++;
-}
-
 uint32_t chunk_count(void) {
-	return chunks;
+	return chunk::count;
 }
 
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidcopies) {
 	uint32_t i,j,ag,rg;
-	*allchunks = chunks;
+	*allchunks = chunk::count;
 	*allcopies = 0;
 	*regularvalidcopies = 0;
 	for (i=1 ; i<=10 ; i++) {
 		ag=0;
 		rg=0;
 		for (j=0 ; j<=10 ; j++) {
-			ag += allchunkcounts[j][i];
-			rg += regularchunkcounts[j][i];
+			ag += chunk::allStandardChunkCopies[j][i];
+			rg += chunk::regularStandardChunkCopies[j][i];
 		}
 		*allcopies += ag*i;
 		*regularvalidcopies += rg*i;
@@ -531,27 +617,28 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidco
 }
 
 uint32_t chunk_get_missing_count(void) {
-	uint32_t res=0;
-	uint8_t i;
-
-	for (i=1 ; i<=10 ; i++) {
-		res+=allchunkcounts[i][0];
+	uint32_t res = 0;
+	for (int goal = kMinOrdinaryGoal; goal <= kMaxOrdinaryGoal; ++goal) {
+		res += chunk::allChunksAvailability.lostChunks(goal);
+	}
+	for (int level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
+		res += chunk::allChunksAvailability.lostChunks(xorLevelToGoal(level));
 	}
 	return res;
 }
 
-void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
+void chunk_store_chunkcounters(uint8_t *buff, uint8_t matrixid) {
 	uint8_t i,j;
 	if (matrixid==0) {
 		for (i=0 ; i<=10 ; i++) {
 			for (j=0 ; j<=10 ; j++) {
-				put32bit(&buff,allchunkcounts[i][j]);
+				put32bit(&buff, chunk::allStandardChunkCopies[i][j]);
 			}
 		}
 	} else if (matrixid==1) {
 		for (i=0 ; i<=10 ; i++) {
 			for (j=0 ; j<=10 ; j++) {
-				put32bit(&buff,regularchunkcounts[i][j]);
+				put32bit(&buff, chunk::regularStandardChunkCopies[i][j]);
 			}
 		}
 	} else {
@@ -616,8 +703,8 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 		}
 	}
 #ifndef METARESTORE
-	if (oldgoal!=c->goal) {
-		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
+	if (oldgoal != c->goal) {
+		c->updateStats();
 	}
 #endif
 	return STATUS_OK;
@@ -663,8 +750,8 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 		}
 	}
 #ifndef METARESTORE
-	if (oldgoal!=c->goal) {
-		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
+	if (oldgoal != c->goal) {
+		c->updateStats();
 	}
 #endif
 	return STATUS_OK;
@@ -715,8 +802,8 @@ static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
 		}
 	}
 #ifndef METARESTORE
-	if (oldgoal!=c->goal) {
-		chunk_state_change(oldgoal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,c->regularvalidcopies);
+	if (oldgoal != c->goal) {
+		c->updateStats();
 	}
 #endif
 	return STATUS_OK;
@@ -776,14 +863,21 @@ int chunk_unlock(uint64_t chunkid) {
 
 #ifndef METARESTORE
 
-int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
+int chunk_get_validcopies(uint64_t chunkid, uint8_t *vcopies) {
 	chunk *c;
 	*vcopies = 0;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	*vcopies = c->allvalidcopies;
+	if (c->isLost()) {
+		*vcopies = 0;
+	} else if (c->isEndangered()) {
+		*vcopies = 1;
+	} else {
+		// Safe chunk
+		*vcopies = std::max<uint8_t>(2, c->getStandardCopiesCount());
+	}
 	return STATUS_OK;
 }
 #endif
@@ -823,14 +917,12 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #endif
 		chunk_add_file_int(c,goal);
 #ifndef METARESTORE
-		c->allvalidcopies = serversWithChunkTypes.size();
-		c->regularvalidcopies = serversWithChunkTypes.size();
-		for (i=0 ; i<c->allvalidcopies ; i++) {
+		for (i=0; i < serversWithChunkTypes.size(); ++i) {
 			s = c->add_copy_no_stats_update(serversWithChunkTypes[i].first, BUSY,
 					c->version, serversWithChunkTypes[i].second);
 			matocsserv_send_createchunk(s->ptr, c->chunkid, s->chunkType, c->version);
 		}
-		chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+		c->updateStats();
 		*opflag=1;
 #endif
 		*nchunkid = c->chunkid;
@@ -852,13 +944,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		if (*lockid == 0 && oc->is_locked()) {
 			return ERROR_LOCKED;
 		}
-		ChunkCopiesCalculator calculator(oc->goal);
-		for (s = oc->slisthead; s; s = s->next) {
-			if (s->valid != INVALID && s->valid != DEL) {
-				calculator.addPart(s->chunkType);
-			}
-		}
-		if (!calculator.isWritingPossible()) {
+		if (oc->isLost()) {
 			return ERROR_CHUNKLOST;
 		}
 #endif
@@ -926,16 +1012,15 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 						chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 					}
+					// TODO(msulikowski) implement COW of XOR chunks!
 					s = c->add_copy_no_stats_update(os->ptr, BUSY, c->version,
 							ChunkType::getStandardChunkType());
-					c->allvalidcopies++;
-					c->regularvalidcopies++;
 					matocsserv_send_duplicatechunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version);
 					i++;
 				}
 			}
 			if (c!=NULL) {
-				chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+				c->updateStats();
 			}
 			if (i>0) {
 #endif
@@ -1006,14 +1091,8 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 						&& (length % (MFSBLOCKSIZE * s->chunkType.getXorLevel()) != 0)) {
 					syslog(LOG_WARNING, "Trying to truncate parity chunk: %016" PRIX64
 							" - currently unsupported!!!", ochunkid);
-					uint8_t oldRegularValidCopies = c->regularvalidcopies;
-					if (s->valid == TDBUSY) {
-						c->regularvalidcopies--;
-					}
-					c->allvalidcopies--;
-					chunk_state_change(c->goal, c->goal, c->allvalidcopies + 1, c->allvalidcopies,
-							oldRegularValidCopies, c->regularvalidcopies);
 					s->valid = INVALID;
+					c->updateStats();
 				} else {
 					s->version = c->version+1;
 					uint32_t chunkTypeLength =
@@ -1062,14 +1141,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 				}
 				s = c->add_copy_no_stats_update(os->ptr, BUSY, c->version,
 						ChunkType::getStandardChunkType());
-				c->allvalidcopies++;
-				c->regularvalidcopies++;
 				matocsserv_send_duptruncchunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version,length);
 				i++;
 			}
 		}
 		if (c!=NULL) {
-			chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+			c->updateStats();
 		}
 		if (i>0) {
 #endif
@@ -1123,27 +1200,14 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 		chunk_delete_file_int(c,goal);
 		return 1;
 	}
-	if (c->allvalidcopies>0 || c->regularvalidcopies>0) {
-		if (c->allvalidcopies>0) {
-			syslog(LOG_WARNING,"wrong all valid copies counter - (counter value: %u, should be: 0) - fixed",c->allvalidcopies);
-		}
-		if (c->regularvalidcopies>0) {
-			syslog(LOG_WARNING,"wrong regular valid copies counter - (counter value: %u, should be: 0) - fixed",c->regularvalidcopies);
-		}
-		chunk_state_change(c->goal,c->goal,c->allvalidcopies,0,c->regularvalidcopies,0);
-		c->allvalidcopies = 0;
-		c->regularvalidcopies = 0;
-	}
 	c->version = bestversion;
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->valid == INVALID && s->version==bestversion) {
 			s->valid = VALID;
-			c->allvalidcopies++;
-			c->regularvalidcopies++;
 		}
 	}
 	*nversion = bestversion;
-	chunk_state_change(c->goal,c->goal,0,c->allvalidcopies,0,c->regularvalidcopies);
+	c->updateStats();
 	c->needverincrease=1;
 	return 1;
 }
@@ -1326,24 +1390,17 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 			}
 			if (!s->is_todel() && todel) {
 				s->mark_todel();
-				c->adjust_regularvalidcopies(-1);
+				c->updateStats();
 			}
 			if (s->is_todel() && !todel) {
 				s->unmark_todel();
-				c->adjust_regularvalidcopies(+1);
+				c->updateStats();
 			}
 			return;
 		}
 	}
-	/*
-	 * TODO(msulikowski)
-	 * As for now we ignore chunk type in master's structures, ie. we update all
-	 * statistics as if a part of xored chunk was a regular copy.
-	 */
-	const uint8_t state = (new_version == c->version) ?
-			(todel ? TDVALID : VALID) : INVALID;
-	s = c->add_copy_no_stats_update(ptr, state, new_version, chunkType);
-	c->new_copy_update_stats(s);
+	const uint8_t state = (new_version == c->version) ? (todel ? TDVALID : VALID) : INVALID;
+	c->addCopy(ptr, state, new_version, chunkType);
 }
 
 void chunk_damaged(void *ptr,uint64_t chunkid) {
@@ -1365,7 +1422,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 			return;
 		}
 	}
-	s = c->add_copy_no_stats_update(ptr, INVALID, 0, ChunkType::getStandardChunkType());
+	c->addCopy(ptr, INVALID, 0, ChunkType::getStandardChunkType());
 	c->needverincrease=1;
 }
 
@@ -1470,10 +1527,8 @@ void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersi
 			return;
 		}
 	}
-	const uint8_t state = (c->is_locked() || chunkVersion != c->version) ?
-			INVALID : VALID;
-	s = c->add_copy_no_stats_update(ptr, state, chunkVersion, chunkType);
-	c->new_copy_update_stats(s);
+	const uint8_t state = (c->is_locked() || chunkVersion != c->version) ? INVALID : VALID;
+	c->addCopy(ptr, state, chunkVersion, chunkType);
 }
 
 void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *ptr) {
@@ -1703,9 +1758,12 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	static void* ptrs[65535];
 	static uint32_t min,max;
 
+	// step 0. Update chunk's statistics
+	// Just in case if somewhere is a bug and updateStats was not called
+	c->updateStats();
+
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
-	ChunkCopiesCalculator allCopies(c->goal), regularCopies(c->goal);
 	vc = tdc = ivc = bc = tdb = dc = 0;
 	for (s = c->slisthead ; s ; s = s->next) {
 		switch (s->valid) {
@@ -1714,36 +1772,20 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			break;
 		case TDVALID:
 			tdc++;
-			allCopies.addPart(s->chunkType);
 			break;
 		case VALID:
 			vc++;
-			regularCopies.addPart(s->chunkType);
-			allCopies.addPart(s->chunkType);
 			break;
 		case TDBUSY:
 			tdb++;
-			allCopies.addPart(s->chunkType);
 			break;
 		case BUSY:
 			bc++;
-			regularCopies.addPart(s->chunkType);
-			allCopies.addPart(s->chunkType);
 			break;
 		case DEL:
 			dc++;
 			break;
 		}
-	}
-	if (c->allvalidcopies!=vc+tdc+bc+tdb) {
-		syslog(LOG_WARNING,"wrong all valid copies counter - (counter value: %u, should be: %u) - fixed",c->allvalidcopies,vc+tdc+bc+tdb);
-		chunk_state_change(c->goal,c->goal,c->allvalidcopies,vc+tdc+bc+tdb,c->regularvalidcopies,c->regularvalidcopies);
-		c->allvalidcopies = vc+tdc+bc+tdb;
-	}
-	if (c->regularvalidcopies!=vc+bc) {
-		syslog(LOG_WARNING,"wrong regular valid copies counter - (counter value: %u, should be: %u) - fixed",c->regularvalidcopies,vc+bc);
-		chunk_state_change(c->goal,c->goal,c->allvalidcopies,c->allvalidcopies,c->regularvalidcopies,vc+bc);
-		c->regularvalidcopies = vc+bc;
 	}
 
 	// step 2. check number of copies
@@ -1812,13 +1854,13 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 7a. if chunk needs replication, do it before removing any copies
-	std::vector<ChunkType> copiesToRecover = regularCopies.getPartsToRecover();
-	if (!copiesToRecover.empty()) {
-		if (jobsnorepbefore >= main_time() || !allCopies.isRecoveryPossible()) {
+	if (c->needsReplication()) {
+		std::vector<ChunkType> toRecover = c->makeRegularCopiesCalculator().getPartsToRecover();
+		if (jobsnorepbefore >= main_time() || c->isLost() || toRecover.empty()) {
 			inforec_.notdone.copy_undergoal++;
 			return;
 		}
-		const ChunkType chunkTypeToRecover = copiesToRecover.front();
+		const ChunkType chunkTypeToRecover = toRecover.front();
 		// get list of chunkservers which can be written to
 		std::vector<void*> possibleDestinations;
 		matocsserv_getservers_lessrepl(possibleDestinations, MaxWriteRepl);
@@ -1854,17 +1896,17 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 7b. if chunk has too many copies then delete some of them
-	std::vector<ChunkType> copiesToRemove = regularCopies.getPartsToRemove();
-	if (!copiesToRemove.empty()) {
+	if (c->needsDeletion()) {
+		std::vector<ChunkType> toRemove = c->makeRegularCopiesCalculator().getPartsToRemove();
 		if (serverCount_ == 0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
 		uint32_t copiesRemoved = 0;
-		for (uint32_t i = 0; i < serverCount_ && !copiesToRemove.empty(); ++i) {
+		for (uint32_t i = 0; i < serverCount_ && !toRemove.empty(); ++i) {
 			for (s = c->slisthead; s && s->ptr != ptrs[serverCount_ - 1 - i]; s = s->next) {}
 			if (s && s->valid == VALID) {
-				auto it = std::find(copiesToRemove.begin(), copiesToRemove.end(), s->chunkType);
-				if (it == copiesToRemove.end()) {
+				auto it = std::find(toRemove.begin(), toRemove.end(), s->chunkType);
+				if (it == toRemove.end()) {
 					continue;
 				}
 				if (matocsserv_deletion_counter(s->ptr) < TmpMaxDel) {
@@ -1872,7 +1914,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
-					copiesToRemove.erase(it);
+					toRemove.erase(it);
 					copiesRemoved++;
 					vc--;
 					dc++;
@@ -1883,8 +1925,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		}
 		inforec_.done.del_overgoal += copiesRemoved;
 		deleteDone_ += copiesRemoved;
-		inforec_.notdone.del_overgoal += (copiesToRemove.size() - copiesRemoved);
-		deleteNotDone_ += (copiesToRemove.size() - copiesRemoved);
+		inforec_.notdone.del_overgoal += (toRemove.size() - copiesRemoved);
+		deleteNotDone_ += (toRemove.size() - copiesRemoved);
 		return;
 	}
 
@@ -2090,9 +2132,6 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 	uint64_t chunkid;
 	uint32_t version,lockedto;
 
-#ifndef METARESTORE
-	chunks=0;
-#endif
 	if (fread(hdr,1,8,fd)!=8) {
 		return -1;
 	}
@@ -2246,9 +2285,6 @@ void chunk_term(void) {
 }
 
 void chunk_newfs(void) {
-#ifndef METARESTORE
-	chunks = 0;
-#endif
 	nextchunkid = 1;
 }
 
@@ -2351,9 +2387,7 @@ void chunk_reload(void) {
 #endif
 
 int chunk_strinit(void) {
-	uint32_t i;
 #ifndef METARESTORE
-	uint32_t j;
 	uint32_t looptime;
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
@@ -2431,16 +2465,10 @@ int chunk_strinit(void) {
 		AcceptableDifference = 10.0;
 	}
 #endif
-	for (i=0 ; i<HASHSIZE ; i++) {
+	for (uint32_t i=0 ; i<HASHSIZE ; i++) {
 		chunkhash[i]=NULL;
 	}
 #ifndef METARESTORE
-	for (i=0 ; i<11 ; i++) {
-		for (j=0 ; j<11 ; j++) {
-			allchunkcounts[i][j]=0;
-			regularchunkcounts[i][j]=0;
-		}
-	}
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	starttime = main_time();

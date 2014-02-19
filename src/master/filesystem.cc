@@ -6133,7 +6133,7 @@ void fs_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if (vc<f->goal) {
+						} else if ((isXorGoal(f->goal) && vc == 1) || (isOrdinaryGoal(f->goal) && vc < f->goal)) {
 							ugflag = 1;
 							ugchunks++;
 						}

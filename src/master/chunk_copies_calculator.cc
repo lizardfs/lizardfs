@@ -32,26 +32,12 @@ uint32_t ChunkCopiesCalculator::countPartsToRemove() const {
 }
 
 bool ChunkCopiesCalculator::isRecoveryPossible() const {
-	// partsAvailableForLevelBitmask[level][i] <=> part i of level is available (i == 0 -> parity)
-	std::bitset<kMaxXorLevel + 1> partsAvailableForLevelBitmask[kMaxXorLevel + 1];
-
-	for (auto part: availableParts_) {
-		if (part.isStandardChunkType()) {
-			return true;
-		}
-		ChunkType::XorLevel level = part.getXorLevel();
-		uint32_t position = (part.isXorParity() ? 0 : part.getXorPart());
-		partsAvailableForLevelBitmask[level][position] = true;
-		if (partsAvailableForLevelBitmask[level].count() == level) {
-			return true;
-		}
-	}
-	return false;
+	return getState() != ChunksAvailabilityState::kLost;
 }
 
 bool ChunkCopiesCalculator::isWritingPossible() const {
-	// we allow writing if and only if all blocks are fully recoverable
-	return isRecoveryPossible();
+	// don't allow writing to unrecoverable chunks
+	return getState() != ChunksAvailabilityState::kLost;
 }
 
 ChunksAvailabilityState::State ChunkCopiesCalculator::getState() const {
