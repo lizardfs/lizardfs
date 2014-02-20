@@ -18,6 +18,10 @@ public:
 
 // serializedSize
 
+inline uint32_t serializedSize(const bool&) {
+	return 1;
+}
+
 inline uint32_t serializedSize(const uint8_t&) {
 	return 1;
 }
@@ -55,6 +59,11 @@ inline uint32_t serializedSize(const T& t, const Args& ... args) {
 }
 
 // serialize for simple types
+
+// serialize bool
+inline void serialize(uint8_t** destination, const bool& value) {
+	put8bit(destination, static_cast<uint8_t>(value ? 1 : 0));
+}
 
 // serialize uint8_t
 inline void serialize(uint8_t** destination, const uint8_t& value) {
@@ -115,6 +124,17 @@ inline void verifySize(const T& value, uint32_t bytesLeft) {
 }
 
 // deserialize functions for simple types
+
+// deserialize bool
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, bool& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 1;
+	uint8_t integerValue = get8bit(source);
+	if (integerValue > 1) {
+		throw IncorrectDeserializationException("corrupted boolean value");
+	}
+	value = static_cast<bool>(integerValue);
+}
 
 // deserialize uint8_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint8_t& value) {
