@@ -1262,6 +1262,18 @@ int chunk_increase_version(uint64_t chunkid) {
 
 #ifndef METARESTORE
 
+const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksReplicationState :
+			chunk::allChunksReplicationState;
+}
+
+const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksAvailability :
+			chunk::allChunksAvailability;
+}
+
 typedef struct locsort {
 	uint32_t ip;
 	uint16_t port;
