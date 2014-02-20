@@ -117,3 +117,47 @@ TEST(MatoclCommunicationTests, FuseWriteChunkEnd) {
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
 	LIZARDFS_VERIFY_INOUT_PAIR(status);
 }
+
+TEST(MatoclCommunicationTests, XorChunksHealth) {
+	LIZARDFS_DEFINE_INOUT_PAIR(bool, regular, true, false);
+	ChunksAvailabilityState availIn, availOut;
+	ChunksReplicationState replIn, replOut;
+	std::vector<uint8_t> goals = {0};
+	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+		goals.push_back(i);
+	}
+	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
+		goals.push_back(xorLevelToGoal(level));
+	}
+
+	availIn.addChunk(0, ChunksAvailabilityState::kSafe);
+	availIn.addChunk(1, ChunksAvailabilityState::kEndangered);
+	availIn.addChunk(xorLevelToGoal(2), ChunksAvailabilityState::kEndangered);
+	availIn.addChunk(xorLevelToGoal(3), ChunksAvailabilityState::kLost);
+	availIn.addChunk(xorLevelToGoal(4), ChunksAvailabilityState::kSafe);
+
+	replIn.addChunk(0, 0, 1);
+	replIn.addChunk(2, 1, 0);
+	replIn.addChunk(xorLevelToGoal(2), 2, 10);
+	replIn.addChunk(xorLevelToGoal(3), 15, 5);
+	replIn.addChunk(xorLevelToGoal(4), 12, 13);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(matocl::xorChunksHealth::serialize(buffer, regularIn, availIn, replIn));
+
+	verifyHeader(buffer, LIZ_MATOCL_CHUNKS_HEALTH);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(matocl::xorChunksHealth::deserialize(buffer, regularOut, availOut, replOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(regular);
+	for (uint8_t goal : goals) {
+		EXPECT_EQ(availIn.safeChunks(goal), availOut.safeChunks(goal));
+		EXPECT_EQ(availIn.endangeredChunks(goal), availOut.endangeredChunks(goal));
+		EXPECT_EQ(availIn.lostChunks(goal), availOut.lostChunks(goal));
+
+		for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
+			EXPECT_EQ(replIn.chunksToReplicate(goal, part), replOut.chunksToReplicate(goal, part));
+			EXPECT_EQ(replIn.chunksToDelete(goal, part), replOut.chunksToDelete(goal, part));
+		}
+	}
+}

@@ -56,4 +56,17 @@ inline void deserialize(const std::vector<uint8_t>& source,
 
 } // namespace fuseWriteChunkEnd
 
+namespace xorChunksHealth {
+
+inline void serialize(std::vector<uint8_t>& destination, bool regularChunksOnly) {
+	serializePacket(destination, LIZ_CLTOMA_CHUNKS_HEALTH, 0, regularChunksOnly);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source, bool& regularChunksOnly) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, regularChunksOnly);
+}
+
+} // xorChunksHealth
+
 } // namespace cltoma

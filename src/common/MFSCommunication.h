@@ -1335,6 +1335,16 @@
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
 // N * [ version:32 ip:32 ]
 
+// 0x05F6
+#define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
+/// regularonly:8
+
+// 0x05F7
+#define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
+// G - All goals count. Goal 1-9 + xor2-10 + goal 0 = 19
+// C - All columns count. Chunks with 0-11+ missing/redundant parts = 12
+/// regularonly:8 tables:(availability:[G * safe:64, G * endangered:64, G * lost:64], replication:G * [C * chunks:64], G * [C * chunks:64])
+
 // CHUNKSERVER STATS
 
 // 0x00258

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/chunk_type_with_address.h"
+#include "common/chunks_availability_state.h"
 #include "common/MFSCommunication.h"
 #include "common/packet.h"
 
@@ -88,5 +89,21 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 }
 
 } //namespace fuseWriteChunkEnd
+
+namespace xorChunksHealth {
+
+inline void serialize(std::vector<uint8_t>& destination, bool regularChunksOnly,
+		const ChunksAvailabilityState& availability, const ChunksReplicationState& replication) {
+	serializePacket(destination, LIZ_MATOCL_CHUNKS_HEALTH, 0,
+			regularChunksOnly, availability, replication);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source, bool& regularChunksOnly,
+		ChunksAvailabilityState& availability, ChunksReplicationState& replication) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, regularChunksOnly, availability, replication);
+}
+
+} // xorChunksHealth
 
 } // namespace matocl
