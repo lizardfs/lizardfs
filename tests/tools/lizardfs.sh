@@ -227,7 +227,7 @@ find_all_chunks() {
 lizardfs_wait_for_ready_chunkservers() {
 	local chunkservers=$1
 	local port=${lizardfs_info[matocl]}
-	while (( $(lizardfs-probe ready-chunkservers localhost $port) < $chunkservers )); do
+	while (( $(lizardfs-probe ready-chunkservers localhost $port) != $chunkservers )); do
 		sleep 0.1
 	done
 }
