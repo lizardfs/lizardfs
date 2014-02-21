@@ -99,6 +99,7 @@ public:
 	cntcond *ccond;
 	uint8_t *crc;
 	int fd;
+	uint16_t blockExpectedToBeReadNext;
 	uint8_t validattr;
 	uint8_t todel;
 	Chunk *testnext,**testprev;
@@ -112,6 +113,7 @@ public:
 	off_t getDataBlockOffset(uint16_t blockNumber) const;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const;
 	size_t getHeaderSize() const;
+	void readaheadHeader() const;
 	off_t getSignatureOffset() const;
 	bool isFileSizeValid(off_t fileSize) const;
 	uint32_t maxBlocksInFile() const;

@@ -1565,6 +1565,7 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 			if (newflag) {
 				chunk_emptycrc(c);
 			} else {
+				c->readaheadHeader();
 				status = chunk_readcrc(c);
 				if (status!=STATUS_OK) {
 					int errmem = errno;
@@ -1734,8 +1735,16 @@ int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 	return STATUS_OK;
 }
 
+static void hdd_prefetch(Chunk& chunk, uint16_t firstBlock, uint32_t numberOfBlocks) {
+	if (numberOfBlocks > 0) {
+		posix_fadvise(chunk.fd, chunk.getDataBlockOffset(firstBlock),
+				uint32_t(numberOfBlocks) * MFSBLOCKSIZE, POSIX_FADV_WILLNEED);
+	}
+}
+
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
-		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer) {
+		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
+		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read");
 	TRACETHIS3(chunkid, offset, size);
 	if (offset % MFSBLOCKSIZE != 0) {
@@ -1753,20 +1762,41 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		hdd_chunk_release(c);
 		return ERROR_WRONGVERSION;
 	}
+	uint16_t block = offset / MFSBLOCKSIZE;
+
+	// Ask OS for an appropriate read ahead and (if requested and needed) read some blocks
+	// that were possibly skipped in a sequential file read
+	if (c->blockExpectedToBeReadNext < block && maxBlocksToBeReadBehind > 0) {
+		// We were asked to read some possibly skipped blocks.
+		uint16_t firstBlockToRead = c->blockExpectedToBeReadNext;
+		// Try to prevent all possible overflows:
+		if (firstBlockToRead + maxBlocksToBeReadBehind < block) {
+			firstBlockToRead = block - maxBlocksToBeReadBehind;
+		}
+		sassert(firstBlockToRead < block);
+		hdd_prefetch(*c, firstBlockToRead, blocksToBeReadAhead + block - firstBlockToRead);
+		SimpleOutputBuffer buffer = SimpleOutputBuffer(
+				MFSBLOCKSIZE * (block - firstBlockToRead));
+		for (uint16_t b = firstBlockToRead; b < block; ++b) {
+			hdd_read_block(c, b, &buffer);
+		}
+	} else {
+		hdd_prefetch(*c, block, blocksToBeReadAhead);
+	}
+	c->blockExpectedToBeReadNext = std::max<uint16_t>(block + 1, c->blockExpectedToBeReadNext);
 
 	// Put checksum of the block into buffer
-	uint16_t blockNr = offset / MFSBLOCKSIZE;
 	uint8_t crcBuff[sizeof(uint32_t)];
-	if (blockNr >= c->blocks) {
+	if (block >= c->blocks) {
 		uint8_t* crcBuffPointer = crcBuff;
 		put32bit(&crcBuffPointer, mycrc32_zeroblock(0, MFSBLOCKSIZE));
 	} else {
-		memcpy(crcBuff, c->crc + blockNr * sizeof(uint32_t), sizeof(uint32_t));
+		memcpy(crcBuff, c->crc + block * sizeof(uint32_t), sizeof(uint32_t));
 	}
 	outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
 
 	// Put the block data into buffer
-	int status = hdd_read_block(c, blockNr, outputBuffer);
+	int status = hdd_read_block(c, block, outputBuffer);
 	PRINTTHIS(status);
 	hdd_chunk_release(c);
 	return status;

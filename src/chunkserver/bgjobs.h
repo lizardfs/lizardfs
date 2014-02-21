@@ -82,7 +82,8 @@ uint32_t job_close(void *jpool, void (*callback)(uint8_t status, void *extra), v
 		uint64_t chunkid, ChunkType chunkType);
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
 		uint64_t chunkid, uint32_t chunkVersion, ChunkType chunkType,
-		uint32_t offset, uint32_t size, OutputBuffer *outputBuffer, bool performHddOpen);
+		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
+		uint32_t blocksToBeReadAhead, OutputBuffer *outputBuffer, bool performHddOpen);
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer);

@@ -83,8 +83,9 @@ struct chunk_read_args {
 	uint32_t version;
 	ChunkType chunkType;
 	uint32_t offset,size;
-	uint8_t *buffer;
 	uint8_t *crcbuff;
+	uint32_t maxBlocksToBeReadBehind;
+	uint32_t blocksToBeReadAhead;
 	OutputBuffer* outputBuffer;
 	bool performHddOpen;
 };
@@ -242,8 +243,8 @@ void* job_worker(void *th_arg) {
 					status = ERROR_NOTDONE;
 				} else {
 					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
-							rdargs->offset, rdargs->size,
-							rdargs->outputBuffer);
+							rdargs->offset, rdargs->size, rdargs->maxBlocksToBeReadBehind,
+							rdargs->blocksToBeReadAhead, rdargs->outputBuffer);
 				}
 				break;
 			}
@@ -517,6 +518,7 @@ uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), vo
 
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		uint32_t maxBlocksToBeReadBehind, uint32_t blocksToBeReadAhead,
 		OutputBuffer* outputBuffer, bool performHddOpen) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
@@ -528,6 +530,8 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	args->chunkType = chunkType;
 	args->offset = offset;
 	args->size = size;
+	args->maxBlocksToBeReadBehind = maxBlocksToBeReadBehind;
+	args->blocksToBeReadAhead = blocksToBeReadAhead;
 	args->outputBuffer = outputBuffer;
 	args->performHddOpen = performHddOpen;
 	return job_new(jp,OP_READ,args,callback,extra);

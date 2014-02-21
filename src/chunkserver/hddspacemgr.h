@@ -54,7 +54,8 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 int hdd_open(uint64_t chunkid, ChunkType chunkType);
 int hdd_close(uint64_t chunkid, ChunkType chunkType);
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
-		uint32_t offset, uint32_t size, OutputBuffer* outputBuffer);
+		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
+		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer);
 int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
 

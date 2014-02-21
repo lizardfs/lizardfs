@@ -23,6 +23,7 @@
 
 #include "devtools/TracePrinter.h"
 #include "chunkserver/bgjobs.h"
+#include "chunkserver/hdd_readahead.h"
 #include "chunkserver/network_stats.h"
 #include "chunkserver/network_worker_thread.h"
 #include "common/cfg.h"
@@ -64,6 +65,11 @@ void mainNetworkThreadReload(void) {
 			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", gNrOfHddWorkersPerNetworkWorker);
 	cfg_warning_on_value_change(
 			"BGJOBSCNT_PER_NETWORK_WORKER", gBgjobsCountPerNetworkWorker);
+
+	gHDDReadAhead.setReadAhead_kB(
+			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSBLOCKSIZE / 1024));
+	gHDDReadAhead.setMaxReadBehind_kB(
+			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSBLOCKSIZE / 1024));
 
 	char *oldListenHost, *oldListenPort;
 	int newlsock;
@@ -176,6 +182,11 @@ int mainNetworkThreadInit(void) {
 			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", 20, 1);
 	gBgjobsCountPerNetworkWorker = cfg_get_minvalue<uint32_t>(
 			"BGJOBSCNT_PER_NETWORK_WORKER", 1000, 10);
+
+	gHDDReadAhead.setReadAhead_kB(
+			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSBLOCKSIZE / 1024));
+	gHDDReadAhead.setMaxReadBehind_kB(
+			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSBLOCKSIZE / 1024));
 
 	lsock = tcpsocket();
 	if (lsock < 0) {

@@ -20,6 +20,7 @@
 #include <set>
 
 #include "chunkserver/bgjobs.h"
+#include "chunkserver/hdd_readahead.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/network_stats.h"
 #include "common/cfg.h"
@@ -327,7 +328,6 @@ void worker_send_finished(csserventry *eptr) {
 
 void worker_read_continue(csserventry *eptr, bool isFirst) {
 	TRACETHIS2(eptr->offset, eptr->size);
-	uint32_t size;
 
 	if (eptr->rpacket) {
 		worker_attach_packet(eptr, eptr->rpacket);
@@ -343,29 +343,38 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 		LOG_AVG_STOP(eptr->readOperationTimer);
 	} else {
-			size = eptr->size;
-		if (size > MFSBLOCKSIZE) {
-			size = MFSBLOCKSIZE;
-		}
+		const uint32_t totalRequestSize = eptr->size;
+		const uint32_t thisPartSize = std::min<uint32_t>(totalRequestSize, MFSBLOCKSIZE);
+		const uint16_t totalRequestBlocks = (totalRequestSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 		std::vector<uint8_t> readDataPrefix;
 		eptr->messageSerializer->serializePrefixOfCstoclReadData(readDataPrefix,
-				eptr->chunkid, eptr->offset, size);
+				eptr->chunkid, eptr->offset, thisPartSize);
 		packetstruct* packet = worker_create_detached_packet_with_output_buffer(readDataPrefix);
 		if (packet == nullptr) {
 			eptr->state = CLOSE;
 			return;
 		}
 		eptr->rpacket = (void*)packet;
+		uint32_t readAheadBlocks = 0;
+		uint32_t maxReadBehindBlocks = 0;
+		if (isFirst) {
+			readAheadBlocks = totalRequestBlocks + gHDDReadAhead.blocksToBeReadAhead();
+			// Try not to influence slow streams to much:
+			maxReadBehindBlocks = std::min(totalRequestBlocks,
+					gHDDReadAhead.maxBlocksToBeReadBehind());
+		}
 		eptr->rjobid = job_read(eptr->workerJobPool, worker_read_finished, eptr, eptr->chunkid,
-				eptr->version, eptr->chunkType, eptr->offset, size,
+				eptr->version, eptr->chunkType, eptr->offset, thisPartSize,
+				maxReadBehindBlocks,
+				readAheadBlocks,
 				packet->outputBuffer.get(), isFirst);
 		if (eptr->rjobid == 0) {
 			eptr->state = CLOSE;
 			return;
 		}
 		eptr->todocnt++;
-		eptr->offset += size;
-		eptr->size -= size;
+		eptr->offset += thisPartSize;
+		eptr->size -= thisPartSize;
 	}
 }
 

@@ -57,6 +57,19 @@ T cfg_get_minvalue(const char* name, T defaultValue, T minValue) {
 }
 
 template <class T>
+T cfg_get_maxvalue(const char* name, T defaultValue, T maxValue) {
+	T configValue = cfg_get(name, defaultValue);
+	if (configValue > maxValue) {
+		syslog(LOG_WARNING,
+				"config value %s was set to %" PRId64
+				", but maximal value is %" PRId64 " - decreasing",
+				name, int64_t(configValue), int64_t(maxValue));
+		configValue = maxValue;
+	}
+	return configValue;
+}
+
+template <class T>
 void cfg_warning_on_value_change(const char* name, T expectedValue) {
 	T newValue = cfg_get(name, expectedValue);
 	if (expectedValue != newValue) {

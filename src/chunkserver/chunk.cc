@@ -1,5 +1,6 @@
 #include "chunk.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <sstream>
@@ -19,6 +20,7 @@ Chunk::Chunk(uint64_t chunkId, ChunkType type, ChunkState state)
 	  ccond(NULL),
 	  crc(NULL),
 	  fd(-1),
+	  blockExpectedToBeReadNext(0),
 	  validattr(0),
 	  todel(0),
 	  testnext(NULL),
@@ -78,6 +80,10 @@ size_t Chunk::getHeaderSize() const {
 		off_t dataOffset = (requiredHeaderSize + diskBlockSize - 1) / diskBlockSize * diskBlockSize;
 		return dataOffset;
 	}
+}
+
+void Chunk::readaheadHeader() const {
+	posix_fadvise(fd, 0, getHeaderSize(), POSIX_FADV_WILLNEED);
 }
 
 off_t Chunk::getSignatureOffset() const {
