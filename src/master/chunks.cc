@@ -181,7 +181,7 @@ static inline void slist_free(slist *p);
 class chunk {
 public:
 	uint64_t chunkid;
-	struct chunk *next;
+	chunk *next;
 	uint32_t *ftab;
 #ifndef METARESTORE
 	slist *slisthead;
