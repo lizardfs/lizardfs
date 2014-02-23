@@ -91,3 +91,16 @@ Replaces: mfs-cgiserv
 Provides: mfs-cgiserv
 Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
  Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
+
+Package: lizardfs-cluster-agents
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         lizardfs-master,
+         lizardfs-adm,
+         resource-agents
+Description: OCF-compliant resource agents for LizardFS
+ LizardFS is a distributed filesystem.
+ .
+ This package offers OCF-compliant resource agents for integrating LizardFS with
+ OCF compliant resource managers such as Pacemaker.
