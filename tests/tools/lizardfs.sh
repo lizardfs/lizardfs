@@ -74,7 +74,8 @@ create_mfsmaster_cfg() {
 }
 
 lizardfs_master_daemon() {
-	mfsmaster -c "${lizardfs_info[master_cfg]}" "$1"
+	mfsmaster -c "${lizardfs_info[master_cfg]}" "$1" | cat
+	return ${PIPESTATUS[0]}
 }
 
 run_master_server() {
