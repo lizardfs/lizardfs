@@ -71,6 +71,7 @@
 #define RM_RELOAD 3
 #define RM_TEST 4
 #define RM_KILL 5
+#define RM_ISALIVE 6
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -571,7 +572,7 @@ void changeugid(void) {
 			getgrnam_r(wgroup,&grp,pwdgrpbuff,16384,&gr);
 			if (gr==NULL) {
 				mfs_arg_syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
-				exit(1);
+				exit(LIZARDFS_EXIT_STATUS_ERROR);
 			} else {
 				wrk_gid = gr->gr_gid;
 				gidok = 1;
@@ -584,7 +585,7 @@ void changeugid(void) {
 				getpwuid_r(wrk_uid,&pwd,pwdgrpbuff,16384,&pw);
 				if (pw==NULL) {
 					mfs_arg_syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
-					exit(1);
+					exit(LIZARDFS_EXIT_STATUS_ERROR);
 				}
 				wrk_gid = pw->pw_gid;
 			}
@@ -592,7 +593,7 @@ void changeugid(void) {
 			getpwnam_r(wuser,&pwd,pwdgrpbuff,16384,&pw);
 			if (pw==NULL) {
 				mfs_arg_syslog(LOG_ERR,"%s: no such user !!!",wuser);
-				exit(1);
+				exit(LIZARDFS_EXIT_STATUS_ERROR);
 			}
 			wrk_uid = pw->pw_uid;
 			if (gidok==0) {
@@ -604,13 +605,13 @@ void changeugid(void) {
 
 		if (setgid(wrk_gid)<0) {
 			mfs_arg_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
-			exit(1);
+			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else {
 			syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
 		}
 		if (setuid(wrk_uid)<0) {
 			mfs_arg_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
-			exit(1);
+			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else {
 			syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
 		}
@@ -665,6 +666,9 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 		return -1;
 	}
 	if (ownerpid>0) {
+		if (runmode==RM_ISALIVE) {
+			return 1;
+		}
 		if (runmode==RM_TEST) {
 			fprintf(stderr,STR(APPNAME) " pid: %ld\n",(long)ownerpid);
 			return -1;
@@ -750,6 +754,8 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 		return -1;
 	} else if (runmode==RM_TEST) {
 		fprintf(stderr,STR(APPNAME) " is not running\n");
+	} else if (runmode==RM_ISALIVE) {
+		return 0;
 	}
 	return 0;
 }
@@ -868,18 +874,18 @@ void makedaemon() {
 	fflush(stderr);
 	if (pipe(piped)<0) {
 		fprintf(stderr,"pipe error\n");
-		exit(1);
+		exit(LIZARDFS_EXIT_STATUS_ERROR);
 	}
 	f = fork();
 	if (f<0) {
 		syslog(LOG_ERR,"first fork error: %s",strerr(errno));
-		exit(1);
+		exit(LIZARDFS_EXIT_STATUS_ERROR);
 	}
 	if (f>0) {
 		wait(&f);	// just get child status - prevents child from being zombie during initialization stage
 		if (f) {
 			fprintf(stderr,"Child status: %d\n",f);
-			exit(1);
+			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		}
 		close(piped[1]);
 		while ((r=read(piped[0],pipebuff,1000))) {
@@ -889,16 +895,16 @@ void makedaemon() {
 						happy = fwrite(pipebuff,1,r-1,stderr);
 						(void)happy;
 					}
-					exit(1);
+					exit(LIZARDFS_EXIT_STATUS_ERROR);
 				}
 				happy = fwrite(pipebuff,1,r,stderr);
 				(void)happy;
 			} else {
 				fprintf(stderr,"Error reading pipe: %s\n",strerr(errno));
-				exit(1);
+				exit(LIZARDFS_EXIT_STATUS_ERROR);
 			}
 		}
-		exit(0);
+		exit(LIZARDFS_EXIT_STATUS_SUCCESS);
 	}
 	setsid();
 	setpgid(0,getpid());
@@ -909,10 +915,10 @@ void makedaemon() {
 			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}
 		close(piped[1]);
-		exit(1);
+		exit(LIZARDFS_EXIT_STATUS_ERROR);
 	}
 	if (f>0) {
-		exit(0);
+		exit(LIZARDFS_EXIT_STATUS_SUCCESS);
 	}
 	set_signal_handlers(1);
 
@@ -957,7 +963,7 @@ void createpath(const char *filename) {
 
 void usage(const char *appname) {
 	printf(
-"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart|reload|test]\n"
+"usage: %s [-vdu] [-t locktimeout] [-c cfgfile] [start|stop|restart|reload|test|isalive]\n"
 "\n"
 "-v : print version number and exit\n"
 "-d : run in foreground\n"
@@ -965,7 +971,7 @@ void usage(const char *appname) {
 "-t locktimeout : how long wait for lockfile\n"
 "-c cfgfile : use given config file\n"
 	,appname);
-	exit(1);
+	exit(LIZARDFS_EXIT_STATUS_ERROR);
 }
 
 int main(int argc,char **argv) {
@@ -1029,7 +1035,7 @@ int main(int argc,char **argv) {
 				break;
 			default:
 				usage(appname);
-				return 1;
+				return LIZARDFS_EXIT_STATUS_ERROR;
 		}
 	}
 	argc -= optind;
@@ -1047,13 +1053,15 @@ int main(int argc,char **argv) {
 			runmode = RM_TEST;
 		} else if (strcasecmp(argv[0],"kill")==0) {
 			runmode = RM_KILL;
+		} else if (strcasecmp(argv[0],"isalive")==0) {
+			runmode = RM_ISALIVE;
 		} else {
 			usage(appname);
-			return 1;
+			return LIZARDFS_EXIT_STATUS_ERROR;
 		}
 	} else if (argc!=0) {
 		usage(appname);
-		return 1;
+		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
 	if (movewarning) {
@@ -1131,7 +1139,7 @@ int main(int argc,char **argv) {
 		}
 		closelog();
 		free(logappname);
-		return 1;
+		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 	free(wrkdir);
 
@@ -1146,10 +1154,11 @@ int main(int argc,char **argv) {
 		closelog();
 		free(logappname);
 		wdunlock();
-		return 1;
+		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
-	if (wdlock(runmode,locktimeout)<0) {
+	int lockstatus = wdlock(runmode,locktimeout);
+	if (lockstatus<0) {
 		if (rundaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
@@ -1157,19 +1166,25 @@ int main(int argc,char **argv) {
 		closelog();
 		free(logappname);
 		wdunlock();
-		return 1;
+		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
 	remove_old_wdlock();
 
-	if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RELOAD || runmode==RM_TEST) {
+	if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RELOAD
+			|| runmode==RM_TEST || runmode==RM_ISALIVE) {
 		if (rundaemon) {
 			close_msg_channel();
 		}
 		closelog();
 		free(logappname);
 		wdunlock();
-		return 0;
+		if (runmode==RM_ISALIVE) {
+			sassert(lockstatus==0 || lockstatus==1);
+			return (lockstatus ? LIZARDFS_EXIT_STATUS_SUCCESS : LIZARDFS_EXIT_STATUS_NOT_ALIVE);
+		} else {
+			return LIZARDFS_EXIT_STATUS_SUCCESS;
+		}
 	}
 
 #ifdef MFS_USE_MEMLOCK
@@ -1215,9 +1230,9 @@ int main(int argc,char **argv) {
 		}
 		if (initialize_late()) {
 			mainloop();
-			ch=0;
+			ch=LIZARDFS_EXIT_STATUS_SUCCESS;
 		} else {
-			ch=1;
+			ch=LIZARDFS_EXIT_STATUS_ERROR;
 		}
 	} else {
 		fprintf(stderr,"error occured during initialization - exiting\n");
@@ -1225,7 +1240,7 @@ int main(int argc,char **argv) {
 			fputc(0,stderr);
 			close_msg_channel();
 		}
-		ch=1;
+		ch=LIZARDFS_EXIT_STATUS_ERROR;
 	}
 	destruct();
 	free_all_registered_entries();
