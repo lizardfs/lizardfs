@@ -32,6 +32,7 @@ option(ENABLE_LIGHTMFS      "Enable light version of LizardFS"                  
 option(ENABLE_DEBIAN_PATHS  "Enable Debian-style install paths"                       OFF)
 option(ENABLE_UTILS         "Enable building additional binaries used e.g. in tests"  OFF)
 option(ENABLE_TESTS         "Enable building unit and functional tests"               OFF)
+option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
@@ -41,9 +42,17 @@ message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "ENABLE_UTILS: ${ENABLE_UTILS}")
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 
 ## All the environment tests (libs, includes, etc.) live here:
 include(EnvTests.cmake)
+
+if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
+  message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
+    set(THROW_INSTEAD_OF_ABORT YES)
+  message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+endif()
+
 
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
@@ -90,6 +99,11 @@ if(ENABLE_TESTS)
 endif()
 
 set(CHARTS_CSV_CHARTID_BASE 90000)
+
+if(THROW_INSTEAD_OF_ABORT)
+  add_definitions(-DTHROW_INSTEAD_OF_ABORT)
+endif()
+
 
 # Create config.h file
 set(DATA_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR}")
