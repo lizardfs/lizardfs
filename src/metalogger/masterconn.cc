@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "metalogger/masterconn.h"
 
 #include <time.h>
 #include <sys/types.h>
@@ -32,14 +33,14 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "common/MFSCommunication.h"
-#include "common/datapack.h"
-#include "masterconn.h"
-#include "common/crc.h"
 #include "common/cfg.h"
+#include "common/crc.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/metadata.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 
 #define MaxPacketSize 1500000
@@ -333,44 +334,13 @@ void masterconn_sessionsdownloadinit(void) {
 }
 
 int masterconn_metadata_check(const char *name) {
-	int fd;
-	char chkbuff[16];
-	char eofmark[16];
-	fd = open(name,O_RDONLY);
-	if (fd<0) {
-		syslog(LOG_WARNING,"can't open downloaded metadata");
+	try {
+		metadata_getversion(name);
+		return 0;
+	} catch (MetadataCheckException& ex) {
+		syslog(LOG_NOTICE, "Verification of the downloaded metadata file failed: %s", ex.what());
 		return -1;
 	}
-	if (read(fd,chkbuff,8)!=8) {
-		syslog(LOG_WARNING,"can't read downloaded metadata");
-		close(fd);
-		return -1;
-	}
-	if (memcmp(chkbuff,"MFSM NEW",8)==0) { // silently ignore "new file"
-		close(fd);
-		return -1;
-	}
-	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0) {
-		memset(eofmark,0,16);
-	} else if (memcmp(chkbuff,MFSSIGNATURE "M 1.7",8)==0) {
-		memcpy(eofmark,"[MFS EOF MARKER]",16);
-	} else {
-		syslog(LOG_WARNING,"bad metadata file format");
-		close(fd);
-		return -1;
-	}
-	lseek(fd,-16,SEEK_END);
-	if (read(fd,chkbuff,16)!=16) {
-		syslog(LOG_WARNING,"can't read downloaded metadata");
-		close(fd);
-		return -1;
-	}
-	close(fd);
-	if (memcmp(chkbuff,eofmark,16)!=0) {
-		syslog(LOG_WARNING,"truncated metadata file !!!");
-		return -1;
-	}
-	return 0;
 }
 
 void masterconn_download_next(masterconn *eptr) {

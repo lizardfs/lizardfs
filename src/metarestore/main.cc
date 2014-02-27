@@ -18,21 +18,24 @@
 
 #include "config.h"
 
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <errno.h>
-#include <inttypes.h>
+#include <unistd.h>
+#include <string>
+#include <vector>
 
-#include "filesystem.h"
-#include "chunks.h"
-#include "merger.h"
-#include "restore.h"
+#include "common/metadata.h"
 #include "common/strerr.h"
+#include "master/filesystem.h"
+#include "master/chunks.h"
+#include "metarestore/merger.h"
+#include "metarestore/restore.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -179,17 +182,14 @@ void usage(const char* appname) {
 int main(int argc,char **argv) {
 	int ch;
 	uint8_t vl=0;
-	int autorestore = 0;
+	bool autorestore = false;
 	int savebest = 0;
 	int ignoreflag = 0;
 	int forcealllogs = 0;
 	int status;
 	int skip;
-	char *metaout = NULL;
-	char *metadata = NULL;
-	char *datapath = NULL;
+	std::string metaout, metadata, datapath;
 	char *appname = argv[0];
-	uint32_t dplen = 0;
 	uint64_t firstlv,lastlv;
 
 	strerr_init();
@@ -200,28 +200,19 @@ int main(int argc,char **argv) {
 				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
 				return 0;
 			case 'o':
-				if (metaout) {
-					free(metaout);
-				}
-				metaout = strdup(optarg);
+				metaout = optarg;
 				break;
 			case 'm':
-				if (metadata) {
-					free(metadata);
-				}
-				metadata = strdup(optarg);
+				metadata = optarg;
 				break;
 			case 'd':
-				if (datapath) {
-					free(datapath);
-				}
-				datapath = strdup(optarg);
+				datapath = optarg;
 				break;
 			case 'x':
 				vl++;
 				break;
 			case 'a':
-				autorestore=1;
+				autorestore = true;
 				break;
 			case 'b':
 				savebest=1;
@@ -241,130 +232,84 @@ int main(int argc,char **argv) {
 	argc -= optind;
 	argv += optind;
 
-	if ((autorestore==0 && (metadata==NULL || datapath!=NULL)) || (autorestore && (metadata!=NULL || metaout!=NULL))) {
+	if ((!autorestore && (metadata.empty() || !datapath.empty()))
+			|| (autorestore && (!metadata.empty() || !metaout.empty()))) {
 		usage(appname);
-		if (datapath) {
-			free(datapath);
-		}
-		if (metadata) {
-			free(metadata);
-		}
-		if (metaout) {
-			free(metaout);
-		}
 		return 1;
 	}
 
 	restore_setverblevel(vl);
 
 	if (autorestore) {
-		struct stat metast;
-		if (datapath==NULL) {
-			datapath=strdup(DATA_PATH);
+		if (datapath.empty()) {
+			datapath = DATA_PATH;
 		}
-		dplen = strlen(datapath);
-		metadata = (char*) malloc(dplen+sizeof("/metadata.mfs.back"));
-		memcpy(metadata,datapath,dplen);
-		memcpy(metadata+dplen,"/metadata.mfs.back",sizeof("/metadata.mfs.back"));
-		if (stat(metadata,&metast)<0) {
-			if (errno==ENOENT) {
-				free(metadata);
-				metadata = (char*) malloc(dplen+sizeof("/metadata_ml.mfs.back"));
-				memcpy(metadata,datapath,dplen);
-				memcpy(metadata+dplen,"/metadata_ml.mfs.back",sizeof("/metadata_ml.mfs.back"));
-				if (stat(metadata,&metast)==0) {
-					printf("file 'metadata.mfs.back' not found - will try 'metadata_ml.mfs.back' instead\n");
-				} else {
-					printf("can't find backed up metadata file !!!\n");
-					if (datapath) {
-						free(datapath);
-					}
-					if (metadata) {
-						free(metadata);
-					}
-					if (metaout) {
-						free(metaout);
-					}
-					return 1;
+		// All candidates from the least to the most preferred one
+		auto candidates{
+			"metadata_ml.mfs.back.1",
+			"metadata.mfs.back.1",
+			"metadata_ml.mfs.back",
+			"metadata.mfs.back",
+			"metadata.mfs"};
+		std::string bestmetadata;
+		uint64_t bestversion = 0;
+		for (const char* candidate : candidates) {
+			std::string metadata_candidate = std::string(datapath) + "/" + candidate;
+			if (access(metadata_candidate.c_str(), F_OK) != 0) {
+				continue;
+			}
+			try {
+				uint64_t version = metadata_getversion(metadata_candidate.c_str());
+				if (version >= bestversion) {
+					bestversion = version;
+					bestmetadata = metadata_candidate;
 				}
+			} catch (MetadataCheckException& ex) {
+				printf("skipping malformed metadata file %s: %s\n", candidate, ex.what());
 			}
 		}
-		metaout = (char*) malloc(dplen+sizeof("/metadata.mfs"));
-		memcpy(metaout,datapath,dplen);
-		memcpy(metaout+dplen,"/metadata.mfs",sizeof("/metadata.mfs"));
+		if (bestmetadata.empty()) {
+			printf("error: can't find backed up metadata file !!!\n");
+			return 1;
+		}
+		metadata = bestmetadata;
+		metaout =  datapath + "/metadata.mfs";
+		printf("file %s will be used to restore the most recent metadata\n", metadata.c_str());
 	}
 
-	if (fs_init(metadata,ignoreflag)!=0) {
-		printf("can't read metadata from file: %s\n",metadata);
-		if (datapath) {
-			free(datapath);
-		}
-		if (metadata) {
-			free(metadata);
-		}
-		if (metaout) {
-			free(metaout);
-		}
+	if (fs_init(metadata.c_str(), ignoreflag) != 0) {
+		printf("error: can't read metadata from file: %s\n", metadata.c_str());
 		return 1;
+	}
+	if (fs_getversion() == 0) {
+		// TODO(msulikowski) make it work! :)
+		printf("error: applying changes to an empty metadata file (version 0) not supported!!!\n");
+		return 1;
+	}
+	if (vl > 0) {
+		printf("loaded metadata with version %" PRIu64 "\n", fs_getversion());
 	}
 
 	if (autorestore) {
-		DIR *dd;
-		struct dirent *dp;
-		uint32_t files,pos,nlen;
-		char **filenames;
-
-		dd = opendir(datapath);
+		std::vector<char*> filenames;
+		DIR *dd = opendir(datapath.c_str());
 		if (!dd) {
 			printf("can't open data directory\n");
-			if (datapath) {
-				free(datapath);
-			}
-			if (metadata) {
-				free(metadata);
-			}
-			if (metaout) {
-				free(metaout);
-			}
 			return 1;
 		}
-		files = 0;
-		while ((dp = readdir(dd)) != NULL) {
-			files += changelog_checkname(dp->d_name);
-		}
-		if (files==0) {
-			printf("changelog files not found\n");
-			closedir(dd);
-			if (datapath) {
-				free(datapath);
-			}
-			if (metadata) {
-				free(metadata);
-			}
-			if (metaout) {
-				free(metaout);
-			}
-			return 1;
-		}
-		filenames = (char**)malloc(sizeof(char*)*files);
-		pos = 0;
 		rewinddir(dd);
+		struct dirent *dp;
 		while ((dp = readdir(dd)) != NULL) {
 			if (changelog_checkname(dp->d_name)) {
-				nlen = strlen(dp->d_name);
-				filenames[pos] = (char*) malloc(dplen+1+nlen+1);
-				memcpy(filenames[pos],datapath,dplen);
-				filenames[pos][dplen]='/';
-				memcpy(filenames[pos]+dplen+1,dp->d_name,nlen);
-				filenames[pos][dplen+nlen+1]=0;
-				firstlv = findfirstlogversion(filenames[pos]);
-				lastlv = findlastlogversion(filenames[pos]);
+				filenames.push_back(strdup((datapath + "/" + dp->d_name).c_str()));
+				firstlv = findfirstlogversion(filenames.back());
+				lastlv = findlastlogversion(filenames.back());
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					if (skip) {
-						printf("skipping changelog file: %s (changes: ",filenames[pos]);
+						printf("skipping changelog file: %s (changes: ", filenames.back());
 					} else {
-						printf("using changelog file: %s (changes: ",filenames[pos]);
+						printf("using changelog file: %s (changes: ", filenames.back());
 					}
 					if (firstlv>0) {
 						printf("%" PRIu64 " - ",firstlv);
@@ -378,19 +323,19 @@ int main(int argc,char **argv) {
 					}
 				}
 				if (skip) {
-					free(filenames[pos]);
-					files--;
-				} else {
-					pos++;
+					filenames.pop_back();
 				}
 			}
 		}
 		closedir(dd);
-		merger_start(files,filenames,MAXIDHOLE);
-		for (pos = 0 ; pos<files ; pos++) {
+		if (filenames.empty() && metadata == metaout) {
+			printf("nothing to do, exiting without changing anything\n");
+			return 0;
+		}
+		merger_start(filenames.size(), filenames.data(), MAXIDHOLE);
+		for (uint32_t pos = 0 ; pos < filenames.size() ; pos++) {
 			free(filenames[pos]);
 		}
-		free(filenames);
 	} else {
 		uint32_t files,pos;
 		char **filenames;
@@ -433,33 +378,15 @@ int main(int argc,char **argv) {
 	status = merger_loop();
 
 	if (status<0 && savebest==0) {
-		if (datapath) {
-			free(datapath);
-		}
-		if (metadata) {
-			free(metadata);
-		}
-		if (metaout) {
-			free(metaout);
-		}
 		return 1;
 	}
 
-	if (metaout==NULL) {
+	if (metaout.empty()) {
 		fs_dump();
 		chunk_dump();
 	} else {
-		printf("store metadata into file: %s\n",metaout);
-		fs_term(metaout);
-	}
-	if (datapath) {
-		free(datapath);
-	}
-	if (metadata) {
-		free(metadata);
-	}
-	if (metaout) {
-		free(metaout);
+		printf("store metadata into file: %s\n",metaout.c_str());
+		fs_term(metaout.c_str());
 	}
 	return 0;
 }
