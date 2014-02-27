@@ -4,14 +4,18 @@
 
 #include "common/cltoma_communication.h"
 #include "common/exception.h"
+#include "common/lizardfs_version.h"
 #include "common/matocl_communication.h"
 #include "common/message_receive_buffer.h"
 #include "common/MFSCommunication.h"
 #include "common/multi_buffer_writer.h"
 #include "common/packet.h"
 #include "common/sockets.h"
+#include "tools/human_readable_format.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(WrongUsageException, Exception);
+
+static const std::string kPorcelainMode = "--porcelain";
 
 int connect(const std::string& host, const std::string& port);
 std::vector<uint8_t> sendAndReceive(int fd,
@@ -26,10 +30,53 @@ public:
 	virtual int run(const std::vector<std::string>& argv) const = 0;
 };
 
-class ReadyChunkservers : public LizardFsProbeCommand {
+struct ChunkserverEntry {
+	NetworkAddress address;
+	uint32_t version,  chunks, tdChunks, errorCount;
+	uint64_t usedSpace, totalSpace, tdUsedSpace, tdTotalSpace;
+};
+
+inline uint32_t serializedSize(const ChunkserverEntry& entry) {
+	return serializedSize(entry.version, entry.address,
+			entry.usedSpace, entry.totalSpace, entry.chunks,
+			entry.tdUsedSpace, entry.tdTotalSpace, entry.tdChunks, entry.errorCount);
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		ChunkserverEntry& value) {
+	deserialize(source, bytesLeftInBuffer, value.version, value.address,
+			value.usedSpace, value.totalSpace, value.chunks,
+			value.tdUsedSpace, value.tdTotalSpace, value.tdChunks, value.errorCount);
+}
+
+class ChunkserversListInfoBase : public LizardFsProbeCommand {
+protected:
+	std::vector<ChunkserverEntry> getChunkserversList (
+			const std::string& masterHost, const std::string& masterPort) const {
+		std::vector<uint8_t> request, response;
+		serializeMooseFsPacket(request, CLTOMA_CSERV_LIST);
+		int fd = connect(masterHost, masterPort);
+		try {
+			response = sendAndReceive(fd, request, MATOCL_CSERV_LIST);
+			tcpclose(fd);
+		} catch (...) {
+			tcpclose(fd);
+			throw;
+		}
+		std::vector<ChunkserverEntry> result;
+		while (!response.empty()) {
+			result.push_back(ChunkserverEntry());
+			deserialize(response, result.back());
+			response.erase(response.begin(), response.begin() + serializedSize(result.back()));
+		}
+		return result;
+	}
+};
+
+class ReadyChunkserversCount : public ChunkserversListInfoBase {
 public:
 	virtual std::string name() const {
-		return "ready-chunkservers";
+		return "ready-chunkservers-count";
 	}
 
 	virtual void usage() const {
@@ -41,33 +88,73 @@ public:
 		if (argv.size() != 2) {
 			throw WrongUsageException("Expected exactly two arguments for " + name());
 		}
-
-		std::vector<uint8_t> request, response;
-		serializeMooseFsPacket(request, CLTOMA_CSERV_LIST);
-		int fd = connect(argv[0], argv[1]);
-		try {
-			response = sendAndReceive(fd, request, MATOCL_CSERV_LIST);
-			tcpclose(fd);
-		} catch (...) {
-			tcpclose(fd);
-			throw;
-		}
-
-		uint32_t version, ip, chunks, tdChunks, errorCount;
-		uint64_t usedSpace, totalSpace, tdUsedSpace, tdTotalSpace;
-		uint16_t port;
 		uint32_t readyChunkservers = 0;
-		uint32_t entrySize = serializedSize(version, ip, port, usedSpace, totalSpace, chunks,
-				tdUsedSpace, tdTotalSpace, tdChunks, errorCount);
-		while (!response.empty()) {
-			deserialize(response, version, ip, port, usedSpace, totalSpace, chunks,
-					tdUsedSpace, tdTotalSpace, tdChunks, errorCount);
-			if (totalSpace > 0) {
-				readyChunkservers++;
+		for (const ChunkserverEntry& cs : getChunkserversList(argv[0], argv[1])) {
+			if (cs.totalSpace > 0) {
+				++readyChunkservers;
 			}
-			response.erase(response.begin(), response.begin() + entrySize);
 		}
 		std::cout << readyChunkservers << std::endl;
+		return 0;
+	}
+};
+
+class ChunkserversList : public ChunkserversListInfoBase {
+private:
+
+public:
+	virtual std::string name() const {
+		return "list-chunkservers";
+	}
+
+	virtual void usage() const {
+		std::cerr << name() << " <master ip> <master port> [" << kPorcelainMode << ']' << std::endl;
+		std::cerr << "    prints information about all connected chunkservers\n" << std::endl;
+		std::cerr << "        " << kPorcelainMode << std::endl;
+		std::cerr << "    This argument makes the output parsing-friendly." << std::endl;
+	}
+
+	virtual int run(const std::vector<std::string>& argv) const {
+		if (argv.size() < 2) {
+			throw WrongUsageException("Expected <master ip> and <master port> for " + name());
+		}
+		if (argv.size() > 3) {
+			throw WrongUsageException("Too many arguments for " + name());
+		}
+		if (argv.size() == 3 && argv[2] != kPorcelainMode) {
+			throw WrongUsageException("Unexpected argument " + argv[2] + " for " + name());
+		}
+		std::vector<ChunkserverEntry> chunkservers = getChunkserversList(argv[0], argv[1]);
+		bool porcelainMode = argv.back() == kPorcelainMode;
+
+		// Printing
+		if (!porcelainMode) {
+			std::cout << "address\tversion\tchunks\tspace\tchunks to del\tto delete\terrors"
+					<< std::endl;
+		}
+		for (const ChunkserverEntry& cs : chunkservers) {
+			if (porcelainMode) {
+				std::cout << cs.address.toString()
+						<< ' ' << lizardfsVersionToString(cs.version)
+						<< ' ' << cs.chunks
+						<< ' ' << cs.usedSpace
+						<< ' ' << cs.totalSpace
+						<< ' ' << cs.tdChunks
+						<< ' ' << cs.tdUsedSpace
+						<< ' ' << cs.tdTotalSpace
+						<< ' ' << cs.errorCount << std::endl;
+			} else {
+				std::cout << cs.address.toString()
+						<< '\t' << lizardfsVersionToString(cs.version)
+						<< '\t' << convertToSi(cs.chunks)
+						<< '\t' << convertToIec(cs.usedSpace)
+						<< '/' << convertToIec(cs.totalSpace)
+						<< '\t' << convertToSi(cs.tdChunks)
+						<< '\t' << convertToIec(cs.tdUsedSpace)
+						<< '/' << convertToIec(cs.tdTotalSpace)
+						<< '\t' << convertToSi(cs.errorCount) << std::endl;
+			}
+		}
 		return 0;
 	}
 };
@@ -185,7 +272,6 @@ private:
 	static const std::string kOptionAvailability;
 	static const std::string kOptionReplication;
 	static const std::string kOptionDeletion;
-	static const std::string kPorcelainMode;
 
 	void printState(const ChunksAvailabilityState& state, bool isPorcelain) const {
 		if (isPorcelain) {
@@ -266,7 +352,6 @@ const std::string ChunksHealth::kOptionAll = "--all";
 const std::string ChunksHealth::kOptionAvailability = "--availability";
 const std::string ChunksHealth::kOptionReplication = "--replication";
 const std::string ChunksHealth::kOptionDeletion = "--deletion";
-const std::string ChunksHealth::kPorcelainMode = "--porcelain";
 
 int connect(const std::string& host, const std::string& port) {
 	int fd = tcpsocket();
@@ -314,7 +399,8 @@ std::vector<uint8_t> sendAndReceive(int fd,
 
 int main(int argc, const char** argv) {
 	std::vector<const LizardFsProbeCommand*> allCommands = {
-			new ReadyChunkservers(),
+			new ReadyChunkserversCount(),
+			new ChunkserversList(),
 			new ChunksHealth(),
 	};
 

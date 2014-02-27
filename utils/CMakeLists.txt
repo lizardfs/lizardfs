@@ -1,5 +1,6 @@
 include_directories(${CMAKE_SOURCE_DIR})
 
+# converter to xor chunks
 add_executable(chunk_converter chunk_converter.cc)
 target_link_libraries(chunk_converter ${ZLIB_LIBRARY})
 install(TARGETS chunk_converter RUNTIME DESTINATION ${BIN_SUBDIR})
@@ -38,5 +39,5 @@ install(TARGETS mfspingserv RUNTIME DESTINATION ${BIN_SUBDIR})
 
 # a binary for probing different LizardFS processes
 add_executable(lizardfs-probe lizardfs_probe.cc)
-target_link_libraries(lizardfs-probe mfscommon)
+target_link_libraries(lizardfs-probe mfscommon tools)
 install(TARGETS lizardfs-probe RUNTIME DESTINATION ${BIN_SUBDIR})
