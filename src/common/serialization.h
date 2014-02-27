@@ -52,12 +52,13 @@ inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 }
 
 inline uint32_t serializedSize(const std::string& value) {
-	return serializedSize(value.size()) + serializedSize(std::string::value_type()) * value.size();
+	return serializedSize(uint32_t(value.size()))
+			+ serializedSize(std::string::value_type()) * value.size();
 }
 
 inline uint32_t serializedSize(const std::vector<std::string>& vector) {
 	uint32_t ret = 0;
-	ret += serializedSize(vector.size());
+	ret += serializedSize(uint32_t(vector.size()));
 	for (const auto& str : vector) {
 		ret += serializedSize(str);
 	}
@@ -121,14 +122,14 @@ inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 }
 
 inline void serialize(uint8_t** destination, const std::string& value) {
-	serialize(destination, value.length());
+	serialize(destination, uint32_t(value.length()));
 	for (unsigned i = 0; i < value.length(); ++i) {
 		serialize(destination, value[i]);
 	}
 }
 
 inline void serialize(uint8_t** destination, const std::vector<std::string>& vector) {
-	serialize(destination, vector.size());
+	serialize(destination, uint32_t(vector.size()));
 	for (const auto& str : vector) {
 		serialize(destination, str);
 	}
