@@ -4,8 +4,6 @@ CHUNKSERVERS=4 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
-lizardfs_wait_for_ready_chunkservers 4
-
 cd "${info[mount0]}"
 goals="3 xor3"
 for goal in $goals; do
