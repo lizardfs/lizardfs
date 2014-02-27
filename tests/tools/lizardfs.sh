@@ -22,6 +22,9 @@ setup_local_empty_lizardfs() {
 	# Start master
 	run_master_server
 
+	# Prepare the metalogger, so that any test can start it
+	prepare_metalogger
+
 	# Start chunkservers, but first check if he have enough disks
 	if [[ ! $use_ramdisk ]]; then
 		if [[ $use_loop ]]; then
@@ -78,6 +81,11 @@ lizardfs_master_daemon() {
 	return ${PIPESTATUS[0]}
 }
 
+lizardfs_metalogger_daemon() {
+	mfsmetalogger -c "${lizardfs_info[metalogger_cfg]}" "$1" | cat
+	return ${PIPESTATUS[0]}
+}
+
 run_master_server() {
 	local matoml_port
 	local matocl_port
@@ -110,9 +118,9 @@ create_mfsmetalogger_cfg() {
 	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
-run_metalogger() {
-	create_mfsmetalogger_cfg > "$TEMP_DIR/mfs/etc/mfsmetalogger.cfg"
-	mfsmetalogger -c "$TEMP_DIR/mfs/etc/mfsmetalogger.cfg"
+prepare_metalogger() {
+	create_mfsmetalogger_cfg > "$etcdir/mfsmetalogger.cfg"
+	lizardfs_info[metalogger_cfg]="$etcdir/mfsmetalogger.cfg"
 }
 
 create_mfshdd_cfg() {
