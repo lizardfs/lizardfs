@@ -20,11 +20,11 @@ int LizardFsProbeCommand::connect(const std::string& host, const std::string& po
 
 std::vector<uint8_t> LizardFsProbeCommand::askMaster(const std::vector<uint8_t>& request,
 		const std::string& masterHost, const std::string& masterPort,
-		PacketHeader::Type resonseType) {
+		PacketHeader::Type responseType) {
 	std::vector<uint8_t> response;
 	int fd = connect(masterHost, masterPort);
 	try {
-		response = sendAndReceive(fd, request, resonseType);
+		response = sendAndReceive(fd, request, responseType);
 		tcpclose(fd);
 	} catch (...) {
 		tcpclose(fd);

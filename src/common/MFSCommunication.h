@@ -1274,7 +1274,7 @@
 #define MATOCL_INFO (PROTO_BASE+511)
 // 	totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 tdchunks:32
 // since version 1.5.13:
-// 	version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 tdcopies:32
+// 	version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 regularcopies:32
 
 // 0x00200
 #define CLTOMA_FSTEST_INFO (PROTO_BASE+512)

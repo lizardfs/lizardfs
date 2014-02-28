@@ -41,6 +41,8 @@
 #include "common/chunk_type_with_address.h"
 #include "common/cltoma_communication.h"
 #include "common/goal.h"
+#include "common/lizardfs_statistics.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
@@ -1125,46 +1127,30 @@ void matoclserv_chart_data(matoclserventry *eptr,const uint8_t *data,uint32_t le
 }
 
 void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t totalspace,availspace,trspace,respace;
-	uint64_t memusage;
-	uint32_t trnodes,renodes,inodes,dnodes,fnodes;
-	uint32_t chunks,chunkcopies,tdcopies;
-	uint8_t *ptr;
+	LizardFsStatistics statistics;
 	(void)data;
 	if (length!=0) {
 		syslog(LOG_NOTICE,"CLTOMA_INFO - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
-	chunk_info(&chunks,&chunkcopies,&tdcopies);
+	statistics.version_ = lizardfsVersion(PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR,
+			PACKAGE_VERSION_MICRO);
+	fs_info(&statistics.totalSpace_, &statistics.availableSpace_, &statistics.trashSpace_,
+			&statistics.trashNodes_, &statistics.reservedSpace_, &statistics.reservedNodes_,
+			&statistics.allNodes_, &statistics.dirNodes_, &statistics.fileNodes_);
+	chunk_info(&statistics.chunks_, &statistics.chunkCopies_, &statistics.regularCopies_);
 #ifdef MEMORY_USAGE
-	memusage = chartsdata_memusage();
+	statistics.memoryUsage = chartsdata_memusage();
 #else
 	/* XXX(lamvak): what exactly should be inserted here when there's no MEMORY_USAGE
 	 * probably needs a fix
 	 */
-	memusage = 0;
+	statistics.memoryUsage_ = 0;
 #endif
-	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
-	put16bit(&ptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&ptr,PACKAGE_VERSION_MINOR);
-	put8bit(&ptr,PACKAGE_VERSION_MICRO);
-	/* --- */
-	put64bit(&ptr,memusage);
-	/* --- */
-	put64bit(&ptr,totalspace);
-	put64bit(&ptr,availspace);
-	put64bit(&ptr,trspace);
-	put32bit(&ptr,trnodes);
-	put64bit(&ptr,respace);
-	put32bit(&ptr,renodes);
-	put32bit(&ptr,inodes);
-	put32bit(&ptr,dnodes);
-	put32bit(&ptr,fnodes);
-	put32bit(&ptr,chunks);
-	put32bit(&ptr,chunkcopies);
-	put32bit(&ptr,tdcopies);
+	std::vector<uint8_t> response;
+	serializeMooseFsPacket(response, MATOCL_INFO, statistics);
+	matoclserv_createpacket(eptr, response);
 }
 
 void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {

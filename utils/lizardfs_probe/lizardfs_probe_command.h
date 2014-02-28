@@ -22,7 +22,7 @@ public:
 protected:
 	static std::vector<uint8_t> askMaster(const std::vector<uint8_t>& request,
 			const std::string& masterHost, const std::string& masterPort,
-			PacketHeader::Type resonseType);
+			PacketHeader::Type responseType);
 	static int connect(const std::string& host, const std::string& port);
 	static std::vector<uint8_t> sendAndReceive(int fd,
 			const std::vector<uint8_t>& request,
