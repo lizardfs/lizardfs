@@ -26,11 +26,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
 
 #include "common/metadata.h"
+#include "common/slogger.h"
 #include "common/strerr.h"
 #include "master/filesystem.h"
 #include "master/chunks.h"
@@ -73,70 +75,45 @@ uint64_t findfirstlogversion(const char *fname) {
 
 uint64_t findlastlogversion(const char *fname) {
 	struct stat st;
-	uint8_t buff[32800];	// 32800 = 32768 + 32
-	uint64_t size;
-	uint32_t buffpos;
-	uint64_t lastnewline,lv;
 	int fd;
 
-	fd = open(fname,O_RDONLY);
-	if (fd<0) {
+	fd = open(fname, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "open\n");
 		return 0;
 	}
-	fstat(fd,&st);
-	size = st.st_size;
-	memset(buff,0,32);
-	lastnewline = 0;
-	while (size>0 && size+200000>(uint64_t)(st.st_size)) {
-		if (size>32768) {
-			memcpy(buff+32768,buff,32);
-			size-=32768;
-			lseek(fd,size,SEEK_SET);
-			if (read(fd,buff,32768)!=32768) {
-				close(fd);
-				return 0;
-			}
-			buffpos = 32768;
-		} else {
-			memmove(buff+size,buff,32);
-			lseek(fd,0,SEEK_SET);
-			if (read(fd,buff,size)!=(ssize_t)size) {
-				close(fd);
-				return 0;
-			}
-			buffpos = size;
-			size = 0;
-		}
-		// size = position in file of first byte in buff
-		// buffpos = position of last byte in buff to search
-		while (buffpos>0) {
-			buffpos--;
-			if (buff[buffpos]=='\n') {
-				if (lastnewline==0) {
-					lastnewline = size + buffpos;
-				} else {
-					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file
-						close(fd);
-						return 0;
-					}
-					buffpos++;
-					lv = 0;
-					while (buffpos<32800 && buff[buffpos]>='0' && buff[buffpos]<='9') {
-						lv *= 10;
-						lv += buff[buffpos]-'0';
-						buffpos++;
-					}
-					if (buffpos==32800 || buff[buffpos]!=':') {
-						lv = 0;
-					}
-					close(fd);
-					return lv;
-				}
+	fstat(fd, &st);
+
+	size_t fileSize = st.st_size;
+
+	char* fileContent = (char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (fileContent == MAP_FAILED) {
+		mfs_errlog(LOG_ERR, "mmap failed");
+		return 0; // 0 counterintuitively means failure
+	}
+	// find beginning of the last line
+	size_t pos = fileSize;
+	uint32_t lfsFound = 0;
+	while (pos > 0) {
+		--pos;
+		if (fileContent[pos] == '\n') {
+			lfsFound++;
+			// first lf is (should be) the last byte of the file
+			if (lfsFound == 2) {
+				break;
 			}
 		}
 	}
-	close(fd);
-	return 0;
+	char *endPtr = NULL;
+	uint64_t lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
+	// colon is expected
+	if (*endPtr != ':') {
+		lastLogVersion = 0;
+	}
+	if (munmap(fileContent, fileSize)) {
+		mfs_errlog(LOG_ERR, "munmap failed");
+	}
+	return lastLogVersion;
 }
 
 int changelog_checkname(const char *fname) {
