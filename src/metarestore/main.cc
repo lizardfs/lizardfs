@@ -18,9 +18,9 @@
 
 #include "config.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <dirent.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,8 +38,8 @@
 #include "common/metadata.h"
 #include "common/slogger.h"
 #include "common/strerr.h"
-#include "master/filesystem.h"
 #include "master/chunks.h"
+#include "master/filesystem.h"
 #include "metarestore/merger.h"
 #include "metarestore/restore.h"
 
@@ -396,7 +396,7 @@ int main(int argc,char **argv) {
 	}
 
 	int returnStatus = 0;
-	uint64_t checksum = fs_checksum();
+	uint64_t checksum = fs_checksum(ChecksumMode::kForceRecalculate);
 	if (printhash) {
 		printf("%" PRIu64 "\n", checksum);
 	}

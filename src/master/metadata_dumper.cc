@@ -124,9 +124,15 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 					const_cast<char*>(checksumStringified.c_str()),
 					const_cast<char*>("changelog.1.mfs"),
 					NULL};
-				nice(10); // the default value of the commandline nice
+				// the default value of the commandline nice
+				if (nice(10) == -1) {
+					mfs_errlog(LOG_WARNING, "dumping metadata: nice failed");
+				}
 				execv(metarestorePath_.c_str(), metarestoreArgs);
 				syslog(LOG_WARNING, "exec %s failed: %s", metarestorePath_.c_str(), strerr(errno));
+			}
+			if (useMetarestore_ && !dumpingSucceeded_) {
+				syslog(LOG_NOTICE, "something previously failed, dump by master");
 			}
 			dumpType = kForegroundDump; // child process stores metadata in its foreground
 			return true;

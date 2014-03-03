@@ -1,3 +1,5 @@
+timeout_set 80 seconds
+
 master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
 master_extra_config+="|DUMP_METADATA_ON_RELOAD = 1"
 master_extra_config+="|PREFER_BACKGROUND_DUMP = 1"
@@ -17,16 +19,21 @@ mfsmetadump \$path | sed '2q;d' | sed -r 's/.*version: ([0-9]+).*/\1/'
 END
 chmod +x $TEMP_DIR/metadata_version
 
+# 'metaout_tmp' is used to ensure 'metaout' is complete when "created"
 cat > $TEMP_DIR/metarestore_ok.sh << END
 #!/bin/bash
-mfsmetarestore "\$@" | tee $TEMP_DIR/metaout
-exit \${PIPESTATUS[0]}
+mfsmetarestore "\$@" | tee $TEMP_DIR/metaout_tmp
+ret="\${PIPESTATUS[0]}"
+mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
+exit "\$ret"
 END
 
 cat > $TEMP_DIR/metarestore_wrong_checksum.sh << END
 #!/bin/bash
-mfsmetarestore "\$@" -k 0 | tee $TEMP_DIR/metaout
-exit \${PIPESTATUS[0]}
+mfsmetarestore "\$@" -k 0 | tee $TEMP_DIR/metaout_tmp
+ret="\${PIPESTATUS[0]}"
+mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
+exit "\$ret"
 END
 
 cat > $TEMP_DIR/metarestore_no_response.sh << END
@@ -115,51 +122,54 @@ function check_no_metarestore() {
 
 cd "${info[mount0]}"
 
-touch file1
+FILE_SIZE=200B file-generate to_be_destroyed
+mfsfilerepair to_be_destroyed
 check
 
+csid=$(find_first_chunkserver_with_chunks_matching 'chunk*')
+mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lizardfs_wait_for_ready_chunkservers 2
+mfsfilerepair to_be_destroyed
+check
+
+while read command; do
+	eval "$command"
+	MESSAGE="testing $command" check
+done <<'END'
+touch file1
 mkdir dir
 touch dir/file1 dir/file2
-check
-
 mkfifo fifo
-check
-
 touch file
-check
-
 ln file link
 ln -s file symlink
-check
-
-# create more files and delete some of them
+ls -l
+mv file file2
+ln -fs file2 symlink
+echo 'abc' > symlink
 touch file{00..99}
+mfssettrashtime 0 file1{0..4}
 rm file1?
-check
-
 mv file99 file999
 mfssetgoal 3 file999
 mfssetgoal 9 file03
-check
-
 head -c 1M < /dev/urandom > random_file
 mfssettrashtime 3 random_file
 truncate -s 100M random_file
 head -c 1M < /dev/urandom > random_file2
 truncate -s 100 random_file2
-check
-
 truncate -s 1T sparse
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse
 head -c 1M /dev/urandom >> sparse
-check
-
 mfsmakesnapshot sparse sparse2
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse2
 rm sparse
+truncate -s 1000M sparse2
+truncate -s 100 sparse2
+truncate -s 0 sparse2
 mfsmakesnapshot -o random_file random_file2
 head -c 2M /dev/urandom | dd seek=1 bs=1M conv=notrunc of=random_file
-check
+END
 
 # Special cases:
 # 1. metarestore checksum mismatches (let's assume that checksum 0 is always an error)

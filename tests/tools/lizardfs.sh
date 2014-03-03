@@ -204,6 +204,20 @@ mfs_dir_info() {
     mfsdirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
 }
 
+find_first_chunkserver_with_chunks_matching() {
+	local pattern=$1
+	local count=${lizardfs_info[chunkserver_count]}
+	local chunkserver
+	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
+		local hdds=$(cat "${lizardfs_info[chunkserver${chunkserver}_hdd]}")
+		if [[ $(find $hdds -name "$pattern") ]]; then
+			echo $chunkserver
+			return 0
+		fi
+	done
+	return 1
+}
+
 # print absolute paths of all chunk files on all servers used in test, one per line
 find_all_chunks() {
 	local count=${lizardfs_info[chunkserver_count]}
@@ -222,7 +236,7 @@ find_all_chunks() {
 lizardfs_wait_for_ready_chunkservers() {
 	local chunkservers=$1
 	local port=${lizardfs_info[matocl]}
-	while (( $(lizardfs-probe ready-chunkservers localhost $port) < $chunkservers )); do
+	while (( $(lizardfs-probe ready-chunkservers localhost $port) != $chunkservers )); do
 		sleep 0.1
 	done
 }

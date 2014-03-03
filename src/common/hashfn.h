@@ -19,6 +19,10 @@
 #pragma once
 
 #include <inttypes.h>
+#include <syslog.h>
+#include <numeric>
+#include <stdexcept>
+#include <type_traits>
 
 /* fast integer hash functions by Thomas Wang */
 /* all of them pass the avalanche test */
@@ -39,13 +43,13 @@ static inline uint32_t hash32(uint32_t key) {
 }
 
 /* 32bit -> 32bit - with 32bit multiplication (can be adjusted by other constant values, such as: 0xb55a4f09,0x165667b1,2034824023,2034824021 etc.) */
-static inline uint32_t hash32mult(uint32_t key) { 
-	key = (key ^ 61) ^ (key >> 16); 
-	key = key + (key << 3); 
-	key = key ^ (key >> 4); 
-	key = key * 0x27d4eb2d; 
-	key = key ^ (key >> 15); 
-	return key; 
+static inline uint32_t hash32mult(uint32_t key) {
+	key = (key ^ 61) ^ (key >> 16);
+	key = key + (key << 3);
+	key = key ^ (key >> 4);
+	key = key * 0x27d4eb2d;
+	key = key ^ (key >> 15);
+	return key;
 }
 
 /* 64bit -> 32bit */
@@ -69,4 +73,72 @@ static inline uint64_t hash64(uint64_t key) {
 	key = key ^ (key >> 28);
 	key = key + (key << 31);
 	return key;
+}
+
+#define HASH_PRIMITIVE32(type) \
+static inline uint64_t hash(type val) { \
+	return hash32mult(val); \
+}
+
+#define HASH_PRIMITIVE64(type) \
+static inline uint64_t hash(type val) { \
+	return hash64(val); \
+}
+
+HASH_PRIMITIVE32(bool)
+HASH_PRIMITIVE32(char)
+HASH_PRIMITIVE32(signed char)
+HASH_PRIMITIVE32(unsigned char)
+HASH_PRIMITIVE32(short)
+HASH_PRIMITIVE32(unsigned short)
+HASH_PRIMITIVE32(int)
+HASH_PRIMITIVE32(unsigned int)
+HASH_PRIMITIVE64(long)
+HASH_PRIMITIVE64(unsigned long)
+HASH_PRIMITIVE64(long long)
+HASH_PRIMITIVE64(unsigned long long)
+
+// takes the hash, not an arbitrary object instance
+static inline void hashCombineRaw(uint64_t& seed, uint64_t hash) {
+	seed ^= hash + 11400714819323198485ULL + (seed << 6) + (seed >> 2);
+}
+
+static inline void hashCombine(uint64_t&) {
+}
+
+/// when a uint8_t* is followed by an integral type, assume it is a bytearray and its length
+template<class T, class... Args, class = typename std::enable_if<std::is_integral<T>::value>::type>
+static inline void hashCombine(uint64_t& seed, const uint8_t* str, T strLen, Args... args);
+
+template<class T, class... Args>
+static inline void hashCombine(uint64_t& seed, const T& val, Args... args) {
+	hashCombineRaw(seed, hash(val));
+	hashCombine(seed, args...);
+}
+
+/// doesn't modify its argument and returns result
+template <typename T>
+static inline uint64_t hashCombineReturn(uint64_t hash, const T& val) {
+	hashCombine(hash, val);
+	return hash;
+}
+
+/// hash byte array
+static inline uint64_t hash(const uint8_t* str, uint32_t len) {
+	const uint64_t init = 399871011; // arbitrary number
+	return std::accumulate(str, str + len, init, hashCombineReturn<uint8_t>);
+}
+
+template<class T, class... Args, class = typename std::enable_if<std::is_integral<T>::value>::type>
+static inline void hashCombine(uint64_t& seed, const uint8_t* str, T strLen, Args... args) {
+	hashCombineRaw(seed, hash(str, strLen));
+	hashCombine(seed, args...);
+}
+
+// functions for dynamically changing checksums
+inline void addToChecksum(uint64_t& checksum, uint64_t hash) {
+	checksum ^= hash;
+}
+inline void removeFromChecksum(uint64_t& checksum, uint64_t hash) {
+	checksum ^= hash;
 }
