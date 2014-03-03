@@ -127,6 +127,7 @@ typedef struct _fsedge {
 #ifdef EDGEHASH
 	struct _fsedge *next,**prev;
 #endif
+	uint64_t checksum;
 	uint16_t nleng;
 //	uint16_t nhash;
 	uint8_t *name;
@@ -377,6 +378,8 @@ static void renameBackupFiles() {
 
 #endif // ifndef METARESTORE
 
+static uint64_t gFsNodesChecksum;
+
 static uint64_t fsnodes_checksum(const fsnode* node) {
 	if (!node) {
 		return 0;
@@ -418,7 +421,14 @@ static uint64_t fsnodes_checksum(const fsnode* node) {
 	return seed;
 }
 
-static uint64_t gFsNodesChecksum;
+static void fsnodes_update_checksum(fsnode* node) {
+	if (!node) {
+		return;
+	}
+	removeFromChecksum(gFsNodesChecksum, node->checksum);
+	node->checksum = fsnodes_checksum(node);
+	addToChecksum(gFsNodesChecksum, node->checksum);
+}
 
 static void fsnodes_recalculate_checksum() {
 	gFsNodesChecksum = 12345; // arbitrary number
@@ -431,6 +441,63 @@ static void fsnodes_recalculate_checksum() {
 	}
 }
 
+static uint64_t gFsEdgesChecksum;
+
+static uint64_t fsedges_checksum(const fsedge* edge) {
+	if (!edge) {
+		return 0;
+	}
+	uint64_t seed = 0xb14f9f1819ff266c; // random number
+	if (edge->parent) {
+		hashCombine(seed, edge->parent->id);
+	}
+	hashCombine(seed, edge->child->id, edge->nleng, edge->name, edge->nleng);
+	return seed;
+}
+
+static void fsedges_checksum_edges_list(uint64_t& checksum, fsedge* edge) {
+	while (edge) {
+		edge->checksum = fsedges_checksum(edge);
+		addToChecksum(checksum, edge->checksum);
+		edge = edge->nextchild;
+	}
+}
+
+static void fsedges_checksum_edges_rec(uint64_t& checksum, fsnode* node) {
+	if (!node) {
+		return;
+	}
+	fsedges_checksum_edges_list(checksum, node->data.ddata.children);
+	for (const fsedge* edge = node->data.ddata.children; edge; edge = edge->nextchild) {
+		if (edge->child->type == TYPE_DIRECTORY) {
+			fsedges_checksum_edges_rec(checksum, edge->child);
+		}
+	}
+}
+
+static void fsedges_update_checksum(fsedge* edge) {
+	if (!edge) {
+		return;
+	}
+	removeFromChecksum(gFsEdgesChecksum, edge->checksum);
+	edge->checksum = fsedges_checksum(edge);
+	addToChecksum(gFsEdgesChecksum, edge->checksum);
+}
+
+static void fsedges_recalculate_checksum() {
+	gFsEdgesChecksum = 1231241261;
+	// edges
+	if (root) {
+		fsedges_checksum_edges_rec(gFsEdgesChecksum, root);
+	}
+	if (trash) {
+		fsedges_checksum_edges_list(gFsEdgesChecksum, trash);
+	}
+	if (reserved) {
+		fsedges_checksum_edges_list(gFsEdgesChecksum, reserved);
+	}
+}
+
 uint64_t fs_checksum(ChecksumMode mode) {
 	uint64_t checksum = 0x1251;
 	addToChecksum(checksum, maxnodeid);
@@ -438,18 +505,11 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	addToChecksum(checksum, nextsessionid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
+		fsedges_recalculate_checksum();
 	}
 	addToChecksum(checksum, gFsNodesChecksum);
+	addToChecksum(checksum, gFsEdgesChecksum);
 	return checksum;
-}
-
-static void fsnodes_update_checksum(fsnode* node) {
-	if (!node) {
-		return;
-	}
-	removeFromChecksum(gFsNodesChecksum, node->checksum);
-	node->checksum = fsnodes_checksum(node);
-	addToChecksum(gFsNodesChecksum, node->checksum);
 }
 
 static MetadataDumper metadataDumper(METADATA_BACK_FILENAME, METADATA_BACK_TMP_FILENAME);
@@ -1418,6 +1478,7 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 #ifndef METARESTORE
 	statsrecord sr;
 #endif
+	removeFromChecksum(gFsEdgesChecksum, e->checksum);
 	if (e->parent) {
 #ifndef METARESTORE
 		fsnodes_get_stats(e->child,&sr);
@@ -1511,6 +1572,8 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	edgehash[hpos] = e;
 	e->prev = &(edgehash[hpos]);
 #endif
+	e->checksum = 0;
+	fsedges_update_checksum(e);
 
 	parent->data.ddata.elements++;
 	if (child->type==TYPE_DIRECTORY) {
@@ -2160,6 +2223,8 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				child->parents = e;
 				trashspace += child->data.fdata.length;
 				trashnodes++;
+				e->checksum = 0;
+				fsedges_update_checksum(e);
 			} else if (child->data.fdata.sessionids!=NULL) {
 				child->type = TYPE_RESERVED;
 				fsnodes_update_checksum(child);
@@ -2184,16 +2249,14 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				child->parents = e;
 				reservedspace += child->data.fdata.length;
 				reservednodes++;
+				e->checksum = 0;
+				fsedges_update_checksum(e);
 			} else {
-				if (path) { // always should be NULL
-					free(path);
-				}
+				free(path);
 				fsnodes_remove_node(ts,child);
 			}
 		} else {
-			if (path) { // always should be NULL
-				free(path);
-			}
+			free(path);
 			fsnodes_remove_node(ts,child);
 		}
 	} else {
@@ -3011,6 +3074,7 @@ uint8_t fs_setpath(uint32_t inode,const uint8_t *path) {
 	memcpy(newpath,path,pleng);
 	p->parents->name = newpath;
 	p->parents->nleng = pleng;
+	fsedges_update_checksum(p->parents);
 #ifndef METARESTORE
 	changelog(metaversion++,"%" PRIu32 "|SETPATH(%" PRIu32 ",%s)",(uint32_t)main_time(),inode,fsnodes_escape_name(pleng,newpath));
 #else
@@ -4015,7 +4079,6 @@ uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 	fsnodes_unlink(ts,e);
 	stats_unlink++;
 	return STATUS_OK;
-
 }
 
 uint8_t fs_rmdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid) {
