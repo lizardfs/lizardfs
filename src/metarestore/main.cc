@@ -18,19 +18,21 @@
 
 #include "config.h"
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
 
 #include "common/metadata.h"
+#include "common/slogger.h"
 #include "common/strerr.h"
 #include "master/filesystem.h"
 #include "master/chunks.h"
@@ -73,70 +75,48 @@ uint64_t findfirstlogversion(const char *fname) {
 
 uint64_t findlastlogversion(const char *fname) {
 	struct stat st;
-	uint8_t buff[32800];	// 32800 = 32768 + 32
-	uint64_t size;
-	uint32_t buffpos;
-	uint64_t lastnewline,lv;
 	int fd;
 
-	fd = open(fname,O_RDONLY);
-	if (fd<0) {
+	fd = open(fname, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "open failed: %s\n", strerr(errno));
 		return 0;
 	}
-	fstat(fd,&st);
-	size = st.st_size;
-	memset(buff,0,32);
-	lastnewline = 0;
-	while (size>0 && size+200000>(uint64_t)(st.st_size)) {
-		if (size>32768) {
-			memcpy(buff+32768,buff,32);
-			size-=32768;
-			lseek(fd,size,SEEK_SET);
-			if (read(fd,buff,32768)!=32768) {
-				close(fd);
-				return 0;
+	fstat(fd, &st);
+
+	size_t fileSize = st.st_size;
+
+	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (fileContent == MAP_FAILED) {
+		fprintf(stderr, "mmap failed: %s\n", strerr(errno));
+		close(fd);
+		return 0; // 0 counterintuitively means failure
+	}
+	uint64_t lastLogVersion = 0;
+	// first LF is (should be) the last byte of the file
+	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
+		fprintf(stderr, "truncated changelog (%s) (no LF at the end of the last line)\n", fname);
+	} else {
+		size_t pos = fileSize - 1;
+		while (pos > 0) {
+			--pos;
+			if (fileContent[pos] == '\n') {
+				break;
 			}
-			buffpos = 32768;
-		} else {
-			memmove(buff+size,buff,32);
-			lseek(fd,0,SEEK_SET);
-			if (read(fd,buff,size)!=(ssize_t)size) {
-				close(fd);
-				return 0;
-			}
-			buffpos = size;
-			size = 0;
 		}
-		// size = position in file of first byte in buff
-		// buffpos = position of last byte in buff to search
-		while (buffpos>0) {
-			buffpos--;
-			if (buff[buffpos]=='\n') {
-				if (lastnewline==0) {
-					lastnewline = size + buffpos;
-				} else {
-					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file
-						close(fd);
-						return 0;
-					}
-					buffpos++;
-					lv = 0;
-					while (buffpos<32800 && buff[buffpos]>='0' && buff[buffpos]<='9') {
-						lv *= 10;
-						lv += buff[buffpos]-'0';
-						buffpos++;
-					}
-					if (buffpos==32800 || buff[buffpos]!=':') {
-						lv = 0;
-					}
-					close(fd);
-					return lv;
-				}
-			}
+		char *endPtr = NULL;
+		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
+		if (*endPtr != ':') {
+			fprintf(stderr, "malformed changelog (%s) (expected colon after change number)\n",
+					fname);
+			lastLogVersion = 0;
 		}
 	}
+	if (munmap((void*) fileContent, fileSize)) {
+		fprintf(stderr, "munmap failed: %s\n", strerr(errno));
+	}
 	close(fd);
-	return 0;
+	return lastLogVersion;
 }
 
 int changelog_checkname(const char *fname) {
