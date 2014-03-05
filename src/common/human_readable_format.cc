@@ -43,3 +43,11 @@ std::string convertToSi(const uint64_t number) {
 std::string convertToIec(const uint64_t number) {
 	return convertToHumanReadableFormat(number, BASE_IEC);
 }
+
+std::string ipToString(uint32_t ip) {
+	std::stringstream ss;
+	for (int i = 24; i >= 0; i -= 8) {
+		ss << ((ip >> i) & 0xff) << (i > 0 ? "." : "");
+	}
+	return ss.str();
+}

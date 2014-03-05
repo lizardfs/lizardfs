@@ -1260,11 +1260,15 @@
 
 // 0x001FC
 #define CLTOMA_SESSION_LIST (PROTO_BASE+508)
-/// -
+// -
+// vmode:8
 
 // 0x001FD
 #define MATOCL_SESSION_LIST (PROTO_BASE+509)
-/// data:(N * [ip:32 vershex:32])
+/// SESSION_STATS:16 data:(N * [sessionId:32 peerId:32 version:32 infoLen:32 info:(infoLen * 8)
+/// pathLen:32 path:(pathLen * 8) sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+/// vmode:(isOn * [mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32])
+/// currentopstats:(SESSION_STATS * [count:32]) lasthouropstats:(SESSION_STATS * [count:32])])
 
 // 0x001FE
 #define CLTOMA_INFO (PROTO_BASE+510)

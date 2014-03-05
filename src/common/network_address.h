@@ -5,6 +5,7 @@
 #include <functional>
 #include <sstream>
 
+#include "common/human_readable_format.h"
 #include "common/serialization.h"
 
 struct NetworkAddress {
@@ -27,10 +28,7 @@ struct NetworkAddress {
 
 	std::string toString() const {
 		std::stringstream ss;
-		for (int i = 24; i >= 0; i -= 8) {
-			ss << ((ip >> i) & 0xff) << (i > 0 ? '.' : ':');
-		}
-		ss << port;
+		ss << ipToString(ip) << ':' << port;
 		return ss.str();
 	}
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "common/datapack.h"
@@ -60,6 +61,15 @@ inline uint32_t serializedSize(const char& c) {
 template <class T, int N>
 inline uint32_t serializedSize(const T (&array)[N]) {
 	return N * serializedSize(array[0]);
+}
+
+template <class T, std::size_t N>
+inline uint32_t serializedSize(const std::array<T, N>& array) {
+	uint32_t ret = 0;
+	for (const auto& element : array) {
+		ret += serializedSize(element);
+	}
+	return ret;
 }
 
 template<class T1, class T2>
@@ -139,6 +149,13 @@ inline void serialize(uint8_t** destination, const char& value) {
 template <class T, int N>
 inline void serialize(uint8_t** destination, const T (&array)[N]) {
 	for (int i = 0; i < N; i++) {
+		serialize(destination, array[i]);
+	}
+}
+
+template <class T, std::size_t N>
+inline void serialize(uint8_t** destination, const std::array<T, N>& array) {
+	for (std::size_t i = 0; i < N; i++) {
 		serialize(destination, array[i]);
 	}
 }
@@ -253,6 +270,14 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, cha
 template <class T, int N>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]) {
 	for (int i = 0; i < N; i++) {
+		deserialize(source, bytesLeftInBuffer, array[i]);
+	}
+}
+
+template <class T, std::size_t N>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::array<T, N>& array) {
+	for (std::size_t i = 0; i < N; i++) {
 		deserialize(source, bytesLeftInBuffer, array[i]);
 	}
 }
