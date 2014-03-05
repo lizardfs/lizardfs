@@ -8348,13 +8348,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 	fprintf(stderr,"connecting files and chunks ... ");
 	fflush(stderr);
-#ifdef METARESTORE
-	printf("L\n");
-#endif
 	fs_add_files_to_chunks();
-#ifdef METARESTORE
-	printf("C\n");
-#endif
 	fprintf(stderr,"ok\n");
 #ifndef METARESTORE
 	fprintf(stderr,"all inodes: %" PRIu32 "\n",nodes);

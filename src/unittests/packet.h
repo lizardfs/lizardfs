@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <gtest/gtest.h>
 
 #include "common/packet.h"
 

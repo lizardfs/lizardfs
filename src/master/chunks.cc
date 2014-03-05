@@ -46,9 +46,9 @@
 #ifndef METARESTORE
 #  include "common/cfg.h"
 #  include "common/main.h"
-#  include "common/random.h"
 #  include "master/matoclserv.h"
 #  include "master/matocsserv.h"
+#  include "common/random.h"
 #  include "master/topology.h"
 #endif
 

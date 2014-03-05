@@ -15,7 +15,6 @@ public:
 			Exception("Deserialization error: " + message) {}
 };
 
-
 // serializedSize
 
 inline uint32_t serializedSize(const bool&) {
@@ -38,6 +37,10 @@ inline uint32_t serializedSize(const uint64_t&) {
 	return 8;
 }
 
+inline uint32_t serializedSize(const char& c) {
+	return serializedSize(reinterpret_cast<const uint8_t&>(c));
+}
+
 template <class T, int N>
 inline uint32_t serializedSize(const T (&array)[N]) {
 	return N * serializedSize(array[0]);
@@ -46,6 +49,20 @@ inline uint32_t serializedSize(const T (&array)[N]) {
 template<class T1, class T2>
 inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 	return serializedSize(pair.first) + serializedSize(pair.second);
+}
+
+inline uint32_t serializedSize(const std::string& value) {
+	return serializedSize(uint32_t(value.size()))
+			+ serializedSize(std::string::value_type()) * value.size();
+}
+
+inline uint32_t serializedSize(const std::vector<std::string>& vector) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(vector.size()));
+	for (const auto& str : vector) {
+		ret += serializedSize(str);
+	}
+	return ret;
 }
 
 template<class T>
@@ -85,6 +102,10 @@ inline void serialize(uint8_t** destination, const uint64_t& value) {
 	put64bit(destination, value);
 }
 
+inline void serialize(uint8_t** destination, const char& value) {
+	serialize(destination, reinterpret_cast<const uint8_t&>(value));
+}
+
 // serialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void serialize(uint8_t** destination, const T (&array)[N]) {
@@ -98,6 +119,20 @@ template<class T1, class T2>
 inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 	serialize(destination, pair.first);
 	serialize(destination, pair.second);
+}
+
+inline void serialize(uint8_t** destination, const std::string& value) {
+	serialize(destination, uint32_t(value.length()));
+	for (unsigned i = 0; i < value.length(); ++i) {
+		serialize(destination, value[i]);
+	}
+}
+
+inline void serialize(uint8_t** destination, const std::vector<std::string>& vector) {
+	serialize(destination, uint32_t(vector.size()));
+	for (const auto& str : vector) {
+		serialize(destination, str);
+	}
 }
 
 // serialize a vector
@@ -164,6 +199,10 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uin
 	value = get64bit(source);
 }
 
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, char& value) {
+	deserialize(source, bytesLeftInBuffer, reinterpret_cast<uint8_t&>(value));
+}
+
 // deserialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]) {
@@ -178,6 +217,36 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 		std::pair<T1, T2>& pair) {
 	deserialize(source, bytesLeftInBuffer, pair.first);
 	deserialize(source, bytesLeftInBuffer, pair.second);
+}
+
+// deserialize uint8_t* (as a pointer to the serialized data)
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, const uint8_t*& value) {
+	if (bytesLeftInBuffer == 0) {
+		throw IncorrectDeserializationException("unexpected end of buffer");
+	}
+	bytesLeftInBuffer = 0;
+	value = *source;
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::string& value) {
+	sassert(value.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	value.resize(size);
+	for (unsigned i = 0; i < size; ++i) {
+		deserialize(source, bytesLeftInBuffer, value[i]);
+	}
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::vector<std::string>& vec) {
+	sassert(vec.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	vec.resize(size);
+	for (unsigned i = 0; i < size; ++i) {
+		deserialize(source, bytesLeftInBuffer, vec[i]);
+	}
 }
 
 // deserialize a vector
@@ -196,15 +265,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	for (size_t i = 0; i < vecSize; ++i) {
 		deserialize(source, bytesLeftInBuffer, vector[i]);
 	}
-}
-
-// deserialize uint8_t* (as a pointer to the serialized data)
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, const uint8_t*& value) {
-	if (bytesLeftInBuffer == 0) {
-		throw IncorrectDeserializationException("unexpected end of buffer");
-	}
-	bytesLeftInBuffer = 0;
-	value = *source;
 }
 
 template<class T, class... Args>

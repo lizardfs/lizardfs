@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "metalogger/masterconn.h"
 
 #include <time.h>
 #include <sys/types.h>
@@ -32,14 +33,14 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include "common/MFSCommunication.h"
-#include "common/datapack.h"
-#include "masterconn.h"
-#include "common/crc.h"
 #include "common/cfg.h"
+#include "common/crc.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/metadata.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 
 #define MaxPacketSize 1500000
@@ -339,6 +340,12 @@ int masterconn_metadata_check(const char *name) {
 	fd = open(name,O_RDONLY);
 	if (fd<0) {
 		syslog(LOG_WARNING,"can't open downloaded metadata");
+	}
+	try {
+		metadata_getversion(name);
+		return 0;
+	} catch (MetadataCheckException& ex) {
+		syslog(LOG_NOTICE, "Verification of the downloaded metadata file failed: %s", ex.what());
 		return -1;
 	}
 	if (read(fd,chkbuff,8)!=8) {

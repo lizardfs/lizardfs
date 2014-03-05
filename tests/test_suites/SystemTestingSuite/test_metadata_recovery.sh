@@ -6,7 +6,7 @@ newmeta="${TEMP_DIR}/new_metadata"
 
 # hack: metadata restoration doesn't work on fresh installations
 lizardfs_master_daemon restart
-run_metalogger
+lizardfs_metalogger_daemon start
 
 cd "${info[mount0]}"
 

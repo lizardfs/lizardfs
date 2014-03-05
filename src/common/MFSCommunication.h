@@ -1345,6 +1345,18 @@
 // C - All columns count. Chunks with 0-11+ missing/redundant parts = 12
 /// regularonly:8 tables:(availability:[G * safe:64, G * endangered:64, G * lost:64], replication:G * [C * chunks:64], G * [C * chunks:64])
 
+// 0x05F8
+#define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)
+// subsystem:string groups:(vector<string>) frequency:32
+
+// 0x05F9
+#define LIZ_CLTOMA_IOLIMIT (1000U + 529U)
+/// grouplen:32 group:STRING[grouplen] wantmore:8 limit:64 usage:64
+
+// 0x05FA
+#define LIZ_MATOCL_IOLIMIT (1000U + 530U)
+/// grouplen:32 group:STRING[grouplen] limit:64
+
 // CHUNKSERVER STATS
 
 // 0x00258
