@@ -37,6 +37,22 @@ inline uint32_t serializedSize(const uint64_t&) {
 	return 8;
 }
 
+inline uint32_t serializedSize(const int8_t&) {
+	return 1;
+}
+
+inline uint32_t serializedSize(const int16_t&) {
+	return 2;
+}
+
+inline uint32_t serializedSize(const int32_t&) {
+	return 4;
+}
+
+inline uint32_t serializedSize(const int64_t&) {
+	return 8;
+}
+
 inline uint32_t serializedSize(const char& c) {
 	return serializedSize(reinterpret_cast<const uint8_t&>(c));
 }
@@ -70,6 +86,11 @@ inline uint32_t serializedSize(const std::vector<T>& vector) {
 	return vector.size() * serializedSize(T());
 }
 
+template<class T>
+inline uint32_t serializedSize(const T& t) {
+	return t.serializedSize();
+}
+
 template<class T, class ... Args>
 inline uint32_t serializedSize(const T& t, const Args& ... args) {
 	return serializedSize(t) + serializedSize(args...);
@@ -82,23 +103,35 @@ inline void serialize(uint8_t** destination, const bool& value) {
 	put8bit(destination, static_cast<uint8_t>(value ? 1 : 0));
 }
 
-// serialize uint8_t
 inline void serialize(uint8_t** destination, const uint8_t& value) {
 	put8bit(destination, value);
 }
 
-// serialize uint16_t
 inline void serialize(uint8_t** destination, const uint16_t& value) {
 	put16bit(destination, value);
 }
 
-// serialize uint32_t
 inline void serialize(uint8_t** destination, const uint32_t& value) {
 	put32bit(destination, value);
 }
 
-// serialize uint64_t
 inline void serialize(uint8_t** destination, const uint64_t& value) {
+	put64bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, const int8_t& value) {
+	put8bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, const int16_t& value) {
+	put16bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, const int32_t& value) {
+	put32bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, const int64_t& value) {
 	put64bit(destination, value);
 }
 
@@ -143,6 +176,11 @@ inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
 	}
 }
 
+template<class T>
+inline void serialize(uint8_t** destination, const T& t) {
+	return t.serialize(destination);
+}
+
 template<class T, class... Args>
 inline void serialize(uint8_t** destination, const T& t, const Args&... args) {
 	serialize(destination, t);
@@ -160,7 +198,6 @@ inline void verifySize(const T& value, uint32_t bytesLeft) {
 
 // deserialize functions for simple types
 
-// deserialize bool
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, bool& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 1;
@@ -171,29 +208,49 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, boo
 	value = static_cast<bool>(integerValue);
 }
 
-// deserialize uint8_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint8_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 1;
 	value = get8bit(source);
 }
 
-// deserialize uint16_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint16_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 2;
 	value = get16bit(source);
 }
 
-// deserialize uint32_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint32_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 4;
 	value = get32bit(source);
 }
 
-// deserialize uint64_t
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint64_t& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 8;
+	value = get64bit(source);
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int8_t& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 1;
+	value = get8bit(source);
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int16_t& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 2;
+	value = get16bit(source);
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int32_t& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 4;
+	value = get32bit(source);
+}
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int64_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 8;
 	value = get64bit(source);
@@ -265,6 +322,11 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	for (size_t i = 0; i < vecSize; ++i) {
 		deserialize(source, bytesLeftInBuffer, vector[i]);
 	}
+}
+
+template<class T>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& t) {
+	return t.deserialize(source, bytesLeftInBuffer);
 }
 
 template<class T, class... Args>
