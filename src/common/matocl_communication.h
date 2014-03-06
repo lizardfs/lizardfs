@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/packet.h"
+#include "common/vector_serialization_wrapper.h"
 
 namespace matocl {
 
@@ -8,14 +9,17 @@ namespace iolimits_config {
 
 inline void serialize(std::vector<uint8_t>& destination, const std::string& subsystem,
 		const std::vector<std::string>& groups, uint32_t renewFrequency_us) {
-	serializePacket(destination, LIZ_MATOCL_IOLIMITS_CONFIG, 0, subsystem, groups,
+	serializePacket(destination, LIZ_MATOCL_IOLIMITS_CONFIG, 0, subsystem,
+			makeSerializationWrapper(groups),
 			renewFrequency_us);
 }
 
 inline void deserialize(const uint8_t* source, uint32_t sourceSize, std::string& subsystem,
 		std::vector<std::string>& groups, uint32_t& renewFrequency_us) {
+	auto groupsToSerialize = makeSerializationWrapper(groups);
 	verifyPacketVersionNoHeader(source, sourceSize, 0);
-	deserializeAllPacketDataNoHeader(source, sourceSize, subsystem, groups, renewFrequency_us);
+	deserializeAllPacketDataNoHeader(source, sourceSize, subsystem, groupsToSerialize,
+			renewFrequency_us);
 }
 
 } // namespace iolimits_config

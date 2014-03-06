@@ -56,15 +56,6 @@ inline uint32_t serializedSize(const std::string& value) {
 			+ serializedSize(std::string::value_type()) * value.size();
 }
 
-inline uint32_t serializedSize(const std::vector<std::string>& vector) {
-	uint32_t ret = 0;
-	ret += serializedSize(uint32_t(vector.size()));
-	for (const auto& str : vector) {
-		ret += serializedSize(str);
-	}
-	return ret;
-}
-
 template<class T>
 inline uint32_t serializedSize(const std::vector<T>& vector) {
 	return vector.size() * serializedSize(T());
@@ -125,13 +116,6 @@ inline void serialize(uint8_t** destination, const std::string& value) {
 	serialize(destination, uint32_t(value.length()));
 	for (unsigned i = 0; i < value.length(); ++i) {
 		serialize(destination, value[i]);
-	}
-}
-
-inline void serialize(uint8_t** destination, const std::vector<std::string>& vector) {
-	serialize(destination, uint32_t(vector.size()));
-	for (const auto& str : vector) {
-		serialize(destination, str);
 	}
 }
 
@@ -235,17 +219,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	value.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, value[i]);
-	}
-}
-
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		std::vector<std::string>& vec) {
-	sassert(vec.size() == 0);
-	uint32_t size;
-	deserialize(source, bytesLeftInBuffer, size);
-	vec.resize(size);
-	for (unsigned i = 0; i < size; ++i) {
-		deserialize(source, bytesLeftInBuffer, vec[i]);
 	}
 }
 

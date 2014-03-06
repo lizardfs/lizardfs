@@ -23,11 +23,6 @@ TEST(SerializationTest, SerializeUint32Vector) {
 	serializeTest<std::vector<uint32_t>>(std::vector<uint32_t>{1, 2, 3, 4});
 }
 
-TEST(SerializationTest, SerializeStringVector) {
-	serializeTest<std::vector<std::string>>(
-			std::vector<std::string>{"jajeczniczka", "ze", "szczypiorkiem"});
-}
-
 TEST(SerializationTest, DeserializeStringNonEmptyVariable) {
 	LIZARDFS_DEFINE_INOUT_PAIR(std::string, stringVariable, "good!", "BAD!");
 
