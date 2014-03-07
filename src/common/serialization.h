@@ -15,6 +15,77 @@ public:
 			Exception("Deserialization error: " + message) {}
 };
 
+template<class T>
+struct IsConstSerializedSize {
+	static constexpr bool value = false;
+};
+
+template<>
+struct IsConstSerializedSize<uint8_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<uint16_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<uint32_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<uint64_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<int8_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<int16_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<int32_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<int64_t> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<char> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<float> {
+	static constexpr bool value = true;
+};
+
+template<>
+struct IsConstSerializedSize<double> {
+	static constexpr bool value = true;
+};
+
+template<class T, int N>
+struct IsConstSerializedSize<T[N]> {
+	static constexpr bool value = IsConstSerializedSize<T>::value;
+};
+
+template<class T1, class T2>
+struct IsConstSerializedSize<std::pair<T1, T2>> {
+	static constexpr bool value = IsConstSerializedSize<T1>::value
+			&& IsConstSerializedSize<T2>::value;
+};
+
 // serializedSize
 
 inline uint32_t serializedSize(const bool&) {
@@ -72,18 +143,14 @@ inline uint32_t serializedSize(const std::string& value) {
 			+ serializedSize(std::string::value_type()) * value.size();
 }
 
-inline uint32_t serializedSize(const std::vector<std::string>& vector) {
-	uint32_t ret = 0;
-	ret += serializedSize(uint32_t(vector.size()));
-	for (const auto& str : vector) {
-		ret += serializedSize(str);
-	}
-	return ret;
-}
-
 template<class T>
 inline uint32_t serializedSize(const std::vector<T>& vector) {
-	return vector.size() * serializedSize(T());
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(vector.size()));
+	for (const auto& t : vector) {
+		ret += serializedSize(t);
+	}
+	return ret;
 }
 
 template<class T>
@@ -161,16 +228,9 @@ inline void serialize(uint8_t** destination, const std::string& value) {
 	}
 }
 
-inline void serialize(uint8_t** destination, const std::vector<std::string>& vector) {
-	serialize(destination, uint32_t(vector.size()));
-	for (const auto& str : vector) {
-		serialize(destination, str);
-	}
-}
-
-// serialize a vector
 template<class T>
 inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
+	serialize(destination, uint32_t(vector.size()));
 	for (const T& t : vector) {
 		serialize(destination, t);
 	}
@@ -295,32 +355,15 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	}
 }
 
+template<class T>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		std::vector<std::string>& vec) {
+		std::vector<T>& vec) {
 	sassert(vec.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);
 	vec.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, vec[i]);
-	}
-}
-
-// deserialize a vector
-template<class T>
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		std::vector<T>& vector) {
-	size_t sizeOfElement = serializedSize(T());
-	sassert(vector.size() == 0);
-	sassert(sizeOfElement > 0);
-	if (bytesLeftInBuffer % sizeOfElement != 0) {
-		throw IncorrectDeserializationException(
-				"vector: buffer size not divisible by element size");
-	}
-	size_t vecSize = bytesLeftInBuffer / sizeOfElement;
-	vector.resize(vecSize);
-	for (size_t i = 0; i < vecSize; ++i) {
-		deserialize(source, bytesLeftInBuffer, vector[i]);
 	}
 }
 
@@ -340,9 +383,8 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& 
  */
 template <class T>
 inline void deserializeAndIgnore(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
-	verifySize(T(), bytesLeftInBuffer);
-	*source += serializedSize(T());
-	bytesLeftInBuffer -= serializedSize(T());
+	T dummy;
+	deserialize(source, bytesLeftInBuffer, dummy);
 }
 
 /*
