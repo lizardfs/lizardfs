@@ -26,9 +26,9 @@ uint64_t metadata_getversion(const std::string& file) {
 		close(fd);
 		return 0;
 	}
-	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0) {
+	if (memcmp(chkbuff,MFSSIGNATURE "M 1.",7)==0 && chkbuff[7]>='5' && chkbuff[7]<='6') {
 		memset(eofmark,0,16);
-	} else if (memcmp(chkbuff,MFSSIGNATURE "M 1.7",8)==0) {
+	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8)==0) {
 		memcpy(eofmark,"[MFS EOF MARKER]",16);
 	} else {
 		close(fd);
