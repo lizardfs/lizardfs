@@ -360,7 +360,9 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		uint32_t readAheadBlocks = 0;
 		uint32_t maxReadBehindBlocks = 0;
 		if (isFirst) {
-			readAheadBlocks = totalRequestBlocks + gHDDReadAhead.blocksToBeReadAhead();
+			if (gHDDReadAhead.blocksToBeReadAhead() > 0) {
+				readAheadBlocks = totalRequestBlocks + gHDDReadAhead.blocksToBeReadAhead();
+			}
 			// Try not to influence slow streams to much:
 			maxReadBehindBlocks = std::min(totalRequestBlocks,
 					gHDDReadAhead.maxBlocksToBeReadBehind());
