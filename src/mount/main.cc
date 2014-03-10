@@ -46,7 +46,7 @@
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
 #include "mount/csdb.h"
-#include "mount/global_io_limiter.h"
+#include "mount/g_io_limiters.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/mfs_fuse.h"
