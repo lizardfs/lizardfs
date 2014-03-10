@@ -49,7 +49,7 @@ setup_local_empty_lizardfs() {
 	done
 
 	# Wait for chunkservers
-	lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+	lizardfs_wait_for_all_ready_chunkservers
 
 	# Return array containing information about the installation
 	local out_var=$1
@@ -239,4 +239,8 @@ lizardfs_wait_for_ready_chunkservers() {
 	while (( $(lizardfs-probe ready-chunkservers-count localhost $port) != $chunkservers )); do
 		sleep 0.1
 	done
+}
+
+lizardfs_wait_for_all_ready_chunkservers() {
+	lizardfs_wait_for_ready_chunkservers ${lizardfs_info[chunkserver_count]}
 }

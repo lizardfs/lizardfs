@@ -35,3 +35,4 @@ rm "$mnt0dir1/file2"
 
 lizardfs_master_daemon restart
 mfschunkserver -c ${info[chunkserver0_config]} restart
+lizardfs_wait_for_all_ready_chunkservers

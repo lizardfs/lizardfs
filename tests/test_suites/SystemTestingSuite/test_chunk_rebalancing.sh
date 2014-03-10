@@ -52,4 +52,5 @@ for csid in {0..4}; do
 	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dir/*
 	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dirxor/*
 	mfschunkserver -c "${config}" start
+	lizardfs_wait_for_all_ready_chunkservers
 done

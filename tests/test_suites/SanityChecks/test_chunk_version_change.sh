@@ -12,7 +12,7 @@ FILE_SIZE=123456 file-generate file
 
 # Restarft the chunkserver and overwrite the file
 mfschunkserver -c "${info[chunkserver0_config]}" restart
-sleep 1
+lizardfs_wait_for_all_ready_chunkservers
 FILE_SIZE=234567 file-generate "$TEMP_DIR/newfile"
 dd if="$TEMP_DIR/newfile" of=file conv=notrunc
 

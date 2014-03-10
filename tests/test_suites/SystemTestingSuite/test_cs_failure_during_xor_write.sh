@@ -37,7 +37,7 @@ for csid in {0..3}; do
 	start_proxy $port $((port + 1000)) $((1883 * (4 + csid)))
 	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
 done
-sleep 3
+lizardfs_wait_for_all_ready_chunkservers
 
 # Create a xor3 directory for tests
 mkdir "${info[mount0]}/dir"
@@ -63,5 +63,5 @@ for csid in 0 1; do
 	mfschunkserver -c "${config}" stop
 	MESSAGE="Validating data (CS$csid is down)" expect_success file-validate "${info[mount3]}"/dir/*
 	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
-	sleep 1
+	lizardfs_wait_for_all_ready_chunkservers
 done

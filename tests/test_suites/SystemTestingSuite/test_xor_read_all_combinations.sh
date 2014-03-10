@@ -17,5 +17,5 @@ for i in {0..9}; do
 		test_add_failure "Data read from file without chunkserver $i is different than written"
 	fi
 	mfschunkserver -c "${info[chunkserver${i}_config]}" start
-	sleep 2
+	lizardfs_wait_for_all_ready_chunkservers
 done

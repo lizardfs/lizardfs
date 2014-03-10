@@ -52,6 +52,6 @@ if [[ $verify_file_content == YES ]]; then
 		mfschunkserver -c "${config}" stop
 		file-validate */*
 		mfschunkserver -c "${config}" start
-		sleep 2
+		lizardfs_wait_for_ready_chunkservers $((number_of_chunkservers - 1))
 	done
 fi

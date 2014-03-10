@@ -34,7 +34,7 @@ config=${info[chunkserver${csid}_config]}
 start_proxy $port $((port + 1000))
 mfschunkserver -c "${config}" stop
 LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
-sleep 1
+lizardfs_wait_for_all_ready_chunkservers
 
 if ! file-validate "$dir/file"; then
 	test_add_failure "Data read from file is different than written"

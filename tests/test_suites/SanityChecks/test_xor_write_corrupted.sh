@@ -23,7 +23,7 @@ for file in * ; do
 done
 
 mfschunkserver -c "${info[chunkserver0_config]}" start
-sleep 1
+lizardfs_wait_for_all_ready_chunkservers
 
 for file in * ; do
 	MESSAGE="Validating $file after restart" expect_success file-validate $file

@@ -5,6 +5,9 @@ for_chunkservers() {
 		mfschunkserver -c ${info[chunkserver${csid}_config]} "${operation}" &
 	done
 	wait
+	if [[ operation == start ]]; then
+		lizardfs_wait_for_ready_chunkservers $#
+	fi
 }
 
 timeout_set "1 minute"

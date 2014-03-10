@@ -101,6 +101,7 @@ wait
 # Check if all files are readable from the new copies with one of the chunkservers turned off
 # (so hopefully we'll check if all the files that were created are valid)
 for csid in $(seq 0 $(($NUMBER_OF_CHUNKSERVERS - 1))); do
+	lizardfs_wait_for_all_ready_chunkservers
 	config=${info[chunkserver${csid}_config]}
 	mfschunkserver -c "${config}" stop
 	for goal in $goals; do
