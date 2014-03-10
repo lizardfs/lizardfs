@@ -36,25 +36,25 @@ void ListChunkserversCommand::run(const std::vector<std::string>& argv) const {
 	}
 	for (const ChunkserverEntry& cs : chunkservers) {
 		if (porcelainMode) {
-			std::cout << cs.address.toString()
-					<< ' ' << lizardfsVersionToString(cs.version)
-					<< ' ' << cs.chunks
-					<< ' ' << cs.usedSpace
-					<< ' ' << cs.totalSpace
-					<< ' ' << cs.tdChunks
-					<< ' ' << cs.tdUsedSpace
-					<< ' ' << cs.tdTotalSpace
-					<< ' ' << cs.errorCount << std::endl;
+			std::cout << cs.address_.toString()
+					<< ' ' << lizardfsVersionToString(cs.version_)
+					<< ' ' << cs.chunks_
+					<< ' ' << cs.usedSpace_
+					<< ' ' << cs.totalSpace_
+					<< ' ' << cs.tdChunks_
+					<< ' ' << cs.tdUsedSpace_
+					<< ' ' << cs.tdTotalSpace_
+					<< ' ' << cs.errorCount_ << std::endl;
 		} else {
-			std::cout << cs.address.toString()
-					<< '\t' << lizardfsVersionToString(cs.version)
-					<< '\t' << convertToSi(cs.chunks)
-					<< '\t' << convertToIec(cs.usedSpace)
-					<< '/' << convertToIec(cs.totalSpace)
-					<< '\t' << convertToSi(cs.tdChunks)
-					<< '\t' << convertToIec(cs.tdUsedSpace)
-					<< '/' << convertToIec(cs.tdTotalSpace)
-					<< '\t' << convertToSi(cs.errorCount) << std::endl;
+			std::cout << cs.address_.toString()
+					<< '\t' << lizardfsVersionToString(cs.version_)
+					<< '\t' << convertToSi(cs.chunks_)
+					<< '\t' << convertToIec(cs.usedSpace_)
+					<< '/' << convertToIec(cs.totalSpace_)
+					<< '\t' << convertToSi(cs.tdChunks_)
+					<< '\t' << convertToIec(cs.tdUsedSpace_)
+					<< '/' << convertToIec(cs.tdTotalSpace_)
+					<< '\t' << convertToSi(cs.errorCount_) << std::endl;
 		}
 	}
 }

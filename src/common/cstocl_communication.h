@@ -7,25 +7,12 @@ namespace cstocl {
 
 namespace readData {
 
-inline void serialize(std::vector<uint8_t>& destination,
-		uint64_t chunkId, uint32_t readOffset, uint32_t readSize,
-		uint32_t crc, const std::vector<uint8_t>& data) {
-	serializePacket(destination, LIZ_CSTOCL_READ_DATA, 0, chunkId, readOffset, readSize, crc, data);
-}
-
 inline void serializePrefix(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t readOffset, uint32_t readSize) {
 	// This prefix requires CRC (uint32_t) and data (readSize * uint8_t) to be appended
 	uint32_t extraSpace = serializedSize(uint32_t()) + readSize;
 	serializePacketPrefix(destination, extraSpace,
 			LIZ_CSTOCL_READ_DATA, 0, chunkId, readOffset, readSize);
-}
-
-inline void deserialize(const std::vector<uint8_t>& source,
-		uint64_t& chunkId, uint32_t& readOffset, uint32_t& readSize,
-		uint32_t& crc, std::vector<uint8_t>& data) {
-	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, chunkId, readOffset, readSize, crc, data);
 }
 
 inline void deserializePrefix(const std::vector<uint8_t>& source,

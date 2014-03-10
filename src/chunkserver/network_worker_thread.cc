@@ -32,6 +32,7 @@
 #include "common/massert.h"
 #include "common/main.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
@@ -83,7 +84,8 @@ public:
 			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 			const std::vector<NetworkAddress>& chain) {
 		sassert(chunkType == ChunkType::getStandardChunkType());
-		serializeMooseFsPacket(buffer, CLTOCS_WRITE, chunkId, chunkVersion, chain);
+		serializeMooseFsPacket(buffer, CLTOCS_WRITE, chunkId, chunkVersion,
+				MooseFSVector<NetworkAddress>(chain));
 	}
 
 	void serializeCstoclWriteStatus(std::vector<uint8_t>& buffer,
@@ -498,8 +500,10 @@ void worker_write_init(csserventry *eptr,
 					eptr->chunkid, eptr->version, eptr->chunkType, chain);
 			eptr->messageSerializer = LizardFsMessageSerializer::getSingleton();
 		} else {
+			MooseFSVector<NetworkAddress> mooseFSChain;
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
-				eptr->chunkid, eptr->version, chain);
+				eptr->chunkid, eptr->version, mooseFSChain);
+			chain = std::move(mooseFSChain);
 			eptr->chunkType = ChunkType::getStandardChunkType();
 			eptr->messageSerializer = MooseFsMessageSerializer::getSingleton();
 		}

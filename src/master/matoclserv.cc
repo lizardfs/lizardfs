@@ -44,6 +44,7 @@
 #include "common/massert.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_vector.h"
 #include "common/network_address.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
@@ -237,7 +238,7 @@ public:
 	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
 			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
 			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
-		std::vector<NetworkAddress> standardChunkCopies;
+		MooseFSVector<NetworkAddress> standardChunkCopies;
 		getStandardChunkCopies(chunkCopies, standardChunkCopies);
 		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_READ_CHUNK, messageId, fileLength,
 				chunkId, chunkVersion, standardChunkCopies);
@@ -258,7 +259,7 @@ public:
 			uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
 			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
 		sassert(lockId == 1);
-		std::vector<NetworkAddress> standardChunkCopies;
+		MooseFSVector<NetworkAddress> standardChunkCopies;
 		getStandardChunkCopies(chunkCopies, standardChunkCopies);
 		serializeMooseFsPacket(packetBuffer, MATOCL_FUSE_WRITE_CHUNK, messageId, fileLength,
 						chunkId, chunkVersion, standardChunkCopies);
@@ -2849,7 +2850,7 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, const uint8_t *data, uint32_
 
 	uint8_t fn = 0;
 	uint8_t dn = 0;
-	std::vector<std::pair<uint8_t, uint32_t>> goalData;
+	MooseFSVector<std::pair<uint8_t, uint32_t>> goalData;
 	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
 		if (goalStats.filesWithGoal[i] > 0) {
 			goalData.push_back({i, goalStats.filesWithGoal[i]});

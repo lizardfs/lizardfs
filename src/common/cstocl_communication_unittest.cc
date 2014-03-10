@@ -9,23 +9,25 @@
 TEST(CltocsCommunicationTests, ReadData) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0x0123456789ABCDEF, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, readOffset, 2 * MFSBLOCKSIZE, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, readSize, 5 * MFSBLOCKSIZE, 0);
-	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(uint8_t, data) = {0x10, 0x20, 0x30, 0x40};
-	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, crc, mycrc32(0, dataIn.data(), dataIn.size()), 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, readSize, MFSBLOCKSIZE, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, crc, 0x89ABCDEF, 0);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cstocl::readData::serialize(buffer,
-			chunkIdIn, readOffsetIn, readSizeIn, crcIn, dataIn));
+	ASSERT_NO_THROW(cstocl::readData::serializePrefix(buffer,
+			chunkIdIn, readOffsetIn, readSizeIn));
+	uint32_t prefixSize = buffer.size();
+	buffer.resize(prefixSize + serializedSize(crcIn) + MFSBLOCKSIZE);
+	uint8_t* ptr = buffer.data() + prefixSize;
+	ASSERT_NO_THROW(serialize(&ptr, crcIn));
 
 	verifyHeader(buffer, LIZ_CSTOCL_READ_DATA);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(cstocl::readData::deserialize(buffer,
-			chunkIdOut, readOffsetOut, readSizeOut, crcOut, dataOut));
+	ASSERT_NO_THROW(cstocl::readData::deserializePrefix(buffer,
+			chunkIdOut, readOffsetOut, readSizeOut, crcOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
 	LIZARDFS_VERIFY_INOUT_PAIR(readOffset);
 	LIZARDFS_VERIFY_INOUT_PAIR(readSize);
-	LIZARDFS_VERIFY_INOUT_PAIR(data);
 	LIZARDFS_VERIFY_INOUT_PAIR(crc);
 }
 

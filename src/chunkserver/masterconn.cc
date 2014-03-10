@@ -44,6 +44,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
@@ -211,7 +212,7 @@ void masterconn_check_hdd_reports() {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_ERROR_OCCURRED);
 			errorcounter--;
 		}
-		std::vector<uint64_t> chunks;
+		MooseFSVector<uint64_t> chunks;
 		hdd_get_damaged_chunks(chunks);
 		if (!chunks.empty()) {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
