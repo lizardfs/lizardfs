@@ -18,41 +18,38 @@
 
 #include "config.h"
 
+#include <errno.h>
+#include <inttypes.h>
+#ifdef HAVE_PWD_H
+  #include <pwd.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <sys/types.h>
-#ifdef HAVE_PWD_H
-#include <pwd.h>
-#endif
-#include <sys/stat.h>
-#include <inttypes.h>
-#include <errno.h>
-
-#include "common/MFSCommunication.h"
 
 // TODO: wtf?!
 // #define CACHENOTIFY 1
 
-#ifndef METARESTORE
-#include "matoclserv.h"
-#include "matocsserv.h"
-#endif
-
-#include "chunks.h"
-#include "filesystem.h"
 #include "common/datapack.h"
-#include "common/slogger.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
-
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #ifndef METARESTORE
-#include "datacachemgr.h"
-#include "common/cfg.h"
-#include "common/main.h"
-#include "changelog.h"
+  #include "common/cfg.h"
+  #include "common/main.h"
+  #include "master/changelog.h"
+  #include "master/datacachemgr.h"
+  #include "master/matoclserv.h"
+  #include "master/matocsserv.h"
 #endif
+#include "master/chunks.h"
+#include "master/filesystem.h"
+
 
 #define USE_FREENODE_BUCKETS 1
 #define USE_CUIDREC_BUCKETS 1
@@ -150,23 +147,23 @@ typedef struct _quotanode {
 
 static quotanode *quotahead;
 
-typedef struct _xattr_data_entry {
+struct xattr_data_entry {
 	uint32_t inode;
 	uint8_t anleng;
 	uint32_t avleng;
 	uint8_t *attrname;
 	uint8_t *attrvalue;
-	struct _xattr_data_entry **previnode,*nextinode;
-	struct _xattr_data_entry **prev,*next;
-} xattr_data_entry;
+	struct xattr_data_entry **previnode,*nextinode;
+	struct xattr_data_entry **prev,*next;
+};
 
-typedef struct _xattr_inode_entry {
+struct xattr_inode_entry {
 	uint32_t inode;
 	uint32_t anleng;
 	uint32_t avleng;
-	struct _xattr_data_entry *data_head;
-	struct _xattr_inode_entry *next;
-} xattr_inode_entry;
+	struct xattr_data_entry *data_head;
+	struct xattr_inode_entry *next;
+};
 
 static xattr_inode_entry **xattr_inode_hash;
 static xattr_data_entry **xattr_data_hash;
@@ -7913,7 +7910,7 @@ int fs_emergency_storeall(const char *fname) {
 	if (fd==NULL) {
 		return -1;
 	}
-#if VERSHEX>=0x010700
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
@@ -8016,7 +8013,7 @@ int fs_storeall(int bg) {
 			}
 			return 0;
 		}
-#if VERSHEX>=0x010700
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 		if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 			syslog(LOG_NOTICE,"fwrite error");
 		} else {
@@ -8087,7 +8084,7 @@ void fs_storeall(const char *fname) {
 		printf("can't open metadata file\n");
 		return;
 	}
-#if VERSHEX>=0x010700
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
