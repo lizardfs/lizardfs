@@ -5,12 +5,6 @@
 #include "common/serialization.h"
 #include "common/serializable_class_generated.h"
 
-// A macro that helps to compute the number of parameters passed to a variadic macro:
-#define COUNT_ARGS(...) COUNT_ARGS_(, ##__VA_ARGS__, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, \
-        10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
-#define COUNT_ARGS_(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, \
-        a17, a18, a19, a20, count, ...) count
-
 // Macros used to concatenate two macro names:
 #define PASTE(a,b) a ## b
 #define PASTE_B(a,b) PASTE(a,b)
