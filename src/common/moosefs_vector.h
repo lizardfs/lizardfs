@@ -14,7 +14,11 @@ public:
 	}
 
 	uint32_t serializedSize() const {
-		return this->size() * ::serializedSize(T());
+		uint32_t ret = 0;
+		for (const auto& element : *this) {
+			ret += ::serializedSize(element);
+		}
+		return ret;
 	}
 	void serialize(uint8_t** destination) const {
 		for (const T& t : *this) {
@@ -25,14 +29,9 @@ public:
 		size_t sizeOfElement = ::serializedSize(T());
 		sassert(this->size() == 0);
 		sassert(sizeOfElement > 0);
-		if (bytesLeftInBuffer % sizeOfElement != 0) {
-			throw IncorrectDeserializationException(
-					"vector: buffer size not divisible by element size");
-		}
-		size_t vecSize = bytesLeftInBuffer / sizeOfElement;
-		this->resize(vecSize);
-		for (size_t i = 0; i < vecSize; ++i) {
-			::deserialize(source, bytesLeftInBuffer, (*this)[i]);
+		while (bytesLeftInBuffer > 0) {
+			this->push_back(T());
+			::deserialize(source, bytesLeftInBuffer, this->back());
 		}
 	}
 };
