@@ -30,6 +30,9 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <sys/mman.h>
+#include <errno.h>
+#include <inttypes.h>
 
 #include "common/metadata.h"
 #include "common/slogger.h"
@@ -153,7 +156,22 @@ int changelog_checkname(const char *fname) {
 }
 
 void usage(const char* appname) {
-	fprintf(stderr,"restore metadata:\n\t%s [-f] [-b] [-i] [-x [-x]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\ndump metadata:\n\t%s [-i] -m <meta data file>\nautorestore:\n\t%s [-f] [-b] [-i] [-x [-x]] -a [-d <data path>]\nprint version:\n\t%s -v\n\n-x - produce more verbose output\n-xx - even more verbose output\n-b - if there is any error in change logs then save the best possible metadata file\n-i - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)\n-f - force loading all changelogs\n",appname,appname,appname,appname);
+	fprintf(stderr, "restore metadata:\n"
+			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
+			"dump metadata:\n"
+			"\t%s [-i] -m <meta data file>\n"
+			"autorestore:\n"
+			"\t%s [-f] [-b] [-i] [-x [-x]] -a [-d <data path>]\n"
+			"print version:\n"
+			"\t%s -v\n"
+			"\n"
+			"-c - print checksum of the metadata\n"
+			"-k - check checksum against given checksum\n"
+			"-x - produce more verbose output\n"
+			"-xx - even more verbose output\n"
+			"-b - if there is any error in change logs then save the best possible metadata file\n"
+			"-i - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)\n"
+			"-f - force loading all changelogs\n", appname, appname, appname, appname);
 }
 
 int main(int argc,char **argv) {
@@ -163,18 +181,20 @@ int main(int argc,char **argv) {
 	int savebest = 0;
 	int ignoreflag = 0;
 	int forcealllogs = 0;
+	bool printhash = false;
 	int status;
 	int skip;
 	std::string metaout, metadata, datapath;
 	char *appname = argv[0];
 	uint64_t firstlv,lastlv;
+	uint64_t* checksum = NULL;
 
 	strerr_init();
 
-	while ((ch = getopt(argc, argv, "fvm:o:d:abxih:?")) != -1) {
+	while ((ch = getopt(argc, argv, "fck:vm:o:d:abxih:?")) != -1) {
 		switch (ch) {
 			case 'v':
-				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
+				fprintf(stderr, "version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
 				return 0;
 			case 'o':
 				metaout = optarg;
@@ -199,6 +219,14 @@ int main(int argc,char **argv) {
 				break;
 			case 'f':
 				forcealllogs=1;
+				break;
+			case 'c':
+				printhash = true;
+				break;
+			case 'k':
+				free(checksum);
+				checksum = (uint64_t*) malloc(sizeof(checksum));
+				sscanf(optarg, "%" PRIu64, checksum);
 				break;
 			case '?':
 			default:
@@ -242,36 +270,36 @@ int main(int argc,char **argv) {
 					bestmetadata = metadata_candidate;
 				}
 			} catch (MetadataCheckException& ex) {
-				printf("skipping malformed metadata file %s: %s\n", candidate, ex.what());
+				fprintf(stderr, "skipping malformed metadata file %s: %s\n", candidate, ex.what());
 			}
 		}
 		if (bestmetadata.empty()) {
-			printf("error: can't find backed up metadata file !!!\n");
+			fprintf(stderr, "error: can't find backed up metadata file !!!\n");
 			return 1;
 		}
 		metadata = bestmetadata;
 		metaout =  datapath + "/metadata.mfs";
-		printf("file %s will be used to restore the most recent metadata\n", metadata.c_str());
+		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
 	}
 
 	if (fs_init(metadata.c_str(), ignoreflag) != 0) {
-		printf("error: can't read metadata from file: %s\n", metadata.c_str());
+		fprintf(stderr, "error: can't read metadata from file: %s\n", metadata.c_str());
 		return 1;
 	}
 	if (fs_getversion() == 0) {
 		// TODO(msulikowski) make it work! :)
-		printf("error: applying changes to an empty metadata file (version 0) not supported!!!\n");
+		fprintf(stderr, "error: applying changes to an empty metadata file (version 0) not supported!!!\n");
 		return 1;
 	}
 	if (vl > 0) {
-		printf("loaded metadata with version %" PRIu64 "\n", fs_getversion());
+		fprintf(stderr, "loaded metadata with version %" PRIu64 "\n", fs_getversion());
 	}
 
 	if (autorestore) {
 		std::vector<char*> filenames;
 		DIR *dd = opendir(datapath.c_str());
 		if (!dd) {
-			printf("can't open data directory\n");
+			fprintf(stderr, "can't open data directory\n");
 			return 1;
 		}
 		rewinddir(dd);
@@ -284,19 +312,19 @@ int main(int argc,char **argv) {
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					if (skip) {
-						printf("skipping changelog file: %s (changes: ", filenames.back());
+						fprintf(stderr, "skipping changelog file: %s (changes: ", filenames.back());
 					} else {
-						printf("using changelog file: %s (changes: ", filenames.back());
+						fprintf(stderr, "using changelog file: %s (changes: ", filenames.back());
 					}
 					if (firstlv>0) {
-						printf("%" PRIu64 " - ",firstlv);
+						fprintf(stderr, "%" PRIu64 " - ",firstlv);
 					} else {
-						printf("??? - ");
+						fprintf(stderr, "??? - ");
 					}
 					if (lastlv>0) {
-						printf("%" PRIu64 ")\n",lastlv);
+						fprintf(stderr, "%" PRIu64 ")\n",lastlv);
 					} else {
-						printf("?\?\?)\n");
+						fprintf(stderr, "?\?\?)\n");
 					}
 				}
 				if (skip) {
@@ -306,7 +334,7 @@ int main(int argc,char **argv) {
 		}
 		closedir(dd);
 		if (filenames.empty() && metadata == metaout) {
-			printf("nothing to do, exiting without changing anything\n");
+			fprintf(stderr, "nothing to do, exiting without changing anything\n");
 			return 0;
 		}
 		merger_start(filenames.size(), filenames.data(), MAXIDHOLE);
@@ -325,19 +353,19 @@ int main(int argc,char **argv) {
 			skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 			if (vl>0) {
 				if (skip) {
-					printf("skipping changelog file: %s (changes: ",argv[pos]);
+					fprintf(stderr, "skipping changelog file: %s (changes: ",argv[pos]);
 				} else {
-					printf("using changelog file: %s (changes: ",argv[pos]);
+					fprintf(stderr, "using changelog file: %s (changes: ",argv[pos]);
 				}
 				if (firstlv>0) {
-					printf("%" PRIu64 " - ",firstlv);
+					fprintf(stderr, "%" PRIu64 " - ",firstlv);
 				} else {
-					printf("??? - ");
+					fprintf(stderr, "??? - ");
 				}
 				if (lastlv>0) {
-					printf("%" PRIu64 ")\n",lastlv);
+					fprintf(stderr, "%" PRIu64 ")\n",lastlv);
 				} else {
-					printf("?\?\?)\n");
+					fprintf(stderr, "?\?\?)\n");
 				}
 			}
 			if (skip==0) {
@@ -362,8 +390,8 @@ int main(int argc,char **argv) {
 		fs_dump();
 		chunk_dump();
 	} else {
-		printf("store metadata into file: %s\n",metaout.c_str());
-		fs_term(metaout.c_str());
+		fprintf(stderr, "store metadata into file: %s\n",metaout.c_str());
+		fs_term(metaout.c_str(), printhash, checksum);
 	}
 	return 0;
 }

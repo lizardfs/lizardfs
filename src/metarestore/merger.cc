@@ -69,7 +69,7 @@ void merger_nextentry(uint32_t pos) {
 		if (heap[pos].nextid==0 || (nextid>heap[pos].nextid && nextid<heap[pos].nextid+maxidhole)) {
 			heap[pos].nextid = nextid;
 		} else {
-			printf("found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
+			fprintf(stderr, "found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
 			heap[pos].nextid = 0;
 		}
 	} else {
@@ -98,7 +98,7 @@ void merger_new_entry(const char *filename) {
 		heap[heapsize].nextid = 0;
 		merger_nextentry(heapsize);
 	} else {
-		printf("can't open changelog file: %s\n",filename);
+		fprintf(stderr, "can't open changelog file: %s\n",filename);
 		heap[heapsize].filename = NULL;
 		heap[heapsize].buff = NULL;
 		heap[heapsize].ptr = NULL;

@@ -186,3 +186,10 @@ _CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%" PRIu32)
 _CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%" PRId64)
 _CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%" PRIu64)
 _CONFIG_GEN_FUNCTION(double,double,double,"%f")
+
+std::string cfg_get(const char* name, std::string defaultValue) {
+	char* tmpString = cfg_getstr(name, defaultValue.c_str());
+	std::string returnValue(tmpString);
+	free(tmpString);
+	return returnValue;
+}

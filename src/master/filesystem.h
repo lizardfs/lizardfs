@@ -59,7 +59,7 @@ uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *at
 uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
 
 void fs_dump(void);
-void fs_term(const char *fname);
+void fs_term(const char *fname, bool printhash, uint64_t* checksum);
 int fs_init(const char *fname,int ignoreflag);
 
 #else

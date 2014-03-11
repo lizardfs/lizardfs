@@ -1926,16 +1926,11 @@ void chunk_jobs_main(void) {
 
 void chunk_dump(void) {
 	chunk *c;
-	uint32_t i,lockedto,now;
-	now = time(NULL);
+	uint32_t i;
 
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next) {
-			lockedto = c->lockedto;
-			if (lockedto<now) {
-				lockedto = 0;
-			}
-			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,lockedto);
+			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,c->lockedto);
 		}
 	}
 }
@@ -1995,12 +1990,7 @@ void chunk_store(FILE *fd) {
 // chunkdata
 	uint64_t chunkid;
 	uint32_t version;
-	uint32_t lockedto,now;
-#ifndef METARESTORE
-	now = main_time();
-#else
-	now = time(NULL);
-#endif
+	uint32_t lockedto;
 	ptr = hdr;
 	put64bit(&ptr,nextchunkid);
 	if (fwrite(hdr,1,8,fd)!=(size_t)8) {
@@ -2015,9 +2005,6 @@ void chunk_store(FILE *fd) {
 			version = c->version;
 			put32bit(&ptr,version);
 			lockedto = c->lockedto;
-			if (lockedto<now) {
-				lockedto = 0;
-			}
 			put32bit(&ptr,lockedto);
 			j++;
 			if (j==CHUNKCNT) {

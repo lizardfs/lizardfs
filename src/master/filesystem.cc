@@ -24,12 +24,16 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
 #include <sys/stat.h>
 #include <inttypes.h>
 #include <errno.h>
+#include <vector>
+#include <string>
+#include <memory>
 
 #include "common/MFSCommunication.h"
 
@@ -334,7 +338,258 @@ void fs_stats(uint32_t stats[16]) {
 	stats_write=0;
 }
 
-#endif
+void rename_backup_files() {
+	// rename previous backups
+	if (BackMetaCopies > 0) {
+		char metaname1[100], metaname2[100];
+		for (int n = BackMetaCopies - 1; n > 0; n--) {
+			snprintf(metaname1, sizeof(metaname1), "metadata.mfs.back.%" PRIu32, n + 1);
+			snprintf(metaname2, sizeof(metaname2), "metadata.mfs.back.%" PRIu32, n);
+			rename(metaname2, metaname1);
+		}
+		rename("metadata.mfs.back", "metadata.mfs.back.1");
+	}
+	if (rename("metadata.mfs.back.tmp", "metadata.mfs.back") == -1) {
+		mfs_errlog(LOG_ERR, "rename metadata.mfs.back.tmp -> metadata.mfs.back failed");
+	}
+}
+
+#endif // ifndef METARESTORE
+
+bool fileExists(const char* path) {
+	static struct stat sb;
+	return stat(path, &sb) == 0;
+}
+
+/// dumps metadata and checks its integrity
+class MetadataDump {
+public:
+	enum DumpType {
+		FOREGROUND_DUMP,
+		BACKGROUND_DUMP
+	};
+	MetadataDump(std::string metarestorePath = std::string()):
+			useMetarestore_(false),
+			metadataChecksum_(initChecksum()),
+			metarestoreSucceeded_(true),
+			metarestoreInProgress_(false),
+			metarestoreFd_(-1),
+			metarestorePath_(metarestorePath) {
+		updateChecksum();
+	}
+
+	uint64_t initChecksum() {
+		return 1234; // arbitrary number
+	}
+
+	void updateChecksum() {
+		metadataChecksum_ = masterStructuresChecksum();
+	}
+
+	void metarestorePath(const std::string& path) {
+		metarestorePath_ = path;
+	}
+
+	bool inProgress() {
+		return metarestoreInProgress_ || fileExists("metadata.mfs.back.tmp");
+	}
+
+	void useMetarestore(bool val) {
+		useMetarestore_ = val;
+	}
+
+	/// calculates checksum of all structures
+	uint64_t masterStructuresChecksum() {
+		// for now
+		return initChecksum();
+	}
+
+#ifndef METARESTORE
+	/*
+	 * Dumping flow:
+	 * Master creates a child and waits for "OK" or "ERR" message, to see if the dumping was
+	 * successful and if the metadata checksums (the one passed from master and the one calculated)
+	 * match. The child is considered dead when poll returns a 0 sized read or an error on pipe.
+	 *
+	 * Dump begins in fs_storeall(). There are 3 cases here.
+	 * `dumpType` is the argument for storeall.
+	 * 1) dumpType == FOREGROUND_DUMP: foreground dump.
+	 *    Master calls execMetarestore(), which returns false (no fork).
+	 * 2) dumpType == BACKGROUND_DUMP && (!metarestoreSucceeded_ || !useMetarestore_): background
+	 *    dump when last metarestore failed or when we don't want to use metarestore for dumping
+	 *    at all.
+	 *    Master tries to fork and its child, (without execing) dumps metadata.
+	 *    If everything went well, the child prints "OK" (mocking mfsmetarestore's behaviour),
+	 *    so that master tries to run metarestore the next time (or he won't - useMetarestore_
+	 *    isn't changed).
+	 *    execMetarestore() modifies dumpType to FOREGROUND_DUMP for the child.
+	 * 3) dumpType == BACKGROUND_DUMP && metarestoreSucceeded_ && useMetarestore_: background dump
+	 *    when we want to use metarestore and it didn't fail last time.
+	 *    Master forks and executes mfsmetarestore, which checks checksums and prints "OK" or "ERR".
+	 *    In case of a syscall error, last metarestore is assumed to have failed
+	 *    (metarestoreSucceeded_ = false), so that the master dumps its metadata itself.
+	 *    execMetarestore() modifies dumpType to FOREGROUND_DUMP for the child.
+	 */
+
+	/// creates pipe and opens reading end as FILE
+	bool createPipe(int pipefds[2], FILE** file) {
+		if (pipe(pipefds) != 0) {
+			mfs_errlog(LOG_ERR, "pipe failed");
+			metarestoreSucceeded_ = false;
+			return false;
+		}
+		if (file) {
+			*file = fdopen(pipefds[0], "r");
+			if (!*file) {
+				mfs_errlog(LOG_ERR, "fdopen failed");
+				metarestoreSucceeded_ = false;
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// returns true if we return as a child
+	bool execMetarestore(DumpType& dumpType) {
+		LOG("dumpType %d succeeded %d useMetarestore %d", (int) dumpType, (int) metarestoreSucceeded_, (int) useMetarestore_);
+		if (dumpType == FOREGROUND_DUMP) {
+			return false;
+		}
+
+		int pipeFd[2];
+		metarestoreFd_ = -1;
+
+		if (!fileExists("changelog.1.mfs")) {
+			if (errno == ENOENT) {
+				syslog(LOG_ERR, "no current changelog, dump by master");
+			} else {
+				mfs_errlog(LOG_ERR, "stat error, dump by master");
+			}
+			metarestoreSucceeded_ = false;
+		}
+
+		// can't communicate with child? foreground dump
+		if (createPipe(pipeFd, &metarestoreFile) == -1) {
+			syslog(LOG_ERR, "couldn't communicate with child, foreground dump");
+			dumpType = FOREGROUND_DUMP;
+			return false;
+		}
+
+		// the child process tells the parent process "OK" or "ERR", until then parent assumes "ERR"
+		switch (fork()) {
+			case -1:
+				// on fork error store metadata in foreground
+				mfs_errlog(LOG_ERR, "fork failed\n");
+				dumpType = FOREGROUND_DUMP;
+				return false;
+			case 0:
+				close(pipeFd[0]); // ignore close error
+				if (dup2(pipeFd[1], 1)  == -1) {
+					// can't give the response
+					mfs_errlog(LOG_ERR, "dup2 failed, dump by master");
+					metarestoreSucceeded_ = false;
+				}
+				if (useMetarestore_ && metarestoreSucceeded_) {
+					// exec mfsmetarestore
+					char buffer[INT64_T_DECDIGS];
+					snprintf(buffer, INT64_T_DECDIGS, "%" PRIu64, metadataChecksum_);
+					char* metarestoreArgs[] = {
+						const_cast<char*>("mfsmetarestore"),
+						const_cast<char*>("-m"),
+						const_cast<char*>("metadata.mfs.back"),
+						const_cast<char*>("-o"),
+						const_cast<char*>("metadata.mfs.back.tmp"),
+						const_cast<char*>("-k"),
+						buffer,
+						const_cast<char*>("changelog.1.mfs"),
+						NULL};
+					execv(metarestorePath_.c_str(), metarestoreArgs);
+					mfs_errlog(LOG_ERR, "exec failed");
+				}
+
+				dumpType = FOREGROUND_DUMP; // child process stores metadata in its foreground
+				return true;
+			default:
+				metarestoreSucceeded_ = false;
+				metarestoreInProgress_ = true;
+				metarestoreFd_ = pipeFd[0];
+				close(pipeFd[1]);
+				return false;
+		}
+	}
+
+	// for poll
+	void pollDesc(struct pollfd *pdesc, uint32_t *ndesc) {
+		if (metarestoreFd_ != -1) {
+			uint32_t& pos = *ndesc;
+			pdesc[pos].fd = metarestoreFd_;
+			pdesc[pos].events = POLLIN;
+			metarestorePollfdsPos_ = pos++;
+		} else {
+			metarestorePollfdsPos_ = -1;
+		}
+	}
+
+	// for poll
+	void pollServe(struct pollfd *pdesc) {
+		if (metarestorePollfdsPos_ == -1)
+			return;
+		bool ended = false;
+		if (pdesc[metarestorePollfdsPos_].revents & POLLIN) {
+			char buffer[4];
+			memset(buffer, 0, sizeof(buffer));
+			if (!fscanf(metarestoreFile, "%3s", buffer)) {
+				ended = true;
+			} else {
+				metarestoreSucceeded_ = strncmp("OK", buffer, 2) == 0;
+			}
+		}
+		if (pdesc[metarestorePollfdsPos_].revents & POLLERR
+				|| pdesc[metarestorePollfdsPos_].revents & POLLHUP
+				|| pdesc[metarestorePollfdsPos_].revents & POLLNVAL) {
+			ended = true;
+		}
+		if (ended) {
+			// mfsmetarestore exited
+			rename_backup_files();
+
+			metarestorePollfdsPos_ = -1;
+			metarestoreFd_ = -1;
+			wait(NULL);
+			metarestoreInProgress_ = false;
+		}
+	}
+#endif // ifndef METARESTORE
+
+private:
+	static const uint32_t INT64_T_DECDIGS = 20;
+	/// should the metarestore be used at all
+	bool useMetarestore_;
+	/// current checksum of all structures
+	uint64_t metadataChecksum_;
+	/// if last metarestore was unsuccessful, dump by master
+	bool metarestoreSucceeded_;
+	/// is mfsmetarestore still running?
+	bool metarestoreInProgress_;
+	/// fd of the reading end of the pipe (connected to stdout of the mfsmetarestore process)
+	int metarestoreFd_;
+	FILE* metarestoreFile;
+	/// pos in `pollfd`s array
+	int32_t metarestorePollfdsPos_;
+	std::string metarestorePath_;
+};
+
+static MetadataDump metadata;
+
+#ifndef METARESTORE
+void metadataPollDesc(struct pollfd *pdesc, uint32_t *ndesc) {
+	metadata.pollDesc(pdesc, ndesc);
+}
+void metadataPollServe(struct pollfd *pdesc) {
+	metadata.pollServe(pdesc);
+}
+#endif // ifndef METARESTORE
+
 
 #ifdef USE_FREENODE_BUCKETS
 #define FREENODE_BUCKET_SIZE 5000
@@ -1839,21 +2094,20 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 }
 
 static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
-	uint32_t i;
 #ifndef METARESTORE
 	statsrecord psr,nsr;
 	fsedge *e;
 
-	fsnodes_get_stats(obj,&psr);
+	fsnodes_get_stats(obj, &psr);
 	nsr = psr;
 	nsr.realsize = goal * nsr.size;
-	for (e=obj->parents ; e ; e=e->nextparent) {
-		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
+	for (e=obj->parents; e; e = e->nextparent) {
+		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
 #endif
-	for (i=0 ; i<obj->data.fdata.chunks ; i++) {
-		if (obj->data.fdata.chunktab[i]>0) {
-			chunk_change_file(obj->data.fdata.chunktab[i],obj->goal,goal);
+	for (uint32_t i = 0; i < obj->data.fdata.chunks; i++) {
+		if (obj->data.fdata.chunktab[i]) {
+			chunk_change_file(obj->data.fdata.chunktab[i], obj->goal, goal);
 		}
 	}
 	obj->goal = goal;
@@ -1917,6 +2171,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	if (toremove->parents!=NULL) {
 		return;
 	}
+
 // remove from idhash
 	nodepos = NODEHASHPOS(toremove->id);
 	ptr = &(nodehash[nodepos]);
@@ -6282,14 +6537,14 @@ enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 void fs_dumpedge(fsedge *e) {
 	if (e->parent==NULL) {
 		if (e->child->type==TYPE_TRASH) {
-			printf("E|p:     TRASH|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			fprintf(stderr, "E|p:     TRASH|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		} else if (e->child->type==TYPE_RESERVED) {
-			printf("E|p:  RESERVED|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			fprintf(stderr, "E|p:  RESERVED|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		} else {
-			printf("E|p:      NULL|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
+			fprintf(stderr, "E|p:      NULL|c:%10" PRIu32 "|n:%s\n",e->child->id,fsnodes_escape_name(e->nleng,e->name));
 		}
 	} else {
-		printf("E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:%s\n",e->parent->id,e->child->id,fsnodes_escape_name(e->nleng,e->name));
+		fprintf(stderr, "E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:%s\n",e->parent->id,e->child->id,fsnodes_escape_name(e->nleng,e->name));
 	}
 }
 
@@ -6329,14 +6584,14 @@ void fs_dumpnode(fsnode *f) {
 		break;
 	}
 
-	printf("%c|i:%10" PRIu32 "|#:%" PRIu8 "|e:%1" PRIX16 "|m:%04" PRIo16 "|u:%10" PRIu32 "|g:%10" PRIu32 "|a:%10" PRIu32 ",m:%10" PRIu32 ",c:%10" PRIu32 "|t:%10" PRIu32,c,f->id,f->goal,(uint16_t)(f->mode>>12),(uint16_t)(f->mode&0xFFF),f->uid,f->gid,f->atime,f->mtime,f->ctime,f->trashtime);
+	fprintf(stderr, "%c|i:%10" PRIu32 "|#:%" PRIu8 "|e:%1" PRIX16 "|m:%04" PRIo16 "|u:%10" PRIu32 "|g:%10" PRIu32 "|a:%10" PRIu32 ",m:%10" PRIu32 ",c:%10" PRIu32 "|t:%10" PRIu32,c,f->id,f->goal,(uint16_t)(f->mode>>12),(uint16_t)(f->mode&0xFFF),f->uid,f->gid,f->atime,f->mtime,f->ctime,f->trashtime);
 
 	if (f->type==TYPE_BLOCKDEV || f->type==TYPE_CHARDEV) {
-		printf("|d:%5" PRIu32 ",%5" PRIu32 "\n",f->data.devdata.rdev>>16,f->data.devdata.rdev&0xFFFF);
+		fprintf(stderr, "|d:%5" PRIu32 ",%5" PRIu32 "\n",f->data.devdata.rdev>>16,f->data.devdata.rdev&0xFFFF);
 	} else if (f->type==TYPE_SYMLINK) {
-		printf("|p:%s\n",fsnodes_escape_name(f->data.sdata.pleng,f->data.sdata.path));
+		fprintf(stderr, "|p:%s\n",fsnodes_escape_name(f->data.sdata.pleng,f->data.sdata.path));
 	} else if (f->type==TYPE_FILE || f->type==TYPE_TRASH || f->type==TYPE_RESERVED) {
-		printf("|l:%20" PRIu64 "|c:(",f->data.fdata.length);
+		fprintf(stderr, "|l:%20" PRIu64 "|c:(",f->data.fdata.length);
 		ch = 0;
 		for (i=0 ; i<f->data.fdata.chunks ; i++) {
 			if (f->data.fdata.chunktab[i]!=0) {
@@ -6345,24 +6600,24 @@ void fs_dumpnode(fsnode *f) {
 		}
 		for (i=0 ; i<ch ; i++) {
 			if (f->data.fdata.chunktab[i]!=0) {
-				printf("%016" PRIX64,f->data.fdata.chunktab[i]);
+				fprintf(stderr, "%016" PRIX64,f->data.fdata.chunktab[i]);
 			} else {
-				printf("N");
+				fprintf(stderr, "N");
 			}
 			if (i+1<ch) {
-				printf(",");
+				fprintf(stderr, ",");
 			}
 		}
-		printf(")|r:(");
+		fprintf(stderr, ")|r:(");
 		for (sessionidptr=f->data.fdata.sessionids ; sessionidptr ; sessionidptr=sessionidptr->next) {
-			printf("%" PRIu32,sessionidptr->sessionid);
+			fprintf(stderr, "%" PRIu32,sessionidptr->sessionid);
 			if (sessionidptr->next) {
-				printf(",");
+				fprintf(stderr, ",");
 			}
 		}
-		printf(")\n");
+		fprintf(stderr, ")\n");
 	} else {
-		printf("\n");
+		fprintf(stderr, "\n");
 	}
 }
 
@@ -6396,7 +6651,7 @@ void fs_dumpedges(fsnode *f) {
 void fs_dumpfree() {
 	freenode *n;
 	for (n=freelist ; n ; n=n->next) {
-		printf("I|i:%10" PRIu32 "|f:%10" PRIu32 "\n",n->id,n->ftime);
+		fprintf(stderr, "I|i:%10" PRIu32 "|f:%10" PRIu32 "\n",n->id,n->ftime);
 	}
 }
 
@@ -6406,7 +6661,7 @@ void xattr_dump() {
 
 	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
 		for (xa=xattr_data_hash[i] ; xa ; xa=xa->next) {
-			printf("X|i:%10" PRIu32 "|n:%s|v:%s\n",xa->inode,fsnodes_escape_name(xa->anleng,xa->attrname),fsnodes_escape_name(xa->avleng,xa->attrvalue));
+			fprintf(stderr, "X|i:%10" PRIu32 "|n:%s|v:%s\n",xa->inode,fsnodes_escape_name(xa->anleng,xa->attrname),fsnodes_escape_name(xa->avleng,xa->attrvalue));
 		}
 	}
 }
@@ -7986,84 +8241,82 @@ int fs_emergency_saves() {
 }
 
 #ifndef METARESTORE
-int fs_storeall(int bg) {
+// returns false in case of an error
+bool fs_storeall(MetadataDump::DumpType dumpType) {
 	FILE *fd;
-	int i;
-	struct stat sb;
-	if (stat("metadata.mfs.back.tmp",&sb)==0) {
-		syslog(LOG_ERR,"previous metadata save process hasn't finished yet - do not start another one");
-		return -1;
+
+	if (metadata.inProgress()) {
+		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
+		return false;
 	}
+
 	changelog_rotate();
-	if (bg) {
-		i = fork();
-	} else {
-		i = -1;
-	}
-	// if fork returned -1 (fork error) store metadata in foreground !!!
-	if (i<=0) {
+
+	// child == true says that we forked
+	// bg may be changed to dump in foreground in case of a fork error
+	bool child = metadata.execMetarestore(dumpType);
+
+	if (dumpType == MetadataDump::FOREGROUND_DUMP) {
+		// master should recalculate its checksum
+		metadata.updateChecksum();
+
 		fd = fopen("metadata.mfs.back.tmp","w");
-		if (fd==NULL) {
-			syslog(LOG_ERR,"can't open metadata file");
+		if (fd == NULL) {
+			syslog(LOG_ERR, "can't open metadata file");
 			// try to save in alternative location - just in case
 			fs_emergency_saves();
-			if (i==0) {
-				exit(0);
+			if (child) {
+				exit(1);
 			}
-			return 0;
+			return false;
 		}
 #if VERSHEX>=0x010700
-		if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
-			syslog(LOG_NOTICE,"fwrite error");
+		if (fwrite(MFSSIGNATURE "M 1.7", 1, 8, fd) != (size_t) 8) {
+			syslog(LOG_NOTICE, "fwrite error");
 		} else {
-			fs_store(fd,0x17);
+			fs_store(fd, 0x17);
 		}
 #else
-		if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
-			syslog(LOG_NOTICE,"fwrite error");
+		if (fwrite(MFSSIGNATURE "M 1.5", 1, 8, fd) != (size_t) 8) {
+			syslog(LOG_NOTICE, "fwrite error");
 		} else {
-			fs_store(fd,0x15);
+			fs_store(fd, 0x15);
 		}
 #endif
-		if (ferror(fd)!=0) {
-			syslog(LOG_ERR,"can't write metadata");
+		if (ferror(fd) != 0) {
+			syslog(LOG_ERR, "can't write metadata");
 			fclose(fd);
 			unlink("metadata.mfs.back.tmp");
 			// try to save in alternative location - just in case
 			fs_emergency_saves();
-			if (i==0) {
-				exit(0);
+			if (child) {
+				exit(1);
 			}
-			return 0;
+			return false;
 		} else {
 			fclose(fd);
-			if (BackMetaCopies>0) {
-				char metaname1[100],metaname2[100];
-				int n;
-				for (n=BackMetaCopies-1 ; n>0 ; n--) {
-					snprintf(metaname1,100,"metadata.mfs.back.%" PRIu32,n+1);
-					snprintf(metaname2,100,"metadata.mfs.back.%" PRIu32,n);
-					rename(metaname2,metaname1);
-				}
-				rename("metadata.mfs.back","metadata.mfs.back.1");
+			if (!child) {
+				// rename it if no child was created
+				rename_backup_files();
+				unlink("metadata.mfs");
 			}
-			rename("metadata.mfs.back.tmp","metadata.mfs.back");
-			unlink("metadata.mfs");
 		}
-		if (i==0) {
+		if (child) {
+			printf("OK"); // give mfsmetarestore another chance
 			exit(0);
 		}
 	}
-	return 1;
+	return true;
 }
 
 void fs_dostoreall(void) {
-	fs_storeall(1);	// ignore error
+	fs_storeall(MetadataDump::BACKGROUND_DUMP); // ignore error
 }
 
 void fs_term(void) {
 	for (;;) {
-		if (fs_storeall(0)==1) {
+		if (fs_storeall(MetadataDump::FOREGROUND_DUMP)) {
+			// store was successful
 			if (rename("metadata.mfs.back","metadata.mfs")<0) {
 				mfs_errlog(LOG_WARNING,"can't rename metadata.mfs.back -> metadata.mfs");
 			}
@@ -8080,7 +8333,7 @@ void fs_storeall(const char *fname) {
 	FILE *fd;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
-		printf("can't open metadata file\n");
+		fprintf(stderr, "can't open metadata file\n");
 		return;
 	}
 #if VERSHEX>=0x010700
@@ -8097,13 +8350,26 @@ void fs_storeall(const char *fname) {
 	}
 #endif
 	if (ferror(fd)!=0) {
-		printf("can't write metadata\n");
+		fprintf(stderr, "can't write metadata\n");
 	}
 	fclose(fd);
 }
 
-void fs_term(const char *fname) {
+void fs_term(const char *fname, bool print_checksum, uint64_t* checksum) {
 	fs_storeall(fname);
+	if (print_checksum || checksum) {
+		uint64_t checksum_fresh = metadata.masterStructuresChecksum();
+		if (print_checksum) {
+			printf("%" PRIu64 "\n", checksum_fresh);
+		}
+		if (checksum) {
+			if (*checksum == checksum_fresh) {
+				printf("OK\n");
+			} else {
+				printf("ERR\n");
+			}
+		}
+	}
 }
 #endif
 
@@ -8196,7 +8462,8 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		syslog(LOG_NOTICE,"create new empty filesystem");
 		fs_new();
 		unlink("metadata.mfs.back.tmp");
-		fs_storeall(0);	// after creating new filesystem always create "back" file for using in metarestore
+		// after creating new filesystem always create "back" file for using in metarestore
+		fs_storeall(MetadataDump::FOREGROUND_DUMP);
 		return 0;
 	}
 #endif
@@ -8251,7 +8518,9 @@ int fs_loadall(const char *fname,int ignoreflag) {
 			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4");
 			return -1;
 		}
-		fs_storeall(0);	// after conversion always create new version of "back" file for using in proper version of metarestore
+		// after conversion always create new version of "back" file for using in proper version
+		// of metarestore
+		fs_storeall(MetadataDump::FOREGROUND_DUMP);
 	} else {
 		if (rename("metadata.mfs","metadata.mfs.back")<0) {
 			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
@@ -8310,6 +8579,12 @@ void fs_reload(void) {
 	if (BackMetaCopies>99) {
 		BackMetaCopies=99;
 	}
+	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
+		fs_dostoreall();
+	}
+	metadata.metarestorePath(
+			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
+	metadata.useMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
 }
 
 int fs_init(void) {
@@ -8331,6 +8606,10 @@ int fs_init(void) {
 		BackMetaCopies=99;
 	}
 
+	metadata = MetadataDump(
+			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
+	metadata.useMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
+
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fsnodes_check_all_quotas);
@@ -8338,6 +8617,7 @@ int fs_init(void) {
 	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_emptytrash);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_emptyreserved);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fsnodes_freeinodes);
+	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;
 }

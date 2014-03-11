@@ -19,6 +19,7 @@
 #pragma once
 
 #include <inttypes.h>
+#include <string>
 
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,const type def)
 
@@ -39,3 +40,5 @@ _CONFIG_MAKE_PROTOTYPE(int32,int32_t);
 _CONFIG_MAKE_PROTOTYPE(uint64,uint64_t);
 _CONFIG_MAKE_PROTOTYPE(int64,int64_t);
 _CONFIG_MAKE_PROTOTYPE(double,double);
+
+std::string cfg_get(const char* name, std::string defaultValue);
