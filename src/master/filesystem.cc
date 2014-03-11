@@ -18,41 +18,38 @@
 
 #include "config.h"
 
+#include <errno.h>
+#include <inttypes.h>
+#ifdef HAVE_PWD_H
+  #include <pwd.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <sys/types.h>
-#ifdef HAVE_PWD_H
-#include <pwd.h>
-#endif
-#include <sys/stat.h>
-#include <inttypes.h>
-#include <errno.h>
-
-#include "common/MFSCommunication.h"
 
 // TODO: wtf?!
 // #define CACHENOTIFY 1
 
-#ifndef METARESTORE
-#include "matoclserv.h"
-#include "matocsserv.h"
-#endif
-
-#include "chunks.h"
-#include "filesystem.h"
 #include "common/datapack.h"
-#include "common/slogger.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
-
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #ifndef METARESTORE
-#include "datacachemgr.h"
-#include "common/cfg.h"
-#include "common/main.h"
-#include "changelog.h"
+  #include "common/cfg.h"
+  #include "common/main.h"
+  #include "master/changelog.h"
+  #include "master/datacachemgr.h"
+  #include "master/matoclserv.h"
+  #include "master/matocsserv.h"
 #endif
+#include "master/chunks.h"
+#include "master/filesystem.h"
+
 
 #define USE_FREENODE_BUCKETS 1
 #define USE_CUIDREC_BUCKETS 1
@@ -93,6 +90,10 @@
 #define CHIDS_NO 0
 #define CHIDS_YES 1
 #define CHIDS_AUTO 2
+
+constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
+constexpr uint8_t kMetadataVersionLizardFS = 0x16;
+constexpr uint8_t kMetadataVersionWithSections = 0x20;
 
 #ifndef METARESTORE
 typedef struct _bstnode {
@@ -146,23 +147,23 @@ typedef struct _quotanode {
 
 static quotanode *quotahead;
 
-typedef struct _xattr_data_entry {
+struct xattr_data_entry {
 	uint32_t inode;
 	uint8_t anleng;
 	uint32_t avleng;
 	uint8_t *attrname;
 	uint8_t *attrvalue;
-	struct _xattr_data_entry **previnode,*nextinode;
-	struct _xattr_data_entry **prev,*next;
-} xattr_data_entry;
+	struct xattr_data_entry **previnode,*nextinode;
+	struct xattr_data_entry **prev,*next;
+};
 
-typedef struct _xattr_inode_entry {
+struct xattr_inode_entry {
 	uint32_t inode;
 	uint32_t anleng;
 	uint32_t avleng;
-	struct _xattr_data_entry *data_head;
-	struct _xattr_inode_entry *next;
-} xattr_inode_entry;
+	struct xattr_data_entry *data_head;
+	struct xattr_inode_entry *next;
+};
 
 static xattr_inode_entry **xattr_inode_hash;
 static xattr_data_entry **xattr_data_hash;
@@ -7590,14 +7591,14 @@ void fs_store(FILE *fd,uint8_t fver) {
 		syslog(LOG_NOTICE,"fwrite error");
 		return;
 	}
-	if (fver>=0x16) {
+	if (fver >= kMetadataVersionWithSections) {
 		offbegin = ftello(fd);
 		fseeko(fd,offbegin+16,SEEK_SET);
 	} else {
 		offbegin = 0;	// makes some old compilers happy
 	}
 	fs_storenodes(fd);
-	if (fver>=0x16) {
+	if (fver >= kMetadataVersionWithSections) {
 		offend = ftello(fd);
 		memcpy(hdr,"NODE 1.0",8);
 		ptr = hdr+8;
@@ -7611,7 +7612,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
 	fs_storeedges(fd);
-	if (fver>=0x16) {
+	if (fver >= kMetadataVersionWithSections) {
 		offend = ftello(fd);
 		memcpy(hdr,"EDGE 1.0",8);
 		ptr = hdr+8;
@@ -7625,7 +7626,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
 	fs_storefree(fd);
-	if (fver>=0x16) {
+	if (fver >= kMetadataVersionWithSections) {
 		offend = ftello(fd);
 		memcpy(hdr,"FREE 1.0",8);
 		ptr = hdr+8;
@@ -7667,7 +7668,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 		fseeko(fd,offbegin+16,SEEK_SET);
 	}
 	chunk_store(fd);
-	if (fver>=0x16) {
+	if (fver >= kMetadataVersionWithSections) {
 		offend = ftello(fd);
 		memcpy(hdr,"CHNK 1.0",8);
 		ptr = hdr+8;
@@ -7716,7 +7717,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	nextsessionid = get32bit(&ptr);
 	fsnodes_init_freebitmask();
 
-	if (fver<0x16) {
+	if (fver < kMetadataVersionWithSections) {
 		fprintf(stderr,"loading objects (files,directories,etc.) ... ");
 		fflush(stderr);
 		if (fs_loadnodes(fd)<0) {
@@ -7755,7 +7756,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 			return -1;
 		}
 		fprintf(stderr,"ok\n");
-	} else { // fver>=0x16
+	} else { // metadata with sections
 		while (1) {
 			if (fread(hdr,1,16,fd)!=16) {
 				fprintf(stderr,"error section header\n");
@@ -7909,17 +7910,17 @@ int fs_emergency_storeall(const char *fname) {
 	if (fd==NULL) {
 		return -1;
 	}
-#if VERSHEX>=0x010700
-	if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
-		fs_store(fd,0x17);
+		fs_store(fd, kMetadataVersionWithSections);
 	}
 #else
-	if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+	if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
-		fs_store(fd,0x15);
+		fs_store(fd, kMetadataVersionLizardFS);
 	}
 #endif
 	if (ferror(fd)!=0) {
@@ -8012,17 +8013,17 @@ int fs_storeall(int bg) {
 			}
 			return 0;
 		}
-#if VERSHEX>=0x010700
-		if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+		if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 			syslog(LOG_NOTICE,"fwrite error");
 		} else {
-			fs_store(fd,0x17);
+			fs_store(fd, kMetadataVersionWithSections);
 		}
 #else
-		if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+		if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
 			syslog(LOG_NOTICE,"fwrite error");
 		} else {
-			fs_store(fd,0x15);
+			fs_store(fd, kMetadataVersionLizardFS);
 		}
 #endif
 		if (ferror(fd)!=0) {
@@ -8083,17 +8084,17 @@ void fs_storeall(const char *fname) {
 		printf("can't open metadata file\n");
 		return;
 	}
-#if VERSHEX>=0x010700
-	if (fwrite(MFSSIGNATURE "M 1.7",1,8,fd)!=(size_t)8) {
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
-		fs_store(fd,0x17);
+		fs_store(fd, kMetadataVersionWithSections);
 	}
 #else
-	if (fwrite(MFSSIGNATURE "M 1.5",1,8,fd)!=(size_t)8) {
+	if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
 		syslog(LOG_NOTICE,"fwrite error");
 	} else {
-		fs_store(fd,0x15);
+		fs_store(fd, kMetadataVersionLizardFS);
 	}
 #endif
 	if (ferror(fd)!=0) {
@@ -8127,7 +8128,10 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	fd = fopen("metadata.mfs.back","r");
 	if (fd!=NULL) {
 		if (fread(bhdr,1,8,fd)==8) {
-			if (memcmp(bhdr,MFSSIGNATURE "M 1.",7)==0 && (bhdr[7]=='5' || bhdr[7]=='7')) {
+			// bhdr is something like "MFSM x.y" or "LFSM x.y" (for Light LizardsFS)
+			std::string sig(reinterpret_cast<const char *>(bhdr), 5);
+			std::string ver(reinterpret_cast<const char *>(bhdr) + 5, 3);
+			if (sig == MFSSIGNATURE "M " && (ver == "1.5" || ver == "1.6" || ver == "2.0")) {
 				backversion = fs_loadversion(fd);
 			}
 		}
@@ -8200,30 +8204,13 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		return 0;
 	}
 #endif
+	uint8_t metadataVersion;
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
-#ifndef METARESTORE
-		if (fs_load(fd,0,0x15)<0) {
-#else
-		if (fs_load(fd,ignoreflag,0x15)<0) {
-#endif
-#ifndef METARESTORE
-			syslog(LOG_ERR,"error reading metadata (structure)");
-#endif
-			fclose(fd);
-			return -1;
-		}
-	} else if (memcmp(hdr,MFSSIGNATURE "M 1.7",8)==0) {
-#ifndef METARESTORE
-		if (fs_load(fd,0,0x17)<0) {
-#else
-		if (fs_load(fd,ignoreflag,0x17)<0) {
-#endif
-#ifndef METARESTORE
-			syslog(LOG_ERR,"error reading metadata (structure)");
-#endif
-			fclose(fd);
-			return -1;
-		}
+		metadataVersion = kMetadataVersionMooseFS;
+	} else if (memcmp(hdr,MFSSIGNATURE "M 1.6",8)==0) {
+		metadataVersion = kMetadataVersionLizardFS;
+	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
+		metadataVersion = kMetadataVersionWithSections;
 	} else {
 		fprintf(stderr,"wrong metadata header\n");
 #ifndef METARESTORE
@@ -8232,6 +8219,17 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		fclose(fd);
 		return -1;
 	}
+#ifndef METARESTORE
+	if (fs_load(fd, 0, metadataVersion) < 0) {
+#else
+	if (fs_load(fd, ignoreflag, metadataVersion) < 0) {
+#endif
+#ifndef METARESTORE
+			syslog(LOG_ERR,"error reading metadata (structure)");
+#endif
+			fclose(fd);
+			return -1;
+		}
 	if (ferror(fd)!=0) {
 		fprintf(stderr,"error reading metadata\n");
 #ifndef METARESTORE

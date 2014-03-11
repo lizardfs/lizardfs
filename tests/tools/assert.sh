@@ -29,7 +29,7 @@ assert_template_less_or_equal_() {
 
 # (assert|assertlocal|expect)_equals <expected_string> <actual_string>
 assert_template_equals_() {
-	if [[ $1 != $2 ]]; then
+	if [[ "$1" != "$2" ]]; then
 		$FAIL_FUNCTION "Expected: $1, got: $2"
 	fi
 }
@@ -45,6 +45,13 @@ assert_template_near_() {
 assert_template_success_() {
 	if ! "$@"; then
 		$FAIL_FUNCTION "Command '$*' failed"
+	fi
+}
+
+# (assert|assertlocal|expect)_failure <command> [<args>...]
+assert_template_failure_() {
+	if "$@"; then
+		$FAIL_FUNCTION "Command '$*' succeeded"
 	fi
 }
 

@@ -468,7 +468,7 @@ int fs_load(FILE *fd) {
 	return 0;
 }
 
-int fs_load_17(FILE *fd) {
+int fs_load_20(FILE *fd) {
 	uint32_t maxnodeid,nextsessionid;
 	uint64_t sleng;
 	off_t offbegin;
@@ -556,7 +556,7 @@ int fs_loadall(const char *fname) {
 		return -1;
 	}
 	printf("# header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X)\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);
-	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
+	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0 || memcmp(hdr,MFSSIGNATURE "M 1.6",8)==0) {
 		if (fs_load(fd)<0) {
 			printf("error reading metadata (structure)\n");
 			fclose(fd);
@@ -567,8 +567,8 @@ int fs_loadall(const char *fname) {
 			fclose(fd);
 			return -1;
 		}
-	} else if (memcmp(hdr,MFSSIGNATURE "M 1.7",8)==0) {
-		if (fs_load_17(fd)<0) {
+	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
+		if (fs_load_20(fd)<0) {
 			fclose(fd);
 			return -1;
 		}

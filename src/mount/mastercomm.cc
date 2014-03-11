@@ -37,12 +37,13 @@
 #include <pwd.h>
 #include <grp.h>
 
+#include "common/datapack.h"
+#include "common/lizardfs_version.h"
+#include "common/md5.h"
 #include "common/MFSCommunication.h"
-#include "stats.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
-#include "common/md5.h"
-#include "common/datapack.h"
+#include "mount/stats.h"
 
 typedef struct _threc {
 	pthread_t thid;
@@ -2204,7 +2205,7 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	uint32_t i;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	if (masterversion<0x010700) {
+	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETXATTR,15+nleng);
@@ -2250,7 +2251,7 @@ uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uin
 	uint32_t i;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	if (masterversion<0x010700) {
+	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETXATTR,15);
@@ -2294,7 +2295,7 @@ uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	uint32_t i;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	if (masterversion<0x010700) {
+	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
 	if (mode>=MFS_XATTR_REMOVE) {
@@ -2335,7 +2336,7 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	uint32_t i;
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
-	if (masterversion<0x010700) {
+	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETXATTR,19+nleng);
