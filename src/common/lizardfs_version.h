@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <sstream>
 
+#define LIZARDFS_VERSION(major, minor, micro) (0x010000 * major + 0x0100 * minor + micro)
+
 constexpr uint32_t lizardfsVersion(uint32_t major, uint32_t minor, uint32_t micro) {
 	return 0x010000 * major + 0x0100 * minor + micro;
 }
