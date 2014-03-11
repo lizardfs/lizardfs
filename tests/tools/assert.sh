@@ -96,6 +96,9 @@ create_error_message_() {
 	fi
 	echo "$*"
 	echo "Location: $(basename "$ASSERT_FILE"):$ASSERT_LINE"
+	echo "Backtrace:"
+	# remove top 3 function calls from stack trace: create_error_message_, do_*_failed_, assert_template_*
+	print_stack 3
 }
 
 do_assert_failed_() {

@@ -64,4 +64,18 @@ for i in $(seq 1 $MAX); do
     echo $line;
 done
 echo
+line="#define COUNT_ARGS(...) COUNT_ARGS_(, ##__VA_ARGS__"
+for i in $(seq $((MAX * 2)) -1 0); do
+    line="${line}, $i"
+done
+line="${line})"
+echo $line
+echo
+line="#define COUNT_ARGS_("
+for i in $(seq 0 $((MAX * 2 ))); do
+    line="${line}a$i, "
+done
+line="${line}count, ...) count"
+echo $line
+echo
 echo "// File generated correctly."

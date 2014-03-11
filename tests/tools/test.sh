@@ -72,7 +72,7 @@ test_begin() {
 	check_configuration
 	test_cleanup
 	touch "$test_result_file"
-	trap 'trap - ERR; set +eEu; catch_error_ "$BASH_SOURCE" "$LINENO" "$FUNCNAME"; exit 1' ERR
+	trap 'trap - ERR; set +eE; catch_error_ "${BASH_SOURCE:-}" "${LINENO:-}" "${FUNCNAME:-}"; exit 1' ERR
 	set -E
 	timeout_init
 	if [[ ${USE_VALGRIND} ]]; then
@@ -117,9 +117,12 @@ catch_error_() {
 	local line=$2
 	local funcname=$3
 	if [[ $funcname ]]; then
-		local location="in function $funcname ($file:$line)"
+		local location="in function $funcname ($(basename "$file"):$line)"
 	else
 		local location="($file:$line)"
 	fi
-	test_add_failure "Command '$(get_source_line "$file" "$line")' failed $location"
+	# print_stack 1 removes catch_error_ from stack trace
+	local stack=$(print_stack 1)
+	local command=$(get_source_line "$file" "$line")
+	test_add_failure "Command '$command' failed $location"$'\nBacktrace:\n'"$stack"
 }
