@@ -61,6 +61,7 @@ uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint3
 void fs_dump(void);
 void fs_term(const char *fname);
 int fs_init(const char *fname,int ignoreflag);
+uint64_t fs_checksum();
 
 #else
 
