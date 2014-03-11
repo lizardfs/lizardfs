@@ -1,8 +1,8 @@
 # Assertion types:
 # * expect_some_condition -- adds error to the test results, but continues the test
 # * assert_some_condition -- adds error to the test results and immediately stops the test
-# * assertlocal_some_condition -- adds error to the results and exits current subshell 
- 
+# * assertlocal_some_condition -- adds error to the results and exits current subshell
+
 # (assert|assertlocal|expect)_program_installed <program>
 assert_template_program_installed_() {
 	local program=$1
@@ -72,6 +72,9 @@ create_error_message_() {
 	fi
 	echo "$*"
 	echo "Location: $(basename "$ASSERT_FILE"):$ASSERT_LINE"
+	echo "Backtrace:"
+	# remove top 3 function calls from stack trace: create_error_message_, do_*_failed_, assert_template_*
+	print_stack 3
 }
 
 do_assert_failed_() {
