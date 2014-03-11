@@ -1,3 +1,5 @@
+assert_program_installed attr
+
 CHUNKSERVERS=3 \
 	setup_local_empty_lizardfs info
 
@@ -45,6 +47,12 @@ echo 'zZzZ' >z
 # test snapshotting
 mfsmakesnapshot dir dir-snapshot
 
+# set and remove some xattrs
+attr -qs name1 -V value1 file
+attr -qs name2 -V value2 file
+attr -qs name3 -V value3 dir
+attr -r name1 file
+
 # gather and store some metadata
 print_metadata() {
 	ls -l .
@@ -53,6 +61,10 @@ print_metadata() {
 	mfsgetgoal goal*
 	mfsgettrashtime trashtime*
 	mfsfileinfo x y z xyz | grep -v $'^\t\t'       # remove "copy N" and "no valid copies"
+	attr -ql file
+	attr -qg name2 file
+	attr -ql dir
+	attr -qg name3 dir
 }
 print_metadata >"$oldmeta"
 
