@@ -1,3 +1,65 @@
+// -- <log>
+
+#include <libgen.h>
+#ifndef METARESTORE
+
+#define LOGS(str) do { \
+	char* _tmp_str_ = strdup(__FILE__); \
+	syslog(LOG_ERR, "[%s:%s:%d] %s", basename(_tmp_str_), __func__, __LINE__, str); \
+	free(_tmp_str_); \
+} while (0);
+
+#define LOG(fmt, ...) do { \
+	char* _tmp_str_ = strdup(__FILE__); \
+	syslog(LOG_ERR, "[%s:%s:%d] " fmt, basename(_tmp_str_), __func__, __LINE__, ##__VA_ARGS__); \
+	free(_tmp_str_); \
+} while (0);
+
+#define MD_CHK(...) do { \
+	LOG(__VA_ARGS__); \
+	uint64_t fha = force_hash_all(); \
+	if (fha != metadata_checksum) { \
+		LOG("force_hash_all != metadata_checksum [%lu] != [%lu]", fha, metadata_checksum); \
+	} else { \
+		LOGS("metadata OK"); \
+	} \
+} while (0);
+
+#define MD_CHKS(str) do { \
+	LOGS(str); \
+	uint64_t fha = force_hash_all(); \
+	if (fha != metadata_checksum) { \
+		LOG("force_hash_all != metadata_checksum [%lu] != [%lu]", fha, metadata_checksum); \
+	} else { \
+		LOGS("metadata OK"); \
+	} \
+} while (0);
+
+#else
+
+#define LOGS(str) do { \
+	char* _tmp_str_ = strdup(__FILE__); \
+	fprintf(stderr, "[%s:%s:%d] %s", basename(_tmp_str_), __func__, __LINE__, str); \
+	free(_tmp_str_); \
+} while (0);
+
+#define LOG(fmt, ...) do { \
+	char* _tmp_str_ = strdup(__FILE__); \
+	fprintf(stderr, "[%s:%s:%d] " fmt, basename(_tmp_str_), __func__, __LINE__, ##__VA_ARGS__); \
+	free(_tmp_str_); \
+} while (0);
+
+#define MD_CHK(...) do { \
+	LOGS("dont use MD_CHK"); \
+} while (0);
+
+#define MD_CHKS(str) do { \
+	LOGS("dont use MD_CHK"); \
+} while (0);
+
+#endif
+
+// -- </log>
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
@@ -338,7 +400,7 @@ void fs_stats(uint32_t stats[16]) {
 	stats_write=0;
 }
 
-void rename_backup_files() {
+void renameBackupFiles() {
 	// rename previous backups
 	if (BackMetaCopies > 0) {
 		char metaname1[100], metaname2[100];
@@ -349,6 +411,7 @@ void rename_backup_files() {
 		}
 		rename("metadata.mfs.back", "metadata.mfs.back.1");
 	}
+	LOGS("renaming");
 	if (rename("metadata.mfs.back.tmp", "metadata.mfs.back") == -1) {
 		mfs_errlog(LOG_ERR, "rename metadata.mfs.back.tmp -> metadata.mfs.back failed");
 	}
@@ -503,6 +566,7 @@ public:
 						buffer,
 						const_cast<char*>("changelog.1.mfs"),
 						NULL};
+					nice(10); // default value for commandline nice
 					execv(metarestorePath_.c_str(), metarestoreArgs);
 					mfs_errlog(LOG_ERR, "exec failed");
 				}
@@ -541,6 +605,7 @@ public:
 			if (!fscanf(metarestoreFile, "%3s", buffer)) {
 				ended = true;
 			} else {
+				LOG("read from child: %s", buffer);
 				metarestoreSucceeded_ = strncmp("OK", buffer, 2) == 0;
 			}
 		}
@@ -550,8 +615,9 @@ public:
 			ended = true;
 		}
 		if (ended) {
+			LOGS("child ended!");
 			// mfsmetarestore exited
-			rename_backup_files();
+			renameBackupFiles();
 
 			metarestorePollfdsPos_ = -1;
 			metarestoreFd_ = -1;
@@ -561,7 +627,7 @@ public:
 	}
 #endif // ifndef METARESTORE
 
-private:
+protected:
 	static const uint32_t INT64_T_DECDIGS = 20;
 	/// should the metarestore be used at all
 	bool useMetarestore_;
@@ -7839,6 +7905,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 
 	ptr = hdr;
 	put32bit(&ptr,maxnodeid);
+	LOG("putting version: %ld", metaversion);
 	put64bit(&ptr,metaversion);
 	put32bit(&ptr,nextsessionid);
 	if (fwrite(hdr,1,16,fd)!=(size_t)16) {
@@ -8255,6 +8322,7 @@ bool fs_storeall(MetadataDump::DumpType dumpType) {
 	// child == true says that we forked
 	// bg may be changed to dump in foreground in case of a fork error
 	bool child = metadata.execMetarestore(dumpType);
+	LOG("returned: child %d dumpType %d", (int) child, (int) dumpType);
 
 	if (dumpType == MetadataDump::FOREGROUND_DUMP) {
 		// master should recalculate its checksum
@@ -8296,8 +8364,8 @@ bool fs_storeall(MetadataDump::DumpType dumpType) {
 		} else {
 			fclose(fd);
 			if (!child) {
-				// rename it if no child was created
-				rename_backup_files();
+				// rename it if no child was created, otherwise it is handled by pollServe
+				renameBackupFiles();
 				unlink("metadata.mfs");
 			}
 		}

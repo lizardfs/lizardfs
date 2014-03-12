@@ -66,7 +66,7 @@ test_end() {
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {
-	( tail -n0 -f /var/log/syslog | stdbuf -oL tee "$ERROR_DIR/syslog.log" & )
+# 	( tail -n0 -f /var/log/syslog | stdbuf -oL tee "$ERROR_DIR/syslog.log" & )
 	test_result_file="$TEMP_DIR/$(unique_file)_results.txt"
 	test_end_file=$test_result_file.end
 	check_configuration
