@@ -688,6 +688,16 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 				o=1;
 			}
 			break;
+		case 'n':
+			if (strcmp(p,"nomasterpermcheck")==0) {
+				if (arec->meta) {
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+				} else {
+					arec->sesflags |= SESFLAG_NOMASTERPERMCHECK;
+				}
+				o=1;
+			}
+			break;
 		case 'm':
 			if (strncmp(p,"maproot=",8)==0) {
 				o=1;

@@ -135,7 +135,7 @@ typedef struct packetstruct {
 /** Client entry in the server. */
 typedef struct matoclserventry {
 	/** This looks to be the client type. This is set in matoclserv_serve and matoclserv_fuse_register, and there are 3 possible values:
-	 * 
+	 *
 	 *    0: new client (default, just after TCP accept)
 	 *       This is referred to as "unregistered clients".
 	 *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))

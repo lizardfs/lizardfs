@@ -260,11 +260,12 @@
 #define GETDIR_FLAG_ADDTOCACHE 0x02
 
 // register sesflags:
-#define SESFLAG_READONLY       0x01	// meaning is obvious
-#define SESFLAG_DYNAMICIP      0x02	// sessionid can be used by any IP - dangerous for high privileged sessions - one could connect from different computer using stolen session id
-#define SESFLAG_IGNOREGID      0x04	// gid is ignored during access testing (when user id is different from object's uid then or'ed 'group' and 'other' rights are used)
-#define SESFLAG_CANCHANGEQUOTA 0x08	// quota can be set and deleted
-#define SESFLAG_MAPALL         0x10	// all users (except root) are mapped to specific uid and gid
+#define SESFLAG_READONLY          0x01  // meaning is obvious
+#define SESFLAG_DYNAMICIP         0x02  // sessionid can be used by any IP - dangerous for high privileged sessions - one could connect from different computer using stolen session id
+#define SESFLAG_IGNOREGID         0x04  // gid is ignored during access testing (when user id is different from object's uid then or'ed 'group' and 'other' rights are used)
+#define SESFLAG_CANCHANGEQUOTA    0x08  // quota can be set and deleted
+#define SESFLAG_MAPALL            0x10  // all users (except root) are mapped to specific uid and gid
+#define SESFLAG_NOMASTERPERMCHECK 0x20  // disable permission checks in master server
 
 #define SESFLAG_POS_STRINGS \
 	"read-only", \
