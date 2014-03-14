@@ -18,38 +18,42 @@
 
 #include "config.h"
 
-#include <stdio.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
+#include "master/matoclserv.h"
+
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/resource.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
+#include <fstream>
+#include <memory>
 
-#include "common/datapack.h"
-#include "matoclserv.h"
-#include "matocsserv.h"
-#include "matomlserv.h"
-#include "chunks.h"
-#include "filesystem.h"
-#include "common/random.h"
-#include "exports.h"
-#include "datacachemgr.h"
-#include "common/charts.h"
-#include "chartsdata.h"
 #include "common/cfg.h"
+#include "common/charts.h"
+#include "common/datapack.h"
+#include "common/io_limits_config_loader.h"
 #include "common/main.h"
-#include "common/sockets.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
+#include "common/random.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
+#include "master/chartsdata.h"
+#include "master/chunks.h"
+#include "master/datacachemgr.h"
+#include "master/exports.h"
+#include "master/filesystem.h"
+#include "master/matocsserv.h"
+#include "master/matomlserv.h"
 
 #define MaxPacketSize 1000000
 
@@ -135,7 +139,7 @@ typedef struct packetstruct {
 /** Client entry in the server. */
 typedef struct matoclserventry {
 	/** This looks to be the client type. This is set in matoclserv_serve and matoclserv_fuse_register, and there are 3 possible values:
-	 * 
+	 *
 	 *    0: new client (default, just after TCP accept)
 	 *       This is referred to as "unregistered clients".
 	 *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))
@@ -3988,6 +3992,32 @@ int matoclserv_sessionsinit(void) {
 	return 0;
 }
 
+int matoclserv_iolimitsinit() {
+	std::string configFile = cfg_getstring("IOLIMITS_FILENAME", "");
+	if (configFile.empty()) {
+		return 0;
+	}
+
+	IoLimitsConfigLoader configLoader;
+	try {
+		configLoader.load(std::ifstream(configFile));
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "I/O limiting configuration error: %s",
+				ex.message().c_str());
+		return -1;
+	}
+
+	double increaseRatio = cfg_get_minvalue("IOLIMITS_LIMIT_INCREASE_RATIO", 1.2, 1.0);
+	double minimalPortion = cfg_get_minmaxvalue("IOLIMITS_LIMIT_MINIMAL_PORTION", 0.0, 0.0, 1.0);
+	double refreshTime = cfg_get_minvalue("IOLIMITS_LIMIT_REFRESH_TIME", 0.1, 0.05);
+
+	// The best place to get use of configuration
+	printf("configFile='%s', increaseRatio=%f, minimalPortion=%f, refreshTime=%f\n",
+			configFile.c_str(), increaseRatio, minimalPortion, refreshTime);
+
+	return 0;
+}
+
 void matoclserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
@@ -4001,6 +4031,11 @@ void matoclserv_reload(void) {
 	if (SessionSustainTime<60) {
 		SessionSustainTime=60;
 		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+	}
+
+	// iolimits config
+	if (matoclserv_iolimitsinit() != 0) {
+		return;
 	}
 
 	oldListenHost = ListenHost;
@@ -4060,6 +4095,11 @@ int matoclserv_networkinit(void) {
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+
+	// iolimits config
+	if (matoclserv_iolimitsinit() != 0) {
+		return -1;
+	}
 
 	exiting = 0;
 	starting = 120;

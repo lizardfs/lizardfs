@@ -1,4 +1,4 @@
-#include "mount/io_limit_config_loader.h"
+#include "common/io_limits_config_loader.h"
 
 #include <limits>
 
@@ -6,7 +6,7 @@ inline static bool streamReadFailed(const std::istream& stream) {
 	return stream.eof() || stream.fail() || stream.bad();
 }
 
-void IoLimitConfigLoader::load(std::istream&& stream) {
+void IoLimitsConfigLoader::load(std::istream&& stream) {
 	limits_.clear();
 
 	bool cgroupsInUse = false;
