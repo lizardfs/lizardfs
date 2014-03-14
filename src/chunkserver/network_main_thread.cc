@@ -67,9 +67,9 @@ void mainNetworkThreadReload(void) {
 			"BGJOBSCNT_PER_NETWORK_WORKER", gBgjobsCountPerNetworkWorker);
 
 	gHDDReadAhead.setReadAhead_kB(
-			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSBLOCKSIZE / 1024));
+			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSCHUNKSIZE / 1024));
 	gHDDReadAhead.setMaxReadBehind_kB(
-			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSBLOCKSIZE / 1024));
+			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSCHUNKSIZE / 1024));
 
 	char *oldListenHost, *oldListenPort;
 	int newlsock;
@@ -184,9 +184,9 @@ int mainNetworkThreadInit(void) {
 			"BGJOBSCNT_PER_NETWORK_WORKER", 1000, 10);
 
 	gHDDReadAhead.setReadAhead_kB(
-			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSBLOCKSIZE / 1024));
+			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSCHUNKSIZE / 1024));
 	gHDDReadAhead.setMaxReadBehind_kB(
-			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSBLOCKSIZE / 1024));
+			cfg_get_maxvalue<uint32_t>("MAX_READ_BEHIND_KB", 0, MFSCHUNKSIZE / 1024));
 
 	lsock = tcpsocket();
 	if (lsock < 0) {
