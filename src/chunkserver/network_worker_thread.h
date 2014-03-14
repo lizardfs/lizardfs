@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 
+#include <atomic>
 #include <list>
 #include <mutex>
 #include <set>
@@ -156,6 +157,8 @@ public:
 	void* bgJobPool() {
 		return bgJobPool_;
 	}
+
+	static std::atomic<bool> useSplice;
 
 private:
 	void preparePollFds();

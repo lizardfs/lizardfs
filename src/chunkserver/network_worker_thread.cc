@@ -47,6 +47,8 @@
 #define CONNECT_RETRIES 10
 #define CONNECT_TIMEOUT(cnt) (((cnt)%2)?(300000*(1<<((cnt)>>1))):(200000*(1<<((cnt)>>1))))
 
+std::atomic<bool> NetworkWorkerThread::useSplice(true);
+
 class MessageSerializer {
 public:
 	virtual void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
@@ -132,7 +134,7 @@ packetstruct* worker_create_detached_packet_with_output_buffer(
 	packetstruct* outPacket = new packetstruct();
 	passert(outPacket);
 #ifdef HAVE_SPLICE
-	if (sizeOfWholePacket < 512 * 1024u) {
+	if (NetworkWorkerThread::useSplice && sizeOfWholePacket < 512 * 1024u) {
 		outPacket->outputBuffer.reset(new AvoidingCopyingOutputBuffer(512 * 1024u));
 	} else {
 		outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));

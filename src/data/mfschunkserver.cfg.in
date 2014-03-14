@@ -23,6 +23,7 @@
 
 # READ_AHEAD_KB = 0
 # MAX_READ_BEHIND_KB = 0
+# USE_SPLICE = 1
 
 # HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
 # HDD_TEST_FREQ = 10
