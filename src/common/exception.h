@@ -43,3 +43,11 @@ private:
 		name(const std::string& message, uint8_t status) : base(message, status) {} \
 		~name() throw() {} \
 	}
+
+#define LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(name, base, message) \
+	class name : public base { \
+	public: \
+		name() : base(std::string(message)) {} \
+		name(uint8_t status) : base(std::string(message), status) {} \
+		~name() throw() {} \
+	}
