@@ -1,16 +1,15 @@
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <vector>
 
-#include "common/sockets.h"
-#include "mastercomm.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
-
-#define QUERYSIZE 10000
-#define ANSSIZE 10000
+#include "common/packet.h"
+#include "common/sockets.h"
+#include "mount/mastercomm.h"
 
 static int lsock = -1;
 static pthread_t proxythread;
@@ -28,84 +27,59 @@ void masterproxy_getlocation(uint8_t *masterinfo) {
 }
 
 static void* masterproxy_server(void *args) {
-	uint8_t header[8];
-	uint8_t querybuffer[QUERYSIZE];
-	uint8_t ansbuffer[ANSSIZE];
-	uint8_t *wptr;
-	const uint8_t *rptr;
+	std::vector<uint8_t> buffer;
 	int sock = *((int*)args);
-	uint32_t psize,cmd,msgid,asize,acmd;
-
 	free(args);
 
 	for (;;) {
-		if (tcptoread(sock,header,8,1000)!=8) {
+		PacketHeader header;
+		const int32_t headerSize = serializedSize(header);
+
+		buffer.resize(headerSize);
+		if (tcptoread(sock, buffer.data(), headerSize, 1000) != headerSize) {
 			tcpclose(sock);
 			return NULL;
 		}
 
-		rptr = header;
-		cmd = get32bit(&rptr);
-		psize = get32bit(&rptr);
-		if (cmd==CLTOMA_FUSE_REGISTER) {	// special case: register
-			if (psize!=73) {
+		deserializePacketHeader(buffer, header);
+
+		const int32_t payloadSize = header.length;
+		buffer.resize(headerSize + payloadSize);
+
+		if (tcptoread(sock, buffer.data() + headerSize, payloadSize, 1000) != payloadSize) {
+			tcpclose(sock);
+			return NULL;
+		}
+
+		if (header.type == CLTOMA_FUSE_REGISTER) {      // special case: register
+			const uint8_t *payload = buffer.data() + headerSize;
+			if (payloadSize != 73) {
+				tcpclose(sock);
+				return NULL;
+			}
+			if (memcmp(payload, FUSE_REGISTER_BLOB_ACL, 64) != 0) {
+				tcpclose(sock);
+				return NULL;
+			}
+			if (payload[64] != REGISTER_TOOLS) {
 				tcpclose(sock);
 				return NULL;
 			}
 
-			if (tcptoread(sock,querybuffer,psize,1000)!=(int32_t)(psize)) {
-				tcpclose(sock);
-				return NULL;
-			}
+			buffer.clear();
+			serializeMooseFsPacket(buffer, MATOCL_FUSE_REGISTER, uint8_t(STATUS_OK));
 
-			if (memcmp(querybuffer,FUSE_REGISTER_BLOB_ACL,64)!=0) {
-				tcpclose(sock);
-				return NULL;
-			}
-
-			if (querybuffer[64]!=REGISTER_TOOLS) {
-				tcpclose(sock);
-				return NULL;
-			}
-
-			wptr = ansbuffer;
-			put32bit(&wptr,MATOCL_FUSE_REGISTER);
-			put32bit(&wptr,1);
-			put8bit(&wptr,STATUS_OK);
-
-			if (tcptowrite(sock,ansbuffer,9,1000)!=9) {
-				tcpclose(sock);
-				return NULL;
-			}
 		} else {
-			if (psize<4 || psize>QUERYSIZE) {
+			if (fs_custom(buffer) != STATUS_OK) {
 				tcpclose(sock);
 				return NULL;
 			}
+		}
 
-			if (tcptoread(sock,querybuffer,psize,1000)!=(int32_t)(psize)) {
-				tcpclose(sock);
-				return NULL;
-			}
-
-			rptr = querybuffer;
-			msgid = get32bit(&rptr);
-
-			asize = ANSSIZE-12;
-			if (fs_custom(cmd,querybuffer+4,psize-4,&acmd,ansbuffer+12,&asize)!=STATUS_OK) {
-				tcpclose(sock);
-				return NULL;
-			}
-
-			wptr = ansbuffer;
-			put32bit(&wptr,acmd);
-			put32bit(&wptr,asize+4);
-			put32bit(&wptr,msgid);
-
-			if (tcptowrite(sock,ansbuffer,asize+12,1000)!=(int32_t)(asize+12)) {
-				tcpclose(sock);
-				return NULL;
-			}
+		const int32_t size = buffer.size();
+		if (tcptowrite(sock, buffer.data(), size, 1000) != size) {
+			tcpclose(sock);
+			return NULL;
 		}
 	}
 }
