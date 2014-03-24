@@ -15,7 +15,7 @@
 // Implemented with use of auto-generated APPLY1_<N>
 #define APPLY1(Macro, Sep, ...) APPLY(PASTE_B(APPLY1_, COUNT_ARGS(__VA_ARGS__)), Macro, Sep,__VA_ARGS__)
 
-// A macro that calls 'Macro' for every pair of 2 consequitive variadic parameters
+// A macro that calls 'Macro' for every pair of 2 consecutive variadic parameters
 // and joins results with a separator. Implemented with use of auto-generated APPLY2_<N>
 #define APPLY2(Macro, Sep, ...) APPLY(PASTE_B(APPLY2_, COUNT_ARGS(__VA_ARGS__)), Macro, Sep, __VA_ARGS__)
 
@@ -26,8 +26,8 @@
 #define APPLY1_B(...) APPLY1(__VA_ARGS__)
 #define APPLY2_B(...) APPLY2(__VA_ARGS__)
 
-// Some simple macros usefull when defining a class:
-#define PARAMETER(t) t ## _
+// Some simple macros useful when defining a class:
+#define PARAMETER(t) t
 #define DECLARE(T, t) T PARAMETER(t)
 #define CONST_REF(T, t) const T& t
 #define REFERENCE(T, t) T& t
