@@ -94,6 +94,10 @@ set(DATA_PATH  ${CMAKE_INSTALL_PREFIX}/${DATA_SUBDIR})
 set(MAN_PATH   ${CMAKE_INSTALL_PREFIX}/${MAN_SUBDIR})
 set(CGI_PATH   ${CMAKE_INSTALL_PREFIX}/${CGI_SUBDIR})
 
+if(ENABLE_UTILS)
+  set(BUILD_UTILS ON)
+endif()
+
 if(ENABLE_TESTS)
   if(NOT Boost_FILESYSTEM_FOUND OR NOT Boost_SYSTEM_FOUND)
     message(FATAL_ERROR "Boost filesystem is required by LizardFS tests")
