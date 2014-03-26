@@ -53,15 +53,19 @@ std::vector<uint8_t> LizardFsProbeCommand::sendAndReceive(int fd,
 	MessageReceiveBuffer reader(4 * 1024 * 1024);
 	while (!reader.hasMessageData()) {
 		ssize_t bytesRead = reader.readFrom(fd);
+		if (bytesRead == 0) {
+			throw Exception("Can't read data from socket: connection reset by peer");
+		}
 		if (bytesRead < 0) {
-			throw Exception("Can't read data from socket");
+			throw Exception("Can't read data from socket: " + std::string(strerr(errno)));
 		}
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
 		}
 	}
 	if (reader.getMessageHeader().type != expectedType) {
-		throw Exception("Received unexpected message");
+		throw Exception("Received unexpected message #" +
+				std::to_string(reader.getMessageHeader().type));
 	}
 
 	uint32_t length = reader.getMessageHeader().length;
