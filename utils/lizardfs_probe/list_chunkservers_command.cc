@@ -5,7 +5,9 @@
 
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
+#include "common/packet.h"
 #include "utils/lizardfs_probe/options.h"
+#include "utils/lizardfs_probe/server_connection.h"
 
 std::string ListChunkserversCommand::name() const {
 	return "list-chunkservers";
@@ -58,9 +60,10 @@ void ListChunkserversCommand::run(const std::vector<std::string>& argv) const {
 
 std::vector<ChunkserverEntry> ListChunkserversCommand::getChunkserversList (
 		const std::string& masterHost, const std::string& masterPort) {
+	ServerConnection connection(masterHost, masterPort);
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_CSERV_LIST);
-	response = askServer(request, masterHost, masterPort, MATOCL_CSERV_LIST);
+	response = connection.sendAndReceive(request, MATOCL_CSERV_LIST);
 	std::vector<ChunkserverEntry> result;
 	while (!response.empty()) {
 		result.push_back(ChunkserverEntry());

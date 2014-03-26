@@ -5,6 +5,7 @@
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
 #include "utils/lizardfs_probe/options.h"
+#include "utils/lizardfs_probe/server_connection.h"
 
 const std::vector<uint8_t> ChunksHealthCommand::kGoals =
 		ChunksHealthCommand::collectGoals();
@@ -43,11 +44,11 @@ void ChunksHealthCommand::run(const std::vector<std::string>& argv) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name() + '\n');
 	}
 
+	ServerConnection connection(options.arguments(0), options.arguments(1));
 	std::vector<uint8_t> request, response;
 	bool regularOnly = false;
 	cltoma::xorChunksHealth::serialize(request, regularOnly);
-	response = askServer(request, options.arguments(0), options.arguments(1),
-			LIZ_MATOCL_CHUNKS_HEALTH);
+	response = connection.sendAndReceive(request, LIZ_MATOCL_CHUNKS_HEALTH);
 	ChunksAvailabilityState availability;
 	ChunksReplicationState replication;
 	matocl::xorChunksHealth::deserialize(response, regularOnly, availability, replication);

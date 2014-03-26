@@ -1,0 +1,71 @@
+#include "utils/lizardfs_probe/server_connection.h"
+
+#include "common/multi_buffer_writer.h"
+#include "common/message_receive_buffer.h"
+#include "common/sockets.h"
+#include "common/strerr.h"
+
+ServerConnection::ServerConnection(const std::string& host, const std::string& port) : fd_(-1) {
+	NetworkAddress server;
+	tcpresolve(host.c_str(), port.c_str(), &server.ip, &server.port, false);
+	connect(server);
+}
+
+ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
+	connect(server);
+}
+
+ServerConnection::~ServerConnection() {
+	if (fd_ != -1) {
+		tcpclose(fd_);
+	}
+}
+
+std::vector<uint8_t> ServerConnection::sendAndReceive(
+		const std::vector<uint8_t>& request,
+		PacketHeader::Type expectedType) {
+	// Send
+	MultiBufferWriter writer;
+	writer.addBufferToSend(request.data(), request.size());
+	while (writer.hasDataToSend()) {
+		ssize_t bytesWritten = writer.writeTo(fd_);
+		if (bytesWritten < 0) {
+			throw Exception("Can't write data to socket: " + std::string(strerr(errno)));
+		}
+	}
+
+	// Receive
+	MessageReceiveBuffer reader(4 * 1024 * 1024);
+	while (!reader.hasMessageData()) {
+		ssize_t bytesRead = reader.readFrom(fd_);
+		if (bytesRead == 0) {
+			throw Exception("Can't read data from socket: connection reset by peer");
+		}
+		if (bytesRead < 0) {
+			throw Exception("Can't read data from socket: " + std::string(strerr(errno)));
+		}
+		if (reader.isMessageTooBig()) {
+			throw Exception("Receive buffer overflow");
+		}
+	}
+
+	if (reader.getMessageHeader().type != expectedType) {
+		throw Exception("Received unexpected message #" +
+				std::to_string(reader.getMessageHeader().type));
+	}
+
+	uint32_t length = reader.getMessageHeader().length;
+	return std::vector<uint8_t>(reader.getMessageData(), reader.getMessageData() + length);
+}
+
+void ServerConnection::connect(const NetworkAddress& server) {
+	fd_ = tcpsocket();
+	if (fd_ < 0) {
+		throw Exception("Can't create socket: " + std::string(strerr(errno)));
+	}
+	if (tcpnumconnect(fd_, server.ip, server.port) != 0) {
+		tcpclose(fd_);
+		fd_ = -1;
+		throw Exception("Can't connect to " + server.toString());
+	}
+}

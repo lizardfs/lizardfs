@@ -5,7 +5,9 @@
 #include "common/human_readable_format.h"
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
+#include "common/packet.h"
 #include "utils/lizardfs_probe/options.h"
+#include "utils/lizardfs_probe/server_connection.h"
 
 std::string LizardFsInfoCommand::name() const {
 	return "info";
@@ -24,9 +26,10 @@ void LizardFsInfoCommand::run(const std::vector<std::string>& argv) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 
+	ServerConnection connection(options.arguments(0), options.arguments(1));
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_INFO);
-	response = askServer(request, options.arguments(0), options.arguments(1), MATOCL_INFO);
+	response = connection.sendAndReceive(request, MATOCL_INFO);
 	LizardFsStatistics info;
 	deserializeAllMooseFsPacketDataNoHeader(response, info);
 	if (options.isSet(kPorcelainMode)) {

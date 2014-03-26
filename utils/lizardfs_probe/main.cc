@@ -3,6 +3,7 @@
 
 #include "common/human_readable_format.h"
 #include "common/MFSCommunication.h"
+#include "common/strerr.h"
 #include "utils/lizardfs_probe/chunk_health_command.h"
 #include "utils/lizardfs_probe/list_chunkservers_command.h"
 #include "utils/lizardfs_probe/list_mounts_command.h"
@@ -10,6 +11,7 @@
 #include "utils/lizardfs_probe/ready_chunkservers_count_command.h"
 
 int main(int argc, const char** argv) {
+	strerr_init();
 	std::vector<const LizardFsProbeCommand*> allCommands = {
 			new ChunksHealthCommand(),
 			new ListChunkserversCommand(),
@@ -27,6 +29,7 @@ int main(int argc, const char** argv) {
 		for (auto command : allCommands) {
 			if (command->name() == commandName) {
 				command->run(arguments);
+				strerr_term();
 				return 0;
 			}
 		}
@@ -40,9 +43,11 @@ int main(int argc, const char** argv) {
 			command->usage();
 			std::cerr << std::endl;
 		}
+		strerr_term();
 		return 1;
 	} catch (Exception& ex) {
 		std::cerr << "Error: " << ex.what() << std::endl;
+		strerr_term();
 		return 1;
 	}
 }

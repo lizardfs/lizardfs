@@ -9,9 +9,11 @@
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
 #include "common/moosefs_vector.h"
+#include "common/packet.h"
 #include "common/serializable_class.h"
 #include "common/serialization.h"
 #include "utils/lizardfs_probe/options.h"
+#include "utils/lizardfs_probe/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
 
@@ -56,11 +58,11 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 
+	ServerConnection connection(options.arguments(0), options.arguments(1));
 	MooseFSVector<MountEntry> mounts;
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_SESSION_LIST, true);
-	response = askServer(request, options.arguments(0), options.arguments(1),
-			MATOCL_SESSION_LIST);
+	response = connection.sendAndReceive(request, MATOCL_SESSION_LIST);
 	// There is uint16_t SESSION_STATS = 16 at the beginning of response
 	uint16_t dummy;
 	deserializeAllMooseFsPacketDataNoHeader(response, dummy, mounts);
