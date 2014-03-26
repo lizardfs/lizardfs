@@ -8,5 +8,5 @@ wait_for() {
 		fi
 		sleep 0.3
 	done
-	eval "$goal"
+	return 1
 }

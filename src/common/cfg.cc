@@ -148,6 +148,7 @@ void cfg_term(void) {
 	passert(_cfg_ret_tmp); \
 	return _cfg_ret_tmp; \
 }
+#define STR_TO_string(x) return std::string(x)
 
 #define COPY_int(x) return x;
 #define COPY_int32(x) return x;
@@ -160,6 +161,16 @@ void cfg_term(void) {
 	passert(_cfg_ret_tmp); \
 	return _cfg_ret_tmp; \
 }
+#define COPY_string(x) return x;
+
+#define TOPRINTF_int(x) x
+#define TOPRINTF_int32(x) x
+#define TOPRINTF_uint32(x) x
+#define TOPRINTF_int64(x) x
+#define TOPRINTF_uint64(x) x
+#define TOPRINTF_double(x) x
+#define TOPRINTF_charptr(x) x
+#define TOPRINTF_string(x) x.c_str()
 
 #define _CONFIG_GEN_FUNCTION(fname,type,convname,format) \
 type cfg_get##fname(const char *name, const type def) { \
@@ -170,12 +181,14 @@ type cfg_get##fname(const char *name, const type def) { \
 		} \
 	} \
 	if (logundefined) { \
-		mfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'",name,def); \
+		mfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'", \
+				name,TOPRINTF_##convname(def)); \
 	} \
 	COPY_##convname(def) \
 }
 
 _CONFIG_GEN_FUNCTION(str,char*,charptr,"%s")
+_CONFIG_GEN_FUNCTION(string,std::string,string,"%s")
 _CONFIG_GEN_FUNCTION(num,int,int,"%d")
 _CONFIG_GEN_FUNCTION(int8,int8_t,int32,"%" PRId8)
 _CONFIG_GEN_FUNCTION(uint8,uint8_t,uint32,"%" PRIu8)
@@ -186,18 +199,3 @@ _CONFIG_GEN_FUNCTION(uint32,uint32_t,uint32,"%" PRIu32)
 _CONFIG_GEN_FUNCTION(int64,int64_t,int64,"%" PRId64)
 _CONFIG_GEN_FUNCTION(uint64,uint64_t,uint64,"%" PRIu64)
 _CONFIG_GEN_FUNCTION(double,double,double,"%f")
-
-template <>
-uint16_t cfg_get(const char* name, uint16_t defaultValue) {
-	return cfg_getint16(name, defaultValue);
-}
-
-template <>
-uint32_t cfg_get(const char* name, uint32_t defaultValue) {
-	return cfg_getint32(name, defaultValue);
-}
-
-template <>
-uint64_t cfg_get(const char* name, uint64_t defaultValue) {
-	return cfg_getint64(name, defaultValue);
-}

@@ -1134,19 +1134,19 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 		eptr->mode = KILL;
 		return;
 	}
-	statistics.version_ = lizardfsVersion(PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR,
+	statistics.version = lizardfsVersion(PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR,
 			PACKAGE_VERSION_MICRO);
-	fs_info(&statistics.totalSpace_, &statistics.availableSpace_, &statistics.trashSpace_,
-			&statistics.trashNodes_, &statistics.reservedSpace_, &statistics.reservedNodes_,
-			&statistics.allNodes_, &statistics.dirNodes_, &statistics.fileNodes_);
-	chunk_info(&statistics.chunks_, &statistics.chunkCopies_, &statistics.regularCopies_);
+	fs_info(&statistics.totalSpace, &statistics.availableSpace, &statistics.trashSpace,
+			&statistics.trashNodes, &statistics.reservedSpace, &statistics.reservedNodes,
+			&statistics.allNodes, &statistics.dirNodes, &statistics.fileNodes);
+	chunk_info(&statistics.chunks, &statistics.chunkCopies, &statistics.regularCopies);
 #ifdef MEMORY_USAGE
 	statistics.memoryUsage = chartsdata_memusage();
 #else
 	/* XXX(lamvak): what exactly should be inserted here when there's no MEMORY_USAGE
 	 * probably needs a fix
 	 */
-	statistics.memoryUsage_ = 0;
+	statistics.memoryUsage = 0;
 #endif
 	std::vector<uint8_t> response;
 	serializeMooseFsPacket(response, MATOCL_INFO, statistics);

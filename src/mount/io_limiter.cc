@@ -3,9 +3,9 @@
 #include <unistd.h>
 #include <fstream>
 
+#include "common/io_limits_config_loader.h"
 #include "common/massert.h"
 #include "common/time_utils.h"
-#include "mount/io_limit_config_loader.h"
 #include "mount/io_limit_group.h"
 
 IoLimitQueue::IoLimitQueue()
@@ -66,7 +66,7 @@ bool IoLimitQueueCollection::hasQueue(const std::string& name) const {
 }
 
 void IoLimiter::readConfiguration(const std::string& filename) {
-	IoLimitConfigLoader loader;
+	IoLimitsConfigLoader loader;
 	loader.load(std::ifstream(filename));
 	subsystem_ = loader.subsystem();
 	for (const auto& entry : loader.limits()) {

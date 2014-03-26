@@ -16,14 +16,14 @@ TEST(SerializableClassTests, SimpleClass) {
 	)
 		SomeClass() = default;
 		void myMethod() {
-			fieldA_ = 5;
+			fieldA = 5;
 		};
 	SERIALIZABLE_CLASS_END;
 
 	SomeClass a;
-	(void) a.fieldA_;
-	(void) a.fieldB_;
-	(void) a.fieldC_;
+	(void) a.fieldA;
+	(void) a.fieldB;
+	(void) a.fieldC;
 	a.myMethod();
 }
 
@@ -39,7 +39,7 @@ TEST(SerializableClassTests, Serialize) {
 	)
 		Class() = default;
 		bool operator==(const Class& o) const {
-			return std::make_tuple(A_, B_, C_) == std::make_tuple(o.A_, o.B_, o.C_);
+			return std::make_tuple(A, B, C) == std::make_tuple(o.A, o.B, o.C);
 		}
 		bool operator!=(const Class& o) const {
 			return !(*this == o);

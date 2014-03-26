@@ -75,28 +75,28 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 
 	std::sort(mounts.begin(), mounts.end(),
 			[](const MountEntry& a, const MountEntry& b) -> bool
-			{ return a.sessionId_ < b.sessionId_; });
+			{ return a.sessionId < b.sessionId; });
 
 	for (const MountEntry& mount : mounts) {
-		bool readonly = mount.flags_ & SESFLAG_READONLY;
-		bool restrictedIp = !(mount.flags_ & SESFLAG_DYNAMICIP);
-		bool ignoregid = mount.flags_ & SESFLAG_IGNOREGID;
-		bool canChangeQuota = mount.flags_ & SESFLAG_CANCHANGEQUOTA;
-		bool mapAll = mount.flags_ & SESFLAG_MAPALL;
-		bool shouldPrintGoal = isOrdinaryGoal(mount.minGoal_) && isOrdinaryGoal(mount.maxGoal_);
-		bool shouldPrintTrashTime = mount.minTrashTime_ < mount.maxTrashTime_
-				&& (mount.minTrashTime_ != 0 || mount.maxTrashTime_ != 0xFFFFFFFF);
+		bool readonly = mount.flags & SESFLAG_READONLY;
+		bool restrictedIp = !(mount.flags & SESFLAG_DYNAMICIP);
+		bool ignoregid = mount.flags & SESFLAG_IGNOREGID;
+		bool canChangeQuota = mount.flags & SESFLAG_CANCHANGEQUOTA;
+		bool mapAll = mount.flags & SESFLAG_MAPALL;
+		bool shouldPrintGoal = isOrdinaryGoal(mount.minGoal) && isOrdinaryGoal(mount.maxGoal);
+		bool shouldPrintTrashTime = mount.minTrashTime < mount.maxTrashTime
+				&& (mount.minTrashTime != 0 || mount.maxTrashTime != 0xFFFFFFFF);
 
 		if (!porcelainMode) {
-			std::cout << "session " << mount.sessionId_ << ": " << '\n'
-					<< "\tip: " << ipToString(mount.peerIp_) << '\n'
-					<< "\tmount point: " << mount.info_ << '\n'
-					<< "\tversion: " << lizardfsVersionToString(mount.version_) << '\n'
-					<< "\troot dir: " << mount.path_ << '\n'
-					<< "\troot uid: " << mount.rootuid_ << '\n'
-					<< "\troot gid: " << mount.rootgid_ << '\n'
-					<< "\tusers uid: " << mount.mapalluid_ << '\n'
-					<< "\tusers gid: " << mount.mapallgid_ << '\n'
+			std::cout << "session " << mount.sessionId << ": " << '\n'
+					<< "\tip: " << ipToString(mount.peerIp) << '\n'
+					<< "\tmount point: " << mount.info << '\n'
+					<< "\tversion: " << lizardfsVersionToString(mount.version) << '\n'
+					<< "\troot dir: " << mount.path << '\n'
+					<< "\troot uid: " << mount.rootuid << '\n'
+					<< "\troot gid: " << mount.rootgid << '\n'
+					<< "\tusers uid: " << mount.mapalluid << '\n'
+					<< "\tusers gid: " << mount.mapallgid << '\n'
 					<< "\tread only: " << (readonly ? "yes" : "no") << '\n'
 					<< "\trestricted ip: " << (restrictedIp ? "yes" : "no") << '\n'
 					<< "\tignore gid: " << (ignoregid ? "yes" : "no") << '\n'
@@ -105,29 +105,29 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 
 			if (verboseMode) {
 				if (shouldPrintGoal) {
-					std::cout << "\tmin goal: " << static_cast<uint32_t>(mount.minGoal_) << std::endl
-							<< "\tmax goal: " << static_cast<uint32_t>(mount.maxGoal_) << std::endl;
+					std::cout << "\tmin goal: " << static_cast<uint32_t>(mount.minGoal) << std::endl
+							<< "\tmax goal: " << static_cast<uint32_t>(mount.maxGoal) << std::endl;
 				} else {
 					std::cout << "\tmin goal: -\n\tmax goal: -" << std::endl;
 				}
 
 				if (shouldPrintTrashTime) {
-					std::cout << "\tmin trash time:" << mount.minTrashTime_ << std::endl
-							<< "\tmax trash time: " << mount.maxTrashTime_ << std::endl;
+					std::cout << "\tmin trash time:" << mount.minTrashTime << std::endl
+							<< "\tmax trash time: " << mount.maxTrashTime << std::endl;
 				} else {
 					std::cout << "\tmin trash time: -\n\tmax trash time: -" << std::endl;
 				}
 			}
 		} else {
-			std::cout << mount.sessionId_
-					<< ' ' << ipToString(mount.peerIp_)
-					<< ' ' << mount.info_
-					<< ' ' << lizardfsVersionToString(mount.version_)
-					<< ' ' << mount.path_
-					<< ' ' << mount.rootuid_
-					<< ' ' << mount.rootgid_
-					<< ' ' << mount.mapalluid_
-					<< ' ' << mount.mapallgid_
+			std::cout << mount.sessionId
+					<< ' ' << ipToString(mount.peerIp)
+					<< ' ' << mount.info
+					<< ' ' << lizardfsVersionToString(mount.version)
+					<< ' ' << mount.path
+					<< ' ' << mount.rootuid
+					<< ' ' << mount.rootgid
+					<< ' ' << mount.mapalluid
+					<< ' ' << mount.mapallgid
 					<< ' ' << (readonly ? "yes" : "no")
 					<< ' ' << (restrictedIp ? "yes" : "no")
 					<< ' ' << (ignoregid ? "yes" : "no")
@@ -135,15 +135,15 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 					<< ' ' << (mapAll ? "yes" : "no");
 			if (verboseMode) {
 				if (shouldPrintGoal) {
-					std::cout << ' ' << static_cast<uint32_t>(mount.minGoal_)
-							<< ' ' << static_cast<uint32_t>(mount.maxGoal_);
+					std::cout << ' ' << static_cast<uint32_t>(mount.minGoal)
+							<< ' ' << static_cast<uint32_t>(mount.maxGoal);
 				} else {
 					std::cout << " - -";
 				}
 
 				if (shouldPrintTrashTime) {
-					std::cout << ' ' << mount.minTrashTime_
-							<< ' ' << mount.maxTrashTime_;
+					std::cout << ' ' << mount.minTrashTime
+							<< ' ' << mount.maxTrashTime;
 				} else {
 					std::cout << " - -";
 				}

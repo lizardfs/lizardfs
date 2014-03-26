@@ -2760,7 +2760,7 @@ static inline int fsnodes_namecheck(uint32_t nleng,const uint8_t *name) {
 #ifndef METARESTORE
 static inline int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,uint8_t modemask,uint8_t sesflags) {
 	uint8_t nodemode;
-	if (uid==0) {
+	if (sesflags & SESFLAG_NOMASTERPERMCHECK || uid==0) {
 		return 1;
 	}
 	if (uid==node->uid || (node->mode&(EATTR_NOOWNER<<12))) {

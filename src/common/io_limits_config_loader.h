@@ -6,7 +6,7 @@
 
 #include "common/exception.h"
 
-class IoLimitConfigLoader {
+class IoLimitsConfigLoader {
 public:
 	typedef std::map<std::string, uint64_t> LimitsMap;
 

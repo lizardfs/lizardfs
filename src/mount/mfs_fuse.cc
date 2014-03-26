@@ -2071,12 +2071,6 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 #endif
 		return;
 	}
-	// ACL's - will be implemented separately
-	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ENOTSUP));
-		return;
-	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
@@ -2137,12 +2131,6 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,EPERM);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
-		return;
-	}
-	// ACL's - will be implemented separately
-	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2245,12 +2233,6 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,EPERM);
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
-		return;
-	}
-	// ACL's - will be implemented separately
-	if (strcmp(name,"system.posix_acl_default")==0 || strcmp(name,"system.posix_acl_access")==0) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
