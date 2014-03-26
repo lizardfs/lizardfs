@@ -20,18 +20,20 @@ public:
 		}
 		return ret;
 	}
+
 	void serialize(uint8_t** destination) const {
 		for (const T& t : *this) {
 			::serialize(destination, t);
 		}
 	}
+
 	void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
-		size_t sizeOfElement = ::serializedSize(T());
-		sassert(this->size() == 0);
-		sassert(sizeOfElement > 0);
+		sassert(this->empty());
 		while (bytesLeftInBuffer > 0) {
-			this->push_back(T());
+			uint32_t prevBytesLeftInBuffer = bytesLeftInBuffer;
+			this->emplace_back();
 			::deserialize(source, bytesLeftInBuffer, this->back());
+			sassert(bytesLeftInBuffer < prevBytesLeftInBuffer);
 		}
 	}
 };
