@@ -777,7 +777,7 @@ void worker_hdd_list_v2(csserventry *eptr, const uint8_t *data,
 
 	(void) data;
 	if (length != 0) {
-		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(2) - wrong size (%" PRIu32 "/0)",length);
+		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST_V2 - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}

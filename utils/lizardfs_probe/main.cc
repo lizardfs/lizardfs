@@ -6,6 +6,7 @@
 #include "common/strerr.h"
 #include "utils/lizardfs_probe/chunk_health_command.h"
 #include "utils/lizardfs_probe/list_chunkservers_command.h"
+#include "utils/lizardfs_probe/list_disks_command.h"
 #include "utils/lizardfs_probe/list_mounts_command.h"
 #include "utils/lizardfs_probe/lizardfs_info_command.h"
 #include "utils/lizardfs_probe/ready_chunkservers_count_command.h"
@@ -15,6 +16,7 @@ int main(int argc, const char** argv) {
 	std::vector<const LizardFsProbeCommand*> allCommands = {
 			new ChunksHealthCommand(),
 			new ListChunkserversCommand(),
+			new ListDisksCommand(),
 			new ListMountsCommand(),
 			new LizardFsInfoCommand(),
 			new ReadyChunkserversCountCommand(),

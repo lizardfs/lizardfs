@@ -35,7 +35,6 @@ SERIALIZABLE_CLASS_BODY(MountEntry,
 		uint32_t, maxTrashTime,
 		OperationStats, currentOpStats,
 		OperationStats, lastHourOpStats)
-		MountEntry() = default;
 SERIALIZABLE_CLASS_END;
 
 std::string ListMountsCommand::name() const {

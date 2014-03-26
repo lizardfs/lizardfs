@@ -12,9 +12,8 @@ TEST(SerializableClassTests, SimpleClass) {
 		SomeClass,
 		int   , fieldA,
 		short , fieldB,
-		long  , fieldC
-	)
-		SomeClass() = default;
+		long  , fieldC)
+
 		void myMethod() {
 			fieldA = 5;
 		};
@@ -35,9 +34,8 @@ TEST(SerializableClassTests, Serialize) {
 		short , B,
 		long  , C,
 		std::string             , D,
-		std::vector<std::string>, E
-	)
-		Class() = default;
+		std::vector<std::string>, E)
+
 		bool operator==(const Class& o) const {
 			return std::make_tuple(A, B, C) == std::make_tuple(o.A, o.B, o.C);
 		}

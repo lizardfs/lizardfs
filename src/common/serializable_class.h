@@ -32,6 +32,7 @@
 #define CONST_REF(T, t) const T& t
 #define REFERENCE(T, t) T& t
 #define INITIALIZE(t) PARAMETER(t) (t)
+#define DEFAULT_INITIALIZE(t) PARAMETER(t) ()
 
 // A workaround to pass a semicolon and a comma as a [semi-]recursive macro parameter:
 #define MAKE_SEMICOLON() ;
@@ -45,6 +46,11 @@
 #define TUPLE_LIKE_CONSTRUCTOR(ClassName, ...) \
 	ClassName(APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) \
 		: APPLY1_B(INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) { \
+	};
+
+#define DEFAULT_CONSTRUCTOR(ClassName, ...) \
+	ClassName() \
+		: APPLY1_B(DEFAULT_INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) { \
 	};
 
 // Methods used for serialization:
@@ -71,6 +77,7 @@ struct ClassHeader {
 // A name is a repeated class name used in SERIALIZABLE_CLASS_BEGIN parameter
 #define SERIALIZABLE_CLASS_BODY(ClassName, ...) \
 	TUPLE_LIKE_CONSTRUCTOR(ClassName, __VA_ARGS__) \
+	DEFAULT_CONSTRUCTOR(ClassName, __VA_ARGS__) \
 	DECLARE_VARIABLES(ClassName, __VA_ARGS__) \
 	SERIALIZE_METHODS(ClassName, __VA_ARGS__)
 

@@ -20,27 +20,28 @@
 #include "config.h"
 #include "chunkserver/hddspacemgr.h"
 
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <math.h>
+#include <pthread.h>
 #include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
+#ifdef MMAP_ALLOC
+	#include <sys/mman.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <time.h>
-#include <dirent.h>
-#include <errno.h>
-#include <limits.h>
-#include <math.h>
-#include <pthread.h>
-#ifdef MMAP_ALLOC
-#include <sys/mman.h>
-#endif
+#include <unistd.h>
 #include <list>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -50,11 +51,14 @@
 #include "common/cfg.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/disk_info.h"
 #include "common/list.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_vector.h"
 #include "common/random.h"
+#include "common/serialization.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
@@ -185,48 +189,6 @@ static uint32_t stats_version = 0;
 static uint32_t stats_duplicate = 0;
 static uint32_t stats_truncate = 0;
 static uint32_t stats_duptrunc = 0;
-
-static inline void hdd_stats_clear(hddstats *r) {
-	TRACETHIS();
-	memset(r,0,sizeof(hddstats));
-}
-
-static inline void hdd_stats_add(hddstats *dst,hddstats *src) {
-	TRACETHIS();
-	dst->rbytes += src->rbytes;
-	dst->wbytes += src->wbytes;
-	dst->usecreadsum += src->usecreadsum;
-	dst->usecwritesum += src->usecwritesum;
-	dst->usecfsyncsum += src->usecfsyncsum;
-	dst->rops += src->rops;
-	dst->wops += src->wops;
-	dst->fsyncops += src->fsyncops;
-	if (src->usecreadmax>dst->usecreadmax) {
-		dst->usecreadmax = src->usecreadmax;
-	}
-	if (src->usecwritemax>dst->usecwritemax) {
-		dst->usecwritemax = src->usecwritemax;
-	}
-	if (src->usecfsyncmax>dst->usecfsyncmax) {
-		dst->usecfsyncmax = src->usecfsyncmax;
-	}
-}
-
-/* size: 64 */
-static inline void hdd_stats_binary_pack(uint8_t **buff,hddstats *r) {
-	TRACETHIS();
-	put64bit(buff,r->rbytes);
-	put64bit(buff,r->wbytes);
-	put64bit(buff,r->usecreadsum);
-	put64bit(buff,r->usecwritesum);
-	put64bit(buff,r->usecfsyncsum);
-	put32bit(buff,r->rops);
-	put32bit(buff,r->wops);
-	put32bit(buff,r->fsyncops);
-	put32bit(buff,r->usecreadmax);
-	put32bit(buff,r->usecwritemax);
-	put32bit(buff,r->usecfsyncmax);
-}
 
 void hdd_report_damaged_chunk(uint64_t chunkid) {
 	TRACETHIS1(chunkid);
@@ -525,52 +487,50 @@ uint32_t hdd_diskinfo_v2_size() {
 void hdd_diskinfo_v2_data(uint8_t *buff) {
 	TRACETHIS();
 	folder *f;
-	hddstats s;
-	uint32_t sl;
+	HddStatistics s;
 	uint32_t ei;
 	uint32_t pos;
 	if (buff) {
+		MooseFSVector<DiskInfo> diskInfoVector;
 		zassert(pthread_mutex_lock(&statslock));
-		for (f=folderhead ; f ; f=f->next ) {
-			sl = strlen(f->path);
-			if (sl>255) {
-				put16bit(&buff,226+255);	// size of this entry
-				put8bit(&buff,255);
-				memcpy(buff,"(...)",5);
-				memcpy(buff+5,f->path+(sl-250),250);
-				buff += 255;
-			} else {
-				put16bit(&buff,226+sl);	// size of this entry
-				put8bit(&buff,sl);
-				if (sl>0) {
-					memcpy(buff,f->path,sl);
-					buff += sl;
-				}
+		for (f = folderhead; f; f = f->next) {
+			diskInfoVector.emplace_back();
+			DiskInfo& diskInfo = diskInfoVector.back();
+			diskInfo.path = f->path;
+			if (diskInfo.path.length() > String8Bit::kMaxLength) {
+				std::string dots("(...)");
+				uint32_t substrSize = String8Bit::kMaxLength - dots.length();
+				diskInfo.path = dots + diskInfo.path.substr(diskInfo.path.length()
+						- substrSize, substrSize);
 			}
-			put8bit(&buff,((f->todel)?1:0)+((f->damaged)?2:0)+((f->scanstate==SCST_SCANINPROGRESS)?4:0));
+			diskInfo.entrySize = serializedSize(diskInfo);
+			diskInfo.flags = (f->todel ? DiskInfo::kToDeleteFlagMask : 0)
+					+ (f->damaged ? DiskInfo::kDamagedFlagMask : 0)
+					+ (f->scanstate == SCST_SCANINPROGRESS ? DiskInfo::kScanInProgressFlagMask : 0);
 			ei = (f->lasterrindx+(LASTERRSIZE-1))%LASTERRSIZE;
-			put64bit(&buff,f->lasterrtab[ei].chunkid);
-			put32bit(&buff,f->lasterrtab[ei].timestamp);
+			diskInfo.errorChunkId = f->lasterrtab[ei].chunkid;
+			diskInfo.errorTimeStamp = f->lasterrtab[ei].timestamp;
 			if (f->scanstate==SCST_SCANINPROGRESS) {
-				put64bit(&buff,f->scanprogress);
-				put64bit(&buff,0);
+				diskInfo.used = f->scanprogress;
+				diskInfo.total = 0;
 			} else {
-				put64bit(&buff,f->total-f->avail);
-				put64bit(&buff,f->total);
+				diskInfo.used = f->total-f->avail;
+				diskInfo.total = f->total;
 			}
-			put32bit(&buff,f->chunkcount);
+			diskInfo.chunksCount = f->chunkcount;
 			s = f->stats[f->statspos];
-			hdd_stats_binary_pack(&buff,&s);	// 64B
+			diskInfo.lastMinuteStats = s;
 			for (pos=1 ; pos<60 ; pos++) {
-				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
+				s.add(f->stats[(f->statspos+pos)%STATSHISTORY]);
 			}
-			hdd_stats_binary_pack(&buff,&s);	// 64B
+			diskInfo.lastHourStats = s;
 			for (pos=60 ; pos<24*60 ; pos++) {
-				hdd_stats_add(&s,&(f->stats[(f->statspos+pos)%STATSHISTORY]));
+				s.add(f->stats[(f->statspos+pos)%STATSHISTORY]);
 			}
-			hdd_stats_binary_pack(&buff,&s);	// 64B
+			diskInfo.lastDayStats = s;
 		}
 		zassert(pthread_mutex_unlock(&statslock));
+		serialize(&buff, diskInfoVector);
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
 }
@@ -587,7 +547,7 @@ void hdd_diskinfo_movestats(void) {
 			f->statspos--;
 		}
 		f->stats[f->statspos] = f->cstat;
-		hdd_stats_clear(&(f->cstat));
+		f->cstat.clear();
 	}
 	zassert(pthread_mutex_unlock(&statslock));
 	zassert(pthread_mutex_unlock(&folderlock));
@@ -3648,9 +3608,9 @@ int hdd_parseline(char *hddcfgline) {
 					f->sizelimit = 0;
 				}
 				f->chunkcount = 0;
-				hdd_stats_clear(&(f->cstat));
+				f->cstat.clear();
 				for (l=0 ; l<STATSHISTORY ; l++) {
-					hdd_stats_clear(&(f->stats[l]));
+					f->stats[l].clear();
 				}
 				f->statspos = 0;
 				for (l=0 ; l<LASTERRSIZE ; l++) {
@@ -3696,9 +3656,9 @@ int hdd_parseline(char *hddcfgline) {
 	f->avail = 0ULL;
 	f->total = 0ULL;
 	f->chunkcount = 0;
-	hdd_stats_clear(&(f->cstat));
+	f->cstat.clear();
 	for (l=0 ; l<STATSHISTORY ; l++) {
-		hdd_stats_clear(&(f->stats[l]));
+		f->stats[l].clear();
 	}
 	f->statspos = 0;
 	for (l=0 ; l<LASTERRSIZE ; l++) {

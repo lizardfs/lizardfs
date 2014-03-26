@@ -5,6 +5,7 @@
 #include <string>
 
 #include "common/chunk_type.h"
+#include "common/disk_info.h"
 #include "common/MFSCommunication.h"
 
 #define STATSHISTORY (24*60)
@@ -21,20 +22,6 @@ struct cntcond {
 	pthread_cond_t cond;
 	uint32_t wcnt;
 	struct cntcond *next;
-};
-
-struct hddstats {
-	uint64_t rbytes;
-	uint64_t wbytes;
-	uint64_t usecreadsum;
-	uint64_t usecwritesum;
-	uint64_t usecfsyncsum;
-	uint32_t rops;
-	uint32_t wops;
-	uint32_t fsyncops;
-	uint32_t usecreadmax;
-	uint32_t usecwritemax;
-	uint32_t usecfsyncmax;
 };
 
 struct ioerror {
@@ -63,8 +50,8 @@ struct folder {
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
-	hddstats cstat;
-	hddstats stats[STATSHISTORY];
+	HddStatistics cstat;
+	HddStatistics stats[STATSHISTORY];
 	uint32_t statspos;
 	ioerror lasterrtab[LASTERRSIZE];
 	uint32_t chunkcount;

@@ -15,7 +15,6 @@ SERIALIZABLE_CLASS_BODY(ChunkserverEntry,
 		uint64_t, tdTotalSpace,
 		uint32_t, tdChunks,
 		uint32_t, errorCount)
-		ChunkserverEntry() = default;
 SERIALIZABLE_CLASS_END;
 
 class ListChunkserversCommand : public LizardFsProbeCommand {

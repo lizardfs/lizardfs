@@ -18,6 +18,4 @@ SERIALIZABLE_CLASS_BODY(LizardFsStatistics,
 		uint32_t, chunks,
 		uint32_t, chunkCopies,
 		uint32_t, regularCopies)
-
-		LizardFsStatistics() = default;
 SERIALIZABLE_CLASS_END;
