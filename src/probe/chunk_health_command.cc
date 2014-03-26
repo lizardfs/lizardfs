@@ -1,11 +1,11 @@
-#include "utils/lizardfs_probe/chunk_health_command.h"
+#include "probe/chunk_health_command.h"
 
 #include <iostream>
 
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
-#include "utils/lizardfs_probe/options.h"
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/options.h"
+#include "probe/server_connection.h"
 
 const std::vector<uint8_t> ChunksHealthCommand::kGoals =
 		ChunksHealthCommand::collectGoals();

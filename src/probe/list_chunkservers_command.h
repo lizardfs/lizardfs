@@ -2,7 +2,7 @@
 
 #include "common/network_address.h"
 #include "common/serializable_class.h"
-#include "utils/lizardfs_probe/lizardfs_probe_command.h"
+#include "probe/lizardfs_probe_command.h"
 
 SERIALIZABLE_CLASS_BEGIN(ChunkserverEntry)
 SERIALIZABLE_CLASS_BODY(ChunkserverEntry,

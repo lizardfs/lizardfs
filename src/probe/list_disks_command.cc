@@ -1,13 +1,13 @@
-#include "utils/lizardfs_probe/list_disks_command.h"
+#include "probe/list_disks_command.h"
 
 #include <iostream>
 
 #include "common/disk_info.h"
 #include "common/human_readable_format.h"
 #include "common/moosefs_vector.h"
-#include "utils/lizardfs_probe/list_chunkservers_command.h"
-#include "utils/lizardfs_probe/options.h"
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/list_chunkservers_command.h"
+#include "probe/options.h"
+#include "probe/server_connection.h"
 
 static std::string boolToYesNoString(bool value) {
 	return (value ? "yes" : "no");

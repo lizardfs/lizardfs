@@ -1,8 +1,8 @@
 #pragma once
 
-#include "utils/lizardfs_probe/lizardfs_probe_command.h"
+#include "probe/lizardfs_probe_command.h"
 
-class ListDisksCommand : public LizardFsProbeCommand {
+class LizardFsInfoCommand : public LizardFsProbeCommand {
 public:
 	virtual std::string name() const;
 	virtual void usage() const;

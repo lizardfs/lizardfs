@@ -1,4 +1,4 @@
-#include "utils/lizardfs_probe/options.h"
+#include "probe/options.h"
 
 Options::Options(const std::vector<std::string>& expectedOptions,
 		const std::vector<std::string>& argv) {

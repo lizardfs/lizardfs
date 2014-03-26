@@ -1,4 +1,4 @@
-#include "utils/lizardfs_probe/list_chunkservers_command.h"
+#include "probe/list_chunkservers_command.h"
 
 #include <iostream>
 #include <vector>
@@ -6,8 +6,8 @@
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
 #include "common/packet.h"
-#include "utils/lizardfs_probe/options.h"
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/options.h"
+#include "probe/server_connection.h"
 
 std::string ListChunkserversCommand::name() const {
 	return "list-chunkservers";

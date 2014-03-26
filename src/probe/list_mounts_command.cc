@@ -1,4 +1,4 @@
-#include "utils/lizardfs_probe/list_mounts_command.h"
+#include "probe/list_mounts_command.h"
 
 #include <algorithm>
 #include <iostream>
@@ -12,8 +12,8 @@
 #include "common/packet.h"
 #include "common/serializable_class.h"
 #include "common/serialization.h"
-#include "utils/lizardfs_probe/options.h"
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/options.h"
+#include "probe/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
 

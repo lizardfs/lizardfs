@@ -3,7 +3,7 @@
 #include <map>
 
 #include "common/chunks_availability_state.h"
-#include "utils/lizardfs_probe/lizardfs_probe_command.h"
+#include "probe/lizardfs_probe_command.h"
 
 class ChunksHealthCommand : public LizardFsProbeCommand {
 public:

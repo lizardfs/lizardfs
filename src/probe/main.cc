@@ -4,12 +4,12 @@
 #include "common/human_readable_format.h"
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
-#include "utils/lizardfs_probe/chunk_health_command.h"
-#include "utils/lizardfs_probe/list_chunkservers_command.h"
-#include "utils/lizardfs_probe/list_disks_command.h"
-#include "utils/lizardfs_probe/list_mounts_command.h"
-#include "utils/lizardfs_probe/lizardfs_info_command.h"
-#include "utils/lizardfs_probe/ready_chunkservers_count_command.h"
+#include "probe/chunk_health_command.h"
+#include "probe/list_chunkservers_command.h"
+#include "probe/list_disks_command.h"
+#include "probe/list_mounts_command.h"
+#include "probe/lizardfs_info_command.h"
+#include "probe/ready_chunkservers_count_command.h"
 
 int main(int argc, const char** argv) {
 	strerr_init();

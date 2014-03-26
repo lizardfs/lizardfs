@@ -36,6 +36,3 @@ install(TARGETS mfsping RUNTIME DESTINATION ${BIN_SUBDIR})
 add_executable(mfspingserv mfs_pingserv.cc)
 target_link_libraries(mfspingserv mfscommon)
 install(TARGETS mfspingserv RUNTIME DESTINATION ${BIN_SUBDIR})
-
-# a binary for probing different LizardFS processes
-add_subdirectory(lizardfs_probe)

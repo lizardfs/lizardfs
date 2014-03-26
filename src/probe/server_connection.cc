@@ -1,4 +1,4 @@
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/server_connection.h"
 
 #include "common/multi_buffer_writer.h"
 #include "common/message_receive_buffer.h"

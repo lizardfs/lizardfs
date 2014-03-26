@@ -1,4 +1,4 @@
-#include "utils/lizardfs_probe/lizardfs_info_command.h"
+#include "probe/lizardfs_info_command.h"
 
 #include <iostream>
 
@@ -6,8 +6,8 @@
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
 #include "common/packet.h"
-#include "utils/lizardfs_probe/options.h"
-#include "utils/lizardfs_probe/server_connection.h"
+#include "probe/options.h"
+#include "probe/server_connection.h"
 
 std::string LizardFsInfoCommand::name() const {
 	return "info";
