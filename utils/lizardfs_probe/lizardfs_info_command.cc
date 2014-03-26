@@ -5,6 +5,7 @@
 #include "common/human_readable_format.h"
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
+#include "utils/lizardfs_probe/options.h"
 
 std::string LizardFsInfoCommand::name() const {
 	return "info";
@@ -18,22 +19,17 @@ void LizardFsInfoCommand::usage() const {
 }
 
 void LizardFsInfoCommand::run(const std::vector<std::string>& argv) const {
-	if (argv.size() < 2) {
+	Options options({kPorcelainMode}, argv);
+	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
-	if (argv.size() > 3) {
-		throw WrongUsageException("Too many arguments for " + name());
-	}
-	if (argv.size() == 3 && argv[2] != kPorcelainMode) {
-		throw WrongUsageException("Unexpected argument " + argv[2] + " for " + name());
-	}
-	bool porcelainMode = argv.back() == kPorcelainMode;
+
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_INFO);
-	response = askMaster(request, argv[0], argv[1], MATOCL_INFO);
+	response = askServer(request, options.arguments(0), options.arguments(1), MATOCL_INFO);
 	LizardFsStatistics info;
 	deserializeAllMooseFsPacketDataNoHeader(response, info);
-	if (porcelainMode) {
+	if (options.isSet(kPorcelainMode)) {
 		std::cout << lizardfsVersionToString(info.version)
 				<< ' ' << info.memoryUsage
 				<< ' ' << info.totalSpace

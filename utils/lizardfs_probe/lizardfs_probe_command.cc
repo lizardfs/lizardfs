@@ -1,7 +1,10 @@
 #include "lizardfs_probe_command.h"
 
+#include <string>
+
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
+#include "common/sockets.h"
 
 const std::string LizardFsProbeCommand::kPorcelainMode = "--porcelain";
 const std::string LizardFsProbeCommand::kVerboseMode = "--verbose";
@@ -18,11 +21,11 @@ int LizardFsProbeCommand::connect(const std::string& host, const std::string& po
 	return fd;
 }
 
-std::vector<uint8_t> LizardFsProbeCommand::askMaster(const std::vector<uint8_t>& request,
-		const std::string& masterHost, const std::string& masterPort,
+std::vector<uint8_t> LizardFsProbeCommand::askServer(const std::vector<uint8_t>& request,
+		const std::string& host, const std::string& port,
 		PacketHeader::Type responseType) {
 	std::vector<uint8_t> response;
-	int fd = connect(masterHost, masterPort);
+	int fd = connect(host, port);
 	try {
 		response = sendAndReceive(fd, request, responseType);
 		tcpclose(fd);

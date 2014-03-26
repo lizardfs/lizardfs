@@ -6,7 +6,7 @@ CHUNKSERVERS=4 \
 	setup_local_empty_lizardfs info
 
 list_mounts() {
-	lizardfs-probe list-mounts localhost "${info[matocl]}" --porcelain --verbose
+	lizardfs-probe list-mounts --porcelain --verbose localhost "${info[matocl]}"
 }
 
 mounts=$(list_mounts)

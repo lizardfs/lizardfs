@@ -5,6 +5,7 @@
 
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
+#include "utils/lizardfs_probe/options.h"
 
 std::string ListChunkserversCommand::name() const {
 	return "list-chunkservers";
@@ -18,24 +19,20 @@ void ListChunkserversCommand::usage() const {
 }
 
 void ListChunkserversCommand::run(const std::vector<std::string>& argv) const {
-	if (argv.size() < 2) {
+	Options options({kPorcelainMode}, argv);
+	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
-	if (argv.size() > 3) {
-		throw WrongUsageException("Too many arguments for " + name());
-	}
-	if (argv.size() == 3 && argv[2] != kPorcelainMode) {
-		throw WrongUsageException("Unexpected argument " + argv[2] + " for " + name());
-	}
-	bool porcelainMode = argv.back() == kPorcelainMode;
-	std::vector<ChunkserverEntry> chunkservers = getChunkserversList(argv[0], argv[1]);
 
-	if (!porcelainMode) {
+	std::vector<ChunkserverEntry> chunkservers =
+			getChunkserversList(options.arguments(0), options.arguments(1));
+
+	if (!options.isSet(kPorcelainMode)) {
 		std::cout << "address\tversion\tchunks\tspace\tchunks to del\tto delete\terrors"
 				<< std::endl;
 	}
 	for (const ChunkserverEntry& cs : chunkservers) {
-		if (porcelainMode) {
+		if (options.isSet(kPorcelainMode)) {
 			std::cout << cs.address.toString()
 					<< ' ' << lizardfsVersionToString(cs.version)
 					<< ' ' << cs.chunks
@@ -63,7 +60,7 @@ std::vector<ChunkserverEntry> ListChunkserversCommand::getChunkserversList (
 		const std::string& masterHost, const std::string& masterPort) {
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_CSERV_LIST);
-	response = askMaster(request, masterHost, masterPort, MATOCL_CSERV_LIST);
+	response = askServer(request, masterHost, masterPort, MATOCL_CSERV_LIST);
 	std::vector<ChunkserverEntry> result;
 	while (!response.empty()) {
 		result.push_back(ChunkserverEntry());

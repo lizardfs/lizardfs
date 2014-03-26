@@ -16,7 +16,7 @@ for goal in $goals; do
 done
 
 export MESSAGE="Veryfing health report with all the chunkservers up"
-health4=$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)
+health4=$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")
 expect_equals 4 $(awk '/AVA/ {chunks += ($3 + $4 + $5)} END {print chunks}' <<< "$health4")
 for goal in $goals; do
 	expect_awk_finds "/AVA $goal 1 0 0/" "$health4"
@@ -37,7 +37,7 @@ csid4=$(( (csid3 + 1) % 4 ))
 export MESSAGE="Veryfing health report one chunkserver down and chunk with goal 2 endangered"
 mfschunkserver -c "${info[chunkserver${csid1}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 3
-health3=$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)
+health3=$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")
 expect_equals 4 $(awk '/AVA/ {chunks += ($3 + $4 + $5)} END {print chunks}' <<< "$health3")
 expect_awk_finds '/AVA 2 0 1 0/' "$health3"
 expect_awk_finds '/AVA xor3 0 1 0/' "$health3"
@@ -50,7 +50,7 @@ expect_awk_finds_no '/DEL [xor0-9]+ [0-9]+ .*[1-9]/' "$health3"
 export MESSAGE="Veryfing health report with two out of four chunkservers down"
 mfschunkserver -c "${info[chunkserver${csid2}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 2
-health2=$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)
+health2=$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")
 expect_equals 4 $(awk '/AVA/ {chunks += ($3 + $4 + $5)} END {print chunks}' <<< "$health2")
 expect_awk_finds '/AVA xor3 0 0 1/' "$health2"
 expect_awk_finds_no '/REP xor/ && $3 > 0' "$health2"
@@ -61,7 +61,7 @@ expect_awk_finds_no '/DEL [xor0-9]+ [0-9]+ .*[1-9]/' "$health2"
 export MESSAGE="Veryfing health report with three out of four chunkservers down"
 mfschunkserver -c "${info[chunkserver${csid3}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 1
-health1=$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)
+health1=$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")
 expect_equals 4 $(awk '/AVA/ {chunks += ($3 + $4 + $5)} END {print chunks}' <<< "$health1")
 expect_awk_finds_no '/AVA/ && $3 > 0' "$health1"
 expect_awk_finds_no '/AVA xor/ && $4 > 0' "$health1"
@@ -73,7 +73,7 @@ expect_awk_finds_no '/DEL [xor0-9]+ [0-9]+ .*[1-9]/' "$health1"
 export MESSAGE="Veryfing health report with all chunkservers down"
 mfschunkserver -c "${info[chunkserver${csid4}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 0
-health0=$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)
+health0=$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")
 expect_equals 4 $(awk '/AVA/ {chunks += ($3 + $4 + $5)} END {print chunks}' <<< "$health0")
 expect_awk_finds_no '/AVA/ && $3 > 0' "$health0"
 expect_awk_finds_no '/AVA/ && $4 > 0' "$health0"
@@ -88,19 +88,19 @@ expect_awk_finds_no '/DEL [xor0-9]+ [0-9]+ .*[1-9]/' "$health0"
 export MESSAGE="Veryfing health report with one out of four chunkservers up again"
 mfschunkserver -c "${info[chunkserver${csid4}_config]}" start
 lizardfs_wait_for_ready_chunkservers 1
-expect_equals "$health1" "$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)"
+expect_equals "$health1" "$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")"
 
 export MESSAGE="Veryfing health report with two out of four chunkservers up again"
 mfschunkserver -c "${info[chunkserver${csid3}_config]}" start
 lizardfs_wait_for_ready_chunkservers 2
-expect_equals "$health2" "$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)"
+expect_equals "$health2" "$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")"
 
 export MESSAGE="Veryfing health report with three out of four chunkservers up again"
 mfschunkserver -c "${info[chunkserver${csid2}_config]}" start
 lizardfs_wait_for_ready_chunkservers 3
-expect_equals "$health3" "$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)"
+expect_equals "$health3" "$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")"
 
 export MESSAGE="Veryfing health report with all the chunkservers up again"
 mfschunkserver -c "${info[chunkserver${csid1}_config]}" start
 lizardfs_wait_for_ready_chunkservers 4
-expect_equals "$health4" "$(lizardfs-probe chunks-health localhost "${info[matocl]}" --porcelain)"
+expect_equals "$health4" "$(lizardfs-probe chunks-health --porcelain localhost "${info[matocl]}")"

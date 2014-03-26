@@ -5,7 +5,6 @@
 
 #include "common/exception.h"
 #include "common/packet.h"
-#include "common/sockets.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(WrongUsageException, Exception);
 
@@ -20,8 +19,8 @@ public:
 	virtual void run(const std::vector<std::string>& argv) const = 0;
 
 protected:
-	static std::vector<uint8_t> askMaster(const std::vector<uint8_t>& request,
-			const std::string& masterHost, const std::string& masterPort,
+	static std::vector<uint8_t> askServer(const std::vector<uint8_t>& request,
+			const std::string& host, const std::string& port,
 			PacketHeader::Type responseType);
 	static int connect(const std::string& host, const std::string& port);
 	static std::vector<uint8_t> sendAndReceive(int fd,

@@ -13,7 +13,7 @@ for goal in $goals; do
 done
 
 list_chunkservers() {
-	lizardfs-probe list-chunkservers localhost "${info[matocl]}" --porcelain
+	lizardfs-probe list-chunkservers --porcelain localhost "${info[matocl]}"
 }
 
 export MESSAGE="Veryfing chunkservers list with all the chunkservers up"

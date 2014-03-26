@@ -4,12 +4,12 @@
 
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
+#include "utils/lizardfs_probe/options.h"
 
 const std::vector<uint8_t> ChunksHealthCommand::kGoals =
 		ChunksHealthCommand::collectGoals();
 const std::map<uint8_t, std::string> ChunksHealthCommand::kGoalNames =
 		ChunksHealthCommand::createGoalNames();
-const std::string ChunksHealthCommand::kOptionAll = "--all";
 const std::string ChunksHealthCommand::kOptionAvailability = "--availability";
 const std::string ChunksHealthCommand::kOptionReplication = "--replication";
 const std::string ChunksHealthCommand::kOptionDeletion = "--deletion";
@@ -23,11 +23,10 @@ void ChunksHealthCommand::usage() const {
 			<< std::endl;
 	std::cerr << "    Returns chunks health reports in the installation." << std::endl;
 	std::cerr << "    Available reports:" << std::endl;
-	std::cerr << "        " << kOptionAll << std::endl;
 	std::cerr << "        " << kOptionAvailability << std::endl;
 	std::cerr << "        " << kOptionReplication << std::endl;
 	std::cerr << "        " << kOptionDeletion << std::endl;
-	std::cerr << "    The default is " << kOptionAll << '.' << std::endl;
+	std::cerr << "    By default all reports will be shown." << std::endl;
 	std::cerr << "    In replication and deletion states, the column means the number of chunks"
 			<< std::endl;
 	std::cerr << "    with number of copies specified in the label to replicate/delete.\n"
@@ -37,32 +36,18 @@ void ChunksHealthCommand::usage() const {
 }
 
 void ChunksHealthCommand::run(const std::vector<std::string>& argv) const {
-	if (argv.size() < 2 || argv.size() > 4) {
-		throw WrongUsageException("Expected 2-4 arguments for " + name() + '\n');
-	}
-	bool isPorcelain = false;
-	bool isAvailability = true, isReplication = true, isDeletion = true;
-	if (argv.size() >= 3) {
-		isPorcelain = argv.back() == kPorcelainMode;
-		if (argv.size() == 4 || !isPorcelain) {
-			if (argv.size() == 4 && !isPorcelain) {
-				throw WrongUsageException("Wrong porcelain argument: " + argv[3]);
-			}
-			if (argv[2] != kOptionAll) {
-				isAvailability = argv[2] == kOptionAvailability;
-				isReplication = argv[2] == kOptionReplication;
-				isDeletion = argv[2] == kOptionDeletion;
-			}
-			if (!(isAvailability | isReplication | isDeletion)) {
-				throw WrongUsageException("Wrong argument: " + argv[2]);
-			}
-		}
+	Options options(
+			{kPorcelainMode, kOptionAvailability, kOptionDeletion, kOptionReplication},
+			argv);
+	if (options.arguments().size() != 2) {
+		throw WrongUsageException("Expected <master ip> and <master port> for " + name() + '\n');
 	}
 
 	std::vector<uint8_t> request, response;
 	bool regularOnly = false;
 	cltoma::xorChunksHealth::serialize(request, regularOnly);
-	response = askMaster(request, argv[0], argv[1], LIZ_MATOCL_CHUNKS_HEALTH);
+	response = askServer(request, options.arguments(0), options.arguments(1),
+			LIZ_MATOCL_CHUNKS_HEALTH);
 	ChunksAvailabilityState availability;
 	ChunksReplicationState replication;
 	matocl::xorChunksHealth::deserialize(response, regularOnly, availability, replication);
@@ -70,14 +55,17 @@ void ChunksHealthCommand::run(const std::vector<std::string>& argv) const {
 		throw Exception("Incorrect response type received");
 	}
 
-	if (isAvailability) {
-		printState(availability, isPorcelain);
+	bool showAllReports = !options.isSet(kOptionAvailability)
+			&& !options.isSet(kOptionReplication)
+			&& !options.isSet(kOptionDeletion);
+	if (showAllReports || options.isSet(kOptionAvailability)) {
+		printState(availability, options.isSet(kPorcelainMode));
 	}
-	if (isReplication) {
-		printState(true, replication, isPorcelain);
+	if (showAllReports || options.isSet(kOptionReplication)) {
+		printState(true, replication, options.isSet(kPorcelainMode));
 	}
-	if (isDeletion) {
-		printState(false, replication, isPorcelain);
+	if (showAllReports || options.isSet(kOptionDeletion)) {
+		printState(false, replication, options.isSet(kPorcelainMode));
 	}
 }
 

@@ -15,4 +15,4 @@ done
 rm dir_3/file
 rm dir_xor2/file
 expect_equals "$LIZARDFS_VERSION 2 0 0 9 5 4 4 5 5" \
-	"$(lizardfs-probe info localhost "${info[matocl]}" --porcelain | cut -d' ' -f 1,6-)"
+	"$(lizardfs-probe info --porcelain localhost "${info[matocl]}" | cut -d' ' -f 1,6-)"

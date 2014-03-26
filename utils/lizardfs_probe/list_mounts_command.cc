@@ -11,6 +11,7 @@
 #include "common/moosefs_vector.h"
 #include "common/serializable_class.h"
 #include "common/serialization.h"
+#include "utils/lizardfs_probe/options.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
 
@@ -50,25 +51,16 @@ void ListMountsCommand::usage() const {
 }
 
 void ListMountsCommand::run(const std::vector<std::string>& argv) const {
-	if (argv.size() < 2) {
+	Options options({kVerboseMode, kPorcelainMode}, argv);
+	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
-	}
-	bool verboseMode = false;
-	bool porcelainMode = false;
-	for (uint32_t i = 2; i < argv.size(); ++i) {
-		if (argv[i] == kPorcelainMode) {
-			porcelainMode = true;
-		} else if (argv[i] == kVerboseMode) {
-			verboseMode = true;
-		} else {
-			throw WrongUsageException("Unexpected argument " + argv[i] + " for " + name());
-		}
 	}
 
 	MooseFSVector<MountEntry> mounts;
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_SESSION_LIST, true);
-	response = askMaster(request, argv[0], argv[1], MATOCL_SESSION_LIST);
+	response = askServer(request, options.arguments(0), options.arguments(1),
+			MATOCL_SESSION_LIST);
 	// There is uint16_t SESSION_STATS = 16 at the beginning of response
 	uint16_t dummy;
 	deserializeAllMooseFsPacketDataNoHeader(response, dummy, mounts);
@@ -87,7 +79,7 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 		bool shouldPrintTrashTime = mount.minTrashTime < mount.maxTrashTime
 				&& (mount.minTrashTime != 0 || mount.maxTrashTime != 0xFFFFFFFF);
 
-		if (!porcelainMode) {
+		if (!options.isSet(kPorcelainMode)) {
 			std::cout << "session " << mount.sessionId << ": " << '\n'
 					<< "\tip: " << ipToString(mount.peerIp) << '\n'
 					<< "\tmount point: " << mount.info << '\n'
@@ -103,7 +95,7 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 					<< "\tcan change quota: " << (canChangeQuota ? "yes" : "no") << '\n'
 					<< "\tmap all users: " << (mapAll ? "yes" : "no") << std::endl;
 
-			if (verboseMode) {
+			if (options.isSet(kVerboseMode)) {
 				if (shouldPrintGoal) {
 					std::cout << "\tmin goal: " << static_cast<uint32_t>(mount.minGoal) << std::endl
 							<< "\tmax goal: " << static_cast<uint32_t>(mount.maxGoal) << std::endl;
@@ -133,7 +125,7 @@ void ListMountsCommand::run(const std::vector<std::string>& argv) const {
 					<< ' ' << (ignoregid ? "yes" : "no")
 					<< ' ' << (canChangeQuota ? "yes" : "no")
 					<< ' ' << (mapAll ? "yes" : "no");
-			if (verboseMode) {
+			if (options.isSet(kVerboseMode)) {
 				if (shouldPrintGoal) {
 					std::cout << ' ' << static_cast<uint32_t>(mount.minGoal)
 							<< ' ' << static_cast<uint32_t>(mount.maxGoal);
