@@ -55,7 +55,7 @@ cat "$input_file" \
 
 cat "$input_file" \
         | sed -r -e 's#(^|[^/])//([^/]|$).*#\1#' \
-        | awk '/^#define (LIZ_)?..TO.._[A-Z0-9_]+/{print "Packet",$2} /^[/]{3}/{sub(/[/]{3}/,"DissectAs",$0); print}' \
+        | awk '/^#define (LIZ_)?..TO.._[A-Z0-9_]+/{print "Packet",$2} /^[\/]{3}/{sub(/[\/]{3}/,"DissectAs",$0); print}' \
         | sed -e 's/([^)]*)/BYTES/g' \
         | python3 make_dissector.py \
         > packet-lizardfs.c
