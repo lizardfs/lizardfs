@@ -42,7 +42,7 @@ std::string ListMountsCommand::name() const {
 
 LizardFsProbeCommand::SupportedOptions ListMountsCommand::supportedOptions() const {
 	return {
-		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+		{kPorcelainMode, kPorcelainModeDescription},
 		{kVerboseMode,   "Be a little more verbose and show goal and trash time limits."},
 	};
 }

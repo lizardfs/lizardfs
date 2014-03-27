@@ -13,7 +13,7 @@ std::string InfoCommand::name() const {
 
 LizardFsProbeCommand::SupportedOptions InfoCommand::supportedOptions() const {
 	return {
-		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+		{kPorcelainMode, kPorcelainModeDescription},
 	};
 }
 

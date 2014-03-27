@@ -20,7 +20,7 @@ std::string ChunksHealthCommand::name() const {
 
 LizardFsProbeCommand::SupportedOptions ChunksHealthCommand::supportedOptions() const {
 	return {
-		{kPorcelainMode,      "This argument makes the output parsing-friendly."},
+		{kPorcelainMode,      kPorcelainModeDescription},
 		{kOptionAvailability, "Print report about availability of chunks."},
 		{kOptionReplication,  "Print report about about number of chunks that need replication."},
 		{kOptionDeletion,     "Print report about about number of chunks that need deletion."},

@@ -13,7 +13,7 @@ std::string ListChunkserversCommand::name() const {
 
 LizardFsProbeCommand::SupportedOptions ListChunkserversCommand::supportedOptions() const {
 	return {
-		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+		{kPorcelainMode, kPorcelainModeDescription},
 	};
 }
 

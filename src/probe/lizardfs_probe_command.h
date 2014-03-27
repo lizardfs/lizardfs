@@ -13,6 +13,7 @@ public:
 	typedef std::vector<std::pair<std::string, std::string>> SupportedOptions;
 
 	static const std::string kPorcelainMode;
+	static const std::string kPorcelainModeDescription;
 	static const std::string kVerboseMode;
 
 	virtual ~LizardFsProbeCommand() {}
