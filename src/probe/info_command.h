@@ -2,7 +2,7 @@
 
 #include "probe/lizardfs_probe_command.h"
 
-class LizardFsInfoCommand : public LizardFsProbeCommand {
+class InfoCommand : public LizardFsProbeCommand {
 public:
 	virtual std::string name() const;
 	virtual SupportedOptions supportedOptions() const;

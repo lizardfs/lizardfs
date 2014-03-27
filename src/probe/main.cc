@@ -5,20 +5,20 @@
 #include "common/MFSCommunication.h"
 #include "common/strerr.h"
 #include "probe/chunk_health_command.h"
+#include "probe/info_command.h"
 #include "probe/list_chunkservers_command.h"
 #include "probe/list_disks_command.h"
 #include "probe/list_mounts_command.h"
-#include "probe/lizardfs_info_command.h"
 #include "probe/ready_chunkservers_count_command.h"
 
 int main(int argc, const char** argv) {
 	strerr_init();
 	std::vector<const LizardFsProbeCommand*> allCommands = {
 			new ChunksHealthCommand(),
+			new InfoCommand(),
 			new ListChunkserversCommand(),
 			new ListDisksCommand(),
 			new ListMountsCommand(),
-			new LizardFsInfoCommand(),
 			new ReadyChunkserversCountCommand(),
 	};
 

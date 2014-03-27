@@ -1,4 +1,4 @@
-#include "probe/lizardfs_info_command.h"
+#include "probe/info_command.h"
 
 #include <iostream>
 
@@ -7,22 +7,22 @@
 #include "common/lizardfs_version.h"
 #include "probe/server_connection.h"
 
-std::string LizardFsInfoCommand::name() const {
+std::string InfoCommand::name() const {
 	return "info";
 }
 
-LizardFsProbeCommand::SupportedOptions LizardFsInfoCommand::supportedOptions() const {
+LizardFsProbeCommand::SupportedOptions InfoCommand::supportedOptions() const {
 	return {
 		{kPorcelainMode, "This argument makes the output parsing-friendly."},
 	};
 }
 
-void LizardFsInfoCommand::usage() const {
+void InfoCommand::usage() const {
 	std::cerr << name() << " <master ip> <master port>\n";
 	std::cerr << "    Prints statistics concerning the LizardFS installation.\n";
 }
 
-void LizardFsInfoCommand::run(const Options& options) const {
+void InfoCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
