@@ -135,8 +135,8 @@ static void printNormalMode(const ChunkserverEntry& cs, const MooseFSVector<Disk
 				<< "\tscanning: "
 				<< boolToYesNoString(disk.flags & DiskInfo::kScanInProgressFlagMask) << '\n'
 				<< "\tlast error: " << lastError << '\n'
-				<< "\ttotal space: " << convertToIec(disk.total) << '\n'
-				<< "\tused space: " << convertToIec(disk.used) << '\n'
+				<< "\ttotal space: " << convertToIec(disk.total) << "B\n"
+				<< "\tused space: " << convertToIec(disk.used) << "B\n"
 				<< "\tchunks: " << convertToSi(disk.chunksCount) << std::endl;
 		if (verbose) {
 			const HddStatistics* stats[3] = {

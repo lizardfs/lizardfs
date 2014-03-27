@@ -49,11 +49,11 @@ void ListChunkserversCommand::run(const Options& options) const {
 			std::cout << cs.address.toString()
 					<< '\t' << lizardfsVersionToString(cs.version)
 					<< '\t' << convertToSi(cs.chunks)
-					<< '\t' << convertToIec(cs.usedSpace)
-					<< '/' << convertToIec(cs.totalSpace)
+					<< '\t' << convertToIec(cs.usedSpace) << "B"
+					<< " / " << convertToIec(cs.totalSpace) << "B"
 					<< '\t' << convertToSi(cs.tdChunks)
-					<< '\t' << convertToIec(cs.tdUsedSpace)
-					<< '/' << convertToIec(cs.tdTotalSpace)
+					<< '\t' << convertToIec(cs.tdUsedSpace) << "B"
+					<< " / " << convertToIec(cs.tdTotalSpace) << "B"
 					<< '\t' << convertToSi(cs.errorCount) << std::endl;
 		}
 	}

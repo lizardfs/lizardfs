@@ -51,12 +51,12 @@ void LizardFsInfoCommand::run(const Options& options) const {
 				<< std::endl;
 	} else {
 		std::cout << "LizardFS v" << lizardfsVersionToString(info.version) << '\n'
-				<< "Memory usage:\t" << convertToIec(info.memoryUsage) << '\n'
-				<< "Total space:\t" << convertToIec(info.totalSpace) << '\n'
-				<< "Available space:\t" << convertToIec(info.availableSpace) << '\n'
-				<< "Trash space:\t" << convertToIec(info.trashSpace) << '\n'
+				<< "Memory usage:\t" << convertToIec(info.memoryUsage) << "B\n"
+				<< "Total space:\t" << convertToIec(info.totalSpace) << "B\n"
+				<< "Available space:\t" << convertToIec(info.availableSpace) << "B\n"
+				<< "Trash space:\t" << convertToIec(info.trashSpace) << "B\n"
 				<< "Trash files:\t" << info.trashNodes << '\n'
-				<< "Reserved space:\t" << convertToIec(info.reservedSpace) << '\n'
+				<< "Reserved space:\t" << convertToIec(info.reservedSpace) << "B\n"
 				<< "Reserved files:\t" << info.reservedNodes << '\n'
 				<< "FS objects:\t" << info.allNodes << '\n'
 				<< "Directories:\t" << info.dirNodes << '\n'
