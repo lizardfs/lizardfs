@@ -8,8 +8,9 @@
 class ChunksHealthCommand : public LizardFsProbeCommand {
 public:
 	virtual std::string name() const;
+	virtual SupportedOptions supportedOptions() const;
 	virtual void usage() const;
-	virtual void run(const std::vector<std::string>& argv) const;
+	virtual void run(const Options& options) const;
 
 	static std::vector<uint8_t> collectGoals();
 	static std::map<uint8_t, std::string> createGoalNames();

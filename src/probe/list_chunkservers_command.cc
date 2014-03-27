@@ -5,23 +5,24 @@
 
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/packet.h"
-#include "probe/options.h"
 #include "probe/server_connection.h"
 
 std::string ListChunkserversCommand::name() const {
 	return "list-chunkservers";
 }
 
-void ListChunkserversCommand::usage() const {
-	std::cerr << name() << " <master ip> <master port> [" << kPorcelainMode << ']' << std::endl;
-	std::cerr << "    prints information about all connected chunkservers\n" << std::endl;
-	std::cerr << "        " << kPorcelainMode << std::endl;
-	std::cerr << "    This argument makes the output parsing-friendly." << std::endl;
+LizardFsProbeCommand::SupportedOptions ListChunkserversCommand::supportedOptions() const {
+	return {
+		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+	};
 }
 
-void ListChunkserversCommand::run(const std::vector<std::string>& argv) const {
-	Options options({kPorcelainMode}, argv);
+void ListChunkserversCommand::usage() const {
+	std::cerr << name() << " <master ip> <master port>\n";
+	std::cerr << "    Prints information about all connected chunkservers.\n";
+}
+
+void ListChunkserversCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}

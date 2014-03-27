@@ -30,19 +30,35 @@ int main(int argc, const char** argv) {
 		std::vector<std::string> arguments(argv + 2, argv + argc);
 		for (auto command : allCommands) {
 			if (command->name() == commandName) {
-				command->run(arguments);
-				strerr_term();
-				return 0;
+				try {
+					std::vector<std::string> supportedOptions;
+					for (const auto& optionWithDescription : command->supportedOptions()) {
+						supportedOptions.push_back(optionWithDescription.first);
+					}
+					command->run(Options(supportedOptions, arguments));
+					strerr_term();
+					return 0;
+				} catch (Options::ParseError& ex) {
+					throw WrongUsageException("Wrong usage of " + command->name()
+							+ "; " + ex.what());
+				}
 			}
 		}
 		throw WrongUsageException("Unknown command " + commandName);
 	} catch (WrongUsageException& ex) {
 		std::cerr << ex.message() << std::endl;
 		std::cerr << "Usage:\n";
-		std::cerr << "    " << argv[0] << " COMMAND [ARGUMENTS...]\n\n";
+		std::cerr << "    " << argv[0] << " COMMAND [OPTIONS...] [ARGUMENTS...]\n\n";
 		std::cerr << "Available COMMANDs:\n\n";
 		for (auto command : allCommands) {
 			command->usage();
+			if (!command->supportedOptions().empty()) {
+				std::cerr << "    Possible command-line options:\n";
+				for (const auto& optionWithDescription : command->supportedOptions()) {
+					std::cerr << "\n    " << optionWithDescription.first << "\n";
+					std::cerr << "        " << optionWithDescription.second << "\n";
+				}
+			}
 			std::cerr << std::endl;
 		}
 		strerr_term();

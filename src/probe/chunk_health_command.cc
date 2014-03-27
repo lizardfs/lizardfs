@@ -4,7 +4,6 @@
 
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
-#include "probe/options.h"
 #include "probe/server_connection.h"
 
 const std::vector<uint8_t> ChunksHealthCommand::kGoals =
@@ -19,27 +18,24 @@ std::string ChunksHealthCommand::name() const {
 	return "chunks-health";
 }
 
-void ChunksHealthCommand::usage() const {
-	std::cerr << name()  << " <master ip> <master port> [--<report>] [" << kPorcelainMode << "]"
-			<< std::endl;
-	std::cerr << "    Returns chunks health reports in the installation." << std::endl;
-	std::cerr << "    Available reports:" << std::endl;
-	std::cerr << "        " << kOptionAvailability << std::endl;
-	std::cerr << "        " << kOptionReplication << std::endl;
-	std::cerr << "        " << kOptionDeletion << std::endl;
-	std::cerr << "    By default all reports will be shown." << std::endl;
-	std::cerr << "    In replication and deletion states, the column means the number of chunks"
-			<< std::endl;
-	std::cerr << "    with number of copies specified in the label to replicate/delete.\n"
-			<< std::endl;
-	std::cerr << "        " << kPorcelainMode << std::endl;
-	std::cerr << "    This argument makes the output parsing-friendly." << std::endl;
+LizardFsProbeCommand::SupportedOptions ChunksHealthCommand::supportedOptions() const {
+	return {
+		{kPorcelainMode,      "This argument makes the output parsing-friendly."},
+		{kOptionAvailability, "Print report about availability of chunks."},
+		{kOptionReplication,  "Print report about about number of chunks that need replication."},
+		{kOptionDeletion,     "Print report about about number of chunks that need deletion."},
+	};
 }
 
-void ChunksHealthCommand::run(const std::vector<std::string>& argv) const {
-	Options options(
-			{kPorcelainMode, kOptionAvailability, kOptionDeletion, kOptionReplication},
-			argv);
+void ChunksHealthCommand::usage() const {
+	std::cerr << name()  << " <master ip> <master port>\n";
+	std::cerr << "    Returns chunks health reports in the installation.\n";
+	std::cerr << "    By default (if no report is specified) all reports will be shown.\n";
+	std::cerr << "    In replication and deletion states, the column means the number of chunks\n";
+	std::cerr << "    with number of copies specified in the label to replicate/delete.\n";
+}
+
+void ChunksHealthCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name() + '\n');
 	}

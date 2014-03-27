@@ -6,7 +6,6 @@
 #include "common/human_readable_format.h"
 #include "common/moosefs_vector.h"
 #include "probe/list_chunkservers_command.h"
-#include "probe/options.h"
 #include "probe/server_connection.h"
 
 static std::string boolToYesNoString(bool value) {
@@ -162,17 +161,19 @@ std::string ListDisksCommand::name() const {
 	return "list-disks";
 }
 
-void ListDisksCommand::usage() const {
-	std::cerr << name() << " <master ip> <master port> [" << kPorcelainMode << ']' << std::endl;
-	std::cerr << "    prints information about all connected chunkservers\n" << std::endl;
-	std::cerr << "        " << kPorcelainMode << std::endl;
-	std::cerr << "    This argument makes the output parsing-friendly.\n" << std::endl;
-	std::cerr << "        " << kVerboseMode << std::endl;
-	std::cerr << "    Be a little more verbose and show operations statistics.\n" << std::endl;
+LizardFsProbeCommand::SupportedOptions ListDisksCommand::supportedOptions() const {
+	return {
+		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+		{kVerboseMode,   "Be a little more verbose and show operations statistics."},
+	};
 }
 
-void ListDisksCommand::run(const std::vector<std::string>& argv) const {
-	Options options({kVerboseMode, kPorcelainMode}, argv);
+void ListDisksCommand::usage() const {
+	std::cerr << name() << " <master ip> <master port>\n";
+	std::cerr << "    Prints information about all connected chunkservers.\n";
+}
+
+void ListDisksCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}

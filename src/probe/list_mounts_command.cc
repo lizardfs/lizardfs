@@ -1,9 +1,9 @@
 #include "probe/list_mounts_command.h"
 
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <vector>
-#include <array>
 
 #include "common/goal.h"
 #include "common/human_readable_format.h"
@@ -12,7 +12,6 @@
 #include "common/packet.h"
 #include "common/serializable_class.h"
 #include "common/serialization.h"
-#include "probe/options.h"
 #include "probe/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
@@ -41,18 +40,19 @@ std::string ListMountsCommand::name() const {
 	return "list-mounts";
 }
 
-void ListMountsCommand::usage() const {
-	std::cerr << name() << " <master ip> <master port> [" << kPorcelainMode << '|'
-			<< kVerboseMode << ']' << std::endl;
-	std::cerr << "    prints information about all connected mounts\n" << std::endl;
-	std::cerr << "        " << kPorcelainMode << std::endl;
-	std::cerr << "    This argument makes the output parsing-friendly.\n" << std::endl;
-	std::cerr << "        " << kVerboseMode << std::endl;
-	std::cerr << "    Be a little more verbose and show goal and trash time limits.\n" << std::endl;
+LizardFsProbeCommand::SupportedOptions ListMountsCommand::supportedOptions() const {
+	return {
+		{kPorcelainMode, "This argument makes the output parsing-friendly."},
+		{kVerboseMode,   "Be a little more verbose and show goal and trash time limits."},
+	};
 }
 
-void ListMountsCommand::run(const std::vector<std::string>& argv) const {
-	Options options({kVerboseMode, kPorcelainMode}, argv);
+void ListMountsCommand::usage() const {
+	std::cerr << name() << " <master ip> <master port>\n";
+	std::cerr << "    Prints information about all connected mounts.\n";
+}
+
+void ListMountsCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
