@@ -2267,6 +2267,17 @@ uint8_t fs_custom(MessageBuffer& buffer) {
 	return STATUS_OK;
 }
 
+uint8_t fs_send_custom(MessageBuffer buffer) {
+	threc *rec = fs_get_my_threc();
+	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
+		return ERROR_IO;
+	}
+	if (!fs_threc_flush(rec)) {
+		return ERROR_IO;
+	}
+	return STATUS_OK;
+}
+
 bool fs_register_packet_type_handler(PacketHeader::Type type, PacketHandler *handler) {
 	std::unique_lock<std::mutex> lock(perTypePacketHandlersLock);
 	if (perTypePacketHandlers.count(type) > 0) {

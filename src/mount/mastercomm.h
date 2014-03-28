@@ -68,6 +68,7 @@ uint8_t fs_undel(uint32_t inode);
 uint8_t fs_purge(uint32_t inode);
 
 uint8_t fs_custom(MessageBuffer& buffer);
+uint8_t fs_send_custom(MessageBuffer buffer);
 
 // called before fork
 int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t bgregister);
