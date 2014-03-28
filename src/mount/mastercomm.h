@@ -21,6 +21,8 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "common/packet.h"
+
 typedef std::vector<uint8_t> MessageBuffer;
 
 void fs_getmasterlocation(uint8_t loc[14]);
@@ -72,3 +74,12 @@ int fs_init_master_connection(const char *bindhostname,const char *masterhostnam
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);
+
+class PacketHandler {
+public:
+	virtual bool handle(MessageBuffer buffer) = 0;
+	virtual ~PacketHandler() {}
+};
+
+bool fs_register_packet_type_handler(PacketHeader::Type type, PacketHandler *handler);
+bool fs_unregister_packet_type_handler(PacketHeader::Type type, PacketHandler *handler);

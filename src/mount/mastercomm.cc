@@ -35,6 +35,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "common/cltoma_communication.h"
@@ -102,6 +103,10 @@ static char srcstrip[17];
 static uint32_t srcip=0;
 
 static uint8_t fterm;
+
+typedef std::unordered_map<PacketHeader::Type, PacketHandler*> PerTypePacketHandlers;
+static PerTypePacketHandlers perTypePacketHandlers;
+static std::mutex perTypePacketHandlersLock;
 
 void fs_getmasterlocation(uint8_t loc[14]) {
 	put32bit(&loc,masterip);
@@ -962,41 +967,50 @@ void* fs_nop_thread(void *arg) {
 	}
 }
 
-template<class... Args>
-bool fsTryReadFromMaster(uint32_t& messageSize, Args&... destination) {
-	MessageBuffer buffer(serializedSize(destination...));
-	if (messageSize < buffer.size()) {
-		syslog(LOG_WARNING,"master: packet too small");
+bool fs_append_from_master(MessageBuffer& buffer, uint32_t size) {
+	if (size == 0) {
+		return true;
+	}
+	const uint32_t oldSize = buffer.size();
+	buffer.resize(oldSize + size);
+	uint8_t *appendPointer = buffer.data() + oldSize;
+	int r = tcptoread(fd, appendPointer, size, RECEIVE_TIMEOUT * 1000);
+	if (r == 0) {
+		syslog(LOG_WARNING,"master: connection lost");
 		setDisconnect(true);
 		return false;
 	}
-	int bytesRead = tcptoread(fd, buffer.data(), buffer.size(), RECEIVE_TIMEOUT * 1000);
-	if (bytesRead == 0) {
-		syslog(LOG_WARNING, "master: connection lost (1)");
-		disconnect = true;
-		return false;
-	} else if (bytesRead != static_cast<int>(buffer.size())) {
-		syslog(LOG_WARNING, "master: tcp recv error: %s (1)", strerr(errno));
+	if (r != (int)size) {
+		syslog(LOG_WARNING,"master: tcp recv error: %s",strerr(errno));
 		setDisconnect(true);
 		return false;
 	}
-	try {
-		deserialize(buffer, destination...);
-	} catch (IncorrectDeserializationException& e) {
-		syslog(LOG_WARNING,"master: tcp recv error: %s", e.what());
-		setDisconnect(true);
-		return false;
-	}
-	master_stats_add(MASTER_BYTESRCVD, buffer.size());
-	messageSize -= buffer.size();
+	master_stats_add(MASTER_BYTESRCVD, size);
 	return true;
 }
 
-void* fs_receive_thread(void *arg) {
-	threc *rec;
-	int r;
+template<class... Args>
+bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) {
+	const uint32_t size = serializedSize(destination...);
+	if (size > remainingBytes) {
+		syslog(LOG_WARNING,"master: packet too short");
+		setDisconnect(true);
+		return false;
+	}
+	MessageBuffer buffer;
+	fs_append_from_master(buffer, size);
+	try {
+		deserialize(buffer, destination...);
+	} catch (IncorrectDeserializationException& e) {
+		syslog(LOG_WARNING,"master: deserialization error: %s", e.what());
+		setDisconnect(true);
+		return false;
+	}
+	remainingBytes -= size;
+	return true;
+}
 
-	(void)arg;
+void* fs_receive_thread(void *) {
 	for (;;) {
 		std::unique_lock<std::mutex>fdLock(fdMutex);
 		if (fterm) {
@@ -1008,7 +1022,7 @@ void* fs_receive_thread(void *arg) {
 			disconnect = false;
 			// send to any threc status error and unlock them
 			std::unique_lock<std::mutex>recLock(recMutex);
-			for (rec=threchead ; rec ; rec=rec->next) {
+			for (threc *rec=threchead ; rec ; rec=rec->next) {
 				std::unique_lock<std::mutex> lock(rec->mutex);
 				if (rec->sent) {
 					rec->status = 1;
@@ -1043,37 +1057,48 @@ void* fs_receive_thread(void *arg) {
 		PacketHeader packetHeader;
 		PacketVersion packetVersion;
 		uint32_t messageId;
-		uint32_t messageSize = serializedSize(packetHeader);
-		uint32_t responseSize; // size of the buffer passed to the receiver
-		if (!fsTryReadFromMaster(messageSize, packetHeader)) {
+		uint32_t remainingBytes = serializedSize(packetHeader);
+		if (!fs_deserialize_from_master(remainingBytes, packetHeader)) {
 			continue;
 		}
 		master_stats_inc(MASTER_PACKETSRCVD);
-		messageSize = packetHeader.length;
+		remainingBytes = packetHeader.length;
 
-		if (packetHeader.isLizPacketType()) {
-			if (messageSize < serializedSize(packetVersion, messageId)) {
-				syslog(LOG_WARNING,"master: packet too short: no msgid");
-				setDisconnect(true);
-				continue;
-			}
-			if (!fsTryReadFromMaster(messageSize, packetVersion, messageId)) {
-				continue;
-			}
-		} else {
-			if (messageSize < serializedSize(messageId)) {
-				syslog(LOG_WARNING,"master: packet too short: no msgid");
-				setDisconnect(true);
-				continue;
-			}
-			if (!fsTryReadFromMaster(messageSize, messageId)) {
+		{
+			std::unique_lock<std::mutex> lock(perTypePacketHandlersLock);
+			const PerTypePacketHandlers::iterator handler =
+					perTypePacketHandlers.find(packetHeader.type);
+			if (handler != perTypePacketHandlers.end()) {
+				MessageBuffer buffer;
+				if (fs_append_from_master(buffer, remainingBytes)) {
+					handler->second->handle(std::move(buffer));
+				}
 				continue;
 			}
 		}
-		responseSize = packetHeader.length;
+
+		if (packetHeader.isLizPacketType()) {
+			if (remainingBytes < serializedSize(packetVersion, messageId)) {
+				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				setDisconnect(true);
+				continue;
+			}
+			if (!fs_deserialize_from_master(remainingBytes, packetVersion, messageId)) {
+				continue;
+			}
+		} else {
+			if (remainingBytes < serializedSize(messageId)) {
+				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				setDisconnect(true);
+				continue;
+			}
+			if (!fs_deserialize_from_master(remainingBytes, messageId)) {
+				continue;
+			}
+		}
 
 		if (messageId == 0) {
-			if (packetHeader.type == ANTOAN_NOP && messageSize == 0) {
+			if (packetHeader.type == ANTOAN_NOP && remainingBytes == 0) {
 				continue;
 			}
 			if (packetHeader.type == ANTOAN_UNKNOWN_COMMAND ||
@@ -1082,7 +1107,7 @@ void* fs_receive_thread(void *arg) {
 				continue;
 			}
 		}
-		rec = fs_get_threc_by_id(messageId);
+		threc *rec = fs_get_threc_by_id(messageId);
 		if (rec == NULL) {
 			syslog(LOG_WARNING,"master: got unexpected queryid");
 			setDisconnect(true);
@@ -1095,24 +1120,9 @@ void* fs_receive_thread(void *arg) {
 		} else {
 			serialize(rec->inputBuffer, messageId);
 		}
-		const uint32_t dataOffset = rec->inputBuffer.size();
-		rec->inputBuffer.resize(responseSize);
-		uint8_t *responsePointer = rec->inputBuffer.data() + dataOffset;
-		if (messageSize > 0) {
-			r = tcptoread(fd, responsePointer, messageSize, 1000);
-			if (r == 0) {
-				syslog(LOG_WARNING,"master: connection lost (2)");
-				lock.unlock();
-				setDisconnect(true);
-				continue;
-			}
-			if (r != (int)messageSize) {
-				syslog(LOG_WARNING,"master: tcp recv error: %s (2)",strerr(errno));
-				lock.unlock();
-				setDisconnect(true);
-				continue;
-			}
-			master_stats_add(MASTER_BYTESRCVD, messageSize);
+		if (!fs_append_from_master(rec->inputBuffer, remainingBytes)) {
+			lock.unlock();
+			continue;
 		}
 		rec->sent = false;
 		rec->status = 0;
@@ -2255,4 +2265,26 @@ uint8_t fs_custom(MessageBuffer& buffer) {
 	}
 	*ptr = origMsgIdBigEndian;
 	return STATUS_OK;
+}
+
+bool fs_register_packet_type_handler(PacketHeader::Type type, PacketHandler *handler) {
+	std::unique_lock<std::mutex> lock(perTypePacketHandlersLock);
+	if (perTypePacketHandlers.count(type) > 0) {
+		return false;
+	}
+	perTypePacketHandlers[type] = handler;
+	return true;
+}
+
+bool fs_unregister_packet_type_handler(PacketHeader::Type type, PacketHandler *handler) {
+	std::unique_lock<std::mutex> lock(perTypePacketHandlersLock);
+	PerTypePacketHandlers::iterator it = perTypePacketHandlers.find(type);
+	if (it == perTypePacketHandlers.end()) {
+		return false;
+	}
+	if (it->second != handler) {
+		return false;
+	}
+	perTypePacketHandlers.erase(it);
+	return true;
 }
