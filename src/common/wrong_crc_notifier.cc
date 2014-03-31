@@ -20,7 +20,8 @@ void WrongCrcNotifier::operator()() {
 			const auto& chunkWithVersionAndType = addressAndChunk.second;
 			int fd;
 			try {
-				fd = chunkConnector_->connect(address, Timeout{std::chrono::seconds(1)});
+				fd = chunkConnector_->startUsingConnection(address,
+						Timeout(std::chrono::seconds(1)));
 			} catch (std::exception& e) {
 				syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"
 						" with wrong CRC - connection timed out",
@@ -33,7 +34,7 @@ void WrongCrcNotifier::operator()() {
 			cltocs::testChunk::serialize(packet, chunkWithVersionAndType.id,
 					chunkWithVersionAndType.version, chunkWithVersionAndType.type);
 			if (tcptowrite(fd, packet.data(), packet.size(), 1000) == int32_t(packet.size())) {
-				chunkConnector_->returnToPool(fd, address);
+				chunkConnector_->endUsingConnection(fd, address);
 			} else {
 				tcpclose(fd);
 				syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"

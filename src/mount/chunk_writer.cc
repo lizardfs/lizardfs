@@ -134,7 +134,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 		}
 
 		// Create an executor
-		int fd = connector_.connect(location.address, connectTimeout);
+		int fd = connector_.startUsingConnection(location.address, connectTimeout);
 		std::unique_ptr<WriteExecutor> executor(new WriteExecutor(
 				chunkserverStats_, location.address, fd,
 				locator_->locationInfo().chunkId, locator_->locationInfo().version,
@@ -267,7 +267,7 @@ void ChunkWriter::finish(uint32_t msTimeout) {
 			int fd = fdAndExecutor.first;
 			const WriteExecutor& executor = *fdAndExecutor.second;
 			if (executor.getPendingPacketCount() == 0) {
-				connector_.returnToPool(fd, executor.server());
+				connector_.endUsingConnection(fd, executor.server());
 				closedFds.push_back(fd);
 			}
 		}
@@ -481,7 +481,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromC
 	readOperation.readDataOffsets.push_back(0);
 
 	// Connect to the chunkserver and execute the read operation
-	int fd = connector_.connect(sourceServer, timeout);
+	int fd = connector_.startUsingConnection(sourceServer, timeout);
 	try {
 		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kReadBlock);
 		block.from = 0;
@@ -491,7 +491,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromC
 				sourceChunkType, sourceServer, fd, block.data());
 		readExecutor.sendReadRequest(timeout);
 		readExecutor.readAll(timeout);
-		connector_.returnToPool(fd, sourceServer);
+		connector_.endUsingConnection(fd, sourceServer);
 		readFromChunkType = sourceChunkType;
 		return block;
 	} catch (...) {

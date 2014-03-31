@@ -35,7 +35,7 @@ public:
 
 	void init(uint32_t sourceIp) {
 		sassert(!chunkConnector_);
-		chunkConnector_.reset(new ChunkConnector(sourceIp, connectionPool_));
+		chunkConnector_.reset(new ChunkConnectorUsingPool(sourceIp, connectionPool_));
 		myThread_ = std::thread(std::ref(*this));
 	}
 

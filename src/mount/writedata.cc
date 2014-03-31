@@ -357,7 +357,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	lock.unlock();
 
 	/*  Process the job */
-	ChunkConnector connector(fs_getsrcip(), gChunkserverConnectionPool);
+	ChunkConnectorUsingPool connector(fs_getsrcip(), gChunkserverConnectionPool);
 	ChunkWriter writer(globalChunkserverStats, connector, inodeData_->newDataInChainPipe[0]);
 	wholeOperationTimer.reset();
 	std::unique_ptr<WriteChunkLocator> locator = std::move(inodeData_->locator);

@@ -56,7 +56,7 @@ void ReadPlanExecutor::executeReadOperations(
 			sassert(locations.count(chunkType) == 1);
 			const NetworkAddress& server = locations.at(chunkType);
 			statsProxy.registerReadOperation(server);
-			int fd = connector.connect(server, communicationTimeout);
+			int fd = connector.startUsingConnection(server, communicationTimeout);
 			ReadOperationExecutor executor(
 					readOperation, chunkId_, chunkVersion_, chunkType, server, fd, buffer);
 			executors.insert(std::make_pair(fd, executor));
@@ -108,7 +108,7 @@ void ReadPlanExecutor::executeReadOperations(
 				if (executor.isFinished()) {
 					statsProxy.unregisterReadOperation(server);
 					statsProxy.markWorking(server);
-					connector.returnToPool(fd, server);
+					connector.endUsingConnection(fd, server);
 					executors.erase(fd);
 				}
 			}

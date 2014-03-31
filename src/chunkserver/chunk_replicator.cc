@@ -15,7 +15,7 @@
 #include "common/xor_chunk_read_planner.h"
 
 static ConnectionPool pool;
-static ChunkConnector connector(0, pool);
+static ChunkConnectorUsingPool connector(0, pool);
 ChunkReplicator gReplicator(connector);
 
 ChunkReplicator::ChunkReplicator(ChunkConnector& connector) : connector_(connector), stats_(0) {}
@@ -48,7 +48,7 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkType chunkType,
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 		ChunkType chunkType, NetworkAddress server) throw (Exception) {
-	int fd = connector.connect(server, Timeout{std::chrono::seconds(1)});
+	int fd = connector.startUsingConnection(server, Timeout{std::chrono::seconds(1)});
 	sassert(fd >= 0);
 
 	std::vector<uint8_t> outputBuffer;
@@ -62,7 +62,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 		close(fd);
 		throw Exception("Unexpected response for chunk get blocks request");
 	}
-	connector.returnToPool(fd, server);
+	connector.endUsingConnection(fd, server);
 
 	uint64_t rxChunkId;
 	uint32_t rxChunkVersion;

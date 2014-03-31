@@ -54,7 +54,7 @@
 #define MAPINDX(inode) (inode&MAPMASK)
 
 struct readrec {
-	ChunkConnector connector;
+	ChunkConnectorUsingPool connector;
 	ChunkReader reader;
 	std::vector<uint8_t> readBufer;
 	uint32_t inode;
