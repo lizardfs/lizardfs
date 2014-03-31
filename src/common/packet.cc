@@ -16,6 +16,9 @@ void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,
 	deserializePacketHeader(data, header);
 
 	const int32_t payloadSize = header.length;
+	if (payloadSize > (int32_t)kMaxDeserializedBytesCount) {
+		throw Exception("Too big packet data length");
+	}
 	data.resize(payloadSize);
 	if (tcptoread(sock, data.data(), payloadSize, timeout_ms) != payloadSize) {
 		tcpclose(sock);
