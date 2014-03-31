@@ -275,7 +275,9 @@ static uint32_t dirnodes;
 
 #ifndef METARESTORE
 
-static uint32_t BackMetaCopies;
+static uint32_t gStoredPreviousBackMetaCopies;
+const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
+const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -345,20 +347,29 @@ void fs_stats(uint32_t stats[16]) {
 	stats_write=0;
 }
 
+static void renameBackupFile(bool ifExistsOnly, const std::string& from, const std::string& to) {
+	if (ifExistsOnly) {
+		if (access(from.c_str(), F_OK) != 0 && errno == ENOENT) {
+			return;
+		}
+	}
+	if (rename(from.c_str(), to.c_str()) != 0) {
+		mfs_arg_errlog(LOG_ERR, "rename buckup file %s to %s failed", from.c_str(), to.c_str());
+	}
+}
+
 static void renameBackupFiles() {
 	// rename previous backups
-	if (BackMetaCopies > 0) {
+	if (gStoredPreviousBackMetaCopies > 0) {
 		std::string from, to;
-		for (int n = BackMetaCopies - 1; n > 0; n--) {
-			from = METADATA_BACK_FILENAME "." + std::to_string(n + 1);
-			to = METADATA_BACK_FILENAME "." + std::to_string(n);
-			rename(from.c_str(), to.c_str());
+		for (int n = gStoredPreviousBackMetaCopies; n > 1; n--) {
+			renameBackupFile(true,
+					METADATA_BACK_FILENAME "." + std::to_string(n - 1),
+					METADATA_BACK_FILENAME "." + std::to_string(n));
 		}
-		rename(METADATA_BACK_FILENAME, METADATA_BACK_FILENAME ".1");
+		renameBackupFile(true, METADATA_BACK_FILENAME, METADATA_BACK_FILENAME ".1");
 	}
-	if (rename(METADATA_BACK_TMP_FILENAME, METADATA_BACK_FILENAME) == -1) {
-		mfs_errlog(LOG_ERR, "rename " METADATA_BACK_TMP_FILENAME " -> " METADATA_BACK_FILENAME " failed");
-	}
+	renameBackupFile(false, METADATA_BACK_TMP_FILENAME, METADATA_BACK_FILENAME);
 	unlink("metadata.mfs");
 }
 
@@ -8363,10 +8374,10 @@ void fs_reload(void) {
 #if VERSHEX>=0x010700
 	QuotaTimeLimit = cfg_getuint32("QUOTA_TIME_LIMIT",7*86400);
 #endif
-	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",1);
-	if (BackMetaCopies>99) {
-		BackMetaCopies=99;
-	}
+	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
+			"BACK_META_KEEP_PREVIOUS",
+			kDefaultStoredPreviousBackMetaCopies,
+			kMaxStoredPreviousBackMetaCopies);
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
@@ -8389,10 +8400,10 @@ int fs_init(void) {
 #else
 	QuotaTimeLimit = 7*86400;	// for tests
 #endif
-	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",1);
-	if (BackMetaCopies>99) {
-		BackMetaCopies=99;
-	}
+	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
+			"BACK_META_KEEP_PREVIOUS",
+			kDefaultStoredPreviousBackMetaCopies,
+			kMaxStoredPreviousBackMetaCopies);
 
 	metadataDumper.setMetarestorePath(cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));

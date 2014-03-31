@@ -1,7 +1,12 @@
+master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
+master_extra_config+="|DUMP_METADATA_ON_RELOAD = 1"
+master_extra_config+="|PREFER_BACKGROUND_DUMP = 1"
+master_extra_config+="|BACK_META_KEEP_PREVIOUS = 5"
+
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-	MASTER_EXTRA_CONFIG="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh|DUMP_METADATA_ON_RELOAD = 1|PREFER_BACKGROUND_DUMP = 1" \
+	MASTER_EXTRA_CONFIG=$master_extra_config \
 	setup_local_empty_lizardfs info
 
 # find metadata version
@@ -42,6 +47,24 @@ chmod a+x $TEMP_DIR/metarestore.sh
 # hack: metadata restoration doesn't work on fresh installations
 lizardfs_master_daemon restart
 
+backup_copies=2
+function update_expected_backup_copies_count() {
+	if ((backup_copies < 6)); then
+		backup_copies=$((backup_copies + 1))
+	fi
+}
+
+function check_backup_copies() {
+	expect_equals $backup_copies $(ls -l ${info[master_data_path]}/*back* | wc -l)
+	for i in $(seq 0 $((backup_copies - 1))); do
+		sufix=".$i"
+		if ((i == 0)); then
+			sufix=""
+		fi
+		expect_success test -s "${info[master_data_path]}/metadata.mfs.back$sufix"
+	done
+}
+
 # check if the dump was successful
 function check() {
 	rm -f $TEMP_DIR/metaout
@@ -63,6 +86,8 @@ function check() {
 		assert_success test -n $metadata_version
 		assert_equals $metadata_version $((last_changelog_entry + 1))
 	fi
+	update_expected_backup_copies_count
+	check_backup_copies
 }
 
 function check_no_metarestore() {
@@ -84,6 +109,8 @@ function check_no_metarestore() {
 	assert_success test -n $last_changelog_entry
 	assert_success test -n $metadata_version
 	assert_equals $metadata_version $((last_changelog_entry + 1))
+	update_expected_backup_copies_count
+	check_backup_copies
 }
 
 cd "${info[mount0]}"
@@ -164,6 +191,7 @@ rm -f $TEMP_DIR/metaout
 lizardfs_master_daemon reload # metarestore failed, no backup files created
 assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '2 seconds'
 assert_equals "no response" "$(cat $TEMP_DIR/metaout)"
+check_backup_copies
 
 rm -r dir{5..9}
 mv dir{1..4} dir0
