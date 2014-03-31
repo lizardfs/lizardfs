@@ -1,7 +1,7 @@
 #include "common/wrong_crc_notifier.h"
 
-#include "common/sockets.h"
 #include "common/cltocs_communication.h"
+#include "common/sockets.h"
 
 void WrongCrcNotifier::operator()() {
 	sassert(chunkConnector_);
@@ -13,7 +13,9 @@ void WrongCrcNotifier::operator()() {
 		decltype(inconsistentChunks_) oldInconsistentChunks;
 		std::swap(inconsistentChunks_, oldInconsistentChunks);
 		lock.unlock();
-		connectionPool_.cleanup();
+		if (connectionPool_) {
+			connectionPool_->cleanup();
+		}
 
 		for (const auto& addressAndChunk : oldInconsistentChunks) {
 			const auto& address = addressAndChunk.first;

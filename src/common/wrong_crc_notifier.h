@@ -1,7 +1,6 @@
 #pragma once
 
 #include <syslog.h>
-
 #include <atomic>
 #include <condition_variable>
 #include <list>
@@ -19,7 +18,7 @@
 
 class WrongCrcNotifier {
 public:
-	WrongCrcNotifier() {
+	WrongCrcNotifier() : terminate_(false) {
 	}
 
 	~WrongCrcNotifier() {
@@ -34,8 +33,15 @@ public:
 	}
 
 	void init(uint32_t sourceIp) {
+		sassert(!connectionPool_);
+		connectionPool_.reset(new ConnectionPool);
+		init(std::unique_ptr<ChunkConnector>(
+				new ChunkConnectorUsingPool(sourceIp, *connectionPool_)));
+	}
+
+	void init(std::unique_ptr<ChunkConnector> chunkConnector) {
 		sassert(!chunkConnector_);
-		chunkConnector_.reset(new ChunkConnectorUsingPool(sourceIp, connectionPool_));
+		chunkConnector_ = std::move(chunkConnector);
 		myThread_ = std::thread(std::ref(*this));
 	}
 
@@ -50,8 +56,7 @@ private:
 	void terminate();
 
 	std::atomic<bool> terminate_;
-
-	ConnectionPool connectionPool_;
+	std::unique_ptr<ConnectionPool> connectionPool_;
 	std::unique_ptr<ChunkConnector> chunkConnector_;
 	std::thread myThread_;
 
@@ -59,6 +64,5 @@ private:
 	std::condition_variable cond_;
 	std::set<InconsistentChunk> inconsistentChunks_;
 };
-
 
 extern WrongCrcNotifier gWrongCrcNotifier;
