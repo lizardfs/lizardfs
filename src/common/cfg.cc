@@ -57,7 +57,7 @@ int cfg_reload (void) {
 		i = 0;
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
 		nps = i;
-		while (linebuff[i]>32 && linebuff[i]<127) {
+		while ((linebuff[i]>='A' && linebuff[i]<='Z') || linebuff[i]=='_') {
 			i++;
 		}
 		npe = i;
@@ -79,7 +79,8 @@ int cfg_reload (void) {
 		}
 		vpe = i;
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		if (linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n' && linebuff[i]!='#') {
+		if ((linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n' && linebuff[i]!='#')
+				|| vps==vpe) {
 			mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
 			continue;
 		}
