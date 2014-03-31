@@ -10,7 +10,7 @@ mkdir dir
 echo a > file
 ln -s file file_link
 
-name1='name1 )(*&^%$#@!`'
+name1=$'name1\n)(*&\t^%$ #@!`'
 name2="name2"
 name3="$(base64 -w 0 /dev/urandom | head -c 250)"  # attr can't set >250B name (but doc says 256B)
 name4="$(base64 -w 0 /dev/urandom | head -c 257)"
@@ -37,10 +37,8 @@ expect_failure attr -qs "$name7" -V "$value7" dir
 lizardfs_master_daemon restart
 
 expect_equals "$name1" "$(attr -ql .)"
-expect_equals "$name2" "$(attr -ql file | sed -n 2p)"
-expect_equals "$name3" "$(attr -ql file | sed -n 3p)"
-expect_equals "$name3" "$(attr -qLl file_link | sed -n 3p)"
-expect_equals "$name5" "$(attr -qLl file_link | sed -n 1p)"
+expect_equals "$(echo -e "$name2\n$name3\n$name5" | sort)" "$(attr -ql file | sort)"
+expect_equals "$(echo -e "$name2\n$name3\n$name5" | sort)" "$(attr -qLl file_link | sort)"
 expect_equals "$name6" "$(attr -ql dir)"
 expect_equals "$value1" "$(attr -qg "$name1" .)"
 expect_equals "$value2" "$(attr -qg "$name2" file)"
