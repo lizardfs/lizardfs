@@ -19,7 +19,7 @@ CHUNKSERVERS=5 \
 	MASTER_EXTRA_CONFIG="CHUNKS_WRITE_REP_LIMIT = 1|CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0|ACCEPTABLE_DIFFERENCE = 0.0015" \
 	setup_local_empty_lizardfs info
 
-# Create some chunks on two out of four chunkservers
+# Create some chunks on three out of five chunkservers
 mfschunkserver -c "${info[chunkserver0_config]}" stop
 mfschunkserver -c "${info[chunkserver1_config]}" stop
 cd "${info[mount0]}"
