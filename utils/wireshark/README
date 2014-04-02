@@ -33,6 +33,8 @@ to make it easily redistributable, because the build process is a bit complicate
       make -j8
 * Install the plugin, eg. on Debian-like distros:
       sudo cp ~/wireshark/build/lib/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
+   or
+      sudo cp ~/wireshark/build/lib/lizardfs.so /usr/lib/x86_64-linux-gnu/wireshark/libwireshark3/plugins/
 * Enjoy! This plugin recognizes the LizardFS proocol using TCP port numbers. If you use
   non-standard ports (9419-9422) you have to change it in Edit->Preferences->Protocols->LizardFS,
   eg. to parse the communication in our test suite:
