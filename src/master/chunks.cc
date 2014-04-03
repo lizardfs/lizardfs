@@ -1726,6 +1726,35 @@ static bool chunkPresentOnServer(chunk *c, void *server) {
 	return false;
 }
 
+static void* getServerForReplication(chunk *c, ChunkType chunkTypeToRecover) {
+	// get list of chunkservers which can be written to
+	std::vector<void*> possibleDestinations;
+	matocsserv_getservers_lessrepl(possibleDestinations, MaxWriteRepl);
+	uint32_t minServerVersion = 0;
+	if (!chunkTypeToRecover.isStandardChunkType()) {
+		minServerVersion = lizardfsVersion(1, 6, 28);
+	}
+	void *destination = nullptr;
+	for (void* server : possibleDestinations) {
+		if (matocsserv_get_version(server) < minServerVersion) {
+			continue;
+		}
+		destination = server;
+		for (slist *s = c->slisthead; s; s = s->next) {
+			if (s->ptr == server &&
+					s->chunkType.getStripeSize() == chunkTypeToRecover.getStripeSize()) {
+				// server can't have any chunk of the same goal
+				destination = nullptr;
+				break;
+			}
+		}
+		if (destination) {
+			break;
+		}
+	}
+	return destination;
+}
+
 bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *destinationServer) {
 	// NOTE: we don't allow replicating xor chunks from pre-1.6.28 chunkservers
 	const uint32_t newServerVersion = lizardfsVersion(1, 6, 28);
@@ -1873,28 +1902,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			return;
 		}
 		const ChunkType chunkTypeToRecover = toRecover.front();
-		// get list of chunkservers which can be written to
-		std::vector<void*> possibleDestinations;
-		matocsserv_getservers_lessrepl(possibleDestinations, MaxWriteRepl);
-		// find the first one which does not contain any copy of the chunk
-		// TODO(msulikowski) if we want to support converting between different goals
-		// (eg. xor2 -> 3) on installations with small number of chunkservers this condition
-		// has to be loosen
-		uint32_t minServerVersion = 0;
-		if (!chunkTypeToRecover.isStandardChunkType()) {
-			minServerVersion = lizardfsVersion(1, 6, 28);
-		}
-		void *destination = nullptr;
-		for (void* server : possibleDestinations) {
-			if (matocsserv_get_version(server) < minServerVersion) {
-				continue;
-			}
-			if (chunkPresentOnServer(c, server)) {
-				continue;
-			}
-			destination = server;
-			break;
-		}
+		void* destination = getServerForReplication(c, chunkTypeToRecover);
 		if (destination == nullptr) {
 			inforec_.notdone.copy_undergoal++;
 			return;
