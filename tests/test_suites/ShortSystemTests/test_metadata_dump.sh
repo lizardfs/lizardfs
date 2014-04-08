@@ -82,7 +82,8 @@ function check() {
 	assert_success test -n $last_changelog_entry
 
 	lizardfs_master_daemon reload
-	assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '2 seconds'
+	assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
+	assert_success wait_for "[[ ! -s ${info[master_data_path]}/metadata.mfs.back.tmp ]]" '5 seconds'
 	actual_output=$(cat $TEMP_DIR/metaout)
 	assert_equals "${1:-OK}" "$actual_output"
 
@@ -108,7 +109,7 @@ function check_no_metarestore() {
 	# check if metadata version is up to date
 	find_metadata_cmd="metadata_version=\$($TEMP_DIR/metadata_version)"
 	goal="$find_metadata_cmd; ((metadata_version == $((last_changelog_entry + 1))))"
-	assert_success wait_for "$goal" '2 seconds'
+	assert_success wait_for "$goal" '5 seconds'
 	# no metaout
 	assert_failure test -s $TEMP_DIR/metaout
 	# no changelog.0.mfs
@@ -199,7 +200,7 @@ touch dir{0..9}/file{0..9}
 
 rm -f $TEMP_DIR/metaout
 lizardfs_master_daemon reload # metarestore failed, no backup files created
-assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '2 seconds'
+assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
 assert_equals "no response" "$(cat $TEMP_DIR/metaout)"
 check_backup_copies
 

@@ -44,6 +44,7 @@
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
+#include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
 #include "master/metadata_dumper.h"
@@ -509,6 +510,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	}
 	addToChecksum(checksum, gFsNodesChecksum);
 	addToChecksum(checksum, gFsEdgesChecksum);
+	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
 

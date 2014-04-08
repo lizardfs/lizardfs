@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include "master/checksum.h"
+
 #ifdef METARESTORE
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
@@ -76,3 +78,4 @@ void chunk_store(FILE *fd);
 void chunk_term(void);
 void chunk_newfs(void);
 int chunk_strinit(void);
+uint64_t chunk_checksum(ChecksumMode mode);

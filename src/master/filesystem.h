@@ -20,6 +20,8 @@
 
 #include <inttypes.h>
 
+#include "master/checksum.h"
+
 #ifdef METARESTORE
 
 uint64_t fs_getversion(void);
@@ -162,6 +164,4 @@ void fs_cs_disconnected(void);
 
 int fs_init(void);
 #endif
-
-enum class ChecksumMode { kGetCurrent, kForceRecalculate };
-uint64_t fs_checksum(ChecksumMode);
+uint64_t fs_checksum(ChecksumMode mode);
