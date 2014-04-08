@@ -38,13 +38,15 @@ END
 
 cat > $TEMP_DIR/metarestore_no_response.sh << END
 #!/bin/bash
-echo 'no response' > $TEMP_DIR/metaout
+echo 'no response' > $TEMP_DIR/metaout_tmp
+mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit 1
 END
 
 cat > $TEMP_DIR/metarestore_error_if_executed.sh << END
 #!/bin/bash
-echo 'THIS SHOULD NEVER BE SEEN' > $TEMP_DIR/metaout
+echo 'THIS SHOULD NEVER BE SEEN' > $TEMP_DIR/metaout_tmp
+mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit 1
 END
 
@@ -83,6 +85,7 @@ function check() {
 
 	lizardfs_master_daemon reload
 	assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
+	# wait for the files' renaming
 	assert_success wait_for "[[ ! -s ${info[master_data_path]}/metadata.mfs.back.tmp ]]" '5 seconds'
 	actual_output=$(cat $TEMP_DIR/metaout)
 	assert_equals "${1:-OK}" "$actual_output"
@@ -93,8 +96,8 @@ function check() {
 		assert_success test -n $last_changelog_entry
 		assert_success test -n $metadata_version
 		assert_equals $metadata_version $((last_changelog_entry + 1))
+		update_expected_backup_copies_count
 	fi
-	update_expected_backup_copies_count
 	check_backup_copies
 }
 
@@ -112,8 +115,6 @@ function check_no_metarestore() {
 	assert_success wait_for "$goal" '5 seconds'
 	# no metaout
 	assert_failure test -s $TEMP_DIR/metaout
-	# no changelog.0.mfs
-	assert_failure test -s "${info[master_data_path]}/changelog.0.mfs"
 	assert_success test -n $last_changelog_entry
 	assert_success test -n $metadata_version
 	assert_equals $metadata_version $((last_changelog_entry + 1))
@@ -138,6 +139,12 @@ while read command; do
 	MESSAGE="testing $command" check
 done <<'END'
 touch file1
+attr -s attr1 -V '' file1
+setfattr -n user.attr2 -v 'some value' file1
+setfattr -x user.attr1 file1
+setfattr -n user.attr1 -v 'different value' file1
+attr -s attr2 -V 'not the same, I am sure' file1
+attr -r attr2 file1
 mkdir dir
 touch dir/file1 dir/file2
 mkfifo fifo

@@ -166,6 +166,7 @@ struct xattr_data_entry {
 	uint32_t avleng;
 	uint8_t *attrname;
 	uint8_t *attrvalue;
+	uint64_t checksum;
 	struct xattr_data_entry **previnode,*nextinode;
 	struct xattr_data_entry **prev,*next;
 };
@@ -499,6 +500,36 @@ static void fsedges_recalculate_checksum() {
 	}
 }
 
+static uint64_t gXattrChecksum;
+
+static uint64_t xattr_checksum(const xattr_data_entry* xde) {
+	if (!xde) {
+		return 0;
+	}
+	uint64_t seed = 645819511511147ULL;
+	hashCombine(seed, xde->inode, xde->attrname, xde->anleng, xde->attrvalue, xde->avleng);
+	return seed;
+}
+
+static void xattr_update_checksum(xattr_data_entry* xde) {
+	if (!xde) {
+		return;
+	}
+	removeFromChecksum(gXattrChecksum, xde->checksum);
+	xde->checksum = xattr_checksum(xde);
+	addToChecksum(gXattrChecksum, xde->checksum);
+}
+
+static void xattr_recalculate_checksum() {
+	gXattrChecksum = 29857986791741783ULL;
+	for (int i = 0; i < XATTR_DATA_HASH_SIZE; ++i) {
+		for (xattr_data_entry* xde = xattr_data_hash[i]; xde; xde = xde->next) {
+			xde->checksum = xattr_checksum(xde);
+			addToChecksum(gXattrChecksum, xde->checksum);
+		}
+	}
+}
+
 uint64_t fs_checksum(ChecksumMode mode) {
 	uint64_t checksum = 0x1251;
 	addToChecksum(checksum, maxnodeid);
@@ -507,9 +538,11 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
 		fsedges_recalculate_checksum();
+		xattr_recalculate_checksum();
 	}
 	addToChecksum(checksum, gFsNodesChecksum);
 	addToChecksum(checksum, gFsEdgesChecksum);
+	addToChecksum(checksum, gXattrChecksum);
 	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
@@ -782,6 +815,7 @@ static inline void xattr_removeentry(xattr_data_entry *xa) {
 	if (xa->attrvalue) {
 		free(xa->attrvalue);
 	}
+	removeFromChecksum(gXattrChecksum, xa->checksum);
 	free(xa);
 }
 
@@ -853,6 +887,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 			}
 			xa->avleng = avleng;
 			ih->avleng += avleng;
+			xattr_update_checksum(xa);
 			return STATUS_OK;
 		}
 	}
@@ -908,6 +943,8 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		ih->next = xattr_inode_hash[ihash];
 		xattr_inode_hash[ihash] = ih;
 	}
+	xa->checksum = 0;
+	xattr_update_checksum(xa);
 	return STATUS_OK;
 }
 
