@@ -612,35 +612,22 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	}
 
 	// Check if it is possible to create requested chunk
-	uint32_t serversDemanded;
+	uint32_t minServersDemanded;
+	uint32_t serversDemandedForSafe;
 	if (isXorGoal(desiredGoal)) {
-		serversDemanded = goalToXorLevel(desiredGoal) + 1;
+		minServersDemanded = goalToXorLevel(desiredGoal);
+		serversDemandedForSafe = minServersDemanded + 1;
 	} else {
 		sassert(isOrdinaryGoal(desiredGoal));
-		serversDemanded = desiredGoal;
+		serversDemandedForSafe = desiredGoal;
+		minServersDemanded = 1;
 	}
-	uint32_t chunksToBeCreated = serversDemanded;
-	if (serversDemanded > availableServers.size()) {
-		// The cannot provide security level that was demanded
-		if (isOrdinaryGoal(desiredGoal)) {
-			if (availableServers.size() > 0) {
-				// We'll store a chunk in fewer copies then demanded, but we'll create a chunk
-				chunksToBeCreated = availableServers.size();
-			} else {
-				// Nothing can be done, chunk won't be created
-				return ret;
-			}
-		} else {
-			sassert(isXorGoal(desiredGoal));
-			if (availableServers.size() == goalToXorLevel(desiredGoal)) {
-				// We won't store the parity part, but we'll create a chunk
-				chunksToBeCreated = goalToXorLevel(desiredGoal);
-			} else {
-				// Nothing can be done, chunk won't be created
-				return ret;
-			}
-		}
+
+	if (minServersDemanded > availableServers.size()) {
+		// Nothing can be done, chunk won't be created
+		return ret;
 	}
+	uint32_t chunksToBeCreated = std::min((uint32_t)availableServers.size(), serversDemandedForSafe);
 
 	// Choose servers to be used to store new chunks.
 	std::vector<rservsort> chosenServers;
@@ -664,20 +651,24 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 		chosenServers[i].ptr->carry += kCarryThreshold;
 	}
 
-	// Shuffle servers to store the parity file (in case of XOR chunks) on a random one
-	std::random_shuffle(chosenServers.begin(), chosenServers.end());
-
 	// Assign chunk types to chosen servers
+	std::vector<uint8_t> parts;
+	ChunkType::XorLevel level;
+	if (isXorGoal(desiredGoal)) {
+		level = goalToXorLevel(desiredGoal);
+		for (uint8_t i = 0; i <= level; ++i) {
+			parts.push_back(i);
+		}
+		std::random_shuffle(parts.begin(), parts.end());
+	}
+
 	for (size_t i = 0; i < chunksToBeCreated; i++) {
 		ChunkType ct = ChunkType::getStandardChunkType();
 		if (isXorGoal(desiredGoal)) {
-			ChunkType::XorLevel level = goalToXorLevel(desiredGoal);
-			if (i < level) {
-				ct = ChunkType::getXorChunkType(level, i + 1);
-			} else {
-				eassert(i == level);
-				ct = ChunkType::getXorParityChunkType(level);
-			}
+			uint8_t part = parts[i];
+			ct = (part == 0
+					? ChunkType::getXorParityChunkType(level)
+					: ChunkType::getXorChunkType(level, part));
 		} else {
 			sassert(isOrdinaryGoal(desiredGoal));
 		}
