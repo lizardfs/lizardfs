@@ -2047,6 +2047,11 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
+	if (strcmp(name,"security.capability")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ENOTSUP));
+		return;
+	}
 #if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
 	if ((flags&XATTR_CREATE) && (flags&XATTR_REPLACE)) {
 		fuse_reply_err(req,EINVAL);
@@ -2107,6 +2112,11 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	if (nleng==0) {
 		fuse_reply_err(req,EINVAL);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EINVAL));
+		return;
+	}
+	if (strcmp(name,"security.capability")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	if (size==0) {
