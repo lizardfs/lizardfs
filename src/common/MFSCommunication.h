@@ -698,11 +698,11 @@
 // 0x019D
 #define MATOCL_FUSE_READLINK (PROTO_BASE+413)
 /// msgid:32 status:8
-/// msgid:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 path:STDSTRING
 
 // 0x019E
 #define CLTOMA_FUSE_SYMLINK (PROTO_BASE+414)
-/// msgid:32 inode:32 name:NAME pathlength:32 path:STRING[pathlength] uid:32 gid:32
+/// msgid:32 inode:32 name:NAME path:STDSTRING uid:32 gid:32
 
 // 0x019F
 #define MATOCL_FUSE_SYMLINK (PROTO_BASE+415)
@@ -913,11 +913,11 @@
 // 0x01C7
 #define MATOCL_FUSE_GETTRASHPATH (PROTO_BASE+455)
 /// msgid:32 status:8
-/// msgid:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 path:STDSTRING
 
 // 0x01C8
 #define CLTOMA_FUSE_SETTRASHPATH (PROTO_BASE+456)
-/// msgid:32 inode:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 inode:32 path:STDSTRING
 
 // 0x01C9
 #define MATOCL_FUSE_SETTRASHPATH (PROTO_BASE+457)
@@ -1198,11 +1198,11 @@
 
 // 0x05F9
 #define LIZ_CLTOMA_IOLIMIT (1000U + 529U)
-/// grouplen:32 group:STRING[grouplen] wantmore:8 limit:64 usage:64
+/// group:STDSTRING wantmore:8 limit:64 usage:64
 
 // 0x05FA
 #define LIZ_MATOCL_IOLIMIT (1000U + 530U)
-/// grouplen:32 group:STRING[grouplen] limit:64
+/// group:STDSTRING limit:64
 
 // 0x05FB
 #define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)

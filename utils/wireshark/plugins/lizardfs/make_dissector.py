@@ -90,9 +90,14 @@ class PacketDissectionVariant(object):
     def add_blob_field(self, name, length=None):
         self.add_field(Types.blob, name, length)
 
-    def add_name_field(self, name):
+    def add_string8_field(self, name):
         length_var = name + '__strlen'
         self.add_field(Types.int_dec, length_var, 1)
+        self.add_field(Types.string, name, length_var)
+
+    def add_string32_field(self, name):
+        length_var = name + '__strlen'
+        self.add_field(Types.int_dec, length_var, 4)
         self.add_field(Types.string, name, length_var)
 
     def add_condition(self, variable, condition):
@@ -256,10 +261,14 @@ for line in sys.stdin:
                 if name not in int_field_bits:
                     int_field_bits[name] = bits
                 int_field_bits[name] = max(bits, int_field_bits[name])
-            # NAME field
-            elif typestr == 'NAME':
+            # NAME/STRING8 field
+            elif typestr in ['NAME', 'STRING8']:
                 type = Types.string
-                variant.add_name_field(name)
+                variant.add_string8_field(name)
+            # STDSTRING/STRING32 field
+            elif typestr in ['STDSTRING', 'STRING32']:
+                type = Types.string
+                variant.add_string32_field(name)
             # STRING, STRING[32] or STRING[some_variable]
             elif re.match(r'^STRING(\[[0-9a-zA-Z_]+\])?$', typestr):
                 type = Types.string
