@@ -78,12 +78,14 @@ function check_backup_copies() {
 function check() {
 	rm -f $TEMP_DIR/metaout
 
-	# changelog.0.mfs exits
-	assert_success test -s ${info[master_data_path]}/changelog.0.mfs
+	# changelog.0.mfs exists
+	wait_for "test -s ${info[master_data_path]}/changelog.0.mfs" '5 seconds'
+	# find changelog's last change
 	last_changelog_entry=$(tail -1 ${info[master_data_path]}/changelog.0.mfs | cut -d : -f 1)
 	assert_success test -n $last_changelog_entry
 
 	lizardfs_master_daemon reload
+
 	assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
 	# wait for the files' renaming
 	assert_success wait_for "[[ ! -s ${info[master_data_path]}/metadata.mfs.back.tmp ]]" '5 seconds'
@@ -104,7 +106,7 @@ function check() {
 function check_no_metarestore() {
 	rm -f "$TEMP_DIR/metaout"
 	# changelog.0.mfs exists
-	assert_success test -s "${info[master_data_path]}/changelog.0.mfs"
+	wait_for "test -s ${info[master_data_path]}/changelog.0.mfs" '5 seconds'
 	# find changelog's last change
 	last_changelog_entry=$(tail -1 "${info[master_data_path]}/changelog.0.mfs" | cut -d : -f 1)
 	# master dumps metadata itself
@@ -112,12 +114,10 @@ function check_no_metarestore() {
 	# check if metadata version is up to date
 	find_metadata_cmd="metadata_version=\$($TEMP_DIR/metadata_version)"
 	goal="$find_metadata_cmd; ((metadata_version == $((last_changelog_entry + 1))))"
-	assert_success wait_for "$goal" '5 seconds'
+	wait_for "$goal" '5 seconds' | true
+	assert_equals "$((last_changelog_entry + 1))" "$($TEMP_DIR/metadata_version)"
 	# no metaout
 	assert_failure test -s $TEMP_DIR/metaout
-	assert_success test -n $last_changelog_entry
-	assert_success test -n $metadata_version
-	assert_equals $metadata_version $((last_changelog_entry + 1))
 	update_expected_backup_copies_count
 	check_backup_copies
 }
@@ -151,7 +151,6 @@ mkfifo fifo
 touch file
 ln file link
 ln -s file symlink
-ls -l
 mv file file2
 ln -fs file2 symlink
 echo 'abc' > symlink
@@ -171,12 +170,15 @@ head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse
 head -c 1M /dev/urandom >> sparse
 mfsmakesnapshot sparse sparse2
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse2
-rm sparse
 truncate -s 1000M sparse2
 truncate -s 100 sparse2
 truncate -s 0 sparse2
 mfsmakesnapshot -o random_file random_file2
 head -c 2M /dev/urandom | dd seek=1 bs=1M conv=notrunc of=random_file
+truncate -s 1000M sparse
+truncate -s 100 sparse
+truncate -s 0 sparse
+rm sparse
 END
 
 # Special cases:

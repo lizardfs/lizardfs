@@ -5118,6 +5118,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	for (indx=0 ; indx<p->data.fdata.chunks ; indx++) {
 		if (chunk_repair(p->goal,p->data.fdata.chunktab[indx],&nversion)) {
 			changelog(metaversion++,"%" PRIu32 "|REPAIR(%" PRIu32 ",%" PRIu32 "):%" PRIu32,ts,inode,indx,nversion);
+			p->mtime = p->ctime = ts;
 			if (nversion>0) {
 				(*repaired)++;
 			} else {
@@ -5131,14 +5132,6 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	fsnodes_get_stats(p,&nsr);
 	for (e=p->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
-	}
-	if (p->mtime!=ts || p->ctime!=ts) {
-		p->mtime = p->ctime = ts;
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(p,ts);
-#endif
-*/
 	}
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
