@@ -5,7 +5,6 @@
 ######################
 /external/crcutil-1.0
 /external/gtest-1.7.0
-gtest-1.7.0.zip
 
 # Vim files #
 #############
@@ -32,64 +31,3 @@ compile_commands.json
 # QtCreator user profiles #
 ###########################
 *.user
-
-# Files from a bare "cmake ." invocation #
-##########################################
-CMakeCache.txt
-*CMakeFiles/
-*cmake_install.cmake
-CPackConfig.cmake
-CPackSourceConfig.cmake
-Makefile
-config.h
-crcutil-1.0.tar.gz
-doc/Makefile
-external/Makefile
-src/cgi/Makefile
-src/cgi/chart.cgi
-src/cgi/mfs.cgi
-src/cgi/mfscgiserv.py
-src/chunkserver/Makefile
-src/common/Makefile
-src/data/Makefile
-src/data/mfschunkserver.cfg
-src/data/mfsmaster.cfg
-src/data/mfsmetalogger.cfg
-src/data/postinst
-src/master/Makefile
-src/metadump/Makefile
-src/metalogger/Makefile
-src/metarestore/Makefile
-src/mount/Makefile
-src/tools/Makefile
-
-# Files after running "make" #
-##############################
-external/libcrcutil.a
-src/chunkserver/libchunkserver.a
-src/chunkserver/mfschunkserver
-src/common/libmfscommon.a
-src/master/libmaster.a
-src/master/mfsmaster
-src/metadump/mfsmetadump
-src/metalogger/libmetalogger.a
-src/metalogger/mfsmetalogger
-src/metarestore/libmetarestore.a
-src/metarestore/mfsmetarestore
-src/mount/libmount.a
-src/mount/mfsmount
-src/tools/mfsappendchunks
-src/tools/mfscheckfile
-src/tools/mfsdeleattr
-src/tools/mfsdirinfo
-src/tools/mfsfileinfo
-src/tools/mfsfilerepair
-src/tools/mfsgeteattr
-src/tools/mfsgetgoal
-src/tools/mfsgettrashtime
-src/tools/mfsmakesnapshot
-src/tools/mfsseteattr
-src/tools/mfssetgoal
-src/tools/mfssettrashtime
-src/tools/mfstools
-src/unittests/unittests
