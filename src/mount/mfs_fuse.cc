@@ -2093,8 +2093,8 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		fprintf(stderr,"getxattr (%lu,%s,%" PRIu64 ")",(unsigned long int)ino,name,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
+		fuse_reply_err(req,ENODATA);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENODATA));
 		return;
 	}
 	nleng = strlen(name);
