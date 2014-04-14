@@ -49,13 +49,13 @@ const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERS
 
 #define MAXIDHOLE 10000
 
-uint64_t findfirstlogversion(const char *fname) {
+uint64_t findfirstlogversion(const std::string& fname) {
 	uint8_t buff[50];
 	int32_t s,p;
 	uint64_t fv;
 	int fd;
 
-	fd = open(fname,O_RDONLY);
+	fd = open(fname.c_str(), O_RDONLY);
 	if (fd<0) {
 		return 0;
 	}
@@ -77,11 +77,11 @@ uint64_t findfirstlogversion(const char *fname) {
 	return fv;
 }
 
-uint64_t findlastlogversion(const char *fname) {
+uint64_t findlastlogversion(const std::string& fname) {
 	struct stat st;
 	int fd;
 
-	fd = open(fname, O_RDONLY);
+	fd = open(fname.c_str(), O_RDONLY);
 	if (fd < 0) {
 		fprintf(stderr, "open failed: %s\n", strerr(errno));
 		return 0;
@@ -99,7 +99,8 @@ uint64_t findlastlogversion(const char *fname) {
 	uint64_t lastLogVersion = 0;
 	// first LF is (should be) the last byte of the file
 	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		fprintf(stderr, "truncated changelog (%s) (no LF at the end of the last line)\n", fname);
+		fprintf(stderr, "truncated changelog (%s) (no LF at the end of the last line)\n",
+				fname.c_str());
 	} else {
 		size_t pos = fileSize - 1;
 		while (pos > 0) {
@@ -112,7 +113,7 @@ uint64_t findlastlogversion(const char *fname) {
 		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
 		if (*endPtr != ':') {
 			fprintf(stderr, "malformed changelog (%s) (expected colon after change number)\n",
-					fname);
+					fname.c_str());
 			lastLogVersion = 0;
 		}
 	}
@@ -305,7 +306,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (autorestore) {
-		std::vector<char*> filenames;
+		std::vector<std::string> filenames;
 		DIR *dd = opendir(datapath.c_str());
 		if (!dd) {
 			fprintf(stderr, "can't open data directory\n");
@@ -315,15 +316,17 @@ int main(int argc,char **argv) {
 		struct dirent *dp;
 		while ((dp = readdir(dd)) != NULL) {
 			if (changelog_checkname(dp->d_name)) {
-				filenames.push_back(strdup((datapath + "/" + dp->d_name).c_str()));
+				filenames.push_back(datapath + "/" + dp->d_name);
 				firstlv = findfirstlogversion(filenames.back());
 				lastlv = findlastlogversion(filenames.back());
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					if (skip) {
-						fprintf(stderr, "skipping changelog file: %s (changes: ", filenames.back());
+						fprintf(stderr, "skipping changelog file: %s (changes: ",
+								filenames.back().c_str());
 					} else {
-						fprintf(stderr, "using changelog file: %s (changes: ", filenames.back());
+						fprintf(stderr, "using changelog file: %s (changes: ",
+								filenames.back().c_str());
 					}
 					if (firstlv>0) {
 						fprintf(stderr, "%" PRIu64 " - ",firstlv);
@@ -346,16 +349,11 @@ int main(int argc,char **argv) {
 			fprintf(stderr, "nothing to do, exiting without changing anything\n");
 			return 0;
 		}
-		merger_start(filenames.size(), filenames.data(), MAXIDHOLE);
-		for (uint32_t pos = 0 ; pos < filenames.size() ; pos++) {
-			free(filenames[pos]);
-		}
+		merger_start(filenames, MAXIDHOLE);
 	} else {
-		uint32_t files,pos;
-		char **filenames;
+		uint32_t pos;
+		std::vector<std::string> filenames;
 
-		filenames = (char**)malloc(sizeof(char*)*argc);
-		files = 0;
 		for (pos=0 ; (int32_t)pos<argc ; pos++) {
 			firstlv = findfirstlogversion(argv[pos]);
 			lastlv = findlastlogversion(argv[pos]);
@@ -378,15 +376,10 @@ int main(int argc,char **argv) {
 				}
 			}
 			if (skip==0) {
-				filenames[files] = strdup(argv[pos]);
-				files++;
+				filenames.push_back(argv[pos]);
 			}
 		}
-		merger_start(files,filenames,MAXIDHOLE);
-		for (pos = 0 ; pos<files ; pos++) {
-			free(filenames[pos]);
-		}
-		free(filenames);
+		merger_start(filenames, MAXIDHOLE);
 	}
 
 	status = merger_loop();
