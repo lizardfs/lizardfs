@@ -65,25 +65,25 @@ How to launch the tests?
 Test binary is installed together with the file system. The path leading to it
 is the following:
 
-    <INSTALL_PREFIX>/bin/lizardfs_tests
+    <INSTALL_PREFIX>/bin/lizardfs-tests
 
 Alternatively, it can be run from build directory:
 
-    <SOURCE_DIRECTORY>/tests/lizardfs_tests
+    <SOURCE_DIRECTORY>/tests/lizardfs-tests
 
 This binary runs all the bash scripts using googletest framework. This makes
 it easy to generate a report after all the tests are finished. Part of the source code
-of 'lizardfs_tests' binary (list of tests) is generated automatically when tests are added
+of 'lizardfs-tests' binary (list of tests) is generated automatically when tests are added
 or removed. Launched without any parameters, it executes all available tests.
 By using a parameter '--gtest_filter' you can choose which tests are to be run.
 The above parameter uses a pattern to select the tests, e.g.:
 
-    ./lizardfs_tests --gtest_filter='SanityChecks*'
+    ./lizardfs-tests --gtest_filter='SanityChecks*'
 
 The command above runs all tests from 'SanityChecks' suite.
-A 'lizardfs_tests' binary uses an interface delivered by googletest which is displayed after:
+A 'lizardfs-tests' binary uses an interface delivered by googletest which is displayed after:
 
-    ./lizardfs_tests --help
+    ./lizardfs-tests --help
 
 
 How to make your own test?
