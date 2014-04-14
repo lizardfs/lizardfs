@@ -55,6 +55,30 @@ assert_template_failure_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_awk_finds <awk-condition> <string>
+assert_template_awk_finds_() {
+	local condition=$1
+	local string=$2
+	local matches=$(awk "$condition" <<< "$string")
+	local lines=$(awk "$condition" <<< "$string" | wc -l)
+	if (( lines == 0 )); then
+		$FAIL_FUNCTION "Expected line matching '$condition' to be found in:"$'\n'"$string"
+	fi
+}
+
+# (assert|assertlocal|expect)_awk_finds_no <awk-condition> <string>
+assert_template_awk_finds_no_() {
+	local condition=$1
+	local string=$2
+	local matches=$(awk "$condition" <<< "$string")
+	local lines=$(awk "$condition" <<< "$string" | wc -l)
+	if (( lines > 0 )); then
+		local msg_header="Expected line matching '$condition' not to be found in:"$'\n'"$string"
+		local msg_footer="But the following has been found:"$'\n'"$matches"
+		$FAIL_FUNCTION "$msg_header"$'\n'"$msg_footer"
+	fi
+}
+
 # This function returns a line from some source file of this test suite
 test_absolute_path_=$(readlink -m .)
 get_source_line() {
