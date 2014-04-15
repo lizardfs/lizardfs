@@ -42,6 +42,7 @@
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/massert.h"
+#include "common/metadata.h"
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
 #include "master/checksum.h"
@@ -103,9 +104,6 @@
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
-
-#define METADATA_BACK_FILENAME "metadata.mfs.back"
-#define METADATA_BACK_TMP_FILENAME METADATA_BACK_FILENAME ".tmp"
 
 #ifndef METARESTORE
 typedef struct _bstnode {
@@ -359,7 +357,7 @@ static void renameBackupFile(bool ifExistsOnly, const std::string& from, const s
 		}
 	}
 	if (rename(from.c_str(), to.c_str()) != 0) {
-		mfs_arg_errlog(LOG_ERR, "rename buckup file %s to %s failed", from.c_str(), to.c_str());
+		mfs_arg_errlog(LOG_ERR, "rename backup file %s to %s failed", from.c_str(), to.c_str());
 	}
 }
 
@@ -375,7 +373,7 @@ static void renameBackupFiles() {
 		renameBackupFile(true, METADATA_BACK_FILENAME, METADATA_BACK_FILENAME ".1");
 	}
 	renameBackupFile(false, METADATA_BACK_TMP_FILENAME, METADATA_BACK_FILENAME);
-	unlink("metadata.mfs");
+	unlink(METADATA_FILENAME);
 }
 
 #endif // ifndef METARESTORE
@@ -8207,7 +8205,7 @@ int fs_emergency_storeall(const char *fname) {
 		return -1;
 	}
 	fclose(fd);
-	syslog(LOG_WARNING,"metadata were stored to emergency file: %s - please copy this file to your default location as 'metadata.mfs'",fname);
+	syslog(LOG_WARNING,"metadata were stored to emergency file: %s - please copy this file to your default location as '" METADATA_FILENAME "'",fname);
 	return 0;
 }
 
@@ -8215,7 +8213,7 @@ int fs_emergency_saves() {
 #if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
 	struct passwd *p;
 #endif
-	if (fs_emergency_storeall("metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall(METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
 #if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
@@ -8228,7 +8226,7 @@ int fs_emergency_saves() {
 		if (fname) {
 			memcpy(fname,p->pw_dir,l);
 			fname[l]='/';
-			memcpy(fname+l+1,"metadata.mfs.emergency",22);
+			memcpy(fname+l+1,METADATA_EMERGENCY_FILENAME,22);
 			fname[l+23]=0;
 			if (fs_emergency_storeall(fname)==0) {
 				free(fname);
@@ -8238,28 +8236,28 @@ int fs_emergency_saves() {
 		}
 	}
 #endif
-	if (fs_emergency_storeall("/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/tmp/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/tmp/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/var/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/var/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/usr/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/share/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/usr/share/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/usr/local/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/var/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/usr/local/var/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/share/metadata.mfs.emergency")==0) {
+	if (fs_emergency_storeall("/usr/local/share/" METADATA_EMERGENCY_FILENAME)==0) {
 		return 0;
 	}
 	return -1;
@@ -8337,8 +8335,8 @@ void fs_term(void) {
 	for (;;) {
 		if (fs_storeall(MetadataDumper::kForegroundDump)) {
 			// store was successful
-			if (rename(METADATA_BACK_FILENAME, "metadata.mfs") < 0) {
-				mfs_errlog(LOG_WARNING, "can't rename " METADATA_BACK_FILENAME " -> metadata.mfs");
+			if (rename(METADATA_BACK_FILENAME, METADATA_FILENAME) < 0) {
+				mfs_errlog(LOG_WARNING, "can't rename " METADATA_BACK_FILENAME " -> " METADATA_FILENAME);
 			}
 			chunk_term();
 			return ;
@@ -8397,7 +8395,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	fd = fopen(fname,"r");
 #else
 	backversion = 0;
-	fd = fopen("metadata.mfs.back","r");
+	fd = fopen(METADATA_BACK_FILENAME,"r");
 	if (fd!=NULL) {
 		if (fread(bhdr,1,8,fd)==8) {
 			// bhdr is something like "MFSM x.y" or "LFSM x.y" (for Light LizardsFS)
@@ -8410,7 +8408,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		fclose(fd);
 	}
 
-	fd = fopen("metadata.mfs","r");
+	fd = fopen(METADATA_FILENAME,"r");
 #endif
 	if (fd==NULL) {
 		fprintf(stderr,"can't open metadata file\n");
@@ -8439,9 +8437,9 @@ int fs_loadall(const char *fname,int ignoreflag) {
 			cwdbuf[0]=0;
 #endif
 			if (cwdbuf[0]) {
-				fprintf(stderr,"if this is new instalation then rename %smetadata.mfs.empty as %smetadata.mfs\n",cwdbuf,cwdbuf);
+				fprintf(stderr,"if this is new instalation then rename %s" METADATA_FILENAME ".empty as %s" METADATA_FILENAME "\n",cwdbuf,cwdbuf);
 			} else {
-				fprintf(stderr,"if this is new instalation then rename metadata.mfs.empty as metadata.mfs (in current working directory)\n");
+				fprintf(stderr,"if this is new instalation then rename " METADATA_FILENAME ".empty as " METADATA_FILENAME " (in current working directory)\n");
 			}
 		}
 		syslog(LOG_ERR,"can't open metadata file");
@@ -8464,14 +8462,14 @@ int fs_loadall(const char *fname,int ignoreflag) {
 			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
 			return -1;
 		}
-		if (rename("metadata.mfs","metadata.mfs.back")<0) {
-			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
+		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
+			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
 			return -1;
 		}
 		fprintf(stderr,"create new empty filesystem");
 		syslog(LOG_NOTICE,"create new empty filesystem");
 		fs_new();
-		unlink("metadata.mfs.back.tmp");
+		unlink(METADATA_BACK_TMP_FILENAME);
 		// after creating new filesystem always create "back" file for using in metarestore
 		fs_storeall(MetadataDumper::kForegroundDump);
 		return 0;
@@ -8518,16 +8516,16 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		return -1;
 	}
 	if (converted==1) {
-		if (rename("metadata.mfs","metadata.mfs.back.1.4")<0) {
-			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back.1.4");
+		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME ".1.4")<0) {
+			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME ".1.4");
 			return -1;
 		}
 		// after conversion always create new version of "back" file for using in proper version
 		// of metarestore
 		fs_storeall(MetadataDumper::kForegroundDump);
 	} else {
-		if (rename("metadata.mfs","metadata.mfs.back")<0) {
-			mfs_errlog(LOG_ERR,"can't rename metadata.mfs -> metadata.mfs.back");
+		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
+			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
 			return -1;
 		}
 	}
@@ -8542,7 +8540,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	fprintf(stderr,"file inodes: %" PRIu32 "\n",filenodes);
 	fprintf(stderr,"chunks: %" PRIu32 "\n",chunk_count());
 #endif
-	unlink("metadata.mfs.back.tmp");
+	unlink(METADATA_BACK_TMP_FILENAME);
 	fs_checksum(ChecksumMode::kForceRecalculate);
 	return 0;
 }

@@ -18,29 +18,29 @@
 
 #include "config.h"
 
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <inttypes.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 #include <syslog.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <netinet/in.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-
-#include "common/datapack.h"
-#include "matomlserv.h"
-#include "common/crc.h"
 #include "common/cfg.h"
+#include "common/crc.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/sockets.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/metadata.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
+#include "master/matomlserv.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -333,7 +333,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		}
 	}
 	if (filenum==1) {
-		eptr->metafd = open("metadata.mfs.back",O_RDONLY);
+		eptr->metafd = open(METADATA_BACK_FILENAME,O_RDONLY);
 		eptr->chain1fd = open("changelog.0.mfs",O_RDONLY);
 		eptr->chain2fd = open("changelog.1.mfs",O_RDONLY);
 	} else if (filenum==2) {

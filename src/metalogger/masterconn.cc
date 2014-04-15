@@ -113,7 +113,7 @@ void masterconn_findlastlogversion(void) {
 
 	lastlogversion = 0;
 
-	if (stat("metadata_ml.mfs.back",&st)<0 || st.st_size==0 || (st.st_mode & S_IFMT)!=S_IFREG) {
+	if (stat(METADATA_ML_BACK_FILENAME,&st)<0 || st.st_size==0 || (st.st_mode & S_IFMT)!=S_IFREG) {
 		return;
 	}
 
@@ -363,13 +363,13 @@ void masterconn_download_next(masterconn *eptr) {
 					char metaname1[100],metaname2[100];
 					int i;
 					for (i=BackMetaCopies-1 ; i>0 ; i--) {
-						snprintf(metaname1,100,"metadata_ml.mfs.back.%" PRIu32,i+1);
-						snprintf(metaname2,100,"metadata_ml.mfs.back.%" PRIu32,i);
+						snprintf(metaname1,100,METADATA_ML_BACK_FILENAME ".%" PRIu32,i+1);
+						snprintf(metaname2,100,METADATA_ML_BACK_FILENAME ".%" PRIu32,i);
 						rename(metaname2,metaname1);
 					}
-					rename("metadata_ml.mfs.back","metadata_ml.mfs.back.1");
+					rename(METADATA_ML_BACK_FILENAME,METADATA_ML_BACK_FILENAME ".1");
 				}
-				if (rename("metadata_ml.tmp","metadata_ml.mfs.back")<0) {
+				if (rename("metadata_ml.tmp",METADATA_ML_BACK_FILENAME)<0) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
