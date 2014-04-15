@@ -11,6 +11,20 @@ assert_template_program_installed_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_file_exists <file>
+assert_template_file_exists_() {
+	if [[ ! -e "$1" ]]; then
+		$FAIL_FUNCTION "Files '$file' does not exist"
+	fi
+}
+
+# (assert|assertlocal|expect)_file_not_exists <file>
+assert_template_file_not_exists_() {
+	if [[ -e "$1" ]]; then
+		$FAIL_FUNCTION "Files '$file' does exist"
+	fi
+}
+
 # (assert|assertlocal|expect)_files_equal <file1> <file2>
 assert_template_files_equal_() {
 	local file1=$1
