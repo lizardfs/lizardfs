@@ -7964,6 +7964,22 @@ void fs_store(FILE *fd,uint8_t fver) {
 	}
 }
 
+static void fs_store_fd(FILE* fd) {
+#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+    const char hdr[] = MFSSIGNATURE "M 2.0";
+    const uint8_t metadataVersion = kMetadataVersionWithSections;
+#else
+    const char hdr[] = MFSSIGNATURE "M 1.6";
+    const uint8_t metadataVersion = kMetadataVersionLizardFS;
+#endif
+
+    if (fwrite(&hdr, 1, sizeof(hdr)-1, fd) != sizeof(hdr)-1) {
+          syslog(LOG_NOTICE,"fwrite error");
+    } else {
+          fs_store(fd, metadataVersion);
+    }
+}
+
 uint64_t fs_loadversion(FILE *fd) {
 	uint8_t hdr[12];
 	const uint8_t *ptr;
@@ -8187,19 +8203,9 @@ int fs_emergency_storeall(const char *fname) {
 	if (fd==NULL) {
 		return -1;
 	}
-#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
-	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
-		syslog(LOG_NOTICE,"fwrite error");
-	} else {
-		fs_store(fd, kMetadataVersionWithSections);
-	}
-#else
-	if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
-		syslog(LOG_NOTICE,"fwrite error");
-	} else {
-		fs_store(fd, kMetadataVersionLizardFS);
-	}
-#endif
+
+	fs_store_fd(fd);
+
 	if (ferror(fd)!=0) {
 		fclose(fd);
 		return -1;
@@ -8288,19 +8294,9 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			}
 			return false;
 		}
-#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
-		if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
-			syslog(LOG_NOTICE,"fwrite error");
-		} else {
-			fs_store(fd, kMetadataVersionWithSections);
-		}
-#else
-		if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
-			syslog(LOG_NOTICE,"fwrite error");
-		} else {
-			fs_store(fd, kMetadataVersionLizardFS);
-		}
-#endif
+
+		fs_store_fd(fd);
+
 		if (ferror(fd) != 0) {
 			syslog(LOG_ERR, "can't write metadata");
 			fclose(fd);
@@ -8354,19 +8350,8 @@ void fs_storeall(const char *fname) {
 		fprintf(stderr, "can't open metadata file\n");
 		return;
 	}
-#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
-	if (fwrite(MFSSIGNATURE "M 2.0",1,8,fd)!=(size_t)8) {
-		syslog(LOG_NOTICE,"fwrite error");
-	} else {
-		fs_store(fd, kMetadataVersionWithSections);
-	}
-#else
-	if (fwrite(MFSSIGNATURE "M 1.6",1,8,fd)!=(size_t)8) {
-		syslog(LOG_NOTICE,"fwrite error");
-	} else {
-		fs_store(fd, kMetadataVersionLizardFS);
-	}
-#endif
+	fs_store_fd(fd);
+
 	if (ferror(fd)!=0) {
 		fprintf(stderr, "can't write metadata\n");
 	}
