@@ -2,6 +2,21 @@ cmake_minimum_required(VERSION 2.8)
 set(CMAKE_LEGACY_CYGWIN_WIN32 0) # Remove when CMake >= 2.8.4 is required
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_MODULE_PATH})
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  message(FATAL_ERROR
+    "In-source builds are disabled for this project. This is for your "
+    "safety. To build the project, please create a build tree in "
+    "a separate directory, for example:\n"
+    "     mkdir ${CMAKE_SOURCE_DIR}/build\n"
+    "     cd ${CMAKE_SOURCE_DIR}/build\n"
+    "     cmake ..\n"
+    "Before doing that you may need to clean up after this try by removing "
+    "CMakeCache.txt file and CMakeFiles/ directory.\n"
+    "If you REALLY need an in-source build, remove this check from "
+    "${CMAKE_CURRENT_LIST_FILE} and try again."
+  )
+endif()
+
 project(lizardfs)
 set(PACKAGE_VERSION_MAJOR 1)
 set(PACKAGE_VERSION_MINOR 6)

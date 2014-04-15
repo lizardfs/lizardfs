@@ -1,0 +1,90 @@
+--- a/fs/fuse/dir.c	2014-04-02 17:09:31.000000000 +0200
++++ b/fs/fuse/dir.c	2014-04-02 17:09:40.000000000 +0200
+@@ -13,6 +13,8 @@
+ #include <linux/sched.h>
+ #include <linux/namei.h>
+ #include <linux/slab.h>
++#include <linux/posix_acl_xattr.h>
++#include <linux/version.h>
+ 
+ static bool fuse_use_readdirplus(struct inode *dir, struct file *filp)
+ {
+@@ -1756,10 +1757,9 @@ static int fuse_setxattr(struct dentry *
+ 	return err;
+ }
+ 
+-static ssize_t fuse_getxattr(struct dentry *entry, const char *name,
++static ssize_t _fuse_getxattr(struct inode *inode, const char *name,
+ 			     void *value, size_t size)
+ {
+-	struct inode *inode = entry->d_inode;
+ 	struct fuse_conn *fc = get_fuse_conn(inode);
+ 	struct fuse_req *req;
+ 	struct fuse_getxattr_in inarg;
+@@ -1806,6 +1806,50 @@ static ssize_t fuse_getxattr(struct dent
+ 	return ret;
+ }
+ 
++static ssize_t fuse_getxattr(struct dentry *entry, const char *name,
++			     void *value, size_t size) {
++	return _fuse_getxattr(entry->d_inode, name, value, size);
++}
++
++static struct posix_acl *fuse_get_acl(struct inode *inode, int type) {
++	struct posix_acl *acl = NULL;
++	char *xattr;
++	int length = 4096;
++
++	xattr = kmalloc(length, GFP_KERNEL);
++	if (!xattr)
++		return ERR_PTR(-ENOMEM);
++
++	length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, xattr, length);
++	if (length == -ERANGE) {
++		kfree(xattr);
++		length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, NULL, 0);
++		if (length < 0) {
++			return ERR_PTR(length);
++		}
++		length += 1024;		// in case somebody just added more ACLs
++		xattr = kmalloc(length, GFP_KERNEL);
++		if (!xattr)
++			return ERR_PTR(-ENOMEM);
++		length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, xattr,
++				length);
++	}
++
++	if (length >= 0) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
++		acl = posix_acl_from_xattr(&init_user_ns, xattr, length);
++#else
++		acl = posix_acl_from_xattr(xattr, length);
++#endif
++	} else if (length == -ENODATA) {
++		acl = NULL;
++	} else {
++		acl = ERR_PTR(length);
++	}
++	kfree(xattr);
++	return acl;
++}
++
+ static ssize_t fuse_listxattr(struct dentry *entry, char *list, size_t size)
+ {
+ 	struct inode *inode = entry->d_inode;
+@@ -1901,6 +1946,7 @@ static const struct inode_operations fus
+ 	.getattr	= fuse_getattr,
+ 	.setxattr	= fuse_setxattr,
+ 	.getxattr	= fuse_getxattr,
++	.get_acl	= fuse_get_acl,
+ 	.listxattr	= fuse_listxattr,
+ 	.removexattr	= fuse_removexattr,
+ };
+@@ -1922,6 +1968,7 @@ static const struct inode_operations fus
+ 	.getattr	= fuse_getattr,
+ 	.setxattr	= fuse_setxattr,
+ 	.getxattr	= fuse_getxattr,
++	.get_acl	= fuse_get_acl,
+ 	.listxattr	= fuse_listxattr,
+ 	.removexattr	= fuse_removexattr,
+ };

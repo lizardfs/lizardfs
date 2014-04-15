@@ -1,9 +1,11 @@
+#include "metarestore/merger.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
 
-#include "restore.h"
+#include "metarestore/restore.h"
 
 #define BSIZE 200000
 
@@ -69,7 +71,7 @@ void merger_nextentry(uint32_t pos) {
 		if (heap[pos].nextid==0 || (nextid>heap[pos].nextid && nextid<heap[pos].nextid+maxidhole)) {
 			heap[pos].nextid = nextid;
 		} else {
-			printf("found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
+			fprintf(stderr, "found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
 			heap[pos].nextid = 0;
 		}
 	} else {
@@ -98,7 +100,7 @@ void merger_new_entry(const char *filename) {
 		heap[heapsize].nextid = 0;
 		merger_nextentry(heapsize);
 	} else {
-		printf("can't open changelog file: %s\n",filename);
+		fprintf(stderr, "can't open changelog file: %s\n",filename);
 		heap[heapsize].filename = NULL;
 		heap[heapsize].buff = NULL;
 		heap[heapsize].ptr = NULL;
@@ -106,16 +108,14 @@ void merger_new_entry(const char *filename) {
 	}
 }
 
-int merger_start(uint32_t files,char **filenames,uint64_t maxhole) {
-	uint32_t i;
+int merger_start(const std::vector<std::string>& filenames, uint64_t maxhole) {
 	heapsize = 0;
-	heap = (hentry*)malloc(sizeof(hentry)*files);
+	heap = (hentry*)malloc(sizeof(hentry)*filenames.size());
 	if (heap==NULL) {
 		return -1;
 	}
-	for (i=0 ; i<files ; i++) {
-		merger_new_entry(filenames[i]);
-//		printf("file: %s / firstid: %" PRIu64 "\n",filenames[i],heap[heapsize].nextid);
+	for (const auto& filename : filenames) {
+		merger_new_entry(filename.c_str());
 		if (heap[heapsize].nextid==0) {
 			merger_delete_entry();
 		} else {

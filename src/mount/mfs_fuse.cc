@@ -44,7 +44,7 @@
 #include "devtools/request_log.h"
 #include "mount/chunk_locator.h"
 #include "mount/dirattrcache.h"
-#include "mount/global_io_limiter.h"
+#include "mount/g_io_limiters.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/oplog.h"
@@ -2088,6 +2088,11 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
+	if (strcmp(name,"security.capability")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ENOTSUP));
+		return;
+	}
 #if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
 	if ((flags&XATTR_CREATE) && (flags&XATTR_REPLACE)) {
 		fuse_reply_err(req,EINVAL);
@@ -2129,8 +2134,8 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		fprintf(stderr,"getxattr (%lu,%s,%" PRIu64 ")",(unsigned long int)ino,name,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		fuse_reply_err(req,EPERM);
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
+		fuse_reply_err(req,ENODATA);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENODATA));
 		return;
 	}
 	nleng = strlen(name);
@@ -2148,6 +2153,11 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	if (nleng==0) {
 		fuse_reply_err(req,EINVAL);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EINVAL));
+		return;
+	}
+	if (strcmp(name,"security.capability")==0) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	if (size==0) {

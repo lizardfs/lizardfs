@@ -37,6 +37,8 @@ struct GoalStats {
 	}
 };
 
+#include "master/checksum.h"
+
 #ifdef METARESTORE
 
 uint64_t fs_getversion(void);
@@ -181,3 +183,4 @@ void fs_cs_disconnected(void);
 int fs_init(void);
 
 #endif
+uint64_t fs_checksum(ChecksumMode mode);

@@ -20,46 +20,51 @@
 
 #include "master/matoclserv.h"
 
-#include <stdio.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/resource.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/chunks_availability_state.h"
-#include "common/datapack.h"
+#include <fstream>
+#include <memory>
+
 #include "common/cfg.h"
 #include "common/charts.h"
 #include "common/chunk_type_with_address.h"
+#include "common/chunks_availability_state.h"
 #include "common/cltoma_communication.h"
+#include "common/datapack.h"
 #include "common/goal.h"
+#include "common/io_limits_config_loader.h"
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
+#include "common/main.h"
 #include "common/massert.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/network_address.h"
+#include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
-#include "common/random.h"
-#include "common/main.h"
 #include "master/chartsdata.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
 #include "master/exports.h"
+#include "master/filesystem.h"
+#include "master/io_limits_database.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
-#include "master/filesystem.h"
-
 
 #define MaxPacketSize 1000000
 
@@ -158,6 +163,7 @@ typedef struct matoclserventry {
 	 */
 	uint8_t registered;
 	uint8_t mode;				//0 - not active, 1 - read header, 2 - read packet
+	bool iolimits;
 /* CACHENOTIFY
 	uint8_t notifications;
 */
@@ -191,6 +197,12 @@ static char *ListenHost;
 static char *ListenPort;
 static uint32_t RejectOld;
 static uint32_t SessionSustainTime;
+
+static double gIoLimitsIncreaseRatio;
+static double gIoLimitsInitialMBps;
+static double gIoLimitsRefreshTime;
+static std::string gIoLimitsSubsystem;
+static IoLimitsDatabase gIoLimitsDatabase;
 
 static uint32_t stats_prcvd = 0;
 static uint32_t stats_psent = 0;
@@ -800,18 +812,20 @@ void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 }
 
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
-	packetstruct *outpacket =(packetstruct*)malloc(sizeof(packetstruct));
+	packetstruct *outpacket;
 	uint8_t *ptr;
 	uint32_t psize;
+
+	outpacket=(packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	psize = size+8;
-	outpacket->packet = (uint8_t*) malloc(psize);
+	outpacket->packet= (uint8_t*) malloc(psize);
 	passert(outpacket->packet);
 	outpacket->bytesleft = psize;
 	ptr = outpacket->packet;
 	put32bit(&ptr,type);
 	put32bit(&ptr,size);
-	outpacket->startptr = outpacket->packet;
+	outpacket->startptr = (uint8_t*)(outpacket->packet);
 	outpacket->next = NULL;
 	*(eptr->outputtail) = outpacket;
 	eptr->outputtail = &(outpacket->next);
@@ -1389,6 +1403,42 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 }
 */
 
+static void matoclserv_send_iolimits_cfg(matoclserventry *eptr) {
+	std::vector<uint8_t> buffer;
+	matocl::iolimits_config::serialize(buffer, gIoLimitsSubsystem, gIoLimitsDatabase.getGroups(),
+			gIoLimitsRefreshTime * 1000 * 1000);
+	matoclserv_createpacket(eptr, buffer);
+}
+
+static void matoclserv_broadcast_iolimits_cfg() {
+	for (matoclserventry *eptr = matoclservhead; eptr; eptr = eptr->next) {
+		if (eptr->iolimits) {
+			matoclserv_send_iolimits_cfg(eptr);
+		}
+	}
+}
+
+static void matoclserv_enable_io_limits(matoclserventry *eptr) {
+	try {
+		gIoLimitsDatabase.addClient(eptr);
+	} catch (IoLimitsDatabase::ClientExistsException&) {
+		syslog(LOG_NOTICE, "enable_io_limits: IO limits already enabled on this connection, reusing old state");
+	}
+	eptr->iolimits = true;
+	matoclserv_send_iolimits_cfg(eptr);
+}
+
+static void matoclserv_disable_io_limits(matoclserventry *eptr) {
+	if (eptr->iolimits) {
+		try {
+			gIoLimitsDatabase.removeClient(eptr);
+		} catch (IoLimitsDatabase::InvalidClientIdException&) {
+			syslog(LOG_NOTICE, "disable_io_limits: IO limits not enabled");
+		}
+		eptr->iolimits = false;
+	}
+}
+
 void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *rptr;
 	uint8_t *wptr;
@@ -1405,6 +1455,8 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode = KILL;
 		return;
 	}
+	// in case some client tries to re-register itself
+	matoclserv_disable_io_limits(eptr);
 	tools = (memcmp(data,FUSE_REGISTER_BLOB_TOOLS_NOACL,64)==0)?1:0;
 	if (eptr->registered==0 && (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
@@ -1629,6 +1681,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				put32bit(&wptr,mintrashtime);
 				put32bit(&wptr,maxtrashtime);
 			}
+			if (eptr->version >= lizardfsVersion(1, 6, 30)) {
+				matoclserv_enable_io_limits(eptr);
+			}
 			eptr->registered = 1;
 			return;
 		case REGISTER_NEWMETASESSION:
@@ -1727,7 +1782,14 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (status!=STATUS_OK) {
 				return;
 			}
-			eptr->registered = (rcode==3)?1:100;
+			if (rcode == REGISTER_RECONNECT) {
+				if (eptr->version >= lizardfsVersion(1, 6, 30) && eptr->sesdata->rootinode != 0) {
+					matoclserv_enable_io_limits(eptr);
+				}
+				eptr->registered = 1;
+			} else {
+				eptr->registered = 100;
+			}
 			return;
 		case REGISTER_CLOSESESSION:
 			if (length<69) {
@@ -3435,7 +3497,35 @@ void matoclserv_fuse_getreserved(matoclserventry *eptr,const uint8_t *data,uint3
 	}
 }
 
-
+void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	std::string group;
+	bool wantMore;
+	uint64_t limit, usage;
+	cltoma::iolimit::deserialize(data, length, group, wantMore, limit, usage);
+	if (wantMore) {
+		const uint64_t ioLimitsInitialBps = 1024 * 1024 * gIoLimitsInitialMBps;
+		limit = ceil(limit * gIoLimitsIncreaseRatio);
+		if (limit < ioLimitsInitialBps) {
+			limit = ioLimitsInitialBps;
+		}
+	} else {
+		limit = usage;
+	}
+	try {
+		limit = gIoLimitsDatabase.setAllocation(eptr, group, limit);
+	} catch (IoLimitsDatabase::InvalidGroupIdException&) {
+		// The client probably hasn't received configuration update notification yet.
+		// Just choke it for this moment.
+		limit = 0;
+	} catch (IoLimitsDatabase::InvalidClientIdException&) {
+		syslog(LOG_WARNING, "CLTOMA_IOLIMIT from wrong client - disconnecting");
+		eptr->mode = KILL;
+		return;
+	}
+	std::vector<uint8_t> reply;
+	matocl::iolimit::serialize(reply, group, limit);
+	matoclserv_createpacket(eptr, reply);
+}
 
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
@@ -3752,6 +3842,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_CSSERV_REMOVESERV:
 					matoclserv_cserv_removeserv(eptr,data,length);
 					break;
+				case LIZ_CLTOMA_IOLIMIT:
+					matoclserv_iolimit(eptr,data,length);
+					break;
 				default:
 					syslog(LOG_NOTICE,
 							"main master server module: got unknown message from mount (type:%"
@@ -4041,6 +4134,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
 			eptr->registered = 0;
+			eptr->iolimits = false;
 /* CACHENOTIFY
 			eptr->notifications = 0;
 */
@@ -4107,6 +4201,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	kptr = &matoclservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
+			matoclserv_disable_io_limits(eptr);
 			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -4172,6 +4267,34 @@ int matoclserv_sessionsinit(void) {
 	return 0;
 }
 
+int matoclserv_iolimits_reload() {
+	std::string configFile = cfg_getstring("GLOBALIOLIMITS_FILENAME", "");
+
+	if (!configFile.empty()) {
+		try {
+			IoLimitsConfigLoader configLoader;
+			configLoader.load(std::ifstream(configFile));
+			gIoLimitsSubsystem = configLoader.subsystem();
+			gIoLimitsDatabase.setLimits(configLoader.limits());
+		} catch (Exception& ex) {
+			mfs_arg_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
+					"file (%s): %s", configFile.c_str(), ex.message().c_str());
+			return -1;
+		}
+	} else {
+		gIoLimitsSubsystem = "";
+		gIoLimitsDatabase.setLimits(IoLimitsConfigLoader::LimitsMap());
+	}
+
+	gIoLimitsIncreaseRatio = cfg_get_minvalue("GLOBALIOLIMITS_INCREASE_RATIO", 1.2, 1.0);
+	gIoLimitsInitialMBps = cfg_get_minvalue("GLOBALIOLIMITS_INITIAL_MBPS", 1.0, 0.125);
+	gIoLimitsRefreshTime = cfg_get_minvalue("GLOBALIOLIMITS_RENEGOTIATION_PERIOD", 0.1, 0.01);
+
+	matoclserv_broadcast_iolimits_cfg();
+
+	return 0;
+}
+
 void matoclserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
@@ -4186,6 +4309,8 @@ void matoclserv_reload(void) {
 		SessionSustainTime=60;
 		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
 	}
+
+	matoclserv_iolimits_reload();
 
 	oldListenHost = ListenHost;
 	oldListenPort = ListenPort;
@@ -4244,6 +4369,10 @@ int matoclserv_networkinit(void) {
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
+
+	if (matoclserv_iolimits_reload() != 0) {
+		return -1;
+	}
 
 	exiting = 0;
 	starting = 120;

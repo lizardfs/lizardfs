@@ -6,7 +6,7 @@ wait_for() {
 		if eval "$goal"; then
 			return 0
 		fi
-		sleep 0.3
+		sleep 0.1
 	done
 	return 1
 }

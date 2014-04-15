@@ -28,7 +28,7 @@
 
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
-		printf("%s:%" PRIu64 ": '%c' expected\n",(fn),(vno),(c)); \
+		fprintf(stderr, "%s:%" PRIu64 ": '%c' expected\n",(fn),(vno),(c)); \
 		return -1; \
 	} \
 	(clptr)++; \
@@ -48,7 +48,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -56,7 +56,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -80,7 +80,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -88,7 +88,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -105,7 +105,7 @@
 				} \
 			} \
 			if ((path)==NULL) { \
-				printf("out of memory !!!\n"); \
+				fprintf(stderr, "out of memory !!!\n"); \
 				exit(1); \
 			} \
 		} \
@@ -123,7 +123,7 @@
 			} \
 		} \
 		if ((path)==NULL) { \
-			printf("out of memory !!!\n"); \
+			fprintf(stderr, "out of memory !!!\n"); \
 			exit(1); \
 		} \
 	} \
@@ -143,7 +143,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -151,7 +151,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				printf("%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -168,7 +168,7 @@
 				} \
 			} \
 			if ((buff)==NULL) { \
-				printf("out of memory !!!\n"); \
+				fprintf(stderr, "out of memory !!!\n"); \
 				exit(1); \
 			} \
 		} \
@@ -645,7 +645,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"AQUIRE",6)==0) {
 				status = do_acquire(filename,lv,ts,ptr+6);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'C':
@@ -654,7 +654,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
 				status = do_session(filename,lv,ts,ptr+8);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'E':
@@ -663,21 +663,21 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 				status = do_emptyreserved(filename,lv,ts,ptr+13);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'F':
 			if (strncmp(ptr,"FREEINODES",10)==0) {
 				status = do_freeinodes(filename,lv,ts,ptr+10);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'I':
 			if (strncmp(ptr,"INCVERSION",10)==0) {
 				status = do_incversion(filename,lv,ts,ptr+10);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'L':
@@ -686,21 +686,21 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"LINK",4)==0) {
 				status = do_link(filename,lv,ts,ptr+4);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'M':
 			if (strncmp(ptr,"MOVE",4)==0) {
 				status = do_move(filename,lv,ts,ptr+4);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'P':
 			if (strncmp(ptr,"PURGE",5)==0) {
 				status = do_purge(filename,lv,ts,ptr+5);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'Q':
@@ -714,7 +714,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"REPAIR",6)==0) {
 				status = do_repair(filename,lv,ts,ptr+6);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'S':
@@ -735,14 +735,14 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"SESSION",7)==0) {
 				status = do_session(filename,lv,ts,ptr+7);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'T':
 			if (strncmp(ptr,"TRUNC",5)==0) {
 				status = do_trunc(filename,lv,ts,ptr+5);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'U':
@@ -753,22 +753,22 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			} else if (strncmp(ptr,"UNLOCK",6)==0) {
 				status = do_unlock(filename,lv,ts,ptr+6);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'W':
 			if (strncmp(ptr,"WRITE",5)==0) {
 				status = do_write(filename,lv,ts,ptr+5);
 			} else {
-				printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		default:
-			printf("%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+			fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			break;
 	}
 	if (status>STATUS_OK) {
-		printf("%s:%" PRIu64 ": error: %d (%s)\n",filename,lv,status,errormsgs[status]);
+		fprintf(stderr, "%s:%" PRIu64 ": error: %d (%s)\n",filename,lv,status,errormsgs[status]);
 	}
 	return status;
 }
@@ -785,18 +785,18 @@ int restore(const char *filename,uint64_t lv,char *ptr) {
 		lastfn = "(no file)";
 	}
 	if (vlevel>1) {
-		printf("filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %" PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",filename,v,lastv,lv,ptr);
+		fprintf(stderr, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %" PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",filename,v,lastv,lv,ptr);
 	}
 	if (lv<lastv) {
-		printf("merge error - possibly corrupted input file - ignore entry (filename: %s)\n",filename);
+		fprintf(stderr, "merge error - possibly corrupted input file - ignore entry (filename: %s)\n",filename);
 		return 0;
 	} else if (lv>=v) {
 		if (lv==lastv) {
 			if (vlevel>1) {
-				printf("duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)\n",lv,lastfn,filename);
+				fprintf(stderr, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)\n",lv,lastfn,filename);
 			}
 		} else if (lv>lastv+1) {
-			printf("hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64 " are missing) - add more files\n",lastfn,lastv+1,filename,lv-1);
+			fprintf(stderr, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64 " are missing) - add more files\n",lastfn,lastv+1,filename,lv-1);
 			return -2;
 		} else {
 			if (vlevel>0) {
@@ -811,7 +811,7 @@ int restore(const char *filename,uint64_t lv,char *ptr) {
 			}
 			v = fs_getversion();
 			if (lv+1!=v) {
-				printf("%s:%" PRIu64 ": version mismatch\n",filename,lv);
+				fprintf(stderr, "%s:%" PRIu64 ": version mismatch\n",filename,lv);
 				return -1;
 			}
 		}

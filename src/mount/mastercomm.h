@@ -22,6 +22,9 @@
 #include <vector>
 
 #include "common/chunk_type_with_address.h"
+#include "common/packet.h"
+
+typedef std::vector<uint8_t> MessageBuffer;
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
@@ -71,10 +74,21 @@ uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path);
 uint8_t fs_undel(uint32_t inode);
 uint8_t fs_purge(uint32_t inode);
 
-uint8_t fs_custom(std::vector<uint8_t>& buffer);
+
+uint8_t fs_custom(MessageBuffer& buffer);
+uint8_t fs_send_custom(MessageBuffer buffer);
 
 // called before fork
 int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t bgregister);
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);
+
+class PacketHandler {
+public:
+	virtual bool handle(MessageBuffer buffer) = 0;
+	virtual ~PacketHandler() {}
+};
+
+bool fs_register_packet_type_handler(PacketHeader::Type type, PacketHandler *handler);
+bool fs_unregister_packet_type_handler(PacketHeader::Type type, PacketHandler *handler);

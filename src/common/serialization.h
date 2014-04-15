@@ -7,6 +7,9 @@
 #include "common/exception.h"
 #include "common/massert.h"
 
+const uint32_t kMaxDeserializedBytesCount = 32 * 1024 * 1024;  // 32MiB
+const uint32_t kMaxDeserializedElementsCount = 1000 * 1000;    // 1M
+
 /*
  * Exception thrown on deserialization error
  */
@@ -303,6 +306,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	sassert(value.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy string size");
+	}
 	value.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, value[i]);
@@ -315,6 +321,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	sassert(vec.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy vector size");
+	}
 	vec.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, vec[i]);
@@ -367,6 +376,9 @@ void serialize(std::vector<uint8_t>& buffer, const Args&... args) {
  */
 template<class... Args>
 inline uint32_t deserialize(const uint8_t* sourceBuffer, uint32_t sourceBufferSize, Args&... args) {
+	if (sourceBufferSize > kMaxDeserializedBytesCount) {
+		throw IncorrectDeserializationException("too much data to deserialize");
+	}
 	deserialize(&sourceBuffer, sourceBufferSize, args...);
 	return sourceBufferSize;
 }

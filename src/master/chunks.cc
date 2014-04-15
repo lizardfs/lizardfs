@@ -17,40 +17,42 @@
  */
 
 #include "config.h"
-
 #include "master/chunks.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <syslog.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
+#include <syslog.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #ifdef METARESTORE
-#  include <time.h>
+#include <time.h>
 #endif
+#include <unistd.h>
 #include <algorithm>
+
+
+#ifndef METARESTORE
+#include "common/cfg.h"
+#include "common/main.h"
+#include "common/random.h"
+#include "master/matoclserv.h"
+#include "master/matocsserv.h"
+#include "master/topology.h"
+#endif
 
 #include "common/chunks_availability_state.h"
 #include "common/datapack.h"
 #include "common/goal.h"
+#include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
+#include "master/checksum.h"
 #include "master/chunk_copies_calculator.h"
 #include "master/filesystem.h"
-
-#ifndef METARESTORE
-#  include "common/cfg.h"
-#  include "common/main.h"
-#  include "master/matoclserv.h"
-#  include "master/matocsserv.h"
-#  include "common/random.h"
-#  include "master/topology.h"
-#endif
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1
@@ -181,6 +183,7 @@ static inline void slist_free(slist *p);
 class chunk {
 public:
 	uint64_t chunkid;
+	uint64_t checksum;
 	chunk *next;
 	uint32_t *ftab;
 #ifndef METARESTORE
@@ -460,6 +463,46 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 
 #endif
 
+static uint64_t gChunksChecksum;
+
+static uint64_t chunk_checksum(const chunk* ch) {
+	if (!ch) {
+		return 0;
+	}
+	uint64_t checksum = 64517419147637ULL;
+	hashCombine(checksum, ch->chunkid, ch->version, ch->lockedto, ch->goal, ch->fcount);
+	return checksum;
+}
+
+static void chunk_update_checksum(chunk* ch) {
+	if (!ch) {
+		return;
+	}
+	removeFromChecksum(gChunksChecksum, ch->checksum);
+	ch->checksum = chunk_checksum(ch);
+	addToChecksum(gChunksChecksum, ch->checksum);
+}
+
+static void chunk_recalculate_checksum() {
+	gChunksChecksum = 78765491511151883ULL;
+	for (int i = 0; i < HASHSIZE; ++i) {
+		for (chunk* ch = chunkhash[i]; ch; ch = ch->next) {
+			ch->checksum = chunk_checksum(ch);
+			addToChecksum(gChunksChecksum, ch->checksum);
+		}
+	}
+}
+
+uint64_t chunk_checksum(ChecksumMode mode) {
+	uint64_t checksum = 46586918175221;
+	addToChecksum(checksum, nextchunkid);
+	if (mode == ChecksumMode::kForceRecalculate) {
+		chunk_recalculate_checksum();
+	}
+	addToChecksum(checksum, gChunksChecksum);
+	return checksum;
+}
+
 #ifndef METARESTORE
 #ifdef USE_SLIST_BUCKETS
 static inline slist* slist_malloc() {
@@ -538,17 +581,14 @@ static inline void chunk_free(chunk* p) {
 
 #endif /* USE_CHUNK_BUCKETS */
 
-chunk* chunk_new(uint64_t chunkid) {
+chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
 	newchunk = chunk_malloc();
-#ifdef METARESTORE
-	printf("N%" PRIu64 "\n",chunkid);
-#endif
 	newchunk->next = chunkhash[chunkpos];
 	chunkhash[chunkpos] = newchunk;
 	newchunk->chunkid = chunkid;
-	newchunk->version = 0;
+	newchunk->version = chunkversion;
 	newchunk->goal = 0;
 	newchunk->lockid = 0;
 	newchunk->lockedto = 0;
@@ -563,15 +603,14 @@ chunk* chunk_new(uint64_t chunkid) {
 #endif
 	lastchunkid = chunkid;
 	lastchunkptr = newchunk;
+	newchunk->checksum = 0;
+	chunk_update_checksum(newchunk);
 	return newchunk;
 }
 
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
-#ifdef METARESTORE
-	printf("F%" PRIu64 "\n",chunkid);
-#endif
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
@@ -707,6 +746,7 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 		c->updateStats();
 	}
 #endif
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -728,9 +768,6 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 	if (c->fcount==1) {
 		c->goal = 0;
 		c->fcount = 0;
-#ifdef METARESTORE
-		printf("D%" PRIu64 "\n",c->chunkid);
-#endif
 	} else {
 		if (c->ftab) {
 			if (isOrdinaryGoal(goal)) {
@@ -754,6 +791,7 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 		c->updateStats();
 	}
 #endif
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -806,6 +844,7 @@ static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
 		c->updateStats();
 	}
 #endif
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -858,6 +897,7 @@ int chunk_unlock(uint64_t chunkid) {
 	}
 	// Don't remove lockid to safely accept retransmission of FUSE_CHUNK_UNLOCK message
 	c->lockedto = 0;
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -909,8 +949,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			}
 		}
 #endif
-		c = chunk_new(nextchunkid++);
-		c->version = 1;
+		c = chunk_new(nextchunkid++, 1);
 #ifndef METARESTORE
 		c->interrupted = 0;
 		c->operation = CREATE;
@@ -1002,8 +1041,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 				if (os->is_valid()) {
 					if (c==NULL) {
 #endif
-						c = chunk_new(nextchunkid++);
-						c->version = 1;
+						c = chunk_new(nextchunkid++, 1);
 #ifndef METARESTORE
 						c->interrupted = 0;
 						c->operation = DUPLICATE;
@@ -1048,6 +1086,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 	c->lockedto=ts+LOCKTIMEOUT;
 	c->lockid = lockid;
 #endif
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -1129,8 +1168,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 			if (os->is_valid()) {
 				if (c==NULL) {
 #endif
-					c = chunk_new(nextchunkid++);
-					c->version = 1;
+					c = chunk_new(nextchunkid++, 1);
 #ifndef METARESTORE
 					c->interrupted = 0;
 					c->operation = DUPTRUNC;
@@ -1163,6 +1201,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 #else
 	c->lockedto=ts+LOCKTIMEOUT;
 #endif
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
@@ -1209,6 +1248,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	*nversion = bestversion;
 	c->updateStats();
 	c->needverincrease=1;
+	chunk_update_checksum(c);
 	return 1;
 }
 #else
@@ -1219,6 +1259,7 @@ int chunk_set_version(uint64_t chunkid,uint32_t version) {
 		return ERROR_NOCHUNK;
 	}
 	c->version = version;
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 #endif
@@ -1247,6 +1288,7 @@ void chunk_emergency_increase_version(chunk *c) {
 		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
 	}
 	fs_incversion(c->chunkid);
+	chunk_update_checksum(c);
 }
 #else
 int chunk_increase_version(uint64_t chunkid) {
@@ -1256,6 +1298,7 @@ int chunk_increase_version(uint64_t chunkid) {
 		return ERROR_NOCHUNK;
 	}
 	c->version++;
+	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 #endif
@@ -1365,10 +1408,10 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
-		c = chunk_new(chunkid);
-		c->version = new_version;
+		c = chunk_new(chunkid, new_version);
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 		c->lockid = 0;
+		chunk_update_checksum(c);
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
@@ -1424,8 +1467,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
-		c = chunk_new(chunkid);
-		c->version = 0;
+		c = chunk_new(chunkid, 0);
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
@@ -2127,16 +2169,11 @@ constexpr uint32_t kSerializedChunkSizeWithLockId = 20;
 
 void chunk_dump(void) {
 	chunk *c;
-	uint32_t i,lockedto,now;
-	now = time(NULL);
+	uint32_t i;
 
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next) {
-			lockedto = c->lockedto;
-			if (lockedto<now) {
-				lockedto = 0;
-			}
-			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,lockedto);
+			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,c->lockedto);
 		}
 	}
 }
@@ -2150,7 +2187,6 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 	chunk *c;
 // chunkdata
 	uint64_t chunkid;
-	uint32_t version,lockedto;
 
 	if (fread(hdr,1,8,fd)!=8) {
 		return -1;
@@ -2168,15 +2204,15 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 		ptr = loadbuff.data();
 		chunkid = get64bit(&ptr);
 		if (chunkid>0) {
-			c = chunk_new(chunkid);
-			c->version = get32bit(&ptr);
+			uint32_t version = get32bit(&ptr);
+			c = chunk_new(chunkid, version);
 			c->lockedto = get32bit(&ptr);
 			if (loadLockIds) {
 				c->lockid = get32bit(&ptr);
 			}
 		} else {
-			version = get32bit(&ptr);
-			lockedto = get32bit(&ptr);
+			uint32_t version = get32bit(&ptr);
+			uint32_t lockedto = get32bit(&ptr);
 			if (version==0 && lockedto==0) {
 				return 0;
 			} else {
@@ -2196,12 +2232,7 @@ void chunk_store(FILE *fd) {
 // chunkdata
 	uint64_t chunkid;
 	uint32_t version;
-	uint32_t lockedto,lockid,now;
-#ifndef METARESTORE
-	now = main_time();
-#else
-	now = time(NULL);
-#endif
+	uint32_t lockedto, lockid;
 	ptr = hdr;
 	put64bit(&ptr,nextchunkid);
 	if (fwrite(hdr,1,8,fd)!=(size_t)8) {
@@ -2217,10 +2248,6 @@ void chunk_store(FILE *fd) {
 			put32bit(&ptr,version);
 			lockedto = c->lockedto;
 			lockid = c->lockid;
-			if (lockedto<now) {
-				lockedto = 0;
-				lockid = 0;
-			}
 			put32bit(&ptr,lockedto);
 			put32bit(&ptr,lockid);
 			j++;

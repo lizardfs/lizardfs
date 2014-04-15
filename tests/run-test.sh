@@ -29,7 +29,7 @@ if [[ $# != 1 ]]; then
 	echo "Usage: $0 <test_case>" >&2
 	exit 1
 fi
-
+export SOURCE_DIR=$(readlink -m "$(dirname "$0")/..")
 export ERROR_DIR=/tmp/lizardfs_error_dir
 rm -rf "${ERROR_DIR}"
 mkdir "${ERROR_DIR}"

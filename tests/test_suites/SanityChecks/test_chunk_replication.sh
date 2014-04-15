@@ -4,4 +4,4 @@ number_of_chunkservers=4
 goals="3 xor2"
 verify_file_content=NO
 
-source $(readlink -m test_suites/SystemTestingSuite/test_chunk_replication.sh)
+source $(readlink -m test_suites/ShortSystemTests/test_chunk_replication.sh)
