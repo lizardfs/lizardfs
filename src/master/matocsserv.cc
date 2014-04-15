@@ -652,27 +652,28 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	}
 
 	// Assign chunk types to chosen servers
-	std::vector<uint8_t> parts;
-	ChunkType::XorLevel level;
 	if (isXorGoal(desiredGoal)) {
+		std::vector<uint8_t> parts;
+		ChunkType::XorLevel level;
 		level = goalToXorLevel(desiredGoal);
 		for (uint8_t i = 0; i <= level; ++i) {
 			parts.push_back(i);
 		}
 		std::random_shuffle(parts.begin(), parts.end());
-	}
-
-	for (size_t i = 0; i < chunksToBeCreated; i++) {
-		ChunkType ct = ChunkType::getStandardChunkType();
-		if (isXorGoal(desiredGoal)) {
+		for (size_t i = 0; i < chunksToBeCreated; i++) {
 			uint8_t part = parts[i];
-			ct = (part == 0
-					? ChunkType::getXorParityChunkType(level)
-					: ChunkType::getXorChunkType(level, part));
-		} else {
-			sassert(isOrdinaryGoal(desiredGoal));
+			if (part == 0) {
+				ret.push_back({chosenServers[i].ptr, ChunkType::getXorParityChunkType(level)});
+			} else {
+				ret.push_back({chosenServers[i].ptr, ChunkType::getXorChunkType(level, part)});
+			}
 		}
-		ret.push_back(std::make_pair(chosenServers[i].ptr, ct));
+	} else {
+		sassert(isOrdinaryGoal(desiredGoal));
+		for (size_t i = 0; i < chunksToBeCreated; i++) {
+			ret.push_back(std::make_pair(chosenServers[i].ptr,
+					ChunkType::getStandardChunkType()));
+		}
 	}
 	return ret;
 }
