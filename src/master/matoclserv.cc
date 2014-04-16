@@ -3460,293 +3460,300 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
 		return;
 	}
-	if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
-		switch (type) {
-			case CLTOMA_FUSE_REGISTER:
-				matoclserv_fuse_register(eptr,data,length);
-				break;
-			case CLTOMA_CSERV_LIST:
-				matoclserv_cserv_list(eptr,data,length);
-				break;
-			case CLTOMA_SESSION_LIST:
-				matoclserv_session_list(eptr,data,length);
-				break;
-			case CLTOAN_CHART:
-				matoclserv_chart(eptr,data,length);
-				break;
-			case CLTOAN_CHART_DATA:
-				matoclserv_chart_data(eptr,data,length);
-				break;
-			case CLTOMA_INFO:
-				matoclserv_info(eptr,data,length);
-				break;
-			case CLTOMA_FSTEST_INFO:
-				matoclserv_fstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKSTEST_INFO:
-				matoclserv_chunkstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKS_MATRIX:
-				matoclserv_chunks_matrix(eptr,data,length);
-				break;
-			case CLTOMA_QUOTA_INFO:
-				matoclserv_quota_info(eptr,data,length);
-				break;
-			case CLTOMA_EXPORTS_INFO:
-				matoclserv_exports_info(eptr,data,length);
-				break;
-			case CLTOMA_MLOG_LIST:
-				matoclserv_mlog_list(eptr,data,length);
-				break;
-			case CLTOMA_CSSERV_REMOVESERV:
-				matoclserv_cserv_removeserv(eptr,data,length);
-				break;
-			default:
-				syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
+	try {
+		if (eptr->registered==0) {	// unregistered clients - beware that in this context sesdata is NULL
+			switch (type) {
+				case CLTOMA_FUSE_REGISTER:
+					matoclserv_fuse_register(eptr,data,length);
+					break;
+				case CLTOMA_CSERV_LIST:
+					matoclserv_cserv_list(eptr,data,length);
+					break;
+				case CLTOMA_SESSION_LIST:
+					matoclserv_session_list(eptr,data,length);
+					break;
+				case CLTOAN_CHART:
+					matoclserv_chart(eptr,data,length);
+					break;
+				case CLTOAN_CHART_DATA:
+					matoclserv_chart_data(eptr,data,length);
+					break;
+				case CLTOMA_INFO:
+					matoclserv_info(eptr,data,length);
+					break;
+				case CLTOMA_FSTEST_INFO:
+					matoclserv_fstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKSTEST_INFO:
+					matoclserv_chunkstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKS_MATRIX:
+					matoclserv_chunks_matrix(eptr,data,length);
+					break;
+				case CLTOMA_QUOTA_INFO:
+					matoclserv_quota_info(eptr,data,length);
+					break;
+				case CLTOMA_EXPORTS_INFO:
+					matoclserv_exports_info(eptr,data,length);
+					break;
+				case CLTOMA_MLOG_LIST:
+					matoclserv_mlog_list(eptr,data,length);
+					break;
+				case CLTOMA_CSSERV_REMOVESERV:
+					matoclserv_cserv_removeserv(eptr,data,length);
+					break;
+				default:
+					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
+					eptr->mode=KILL;
+			}
+		} else if (eptr->registered<100) {	// mounts and new tools
+			if (eptr->sesdata==NULL) {
+				syslog(LOG_ERR,"registered connection without sesdata !!!");
 				eptr->mode=KILL;
-		}
-	} else if (eptr->registered<100) {	// mounts and new tools
-		if (eptr->sesdata==NULL) {
-			syslog(LOG_ERR,"registered connection without sesdata !!!");
-			eptr->mode=KILL;
-			return;
-		}
-		switch (type) {
-			case CLTOMA_FUSE_REGISTER:
-				matoclserv_fuse_register(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RESERVED_INODES:
-				matoclserv_fuse_reserved_inodes(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_STATFS:
-				matoclserv_fuse_statfs(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_ACCESS:
-				matoclserv_fuse_access(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_LOOKUP:
-				matoclserv_fuse_lookup(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETATTR:
-				matoclserv_fuse_getattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETATTR:
-				matoclserv_fuse_setattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_READLINK:
-				matoclserv_fuse_readlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SYMLINK:
-				matoclserv_fuse_symlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_MKNOD:
-				matoclserv_fuse_mknod(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_MKDIR:
-				matoclserv_fuse_mkdir(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_UNLINK:
-				matoclserv_fuse_unlink(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RMDIR:
-				matoclserv_fuse_rmdir(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_RENAME:
-				matoclserv_fuse_rename(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_LINK:
-				matoclserv_fuse_link(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDIR:
-				matoclserv_fuse_getdir(eptr,data,length);
-				break;
-/* CACHENOTIFY
-			case CLTOMA_FUSE_DIR_REMOVED:
-				matoclserv_fuse_dir_removed(eptr,data,length);
-				break;
-*/
-			case CLTOMA_FUSE_OPEN:
-				matoclserv_fuse_open(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_READ_CHUNK:
-				matoclserv_fuse_read_chunk(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_WRITE_CHUNK:
-				matoclserv_fuse_write_chunk(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_WRITE_CHUNK_END:
-				matoclserv_fuse_write_chunk_end(eptr,data,length);
-				break;
-// fuse - meta
-			case CLTOMA_FUSE_GETTRASH:
-				matoclserv_fuse_gettrash(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDETACHEDATTR:
-				matoclserv_fuse_getdetachedattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETTRASHPATH:
-				matoclserv_fuse_gettrashpath(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETTRASHPATH:
-				matoclserv_fuse_settrashpath(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_UNDEL:
-				matoclserv_fuse_undel(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_PURGE:
-				matoclserv_fuse_purge(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETRESERVED:
-				matoclserv_fuse_getreserved(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_CHECK:
-				matoclserv_fuse_check(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETTRASHTIME:
-				matoclserv_fuse_gettrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETTRASHTIME:
-				matoclserv_fuse_settrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETGOAL:
-				matoclserv_fuse_getgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETGOAL:
-				matoclserv_fuse_setgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_APPEND:
-				matoclserv_fuse_append(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDIRSTATS:
-				matoclserv_fuse_getdirstats_old(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_TRUNCATE:
-				matoclserv_fuse_truncate(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_REPAIR:
-				matoclserv_fuse_repair(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SNAPSHOT:
-				matoclserv_fuse_snapshot(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETEATTR:
-				matoclserv_fuse_geteattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETEATTR:
-				matoclserv_fuse_seteattr(eptr,data,length);
-				break;
-/* do not use in version before 1.7.x */
-			case CLTOMA_FUSE_GETXATTR:
-				matoclserv_fuse_getxattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETXATTR:
-				matoclserv_fuse_setxattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_QUOTACONTROL:
-				matoclserv_fuse_quotacontrol(eptr,data,length);
-				break;
-/* for tools - also should be available for registered clients */
-			case CLTOMA_CSERV_LIST:
-				matoclserv_cserv_list(eptr,data,length);
-				break;
-			case CLTOMA_SESSION_LIST:
-				matoclserv_session_list(eptr,data,length);
-				break;
-			case CLTOAN_CHART:
-				matoclserv_chart(eptr,data,length);
-				break;
-			case CLTOAN_CHART_DATA:
-				matoclserv_chart_data(eptr,data,length);
-				break;
-			case CLTOMA_INFO:
-				matoclserv_info(eptr,data,length);
-				break;
-			case CLTOMA_FSTEST_INFO:
-				matoclserv_fstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKSTEST_INFO:
-				matoclserv_chunkstest_info(eptr,data,length);
-				break;
-			case CLTOMA_CHUNKS_MATRIX:
-				matoclserv_chunks_matrix(eptr,data,length);
-				break;
-			case CLTOMA_QUOTA_INFO:
-				matoclserv_quota_info(eptr,data,length);
-				break;
-			case CLTOMA_EXPORTS_INFO:
-				matoclserv_exports_info(eptr,data,length);
-				break;
-			case CLTOMA_MLOG_LIST:
-				matoclserv_mlog_list(eptr,data,length);
-				break;
-			case CLTOMA_CSSERV_REMOVESERV:
-				matoclserv_cserv_removeserv(eptr,data,length);
-				break;
-			case LIZ_CLTOMA_IOLIMIT:
-				matoclserv_iolimit(eptr,data,length);
-				break;
-			default:
-				syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
+				return;
+			}
+			switch (type) {
+				case CLTOMA_FUSE_REGISTER:
+					matoclserv_fuse_register(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RESERVED_INODES:
+					matoclserv_fuse_reserved_inodes(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_STATFS:
+					matoclserv_fuse_statfs(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_ACCESS:
+					matoclserv_fuse_access(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_LOOKUP:
+					matoclserv_fuse_lookup(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETATTR:
+					matoclserv_fuse_getattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETATTR:
+					matoclserv_fuse_setattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_READLINK:
+					matoclserv_fuse_readlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SYMLINK:
+					matoclserv_fuse_symlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_MKNOD:
+					matoclserv_fuse_mknod(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_MKDIR:
+					matoclserv_fuse_mkdir(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_UNLINK:
+					matoclserv_fuse_unlink(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RMDIR:
+					matoclserv_fuse_rmdir(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_RENAME:
+					matoclserv_fuse_rename(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_LINK:
+					matoclserv_fuse_link(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDIR:
+					matoclserv_fuse_getdir(eptr,data,length);
+					break;
+					/* CACHENOTIFY
+					   case CLTOMA_FUSE_DIR_REMOVED:
+					   matoclserv_fuse_dir_removed(eptr,data,length);
+					   break;
+					   */
+				case CLTOMA_FUSE_OPEN:
+					matoclserv_fuse_open(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_READ_CHUNK:
+					matoclserv_fuse_read_chunk(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_WRITE_CHUNK:
+					matoclserv_fuse_write_chunk(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_WRITE_CHUNK_END:
+					matoclserv_fuse_write_chunk_end(eptr,data,length);
+					break;
+					// fuse - meta
+				case CLTOMA_FUSE_GETTRASH:
+					matoclserv_fuse_gettrash(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDETACHEDATTR:
+					matoclserv_fuse_getdetachedattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETTRASHPATH:
+					matoclserv_fuse_gettrashpath(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETTRASHPATH:
+					matoclserv_fuse_settrashpath(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_UNDEL:
+					matoclserv_fuse_undel(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_PURGE:
+					matoclserv_fuse_purge(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETRESERVED:
+					matoclserv_fuse_getreserved(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_CHECK:
+					matoclserv_fuse_check(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETTRASHTIME:
+					matoclserv_fuse_gettrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETTRASHTIME:
+					matoclserv_fuse_settrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETGOAL:
+					matoclserv_fuse_getgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETGOAL:
+					matoclserv_fuse_setgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_APPEND:
+					matoclserv_fuse_append(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDIRSTATS:
+					matoclserv_fuse_getdirstats_old(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_TRUNCATE:
+					matoclserv_fuse_truncate(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_REPAIR:
+					matoclserv_fuse_repair(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SNAPSHOT:
+					matoclserv_fuse_snapshot(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETEATTR:
+					matoclserv_fuse_geteattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETEATTR:
+					matoclserv_fuse_seteattr(eptr,data,length);
+					break;
+					/* do not use in version before 1.7.x */
+				case CLTOMA_FUSE_GETXATTR:
+					matoclserv_fuse_getxattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETXATTR:
+					matoclserv_fuse_setxattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_QUOTACONTROL:
+					matoclserv_fuse_quotacontrol(eptr,data,length);
+					break;
+					/* for tools - also should be available for registered clients */
+				case CLTOMA_CSERV_LIST:
+					matoclserv_cserv_list(eptr,data,length);
+					break;
+				case CLTOMA_SESSION_LIST:
+					matoclserv_session_list(eptr,data,length);
+					break;
+				case CLTOAN_CHART:
+					matoclserv_chart(eptr,data,length);
+					break;
+				case CLTOAN_CHART_DATA:
+					matoclserv_chart_data(eptr,data,length);
+					break;
+				case CLTOMA_INFO:
+					matoclserv_info(eptr,data,length);
+					break;
+				case CLTOMA_FSTEST_INFO:
+					matoclserv_fstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKSTEST_INFO:
+					matoclserv_chunkstest_info(eptr,data,length);
+					break;
+				case CLTOMA_CHUNKS_MATRIX:
+					matoclserv_chunks_matrix(eptr,data,length);
+					break;
+				case CLTOMA_QUOTA_INFO:
+					matoclserv_quota_info(eptr,data,length);
+					break;
+				case CLTOMA_EXPORTS_INFO:
+					matoclserv_exports_info(eptr,data,length);
+					break;
+				case CLTOMA_MLOG_LIST:
+					matoclserv_mlog_list(eptr,data,length);
+					break;
+				case CLTOMA_CSSERV_REMOVESERV:
+					matoclserv_cserv_removeserv(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_IOLIMIT:
+					matoclserv_iolimit(eptr,data,length);
+					break;
+				default:
+					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
+					eptr->mode=KILL;
+			}
+		} else {	// old mfstools
+			if (eptr->sesdata==NULL) {
+				syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 				eptr->mode=KILL;
+				return;
+			}
+			switch (type) {
+				// extra (external tools)
+				case CLTOMA_FUSE_REGISTER:
+					matoclserv_fuse_register(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
+					matoclserv_fuse_read_chunk(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_CHECK:
+					matoclserv_fuse_check(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETTRASHTIME:
+					matoclserv_fuse_gettrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETTRASHTIME:
+					matoclserv_fuse_settrashtime(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETGOAL:
+					matoclserv_fuse_getgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETGOAL:
+					matoclserv_fuse_setgoal(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_APPEND:
+					matoclserv_fuse_append(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETDIRSTATS:
+					matoclserv_fuse_getdirstats(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_TRUNCATE:
+					matoclserv_fuse_truncate(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_REPAIR:
+					matoclserv_fuse_repair(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SNAPSHOT:
+					matoclserv_fuse_snapshot(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_GETEATTR:
+					matoclserv_fuse_geteattr(eptr,data,length);
+					break;
+				case CLTOMA_FUSE_SETEATTR:
+					matoclserv_fuse_seteattr(eptr,data,length);
+					break;
+					/* do not use in version before 1.7.x */
+				case CLTOMA_FUSE_QUOTACONTROL:
+					matoclserv_fuse_quotacontrol(eptr,data,length);
+					break;
+				default:
+					syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);
+					eptr->mode=KILL;
+			}
 		}
-	} else {	// old mfstools
-		if (eptr->sesdata==NULL) {
-			syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
-			eptr->mode=KILL;
-			return;
-		}
-		switch (type) {
-// extra (external tools)
-			case CLTOMA_FUSE_REGISTER:
-				matoclserv_fuse_register(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_READ_CHUNK:	// used in mfsfileinfo
-				matoclserv_fuse_read_chunk(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_CHECK:
-				matoclserv_fuse_check(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETTRASHTIME:
-				matoclserv_fuse_gettrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETTRASHTIME:
-				matoclserv_fuse_settrashtime(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETGOAL:
-				matoclserv_fuse_getgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETGOAL:
-				matoclserv_fuse_setgoal(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_APPEND:
-				matoclserv_fuse_append(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETDIRSTATS:
-				matoclserv_fuse_getdirstats(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_TRUNCATE:
-				matoclserv_fuse_truncate(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_REPAIR:
-				matoclserv_fuse_repair(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SNAPSHOT:
-				matoclserv_fuse_snapshot(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_GETEATTR:
-				matoclserv_fuse_geteattr(eptr,data,length);
-				break;
-			case CLTOMA_FUSE_SETEATTR:
-				matoclserv_fuse_seteattr(eptr,data,length);
-				break;
-/* do not use in version before 1.7.x */
-			case CLTOMA_FUSE_QUOTACONTROL:
-				matoclserv_fuse_quotacontrol(eptr,data,length);
-				break;
-			default:
-				syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);
-				eptr->mode=KILL;
-		}
+	} catch (IncorrectDeserializationException& e) {
+		syslog(LOG_NOTICE,
+				"main master server module: got inconsistent message from mount "
+				"(type:%" PRIu32 ", length:%" PRIu32"), %s", type, length, e.what());
+		eptr->mode = KILL;
 	}
 }
 
