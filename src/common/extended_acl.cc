@@ -1,5 +1,11 @@
 #include "common/extended_acl.h"
 
+#include <tuple>
+
+bool ExtendedAcl::Entry::operator==(const ExtendedAcl::Entry& other) const {
+	return std::make_tuple(type, id, mask) == std::make_tuple(other.type, other.id, other.mask);
+}
+
 uint32_t ExtendedAcl::Entry::serializedSize() const {
 	return ::serializedSize(bool(), id, mask);
 }

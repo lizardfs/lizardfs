@@ -1185,6 +1185,31 @@
 #define LIZ_MATOCL_IOLIMIT (1000U + 530U)
 /// grouplen:32 group:STRING[grouplen] limit:64
 
+// 0x05FB
+#define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8 mask:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+
+// 0x05FC
+#define LIZ_MATOCL_FUSE_SET_ACL (1000U + 532U)
+/// msgid:32 status:8
+
+// 0x05FD
+#define LIZ_CLTOMA_FUSE_GET_ACL (1000U + 533U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8
+
+// 0x05FE
+#define LIZ_MATOCL_FUSE_GET_ACL (1000U + 534U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 mask:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+
+// 0x05FF
+#define LIZ_CLTOMA_FUSE_DELETE_ACL (1000U + 535U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8
+
+// 0x0600
+#define LIZ_MATOCL_FUSE_DELETE_ACL (1000U + 536U)
+/// msgid:32 status:8
+
 // CHUNKSERVER STATS
 
 // 0x00258

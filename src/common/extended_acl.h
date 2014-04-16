@@ -25,6 +25,7 @@ public:
 		Entry() {}
 		Entry(uint16_t id, EntryType type, AccessMask mask) : id(id), type(type), mask(mask) {}
 
+		bool operator==(const Entry& other) const;
 		uint32_t serializedSize() const;
 		void serialize(uint8_t** destination) const;
 		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer);
