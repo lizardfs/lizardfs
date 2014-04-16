@@ -125,6 +125,7 @@ static double entry_cache_timeout = 0.0;
 static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
+static bool acl_enabled = 0;
 
 enum {
 	OP_STATFS = 0,
@@ -2030,6 +2031,14 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 #endif
 		return;
 	}
+	// Filter ACLs when disabled
+	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
+			|| strcmp(name,"system.posix_acl_access")==0)) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,
+				(uint64_t)size,flags,strerr(ENOTSUP));
+		return;
+	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
@@ -2095,6 +2104,14 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,ENODATA);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENODATA));
+		return;
+	}
+	// Filter ACLs when disabled
+	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
+			|| strcmp(name,"system.posix_acl_access")==0)) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,
+				(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2204,6 +2221,13 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
 		return;
 	}
+	// Filter ACLs when disabled
+	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
+			|| strcmp(name,"system.posix_acl_access")==0)) {
+		fuse_reply_err(req,ENOTSUP);
+		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ENOTSUP));
+		return;
+	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
@@ -2232,18 +2256,22 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 	}
 }
 
-void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in) {
+void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
+		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
+		int sugid_clear_mode_, bool acl_enabled_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
-	debug_mode = debug_mode_in;
-	keep_cache = keep_cache_in;
-	direntry_cache_timeout = direntry_cache_timeout_in;
-	entry_cache_timeout = entry_cache_timeout_in;
-	attr_cache_timeout = attr_cache_timeout_in;
-	mkdir_copy_sgid = mkdir_copy_sgid_in;
-	sugid_clear_mode = sugid_clear_mode_in;
+	debug_mode = debug_mode_;
+	keep_cache = keep_cache_;
+	direntry_cache_timeout = direntry_cache_timeout_;
+	entry_cache_timeout = entry_cache_timeout_;
+	attr_cache_timeout = attr_cache_timeout_;
+	mkdir_copy_sgid = mkdir_copy_sgid_;
+	sugid_clear_mode = sugid_clear_mode_;
+	acl_enabled = acl_enabled_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
-		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_in,(sugid_clear_mode_in<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_in]:"???");
+		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode_<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_]:"???");
+		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
 	}
 	mfs_statsptr_init();
 }

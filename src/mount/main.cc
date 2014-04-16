@@ -134,6 +134,7 @@ struct mfsopts {
 	int meta;
 	int debug;
 	int delayedinit;
+	int acl;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
 	int sugidclearmode;
@@ -193,6 +194,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfsdelayedinit", delayedinit, 1),
+	MFS_OPT("mfsacl", acl, 1),
 	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
@@ -244,6 +246,7 @@ static void usage(const char *progname) {
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
+"    -o mfsacl                   enable ACL support (disabled by default)\n"
 #ifdef __linux__
 "    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
 #else
@@ -612,7 +615,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		mfs_meta_init(mfsopts.debug,mfsopts.entrycacheto,mfsopts.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto,mfsopts.mkdircopysgid,mfsopts.sugidclearmode);
+		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto,mfsopts.mkdircopysgid,mfsopts.sugidclearmode,mfsopts.acl);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -852,6 +855,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.meta = 0;
 	mfsopts.debug = 0;
 	mfsopts.delayedinit = 0;
+	mfsopts.acl = 0;
 #ifdef __linux__
 	mfsopts.mkdircopysgid = 1;
 #else
