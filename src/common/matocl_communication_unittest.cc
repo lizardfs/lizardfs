@@ -9,7 +9,7 @@ TEST(MatoclCommunicationTests, IoLimitsConfig) {
 	std::vector<std::string> groups_tmp{"group 1", "group 20", "group 300"};
 
 	LIZARDFS_DEFINE_INOUT_PAIR(std::string             , subsystem, "cgroups_something", "");
-	LIZARDFS_DEFINE_INOUT_PAIR(std::vector<std::string>, groups   , groups_tmp         , {});
+	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(std::string      , groups) = groups_tmp;
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t                , frequency, 100                , 0);
 
 	std::vector<uint8_t> buffer;

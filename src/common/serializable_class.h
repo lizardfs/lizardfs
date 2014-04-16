@@ -39,39 +39,50 @@
 
 // Class variables declaration:
 #define DECLARE_VARIABLES(ClassName, ...) \
-	APPLY2(DECLARE, MAKE_SEMICOLON, __VA_ARGS__);
+		APPLY2(DECLARE, MAKE_SEMICOLON, __VA_ARGS__);
 
 // Tuple-like constructor:
 #define TUPLE_LIKE_CONSTRUCTOR(ClassName, ...) \
-	ClassName(APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) \
-		: APPLY1_B(INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) { \
-	};
+		ClassName(APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) \
+				: APPLY1_B(INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) { \
+		};
 
 // Methods used for serialization:
 #define SERIALIZE_METHODS(ClassName, ...) \
-	uint32_t serializedSize() const { \
-		return ::serializedSize( \
-			APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
-	} \
-	void serialize(uint8_t** destination) const { \
-		return ::serialize(destination, \
-			APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
-	} \
-	void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) { \
-		return ::deserialize(source, bytesLeftInBuffer, \
-			APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
-	}
+		uint32_t serializedSize() const { \
+			return ::serializedSize( \
+					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
+		} \
+		void serialize(uint8_t** destination) const { \
+			return ::serialize(destination, \
+					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
+		} \
+		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) { \
+			return ::deserialize(source, bytesLeftInBuffer, \
+					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
+		}
 
 // Set of macros used to generate a serializable class:
 
 // A header is a class name, potentially followed by a list of ancestors, like 'Der : public Base'
 #define SERIALIZABLE_CLASS_BEGIN(ClassHeader) \
-struct ClassHeader {
+		struct ClassHeader {
 
 // A name is a repeated class name used in SERIALIZABLE_CLASS_BEGIN parameter
 #define SERIALIZABLE_CLASS_BODY(ClassName, ...) \
-	TUPLE_LIKE_CONSTRUCTOR(ClassName, __VA_ARGS__) \
-	DECLARE_VARIABLES(ClassName, __VA_ARGS__) \
-	SERIALIZE_METHODS(ClassName, __VA_ARGS__)
+		TUPLE_LIKE_CONSTRUCTOR(ClassName, __VA_ARGS__) \
+		DECLARE_VARIABLES(ClassName, __VA_ARGS__) \
+		SERIALIZE_METHODS(ClassName, __VA_ARGS__)
 
-#define SERIALIZABLE_CLASS_END }
+#define SERIALIZABLE_CLASS_END \
+		}
+
+// One macro which creates a whole class
+#define LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ClassName, ...) \
+		SERIALIZABLE_CLASS_BEGIN(ClassName) \
+		SERIALIZABLE_CLASS_BODY(ClassName, __VA_ARGS__) \
+		SERIALIZABLE_CLASS_END
+
+// One macro which creates serialize, deserialize and serializedSize methods
+#define LIZARDFS_DEFINE_SERIALIZE_METHODS(ClassName, ...) \
+		SERIALIZE_METHODS(ClassName, __VA_ARGS__)

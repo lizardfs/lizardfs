@@ -3,14 +3,16 @@
 #include <memory>
 
 #include "common/extended_acl.h"
+#include "common/serializable_class.h"
 
 struct AccessControlList {
 public:
 	/*
 	 * Default constructor just to make life (eg. deserialization,
-	 * using std::map<foo, AccessControlList>) easier
+	 * using std::map<foo, AccessControlList>) easier.
+	 * Creates an uninitialized object which can be deserialized or assigned to.
 	 */
-	AccessControlList() : mode(0) {}
+	AccessControlList() {}
 
 	/*
 	 * Constructs a minimal ACL
@@ -29,4 +31,9 @@ public:
 	 * - mode = [user::rwx mask::rwx other::rwx] for extended ACL
 	 */
 	uint16_t mode;
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(
+			AccessControlList,
+			uint16_t, mode,
+			std::unique_ptr<ExtendedAcl>, extendedAcl);
 };

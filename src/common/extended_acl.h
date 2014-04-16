@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "common/massert.h"
+#include "common/serializable_class.h"
 
 class ExtendedAcl {
 public:
@@ -21,7 +22,13 @@ public:
 	 * Entry in the access control list -- uid/gid + access mask
 	 */
 	struct Entry {
-		Entry(uint16_t id, EntryType type, AccessMask mask)  : id(id), type(type), mask(mask) {}
+		Entry() {}
+		Entry(uint16_t id, EntryType type, AccessMask mask) : id(id), type(type), mask(mask) {}
+
+		uint32_t serializedSize() const;
+		void serialize(uint8_t** destination) const;
+		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer);
+
 		uint16_t id;
 		EntryType type;
 		AccessMask mask;
@@ -29,7 +36,8 @@ public:
 
 	/*
 	 * Default constructor just to make life (eg. deserialization,
-	 * using std::map<foo, ExtendedAcl>) easier
+	 * using std::map<foo, ExtendedAcl>) easier.
+	 * Creates an uninitialized object which can be deserialized or assigned to.
 	 */
 	ExtendedAcl() : owningGroupMask_(0) {}
 
@@ -70,6 +78,10 @@ public:
 	static bool isAccessMaskValid(AccessMask mask) {
 		return mask <= 7;
 	}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(ExtendedAcl,
+			AccessMask, owningGroupMask_,
+			std::vector<Entry>, list_);
 
 private:
 	AccessMask owningGroupMask_;
