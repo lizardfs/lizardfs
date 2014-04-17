@@ -101,6 +101,11 @@
 #define CHIDS_YES 1
 #define CHIDS_AUTO 2
 
+enum class AclInheritance {
+	kInheritAcl,
+	kDontInheritAcl,
+};
+
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
@@ -187,6 +192,7 @@ static uint32_t QuotaTimeLimit;
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
+	std::unique_ptr<AccessControlList> defaultAcl;
 	uint32_t id;
 	uint32_t ctime,mtime,atime;
 	uint8_t type;
@@ -1644,7 +1650,9 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 #endif
 }
 
-static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nleng,const uint8_t *name,uint8_t type,uint16_t mode,uint32_t uid,uint32_t gid,uint8_t copysgid) {
+static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng,
+		const uint8_t *name, uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid,
+		uint32_t gid, uint8_t copysgid, AclInheritance inheritacl) {
 	fsnode *p;
 #ifndef METARESTORE
 	statsrecord *sr;
@@ -1674,6 +1682,20 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 		p->mode = (mode&07777) | (node->mode&0xF000);
 	} else {
 		p->mode = (mode&07777) | (node->mode&(0xF000&(~(EATTR_NOECACHE<<12))));
+	}
+	// If desired, node inherits permissions from parent's default ACL
+	if (inheritacl == AclInheritance::kInheritAcl && node->defaultAcl) {
+		if (p->type == TYPE_DIRECTORY) {
+			p->defaultAcl.reset(new AccessControlList(*node->defaultAcl));
+		}
+		// Join ACL's access mask without cleaning sticky bits etc.
+		p->mode &= ~0777 | (node->defaultAcl->mode);
+		if (node->defaultAcl->extendedAcl) {
+			p->extendedAcl.reset(new ExtendedAcl(*node->defaultAcl->extendedAcl));
+		}
+	} else {
+		// Apply umask
+		p->mode &= ~(umask&0777); // umask must be applied manually
 	}
 	p->uid = uid;
 	if ((node->mode&02000)==02000) {	// set gid flag is set in the parent directory ?
@@ -2434,7 +2456,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 				}
 			}
 			if (is_new==1) {
-				n = fsnodes_create_node(ts,p,partleng,path,TYPE_DIRECTORY,0755,0,0,0);
+				n = fsnodes_create_node(ts,p,partleng,path,TYPE_DIRECTORY,0755,0,0,0,0,AclInheritance::kDontInheritAcl);
 			}
 			p = n;
 		}
@@ -2754,7 +2776,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 				statsrecord psr,nsr;
 #endif
 				fsnodes_unlink(ts,e);
-				dstnode = fsnodes_create_node(ts,parentnode,nleng,name,TYPE_FILE,srcnode->mode,srcnode->uid,srcnode->gid,0);
+				dstnode = fsnodes_create_node(ts,parentnode,nleng,name,TYPE_FILE,srcnode->mode,0,srcnode->uid,srcnode->gid,0,AclInheritance::kDontInheritAcl);
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&psr);
 #endif
@@ -2832,7 +2854,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #ifndef METARESTORE
 			statsrecord psr,nsr;
 #endif
-			dstnode = fsnodes_create_node(ts,parentnode,nleng,name,srcnode->type,srcnode->mode,srcnode->uid,srcnode->gid,0);
+			dstnode = fsnodes_create_node(ts,parentnode,nleng,name,srcnode->type,srcnode->mode,0,srcnode->uid,srcnode->gid,0,AclInheritance::kDontInheritAcl);
 #ifndef METARESTORE
 			fsnodes_get_stats(dstnode,&psr);
 #endif
@@ -2926,29 +2948,44 @@ static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,
 #ifndef METARESTORE
 static uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts) {
 	if (type == AclType::kDefault) {
-		return ERROR_ENOTSUP;
+		if (p->type != TYPE_DIRECTORY) {
+			return ERROR_ENOTSUP;
+		}
+		p->defaultAcl.reset();
+	} else {
+		p->extendedAcl.reset();
 	}
-	p->extendedAcl.reset();
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
 
 static uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList& acl) {
-	if (type == AclType::kDefault || !p->extendedAcl) {
-		return ERROR_ENOATTR;
+	if (type == AclType::kDefault) {
+		if (p->type != TYPE_DIRECTORY || !p->defaultAcl) {
+			return ERROR_ENOATTR;
+		}
+		acl = *(p->defaultAcl);
+	} else {
+		if (!p->extendedAcl) {
+			return ERROR_ENOATTR;
+		}
+		acl.mode = (p->mode & 0777);
+		acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
 	}
-	acl.mode = (p->mode & 0777);
-	acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
 	return STATUS_OK;
 }
 
 static uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, uint32_t ts) {
 	if (type == AclType::kDefault) {
-		return ERROR_ENOTSUP;
+		if (p->type != TYPE_DIRECTORY) {
+			return ERROR_ENOTSUP;
+		}
+		p->defaultAcl.reset(new AccessControlList(std::move(acl)));
+	} else {
+		p->mode = (p->mode & ~0777) | (acl.mode & 0777);
+		p->extendedAcl = std::move(acl.extendedAcl);
 	}
-	p->mode = (p->mode & ~0777) | (acl.mode & 0777);
-	p->extendedAcl = std::move(acl.extendedAcl);
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
@@ -3976,9 +4013,9 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 #ifndef METARESTORE
-	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_SYMLINK,0777,uid,gid,0);
+	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_SYMLINK,0777,0,uid,gid,0,AclInheritance::kDontInheritAcl);
 #else
-	p = fsnodes_create_node(ts,wd,nleng,name,TYPE_SYMLINK,0777,uid,gid,0);
+	p = fsnodes_create_node(ts,wd,nleng,name,TYPE_SYMLINK,0777,0,uid,gid,0,AclInheritance::kDontInheritAcl);
 #endif
 	memcpy(newpath,path,pleng);
 	p->data.sdata.path = newpath;
@@ -4004,7 +4041,10 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 }
 
 #ifndef METARESTORE
-uint8_t fs_mknod(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint8_t type,uint16_t mode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint32_t rdev,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
+		const uint8_t *name, uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid,
+		uint32_t gid, uint32_t auid, uint32_t agid, uint32_t rdev,
+		uint32_t *inode, uint8_t attr[35]) {
 	fsnode *wd,*p,*rn;
 	*inode = 0;
 	memset(attr,0,35);
@@ -4052,19 +4092,21 @@ uint8_t fs_mknod(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 	if (fsnodes_test_quota(wd)) {
 		return ERROR_QUOTA;
 	}
-	p = fsnodes_create_node(main_time(),wd,nleng,name,type,mode,uid,gid,0);
+	p = fsnodes_create_node(main_time(),wd,nleng,name,type,mode,umask,uid,gid,0,AclInheritance::kInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
 	}
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),type,mode,uid,gid,rdev,p->id);
+	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),type,p->mode & 07777,uid,gid,rdev,p->id);
 	stats_mknod++;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
 
-uint8_t fs_mkdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint16_t mode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t copysgid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
+		const uint8_t *name, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
+		uint32_t auid, uint32_t agid, uint8_t copysgid, uint32_t *inode, uint8_t attr[35]) {
 	fsnode *wd,*p,*rn;
 	*inode = 0;
 	memset(attr,0,35);
@@ -4109,10 +4151,10 @@ uint8_t fs_mkdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 	if (fsnodes_test_quota(wd)) {
 		return ERROR_QUOTA;
 	}
-	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,uid,gid,copysgid);
+	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,mode,uid,gid,0,p->id);
+	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,p->mode & 07777,uid,gid,0,p->id);
 	stats_mkdir++;
 	return STATUS_OK;
 }
@@ -4135,7 +4177,7 @@ uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name
 	if (fsnodes_test_quota(wd)) {
 		return ERROR_QUOTA;
 	}
-	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,uid,gid,0);
+	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,0,uid,gid,0,AclInheritance::kDontInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
 		fsnodes_update_checksum(p);

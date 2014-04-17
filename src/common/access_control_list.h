@@ -22,6 +22,28 @@ public:
 	 */
 	explicit AccessControlList(uint16_t mode) : mode(mode) {}
 
+	AccessControlList(const AccessControlList& acl) {
+		*this = acl;
+	}
+
+	/*
+	 * Move constructor restoration
+	 */
+	AccessControlList(AccessControlList&&) = default;
+
+	AccessControlList& operator=(const AccessControlList& acl) {
+		mode = acl.mode;
+		if (acl.extendedAcl) {
+			extendedAcl.reset(new ExtendedAcl(*acl.extendedAcl));
+		}
+		return *this;
+	}
+
+	/*
+	 * Move assignment operator restoration
+	 */
+	AccessControlList& operator=(AccessControlList&&) = default;
+
 	/*
 	 * ACL <-> human-readable-string conversions
 	 *

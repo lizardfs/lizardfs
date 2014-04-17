@@ -2080,7 +2080,10 @@ public:
 		AccessControlList acl;
 		try {
 			PosixAclXattr posix = aclConverter::extractPosixObject((const uint8_t*)value, size);
-			// This division of conversion process will be useful in future
+			if (posix.entries.empty()) {
+				// Is empty ACL set? It means to remove it!
+				return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+			}
 			acl = aclConverter::posixToAclObject(posix);
 		} catch (Exception&) {
 			return ERROR_EINVAL;

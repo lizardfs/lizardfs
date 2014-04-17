@@ -78,35 +78,38 @@ done <<'END'
 	chmod 444 copy2                    # Test if chmod properly influences minimal ACL now
 	chmod 750 copy2
 
-	# THE REST OF THIS TEST DISABLED UNTIL DEFAULT ACLs ARE IMPLEMENTED
-	# mkdir dir                          # Test directory's ACL
-	# chmod a+x dir                      # Test if chmod properly influences dir's minimal ACL
-	# setfacl -m group:adm:rwx dir
-	# setfacl -d -m group:adm:rw- dir    # Set some default: entries
-	# setfacl -d -m group:games:--- dir
-	# chmod 770 dir                      # Test if chmod properly influences dir's extended ACL
-	# touch dir/file1                    # Create a file in directory with default: entries
-	# setfacl -b dir/file1
-	# ( umask 117 ; touch dir/file2 )    # Test creating files with different create modes
-	# ( umask 077 ; touch dir/file3 )
+	mkdir dir                          # Test directory's ACL
+	chmod a+x dir                      # Test if chmod properly influences dir's minimal ACL
+	setfacl -m group:adm:rwx dir
+	setfacl -d -m group:adm:rw- dir    # Set some default: entries
+	setfacl -d -m group:games:--- dir
+	chmod 770 dir                      # Test if chmod properly influences dir's extended ACL
+	touch dir/file1                    # Create a file in directory with default: entries
+	setfacl -b dir/file1
+	( umask 117 ; touch dir/file2 )    # Test creating files with different create modes
+	( umask 077 ; touch dir/file3 )
+	ln file dir/link_file              # Test if links get proper permissions
+	ln dir/file1 link_file1
+	ln -s file symlink_file
+	ln -s file1 dir/symlink_file1
 
-	# mkdir dir/subdir                   # Create a directory in directory with default: entries
-	# mkdir -m 700 dir/subdir2           # Test inheriting default permissions with some masks
-	# mkdir -m 755 dir/subdir3
-	# mkdir -m 277 dir/subdir2/subsubdir1
-	# ( umask 000 ; mkdir dir/subdir4 )
-	# ( umask 444 ; mkdir dir/subdir5 )
-	# touch dir/subdir/file4
-	# ( umask 277 ; touch dir/subdir/file5 )
-	# touch dir/subdir/file6a
-	# setfacl -k dir/subdir              # Remove default: ACL entries
-	# touch dir/subdir/file6b
+	mkdir dir/subdir                   # Create a directory in directory with default: entries
+	mkdir -m 700 dir/subdir2           # Test inheriting default permissions with some masks
+	mkdir -m 755 dir/subdir3
+	mkdir -m 772 dir/subdir2/subsubdir1
+	( umask 000 ; mkdir dir/subdir4 )
+	( umask 444 ; mkdir dir/subdir5 )
+	touch dir/subdir/file4
+	( umask 277 ; touch dir/subdir/file5 )
+	touch dir/subdir/file6a
+	setfacl -k dir/subdir              # Remove default: ACL entries
+	touch dir/subdir/file6b
 
-	# cp file dir/file7                  # Test copying to directory with default: ACL
-	# cp -a file dir/file8
-	# cp dir/file8 dir/file9
-	# cp -a dir/file8 dir/file10
-	# cp -a file dir/subdir              # Test copying to directory without default: ACL
-	# cp -ar dir dir2                    # Test copying a directory
-	# cp -r dir dir2/dir3
+	cp file dir/file7                  # Test copying to directory with default: ACL
+	cp -a file dir/file8
+	cp dir/file8 dir/file9
+	cp -a dir/file8 dir/file10
+	cp -a file dir/subdir              # Test copying to directory without default: ACL
+	cp -ar dir dir2                    # Test copying a directory
+	cp -r dir dir2/dir3
 END

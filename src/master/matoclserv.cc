@@ -2051,13 +2051,12 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 	uint32_t auid = uid;
 	uint32_t agid = gid;
 	matoclserv_ugid_remap(eptr, &uid, &gid);
-	mode &= ~umask;
 
 	uint32_t newinode;
 	uint8_t attr[35];
 	uint8_t status = fs_mknod(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
-			type, mode, uid, gid, auid, agid, rdev, &newinode, attr);
+			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
 
 	std::vector<uint8_t> reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKNOD) {
@@ -2102,13 +2101,12 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 	uint32_t auid = uid;
 	uint32_t agid = gid;
 	matoclserv_ugid_remap(eptr, &uid, &gid);
-	mode &= ~umask;
 
 	uint32_t newinode;
 	uint8_t attr[35];
 	uint8_t status = fs_mkdir(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
-			mode, uid, gid, auid, agid, copysgid, &newinode, attr);
+			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
 
 	std::vector<uint8_t> reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKDIR) {
