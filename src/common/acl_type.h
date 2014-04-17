@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string>
+
+#include "common/serialization.h"
+
 enum class AclType : uint8_t { kAccess, kDefault };
 
 // TODO(msulikowski) think of some macros which would automatically generate
