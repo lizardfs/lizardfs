@@ -23,14 +23,14 @@ public:
 	 */
 	struct Entry {
 		Entry() {}
-		Entry(uint16_t id, EntryType type, AccessMask mask) : id(id), type(type), mask(mask) {}
+		Entry(uint32_t id, EntryType type, AccessMask mask) : id(id), type(type), mask(mask) {}
 
 		bool operator==(const Entry& other) const;
 		uint32_t serializedSize() const;
 		void serialize(uint8_t** destination) const;
 		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer);
 
-		uint16_t id;
+		uint32_t id;
 		EntryType type;
 		AccessMask mask;
 	};
@@ -55,19 +55,19 @@ public:
 		return list_;
 	}
 
-	void addNamedGroup(uint16_t gid, AccessMask mask) {
+	void addNamedGroup(uint32_t gid, AccessMask mask) {
 		sassert(isAccessMaskValid(mask));
 		sassert(!hasEntryFor(EntryType::kNamedGroup, gid));
 		list_.push_back(Entry(gid, EntryType::kNamedGroup, mask));
 	}
 
-	void addNamedUser(uint16_t uid, AccessMask mask) {
+	void addNamedUser(uint32_t uid, AccessMask mask) {
 		sassert(isAccessMaskValid(mask));
 		sassert(!hasEntryFor(EntryType::kNamedUser, uid));
 		list_.push_back(Entry(uid, EntryType::kNamedUser, mask));
 	}
 
-	bool hasEntryFor(EntryType type, uint16_t id) const {
+	bool hasEntryFor(EntryType type, uint32_t id) const {
 		for (const auto& entry : list_) {
 			if (entry.type == type && entry.id == id) {
 				return true;
