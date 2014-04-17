@@ -117,10 +117,10 @@ typedef struct _sessionidrec {
 	struct _sessionidrec *next;
 } sessionidrec;
 
-struct _fsnode;
+class fsnode;
 
 typedef struct _fsedge {
-	struct _fsnode *child,*parent;
+	fsnode *child,*parent;
 	struct _fsedge *nextchild,*nextparent;
 	struct _fsedge **prevchild,**prevparent;
 #ifdef EDGEHASH
@@ -152,7 +152,7 @@ typedef struct _quotanode {
 	uint64_t slength,hlength;
 	uint64_t ssize,hsize;
 	uint64_t srealsize,hrealsize;
-	struct _fsnode *node;
+	fsnode *node;
 	struct _quotanode *next,**prev;
 } quotanode;
 
@@ -184,7 +184,9 @@ static xattr_data_entry **xattr_data_hash;
 static uint32_t QuotaTimeLimit;
 #endif
 
-typedef struct _fsnode {
+class fsnode {
+public:
+	std::unique_ptr<ExtendedAcl> extendedAcl;
 	uint32_t id;
 	uint32_t ctime,mtime,atime;
 	uint8_t type;
@@ -241,9 +243,9 @@ typedef struct _fsnode {
 */
 	} data;
 	fsedge *parents;
-	struct _fsnode *next;
+	fsnode *next;
 	uint64_t checksum;
-} fsnode;
+};
 
 typedef struct _freenode {
 	uint32_t id;
@@ -1145,7 +1147,6 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 	return 0;
 }
 
-
 // quotas
 
 static inline quotanode* fsnodes_new_quotanode(fsnode *p) {
@@ -1649,7 +1650,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts,fsnode* node,uint16_t nlen
 	statsrecord *sr;
 #endif
 	uint32_t nodepos;
-	p = (fsnode*) malloc(sizeof(fsnode));
+	p = new fsnode();
 	passert(p);
 	nodes++;
 	if (type==TYPE_DIRECTORY) {
@@ -2217,7 +2218,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 #ifndef METARESTORE
 	dcm_modify(toremove->id,0);
 #endif
-	free(toremove);
+	delete toremove;
 }
 
 
@@ -2922,6 +2923,40 @@ static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,
 	return STATUS_OK;
 }
 
+#ifndef METARESTORE
+static uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts) {
+	if (type == AclType::kDefault) {
+		return ERROR_ENOTSUP;
+	}
+	p->extendedAcl.reset();
+	p->ctime = ts;
+	fsnodes_update_checksum(p);
+	return STATUS_OK;
+}
+
+static uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList& acl) {
+	if (type == AclType::kDefault) {
+		return ERROR_ENOATTR;
+	}
+	acl.mode = (p->mode & 0777);
+	if (p->extendedAcl) {
+		acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
+	}
+	return STATUS_OK;
+}
+
+static uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, uint32_t ts) {
+	if (type == AclType::kDefault) {
+		return ERROR_ENOTSUP;
+	}
+	p->mode = (p->mode & 07000) | (acl.mode & 0777);
+	p->extendedAcl = std::move(acl.extendedAcl);
+	p->ctime = ts;
+	fsnodes_update_checksum(p);
+	return STATUS_OK;
+}
+#endif
+
 static inline int fsnodes_namecheck(uint32_t nleng,const uint8_t *name) {
 	uint32_t i;
 	if (nleng==0 || nleng>MAXFNAMELENG) {
@@ -2946,7 +2981,7 @@ static inline int fsnodes_namecheck(uint32_t nleng,const uint8_t *name) {
 #ifndef METARESTORE
 static inline int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,uint8_t modemask,uint8_t sesflags) {
 	uint8_t nodemode;
-	if (sesflags & SESFLAG_NOMASTERPERMCHECK || uid==0) {
+	if ((sesflags & SESFLAG_NOMASTERPERMCHECK) || uid==0) {
 		return 1;
 	}
 	if (uid==node->uid || (node->mode&(EATTR_NOOWNER<<12))) {
@@ -2974,7 +3009,61 @@ static inline int fsnodes_sticky_access(fsnode *parent,fsnode *node,uint32_t uid
 	return 0;
 }
 
+// Arguments for fsnodes_get_node_for_operation
+namespace {
+	enum class ExpectedInodeType { kOnlyLinked, kAny };
+	enum class OperationType { kReadOnly, kChangesMetadata };
+}
+
+// Treating rootinode as the root of the hierarchy, converts (rootinode, inode) to (inode, fsnode*)
+// ie:
+// * if inode == rootinode, then returns (rootinode, root node)
+// * if inode != rootinode, then returns (inode, some node)
+// Checks for permissions needed to perform the operation (defined by modemask and operationType)
+// Can return a reserved node or a node from trash iff inodeType == ExpectedInodeType::kAny
+static uint8_t fsnodes_get_node_for_operation(uint32_t rootinode, uint8_t sesflags,
+		uint32_t uid, uint32_t gid, uint8_t modemask,
+		OperationType operationType, ExpectedInodeType inodeType,
+		uint32_t *inode, fsnode **ret) {
+	sassert(!(operationType == OperationType::kReadOnly && (modemask & MODE_MASK_W)));
+	if ((operationType != OperationType::kReadOnly) && (sesflags & SESFLAG_READONLY)) {
+		return ERROR_EROFS;
+	}
+	fsnode *p;
+	if (rootinode == MFS_ROOT_ID || (rootinode == 0 && inodeType == ExpectedInodeType::kAny)) {
+		p = fsnodes_id_to_node(*inode);
+		if (!p) {
+			return ERROR_ENOENT;
+		}
+		if (rootinode == 0 && p->type != TYPE_TRASH && p->type != TYPE_RESERVED) {
+			return ERROR_EPERM;
+		}
+	} else {
+		fsnode *rn = fsnodes_id_to_node(rootinode);
+		if (!rn || rn->type != TYPE_DIRECTORY) {
+			return ERROR_ENOENT;
+		}
+		if (*inode == MFS_ROOT_ID) {
+			*inode = rootinode;
+			p = rn;
+		} else {
+			p = fsnodes_id_to_node(*inode);
+			if (!p) {
+				return ERROR_ENOENT;
+			}
+			if (!fsnodes_isancestor(rn, p)) {
+				return ERROR_EPERM;
+			}
+		}
+	}
+	if (!fsnodes_access(p, uid, gid, modemask, sesflags)) {
+		return ERROR_EACCES;
+	}
+	*ret = p;
+	return STATUS_OK;
+}
 #endif
+
 /* master <-> fuse operations */
 
 #ifdef METARESTORE
@@ -5751,6 +5840,48 @@ uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *at
 
 #endif
 
+#ifndef METARESTORE
+uint8_t fs_deleteacl(uint32_t rootinode, uint8_t sesflags,
+		uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
+	fsnode *p;
+	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, uid, gid,
+			MODE_MASK_EMPTY, OperationType::kChangesMetadata, ExpectedInodeType::kOnlyLinked,
+			&inode, &p);
+	if (status != STATUS_OK) {
+		return status;
+	}
+	status = fsnodes_deleteacl(p, type, main_time());
+	// TODO(msulikowski) add entry to the changelog
+	return status;
+
+}
+
+uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags,
+		uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl) {
+	fsnode *p;
+	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, uid, gid,
+			MODE_MASK_EMPTY, OperationType::kReadOnly,
+			ExpectedInodeType::kOnlyLinked, &inode, &p);
+	if (status != STATUS_OK) {
+		return status;
+	}
+	return fsnodes_getacl(p, type, acl);
+}
+
+uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags,
+		uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList acl) {
+	fsnode *p;
+	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, uid, gid,
+			MODE_MASK_EMPTY, OperationType::kChangesMetadata, ExpectedInodeType::kOnlyLinked,
+			&inode, &p);
+	if (status != STATUS_OK) {
+		return status;
+	}
+	status = fsnodes_setacl(p, type, std::move(acl), main_time());
+	// TODO(msulikowski) add entry to the changelog
+	return status;
+}
+#endif
 
 #ifndef METARESTORE
 uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t delflag,uint8_t *flags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize,uint32_t *curinodes,uint64_t *curlength,uint64_t *cursize,uint64_t *currealsize) {
@@ -7300,7 +7431,7 @@ int fs_loadnode(FILE *fd) {
 	if (type==0) {	// last node
 		return 1;
 	}
-	p = (fsnode*) malloc(sizeof(fsnode));
+	p = new fsnode();
 	passert(p);
 	p->type = type;
 	switch (type) {
@@ -7315,7 +7446,7 @@ int fs_loadnode(FILE *fd) {
 			}
 			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
-			free(p);
+			delete p;
 			return -1;
 		}
 		break;
@@ -7330,7 +7461,7 @@ int fs_loadnode(FILE *fd) {
 			}
 			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
-			free(p);
+			delete p;
 			return -1;
 		}
 		break;
@@ -7345,7 +7476,7 @@ int fs_loadnode(FILE *fd) {
 			}
 			errno = err;
 			mfs_errlog(LOG_ERR,"loading node: read error");
-			free(p);
+			delete p;
 			return -1;
 		}
 		break;
@@ -7355,7 +7486,7 @@ int fs_loadnode(FILE *fd) {
 			nl=0;
 		}
 		mfs_arg_syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
-		free(p);
+		delete p;
 		return -1;
 	}
 	ptr = unodebuff;
@@ -7380,6 +7511,7 @@ int fs_loadnode(FILE *fd) {
 		p->data.ddata.children = NULL;
 		p->data.ddata.nlink = 2;
 		p->data.ddata.elements = 0;
+		break;
 	case TYPE_SOCKET:
 	case TYPE_FIFO:
 /*
@@ -7412,7 +7544,7 @@ int fs_loadnode(FILE *fd) {
 				errno = err;
 				mfs_errlog(LOG_ERR,"loading node: read error");
 				free(p->data.sdata.path);
-				free(p);
+				delete p;
 				return -1;
 			}
 		} else {
@@ -7451,7 +7583,7 @@ int fs_loadnode(FILE *fd) {
 				if (p->data.fdata.chunktab) {
 					free(p->data.fdata.chunktab);
 				}
-				free(p);
+				delete p;
 				return -1;
 			}
 			for (i=0 ; i<65536 ; i++) {
@@ -7471,7 +7603,7 @@ int fs_loadnode(FILE *fd) {
 			if (p->data.fdata.chunktab) {
 				free(p->data.fdata.chunktab);
 			}
-			free(p);
+			delete p;
 			return -1;
 		}
 		for (i=0 ; i<ch ; i++) {
@@ -8166,7 +8298,7 @@ void fs_new(void) {
 	fsnodes_init_freebitmask();
 	freelist = NULL;
 	freetail = &(freelist);
-	root = (fsnode*) malloc(sizeof(fsnode));
+	root = new fsnode();
 	passert(root);
 	root->id = MFS_ROOT_ID;
 	root->type = TYPE_DIRECTORY;

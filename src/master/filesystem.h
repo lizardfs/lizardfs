@@ -20,6 +20,8 @@
 
 #include <inttypes.h>
 
+#include "common/access_control_list.h"
+#include "common/acl_type.h"
 #include "master/checksum.h"
 
 #ifdef METARESTORE
@@ -129,6 +131,13 @@ uint8_t fs_listxattr_leng(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uin
 void fs_listxattr_data(void *xanode,uint8_t *xabuff);
 uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint8_t mode);
 uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t *avleng,uint8_t **attrvalue);
+
+uint8_t fs_deleteacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
+		uint32_t uid, uint32_t gid, AclType type);
+uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
+		uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl);
+uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
+		uint32_t uid, uint32_t gid, AclType type, AccessControlList acl);
 
 // RESERVED
 uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);

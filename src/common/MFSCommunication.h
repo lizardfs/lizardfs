@@ -177,6 +177,7 @@
 #define MODE_MASK_R            4
 #define MODE_MASK_W            2
 #define MODE_MASK_X            1
+#define MODE_MASK_EMPTY        0 // Just to avoid '0' argument when passing an empty mask
 
 // flags: "setmask" field in "CLTOMA_FUSE_SETATTR"
 // SET_GOAL_FLAG,SET_DELETE_FLAG are no longer supported

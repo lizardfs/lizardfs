@@ -3355,9 +3355,12 @@ void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint3
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	cltoma::fuseDeleteAcl::deserialize(data, length, messageId, inode, uid, gid, type);
+	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	std::vector<uint8_t> reply;
-	matocl::fuseDeleteAcl::serialize(reply, messageId, ERROR_ENOTSUP);
+	uint8_t status = fs_deleteacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, uid, gid, type);
+	matocl::fuseDeleteAcl::serialize(reply, messageId, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
@@ -3365,9 +3368,17 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
+	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	std::vector<uint8_t> reply;
-	matocl::fuseGetAcl::serialize(reply, messageId, ERROR_ENOATTR);
+	AccessControlList acl;
+	uint8_t status = fs_getacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, uid, gid, type, acl);
+	if (status == STATUS_OK) {
+		matocl::fuseGetAcl::serialize(reply, messageId, acl);
+	} else {
+		matocl::fuseGetAcl::serialize(reply, messageId, status);
+	}
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
@@ -3376,9 +3387,12 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	AclType type;
 	AccessControlList acl;
 	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
+	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	std::vector<uint8_t> reply;
-	matocl::fuseSetAcl::serialize(reply, messageId, ERROR_ENOTSUP);
+	uint8_t status = fs_setacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, uid, gid, type, std::move(acl));
+	matocl::fuseSetAcl::serialize(reply, messageId, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 

@@ -30,12 +30,12 @@ TEST(ExtendedAclTests, AddNamedEntries) {
 	// Verify the list
 	for (const auto& entry : acl.list()) {
 		if (entry.type == ExtendedAcl::EntryType::kNamedGroup) {
-			EXPECT_EQ(123, entry.id);
-			EXPECT_EQ(5, entry.mask);
+			EXPECT_EQ(123U, entry.id);
+			EXPECT_EQ(5U, entry.mask);
 		} else {
 			EXPECT_EQ(ExtendedAcl::EntryType::kNamedUser, entry.type);
-			EXPECT_EQ(123, entry.id);
-			EXPECT_EQ(7, entry.mask);
+			EXPECT_EQ(123U, entry.id);
+			EXPECT_EQ(7U, entry.mask);
 		}
 	}
 }
