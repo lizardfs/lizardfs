@@ -3351,6 +3351,37 @@ void matoclserv_fuse_getreserved(matoclserventry *eptr,const uint8_t *data,uint3
 	}
 }
 
+void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId, inode, uid, gid;
+	AclType type;
+	cltoma::fuseDeleteAcl::deserialize(data, length, messageId, inode, uid, gid, type);
+
+	std::vector<uint8_t> reply;
+	matocl::fuseDeleteAcl::serialize(reply, messageId, ERROR_ENOTSUP);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId, inode, uid, gid;
+	AclType type;
+	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
+
+	std::vector<uint8_t> reply;
+	matocl::fuseGetAcl::serialize(reply, messageId, ERROR_ENOATTR);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId, inode, uid, gid;
+	AclType type;
+	AccessControlList acl;
+	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
+
+	std::vector<uint8_t> reply;
+	matocl::fuseSetAcl::serialize(reply, messageId, ERROR_ENOTSUP);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
 void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	std::string group;
 	bool wantMore;
@@ -3739,6 +3770,15 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_SETEATTR:
 					matoclserv_fuse_seteattr(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_DELETE_ACL:
+					matoclserv_fuse_deleteacl(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_GET_ACL:
+					matoclserv_fuse_getacl(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_SET_ACL:
+					matoclserv_fuse_setacl(eptr, data, length);
 					break;
 					/* do not use in version before 1.7.x */
 				case CLTOMA_FUSE_QUOTACONTROL:
