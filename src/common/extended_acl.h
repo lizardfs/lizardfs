@@ -79,6 +79,14 @@ public:
 		return false;
 	}
 
+	bool hasNamedGroup(uint32_t id) const {
+		return hasEntryFor(EntryType::kNamedGroup, id);
+	}
+
+	bool hasNamedUser(uint32_t id) const {
+		return hasEntryFor(EntryType::kNamedUser, id);
+	}
+
 	static bool isAccessMaskValid(AccessMask mask) {
 		return mask <= 7;
 	}
