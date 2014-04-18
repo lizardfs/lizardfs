@@ -177,6 +177,12 @@
 	(clptr)--; \
 }
 
+#define GETCHAR(data,clptr) { \
+	if (*(clptr)) { \
+		(data) = *((clptr)++); \
+	} \
+}
+
 #define GETU32(data,clptr) (data)=strtoul(clptr,&clptr,10)
 #define GETU64(data,clptr) (data)=strtoull(clptr,&clptr,10)
 
@@ -513,6 +519,36 @@ int do_setxattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_setxattr(ts,inode,strlen((char*)name),name,valueleng,value,mode);
 }
 
+int do_deleteacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
+	uint32_t inode;
+	char aclType;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(aclType, ptr);
+	EAT(ptr, filename, lv, ')');
+
+	return fs_deleteacl(ts, inode, aclType);
+}
+
+int do_setacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
+	uint32_t inode;
+	char aclType;
+	static uint8_t *aclString = NULL;
+	static uint32_t aclSize = 0;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(aclType, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETPATH(aclString, aclSize, ptr, filename, lv, ')');
+	EAT(ptr, filename, lv, ')');
+
+	return fs_setacl(ts, inode, aclType, reinterpret_cast<const char*>(aclString));
+}
+
 int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,parent,canoverwrite;
 	uint8_t name[256];
@@ -618,7 +654,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 	int status;
 	const char* errormsgs[] = {ERROR_STRINGS};
 
-	status = ERROR_MISMATCH;
+	status = ERROR_MAX;
 	ptr = line;
 
 	EAT(ptr,filename,lv,':');
@@ -637,8 +673,6 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_acquire(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"AQUIRE",6)==0) {
 				status = do_acquire(filename,lv,ts,ptr+6);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'C':
@@ -646,8 +680,11 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_create(filename,lv,ts,ptr+6);
 			} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
 				status = do_session(filename,lv,ts,ptr+8);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+			}
+			break;
+		case 'D':
+			if (strncmp(ptr,"DELETEACL",9)==0) {
+				status = do_deleteacl(filename,lv,ts,ptr+9);
 			}
 			break;
 		case 'E':
@@ -655,22 +692,16 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_emptytrash(filename,lv,ts,ptr+10);
 			} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 				status = do_emptyreserved(filename,lv,ts,ptr+13);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'F':
 			if (strncmp(ptr,"FREEINODES",10)==0) {
 				status = do_freeinodes(filename,lv,ts,ptr+10);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'I':
 			if (strncmp(ptr,"INCVERSION",10)==0) {
 				status = do_incversion(filename,lv,ts,ptr+10);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'L':
@@ -678,22 +709,16 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_length(filename,lv,ts,ptr+6);
 			} else if (strncmp(ptr,"LINK",4)==0) {
 				status = do_link(filename,lv,ts,ptr+4);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'M':
 			if (strncmp(ptr,"MOVE",4)==0) {
 				status = do_move(filename,lv,ts,ptr+4);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'P':
 			if (strncmp(ptr,"PURGE",5)==0) {
 				status = do_purge(filename,lv,ts,ptr+5);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'Q':
@@ -706,12 +731,14 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_release(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"REPAIR",6)==0) {
 				status = do_repair(filename,lv,ts,ptr+6);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'S':
-			if (strncmp(ptr,"SETEATTR",8)==0) {
+			if (strncmp(ptr,"SESSION",7)==0) {
+				status = do_session(filename,lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETACL",6)==0) {
+				status = do_setacl(filename,lv,ts,ptr+6);
+			} else if (strncmp(ptr,"SETEATTR",8)==0) {
 				status = do_seteattr(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SETGOAL",7)==0) {
 				status = do_setgoal(filename,lv,ts,ptr+7);
@@ -725,17 +752,11 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_snapshot(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SYMLINK",7)==0) {
 				status = do_symlink(filename,lv,ts,ptr+7);
-			} else if (strncmp(ptr,"SESSION",7)==0) {
-				status = do_session(filename,lv,ts,ptr+7);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'T':
 			if (strncmp(ptr,"TRUNC",5)==0) {
 				status = do_trunc(filename,lv,ts,ptr+5);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'U':
@@ -745,22 +766,19 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_undel(filename,lv,ts,ptr+5);
 			} else if (strncmp(ptr,"UNLOCK",6)==0) {
 				status = do_unlock(filename,lv,ts,ptr+6);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		case 'W':
 			if (strncmp(ptr,"WRITE",5)==0) {
 				status = do_write(filename,lv,ts,ptr+5);
-			} else {
-				fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			}
 			break;
 		default:
-			fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
 			break;
 	}
-	if (status>STATUS_OK) {
+	if (status == ERROR_MAX) {
+		fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+	} else if (status != STATUS_OK) {
 		fprintf(stderr, "%s:%" PRIu64 ": error: %d (%s)\n",filename,lv,status,errormsgs[status]);
 	}
 	return status;

@@ -2945,7 +2945,6 @@ static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,
 	return STATUS_OK;
 }
 
-#ifndef METARESTORE
 static uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts) {
 	if (type == AclType::kDefault) {
 		if (p->type != TYPE_DIRECTORY) {
@@ -2960,6 +2959,7 @@ static uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts) {
 	return STATUS_OK;
 }
 
+#ifndef METARESTORE
 static uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList& acl) {
 	if (type == AclType::kDefault) {
 		if (p->type != TYPE_DIRECTORY || !p->defaultAcl) {
@@ -2975,6 +2975,7 @@ static uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList& acl) {
 	}
 	return STATUS_OK;
 }
+#endif
 
 static uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, uint32_t ts) {
 	if (type == AclType::kDefault) {
@@ -2990,7 +2991,6 @@ static uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, ui
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
-#endif
 
 static inline int fsnodes_namecheck(uint32_t nleng,const uint8_t *name) {
 	uint32_t i;
@@ -5883,6 +5883,7 @@ uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *at
 #ifndef METARESTORE
 uint8_t fs_deleteacl(uint32_t rootinode, uint8_t sesflags,
 		uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
+	uint32_t ts = main_time();
 	fsnode *p;
 	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, uid, gid,
 			MODE_MASK_EMPTY, OperationType::kChangesMetadata, ExpectedInodeType::kOnlyLinked,
@@ -5890,8 +5891,12 @@ uint8_t fs_deleteacl(uint32_t rootinode, uint8_t sesflags,
 	if (status != STATUS_OK) {
 		return status;
 	}
-	status = fsnodes_deleteacl(p, type, main_time());
-	// TODO(msulikowski) add entry to the changelog
+	status = fsnodes_deleteacl(p, type, ts);
+	if (status == STATUS_OK) {
+		changelog(metaversion++,
+				"%" PRIu32 "|DELETEACL(%" PRIu32 ",%c)",
+				ts, inode, (type == AclType::kAccess ? 'a' : 'd'));
+	}
 	return status;
 
 }
@@ -5910,6 +5915,7 @@ uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags,
 
 uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags,
 		uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList acl) {
+	uint32_t ts = main_time();
 	fsnode *p;
 	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, uid, gid,
 			MODE_MASK_EMPTY, OperationType::kChangesMetadata, ExpectedInodeType::kOnlyLinked,
@@ -5917,8 +5923,55 @@ uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags,
 	if (status != STATUS_OK) {
 		return status;
 	}
-	status = fsnodes_setacl(p, type, std::move(acl), main_time());
-	// TODO(msulikowski) add entry to the changelog
+	std::string aclString = acl.toString();
+	status = fsnodes_setacl(p, type, std::move(acl), ts);
+	if (status == STATUS_OK) {
+		changelog(metaversion++,
+				"%" PRIu32 "|SETACL(%" PRIu32 ",%c,%s)",
+				ts, inode, (type == AclType::kAccess ? 'a' : 'd'), aclString.c_str());
+	}
+	return status;
+}
+#else
+uint8_t fs_deleteacl(uint32_t ts, uint32_t inode, char aclType) {
+	fsnode *p = fsnodes_id_to_node(inode);
+	if (!p) {
+		return ERROR_ENOENT;
+	}
+
+	uint8_t status = ERROR_EINVAL;
+	if (aclType == 'd') {
+		status = fsnodes_deleteacl(p, AclType::kDefault, ts);
+	} else if (aclType == 'a') {
+		status = fsnodes_deleteacl(p, AclType::kAccess, ts);
+	}
+	if (status == STATUS_OK) {
+		metaversion++;
+	}
+	return status;
+}
+
+uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclString) {
+	AccessControlList acl;
+	try {
+		acl = AccessControlList::fromString(aclString);
+	} catch (Exception&) {
+		return ERROR_EINVAL;
+	}
+	fsnode *p = fsnodes_id_to_node(inode);
+	if (!p) {
+		return ERROR_ENOENT;
+	}
+
+	uint8_t status = ERROR_EINVAL;
+	if (aclType == 'd') {
+		status = fsnodes_setacl(p, AclType::kDefault, std::move(acl), ts);
+	} else if (aclType == 'a') {
+		status = fsnodes_setacl(p, AclType::kAccess, std::move(acl), ts);
+	}
+	if (status == STATUS_OK) {
+		metaversion++;
+	}
 	return status;
 }
 #endif
