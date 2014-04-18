@@ -3667,6 +3667,15 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_FUSE_SETEATTR:
 					matoclserv_fuse_seteattr(eptr,data,length);
 					break;
+				case LIZ_CLTOMA_FUSE_DELETE_ACL:
+					matoclserv_fuse_deleteacl(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_GET_ACL:
+					matoclserv_fuse_getacl(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_SET_ACL:
+					matoclserv_fuse_setacl(eptr, data, length);
+					break;
 					/* do not use in version before 1.7.x */
 				case CLTOMA_FUSE_GETXATTR:
 					matoclserv_fuse_getxattr(eptr,data,length);
@@ -3770,15 +3779,6 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_SETEATTR:
 					matoclserv_fuse_seteattr(eptr,data,length);
-					break;
-				case LIZ_CLTOMA_FUSE_DELETE_ACL:
-					matoclserv_fuse_deleteacl(eptr, data, length);
-					break;
-				case LIZ_CLTOMA_FUSE_GET_ACL:
-					matoclserv_fuse_getacl(eptr, data, length);
-					break;
-				case LIZ_CLTOMA_FUSE_SET_ACL:
-					matoclserv_fuse_setacl(eptr, data, length);
 					break;
 					/* do not use in version before 1.7.x */
 				case CLTOMA_FUSE_QUOTACONTROL:
