@@ -321,6 +321,7 @@ static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type ex
 					if (!filter || rec->receivedType == expected_type) {
 						return true;
 					} else {
+						lock.unlock();
 						setDisconnect(true);
 					}
 				}
