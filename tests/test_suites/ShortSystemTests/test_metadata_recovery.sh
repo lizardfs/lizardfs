@@ -53,6 +53,17 @@ attr -qs name2 -V value2 file
 attr -qs name3 -V value3 dir
 attr -r name1 file
 
+# set and remove some ACLs
+mkdir acldir
+setfacl -d -m group:fuse:rw- acldir
+setfacl -d -m user:lizardfstest:rwx acldir
+touch acldir/aclfile
+setfacl -m group::r-x acldir/aclfile
+setfacl -x group:fuse acldir/aclfile
+setfacl -m group:root:-wx acldir/aclfile
+setfacl -k acldir
+setfacl -d -m group:fuse:rwx acldir
+
 # gather and store some metadata
 print_metadata() {
 	ls -l .
@@ -65,6 +76,7 @@ print_metadata() {
 	attr -qg name2 file
 	attr -ql dir
 	attr -qg name3 dir
+	getfacl -R .
 }
 print_metadata >"$oldmeta"
 

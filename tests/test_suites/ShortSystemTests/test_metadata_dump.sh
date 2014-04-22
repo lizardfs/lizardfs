@@ -154,6 +154,17 @@ truncate -s 1000M sparse
 truncate -s 100 sparse
 truncate -s 0 sparse
 rm sparse
+setfacl -d -m group:fuse:rw- dir
+setfacl -d -m user:lizardfstest:rwx dir
+setfacl -m group:fuse:rw- dir/file1
+setfacl -m group:adm:rwx dir/file1
+touch dir/aclfile
+setfacl -m group::r-x dir/aclfile
+setfacl -x group:fuse dir/aclfile
+setfacl -k dir
+setfacl -b dir/aclfile
+setfacl -m group:fuse:rw- dir
+setfacl -m group:fuse:rw- dir/aclfile
 END
 
 # Special cases:
