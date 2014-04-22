@@ -1188,7 +1188,7 @@
 
 // 0x05FB
 #define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)
-/// msgid:32 inode:32 uid:32 gid:32 acltype:8 mask:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8 mode:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
 
 // 0x05FC
 #define LIZ_MATOCL_FUSE_SET_ACL (1000U + 532U)
@@ -1201,7 +1201,7 @@
 // 0x05FE
 #define LIZ_MATOCL_FUSE_GET_ACL (1000U + 534U)
 /// version==0 msgid:32 status:8
-/// version==1 msgid:32 mask:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+/// version==1 msgid:32 mode:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
 
 // 0x05FF
 #define LIZ_CLTOMA_FUSE_DELETE_ACL (1000U + 535U)
