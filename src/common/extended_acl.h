@@ -42,9 +42,12 @@ public:
 	 */
 	ExtendedAcl() : owningGroupMask_(0) {}
 
-
 	explicit ExtendedAcl(AccessMask owningGroupMask) : owningGroupMask_(owningGroupMask) {
 		sassert(isAccessMaskValid(owningGroupMask));
+	}
+
+	void setOwningGroupMask(AccessMask owningGroupMask) {
+		owningGroupMask_ = owningGroupMask;
 	}
 
 	AccessMask owningGroupMask() const {

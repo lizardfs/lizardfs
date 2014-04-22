@@ -40,6 +40,7 @@
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "common/posix_acl_xattr.h"
 #include "common/strerr.h"
 #include "mount/dirattrcache.h"
 #include "mount/g_io_limiters.h"
@@ -2032,8 +2033,8 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		return;
 	}
 	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
-			|| strcmp(name,"system.posix_acl_access")==0)) {
+	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
+			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
 		fuse_reply_err(req,ENOTSUP);
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,
 				(uint64_t)size,flags,strerr(ENOTSUP));
@@ -2107,8 +2108,8 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		return;
 	}
 	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
-			|| strcmp(name,"system.posix_acl_access")==0)) {
+	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
+			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
 		fuse_reply_err(req,ENOTSUP);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,
 				(uint64_t)size,strerr(ENOTSUP));
@@ -2222,8 +2223,8 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		return;
 	}
 	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,"system.posix_acl_default")==0
-			|| strcmp(name,"system.posix_acl_access")==0)) {
+	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
+			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
 		fuse_reply_err(req,ENOTSUP);
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ENOTSUP));
 		return;

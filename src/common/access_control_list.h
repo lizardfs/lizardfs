@@ -5,7 +5,7 @@
 #include "common/extended_acl.h"
 #include "common/serializable_class.h"
 
-struct AccessControlList {
+class AccessControlList {
 public:
 	/*
 	 * Default constructor just to make life (eg. deserialization,
