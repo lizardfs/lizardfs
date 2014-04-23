@@ -43,6 +43,9 @@
 #include <string>
 #include <vector>
 
+#include "common/access_control_list.h"
+#include "common/acl_type.h"
+#include "common/acl_converter.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/posix_acl_xattr.h"
@@ -2065,42 +2068,66 @@ private:
 	uint8_t error_;
 };
 
-class AclXattrHandler : public PlainXattrHandler {
+class AclXattrHandler : public XattrHandler {
 public:
-	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, const char *value, size_t size, int mode) {
+	AclXattrHandler(AclType type) : type_(type) {}
+
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t, const char *value, size_t size, int) {
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
-		return PlainXattrHandler::setxattr(ctx, ino, name, nleng, value, size, mode);
+		AccessControlList acl;
+		try {
+			acl = aclConverter::xattrToAclObject((const uint8_t*)value, size);
+		} catch (Exception&) {
+			return ERROR_EINVAL;
+		}
+		return fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
+
 	}
 
-	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t, std::vector<uint8_t>& buffer, int) {
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
-		return PlainXattrHandler::getxattr(ctx, ino, name, nleng, buffer, mode);
+		AccessControlList acl;
+		uint8_t status = fs_getacl(ino, ctx.uid, ctx.gid, type_, acl);
+		if (status != STATUS_OK) {
+			return status;
+		}
+		try {
+			buffer = aclConverter::aclObjectToXattr(acl);
+			return STATUS_OK;
+		} catch (Exception&) {
+			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			return ERROR_IO;
+		}
 	}
 
-	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng) {
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t) {
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
-		return PlainXattrHandler::removexattr(ctx, ino, name, nleng);
+		return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
 	}
+
+private:
+	AclType type_;
 };
 
 } // anonymous namespace
 
-static AclXattrHandler aclXattrHandler;
+static AclXattrHandler accessAclXattrHandler(AclType::kAccess);
+static AclXattrHandler defaultAclXattrHandler(AclType::kDefault);
 static ErrorXattrHandler enotsupXattrHandler(ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 
 static std::map<std::string, XattrHandler*> xattr_handlers = {
-	{POSIX_ACL_XATTR_ACCESS, &aclXattrHandler},
-	{POSIX_ACL_XATTR_DEFAULT, &aclXattrHandler},
+	{POSIX_ACL_XATTR_ACCESS, &accessAclXattrHandler},
+	{POSIX_ACL_XATTR_DEFAULT, &defaultAclXattrHandler},
 	{"security.capability", &enotsupXattrHandler},
 };
 
