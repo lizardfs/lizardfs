@@ -14,14 +14,14 @@ assert_template_program_installed_() {
 # (assert|assertlocal|expect)_file_exists <file>
 assert_template_file_exists_() {
 	if [[ ! -e "$1" ]]; then
-		$FAIL_FUNCTION "Files '$file' does not exist"
+		$FAIL_FUNCTION "File '$1' does not exist"
 	fi
 }
 
 # (assert|assertlocal|expect)_file_not_exists <file>
 assert_template_file_not_exists_() {
 	if [[ -e "$1" ]]; then
-		$FAIL_FUNCTION "Files '$file' does exist"
+		$FAIL_FUNCTION "File '$1' does exist"
 	fi
 }
 
