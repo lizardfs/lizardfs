@@ -8505,7 +8505,6 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #ifndef METARESTORE
 	uint8_t bhdr[8];
 	uint64_t backversion;
-	int converted=0;
 #endif
 
 #ifdef METARESTORE
@@ -8632,19 +8631,9 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
 		return -1;
 	}
-	if (converted==1) {
-		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME ".1.4")<0) {
-			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME ".1.4");
-			return -1;
-		}
-		// after conversion always create new version of "back" file for using in proper version
-		// of metarestore
-		fs_storeall(MetadataDumper::kForegroundDump);
-	} else {
-		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
-			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
-			return -1;
-		}
+	if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
+		mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
+		return -1;
 	}
 #endif
 	fprintf(stderr,"connecting files and chunks ... ");
