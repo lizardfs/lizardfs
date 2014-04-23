@@ -38,6 +38,11 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/posix_acl_xattr.h"
@@ -2000,6 +2005,113 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 	}
 }
 
+namespace {
+
+class XattrHandler {
+public:
+	virtual ~XattrHandler() {}
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, const char *value, size_t size, int mode) = 0;
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) = 0;
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng) = 0;
+};
+
+class PlainXattrHandler : public XattrHandler {
+public:
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, const char *value, size_t size, int mode) {
+		return fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				(uint32_t)size, (const uint8_t*)value, mode);
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+		const uint8_t *buff;
+		uint32_t leng;
+		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				mode, &buff, &leng);
+		if (mode == MFS_XATTR_GETA_DATA && status == STATUS_OK) {
+			buffer = std::vector<uint8_t>(buff, buff+leng);
+		}
+		return status;
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng) {
+		return fs_removexattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name);
+	}
+};
+
+class ErrorXattrHandler : public XattrHandler {
+public:
+	ErrorXattrHandler(uint8_t error) : error_(error) {}
+	virtual uint8_t setxattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t, const char *, size_t, int) {
+		return error_;
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t, std::vector<uint8_t>&, int) {
+		return error_;
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t) {
+		return error_;
+	}
+private:
+	uint8_t error_;
+};
+
+class AclXattrHandler : public PlainXattrHandler {
+public:
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, const char *value, size_t size, int mode) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		return PlainXattrHandler::setxattr(ctx, ino, name, nleng, value, size, mode);
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		return PlainXattrHandler::getxattr(ctx, ino, name, nleng, buffer, mode);
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		return PlainXattrHandler::removexattr(ctx, ino, name, nleng);
+	}
+};
+
+} // anonymous namespace
+
+static AclXattrHandler aclXattrHandler;
+static ErrorXattrHandler enotsupXattrHandler(ERROR_ENOTSUP);
+static PlainXattrHandler plainXattrHandler;
+
+static std::map<std::string, XattrHandler*> xattr_handlers = {
+	{POSIX_ACL_XATTR_ACCESS, &aclXattrHandler},
+	{POSIX_ACL_XATTR_DEFAULT, &aclXattrHandler},
+	{"security.capability", &enotsupXattrHandler},
+};
+
+static XattrHandler* choose_xattr_handler(const char *name) {
+	try {
+		return xattr_handlers.at(name);
+	} catch (std::out_of_range&) {
+		return &plainXattrHandler;
+	}
+}
+
 #if defined(__APPLE__)
 void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags, uint32_t position) {
 #else
@@ -2030,14 +2142,6 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		fuse_reply_err(req,ERANGE);
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ERANGE));
 #endif
-		return;
-	}
-	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
-			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,
-				(uint64_t)size,flags,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2073,7 +2177,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	mode = 0;
 #endif
 	(void)position;
-	status = fs_setxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,(uint32_t)size,(const uint8_t*)value,mode);
+	status = choose_xattr_handler(name)->setxattr(ctx, ino, name, nleng, value, size, mode);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2093,6 +2197,7 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	uint32_t nleng;
 	int status;
 	uint8_t mode;
+	std::vector<uint8_t> buffer;
 	const uint8_t *buff;
 	uint32_t leng;
 	const struct fuse_ctx ctx = *fuse_req_ctx(req);
@@ -2105,14 +2210,6 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req,ENODATA);
 		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENODATA));
-		return;
-	}
-	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
-			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,
-				(uint64_t)size,strerr(ENOTSUP));
 		return;
 	}
 	nleng = strlen(name);
@@ -2143,7 +2240,9 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		mode = MFS_XATTR_GETA_DATA;
 	}
 	(void)position;
-	status = fs_getxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,mode,&buff,&leng);
+	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, buffer, mode);
+	buff = buffer.data();
+	leng = buffer.size();
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2222,13 +2321,6 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
 		return;
 	}
-	// Filter ACLs when disabled
-	if (!acl_enabled && (strcmp(name,POSIX_ACL_XATTR_DEFAULT)==0
-			|| strcmp(name,POSIX_ACL_XATTR_ACCESS)==0)) {
-		fuse_reply_err(req,ENOTSUP);
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ENOTSUP));
-		return;
-	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
@@ -2246,7 +2338,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EINVAL));
 		return;
 	}
-	status = fs_removexattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name);
+	status = choose_xattr_handler(name)->removexattr(ctx, ino, name, nleng);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
