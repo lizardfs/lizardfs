@@ -21,6 +21,8 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "common/acl_type.h"
+#include "common/access_control_list.h"
 #include "common/packet.h"
 
 typedef std::vector<uint8_t> MessageBuffer;
@@ -58,6 +60,10 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t mode,const uint8_t **dbuff,uint32_t *dleng);
 uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t nleng,const uint8_t *name,uint32_t vleng,const uint8_t *value,uint8_t mode);
 uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t nleng,const uint8_t *name);
+
+uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type);
+uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl);
+uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, const AccessControlList& acl);
 
 uint8_t fs_getreserved(const uint8_t **dbuff,uint32_t *dbuffsize);
 uint8_t fs_gettrash(const uint8_t **dbuff,uint32_t *dbuffsize);

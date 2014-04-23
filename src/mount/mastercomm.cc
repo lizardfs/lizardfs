@@ -1214,6 +1214,13 @@ void fs_term(void) {
 	}
 }
 
+static void fs_got_inconsistent(const std::string& type, uint32_t size, const std::string& what) {
+	syslog(LOG_NOTICE,
+			"Got inconsistent %s message from master (length:%" PRIu32 "): %s",
+			type.c_str(), size, what.c_str());
+	setDisconnect(true);
+}
+
 void fs_statfs(uint64_t *totalspace,uint64_t *availspace,uint64_t *trashspace,uint64_t *reservedspace,uint32_t *inodes) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
@@ -2224,6 +2231,82 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 		ret = ERROR_IO;
 	}
 	return ret;
+}
+
+uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseDeleteAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_DELETE_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseDeleteAcl::deserialize(message.data(), message.size(), status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_DELETE_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
+}
+
+uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseGetAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GET_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseGetAcl::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), status);
+			if (status == STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
+						"version 0 and STATUS_OK");
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseGetAcl::kResponsePacketVersion) {
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), acl);
+			return STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
+					"unknown version " + std::to_string(packetVersion));
+			return ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
+}
+
+uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, const AccessControlList& acl) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseSetAcl::serialize(message, rec->packetId, inode, uid, gid, type, acl);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SET_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseSetAcl::deserialize(message.data(), message.size(), status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
 }
 
 static uint32_t* msgIdPtr(const MessageBuffer& buffer) {
