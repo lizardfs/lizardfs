@@ -1,4 +1,3 @@
-echo TEST DISABLED UNTIL ACLs ARE IMPLEMENTED && test_end
 assert_program_installed setfacl
 
 USE_RAMDISK=YES setup_local_empty_lizardfs info

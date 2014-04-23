@@ -1,4 +1,3 @@
-echo TEST DISABLED UNTIL ACLs ARE IMPLEMENTED && test_end
 assert_program_installed setfacl
 touch "$TEMP_DIR/f"
 MESSAGE="Testing ACL support in $TEMP_DIR/" assert_success setfacl -m group:fuse:rw "$TEMP_DIR/f"
@@ -13,13 +12,13 @@ chmod 770 "$lizdir" "$tmpdir"
 while read command; do
 	command=$(sed -e 's/ *#.*//' <<< "$command") # Strip the trailing comment
 	export MESSAGE="Executing '$command' in both directory trees"
-	( cd "$tmpdir" ; assert_success eval "$command" )
-	( cd "$lizdir" ; assert_success eval "$command" )
+	( cd "$tmpdir" ; assertlocal_success eval "$command" )
+	( cd "$lizdir" ; assertlocal_success eval "$command" )
 	export MESSAGE="Veryfing permissions after '$command'"
 	cd "$lizdir"
 	find . | while read f; do
 		assert_equals "$(stat --format=%A "$tmpdir/$f")" "$(stat --format=%A "$lizdir/$f")"
-		assert_equals "$(getfacl -cE "$tmpdir/$f" | sort)" "$(getfacl -cE "$lizdir/$f" | sort)"
+		assert_equals "$(getfacl -cpE "$tmpdir/$f" | sort)" "$(getfacl -cpE "$lizdir/$f" | sort)"
 	done
 done <<'END'
 	mkdir minimal                      # Play with minimal ACL using setfacl and chmod
@@ -79,34 +78,35 @@ done <<'END'
 	chmod 444 copy2                    # Test if chmod properly influences minimal ACL now
 	chmod 750 copy2
 
-	mkdir dir                          # Test directory's ACL
-	chmod a+x dir                      # Test if chmod properly influences dir's minimal ACL
-	setfacl -m group:adm:rwx dir
-	setfacl -d -m group:adm:rw- dir    # Set some default: entries
-	setfacl -d -m group:games:--- dir
-	chmod 770 dir                      # Test if chmod properly influences dir's extended ACL
-	touch dir/file1                    # Create a file in directory with default: entries
-	setfacl -b dir/file1
-	( umask 117 ; touch dir/file2 )    # Test creating files with different create modes
-	( umask 077 ; touch dir/file3 )
+	# THE REST OF THIS TEST DISABLED UNTIL DEFAULT ACLs ARE IMPLEMENTED
+	# mkdir dir                          # Test directory's ACL
+	# chmod a+x dir                      # Test if chmod properly influences dir's minimal ACL
+	# setfacl -m group:adm:rwx dir
+	# setfacl -d -m group:adm:rw- dir    # Set some default: entries
+	# setfacl -d -m group:games:--- dir
+	# chmod 770 dir                      # Test if chmod properly influences dir's extended ACL
+	# touch dir/file1                    # Create a file in directory with default: entries
+	# setfacl -b dir/file1
+	# ( umask 117 ; touch dir/file2 )    # Test creating files with different create modes
+	# ( umask 077 ; touch dir/file3 )
 
-	mkdir dir/subdir                   # Create a directory in directory with default: entries
-	mkdir -m 700 dir/subdir2           # Test inheriting default permissions with some masks
-	mkdir -m 755 dir/subdir3
-	mkdir -m 277 dir/subdir2/subsubdir1
-	( umask 000 ; mkdir dir/subdir4 )
-	( umask 444 ; mkdir dir/subdir5 )
-	touch dir/subdir/file4
-	( umask 277 ; touch dir/subdir/file5 )
-	touch dir/subdir/file6a
-	setfacl -k dir/subdir              # Remove default: ACL entries
-	touch dir/subdir/file6b
+	# mkdir dir/subdir                   # Create a directory in directory with default: entries
+	# mkdir -m 700 dir/subdir2           # Test inheriting default permissions with some masks
+	# mkdir -m 755 dir/subdir3
+	# mkdir -m 277 dir/subdir2/subsubdir1
+	# ( umask 000 ; mkdir dir/subdir4 )
+	# ( umask 444 ; mkdir dir/subdir5 )
+	# touch dir/subdir/file4
+	# ( umask 277 ; touch dir/subdir/file5 )
+	# touch dir/subdir/file6a
+	# setfacl -k dir/subdir              # Remove default: ACL entries
+	# touch dir/subdir/file6b
 
-	cp file dir/file7                  # Test copying to directory with default: ACL
-	cp -a file dir/file8
-	cp dir/file8 dir/file9
-	cp -a dir/file8 dir/file10
-	cp -a file dir/subdir              # Test copying to directory without default: ACL
-	cp -ar dir dir2                    # Test copying a directory
-	cp -r dir dir2/dir3
+	# cp file dir/file7                  # Test copying to directory with default: ACL
+	# cp -a file dir/file8
+	# cp dir/file8 dir/file9
+	# cp -a dir/file8 dir/file10
+	# cp -a file dir/subdir              # Test copying to directory without default: ACL
+	# cp -ar dir dir2                    # Test copying a directory
+	# cp -r dir dir2/dir3
 END
