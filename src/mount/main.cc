@@ -441,11 +441,11 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 }
 
 static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
+	conn->want |= FUSE_CAP_DONT_MASK;
+
 	int *piped = (int*)userdata;
-	char s;
-	(void)conn;
 	if (piped[1]>=0) {
-		s=0;
+		char s = 0;
 		if (write(piped[1],&s,1)!=1) {
 			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}

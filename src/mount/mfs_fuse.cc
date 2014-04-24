@@ -964,7 +964,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		}
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.uid,ctx.gid,rdev,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.umask,ctx.uid,ctx.gid,rdev,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1049,7 +1049,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		return;
 	}
 
-	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.uid,ctx.gid,mkdir_copy_sgid,&inode,attr);
+	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.umask,ctx.uid,ctx.gid,mkdir_copy_sgid,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1550,7 +1550,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		return;
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.uid,ctx.gid,0,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.umask,ctx.uid,ctx.gid,0,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
