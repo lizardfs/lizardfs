@@ -22,6 +22,7 @@
 
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
+#include "common/exception.h"
 #include "master/checksum.h"
 
 #ifdef METARESTORE
