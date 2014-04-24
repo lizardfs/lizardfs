@@ -2030,96 +2030,97 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matoclserv_fuse_mknod(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid,gid,auid,agid,rdev;
-	uint8_t nleng;
-	const uint8_t *name;
+void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
+		const uint8_t *data, uint32_t length) {
+	uint32_t messageId, inode, uid, gid, rdev;
+	String8Bit name;
 	uint8_t type;
-	uint16_t mode;
+	uint16_t mode, umask;
+
+	if (packetType == CLTOMA_FUSE_MKNOD) {
+		deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
+				inode, name, type, mode, uid, gid, rdev);
+		umask = 0;
+	} else if (packetType == LIZ_CLTOMA_FUSE_MKNOD) {
+		cltoma::fuseMknod::deserialize(data, length, messageId,
+				inode, name, type, mode, umask, uid, gid, rdev);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown packet type for matoclserv_fuse_mknod: " + std::to_string(packetType));
+	}
+	uint32_t auid = uid;
+	uint32_t agid = gid;
+	matoclserv_ugid_remap(eptr, &uid, &gid);
+	mode &= ~umask;
+
 	uint32_t newinode;
 	uint8_t attr[35];
-	uint32_t msgid;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length<24) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKNOD - wrong size (%" PRIu32 ")",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	nleng = get8bit(&data);
-	if (length!=24U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKNOD - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
-		eptr->mode = KILL;
-		return;
-	}
-	name = data;
-	data += nleng;
-	type = get8bit(&data);
-	mode = get16bit(&data);
-	auid = uid = get32bit(&data);
-	agid = gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
-	rdev = get32bit(&data);
-	status = fs_mknod(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,type,mode,uid,gid,auid,agid,rdev,&newinode,attr);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_MKNOD,(status!=STATUS_OK)?5:43);
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
+	uint8_t status = fs_mknod(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
+			type, mode, uid, gid, auid, agid, rdev, &newinode, attr);
+
+	std::vector<uint8_t> reply;
+	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKNOD) {
+		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
+	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKNOD) {
+		matocl::fuseMknod::serialize(reply, messageId, newinode, attr);
+	} else if (packetType == LIZ_CLTOMA_FUSE_MKNOD) {
+		matocl::fuseMknod::serialize(reply, messageId, status);
 	} else {
-		put32bit(&ptr,newinode);
-		memcpy(ptr,attr,35);
+		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, status);
 	}
+	matoclserv_createpacket(eptr, std::move(reply));
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[8]++;
 	}
 }
 
-void matoclserv_fuse_mkdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid,gid,auid,agid;
-	uint8_t nleng;
-	const uint8_t *name;
-	uint16_t mode;
+void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
+		const uint8_t *data, uint32_t length) {
+	uint32_t messageId, inode, uid, gid;
+	String8Bit name;
+	bool copysgid;
+	uint16_t mode, umask;
+
+	if (packetType == CLTOMA_FUSE_MKDIR) {
+		if (eptr->version >= lizardfsVersion(1, 6, 25)) {
+			deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
+					inode, name, mode, uid, gid, copysgid);
+		} else {
+			deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
+					inode, name, mode, uid, gid);
+			copysgid = false;
+		}
+		umask = 0;
+	} else if (packetType == LIZ_CLTOMA_FUSE_MKDIR) {
+		cltoma::fuseMkdir::deserialize(data, length, messageId,
+				inode, name, mode, umask, uid, gid, copysgid);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown packet type for matoclserv_fuse_mkdir: " + std::to_string(packetType));
+	}
+	uint32_t auid = uid;
+	uint32_t agid = gid;
+	matoclserv_ugid_remap(eptr, &uid, &gid);
+	mode &= ~umask;
+
 	uint32_t newinode;
 	uint8_t attr[35];
-	uint32_t msgid;
-	uint8_t *ptr;
-	uint8_t status;
-	uint8_t copysgid;
-	if (length<19) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKDIR - wrong size (%" PRIu32 ")",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	nleng = get8bit(&data);
-	if (length!=19U+nleng && length!=20U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_MKDIR - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
-		eptr->mode = KILL;
-		return;
-	}
-	name = data;
-	data += nleng;
-	mode = get16bit(&data);
-	auid = uid = get32bit(&data);
-	agid = gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
-	if (length==20U+nleng) {
-		copysgid = get8bit(&data);
+	uint8_t status = fs_mkdir(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
+			mode, uid, gid, auid, agid, copysgid, &newinode, attr);
+
+	std::vector<uint8_t> reply;
+	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKDIR) {
+		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
+	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKDIR) {
+		matocl::fuseMkdir::serialize(reply, messageId, newinode, attr);
+	} else if (packetType == LIZ_CLTOMA_FUSE_MKDIR) {
+		matocl::fuseMkdir::serialize(reply, messageId, status);
 	} else {
-		copysgid = 0; // by default do not copy sgid bit
+		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, status);
 	}
-	status = fs_mkdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,mode,uid,gid,auid,agid,copysgid,&newinode,attr);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_MKDIR,(status!=STATUS_OK)?5:43);
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put32bit(&ptr,newinode);
-		memcpy(ptr,attr,35);
-	}
+	matoclserv_createpacket(eptr, std::move(reply));
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[4]++;
 	}
@@ -3586,10 +3587,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_symlink(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_MKNOD:
-					matoclserv_fuse_mknod(eptr,data,length);
+				case LIZ_CLTOMA_FUSE_MKNOD:
+					matoclserv_fuse_mknod(eptr,type,data,length);
 					break;
 				case CLTOMA_FUSE_MKDIR:
-					matoclserv_fuse_mkdir(eptr,data,length);
+				case LIZ_CLTOMA_FUSE_MKDIR:
+					matoclserv_fuse_mkdir(eptr,type,data,length);
 					break;
 				case CLTOMA_FUSE_UNLINK:
 					matoclserv_fuse_unlink(eptr,data,length);
