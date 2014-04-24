@@ -3,7 +3,7 @@
 #include <cinttypes>
 
 #include "common/serialization.h"
-#include "common/serializable_class_generated.h"
+#include "common/serialization_macros_generated.h"
 
 // Macros used to concatenate two macro names:
 #define PASTE(a,b) a ## b
@@ -86,3 +86,32 @@
 // One macro which creates serialize, deserialize and serializedSize methods
 #define LIZARDFS_DEFINE_SERIALIZE_METHODS(ClassName, ...) \
 		SERIALIZE_METHODS(ClassName, __VA_ARGS__)
+
+// One macro which creates serialize and deserialize functions for network communicates
+#define LIZARDFS_DEFINE_PACKET_SERIALIZATION(NAMESPACE1, NAMESPACE2, ID, VERSION, \
+		... /* [class, parameter]* */) \
+namespace NAMESPACE1 { \
+	namespace NAMESPACE2 { \
+		inline void serialize(std::vector<uint8_t>& destination, \
+				APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) { \
+			serializePacket(destination, ID, VERSION, VARS_COMMAS(__VA_ARGS__)); \
+		} \
+		inline void deserialize(const uint8_t* source, uint32_t sourceSize, \
+				APPLY2(REFERENCE, MAKE_COMMA, __VA_ARGS__)) { \
+			verifyPacketVersionNoHeader(source, sourceSize, VERSION); \
+			deserializeAllPacketDataNoHeader(source, sourceSize, VARS_COMMAS(__VA_ARGS__)); \
+		} \
+		inline void deserialize(const std::vector<uint8_t>& source, \
+				APPLY2(REFERENCE, MAKE_COMMA, __VA_ARGS__)) { \
+			verifyPacketVersionNoHeader(source, VERSION); \
+			deserializeAllPacketDataNoHeader(source, VARS_COMMAS(__VA_ARGS__)); \
+		} \
+	} \
+}
+
+#define LIZARDFS_DEFINE_PACKET_VERSION(NAMESPACE1, NAMESPACE2, NAME, VALUE) \
+namespace NAMESPACE1 { \
+	namespace NAMESPACE2 { \
+		const PacketVersion NAME = VALUE; \
+	} \
+}

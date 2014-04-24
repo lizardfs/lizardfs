@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "common/massert.h"
-#include "common/serializable_class.h"
+#include "common/serialization_macros.h"
 
 class ExtendedAcl {
 public:

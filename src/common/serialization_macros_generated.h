@@ -2,7 +2,7 @@
 
 // DO NOT MODIFY THIS FILE BY HAND!
 //
-// This file was automatically generated with serializable_class_generate.sh. If you want macros below to
+// This file was automatically generated with serialization_macros_generate.sh. If you want macros below to
 // support more then 20 parameters, generate this file once again.
 
 #define APPLY1_1(Macro, Sep, t1) Macro(t1)

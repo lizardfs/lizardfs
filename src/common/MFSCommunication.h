@@ -713,20 +713,38 @@
 #define CLTOMA_FUSE_MKNOD (PROTO_BASE+416)
 /// msgid:32 inode:32 name:NAME nodetype:8 mode:16 uid:32 gid:32 rdev:32
 
+// 0x0588
+#define LIZ_CLTOMA_FUSE_MKNOD (1000U + 416U)
+/// msgid:32 inode:32 name:NAME nodetype:8 mode:16 umask:16 uid:32 gid:32 rdev:32
+
 // 0x01A1
 #define MATOCL_FUSE_MKNOD (PROTO_BASE+417)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
+
+// 0x0589
+#define LIZ_MATOCL_FUSE_MKNOD (1000U + 417U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 inode:32 attr:35B
 
 // 0x01A2
 #define CLTOMA_FUSE_MKDIR (PROTO_BASE+418)
 /// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 copysgid:8
 /// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 // version < 1.6.25
 
+// 0x058A
+#define LIZ_CLTOMA_FUSE_MKDIR (1000U + 418U)
+/// msgid:32 inode:32 name:NAME mode:16 umask:16 uid:32 gid:32 copysgid:8
+
 // 0x01A3
 #define MATOCL_FUSE_MKDIR (PROTO_BASE+419)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
+
+// 0x058B
+#define LIZ_MATOCL_FUSE_MKDIR (1000U + 419U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 inode:32 attr:35B
 
 // 0x01A4
 #define CLTOMA_FUSE_UNLINK (PROTO_BASE+420)
