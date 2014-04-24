@@ -2949,7 +2949,7 @@ static uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, ui
 	if (type == AclType::kDefault) {
 		return ERROR_ENOTSUP;
 	}
-	p->mode = (p->mode & 07000) | (acl.mode & 0777);
+	p->mode = (p->mode & ~0777) | (acl.mode & 0777);
 	p->extendedAcl = std::move(acl.extendedAcl);
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
