@@ -61,7 +61,11 @@ setup_local_empty_lizardfs() {
 }
 
 create_mfsexports_cfg() {
-	echo "* / rw,alldirs,maproot=0"
+	local additional=${MFSEXPORTS_EXTRA_OPTIONS-}
+	if [[ $additional ]]; then
+		additional=",$additional"
+	fi
+	echo "* / rw,alldirs,maproot=0$additional"
 	echo "* . rw"
 }
 
