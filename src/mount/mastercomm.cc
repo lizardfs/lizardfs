@@ -999,7 +999,9 @@ bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) 
 		return false;
 	}
 	MessageBuffer buffer;
-	fs_append_from_master(buffer, size);
+	if (!fs_append_from_master(buffer, size)) {
+		return false;
+	}
 	try {
 		deserialize(buffer, destination...);
 	} catch (IncorrectDeserializationException& e) {
