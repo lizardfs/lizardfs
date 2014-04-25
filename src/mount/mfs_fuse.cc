@@ -2079,12 +2079,13 @@ public:
 		}
 		AccessControlList acl;
 		try {
-			acl = aclConverter::xattrToAclObject((const uint8_t*)value, size);
+			PosixAclXattr posix = aclConverter::extractPosixObject((const uint8_t*)value, size);
+			// This division of conversion process will be useful in future
+			acl = aclConverter::posixToAclObject(posix);
 		} catch (Exception&) {
 			return ERROR_EINVAL;
 		}
 		return fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
-
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,

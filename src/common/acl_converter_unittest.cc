@@ -52,8 +52,11 @@ static bool hasEntry(const std::vector<ExtendedAcl::Entry>& list, ExtendedAcl::E
 
 TEST(AclConverterTests, MinimalAcl) {
 	// xattr -> acl
+	PosixAclXattr posix;
+	ASSERT_NO_THROW(posix =
+			aclConverter::extractPosixObject(kMinimalXattr.data(), kMinimalXattr.size()));
 	AccessControlList acl;
-	ASSERT_NO_THROW(acl = aclConverter::xattrToAclObject(kMinimalXattr.data(), kMinimalXattr.size()));
+	ASSERT_NO_THROW(acl = aclConverter::posixToAclObject(posix));
 	EXPECT_EQ(0764, acl.mode);
 	EXPECT_TRUE(!acl.extendedAcl);
 
@@ -65,8 +68,11 @@ TEST(AclConverterTests, MinimalAcl) {
 
 TEST(AclConverterTests, ExtendedAcl) {
 	// xattr -> acl
+	PosixAclXattr posix;
+	ASSERT_NO_THROW(posix =
+			aclConverter::extractPosixObject(kExtendedXattr.data(), kExtendedXattr.size()));
 	AccessControlList acl;
-	ASSERT_NO_THROW(acl = aclConverter::xattrToAclObject(kExtendedXattr.data(), kExtendedXattr.size()));
+	ASSERT_NO_THROW(acl = aclConverter::posixToAclObject(posix));
 	EXPECT_EQ(0674, acl.mode);
 
 	const ExtendedAcl* eacl = acl.extendedAcl.get();
@@ -84,9 +90,15 @@ TEST(AclConverterTests, ExtendedAcl) {
 	EXPECT_EQ(kExtendedXattr, buffer);
 }
 
-static void checkError(std::vector<uint8_t>& buffer) {
+static void checkError(std::vector<uint8_t>& buffer, bool checkPosix) {
+	PosixAclXattr posix;
+	if (checkPosix) {
+		ASSERT_ANY_THROW(posix = aclConverter::extractPosixObject(buffer.data(), buffer.size()));
+	} else {
+		ASSERT_NO_THROW(posix = aclConverter::extractPosixObject(buffer.data(), buffer.size()));
+	}
 	AccessControlList acl;
-	ASSERT_ANY_THROW(acl = aclConverter::xattrToAclObject(buffer.data(), buffer.size()));
+	ASSERT_ANY_THROW(acl = aclConverter::posixToAclObject(posix));
 	buffer = kExtendedXattr;
 }
 
@@ -94,13 +106,13 @@ TEST(AclConverterTests, FailedAcl) {
 	std::vector<uint8_t> buffer = kExtendedXattr;
 
 	buffer[1] = 2; // failed POSIX ACL xattr version
-	checkError(buffer);
+	checkError(buffer, false);
 	buffer[5] = 1; // failed tag
-	checkError(buffer);
+	checkError(buffer, false);
 	buffer[9] = 1; // non-UNDEFINED_ID
-	checkError(buffer);
+	checkError(buffer, false);
 	buffer[14] = 9; // failed permissions
-	checkError(buffer);
+	checkError(buffer, false);
 	buffer.insert(buffer.begin() + 2, 1); // A byte offset
-	checkError(buffer);
+	checkError(buffer, true);
 }

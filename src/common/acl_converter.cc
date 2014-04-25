@@ -1,7 +1,5 @@
 #include "common/acl_converter.h"
 
-#include "common/posix_acl_xattr.h"
-
 static constexpr uint16_t kUserPermissionsModeOffset  = 0100;
 static constexpr uint16_t kGroupPermissionsModeOffset = 010;
 static constexpr uint16_t kOtherPermissionsModeOffset = 01;
@@ -12,7 +10,7 @@ static bool checkPermissions(uint16_t perm) {
 
 static uint16_t assertPermissionsOnTheFly(uint16_t perm) {
 	if (!checkPermissions(perm)) {
-		throw aclConverter::ConversionErrorException("Invalid permissions mask");
+		throw aclConverter::AclConversionException("Invalid permissions mask");
 	}
 	return perm;
 }
@@ -38,11 +36,11 @@ static void prepareExtendedAcl(AccessControlList& acl) {
 static void validateNonIdEntry(uint8_t tags, const PosixAclXattrEntry& entry) {
 	// These entries can appear only once...
 	if (tags & entry.tag) {
-		throw aclConverter::ConversionErrorException("Entry duplication");
+		throw aclConverter::AclConversionException("Entry duplication");
 	}
 	// ...and with undefined id
 	if (entry.id != ACL_UNDEFINED_ID) {
-		throw aclConverter::ConversionErrorException("Entry with defined ID");
+		throw aclConverter::AclConversionException("Entry with defined ID");
 	}
 }
 
@@ -53,26 +51,31 @@ static void validateIdEntry(const AccessControlList& acl, const PosixAclXattrEnt
 	}
 }
 
-AccessControlList aclConverter::xattrToAclObject(const uint8_t* buffer, uint32_t bufferSize) {
-	// Load xattr ACL structure from raw data
-	PosixAclXattr xattr;
+PosixAclXattr aclConverter::extractPosixObject(const uint8_t* buffer, uint32_t bufferSize) {
+	PosixAclXattr posix;
 	try {
-		xattr.read(buffer, bufferSize);
+		posix.read(buffer, bufferSize);
 	} catch (Exception&) {
-		throw ConversionErrorException("Data doesn't contain ACL");
+		throw AclConversionException("Data doesn't contain ACL");
 	}
+	return posix;
+}
 
-	// Data validation and conversion
-	if (xattr.version != POSIX_ACL_XATTR_VERSION) {
-		throw ConversionErrorException("Incorrect POSIX ACL xattr version: " +
-				std::to_string(xattr.version));
+
+AccessControlList aclConverter::posixToAclObject(const PosixAclXattr& posix) {
+	if (posix.version != POSIX_ACL_XATTR_VERSION) {
+		throw AclConversionException("Incorrect POSIX ACL xattr version: " +
+				std::to_string(posix.version));
+	}
+	if (posix.entries.empty()) {
+		throw AclConversionException("Empty POSIX ACL xattr object");
 	}
 
 	AccessControlList acl(0);
 	// NOTE Documentation says nothing about the order of entries (it's supposed
 	//      to be ascending by a tag value), so we allow any order.
 	uint8_t appearedTagsBitmask = 0x00;
-	for (const PosixAclXattrEntry& entry : xattr.entries) {
+	for (const PosixAclXattrEntry& entry : posix.entries) {
 		assertPermissionsOnTheFly(entry.perm); // Check permissions mask
 		switch (entry.tag) {
 			case ACL_USER_OBJ:
@@ -108,7 +111,7 @@ AccessControlList aclConverter::xattrToAclObject(const uint8_t* buffer, uint32_t
 				insertToMode(acl.mode, kOtherPermissionsModeOffset, entry.perm);
 				break;
 			default:
-				throw ConversionErrorException("Unknown ACL xattr entry tag");
+				throw AclConversionException("Unknown ACL xattr entry tag");
 		}
 		appearedTagsBitmask |= entry.tag;
 	}
@@ -116,11 +119,11 @@ AccessControlList aclConverter::xattrToAclObject(const uint8_t* buffer, uint32_t
 	// Check if at least minimal ACL appeared
 	if ((appearedTagsBitmask & (ACL_USER_OBJ | ACL_GROUP_OBJ | ACL_OTHER)) !=
 			(ACL_USER_OBJ | ACL_GROUP_OBJ | ACL_OTHER)) {
-		throw ConversionErrorException("ACL xattr without all minimal ACL entries");
+		throw AclConversionException("ACL xattr without all minimal ACL entries");
 	}
 	// Extended ACL without mask is invalid
 	if ((appearedTagsBitmask & (ACL_GROUP | ACL_USER)) && !(appearedTagsBitmask & ACL_MASK)) {
-		throw ConversionErrorException("Extended ACL without permissions mask");
+		throw AclConversionException("Extended ACL without permissions mask");
 	}
 
 	return acl;
@@ -176,7 +179,7 @@ std::vector<uint8_t> aclConverter::aclObjectToXattr(const AccessControlList& acl
 	std::vector<uint8_t> buffer(xattr.rawSize());
 	size_t writtenSize = xattr.write(buffer.data());
 	if (writtenSize != buffer.size()) {
-		throw ConversionErrorException("xattr data incorrectly written to a buffer");
+		throw AclConversionException("xattr data incorrectly written to a buffer");
 	}
 	return buffer;
 }
