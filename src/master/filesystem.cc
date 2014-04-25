@@ -38,6 +38,7 @@
 // TODO: wtf?!
 // #define CACHENOTIFY 1
 
+#include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
@@ -8710,7 +8711,6 @@ int fs_loadall(void) {
 #else
 int fs_loadall(const char *fname,int ignoreflag) {
 #endif
-	FILE *fd;
 	uint8_t hdr[8];
 #ifndef METARESTORE
 	uint8_t bhdr[8];
@@ -8718,25 +8718,24 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 
 #ifdef METARESTORE
-	fd = fopen(fname,"r");
+	cstream_t fd(fopen(fname,"r"));
 #else
 	backversion = 0;
-	fd = fopen(METADATA_BACK_FILENAME,"r");
-	if (fd!=NULL) {
-		if (fread(bhdr,1,8,fd)==8) {
+	cstream_t fd(fopen(METADATA_BACK_FILENAME,"r"));
+	if (fd != nullptr) {
+		if (fread(bhdr,1,8,fd.get())==8) {
 			// bhdr is something like "MFSM x.y" or "LFSM x.y" (for Light LizardsFS)
 			std::string sig(reinterpret_cast<const char *>(bhdr), 5);
 			std::string ver(reinterpret_cast<const char *>(bhdr) + 5, 3);
 			if (sig == MFSSIGNATURE "M " && (ver == "1.5" || ver == "1.6" || ver == "2.0")) {
-				backversion = fs_loadversion(fd);
+				backversion = fs_loadversion(fd.get());
 			}
 		}
-		fclose(fd);
 	}
 
-	fd = fopen(METADATA_FILENAME,"r");
+	fd.reset(fopen(METADATA_FILENAME,"r"));
 #endif
-	if (fd==NULL) {
+	if (fd == nullptr) {
 		fprintf(stderr,"can't open metadata file\n");
 #ifndef METARESTORE
 		{
@@ -8772,8 +8771,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 		return -1;
 	}
-	if (fread(hdr,1,8,fd)!=8) {
-		fclose(fd);
+	if (fread(hdr,1,8,fd.get())!=8) {
 		fprintf(stderr,"can't read metadata header\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"can't read metadata header");
@@ -8782,7 +8780,6 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	}
 #ifndef METARESTORE
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
-		fclose(fd);
 		if (backversion>0) {
 			fprintf(stderr,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
 			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
@@ -8813,29 +8810,25 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #ifndef METARESTORE
 		syslog(LOG_ERR,"wrong metadata header");
 #endif
-		fclose(fd);
 		return -1;
 	}
 #ifndef METARESTORE
-	if (fs_load(fd, 0, metadataVersion) < 0) {
+	if (fs_load(fd.get(), 0, metadataVersion) < 0) {
 #else
-	if (fs_load(fd, ignoreflag, metadataVersion) < 0) {
+	if (fs_load(fd.get(), ignoreflag, metadataVersion) < 0) {
 #endif
 #ifndef METARESTORE
 			syslog(LOG_ERR,"error reading metadata (structure)");
 #endif
-			fclose(fd);
 			return -1;
 		}
-	if (ferror(fd)!=0) {
+	if (ferror(fd.get())!=0) {
 		fprintf(stderr,"error reading metadata\n");
 #ifndef METARESTORE
 		syslog(LOG_ERR,"error reading metadata");
 #endif
-		fclose(fd);
 		return -1;
 	}
-	fclose(fd);
 #ifndef METARESTORE
 	if (backversion>metaversion) {
 		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
