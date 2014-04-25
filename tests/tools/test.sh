@@ -45,8 +45,8 @@ test_end() {
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
-			pkill -TERM -u $(whoami) mfs || true
-			if ! pgrep -u $(whoami) mfs >/dev/null; then
+			pkill -TERM -u lizardfstest mfs || true
+			if ! pgrep -u lizardfstest mfs >/dev/null; then
 				echo "All LizardFS processes terminated"
 				break
 			fi
@@ -80,6 +80,12 @@ test_begin() {
 	fi
 }
 
+# Try to chmod 777 all files and subdirectories in given directory using passwordless sudo
+mass_chmod_777() {
+	find "$1" -mindepth 1 -exec bash -c \
+		'user=$(stat -c "%U" "{}"); sudo -nu $user setfacl -b "{}" ; sudo -nu $user chmod 777 "{}"' \;
+}
+
 # Do not use directly
 # This removes all temporary files and unmounts filesystems
 test_cleanup() {
@@ -100,10 +106,17 @@ test_cleanup() {
 		echo "TEMP_DIR variable empty, cowardly refusing to rm -rf /*"
 		exit 1
 	fi
-	rm -rf "$TEMP_DIR"/*
+	if ! rm -rf "$TEMP_DIR"/* 2>/dev/null; then
+		# try to remove other users' junk the slow way
+		mass_chmod_777 "$TEMP_DIR"
+		rm -rf "$TEMP_DIR"/*
+	fi
 	# Clean ramdisk
 	if [[ $RAMDISK_DIR ]]; then
-		rm -rf "$RAMDISK_DIR"/*
+		if ! rm -rf "$RAMDISK_DIR"/* 2>/dev/null; then
+			mass_chmod_777 "$RAMDISK_DIR"
+			rm -rf "$RAMDISK_DIR"/*
+		fi
 	fi
 	# Clean the disks used by chunkservers
 	for d in $LIZARDFS_DISKS $LIZARDFS_LOOP_DISKS; do

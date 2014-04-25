@@ -24,17 +24,8 @@ At least three directories have to be provided in order to run some of the test 
 Remember that user 'lizardfstest' needs permissions to write files in these
 directories. All the contents of these directories will be erased during tests.
 
-What 'setup_machine.sh' does?
- -  Creates /etc/lizardfs_tests.conf file
- -  Creates a new user - 'lizardfstest' - on the machine;
- -  Grants this user permissions to mount fuse filesystems and to run
-        '/bin/sh -c echo 1 > /proc/sys/vm/drop_caches' as a root;
- -  Grants everyone permissions to run processes as lizardfstests using
-        'sudo -u lizardfstest' without any authentication;
- -  Grants everyone permissions to run 'sudo pkill -9 -u lizardfstest'
-        to kill the tests in case something goes wrong;
- -  Creates a 2GB ramdisk in '/mnt/ramdisk';
- -  Creates some filesystems mounted using loop device (if disks are provided).
+If you want to know what 'setup_machine.sh' does, just run it without any command line
+arguments. It will print a short description of all the changes it is going to make.
 
 The tests need to know which binaries should be tested. The default location is
 /var/lib/lizardfstest/local and this means eg. that the master server will run code
