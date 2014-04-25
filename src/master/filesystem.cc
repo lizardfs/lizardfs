@@ -7060,7 +7060,78 @@ void xattr_init(void) {
 	}
 }
 
+static void fs_storeacl(fsnode* p, FILE *fd) {
+	static std::vector<uint8_t> buffer;
+	buffer.clear();
+	if (!p) {
+		// write end marker
+		uint32_t marker = 0;
+		serialize(buffer, marker);
+	} else {
+		uint32_t size = serializedSize(p->id, p->extendedAcl, p->defaultAcl);
+		serialize(buffer, size, p->id, p->extendedAcl, p->defaultAcl);
+	}
+	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return;
+	}
+}
 
+static int fs_loadacl(FILE *fd, int ignoreflag) {
+	static bool putLfBeforeError;
+	static std::vector<uint8_t> buffer;
+
+	// initialize
+	if (fd == nullptr) {
+		putLfBeforeError = true;
+		return 0;
+	}
+
+	try {
+		// Read size of the entry
+		uint32_t size;
+		buffer.resize(serializedSize(size));
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), ERROR_IO);
+		}
+		deserialize(buffer, size);
+		if (size == 0) {
+			// this is end marker
+			return 1;
+		} else if (size > 10000000) {
+			throw Exception("strange size of entry: " + std::to_string(size), ERROR_ERANGE);
+		}
+
+		// Read the entry
+		buffer.resize(size);
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), ERROR_IO);
+		}
+
+		// Deserialize inode
+		uint32_t inode;
+		deserialize(buffer, inode);
+		fsnode* p = fsnodes_id_to_node(inode);
+		if (!p) {
+			throw Exception("unknown inode: " + std::to_string(inode));
+		}
+
+		// Deserialize ACL
+		deserialize(buffer, inode, p->extendedAcl, p->defaultAcl);
+		return 0;
+	} catch (Exception& ex) {
+		if (putLfBeforeError) {
+			fputc('\n', stderr);
+			putLfBeforeError = false;
+		}
+		mfs_arg_syslog(LOG_ERR, "loading acl: %s", ex.what());
+		if (!ignoreflag || ex.status() != STATUS_OK) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+}
 
 void fs_storeedge(fsedge *e,FILE *fd) {
 	uint8_t uedgebuff[4+4+2+65535];
@@ -7718,6 +7789,17 @@ void fs_storeedges(FILE *fd) {
 	fs_storeedge(NULL,fd);	// end marker
 }
 
+static void fs_storeacls(FILE *fd) {
+	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
+		for (fsnode *p = nodehash[i]; p; p = p->next) {
+			if (p->extendedAcl || p->defaultAcl) {
+				fs_storeacl(p, fd);
+			}
+		}
+	}
+	fs_storeacl(nullptr, fd); // end marker
+}
+
 int fs_lostnode(fsnode *p) {
 	uint8_t artname[40];
 	uint32_t i,l;
@@ -7788,6 +7870,18 @@ int fs_loadedges(FILE *fd,int ignoreflag) {
 			return -1;
 		}
 	} while (s==0);
+	return 0;
+}
+
+static int fs_loadacls(FILE *fd, int ignoreflag) {
+	fs_loadacl(NULL, ignoreflag); // init
+	int s = 0;
+	do {
+		s = fs_loadacl(fd, ignoreflag);
+		if (s < 0) {
+			return -1;
+		}
+	} while (s == 0);
 	return 0;
 }
 
@@ -8114,6 +8208,20 @@ void fs_store(FILE *fd,uint8_t fver) {
 		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
+
+		fs_storeacls(fd);
+
+		offend = ftello(fd);
+		memcpy(hdr,"ACLS 1.0",8);
+		ptr = hdr+8;
+		put64bit(&ptr,offend-offbegin-16);
+		fseeko(fd,offbegin,SEEK_SET);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
+		offbegin = offend;
+		fseeko(fd,offbegin+16,SEEK_SET);
 	}
 	chunk_store(fd);
 	if (fver >= kMetadataVersionWithSections) {
@@ -8274,6 +8382,15 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 				if (xattr_load(fd,ignoreflag)<0) {
 #ifndef METARESTORE
 					syslog(LOG_ERR,"error reading metadata (xattr)");
+#endif
+					return -1;
+				}
+			} else if (memcmp(hdr,"ACLS 1.0",8)==0) {
+				fprintf(stderr,"loading access control lists... ");
+				fflush(stderr);
+				if (fs_loadacls(fd, ignoreflag)<0) {
+#ifndef METARESTORE
+					syslog(LOG_ERR,"error reading access control lists");
 #endif
 					return -1;
 				}
