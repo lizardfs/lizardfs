@@ -2935,13 +2935,11 @@ static uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts) {
 }
 
 static uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList& acl) {
-	if (type == AclType::kDefault) {
+	if (type == AclType::kDefault || !p->extendedAcl) {
 		return ERROR_ENOATTR;
 	}
 	acl.mode = (p->mode & 0777);
-	if (p->extendedAcl) {
-		acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
-	}
+	acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
 	return STATUS_OK;
 }
 
