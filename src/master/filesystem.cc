@@ -7028,10 +7028,9 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad child type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
-#ifndef METARESTORE
-			syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad child type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->child->type);
-#endif
+			mfs_arg_syslog(LOG_ERR,
+					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad child type (%c)\n",
+					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id, e->child->type);
 			free(e->name);
 			free(e);
 			return -1;
@@ -7043,28 +7042,26 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent not found\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-			syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+			mfs_arg_syslog(LOG_ERR,
+					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent not found",
+					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-					fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-					syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+					mfs_arg_syslog(LOG_ERR,
+							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
+							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 					free(e->name);
 					free(e);
 					return -1;
 				}
-				fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-				syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+				mfs_arg_syslog(LOG_ERR,
+						"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",
+						parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 				parent_id = MFS_ROOT_ID;
 			} else {
-				fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
+				mfs_syslog(LOG_ERR,
+						"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				free(e->name);
 				free(e);
 				return -1;
@@ -7075,28 +7072,26 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad parent type (%c)\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
-#ifndef METARESTORE
-			syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad parent type (%c)",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id,e->parent->type);
-#endif
+			mfs_arg_syslog(LOG_ERR,
+					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad parent type (%c)",
+					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id, e->parent->type);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-					fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-					syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+					mfs_arg_syslog(LOG_ERR,
+							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
+							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 					free(e->name);
 					free(e);
 					return -1;
 				}
-				fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-				syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+				mfs_arg_syslog(LOG_ERR,
+						"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",
+						parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 				parent_id = MFS_ROOT_ID;
 			} else {
-				fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
+				mfs_syslog(LOG_ERR,
+						"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				free(e->name);
 				free(e);
 				return -1;
@@ -7112,10 +7107,9 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 					fputc('\n',stderr);
 					nl=0;
 				}
-				fprintf(stderr,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent node sequence error\n",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#ifndef METARESTORE
-				syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent node sequence error",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-#endif
+				syslog(LOG_ERR,
+						"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent node sequence error",
+						parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 				if (ignoreflag) {
 					current_tail = &(e->parent->data.ddata.children);
 					while (*current_tail) {
@@ -7595,16 +7589,14 @@ int fs_checknodes(int ignoreflag) {
 					fputc('\n',stderr);
 					nl=0;
 				}
-				fprintf(stderr,"found orphaned inode: %" PRIu32 "\n",p->id);
-#ifndef METARESTORE
-				syslog(LOG_ERR,"found orphaned inode: %" PRIu32,p->id);
-#endif
+				mfs_arg_syslog(LOG_ERR, "found orphaned inode: %" PRIu32, p->id);
 				if (ignoreflag) {
 					if (fs_lostnode(p)<0) {
 						return -1;
 					}
 				} else {
-					fprintf(stderr,"use mfsmetarestore (option -i) to attach this node to root dir\n");
+					mfs_syslog(LOG_ERR,
+							"use mfsmetarestore (option -i) to attach this node to root dir\n");
 					return -1;
 				}
 			}
@@ -7926,7 +7918,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	uint64_t sleng;
 
 	if (fread(hdr,1,16,fd)!=16) {
-		fprintf(stderr,"error loading header\n");
+		mfs_syslog(LOG_ERR, "error loading header\n");
 		return -1;
 	}
 	ptr = hdr;
@@ -8081,10 +8073,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	fflush(stderr);
 	root = fsnodes_id_to_node(MFS_ROOT_ID);
 	if (root==NULL) {
-		fprintf(stderr,"root node not found !!!\n");
-#ifndef METARESTORE
-		syslog(LOG_ERR,"error reading metadata (no root)");
-#endif
+		mfs_syslog(LOG_ERR, "error reading metadata (root node not found !!!)");
 		return -1;
 	}
 	if (fs_checknodes(ignoreflag)<0) {
@@ -8290,17 +8279,17 @@ void fs_storeall(const char *fname) {
 	FILE *fd;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
-		fprintf(stderr, "can't open metadata file\n");
+		mfs_syslog(LOG_ERR, "can't open metadata file");
 		return;
 	}
 	fs_store_fd(fd);
 
 	if (ferror(fd)!=0) {
-		fprintf(stderr, "can't write metadata\n");
+		mfs_syslog(LOG_ERR, "can't write metadata\n");
 	} else if (fflush(fd) == EOF) {
-		fprintf(stderr, "can't fflush metadata\n");
+		mfs_syslog(LOG_ERR, "can't fflush metadata\n");
 	} else if (fsync(fileno(fd)) == -1) {
-		fprintf(stderr, "can't fsync metadata\n");
+		mfs_syslog(LOG_ERR, "can't fsync metadata\n");
 	}
 	fclose(fd);
 }
@@ -8375,13 +8364,10 @@ void fs_loadall(const char *fname,int ignoreflag) {
 			char cwdbuf[1];
 			cwdbuf[0]=0;
 #endif
-			fprintf(stderr, "Can't open metadata file: If this is new instalation "
-				"then rename %s" METADATA_FILENAME ".empty "
-				"as %s" METADATA_FILENAME, cwdbuf, cwdbuf);
-			if (!cwdbuf[0]) {
-				fprintf( stderr, " (in current working directory)");
-			}
-			fprintf(stderr, "\n");
+			mfs_arg_syslog(LOG_ERR, "Can't open metadata file: If this is new instalation "
+					"then rename %s" METADATA_FILENAME ".empty "
+					"as %s" METADATA_FILENAME "%s",
+					cwdbuf, cwdbuf, cwdbuf[0] ? "" : "(in current working directory)");
 		}
 #endif
 		if (savedErrno == ENOENT)
@@ -8400,8 +8386,7 @@ void fs_loadall(const char *fname,int ignoreflag) {
 		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
 			throw FilesystemException(RenameCurrentToBackupMsg);
 		}
-		fprintf(stderr,"create new empty filesystem");
-		syslog(LOG_NOTICE,"create new empty filesystem");
+		mfs_syslog(LOG_NOTICE, "create new empty filesystem");
 		fs_new();
 		unlink(METADATA_BACK_TMP_FILENAME);
 		// after creating new filesystem always create "back" file for using in metarestore
@@ -8531,7 +8516,7 @@ int fs_init(const char *fname,int ignoreflag) {
 	try {
 		fs_loadall(fname,ignoreflag);
 	} catch (Exception const& e) {
-		fprintf(stderr, "%s\n", e.what());
+		mfs_arg_syslog(LOG_ERR, "%s", e.what());
 		return -1;
 	}
 	return 0;

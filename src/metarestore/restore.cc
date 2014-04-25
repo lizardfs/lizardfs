@@ -25,11 +25,12 @@
 #include <string.h>
 
 #include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #include "master/filesystem.h"
 
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
-		fprintf(stderr, "%s:%" PRIu64 ": '%c' expected\n",(fn),(vno),(c)); \
+		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
 		return -1; \
 	} \
 	(clptr)++; \
@@ -49,7 +50,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -57,7 +58,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -81,7 +82,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -89,7 +90,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -106,7 +107,7 @@
 				} \
 			} \
 			if ((path)==NULL) { \
-				fprintf(stderr, "out of memory !!!\n"); \
+				mfs_syslog(LOG_ERR, "out of memory !!!"); \
 				exit(1); \
 			} \
 		} \
@@ -124,7 +125,7 @@
 			} \
 		} \
 		if ((path)==NULL) { \
-			fprintf(stderr, "out of memory !!!\n"); \
+			mfs_syslog(LOG_ERR, "out of memory !!!"); \
 			exit(1); \
 		} \
 	} \
@@ -144,7 +145,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -152,7 +153,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				fprintf(stderr, "%s:%" PRIu64 ": hex expected\n",(fn),(vno)); \
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -169,7 +170,7 @@
 				} \
 			} \
 			if ((buff)==NULL) { \
-				fprintf(stderr, "out of memory !!!\n"); \
+				mfs_syslog(LOG_ERR, "out of memory !!!"); \
 				exit(1); \
 			} \
 		} \
@@ -748,9 +749,9 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 			break;
 	}
 	if (status == ERROR_MAX) {
-		fprintf(stderr, "%s:%" PRIu64 ": unknown entry '%s'\n",filename,lv,ptr);
+		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
 	} else if (status != STATUS_OK) {
-		fprintf(stderr, "%s:%" PRIu64 ": error: %d (%s)\n",filename,lv,status,errormsgs[status]);
+		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
 	}
 	return status;
 }
@@ -767,22 +768,27 @@ int restore(const char *filename,uint64_t lv,char *ptr) {
 		lastfn = "(no file)";
 	}
 	if (vlevel>1) {
-		fprintf(stderr, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %" PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",filename,v,lastv,lv,ptr);
+		mfs_arg_syslog(LOG_NOTICE, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %"
+				PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",
+				filename, v, lastv, lv, ptr);
 	}
 	if (lv<lastv) {
-		fprintf(stderr, "merge error - possibly corrupted input file - ignore entry (filename: %s)\n",filename);
+		mfs_arg_syslog(LOG_ERR, "merge error - possibly corrupted input file - ignore entry (filename: %s)",
+				filename);
 		return 0;
 	} else if (lv>=v) {
 		if (lv==lastv) {
 			if (vlevel>1) {
-				fprintf(stderr, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)\n",lv,lastfn,filename);
+				mfs_arg_syslog(LOG_WARNING, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)",
+						lv, lastfn, filename);
 			}
 		} else if (lv>lastv+1) {
-			fprintf(stderr, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64 " are missing) - add more files\n",lastfn,lastv+1,filename,lv-1);
+			mfs_arg_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
+					" are missing) - add more files", lastfn, lastv + 1, filename, lv - 1);
 			return -2;
 		} else {
 			if (vlevel>0) {
-				printf("%s: change%s",filename,ptr);
+				mfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
 			status = restore_line(filename,lv,ptr);
 			if (status<0) { // parse error - just ignore this line
@@ -793,7 +799,7 @@ int restore(const char *filename,uint64_t lv,char *ptr) {
 			}
 			v = fs_getversion();
 			if (lv+1!=v) {
-				fprintf(stderr, "%s:%" PRIu64 ": version mismatch\n",filename,lv);
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": version mismatch", filename, lv);
 				return -1;
 			}
 		}

@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -80,7 +81,7 @@ uint64_t findlastlogversion(const std::string& fname) {
 
 	fd = open(fname.c_str(), O_RDONLY);
 	if (fd < 0) {
-		fprintf(stderr, "open failed: %s\n", strerr(errno));
+		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
 		return 0;
 	}
 	fstat(fd, &st);
@@ -89,14 +90,14 @@ uint64_t findlastlogversion(const std::string& fname) {
 
 	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (fileContent == MAP_FAILED) {
-		fprintf(stderr, "mmap failed: %s\n", strerr(errno));
+		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
 		close(fd);
 		return 0; // 0 counterintuitively means failure
 	}
 	uint64_t lastLogVersion = 0;
 	// first LF is (should be) the last byte of the file
 	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		fprintf(stderr, "truncated changelog (%s) (no LF at the end of the last line)\n",
+		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
 				fname.c_str());
 	} else {
 		size_t pos = fileSize - 1;
@@ -109,13 +110,13 @@ uint64_t findlastlogversion(const std::string& fname) {
 		char *endPtr = NULL;
 		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
 		if (*endPtr != ':') {
-			fprintf(stderr, "malformed changelog (%s) (expected colon after change number)\n",
+			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
 					fname.c_str());
 			lastLogVersion = 0;
 		}
 	}
 	if (munmap((void*) fileContent, fileSize)) {
-		fprintf(stderr, "munmap failed: %s\n", strerr(errno));
+		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
 	}
 	close(fd);
 	return lastLogVersion;
@@ -158,8 +159,10 @@ int changelog_checkname(const char *fname) {
 }
 
 void usage(const char* appname) {
+	mfs_syslog(LOG_ERR, "invalid/missing arguments");
 	fprintf(stderr, "restore metadata:\n"
-			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] -m <meta data file> -o <restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
+			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] -m <meta data file> -o "
+			"<restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
 			"dump metadata:\n"
 			"\t%s [-i] -m <meta data file>\n"
 			"autorestore:\n"
@@ -172,8 +175,9 @@ void usage(const char* appname) {
 			"-x - produce more verbose output\n"
 			"-xx - even more verbose output\n"
 			"-b - if there is any error in change logs then save the best possible metadata file\n"
-			"-i - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)\n"
-			"-f - force loading all changelogs\n", appname, appname, appname, appname);
+			"-i - ignore some metadata structure errors (attach orphans to root, ignore names "
+			"without inode, etc.)\n"
+			"-f - force loading all changelogs", appname, appname, appname, appname);
 }
 
 int main(int argc,char **argv) {
@@ -192,11 +196,13 @@ int main(int argc,char **argv) {
 	std::unique_ptr<uint64_t> expectedChecksum;
 
 	strerr_init();
+	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
 	while ((ch = getopt(argc, argv, "fck:vm:o:d:abxih:?")) != -1) {
 		switch (ch) {
 			case 'v':
-				fprintf(stderr, "version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
+				printf("version: %u.%u.%u",
+						PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR, PACKAGE_VERSION_MICRO);
 				return 0;
 			case 'o':
 				metaout = optarg;
@@ -230,8 +236,7 @@ int main(int argc,char **argv) {
 				char* endPtr;
 				*expectedChecksum = strtoull(optarg, &endPtr, 10);
 				if (*endPtr != '\0') {
-					syslog(LOG_ERR, "optargs: %s", optarg);
-					fprintf(stderr, "invalid checksum: %s\n", optarg);
+					mfs_arg_syslog(LOG_ERR, "invalid checksum: %s", optarg);
 					return 1;
 				}
 				break;
@@ -277,36 +282,37 @@ int main(int argc,char **argv) {
 					bestmetadata = metadata_candidate;
 				}
 			} catch (MetadataCheckException& ex) {
-				fprintf(stderr, "skipping malformed metadata file %s: %s\n", candidate, ex.what());
+				mfs_arg_syslog(LOG_NOTICE, "skipping malformed metadata file %s: %s", candidate, ex.what());
 			}
 		}
 		if (bestmetadata.empty()) {
-			fprintf(stderr, "error: can't find backed up metadata file !!!\n");
+			mfs_syslog(LOG_ERR, "error: can't find backed up metadata file !!!");
 			return 1;
 		}
 		metadata = bestmetadata;
 		metaout =  datapath + "/" METADATA_FILENAME;
-		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
+		mfs_arg_syslog(LOG_NOTICE, "file %s will be used to restore the most recent metadata", metadata.c_str());
 	}
 
 	if (fs_init(metadata.c_str(), ignoreflag) != 0) {
-		fprintf(stderr, "error: can't read metadata from file: %s\n", metadata.c_str());
+		mfs_arg_syslog(LOG_ERR, "error: can't read metadata from file: %s", metadata.c_str());
 		return 1;
 	}
 	if (fs_getversion() == 0) {
 		// TODO(msulikowski) make it work! :)
-		fprintf(stderr, "error: applying changes to an empty metadata file (version 0) not supported!!!\n");
+		mfs_syslog(LOG_ERR,
+				"error: applying changes to an empty metadata file (version 0) not supported!!!");
 		return 1;
 	}
 	if (vl > 0) {
-		fprintf(stderr, "loaded metadata with version %" PRIu64 "\n", fs_getversion());
+		mfs_arg_syslog(LOG_NOTICE, "loaded metadata with version %" PRIu64 "", fs_getversion());
 	}
 
 	if (autorestore) {
 		std::vector<std::string> filenames;
 		DIR *dd = opendir(datapath.c_str());
 		if (!dd) {
-			fprintf(stderr, "can't open data directory\n");
+			mfs_syslog(LOG_ERR, "can't open data directory");
 			return 1;
 		}
 		rewinddir(dd);
@@ -318,23 +324,26 @@ int main(int argc,char **argv) {
 				lastlv = findlastlogversion(filenames.back());
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
+					std::ostringstream oss;
 					if (skip) {
-						fprintf(stderr, "skipping changelog file: %s (changes: ",
-								filenames.back().c_str());
+						oss << "skipping changelog file: ";
 					} else {
-						fprintf(stderr, "using changelog file: %s (changes: ",
-								filenames.back().c_str());
+						oss << "using changelog file: ";
 					}
-					if (firstlv>0) {
-						fprintf(stderr, "%" PRIu64 " - ",firstlv);
+					oss << filenames.back() << " (changes: ";
+					if (firstlv > 0) {
+						oss << firstlv;
 					} else {
-						fprintf(stderr, "??? - ");
+						oss << "???";
 					}
-					if (lastlv>0) {
-						fprintf(stderr, "%" PRIu64 ")\n",lastlv);
+					oss << " - ";
+					if (lastlv > 0) {
+						oss << lastlv;
 					} else {
-						fprintf(stderr, "?\?\?)\n");
+						oss << "???";
 					}
+					oss << ")";
+					mfs_arg_syslog(LOG_NOTICE, "%s", oss.str().c_str());
 				}
 				if (skip) {
 					filenames.pop_back();
@@ -343,7 +352,7 @@ int main(int argc,char **argv) {
 		}
 		closedir(dd);
 		if (filenames.empty() && metadata == metaout) {
-			fprintf(stderr, "nothing to do, exiting without changing anything\n");
+			mfs_syslog(LOG_NOTICE, "nothing to do, exiting without changing anything");
 			return 0;
 		}
 		merger_start(filenames, MAXIDHOLE);
@@ -356,21 +365,26 @@ int main(int argc,char **argv) {
 			lastlv = findlastlogversion(argv[pos]);
 			skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 			if (vl>0) {
+				std::ostringstream oss;
 				if (skip) {
-					fprintf(stderr, "skipping changelog file: %s (changes: ",argv[pos]);
+					oss << "skipping changelog file: ";
 				} else {
-					fprintf(stderr, "using changelog file: %s (changes: ",argv[pos]);
+					oss << "using changelog file: ";
 				}
-				if (firstlv>0) {
-					fprintf(stderr, "%" PRIu64 " - ",firstlv);
+				oss << argv[pos] << " (changes: ";
+				if (firstlv > 0) {
+					oss << firstlv;
 				} else {
-					fprintf(stderr, "??? - ");
+					oss << "???";
 				}
-				if (lastlv>0) {
-					fprintf(stderr, "%" PRIu64 ")\n",lastlv);
+				oss << " - ";
+				if (lastlv > 0) {
+					oss << lastlv;
 				} else {
-					fprintf(stderr, "?\?\?)\n");
+					oss << "???";
 				}
+				oss << ")";
+				mfs_arg_syslog(LOG_NOTICE, "%s", oss.str().c_str());
 			}
 			if (skip==0) {
 				filenames.push_back(argv[pos]);
@@ -398,7 +412,7 @@ int main(int argc,char **argv) {
 		fs_dump();
 		chunk_dump();
 	} else {
-		fprintf(stderr, "store metadata into file: %s\n",metaout.c_str());
+		mfs_arg_syslog(LOG_NOTICE, "store metadata into file: %s", metaout.c_str());
 		fs_term(metaout.c_str());
 	}
 	return returnStatus;
