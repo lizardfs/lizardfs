@@ -261,11 +261,11 @@ int main(int argc,char **argv) {
 		}
 		// All candidates from the least to the most preferred one
 		auto candidates{
-			"metadata_ml.mfs.back.1",
-			"metadata.mfs.back.1",
-			"metadata_ml.mfs.back",
-			"metadata.mfs.back",
-			"metadata.mfs"};
+			METADATA_ML_BACK_FILENAME ".1",
+			METADATA_BACK_FILENAME ".1",
+			METADATA_ML_BACK_FILENAME,
+			METADATA_BACK_FILENAME,
+			METADATA_FILENAME};
 		std::string bestmetadata;
 		uint64_t bestversion = 0;
 		for (const char* candidate : candidates) {
@@ -288,7 +288,7 @@ int main(int argc,char **argv) {
 			return 1;
 		}
 		metadata = bestmetadata;
-		metaout =  datapath + "/metadata.mfs";
+		metaout =  datapath + "/" METADATA_FILENAME;
 		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
 	}
 

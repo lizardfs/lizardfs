@@ -1,6 +1,9 @@
 #pragma once
 
 #include <array>
+#include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "common/datapack.h"
@@ -83,6 +86,15 @@ inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 inline uint32_t serializedSize(const std::string& value) {
 	return serializedSize(uint32_t(value.size()))
 			+ serializedSize(std::string::value_type()) * value.size();
+}
+
+template<class T>
+inline uint32_t serializedSize(const std::unique_ptr<T>& ptr) {
+	if (ptr) {
+		return serializedSize(true) + serializedSize(*ptr);
+	} else {
+		return serializedSize(false);
+	}
 }
 
 template<class T>
@@ -170,6 +182,7 @@ inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 	serialize(destination, pair.second);
 }
 
+// serialize a string
 inline void serialize(uint8_t** destination, const std::string& value) {
 	serialize(destination, uint32_t(value.length()));
 	for (unsigned i = 0; i < value.length(); ++i) {
@@ -177,6 +190,18 @@ inline void serialize(uint8_t** destination, const std::string& value) {
 	}
 }
 
+// serialize a unique_ptr
+template<class T>
+inline void serialize(uint8_t** destination, const std::unique_ptr<T>& ptr) {
+	if (ptr) {
+		serialize(destination, true);
+		serialize(destination, *ptr);
+	} else {
+		serialize(destination, false);
+	}
+}
+
+// serialize a vector
 template<class T>
 inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
 	serialize(destination, uint32_t(vector.size()));
@@ -185,6 +210,7 @@ inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
 	}
 }
 
+// serialization
 template<class T>
 inline void serialize(uint8_t** destination, const T& t) {
 	return t.serialize(destination);
@@ -302,6 +328,7 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, con
 	value = *source;
 }
 
+// deserialize a string
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::string& value) {
 	sassert(value.size() == 0);
 	uint32_t size;
@@ -312,6 +339,19 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	value.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, value[i]);
+	}
+}
+
+// deserialize a unique_ptr
+template<class T>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::unique_ptr<T>& ptr) {
+	sassert(!ptr);
+	bool isNotEmpty;
+	deserialize(source, bytesLeftInBuffer, isNotEmpty);
+	if (isNotEmpty) {
+		ptr.reset(new T());
+		deserialize(source, bytesLeftInBuffer, *ptr);
 	}
 }
 

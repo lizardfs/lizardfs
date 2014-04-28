@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/network_address.h"
-#include "common/serializable_class.h"
+#include "common/serialization_macros.h"
 #include "probe/lizardfs_probe_command.h"
 
 SERIALIZABLE_CLASS_BEGIN(ChunkserverEntry)

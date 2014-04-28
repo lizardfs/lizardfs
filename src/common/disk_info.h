@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "common/serializable_class.h"
+#include "common/serialization_macros.h"
 #include "common/string_8bit.h"
 
 SERIALIZABLE_CLASS_BEGIN(HddStatistics)

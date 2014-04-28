@@ -129,7 +129,7 @@ static inline uint64_t hash(const uint8_t* str, uint32_t len) {
 	return std::accumulate(str, str + len, init, hashCombineReturn<uint8_t>);
 }
 
-template<class T, class... Args, class = typename std::enable_if<std::is_integral<T>::value>::type>
+template<class T, class... Args, class>
 static inline void hashCombine(uint64_t& seed, const uint8_t* str, T strLen, Args... args) {
 	hashCombineRaw(seed, hash(str, strLen));
 	hashCombine(seed, args...);

@@ -98,11 +98,11 @@ static void init_fuse_lowlevel_ops() {
 }
 
 static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
+	conn->want |= FUSE_CAP_DONT_MASK;
+
 	int *piped = (int*)userdata;
-	char s;
-	(void)conn;
 	if (piped[1]>=0) {
-		s=0;
+		char s = 0;
 		if (write(piped[1],&s,1)!=1) {
 			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}
@@ -311,7 +311,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.entrycacheto,
 				gMountOptions.attrcacheto,
 				gMountOptions.mkdircopysgid,
-				gMountOptions.sugidclearmode);
+				gMountOptions.sugidclearmode,
+				gMountOptions.acl);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -531,7 +532,7 @@ int main(int argc, char *argv[]) try {
 	strerr_init();
 	mycrc32_init();
 
-	init_fuse_lowlevel_ops();
+   init_fuse_lowlevel_ops();
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 

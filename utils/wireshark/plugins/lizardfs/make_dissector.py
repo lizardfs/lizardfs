@@ -5,7 +5,7 @@ import re
 
 # Some configuration goes here
 chunk_prefixes = ['', 'old', 'new', 'copy'] # prefixes of chunkid field, eg. copychunkid
-oct_fields = ['mode', 'modemask']
+oct_fields = ['mode', 'modemask', 'umask']
 hex_fields = ['vershex', 'rver', 'ip', 'crc']
 for pfx in chunk_prefixes:
     hex_fields += [pfx + 'chunkid', pfx + 'chunkversion']

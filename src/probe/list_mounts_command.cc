@@ -10,8 +10,8 @@
 #include "common/lizardfs_version.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
-#include "common/serializable_class.h"
 #include "common/serialization.h"
+#include "common/serialization_macros.h"
 #include "probe/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;

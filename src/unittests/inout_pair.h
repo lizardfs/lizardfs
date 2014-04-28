@@ -1,7 +1,7 @@
 #pragma once
 
 #define LIZARDFS_DEFINE_INOUT_PAIR(type, name, inVal, outVal) \
-		type name##Out = outVal, name##In = inVal
+		type name##Out{outVal}, name##In{inVal}
 
 #define LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(type, name) \
 		std::vector<type> name##Out, name##In

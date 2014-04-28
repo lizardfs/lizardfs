@@ -1,0 +1,106 @@
+#include "common/serialization_macros.h"
+
+#include <gtest/gtest.h>
+#include <tuple>
+
+#include "common/string_8bit.h"
+#include "unittests/packet.h"
+#include "unittests/inout_pair.h"
+
+TEST(SerializableClassTests, SimpleClass) {
+	class Base {};
+	SERIALIZABLE_CLASS_BEGIN(SomeClass : public Base)
+	SERIALIZABLE_CLASS_BODY(
+		SomeClass,
+		int   , fieldA,
+		short , fieldB,
+		long  , fieldC
+	)
+		void myMethod() {
+			fieldA = 5;
+		};
+	SERIALIZABLE_CLASS_END;
+
+	SomeClass a;
+	(void) a.fieldA;
+	(void) a.fieldB;
+	(void) a.fieldC;
+	a.myMethod();
+}
+
+TEST(SerializableClassTests, Serialize) {
+	SERIALIZABLE_CLASS_BEGIN(Class)
+	SERIALIZABLE_CLASS_BODY(
+		Class,
+		int   , A,
+		short , B,
+		long  , C,
+		std::string             , D,
+		std::vector<std::string>, E
+	)
+		bool operator==(const Class& o) const {
+			return std::make_tuple(A, B, C) == std::make_tuple(o.A, o.B, o.C);
+		}
+		bool operator!=(const Class& o) const {
+			return !(*this == o);
+		}
+	SERIALIZABLE_CLASS_END;
+
+	std::vector<std::string> tmpVector {"kogo", "ma", "ala", "?"};
+	Class tmpC {1, 20, 300, "ala ma kota", tmpVector};
+
+	LIZARDFS_DEFINE_INOUT_PAIR(Class, c, tmpC, Class());
+	ASSERT_NE(cIn, cOut);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(serialize(buffer, cIn));
+	ASSERT_NO_THROW(deserialize(buffer, cOut));
+	LIZARDFS_VERIFY_INOUT_PAIR(c);
+}
+
+LIZARDFS_DEFINE_PACKET_VERSION(somebodyToSomebodyElse, communicate, kSomeVersion, 3210)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		somebodyToSomebodyElse, communicate, LIZ_CLTOMA_FUSE_MKNOD, kSomeVersion,
+		uint32_t, messageId,
+		uint32_t, inode,
+		String8Bit, name,
+		uint8_t, nodeType,
+		uint16_t, mode,
+		uint16_t, umask,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint32_t, rdev)
+
+TEST(PacketSerializationTests, SerializeAndDeserialize) {
+	ASSERT_EQ(3210, somebodyToSomebodyElse::communicate::kSomeVersion);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 65432, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 36, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(String8Bit, name, "kobyla ma maly bok", "");
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, nodeType, 0xF1, 0x00);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint16_t, mode, 0725, 0000);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint16_t, umask, 0351, 0000);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, uid, 1235, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, gid, 531, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, rdev, 398, 0);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(somebodyToSomebodyElse::communicate::serialize(buffer, messageIdIn, inodeIn,
+			nameIn, nodeTypeIn, modeIn, umaskIn, uidIn, gidIn, rdevIn));
+
+	verifyHeader(buffer, LIZ_CLTOMA_FUSE_MKNOD);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(somebodyToSomebodyElse::communicate::deserialize(buffer.data(), buffer.size(),
+			messageIdOut, inodeOut, nameOut, nodeTypeOut, modeOut, umaskOut, uidOut, gidOut,
+			rdevOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
+	LIZARDFS_VERIFY_INOUT_PAIR(inode);
+	LIZARDFS_VERIFY_INOUT_PAIR(name);
+	LIZARDFS_VERIFY_INOUT_PAIR(nodeType);
+	LIZARDFS_VERIFY_INOUT_PAIR(mode);
+	LIZARDFS_VERIFY_INOUT_PAIR(umask);
+	LIZARDFS_VERIFY_INOUT_PAIR(uid);
+	LIZARDFS_VERIFY_INOUT_PAIR(gid);
+	LIZARDFS_VERIFY_INOUT_PAIR(rdev);
+}
+

@@ -171,6 +171,7 @@ add_chunkserver() {
 create_mfsmount_cfg() {
 	echo "mfsmaster=$ip_address"
 	echo "mfsport=${lizardfs_info[matocl]}"
+	echo "mfsacl"
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 

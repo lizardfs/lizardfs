@@ -35,6 +35,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
 	MFS_OPT("mfsdelayedinit", delayedinit, 1),
+	MFS_OPT("mfsacl", acl, 1),
 	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
 	MFS_OPT("mfscachefiles", cachefiles, 1),
 	MFS_OPT("mfscachemode=%s", cachemode, 0),
@@ -89,6 +90,7 @@ void usage(const char *progname) {
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
+"    -o mfsacl                   enable ACL support (disabled by default)\n"
 #ifdef __linux__
 "    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
 #else

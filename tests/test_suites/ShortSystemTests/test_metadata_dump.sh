@@ -1,4 +1,4 @@
-timeout_set 80 seconds
+timeout_set 90 seconds
 
 master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
 master_extra_config+="|DUMP_METADATA_ON_RELOAD = 1"
@@ -11,13 +11,8 @@ CHUNKSERVERS=3 \
 	MASTER_EXTRA_CONFIG=$master_extra_config \
 	setup_local_empty_lizardfs info
 
-# find metadata version
-cat > $TEMP_DIR/metadata_version << END
-#!/bin/bash
-path=${info[master_data_path]}/metadata.mfs.back
-mfsmetadump \$path | sed '2q;d' | sed -r 's/.*version: ([0-9]+).*/\1/'
-END
-chmod +x $TEMP_DIR/metadata_version
+# hack: metadata restoration doesn't work on fresh installations
+lizardfs_master_daemon restart
 
 # 'metaout_tmp' is used to ensure 'metaout' is complete when "created"
 cat > $TEMP_DIR/metarestore_ok.sh << END
@@ -53,90 +48,70 @@ END
 cp $TEMP_DIR/metarestore_ok.sh $TEMP_DIR/metarestore.sh
 chmod a+x $TEMP_DIR/metarestore.sh
 
-# hack: metadata restoration doesn't work on fresh installations
-lizardfs_master_daemon restart
-
-backup_copies=2
-function update_expected_backup_copies_count() {
-	if ((backup_copies < 6)); then
-		backup_copies=$((backup_copies + 1))
-	fi
-}
-
+backup_copies=1   # First backup was created during the initial restart (aka hack)
 function check_backup_copies() {
-	expect_equals $backup_copies $(ls -l ${info[master_data_path]}/*back* | wc -l)
-	for i in $(seq 0 $((backup_copies - 1))); do
-		sufix=".$i"
-		if ((i == 0)); then
-			sufix=""
-		fi
-		expect_success test -s "${info[master_data_path]}/metadata.mfs.back$sufix"
+	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.back.? | wc -l)
+	expect_file_exists "${info[master_data_path]}/metadata.mfs.back"
+	for (( i = 1 ; i <= backup_copies ; ++i )); do
+		expect_file_exists "${info[master_data_path]}/metadata.mfs.back.$i"
 	done
 }
 
-# check if the dump was successful
+# check <master|metarestore> <OK|ERR>
+# dumps metadata and checks results
 function check() {
-	rm -f $TEMP_DIR/metaout
+	cd "${info[master_data_path]}"
+	rm -f "$TEMP_DIR/metaout"
+	assert_file_exists "changelog.0.mfs"
+	assert_file_exists "metadata.mfs.back"
 
-	# changelog.0.mfs exists
-	wait_for "test -s ${info[master_data_path]}/changelog.0.mfs" '5 seconds'
-	# find changelog's last change
-	last_changelog_entry=$(tail -1 ${info[master_data_path]}/changelog.0.mfs | cut -d : -f 1)
-	assert_success test -n $last_changelog_entry
-
+	prev_metadata_inode=$(stat --format=%i metadata.mfs.back)
 	lizardfs_master_daemon reload
+	if [[ $2 == OK ]]; then
+		# wait for dump to be finished
+		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.back.1) == $prev_metadata_inode ]]'
+		files_are_renamed='[[ -e metadata.mfs.back && ! -e metadata.mfs.back.tmp ]]'
+		assert_success wait_for "$metadata_is_dumped" '10 seconds'
+		assert_success wait_for "$files_are_renamed" '10 seconds'
+	fi
 
-	assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
-	# wait for the files' renaming
-	assert_success wait_for "[[ ! -s ${info[master_data_path]}/metadata.mfs.back.tmp ]]" '5 seconds'
-	actual_output=$(cat $TEMP_DIR/metaout)
-	assert_equals "${1:-OK}" "$actual_output"
+	# verify if metadata was or was not used
+	if [[ $1 == metarestore ]]; then
+		assert_success wait_for 'test -e $TEMP_DIR/metaout' '10 seconds'
+	else
+		assert_file_not_exists "$TEMP_DIR/metaout"
+	fi
 
-	if [[ "${1:-OK}" != "ERR" ]]; then
-		# check if metadata is up to date
-		metadata_version=$($TEMP_DIR/metadata_version)
-		assert_success test -n $last_changelog_entry
-		assert_success test -n $metadata_version
-		assert_equals $metadata_version $((last_changelog_entry + 1))
-		update_expected_backup_copies_count
+	if [[ $2 == OK ]]; then
+		# check if the dumped metadata is up to date,
+		# ie. if its version is equal to (1 + last entry in changelog.1)
+		assert_file_exists changelog.1.mfs
+		last_change=$(tail -1 changelog.1.mfs | cut -d : -f 1)
+		assert_success test -n "$last_change"
+		assert_equals $((last_change+1)) "$(mfsmetadump metadata.mfs.back | awk 'NR==2{print $6}')"
+		if ((backup_copies < 5)); then
+			backup_copies=$((backup_copies + 1))
+		fi
 	fi
 	check_backup_copies
-}
-
-function check_no_metarestore() {
-	rm -f "$TEMP_DIR/metaout"
-	# changelog.0.mfs exists
-	wait_for "test -s ${info[master_data_path]}/changelog.0.mfs" '5 seconds'
-	# find changelog's last change
-	last_changelog_entry=$(tail -1 "${info[master_data_path]}/changelog.0.mfs" | cut -d : -f 1)
-	# master dumps metadata itself
-	lizardfs_master_daemon reload
-	# check if metadata version is up to date
-	find_metadata_cmd="metadata_version=\$($TEMP_DIR/metadata_version)"
-	goal="$find_metadata_cmd; ((metadata_version == $((last_changelog_entry + 1))))"
-	wait_for "$goal" '5 seconds' | true
-	assert_equals "$((last_changelog_entry + 1))" "$($TEMP_DIR/metadata_version)"
-	# no metaout
-	assert_failure test -s $TEMP_DIR/metaout
-	update_expected_backup_copies_count
-	check_backup_copies
+	cd -
 }
 
 cd "${info[mount0]}"
 
 FILE_SIZE=200B file-generate to_be_destroyed
 mfsfilerepair to_be_destroyed
-check
+check metarestore OK
 
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk*')
 mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 2
 mfsfilerepair to_be_destroyed
-check
+check metarestore OK
 
 while read command; do
 	eval "$command"
-	MESSAGE="testing $command" check
+	MESSAGE="testing $command" check metarestore OK
 done <<'END'
 touch file1
 attr -s attr1 -V '' file1
@@ -179,6 +154,17 @@ truncate -s 1000M sparse
 truncate -s 100 sparse
 truncate -s 0 sparse
 rm sparse
+setfacl -d -m group:fuse:rw- dir
+setfacl -d -m user:lizardfstest:rwx dir
+setfacl -m group:fuse:rw- dir/file1
+setfacl -m group:adm:rwx dir/file1
+touch dir/aclfile
+setfacl -m group::r-x dir/aclfile
+setfacl -x group:fuse dir/aclfile
+setfacl -k dir
+setfacl -b dir/aclfile
+setfacl -m group:fuse:rw- dir
+setfacl -m group:fuse:rw- dir/aclfile
 END
 
 # Special cases:
@@ -189,41 +175,38 @@ mkdir dir1
 touch dir1/file{0..9}
 ln dir1/file0 dir1/file0_link
 ln -s dir1/file0 dir1/file0_symlink
-check ERR
+check metarestore ERR
+
 mkfifo dir1/fifo
 rm dir1/file0
 echo 'abc' > dir1/abc
-check_no_metarestore
+check master OK
 
 # now master should try using metarestore
 cp $TEMP_DIR/metarestore_ok.sh $TEMP_DIR/metarestore.sh
+
 head -c 1M < /dev/urandom > u_ran_doom
 rm -r dir1
-check
+check metarestore OK
 
 # 2. metarestore doesn't respond
 cp $TEMP_DIR/metarestore_no_response.sh $TEMP_DIR/metarestore.sh
 
 mkdir dir{0..9}
 touch dir{0..9}/file{0..9}
-
-rm -f $TEMP_DIR/metaout
-lizardfs_master_daemon reload # metarestore failed, no backup files created
-assert_success wait_for "[[ -s $TEMP_DIR/metaout ]]" '5 seconds'
+check metarestore ERR
 assert_equals "no response" "$(cat $TEMP_DIR/metaout)"
-check_backup_copies
 
 rm -r dir{5..9}
 mv dir{1..4} dir0
 cp -r dir0 dir1
-check_no_metarestore
+check master OK
 
 # 3. We don't want background dump
 sed -ie 's/PREFER_BACKGROUND_DUMP = 1/PREFER_BACKGROUND_DUMP = 0/' "${lizardfs_info[master_cfg]}"
-lizardfs_master_daemon reload
 
 cp $TEMP_DIR/metarestore_error_if_executed.sh $TEMP_DIR/metarestore.sh
 mkdir dir{11..22}
 echo 'abc' | tee dir{12..21}/file{0..9}
 echo 'foo bar' > 'foo bar'
-check_no_metarestore
+check master OK

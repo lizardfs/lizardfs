@@ -212,6 +212,7 @@
 #define MODE_MASK_R            4
 #define MODE_MASK_W            2
 #define MODE_MASK_X            1
+#define MODE_MASK_EMPTY        0 // Just to avoid '0' argument when passing an empty mask
 
 // flags: "setmask" field in "CLTOMA_FUSE_SETATTR"
 // SET_GOAL_FLAG,SET_DELETE_FLAG are no longer supported
@@ -849,20 +850,38 @@
 #define CLTOMA_FUSE_MKNOD (PROTO_BASE+416)
 /// msgid:32 inode:32 name:NAME nodetype:8 mode:16 uid:32 gid:32 rdev:32
 
+// 0x0588
+#define LIZ_CLTOMA_FUSE_MKNOD (1000U + 416U)
+/// msgid:32 inode:32 name:NAME nodetype:8 mode:16 umask:16 uid:32 gid:32 rdev:32
+
 // 0x01A1
 #define MATOCL_FUSE_MKNOD (PROTO_BASE+417)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
+
+// 0x0589
+#define LIZ_MATOCL_FUSE_MKNOD (1000U + 417U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 inode:32 attr:35B
 
 // 0x01A2
 #define CLTOMA_FUSE_MKDIR (PROTO_BASE+418)
 /// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 copysgid:8
 /// msgid:32 inode:32 name:NAME mode:16 uid:32 gid:32 // version < 1.6.25
 
+// 0x058A
+#define LIZ_CLTOMA_FUSE_MKDIR (1000U + 418U)
+/// msgid:32 inode:32 name:NAME mode:16 umask:16 uid:32 gid:32 copysgid:8
+
 // 0x01A3
 #define MATOCL_FUSE_MKDIR (PROTO_BASE+419)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
+
+// 0x058B
+#define LIZ_MATOCL_FUSE_MKDIR (1000U + 419U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 inode:32 attr:35B
 
 // 0x01A4
 #define CLTOMA_FUSE_UNLINK (PROTO_BASE+420)
@@ -1364,6 +1383,31 @@
 // 0x05FA
 #define LIZ_MATOCL_IOLIMIT (1000U + 530U)
 /// grouplen:32 group:STRING[grouplen] limit:64
+
+// 0x05FB
+#define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8 mode:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+
+// 0x05FC
+#define LIZ_MATOCL_FUSE_SET_ACL (1000U + 532U)
+/// msgid:32 status:8
+
+// 0x05FD
+#define LIZ_CLTOMA_FUSE_GET_ACL (1000U + 533U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8
+
+// 0x05FE
+#define LIZ_MATOCL_FUSE_GET_ACL (1000U + 534U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 mode:16 isextended:8 extendedacl:(isextended ? ExtendedAcl : ---)
+
+// 0x05FF
+#define LIZ_CLTOMA_FUSE_DELETE_ACL (1000U + 535U)
+/// msgid:32 inode:32 uid:32 gid:32 acltype:8
+
+// 0x0600
+#define LIZ_MATOCL_FUSE_DELETE_ACL (1000U + 536U)
+/// msgid:32 status:8
 
 // CHUNKSERVER STATS
 

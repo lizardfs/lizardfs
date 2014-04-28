@@ -52,6 +52,7 @@ struct mfsopts_ {
 	int meta;
 	int debug;
 	int delayedinit;
+	int acl;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
 	int sugidclearmode;
@@ -86,6 +87,7 @@ struct mfsopts_ {
 			meta(0),
 			debug(0),
 			delayedinit(0),
+			acl(0),
 #ifdef __linux__
 			mkdircopysgid(1),
 #else

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/serializable_class.h"
+#include "common/serialization_macros.h"
 
 SERIALIZABLE_CLASS_BEGIN(LizardFsStatistics)
 SERIALIZABLE_CLASS_BODY(LizardFsStatistics,

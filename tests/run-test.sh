@@ -11,17 +11,23 @@
 #   ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u lizardfstest
 
 stop_tests() {
+	local users=$(echo lizardfstest lizardfstest_{0..9})
+	local users_list=${users// /,}
+	local try_count=0
+	# start with killing lizardfstest processes, this will likely suffice
 	sudo pkill -9 -u lizardfstest
-	tries=0
-	while ps -u lizardfstest | grep -v 'PID.*TTY.*TIME' >/dev/null; do
-		if (( tries == 50 )); then
+	sleep 0.1
+	while pgrep -u $users_list >/dev/null ; do
+		for user in $users; do
+			sudo pkill -9 -u $user
+		done
+		((try_count++))
+		if (( try_count == 50 )); then
 			echo "Cannot stop running tests, still running:" >&2
-			ps -u lizardfstest >&2
+			pgrep -u $users_list >&2
 			exit 1
 		fi
 		sleep 0.5
-		sudo pkill -9 -u lizardfstest
-		((tries++))
 	done
 }
 

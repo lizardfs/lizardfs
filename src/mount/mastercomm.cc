@@ -321,6 +321,7 @@ static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type ex
 					if (!filter || rec->receivedType == expected_type) {
 						return true;
 					} else {
+						lock.unlock();
 						setDisconnect(true);
 					}
 				}
@@ -998,7 +999,9 @@ bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) 
 		return false;
 	}
 	MessageBuffer buffer;
-	fs_append_from_master(buffer, size);
+	if (!fs_append_from_master(buffer, size)) {
+		return false;
+	}
 	try {
 		deserialize(buffer, destination...);
 	} catch (IncorrectDeserializationException& e) {
@@ -1211,6 +1214,13 @@ void fs_term(void) {
 	if (connect_args.passworddigest) {
 		free(connect_args.passworddigest);
 	}
+}
+
+static void fs_got_inconsistent(const std::string& type, uint32_t size, const std::string& what) {
+	syslog(LOG_NOTICE,
+			"Got inconsistent %s message from master (length:%" PRIu32 "): %s",
+			type.c_str(), size, what.c_str());
+	setDisconnect(true);
 }
 
 void fs_statfs(uint64_t *totalspace,uint64_t *availspace,uint64_t *trashspace,uint64_t *reservedspace,uint32_t *inodes) {
@@ -1470,83 +1480,88 @@ uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8
 	return ret;
 }
 
-uint8_t fs_mknod(uint32_t parent,uint8_t nleng,const uint8_t *name,uint8_t type,uint16_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t *inode,uint8_t attr[35]) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint32_t t32;
-	uint8_t ret;
-	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CLTOMA_FUSE_MKNOD,20+nleng);
-	if (wptr==NULL) {
+uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t type,
+		uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid, uint32_t rdev,
+		uint32_t &inode, Attributes& attr) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseMknod::serialize(message, rec->packetId,
+			parent, String8Bit(reinterpret_cast<const char*>(name), nleng),
+			type, mode, umask, uid, gid, rdev);
+	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
-	put32bit(&wptr,parent);
-	put8bit(&wptr,nleng);
-	memcpy(wptr,name,nleng);
-	wptr+=nleng;
-	put8bit(&wptr,type);
-	put16bit(&wptr,mode);
-	put32bit(&wptr,uid);
-	put32bit(&wptr,gid);
-	put32bit(&wptr,rdev);
-	rptr = fs_sendandreceive(rec,MATOCL_FUSE_MKNOD,&i);
-	if (rptr==NULL) {
-		ret = ERROR_IO;
-	} else if (i==1) {
-		ret = rptr[0];
-	} else if (i!=39) {
-		setDisconnect(true);
-		ret = ERROR_IO;
-	} else {
-		t32 = get32bit(&rptr);
-		*inode = t32;
-		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_MKNOD, message)) {
+		return ERROR_IO;
 	}
-	return ret;
+	try {
+		uint32_t messageId;
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseMkdir::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseMknod::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(),
+						"version 0 and STATUS_OK");
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseMkdir::kResponsePacketVersion) {
+			matocl::fuseMknod::deserialize(message, messageId, inode, attr);
+			return STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(),
+					"unknown version " + std::to_string(packetVersion));
+			return ERROR_IO;
+		}
+		return ERROR_ENOTSUP;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(), ex.what());
+		return ERROR_IO;
+	}
 }
 
-uint8_t fs_mkdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint16_t mode,uint32_t uid,uint32_t gid,uint8_t copysgid,uint32_t *inode,uint8_t attr[35]) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint32_t t32;
-	uint8_t ret;
-	threc *rec = fs_get_my_threc();
-	if (masterversion<0x010619) {
-		wptr = fs_createpacket(rec,CLTOMA_FUSE_MKDIR,15+nleng);
-	} else {
-		wptr = fs_createpacket(rec,CLTOMA_FUSE_MKDIR,16+nleng);
-	}
-	if (wptr==NULL) {
+uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
+		uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
+		uint8_t copysgid,uint32_t &inode, Attributes& attr) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseMkdir::serialize(message, rec->packetId,
+			parent, String8Bit(reinterpret_cast<const char*>(name), nleng),
+			mode, umask, uid, gid, copysgid);
+	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
-	put32bit(&wptr,parent);
-	put8bit(&wptr,nleng);
-	memcpy(wptr,name,nleng);
-	wptr+=nleng;
-	put16bit(&wptr,mode);
-	put32bit(&wptr,uid);
-	put32bit(&wptr,gid);
-	if (masterversion>=0x010619) {
-		put8bit(&wptr,copysgid);
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_MKDIR, message)) {
+		return ERROR_IO;
 	}
-	rptr = fs_sendandreceive(rec,MATOCL_FUSE_MKDIR,&i);
-	if (rptr==NULL) {
-		ret = ERROR_IO;
-	} else if (i==1) {
-		ret = rptr[0];
-	} else if (i!=39) {
-		setDisconnect(true);
-		ret = ERROR_IO;
-	} else {
-		t32 = get32bit(&rptr);
-		*inode = t32;
-		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+	try {
+		uint32_t messageId;
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseMkdir::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseMkdir::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(),
+						"version 0 and STATUS_OK");
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseMkdir::kResponsePacketVersion) {
+			matocl::fuseMkdir::deserialize(message, messageId, inode, attr);
+			return STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(),
+					"unknown version " + std::to_string(packetVersion));
+			return ERROR_IO;
+		}
+		return ERROR_ENOTSUP;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(), ex.what());
+		return ERROR_IO;
 	}
-	return ret;
 }
 
 uint8_t fs_unlink(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid) {
@@ -2326,6 +2341,82 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 		ret = ERROR_IO;
 	}
 	return ret;
+}
+
+uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseDeleteAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_DELETE_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseDeleteAcl::deserialize(message.data(), message.size(), status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_DELETE_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
+}
+
+uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseGetAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GET_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseGetAcl::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), status);
+			if (status == STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
+						"version 0 and STATUS_OK");
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseGetAcl::kResponsePacketVersion) {
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), acl);
+			return STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
+					"unknown version " + std::to_string(packetVersion));
+			return ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
+}
+
+uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, const AccessControlList& acl) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseSetAcl::serialize(message, rec->packetId, inode, uid, gid, type, acl);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SET_ACL, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseSetAcl::deserialize(message.data(), message.size(), status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());
+		return ERROR_IO;
+	}
 }
 
 static uint32_t* msgIdPtr(const MessageBuffer& buffer) {

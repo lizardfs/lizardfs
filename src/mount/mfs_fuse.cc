@@ -38,8 +38,17 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "common/access_control_list.h"
+#include "common/acl_type.h"
+#include "common/acl_converter.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "common/posix_acl_xattr.h"
 #include "common/strerr.h"
 #include "devtools/request_log.h"
 #include "mount/chunk_locator.h"
@@ -128,6 +137,7 @@ static double entry_cache_timeout = 0.0;
 static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
+static bool acl_enabled = 0;
 
 enum {
 	OP_STATFS = 0,
@@ -957,7 +967,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 		}
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.uid,ctx.gid,rdev,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.umask,ctx.uid,ctx.gid,rdev,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1042,7 +1052,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 		return;
 	}
 
-	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.uid,ctx.gid,mkdir_copy_sgid,&inode,attr);
+	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.umask,ctx.uid,ctx.gid,mkdir_copy_sgid,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1551,7 +1561,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 		return;
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.uid,ctx.gid,0,&inode,attr);
+	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.umask,ctx.uid,ctx.gid,0,inode,attr);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -2039,6 +2049,141 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 	}
 }
 
+namespace {
+
+class XattrHandler {
+public:
+	virtual ~XattrHandler() {}
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, const char *value, size_t size, int mode) = 0;
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) = 0;
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng) = 0;
+};
+
+class PlainXattrHandler : public XattrHandler {
+public:
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, const char *value, size_t size, int mode) {
+		return fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				(uint32_t)size, (const uint8_t*)value, mode);
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+		const uint8_t *buff;
+		uint32_t leng;
+		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				mode, &buff, &leng);
+		if (mode == MFS_XATTR_GETA_DATA && status == STATUS_OK) {
+			buffer = std::vector<uint8_t>(buff, buff+leng);
+		}
+		return status;
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
+			uint32_t nleng) {
+		return fs_removexattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name);
+	}
+};
+
+class ErrorXattrHandler : public XattrHandler {
+public:
+	ErrorXattrHandler(uint8_t error) : error_(error) {}
+	virtual uint8_t setxattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t, const char *, size_t, int) {
+		return error_;
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t, std::vector<uint8_t>&, int) {
+		return error_;
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx&, fuse_ino_t, const char *,
+			uint32_t) {
+		return error_;
+	}
+private:
+	uint8_t error_;
+};
+
+class AclXattrHandler : public XattrHandler {
+public:
+	AclXattrHandler(AclType type) : type_(type) {}
+
+	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t, const char *value, size_t size, int) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		AccessControlList acl;
+		try {
+			PosixAclXattr posix = aclConverter::extractPosixObject((const uint8_t*)value, size);
+			if (posix.entries.empty()) {
+				// Is empty ACL set? It means to remove it!
+				return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+			}
+			acl = aclConverter::posixToAclObject(posix);
+		} catch (Exception&) {
+			return ERROR_EINVAL;
+		}
+		return fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
+	}
+
+	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t, std::vector<uint8_t>& buffer, int) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		AccessControlList acl;
+		uint8_t status = fs_getacl(ino, ctx.uid, ctx.gid, type_, acl);
+		if (status != STATUS_OK) {
+			return status;
+		}
+		try {
+			buffer = aclConverter::aclObjectToXattr(acl);
+			return STATUS_OK;
+		} catch (Exception&) {
+			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			return ERROR_IO;
+		}
+	}
+
+	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
+			uint32_t) {
+		if (!acl_enabled) {
+			return ERROR_ENOTSUP;
+		}
+		return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+	}
+
+private:
+	AclType type_;
+};
+
+} // anonymous namespace
+
+static AclXattrHandler accessAclXattrHandler(AclType::kAccess);
+static AclXattrHandler defaultAclXattrHandler(AclType::kDefault);
+static ErrorXattrHandler enotsupXattrHandler(ERROR_ENOTSUP);
+static PlainXattrHandler plainXattrHandler;
+
+static std::map<std::string, XattrHandler*> xattr_handlers = {
+	{POSIX_ACL_XATTR_ACCESS, &accessAclXattrHandler},
+	{POSIX_ACL_XATTR_DEFAULT, &defaultAclXattrHandler},
+	{"security.capability", &enotsupXattrHandler},
+};
+
+static XattrHandler* choose_xattr_handler(const char *name) {
+	try {
+		return xattr_handlers.at(name);
+	} catch (std::out_of_range&) {
+		return &plainXattrHandler;
+	}
+}
+
 #if defined(__APPLE__)
 void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags, uint32_t position) {
 #else
@@ -2104,7 +2249,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 	mode = 0;
 #endif
 	(void)position;
-	status = fs_setxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,(uint32_t)size,(const uint8_t*)value,mode);
+	status = choose_xattr_handler(name)->setxattr(ctx, ino, name, nleng, value, size, mode);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2124,6 +2269,7 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 	uint32_t nleng;
 	int status;
 	uint8_t mode;
+	std::vector<uint8_t> buffer;
 	const uint8_t *buff;
 	uint32_t leng;
 	const struct fuse_ctx ctx = *fuse_req_ctx(req);
@@ -2166,7 +2312,9 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		mode = MFS_XATTR_GETA_DATA;
 	}
 	(void)position;
-	status = fs_getxattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name,mode,&buff,&leng);
+	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, buffer, mode);
+	buff = buffer.data();
+	leng = buffer.size();
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2262,7 +2410,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EINVAL));
 		return;
 	}
-	status = fs_removexattr(ino,0,ctx.uid,ctx.gid,nleng,(const uint8_t*)name);
+	status = choose_xattr_handler(name)->removexattr(ctx, ino, name, nleng);
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2273,18 +2421,22 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 	}
 }
 
-void mfs_init(int debug_mode_in,int keep_cache_in,double direntry_cache_timeout_in,double entry_cache_timeout_in,double attr_cache_timeout_in,int mkdir_copy_sgid_in,int sugid_clear_mode_in) {
+void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
+		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
+		int sugid_clear_mode_, bool acl_enabled_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
-	debug_mode = debug_mode_in;
-	keep_cache = keep_cache_in;
-	direntry_cache_timeout = direntry_cache_timeout_in;
-	entry_cache_timeout = entry_cache_timeout_in;
-	attr_cache_timeout = attr_cache_timeout_in;
-	mkdir_copy_sgid = mkdir_copy_sgid_in;
-	sugid_clear_mode = sugid_clear_mode_in;
+	debug_mode = debug_mode_;
+	keep_cache = keep_cache_;
+	direntry_cache_timeout = direntry_cache_timeout_;
+	entry_cache_timeout = entry_cache_timeout_;
+	attr_cache_timeout = attr_cache_timeout_;
+	mkdir_copy_sgid = mkdir_copy_sgid_;
+	sugid_clear_mode = sugid_clear_mode_;
+	acl_enabled = acl_enabled_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
-		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_in,(sugid_clear_mode_in<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_in]:"???");
+		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode_<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_]:"???");
+		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
 	}
 	mfs_statsptr_init();
 }

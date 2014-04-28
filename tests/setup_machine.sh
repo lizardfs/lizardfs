@@ -1,19 +1,21 @@
 #!/bin/bash
 
 usage() {
-	echo "Usage: $0 setup hdd..."
-	echo
-	echo "This scripts prepares the machine to run LizardFS tests here."
-	echo "Specifically:"
-	echo "* creates user lizardfstest"
-	echo "* adds user lizardfstestto the fuse group"
-	echo "* grants all users rights to run programs as lizardfstest"
-	echo "* grants all users rights to run 'pkill -9 -u lizardfstest"
-	echo "* allow all users to mount fuse filesystem with allow_other option"
-	echo "* creates a 2G ramdisk in /mnt/ramdisk"
-	echo "* creates 6 files mounted using loop device"
-	echo
-	echo "You need root permissions to run this script"
+	cat >&2 <<EOF
+Usage: $0 setup hdd...
+
+This scripts prepares the machine to run LizardFS tests here.
+Specifically:
+* creates users lizardfstest, lizardfstest_0, ..., lizardfstest_9
+* adds all lizardfstest users to the fuse group
+* grants all users rights to run programs as lizardfstest users
+* grants all users rights to run 'pkill -9 -u <some lizardfstest user>'
+* allows all users to mount fuse filesystem with allow_other option
+* creates a 2G ramdisk in /mnt/ramdisk
+* creates 6 files mounted using loop device
+
+You need root permissions to run this script
+EOF
 	exit 1
 }
 
@@ -34,7 +36,7 @@ if ! groups lizardfstest | grep -w fuse > /dev/null; then
 fi
 if ! groups lizardfstest | grep -w adm > /dev/null; then
 	usermod -a -G adm lizardfstest # allow this user to read files from /var/log
-fi	 
+fi
 
 echo ; echo Create home directory /var/lib/lizardfstest
 if [[ ! -d /var/lib/lizardfstest ]]; then
@@ -60,6 +62,19 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 	END
 	chmod 0440 /etc/sudoers.d/lizardfstest
 fi
+
+echo ; echo 'Add users lizardfstest_{0..9}'
+for username in lizardfstest_{0..9}; do
+	if ! getent passwd $username > /dev/null; then
+		useradd --system --user-group --home /var/lib/$username --create-home \
+				--groups fuse,lizardfstest $username
+		cat >>/etc/sudoers.d/lizardfstest <<-END
+
+			ALL ALL = ($username) NOPASSWD: ALL
+			ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u $username
+		END
+	fi
+done
 
 echo ; echo Prepare /etc/fuse.conf
 if ! grep '^[[:blank:]]*user_allow_other' /etc/fuse.conf >/dev/null; then
