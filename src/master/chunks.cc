@@ -21,26 +21,13 @@
 
 #include <fcntl.h>
 #include <inttypes.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef METARESTORE
-#include <time.h>
-#endif
+#include <syslog.h>
 #include <unistd.h>
-
-
-#ifndef METARESTORE
-#include "common/cfg.h"
-#include "common/main.h"
-#include "common/random.h"
-#include "master/matoclserv.h"
-#include "master/matocsserv.h"
-#include "master/topology.h"
-#endif
 
 #include "common/datapack.h"
 #include "common/hashfn.h"
@@ -48,6 +35,17 @@
 #include "common/MFSCommunication.h"
 #include "master/checksum.h"
 #include "master/filesystem.h"
+
+#ifdef METARESTORE
+#  include <time.h>
+#else
+#  include "common/cfg.h"
+#  include "common/main.h"
+#  include "common/random.h"
+#  include "master/matoclserv.h"
+#  include "master/matocsserv.h"
+#  include "master/topology.h"
+#endif
 
 #define USE_SLIST_BUCKETS 1
 #define USE_FLIST_BUCKETS 1

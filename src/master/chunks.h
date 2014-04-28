@@ -18,8 +18,10 @@
 
 #pragma once
 
-#include <stdio.h>
+#include "config.h"
+
 #include <inttypes.h>
+#include <stdio.h>
 
 #include "master/checksum.h"
 

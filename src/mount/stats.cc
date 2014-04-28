@@ -16,11 +16,14 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+#include "mount/stats.h"
+
+#include <inttypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-#include <inttypes.h>
 
 typedef struct _statsnode {
 	uint64_t counter;

@@ -17,32 +17,31 @@
 */
 
 #include "config.h"
+#include "chunkserver/csserv.h"
 
-#define BGJOBSCNT 1000
-
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-
-#include "common/datapack.h"
-#include "csserv.h"
+#include "chunkserver/bgjobs.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/cfg.h"
-#include "common/main.h"
-#include "common/sockets.h"
-#include "hddspacemgr.h"
 #include "common/charts.h"
-#include "common/slogger.h"
-#include "bgjobs.h"
+#include "common/datapack.h"
+#include "common/main.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
+
+#define BGJOBSCNT 1000
 
 // connection timeout in seconds
 #define CSSERV_TIMEOUT 5

@@ -17,25 +17,25 @@
  */
 
 #include "config.h"
+#include "chunkserver/chartsdata.h"
 
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <syslog.h>
-#include <sys/time.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/resource.h>
+#include <sys/time.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 
+#include "chunkserver/csserv.h"
+#include "chunkserver/hddspacemgr.h"
+#include "chunkserver/masterconn.h"
+#include "chunkserver/replicator.h"
 #include "common/charts.h"
 #include "common/main.h"
-
-#include "csserv.h"
-#include "masterconn.h"
-#include "hddspacemgr.h"
-#include "replicator.h"
 
 #define CHARTS_FILENAME "csstats.mfs"
 

@@ -16,9 +16,11 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-#include <inttypes.h>
+#include "config.h"
 #include "common/md5.h"
+
+#include <inttypes.h>
+#include <string.h>
 
 #define S11 7
 #define S12 12

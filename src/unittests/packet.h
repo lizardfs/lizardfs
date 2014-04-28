@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>

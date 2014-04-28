@@ -13,6 +13,8 @@ fi
 cat << END
 #pragma once
 
+#include "config.h"
+
 // DO NOT MODIFY THIS FILE BY HAND!
 //
 // This file was automatically generated with $(basename $0). If you want macros below to

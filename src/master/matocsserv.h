@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port);

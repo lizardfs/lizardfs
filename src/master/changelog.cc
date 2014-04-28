@@ -17,16 +17,16 @@
  */
 
 #include "config.h"
+#include "master/changelog.h"
 
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <syslog.h>
 #include <unistd.h>
 
-#include "common/main.h"
-#include "changelog.h"
-#include "matomlserv.h"
 #include "common/cfg.h"
+#include "common/main.h"
+#include "master/matomlserv.h"
 
 #define MAXLOGLINESIZE 200000U
 #define MAXLOGNUMBER 1000U

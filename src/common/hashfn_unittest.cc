@@ -1,8 +1,8 @@
+#include "config.h"
 #include "common/hashfn.h"
 
-#include <gtest/gtest.h>
-
 #include <algorithm>
+#include <gtest/gtest.h>
 
 TEST(HashTests, StringHashTest) {
 	std::string s1 = "foo bar";

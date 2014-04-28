@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/access_control_list.h"
 #include "common/attributes.h"
 #include "common/packet.h"

@@ -17,31 +17,33 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#  include "config.h"
 #else
-#define HAVE_ZLIB_H 1
-#define HAVE_STRUCT_TM_TM_GMTOFF 1
-#endif
-
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/time.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <string>
-#ifdef HAVE_ZLIB_H
-#include <zlib.h>
+#  define HAVE_ZLIB_H 1
+#  define HAVE_STRUCT_TM_TM_GMTOFF 1
 #endif
 
 #include "common/charts.h"
+
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <string>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
+
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/slogger.h"
+
+#ifdef HAVE_ZLIB_H
+#  include <zlib.h>
+#endif
 
 #define USE_NET_ORDER 1
 

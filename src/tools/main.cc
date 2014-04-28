@@ -16,6 +16,8 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -25,19 +27,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <limits>
 
-#include "config.h"
-#include "datapack.h"
-#include "human_readable_format.h"
-#include "MFSCommunication.h"
-#include "mfsstrerr.h"
-#include "sockets.h"
-#include "strerr.h"
+#include "common/datapack.h"
+#include "common/MFSCommunication.h"
+#include "common/mfsstrerr.h"
+#include "common/sockets.h"
+#include "common/strerr.h"
+#include "tools/human_readable_format.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)

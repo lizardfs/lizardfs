@@ -18,8 +18,10 @@
 
 #pragma once
 
-#include <poll.h>
+#include "config.h"
+
 #include <inttypes.h>
+#include <poll.h>
 
 #define LIZARDFS_EXIT_STATUS_SUCCESS 0
 #define LIZARDFS_EXIT_STATUS_NOT_ALIVE 1

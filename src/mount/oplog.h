@@ -18,8 +18,10 @@
 
 #pragma once
 
-#include <fuse/fuse_lowlevel.h>
+#include "config.h"
+
 #include <inttypes.h>
+#include <fuse/fuse_lowlevel.h>
 
 #ifndef __printflike
 #ifdef __GNUC__

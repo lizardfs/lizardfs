@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "common/crc.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

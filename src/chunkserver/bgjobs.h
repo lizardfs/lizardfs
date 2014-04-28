@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);

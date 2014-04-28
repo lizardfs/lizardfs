@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <cinttypes>
 
 #include "common/serialization.h"

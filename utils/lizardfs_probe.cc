@@ -1,8 +1,8 @@
 #include <iostream>
 
 #include "common/exception.h"
-#include "common/MFSCommunication.h"
 #include "common/message_receive_buffer.h"
+#include "common/MFSCommunication.h"
 #include "common/multi_buffer_writer.h"
 #include "common/packet.h"
 #include "common/sockets.h"

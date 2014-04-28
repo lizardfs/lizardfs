@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/chunkserver_write_chain.h"
 
 #include "common/datapack.h"

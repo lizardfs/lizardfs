@@ -18,28 +18,20 @@
 
 #include "config.h"
 
-#if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
-#define MFS_USE_MEMLOCK
-#endif
-
-#include <fuse.h>
-#include <fuse/fuse_opt.h>
-#include <fuse/fuse_lowlevel.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#ifdef MFS_USE_MEMLOCK
-#include <sys/mman.h>
-#endif
-#include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <stddef.h>
-#include <unistd.h>
 #include <syslog.h>
-#include <errno.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <fuse.h>
+#include <fuse/fuse_lowlevel.h>
+#include <fuse/fuse_opt.h>
 
 #include "common/crc.h"
 #include "common/md5.h"
@@ -55,6 +47,14 @@
 #include "mount/stats.h"
 #include "mount/symlinkcache.h"
 #include "mount/writedata.h"
+
+#if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
+#  define MFS_USE_MEMLOCK
+#endif
+
+#ifdef MFS_USE_MEMLOCK
+#  include <sys/mman.h>
+#endif
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

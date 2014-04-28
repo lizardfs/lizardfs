@@ -18,9 +18,10 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <syslog.h>
-
 #include <string>
 
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,const type def)

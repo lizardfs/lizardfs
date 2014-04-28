@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 const char* strerr(int error);
 void strerr_init(void);
 void strerr_term(void);

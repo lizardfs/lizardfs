@@ -17,10 +17,36 @@
  */
 
 #include "config.h"
+#include "init.h"
 
 #ifndef MFSMAXFILES
 #define MFSMAXFILES 5000
 #endif
+
+#include <errno.h>
+#include <fcntl.h>
+#include <grp.h>
+#include <pwd.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+#include "common/cfg.h"
+#include "common/crc.h"
+#include "common/main.h"
+#include "common/massert.h"
+#include "common/slogger.h"
+#include "common/strerr.h"
 
 #if defined(HAVE_MLOCKALL)
 #  if defined(HAVE_SYS_MMAN_H)
@@ -34,36 +60,8 @@
 #  endif
 #endif
 
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-#include <sys/time.h>
-
-#include <signal.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <syslog.h>
-#include <string.h>
-#include <strings.h>
-#include <time.h>
-#include <sys/resource.h>
-#include <grp.h>
-#include <pwd.h>
-
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-
-
-#include "common/cfg.h"
-#include "common/main.h"
-#include "common/strerr.h"
-#include "common/crc.h"
-#include "init.h"
-#include "common/massert.h"
-#include "common/slogger.h"
 
 #define RM_RESTART 0
 #define RM_START 1

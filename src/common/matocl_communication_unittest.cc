@@ -1,9 +1,10 @@
+#include "config.h"
 #include "common/matocl_communication.h"
 
 #include <gtest/gtest.h>
 
-#include "unittests/packet.h"
 #include "unittests/inout_pair.h"
+#include "unittests/packet.h"
 
 TEST(MatoclCommunicationTests, FuseDeleteAcl) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);

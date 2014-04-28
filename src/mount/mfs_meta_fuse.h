@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <fuse/fuse_lowlevel.h>
 
 #if FUSE_USE_VERSION >= 26

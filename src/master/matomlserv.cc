@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "master/matomlserv.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -40,7 +41,6 @@
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
-#include "master/matomlserv.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000

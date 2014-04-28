@@ -18,21 +18,23 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <errno.h>
 #include <stdio.h>
-#include <syslog.h>
 #include <stdlib.h>
-
-#ifdef THROW_INSTEAD_OF_ABORT
-	#include <stdexcept>
-	#include <string>
-	#define ABORT_OR_THROW (throw std::runtime_error(std::string(__FILE__ ":") + \
-			std::to_string(__LINE__)))
-#else
-	#define ABORT_OR_THROW abort()
-#endif
+#include <syslog.h>
 
 #include "common/strerr.h"
+
+#ifdef THROW_INSTEAD_OF_ABORT
+#  include <stdexcept>
+#  include <string>
+#  define ABORT_OR_THROW (throw std::runtime_error(std::string(__FILE__ ":") + \
+			std::to_string(__LINE__)))
+#else
+#  define ABORT_OR_THROW abort()
+#endif
 
 #define massert(e, msg) ((e) ? (void)0 : (fprintf(stderr, "failed assertion '%s' : %s\n", #e, \
 		(msg)), syslog(LOG_ERR, "failed assertion '%s' : %s", #e, (msg)), ABORT_OR_THROW))

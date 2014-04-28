@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/acl_converter.h"
 
 static constexpr uint16_t kUserPermissionsModeOffset  = 0100;

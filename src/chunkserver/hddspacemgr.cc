@@ -16,44 +16,45 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
-
 #define MMAP_ALLOC 1
+#include "config.h"
+#include "chunkserver/hddspacemgr.h"
 
-#include <inttypes.h>
-#include <syslog.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/statvfs.h>
-#include <sys/time.h>
-#include <time.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
-#ifdef MMAP_ALLOC
-#include <sys/mman.h>
-#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
 #include "common/cfg.h"
-#include "common/datapack.h"
 #include "common/crc.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
 #include "common/random.h"
+#include "common/slogger.h"
+
+#ifdef MMAP_ALLOC
+#  include <sys/mman.h>
+#endif
 
 #define PRESERVE_BLOCK 1
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
-#define USE_PIO 1
+#  define USE_PIO 1
 #endif
 
 /* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */
@@ -65,8 +66,8 @@
 #define CRCSTEPS (CRCDELAY/DELAYEDSTEP)+1
 
 #ifdef PRESERVE_BLOCK
-#define PRESERVEDELAY 10
-#define PRESERVESTEPS (PRESERVEDELAY/DELAYEDSTEP)+1
+#  define PRESERVEDELAY 10
+#  define PRESERVESTEPS (PRESERVEDELAY/DELAYEDSTEP)+1
 #endif
 
 #define LOSTCHUNKSBLOCKSIZE 1024

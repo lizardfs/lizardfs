@@ -1,4 +1,5 @@
-#include "human_readable_format.h"
+#include "config.h"
+#include "tools/human_readable_format.h"
 
 #include <gtest/gtest.h>
 

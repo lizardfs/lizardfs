@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/extended_acl.h"
 
 #include <tuple>

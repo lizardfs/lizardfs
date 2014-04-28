@@ -1,3 +1,4 @@
+#include "config.h"
 #include "master/io_limits_database.h"
 
 void IoLimitsDatabase::setLimits(const IoLimitsConfigLoader::LimitsMap& limits) {

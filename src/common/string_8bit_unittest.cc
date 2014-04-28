@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/string_8bit.h"
 
 #include <gtest/gtest.h>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/serialization.h"
 
 // This class behaves just as std::vector, with the exception that it is serialized

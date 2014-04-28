@@ -17,21 +17,22 @@
  */
 
 #include "config.h"
+#include "mount/cscomm.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <time.h>
-#include <errno.h>
 #include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-#include "common/sockets.h"
-#include "common/datapack.h"
-#include "common/strerr.h"
-#include "common/mfsstrerr.h"
 #include "common/crc.h"
+#include "common/datapack.h"
+#include "common/MFSCommunication.h"
+#include "common/mfsstrerr.h"
+#include "common/sockets.h"
+#include "common/strerr.h"
 
 #define CSMSECTIMEOUT 5000
 

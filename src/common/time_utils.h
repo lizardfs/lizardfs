@@ -1,9 +1,10 @@
 #pragma once
 
+#include "config.h"
+
 #include <chrono>
 #include <cstdint>
 #include <ratio>
-
 
 // Detect compilers that don't support std::chrono::steady_clock.
 

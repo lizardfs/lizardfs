@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt);

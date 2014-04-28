@@ -17,33 +17,31 @@
  */
 
 #include "config.h"
+#include "chunkserver/masterconn.h"
 
-#define BGJOBSCNT 1000
-
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <time.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-#include "common/datapack.h"
-#include "masterconn.h"
+#include "chunkserver/bgjobs.h"
+#include "chunkserver/csserv.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/cfg.h"
+#include "common/datapack.h"
 #include "common/main.h"
-#include "common/sockets.h"
-#include "hddspacemgr.h"
-#include "common/slogger.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
 #include "common/random.h"
-#include "bgjobs.h"
-#include "csserv.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
 
 #define MaxPacketSize 10000
 
@@ -51,6 +49,8 @@
 #define LOSTCHUNKLIMIT 25000
 // has to be less than MaxPacketSize on master side divided by 12
 #define NEWCHUNKLIMIT 25000
+
+#define BGJOBSCNT 1000
 
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};

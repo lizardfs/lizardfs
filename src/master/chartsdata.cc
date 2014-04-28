@@ -17,6 +17,22 @@
  */
 
 #include "config.h"
+#include "master/chartsdata.h"
+
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
+
+#include "common/charts.h"
+#include "common/main.h"
+#include "master/chunks.h"
+#include "master/filesystem.h"
+#include "master/matoclserv.h"
 
 #if defined(HAVE_GETRUSAGE) && defined(HAVE_STRUCT_RUSAGE_RU_MAXRSS)
 #  include <sys/types.h>
@@ -45,23 +61,6 @@
 #  endif
 #  define CPU_USAGE 1
 #endif
-
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <syslog.h>
-#include <errno.h>
-
-
-#include "common/charts.h"
-#include "common/main.h"
-
-#include "chunks.h"
-#include "filesystem.h"
-#include "matoclserv.h"
 
 #define CHARTS_FILENAME "stats.mfs"
 

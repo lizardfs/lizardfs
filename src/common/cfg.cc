@@ -17,13 +17,13 @@
  */
 
 #include "config.h"
+#include "common/cfg.h"
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 
-#include "common/cfg.h"
 #include "common/massert.h"
 #include "common/slogger.h"
 

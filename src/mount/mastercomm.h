@@ -18,11 +18,13 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <vector>
 
-#include "common/acl_type.h"
 #include "common/access_control_list.h"
+#include "common/acl_type.h"
 #include "common/attributes.h"
 #include "common/packet.h"
 

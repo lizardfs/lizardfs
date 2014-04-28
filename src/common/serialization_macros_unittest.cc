@@ -1,11 +1,12 @@
+#include "config.h"
 #include "common/serialization_macros.h"
 
-#include <gtest/gtest.h>
 #include <tuple>
+#include <gtest/gtest.h>
 
 #include "common/string_8bit.h"
-#include "unittests/packet.h"
 #include "unittests/inout_pair.h"
+#include "unittests/packet.h"
 
 TEST(SerializableClassTests, SimpleClass) {
 	class Base {};

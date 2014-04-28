@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int dcm_open(uint32_t inode,uint32_t sessionid);
