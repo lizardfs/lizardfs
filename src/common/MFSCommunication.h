@@ -274,7 +274,7 @@
 	"ignore_gid", \
 	"can_change_quota", \
 	"map_all", \
-	"undefined_flag_5", \
+	"no_master_permission_check", \
 	"undefined_flag_6", \
 	"undefined_flag_7"
 
