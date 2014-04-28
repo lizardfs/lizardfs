@@ -55,7 +55,7 @@ class ClientHandler:
 		self.outgoing = ''
 		self.writable = False
 		self.close_when_done = True
- 
+
 	def handle_error(self):
 		self.close()
 
@@ -126,11 +126,11 @@ class ClientHandler:
 		self.client_socket.close()
 
 # ============================================================================
-# Main loop, calling the select() function on the sockets to see if new 
+# Main loop, calling the select() function on the sockets to see if new
 # clients are trying to connect, if some clients have sent data and if those
 # for which the response is complete are ready to receive it
 # For each event, call the appropriate method of the server or of the instance
-# of ClientHandler managing the dialog with the client : handle_read() or 
+# of ClientHandler managing the dialog with the client : handle_read() or
 # handle_write()
 # ============================================================================
 def loop(server,handler,timeout=30):

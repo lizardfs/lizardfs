@@ -5,7 +5,7 @@ CHUNKSERVERS=3 \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
-	
+
 # Create a file consising of a couple of chunks and remove it
 file="${info[mount0]}/file"
 touch "$file"

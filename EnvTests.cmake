@@ -1,7 +1,7 @@
 # comparing build config with (old) autotools build,
 # refer to ced2e72776fd01e71f1c7eece9c4414b1fe23c54 / configure.ac
 
-# discarded tests: 
+# discarded tests:
 # keywords tests for inline, volatile and const
 
 # functions marked here as required, that don't appear in the code: atexit strchr
