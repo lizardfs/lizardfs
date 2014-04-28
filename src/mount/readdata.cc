@@ -51,24 +51,24 @@
 #define MAPINDX(inode) (inode&MAPMASK)
 
 typedef struct _readrec {
-	uint8_t *rbuff;			// this->locked
-	uint32_t rbuffsize;		// this->locked
-	uint32_t inode;			// this->locked
-	uint64_t fleng;			// this->locked
-	uint32_t indx;			// this->locked
-	uint64_t chunkid;		// this->locked
-	uint32_t version;		// this->locked
-	uint32_t ip;			// this->locked
-	uint16_t port;			// this->locked
-	int fd;				// this->locked
-	uint8_t refcnt;			// glock
-	uint8_t noaccesscnt;		// glock
-	uint8_t valid;			// glock
-	uint8_t locked;			// glock
-	uint16_t waiting;		// glock
-	pthread_cond_t cond;		// glock
-	struct _readrec *next;		// glock
-	struct _readrec *mapnext;	// glock
+	uint8_t *rbuff;                 // this->locked
+	uint32_t rbuffsize;             // this->locked
+	uint32_t inode;                 // this->locked
+	uint64_t fleng;                 // this->locked
+	uint32_t indx;                  // this->locked
+	uint64_t chunkid;               // this->locked
+	uint32_t version;               // this->locked
+	uint32_t ip;                    // this->locked
+	uint16_t port;                  // this->locked
+	int fd;                         // this->locked
+	uint8_t refcnt;                 // glock
+	uint8_t noaccesscnt;            // glock
+	uint8_t valid;                  // glock
+	uint8_t locked;                 // glock
+	uint16_t waiting;               // glock
+	pthread_cond_t cond;            // glock
+	struct _readrec *next;          // glock
+	struct _readrec *mapnext;       // glock
 } readrec;
 
 static readrec *rdinodemap[MAPSIZE];
@@ -155,13 +155,13 @@ void* read_data_new(uint32_t inode) {
 	rrec->mapnext = rdinodemap[MAPINDX(inode)];
 	rdinodemap[MAPINDX(inode)] = rrec;
 	pthread_mutex_unlock(&glock);
-//	fprintf(stderr,"read_data_new (%p)\n",rrec);
+//      fprintf(stderr,"read_data_new (%p)\n",rrec);
 	return rrec;
 }
 
 void read_data_end(void* rr) {
 	readrec *rrec = (readrec*)rr;
-//	fprintf(stderr,"read_data_end (%p)\n",rr);
+//      fprintf(stderr,"read_data_end (%p)\n",rr);
 
 	pthread_mutex_lock(&glock);
 	rrec->waiting++;
@@ -241,7 +241,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	uint8_t status;
 	uint32_t srcip;
 
-//	fprintf(stderr,"read_data_refresh_connection (%p)\n",rrec);
+//      fprintf(stderr,"read_data_refresh_connection (%p)\n",rrec);
 	if (rrec->fd>=0) {
 		csdb_readdec(rrec->ip,rrec->port);
 		tcpclose(rrec->fd);
@@ -251,11 +251,11 @@ static int read_data_refresh_connection(readrec *rrec) {
 	if (status!=0) {
 		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,mfsstrerr(status));
 		if (status==ERROR_ENOENT) {
-			return EBADF;	// stale handle
+			return EBADF;   // stale handle
 		}
 		return EIO;
 	}
-//	fprintf(stderr,"(%" PRIu32 ",%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ",%" PRIu32 ",%" PRIu16 ")\n",rrec->inode,rrec->indx,rrec->fleng,rrec->chunkid,rrec->version,ip,port);
+//      fprintf(stderr,"(%" PRIu32 ",%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ",%" PRIu32 ",%" PRIu16 ")\n",rrec->inode,rrec->indx,rrec->fleng,rrec->chunkid,rrec->version,ip,port);
 	if (rrec->chunkid==0 && csdata==NULL && csdatasize==0) {
 		return 0;
 	}
@@ -278,7 +278,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 			bestcnt = cnt;
 		}
 	}
-	if (ip==0 || port==0) {	// this always should be false
+	if (ip==0 || port==0) { // this always should be false
 		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
 		return ENXIO;
 	}
@@ -327,13 +327,13 @@ static int read_data_refresh_connection(readrec *rrec) {
 	return 0;
 }
 
-void read_inode_ops(uint32_t inode) {	// attributes of inode have been changed - force reconnect
+void read_inode_ops(uint32_t inode) {   // attributes of inode have been changed - force reconnect
 	readrec *rrec;
 	pthread_mutex_lock(&glock);
 	for (rrec = rdinodemap[MAPINDX(inode)] ; rrec ; rrec=rrec->mapnext) {
 		if (rrec->inode==inode) {
-			rrec->noaccesscnt=CLOSEDELAYTICKS;	// if no access then close socket as soon as possible
-			rrec->refcnt=REFRESHTICKS;		// force reconnect on forthcoming access
+			rrec->noaccesscnt=CLOSEDELAYTICKS;      // if no access then close socket as soon as possible
+			rrec->refcnt=REFRESHTICKS;              // force reconnect on forthcoming access
 		}
 	}
 	pthread_mutex_unlock(&glock);
@@ -375,7 +375,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	}
 
 	eb=1;
-	if (*buff==NULL) {	// use internal buffer
+	if (*buff==NULL) {      // use internal buffer
 		eb=0;
 		if (*size>rrec->rbuffsize) {
 			if (rrec->rbuff!=NULL) {
@@ -386,7 +386,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			if (rrec->rbuff==NULL) {
 				rrec->rbuffsize = 0;
 				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - out of memory",rrec->inode,rrec->indx);
-				return ENOMEM;	// out of memory
+				return ENOMEM;  // out of memory
 			}
 		}
 	}
@@ -411,7 +411,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					break;
 				}
 				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - can't connect to proper chunkserver (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,cnt);
-				if (err==EBADF) {	// no such inode - it's unrecoverable error
+				if (err==EBADF) {       // no such inode - it's unrecoverable error
 					if (eb) {
 						pthread_mutex_lock(&glock);
 						if (rrec->waiting) {
@@ -422,7 +422,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					}
 					return err;
 				}
-				if (err==ENXIO) {	// chunk not available - unrecoverable, but wait longer, and make less retries
+				if (err==ENXIO) {       // chunk not available - unrecoverable, but wait longer, and make less retries
 					sleep(60);
 					cnt+=6;
 				} else {

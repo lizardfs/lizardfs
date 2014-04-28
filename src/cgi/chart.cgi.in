@@ -63,8 +63,8 @@ else:
 		cmd,length = struct.unpack(">LL",header)
 		if cmd==ANTOCU_CHART and length>0:
 			data = myrecv(s,length)
-#		data = s.recv(length)
-#		print len(data),length
+#               data = s.recv(length)
+#               print len(data),length
 			if data[:3]=="GIF":
 				print "Content-Type: image/gif"
 				print

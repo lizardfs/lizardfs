@@ -55,14 +55,14 @@ struct threc {
 	std::condition_variable condition;
 	MessageBuffer outputBuffer;
 	MessageBuffer inputBuffer;
-	uint8_t status;		// receive status
-	bool sent;		// packet was sent
-	bool received;		// packet was received
-	bool waiting;		// thread is waiting for answer
+	uint8_t status;         // receive status
+	bool sent;              // packet was sent
+	bool received;          // packet was received
+	bool waiting;           // thread is waiting for answer
 
 	uint32_t receivedType;
 
-	uint32_t packetId;	// thread number
+	uint32_t packetId;      // thread number
 	threc *next;
 };
 
@@ -353,7 +353,7 @@ const uint8_t* fs_sendandreceive(threc *rec, uint32_t expected_cmd, uint32_t *an
 bool fs_lizsendandreceive(threc *rec, uint32_t expectedCommand, MessageBuffer& messageData) {
 	if (fs_threc_send_receive(rec, true, expectedCommand)) {
 		std::unique_lock<std::mutex> lock(rec->mutex);
-		rec->received = false;	// we steal ownership of the received buffer
+		rec->received = false;  // we steal ownership of the received buffer
 		messageData = std::move(rec->inputBuffer);
 		return true;
 	}
@@ -921,7 +921,7 @@ void* fs_nop_thread(void *arg) {
 			return NULL;
 		}
 		if (disconnect == false && fd >= 0) {
-			if (lastwrite+2<now) {	// NOP
+			if (lastwrite+2<now) {  // NOP
 				ptr = hdr;
 				put32bit(&ptr,ANTOAN_NOP);
 				put32bit(&ptr,4);
@@ -939,7 +939,7 @@ void* fs_nop_thread(void *arg) {
 			} else {
 				inodeswritecnt--;
 			}
-			if (inodeswritecnt==0) {	// HELD INODES
+			if (inodeswritecnt==0) {        // HELD INODES
 				std::unique_lock<std::mutex> asLock(acquiredFileMutex);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
@@ -1036,14 +1036,14 @@ void* fs_receive_thread(void *) {
 			}
 		}
 		if (fd==-1 && sessionid!=0) {
-			fs_reconnect();		// try to register using the same session id
+			fs_reconnect();         // try to register using the same session id
 		}
-		if (fd==-1) {	// still not connected
-			if (sessionlost) {	// if previous session is lost then try to register as a new session
+		if (fd==-1) {   // still not connected
+			if (sessionlost) {      // if previous session is lost then try to register as a new session
 				if (fs_connect(0,&connect_args)==0) {
 					sessionlost=0;
 				}
-			} else {	// if other problem occured then try to resolve hostname and portname then try to reconnect using the same session id
+			} else {        // if other problem occured then try to resolve hostname and portname then try to reconnect using the same session id
 				if (fs_resolve(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname)==0) {
 					fs_reconnect();
 				}
@@ -1051,7 +1051,7 @@ void* fs_receive_thread(void *) {
 		}
 		if (fd==-1) {
 			fdLock.unlock();
-			sleep(2);	// reconnect every 2 seconds
+			sleep(2);       // reconnect every 2 seconds
 			continue;
 		}
 		fdLock.unlock();
@@ -1786,7 +1786,7 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 		setDisconnect(true);
 		ret = ERROR_IO;
 	}
-	if (ret) {	// release on error
+	if (ret) {      // release on error
 		fs_dec_acnt(inode);
 	}
 	return ret;

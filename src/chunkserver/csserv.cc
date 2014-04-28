@@ -74,21 +74,21 @@ typedef struct csserventry {
 	uint8_t fwdmode;
 
 	int sock;
-	int fwdsock;			// forwarding socket for writing
-	uint64_t connstart;		// 'connect' start time in usec (for timeout and retry)
-	uint32_t fwdip;			// 'connect' IP
-	uint16_t fwdport;		// 'connect' port number
-	uint8_t connretrycnt;		// 'connect' retry counter
+	int fwdsock;                    // forwarding socket for writing
+	uint64_t connstart;             // 'connect' start time in usec (for timeout and retry)
+	uint32_t fwdip;                 // 'connect' IP
+	uint16_t fwdport;               // 'connect' port number
+	uint8_t connretrycnt;           // 'connect' retry counter
 	int32_t pdescpos;
 	int32_t fwdpdescpos;
 	uint32_t activity;
 	uint8_t hdrbuff[8];
 	uint8_t fwdhdrbuff[8];
 	packetstruct inputpacket;
-	uint8_t *fwdstartptr;		// used for forwarding inputpacket data
-	uint32_t fwdbytesleft;		// used for forwarding inputpacket data
-	packetstruct fwdinputpacket;	// used for receiving status from fwdsocket
-	uint8_t *fwdinitpacket;		// used only for write initialization
+	uint8_t *fwdstartptr;           // used for forwarding inputpacket data
+	uint32_t fwdbytesleft;          // used for forwarding inputpacket data
+	packetstruct fwdinputpacket;    // used for receiving status from fwdsocket
+	uint8_t *fwdinitpacket;         // used only for write initialization
 	packetstruct *outputhead,**outputtail;
 
 
@@ -99,17 +99,17 @@ typedef struct csserventry {
 
 	/* read */
 	uint32_t rjobid;
-	uint8_t todocnt;		// R (read finished + send finished)
+	uint8_t todocnt;                // R (read finished + send finished)
 
 	/* common for read and write but meaning is different !!! */
 	void *rpacket;
 	void *wpacket;
 
 	uint8_t chunkisopen;
-	uint64_t chunkid;		// R+W
-	uint32_t version;		// R+W
-	uint32_t offset;		// R
-	uint32_t size;			// R
+	uint64_t chunkid;               // R+W
+	uint32_t version;               // R+W
+	uint32_t offset;                // R
+	uint32_t size;                  // R
 
 	struct csserventry *next;
 } csserventry;
@@ -240,11 +240,11 @@ int csserv_initconnect(csserventry *eptr) {
 		return -1;
 	}
 	if (status==0) { // connected immediately
-//		syslog(LOG_NOTICE,"connected immediately");
+//              syslog(LOG_NOTICE,"connected immediately");
 		tcpnodelay(eptr->fwdsock);
 		eptr->state=WRITEINIT;
 	} else {
-//		syslog(LOG_NOTICE,"connecting ...");
+//              syslog(LOG_NOTICE,"connecting ...");
 		eptr->state=CONNECTING;
 		eptr->connstart=main_utime();
 	}
@@ -303,7 +303,7 @@ void csserv_check_nextpacket(csserventry *eptr);
 // common - delayed close
 void csserv_delayed_close(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
-	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==STATUS_OK) {	// this was job_open
+	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==STATUS_OK) {      // this was job_open
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
@@ -337,7 +337,7 @@ void csserv_read_finished(uint8_t status,void *e) {
 		put8bit(&ptr,status);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
 		eptr->chunkisopen = 0;
-		eptr->state = IDLE;	// after sending status even if there was an error it's possible to receive new requests on the same connection
+		eptr->state = IDLE;     // after sending status even if there was an error it's possible to receive new requests on the same connection
 	}
 }
 
@@ -359,17 +359,17 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->rpacket=NULL;
 		eptr->todocnt++;
 	}
-	if (eptr->size==0) {	// everything have been read
+	if (eptr->size==0) {    // everything have been read
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,STATUS_OK);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
 		eptr->chunkisopen = 0;
-		eptr->state = IDLE;	// no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
+		eptr->state = IDLE;     // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
 		blocknum = (eptr->offset)>>MFSBLOCKBITS;
 		blockoffset = (eptr->offset)&MFSBLOCKMASK;
-		if (((eptr->offset+eptr->size-1)>>MFSBLOCKBITS) == blocknum) {	// last block
+		if (((eptr->offset+eptr->size-1)>>MFSBLOCKBITS) == blocknum) {  // last block
 			size = eptr->size;
 		} else {
 			size = MFSBLOCKSIZE-blockoffset;
@@ -414,7 +414,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (eptr->size==0) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);	// no bytes to read - just return STATUS_OK
+		put8bit(&ptr,STATUS_OK);        // no bytes to read - just return STATUS_OK
 		return;
 	}
 	if (eptr->size>MFSCHUNKSIZE) {
@@ -450,7 +450,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
 	uint8_t *ptr;
 	writestatus **wpptr,*wptr;
-//	syslog(LOG_NOTICE,"write job finished (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
+//      syslog(LOG_NOTICE,"write job finished (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
 	if (status!=STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
@@ -513,7 +513,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		return;
 	}
 
-	if (length>(8+4)) {	// connect to another cs
+	if (length>(8+4)) {     // connect to another cs
 		eptr->fwdip = get32bit(&data);
 		eptr->fwdport = get16bit(&data);
 		eptr->connretrycnt = 0;
@@ -579,7 +579,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->wpacket = csserv_preserve_inputpacket(eptr);
 	eptr->wjobwriteid = writeid;
 	eptr->wjobid = job_write(jpool,csserv_write_finished,eptr,chunkid,eptr->version,blocknum,data+4,offset,size,data);
-//	syslog(LOG_NOTICE,"add write job (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ")",eptr->wjobid,chunkid,eptr->wjobwriteid);
+//      syslog(LOG_NOTICE,"add write job (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ")",eptr->wjobid,chunkid,eptr->wjobwriteid);
 }
 
 void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -598,7 +598,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 	writeid = get32bit(&data);
 	status = get8bit(&data);
 
-//	syslog(LOG_NOTICE,"received write status (chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",chunkid,writeid,status);
+//      syslog(LOG_NOTICE,"received write status (chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",chunkid,writeid,status);
 
 	if (eptr->chunkid!=chunkid) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
@@ -743,9 +743,9 @@ void csserv_hdd_list_v1(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->state = CLOSE;
 		return;
 	}
-	l = hdd_diskinfo_v1_size();	// lock
+	l = hdd_diskinfo_v1_size();     // lock
 	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V1,l);
-	hdd_diskinfo_v1_data(ptr);	// unlock
+	hdd_diskinfo_v1_data(ptr);      // unlock
 }
 
 void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -758,9 +758,9 @@ void csserv_hdd_list_v2(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		eptr->state = CLOSE;
 		return;
 	}
-	l = hdd_diskinfo_v2_size();	// lock
+	l = hdd_diskinfo_v2_size();     // lock
 	ptr = csserv_create_attached_packet(eptr,CSTOCL_HDD_LIST_V2,l);
-	hdd_diskinfo_v2_data(ptr);	// unlock
+	hdd_diskinfo_v2_data(ptr);      // unlock
 }
 
 void csserv_chart(csserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -833,7 +833,7 @@ void csserv_close(csserventry *eptr) {
 }
 
 void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
-//	syslog(LOG_NOTICE,"packet %u:%u",type,length);
+//      syslog(LOG_NOTICE,"packet %u:%u",type,length);
 	if (type==ANTOAN_NOP) {
 		return;
 	}
@@ -851,12 +851,12 @@ void csserv_gotpacket(csserventry *eptr,uint32_t type,const uint8_t *data,uint32
 		case CLTOCS_WRITE:
 			csserv_write_init(eptr,data,length);
 			break;
-//		case CLTOCS_WRITE_DATA:
-//			csserv_write_data(eptr,data,length);
-//			break;
-//		case CLTOCS_WRITE_DONE:
-//			csserv_write_done(eptr,data,length);
-//			break;
+//              case CLTOCS_WRITE_DATA:
+//                      csserv_write_data(eptr,data,length);
+//                      break;
+//              case CLTOCS_WRITE_DONE:
+//                      csserv_write_done(eptr,data,length);
+//                      break;
 		case CSTOCS_GET_CHUNK_BLOCKS:
 			csserv_get_chunk_blocks(eptr,data,length);
 			break;
@@ -1027,7 +1027,7 @@ void csserv_fwdread(csserventry *eptr) {
 	if (eptr->fwdmode==HEADER) {
 		i=read(eptr->fwdsock,eptr->fwdinputpacket.startptr,eptr->fwdinputpacket.bytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(fwdread) connection closed");
+//                      syslog(LOG_NOTICE,"(fwdread) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
@@ -1063,7 +1063,7 @@ void csserv_fwdread(csserventry *eptr) {
 		if (eptr->fwdinputpacket.bytesleft>0) {
 			i=read(eptr->fwdsock,eptr->fwdinputpacket.startptr,eptr->fwdinputpacket.bytesleft);
 			if (i==0) {
-//				syslog(LOG_NOTICE,"(fwdread) connection closed");
+//                              syslog(LOG_NOTICE,"(fwdread) connection closed");
 				csserv_fwderror(eptr);
 				return;
 			}
@@ -1103,7 +1103,7 @@ void csserv_fwdwrite(csserventry *eptr) {
 	if (eptr->fwdbytesleft>0) {
 		i=write(eptr->fwdsock,eptr->fwdstartptr,eptr->fwdbytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(fwdwrite) connection closed");
+//                      syslog(LOG_NOTICE,"(fwdwrite) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
@@ -1137,7 +1137,7 @@ void csserv_forward(csserventry *eptr) {
 	if (eptr->mode==HEADER) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
+//                      syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1173,7 +1173,7 @@ void csserv_forward(csserventry *eptr) {
 	if (eptr->inputpacket.bytesleft>0) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
+//                      syslog(LOG_NOTICE,"(forward) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1192,7 +1192,7 @@ void csserv_forward(csserventry *eptr) {
 	if (eptr->fwdbytesleft>0) {
 		i=write(eptr->fwdsock,eptr->fwdstartptr,eptr->fwdbytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(forward) connection closed");
+//                      syslog(LOG_NOTICE,"(forward) connection closed");
 			csserv_fwderror(eptr);
 			return;
 		}
@@ -1233,7 +1233,7 @@ void csserv_read(csserventry *eptr) {
 	if (eptr->mode == HEADER) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(read) connection closed");
+//                      syslog(LOG_NOTICE,"(read) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1272,7 +1272,7 @@ void csserv_read(csserventry *eptr) {
 		if (eptr->inputpacket.bytesleft>0) {
 			i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 			if (i==0) {
-//				syslog(LOG_NOTICE,"(read) connection closed");
+//                              syslog(LOG_NOTICE,"(read) connection closed");
 				eptr->state = CLOSE;
 				return;
 			}
@@ -1320,7 +1320,7 @@ void csserv_write(csserventry *eptr) {
 		}
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i==0) {
-//			syslog(LOG_NOTICE,"(write) connection closed");
+//                      syslog(LOG_NOTICE,"(write) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1534,7 +1534,7 @@ void csserv_serve(struct pollfd *pdesc) {
 			csserv_retryconnect(eptr);
 		}
 		if (eptr->state!=CLOSE && eptr->state!=CLOSEWAIT && eptr->state!=CLOSED && eptr->activity+CSSERV_TIMEOUT<now) {
-//			syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
+//                      syslog(LOG_NOTICE,"timed out on state: %u",eptr->state);
 			eptr->state = CLOSE;
 		}
 		if (eptr->state == CLOSE) {

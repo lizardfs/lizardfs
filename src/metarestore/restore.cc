@@ -679,7 +679,7 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 		case 'C':
 			if (strncmp(ptr,"CREATE",6)==0) {
 				status = do_create(filename,lv,ts,ptr+6);
-			} else if (strncmp(ptr,"CUSTOMER",8)==0) {	// deprecated
+			} else if (strncmp(ptr,"CUSTOMER",8)==0) {      // deprecated
 				status = do_session(filename,lv,ts,ptr+8);
 			}
 			break;

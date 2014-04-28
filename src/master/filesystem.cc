@@ -132,7 +132,7 @@ typedef struct _fsedge {
 #endif
 	uint64_t checksum;
 	uint16_t nleng;
-//	uint16_t nhash;
+//      uint16_t nhash;
 	uint8_t *name;
 } fsedge;
 
@@ -149,9 +149,9 @@ typedef struct _statsrecord {
 #endif
 
 typedef struct _quotanode {
-	uint8_t exceeded;	// hard quota exceeded or soft quota reached time limit
+	uint8_t exceeded;       // hard quota exceeded or soft quota reached time limit
 	uint8_t flags;
-	uint32_t stimestamp;	// time when soft quota exceeded
+	uint32_t stimestamp;    // time when soft quota exceeded
 	uint32_t sinodes,hinodes;
 	uint64_t slength,hlength;
 	uint64_t ssize,hsize;
@@ -196,45 +196,45 @@ public:
 	uint32_t ctime,mtime,atime;
 	uint8_t type;
 	uint8_t goal;
-	uint16_t mode;	// only 12 lowest bits are used for mode, in unix standard upper 4 are used for object type, but since there is field "type" this bits can be used as extra flags
+	uint16_t mode;  // only 12 lowest bits are used for mode, in unix standard upper 4 are used for object type, but since there is field "type" this bits can be used as extra flags
 	uint32_t uid;
 	uint32_t gid;
 	uint32_t trashtime;
 	union _data {
-		struct _ddata {				// type==TYPE_DIRECTORY
+		struct _ddata {                         // type==TYPE_DIRECTORY
 			fsedge *children;
 			uint32_t nlink;
 			uint32_t elements;
-//			uint8_t quotaexceeded:1;	// quota exceeded
+//                      uint8_t quotaexceeded:1;        // quota exceeded
 #ifndef METARESTORE
 			statsrecord *stats;
 #endif
 			quotanode *quota;
 		} ddata;
-		struct _sdata {				// type==TYPE_SYMLINK
+		struct _sdata {                         // type==TYPE_SYMLINK
 			uint32_t pleng;
 			uint8_t *path;
 /*
 #ifdef CACHENOTIFY
-			uint32_t lastattrchange;	// even - store attr in cache / odd - do not store attr in cache
+			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
 #endif
 */
 		} sdata;
 		struct _devdata {
-			uint32_t rdev;				// type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
+			uint32_t rdev;                          // type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
 /*
 #ifdef CACHENOTIFY
-			uint32_t lastattrchange;	// even - store attr in cache / odd - do not store attr in cache
+			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
 #endif
 */
 		} devdata;
-		struct _fdata {				// type==TYPE_FILE ; type==TYPE_TRASH ; type==TYPE_RESERVED
+		struct _fdata {                         // type==TYPE_FILE ; type==TYPE_TRASH ; type==TYPE_RESERVED
 			uint64_t length;
 			uint64_t *chunktab;
 			uint32_t chunks;
 /*
 #ifdef CACHENOTIFY
-			uint32_t lastattrchange;	// even - store attr in cache / odd - do not store attr in cache
+			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
 #endif
 */
 			sessionidrec *sessionids;
@@ -242,7 +242,7 @@ public:
 /*
 #ifdef CACHENOTIFY
 		struct _odata {
-			uint32_t lastattrchange;	// even - store attr in cache / odd - do not store attr in cache
+			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
 		} odata;
 #endif
 */
@@ -683,7 +683,7 @@ uint32_t fsnodes_get_next_id() {
 	while (searchpos<bitmasksize && freebitmask[searchpos]==0xFFFFFFFF) {
 		searchpos++;
 	}
-	if (searchpos==bitmasksize) {	// no more freeinodes
+	if (searchpos==bitmasksize) {   // no more freeinodes
 		uint32_t *tmpfbm;
 		bitmasksize+=0x80;
 		tmpfbm = freebitmask;
@@ -769,7 +769,7 @@ void fsnodes_init_freebitmask (void) {
 	freebitmask = (uint32_t*)malloc(bitmasksize*sizeof(uint32_t));
 	passert(freebitmask);
 	memset(freebitmask,0,bitmasksize*sizeof(uint32_t));
-	freebitmask[0]=1;	// reserve inode 0
+	freebitmask[0]=1;       // reserve inode 0
 	searchpos = 0;
 }
 
@@ -1136,14 +1136,14 @@ static inline fsnode* fsnodes_id_to_node(uint32_t id) {
 // returns 1 only if f is ancestor of p
 static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 	fsedge *e;
-	for (e=p->parents ; e ; e=e->nextparent) {	// check all parents of 'p' because 'p' can be any object, so it can be hardlinked
-		p=e->parent;	// warning !!! since this point 'p' is used as temporary variable
+	for (e=p->parents ; e ; e=e->nextparent) {      // check all parents of 'p' because 'p' can be any object, so it can be hardlinked
+		p=e->parent;    // warning !!! since this point 'p' is used as temporary variable
 		while (p) {
 			if (f==p) {
 				return 1;
 			}
 			if (p->parents) {
-				p = p->parents->parent;	// here 'p' is always a directory so it should have only one parent
+				p = p->parents->parent; // here 'p' is always a directory so it should have only one parent
 			} else {
 				p = NULL;
 			}
@@ -1430,7 +1430,7 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 		attrnocache=0;
 	}
 	if (attrnocache || (node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
-//	if ((node->type==TYPE_FILE && node->data.fdata.noattrcache) || (node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
+//      if ((node->type==TYPE_FILE && node->data.fdata.noattrcache) || (node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
 #else
 	... standard condition ...
 #endif
@@ -1483,7 +1483,7 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 		break;
 	case TYPE_DIRECTORY:
 		put32bit(&ptr,node->data.ddata.nlink);
-		put64bit(&ptr,node->data.ddata.stats->length>>30);	// Rescale length to GB (reduces size to 32-bit length)
+		put64bit(&ptr,node->data.ddata.stats->length>>30);      // Rescale length to GB (reduces size to 32-bit length)
 		break;
 	case TYPE_SYMLINK:
 		put32bit(&ptr,nlink);
@@ -1560,9 +1560,9 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 	if (e->parent) {
 		matoclserv_notify_unlink(e->parent->id,e->nleng,e->name,ts);
 		if (e->child->type==TYPE_DIRECTORY) {
-			fsnodes_attr_changed(e->parent,ts);		// nlink attr in the parent directory has changed
+			fsnodes_attr_changed(e->parent,ts);             // nlink attr in the parent directory has changed
 		} else {
-			fsnodes_attr_changed_other_parents(e->child,e->parent->id,ts);	// inform other parents that nlink attr has changed
+			fsnodes_attr_changed_other_parents(e->child,e->parent->id,ts);  // inform other parents that nlink attr has changed
 		}
 	}
 #endif
@@ -1635,14 +1635,14 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 #ifndef METARESTORE
 /*
 #ifdef CACHENOTIFY
-	if (child->type!=TYPE_DIRECTORY) {	// directory can have only one parent, so do not send this information when directory is relinked (moved)
-		fsnodes_attr_changed_other_parents(child,parent->id,ts);	// inform other parents that nlink attr has changed
+	if (child->type!=TYPE_DIRECTORY) {      // directory can have only one parent, so do not send this information when directory is relinked (moved)
+		fsnodes_attr_changed_other_parents(child,parent->id,ts);        // inform other parents that nlink attr has changed
 	}
 	fsnodes_fill_attr(child,parent,0,0,0,0,0,attr);
 	matoclserv_notify_link(parent->id,nleng,name,child->id,attr,ts);
 	if (child->type==TYPE_DIRECTORY) {
 		matoclserv_notify_parent(child->id,parent->id);
-		fsnodes_attr_changed(parent,ts);		// nlink attr in the parent directory has changed
+		fsnodes_attr_changed(parent,ts);                // nlink attr in the parent directory has changed
 	}
 #endif
 */
@@ -1697,7 +1697,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 		p->mode &= ~(umask&0777); // umask must be applied manually
 	}
 	p->uid = uid;
-	if ((node->mode&02000)==02000) {	// set gid flag is set in the parent directory ?
+	if ((node->mode&02000)==02000) {        // set gid flag is set in the parent directory ?
 		p->gid = node->gid;
 		if (copysgid && type==TYPE_DIRECTORY) {
 			p->mode |= 02000;
@@ -1816,8 +1816,8 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 	p = e->parent;
 	size = e->nleng;
 	while (p!=root && p->parents) {
-		size += p->parents->nleng+1;	// get first parent !!!
-		p = p->parents->parent;		// when folders can be hardlinked it's the only way to obtain path (one of them)
+		size += p->parents->nleng+1;    // get first parent !!!
+		p = p->parents->parent;         // when folders can be hardlinked it's the only way to obtain path (one of them)
 	}
 	if (size>65535) {
 		syslog(LOG_WARNING,"path too long !!! - truncate");
@@ -1906,7 +1906,7 @@ static inline void fsnodes_getdetacheddata(fsedge *start,uint8_t *dbuff) {
 
 
 static inline uint32_t fsnodes_getdirsize(fsnode *p,uint8_t withattr) {
-	uint32_t result = ((withattr)?40:6)*2+3;	// for '.' and '..'
+	uint32_t result = ((withattr)?40:6)*2+3;        // for '.' and '..'
 	fsedge *e;
 	for (e = p->data.ddata.children ; e ; e=e->nextchild) {
 		result+=((withattr)?40:6)+e->nleng;
@@ -1958,7 +1958,7 @@ static inline void fsnodes_getdirdata(uint32_t rootinode,uint32_t uid,uint32_t g
 					fsnodes_fill_attr(root,p,uid,gid,auid,agid,sesflags,dbuff);
 				} else {
 					fsnode *rn = fsnodes_id_to_node(rootinode);
-					if (rn) {	// it should be always true because it's checked before, but better check than sorry
+					if (rn) {       // it should be always true because it's checked before, but better check than sorry
 						fsnodes_fill_attr(rn,p,uid,gid,auid,agid,sesflags,dbuff);
 					} else {
 						memset(dbuff,0,35);
@@ -2030,8 +2030,8 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 			dstchunks = i+1;
 		}
 	}
-	i = srcchunks+dstchunks-1;	// last new chunk pos
-	if (i>MAX_INDEX) {	// chain too long
+	i = srcchunks+dstchunks-1;      // last new chunk pos
+	if (i>MAX_INDEX) {      // chain too long
 		return ERROR_INDEXTOOBIG;
 	}
 #ifndef METARESTORE
@@ -2250,12 +2250,12 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 
 	child = e->child;
 	if (child->parents->nextparent==NULL) { // last link
-		if (child->type==TYPE_FILE && (child->trashtime>0 || child->data.fdata.sessionids!=NULL)) {	// go to trash or reserved ? - get path
+		if (child->type==TYPE_FILE && (child->trashtime>0 || child->data.fdata.sessionids!=NULL)) {     // go to trash or reserved ? - get path
 			fsnodes_getpath(e,&pleng,&path);
 		}
 	}
 	fsnodes_remove_edge(ts,e);
-	if (child->parents==NULL) {	// last link
+	if (child->parents==NULL) {     // last link
 		if (child->type == TYPE_FILE) {
 			if (child->trashtime>0) {
 				child->type = TYPE_TRASH;
@@ -2387,13 +2387,13 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 	partleng=0;
 	dots=0;
 	for (i=0 ; i<pleng ; i++) {
-		if (path[i]==0) {	// incorrect name character
+		if (path[i]==0) {       // incorrect name character
 			return ERROR_CANTCREATEPATH;
 		} else if (path[i]=='/') {
-			if (partleng==0) {	// "//" in path
+			if (partleng==0) {      // "//" in path
 				return ERROR_CANTCREATEPATH;
 			}
-			if (partleng==dots && partleng<=2) {	// '.' or '..' in path
+			if (partleng==dots && partleng<=2) {    // '.' or '..' in path
 				return ERROR_CANTCREATEPATH;
 			}
 			partleng=0;
@@ -2408,10 +2408,10 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 			}
 		}
 	}
-	if (partleng==0) {	// last part canot be empty - it's the name of undeleted file
+	if (partleng==0) {      // last part canot be empty - it's the name of undeleted file
 		return ERROR_CANTCREATEPATH;
 	}
-	if (partleng==dots && partleng<=2) {	// '.' or '..' in path
+	if (partleng==dots && partleng<=2) {    // '.' or '..' in path
 		return ERROR_CANTCREATEPATH;
 	}
 
@@ -2429,7 +2429,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 		while (path[partleng]!='/' && partleng<pleng) {
 			partleng++;
 		}
-		if (partleng==pleng) {	// last name
+		if (partleng==pleng) {  // last name
 			if (fsnodes_nameisused(p,partleng,path)) {
 				return ERROR_EEXIST;
 			}
@@ -3034,7 +3034,7 @@ static inline int fsnodes_access(fsnode *node,uint32_t uid,uint32_t gid,uint8_t 
 }
 
 static inline int fsnodes_sticky_access(fsnode *parent,fsnode *node,uint32_t uid) {
-	if (uid==0 || (parent->mode&01000)==0) {	// super user or sticky bit is not set
+	if (uid==0 || (parent->mode&01000)==0) {        // super user or sticky bit is not set
 		return 1;
 	}
 	if (uid==parent->uid || (parent->mode&(EATTR_NOOWNER<<12)) || uid==node->uid || (node->mode&(EATTR_NOOWNER<<12))) {
@@ -3469,7 +3469,7 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 		return ERROR_EACCES;
 	}
 	if (name[0]=='.') {
-		if (nleng==1) {	// self
+		if (nleng==1) { // self
 			if (parent==rootinode) {
 				*inode = MFS_ROOT_ID;
 			} else {
@@ -3479,7 +3479,7 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 			stats_lookup++;
 			return STATUS_OK;
 		}
-		if (nleng==2 && name[1]=='.') {	// parent
+		if (nleng==2 && name[1]=='.') { // parent
 			if (parent==rootinode) {
 				*inode = MFS_ROOT_ID;
 				fsnodes_fill_attr(wd,wd,uid,gid,auid,agid,sesflags,attr);
@@ -3777,7 +3777,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 		}
 	}
 	// first ignore sugid clears done by kernel
-	if ((setmask&(SET_UID_FLAG|SET_GID_FLAG)) && (setmask&SET_MODE_FLAG)) {	// chown+chmod = chown with sugid clears
+	if ((setmask&(SET_UID_FLAG|SET_GID_FLAG)) && (setmask&SET_MODE_FLAG)) { // chown+chmod = chown with sugid clears
 		attrmode |= (p->mode & 06000);
 	}
 	// then do it yourself
@@ -6219,11 +6219,11 @@ void fs_getquotainfo_data(uint8_t * buff) {
 		buff+=size;
 		put8bit(&buff,qn->exceeded);
 		put8bit(&buff,qn->flags);
-		if (qn->stimestamp==0) {					// soft quota not exceeded
-			put32bit(&buff,0xFFFFFFFF); 				// time to block = INF
-		} else if (qn->stimestamp+QuotaTimeLimit<ts) {			// soft quota timed out
-			put32bit(&buff,0);					// time to block = 0 (blocked)
-		} else {							// soft quota exceeded, but not timed out
+		if (qn->stimestamp==0) {                                        // soft quota not exceeded
+			put32bit(&buff,0xFFFFFFFF);                             // time to block = INF
+		} else if (qn->stimestamp+QuotaTimeLimit<ts) {                  // soft quota timed out
+			put32bit(&buff,0);                                      // time to block = 0 (blocked)
+		} else {                                                        // soft quota exceeded, but not timed out
 			put32bit(&buff,qn->stimestamp+QuotaTimeLimit-ts);
 		}
 		if (qn->flags&QUOTA_FLAG_SINODES) {
@@ -6285,7 +6285,7 @@ uint32_t fs_getdirpath_size(uint32_t inode) {
 	} else {
 		return 11; // "(not found)"
 	}
-	return 0;	// unreachable
+	return 0;       // unreachable
 }
 
 void fs_getdirpath_data(uint32_t inode,uint8_t *buff,uint32_t size) {
@@ -6352,7 +6352,7 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 	*length = sr.length;
 	*size = sr.size;
 	*rsize = sr.realsize;
-//	syslog(LOG_NOTICE,"using fast stats");
+//      syslog(LOG_NOTICE,"using fast stats");
 	return STATUS_OK;
 }
 #endif
@@ -7202,7 +7202,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 void fs_storeedge(fsedge *e,FILE *fd) {
 	uint8_t uedgebuff[4+4+2+65535];
 	uint8_t *ptr;
-	if (e==NULL) {	// last edge
+	if (e==NULL) {  // last edge
 		memset(uedgebuff,0,4+4+2);
 		if (fwrite(uedgebuff,1,4+4+2,fd)!=(size_t)(4+4+2)) {
 			syslog(LOG_NOTICE,"fwrite error");
@@ -7263,7 +7263,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	ptr = uedgebuff;
 	parent_id = get32bit(&ptr);
 	child_id = get32bit(&ptr);
-	if (parent_id==0 && child_id==0) {	// last edge
+	if (parent_id==0 && child_id==0) {      // last edge
 		return 1;
 	}
 	e = (fsedge*) malloc(sizeof(fsedge));
@@ -7414,7 +7414,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				return -1;
 			}
 		}
-		if (parent_id==MFS_ROOT_ID) {	// special case - because of 'ignoreflag' and possibility of attaching orphans into root node
+		if (parent_id==MFS_ROOT_ID) {   // special case - because of 'ignoreflag' and possibility of attaching orphans into root node
 			if (root_tail==NULL) {
 				root_tail = &(e->parent->data.ddata.children);
 			}
@@ -7488,7 +7488,7 @@ void fs_storenode(fsnode *f,FILE *fd) {
 	uint32_t i,indx,ch,sessionids;
 	sessionidrec *sessionidptr;
 
-	if (f==NULL) {	// last node
+	if (f==NULL) {  // last node
 		fputc(0,fd);
 		return;
 	}
@@ -7605,7 +7605,7 @@ int fs_loadnode(FILE *fd) {
 	}
 
 	type = fgetc(fd);
-	if (type==0) {	// last node
+	if (type==0) {  // last node
 		return 1;
 	}
 	p = new fsnode();
@@ -7828,7 +7828,7 @@ void fs_storenodes(FILE *fd) {
 			fs_storenode(p,fd);
 		}
 	}
-	fs_storenode(NULL,fd);	// end marker
+	fs_storenode(NULL,fd);  // end marker
 }
 
 void fs_storeedgelist(fsedge *e,FILE *fd) {
@@ -7852,7 +7852,7 @@ void fs_storeedges(FILE *fd) {
 	fs_storeedges_rec(root,fd);
 	fs_storeedgelist(trash,fd);
 	fs_storeedgelist(reserved,fd);
-	fs_storeedge(NULL,fd);	// end marker
+	fs_storeedge(NULL,fd);  // end marker
 }
 
 static void fs_storeacls(FILE *fd) {
@@ -7929,7 +7929,7 @@ int fs_loadnodes(FILE *fd) {
 
 int fs_loadedges(FILE *fd,int ignoreflag) {
 	int s;
-	fs_loadedge(NULL,ignoreflag);	// init
+	fs_loadedge(NULL,ignoreflag);   // init
 	do {
 		s = fs_loadedge(fd,ignoreflag);
 		if (s<0) {
@@ -8203,7 +8203,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 		offbegin = ftello(fd);
 		fseeko(fd,offbegin+16,SEEK_SET);
 	} else {
-		offbegin = 0;	// makes some old compilers happy
+		offbegin = 0;   // makes some old compilers happy
 	}
 	fs_storenodes(fd);
 	if (fver >= kMetadataVersionWithSections) {
@@ -8320,9 +8320,9 @@ static void fs_store_fd(FILE* fd) {
 #endif
 
     if (fwrite(&hdr, 1, sizeof(hdr)-1, fd) != sizeof(hdr)-1) {
-          syslog(LOG_NOTICE,"fwrite error");
+	  syslog(LOG_NOTICE,"fwrite error");
     } else {
-          fs_store(fd, metadataVersion);
+	  fs_store(fd, metadataVersion);
     }
 }
 
@@ -8802,7 +8802,7 @@ void fs_loadall(const char *fname,int ignoreflag) {
 		throw MetadataConsistencyException("can't read metadata header");
 	}
 #ifndef METARESTORE
-	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
+	if (memcmp(hdr,"MFSM NEW",8)==0) {      // special case - create new file system
 		if (backversion>0) {
 			throw MetadataConsistencyException(BackupNewerThanCurrentMsg);
 		}
@@ -8923,7 +8923,7 @@ int fs_init(void) {
 #if VERSHEX>=0x010700
 	QuotaTimeLimit = cfg_getuint32("QUOTA_TIME_LIMIT",7*86400);
 #else
-	QuotaTimeLimit = 7*86400;	// for tests
+	QuotaTimeLimit = 7*86400;       // for tests
 #endif
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",

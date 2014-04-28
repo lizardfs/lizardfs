@@ -168,14 +168,14 @@ void chartsdata_refresh(void) {
 	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
 	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
 
-	if (uc.it_value.tv_sec<=999) {	// on fucken linux timers can go backward !!!
+	if (uc.it_value.tv_sec<=999) {  // on fucken linux timers can go backward !!!
 		uc.it_value.tv_sec = 999-uc.it_value.tv_sec;
 		uc.it_value.tv_usec = 999999-uc.it_value.tv_usec;
 	} else {
 		uc.it_value.tv_sec = 0;
 		uc.it_value.tv_usec = 0;
 	}
-	if (pc.it_value.tv_sec<=999) {	// as abowe - who the hell has invented this stupid os !!!
+	if (pc.it_value.tv_sec<=999) {  // as abowe - who the hell has invented this stupid os !!!
 		pc.it_value.tv_sec = 999-pc.it_value.tv_sec;
 		pc.it_value.tv_usec = 999999-pc.it_value.tv_usec;
 	} else {

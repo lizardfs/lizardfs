@@ -64,13 +64,13 @@ typedef struct matocsserventry {
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
 
-	char *servstrip;		// human readable version of servip
+	char *servstrip;                // human readable version of servip
 	uint32_t version;
-	uint32_t servip;		// ip to coonnect to
-	uint16_t servport;		// port to connect to
-	uint16_t timeout;		// communication timeout
-	uint64_t usedspace;		// used hdd space in bytes
-	uint64_t totalspace;		// total hdd space in bytes
+	uint32_t servip;                // ip to coonnect to
+	uint16_t servport;              // port to connect to
+	uint16_t timeout;               // communication timeout
+	uint64_t usedspace;             // used hdd space in bytes
+	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
 	uint64_t todelusedspace;
 	uint64_t todeltotalspace;
@@ -451,7 +451,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	uint64_t tspace,uspace;
 	double space;
 
-//	syslog(LOG_NOTICE,"getservers start");
+//      syslog(LOG_NOTICE,"getservers start");
 	j = 0;
 	tspace = 0;
 	uspace = 0;
@@ -469,17 +469,17 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 			}
 			servtab[j].ptr = eptr;
 			servtab[j].space = space;
-//			syslog(LOG_NOTICE,"ptr: %p, space:%f",eptr,space);
+//                      syslog(LOG_NOTICE,"ptr: %p, space:%f",eptr,space);
 			j++;
 		}
 	}
 	if (j==0) {
-//		syslog(LOG_NOTICE,"getservers - noservers");
+//              syslog(LOG_NOTICE,"getservers - noservers");
 		return 0;
 	}
 
 	space = (double)(uspace)/(double)(tspace);
-//	syslog(LOG_NOTICE,"getservers - minspace: %f , maxspace: %f , diff: %f , maxusagediff: %f",minspace,maxspace,maxspace-minspace,maxusagediff);
+//      syslog(LOG_NOTICE,"getservers - minspace: %f , maxspace: %f , diff: %f , maxusagediff: %f",minspace,maxspace,maxspace-minspace,maxusagediff);
 	min = 0;
 	max = j;
 	mid = 0;
@@ -526,7 +526,7 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 	if (pmax!=NULL) {
 		*pmax=j-max;
 	}
-//		syslog(LOG_NOTICE,"getservers <0-%" PRIu32 ") random ; <%" PRIu32 "-%" PRIu32 ") sort ; <%" PRIu32 "-END) random",min,min,max,max);
+//              syslog(LOG_NOTICE,"getservers <0-%" PRIu32 ") random ; <%" PRIu32 "-%" PRIu32 ") sort ; <%" PRIu32 "-END) random",min,min,max,max);
 	return j;
 }
 
@@ -1291,7 +1291,7 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " is damaged",eptr->servstrip,eptr->servport,chunkid);
+//              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " is damaged",eptr->servstrip,eptr->servport,chunkid);
 		chunk_damaged(eptr,chunkid);
 	}
 }
@@ -1310,7 +1310,7 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
+//              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
 		chunk_lost(eptr,chunkid);
 	}
 }
@@ -1331,7 +1331,7 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 	for (i=0 ; i<length/12 ; i++) {
 		chunkid = get64bit(&data);
 		chunkversion = get32bit(&data);
-//		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
+//              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
 		chunk_server_has_chunk(eptr,chunkid,chunkversion);
 	}
 }

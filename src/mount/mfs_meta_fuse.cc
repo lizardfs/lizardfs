@@ -654,7 +654,7 @@ void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 }
 
 void mfs_meta_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
-        dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char buffer[READDIR_BUFFSIZE];
 	char *name,c;
 	const uint8_t *ptr,*eptr;
@@ -675,7 +675,7 @@ void mfs_meta_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, st
 			free(dirinfo->p);
 		}
 		dirbuf_meta_fill(dirinfo,ino);
-//		syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
+//              syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
 	}
 	dirinfo->wasread=1;
 

@@ -31,7 +31,7 @@ typedef struct _statsnode {
 	uint8_t absolute;
 	char *name;
 	char *fullname;
-	uint32_t nleng;	// : strlen(name)
+	uint32_t nleng; // : strlen(name)
 	uint32_t fnleng; // : strlen(fullname)
 	struct _statsnode *firstchild;
 	struct _statsnode *nextsibling;

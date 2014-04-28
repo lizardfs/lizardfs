@@ -17,7 +17,7 @@ ssize_t MultiBufferWriter::writeTo(int fd) {
 	if (ret < 0) {
 		return ret;
 	}
-	size_t bytesToBeRemovedFromIovec =	ret;
+	size_t bytesToBeRemovedFromIovec =      ret;
 	while (bytesToBeRemovedFromIovec > 0) {
 		struct iovec& nextBuffer = buffers_[buffersCompletelySent_];
 		if (nextBuffer.iov_len <= bytesToBeRemovedFromIovec) {

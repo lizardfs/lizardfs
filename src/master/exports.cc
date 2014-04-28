@@ -40,7 +40,7 @@
 
 typedef struct _exports {
 	uint32_t pleng;
-	const uint8_t *path;	// without '/' at the begin and at the end
+	const uint8_t *path;    // without '/' at the begin and at the end
 	uint32_t fromip,toip;
 	uint32_t minversion;
 	uint8_t passworddigest[16];
@@ -89,7 +89,7 @@ char* exports_strsep(char **stringp, const char *delim) {
 			}
 		} while (sc!=0);
 	}
-	return NULL;	// unreachable
+	return NULL;    // unreachable
 }
 
 
@@ -147,7 +147,7 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	uint8_t entrydigest[16];
 	exports *e,*f;
 
-//	syslog(LOG_NOTICE,"check exports for: %u.%u.%u.%u:%s",(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
+//      syslog(LOG_NOTICE,"check exports for: %u.%u.%u.%u:%s",(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
 
 	if (meta==0) {
 		p = path;
@@ -175,22 +175,22 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	f=NULL;
 	for (e=exports_records ; e ; e=e->next) {
 		ok = 0;
-//		syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
+//              syslog(LOG_NOTICE,"entry: network:%u.%u.%u.%u-%u.%u.%u.%u",(e->fromip>>24)&0xFF,(e->fromip>>16)&0xFF,(e->fromip>>8)&0xFF,e->fromip&0xFF,(e->toip>>24)&0xFF,(e->toip>>16)&0xFF,(e->toip>>8)&0xFF,e->toip&0xFF);
 		if (ip>=e->fromip && ip<=e->toip && version>=e->minversion && meta==e->meta) {
-//			syslog(LOG_NOTICE,"ip and version ok");
+//                      syslog(LOG_NOTICE,"ip and version ok");
 			// path check
-			if (meta) {	// no path in META
+			if (meta) {     // no path in META
 				ok=1;
 			} else {
-				if (e->pleng==0) {	// root dir
-//					syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
+				if (e->pleng==0) {      // root dir
+//                                      syslog(LOG_NOTICE,"rootdir entry (pleng:%u)",pleng);
 					if (pleng==0) {
 						ok=1;
 					} else if (e->alldirs) {
 						ok=1;
 					}
 				} else {
-//					syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
+//                                      syslog(LOG_NOTICE,"entry path: %s (pleng:%u)",e->path,e->pleng);
 					if (pleng==e->pleng && memcmp(p,e->path,pleng)==0) {
 						ok=1;
 					} else if (e->alldirs && pleng>e->pleng && p[e->pleng]=='/' && memcmp(p,e->path,e->pleng)==0) {
@@ -198,9 +198,9 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 					}
 				}
 			}
-//			if (ok) {
-//				syslog(LOG_NOTICE,"path ok");
-//			}
+//                      if (ok) {
+//                              syslog(LOG_NOTICE,"path ok");
+//                      }
 			if (ok && e->needpassword) {
 				if (rndstate==0 || rndcode==NULL || passcode==NULL) {
 					ok=0;
@@ -219,19 +219,19 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 			}
 		}
 		if (ok) {
-//			syslog(LOG_NOTICE,"entry accepted");
+//                      syslog(LOG_NOTICE,"entry accepted");
 			if (f==NULL) {
 				f=e;
 			} else {
-				if ((e->sesflags&SESFLAG_READONLY)==0 && (f->sesflags&SESFLAG_READONLY)!=0) {	// prefer rw to ro
+				if ((e->sesflags&SESFLAG_READONLY)==0 && (f->sesflags&SESFLAG_READONLY)!=0) {   // prefer rw to ro
 					f=e;
-				} else if (e->rootuid==0 && f->rootuid!=0) {	// prefer root not restricted to restricted
+				} else if (e->rootuid==0 && f->rootuid!=0) {    // prefer root not restricted to restricted
 					f=e;
-				} else if ((e->sesflags&SESFLAG_CANCHANGEQUOTA)!=0 && (f->sesflags&SESFLAG_CANCHANGEQUOTA)==0) {	// prefer lines with more privileges
+				} else if ((e->sesflags&SESFLAG_CANCHANGEQUOTA)!=0 && (f->sesflags&SESFLAG_CANCHANGEQUOTA)==0) {        // prefer lines with more privileges
 					f=e;
-				} else if (e->needpassword==1 && f->needpassword==0) {	// prefer lines with passwords
+				} else if (e->needpassword==1 && f->needpassword==0) {  // prefer lines with passwords
 					f=e;
-				} else if (e->pleng > f->pleng) {	// prefer more accurate path
+				} else if (e->pleng > f->pleng) {       // prefer more accurate path
 					f=e;
 				}
 			}
@@ -272,7 +272,7 @@ void exports_freelist(exports *arec) {
 }
 
 // format:
-// ip[/bits]	path	options
+// ip[/bits]    path    options
 //
 // options:
 //  readonly
@@ -291,7 +291,7 @@ void exports_freelist(exports *arec) {
 // ip[/bits] can be '*' (same as 0.0.0.0/0)
 //
 // default:
-// *	/	alldirs,maproot=0
+// *    /       alldirs,maproot=0
 
 int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	uint32_t ip,i,octet;
@@ -329,7 +329,7 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 		*toip = ip;
 		return 0;
 	}
-	if (*net=='/') {	// ip/bits and ip/mask
+	if (*net=='/') {        // ip/bits and ip/mask
 		*fromip = ip;
 		ip=0;
 		net++;
@@ -347,7 +347,7 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 			} else {
 				return -1;
 			}
-			if (i==0 && *net==0 && octet<=32) {	// bits -> convert to mask and skip rest of loop
+			if (i==0 && *net==0 && octet<=32) {     // bits -> convert to mask and skip rest of loop
 				ip = 0xFFFFFFFF;
 				if (octet<32) {
 					ip<<=32-octet;
@@ -370,7 +370,7 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 		*toip = *fromip | (ip ^ 0xFFFFFFFFU);
 		return 0;
 	}
-	if (*net=='-') {	// ip1-ip2
+	if (*net=='-') {        // ip1-ip2
 		*fromip = ip;
 		ip=0;
 		net++;
@@ -497,7 +497,7 @@ int exports_parsetime(char *timestr,uint32_t *time) {
 			return 0;
 		}
 	}
-	return -1;	// unreachable
+	return -1;      // unreachable
 }
 
 // x | x.y | x.y.z -> ( x<<16 + y<<8 + z )
@@ -576,7 +576,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 			gid+=*eptr-'0';
 			eptr++;
 		}
-		if (*eptr!=0) {	// not only digits - treat it as a groupname
+		if (*eptr!=0) { // not only digits - treat it as a groupname
 			getgrnam_r(gptr+1,&grp,pwgrbuff,16384,&grrec);
 			if (grrec==NULL) {
 				mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %" PRIu32,gptr+1,lineno);
@@ -598,7 +598,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 		uid+=*eptr-'0';
 		eptr++;
 	}
-	if (*eptr!=0) {	// not only digits - treat it as a username
+	if (*eptr!=0) { // not only digits - treat it as a username
 		getpwnam_r(uptr,&pwd,pwgrbuff,16384,&pwrec);
 		if (pwrec==NULL) {
 			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %" PRIu32,uptr,lineno);
@@ -625,7 +625,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 		*rgid = pwrec->pw_gid;
 		return 0;
 	}
-	return -1;	// unreachable
+	return -1;      // unreachable
 }
 
 int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
@@ -635,7 +635,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 
 	while ((p=exports_strsep(&opts,","))) {
 		o=0;
-//		syslog(LOG_WARNING,"option: %s",p);
+//              syslog(LOG_WARNING,"option: %s",p);
 		switch (*p) {
 		case 'r':
 			if (strcmp(p,"ro")==0) {

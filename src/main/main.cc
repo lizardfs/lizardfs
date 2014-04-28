@@ -616,7 +616,7 @@ void changeugid(void) {
 	}
 }
 
-static int lfd = -1;	// main lock
+static int lfd = -1;    // main lock
 
 pid_t mylock(int fd) {
 	struct flock fl;
@@ -626,20 +626,20 @@ pid_t mylock(int fd) {
 	fl.l_type = F_WRLCK;
 	fl.l_whence = SEEK_SET;
 	for (;;) {
-		if (fcntl(fd,F_SETLK,&fl)>=0) {	// lock set
-			return 0;	// ok
+		if (fcntl(fd,F_SETLK,&fl)>=0) { // lock set
+			return 0;       // ok
 		}
-		if (errno!=EAGAIN) {	// error other than "already locked"
-			return -1;	// error
+		if (errno!=EAGAIN) {    // error other than "already locked"
+			return -1;      // error
 		}
-		if (fcntl(fd,F_GETLK,&fl)<0) {	// get lock owner
-			return -1;	// error getting lock
+		if (fcntl(fd,F_GETLK,&fl)<0) {  // get lock owner
+			return -1;      // error getting lock
 		}
-		if (fl.l_type!=F_UNLCK) {	// found lock
-			return fl.l_pid;	// return lock owner
+		if (fl.l_type!=F_UNLCK) {       // found lock
+			return fl.l_pid;        // return lock owner
 		}
 	}
-	return -1;	// pro forma
+	return -1;      // pro forma
 }
 
 void wdunlock(void) {
@@ -769,7 +769,7 @@ int check_old_locks(uint8_t runmode,uint32_t timeout) {
 	if (lfd<0) {
 		if (errno==ENOENT) {    // no old lock file
 			free(lockfname);
-			return 0;	// ok
+			return 0;       // ok
 		}
 		mfs_arg_errlog(LOG_ERR,"open %s error",lockfname);
 		free(lockfname);
@@ -880,7 +880,7 @@ void makedaemon() {
 		exit(LIZARDFS_EXIT_STATUS_ERROR);
 	}
 	if (f>0) {
-		wait(&f);	// just get child status - prevents child from being zombie during initialization stage
+		wait(&f);       // just get child status - prevents child from being zombie during initialization stage
 		if (f) {
 			fprintf(stderr,"Child status: %d\n",f);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
@@ -888,7 +888,7 @@ void makedaemon() {
 		close(piped[1]);
 		while ((r=read(piped[0],pipebuff,1000))) {
 			if (r>0) {
-				if (pipebuff[r-1]==0) {	// zero as a last char in the pipe means error
+				if (pipebuff[r-1]==0) { // zero as a last char in the pipe means error
 					if (r>1) {
 						happy = fwrite(pipebuff,1,r-1,stderr);
 						(void)happy;
@@ -1208,7 +1208,7 @@ int main(int argc,char **argv) {
 					} else {
 						mfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
 					}
-			}	}
+			}       }
 		}
 	}
 #else

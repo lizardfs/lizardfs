@@ -40,7 +40,7 @@ struct run_tab {
 run_tab RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
-	{csserv_init,"main server module"},	/* it has to be before "masterconn" */
+	{csserv_init,"main server module"},     /* it has to be before "masterconn" */
 	{masterconn_init,"master connection module"},
 	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}

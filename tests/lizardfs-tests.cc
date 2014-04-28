@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 
 #ifndef TEST_DATA_PATH
-#	error "You have to define TEST_DATA_PATH to compile this file"
+#       error "You have to define TEST_DATA_PATH to compile this file"
 #endif
 
 #define TO_STRING_AUX(x) #x

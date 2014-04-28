@@ -336,7 +336,7 @@ static void mfs_type_to_stat(uint32_t inode,uint8_t type, struct stat *stbuf) {
 }
 
 static uint8_t mfs_attr_get_mattr(const uint8_t attr[35]) {
-	return (attr[1]>>4);	// higher 4 bits of mode
+	return (attr[1]>>4);    // higher 4 bits of mode
 }
 
 static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
@@ -428,7 +428,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 	stbuf->st_mtime = attrmtime;
 	stbuf->st_ctime = attrctime;
 #ifdef HAVE_STRUCT_STAT_ST_BIRTHTIME
-	stbuf->st_birthtime = attrctime;	// for future use
+	stbuf->st_birthtime = attrctime;        // for future use
 #endif
 	stbuf->st_nlink = attrnlink;
 }
@@ -689,7 +689,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		mfs_stats_inc(OP_DIRCACHE_LOOKUP);
 		status = 0;
 		icacheflag = 1;
-//		oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
+//              oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		mfs_stats_inc(OP_LOOKUP);
 		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr);
@@ -840,7 +840,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			| FUSE_SET_ATTR_MTIME
 			| FUSE_SET_ATTR_MTIME_NOW
 			| FUSE_SET_ATTR_SIZE)) == 0) { // change other flags or change nothing
-		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);	// ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
+		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);    // ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = mfs_errorconv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
@@ -914,7 +914,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 	}
-	if (status!=0) {	// should never happend but better check than sorry
+	if (status!=0) {        // should never happend but better check than sorry
 		fuse_reply_err(req, status);
 		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 		return;
@@ -1312,7 +1312,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		fuse_reply_err(req, ENOTDIR);
 		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(ENOTDIR));
 	}
-	status = fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R);	// at least test rights
+	status = fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R);    // at least test rights
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
@@ -1320,12 +1320,12 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	} else {
 		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
-		pthread_mutex_lock(&(dirinfo->lock));	// make valgrind happy
+		pthread_mutex_lock(&(dirinfo->lock));   // make valgrind happy
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
 		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
-		pthread_mutex_unlock(&(dirinfo->lock));	// make valgrind happy
+		pthread_mutex_unlock(&(dirinfo->lock)); // make valgrind happy
 		fi->fh = (unsigned long)dirinfo;
 		if (fuse_reply_open(req,fi) == -ENOENT) {
 			fi->fh = 0;
@@ -1338,7 +1338,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	int status;
-        dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char buffer[READDIR_BUFFSIZE];
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
@@ -1645,11 +1645,11 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			oplog_printf(ctx,"open (%lu) (internal node: STATS): %s",(unsigned long int)ino,strerr(ENOMEM));
 			return;
 		}
-		pthread_mutex_init(&(statsinfo->lock),NULL);	// make helgrind happy
-		pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
+		pthread_mutex_init(&(statsinfo->lock),NULL);    // make helgrind happy
+		pthread_mutex_lock(&(statsinfo->lock));         // make helgrind happy
 		stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
 		statsinfo->reset = 0;
-		pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
+		pthread_mutex_unlock(&(statsinfo->lock));       // make helgrind happy
 		fi->fh = (unsigned long)statsinfo;
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
@@ -1726,15 +1726,15 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
 		if (statsinfo!=NULL) {
-			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
+			pthread_mutex_lock(&(statsinfo->lock));         // make helgrind happy
 			if (statsinfo->buff!=NULL) {
 				free(statsinfo->buff);
 			}
 			if (statsinfo->reset) {
 				stats_reset_all();
 			}
-			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
-			pthread_mutex_destroy(&(statsinfo->lock));	// make helgrind happy
+			pthread_mutex_unlock(&(statsinfo->lock));       // make helgrind happy
+			pthread_mutex_destroy(&(statsinfo->lock));      // make helgrind happy
 			free(statsinfo);
 		}
 		fuse_reply_err(req,0);
@@ -1797,7 +1797,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
 		if (statsinfo!=NULL) {
-			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
+			pthread_mutex_lock(&(statsinfo->lock));         // make helgrind happy
 			if (off>=statsinfo->leng) {
 				fuse_reply_buf(req,NULL,0);
 				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
@@ -1808,7 +1808,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 				fuse_reply_buf(req,statsinfo->buff+off,size);
 				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 			}
-			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
+			pthread_mutex_unlock(&(statsinfo->lock));       // make helgrind happy
 		} else {
 			fuse_reply_buf(req,NULL,0);
 			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
@@ -1864,7 +1864,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	}
 	write_data_flush_inode(ino);
 	ssize = size;
-	buff = NULL;	// use internal 'readdata' buffer
+	buff = NULL;    // use internal 'readdata' buffer
 	err = read_data(fileinfo->data,off,&ssize,&buff);
 	if (err!=0) {
 		fuse_reply_err(req,err);
@@ -1901,9 +1901,9 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	if (ino==STATS_INODE) {
 		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
 		if (statsinfo!=NULL) {
-			pthread_mutex_lock(&(statsinfo->lock));		// make helgrind happy
+			pthread_mutex_lock(&(statsinfo->lock));         // make helgrind happy
 			statsinfo->reset=1;
-			pthread_mutex_unlock(&(statsinfo->lock));	// make helgrind happy
+			pthread_mutex_unlock(&(statsinfo->lock));       // make helgrind happy
 		}
 		fuse_reply_write(req,size);
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
@@ -1978,7 +1978,7 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(EBADF));
 		return;
 	}
-//	syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
+//      syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
 	pthread_mutex_lock(&(fileinfo->lock));
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {

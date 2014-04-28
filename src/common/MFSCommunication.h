@@ -66,47 +66,47 @@
 
 #define MFS_INODE_REUSE_DELAY 86400
 
-#define STATUS_OK              0	// OK
+#define STATUS_OK              0        // OK
 
-#define ERROR_EPERM            1	// Operation not permitted
-#define ERROR_ENOTDIR          2	// Not a directory
-#define ERROR_ENOENT           3	// No such file or directory
-#define ERROR_EACCES           4	// Permission denied
-#define ERROR_EEXIST           5	// File exists
-#define ERROR_EINVAL           6	// Invalid argument
-#define ERROR_ENOTEMPTY        7	// Directory not empty
-#define ERROR_CHUNKLOST        8	// Chunk lost
-#define ERROR_OUTOFMEMORY      9	// Out of memory
+#define ERROR_EPERM            1        // Operation not permitted
+#define ERROR_ENOTDIR          2        // Not a directory
+#define ERROR_ENOENT           3        // No such file or directory
+#define ERROR_EACCES           4        // Permission denied
+#define ERROR_EEXIST           5        // File exists
+#define ERROR_EINVAL           6        // Invalid argument
+#define ERROR_ENOTEMPTY        7        // Directory not empty
+#define ERROR_CHUNKLOST        8        // Chunk lost
+#define ERROR_OUTOFMEMORY      9        // Out of memory
 
-#define ERROR_INDEXTOOBIG     10	// Index too big
-#define ERROR_LOCKED          11	// Chunk locked
-#define ERROR_NOCHUNKSERVERS  12	// No chunk servers
-#define ERROR_NOCHUNK         13	// No such chunk
-#define ERROR_CHUNKBUSY	      14	// Chunk is busy
-#define ERROR_REGISTER        15	// Incorrect register BLOB
-#define ERROR_NOTDONE         16	// None of chunk servers performed requested operation
-#define ERROR_NOTOPENED       17	// File not opened
-#define ERROR_NOTSTARTED      18	// Write not started
+#define ERROR_INDEXTOOBIG     10        // Index too big
+#define ERROR_LOCKED          11        // Chunk locked
+#define ERROR_NOCHUNKSERVERS  12        // No chunk servers
+#define ERROR_NOCHUNK         13        // No such chunk
+#define ERROR_CHUNKBUSY       14        // Chunk is busy
+#define ERROR_REGISTER        15        // Incorrect register BLOB
+#define ERROR_NOTDONE         16        // None of chunk servers performed requested operation
+#define ERROR_NOTOPENED       17        // File not opened
+#define ERROR_NOTSTARTED      18        // Write not started
 
-#define ERROR_WRONGVERSION    19	// Wrong chunk version
-#define ERROR_CHUNKEXIST      20	// Chunk already exists
-#define ERROR_NOSPACE         21	// No space left
-#define ERROR_IO              22	// IO error
-#define ERROR_BNUMTOOBIG      23	// Incorrect block number
-#define ERROR_WRONGSIZE	      24	// Incorrect size
-#define ERROR_WRONGOFFSET     25	// Incorrect offset
-#define ERROR_CANTCONNECT     26	// Can't connect
-#define ERROR_WRONGCHUNKID    27	// Incorrect chunk id
-#define ERROR_DISCONNECTED    28	// Disconnected
-#define ERROR_CRC             29	// CRC error
-#define ERROR_DELAYED         30	// Operation delayed
-#define ERROR_CANTCREATEPATH  31	// Can't create path
+#define ERROR_WRONGVERSION    19        // Wrong chunk version
+#define ERROR_CHUNKEXIST      20        // Chunk already exists
+#define ERROR_NOSPACE         21        // No space left
+#define ERROR_IO              22        // IO error
+#define ERROR_BNUMTOOBIG      23        // Incorrect block number
+#define ERROR_WRONGSIZE       24        // Incorrect size
+#define ERROR_WRONGOFFSET     25        // Incorrect offset
+#define ERROR_CANTCONNECT     26        // Can't connect
+#define ERROR_WRONGCHUNKID    27        // Incorrect chunk id
+#define ERROR_DISCONNECTED    28        // Disconnected
+#define ERROR_CRC             29        // CRC error
+#define ERROR_DELAYED         30        // Operation delayed
+#define ERROR_CANTCREATEPATH  31        // Can't create path
 
-#define ERROR_MISMATCH        32	// Data mismatch
+#define ERROR_MISMATCH        32        // Data mismatch
 
-#define ERROR_EROFS           33	// Read-only file system
-#define ERROR_QUOTA           34	// Quota exceeded
-#define ERROR_BADSESSIONID    35	// Bad session id
+#define ERROR_EROFS           33        // Read-only file system
+#define ERROR_QUOTA           34        // Quota exceeded
+#define ERROR_BADSESSIONID    35        // Bad session id
 #define ERROR_NOPASSWORD      36        // Password is needed
 #define ERROR_BADPASSWORD     37        // Incorrect password
 
@@ -674,7 +674,7 @@
 
 // 0x019A
 #define CLTOMA_FUSE_SETATTR (PROTO_BASE+410)
-// msgid:32 inode:32 uid:32 gid:32 setmask:8 attr:32B	- compatibility with very old version
+// msgid:32 inode:32 uid:32 gid:32 setmask:8 attr:32B   - compatibility with very old version
 // msgid:32 inode:32 uid:32 gid:32 setmask:16 attr:32B  - compatibility with old version
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 - compatibility with versions < 1.6.25
 // msgid:32 inode:32 uid:32 gid:32 setmask:8 attrmode:16 attruid:32 attrgid:32 attratime:32 attrmtime:32 sugidclearmode:8
@@ -839,9 +839,9 @@
 #define MATOCL_FUSE_CHECK (PROTO_BASE+441)
 // msgid:32 status:8
 // up to version 1.6.22:
-//	msgid:32 N*[ copies:8 chunks:16 ]
+//      msgid:32 N*[ copies:8 chunks:16 ]
 // since version 1.6.23:
-// 	msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
+//      msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
 
 // 0x01BA
 #define CLTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
@@ -1080,9 +1080,9 @@
 
 // 0x001F5
 #define MATOCL_CSERV_LIST (PROTO_BASE+501)
-// 	N*[ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32 ]
+//      N*[ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32 ]
 // since version 1.5.13:
-// 	N*[version:32 ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32]
+//      N*[version:32 ip:32 port:16 used:64 total:64 chunks:32 tdused:64 tdtotal:64 tdchunks:32 errorcount:32]
 
 // 0x001F6
 #define CLTOCS_HDD_LIST_V1 (PROTO_BASE+502)
@@ -1122,9 +1122,9 @@
 
 // 0x001FF
 #define MATOCL_INFO (PROTO_BASE+511)
-// 	totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 tdchunks:32
+//      totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 tdchunks:32
 // since version 1.5.13:
-// 	version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 tdcopies:32
+//      version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 tdcopies:32
 
 // 0x00200
 #define CLTOMA_FSTEST_INFO (PROTO_BASE+512)
@@ -1132,9 +1132,9 @@
 
 // 0x00201
 #define MATOCL_FSTEST_INFO (PROTO_BASE+513)
-// 	loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 chunks:32 ugchunks:32 mchunks:32 msgleng:32 msgleng*[ char:8]
+//      loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 chunks:32 ugchunks:32 mchunks:32 msgleng:32 msgleng*[ char:8]
 // since version 1.5.13
-// 	loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 msgleng:32 msgleng*[ char:8]
+//      loopstart:32 loopend:32 files:32 ugfiles:32 mfiles:32 msgleng:32 msgleng*[ char:8]
 
 // 0x00202
 #define CLTOMA_CHUNKSTEST_INFO (PROTO_BASE+514)

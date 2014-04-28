@@ -591,7 +591,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
 	}
 
- 	ch = fuse_mount(mp, args);
+	ch = fuse_mount(mp, args);
 	if (ch==NULL) {
 		fprintf(stderr,"error in fuse_mount\n");
 		if (piped[1]>=0) {
@@ -621,7 +621,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	if (se==NULL) {
 		fuse_unmount(mp,ch);
 		fprintf(stderr,"error in fuse_lowlevel_new\n");
-		usleep(100000);	// time for print other error messages by FUSE
+		usleep(100000); // time for print other error messages by FUSE
 		if (piped[1]>=0) {
 			if (write(piped[1],&s,1)!=1) {
 				fprintf(stderr,"pipe write error\n");
