@@ -758,109 +758,6 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 	return 0;
 }
 
-int check_old_locks(uint8_t runmode,uint32_t timeout) {
-	char str[13];
-	uint32_t l;
-	pid_t ptk;
-	char *lockfname;
-
-	lockfname = cfg_getstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock");
-	lfd=open(lockfname,O_RDWR);
-	if (lfd<0) {
-		if (errno==ENOENT) {    // no old lock file
-			free(lockfname);
-			return 0;       // ok
-		}
-		mfs_arg_errlog(LOG_ERR,"open %s error",lockfname);
-		free(lockfname);
-		return -1;
-	}
-	if (lockf(lfd,F_TLOCK,0)<0) {
-		if (errno!=EAGAIN) {
-			mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
-			free(lockfname);
-			return -1;
-		}
-		if (runmode==RM_START) {
-			mfs_syslog(LOG_ERR,"old lockfile is locked - can't start");
-			free(lockfname);
-			return -1;
-		}
-		if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RESTART) {
-			fprintf(stderr,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
-		} else if (runmode==RM_RELOAD) {
-			fprintf(stderr,"old lockfile found - sending reload signal using data from old lockfile\n");
-		}
-		l=read(lfd,str,13);
-		if (l==0 || l>=13) {
-			mfs_arg_syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
-			free(lockfname);
-			return -1;
-		}
-		str[l]=0;
-		ptk = strtol(str,NULL,10);
-		if (runmode==RM_RELOAD) {
-			if (kill(ptk,SIGHUP)<0) {
-				mfs_errlog(LOG_WARNING,"can't send reload signal");
-				free(lockfname);
-				return -1;
-			}
-			fprintf(stderr,"reload signal has beed sent\n");
-			return 0;
-		}
-		if (runmode==RM_KILL) {
-			fprintf(stderr,"sending SIGKILL to previous instance (pid:%ld)\n",(long int)ptk);
-			if (kill(ptk,SIGKILL)<0) {
-				mfs_errlog(LOG_WARNING,"can't kill previous process");
-				free(lockfname);
-				return -1;
-			}
-		} else {
-			fprintf(stderr,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
-			if (kill(ptk,SIGTERM)<0) {
-				mfs_errlog(LOG_WARNING,"can't kill previous process");
-				free(lockfname);
-				return -1;
-			}
-		}
-		l=0;
-		fprintf(stderr,"waiting for termination ...\n");
-		while (lockf(lfd,F_TLOCK,0)<0) {
-			if (errno!=EAGAIN) {
-				mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
-				free(lockfname);
-				return -1;
-			}
-			sleep(1);
-			l++;
-			if (l>=timeout) {
-				mfs_arg_syslog(LOG_ERR,"about %" PRIu32 " seconds passed and old lockfile is still locked - giving up",l);
-				free(lockfname);
-				return -1;
-			}
-			if (l%10==0) {
-				mfs_arg_syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and old lockfile is still locked",l);
-			}
-		}
-		fprintf(stderr,"terminated\n");
-	} else {
-		fprintf(stderr,"found unlocked old lockfile\n");
-		if (runmode==RM_RELOAD) {
-			fprintf(stderr,"can't obtain process id using old lockfile\n");
-			return 0;
-		}
-	}
-	fprintf(stderr,"removing old lockfile\n");
-	close(lfd);
-	unlink(lockfname);
-	free(lockfname);
-	return 0;
-}
-
-void remove_old_wdlock(void) {
-	unlink(".lock_" STR(APPNAME));
-}
-
 void makedaemon() {
 	int f;
 	uint8_t pipebuff[1000];
@@ -1143,18 +1040,6 @@ int main(int argc,char **argv) {
 
 	umask(cfg_getuint32("FILE_UMASK",027)&077);
 
-	/* for upgrading from previous versions of MFS */
-	if (check_old_locks(runmode,locktimeout)<0) {
-		if (rundaemon) {
-			fputc(0,stderr);
-			close_msg_channel();
-		}
-		closelog();
-		free(logappname);
-		wdunlock();
-		return LIZARDFS_EXIT_STATUS_ERROR;
-	}
-
 	int lockstatus = wdlock(runmode,locktimeout);
 	if (lockstatus<0) {
 		if (rundaemon) {
@@ -1166,8 +1051,6 @@ int main(int argc,char **argv) {
 		wdunlock();
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
-
-	remove_old_wdlock();
 
 	if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RELOAD
 			|| runmode==RM_TEST || runmode==RM_ISALIVE) {
