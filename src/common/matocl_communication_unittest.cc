@@ -171,8 +171,8 @@ TEST(MatoclCommunicationTests, FuseDeleteAcl) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_DELETE_ACL);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
-	ASSERT_NO_THROW(matocl::fuseDeleteAcl::deserialize(buffer.data(), buffer.size(), statusOut));
+	ASSERT_NO_THROW(matocl::fuseDeleteAcl::deserialize(buffer.data(), buffer.size(),
+			messageIdOut, statusOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
 	LIZARDFS_VERIFY_INOUT_PAIR(status);
@@ -187,8 +187,8 @@ TEST(MatoclCommunicationTests, FuseGetAclStatus) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_GET_ACL);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
-	ASSERT_NO_THROW(matocl::fuseGetAcl::deserialize(buffer.data(), buffer.size(), statusOut));
+	ASSERT_NO_THROW(matocl::fuseGetAcl::deserialize(buffer.data(), buffer.size(),
+			messageIdOut, statusOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
 	LIZARDFS_VERIFY_INOUT_PAIR(status);
@@ -205,8 +205,8 @@ TEST(MatoclCommunicationTests, FuseGetAclResponse) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_GET_ACL);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
-	ASSERT_NO_THROW(matocl::fuseGetAcl::deserialize(buffer.data(), buffer.size(), aclOut));
+	ASSERT_NO_THROW(matocl::fuseGetAcl::deserialize(buffer.data(), buffer.size(),
+			messageIdOut, aclOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
 	EXPECT_EQ(aclIn.mode, aclOut.mode);
@@ -223,8 +223,8 @@ TEST(MatoclCommunicationTests, FuseSetAcl) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_SET_ACL);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
-	ASSERT_NO_THROW(matocl::fuseSetAcl::deserialize(buffer.data(), buffer.size(), statusOut));
+	ASSERT_NO_THROW(matocl::fuseSetAcl::deserialize(buffer.data(), buffer.size(),
+			messageIdOut, statusOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
 	LIZARDFS_VERIFY_INOUT_PAIR(status);

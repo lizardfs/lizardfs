@@ -2355,7 +2355,8 @@ uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	}
 	try {
 		uint8_t status;
-		matocl::fuseDeleteAcl::deserialize(message.data(), message.size(), status);
+		uint32_t dummyMessageId;
+		matocl::fuseDeleteAcl::deserialize(message.data(), message.size(), dummyMessageId, status);
 		return status;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_DELETE_ACL", message.size(), ex.what());
@@ -2378,7 +2379,9 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 		deserializePacketVersionNoHeader(message, packetVersion);
 		if (packetVersion == matocl::fuseGetAcl::kStatusPacketVersion) {
 			uint8_t status;
-			matocl::fuseGetAcl::deserialize(message.data(), message.size(), status);
+			uint32_t dummyMessageId;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId,
+					status);
 			if (status == STATUS_OK) {
 				fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
 						"version 0 and STATUS_OK");
@@ -2386,7 +2389,8 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseGetAcl::kResponsePacketVersion) {
-			matocl::fuseGetAcl::deserialize(message.data(), message.size(), acl);
+			uint32_t dummyMessageId;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId, acl);
 			return STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
@@ -2411,7 +2415,8 @@ uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, cons
 	}
 	try {
 		uint8_t status;
-		matocl::fuseSetAcl::deserialize(message.data(), message.size(), status);
+		uint32_t dummyMessageId;
+		matocl::fuseSetAcl::deserialize(message.data(), message.size(), dummyMessageId, status);
 		return status;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());
