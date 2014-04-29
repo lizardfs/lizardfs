@@ -249,7 +249,7 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 		if (start) {
 			for (i=0 ; i<oc->entries ; i++) {
 				oce = oc->old_changes_block + i;
-				if (version>=oce->version) {
+				if (version < oce->version) {
 					data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,9+oce->length);
 					put8bit(&data,0xFF);
 					put64bit(&data,oce->version);

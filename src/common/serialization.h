@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -84,8 +85,7 @@ inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 }
 
 inline uint32_t serializedSize(const std::string& value) {
-	return serializedSize(uint32_t(value.size()))
-			+ serializedSize(std::string::value_type()) * value.size();
+	return serializedSize(uint32_t(value.size())) + value.size() + 1;
 }
 
 template<class T>
@@ -184,10 +184,10 @@ inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 
 // serialize a string
 inline void serialize(uint8_t** destination, const std::string& value) {
-	serialize(destination, uint32_t(value.length()));
-	for (unsigned i = 0; i < value.length(); ++i) {
-		serialize(destination, value[i]);
-	}
+	serialize(destination, uint32_t(value.length() + 1));
+	memcpy(*destination, value.data(), value.length());
+	*destination += value.length();
+	serialize(destination, char(0));
 }
 
 // serialize a unique_ptr
@@ -333,13 +333,20 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	sassert(value.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);
+	// size is length of the string + 1 -- the last byte is a null terminator
 	if (size > kMaxDeserializedElementsCount) {
 		throw IncorrectDeserializationException("untrustworthy string size");
 	}
-	value.resize(size);
-	for (unsigned i = 0; i < size; ++i) {
-		deserialize(source, bytesLeftInBuffer, value[i]);
+	if (bytesLeftInBuffer < size) {
+		throw IncorrectDeserializationException("unexpected end of buffer");
 	}
+	if ((*source)[size - 1] != 0) {
+		throw IncorrectDeserializationException("deserialized string not null-terminated");
+	}
+	// create a string from the buffer, but without the last (null) character
+	value.assign(reinterpret_cast<const char*>(*source), size - 1);
+	bytesLeftInBuffer -= size;
+	*source += size;
 }
 
 // deserialize a unique_ptr

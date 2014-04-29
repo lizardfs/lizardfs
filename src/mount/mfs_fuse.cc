@@ -807,7 +807,6 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	double attr_timeout;
 	int status;
 	const struct fuse_ctx ctx = *fuse_req_ctx(req);
-	uint8_t setmask = 0;
 
 	mfs_makemodestr(modestr,stbuf->st_mode);
 	mfs_stats_inc(OP_SETATTR);
@@ -838,7 +837,14 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 	}
 
 	status = EINVAL;
-	if ((to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME|FUSE_SET_ATTR_SIZE)) == 0) {	// change other flags or change nothing
+	if ((to_set & (FUSE_SET_ATTR_MODE
+			| FUSE_SET_ATTR_UID
+			| FUSE_SET_ATTR_GID
+			| FUSE_SET_ATTR_ATIME
+			| FUSE_SET_ATTR_ATIME_NOW
+			| FUSE_SET_ATTR_MTIME
+			| FUSE_SET_ATTR_MTIME_NOW
+			| FUSE_SET_ATTR_SIZE)) == 0) { // change other flags or change nothing
 		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);	// ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = mfs_errorconv(status);
 		if (status!=0) {
@@ -847,8 +853,14 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			return;
 		}
 	}
-	if (to_set & (FUSE_SET_ATTR_MODE|FUSE_SET_ATTR_UID|FUSE_SET_ATTR_GID|FUSE_SET_ATTR_ATIME|FUSE_SET_ATTR_MTIME)) {
-		setmask = 0;
+	if (to_set & (FUSE_SET_ATTR_MODE
+			| FUSE_SET_ATTR_UID
+			| FUSE_SET_ATTR_GID
+			| FUSE_SET_ATTR_ATIME
+			| FUSE_SET_ATTR_MTIME
+			| FUSE_SET_ATTR_ATIME_NOW
+			| FUSE_SET_ATTR_MTIME_NOW)) {
+		uint8_t setmask = 0;
 		if (to_set & FUSE_SET_ATTR_MODE) {
 			setmask |= SET_MODE_FLAG;
 		}
@@ -861,9 +873,18 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		if (to_set & FUSE_SET_ATTR_ATIME) {
 			setmask |= SET_ATIME_FLAG;
 		}
+		if (to_set & FUSE_SET_ATTR_ATIME_NOW) {
+			setmask |= SET_ATIME_NOW_FLAG;
+		}
 		if (to_set & FUSE_SET_ATTR_MTIME) {
 			setmask |= SET_MTIME_FLAG;
-			write_data_flush_inode(ino);	// in this case we want flush all pending writes because they could overwrite mtime
+		}
+		if (to_set & FUSE_SET_ATTR_MTIME_NOW) {
+			setmask |= SET_MTIME_NOW_FLAG;
+		}
+		if (to_set & (FUSE_SET_ATTR_MTIME | FUSE_SET_ATTR_MTIME_NOW)) {
+			// in this case we want flush all pending writes because they could overwrite mtime
+			write_data_flush_inode(ino);
 		}
 		status = fs_setattr(ino,ctx.uid,ctx.gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr);
 		status = mfs_errorconv(status);

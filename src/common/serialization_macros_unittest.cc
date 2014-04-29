@@ -72,7 +72,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, rdev)
 
 TEST(PacketSerializationTests, SerializeAndDeserialize) {
-	ASSERT_EQ(3210, somebodyToSomebodyElse::communicate::kSomeVersion);
+	ASSERT_EQ(3210U, somebodyToSomebodyElse::communicate::kSomeVersion);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 65432, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 36, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(String8Bit, name, "kobyla ma maly bok", "");

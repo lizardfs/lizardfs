@@ -215,20 +215,13 @@
 #define MODE_MASK_EMPTY        0 // Just to avoid '0' argument when passing an empty mask
 
 // flags: "setmask" field in "CLTOMA_FUSE_SETATTR"
-// SET_GOAL_FLAG,SET_DELETE_FLAG are no longer supported
-// SET_LENGTH_FLAG,SET_OPENED_FLAG are deprecated
-// instead of using FUSE_SETATTR with SET_GOAL_FLAG use FUSE_SETGOAL command
-// instead of using FUSE_SETATTR with SET_GOAL_FLAG use FUSE_SETTRASH_TIMEOUT command
-// instead of using FUSE_SETATTR with SET_LENGTH_FLAG/SET_OPENED_FLAG use FUSE_TRUNCATE command
-#define SET_GOAL_FLAG          0x0001
 #define SET_MODE_FLAG          0x0002
 #define SET_UID_FLAG           0x0004
 #define SET_GID_FLAG           0x0008
-#define SET_LENGTH_FLAG        0x0010
+#define SET_MTIME_NOW_FLAG     0x0010
 #define SET_MTIME_FLAG         0x0020
 #define SET_ATIME_FLAG         0x0040
-#define SET_OPENED_FLAG        0x0080
-#define SET_DELETE_FLAG        0x0100
+#define SET_ATIME_NOW_FLAG     0x0080
 
 // dtypes:
 #define DTYPE_UNKNOWN          0
@@ -309,7 +302,7 @@
 	"ignore_gid", \
 	"can_change_quota", \
 	"map_all", \
-	"undefined_flag_5", \
+	"no_master_permission_check", \
 	"undefined_flag_6", \
 	"undefined_flag_7"
 
@@ -835,11 +828,11 @@
 // 0x019D
 #define MATOCL_FUSE_READLINK (PROTO_BASE+413)
 /// msgid:32 status:8
-/// msgid:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 path:STDSTRING
 
 // 0x019E
 #define CLTOMA_FUSE_SYMLINK (PROTO_BASE+414)
-/// msgid:32 inode:32 name:NAME pathlength:32 path:STRING[pathlength] uid:32 gid:32
+/// msgid:32 inode:32 name:NAME path:STDSTRING uid:32 gid:32
 
 // 0x019F
 #define MATOCL_FUSE_SYMLINK (PROTO_BASE+415)
@@ -1076,11 +1069,11 @@
 // 0x01C7
 #define MATOCL_FUSE_GETTRASHPATH (PROTO_BASE+455)
 /// msgid:32 status:8
-/// msgid:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 path:STDSTRING
 
 // 0x01C8
 #define CLTOMA_FUSE_SETTRASHPATH (PROTO_BASE+456)
-/// msgid:32 inode:32 pathlength:32 path:STRING[pathlength]
+/// msgid:32 inode:32 path:STDSTRING
 
 // 0x01C9
 #define MATOCL_FUSE_SETTRASHPATH (PROTO_BASE+457)
@@ -1378,11 +1371,11 @@
 
 // 0x05F9
 #define LIZ_CLTOMA_IOLIMIT (1000U + 529U)
-/// grouplen:32 group:STRING[grouplen] wantmore:8 limit:64 usage:64
+/// group:STDSTRING wantmore:8 limit:64 usage:64
 
 // 0x05FA
 #define LIZ_MATOCL_IOLIMIT (1000U + 530U)
-/// grouplen:32 group:STRING[grouplen] limit:64
+/// group:STDSTRING limit:64
 
 // 0x05FB
 #define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)

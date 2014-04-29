@@ -3,12 +3,13 @@
 # * assert_some_condition -- adds error to the test results and immediately stops the test
 # * assertlocal_some_condition -- adds error to the results and exits current subshell
 
-# (assert|assertlocal|expect)_program_installed <program>
+# (assert|assertlocal|expect)_program_installed <program>...
 assert_template_program_installed_() {
-	local program=$1
-	if ! is_program_installed "$program"; then
-		$FAIL_FUNCTION "$program is not installed"
-	fi
+	for program in "$@"; do
+		if ! is_program_installed "$program"; then
+			$FAIL_FUNCTION "$program is not installed"
+		fi
+	done
 }
 
 # (assert|assertlocal|expect)_file_exists <file>

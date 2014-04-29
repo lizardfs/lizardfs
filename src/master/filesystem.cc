@@ -36,6 +36,7 @@
 #include <vector>
 
 
+#include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
@@ -3833,9 +3834,19 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (uid!=0 && (sesflags&SESFLAG_MAPALL) && (setmask&(SET_UID_FLAG|SET_GID_FLAG))) {
 		return ERROR_EPERM;
 	}
-	if ((p->mode&(EATTR_NOOWNER<<12))==0) {
-		if (uid!=0 && uid!=p->uid && (setmask&(SET_MODE_FLAG|SET_UID_FLAG|SET_GID_FLAG|SET_ATIME_FLAG|SET_MTIME_FLAG))) {
+	if ((p->mode&(EATTR_NOOWNER<<12))==0 && uid!=0 && uid!=p->uid) {
+		if (setmask & (SET_MODE_FLAG | SET_UID_FLAG | SET_GID_FLAG)) {
 			return ERROR_EPERM;
+		}
+		if ((setmask & SET_ATIME_FLAG) && !(setmask & SET_ATIME_NOW_FLAG)) {
+			return ERROR_EPERM;
+		}
+		if ((setmask & SET_MTIME_FLAG) && !(setmask & SET_MTIME_NOW_FLAG)) {
+			return ERROR_EPERM;
+		}
+		if ((setmask & (SET_ATIME_NOW_FLAG | SET_MTIME_NOW_FLAG))
+				&& !fsnodes_access(p, uid, gid, MODE_MASK_W, sesflags)) {
+			return ERROR_EACCES;
 		}
 	}
 	if (uid!=0 && uid!=attruid && (setmask&SET_UID_FLAG)) {
@@ -3905,10 +3916,14 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (setmask&SET_GID_FLAG) {
 		p->gid = attrgid;
 	}
-	if (setmask&SET_ATIME_FLAG) {
+	if (setmask&SET_ATIME_NOW_FLAG) {
+		p->atime = ts;
+	} else if (setmask&SET_ATIME_FLAG) {
 		p->atime = attratime;
 	}
-	if (setmask&SET_MTIME_FLAG) {
+	if (setmask&SET_MTIME_NOW_FLAG) {
+		p->mtime = ts;
+	} else if (setmask&SET_MTIME_FLAG) {
 		p->mtime = attrmtime;
 	}
 	changelog(metaversion++,"%" PRIu32 "|ATTR(%" PRIu32 ",%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",ts,inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);
@@ -8791,12 +8806,22 @@ void fs_term(const char *fname) {
 }
 #endif
 
+LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataException, Exception);
+LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
+LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataFSConsistencyException, MetadataException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataConsistencyException, MetadataException);
+char const BackupNewerThanCurrentMsg[] =
+	"backup file is newer than current file - please check"
+	" it manually - propably you should run metarestore";
+char const RenameCurrentToBackupMsg[] =
+	"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME;
+char const MetadataStructureReadErrorMsg[] = "error reading metadata (structure)";
+
 #ifndef METARESTORE
-int fs_loadall(void) {
+void fs_loadall(void) {
 #else
-int fs_loadall(const char *fname,int ignoreflag) {
+void fs_loadall(const char *fname,int ignoreflag) {
 #endif
-	FILE *fd;
 	uint8_t hdr[8];
 #ifndef METARESTORE
 	uint8_t bhdr[8];
@@ -8804,26 +8829,25 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 
 #ifdef METARESTORE
-	fd = fopen(fname,"r");
+	cstream_t fd(fopen(fname,"r"));
 #else
 	backversion = 0;
-	fd = fopen(METADATA_BACK_FILENAME,"r");
-	if (fd!=NULL) {
-		if (fread(bhdr,1,8,fd)==8) {
+	cstream_t fd(fopen(METADATA_BACK_FILENAME,"r"));
+	if (fd != nullptr) {
+		if (fread(bhdr,1,8,fd.get())==8) {
 			// bhdr is something like "MFSM x.y" or "LFSM x.y" (for Light LizardsFS)
 			std::string sig(reinterpret_cast<const char *>(bhdr), 5);
 			std::string ver(reinterpret_cast<const char *>(bhdr) + 5, 3);
 			if (sig == MFSSIGNATURE "M " && (ver == "1.5" || ver == "1.6" || ver == "2.0")) {
-				backversion = fs_loadversion(fd);
+				backversion = fs_loadversion(fd.get());
 			}
 		}
-		fclose(fd);
 	}
 
-	fd = fopen(METADATA_FILENAME,"r");
+	fd.reset(fopen(METADATA_FILENAME,"r"));
 #endif
-	if (fd==NULL) {
-		fprintf(stderr,"can't open metadata file\n");
+	if (fd == nullptr) {
+		int savedErrno(errno);
 #ifndef METARESTORE
 		{
 #if defined(HAVE_GETCWD)
@@ -8848,35 +8872,30 @@ int fs_loadall(const char *fname,int ignoreflag) {
 			char cwdbuf[1];
 			cwdbuf[0]=0;
 #endif
-			if (cwdbuf[0]) {
-				fprintf(stderr,"if this is new instalation then rename %s" METADATA_FILENAME ".empty as %s" METADATA_FILENAME "\n",cwdbuf,cwdbuf);
-			} else {
-				fprintf(stderr,"if this is new instalation then rename " METADATA_FILENAME ".empty as " METADATA_FILENAME " (in current working directory)\n");
+			fprintf(stderr, "Can't open metadata file: If this is new instalation "
+				"then rename %s" METADATA_FILENAME ".empty "
+				"as %s" METADATA_FILENAME, cwdbuf, cwdbuf);
+			if (!cwdbuf[0]) {
+				fprintf( stderr, " (in current working directory)");
 			}
+			fprintf(stderr, "\n");
 		}
-		syslog(LOG_ERR,"can't open metadata file");
 #endif
-		return -1;
+		if (savedErrno == ENOENT)
+			throw MetadataFSConsistencyException("metadata file does not exits");
+		else
+			throw FilesystemException("can't open metadata file");
 	}
-	if (fread(hdr,1,8,fd)!=8) {
-		fclose(fd);
-		fprintf(stderr,"can't read metadata header\n");
-#ifndef METARESTORE
-		syslog(LOG_ERR,"can't read metadata header");
-#endif
-		return -1;
+	if (fread(hdr,1,8,fd.get())!=8) {
+		throw MetadataConsistencyException("can't read metadata header");
 	}
 #ifndef METARESTORE
 	if (memcmp(hdr,"MFSM NEW",8)==0) {	// special case - create new file system
-		fclose(fd);
 		if (backversion>0) {
-			fprintf(stderr,"backup file is newer than current file - please check it manually - propably you should run metarestore\n");
-			syslog(LOG_ERR,"backup file is newer than current file - please check it manually - propably you should run metarestore");
-			return -1;
+			throw MetadataConsistencyException(BackupNewerThanCurrentMsg);
 		}
 		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
-			mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
-			return -1;
+			throw FilesystemException(RenameCurrentToBackupMsg);
 		}
 		fprintf(stderr,"create new empty filesystem");
 		syslog(LOG_NOTICE,"create new empty filesystem");
@@ -8884,7 +8903,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 		unlink(METADATA_BACK_TMP_FILENAME);
 		// after creating new filesystem always create "back" file for using in metarestore
 		fs_storeall(MetadataDumper::kForegroundDump);
-		return 0;
+		return;
 	}
 #endif
 	uint8_t metadataVersion;
@@ -8895,41 +8914,24 @@ int fs_loadall(const char *fname,int ignoreflag) {
 	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
 		metadataVersion = kMetadataVersionWithSections;
 	} else {
-		fprintf(stderr,"wrong metadata header\n");
-#ifndef METARESTORE
-		syslog(LOG_ERR,"wrong metadata header");
-#endif
-		fclose(fd);
-		return -1;
+		throw MetadataConsistencyException("wrong metadata header version");
 	}
 #ifndef METARESTORE
-	if (fs_load(fd, 0, metadataVersion) < 0) {
+	if (fs_load(fd.get(), 0, metadataVersion) < 0) {
 #else
-	if (fs_load(fd, ignoreflag, metadataVersion) < 0) {
+	if (fs_load(fd.get(), ignoreflag, metadataVersion) < 0) {
 #endif
-#ifndef METARESTORE
-			syslog(LOG_ERR,"error reading metadata (structure)");
-#endif
-			fclose(fd);
-			return -1;
-		}
-	if (ferror(fd)!=0) {
-		fprintf(stderr,"error reading metadata\n");
-#ifndef METARESTORE
-		syslog(LOG_ERR,"error reading metadata");
-#endif
-		fclose(fd);
-		return -1;
+		throw MetadataConsistencyException(MetadataStructureReadErrorMsg);
 	}
-	fclose(fd);
+	if (ferror(fd.get())!=0) {
+		throw MetadataConsistencyException(MetadataStructureReadErrorMsg);
+	}
 #ifndef METARESTORE
 	if (backversion>metaversion) {
-		mfs_syslog(LOG_ERR,"backup file is newer than current file - please check it manually - probably you should run metarestore");
-		return -1;
+		throw MetadataConsistencyException(BackupNewerThanCurrentMsg);
 	}
 	if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
-		mfs_errlog(LOG_ERR,"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME);
-		return -1;
+		throw FilesystemException(RenameCurrentToBackupMsg);
 	}
 #endif
 	fprintf(stderr,"connecting files and chunks ... ");
@@ -8944,7 +8946,7 @@ int fs_loadall(const char *fname,int ignoreflag) {
 #endif
 	unlink(METADATA_BACK_TMP_FILENAME);
 	fs_checksum(ChecksumMode::kForceRecalculate);
-	return 0;
+	return;
 }
 
 void fs_strinit(void) {
@@ -8997,9 +8999,14 @@ int fs_init(void) {
 	fs_strinit();
 	chunk_strinit();
 	test_start_time = main_time()+900;
-	if (fs_loadall()<0) {
+	try {
+		fs_loadall();
+	} catch(Exception const& e) {
+		fprintf(stderr, "%s\n", e.what());
+		syslog(LOG_ERR, "%s", e.what());
 		return -1;
 	}
+
 	fprintf(stderr,"metadata file has been loaded\n");
 #if VERSHEX>=0x010700
 	QuotaTimeLimit = cfg_getuint32("QUOTA_TIME_LIMIT",7*86400);
@@ -9030,7 +9037,10 @@ int fs_init(void) {
 int fs_init(const char *fname,int ignoreflag) {
 	fs_strinit();
 	chunk_strinit();
-	if (fs_loadall(fname,ignoreflag)<0) {
+	try {
+		fs_loadall(fname,ignoreflag);
+	} catch (Exception const& e) {
+		fprintf(stderr, "%s\n", e.what());
 		return -1;
 	}
 	return 0;
