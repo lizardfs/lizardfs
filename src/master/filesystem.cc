@@ -3755,9 +3755,19 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (uid!=0 && (sesflags&SESFLAG_MAPALL) && (setmask&(SET_UID_FLAG|SET_GID_FLAG))) {
 		return ERROR_EPERM;
 	}
-	if ((p->mode&(EATTR_NOOWNER<<12))==0) {
-		if (uid!=0 && uid!=p->uid && (setmask&(SET_MODE_FLAG|SET_UID_FLAG|SET_GID_FLAG|SET_ATIME_FLAG|SET_MTIME_FLAG))) {
+	if ((p->mode&(EATTR_NOOWNER<<12))==0 && uid!=0 && uid!=p->uid) {
+		if (setmask & (SET_MODE_FLAG | SET_UID_FLAG | SET_GID_FLAG)) {
 			return ERROR_EPERM;
+		}
+		if ((setmask & SET_ATIME_FLAG) && !(setmask & SET_ATIME_NOW_FLAG)) {
+			return ERROR_EPERM;
+		}
+		if ((setmask & SET_MTIME_FLAG) && !(setmask & SET_MTIME_NOW_FLAG)) {
+			return ERROR_EPERM;
+		}
+		if ((setmask & (SET_ATIME_NOW_FLAG | SET_MTIME_NOW_FLAG))
+				&& !fsnodes_access(p, uid, gid, MODE_MASK_W, sesflags)) {
+			return ERROR_EACCES;
 		}
 	}
 	if (uid!=0 && uid!=attruid && (setmask&SET_UID_FLAG)) {
@@ -3827,10 +3837,14 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (setmask&SET_GID_FLAG) {
 		p->gid = attrgid;
 	}
-	if (setmask&SET_ATIME_FLAG) {
+	if (setmask&SET_ATIME_NOW_FLAG) {
+		p->atime = ts;
+	} else if (setmask&SET_ATIME_FLAG) {
 		p->atime = attratime;
 	}
-	if (setmask&SET_MTIME_FLAG) {
+	if (setmask&SET_MTIME_NOW_FLAG) {
+		p->mtime = ts;
+	} else if (setmask&SET_MTIME_FLAG) {
 		p->mtime = attrmtime;
 	}
 	changelog(metaversion++,"%" PRIu32 "|ATTR(%" PRIu32 ",%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",ts,inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);

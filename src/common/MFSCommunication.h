@@ -180,20 +180,13 @@
 #define MODE_MASK_EMPTY        0 // Just to avoid '0' argument when passing an empty mask
 
 // flags: "setmask" field in "CLTOMA_FUSE_SETATTR"
-// SET_GOAL_FLAG,SET_DELETE_FLAG are no longer supported
-// SET_LENGTH_FLAG,SET_OPENED_FLAG are deprecated
-// instead of using FUSE_SETATTR with SET_GOAL_FLAG use FUSE_SETGOAL command
-// instead of using FUSE_SETATTR with SET_GOAL_FLAG use FUSE_SETTRASH_TIMEOUT command
-// instead of using FUSE_SETATTR with SET_LENGTH_FLAG/SET_OPENED_FLAG use FUSE_TRUNCATE command
-#define SET_GOAL_FLAG          0x0001
 #define SET_MODE_FLAG          0x0002
 #define SET_UID_FLAG           0x0004
 #define SET_GID_FLAG           0x0008
-#define SET_LENGTH_FLAG        0x0010
+#define SET_MTIME_NOW_FLAG     0x0010
 #define SET_MTIME_FLAG         0x0020
 #define SET_ATIME_FLAG         0x0040
-#define SET_OPENED_FLAG        0x0080
-#define SET_DELETE_FLAG        0x0100
+#define SET_ATIME_NOW_FLAG     0x0080
 
 // dtypes:
 #define DTYPE_UNKNOWN          0

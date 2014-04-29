@@ -1860,11 +1860,9 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	} else {
 		sugidclearmode = SUGID_CLEAR_MODE_ALWAYS; // this is safest option
 	}
-	if (setmask&(SET_GOAL_FLAG|SET_LENGTH_FLAG|SET_OPENED_FLAG)) {
-		status = ERROR_EINVAL;
-	} else {
-		status = fs_setattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,auid,agid,setmask,attrmode,attruid,attrgid,attratime,attrmtime,sugidclearmode,attr);
-	}
+	status = fs_setattr(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, uid, gid, auid, agid,
+			setmask, attrmode, attruid, attrgid, attratime, attrmtime, sugidclearmode, attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETATTR,(status!=STATUS_OK)?5:39);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
