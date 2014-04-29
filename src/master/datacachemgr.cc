@@ -23,9 +23,9 @@
 #include <stdio.h>
 
 /*
-     open(inode,sessionid) -> isset? (inode,sessionid)
-     access(inode,sessionid) -> set (inode,sessionid)
-     modify(inode,sessionid) -> clear (inode,!sessionid) and set (inode,sessionid)
+  open(inode,sessionid) -> isset? (inode,sessionid)
+  access(inode,sessionid) -> set (inode,sessionid)
+  modify(inode,sessionid) -> clear (inode,!sessionid) and set (inode,sessionid)
 */
 
 #define DCM_TAB_LENG 500000

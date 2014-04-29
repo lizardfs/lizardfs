@@ -8312,18 +8312,18 @@ void fs_store(FILE *fd,uint8_t fver) {
 
 static void fs_store_fd(FILE* fd) {
 #if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
-    const char hdr[] = MFSSIGNATURE "M 2.0";
-    const uint8_t metadataVersion = kMetadataVersionWithSections;
+	const char hdr[] = MFSSIGNATURE "M 2.0";
+	const uint8_t metadataVersion = kMetadataVersionWithSections;
 #else
-    const char hdr[] = MFSSIGNATURE "M 1.6";
-    const uint8_t metadataVersion = kMetadataVersionLizardFS;
+	const char hdr[] = MFSSIGNATURE "M 1.6";
+	const uint8_t metadataVersion = kMetadataVersionLizardFS;
 #endif
 
-    if (fwrite(&hdr, 1, sizeof(hdr)-1, fd) != sizeof(hdr)-1) {
-	  syslog(LOG_NOTICE,"fwrite error");
-    } else {
-	  fs_store(fd, metadataVersion);
-    }
+	if (fwrite(&hdr, 1, sizeof(hdr)-1, fd) != sizeof(hdr)-1) {
+		syslog(LOG_NOTICE,"fwrite error");
+	} else {
+		fs_store(fd, metadataVersion);
+	}
 }
 
 uint64_t fs_loadversion(FILE *fd) {

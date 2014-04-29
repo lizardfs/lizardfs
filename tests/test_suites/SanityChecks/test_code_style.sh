@@ -12,6 +12,9 @@ verify_file() {
 	if [[ $(tail -c3 "$file" | wc -l) == 3 ]]; then
 		test_add_failure "File '$file' ends with more then one blank line"
 	fi
+	if [[ $file =~ [.](cc|c|h|sh|inc)$ ]] && grep $'^    ' "$file"; then
+		test_add_failure "File '$file' has lines indented with spaces"
+	fi
 }
 
 cd "$SOURCE_DIR"

@@ -8,5 +8,5 @@ CHUNKSERVERS=2 \
 cd ${info[mount0]}
 FILE_SIZE=123456789 BLOCK_SIZE=12345 file-generate file
 if ! file-validate file; then
-        test_add_failure "Data read from file is different than written"
+	test_add_failure "Data read from file is different than written"
 fi

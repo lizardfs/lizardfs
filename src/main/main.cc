@@ -1011,7 +1011,7 @@ int main(int argc,char **argv) {
 	lockmemory = 0;
 	appname = argv[0];
 
-    while ((ch = getopt(argc, argv, "c:dht:uv?")) != -1) {
+	while ((ch = getopt(argc, argv, "c:dht:uv?")) != -1) {
 		switch(ch) {
 			case 'v':
 				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
