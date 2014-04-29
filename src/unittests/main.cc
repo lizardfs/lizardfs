@@ -1,6 +1,7 @@
-#include <gtest/gtest.h>
+#include "config.h"
 
 #include <signal.h>
+#include <gtest/gtest.h>
 
 #include "common/crc.h"
 #include "common/strerr.h"

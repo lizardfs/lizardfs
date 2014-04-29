@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/mount_config.h"
 
 #include <stdio.h>

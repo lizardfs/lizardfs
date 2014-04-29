@@ -1,3 +1,4 @@
+#include "config.h"
 #include "chunkserver/chunk_replicator.h"
 
 #include <unistd.h>
@@ -5,8 +6,8 @@
 #include <initializer_list>
 #include <memory>
 
-#include "common/cstocs_communication.h"
 #include "common/crc.h"
+#include "common/cstocs_communication.h"
 #include "common/exception.h"
 #include "common/packet.h"
 #include "common/read_plan_executor.h"

@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/chunk_health_command.h"
 
 #include <iostream>

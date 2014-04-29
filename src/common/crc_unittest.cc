@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/crc.h"
 
 #include <string>

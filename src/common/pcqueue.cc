@@ -17,14 +17,15 @@
  */
 
 #include "config.h"
+#include "common/pcqueue.h"
 
-#include <stdlib.h>
-#include <pthread.h>
-#include <inttypes.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <pthread.h>
+#include <stdlib.h>
 
-#include "devtools/TracePrinter.h"
 #include "common/massert.h"
+#include "devtools/TracePrinter.h"
 
 typedef struct _qentry {
 	uint32_t id;

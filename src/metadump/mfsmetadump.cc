@@ -18,14 +18,14 @@
 
 #include "config.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <inttypes.h>
 #include <vector>
 
-#include "common/MFSCommunication.h"
 #include "common/datapack.h"
+#include "common/MFSCommunication.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

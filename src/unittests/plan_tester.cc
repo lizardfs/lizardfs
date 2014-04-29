@@ -1,3 +1,4 @@
+#include "config.h"
 #include "unittests/plan_tester.h"
 
 #include <algorithm>

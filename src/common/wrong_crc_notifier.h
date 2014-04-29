@@ -1,14 +1,16 @@
 #pragma once
 
+#include "config.h"
+
 #include <syslog.h>
 #include <atomic>
 #include <condition_variable>
 #include <list>
 #include <mutex>
 #include <set>
+#include <thread>
 #include <tuple>
 #include <vector>
-#include <thread>
 
 #include "common/chunk_connector.h"
 #include "common/chunk_type.h"

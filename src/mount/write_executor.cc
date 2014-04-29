@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/write_executor.h"
 
 #include <cstring>

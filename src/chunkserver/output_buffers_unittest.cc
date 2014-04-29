@@ -1,7 +1,8 @@
+#include "config.h"
 #include "chunkserver/output_buffers.h"
 
-#include <cstdlib>
 #include <fcntl.h>
+#include <cstdlib>
 #include <string>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>

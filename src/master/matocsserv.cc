@@ -17,22 +17,19 @@
  */
 
 #include "config.h"
-
 #include "master/matocsserv.h"
 
-#include <stdio.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 #include <algorithm>
 #include <list>
 #include <set>

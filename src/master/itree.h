@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void* itree_rebalance(void *o);

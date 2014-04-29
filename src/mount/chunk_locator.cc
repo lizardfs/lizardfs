@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/chunk_locator.h"
 
 #include <unistd.h>
@@ -8,7 +9,6 @@
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
-
 
 void ReadChunkLocator::invalidateCache(uint32_t inode, uint32_t index) {
 	std::unique_lock<std::mutex> lock(mutex_);

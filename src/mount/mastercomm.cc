@@ -32,7 +32,6 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-
 #include <condition_variable>
 #include <mutex>
 #include <unordered_map>

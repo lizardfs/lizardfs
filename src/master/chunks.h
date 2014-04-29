@@ -18,13 +18,15 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <inttypes.h>
+#include "config.h"
 
-#include "common/chunks_availability_state.h"
+#include <inttypes.h>
+#include <stdio.h>
+
 #include "common/chunk_type.h"
-#include "common/cltoma_communication.h"
 #include "common/chunk_type_with_address.h"
+#include "common/chunks_availability_state.h"
+#include "common/cltoma_communication.h"
 #include "master/checksum.h"
 
 #ifdef METARESTORE

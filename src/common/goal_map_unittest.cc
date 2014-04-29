@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/goal_map.h"
 
 #include <gtest/gtest.h>

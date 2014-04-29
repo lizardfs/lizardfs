@@ -8,6 +8,8 @@
 #pragma once
 
 #ifdef ENABLE_TRACES
+#include "config.h"
+
 #include <pthread.h>
 #include <sys/time.h>
 #include <cstdio>
@@ -109,31 +111,31 @@ public:
 };
 
 
-#	define TRACETHIS() TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, "")
-#	define TRACETHIS1(a1) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS() TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, "")
+#define TRACETHIS1(a1) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%") % a1))
-#	define TRACETHIS2(a1, a2) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS2(a1, a2) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%, " #a2 "=%2%") % a1 % a2))
-#	define TRACETHIS3(a1, a2, a3) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS3(a1, a2, a3) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%, " #a2 "=%2%, " #a3 "=%3%") % a1 % a2 % a3))
-#	define TRACETHIS4(a1, a2, a3, a4) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS4(a1, a2, a3, a4) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%, " #a2 "=%2%, " #a3 "=%3%, " #a4 "=%4%") % a1 % a2 % a3 % a4))
-#	define TRACETHIS5(a1, a2, a3, a4, a5) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS5(a1, a2, a3, a4, a5) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%, " #a2 "=%2%, " #a3 "=%3%, " #a4 "=%4%, " #a5 "=%5%") % a1 % a2 % a3 % a4 % a5))
-#	define TRACETHIS6(a1, a2, a3, a4, a5, a6) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
+#define TRACETHIS6(a1, a2, a3, a4, a5, a6) TracePrinter tracePrinter ## __LINE__(__PRETTY_FUNCTION__, \
 		boost::str(boost::format(" " #a1 "=%1%, " #a2 "=%2%, " #a3 "=%3%, " #a4 "=%4%, " #a5 "=%5%, " #a6 "=%6%") % a1 % a2 % a3 % a4 % a5 % a6))
-#	define PRINTTHIS(a) ThreadPrinter::printMessage(boost::str(boost::format("Line %1%: "#a "=%2%") % __LINE__ % a))
-#	define PRINTTHISMSG(a) ThreadPrinter::printMessage(boost::str(boost::format("Line %1%: %2%") % __LINE__ % a))
-#	define MARKTHIS() ThreadPrinter::printMessage(boost::str(boost::format("Line %1%") % __LINE__));
+#define PRINTTHIS(a) ThreadPrinter::printMessage(boost::str(boost::format("Line %1%: "#a "=%2%") % __LINE__ % a))
+#define PRINTTHISMSG(a) ThreadPrinter::printMessage(boost::str(boost::format("Line %1%: %2%") % __LINE__ % a))
+#define MARKTHIS() ThreadPrinter::printMessage(boost::str(boost::format("Line %1%") % __LINE__));
 #else
-#	define TRACETHIS() (void)0
-#	define TRACETHIS1(a1) (void)0
-#	define TRACETHIS2(a1, a2) (void)0
-#	define TRACETHIS3(a1, a2, a3) (void)0
-#	define TRACETHIS4(a1, a2, a3, a4) (void)0
-#	define TRACETHIS5(a1, a2, a3, a4, a5) (void)0
-#	define TRACETHIS6(a1, a2, a3, a4, a5, a6) (void)0
-#	define PRINTTHIS(a) (void)0
-#	define PRINTTHISMSG(a) (void)0
-#   define MARKTHIS() (void)0
+#define TRACETHIS() (void)0
+#define TRACETHIS1(a1) (void)0
+#define TRACETHIS2(a1, a2) (void)0
+#define TRACETHIS3(a1, a2, a3) (void)0
+#define TRACETHIS4(a1, a2, a3, a4) (void)0
+#define TRACETHIS5(a1, a2, a3, a4, a5) (void)0
+#define TRACETHIS6(a1, a2, a3, a4, a5, a6) (void)0
+#define PRINTTHIS(a) (void)0
+#define PRINTTHISMSG(a) (void)0
+#define MARKTHIS() (void)0
 #endif /* ENABLE_TRACES */

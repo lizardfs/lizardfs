@@ -19,10 +19,10 @@
 #include "config.h"
 
 #include <errno.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <sys/time.h>
-#include <sys/resource.h>
 
 #include "common/crc.h"
 #include "common/md5.h"

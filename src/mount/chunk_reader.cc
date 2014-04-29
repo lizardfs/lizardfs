@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/chunk_reader.h"
 
 #include <algorithm>

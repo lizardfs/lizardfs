@@ -21,9 +21,6 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#ifdef HAVE_PWD_H
-  #include <pwd.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +31,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
@@ -48,16 +44,17 @@
 #include "master/chunks.h"
 #include "master/metadata_dumper.h"
 
-#ifndef METARESTORE
-  #include "common/cfg.h"
-  #include "common/main.h"
-  #include "master/changelog.h"
-  #include "master/datacachemgr.h"
-  #include "master/matoclserv.h"
-  #include "master/matocsserv.h"
+#ifdef HAVE_PWD_H
+#  include <pwd.h>
 #endif
-
-
+#ifndef METARESTORE
+#  include "common/cfg.h"
+#  include "common/main.h"
+#  include "master/changelog.h"
+#  include "master/datacachemgr.h"
+#  include "master/matoclserv.h"
+#  include "master/matocsserv.h"
+#endif
 
 #define USE_FREENODE_BUCKETS 1
 #define USE_CUIDREC_BUCKETS 1

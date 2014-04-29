@@ -17,14 +17,13 @@
  */
 
 #include "config.h"
-
 #include "master/matoclserv.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <netinet/in.h>
 #include <math.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +33,6 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-
 #include <fstream>
 #include <memory>
 

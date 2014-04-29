@@ -24,7 +24,7 @@
 //
 
 #ifndef PROTO_BASE
-#include "config.h"
+#  include "config.h"
 #endif
 
 #define MSB_1 0

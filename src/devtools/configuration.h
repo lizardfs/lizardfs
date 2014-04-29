@@ -1,8 +1,9 @@
 #pragma once
 
+#include "config.h"
+
 #include <signal.h>
 #include <stdlib.h>
-
 #include <iostream>
 #include <sstream>
 #include <string>

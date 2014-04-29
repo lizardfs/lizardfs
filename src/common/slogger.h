@@ -1,9 +1,11 @@
 #pragma once
 
+#include "config.h"
+
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <syslog.h>
-#include <stdarg.h>
-#include <errno.h>
 
 #include "common/strerr.h"
 

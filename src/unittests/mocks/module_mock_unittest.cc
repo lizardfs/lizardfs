@@ -1,3 +1,4 @@
+#include "config.h"
 #include "unittests/mocks/module_mock.h"
 
 #include <gtest/gtest.h>

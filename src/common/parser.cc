@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/parser.h"
 
 Parser::Parser(const std::string& stringToParse)

@@ -1,9 +1,11 @@
 #pragma once
 
+#include "config.h"
+
+#include <stdlib.h>
 #include <cstdint>
 #include <cstring>
 #include <vector>
-#include <stdlib.h>
 
 #define HAVE_SPLICE 1 // TODO(alek) zmienna do konfiga
 

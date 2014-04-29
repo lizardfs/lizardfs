@@ -1,10 +1,12 @@
 #pragma once
 
+#include "config.h"
+
 #include <errno.h>
 #include <poll.h>
-#include <string>
 #include <syslog.h>
 #include <unistd.h>
+#include <string>
 
 #include "common/slogger.h"
 

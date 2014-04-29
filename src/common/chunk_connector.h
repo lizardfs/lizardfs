@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/connection_pool.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"

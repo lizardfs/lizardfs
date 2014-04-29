@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <sys/time.h>
 #include <unistd.h>
 #include <boost/filesystem.hpp>

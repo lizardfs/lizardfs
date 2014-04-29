@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/matocs_communication.h"
 
 #include <gtest/gtest.h>

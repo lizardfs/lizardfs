@@ -1,8 +1,10 @@
 #pragma once
 
+#include "config.h"
+
+#include <istream>
 #include <map>
 #include <string>
-#include <istream>
 
 #include "common/exception.h"
 

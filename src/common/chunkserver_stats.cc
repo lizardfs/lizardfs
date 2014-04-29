@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/chunkserver_stats.h"
 
 #include <mutex>

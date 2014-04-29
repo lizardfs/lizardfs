@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>

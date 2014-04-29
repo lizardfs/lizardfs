@@ -1,7 +1,8 @@
+#include "config.h"
 #include "master/metadata_dumper.h"
 
-#include <string.h>
 #include <signal.h>
+#include <string.h>
 
 static bool createPipe(int pipefds[2]) {
 	if (pipe(pipefds) != 0) {

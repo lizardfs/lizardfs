@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <cstdlib>
 

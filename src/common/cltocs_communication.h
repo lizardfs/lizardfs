@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/chunk_type.h"
 #include "common/network_address.h"
 #include "common/packet.h"

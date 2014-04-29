@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/serialization_macros.h"
 
 SERIALIZABLE_CLASS_BEGIN(LizardFsStatistics)

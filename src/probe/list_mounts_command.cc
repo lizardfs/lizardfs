@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/list_mounts_command.h"
 
 #include <algorithm>

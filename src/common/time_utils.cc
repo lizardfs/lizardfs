@@ -1,10 +1,11 @@
+#include "config.h"
 #include "common/time_utils.h"
 
 #include <chrono>
 #include <ratio>
 
 #ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
-#include <time.h>
+#  include <time.h>
 SteadyClock::time_point SteadyClock::now() {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);

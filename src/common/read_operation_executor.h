@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <unistd.h>
 
 #include "common/network_address.h"

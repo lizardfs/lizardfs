@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void symlink_cache_insert(uint32_t inode,const uint8_t *path);

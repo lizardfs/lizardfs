@@ -1,5 +1,6 @@
-#include "common/access_control_list.h"
+#include "config.h"
 
+#include "common/access_control_list.h"
 #include "common/posix_acl_xattr.h"
 
 namespace aclConverter {

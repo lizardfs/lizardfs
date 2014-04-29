@@ -1,15 +1,13 @@
+#include "config.h"
 #include "chunkserver/output_buffers.h"
 
 #include <fcntl.h>
 #include <unistd.h>
-
 #include <cerrno>
-#include <stdexcept>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <ios>
-
-#include "config.h"
+#include <stdexcept>
 
 #include "common/massert.h"
 #include "devtools/request_log.h"

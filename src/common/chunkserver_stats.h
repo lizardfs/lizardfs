@@ -1,11 +1,13 @@
 #pragma once
 
-#include "common/network_address.h"
-#include "common/time_utils.h"
+#include "config.h"
 
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
+
+#include "common/network_address.h"
+#include "common/time_utils.h"
 
 // For each chunkserver, track how many operations on this chunksrever are being performed by us
 // at the moment and whether the chunkserver appears to be overloaded or offline ("defective").

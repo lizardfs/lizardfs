@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <array>
 #include <cstring>
 #include <memory>

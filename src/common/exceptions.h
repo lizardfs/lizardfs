@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/chunk_type.h"
 #include "common/exception.h"
 #include "common/mfsstrerr.h"

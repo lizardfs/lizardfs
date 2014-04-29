@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include <fuse.h>
 #include <stddef.h>
 #include <string.h>
+#include <fuse.h>
 
 #if defined(HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) \
 		&& defined(MCL_FUTURE)

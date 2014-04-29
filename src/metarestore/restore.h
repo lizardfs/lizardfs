@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 int restore(const char *filename,uint64_t lv,char *ptr);

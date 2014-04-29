@@ -1,14 +1,15 @@
 #pragma once
 
 #ifdef ENABLE_REQUEST_LOG
-#include <cstdio>
-#include <pthread.h>
-#include <syslog.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include "config.h"
 
+#include <pthread.h>
+#include <sys/time.h>
+#include <syslog.h>
+#include <unistd.h>
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -18,10 +19,9 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-
-#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
 
 #include "common/massert.h"
 #include "devtools/configuration.h"

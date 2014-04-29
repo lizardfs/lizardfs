@@ -1,3 +1,4 @@
+#include "config.h"
 #include "chunkserver/chunk_filename_parser.h"
 
 #include "common/chunk_type.h"

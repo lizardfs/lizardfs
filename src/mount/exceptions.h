@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/exceptions.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(WriteException, Exception);

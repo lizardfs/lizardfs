@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <map>
 
 #include "common/chunks_availability_state.h"

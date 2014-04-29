@@ -1,4 +1,5 @@
-#include "chunk.h"
+#include "config.h"
+#include "chunkserver/chunk.h"
 
 #include <fcntl.h>
 #include <inttypes.h>

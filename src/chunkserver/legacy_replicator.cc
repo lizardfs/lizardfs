@@ -17,29 +17,28 @@
  */
 
 #include "config.h"
+#include "chunkserver/legacy_replicator.h"
 
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <poll.h>
-#include <sys/time.h>
-#include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <poll.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <unistd.h>
 
-#include "common/MFSCommunication.h"
-#include "hddspacemgr.h"
-#include "common/sockets.h"
+#include "chunkserver/hddspacemgr.h"
 #include "common/crc.h"
-#include "common/slogger.h"
 #include "common/datapack.h"
 #include "common/massert.h"
+#include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
-
-#include "chunkserver/legacy_replicator.h"
+#include "common/slogger.h"
+#include "common/sockets.h"
 
 #define CONNMSECTO 5000
 #define SENDMSECTO 5000

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "config.h"
+
 #include <cstdint>
-#include <string>
 #include <sstream>
+#include <string>
 
 #include "common/massert.h"
 

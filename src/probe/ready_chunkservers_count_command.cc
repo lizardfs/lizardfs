@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/ready_chunkservers_count_command.h"
 
 #include <iostream>

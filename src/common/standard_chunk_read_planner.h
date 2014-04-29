@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/read_planner.h"
 
 class StandardChunkReadPlanner : public ReadPlanner {

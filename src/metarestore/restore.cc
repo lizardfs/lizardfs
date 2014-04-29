@@ -17,14 +17,15 @@
  */
 
 #include "config.h"
+#include "metarestore/restore.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
 
 #include "common/MFSCommunication.h"
-#include "filesystem.h"
+#include "master/filesystem.h"
 
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \

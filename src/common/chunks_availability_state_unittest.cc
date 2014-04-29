@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/chunks_availability_state.h"
 
 #include <gtest/gtest.h>

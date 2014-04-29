@@ -1,19 +1,17 @@
 #include "config.h"
-
 #include "chunkserver/network_worker_thread.h"
 
-#include <fcntl.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <netinet/in.h>
-
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -29,8 +27,8 @@
 #include "common/cstocl_communication.h"
 #include "common/cstocs_communication.h"
 #include "common/datapack.h"
-#include "common/massert.h"
 #include "common/main.h"
+#include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"

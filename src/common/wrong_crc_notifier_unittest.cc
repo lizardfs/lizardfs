@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/wrong_crc_notifier.h"
 
 #include <gtest/gtest.h>

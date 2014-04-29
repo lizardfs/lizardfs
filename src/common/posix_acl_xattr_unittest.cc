@@ -1,6 +1,7 @@
-#include <gtest/gtest.h>
-
+#include "config.h"
 #include "common/posix_acl_xattr.h"
+
+#include <gtest/gtest.h>
 
 TEST(PosixAclXattrTests, WriteReadFailures) {
 	PosixAclXattr xattrValueIn, xattrValueOut;

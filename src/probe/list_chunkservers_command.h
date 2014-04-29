@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/network_address.h"
 #include "common/serialization_macros.h"
 #include "probe/lizardfs_probe_command.h"

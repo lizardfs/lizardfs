@@ -1,4 +1,6 @@
+#include "config.h"
 #include "common/packet.h"
+
 #include "common/sockets.h"
 
 void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,

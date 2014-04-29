@@ -1,7 +1,10 @@
+#include "config.h"
+#include "common/strerr.h"
+
+#include <errno.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
-#include <errno.h>
 
 typedef struct errent {
 	int num;

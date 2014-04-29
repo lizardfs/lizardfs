@@ -23,29 +23,27 @@
 #endif
 
 #include "config.h"
-
 #include "mount/mfs_fuse.h"
 
-#include <fuse/fuse_lowlevel.h>
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <assert.h>
 #include <syslog.h>
-#include <inttypes.h>
-#include <pthread.h>
-
+#include <unistd.h>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <fuse/fuse_lowlevel.h>
 
 #include "common/access_control_list.h"
-#include "common/acl_type.h"
 #include "common/acl_converter.h"
+#include "common/acl_type.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/posix_acl_xattr.h"

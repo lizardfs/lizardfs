@@ -18,10 +18,16 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 #include <string.h>
 
+#include "common/access_control_list.h"
+#include "common/acl_type.h"
+#include "common/exception.h"
 #include "common/goal.h"
+#include "master/checksum.h"
 
 struct GoalStats {
 	uint32_t filesWithXorLevel[kMaxXorLevel + 1];
@@ -36,11 +42,6 @@ struct GoalStats {
 		memset(directoriesWithGoal, 0, sizeof(directoriesWithGoal));
 	}
 };
-
-#include "common/access_control_list.h"
-#include "common/acl_type.h"
-#include "common/exception.h"
-#include "master/checksum.h"
 
 #ifdef METARESTORE
 

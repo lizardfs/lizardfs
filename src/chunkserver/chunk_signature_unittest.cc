@@ -1,3 +1,4 @@
+#include "config.h"
 #include "chunkserver/chunk_signature.h"
 
 #include <fcntl.h>

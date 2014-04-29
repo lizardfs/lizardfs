@@ -17,46 +17,44 @@
  */
 
 #include "config.h"
-
 #include "chunkserver/masterconn.h"
 
-#define BGJOBSCNT 1000
-
-#include <time.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
 #include <list>
 
+#include "chunkserver/bgjobs.h"
 #include "chunkserver/hddspacemgr.h"
+#include "chunkserver/network_main_thread.h"
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
-#include "common/matocs_communication.h"
 #include "common/datapack.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
+#include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
-#include "common/random.h"
-#include "chunkserver/bgjobs.h"
-#include "chunkserver/network_main_thread.h"
 #include "devtools/request_log.h"
 
 #define MaxPacketSize 10000
 
 // has to be less than MaxPacketSize on master side divided by 8
 #define LOSTCHUNKLIMIT 25000
+
+#define BGJOBSCNT 1000
 
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};

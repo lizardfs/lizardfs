@@ -1,10 +1,13 @@
 #pragma once
 
+#include "config.h"
+
+#include <iostream>
+
 #include "common/chunk_type.h"
 #include "common/chunk_with_version_and_type.h"
 #include "common/packet.h"
 
-#include <iostream>
 namespace cstoma {
 
 inline void overwriteStatusField(std::vector<uint8_t>& destination, uint8_t status) {

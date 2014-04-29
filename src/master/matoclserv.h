@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void matoclserv_stats(uint64_t stats[5]);

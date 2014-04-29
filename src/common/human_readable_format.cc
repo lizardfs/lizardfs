@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/human_readable_format.h"
 
 #include <cmath>

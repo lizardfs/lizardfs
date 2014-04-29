@@ -1,7 +1,9 @@
 #pragma once
 
-#include <gtest/gtest.h>
+#include "config.h"
+
 #include <ostream>
+#include <gtest/gtest.h>
 
 #include "common/chunk_type.h"
 

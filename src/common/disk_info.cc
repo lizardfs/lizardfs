@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/disk_info.h"
 
 void HddStatistics::add(const HddStatistics& other) {

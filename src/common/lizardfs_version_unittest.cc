@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/lizardfs_version.h"
 
 #include <gtest/gtest.h>

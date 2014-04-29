@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <inttypes.h>
 
 void masterproxy_getlocation(uint8_t *masterinfo);

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <inttypes.h>
+#include "config.h"
 
+#include <inttypes.h>
 #include <atomic>
 
 extern std::atomic<uint64_t> stats_bytesin;

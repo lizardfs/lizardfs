@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/packet.h"
 
 #include <gtest/gtest.h>

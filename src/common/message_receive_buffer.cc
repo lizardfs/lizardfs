@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/message_receive_buffer.h"
 
 #include <unistd.h>

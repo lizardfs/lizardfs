@@ -1,11 +1,13 @@
 #pragma once
 
+#include "config.h"
+
 #include <poll.h>
 #include <cstdint>
 #include <map>
 #include <mutex>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "common/chunk_connector.h"
 #include "common/chunk_type_with_address.h"

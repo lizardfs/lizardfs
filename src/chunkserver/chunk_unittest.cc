@@ -1,3 +1,4 @@
+#include "config.h"
 #include "chunkserver/chunk.h"
 
 #include <gtest/gtest.h>

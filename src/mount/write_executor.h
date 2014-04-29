@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "common/chunk_type.h"
 #include "common/chunkserver_stats.h"
 #include "common/message_receive_buffer.h"

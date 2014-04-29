@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include "probe/lizardfs_probe_command.h"
 
 class InfoCommand : public LizardFsProbeCommand {

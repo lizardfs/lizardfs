@@ -5,10 +5,13 @@
  *      Author: Marcin Sulikowski
  */
 
+#include "config.h"
+#include "devtools/mycrc32/mycrc32.h"
+
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <boost/scoped_array.hpp>
 
 #include "common/crc.h"

@@ -2,6 +2,8 @@
 
 // A queue which transparently deduplicates inserted elements
 
+#include "config.h"
+
 #include <mutex>
 #include <queue>
 #include <set>

@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/info_command.h"
 
 #include <iostream>

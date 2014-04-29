@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/block_xor.h"
 
 #include <algorithm>

@@ -1,18 +1,19 @@
 #pragma once
 
-#include <inttypes.h>
+#include "config.h"
 
+#include <inttypes.h>
 #include <atomic>
 #include <list>
 #include <mutex>
 #include <set>
 #include <vector>
 
-#include "common/chunk_type.h"
-#include "common/packet.h"
-#include "common/network_address.h"
 #include "chunkserver/network_stats.h"
 #include "chunkserver/output_buffers.h"
+#include "common/chunk_type.h"
+#include "common/network_address.h"
+#include "common/packet.h"
 #include "devtools/request_log.h"
 
 //entry.mode

@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/goal.h"
 
 #include <limits>

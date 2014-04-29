@@ -1,3 +1,4 @@
+#include "config.h"
 #include "chunkserver/network_stats.h"
 
 std::atomic<uint64_t> stats_bytesin(0);

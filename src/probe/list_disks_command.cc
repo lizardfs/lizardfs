@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/list_disks_command.h"
 
 #include <iostream>

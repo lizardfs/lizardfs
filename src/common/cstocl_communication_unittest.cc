@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/cstocl_communication.h"
 
 #include <gtest/gtest.h>

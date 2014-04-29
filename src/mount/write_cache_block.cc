@@ -1,3 +1,4 @@
+#include "config.h"
 #include "mount/write_cache_block.h"
 
 #include <cstring>

@@ -1,3 +1,4 @@
+#include "config.h"
 #include "probe/options.h"
 
 Options::Options(const std::vector<std::string>& expectedOptions,

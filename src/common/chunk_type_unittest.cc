@@ -1,7 +1,8 @@
+#include "config.h"
 #include "common/chunk_type.h"
 
-#include <gtest/gtest.h>
 #include <vector>
+#include <gtest/gtest.h>
 
 #include "common/goal.h"
 #include "unittests/operators.h"

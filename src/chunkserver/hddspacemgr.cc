@@ -27,17 +27,14 @@
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
-#include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef MMAP_ALLOC
-	#include <sys/mman.h>
-#endif
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <list>
@@ -64,11 +61,15 @@
 #include "common/time_utils.h"
 #include "common/unique_queue.h"
 #include "common/wrong_crc_notifier.h"
-#include "devtools/request_log.h"
 #include "devtools/TracePrinter.h"
+#include "devtools/request_log.h"
+
+#ifdef MMAP_ALLOC
+#  include <sys/mman.h>
+#endif
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
-#define USE_PIO 1
+#  define USE_PIO 1
 #endif
 
 /* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */

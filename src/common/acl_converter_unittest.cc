@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/acl_converter.h"
 
 #include <gtest/gtest.h>

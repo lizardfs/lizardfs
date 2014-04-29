@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common/connection_pool.h"
 
 #include "common/massert.h"
