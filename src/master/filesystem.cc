@@ -8663,6 +8663,11 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			}
 			return false;
 		} else {
+			if (fflush(fd) == EOF) {
+				mfs_errlog(LOG_ERR, "metadata fflush failed");
+			} else if (fsync(fileno(fd)) == -1) {
+				mfs_errlog(LOG_ERR, "metadata fsync failed");
+			}
 			fclose(fd);
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
@@ -8709,6 +8714,10 @@ void fs_storeall(const char *fname) {
 
 	if (ferror(fd)!=0) {
 		fprintf(stderr, "can't write metadata\n");
+	} else if (fflush(fd) == EOF) {
+		fprintf(stderr, "can't fflush metadata\n");
+	} else if (fsync(fileno(fd)) == -1) {
+		fprintf(stderr, "can't fsync metadata\n");
 	}
 	fclose(fd);
 }
