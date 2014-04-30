@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 // DO NOT MODIFY THIS FILE BY HAND!
 //
 // This file was automatically generated with serialization_macros_generate.sh. If you want macros below to
