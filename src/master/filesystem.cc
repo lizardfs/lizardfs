@@ -38,6 +38,7 @@
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/massert.h"
@@ -8095,7 +8096,6 @@ void fs_term(const char *fname) {
 #endif
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataFSConsistencyException, MetadataException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataConsistencyException, MetadataException);
 char const BackupNewerThanCurrentMsg[] =
