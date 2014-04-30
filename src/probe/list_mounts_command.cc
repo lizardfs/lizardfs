@@ -9,6 +9,7 @@
 #include "common/goal.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
+#include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/serialization.h"
@@ -22,8 +23,8 @@ SERIALIZABLE_CLASS_BODY(MountEntry,
 		uint32_t, sessionId,
 		uint32_t, peerIp,
 		uint32_t, version,
-		std::string, info,
-		std::string, path,
+		MooseFsString<uint32_t>, info,
+		MooseFsString<uint32_t>, path,
 		uint8_t, flags,
 		uint32_t, rootuid,
 		uint32_t, rootgid,
