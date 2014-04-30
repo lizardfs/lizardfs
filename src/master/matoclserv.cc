@@ -2029,7 +2029,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 		const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid, rdev;
-	String8Bit name;
+	MooseFsString<uint8_t> name;
 	uint8_t type;
 	uint16_t mode, umask;
 
@@ -2073,7 +2073,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 		const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid;
-	String8Bit name;
+	MooseFsString<uint8_t> name;
 	bool copysgid;
 	uint16_t mode, umask;
 

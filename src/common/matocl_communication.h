@@ -4,9 +4,9 @@
 
 #include "common/access_control_list.h"
 #include "common/attributes.h"
+#include "common/moosefs_string.h"
 #include "common/packet.h"
 #include "common/serialization_macros.h"
-#include "common/string_8bit.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
