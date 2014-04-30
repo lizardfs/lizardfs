@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include <inttypes.h>
+#include <sys/poll.h>
 
 /* ----------------- TCP ----------------- */
 
@@ -45,6 +46,7 @@ int tcpaccept(int lsock);
 int tcpgetpeer(int sock,uint32_t *ip,uint16_t *port);
 int tcpgetmyaddr(int sock,uint32_t *ip,uint16_t *port);
 int tcpclose(int sock);
+int tcptopoll(int sock,int events,uint32_t msecto);
 int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto);
 int32_t tcptowrite(int sock,const void *buff,uint32_t leng,uint32_t msecto);
 int tcptoaccept(int sock,uint32_t msecto);

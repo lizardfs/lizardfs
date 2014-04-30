@@ -352,6 +352,14 @@ int tcpclose(int sock) {
 	return close(sock);
 }
 
+int tcptopoll(int sock,int events,uint32_t msecto) {
+	struct pollfd pfd;
+	pfd.fd = sock;
+	pfd.events = events;
+	pfd.revents = 0;
+	return poll(&pfd,1,msecto);
+}
+
 int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto) {
 	uint32_t rcvd=0;
 	int i;

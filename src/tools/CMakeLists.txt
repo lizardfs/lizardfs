@@ -20,12 +20,8 @@ set(MFSTOOL_LINKS
 
 collect_sources(TOOLS)
 
-add_library(tools ${TOOLS_SOURCES})
-target_link_libraries(tools ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-add_tests(tools ${TOOLS_TESTS})
-
 add_executable(mfstools ${TOOLS_MAIN})
-target_link_libraries(mfstools tools mfscommon)
+target_link_libraries(mfstools mfscommon)
 install(TARGETS mfstools DESTINATION ${BIN_SUBDIR})
 
 foreach(LINK ${MFSTOOL_LINKS})

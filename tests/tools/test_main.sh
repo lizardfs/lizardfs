@@ -10,6 +10,7 @@ for i in mfsmaster mfschunkserver mfsmount mfsmetarestore mfsmetalogger; do
 done
 
 . tools/config.sh # This has to be the first one
+. $(which set_lizardfs_constants.sh)
 . tools/stack_trace.sh
 . tools/assert.sh
 . tools/lizardfs.sh
