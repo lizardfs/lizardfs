@@ -7,9 +7,9 @@
 #include "common/chunk_type_with_address.h"
 #include "common/chunks_availability_state.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_string.h"
 #include "common/packet.h"
 #include "common/serialization_macros.h"
-#include "common/string_8bit.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)

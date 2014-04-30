@@ -498,9 +498,9 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 			diskInfoVector.emplace_back();
 			DiskInfo& diskInfo = diskInfoVector.back();
 			diskInfo.path = f->path;
-			if (diskInfo.path.length() > String8Bit::kMaxLength) {
+			if (diskInfo.path.length() > MooseFsString<uint8_t>::maxLength()) {
 				std::string dots("(...)");
-				uint32_t substrSize = String8Bit::kMaxLength - dots.length();
+				uint32_t substrSize = MooseFsString<uint8_t>::maxLength() - dots.length();
 				diskInfo.path = dots + diskInfo.path.substr(diskInfo.path.length()
 						- substrSize, substrSize);
 			}

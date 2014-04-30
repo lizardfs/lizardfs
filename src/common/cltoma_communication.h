@@ -5,14 +5,14 @@
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/MFSCommunication.h"
+#include "common/moosefs_string.h"
 #include "common/packet.h"
 #include "common/serialization_macros.h"
-#include "common/string_8bit.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0,
 		uint32_t, messageId,
 		uint32_t, inode,
-		String8Bit, name,
+		MooseFsString<uint8_t>, name,
 		uint8_t, nodeType,
 		uint16_t, mode,
 		uint16_t, umask,
@@ -23,7 +23,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMkdir, LIZ_CLTOMA_FUSE_MKDIR, 0,
 		uint32_t, messageId,
 		uint32_t, inode,
-		String8Bit, name,
+		MooseFsString<uint8_t>, name,
 		uint16_t, mode,
 		uint16_t, umask,
 		uint32_t, uid,

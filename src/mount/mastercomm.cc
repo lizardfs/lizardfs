@@ -1485,7 +1485,7 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 	threc* rec = fs_get_my_threc();
 	std::vector<uint8_t> message;
 	cltoma::fuseMknod::serialize(message, rec->packetId,
-			parent, String8Bit(reinterpret_cast<const char*>(name), nleng),
+			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			type, mode, umask, uid, gid, rdev);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
@@ -1527,7 +1527,7 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 	threc* rec = fs_get_my_threc();
 	std::vector<uint8_t> message;
 	cltoma::fuseMkdir::serialize(message, rec->packetId,
-			parent, String8Bit(reinterpret_cast<const char*>(name), nleng),
+			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			mode, umask, uid, gid, copysgid);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;

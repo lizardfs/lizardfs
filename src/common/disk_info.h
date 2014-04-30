@@ -4,8 +4,8 @@
 
 #include <string>
 
+#include "common/moosefs_string.h"
 #include "common/serialization_macros.h"
-#include "common/string_8bit.h"
 
 SERIALIZABLE_CLASS_BEGIN(HddStatistics)
 SERIALIZABLE_CLASS_BODY(HddStatistics,
@@ -30,7 +30,7 @@ SERIALIZABLE_CLASS_END;
 SERIALIZABLE_CLASS_BEGIN(DiskInfo)
 SERIALIZABLE_CLASS_BODY(DiskInfo,
 		uint16_t, entrySize,
-		String8Bit, path,
+		MooseFsString<uint8_t>, path,
 		uint8_t, flags,
 		uint64_t, errorChunkId,
 		uint32_t, errorTimeStamp,
