@@ -134,7 +134,7 @@ ml_data_path=$(get_config_option "$ml_config" DATA_PATH "@DATA_PATH@")
 ma_data_path=$(get_config_option "$ma_config" DATA_PATH "@DATA_PATH@")
 
 ma_meta_file="$ma_data_path/metadata.mfs"
-ml_meta_file="$ml_data_path/metadata_ml.mfs.back" 
+ml_meta_file="$ml_data_path/metadata_ml.mfs.back"
 
 if [ ! -r "$ml_meta_file" ]; then
 	panic "Can't find metadata backup at $ml_meta_file"

@@ -146,8 +146,8 @@ struct jobpool {
 static inline void job_send_status(jobpool *jp, uint32_t jobid, uint8_t status) {
 	TRACETHIS2(jobid, (int)status);
 	zassert(pthread_mutex_lock(&(jp->pipelock)));
-	if (queue_isempty(jp->statusqueue)) {	// first status
-		eassert(write(jp->wpipe,&status,1)==1);	// write anything to wake up select
+	if (queue_isempty(jp->statusqueue)) {   // first status
+		eassert(write(jp->wpipe,&status,1)==1); // write anything to wake up select
 	}
 	queue_put(jp->statusqueue,jobid,status,NULL,1);
 	zassert(pthread_mutex_unlock(&(jp->pipelock)));
@@ -163,12 +163,12 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	PRINTTHIS(*jobid);
 	PRINTTHIS((int)*status);
 	if (queue_isempty(jp->statusqueue)) {
-		eassert(read(jp->rpipe,&qstatus,1)==1);	// make pipe empty
+		eassert(read(jp->rpipe,&qstatus,1)==1); // make pipe empty
 		zassert(pthread_mutex_unlock(&(jp->pipelock)));
-		return 0;	// last element
+		return 0;       // last element
 	}
 	zassert(pthread_mutex_unlock(&(jp->pipelock)));
-	return 1;	// not last
+	return 1;       // not last
 }
 
 #define opargs ((chunk_chunkop_args*)(jptr->args))
@@ -188,7 +188,7 @@ void* job_worker(void *th_arg) {
 	uint32_t jobid;
 	uint32_t op;
 
-//	syslog(LOG_NOTICE,"worker %p started (jobqueue: %p ; jptr:%p ; jptrarg:%p ; status:%p )",(void*)pthread_self(),jp->jobqueue,(void*)&jptr,(void*)&jptrarg,(void*)&status);
+//      syslog(LOG_NOTICE,"worker %p started (jobqueue: %p ; jptr:%p ; jptrarg:%p ; status:%p )",(void*)pthread_self(),jp->jobqueue,(void*)&jptr,(void*)&jptrarg,(void*)&status);
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;
@@ -291,7 +291,7 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			default: // OP_EXIT
-//				syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
+//                              syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
 				return NULL;
 		}
 		job_send_status(jp,jobid,status);
@@ -334,7 +334,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	}
 	jp = (jobpool*) malloc(sizeof(jobpool));
 	passert(jp);
-//	syslog(LOG_WARNING,"new pool of workers (%p:%" PRIu8 ")",(void*)jp,workers);
+//      syslog(LOG_WARNING,"new pool of workers (%p:%" PRIu8 ")",(void*)jp,workers);
 	*wakeupdesc = fd[0];
 	jp->rpipe = fd[0];
 	jp->wpipe = fd[1];
@@ -344,7 +344,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	zassert(pthread_mutex_init(&(jp->pipelock),NULL));
 	zassert(pthread_mutex_init(&(jp->jobslock),NULL));
 	jp->jobqueue = queue_new(jobs);
-//	syslog(LOG_WARNING,"new jobqueue: %p",jp->jobqueue);
+//      syslog(LOG_WARNING,"new jobqueue: %p",jp->jobqueue);
 	jp->statusqueue = queue_new(0);
 	for (i=0 ; i<JHASHSIZE ; i++) {
 		jp->jobhash[i]=NULL;
@@ -446,7 +446,7 @@ void job_pool_delete(void *jpool) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t i;
-//	syslog(LOG_WARNING,"deleting pool of workers (%p:%" PRIu8 ")",(void*)jp,jp->workers);
+//      syslog(LOG_WARNING,"deleting pool of workers (%p:%" PRIu8 ")",(void*)jp,jp->workers);
 	for (i=0 ; i<jp->workers ; i++) {
 		queue_put(jp->jobqueue,0,OP_EXIT,NULL,1);
 	}
@@ -457,7 +457,7 @@ void job_pool_delete(void *jpool) {
 	if (!queue_isempty(jp->statusqueue)) {
 		job_pool_check_jobs(jp);
 	}
-//	syslog(LOG_NOTICE,"deleting jobqueue: %p",jp->jobqueue);
+//      syslog(LOG_NOTICE,"deleting jobqueue: %p",jp->jobqueue);
 	queue_delete(jp->jobqueue);
 	queue_delete(jp->statusqueue);
 	zassert(pthread_mutex_destroy(&(jp->pipelock)));

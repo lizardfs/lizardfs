@@ -54,7 +54,7 @@ check_configuration() {
 			test_fail "Configuration error, cannot create files in $dir"
 		fi
 	done
-	
+
 	if ! cat /etc/fuse.conf >/dev/null; then
 		test_fail "Configuration error, user $(whoami) is not a member of the fuse group"
 	fi

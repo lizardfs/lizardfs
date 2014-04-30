@@ -114,7 +114,7 @@ void symlink_cache_insert(uint32_t inode,const uint8_t *path) {
 			}
 		}
 	}
-	if (fhb) {	// just sanity check
+	if (fhb) {      // just sanity check
 		if (fhb->time[fi]==0) {
 			symlink_cache_stats_inc(LINKS);
 		}

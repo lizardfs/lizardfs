@@ -290,9 +290,9 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 		seconds = 0;
 	}
 	if (!id->dataChain.empty() && status == 0) { // still have some work to do
-		id->trycnt = 0;	// on good write reset try counter
+		id->trycnt = 0; // on good write reset try counter
 		write_delayed_enqueue(id, seconds, lock);
-	} else {	// no more work or error occured
+	} else {        // no more work or error occured
 		// if this is an error then release all data blocks
 		write_cb_release_blocks(id->dataChain.size(), lock);
 		id->dataChain.clear();
@@ -679,7 +679,7 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 	Glock lock(gMutex);
 	status = id->status;
 	if (status == 0) {
-		if (offset + size > id->maxfleng) {	// move fleng
+		if (offset + size > id->maxfleng) {     // move fleng
 			id->maxfleng = offset + size;
 		}
 		id->writewaiting++;
@@ -765,7 +765,7 @@ static int write_data_flush(void* vid, bool decReferenceCounter, Glock& lock) {
 
 int write_data_flush(void* vid) {
 	Glock lock(gMutex);
-	return 	write_data_flush(vid, false, lock);
+	return  write_data_flush(vid, false, lock);
 }
 
 uint64_t write_data_getmaxfleng(uint32_t inode) {

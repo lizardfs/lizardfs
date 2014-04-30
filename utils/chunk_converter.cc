@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
 	}
 
 	bool signatureIsValid = true;
-        std::vector<std::vector<char>> signatures = {kNewChunkSignature, kOldChunkSignature};
+	std::vector<std::vector<char>> signatures = {kNewChunkSignature, kOldChunkSignature};
 	for (const std::vector<char>& signature : signatures) {
 		signatureIsValid = true;
 		for (size_t i = 0; i < signature.size(); ++i) {

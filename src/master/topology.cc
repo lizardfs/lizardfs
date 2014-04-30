@@ -75,7 +75,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 		*toip = ip;
 		return 0;
 	}
-	if (*net=='/') {	// ip/bits and ip/mask
+	if (*net=='/') {        // ip/bits and ip/mask
 		*fromip = ip;
 		ip=0;
 		net++;
@@ -93,7 +93,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 			} else {
 				return -1;
 			}
-			if (i==0 && *net==0 && octet<=32) {	// bits -> convert to mask and skip rest of loop
+			if (i==0 && *net==0 && octet<=32) {     // bits -> convert to mask and skip rest of loop
 				ip = 0xFFFFFFFF;
 				if (octet<32) {
 					ip<<=32-octet;
@@ -116,7 +116,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 		*toip = *fromip | (ip ^ 0xFFFFFFFFU);
 		return 0;
 	}
-	if (*net=='-') {	// ip1-ip2
+	if (*net=='-') {        // ip1-ip2
 		*fromip = ip;
 		ip=0;
 		net++;
@@ -169,7 +169,7 @@ uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
 }
 
 // format:
-// network	rackid
+// network      rackid
 
 /*
 idea for the future:
@@ -190,10 +190,10 @@ E: 0000
 
 2. star
 
-      A
-    B | C
-     \|/
-   D--*--E
+|      A
+|    B | C
+|     \|/
+|   D--*--E
 
 A: 00001
 B: 00010
@@ -203,9 +203,9 @@ E: 10000
 
 3. two chains
 
-  A--B--C--D--E--F
-        |
-  G--H--I--J--K--L--M--N
+|  A--B--C--D--E--F
+|        |
+|  G--H--I--J--K--L--M--N
 
 A: 1111111111001
 B: 1111011111001
@@ -224,14 +224,14 @@ N: 1110000000000
 
 4. star and chain
 
-         A
-       B | C
-        \|/
-      D--*--E
-        /|
-       F |
-         |
-   G--H--I--J--K--L--M--N
+|         A
+|       B | C
+|        \|/
+|      D--*--E
+|        /|
+|       F |
+|         |
+|   G--H--I--J--K--L--M--N
 
 A: 00000111111001
 B: 00001011111001
@@ -250,18 +250,18 @@ N: 00000000000000
 
 5. two stars
 
-         A
-       B | C
-        \|/
-      D--*--E
-        /|
-       F |
-         |
-       G | H
-        \|/
-      I--*--J
-        /|\
-       K L M
+|         A
+|       B | C
+|        \|/
+|      D--*--E
+|        /|
+|       F |
+|         |
+|       G | H
+|        \|/
+|      I--*--J
+|        /|\
+|       K L M
 
 A: 00000100000001
 B: 00001000000001
@@ -279,18 +279,18 @@ M: 00000010000000
 
 6. two stars with poor link
 
-         A
-       B | C
-        \|/
-      D--*--E
-        /.
-       F .
-         .
-       G . H
-        \./
-      I--*--J
-        /|\
-       K L M
+|         A
+|       B | C
+|        \|/
+|      D--*--E
+|        /.
+|       F .
+|         .
+|       G . H
+|        \./
+|      I--*--J
+|        /|\
+|       K L M
 
 A: 00000100000001111111
 B: 00001000000001111111

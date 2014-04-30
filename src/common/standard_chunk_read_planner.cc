@@ -57,7 +57,7 @@ ReadPlanner::Plan StandardChunkReadPlanner::StandardPlanBuilder::buildPlan(
 class StandardChunkReadPlanner::XorPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
 	XorPlanBuilder(ChunkType::XorLevel level, ChunkType::XorPart missingPart)
-		:	PlanBuilder(BUILDER_XOR),
+		:       PlanBuilder(BUILDER_XOR),
 			level_(level),
 			missingPart_(missingPart) {
 	}

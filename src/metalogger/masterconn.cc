@@ -73,8 +73,8 @@ typedef struct masterconn {
 	uint8_t downloadretrycnt;
 	uint8_t downloading;
 	uint8_t oldmode;
-	FILE *logfd;	// using stdio because this is text file
-	int metafd;	// using standard unix I/O because this is binary file
+	FILE *logfd;    // using stdio because this is text file
+	int metafd;     // using standard unix I/O because this is binary file
 	uint64_t filesize;
 	uint64_t dloffset;
 	uint64_t dlstartuts;
@@ -105,7 +105,7 @@ void masterconn_stats(uint32_t *bin,uint32_t *bout) {
 
 void masterconn_findlastlogversion(void) {
 	struct stat st;
-	uint8_t buff[32800];	// 32800 = 32768 + 32
+	uint8_t buff[32800];    // 32800 = 32768 + 32
 	uint64_t size;
 	uint32_t buffpos;
 	uint64_t lastnewline;
@@ -155,7 +155,7 @@ void masterconn_findlastlogversion(void) {
 				if (lastnewline==0) {
 					lastnewline = size + buffpos;
 				} else {
-					if (lastnewline+1 != (uint64_t)(st.st_size)) {	// garbage at the end of file - truncate
+					if (lastnewline+1 != (uint64_t)(st.st_size)) {  // garbage at the end of file - truncate
 						if (ftruncate(fd,lastnewline+1)<0) {
 							lastlogversion = 0;
 							close(fd);
@@ -316,9 +316,9 @@ int masterconn_download_end(masterconn *eptr) {
 
 void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 	uint8_t *ptr;
-//	syslog(LOG_NOTICE,"download_init %d",filenum);
+//      syslog(LOG_NOTICE,"download_init %d",filenum);
 	if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->downloading==0) {
-//		syslog(LOG_NOTICE,"sending packet");
+//              syslog(LOG_NOTICE,"sending packet");
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_START,1);
 		put8bit(&ptr,filenum);
 		eptr->downloading=filenum;
@@ -347,7 +347,7 @@ void masterconn_download_next(masterconn *eptr) {
 	uint8_t *ptr;
 	uint8_t filenum;
 	int64_t dltime;
-	if (eptr->dloffset>=eptr->filesize) {	// end of file
+	if (eptr->dloffset>=eptr->filesize) {   // end of file
 		filenum = eptr->downloading;
 		if (masterconn_download_end(eptr)<0) {
 			return;
@@ -393,7 +393,7 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			}
 		}
-	} else {	// send request for next data packet
+	} else {        // send request for next data packet
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_DATA,12);
 		put64bit(&ptr,eptr->dloffset);
 		if (eptr->filesize-eptr->dloffset>META_DL_BLOCK) {
@@ -515,7 +515,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 }
 
 void masterconn_beforeclose(masterconn *eptr) {
-	if (eptr->downloading==11 || eptr->downloading==12) {	// old (version less than 1.6.18) master patch
+	if (eptr->downloading==11 || eptr->downloading==12) {   // old (version less than 1.6.18) master patch
 		syslog(LOG_WARNING,"old master detected - please upgrade your master server and then restart metalogger");
 		eptr->oldmode=1;
 	}

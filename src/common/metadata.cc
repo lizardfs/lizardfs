@@ -12,14 +12,14 @@
 
 uint64_t metadata_getversion(const std::string& file) {
 	int fd;
-	char chkbuff[16];
+	char chkbuff[20];
 	char eofmark[16];
 
 	fd = open(file.c_str(), O_RDONLY);
 	if (fd<0) {
 		throw MetadataCheckException("Can't open the metadata file");
 	}
-	if (read(fd,chkbuff,16)!=16) {
+	if (read(fd,chkbuff,20)!=20) {
 		close(fd);
 		throw MetadataCheckException("Can't read the metadata file");
 	}
@@ -35,7 +35,7 @@ uint64_t metadata_getversion(const std::string& file) {
 		close(fd);
 		throw MetadataCheckException("Bad format of the metadata file");
 	}
-	const uint8_t* ptr = reinterpret_cast<const uint8_t*>(chkbuff + 8);
+	const uint8_t* ptr = reinterpret_cast<const uint8_t*>(chkbuff + 8 + 4);
 	uint64_t version;
 	version = get64bit(&ptr);
 	lseek(fd,-16,SEEK_END);

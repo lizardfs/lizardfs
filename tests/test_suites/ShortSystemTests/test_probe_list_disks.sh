@@ -7,9 +7,9 @@ CHUNKSERVERS=4 \
 
 cd "${info[mount0]}"
 for goal in xor3 3; do
-        mkdir dir_$goal
-        mfssetgoal $goal dir_$goal
-        FILE_SIZE=60M file-generate dir_$goal/file
+	mkdir dir_$goal
+	mfssetgoal $goal dir_$goal
+	FILE_SIZE=60M file-generate dir_$goal/file
 done
 
 disks=$(lizardfs-probe list-disks --porcelain localhost "${info[matocl]}")

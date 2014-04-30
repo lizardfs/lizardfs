@@ -23,9 +23,9 @@
 #include <stdio.h>
 
 /*
-     open(inode,sessionid) -> isset? (inode,sessionid)
-     access(inode,sessionid) -> set (inode,sessionid)
-     modify(inode,sessionid) -> clear (inode,!sessionid) and set (inode,sessionid)
+  open(inode,sessionid) -> isset? (inode,sessionid)
+  access(inode,sessionid) -> set (inode,sessionid)
+  modify(inode,sessionid) -> clear (inode,!sessionid) and set (inode,sessionid)
 */
 
 #define DCM_TAB_LENG 500000
@@ -54,7 +54,7 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 	while (p<DCM_TAB_LENG) {
 		if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
 			/* move element to the end of LRU list */
-			if (dcm_lru_last!=p) {	/* do it only if needed */
+			if (dcm_lru_last!=p) {  /* do it only if needed */
 				/* remove from LRU chain */
 				pp = dcm_tab[p].lruprev;
 				np = dcm_tab[p].lrunext;
@@ -102,7 +102,7 @@ int dcm_open(uint32_t inode,uint32_t sessionid) {
 	dcm_lru_last = p;
 
 	/* then replace this element using current values */
-	if (dcm_tab[p].inode>0) {	/* if element is not empty then remove it first */
+	if (dcm_tab[p].inode>0) {       /* if element is not empty then remove it first */
 		/* remove from old INODE chain */
 		ih = DCM_INODE_HASH(dcm_tab[p].inode);
 		pp = dcm_tab[p].iprev;
@@ -139,7 +139,7 @@ void dcm_access(uint32_t inode,uint32_t sessionid) {
 	while (p<DCM_TAB_LENG) {
 		if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
 			/* move element to the end of LRU list */
-			if (dcm_lru_last!=p) {	/* do it only if needed */
+			if (dcm_lru_last!=p) {  /* do it only if needed */
 				/* remove from LRU chain */
 				pp = dcm_tab[p].lruprev;
 				np = dcm_tab[p].lrunext;
@@ -212,7 +212,7 @@ void dcm_modify(uint32_t inode,uint32_t sessionid) {
 		} else {
 			if (dcm_tab[p].inode == inode && dcm_tab[p].sessionid == sessionid) {
 				/* move element to the end of LRU list */
-				if (dcm_lru_last!=p) {	/* do it only if needed */
+				if (dcm_lru_last!=p) {  /* do it only if needed */
 					/* remove from LRU chain */
 					pp = dcm_tab[p].lruprev;
 					np = dcm_tab[p].lrunext;

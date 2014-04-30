@@ -54,7 +54,7 @@ static pthread_mutex_t timelock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 	uint32_t bpos;
-	if (leng>OPBUFFSIZE) {	// just in case
+	if (leng>OPBUFFSIZE) {  // just in case
 		buff+=leng-OPBUFFSIZE;
 		leng=OPBUFFSIZE;
 	}

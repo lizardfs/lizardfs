@@ -268,7 +268,7 @@ void masterconn_chunkopfinished(uint8_t status,void *packet) {
 void masterconn_replicationfinished(uint8_t status,void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
-//	syslog(LOG_NOTICE,"job replication status: %" PRIu8,status);
+//      syslog(LOG_NOTICE,"job replication status: %" PRIu8,status);
 	if (eptr->mode==DATA || eptr->mode==HEADER) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[12]=status;
@@ -450,7 +450,7 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	if (length==8+4+4+2) {
 		ip = get32bit(&data);
 		port = get16bit(&data);
-//		syslog(LOG_NOTICE,"start job replication (%08" PRIX64 ":%04" PRIX32 ":%04" PRIX32 ":%02" PRIX16 ")",chunkid,version,ip,port);
+//              syslog(LOG_NOTICE,"start job replication (%08" PRIX64 ":%04" PRIX32 ":%04" PRIX32 ":%02" PRIX16 ")",chunkid,version,ip,port);
 		job_legacy_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
 	} else {
 		job_legacy_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
@@ -479,7 +479,7 @@ void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t leng
 		logfd = fopen("changelog_csback.0.mfs","a");
 	}
 
-	if (data[0]==0xFF) {	// new version
+	if (data[0]==0xFF) {    // new version
 		uint64_t version;
 		data++;
 		version = get64bit(&data);
@@ -488,7 +488,7 @@ void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t leng
 		} else {
 			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
 		}
-	} else {	// old version
+	} else {        // old version
 		uint32_t version;
 		version = get32bit(&data);
 		if (logfd) {
@@ -584,12 +584,12 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 			case MATOCS_DUPTRUNC:
 				masterconn_duptrunc(eptr,data.data(), data.size());
 				break;
-	//		case MATOCS_STRUCTURE_LOG:
-	//			masterconn_structure_log(eptr,data,length);
-	//			break;
-	//		case MATOCS_STRUCTURE_LOG_ROTATE:
-	//			masterconn_structure_log_rotate(eptr,data,length);
-	//			break;
+	//              case MATOCS_STRUCTURE_LOG:
+	//                      masterconn_structure_log(eptr,data,length);
+	//                      break;
+	//              case MATOCS_STRUCTURE_LOG_ROTATE:
+	//                      masterconn_structure_log_rotate(eptr,data,length);
+	//                      break;
 			case ANTOCS_CHUNK_CHECKSUM:
 				masterconn_chunk_checksum(eptr,data.data(), data.size());
 				break;
@@ -608,7 +608,7 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 
 
 void masterconn_term(void) {
-//	syslog(LOG_INFO,"closing %s:%s",MasterHost,MasterPort);
+//      syslog(LOG_INFO,"closing %s:%s",MasterHost,MasterPort);
 	masterconn *eptr = masterconnsingleton;
 
 	job_pool_delete(jpool);
@@ -953,7 +953,7 @@ int masterconn_init(void) {
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
-//	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
+//      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -967,7 +967,7 @@ int masterconn_init(void) {
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
-//	logfd = NULL;
+//      logfd = NULL;
 
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;

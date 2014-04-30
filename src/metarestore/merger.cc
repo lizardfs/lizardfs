@@ -133,7 +133,7 @@ int merger_loop(void) {
 	hentry h;
 
 	while (heapsize) {
-//		printf("current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
+//              printf("current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {
 			while (heapsize) {
 				heapsize--;

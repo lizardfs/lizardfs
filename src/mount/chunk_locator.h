@@ -60,7 +60,7 @@ private:
 
 class WriteChunkLocator {
 public:
-	WriteChunkLocator()	: inode_(0), index_(0), lockId_(0) {}
+	WriteChunkLocator()     : inode_(0), index_(0), lockId_(0) {}
 
 	~WriteChunkLocator() {
 		try {

@@ -68,7 +68,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 	}
 	sassert(offset + size <= MFSCHUNKSIZE);
 	uint64_t offsetInFile = static_cast<uint64_t>(index_) * MFSCHUNKSIZE + offset;
-	uint32_t availableSize = size;	// requested data may lie beyond end of file
+	uint32_t availableSize = size;  // requested data may lie beyond end of file
 	if (offsetInFile >= location_->fileLength) {
 		// read request entirely beyond EOF, can't read anything
 		availableSize = 0;

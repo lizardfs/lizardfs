@@ -83,8 +83,8 @@ struct slist {
 	uint32_t version;
 	ChunkType chunkType;
 	uint8_t valid;
-//	uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
-//	uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
+//      uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
+//      uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
 	slist *next;
 	slist()
 			: ptr(nullptr),
@@ -702,7 +702,7 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 #else
 		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
 #endif
-		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+		return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 	}
 #ifndef METARESTORE
 	oldgoal = c->goal;
@@ -758,7 +758,7 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 #else
 		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
 #endif
-		return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+		return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 	}
 #ifndef METARESTORE
 	oldgoal = c->goal;
@@ -932,7 +932,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #endif
 	chunk *oc,*c;
 
-	if (ochunkid==0) {	// new chunk
+	if (ochunkid==0) {      // new chunk
 #ifndef METARESTORE
 		auto serversWithChunkTypes = matocsserv_getservers_for_new_chunk(goal);
 		if (serversWithChunkTypes.empty()) {
@@ -986,7 +986,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		}
 #endif
 
-		if (oc->fcount==1) {	// refcount==1
+		if (oc->fcount==1) {    // refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
 #ifndef METARESTORE
@@ -1025,13 +1025,13 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			}
 #endif
 		} else {
-			if (oc->fcount==0) {	// it's serious structure error
+			if (oc->fcount==0) {    // it's serious structure error
 #ifndef METARESTORE
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
 				printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
 #endif
-				return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+				return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 			}
 #ifndef METARESTORE
 			i=0;
@@ -1109,7 +1109,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 	}
 	oc->lockid = 0; // remove stale lock if exists
 #endif
-	if (oc->fcount==1) {	// refcount==1
+	if (oc->fcount==1) {    // refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
 #ifndef METARESTORE
@@ -1151,13 +1151,13 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		c->version++;
 #endif
 	} else {
-		if (oc->fcount==0) {	// it's serious structure error
+		if (oc->fcount==0) {    // it's serious structure error
 #ifndef METARESTORE
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
 			printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
 #endif
-			return ERROR_CHUNKLOST;	// ERROR_STRUCTURE
+			return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 		}
 #ifndef METARESTORE
 		i=0;
@@ -1211,11 +1211,11 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 
 	*nversion=0;
 	if (ochunkid==0) {
-		return 0;	// not changed
+		return 0;       // not changed
 	}
 
 	c = chunk_find(ochunkid);
-	if (c==NULL) {	// no such chunk - erase (nchunkid already is 0 - so just return with "changed" status)
+	if (c==NULL) {  // no such chunk - erase (nchunkid already is 0 - so just return with "changed" status)
 		return 1;
 	}
 	if (c->is_locked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
@@ -1224,7 +1224,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	c->lockid = 0; // remove stale lock if exists
 	bestversion = 0;
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) {	// found chunk that is ok - so return
+		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) {       // found chunk that is ok - so return
 			return 0;
 		}
 		if (s->valid == INVALID) {
@@ -1233,7 +1233,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 			}
 		}
 	}
-	if (bestversion==0) {	// didn't find sensible chunk - so erase it
+	if (bestversion==0) {   // didn't find sensible chunk - so erase it
 		chunk_delete_file_int(c,goal);
 		return 1;
 	}
@@ -1278,7 +1278,7 @@ void chunk_emergency_increase_version(chunk *c) {
 			i++;
 		}
 	}
-	if (i>0) {	// should always be true !!!
+	if (i>0) {      // should always be true !!!
 		c->interrupted = 0;
 		c->operation = SET_VERSION;
 		c->version++;
@@ -1461,7 +1461,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//		syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
+//              syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1590,7 +1590,7 @@ void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
 			if (status!=0) {
-				c->interrupted = 1;	// increase version after finish, just in case
+				c->interrupted = 1;     // increase version after finish, just in case
 				c->invalidate_copy(s);
 			} else {
 				if (s->is_busy()) {
@@ -2101,9 +2101,9 @@ void chunk_jobs_main(void) {
 
 	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, &totalServerCount);
 
-	if (totalServerCount < lastTotalServerCount) {		// servers disconnected
+	if (totalServerCount < lastTotalServerCount) {          // servers disconnected
 		jobsnorepbefore = main_time() + ReplicationsDelayDisconnect;
-	} else if (totalServerCount > lastTotalServerCount) {	// servers connected
+	} else if (totalServerCount > lastTotalServerCount) {   // servers connected
 		if (totalServerCount >= maxTotalServerCount) {
 			maxTotalServerCount = totalServerCount;
 			jobsnorepbefore = main_time();
@@ -2152,7 +2152,7 @@ void chunk_jobs_main(void) {
 				l++;
 			}
 		}
-		jobshpos+=123;	// if HASHSIZE is any power of 2 then any odd number is good here
+		jobshpos+=123;  // if HASHSIZE is any power of 2 then any odd number is good here
 		jobshpos%=HASHSIZE;
 	}
 }
@@ -2218,7 +2218,7 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 			}
 		}
 	}
-	return 0;	// unreachable
+	return 0;       // unreachable
 }
 
 void chunk_store(FILE *fd) {

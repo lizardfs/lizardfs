@@ -592,17 +592,17 @@ static inline void hdd_chunk_remove(Chunk *c) {
 static void hdd_chunk_release(Chunk *c) {
 	TRACETHIS();
 	zassert(pthread_mutex_lock(&hashlock));
-//	syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+//      syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 	if (c->state==CH_LOCKED) {
 		c->state = CH_AVAIL;
 		if (c->ccond) {
-//			printf("wake up one thread waiting for AVAIL chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
+//                      printf("wake up one thread waiting for AVAIL chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 			zassert(pthread_cond_signal(&(c->ccond->cond)));
 		}
 	} else if (c->state==CH_TOBEDELETED) {
 		if (c->ccond) {
 			c->state = CH_DELETED;
-//			printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
+//                      printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 			zassert(pthread_cond_signal(&(c->ccond->cond)));
 		} else {
 			hdd_chunk_remove(c);
@@ -643,9 +643,9 @@ static Chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 			c->state = CH_LOCKED;
 		}
 	}
-//	if (c!=NULL && c!=CHUNKLOCKED) {
-//		syslog(LOG_WARNING,"hdd_chunk_tryfind returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
-//	}
+//      if (c!=NULL && c!=CHUNKLOCKED) {
+//              syslog(LOG_WARNING,"hdd_chunk_tryfind returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+//      }
 	zassert(pthread_mutex_unlock(&hashlock));
 	return c;
 }
@@ -672,7 +672,7 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 			c->next = hashtab[hashpos];
 			hashtab[hashpos] = c;
 		}
-//		syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+//              syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 		zassert(pthread_mutex_unlock(&hashlock));
 		return c;
 	}
@@ -686,7 +686,7 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 		switch (c->state) {
 		case CH_AVAIL:
 			c->state = CH_LOCKED;
-//			syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+//                      syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 			zassert(pthread_mutex_unlock(&hashlock));
 			if (c->validattr==0) {
 				if (hdd_chunk_getattr(c)) {
@@ -731,14 +731,14 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 				c->validattr = 0;
 				c->todel = 0;
 				c->state = CH_LOCKED;
-//				syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+//                              syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 				zassert(pthread_mutex_unlock(&hashlock));
 				return c;
 			}
-			if (c->ccond==NULL) {	// no more waiting threads - remove
+			if (c->ccond==NULL) {   // no more waiting threads - remove
 				hdd_chunk_remove(c);
-			} else {	// there are waiting threads - wake them up
-//				printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
+			} else {        // there are waiting threads - wake them up
+//                              printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " on ccond:%p\n",c->chunkid,c->ccond);
 				zassert(pthread_cond_signal(&(c->ccond->cond)));
 			}
 			zassert(pthread_mutex_unlock(&hashlock));
@@ -758,9 +758,9 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 				c->ccond = cc;
 			}
 			c->ccond->wcnt++;
-//			printf("wait for %s chunk: %" PRIu64 " on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":"TOBEDELETED",c->chunkid,c->ccond);
+//                      printf("wait for %s chunk: %" PRIu64 " on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":"TOBEDELETED",c->chunkid,c->ccond);
 			zassert(pthread_cond_wait(&(c->ccond->cond),&hashlock));
-//			printf("%s chunk: %" PRIu64 " woke up on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":(c->state==CH_DELETED)?"DELETED":(c->state==CH_AVAIL)?"AVAIL":"TOBEDELETED",c->chunkid,c->ccond);
+//                      printf("%s chunk: %" PRIu64 " woke up on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":(c->state==CH_DELETED)?"DELETED":(c->state==CH_AVAIL)?"AVAIL":"TOBEDELETED",c->chunkid,c->ccond);
 			c->ccond->wcnt--;
 			if (c->ccond->wcnt==0) {
 				c->ccond = NULL;
@@ -776,7 +776,7 @@ static void hdd_chunk_delete(Chunk *c) {
 	f = c->owner;
 	if (c->ccond) {
 		c->state = CH_DELETED;
-//		printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " ccond:%p\n",c->chunkid,c->ccond);
+//              printf("wake up one thread waiting for DELETED chunk: %" PRIu64 " ccond:%p\n",c->chunkid,c->ccond);
 		zassert(pthread_cond_signal(&(c->ccond->cond)));
 	} else {
 		hdd_chunk_remove(c);
@@ -913,7 +913,7 @@ static inline folder* hdd_getfolder() {
 		bf->carry -= 1.0;
 		return bf;
 	}
-	if (maxavail==0.0) {	// no space
+	if (maxavail==0.0) {    // no space
 		return NULL;
 	}
 	if (maxavail<0.01) {
@@ -939,7 +939,7 @@ static inline folder* hdd_getfolder() {
 			bf = f;
 		}
 	}
-	if (bf) {	// should be always true
+	if (bf) {       // should be always true
 		bf->carry -= 1.0;
 	}
 	return bf;
@@ -1012,17 +1012,17 @@ void hdd_check_folders() {
 	now = tv.tv_sec;
 
 	changed = 0;
-//	syslog(LOG_NOTICE,"check folders ...");
+//      syslog(LOG_NOTICE,"check folders ...");
 
 	zassert(pthread_mutex_lock(&folderlock));
 	if (folderactions==0) {
 		zassert(pthread_mutex_unlock(&folderlock));
-//		syslog(LOG_NOTICE,"check folders: disabled");
+//              syslog(LOG_NOTICE,"check folders: disabled");
 		return;
 	}
-//	for (f=folderhead ; f ; f=f->next) {
-//		syslog(LOG_NOTICE,"folder: %s, toremove:%u, damaged:%u, todel:%u, scanstate:%u",f->path,f->toremove,f->damaged,f->todel,f->scanstate);
-//	}
+//      for (f=folderhead ; f ; f=f->next) {
+//              syslog(LOG_NOTICE,"folder: %s, toremove:%u, damaged:%u, todel:%u, scanstate:%u",f->path,f->toremove,f->damaged,f->todel,f->scanstate);
+//      }
 	fptr = &folderhead;
 	while ((f=*fptr)) {
 		if (f->toremove) {
@@ -1234,7 +1234,7 @@ static inline void chunk_emptycrc(Chunk *c) {
 #else
 	c->crc = (uint8_t*)malloc(c->getCrcSize());
 #endif
-	memset(c->crc, 0, c->getCrcSize());	// make valgrind happy
+	memset(c->crc, 0, c->getCrcSize());     // make valgrind happy
 	passert(c->crc);
 }
 
@@ -1373,11 +1373,11 @@ void hdd_test_show_openedchunks(void) {
 	while (cc) {
 		dhashpos = DHASHPOS(cc->chunkid);
 		for (tcc=dophashtab[dhashpos] ; tcc && tcc->chunkid!=cc->chunkid ; tcc=tcc->next) {}
-		if (tcc) {	// found - ignore
+		if (tcc) {      // found - ignore
 			tcc = cc;
 			cc = cc->next;
 			free(tcc);
-		} else {	// not found - add
+		} else {        // not found - add
 			tcc = cc;
 			cc = cc->next;
 			tcc->next = dophashtab[dhashpos];
@@ -1393,9 +1393,9 @@ void hdd_test_show_openedchunks(void) {
 	for (dhashpos=0 ; dhashpos<DHASHSIZE ; dhashpos++) {
 		for (cc=dophashtab[dhashpos]; cc ; cc=cc->next) {
 			c = hdd_chunk_find(cc->chunkid, ChunkType::getStandardChunkType());
-			if (c==NULL) {	// no chunk - delete entry
+			if (c==NULL) {  // no chunk - delete entry
 				printf("id: %" PRIu64 " - chunk doesn't exist\n",cc->chunkid);
-			} else if (c->crcrefcount>0) {	// io in progress - skip entry
+			} else if (c->crcrefcount>0) {  // io in progress - skip entry
 				printf("id: %" PRIu64 " - chunk in use (refcount:%u)\n",cc->chunkid,c->crcrefcount);
 				hdd_chunk_release(c);
 			} else {
@@ -1422,11 +1422,11 @@ void hdd_delayed_ops() {
 	while (cc) {
 		dhashpos = DHASHPOS(cc->chunkid);
 		for (tcc=dophashtab[dhashpos] ; tcc && tcc->chunkid!=cc->chunkid ; tcc=tcc->next) {}
-		if (tcc) {	// found - ignore
+		if (tcc) {      // found - ignore
 			tcc = cc;
 			cc = cc->next;
 			free(tcc);
-		} else {	// not found - add
+		} else {        // not found - add
 			tcc = cc;
 			cc = cc->next;
 			tcc->next = dophashtab[dhashpos];
@@ -1439,38 +1439,38 @@ void hdd_delayed_ops() {
 	for (dhashpos=0 ; dhashpos<DHASHSIZE ; dhashpos++) {
 		ccp = dophashtab+dhashpos;
 		while ((cc=*ccp)) {
-//			printf("find chunk: %llu\n",cc->chunkid);
+//                      printf("find chunk: %llu\n",cc->chunkid);
 			c = hdd_chunk_tryfind(cc->chunkid);
-//			if (c!=NULL && c!=CHUNKLOCKED) {
-//				printf("found chunk: %llu (c->state:%u c->crcrefcount:%u)\n",cc->chunkid,c->state,c->crcrefcount);
-//			}
-			if (c==NULL) {	// no chunk - delete entry
+//                      if (c!=NULL && c!=CHUNKLOCKED) {
+//                              printf("found chunk: %llu (c->state:%u c->crcrefcount:%u)\n",cc->chunkid,c->state,c->crcrefcount);
+//                      }
+			if (c==NULL) {  // no chunk - delete entry
 				*ccp = cc->next;
 				free(cc);
-			} else if (c==CHUNKLOCKED) {	// locked chunk - just ignore
+			} else if (c==CHUNKLOCKED) {    // locked chunk - just ignore
 				ccp = &(cc->next);
-			} else if (c->crcrefcount>0) {	// io in progress - skip entry
+			} else if (c->crcrefcount>0) {  // io in progress - skip entry
 				hdd_chunk_release(c);
 				ccp = &(cc->next);
 			} else {
-				if (c->opensteps>0) {	// decrease counter
+				if (c->opensteps>0) {   // decrease counter
 					c->opensteps--;
-				} else if (c->fd>=0) {	// close descriptor
+				} else if (c->fd>=0) {  // close descriptor
 					if (close(c->fd)<0) {
-						hdd_error_occured(c);	// uses and preserves errno !!!
+						hdd_error_occured(c);   // uses and preserves errno !!!
 						mfs_arg_errlog_silent(LOG_WARNING,
 								"hdd_delayed_ops: file:%s - close error", c->filename().c_str());
 						hdd_report_damaged_chunk(c->chunkid);
 					}
 					c->fd = -1;
 				}
-				if (c->crcsteps>0) {	// decrease counter
+				if (c->crcsteps>0) {    // decrease counter
 					c->crcsteps--;
-				} else if (c->crc!=NULL) {	// free crc block
+				} else if (c->crc!=NULL) {      // free crc block
 					if (c->crcchanged) {
 						syslog(LOG_ERR,"serious error: crc changes lost (chunk:%016" PRIX64 "_%08" PRIX32 ")",c->chunkid,c->version);
 					}
-//					printf("chunk %llu - free crc record\n",c->chunkid);
+//                                      printf("chunk %llu - free crc record\n",c->chunkid);
 					chunk_freecrc(c);
 				}
 				if (c->fd<0 && c->crc==NULL) {
@@ -1500,7 +1500,7 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 	int status;
 	int add;
 
-//	syslog(LOG_NOTICE,"chunk: %" PRIu64 " - before io",c->chunkid);
+//      syslog(LOG_NOTICE,"chunk: %" PRIu64 " - before io",c->chunkid);
 	hdd_chunk_testmove(c);
 	if (c->crcrefcount==0) {
 		add = (c->fd<0 && c->crc==NULL);
@@ -1562,7 +1562,7 @@ static int hdd_io_end(Chunk *c) {
 	int status;
 	uint64_t ts,te;
 
-//	syslog(LOG_NOTICE,"chunk: %" PRIu64 " - after io",c->chunkid);
+//      syslog(LOG_NOTICE,"chunk: %" PRIu64 " - after io",c->chunkid);
 	if (c->crcchanged) {
 		status = chunk_writecrc(c);
 		PRINTTHIS(status);
@@ -1630,13 +1630,13 @@ int hdd_open(uint64_t chunkid, ChunkType chunkType) {
 	status = hdd_io_begin(c,0);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 	}
 	hdd_chunk_release(c);
-//	if (status==STATUS_OK) {
-//		syslog(LOG_NOTICE,"chunk %08" PRIX64 " opened",chunkid);
-//	}
+//      if (status==STATUS_OK) {
+//              syslog(LOG_NOTICE,"chunk %08" PRIX64 " opened",chunkid);
+//      }
 	return status;
 }
 
@@ -1651,13 +1651,13 @@ int hdd_close(uint64_t chunkid, ChunkType chunkType) {
 	status = hdd_io_end(c);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 	}
 	hdd_chunk_release(c);
-//	if (status==STATUS_OK) {
-//		syslog(LOG_NOTICE,"chunk %08" PRIX64 " closed",chunkid);
-//	}
+//      if (status==STATUS_OK) {
+//              syslog(LOG_NOTICE,"chunk %08" PRIX64 " closed",chunkid);
+//      }
 	return status;
 }
 
@@ -1682,7 +1682,7 @@ int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 		hdd_stats_dataread(c->owner, MFSBLOCKSIZE, te-ts);
 
 		if (ret != MFSBLOCKSIZE) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"read_block_from_chunk: file:%s - read error", c->filename().c_str());
 			hdd_report_damaged_chunk(c->chunkid);
@@ -1829,7 +1829,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		put32bit(&wcrcptr,crc);
 		c->crcchanged = 1;
 		if (ret!=MFSBLOCKSIZE) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"write_block_to_chunk: file:%s - write error", c->filename().c_str());
 			hdd_report_damaged_chunk(chunkid);
@@ -1848,7 +1848,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 			te = get_usectime();
 			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
 			if (ret!=MFSBLOCKSIZE) {
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"write_block_to_chunk: file:%s - read error", c->filename().c_str());
 				hdd_report_damaged_chunk(chunkid);
@@ -1868,7 +1868,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 			}
 			if (c->getCrc(blocknum) != combinedcrc) {
 				errno = 0;
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				syslog(LOG_WARNING,
 						"write_block_to_chunk: file:%s - crc error", c->filename().c_str());
 				hdd_report_damaged_chunk(chunkid);
@@ -1877,7 +1877,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 			}
 		} else {
 			if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocknum + 1)) < 0) {
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"write_block_to_chunk: file:%s - ftruncate error", c->filename().c_str());
 				hdd_report_damaged_chunk(chunkid);
@@ -1915,7 +1915,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		put32bit(&wcrcptr,combinedcrc);
 		c->crcchanged = 1;
 		if (ret!=(int)size) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"write_block_to_chunk: file:%s - write error", c->filename().c_str());
 			hdd_report_damaged_chunk(chunkid);
@@ -1980,7 +1980,7 @@ int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
 	status = hdd_io_begin(c,0);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
@@ -1989,7 +1989,7 @@ int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
 	status = hdd_io_end(c);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
@@ -2046,7 +2046,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	status = hdd_io_begin(c,1);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		return ERROR_IO;
 	}
@@ -2058,7 +2058,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	put32bit(&ptr, version);
 	put8bit(&ptr, chunkType.chunkTypeId());
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"create_newchunk: file:%s - write error", c->filename().c_str());
 		hdd_io_end(c);
@@ -2070,7 +2070,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	status = hdd_io_end(c);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
 		return status;
@@ -2107,7 +2107,7 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 	status = hdd_io_begin(c,0);
 	PRINTTHIS(status);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;
 	}
@@ -2115,7 +2115,7 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 	for (block=0 ; block<c->blocks ; block++) {
 		retsize = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 		if (retsize!=MFSBLOCKSIZE) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"test_chunk: file:%s - data read error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2125,8 +2125,8 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 		hdd_stats_read(MFSBLOCKSIZE);
 #ifdef ENABLE_CRC
 		if (c->getCrc(block) != mycrc32(0, blockbuffer, MFSBLOCKSIZE)) {
-			errno = 0;	// set anything to errno
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			errno = 0;      // set anything to errno
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			syslog(LOG_WARNING, "test_chunk: file:%s - crc error", c->filename().c_str());
 			hdd_io_end(c);
 			hdd_chunk_release(c);
@@ -2136,7 +2136,7 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;
 	}
@@ -2196,7 +2196,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 
 	if (newversion != version) {
 		if (c->renameChunkFile(c->generateFilenameForVersion(newversion)) < 0) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
 			hdd_chunk_delete(c);
@@ -2205,14 +2205,14 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		}
 		status = hdd_io_begin(oc, 0);
 		if (status!=STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_chunk_release(oc);
-			return status;	//can't change file version
+			return status;  //can't change file version
 		}
 		status = hdd_chunk_overwrite_version(oc, newversion);
 		if (status != STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - write error", c->filename().c_str());
 			hdd_chunk_delete(c);
@@ -2223,7 +2223,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	} else {
 		status = hdd_io_begin(oc,0);
 		if (status!=STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(oc);
@@ -2232,7 +2232,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	}
 	status = hdd_io_begin(c,1);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
 		hdd_chunk_release(oc);
@@ -2246,7 +2246,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	memcpy(c->crc, oc->crc, c->getCrcSize());
 	memcpy(hdrbuffer + c->getCrcOffset(), oc->crc, c->getCrcSize());
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"duplicate_chunk: file:%s - hdr write error", c->filename().c_str());
 		hdd_io_end(c);
@@ -2261,7 +2261,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	for (block=0 ; block<oc->blocks ; block++) {
 		retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 		if (retsize!=MFSBLOCKSIZE) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - data read error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2275,7 +2275,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_stats_read(MFSBLOCKSIZE);
 		retsize = write(c->fd,blockbuffer,MFSBLOCKSIZE);
 		if (retsize!=MFSBLOCKSIZE) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - data write error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2283,13 +2283,13 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;	//write error
+			return ERROR_IO;        //write error
 		}
 		hdd_stats_write(MFSBLOCKSIZE);
 	}
 	status = hdd_io_end(oc);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(oc);	// uses and preserves errno !!!
+		hdd_error_occured(oc);  // uses and preserves errno !!!
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
@@ -2299,7 +2299,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
 		hdd_chunk_release(oc);
@@ -2328,7 +2328,7 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 		return ERROR_WRONGVERSION;
 	}
 	if (c->renameChunkFile(c->generateFilenameForVersion(newversion)) < 0) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"set_chunk_version: file:%s - rename error", c->filename().c_str());
 		hdd_chunk_release(c);
@@ -2336,7 +2336,7 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 	}
 	status = hdd_io_begin(c,0);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"set_chunk_version: file:%s - open error", c->filename().c_str());
 		hdd_chunk_release(c);
@@ -2344,7 +2344,7 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 	}
 	status = hdd_chunk_overwrite_version(c, newversion);
 	if (status != STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"set_chunk_version: file:%s - write error", c->filename().c_str());
 		hdd_io_end(c);
@@ -2353,7 +2353,7 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 	}
 	hdd_chunk_release(c);
 	return status;
@@ -2391,7 +2391,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 		return ERROR_WRONGVERSION;
 	}
 	if (c->renameChunkFile(c->generateFilenameForVersion(newVersion)) < 0) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"truncate_chunk: file:%s - rename error", c->filename().c_str());
 		hdd_chunk_release(c);
@@ -2399,13 +2399,13 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 	}
 	status = hdd_io_begin(c,0);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
-		return status;	//can't change file version
+		return status;  //can't change file version
 	}
 	status = hdd_chunk_overwrite_version(c, newVersion);
 	if (status != STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"truncate_chunk: file:%s - write error", c->filename().c_str());
 		hdd_io_end(c);
@@ -2417,7 +2417,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 	blocks = ((length + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE);
 	if (blocks>c->blocks) {
 		if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocks)) < 0) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"truncate_chunk: file:%s - ftruncate error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2433,7 +2433,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 		uint32_t blocknum = length / MFSBLOCKSIZE;
 		uint32_t blocksize = length - blocknum * MFSBLOCKSIZE;
 		if (ftruncate(c->fd, c->getHeaderSize() + length) < 0) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"truncate_chunk: file:%s - ftruncate error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2442,7 +2442,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 		}
 		if (blocksize>0) {
 			if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocks)) < 0) {
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"truncate_chunk: file:%s - ftruncate error", c->filename().c_str());
 				hdd_io_end(c);
@@ -2456,7 +2456,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 			lseek(c->fd, c->getDataBlockOffset(blocknum), SEEK_SET);
 			if (read(c->fd,blockbuffer,blocksize)!=(signed)blocksize) {
 #endif /* USE_PIO */
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"truncate_chunk: file:%s - read error", c->filename().c_str());
 				hdd_io_end(c);
@@ -2478,7 +2478,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 	c->blocks = blocks;
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 	}
 	hdd_chunk_release(c);
 	return status;
@@ -2541,7 +2541,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 
 	if (newversion!=version) {
 		if (oc->renameChunkFile(oc->generateFilenameForVersion(newversion)) < 0) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
 			hdd_chunk_delete(c);
@@ -2550,14 +2550,14 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		}
 		status = hdd_io_begin(oc,0);
 		if (status!=STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_chunk_release(oc);
-			return status;	//can't change file version
+			return status;  //can't change file version
 		}
 		status = hdd_chunk_overwrite_version(oc, newversion);
 		if (status != STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duptrunc_chunk: file:%s - write error", c->filename().c_str());
 			hdd_chunk_delete(c);
@@ -2568,7 +2568,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	} else {
 		status = hdd_io_begin(oc,0);
 		if (status!=STATUS_OK) {
-			hdd_error_occured(oc);	// uses and preserves errno !!!
+			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(oc);
@@ -2577,7 +2577,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 	status = hdd_io_begin(c,1);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
 		hdd_chunk_release(oc);
@@ -2597,7 +2597,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		for (block=0 ; block<oc->blocks ; block++) {
 			retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 			if (retsize!=MFSBLOCKSIZE) {
-				hdd_error_occured(oc);	// uses and preserves errno !!!
+				hdd_error_occured(oc);  // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
 				hdd_io_end(c);
@@ -2611,7 +2611,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_stats_read(MFSBLOCKSIZE);
 			retsize = write(c->fd,blockbuffer,MFSBLOCKSIZE);
 			if (retsize!=MFSBLOCKSIZE) {
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
 				hdd_io_end(c);
@@ -2624,7 +2624,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_stats_write(MFSBLOCKSIZE);
 		}
 		if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocks))<0) {
-			hdd_error_occured(c);	// uses and preserves errno !!!
+			hdd_error_occured(c);   // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duptrunc_chunk: file:%s - ftruncate error", c->filename().c_str());
 			hdd_io_end(c);
@@ -2632,7 +2632,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;	//write error
+			return ERROR_IO;        //write error
 		}
 		ptr = hdrbuffer + c->getCrcOffset() + 4 * oc->blocks;
 		for (block=oc->blocks ; block<blocks ; block++) {
@@ -2644,7 +2644,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			for (block=0 ; block<blocks ; block++) {
 				retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
-					hdd_error_occured(oc);	// uses and preserves errno !!!
+					hdd_error_occured(oc);  // uses and preserves errno !!!
 					mfs_arg_errlog_silent(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
 					hdd_io_end(c);
@@ -2658,7 +2658,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_stats_read(MFSBLOCKSIZE);
 				retsize = write(c->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
-					hdd_error_occured(c);	// uses and preserves errno !!!
+					hdd_error_occured(c);   // uses and preserves errno !!!
 					mfs_arg_errlog_silent(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
 					hdd_io_end(c);
@@ -2674,7 +2674,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			for (block=0 ; block<blocks-1 ; block++) {
 				retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
-					hdd_error_occured(oc);	// uses and preserves errno !!!
+					hdd_error_occured(oc);  // uses and preserves errno !!!
 					mfs_arg_errlog_silent(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
 					hdd_io_end(c);
@@ -2688,7 +2688,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_stats_read(MFSBLOCKSIZE);
 				retsize = write(c->fd,blockbuffer,MFSBLOCKSIZE);
 				if (retsize!=MFSBLOCKSIZE) {
-					hdd_error_occured(c);	// uses and preserves errno !!!
+					hdd_error_occured(c);   // uses and preserves errno !!!
 					mfs_arg_errlog_silent(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
 					hdd_io_end(c);
@@ -2696,14 +2696,14 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
 					hdd_chunk_release(oc);
-					return ERROR_IO;	//write error
+					return ERROR_IO;        //write error
 				}
 				hdd_stats_write(MFSBLOCKSIZE);
 			}
 			block = blocks-1;
 			retsize = read(oc->fd,blockbuffer,blocksize);
 			if (retsize!=(signed)blocksize) {
-				hdd_error_occured(oc);	// uses and preserves errno !!!
+				hdd_error_occured(oc);  // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 					"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
 				hdd_io_end(c);
@@ -2718,7 +2718,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			memset(blockbuffer+blocksize,0,MFSBLOCKSIZE-blocksize);
 			retsize = write(c->fd,blockbuffer,MFSBLOCKSIZE);
 			if (retsize!=MFSBLOCKSIZE) {
-				hdd_error_occured(c);	// uses and preserves errno !!!
+				hdd_error_occured(c);   // uses and preserves errno !!!
 				mfs_arg_errlog_silent(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
 				hdd_io_end(c);
@@ -2738,7 +2738,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	memcpy(c->crc, hdrbuffer + c->getCrcOffset(), c->getCrcSize());
 	lseek(c->fd,0,SEEK_SET);
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"duptrunc_chunk: file:%s - hdr write error", c->filename().c_str());
 		hdd_io_end(c);
@@ -2751,7 +2751,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	hdd_stats_write(c->getHeaderSize());
 	status = hdd_io_end(oc);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(oc);	// uses and preserves errno !!!
+		hdd_error_occured(oc);  // uses and preserves errno !!!
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
@@ -2761,7 +2761,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
 		hdd_chunk_release(oc);
@@ -2789,7 +2789,7 @@ static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	}
 	if (unlink(c->filename().c_str()) < 0) {
 		uint8_t err = errno;
-		hdd_error_occured(c);	// uses and preserves errno !!!
+		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
 				"delete_chunk: file:%s - unlink error", c->filename().c_str());
 		if (err == ENOENT) {
@@ -2942,7 +2942,7 @@ void* hdd_tester_thread(void* arg) {
 					f = folderhead;
 				}
 			} while ((f->damaged || f->todel || f->toremove || f->scanstate!=SCST_WORKING) && of!=f);
-			if (of==f && (f->damaged || f->todel || f->toremove || f->scanstate!=SCST_WORKING)) {	// all folders are unavailable
+			if (of==f && (f->damaged || f->todel || f->toremove || f->scanstate!=SCST_WORKING)) {   // all folders are unavailable
 				path.clear();
 			} else {
 				c = f->testhead;
@@ -3268,14 +3268,14 @@ void hdd_term(void) {
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
-//	syslog(LOG_NOTICE,"waiting for scanning threads (%" PRIu32 ")",i);
+//      syslog(LOG_NOTICE,"waiting for scanning threads (%" PRIu32 ")",i);
 	while (i>0) {
 		usleep(10000); // not very elegant solution.
 		zassert(pthread_mutex_lock(&folderlock));
 		for (f=folderhead ; f ; f=f->next) {
 			if (f->scanstate==SCST_SCANFINISHED) {
 				zassert(pthread_join(f->scanthread,NULL));
-				f->scanstate = SCST_WORKING;	// any state - to prevent calling pthread_join again
+				f->scanstate = SCST_WORKING;    // any state - to prevent calling pthread_join again
 				i--;
 			}
 		}
@@ -3360,7 +3360,7 @@ int hdd_size_parse(const char *str,uint64_t *ret) {
 		val+=(*str-'0');
 		str++;
 	}
-	if (*str=='.') {	// accept format ".####" (without 0)
+	if (*str=='.') {        // accept format ".####" (without 0)
 		str++;
 		while (*str>='0' && *str<='9') {
 			fracdiv*=10;
@@ -3368,10 +3368,10 @@ int hdd_size_parse(const char *str,uint64_t *ret) {
 			frac+=(*str-'0');
 			str++;
 		}
-		if (fracdiv==1) {	// if there was '.' expect number afterwards
+		if (fracdiv==1) {       // if there was '.' expect number afterwards
 			return -1;
 		}
-	} else if (f==0) {	// but not empty string
+	} else if (f==0) {      // but not empty string
 		return -1;
 	}
 	if (str[0]=='\0' || (str[0]=='B' && str[1]=='\0')) {

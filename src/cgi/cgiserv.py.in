@@ -55,7 +55,7 @@ class ClientHandler:
 		self.outgoing = ''
 		self.writable = False
 		self.close_when_done = True
- 
+
 	def handle_error(self):
 		self.close()
 
@@ -126,11 +126,11 @@ class ClientHandler:
 		self.client_socket.close()
 
 # ============================================================================
-# Main loop, calling the select() function on the sockets to see if new 
+# Main loop, calling the select() function on the sockets to see if new
 # clients are trying to connect, if some clients have sent data and if those
 # for which the response is complete are ready to receive it
 # For each event, call the appropriate method of the server or of the instance
-# of ClientHandler managing the dialog with the client : handle_read() or 
+# of ClientHandler managing the dialog with the client : handle_read() or
 # handle_write()
 # ============================================================================
 def loop(server,handler,timeout=30):
@@ -167,10 +167,10 @@ def loop(server,handler,timeout=30):
 
 class HTTP(ClientHandler):
 	# parameters to override if necessary
-	root = os.getcwd()				# the directory to serve files from
-	index_files = ['index.cgi','index.html']	# index files for directories
-	logging = True					# print logging info for each request ?
-	blocksize = 2 << 16				# size of blocks to read from files and send
+	root = os.getcwd()                              # the directory to serve files from
+	index_files = ['index.cgi','index.html']        # index files for directories
+	logging = True                                  # print logging info for each request ?
+	blocksize = 2 << 16                             # size of blocks to read from files and send
 
 	def request_complete(self):
 		"""In the HTTP protocol, a request is complete if the "end of headers"
@@ -239,7 +239,7 @@ class HTTP(ClientHandler):
 					return self.err_resp(403,'Forbidden')
 				else:
 					fstatdata = os.stat(file_name)
-					if (fstatdata.st_mode & 0170000) == 0040000:	# directory
+					if (fstatdata.st_mode & 0170000) == 0040000:    # directory
 						for index in self.index_files:
 							if os.path.exists(file_name+'/'+index) and os.access(file_name+'/'+index,os.R_OK):
 								return self.redirect_resp(index)

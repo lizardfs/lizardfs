@@ -108,7 +108,7 @@ int fs_loadedge(FILE *fd) {
 	ptr = uedgebuff;
 	parent_id = get32bit(&ptr);
 	child_id = get32bit(&ptr);
-	if (parent_id==0 && child_id==0) {	// last edge
+	if (parent_id==0 && child_id==0) {      // last edge
 		return 1;
 	}
 	nleng = get16bit(&ptr);
@@ -132,7 +132,7 @@ int fs_loadnode(FILE *fd) {
 	char c;
 
 	type = fgetc(fd);
-	if (type==0) {	// last node
+	if (type==0) {  // last node
 		return 1;
 	}
 	switch (type) {

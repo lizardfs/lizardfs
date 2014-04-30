@@ -155,7 +155,7 @@ static uint8_t png_header[] = {
 };
 
 static uint8_t png_tailer[] = {
-	'C', 'R', 'C', '#',			// CRC32 placeholder
+	'C', 'R', 'C', '#',                     // CRC32 placeholder
 	0, 0, 0, 0, 'I', 'E', 'N', 'D',         // IEND chunk
 	'C', 'R', 'C', '#',                     // CRC32 placeholder
 };
@@ -164,18 +164,18 @@ static uint8_t png_1x1[] = {
 	137, 80, 78, 71, 13, 10, 26, 10,        // signature
 
 	0, 0, 0, 13, 'I', 'H', 'D', 'R',        // IHDR chunk
-	0, 0, 0, 1,				// width
-	0, 0, 0, 1,				// height
+	0, 0, 0, 1,                             // width
+	0, 0, 0, 1,                             // height
 	8, 4, 0, 0, 0,                          // 8bits, grayscale with alpha color mode, default compression, default filters, no interlace
-	0xb5, 0x1c, 0x0c, 0x02,			// CRC
+	0xb5, 0x1c, 0x0c, 0x02,                 // CRC
 
-	0, 0, 0, 11, 'I', 'D', 'A', 'T',	// IDAT chunk
+	0, 0, 0, 11, 'I', 'D', 'A', 'T',        // IDAT chunk
 	0x08, 0xd7, 0x63, 0x60, 0x60, 0x00,
 	0x00, 0x00, 0x03, 0x00, 0x01,
-	0x20, 0xd5, 0x94, 0xc7,			// CRC
+	0x20, 0xd5, 0x94, 0xc7,                 // CRC
 
-	0, 0, 0, 0, 'I', 'E', 'N', 'D',		// IEND chunk
-	0xae, 0x42, 0x60, 0x82			// CRC
+	0, 0, 0, 0, 'I', 'E', 'N', 'D',         // IEND chunk
+	0xae, 0x42, 0x60, 0x82                  // CRC
 };
 
 static uint8_t font[25][9]={
@@ -713,7 +713,7 @@ void charts_load(void) {
 	i = get32bit(&ptr);
 	if (i!=CHARTS_FILE_VERSION) {
 		lseek(fd,4,SEEK_SET);
-		memcpy((void*)&j,hdr,4);	// get first 4 bytes of hdr as a 32-bit number in "natural" order
+		memcpy((void*)&j,hdr,4);        // get first 4 bytes of hdr as a 32-bit number in "natural" order
 		if (j==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
 				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
@@ -952,7 +952,7 @@ void charts_filltab(uint64_t *datatab,uint32_t range,uint32_t type,uint32_t cno)
 					}
 					ops++;
 				}
-				if (sp>=1 && stack[sp-1]>=0) {	// STACK_NODATA < 0, so this condition is enough for STACK_NODATA
+				if (sp>=1 && stack[sp-1]>=0) {  // STACK_NODATA < 0, so this condition is enough for STACK_NODATA
 					datatab[i]=stack[sp-1];
 				} else {
 					datatab[i]=CHARTS_NODATA;
@@ -1375,66 +1375,66 @@ static inline void charts_puttext(int32_t posx,int32_t posy,uint8_t color,uint8_
 
 double charts_fixmax(uint64_t max,uint8_t *scale,uint8_t *mode,uint16_t *base) {
 	double rmax;
-	if (max>995000000000000000ULL) {						// ##.# E
+	if (max>995000000000000000ULL) {                                                // ##.# E
 		(*base) = (max+499999999999999999ULL)/500000000000000000ULL;
 		rmax = (*base)*500000000000000000ULL;
 		(*mode) = 1;
 		(*scale) += 6;
-	} else if (max>99500000000000000ULL) {						// ### P
+	} else if (max>99500000000000000ULL) {                                          // ### P
 		(*base) = (max+4999999999999999ULL)/5000000000000000ULL;
 		rmax = (*base)*5000000000000000ULL;
 		(*mode) = 0;
 		(*scale) += 5;
-	} else if (max>995000000000000ULL) {						// ##.# P
+	} else if (max>995000000000000ULL) {                                            // ##.# P
 		(*base) = (max+499999999999999ULL)/500000000000000ULL;
 		rmax = (*base)*500000000000000ULL;
 		(*mode) = 1;
 		(*scale) += 5;
-	} else if (max>99500000000000ULL) {						// ### T
+	} else if (max>99500000000000ULL) {                                             // ### T
 		(*base) = (max+4999999999999ULL)/5000000000000ULL;
 		rmax = (*base)*5000000000000ULL;
 		(*mode) = 0;
 		(*scale) += 4;
-	} else if (max>995000000000ULL) {						// ##.# T
+	} else if (max>995000000000ULL) {                                               // ##.# T
 		(*base) = (max+499999999999ULL)/500000000000ULL;
 		rmax = (*base)*500000000000ULL;
 		(*mode) = 1;
 		(*scale) += 4;
-	} else if (max>99500000000ULL) {						// ### G
+	} else if (max>99500000000ULL) {                                                // ### G
 		(*base) = (max+4999999999ULL)/5000000000ULL;
 		rmax = (*base)*5000000000ULL;
 		(*mode) = 0;
 		(*scale) += 3;
-	} else if (max>995000000ULL) {							// ##.# G
+	} else if (max>995000000ULL) {                                                  // ##.# G
 		(*base) = (max+499999999ULL)/500000000ULL;
 		rmax = (*base)*500000000ULL;
 		(*mode) = 1;
 		(*scale) += 3;
-	} else if (max>99500000ULL) {							// ### M
+	} else if (max>99500000ULL) {                                                   // ### M
 		(*base) = (max+4999999ULL)/5000000ULL;
 		rmax = (*base)*5000000ULL;
 		(*mode) = 0;
 		(*scale) += 2;
-	} else if (max>995000ULL) {							// ##.# M
+	} else if (max>995000ULL) {                                                     // ##.# M
 		(*base) = (max+499999ULL)/500000ULL;
 		rmax = (*base)*500000ULL;
 		(*mode) = 1;
 		(*scale) += 2;
-	} else if (max>99500ULL) {							// ### k
+	} else if (max>99500ULL) {                                                      // ### k
 		(*base) = (max+4999ULL)/5000ULL;
 		rmax = (*base)*5000ULL;
 		(*mode) = 0;
 		(*scale) += 1;
-	} else if (max>995ULL) {							// ##.# k
+	} else if (max>995ULL) {                                                        // ##.# k
 		(*base) = (max+499ULL)/500ULL;
 		rmax = (*base)*500ULL;
 		(*mode) = 1;
 		(*scale) += 1;
-	} else if (max>99ULL) {								// ###
+	} else if (max>99ULL) {                                                         // ###
 		(*base) = (max+4ULL)/5ULL;
 		rmax = (*base)*5ULL;
 		(*mode) = 0;
-	} else {									// ##.#
+	} else {                                                                        // ##.#
 		if (max==0) {
 			max=1;
 		}
@@ -1484,7 +1484,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 			max=d;
 		}
 	}
-	if (max>1000000000000000000ULL) {	// arithmetic overflow protection
+	if (max>1000000000000000000ULL) {       // arithmetic overflow protection
 		for (i=0 ; i<LENG ; i++) {
 			if (c1dispdata[i]!=CHARTS_NODATA) {
 				c1dispdata[i]/=1000;
@@ -1732,7 +1732,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	for (i=0 ; i<=5 ; i++) {
 		d = base*i;
 		j=0;
-		if (mode==0) {	// ###
+		if (mode==0) {  // ###
 			if (d>=10) {
 				if (d>=100) {
 					text[j++]=d/100;
@@ -1741,7 +1741,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 				text[j++]=d/10;
 			}
 			text[j++]=d%10;
-		} else {	// ##.#
+		} else {        // ##.#
 			if (d>=100) {
 				text[j++]=d/100;
 				d%=100;

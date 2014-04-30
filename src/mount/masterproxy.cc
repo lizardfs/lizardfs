@@ -23,7 +23,7 @@ static uint16_t proxyport;
 
 void masterproxy_getlocation(uint8_t *masterinfo) {
 	const uint8_t *rptr = masterinfo+10;
-	if (lsock>=0 && get32bit(&rptr)>=0x00010618) {	// use proxy only when master version is greater than or equal to 1.6.24
+	if (lsock>=0 && get32bit(&rptr)>=0x00010618) {  // use proxy only when master version is greater than or equal to 1.6.24
 		put32bit(&masterinfo,proxyhost);
 		put16bit(&masterinfo,proxyport);
 	}

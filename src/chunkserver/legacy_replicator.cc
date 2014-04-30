@@ -150,7 +150,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 				r->fds[i].events = 0;
 			}
 		}
-		if (l) {	// finished
+		if (l) {        // finished
 			return 0;
 		}
 		gettimeofday(&tv,NULL);
@@ -244,7 +244,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 				r->fds[i].events = 0;
 			}
 		}
-		if (l) {	// finished
+		if (l) {        // finished
 			return 0;
 		}
 		gettimeofday(&tv,NULL);
@@ -295,7 +295,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 				r->fds[i].events = 0;
 			}
 		}
-		if (l) {	// finished
+		if (l) {        // finished
 			return 0;
 		}
 		gettimeofday(&tv,NULL);
@@ -373,7 +373,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		return ERROR_EINVAL;
 	}
 
-//	syslog(LOG_NOTICE,"replication begin (chunkid:%08" PRIX64 ",version:%04" PRIX32 ",srccnt:%" PRIu8 ")",chunkid,version,srccnt);
+//      syslog(LOG_NOTICE,"replication begin (chunkid:%08" PRIX64 ",version:%04" PRIX32 ",srccnt:%" PRIu8 ")",chunkid,version,srccnt);
 
 	pthread_mutex_lock(&statslock);
 	stats_repl++;
@@ -588,7 +588,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 						syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						return ERROR_WRONGCHUNKID;
 					}
-					if (pstatus==STATUS_OK) {	// got status too early or got incorrect packet
+					if (pstatus==STATUS_OK) {       // got status too early or got incorrect packet
 						syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 						return ERROR_DISCONNECTED;
 					}
@@ -630,7 +630,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		}
 // write data
 		sassert(vbuffs <= 1); // xor not needed, so just find block and write it
-		if (vbuffs==0) {	// no buffers ? - it should never happen
+		if (vbuffs==0) {        // no buffers ? - it should never happen
 			syslog(LOG_WARNING,"replicator: no data received for block: %" PRIu16,b);
 			rep_cleanup(&r);
 			return ERROR_DISCONNECTED;

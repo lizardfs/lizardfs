@@ -876,7 +876,7 @@ void worker_close(csserventry *eptr) {
 
 void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uint32_t length) {
 	TRACETHIS();
-//	syslog(LOG_NOTICE,"packet %u:%u",type,length);
+//      syslog(LOG_NOTICE,"packet %u:%u",type,length);
 	if (type == ANTOAN_NOP) {
 		return;
 	}
@@ -1036,7 +1036,7 @@ void worker_fwdread(csserventry *eptr) {
 		i = read(eptr->fwdsock, eptr->fwdinputpacket.startptr,
 				eptr->fwdinputpacket.bytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(fwdread) connection closed");
+//                      syslog(LOG_NOTICE,"(fwdread) connection closed");
 			worker_fwderror(eptr);
 			return;
 		}
@@ -1073,7 +1073,7 @@ void worker_fwdread(csserventry *eptr) {
 			i = read(eptr->fwdsock, eptr->fwdinputpacket.startptr,
 					eptr->fwdinputpacket.bytesleft);
 			if (i == 0) {
-//				syslog(LOG_NOTICE,"(fwdread) connection closed");
+//                              syslog(LOG_NOTICE,"(fwdread) connection closed");
 				worker_fwderror(eptr);
 				return;
 			}
@@ -1114,7 +1114,7 @@ void worker_fwdwrite(csserventry *eptr) {
 	if (eptr->fwdbytesleft > 0) {
 		i = write(eptr->fwdsock, eptr->fwdstartptr, eptr->fwdbytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(fwdwrite) connection closed");
+//                      syslog(LOG_NOTICE,"(fwdwrite) connection closed");
 			worker_fwderror(eptr);
 			return;
 		}
@@ -1265,7 +1265,7 @@ void worker_read(csserventry *eptr) {
 		i = read(eptr->sock, eptr->inputpacket.startptr,
 				eptr->inputpacket.bytesleft);
 		if (i == 0) {
-//			syslog(LOG_NOTICE,"(read) connection closed");
+//                      syslog(LOG_NOTICE,"(read) connection closed");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1308,7 +1308,7 @@ void worker_read(csserventry *eptr) {
 			i = read(eptr->sock, eptr->inputpacket.startptr,
 					eptr->inputpacket.bytesleft);
 			if (i == 0) {
-//				syslog(LOG_NOTICE,"(read) connection closed");
+//                              syslog(LOG_NOTICE,"(read) connection closed");
 				eptr->state = CLOSE;
 				return;
 			}
@@ -1372,7 +1372,7 @@ void worker_write(csserventry *eptr) {
 		} else {
 			i = write(eptr->sock, pack->startptr, pack->bytesleft);
 			if (i == 0) {
-//				syslog(LOG_NOTICE,"(write) connection closed");
+//                              syslog(LOG_NOTICE,"(write) connection closed");
 				eptr->state = CLOSE;
 				return;
 			}
@@ -1634,12 +1634,12 @@ void NetworkWorkerThread::servePoll() {
 	}
 
 	jobscnt = job_pool_jobs_count(bgJobPool_);
-//	// Lock free stats_maxjobscnt = max(stats_maxjobscnt, jobscnt), but I don't trust myself :( ...
-//	uint32_t expected_value = stats_maxjobscnt;
-//	while (jobscnt > expected_value
-//			&& !stats_maxjobscnt.compare_exchange_strong(expected_value, jobscnt)) {
-//		expected_value = stats_maxjobscnt;
-//	}
+//      // Lock free stats_maxjobscnt = max(stats_maxjobscnt, jobscnt), but I don't trust myself :( ...
+//      uint32_t expected_value = stats_maxjobscnt;
+//      while (jobscnt > expected_value
+//                      && !stats_maxjobscnt.compare_exchange_strong(expected_value, jobscnt)) {
+//              expected_value = stats_maxjobscnt;
+//      }
 // // .. Will end up with a racy code instead :(
 	if (jobscnt > stats_maxjobscnt) {
 		// A race is possible here, but it won't lead to any serious consequences, in a worst

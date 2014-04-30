@@ -7,10 +7,10 @@ case "$1" in
 		then
 			adduser --quiet --system --group --no-create-home --home "@DATA_PATH@" @DEFAULT_USER@
 		fi
-                if ! [[ -d "@DATA_PATH@" ]]
-                then
+		if ! [[ -d "@DATA_PATH@" ]]
+		then
 			mkdir -p "@DATA_PATH@"
-                fi
+		fi
 		chown -R @DEFAULT_USER@:@DEFAULT_GROUP@ "@DATA_PATH@"
 		;;
 

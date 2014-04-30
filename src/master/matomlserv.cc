@@ -66,7 +66,7 @@ typedef struct matomlserventry {
 
 	uint16_t timeout;
 
-	char *servstrip;		// human readable version of servip
+	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;
 
@@ -361,13 +361,13 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 			return;
 		} else {
 			ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,1);
-			put8bit(&ptr,0xff);	// error
+			put8bit(&ptr,0xff);     // error
 			return;
 		}
 	}
 	size = lseek(eptr->metafd,0,SEEK_END);
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,8);
-	put64bit(&ptr,size);	// ok
+	put64bit(&ptr,size);    // ok
 }
 
 void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t length) {

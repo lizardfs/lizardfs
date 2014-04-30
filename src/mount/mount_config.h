@@ -72,7 +72,7 @@ struct mfsopts_ {
 	uint32_t chunkserverreadto;
 
 	mfsopts_()
-		:	masterhost(NULL),
+		:       masterhost(NULL),
 			masterport(NULL),
 			bindhost(NULL),
 			subfolder(NULL),

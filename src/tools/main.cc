@@ -146,7 +146,7 @@ int my_get_number(const char *str,uint64_t *ret,double max,uint8_t bytesflag) {
 		val+=(*str-'0');
 		str++;
 	}
-	if (*str=='.') {	// accept ".5" (without 0)
+	if (*str=='.') {        // accept ".5" (without 0)
 		str++;
 		while (*str>='0' && *str<='9') {
 			fracdiv*=10;
@@ -154,10 +154,10 @@ int my_get_number(const char *str,uint64_t *ret,double max,uint8_t bytesflag) {
 			frac+=(*str-'0');
 			str++;
 		}
-		if (fracdiv==1) {	// if there was '.' expect number afterwards
+		if (fracdiv==1) {       // if there was '.' expect number afterwards
 			return -1;
 		}
-	} else if (f==0) {	// but not empty string
+	} else if (f==0) {      // but not empty string
 		return -1;
 	}
 	if (str[0]=='\0' || (bytesflag && str[0]=='B' && str[1]=='\0')) {
@@ -448,7 +448,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		*mode = stb.st_mode;
 	}
 	if (current_master>=0) {
-	       	if (current_device==stb.st_dev) {
+		if (current_device==stb.st_dev) {
 			return current_master;
 		}
 		if (needsamedev) {
@@ -462,13 +462,13 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 	}
 	current_device = stb.st_dev;
 	for(;;) {
-		if (stb.st_ino==1) {	// found fuse root
+		if (stb.st_ino==1) {    // found fuse root
 			// first try to locate ".masterinfo"
 			if (strlen(rpath)+12<PATH_MAX) {
 				strcat(rpath,"/.masterinfo");
 				if (lstat(rpath,&stb)==0) {
 					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
-						if (stb.st_ino==0x7FFFFFFE) {	// meta master
+						if (stb.st_ino==0x7FFFFFFE) {   // meta master
 							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
 								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
 								return -1;
@@ -529,10 +529,10 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 						return sd;
 					}
 				}
-				rpath[strlen(rpath)-4]=0;	// cut '.masterinfo' to '.master' and try to fallback to older communication method
+				rpath[strlen(rpath)-4]=0;       // cut '.masterinfo' to '.master' and try to fallback to older communication method
 				if (lstat(rpath,&stb)==0) {
 					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
-						if (stb.st_ino==0x7FFFFFFE) {	// meta master
+						if (stb.st_ino==0x7FFFFFFE) {   // meta master
 							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
 								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
 								return -1;
@@ -623,7 +623,7 @@ int check_file(const char* fname) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -715,7 +715,7 @@ int get_goal(const char *fname,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -835,7 +835,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -939,7 +939,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -987,7 +987,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 		} else {
 			printf("-\n");
 		}
-//		printf("%s: %" PRIX8 "\n",fname,eattr);
+//              printf("%s: %" PRIX8 "\n",fname,eattr);
 	} else {
 		for (j=0 ; j<EATTR_BITS ; j++) {
 			fcnt[j]=0;
@@ -1082,7 +1082,7 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1177,7 +1177,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1258,7 +1258,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1528,7 +1528,7 @@ int append_file(const char *fname,const char *afname) {
 	}
 	close_master_conn(0);
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1590,7 +1590,7 @@ int dir_info(const char *fname) {
 		return -1;
 	}
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1678,7 +1678,7 @@ int file_repair(const char *fname) {
 		return -1;
 	}
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1716,7 +1716,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 	uint32_t curinodes;
 	uint64_t curlength,cursize,currealsize;
 	int fd;
-//	printf("set quota: %s (soft:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 "),(hard:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 ")\n",fname,sflags,sinodes,slength,ssize,srealsize,hflags,hinodes,hlength,hsize,hrealsize);
+//      printf("set quota: %s (soft:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 "),(hard:%1X,i:%" PRIu32 ",l:%" PRIu64 ",w:%" PRIu64 ",r:%" PRIu64 ")\n",fname,sflags,sinodes,slength,ssize,srealsize,hflags,hinodes,hlength,hsize,hrealsize);
 	fd = open_master_conn(fname,&inode,NULL,0,qflags?1:0);
 	if (fd<0) {
 		return -1;
@@ -1763,7 +1763,7 @@ int quota_control(const char *fname,uint8_t del,uint8_t qflags,uint32_t sinodes,
 		return -1;
 	}
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s: master query: wrong answer (queryid)\n",fname);
 		free(buff);
@@ -1868,7 +1868,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 		return -1;
 	}
 	rptr = buff;
-	cmd = get32bit(&rptr);	// queryid
+	cmd = get32bit(&rptr);  // queryid
 	if (cmd!=0) {
 		printf("%s->%s/%s: master query: wrong answer (queryid)\n",srcname,dstdir,dstbase);
 		free(buff);
@@ -1898,7 +1898,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 	int status;
 	uint32_t i,l;
 
-	if (stat(dstname,&dst)<0) {	// dst does not exist
+	if (stat(dstname,&dst)<0) {     // dst does not exist
 		if (errno!=ENOENT) {
 			printf("%s: stat error: %s\n",dstname,strerr(errno));
 			return -1;
@@ -1936,13 +1936,13 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			return -1;
 		}
 		return make_snapshot(to,base,srcnames[0],sst.st_ino,canowerwrite);
-	} else {	// dst exists
+	} else {        // dst exists
 		if (realpath(dstname,to)==NULL) {
 			printf("%s: realpath error on %s: %s\n",dstname,to,strerr(errno));
 			return -1;
 		}
-		if (!S_ISDIR(dst.st_mode)) {	// dst id not a directory
-		       	if (srcelements>1) {
+		if (!S_ISDIR(dst.st_mode)) {    // dst id not a directory
+			if (srcelements>1) {
 				printf("can snapshot multiple elements only into existing directory\n");
 				return -1;
 			}
@@ -1961,7 +1961,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 				return -1;
 			}
 			return make_snapshot(dir,base,srcnames[0],sst.st_ino,canowerwrite);
-		} else {	// dst is a directory
+		} else {        // dst is a directory
 			status = 0;
 			for (i=0 ; i<srcelements ; i++) {
 				if (lstat(srcnames[i],&sst)<0) {
@@ -1974,8 +1974,8 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 					status=-1;
 					continue;
 				}
-				if (!S_ISDIR(sst.st_mode)) {	// src is not a directory
-					if (!S_ISLNK(sst.st_mode)) {	// src is not a symbolic link
+				if (!S_ISDIR(sst.st_mode)) {    // src is not a directory
+					if (!S_ISLNK(sst.st_mode)) {    // src is not a symbolic link
 						if (realpath(srcnames[i],src)==NULL) {
 							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerr(errno));
 							status=-1;
@@ -1986,7 +1986,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 							status=-1;
 							continue;
 						}
-					} else {	// src is a symbolic link
+					} else {        // src is a symbolic link
 						if (bsd_basename(srcnames[i],base)<0) {
 							printf("%s: basename error\n",srcnames[i]);
 							status=-1;
@@ -1996,9 +1996,9 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 					if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite)<0) {
 						status=-1;
 					}
-				} else {	// src is a directory
+				} else {        // src is a directory
 					l = strlen(srcnames[i]);
-					if (l>0 && srcnames[i][l-1]!='/') {	// src is a directory and name has trailing slash
+					if (l>0 && srcnames[i][l-1]!='/') {     // src is a directory and name has trailing slash
 						if (realpath(srcnames[i],src)==NULL) {
 							printf("%s: realpath error on %s: %s\n",srcnames[i],src,strerr(errno));
 							status=-1;
@@ -2012,7 +2012,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 						if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite)<0) {
 							status=-1;
 						}
-					} else {	// src is a directory and name has not trailing slash
+					} else {        // src is a directory and name has not trailing slash
 						memcpy(dir,to,PATH_MAX+1);
 						dirname_inplace(dir);
 						if (bsd_basename(to,base)<0) {
@@ -2231,7 +2231,7 @@ int main(int argc,char **argv) {
 	if (CHECKNAME("mfstools")) {
 		if (argc==2 && strcmp(argv[1],"create")==0) {
 			fprintf(stderr,"create symlinks\n");
-#define SYMLINK(name)	if (symlink(argv[0],name)<0) { \
+#define SYMLINK(name)   if (symlink(argv[0],name)<0) { \
 				perror("error creating symlink '" name "'"); \
 			}
 			SYMLINK("mfsgetgoal")
