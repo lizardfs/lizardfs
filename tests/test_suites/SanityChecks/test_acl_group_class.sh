@@ -1,6 +1,7 @@
 assert_program_installed setfacl
 
-USE_RAMDISK=YES setup_local_empty_lizardfs info
+MOUNT_EXTRA_CONFIG="mfsacl" \
+	USE_RAMDISK=YES setup_local_empty_lizardfs info
 cd "${info[mount0]}"
 touch file
 
