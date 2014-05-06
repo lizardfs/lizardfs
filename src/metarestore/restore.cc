@@ -355,39 +355,6 @@ int do_purge(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_purge(ts,inode);
 }
 
-int do_quota(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,stimestamp,sinodes,hinodes;
-	uint64_t slength,ssize,srealsize;
-	uint64_t hlength,hsize,hrealsize;
-	uint32_t flags,exceeded;
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(exceeded,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(flags,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(stimestamp,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(sinodes,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(hinodes,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(slength,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hlength,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(ssize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hsize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(srealsize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hrealsize,ptr);
-	EAT(ptr,filename,lv,')');
-	return fs_quota(ts,inode,exceeded,flags,stimestamp,sinodes,hinodes,slength,hlength,ssize,hsize,srealsize,hrealsize);
-}
-
 int do_release(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,cuid;
 	(void)ts;
@@ -720,11 +687,6 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 		case 'P':
 			if (strncmp(ptr,"PURGE",5)==0) {
 				status = do_purge(filename,lv,ts,ptr+5);
-			}
-			break;
-		case 'Q':
-			if (strncmp(ptr,"QUOTA",5)==0) {
-				status = do_quota(filename,lv,ts,ptr+5);
 			}
 			break;
 		case 'R':

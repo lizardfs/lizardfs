@@ -317,82 +317,6 @@ int fs_loadfree(FILE *fd) {
 	return 0;
 }
 
-int fs_loadquota(FILE *fd) {
-	uint8_t rbuff[66];
-	const uint8_t *ptr;
-	uint8_t exceeded,flags;
-	uint32_t t,nodeid,stimestamp,sinodes,hinodes;
-	uint64_t slength,hlength,ssize,hsize,srealsize,hrealsize;
-	if (fread(rbuff,1,4,fd)!=4) {
-		return -1;
-	}
-	ptr=rbuff;
-	t = get32bit(&ptr);
-	printf("# quota nodes: %" PRIu32 "\n",t);
-	while (t>0) {
-		if (fread(rbuff,1,66,fd)!=66) {
-			return -1;
-		}
-		ptr = rbuff;
-		nodeid = get32bit(&ptr);
-		exceeded = get8bit(&ptr);
-		flags = get8bit(&ptr);
-		stimestamp = get32bit(&ptr);
-		sinodes = get32bit(&ptr);
-		hinodes = get32bit(&ptr);
-		slength = get64bit(&ptr);
-		hlength = get64bit(&ptr);
-		ssize = get64bit(&ptr);
-		hsize = get64bit(&ptr);
-		srealsize = get64bit(&ptr);
-		hrealsize = get64bit(&ptr);
-		printf("Q|i:%10" PRIu32 "|e:%c|f:%02" PRIX8 "|s:%10" PRIu32,nodeid,(exceeded)?'1':'0',flags,stimestamp);
-		if (flags&QUOTA_FLAG_SINODES) {
-			printf("|si:%10" PRIu32,sinodes);
-		} else {
-			printf("|si:         -");
-		}
-		if (flags&QUOTA_FLAG_HINODES) {
-			printf("|hi:%10" PRIu32,hinodes);
-		} else {
-			printf("|hi:         -");
-		}
-		if (flags&QUOTA_FLAG_SLENGTH) {
-			printf("|sl:%20" PRIu64,slength);
-		} else {
-			printf("|sl:                   -");
-		}
-		if (flags&QUOTA_FLAG_HLENGTH) {
-			printf("|hl:%20" PRIu64,hlength);
-		} else {
-			printf("|hl:                   -");
-		}
-		if (flags&QUOTA_FLAG_SSIZE) {
-			printf("|ss:%20" PRIu64,ssize);
-		} else {
-			printf("|ss:                   -");
-		}
-		if (flags&QUOTA_FLAG_HSIZE) {
-			printf("|hs:%20" PRIu64,hsize);
-		} else {
-			printf("|hs:                   -");
-		}
-		if (flags&QUOTA_FLAG_SREALSIZE) {
-			printf("|sr:%20" PRIu64,srealsize);
-		} else {
-			printf("|sr:                   -");
-		}
-		if (flags&QUOTA_FLAG_HREALSIZE) {
-			printf("|hr:%20" PRIu64,hrealsize);
-		} else {
-			printf("|hr:                   -");
-		}
-		printf("\n");
-		t--;
-	}
-	return 0;
-}
-
 int hexdump(FILE *fd,uint64_t sleng) {
 	uint8_t lbuff[32];
 	uint32_t i;
@@ -514,11 +438,6 @@ int fs_load_20(FILE *fd) {
 		} else if (memcmp(hdr,"FREE 1.0",8)==0) {
 			if (fs_loadfree(fd)<0) {
 				printf("error reading metadata (FREE 1.0)\n");
-				return -1;
-			}
-		} else if (memcmp(hdr,"QUOT 1.0",8)==0) {
-			if (fs_loadquota(fd)<0) {
-				printf("error reading metadata (QUOT 1.0)\n");
 				return -1;
 			}
 		} else if (memcmp(hdr,"CHNK 1.0",8)==0) {

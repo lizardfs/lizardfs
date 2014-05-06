@@ -65,7 +65,6 @@ uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_
 uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
 uint8_t fs_deleteacl(uint32_t ts, uint32_t inode, char aclType);
 uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclString);
-uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
 
 void fs_dump(void);
 void fs_term(const char *fname);
@@ -165,11 +164,6 @@ uint8_t fs_getdetachedattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,ui
 
 // EXTRA
 uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *inodes,uint32_t *dirs,uint32_t *files,uint32_t *chunks,uint64_t *length,uint64_t *size,uint64_t *rsize);
-
-// QUOTA
-uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t delflag,uint8_t *flags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize,uint32_t *curinodes,uint64_t *curlength,uint64_t *cursize,uint64_t *currealsize);
-uint32_t fs_getquotainfo_size(void);
-void fs_getquotainfo_data(uint8_t *buff);
 
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);

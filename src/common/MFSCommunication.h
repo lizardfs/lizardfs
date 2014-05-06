@@ -237,18 +237,6 @@
 #define MATTR_ALLOWDATACACHE   0x04
 #define MATTR_UNDEFINED        0x08
 
-// quota:
-#define QUOTA_FLAG_SINODES     0x01
-#define QUOTA_FLAG_SLENGTH     0x02
-#define QUOTA_FLAG_SSIZE       0x04
-#define QUOTA_FLAG_SREALSIZE   0x08
-#define QUOTA_FLAG_SALL        0x0F
-#define QUOTA_FLAG_HINODES     0x10
-#define QUOTA_FLAG_HLENGTH     0x20
-#define QUOTA_FLAG_HSIZE       0x40
-#define QUOTA_FLAG_HREALSIZE   0x80
-#define QUOTA_FLAG_HALL        0xF0
-
 // getdir:
 #define GETDIR_FLAG_WITHATTR   0x01
 #define GETDIR_FLAG_ADDTOCACHE 0x02
@@ -994,16 +982,6 @@
 /// msgid:32 status:8
 /// msgid:32 changed:32 notchanged:32 notpermitted:32
 
-// 0x01DC
-#define CLTOMA_FUSE_QUOTACONTROL (PROTO_BASE+476)
-// msgid:32 inode:32 qflags:8 - delete quota
-// msgid:32 inode:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 - set quota
-
-// 0x01DD
-#define MATOCL_FUSE_QUOTACONTROL (PROTO_BASE+477)
-// msgid:32 status:8
-// msgid:32 qflags:8 sinodes:32 slength:64 ssize:64 srealsize:64 hinodes:32 hlength:64 hsize:64 hrealsize:64 curinodes:32 curlength:64 cursize:64 currealsize:64
-
 // 0x01DE
 #define CLTOMA_FUSE_GETXATTR (PROTO_BASE+478)
 // msgid:32 inode:32 opened:8 uid:32 gid:32 nleng:8 name:nlengB mode:8
@@ -1151,15 +1129,6 @@
 // 0x00205
 #define MATOCL_CHUNKS_MATRIX (PROTO_BASE+517)
 // 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
-
-// 0x00206
-#define CLTOMA_QUOTA_INFO (PROTO_BASE+518)
-/// -
-
-// 0x00207
-#define MATOCL_QUOTA_INFO (PROTO_BASE+519)
-// quota_time_limit:32 N * [ inode:32 pleng:32 path:plengB exceeded:8 qflags:8 stimestamp:32 sinodes:32 slength:64 ssize:64 sgoalsize:64 hinodes:32 hlength:64 hsize:64 hgoalsize:64 currinodes:32 currlength:64 currsize:64 currgoalsize:64 ]
-
 
 // 0x00208
 #define CLTOMA_EXPORTS_INFO (PROTO_BASE+520)
