@@ -94,13 +94,13 @@
 // Macro which creates a serializable enum
 #define LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(EnumClassName, ... /*values*/) \
 		enum class EnumClassName : uint8_t { __VA_ARGS__ }; \
-		uint32_t serializedSize(const EnumClassName& value) { \
+		inline uint32_t serializedSize(const EnumClassName& value) { \
 			return serializedSize(static_cast<uint8_t>(value)); \
 		} \
-		void serialize(uint8_t** destination, const EnumClassName& value) { \
+		inline void serialize(uint8_t** destination, const EnumClassName& value) { \
 			serialize(destination, static_cast<uint8_t>(value)); \
 		} \
-		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, \
+		inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, \
 				EnumClassName& value) { \
 			uint8_t tmp; \
 			deserialize(source, bytesLeftInBuffer, tmp); \
