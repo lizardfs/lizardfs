@@ -91,6 +91,26 @@
 		SERIALIZABLE_CLASS_BODY(ClassName, __VA_ARGS__) \
 		SERIALIZABLE_CLASS_END
 
+// Macro which creates a serializable enum
+#define LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(EnumClassName, ... /*values*/) \
+		enum class EnumClassName : uint8_t { __VA_ARGS__ }; \
+		uint32_t serializedSize(const EnumClassName& value) { \
+			return serializedSize(static_cast<uint8_t>(value)); \
+		} \
+		void serialize(uint8_t** destination, const EnumClassName& value) { \
+			serialize(destination, static_cast<uint8_t>(value)); \
+		} \
+		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, \
+				EnumClassName& value) { \
+			uint8_t tmp; \
+			deserialize(source, bytesLeftInBuffer, tmp); \
+			if (tmp >= COUNT_ARGS(__VA_ARGS__)) { \
+				throw IncorrectDeserializationException("Bad " #EnumClassName \
+						" value = " + std::to_string(tmp)); \
+			}; \
+			value = static_cast<EnumClassName>(tmp); \
+		}
+
 // One macro which creates serialize, deserialize and serializedSize methods
 #define LIZARDFS_DEFINE_SERIALIZE_METHODS(ClassName, ...) \
 		SERIALIZE_METHODS(ClassName, __VA_ARGS__)

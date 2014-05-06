@@ -105,3 +105,26 @@ TEST(PacketSerializationTests, SerializeAndDeserialize) {
 	LIZARDFS_VERIFY_INOUT_PAIR(rdev);
 }
 
+LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(TestEnum, value0, value1, value2)
+
+TEST(EnumClassSerializationTests, SerializeAndDeserialize) {
+	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(TestEnum, enums);
+	enumsIn  = {TestEnum::value0, TestEnum::value1, TestEnum::value2};
+	enumsOut = {TestEnum::value1, TestEnum::value2, TestEnum::value0};
+
+	for (uint8_t i = 0; i < enumsIn.size(); ++i) {
+		EXPECT_EQ(i, static_cast<uint8_t>(enumsIn[i]));
+		std::vector<uint8_t> buffer;
+		ASSERT_NO_THROW(serialize(buffer, enumsIn[i]));
+		ASSERT_NO_THROW(deserialize(buffer, enumsOut[i]));
+	}
+	LIZARDFS_VERIFY_INOUT_PAIR(enums);
+}
+
+TEST(EnumClassSerializationTests, DeserializeImproperValue) {
+	std::vector<uint8_t> buffer;
+	uint8_t in = 1 + static_cast<uint8_t>(TestEnum::value2);
+	ASSERT_NO_THROW(serialize(buffer, in));
+	TestEnum out;
+	ASSERT_THROW(deserialize(buffer, out), IncorrectDeserializationException);
+}
