@@ -1191,6 +1191,33 @@
 #define LIZ_MATOCL_FUSE_DELETE_ACL (1000U + 536U)
 /// msgid:32 status:8
 
+// 0x0601
+#define LIZ_CLTOMA_FUSE_SET_QUOTA (1000U + 537U)
+/// msgid:32 uid:32 gid:32 limits:(vector<QuotaEntryKey, limit:64>)
+
+// 0x0602
+#define LIZ_MATOCL_FUSE_SET_QUOTA (1000U + 538U)
+/// msgid:32 status:8
+
+// 0x0603
+#define LIZ_CLTOMA_FUSE_DELETE_QUOTA (1000U + 539U)
+/// msgid:32 uid:32 gid:32 limits:(vector<QuotaEntryKey>)
+
+// 0x0604
+#define LIZ_MATOCL_FUSE_DELETE_QUOTA (1000U + 540U)
+/// msgid:32 status:8
+
+// 0x0605
+#define LIZ_CLTOMA_FUSE_GET_QUOTA (1000U + 541U)
+// version==0 - all limits; version==1 - limits for passed users and/or groups
+/// version==0 msgid:32 uid:32 gid:32
+/// version==1 msgid:32 uid:32 gid:32 owners:(vector<QuotaOwner>)
+
+// 0x0606
+#define LIZ_MATOCL_FUSE_GET_QUOTA (1000U + 542U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 limits:(vector<QuotaOwnerAndLimits>)
+
 // CHUNKSERVER STATS
 
 // 0x00258

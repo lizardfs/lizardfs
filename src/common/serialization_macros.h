@@ -106,7 +106,7 @@
 			deserialize(source, bytesLeftInBuffer, tmp); \
 			if (tmp >= COUNT_ARGS(__VA_ARGS__)) { \
 				throw IncorrectDeserializationException("Bad " #EnumClassName \
-						" value = " + std::to_string(tmp)); \
+						" value = " + std::to_string(uint32_t(tmp))); \
 			}; \
 			value = static_cast<EnumClassName>(tmp); \
 		}

@@ -6,6 +6,7 @@
 #include "common/acl_type.h"
 #include "common/moosefs_string.h"
 #include "common/packet.h"
+#include "common/quota.h"
 #include "common/serialization_macros.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0,
@@ -60,3 +61,35 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		bool, wantMore,
 		uint64_t, currentLimit_Bps,
 		uint64_t, recentUsage_Bps)
+
+// LIZ_CLTOMA_FUSE_SET_QUOTA
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetQuota, LIZ_CLTOMA_FUSE_SET_QUOTA, 0,
+		uint32_t, messageId,
+		uint32_t, uid,
+		uint32_t, gid,
+		std::vector<QuotaEntry>, quotaEntries)
+
+// LIZ_CLTOMA_FUSE_DELETE_QUOTA
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseDeleteQuota, LIZ_CLTOMA_FUSE_DELETE_QUOTA, 0,
+		uint32_t, messageId,
+		uint32_t, uid,
+		uint32_t, gid,
+		std::vector<QuotaEntryKey>, quotaEntriesKeys)
+
+// LIZ_CLTOMA_FUSE_GET_QUOTA
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, fuseGetQuota, kAllLimits, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, fuseGetQuota, kSelectedLimits, 1)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseGetQuota, LIZ_CLTOMA_FUSE_GET_QUOTA, kAllLimits,
+		uint32_t, messageId,
+		uint32_t, uid,
+		uint32_t, gid)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseGetQuota, LIZ_CLTOMA_FUSE_GET_QUOTA, kSelectedLimits,
+		uint32_t, messageId,
+		uint32_t, uid,
+		uint32_t, gid,
+		std::vector<QuotaOwner>, owners)
