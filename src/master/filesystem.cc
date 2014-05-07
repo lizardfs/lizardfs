@@ -1136,6 +1136,32 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 	return 0;
 }
 
+// quota
+
+#ifndef METARESTORE
+static bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid) {
+	return quotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
+}
+
+static bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid) {
+	return quotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
+}
+
+static void fsnodes_quota_register_inode(fsnode *node) {
+	quotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
+}
+
+static void fsnodes_quota_unregister_inode(fsnode *node) {
+	quotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
+}
+
+static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
+	if (delta != 0) {
+		quotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
+	}
+}
+#endif
+
 // stats
 #ifndef METARESTORE
 static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
@@ -1192,6 +1218,12 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 		sr->size = 0;
 		sr->realsize = 0;
 	}
+}
+
+static int64_t fsnodes_get_size(fsnode *node) {
+	statsrecord sr;
+	fsnodes_get_stats(node, &sr);
+	return sr.size;
 }
 
 static inline void fsnodes_sub_stats(fsnode *parent,statsrecord *sr) {
@@ -1622,6 +1654,12 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	p->checksum = 0;
 	fsnodes_update_checksum(p);
 	fsnodes_link(ts,node,p,nleng,name);
+#ifndef METARESTORE
+	fsnodes_quota_register_inode(p);
+	if (type == TYPE_FILE) {
+		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+	}
+#endif
 	return p;
 }
 
@@ -1945,6 +1983,7 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 	for (e=dstobj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(dstobj, nsr.size - psr.size);
 #endif
 #ifdef METARESTORE
 	dstobj->mtime = ts;
@@ -2042,6 +2081,7 @@ static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(obj, nsr.size - psr.size);
 #endif
 	fsnodes_update_checksum(obj);
 }
@@ -2080,6 +2120,9 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	if (toremove->type==TYPE_FILE || toremove->type==TYPE_TRASH || toremove->type==TYPE_RESERVED) {
 		uint32_t i;
 		uint64_t chunkid;
+#ifndef METARESTORE
+		fsnodes_quota_update_size(toremove, -fsnodes_get_size(toremove));
+#endif
 		filenodes--;
 		for (i=0 ; i<toremove->data.fdata.chunks ; i++) {
 			chunkid = toremove->data.fdata.chunktab[i];
@@ -2100,6 +2143,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	xattr_removeinode(toremove->id);
 #ifndef METARESTORE
 	dcm_modify(toremove->id,0);
+	fsnodes_quota_unregister_inode(toremove);
 #endif
 	delete toremove;
 }
@@ -2638,6 +2682,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&nsr);
 				fsnodes_add_sub_stats(parentnode,&nsr,&psr);
+				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
 /*
 #ifdef CACHENOTIFY
 				if (dstnode->data.fdata.length>0) {
@@ -2724,6 +2769,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&nsr);
 				fsnodes_add_sub_stats(parentnode,&nsr,&psr);
+				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
 #endif
 			} else if (srcnode->type==TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng>0) {
@@ -2755,6 +2801,14 @@ static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,
 	fsedge *e;
 	fsnode *dstnode;
 	uint8_t status;
+#ifndef METARESTORE
+	if (fsnodes_inode_quota_exceeded(srcnode->uid, srcnode->gid)) {
+		return ERROR_QUOTA;
+	}
+	if (srcnode->type == TYPE_FILE && fsnodes_size_quota_exceeded(srcnode->uid, srcnode->gid)) {
+		return ERROR_QUOTA;
+	}
+#endif
 	if ((e=fsnodes_lookup(parentnode,nleng,name))) {
 		dstnode = e->child;
 		if (dstnode==origsrcnode) {
@@ -3428,7 +3482,8 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (ochunkid>0) {
 				uint8_t status;
 				uint64_t nchunkid;
-				status = chunk_multi_truncate(&nchunkid,ochunkid,length&MFSCHUNKMASK,p->goal);
+				status = chunk_multi_truncate(&nchunkid, ochunkid, length & MFSCHUNKMASK,
+						p->goal, fsnodes_size_quota_exceeded(p->uid, p->gid));
 				if (status!=STATUS_OK) {
 					return status;
 				}
@@ -3648,11 +3703,23 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (setmask&SET_MODE_FLAG) {
 		p->mode = (attrmode & 07777) | (p->mode & 0xF000);
 	}
-	if (setmask&SET_UID_FLAG) {
-		p->uid = attruid;
-	}
-	if (setmask&SET_GID_FLAG) {
-		p->gid = attrgid;
+	if (setmask & (SET_UID_FLAG | SET_GID_FLAG)) {
+		int64_t size;
+		fsnodes_quota_unregister_inode(p);
+		if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
+			size = fsnodes_get_size(p);
+			fsnodes_quota_update_size(p, -size);
+		}
+		if (setmask&SET_UID_FLAG) {
+			p->uid = attruid;
+		}
+		if (setmask&SET_GID_FLAG) {
+			p->gid = attrgid;
+		}
+		fsnodes_quota_register_inode(p);
+		if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
+			fsnodes_quota_update_size(p, +size);
+		}
 	}
 	if (setmask&SET_ATIME_NOW_FLAG) {
 		p->atime = ts;
@@ -3839,6 +3906,11 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
+#ifndef METARESTORE
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
+		return ERROR_QUOTA;
+	}
+#endif
 	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 #ifndef METARESTORE
@@ -3918,6 +3990,9 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
+		return ERROR_QUOTA;
+	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,type,mode,umask,uid,gid,0,AclInheritance::kInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
@@ -3973,6 +4048,9 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	}
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
+	}
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
+		return ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
 	*inode = p->id;
@@ -4559,6 +4637,9 @@ uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src) {
 	if (!fsnodes_access(p,uid,gid,MODE_MASK_W,sesflags)) {
 		return ERROR_EACCES;
 	}
+	if (fsnodes_size_quota_exceeded(p->uid, p->gid)) {
+		return ERROR_QUOTA;
+	}
 	ts = main_time();
 #endif
 	status = fsnodes_appendchunks(ts,p,sp);
@@ -4850,9 +4931,13 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
 	}
+	const bool quota_exceeded = fsnodes_size_quota_exceeded(p->uid, p->gid);
 	fsnodes_get_stats(p,&psr);
 	/* resize chunks structure */
 	if (indx>=p->data.fdata.chunks) {
+		if (quota_exceeded) {
+			return ERROR_QUOTA;
+		}
 		uint32_t newsize;
 		if (indx<8) {
 			newsize=indx+1;
@@ -4873,7 +4958,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,p->goal,opflag);
+	status = chunk_multi_modify(&nchunkid, ochunkid, p->goal, opflag, quota_exceeded);
 	if (status!=STATUS_OK) {
 		fsnodes_update_checksum(p);
 		return status;
@@ -4883,6 +4968,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 	for (e=p->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(p, nsr.size - psr.size);
 	*chunkid = nchunkid;
 	*length = p->data.fdata.length;
 	changelog(metaversion++,"%" PRIu32 "|WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,ts,inode,indx,*opflag,nchunkid);
@@ -5060,6 +5146,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	for (e=p->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(p, nsr.size - psr.size);
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
@@ -7326,6 +7413,9 @@ int fs_loadnode(FILE *fd) {
 #endif
 			sessionids--;
 		}
+#ifndef METARESTORE
+		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+#endif
 /*
 #ifdef CACHENOTIFY
 		p->data.fdata.lastattrchange=0;
@@ -7344,6 +7434,9 @@ int fs_loadnode(FILE *fd) {
 	if (type==TYPE_FILE || type==TYPE_TRASH || type==TYPE_RESERVED) {
 		filenodes++;
 	}
+#ifndef METARESTORE
+	fsnodes_quota_register_inode(p);
+#endif
 	return 0;
 }
 
@@ -7917,6 +8010,7 @@ void fs_new(void) {
 	dirnodes=1;
 	filenodes=0;
 	fs_checksum(ChecksumMode::kForceRecalculate);
+	fsnodes_quota_register_inode(root);
 }
 #endif
 
