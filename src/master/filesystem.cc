@@ -5275,21 +5275,12 @@ uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t g
 #endif
 
 #ifndef METARESTORE
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes,uint32_t *qeinodes) {
-#else
 uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes) {
-#endif
 	uint32_t ts;
 	fsnode *rn;
 #else
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes,uint32_t qeinodes) {
-	uint32_t si,nci,nsi,qei;
-#else
 uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes) {
 	uint32_t si,nci,nsi;
-#endif
 #endif
 	fsnode *p;
 
@@ -5299,16 +5290,10 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 	*sinodes = 0;
 	*ncinodes = 0;
 	*nsinodes = 0;
-#if VERSHEX>=0x010700
-	*qeinodes = 0;
-#endif
 #else
 	si = 0;
 	nci = 0;
 	nsi = 0;
-#if VERSHEX>=0x010700
-	qei = 0;
-#endif
 #endif
 	if (!SMODE_ISVALID(smode) || goal>9 || goal<1) {
 		return ERROR_EINVAL;
@@ -5363,19 +5348,11 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 #endif
 
 #ifndef METARESTORE
-#if VERSHEX>=0x010700
-	changelog(metaversion++,"%" PRIu32 "|SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32,ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes,*qeinodes);
-#else
 	changelog(metaversion++,"%" PRIu32 "|SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes);
-#endif
 	return STATUS_OK;
 #else
 	metaversion++;
-#if VERSHEX>=0x010700
-	if (sinodes!=si || ncinodes!=nci || nsinodes!=nsi || (qeinodes!=qei && qeinodes!=UINT32_C(0xFFFFFFFF))) {
-#else
 	if (sinodes!=si || ncinodes!=nci || nsinodes!=nsi) {
-#endif
 		return ERROR_MISMATCH;
 	}
 	return STATUS_OK;

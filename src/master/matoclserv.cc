@@ -2776,11 +2776,7 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	if (status==STATUS_OK) {
 		status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
 	}
-	if (eptr->version>=0x010700) {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:20);
-	} else {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
-	}
+	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
 		put8bit(&ptr,status);
@@ -2788,9 +2784,6 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		put32bit(&ptr,changed);
 		put32bit(&ptr,notchanged);
 		put32bit(&ptr,notpermitted);
-		if (eptr->version>=0x010700) {
-			put32bit(&ptr,0);
-		}
 	}
 }
 
