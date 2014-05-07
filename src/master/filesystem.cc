@@ -1134,7 +1134,7 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 
 // quota
 
-static bool fsnodes_quota_exceeded(fsnode *node) {
+static bool fsnodes_quota_exceeded(fsnode*) {
 	return false;
 }
 
