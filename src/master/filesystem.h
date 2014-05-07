@@ -25,6 +25,7 @@
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/exception.h"
+#include "common/quota.h"
 #include "master/checksum.h"
 
 #ifdef METARESTORE
@@ -134,6 +135,16 @@ uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl);
 uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t uid, uint32_t gid, AclType type, AccessControlList acl);
+
+#ifndef METARESTORE
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
+		std::vector<QuotaOwnerAndLimits>& results);
+uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
+		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results);
+uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
+#else
+uint8_t fs_quota_set(const std::vector<QuotaEntry>& entries);
+#endif
 
 // RESERVED
 uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);

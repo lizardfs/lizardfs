@@ -3308,6 +3308,44 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
+void matoclserv_fuse_setquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId, uid, gid;
+	std::vector<QuotaEntry> entries;
+	cltoma::fuseSetQuota::deserialize(data, length, messageId, uid, gid, entries);
+	matoclserv_ugid_remap(eptr, &uid, NULL);
+	uint8_t status = fs_quota_set(eptr->sesdata->sesflags, uid, entries);
+	MessageBuffer reply;
+	matocl::fuseSetQuota::serialize(reply, messageId, status);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t version, messageId, uid, gid;
+	std::vector<QuotaOwnerAndLimits> results;
+	uint8_t status;
+	deserializePacketVersionNoHeader(data, length, version);
+	if (version == cltoma::fuseGetQuota::kAllLimits) {
+		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid);
+		matoclserv_ugid_remap(eptr, &uid, &gid);
+		status = fs_quota_get_all(eptr->sesdata->sesflags, uid, results);
+	} else if (version == cltoma::fuseGetQuota::kSelectedLimits) {
+		std::vector<QuotaOwner> owners;
+		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid, owners);
+		matoclserv_ugid_remap(eptr, &uid, &gid);
+		status = fs_quota_get(eptr->sesdata->sesflags, uid, gid, owners, results);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown LIZ_CLTOMA_FUSE_GET_QUOTA version: " + std::to_string(version));
+	}
+	MessageBuffer reply;
+	if (status == STATUS_OK) {
+		matocl::fuseGetQuota::serialize(reply, messageId, results);
+	} else {
+		matocl::fuseGetQuota::serialize(reply, messageId, status);
+	}
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
 void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	std::string group;
 	bool wantMore;
@@ -3600,6 +3638,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_FUSE_SET_ACL:
 					matoclserv_fuse_setacl(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_SET_QUOTA:
+					matoclserv_fuse_setquota(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_GET_QUOTA:
+					matoclserv_fuse_getquota(eptr, data, length);
 					break;
 					/* do not use in version before 1.7.x */
 				case CLTOMA_FUSE_GETXATTR:

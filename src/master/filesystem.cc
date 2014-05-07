@@ -47,6 +47,7 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/metadata_dumper.h"
+#include "master/quota_database.h"
 
 #ifdef HAVE_PWD_H
 #  include <pwd.h>
@@ -262,6 +263,8 @@ static uint32_t trashnodes;
 static uint32_t reservednodes;
 static uint32_t filenodes;
 static uint32_t dirnodes;
+
+static QuotaDatabase quotaDatabase;
 
 #ifndef METARESTORE
 
@@ -1130,12 +1133,6 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 		}
 	}
 	return 0;
-}
-
-// quota
-
-static bool fsnodes_quota_exceeded(fsnode*) {
-	return false;
 }
 
 // stats
@@ -3423,11 +3420,6 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	if (length>p->data.fdata.length) {
-		if (fsnodes_quota_exceeded(p)) {
-			return ERROR_QUOTA;
-		}
-	}
 	if (length&MFSCHUNKMASK) {
 		uint32_t indx = (length>>MFSCHUNKBITS);
 		if (indx<p->data.fdata.chunks) {
@@ -3846,9 +3838,6 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_quota_exceeded(wd)) {
-		return ERROR_QUOTA;
-	}
 	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 #ifndef METARESTORE
@@ -3928,9 +3917,6 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_quota_exceeded(wd)) {
-		return ERROR_QUOTA;
-	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,type,mode,umask,uid,gid,0,AclInheritance::kInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
@@ -3987,9 +3973,6 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_quota_exceeded(wd)) {
-		return ERROR_QUOTA;
-	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
@@ -4012,9 +3995,6 @@ uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name
 	}
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
-	}
-	if (fsnodes_quota_exceeded(wd)) {
-		return ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,0,uid,gid,0,AclInheritance::kDontInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
@@ -4279,9 +4259,6 @@ uint8_t fs_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t
 	if (fsnodes_namecheck(nleng_dst,name_dst)<0) {
 		return ERROR_EINVAL;
 	}
-	if (fsnodes_quota_exceeded(dwd)) {
-		return ERROR_QUOTA;
-	}
 	de = fsnodes_lookup(dwd,nleng_dst,name_dst);
 	if (de) {
 		if (de->child->type==TYPE_DIRECTORY && de->child->data.ddata.children!=NULL) {
@@ -4392,9 +4369,6 @@ uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nlen
 	if (fsnodes_nameisused(dwd,nleng_dst,name_dst)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_quota_exceeded(dwd)) {
-		return ERROR_QUOTA;
-	}
 	fsnodes_link(ts,dwd,sp,nleng_dst,name_dst);
 #ifndef METARESTORE
 	*inode = inode_src;
@@ -4488,9 +4462,6 @@ uint8_t fs_snapshot(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint16_t 
 		return ERROR_EACCES;
 	}
 #endif
-	if (fsnodes_quota_exceeded(dwd)) {
-		return ERROR_QUOTA;
-	}
 	status = fsnodes_snapshot_test(sp,sp,dwd,nleng_dst,name_dst,canoverwrite);
 	if (status!=STATUS_OK) {
 		return status;
@@ -4587,11 +4558,6 @@ uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src) {
 	if (!fsnodes_access(p,uid,gid,MODE_MASK_W,sesflags)) {
 		return ERROR_EACCES;
 	}
-#endif
-	if (fsnodes_quota_exceeded(p)) {
-		return ERROR_QUOTA;
-	}
-#ifndef METARESTORE
 	ts = main_time();
 #endif
 	status = fsnodes_appendchunks(ts,p,sp);
@@ -4880,9 +4846,6 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *l
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	if (fsnodes_quota_exceeded(p)) {
-		return ERROR_QUOTA;
-	}
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
 	}
@@ -4946,9 +4909,6 @@ uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_
 	}
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
-	}
-	if (fsnodes_quota_exceeded(p)) {
-		return ERROR_QUOTA;
 	}
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
@@ -5775,6 +5735,67 @@ uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclStri
 		metaversion++;
 	}
 	return status;
+}
+#endif
+
+#ifndef METARESTORE
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
+		std::vector<QuotaOwnerAndLimits>& results) {
+	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+		return ERROR_EPERM;
+	}
+	results = quotaDatabase.getAll();
+	return STATUS_OK;
+}
+
+uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
+		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results) {
+	std::vector<QuotaOwnerAndLimits> tmp;
+	for (const QuotaOwner& owner : owners) {
+		switch (owner.ownerType) {
+		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+			case QuotaOwnerType::kUser:
+				if (uid != owner.ownerId) {
+					return ERROR_EPERM;
+				}
+				break;
+			case QuotaOwnerType::kGroup:
+				if (gid != owner.ownerId && !(sesflags & SESFLAG_IGNOREGID)) {
+					return ERROR_EPERM;
+				}
+				break;
+			default:
+				return ERROR_EINVAL;
+			}
+		}
+		const QuotaLimits *result = quotaDatabase.get(owner.ownerType, owner.ownerId);
+		if (result) {
+			tmp.emplace_back(owner, *result);
+		}
+	}
+	results.swap(tmp);
+	return STATUS_OK;
+}
+
+uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry>& entries) {
+	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+		return ERROR_EPERM;
+	}
+	for (const QuotaEntry& entry : entries) {
+		const QuotaOwner& owner = entry.entryKey.owner;
+		quotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+				owner.ownerId, entry.limit);
+	}
+	return STATUS_OK;
+}
+#else
+uint8_t fs_quota_set(const std::vector<QuotaEntry>& entries) {
+	for (const QuotaEntry& entry : entries) {
+		const QuotaOwner& owner = entry.entryKey.owner;
+		quotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+				owner.ownerId, entry.limit);
+	}
+	return STATUS_OK;
 }
 #endif
 
