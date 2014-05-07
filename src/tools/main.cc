@@ -1936,12 +1936,8 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
-	uint64_t v;
 	uint8_t eattr=0,goal=1,smode=SMODE_SET;
 	uint32_t trashtime=86400;
-	uint32_t sinodes=0,hinodes=0;
-	uint64_t slength=0,hlength=0,ssize=0,hsize=0,srealsize=0,hrealsize=0;
-	uint8_t qflags=0;
 	char *appendfname=NULL;
 	char *hrformat;
 
