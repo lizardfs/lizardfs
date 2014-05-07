@@ -245,7 +245,7 @@
 #define SESFLAG_READONLY          0x01  // meaning is obvious
 #define SESFLAG_DYNAMICIP         0x02  // sessionid can be used by any IP - dangerous for high privileged sessions - one could connect from different computer using stolen session id
 #define SESFLAG_IGNOREGID         0x04  // gid is ignored during access testing (when user id is different from object's uid then or'ed 'group' and 'other' rights are used)
-#define SESFLAG_CANCHANGEQUOTA    0x08  // quota can be set and deleted
+#define SESFLAG_ALLCANCHANGEQUOTA 0x08  // quota can be modified also by a non-root user
 #define SESFLAG_MAPALL            0x10  // all users (except root) are mapped to specific uid and gid
 #define SESFLAG_NOMASTERPERMCHECK 0x20  // disable permission checks in master server
 
@@ -253,7 +253,7 @@
 	"read-only", \
 	"not_restricted_ip", \
 	"ignore_gid", \
-	"can_change_quota", \
+	"all_can_change_quota", \
 	"map_all", \
 	"no_master_permission_check", \
 	"undefined_flag_6", \

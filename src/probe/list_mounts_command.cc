@@ -75,7 +75,7 @@ void ListMountsCommand::run(const Options& options) const {
 		bool readonly = mount.flags & SESFLAG_READONLY;
 		bool restrictedIp = !(mount.flags & SESFLAG_DYNAMICIP);
 		bool ignoregid = mount.flags & SESFLAG_IGNOREGID;
-		bool canChangeQuota = mount.flags & SESFLAG_CANCHANGEQUOTA;
+		bool allCanChangeQuota = mount.flags & SESFLAG_ALLCANCHANGEQUOTA;
 		bool mapAll = mount.flags & SESFLAG_MAPALL;
 		bool shouldPrintGoal = (mount.minGoal >=1 && mount.minGoal <=9)
 				&& (mount.maxGoal >= 1 && mount.maxGoal <= 9);
@@ -95,7 +95,7 @@ void ListMountsCommand::run(const Options& options) const {
 					<< "\tread only: " << (readonly ? "yes" : "no") << '\n'
 					<< "\trestricted ip: " << (restrictedIp ? "yes" : "no") << '\n'
 					<< "\tignore gid: " << (ignoregid ? "yes" : "no") << '\n'
-					<< "\tcan change quota: " << (canChangeQuota ? "yes" : "no") << '\n'
+					<< "\tall can change quota: " << (allCanChangeQuota ? "yes" : "no") << '\n'
 					<< "\tmap all users: " << (mapAll ? "yes" : "no") << std::endl;
 
 			if (options.isSet(kVerboseMode)) {
@@ -126,7 +126,7 @@ void ListMountsCommand::run(const Options& options) const {
 					<< ' ' << (readonly ? "yes" : "no")
 					<< ' ' << (restrictedIp ? "yes" : "no")
 					<< ' ' << (ignoregid ? "yes" : "no")
-					<< ' ' << (canChangeQuota ? "yes" : "no")
+					<< ' ' << (allCanChangeQuota ? "yes" : "no")
 					<< ' ' << (mapAll ? "yes" : "no");
 			if (options.isSet(kVerboseMode)) {
 				if (shouldPrintGoal) {
