@@ -282,7 +282,7 @@ void exports_freelist(exports *arec) {
 //  password=password
 //  dynamicip
 //  ignoregid
-//  canchangequota
+//  allcanchangequota
 //  mingoal=#
 //  maxgoal=#
 //  mintrashtime=[#w][#d][#h][#m][#[s]]
