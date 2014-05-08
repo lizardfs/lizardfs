@@ -1,6 +1,7 @@
 assert_program_installed attr
 
 CHUNKSERVERS=3 \
+	MOUNT_EXTRA_CONFIG="mfsacl" \
 	setup_local_empty_lizardfs info
 
 oldmeta="${TEMP_DIR}/old_metadata"
