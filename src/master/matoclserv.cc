@@ -175,6 +175,8 @@ typedef struct matoclserventry {
 	struct matoclserventry *next;
 } matoclserventry;
 
+typedef std::vector<uint8_t> MessageBuffer;
+
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
 static int lsock;
@@ -671,7 +673,7 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
-void matoclserv_createpacket(matoclserventry *eptr, const std::vector<uint8_t>& buffer) {
+void matoclserv_createpacket(matoclserventry *eptr, const MessageBuffer& buffer) {
 	packetstruct *outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	outpacket->packet = (uint8_t*) malloc(buffer.size());
@@ -1197,7 +1199,7 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 */
 
 static void matoclserv_send_iolimits_cfg(matoclserventry *eptr) {
-	std::vector<uint8_t> buffer;
+	MessageBuffer buffer;
 	matocl::iolimits_config::serialize(buffer, gIoLimitsSubsystem, gIoLimitsDatabase.getGroups(),
 			gIoLimitsRefreshTime * 1000 * 1000);
 	matoclserv_createpacket(eptr, buffer);
@@ -2042,7 +2044,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKNOD) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
 	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKNOD) {
@@ -2092,7 +2094,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKDIR) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
 	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKDIR) {
@@ -3267,7 +3269,7 @@ void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint3
 	cltoma::fuseDeleteAcl::deserialize(data, length, messageId, inode, uid, gid, type);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	uint8_t status = fs_deleteacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type);
 	matocl::fuseDeleteAcl::serialize(reply, messageId, status);
@@ -3280,7 +3282,7 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	AccessControlList acl;
 	uint8_t status = fs_getacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type, acl);
@@ -3299,7 +3301,7 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	uint8_t status = fs_setacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type, std::move(acl));
 	matocl::fuseSetAcl::serialize(reply, messageId, status);
@@ -3331,7 +3333,7 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 		eptr->mode = KILL;
 		return;
 	}
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	matocl::iolimit::serialize(reply, group, limit);
 	matoclserv_createpacket(eptr, reply);
 }
