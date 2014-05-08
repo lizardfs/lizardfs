@@ -18,17 +18,7 @@ mfssettrashtime 0 "$file" "$xorfile"
 rm -f "$file" "$xorfile"
 
 # Wait for removing all the chunks
-hdds=$(cat "${info[chunkserver0_hdd]}" "${info[chunkserver1_hdd]}" "${info[chunkserver2_hdd]}")
 timeout="3 minutes"
-end_time=$(date +%s -d "$timeout")
-echo "Waiting up to $timeout until chunks are removed..."
-while (( $(date +%s) < end_time )); do
-	chunk_count=$(find $hdds -name 'chunk*' | wc -l)
-	if (( chunk_count == 0 )); then
-		test_end
-	fi
-	sleep 1
-done
-chunks=$(find $hdds -name 'chunk*')
-test_add_failure "$chunk_count chunks were not removed within $timeout:
-$chunks"
+if ! wait_for '[[ $(find_all_chunks | wc -l) == 0 ]]' "$timeout"; then
+	test_add_failure $'The following chunks were not removed:\n'"$(find_all_chunks)"
+fi

@@ -228,7 +228,8 @@ find_all_chunks() {
 	local count=${lizardfs_info[chunkserver_count]}
 	local chunkserver
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
-		local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' "${lizardfs_info[chunkserver${chunkserver}_hdd]}")
+		local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
+				"${lizardfs_info[chunkserver${chunkserver}_hdd]}")
 		if (( $# > 0 )); then
 			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
 		else

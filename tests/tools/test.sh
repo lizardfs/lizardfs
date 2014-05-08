@@ -120,7 +120,7 @@ test_cleanup() {
 	fi
 	# Clean the disks used by chunkservers
 	for d in $LIZARDFS_DISKS $LIZARDFS_LOOP_DISKS; do
-		rm -rf "$d"/[0-9A-F][0-9A-F]
+		rm -rf "$d"/chunks[0-9A-F][0-9A-F]
 		rm -f "$d"/.lock
 	done
 }

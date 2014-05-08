@@ -75,24 +75,7 @@ public:
 	static const size_t kMaxPaddingBlockSize = 4096;
 	static const size_t kMaxHeaderSize =
 			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
-
-	uint64_t chunkid;
-	struct folder *owner;
-	uint32_t version;
-	uint16_t blocks;
-	uint16_t crcrefcount;
-	uint8_t opensteps;
-	uint8_t crcsteps;
-	uint8_t crcchanged;
-	ChunkState state;
-	cntcond *ccond;
-	uint8_t *crc;
-	int fd;
-	uint16_t blockExpectedToBeReadNext;
-	uint8_t validattr;
-	uint8_t todel;
-	Chunk *testnext,**testprev;
-	Chunk *next;
+	static const uint32_t kNumberOfSubfolders = 256;
 
 	Chunk(uint64_t chunkId, ChunkType type, ChunkState state);
 	const std::string& filename() const { return filename_; };
@@ -111,6 +94,27 @@ public:
 	void setBlockCountFromFizeSize(off_t fileSize);
 	void setFilename(const std::string& filename) { filename_ = filename; }
 	ChunkType type() const { return type_; }
+	static uint32_t getSubfolderNumber(uint64_t chunkId);
+	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber);
+	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId);
+
+	uint64_t chunkid;
+	struct folder *owner;
+	uint32_t version;
+	uint16_t blocks;
+	uint16_t crcrefcount;
+	uint8_t opensteps;
+	uint8_t crcsteps;
+	uint8_t crcchanged;
+	ChunkState state;
+	cntcond *ccond;
+	uint8_t *crc;
+	int fd;
+	uint16_t blockExpectedToBeReadNext;
+	uint8_t validattr;
+	uint8_t todel;
+	Chunk *testnext,**testprev;
+	Chunk *next;
 
 private:
 	ChunkType type_;

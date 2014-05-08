@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,6 +48,7 @@
 #include "chunkserver/chunk_signature.h"
 #include "common/cfg.h"
 #include "common/crc.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/disk_info.h"
 #include "common/list.h"
@@ -3093,6 +3095,57 @@ static inline void hdd_add_chunk(folder *f,
 	zassert(pthread_mutex_unlock(&folderlock));
 }
 
+// Moves chunks from
+//    XY/chunk_??????????????XY_...
+// to
+//    chunksAB/chunk_??????????AB????_...
+void hdd_folder_migrate_directories(folder *f) {
+	// Allocate memory for directory entries as suggested in man readdir_r
+	long nameMax = pathconf(f->path, _PC_NAME_MAX);
+	if (nameMax == -1) {
+		nameMax = 255;
+	}
+	std::vector<uint8_t> direntry(offsetof(struct dirent, d_name) + nameMax + 1);
+	struct dirent *destorage = reinterpret_cast<struct dirent*>(direntry.data());
+
+	// Look for old folders and move all chunk files from then to new destinations
+	bool migrateMessageWasPrinted = false;
+	for (unsigned oldSubfolderNumber = 0; oldSubfolderNumber < 256; ++oldSubfolderNumber) {
+		char oldSubfolderName[3];
+		sprintf(oldSubfolderName, "%02X", oldSubfolderNumber);
+		std::string oldSubfolderPath = std::string(f->path) + oldSubfolderName + "/";
+		cdirectory_t dd(opendir(oldSubfolderPath.c_str()));
+		if (dd) {
+			if (!migrateMessageWasPrinted) {
+				syslog(LOG_NOTICE, "Migrating data from %s?? to %schunks??", f->path, f->path);
+				migrateMessageWasPrinted = true;
+			}
+			struct dirent *de;
+			while (readdir_r(dd.get(), destorage, &de) == 0 && de != nullptr) {
+				ChunkFilenameParser filenameParser(de->d_name);
+				if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
+					continue;
+				}
+				std::string newSubfolderPath = std::string(f->path) +
+						Chunk::getSubfolderNameGivenChunkId(filenameParser.chunkId()) + "/";
+				std::string oldChunkPath = oldSubfolderPath + de->d_name;
+				std::string newChunkPath = newSubfolderPath + de->d_name;
+				if (rename(oldChunkPath.c_str(), newChunkPath.c_str()) != 0) {
+					syslog(LOG_WARNING, "Can't migrate %s to %s: %s",
+							oldChunkPath.c_str(), newChunkPath.c_str(), strerr(errno));
+					// Probably something is really wrong (ro fs, wrong permissions,
+					// new dirs on a different mountpoint) -- don't try to move any chunks more.
+					return;
+				}
+			}
+			if (rmdir(oldSubfolderPath.c_str()) != 0) {
+				syslog(LOG_WARNING, "Can't remove old directory %s: %s",
+						oldSubfolderPath.c_str(), strerr(errno));
+			}
+		}
+	}
+}
+
 void* hdd_folder_scan(void *arg) {
 	TRACETHIS();
 	folder *f = (folder*)arg;
@@ -3123,12 +3176,18 @@ void* hdd_folder_scan(void *arg) {
 	zassert(pthread_mutex_unlock(&dclock));
 
 	if (todel==0) {
-		for (unsigned subfolderNumber = 0; subfolderNumber < 256; subfolderNumber++) {
-			char subfolderName[3];
-			sprintf(subfolderName, "%02X", subfolderNumber);
-			std::string subfolderPath = std::string(f->path) + subfolderName;
+		for (unsigned subfolderNumber = 0;
+				subfolderNumber < Chunk::kNumberOfSubfolders;
+				++subfolderNumber) {
+			std::string subfolderPath =
+					f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber);
 			mkdir(subfolderPath.c_str(), 0755);
 		}
+		hdd_folder_migrate_directories(f);
+	} else if (access((std::string(f->path) + "00").c_str(), F_OK) == 0) {
+		syslog(LOG_WARNING, "Old chunk directories exist on a hdd marked as 'to remove' (%s). "
+				"This files will not be migrated which makes them not available for reading!",
+				f->path);
 	}
 
 	/* scan new file names */
@@ -3136,15 +3195,21 @@ void* hdd_folder_scan(void *arg) {
 	tcheckcnt = 0;
 	lastperc = 0;
 	lasttime = time(NULL);
-	for (unsigned subfolderNumber = 0; subfolderNumber < 256 && !scanterm ; ++subfolderNumber) {
-		char subfolderName[4];
-		sprintf(subfolderName, "%02X/", subfolderNumber);
-		std::string subfolderPath = std::string(f->path) + subfolderName;
+	for (unsigned subfolderNumber = 0;
+			subfolderNumber < Chunk::kNumberOfSubfolders && !scanterm;
+			++subfolderNumber) {
+		std::string subfolderPath =
+				f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber) + "/";
 		dd = opendir(subfolderPath.c_str());
 		if (dd) {
 			while (readdir_r(dd,destorage,&de)==0 && de!=NULL && !scanterm) {
 				ChunkFilenameParser filenameParser(de->d_name);
 				if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
+					continue;
+				}
+				if (Chunk::getSubfolderNumber(filenameParser.chunkId()) != subfolderNumber) {
+					syslog(LOG_WARNING, "Chunk %s%s placed in a wrong directory; skipping it.",
+							subfolderPath.c_str(), de->d_name);
 					continue;
 				}
 				hdd_add_chunk(f,

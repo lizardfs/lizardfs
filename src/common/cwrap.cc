@@ -1,9 +1,10 @@
 #include "config.h"
 #include "common/cwrap.h"
 
-#include <cstdio>
-
-void CFileCloser::operator()(FILE* file_) const {
-	::std::fclose(file_);
+void CFileCloser::operator()(FILE* file) const {
+	::std::fclose(file);
 }
 
+void CDirCloser::operator()(DIR* dir) const {
+	closedir(dir);
+}

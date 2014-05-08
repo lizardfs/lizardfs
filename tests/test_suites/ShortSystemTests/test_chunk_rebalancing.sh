@@ -5,7 +5,7 @@ rebalancing_timeout=90
 # 9 9 2 1 -- one chunk of one of the chunkservers, two on another, 9 on the last two chunkservers
 get_rebalancing_status() {
 	find_all_chunks ! -name '*_00000000.mfs' \
-			| sed -e 's|/../chunk_[a-z0-9A-F_]*.mfs||' \
+			| sed -e 's|/chunks../chunk_[a-z0-9A-F_]*.mfs||' \
 			| sort \
 			| uniq -c \
 			| sort -rn \

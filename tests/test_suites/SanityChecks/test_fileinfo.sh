@@ -3,27 +3,27 @@ awkscript='
 
 /^\tchunk/ {
 	chunkid = $3
-	dir = substr(chunkid, 15, 2)
+	dir = substr(chunkid, 11, 2)
 	next
 }
 !/^\t\tcopy/ {
-	printf("UNKNOWN LINE: '%s'\n", $0)
+	printf("UNKNOWN LINE: %s\n", $0)
 	exit
 }
 /parity/ {
 	split($3, server, ":")
-	printf "CS%s/%s/chunk_xor_parity_of_%s_%s.mfs\n", server[2], dir, $5, chunkid
+	printf "CS%s/chunks%s/chunk_xor_parity_of_%s_%s.mfs\n", server[2], dir, $5, chunkid
 	next
 }
 /part/ {
 	split($3, server, ":")
 	split($5, part, "/")
-	printf "CS%s/%s/chunk_xor_%s_of_%s_%s.mfs\n", server[2], dir, part[1], part[2], chunkid
+	printf "CS%s/chunks%s/chunk_xor_%s_of_%s_%s.mfs\n", server[2], dir, part[1], part[2], chunkid
 	next
 }
 {
 	split($3, server, ":")
-	printf "CS%s/%s/chunk_%s.mfs\n", server[2], dir, chunkid
+	printf "CS%s/chunks%s/chunk_%s.mfs\n", server[2], dir, chunkid
 	next
 }
 '

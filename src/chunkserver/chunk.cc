@@ -33,8 +33,7 @@ Chunk::Chunk(uint64_t chunkId, ChunkType type, ChunkState state)
 std::string Chunk::generateFilenameForVersion(uint32_t version) const {
 	std::stringstream ss;
 	char buffer[30];
-	sprintf(buffer, "%02X/chunk_", (unsigned)(chunkid & 0xFF));
-	ss << owner->path << buffer;
+	ss << owner->path << Chunk::getSubfolderNameGivenChunkId(chunkid) << "/chunk_";
 	if (type_.isXorChunkType()) {
 		if (type_.isXorParity()) {
 			ss << "xor_parity_of_";
@@ -128,4 +127,19 @@ void Chunk::setBlockCountFromFizeSize(off_t fileSize) {
 	sassert(isFileSizeValid(fileSize));
 	fileSize -= getHeaderSize();
 	blocks = fileSize / MFSBLOCKSIZE;
+}
+
+uint32_t Chunk::getSubfolderNumber(uint64_t chunkId) {
+	return (chunkId >> 16) & 0xFF;
+}
+
+std::string Chunk::getSubfolderNameGivenNumber(uint32_t subfolderNumber) {
+	sassert(subfolderNumber < Chunk::kNumberOfSubfolders);
+	char buffer[16];
+	sprintf(buffer, "chunks%02X", unsigned(subfolderNumber));
+	return std::string(buffer);
+}
+
+std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId) {
+	return Chunk::getSubfolderNameGivenNumber(Chunk::getSubfolderNumber(chunkId));
 }
