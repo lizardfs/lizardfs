@@ -663,7 +663,14 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			}
 			break;
 		case 'a':
-			if (strcmp(p,"alldirs")==0) {
+			if (strcmp(p,"allcanchangequota")==0) {
+				if (arec->meta) {
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+				} else {
+					arec->sesflags |= SESFLAG_ALLCANCHANGEQUOTA;
+				}
+				o=1;
+			} else if (strcmp(p,"alldirs")==0) {
 				if (arec->meta) {
 					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
@@ -675,16 +682,6 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 		case 'd':
 			if (strcmp(p,"dynamicip")==0) {
 				arec->sesflags |= SESFLAG_DYNAMICIP;
-				o=1;
-			}
-			break;
-		case 'c':
-			if (strcmp(p,"allcanchangequota")==0) {
-				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
-				} else {
-					arec->sesflags |= SESFLAG_ALLCANCHANGEQUOTA;
-				}
 				o=1;
 			}
 			break;
