@@ -1,5 +1,5 @@
 #include "config.h"
-#include "probe/server_connection.h"
+#include "common/server_connection.h"
 
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
@@ -18,6 +18,8 @@ ServerConnection::ServerConnection(const std::string& host, const std::string& p
 ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
 	connect(server);
 }
+
+ServerConnection::ServerConnection(int fd) : fd_(fd) { }
 
 ServerConnection::~ServerConnection() {
 	if (fd_ != -1) {

@@ -32,11 +32,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <limits>
+#include <vector>
 
+#include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/human_readable_format.h"
+#include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/mfsstrerr.h"
+#include "common/server_connection.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
 
@@ -1821,6 +1825,12 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 	}
 }
 
+#define check_usage(f, expressionExpectedToBeFalse, ...) \
+	if (expressionExpectedToBeFalse) { \
+		fprintf(stderr, __VA_ARGS__); \
+		usage(f); \
+	}
+
 enum {
 	MFSGETGOAL=1,
 	MFSSETGOAL,
@@ -1834,7 +1844,9 @@ enum {
 	MFSMAKESNAPSHOT,
 	MFSGETEATTR,
 	MFSSETEATTR,
-	MFSDELEATTR
+	MFSDELEATTR,
+	MFSSETQUOTA,
+	MFSREPQUOTA
 };
 
 static inline void print_numberformat_options() {
@@ -1926,8 +1938,136 @@ void usage(int f) {
 			fprintf(stderr," -f attrname - specify attribute to delete\n");
 			print_extra_attributes();
 			break;
+		case MFSREPQUOTA:
+			fprintf(stderr, "summarize quotas for a user/group or all users and groups\n\n"
+					"usage: mfsrepquota [-nhH] <mountpoint-root-path> (-u <uid>|-g <gid>)+\n"
+					"       mfsrepquota [-nhH] <mountpoint-root-path> -a\n");
+			print_numberformat_options();
+			break;
+		case MFSSETQUOTA:
+			fprintf(stderr, "set quotas\n\n"
+					"usage: mfssetquota <mountpoint-root-path> (-u <uid>|-g <gid>) "
+					"<hard-limit-size> <soft-limit-size> "
+					"<hard-limit-inodes> <soft-limit-inodes>\n"
+				    " 0 deletes the limit\n");
+			break;
 	}
 	exit(1);
+}
+
+void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard_limit) {
+	if ((soft_limit > 0) && (usage > soft_limit)) {
+		fputs("+", stdout);
+	} else if ((hard_limit > 0) && (usage >= hard_limit)) {
+		fputs("+", stdout);
+	} else {
+		fputs("-", stdout);
+	}
+}
+
+int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
+		std::vector<int> requestedGid, bool reportAll) {
+	std::vector<uint8_t> serialized;
+	uint32_t uid = getuid();
+	uint32_t gid = getgid();
+	uint32_t messageId = 0;
+	sassert((requestedUids.size() + requestedGid.size() > 0) ^ reportAll);
+	if (reportAll) {
+		cltoma::fuseGetQuota::serialize(serialized, messageId, uid, gid);
+	} else {
+		std::vector<QuotaOwner> requestedEntities;
+		for (auto uid : requestedUids) {
+			requestedEntities.emplace_back(QuotaOwnerType::kUser, uid);
+		}
+		for (auto gid : requestedGid) {
+			requestedEntities.emplace_back(QuotaOwnerType::kGroup, gid);
+		}
+		cltoma::fuseGetQuota::serialize(serialized, messageId, uid, gid, requestedEntities);
+	}
+	uint32_t inode;
+	int fd = open_master_conn(mountPath.c_str(), &inode, nullptr, 0, 0);
+	if (fd < 0) {
+		return -1;
+	}
+	ServerConnection connection(fd);
+	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
+	try {
+		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+				LIZ_MATOCL_FUSE_GET_QUOTA);
+		std::vector<QuotaOwnerAndLimits> parsedResponse;
+		PacketVersion version;
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetQuota::deserialize(response, messageId, status);
+			printf("%s\n", mfsstrerr(status));
+			return status;
+		}
+		matocl::fuseGetQuota::deserialize(response, messageId, parsedResponse);
+		puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
+				"Inodes: current usage, soft limit, hard limit;");
+		for (auto limit : parsedResponse) {
+			std::string line;
+			fputs(limit.owner.ownerType == QuotaOwnerType::kUser ? "User " : "Group", stdout);
+			fputs(" ", stdout);
+			printf("%10" PRIu32, limit.owner.ownerId);
+			fputs(" ", stdout);
+			quota_putc_plus_or_minus(limit.limits.bytes, limit.limits.bytesSoftLimit,
+					limit.limits.bytesHardLimit);
+			quota_putc_plus_or_minus(limit.limits.inodes, limit.limits.inodesSoftLimit,
+					limit.limits.inodesHardLimit);
+			fputs(" ", stdout);
+			print_number("", " ", limit.limits.bytes, 0, 1, 1);
+			print_number("", " ", limit.limits.bytesSoftLimit, 0, 1, 1);
+			print_number("", " ", limit.limits.bytesHardLimit, 0, 1, 1);
+			print_number("", " ", limit.limits.inodes, 0, 0, 1);
+			print_number("", " ", limit.limits.inodesSoftLimit, 0, 0, 1);
+			print_number("", " ", limit.limits.inodesHardLimit, 0, 0, 1);
+			puts("");
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s", e.what());
+		return -1;
+	}
+	return 0;
+}
+
+int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
+		uint64_t quotaSoftInodes, uint64_t quotaHardInodes,
+		uint64_t quotaSoftSize, uint64_t quotaHardSize) {
+	uint32_t uid = getuid();
+	uint32_t gid = getgid();
+
+	std::vector<QuotaEntry> quotaEntries {
+		{QuotaEntryKey(quotaOwner, QuotaRigor::kSoft, QuotaResource::kInodes), quotaSoftInodes},
+		{QuotaEntryKey(quotaOwner, QuotaRigor::kHard, QuotaResource::kInodes), quotaHardInodes},
+		{QuotaEntryKey(quotaOwner, QuotaRigor::kSoft, QuotaResource::kSize),   quotaSoftSize},
+		{QuotaEntryKey(quotaOwner, QuotaRigor::kHard, QuotaResource::kSize),   quotaHardSize},
+	};
+	uint32_t messageId = 0;
+	std::vector<uint8_t> request;
+	cltoma::fuseSetQuota::serialize(request, messageId, uid, gid, quotaEntries);
+	uint32_t inode;
+	int fd = open_master_conn(mountPath.c_str(), &inode, nullptr, 0, 1);
+	if (fd < 0) {
+		return -1;
+	}
+	ServerConnection connection(fd);
+	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
+	try {
+		std::vector<uint8_t> response =
+			connection.sendAndReceive(request, LIZ_MATOCL_FUSE_SET_QUOTA);
+		uint8_t status;
+		matocl::fuseSetQuota::deserialize(response, messageId, status);
+		if (status != STATUS_OK) {
+			printf("%s\n", mfsstrerr(status));
+			return status;
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s", e.what());
+		return -1;
+	}
+	return 0;
 }
 
 int main(int argc,char **argv) {
@@ -1940,7 +2080,6 @@ int main(int argc,char **argv) {
 	uint32_t trashtime=86400;
 	char *appendfname=NULL;
 	char *hrformat;
-
 	strerr_init();
 
 	l = strlen(argv[0]);
@@ -1964,6 +2103,8 @@ int main(int argc,char **argv) {
 			SYMLINK("mfsgeteattr")
 			SYMLINK("mfsseteattr")
 			SYMLINK("mfsdeleattr")
+			SYMLINK("mfsrepquota")
+			SYMLINK("mfssetquota")
 			// deprecated tools:
 			SYMLINK("mfsrgetgoal")
 			SYMLINK("mfsrsetgoal")
@@ -1974,6 +2115,7 @@ int main(int argc,char **argv) {
 			fprintf(stderr,"mfs multi tool\n\nusage:\n\tmfstools create - create symlinks (mfs<toolname> -> %s)\n",argv[0]);
 			fprintf(stderr,"\ntools:\n");
 			fprintf(stderr,"\tmfsgetgoal\n\tmfssetgoal\n\tmfsgettrashtime\n\tmfssettrashtime\n");
+			fprintf(stderr,"\tmfssetquota\n\tmfsrepquota\n");
 			fprintf(stderr,"\tmfscheckfile\n\tmfsfileinfo\n\tmfsappendchunks\n\tmfsdirinfo\n\tmfsfilerepair\n");
 			fprintf(stderr,"\tmfsmakesnapshot\n");
 			fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
@@ -2026,6 +2168,10 @@ int main(int argc,char **argv) {
 		f=MFSFILEREPAIR;
 	} else if (CHECKNAME("mfsmakesnapshot")) {
 		f=MFSMAKESNAPSHOT;
+	} else if (CHECKNAME("mfsrepquota")) {
+		f = MFSREPQUOTA;
+	} else if (CHECKNAME("mfssetquota")) {
+		f = MFSSETQUOTA;
 	} else {
 		fprintf(stderr,"unknown binary name\n");
 		return 1;
@@ -2212,6 +2358,80 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		break;
+	case MFSREPQUOTA:
+	case MFSSETQUOTA: {
+		std::vector<int> uid;
+		std::vector<int> gid;
+		bool reportAll = false;
+		char* endptr = nullptr;
+		std::string mountPath;
+		const char* options = (f == MFSREPQUOTA) ? "nhHu:g:a" : "u:g:";
+		while ((ch = getopt(argc, argv, options)) != -1) {
+			switch (ch) {
+				case 'n':
+					humode = 0;
+					break;
+				case 'h':
+					humode = 1;
+					break;
+				case 'H':
+					humode = 2;
+					break;
+				case 'u':
+					uid.push_back(strtol(optarg, &endptr, 10));
+					check_usage(f, *endptr, "invalid uid: %s\n", optarg);
+					break;
+				case 'g':
+					gid.push_back(strtol(optarg, &endptr, 10));
+					check_usage(f, *endptr, "invalid gid: %s\n", optarg);
+					break;
+				case 'a':
+					reportAll = true;
+					break;
+				default:
+					fprintf(stderr, "invalid argument: %c", (char) ch);
+					usage(f);
+			}
+		}
+		check_usage(f, !((uid.size() + gid.size() != 0) ^ reportAll),
+				"provide either -a flag or uid/gid\n");
+		check_usage(f, f == MFSSETQUOTA && uid.size() + gid.size() != 1,
+				"provide a single user/group id\n");
+
+		argc -= optind;
+		argv += optind;
+
+		check_usage(f, argc == 0, "too few arguments\n");
+		mountPath = argv[0];
+		argc -= 1;
+		argv += 1;
+		if (f == MFSREPQUOTA) {
+			check_usage(f, argc != 0, "too many arguments\n");
+			return quota_rep(mountPath, uid, gid, reportAll);
+		} else {
+			// read quotas: hard size, soft size, hard inodes, soft inodes
+			uint64_t quotaSoftInodes = 0, quotaHardInodes = 0, quotaSoftSize = 0,
+					quotaHardSize = 0;
+			check_usage(f, argc != 4, "expected four values: <hard-limit-size> <soft-limit-size> "
+					"<hard-limit-inodes> <soft-limit-inodes>\n");
+
+			check_usage(f, my_get_number(argv[0], &quotaHardSize, UINT64_MAX, 1) < 0,
+					"hard-limit-size bad value");
+			check_usage(f, my_get_number(argv[1], &quotaSoftSize, UINT64_MAX, 1) < 0,
+					"soft-limit-size bad value");
+			check_usage(f, my_get_number(argv[2], &quotaHardInodes, UINT64_MAX, 0) < 0,
+					"hard-limit-inodes bad value");
+			check_usage(f, my_get_number(argv[3], &quotaSoftInodes, UINT64_MAX, 0) < 0,
+					"soft-limit-inodes bad value");
+
+			sassert(uid.size() + gid.size() == 1);
+			auto quotaOwner = ((uid.size() == 1)
+					? QuotaOwner(QuotaOwnerType::kUser,  uid[0])
+					: QuotaOwner(QuotaOwnerType::kGroup, gid[0]));
+			return quota_set(mountPath, quotaOwner, quotaSoftInodes, quotaHardInodes,
+					quotaSoftSize, quotaHardSize);
+		}
+	}
 	default:
 		while (getopt(argc,argv,"")!=-1);
 		argc -= optind;

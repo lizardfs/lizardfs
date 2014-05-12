@@ -13,7 +13,7 @@
 #include "common/packet.h"
 #include "common/serialization.h"
 #include "common/serialization_macros.h"
-#include "probe/server_connection.h"
+#include "common/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
 

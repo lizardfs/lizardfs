@@ -6,7 +6,7 @@
 #include "common/human_readable_format.h"
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
-#include "probe/server_connection.h"
+#include "common/server_connection.h"
 
 std::string InfoCommand::name() const {
 	return "info";
