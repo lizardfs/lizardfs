@@ -5752,8 +5752,8 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results) {
 	std::vector<QuotaOwnerAndLimits> tmp;
 	for (const QuotaOwner& owner : owners) {
-		switch (owner.ownerType) {
 		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+			switch (owner.ownerType) {
 			case QuotaOwnerType::kUser:
 				if (uid != owner.ownerId) {
 					return ERROR_EPERM;
