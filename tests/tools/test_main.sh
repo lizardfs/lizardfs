@@ -21,3 +21,6 @@ done
 . tools/timeout.sh
 . tools/valgrind.sh
 . tools/time.sh
+. tools/string.sh
+. tools/quota.sh
+
