@@ -8,6 +8,7 @@ master_extra_config+="|BACK_META_KEEP_PREVIOUS = 5"
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl" \
+	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG=$master_extra_config \
 	setup_local_empty_lizardfs info
 
@@ -129,6 +130,8 @@ ln -s file symlink
 mv file file2
 ln -fs file2 symlink
 echo 'abc' > symlink
+mfssetquota -u $(id -u) 10GB 30GB 0 0 .
+mfssetquota -g $(id -g) 0 0 10k 20k .
 touch file{00..99}
 mfssettrashtime 0 file1{0..4}
 rm file1?
