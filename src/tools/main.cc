@@ -1940,15 +1940,15 @@ void usage(int f) {
 			break;
 		case MFSREPQUOTA:
 			fprintf(stderr, "summarize quotas for a user/group or all users and groups\n\n"
-					"usage: mfsrepquota [-nhH] <mountpoint-root-path> (-u <uid>|-g <gid>)+\n"
-					"       mfsrepquota [-nhH] <mountpoint-root-path> -a\n");
+					"usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
+					"       mfsrepquota [-nhH] -a <mountpoint-root-path>\n");
 			print_numberformat_options();
 			break;
 		case MFSSETQUOTA:
 			fprintf(stderr, "set quotas\n\n"
-					"usage: mfssetquota <mountpoint-root-path> (-u <uid>|-g <gid>) "
-					"<hard-limit-size> <soft-limit-size> "
-					"<hard-limit-inodes> <soft-limit-inodes>\n"
+					"usage: mfssetquota (-u <uid>|-g <gid>) "
+					"<soft-limit-size> <hard-limit-size> "
+					"<soft-limit-inodes> <hard-limit-inodes> <mountpoint-root-path>\n"
 				    " 0 deletes the limit\n");
 			break;
 	}
@@ -2401,35 +2401,32 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 
-		check_usage(f, argc == 0, "too few arguments\n");
-		mountPath = argv[0];
-		argc -= 1;
-		argv += 1;
-		if (f == MFSREPQUOTA) {
-			check_usage(f, argc != 0, "too many arguments\n");
-			return quota_rep(mountPath, uid, gid, reportAll);
-		} else {
-			// read quotas: hard size, soft size, hard inodes, soft inodes
+		if (f == MFSSETQUOTA) {
+			check_usage(f, argc != 5, "expected parameters: <hard-limit-size> <soft-limit-size> "
+					"<hard-limit-inodes> <soft-limit-inodes> <mountpoint-root-path>\n");
 			uint64_t quotaSoftInodes = 0, quotaHardInodes = 0, quotaSoftSize = 0,
 					quotaHardSize = 0;
-			check_usage(f, argc != 4, "expected four values: <hard-limit-size> <soft-limit-size> "
-					"<hard-limit-inodes> <soft-limit-inodes>\n");
-
-			check_usage(f, my_get_number(argv[0], &quotaHardSize, UINT64_MAX, 1) < 0,
-					"hard-limit-size bad value");
-			check_usage(f, my_get_number(argv[1], &quotaSoftSize, UINT64_MAX, 1) < 0,
-					"soft-limit-size bad value");
-			check_usage(f, my_get_number(argv[2], &quotaHardInodes, UINT64_MAX, 0) < 0,
-					"hard-limit-inodes bad value");
-			check_usage(f, my_get_number(argv[3], &quotaSoftInodes, UINT64_MAX, 0) < 0,
-					"soft-limit-inodes bad value");
+			check_usage(f, my_get_number(argv[0], &quotaSoftSize, UINT64_MAX, 1) < 0,
+					"soft-limit-size bad value\n");
+			check_usage(f, my_get_number(argv[1], &quotaHardSize, UINT64_MAX, 1) < 0,
+					"hard-limit-size bad value\n");
+			check_usage(f, my_get_number(argv[2], &quotaSoftInodes, UINT64_MAX, 0) < 0,
+					"soft-limit-inodes bad value\n");
+			check_usage(f, my_get_number(argv[3], &quotaHardInodes, UINT64_MAX, 0) < 0,
+					"hard-limit-inodes bad value\n");
 
 			sassert(uid.size() + gid.size() == 1);
 			auto quotaOwner = ((uid.size() == 1)
 					? QuotaOwner(QuotaOwnerType::kUser,  uid[0])
 					: QuotaOwner(QuotaOwnerType::kGroup, gid[0]));
+
+			mountPath = argv[4];
 			return quota_set(mountPath, quotaOwner, quotaSoftInodes, quotaHardInodes,
 					quotaSoftSize, quotaHardSize);
+		} else {
+			check_usage(f, argc != 1, "expected parameter: <mountpoint-root-path>\n");
+			mountPath = argv[0];
+			return quota_rep(mountPath, uid, gid, reportAll);
 		}
 	}
 	default:
