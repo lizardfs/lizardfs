@@ -420,7 +420,7 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"--version");
 			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_mount(NULL,&helpargs);
+			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
 		}
 		exit(0);
 	case KEY_HELP:
@@ -431,7 +431,7 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"-ho");
 			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_mount("",&helpargs);
+			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
 		}
 		exit(1);
 	default:
