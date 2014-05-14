@@ -265,7 +265,7 @@ static uint32_t reservednodes;
 static uint32_t filenodes;
 static uint32_t dirnodes;
 
-static QuotaDatabase quotaDatabase;
+static QuotaDatabase gQuotaDatabase;
 
 #ifndef METARESTORE
 
@@ -532,7 +532,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	addToChecksum(checksum, gFsNodesChecksum);
 	addToChecksum(checksum, gFsEdgesChecksum);
 	addToChecksum(checksum, gXattrChecksum);
-	addToChecksum(checksum, quotaDatabase.checksum());
+	addToChecksum(checksum, gQuotaDatabase.checksum());
 	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
@@ -1141,24 +1141,24 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 
 #ifndef METARESTORE
 static bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return quotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
+	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
 }
 
 static bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return quotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
+	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
 }
 
 static void fsnodes_quota_register_inode(fsnode *node) {
-	quotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
+	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
 }
 
 static void fsnodes_quota_unregister_inode(fsnode *node) {
-	quotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
+	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
 }
 
 static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
 	if (delta != 0) {
-		quotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
+		gQuotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
 	}
 }
 #endif
@@ -5833,7 +5833,7 @@ uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
 	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return ERROR_EPERM;
 	}
-	results = quotaDatabase.getAll();
+	results = gQuotaDatabase.getAll();
 	return STATUS_OK;
 }
 
@@ -5857,7 +5857,7 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 				return ERROR_EINVAL;
 			}
 		}
-		const QuotaLimits *result = quotaDatabase.get(owner.ownerType, owner.ownerId);
+		const QuotaLimits *result = gQuotaDatabase.get(owner.ownerType, owner.ownerId);
 		if (result) {
 			tmp.emplace_back(owner, *result);
 		}
@@ -5872,7 +5872,7 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 	}
 	for (const QuotaEntry& entry : entries) {
 		const QuotaOwner& owner = entry.entryKey.owner;
-		quotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
 				owner.ownerId, entry.limit);
 	}
 	return STATUS_OK;
@@ -5881,7 +5881,7 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 uint8_t fs_quota_set(const std::vector<QuotaEntry>& entries) {
 	for (const QuotaEntry& entry : entries) {
 		const QuotaOwner& owner = entry.entryKey.owner;
-		quotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
 				owner.ownerId, entry.limit);
 	}
 	return STATUS_OK;
@@ -6742,6 +6742,50 @@ void xattr_init(void) {
 	}
 }
 
+template <class... Args>
+static void fs_store_generic(FILE *fd, Args&&... args) {
+	static std::vector<uint8_t> buffer;
+	buffer.clear();
+	const uint32_t size = serializedSize(std::forward<Args>(args)...);
+	serialize(buffer, size, std::forward<Args>(args)...);
+	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return;
+	}
+}
+
+/* For future usage
+static void fs_store_marker(FILE *fd) {
+	const uint32_t zero = 0;
+	if (fwrite(&zero, 1, 4, fd) != 4) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return;
+	}
+}
+*/
+
+template <class... Args>
+static bool fs_load_generic(FILE *fd, Args&&... args) {
+	static std::vector<uint8_t> buffer;
+	uint32_t size;
+	buffer.resize(4);
+	if (fread(buffer.data(), 1, 4, fd) != 4) {
+		throw Exception("fread error (size)");
+	}
+	deserialize(buffer, size);
+	if (size == 0) {
+		// marker
+		return false;
+	}
+	buffer.resize(size);
+	if (fread(buffer.data(), 1, size, fd) != size) {
+		throw Exception("fread error (entry)");
+	}
+	deserialize(buffer, std::forward<Args>(args)...);
+	return true;
+}
+
+
 static void fs_storeacl(fsnode* p, FILE *fd) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
@@ -7487,6 +7531,11 @@ static void fs_storeacls(FILE *fd) {
 	fs_storeacl(nullptr, fd); // end marker
 }
 
+static void fs_storequotas(FILE *fd) {
+	const std::vector<QuotaEntry>& entries = gQuotaDatabase.getEntries();
+	fs_store_generic(fd, entries);
+}
+
 int fs_lostnode(fsnode *p) {
 	uint8_t artname[40];
 	uint32_t i,l;
@@ -7569,6 +7618,23 @@ static int fs_loadacls(FILE *fd, int ignoreflag) {
 			return -1;
 		}
 	} while (s == 0);
+	return 0;
+}
+
+static int fs_loadquotas(FILE *fd, int ignoreflag) {
+	try {
+		std::vector<QuotaEntry> entries;
+		fs_load_generic(fd, entries);
+		for (const auto& entry : entries) {
+			gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
+					entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId, entry.limit);
+		}
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "loading quotas: %s", ex.what());
+		if (!ignoreflag || ex.status() != STATUS_OK) {
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -7760,6 +7826,20 @@ void fs_store(FILE *fd,uint8_t fver) {
 		}
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
+
+		fs_storequotas(fd);
+
+		offend = ftello(fd);
+		memcpy(hdr,"QUOT 1.1",8);
+		ptr = hdr+8;
+		put64bit(&ptr,offend-offbegin-16);
+		fseeko(fd,offbegin,SEEK_SET);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
+		offbegin = offend;
+		fseeko(fd,offbegin+16,SEEK_SET);
 	}
 	chunk_store(fd);
 	if (fver >= kMetadataVersionWithSections) {
@@ -7915,11 +7995,23 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 					return -1;
 				}
 			} else if (memcmp(hdr,"ACLS 1.0",8)==0) {
-				fprintf(stderr,"loading access control lists... ");
+				fprintf(stderr,"loading access control lists ... ");
 				fflush(stderr);
 				if (fs_loadacls(fd, ignoreflag)<0) {
 #ifndef METARESTORE
 					syslog(LOG_ERR,"error reading access control lists");
+#endif
+					return -1;
+				}
+			} else if (memcmp(hdr,"QUOT 1.0",8)==0) {
+				fprintf(stderr,"old quota entries found, ignoring ... ");
+				fseeko(fd,sleng,SEEK_CUR);
+			} else if (memcmp(hdr,"QUOT 1.1",8)==0) {
+				fprintf(stderr,"loading quota entries ... ");
+				fflush(stderr);
+				if (fs_loadquotas(fd, ignoreflag)<0) {
+#ifndef METARESTORE
+					syslog(LOG_ERR,"error reading quota entries");
 #endif
 					return -1;
 				}
