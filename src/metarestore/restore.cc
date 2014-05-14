@@ -503,6 +503,26 @@ int do_setacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 	return fs_setacl(ts, inode, aclType, reinterpret_cast<const char*>(aclString));
 }
 
+int do_setquota(const char *filename, uint64_t lv, uint32_t, char *ptr) {
+	char rigor, resource, ownerType;
+	uint32_t ownerId;
+	uint64_t limit;
+
+	EAT(ptr, filename, lv, '(');
+	GETCHAR(rigor, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(resource, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(ownerType, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(ownerId, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(limit, ptr);
+	EAT(ptr, filename, lv, ')');
+
+	return fs_quota_set(rigor, resource, ownerType, ownerId, limit);
+}
+
 int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,parent,canoverwrite;
 	uint8_t name[256];
@@ -693,6 +713,8 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_setgoal(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"SETPATH",7)==0) {
 				status = do_setpath(filename,lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETQUOTA",8)==0) {
+				status = do_setquota(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
 				status = do_settrashtime(filename,lv,ts,ptr+12);
 			} else if (strncmp(ptr,"SETXATTR",8)==0) {

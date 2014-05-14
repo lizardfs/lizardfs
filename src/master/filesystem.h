@@ -62,6 +62,7 @@ uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_
 uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
 uint8_t fs_deleteacl(uint32_t ts, uint32_t inode, char aclType);
 uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclString);
+uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit);
 
 void fs_dump(void);
 void fs_term(const char *fname);
@@ -136,15 +137,11 @@ uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t uid, uint32_t gid, AclType type, AccessControlList acl);
 
-#ifndef METARESTORE
 uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
 		std::vector<QuotaOwnerAndLimits>& results);
 uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results);
 uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
-#else
-uint8_t fs_quota_set(const std::vector<QuotaEntry>& entries);
-#endif
 
 // RESERVED
 uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);

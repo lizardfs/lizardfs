@@ -2992,6 +2992,21 @@ static uint8_t fsnodes_get_node_for_operation(uint32_t rootinode, uint8_t sesfla
 /* master <-> fuse operations */
 
 #ifdef METARESTORE
+template <class T>
+bool decodeChar(const char *keys, const std::vector<T> values, char key, T& value) {
+	const uint32_t count = strlen(keys);
+	sassert(values.size() == count);
+	for (uint32_t i = 0; i < count; i++) {
+		if (key == keys[i]) {
+			value = values[i];
+			return true;
+		}
+	}
+	return false;
+}
+#endif
+
+#ifdef METARESTORE
 uint8_t fs_access(uint32_t ts,uint32_t inode) {
 	fsnode *p;
 	p = fsnodes_id_to_node(inode);
@@ -5813,13 +5828,11 @@ uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclStri
 	if (!p) {
 		return ERROR_ENOENT;
 	}
-
-	uint8_t status = ERROR_EINVAL;
-	if (aclType == 'd') {
-		status = fsnodes_setacl(p, AclType::kDefault, std::move(acl), ts);
-	} else if (aclType == 'a') {
-		status = fsnodes_setacl(p, AclType::kAccess, std::move(acl), ts);
+	AclType aclTypeEnum;
+	if (!decodeChar("da", {AclType::kDefault, AclType::kAccess}, aclType, aclTypeEnum)) {
+		return ERROR_EINVAL;
 	}
+	uint8_t status = fsnodes_setacl(p, aclTypeEnum, std::move(acl), ts);
 	if (status == STATUS_OK) {
 		metaversion++;
 	}
@@ -5874,16 +5887,31 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 		const QuotaOwner& owner = entry.entryKey.owner;
 		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
 				owner.ownerId, entry.limit);
+		changelog(metaversion++, "%" PRIu32 "|SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
+				main_time(),
+				(entry.entryKey.rigor == QuotaRigor::kSoft)? 'S' : 'H',
+				(entry.entryKey.resource == QuotaResource::kSize)? 'S' : 'I',
+				(owner.ownerType == QuotaOwnerType::kUser)? 'U' : 'G',
+				uint32_t{owner.ownerId}, uint64_t{entry.limit});
 	}
 	return STATUS_OK;
 }
 #else
-uint8_t fs_quota_set(const std::vector<QuotaEntry>& entries) {
-	for (const QuotaEntry& entry : entries) {
-		const QuotaOwner& owner = entry.entryKey.owner;
-		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
-				owner.ownerId, entry.limit);
+uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit) {
+	QuotaRigor quotaRigor;
+	QuotaResource quotaResource;
+	QuotaOwnerType quotaOwnerType;
+	bool valid = true;
+	valid &= decodeChar("SH", {QuotaRigor::kSoft, QuotaRigor::kHard}, rigor, quotaRigor);
+	valid &= decodeChar("SI", {QuotaResource::kSize, QuotaResource::kInodes}, resource,
+				quotaResource);
+	valid &= decodeChar("UG", {QuotaOwnerType::kUser, QuotaOwnerType::kGroup}, ownerType,
+				quotaOwnerType);
+	if (!valid) {
+		return ERROR_EINVAL;
 	}
+	metaversion++;
+	gQuotaDatabase.set(quotaRigor, quotaResource, quotaOwnerType, ownerId, limit);
 	return STATUS_OK;
 }
 #endif
