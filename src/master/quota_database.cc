@@ -55,6 +55,11 @@ public:
 		if (limits != nullptr) {
 			uint64_t limit = extractLimit(*limits, rigor, resource);
 			uint64_t usage = extractUsage(*limits, resource);
+			if (rigor == QuotaRigor::kHard) {
+				// QuotaRigor::kHard is considered exceeded if it is
+				// greater than or equal to the limit, so increment usage by one.
+				++usage;
+			}
 			if (limit != 0 && usage > limit) {
 				return true;
 			}

@@ -105,3 +105,22 @@ TEST(QuotaDatabaseTests, IsExceeded) {
 	EXPECT_FALSE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kSize, 999, 999));
 	EXPECT_FALSE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, 999, 999));
 }
+
+TEST(QuotaDatabaseTests, IsExceededCornerCase) {
+	QuotaDatabase database;
+	database.set(QuotaRigor::kSoft, QuotaResource::kInodes, QuotaOwnerType::kUser, 888, 100);
+	database.set(QuotaRigor::kHard, QuotaResource::kInodes, QuotaOwnerType::kUser, 888, 200);
+
+	database.changeUsage(QuotaResource::kInodes, 888, 888, 100);
+	EXPECT_FALSE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kInodes, 888, 888));
+	EXPECT_FALSE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, 888, 888));
+	database.changeUsage(QuotaResource::kInodes, 888, 888, 1); // 101 now
+	EXPECT_TRUE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kInodes, 888, 888));
+	EXPECT_FALSE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, 888, 888));
+	database.changeUsage(QuotaResource::kInodes, 888, 888, 98); // 199 now
+	EXPECT_TRUE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kInodes, 888, 888));
+	EXPECT_FALSE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, 888, 888));
+	database.changeUsage(QuotaResource::kInodes, 888, 888, 1); // 200 now
+	EXPECT_TRUE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kInodes, 888, 888));
+	EXPECT_TRUE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, 888, 888));
+}
