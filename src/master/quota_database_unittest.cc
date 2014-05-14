@@ -124,3 +124,41 @@ TEST(QuotaDatabaseTests, IsExceededCornerCase) {
 	EXPECT_TRUE(database.isExceeded(QuotaRigor::kSoft, QuotaResource::kInodes, 888, 888));
 	EXPECT_TRUE(database.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, 888, 888));
 }
+
+TEST(QuotaDatabaseTests, Checksum) {
+	QuotaDatabase database;
+	std::vector<uint64_t> checksum(8);
+	checksum[0] = database.checksum();
+	// Collect checksums with single param change
+	database.set(QuotaRigor::kSoft, QuotaResource::kInodes, QuotaOwnerType::kUser, 998, 200);
+	checksum[1] = database.checksum();
+	database.set(QuotaRigor::kSoft, QuotaResource::kInodes, QuotaOwnerType::kUser, 998, 300);
+	checksum[2] = database.checksum();
+	database.set(QuotaRigor::kSoft, QuotaResource::kInodes, QuotaOwnerType::kUser, 999, 200);
+	checksum[3] = database.checksum();
+	database.set(QuotaRigor::kSoft, QuotaResource::kInodes, QuotaOwnerType::kGroup, 998, 200);
+	checksum[4] = database.checksum();
+	database.set(QuotaRigor::kSoft, QuotaResource::kSize, QuotaOwnerType::kUser, 998, 200);
+	checksum[5] = database.checksum();
+	database.set(QuotaRigor::kHard, QuotaResource::kInodes, QuotaOwnerType::kUser, 998, 200);
+	checksum[6] = database.checksum();
+	// Adding another limit changes a checksum
+	database.set(QuotaRigor::kHard, QuotaResource::kInodes, QuotaOwnerType::kGroup, 998, 200);
+	checksum[7] = database.checksum();
+	for (int i = 0; i < 8; ++i) {
+		for (int j = 0; j < 8; ++j) {
+			if (i == j) {
+				continue;
+			}
+			EXPECT_NE(checksum[i], checksum[j]);
+		}
+	}
+
+	// No change use cases:
+	// Rewrite the same limit
+	database.set(QuotaRigor::kHard, QuotaResource::kInodes, QuotaOwnerType::kGroup, 998, 200);
+	EXPECT_EQ(checksum[7], database.checksum());
+	// Set usage
+	database.changeUsage(QuotaResource::kInodes, 998, 998, 500);
+	EXPECT_EQ(checksum[7], database.checksum());
+}

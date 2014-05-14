@@ -532,6 +532,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	addToChecksum(checksum, gFsNodesChecksum);
 	addToChecksum(checksum, gFsEdgesChecksum);
 	addToChecksum(checksum, gXattrChecksum);
+	addToChecksum(checksum, quotaDatabase.checksum());
 	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
