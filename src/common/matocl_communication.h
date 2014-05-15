@@ -9,6 +9,7 @@
 #include "common/MFSCommunication.h"
 #include "common/moosefs_string.h"
 #include "common/packet.h"
+#include "common/quota.h"
 #include "common/serialization_macros.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
@@ -79,6 +80,32 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, iolimit, LIZ_MATOCL_IOLIMIT, 0,
 		std::string, group,
 		uint64_t, limit_Bps)
+
+// LIZ_MATOCL_FUSE_SET_QUOTA
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseSetQuota, LIZ_MATOCL_FUSE_SET_QUOTA, 0,
+		uint32_t, messageId,
+		uint8_t, status)
+
+// LIZ_MATOCL_FUSE_DELETE_QUOTA
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseDeleteQuota, LIZ_MATOCL_FUSE_DELETE_QUOTA, 0,
+		uint32_t, messageId,
+		uint8_t, status)
+
+// LIZ_MATOCL_FUSE_GET_QUOTA
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetQuota, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetQuota, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetQuota, LIZ_MATOCL_FUSE_GET_QUOTA, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetQuota, LIZ_MATOCL_FUSE_GET_QUOTA, kResponsePacketVersion,
+		uint32_t, messageId,
+		std::vector<QuotaOwnerAndLimits>, ownersAndLimits)
 
 namespace matocl {
 

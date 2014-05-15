@@ -1,0 +1,16 @@
+diff --git a/lib/mount.c b/lib/mount.c
+index 6a9da9e..14c9bdf 100644
+--- a/lib/mount.c
++++ b/lib/mount.c
+@@ -83,2 +83,3 @@ struct mount_opts {
+ static const struct fuse_opt fuse_mount_opts[] = {
++	FUSE_OPT_KEY("acl",			KEY_KERN_OPT),
+ 	FUSE_MOUNT_OPT("allow_other",		allow_other),
+@@ -127,2 +128,4 @@ static void mount_help(void)
+ 	fprintf(stderr,
++"    -o acl                 enable access control lists (requires FS\n"
++"                           support and default_permissions enabled)\n"
+ "    -o allow_other         allow access to other users\n"
+-- 
+2.0.0-rc0
+

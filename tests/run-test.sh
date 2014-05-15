@@ -37,6 +37,7 @@ if [[ $# != 1 ]]; then
 fi
 export SOURCE_DIR=$(readlink -m "$(dirname "$0")/..")
 export ERROR_DIR=/tmp/lizardfs_error_dir
+umask 0022
 rm -rf "${ERROR_DIR}"
 mkdir "${ERROR_DIR}"
 chmod 0777 "${ERROR_DIR}"

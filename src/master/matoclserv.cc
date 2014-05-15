@@ -184,6 +184,8 @@ typedef struct matoclserventry {
 	struct matoclserventry *next;
 } matoclserventry;
 
+typedef std::vector<uint8_t> MessageBuffer;
+
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
 static int lsock;
@@ -830,7 +832,7 @@ uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
-void matoclserv_createpacket(matoclserventry *eptr, const std::vector<uint8_t>& buffer) {
+void matoclserv_createpacket(matoclserventry *eptr, const MessageBuffer& buffer) {
 	packetstruct *outpacket = (packetstruct*)malloc(sizeof(packetstruct));
 	passert(outpacket);
 	outpacket->packet = (uint8_t*) malloc(buffer.size());
@@ -1221,18 +1223,6 @@ void matoclserv_chunks_matrix(matoclserventry *eptr,const uint8_t *data,uint32_t
 	chunk_store_chunkcounters(ptr,matrixid);
 }
 
-void matoclserv_quota_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	(void)data;
-	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_QUOTA_INFO - wrong size (%" PRIu32 "/0)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_QUOTA_INFO,fs_getquotainfo_size());
-	fs_getquotainfo_data(ptr);
-}
-
 void matoclserv_exports_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t vmode;
@@ -1402,7 +1392,7 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 */
 
 static void matoclserv_send_iolimits_cfg(matoclserventry *eptr) {
-	std::vector<uint8_t> buffer;
+	MessageBuffer buffer;
 	matocl::iolimits_config::serialize(buffer, gIoLimitsSubsystem, gIoLimitsDatabase.getGroups(),
 			gIoLimitsRefreshTime * 1000 * 1000);
 	matoclserv_createpacket(eptr, buffer);
@@ -2248,7 +2238,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKNOD) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
 	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKNOD) {
@@ -2298,7 +2288,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKDIR) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
 	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKDIR) {
@@ -2942,21 +2932,13 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, const uint8_t *data, uint32_
 
 	uint32_t changed = 0, notchanged = 0, notpermitted = 0, quotaexceeded = 0;
 	if (status == STATUS_OK) {
-#if VERSHEX>=0x010700
-		status = fs_setgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, uid, goal,
-				smode, &changed, &notchanged, &notpermitted, &quotaexceeded);
-#else
 		status = fs_setgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, uid, goal,
 				smode, &changed, &notchanged, &notpermitted);
-#endif
 	}
 
 	std::vector<uint8_t> outMessage;
 	if (status != STATUS_OK) {
 		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL, messageId, status);
-	} else if (eptr->version >= 0x010700) {
-		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL,
-				messageId, changed, notchanged, notpermitted, quotaexceeded);
 	} else {
 		serializeMooseFsPacket(outMessage, MATOCL_FUSE_SETGOAL,
 				messageId, changed, notchanged, notpermitted);
@@ -3209,60 +3191,6 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t
 	put8bit(&ptr,status);
 }
 
-void matoclserv_fuse_quotacontrol(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t flags,del;
-	uint32_t sinodes,hinodes,curinodes;
-	uint64_t slength,ssize,srealsize,hlength,hsize,hrealsize,curlength,cursize,currealsize;
-	uint32_t msgid,inode;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=65 && length!=9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_QUOTACONTROL - wrong size (%" PRIu32 ")",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	flags = get8bit(&data);
-	if (length==65) {
-		sinodes = get32bit(&data);
-		slength = get64bit(&data);
-		ssize = get64bit(&data);
-		srealsize = get64bit(&data);
-		hinodes = get32bit(&data);
-		hlength = get64bit(&data);
-		hsize = get64bit(&data);
-		hrealsize = get64bit(&data);
-		del=0;
-	} else {
-		del=1;
-	}
-	if (flags && eptr->sesdata->rootuid!=0) {
-		status = ERROR_EACCES;
-	} else {
-		status = fs_quotacontrol(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,del,&flags,&sinodes,&slength,&ssize,&srealsize,&hinodes,&hlength,&hsize,&hrealsize,&curinodes,&curlength,&cursize,&currealsize);
-	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_QUOTACONTROL,(status!=STATUS_OK)?5:89);
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put8bit(&ptr,flags);
-		put32bit(&ptr,sinodes);
-		put64bit(&ptr,slength);
-		put64bit(&ptr,ssize);
-		put64bit(&ptr,srealsize);
-		put32bit(&ptr,hinodes);
-		put64bit(&ptr,hlength);
-		put64bit(&ptr,hsize);
-		put64bit(&ptr,hrealsize);
-		put32bit(&ptr,curinodes);
-		put64bit(&ptr,curlength);
-		put64bit(&ptr,cursize);
-		put64bit(&ptr,currealsize);
-	}
-}
-
 void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,inodes,files,dirs,chunks;
 	uint64_t leng,size,rsize;
@@ -3498,7 +3426,7 @@ void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint3
 	cltoma::fuseDeleteAcl::deserialize(data, length, messageId, inode, uid, gid, type);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	uint8_t status = fs_deleteacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type);
 	matocl::fuseDeleteAcl::serialize(reply, messageId, status);
@@ -3511,7 +3439,7 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	AccessControlList acl;
 	uint8_t status = fs_getacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type, acl);
@@ -3530,10 +3458,48 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	uint8_t status = fs_setacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, type, std::move(acl));
 	matocl::fuseSetAcl::serialize(reply, messageId, status);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_setquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId, uid, gid;
+	std::vector<QuotaEntry> entries;
+	cltoma::fuseSetQuota::deserialize(data, length, messageId, uid, gid, entries);
+	matoclserv_ugid_remap(eptr, &uid, NULL);
+	uint8_t status = fs_quota_set(eptr->sesdata->sesflags, uid, entries);
+	MessageBuffer reply;
+	matocl::fuseSetQuota::serialize(reply, messageId, status);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t version, messageId, uid, gid;
+	std::vector<QuotaOwnerAndLimits> results;
+	uint8_t status;
+	deserializePacketVersionNoHeader(data, length, version);
+	if (version == cltoma::fuseGetQuota::kAllLimits) {
+		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid);
+		matoclserv_ugid_remap(eptr, &uid, &gid);
+		status = fs_quota_get_all(eptr->sesdata->sesflags, uid, results);
+	} else if (version == cltoma::fuseGetQuota::kSelectedLimits) {
+		std::vector<QuotaOwner> owners;
+		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid, owners);
+		matoclserv_ugid_remap(eptr, &uid, &gid);
+		status = fs_quota_get(eptr->sesdata->sesflags, uid, gid, owners, results);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown LIZ_CLTOMA_FUSE_GET_QUOTA version: " + std::to_string(version));
+	}
+	MessageBuffer reply;
+	if (status == STATUS_OK) {
+		matocl::fuseGetQuota::serialize(reply, messageId, results);
+	} else {
+		matocl::fuseGetQuota::serialize(reply, messageId, status);
+	}
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
@@ -3562,7 +3528,7 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 		eptr->mode = KILL;
 		return;
 	}
-	std::vector<uint8_t> reply;
+	MessageBuffer reply;
 	matocl::iolimit::serialize(reply, group, limit);
 	matoclserv_createpacket(eptr, reply);
 }
@@ -3675,9 +3641,6 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_CHUNKS_MATRIX:
 					matoclserv_chunks_matrix(eptr,data,length);
-					break;
-				case CLTOMA_QUOTA_INFO:
-					matoclserv_quota_info(eptr,data,length);
 					break;
 				case CLTOMA_EXPORTS_INFO:
 					matoclserv_exports_info(eptr,data,length);
@@ -3845,15 +3808,18 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_FUSE_SET_ACL:
 					matoclserv_fuse_setacl(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_FUSE_SET_QUOTA:
+					matoclserv_fuse_setquota(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_FUSE_GET_QUOTA:
+					matoclserv_fuse_getquota(eptr, data, length);
+					break;
 					/* do not use in version before 1.7.x */
 				case CLTOMA_FUSE_GETXATTR:
 					matoclserv_fuse_getxattr(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_SETXATTR:
 					matoclserv_fuse_setxattr(eptr,data,length);
-					break;
-				case CLTOMA_FUSE_QUOTACONTROL:
-					matoclserv_fuse_quotacontrol(eptr,data,length);
 					break;
 					/* for tools - also should be available for registered clients */
 				case CLTOMA_CSERV_LIST:
@@ -3879,9 +3845,6 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_CHUNKS_MATRIX:
 					matoclserv_chunks_matrix(eptr,data,length);
-					break;
-				case CLTOMA_QUOTA_INFO:
-					matoclserv_quota_info(eptr,data,length);
 					break;
 				case CLTOMA_EXPORTS_INFO:
 					matoclserv_exports_info(eptr,data,length);
@@ -3948,10 +3911,6 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_SETEATTR:
 					matoclserv_fuse_seteattr(eptr,data,length);
-					break;
-					/* do not use in version before 1.7.x */
-				case CLTOMA_FUSE_QUOTACONTROL:
-					matoclserv_fuse_quotacontrol(eptr,data,length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);

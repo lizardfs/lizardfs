@@ -16,7 +16,9 @@ set(MFSTOOL_LINKS
   mfsrgetgoal
   mfsrsetgoal
   mfsrgettrashtime
-  mfsrsettrashtime)
+  mfsrsettrashtime
+  mfssetquota
+  mfsrepquota)
 
 collect_sources(TOOLS)
 

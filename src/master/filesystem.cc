@@ -34,6 +34,7 @@
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/massert.h"
@@ -43,6 +44,7 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/metadata_dumper.h"
+#include "master/quota_database.h"
 
 #ifdef HAVE_PWD_H
 #  include <pwd.h>
@@ -144,20 +146,6 @@ typedef struct _statsrecord {
 } statsrecord;
 #endif
 
-typedef struct _quotanode {
-	uint8_t exceeded;       // hard quota exceeded or soft quota reached time limit
-	uint8_t flags;
-	uint32_t stimestamp;    // time when soft quota exceeded
-	uint32_t sinodes,hinodes;
-	uint64_t slength,hlength;
-	uint64_t ssize,hsize;
-	uint64_t srealsize,hrealsize;
-	fsnode *node;
-	struct _quotanode *next,**prev;
-} quotanode;
-
-static quotanode *quotahead;
-
 struct xattr_data_entry {
 	uint32_t inode;
 	uint8_t anleng;
@@ -180,10 +168,6 @@ struct xattr_inode_entry {
 static xattr_inode_entry **xattr_inode_hash;
 static xattr_data_entry **xattr_data_hash;
 
-#ifndef METARESTORE
-static uint32_t QuotaTimeLimit;
-#endif
-
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
@@ -201,11 +185,9 @@ public:
 			fsedge *children;
 			uint32_t nlink;
 			uint32_t elements;
-//                      uint8_t quotaexceeded:1;        // quota exceeded
 #ifndef METARESTORE
 			statsrecord *stats;
 #endif
-			quotanode *quota;
 		} ddata;
 		struct _sdata {                         // type==TYPE_SYMLINK
 			uint32_t pleng;
@@ -278,6 +260,8 @@ static uint32_t trashnodes;
 static uint32_t reservednodes;
 static uint32_t filenodes;
 static uint32_t dirnodes;
+
+static QuotaDatabase gQuotaDatabase;
 
 #ifndef METARESTORE
 
@@ -544,6 +528,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	addToChecksum(checksum, gFsNodesChecksum);
 	addToChecksum(checksum, gFsEdgesChecksum);
 	addToChecksum(checksum, gXattrChecksum);
+	addToChecksum(checksum, gQuotaDatabase.checksum());
 	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
@@ -1148,125 +1133,31 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 	return 0;
 }
 
-// quotas
-
-static inline quotanode* fsnodes_new_quotanode(fsnode *p) {
-	quotanode *qn;
-	qn = (quotanode*) malloc(sizeof(quotanode));
-	passert(qn);
-	memset(qn,0,sizeof(quotanode));
-	qn->next = quotahead;
-	if (qn->next) {
-		qn->next->prev = &(qn->next);
-	}
-	qn->prev = &(quotahead);
-	quotahead = qn;
-	qn->node = p;
-	p->data.ddata.quota = qn;
-	return qn;
-}
-
-static inline void fsnodes_delete_quotanode(fsnode *p) {
-	quotanode *qn = p->data.ddata.quota;
-	if (qn) {
-		*(qn->prev) = qn->next;
-		if (qn->next) {
-			qn->next->prev = qn->prev;
-		}
-		free(qn);
-		p->data.ddata.quota = NULL;
-	}
-}
+// quota
 
 #ifndef METARESTORE
-static inline void fsnodes_check_quotanode(quotanode *qn,uint32_t ts) {
-	statsrecord *psr = qn->node->data.ddata.stats;
-	uint8_t hq,sq,chg,exceeded;
-	hq=0;
-	if (qn->flags&QUOTA_FLAG_HINODES) {
-		if (psr->inodes>qn->hinodes) {
-			hq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_HLENGTH) {
-		if (psr->length>qn->hlength) {
-			hq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_HSIZE) {
-		if (psr->size>qn->hsize) {
-			hq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_HREALSIZE) {
-		if (psr->realsize>qn->hrealsize) {
-			hq=1;
-		}
-	}
-	sq=0;
-	if (qn->flags&QUOTA_FLAG_SINODES) {
-		if (psr->inodes>qn->sinodes) {
-			sq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_SLENGTH) {
-		if (psr->length>qn->slength) {
-			sq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_SSIZE) {
-		if (psr->size>qn->ssize) {
-			sq=1;
-		}
-	}
-	if (qn->flags&QUOTA_FLAG_SREALSIZE) {
-		if (psr->realsize>qn->srealsize) {
-			sq=1;
-		}
-	}
-	chg = 0;
-	if (sq==0 && qn->stimestamp>0) {
-		qn->stimestamp = 0;
-		chg = 1;
-	} else if (sq && qn->stimestamp==0) {
-		qn->stimestamp = ts;
-		chg = 1;
-	}
-	exceeded = (hq || (qn->stimestamp && qn->stimestamp+QuotaTimeLimit<ts))?1:0;
-	if (qn->exceeded != exceeded) {
-		qn->exceeded = exceeded;
-		chg = 1;
-	}
-	if (chg) {
-		changelog(metaversion++,"%" PRIu32 "|QUOTA(%" PRIu32 ",%" PRIu8 ",%" PRIu8 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ")",ts,qn->node->id,qn->exceeded,qn->flags,qn->stimestamp,qn->sinodes,qn->hinodes,qn->slength,qn->hlength,qn->ssize,qn->hsize,qn->srealsize,qn->hrealsize);
-	}
+static bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid) {
+	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
 }
 
-void fsnodes_check_all_quotas(void) {
-	quotanode *qn;
-	uint32_t now = main_time();
-	for (qn = quotahead ; qn ; qn=qn->next) {
-		fsnodes_check_quotanode(qn,now);
+static bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid) {
+	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
+}
+
+static void fsnodes_quota_register_inode(fsnode *node) {
+	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
+}
+
+static void fsnodes_quota_unregister_inode(fsnode *node) {
+	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
+}
+
+static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
+	if (delta != 0) {
+		gQuotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
 	}
 }
 #endif
-
-static inline uint8_t fsnodes_test_quota(fsnode *node) {
-	fsedge *e;
-	if (node) {
-		if (node->type==TYPE_DIRECTORY && node->data.ddata.quota && node->data.ddata.quota->exceeded) {
-			return 1;
-		}
-		if (node!=root) {
-			for (e=node->parents ; e ; e=e->nextparent) {
-				if (fsnodes_test_quota(e->parent)) {
-					return 1;
-				}
-			}
-		}
-	}
-	return 0;
-}
 
 // stats
 #ifndef METARESTORE
@@ -1385,6 +1276,12 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 		sr->size = 0;
 		sr->realsize = 0;
 	}
+}
+
+static int64_t fsnodes_get_size(fsnode *node) {
+	statsrecord sr;
+	fsnodes_get_stats(node, &sr);
+	return sr.size;
 }
 
 static inline void fsnodes_sub_stats(fsnode *parent,statsrecord *sr) {
@@ -1770,7 +1667,6 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
 #endif
-		p->data.ddata.quota = NULL;
 		p->data.ddata.children = NULL;
 		p->data.ddata.nlink = 2;
 		p->data.ddata.elements = 0;
@@ -1816,6 +1712,12 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	p->checksum = 0;
 	fsnodes_update_checksum(p);
 	fsnodes_link(ts,node,p,nleng,name);
+#ifndef METARESTORE
+	fsnodes_quota_register_inode(p);
+	if (type == TYPE_FILE) {
+		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+	}
+#endif
 	return p;
 }
 
@@ -2139,6 +2041,7 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 	for (e=dstobj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(dstobj, nsr.size - psr.size);
 #endif
 #ifdef METARESTORE
 	dstobj->mtime = ts;
@@ -2239,6 +2142,7 @@ static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(obj, nsr.size - psr.size);
 #endif
 	fsnodes_update_checksum(obj);
 }
@@ -2265,7 +2169,6 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	nodes--;
 	if (toremove->type==TYPE_DIRECTORY) {
 		dirnodes--;
-		fsnodes_delete_quotanode(toremove);
 #ifndef METARESTORE
 		free(toremove->data.ddata.stats);
 /*
@@ -2278,6 +2181,9 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	if (toremove->type==TYPE_FILE || toremove->type==TYPE_TRASH || toremove->type==TYPE_RESERVED) {
 		uint32_t i;
 		uint64_t chunkid;
+#ifndef METARESTORE
+		fsnodes_quota_update_size(toremove, -fsnodes_get_size(toremove));
+#endif
 		filenodes--;
 		for (i=0 ; i<toremove->data.fdata.chunks ; i++) {
 			chunkid = toremove->data.fdata.chunktab[i];
@@ -2298,6 +2204,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	xattr_removeinode(toremove->id);
 #ifndef METARESTORE
 	dcm_modify(toremove->id,0);
+	fsnodes_quota_unregister_inode(toremove);
 #endif
 	delete toremove;
 }
@@ -2480,11 +2387,6 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 	p = root;
 	is_new = 0;
 	for (;;) {
-#ifndef METARESTORE
-		if (p->data.ddata.quota && p->data.ddata.quota->exceeded) {
-			return ERROR_QUOTA;
-		}
-#endif
 		partleng=0;
 		while (path[partleng]!='/' && partleng<pleng) {
 			partleng++;
@@ -2641,14 +2543,8 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 
 #endif
 
-#if VERSHEX>=0x010700
-static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t quota,
-		uint8_t goal, uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes,
-		uint32_t *qeinodes) {
-#else
 static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal,
 		uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
-#endif
 	fsedge *e;
 
 	if (node->type==TYPE_FILE
@@ -2673,17 +2569,9 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 				break;
 			}
 			if (set) {
-				if (node->type != TYPE_DIRECTORY) {
-#if VERSHEX>=0x010700
-					if (quota && goal > node->goal) {
-						(*qeinodes)++;
-					} else {
-#endif
-						fsnodes_changefilegoal(node, goal);
-						(*sinodes)++;
-#if VERSHEX>=0x010700
-					}
-#endif
+				if (node->type!=TYPE_DIRECTORY) {
+					fsnodes_changefilegoal(node,goal);
+					(*sinodes)++;
 				} else {
 					node->goal = goal;
 					(*sinodes)++;
@@ -2702,17 +2590,8 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 			}
 		}
 		if (node->type == TYPE_DIRECTORY && (smode & SMODE_RMASK)) {
-#if VERSHEX>=0x010700
-			if (quota==0 && node->data.ddata.quota && node->data.ddata.quota->exceeded) {
-				quota=1;
-			}
-#endif
 			for (e = node->data.ddata.children ; e ; e=e->nextchild) {
-#if VERSHEX>=0x010700
-				fsnodes_setgoal_recursive(e->child,ts,uid,quota,goal,smode,sinodes,ncinodes,nsinodes,qeinodes);
-#else
 				fsnodes_setgoal_recursive(e->child,ts,uid,goal,smode,sinodes,ncinodes,nsinodes);
-#endif
 			}
 		}
 	}
@@ -2872,6 +2751,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&nsr);
 				fsnodes_add_sub_stats(parentnode,&nsr,&psr);
+				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
 /*
 #ifdef CACHENOTIFY
 				if (dstnode->data.fdata.length>0) {
@@ -2958,6 +2838,7 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 #ifndef METARESTORE
 				fsnodes_get_stats(dstnode,&nsr);
 				fsnodes_add_sub_stats(parentnode,&nsr,&psr);
+				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
 #endif
 			} else if (srcnode->type==TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng>0) {
@@ -2989,6 +2870,14 @@ static inline uint8_t fsnodes_snapshot_test(fsnode *origsrcnode,fsnode *srcnode,
 	fsedge *e;
 	fsnode *dstnode;
 	uint8_t status;
+#ifndef METARESTORE
+	if (fsnodes_inode_quota_exceeded(srcnode->uid, srcnode->gid)) {
+		return ERROR_QUOTA;
+	}
+	if (srcnode->type == TYPE_FILE && fsnodes_size_quota_exceeded(srcnode->uid, srcnode->gid)) {
+		return ERROR_QUOTA;
+	}
+#endif
 	if ((e=fsnodes_lookup(parentnode,nleng,name))) {
 		dstnode = e->child;
 		if (dstnode==origsrcnode) {
@@ -3169,6 +3058,21 @@ static uint8_t fsnodes_get_node_for_operation(uint32_t rootinode, uint8_t sesfla
 #endif
 
 /* master <-> fuse operations */
+
+#ifdef METARESTORE
+template <class T>
+bool decodeChar(const char *keys, const std::vector<T> values, char key, T& value) {
+	const uint32_t count = strlen(keys);
+	sassert(values.size() == count);
+	for (uint32_t i = 0; i < count; i++) {
+		if (key == keys[i]) {
+			value = values[i];
+			return true;
+		}
+	}
+	return false;
+}
+#endif
 
 #ifdef METARESTORE
 uint8_t fs_access(uint32_t ts,uint32_t inode) {
@@ -3429,7 +3333,6 @@ uint8_t fs_getrootinode(uint32_t *rootinode,const uint8_t *path) {
 
 void fs_statfs(uint32_t rootinode,uint8_t sesflags,uint64_t *totalspace,uint64_t *availspace,uint64_t *trspace,uint64_t *respace,uint32_t *inodes) {
 	fsnode *rn;
-	quotanode *qn;
 	statsrecord sr;
 	(void)sesflags;
 	if (rootinode==MFS_ROOT_ID) {
@@ -3449,17 +3352,6 @@ void fs_statfs(uint32_t rootinode,uint8_t sesflags,uint64_t *totalspace,uint64_t
 		matocsserv_getspace(totalspace,availspace);
 		fsnodes_get_stats(rn,&sr);
 		*inodes = sr.inodes;
-		qn = rn->data.ddata.quota;
-		if (qn && (qn->flags&QUOTA_FLAG_HREALSIZE)) {
-			if (sr.realsize>=qn->hrealsize) {
-				*availspace = 0;
-			} else if (*availspace > qn->hrealsize - sr.realsize) {
-				*availspace = qn->hrealsize - sr.realsize;
-			}
-			if (*totalspace > qn->hrealsize) {
-				*totalspace = qn->hrealsize;
-			}
-		}
 		if (sr.realsize + *availspace < *totalspace) {
 			*totalspace = sr.realsize + *availspace;
 		}
@@ -3667,11 +3559,6 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	if (length>p->data.fdata.length) {
-		if (fsnodes_test_quota(p)) {
-			return ERROR_QUOTA;
-		}
-	}
 	if (length&MFSCHUNKMASK) {
 		uint32_t indx = (length>>MFSCHUNKBITS);
 		if (indx<p->data.fdata.chunks) {
@@ -3687,7 +3574,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 							inode, p->data.fdata.length, length);
 				}
 				status = chunk_multi_truncate(&nchunkid, ochunkid, length & MFSCHUNKMASK, p->goal,
-						truncatingUpwards);
+						truncatingUpwards, fsnodes_size_quota_exceeded(p->uid, p->gid));
 				if (status!=STATUS_OK) {
 					return status;
 				}
@@ -3907,11 +3794,23 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	if (setmask&SET_MODE_FLAG) {
 		p->mode = (attrmode & 07777) | (p->mode & 0xF000);
 	}
-	if (setmask&SET_UID_FLAG) {
-		p->uid = attruid;
-	}
-	if (setmask&SET_GID_FLAG) {
-		p->gid = attrgid;
+	if (setmask & (SET_UID_FLAG | SET_GID_FLAG)) {
+		int64_t size;
+		fsnodes_quota_unregister_inode(p);
+		if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
+			size = fsnodes_get_size(p);
+			fsnodes_quota_update_size(p, -size);
+		}
+		if (setmask&SET_UID_FLAG) {
+			p->uid = attruid;
+		}
+		if (setmask&SET_GID_FLAG) {
+			p->gid = attrgid;
+		}
+		fsnodes_quota_register_inode(p);
+		if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
+			fsnodes_quota_update_size(p, +size);
+		}
 	}
 	if (setmask&SET_ATIME_NOW_FLAG) {
 		p->atime = ts;
@@ -4098,9 +3997,11 @@ uint8_t fs_symlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *nam
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_test_quota(wd)) {
+#ifndef METARESTORE
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
 		return ERROR_QUOTA;
 	}
+#endif
 	newpath = (uint8_t*) malloc(pleng);
 	passert(newpath);
 #ifndef METARESTORE
@@ -4180,7 +4081,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_test_quota(wd)) {
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
 		return ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,type,mode,umask,uid,gid,0,AclInheritance::kInheritAcl);
@@ -4239,7 +4140,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_test_quota(wd)) {
+	if (fsnodes_inode_quota_exceeded(uid, gid)) {
 		return ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
@@ -4264,9 +4165,6 @@ uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name
 	}
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
-	}
-	if (fsnodes_test_quota(wd)) {
-		return ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,0,uid,gid,0,AclInheritance::kDontInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
@@ -4531,9 +4429,6 @@ uint8_t fs_move(uint32_t ts,uint32_t parent_src,uint32_t nleng_src,const uint8_t
 	if (fsnodes_namecheck(nleng_dst,name_dst)<0) {
 		return ERROR_EINVAL;
 	}
-	if (fsnodes_test_quota(dwd)) {
-		return ERROR_QUOTA;
-	}
 	de = fsnodes_lookup(dwd,nleng_dst,name_dst);
 	if (de) {
 		if (de->child->type==TYPE_DIRECTORY && de->child->data.ddata.children!=NULL) {
@@ -4644,9 +4539,6 @@ uint8_t fs_link(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint32_t nlen
 	if (fsnodes_nameisused(dwd,nleng_dst,name_dst)) {
 		return ERROR_EEXIST;
 	}
-	if (fsnodes_test_quota(dwd)) {
-		return ERROR_QUOTA;
-	}
 	fsnodes_link(ts,dwd,sp,nleng_dst,name_dst);
 #ifndef METARESTORE
 	*inode = inode_src;
@@ -4740,9 +4632,6 @@ uint8_t fs_snapshot(uint32_t ts,uint32_t inode_src,uint32_t parent_dst,uint16_t 
 		return ERROR_EACCES;
 	}
 #endif
-	if (fsnodes_test_quota(dwd)) {
-		return ERROR_QUOTA;
-	}
 	status = fsnodes_snapshot_test(sp,sp,dwd,nleng_dst,name_dst,canoverwrite);
 	if (status!=STATUS_OK) {
 		return status;
@@ -4839,11 +4728,9 @@ uint8_t fs_append(uint32_t ts,uint32_t inode,uint32_t inode_src) {
 	if (!fsnodes_access(p,uid,gid,MODE_MASK_W,sesflags)) {
 		return ERROR_EACCES;
 	}
-#endif
-	if (fsnodes_test_quota(p)) {
+	if (fsnodes_size_quota_exceeded(p->uid, p->gid)) {
 		return ERROR_QUOTA;
 	}
-#ifndef METARESTORE
 	ts = main_time();
 #endif
 	status = fsnodes_appendchunks(ts,p,sp);
@@ -5133,15 +5020,16 @@ uint8_t fs_writechunk(uint32_t inode, uint32_t indx, bool usedummylockid,
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	if (fsnodes_test_quota(p)) {
-		return ERROR_QUOTA;
-	}
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
 	}
+	const bool quota_exceeded = fsnodes_size_quota_exceeded(p->uid, p->gid);
 	fsnodes_get_stats(p,&psr);
 	/* resize chunks structure */
 	if (indx>=p->data.fdata.chunks) {
+		if (quota_exceeded) {
+			return ERROR_QUOTA;
+		}
 		uint32_t newsize;
 		if (indx<8) {
 			newsize=indx+1;
@@ -5162,7 +5050,8 @@ uint8_t fs_writechunk(uint32_t inode, uint32_t indx, bool usedummylockid,
 		p->data.fdata.chunks = newsize;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_modify(&nchunkid,ochunkid,p->goal,opflag,lockid,usedummylockid);
+	status = chunk_multi_modify(&nchunkid, ochunkid, p->goal, opflag, lockid, usedummylockid,
+			quota_exceeded);
 	if (status!=STATUS_OK) {
 		fsnodes_update_checksum(p);
 		return status;
@@ -5172,6 +5061,7 @@ uint8_t fs_writechunk(uint32_t inode, uint32_t indx, bool usedummylockid,
 	for (e=p->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(p, nsr.size - psr.size);
 	*chunkid = nchunkid;
 	*length = p->data.fdata.length;
 	changelog(metaversion++,"%" PRIu32 "|WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu32 "):%" PRIu64,ts,inode,indx,*opflag,lockid,nchunkid);
@@ -5200,9 +5090,6 @@ uint8_t fs_write(uint32_t ts, uint32_t inode, uint32_t indx,
 	}
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
-	}
-	if (fsnodes_test_quota(p)) {
-		return ERROR_QUOTA;
 	}
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
@@ -5357,6 +5244,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	for (e=p->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
+	fsnodes_quota_update_size(p, nsr.size - psr.size);
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
@@ -5532,24 +5420,12 @@ uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t g
 #endif
 
 #ifndef METARESTORE
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes,uint32_t *qeinodes) {
-#else
 uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes) {
-#endif
 	uint32_t ts;
 	fsnode *rn;
 #else
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes,uint32_t qeinodes) {
-	uint32_t si,nci,nsi,qei;
-#else
 uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes) {
 	uint32_t si,nci,nsi;
-#endif
-#endif
-#if VERSHEX>=0x010700
-	uint8_t quota;
 #endif
 	fsnode *p;
 
@@ -5559,16 +5435,10 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 	*sinodes = 0;
 	*ncinodes = 0;
 	*nsinodes = 0;
-#if VERSHEX>=0x010700
-	*qeinodes = 0;
-#endif
 #else
 	si = 0;
 	nci = 0;
 	nsi = 0;
-#if VERSHEX>=0x010700
-	qei = 0;
-#endif
 #endif
 	if (!SMODE_ISVALID(smode) || !isGoalValid(goal) ||
 			(smode & (SMODE_INCREASE | SMODE_DECREASE) && isXorGoal(goal))) {
@@ -5614,40 +5484,21 @@ uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t 
 		return ERROR_EPERM;
 	}
 
-#if VERSHEX>=0x010700
-	quota = fsnodes_test_quota(p);
-#endif
 #ifndef METARESTORE
-#if VERSHEX>=0x010700
-	fsnodes_setgoal_recursive(p,ts,uid,quota,goal,smode,sinodes,ncinodes,nsinodes,qeinodes);
-#else
 	fsnodes_setgoal_recursive(p,ts,uid,goal,smode,sinodes,ncinodes,nsinodes);
-#endif
 	if ((smode&SMODE_RMASK)==0 && *nsinodes>0 && *sinodes==0 && *ncinodes==0) {
 		return ERROR_EPERM;
 	}
 #else
-#if VERSHEX>=0x010700
-	fsnodes_setgoal_recursive(p,ts,uid,quota,goal,smode,&si,&nci,&nsi,&qei);
-#else
 	fsnodes_setgoal_recursive(p,ts,uid,goal,smode,&si,&nci,&nsi);
-#endif
 #endif
 
 #ifndef METARESTORE
-#if VERSHEX>=0x010700
-	changelog(metaversion++,"%" PRIu32 "|SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32,ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes,*qeinodes);
-#else
 	changelog(metaversion++,"%" PRIu32 "|SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,ts,inode,uid,goal,smode,*sinodes,*ncinodes,*nsinodes);
-#endif
 	return STATUS_OK;
 #else
 	metaversion++;
-#if VERSHEX>=0x010700
-	if (sinodes!=si || ncinodes!=nci || nsinodes!=nsi || (qeinodes!=qei && qeinodes!=UINT32_C(0xFFFFFFFF))) {
-#else
 	if (sinodes!=si || ncinodes!=nci || nsinodes!=nsi) {
-#endif
 		return ERROR_MISMATCH;
 	}
 	return STATUS_OK;
@@ -6059,13 +5910,11 @@ uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclStri
 	if (!p) {
 		return ERROR_ENOENT;
 	}
-
-	uint8_t status = ERROR_EINVAL;
-	if (aclType == 'd') {
-		status = fsnodes_setacl(p, AclType::kDefault, std::move(acl), ts);
-	} else if (aclType == 'a') {
-		status = fsnodes_setacl(p, AclType::kAccess, std::move(acl), ts);
+	AclType aclTypeEnum;
+	if (!decodeChar("da", {AclType::kDefault, AclType::kAccess}, aclType, aclTypeEnum)) {
+		return ERROR_EINVAL;
 	}
+	uint8_t status = fsnodes_setacl(p, aclTypeEnum, std::move(acl), ts);
 	if (status == STATUS_OK) {
 		metaversion++;
 	}
@@ -6074,289 +5923,82 @@ uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclStri
 #endif
 
 #ifndef METARESTORE
-uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t delflag,uint8_t *flags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize,uint32_t *curinodes,uint64_t *curlength,uint64_t *cursize,uint64_t *currealsize) {
-	fsnode *p,*rn;
-	quotanode *qn;
-	statsrecord *psr;
-	uint8_t chg;
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
+		std::vector<QuotaOwnerAndLimits>& results) {
+	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+		return ERROR_EPERM;
+	}
+	results = gQuotaDatabase.getAll();
+	return STATUS_OK;
+}
 
-	if (*flags) {
-		if (sesflags&SESFLAG_READONLY) {
-			return ERROR_EROFS;
+uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
+		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results) {
+	std::vector<QuotaOwnerAndLimits> tmp;
+	for (const QuotaOwner& owner : owners) {
+		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+			switch (owner.ownerType) {
+			case QuotaOwnerType::kUser:
+				if (uid != owner.ownerId) {
+					return ERROR_EPERM;
+				}
+				break;
+			case QuotaOwnerType::kGroup:
+				if (gid != owner.ownerId && !(sesflags & SESFLAG_IGNOREGID)) {
+					return ERROR_EPERM;
+				}
+				break;
+			default:
+				return ERROR_EINVAL;
+			}
 		}
-		if ((sesflags&SESFLAG_CANCHANGEQUOTA)==0) {
-			return ERROR_EPERM;
+		const QuotaLimits *result = gQuotaDatabase.get(owner.ownerType, owner.ownerId);
+		if (result) {
+			tmp.emplace_back(owner, *result);
 		}
 	}
-	if (rootinode==0) {
+	results.swap(tmp);
+	return STATUS_OK;
+}
+
+uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry>& entries) {
+	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return ERROR_EPERM;
 	}
-	if (rootinode==MFS_ROOT_ID) {
-		p = fsnodes_id_to_node(inode);
-		if (!p) {
-			return ERROR_ENOENT;
-		}
-	} else {
-		rn = fsnodes_id_to_node(rootinode);
-		if (!rn || rn->type!=TYPE_DIRECTORY) {
-			return ERROR_ENOENT;
-		}
-		if (inode==MFS_ROOT_ID) {
-			p = rn;
-		} else {
-			p = fsnodes_id_to_node(inode);
-			if (!p) {
-				return ERROR_ENOENT;
-			}
-			if (!fsnodes_isancestor(rn,p)) {
-				return ERROR_EPERM;
-			}
-		}
+	for (const QuotaEntry& entry : entries) {
+		const QuotaOwner& owner = entry.entryKey.owner;
+		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+				owner.ownerId, entry.limit);
+		changelog(metaversion++, "%" PRIu32 "|SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
+				main_time(),
+				(entry.entryKey.rigor == QuotaRigor::kSoft)? 'S' : 'H',
+				(entry.entryKey.resource == QuotaResource::kSize)? 'S' : 'I',
+				(owner.ownerType == QuotaOwnerType::kUser)? 'U' : 'G',
+				uint32_t{owner.ownerId}, uint64_t{entry.limit});
 	}
-	if (p->type!=TYPE_DIRECTORY) {
-		return ERROR_EPERM;
-	}
-	qn = p->data.ddata.quota;
-	chg = (*flags)?1:0;
-	if (delflag) {
-		if (qn) {
-			qn->flags &= ~(*flags);
-			if (qn->flags==0) {
-				chg = 1;
-				fsnodes_delete_quotanode(p);
-				qn=NULL;
-			}
-		}
-	} else {
-		if (qn==NULL && (*flags)!=0) {
-			qn = fsnodes_new_quotanode(p);
-		}
-		if (qn) {
-			qn->flags |= *flags;
-			if ((*flags)&QUOTA_FLAG_SINODES) {
-				qn->sinodes = *sinodes;
-			}
-			if ((*flags)&QUOTA_FLAG_SLENGTH) {
-				qn->slength = *slength;
-			}
-			if ((*flags)&QUOTA_FLAG_SSIZE) {
-				qn->ssize = *ssize;
-			}
-			if ((*flags)&QUOTA_FLAG_SREALSIZE) {
-				qn->srealsize = *srealsize;
-			}
-			if ((*flags)&QUOTA_FLAG_HINODES) {
-				qn->hinodes = *hinodes;
-			}
-			if ((*flags)&QUOTA_FLAG_HLENGTH) {
-				qn->hlength = *hlength;
-			}
-			if ((*flags)&QUOTA_FLAG_HSIZE) {
-				qn->hsize = *hsize;
-			}
-			if ((*flags)&QUOTA_FLAG_HREALSIZE) {
-				qn->hrealsize = *hrealsize;
-			}
-		}
-	}
-	if (qn) {
-		if (((qn->flags)&QUOTA_FLAG_SINODES)==0) {
-			qn->sinodes = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_HINODES)==0) {
-			qn->hinodes = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_SLENGTH)==0) {
-			qn->slength = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_HLENGTH)==0) {
-			qn->hlength = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_SSIZE)==0) {
-			qn->ssize = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_HSIZE)==0) {
-			qn->hsize = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_SREALSIZE)==0) {
-			qn->srealsize = 0;
-		}
-		if (((qn->flags)&QUOTA_FLAG_HREALSIZE)==0) {
-			qn->hrealsize = 0;
-		}
-		*flags = qn->flags;
-		*sinodes = qn->sinodes;
-		*slength = qn->slength;
-		*ssize = qn->ssize;
-		*srealsize = qn->srealsize;
-		*hinodes = qn->hinodes;
-		*hlength = qn->hlength;
-		*hsize = qn->hsize;
-		*hrealsize = qn->hrealsize;
-	} else {
-		*flags = 0;
-		*sinodes = 0;
-		*slength = 0;
-		*ssize = 0;
-		*srealsize = 0;
-		*hinodes = 0;
-		*hlength = 0;
-		*hsize = 0;
-		*hrealsize = 0;
-	}
-	psr = p->data.ddata.stats;
-	*curinodes = psr->inodes;
-	*curlength = psr->length;
-	*cursize = psr->size;
-	*currealsize = psr->realsize;
-#if VERSHEX>=0x010700
-	if (chg) {
-		if (qn) {
-			changelog(metaversion++,"%" PRIu32 "|QUOTA(%" PRIu32 ",%" PRIu8 ",%" PRIu8 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ")",main_time(),inode,qn->exceeded,qn->flags,qn->stimestamp,qn->sinodes,qn->hinodes,qn->slength,qn->hlength,qn->ssize,qn->hsize,qn->srealsize,qn->hrealsize);
-		} else {
-			changelog(metaversion++,"%" PRIu32 "|QUOTA(%" PRIu32 ",0,0,0,0,0,0,0,0,0,0,0)",main_time(),inode);
-		}
-	}
-#else
-	(void)chg;
-#endif
 	return STATUS_OK;
 }
 #else
-uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize) {
-	fsnode *p;
-#if VERSHEX>=0x010700
-	quotanode *qn;
-#endif
-
-	(void)ts;
-	p = fsnodes_id_to_node(inode);
-	if (!p) {
-		return ERROR_ENOENT;
+uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit) {
+	QuotaRigor quotaRigor;
+	QuotaResource quotaResource;
+	QuotaOwnerType quotaOwnerType;
+	bool valid = true;
+	valid &= decodeChar("SH", {QuotaRigor::kSoft, QuotaRigor::kHard}, rigor, quotaRigor);
+	valid &= decodeChar("SI", {QuotaResource::kSize, QuotaResource::kInodes}, resource,
+				quotaResource);
+	valid &= decodeChar("UG", {QuotaOwnerType::kUser, QuotaOwnerType::kGroup}, ownerType,
+				quotaOwnerType);
+	if (!valid) {
+		return ERROR_EINVAL;
 	}
-	if (p->type!=TYPE_DIRECTORY) {
-		return ERROR_EPERM;
-	}
-#if VERSHEX>=0x010700
-	qn = p->data.ddata.quota;
-	if (flags==0) {
-		if (qn!=NULL) {
-			fsnodes_delete_quotanode(p);
-		}
-	} else {
-		if (qn==NULL) {
-			qn = fsnodes_new_quotanode(p);
-		}
-		qn->flags = flags;
-		qn->exceeded = exceeded;
-		qn->stimestamp = stimestamp;
-		qn->sinodes = sinodes;
-		qn->slength = slength;
-		qn->ssize = ssize;
-		qn->srealsize = srealsize;
-		qn->hinodes = hinodes;
-		qn->hlength = hlength;
-		qn->hsize = hsize;
-		qn->hrealsize = hrealsize;
-	}
-#else
-	(void)flags;
-	(void)exceeded;
-	(void)stimestamp;
-	(void)sinodes;
-	(void)slength;
-	(void)ssize;
-	(void)srealsize;
-	(void)hinodes;
-	(void)hlength;
-	(void)hsize;
-	(void)hrealsize;
-#endif
 	metaversion++;
+	gQuotaDatabase.set(quotaRigor, quotaResource, quotaOwnerType, ownerId, limit);
 	return STATUS_OK;
 }
 #endif
 
 #ifndef METARESTORE
-uint32_t fs_getquotainfo_size() {
-	quotanode *qn;
-	uint32_t s=0,size;
-	for (qn=quotahead ; qn ; qn=qn->next) {
-		size=fsnodes_getpath_size(qn->node->parents);
-		s+=4+4+1+1+4+3*(4+8+8+8)+1+size;
-	}
-	return s;
-}
-
-void fs_getquotainfo_data(uint8_t * buff) {
-	quotanode *qn;
-	statsrecord *psr;
-	uint32_t size;
-	uint32_t ts = main_time();
-	for (qn=quotahead ; qn ; qn=qn->next) {
-		psr = qn->node->data.ddata.stats;
-		put32bit(&buff,qn->node->id);
-		size=fsnodes_getpath_size(qn->node->parents);
-		put32bit(&buff,size+1);
-		put8bit(&buff,'/');
-		fsnodes_getpath_data(qn->node->parents,buff,size);
-		buff+=size;
-		put8bit(&buff,qn->exceeded);
-		put8bit(&buff,qn->flags);
-		if (qn->stimestamp==0) {                                        // soft quota not exceeded
-			put32bit(&buff,0xFFFFFFFF);                             // time to block = INF
-		} else if (qn->stimestamp+QuotaTimeLimit<ts) {                  // soft quota timed out
-			put32bit(&buff,0);                                      // time to block = 0 (blocked)
-		} else {                                                        // soft quota exceeded, but not timed out
-			put32bit(&buff,qn->stimestamp+QuotaTimeLimit-ts);
-		}
-		if (qn->flags&QUOTA_FLAG_SINODES) {
-			put32bit(&buff,qn->sinodes);
-		} else {
-			put32bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_SLENGTH) {
-			put64bit(&buff,qn->slength);
-		} else {
-			put64bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_SSIZE) {
-			put64bit(&buff,qn->ssize);
-		} else {
-			put64bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_SREALSIZE) {
-			put64bit(&buff,qn->srealsize);
-		} else {
-			put64bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_HINODES) {
-			put32bit(&buff,qn->hinodes);
-		} else {
-			put32bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_HLENGTH) {
-			put64bit(&buff,qn->hlength);
-		} else {
-			put64bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_HSIZE) {
-			put64bit(&buff,qn->hsize);
-		} else {
-			put64bit(&buff,0);
-		}
-		if (qn->flags&QUOTA_FLAG_HREALSIZE) {
-			put64bit(&buff,qn->hrealsize);
-		} else {
-			put64bit(&buff,0);
-		}
-		put32bit(&buff,psr->inodes);
-		put64bit(&buff,psr->length);
-		put64bit(&buff,psr->size);
-		put64bit(&buff,psr->realsize);
-	}
-}
-
 uint32_t fs_getdirpath_size(uint32_t inode) {
 	fsnode *node;
 	node = fsnodes_id_to_node(inode);
@@ -7210,6 +6852,50 @@ void xattr_init(void) {
 	}
 }
 
+template <class... Args>
+static void fs_store_generic(FILE *fd, Args&&... args) {
+	static std::vector<uint8_t> buffer;
+	buffer.clear();
+	const uint32_t size = serializedSize(std::forward<Args>(args)...);
+	serialize(buffer, size, std::forward<Args>(args)...);
+	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return;
+	}
+}
+
+/* For future usage
+static void fs_store_marker(FILE *fd) {
+	const uint32_t zero = 0;
+	if (fwrite(&zero, 1, 4, fd) != 4) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return;
+	}
+}
+*/
+
+template <class... Args>
+static bool fs_load_generic(FILE *fd, Args&&... args) {
+	static std::vector<uint8_t> buffer;
+	uint32_t size;
+	buffer.resize(4);
+	if (fread(buffer.data(), 1, 4, fd) != 4) {
+		throw Exception("fread error (size)");
+	}
+	deserialize(buffer, size);
+	if (size == 0) {
+		// marker
+		return false;
+	}
+	buffer.resize(size);
+	if (fread(buffer.data(), 1, size, fd) != size) {
+		throw Exception("fread error (entry)");
+	}
+	deserialize(buffer, std::forward<Args>(args)...);
+	return true;
+}
+
+
 static void fs_storeacl(fsnode* p, FILE *fd) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
@@ -7768,7 +7454,6 @@ int fs_loadnode(FILE *fd) {
 		memset(sr,0,sizeof(statsrecord));
 		p->data.ddata.stats = sr;
 #endif
-		p->data.ddata.quota = NULL;
 		p->data.ddata.children = NULL;
 		p->data.ddata.nlink = 2;
 		p->data.ddata.elements = 0;
@@ -7883,6 +7568,9 @@ int fs_loadnode(FILE *fd) {
 #endif
 			sessionids--;
 		}
+#ifndef METARESTORE
+		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+#endif
 /*
 #ifdef CACHENOTIFY
 		p->data.fdata.lastattrchange=0;
@@ -7901,6 +7589,9 @@ int fs_loadnode(FILE *fd) {
 	if (type==TYPE_FILE || type==TYPE_TRASH || type==TYPE_RESERVED) {
 		filenodes++;
 	}
+#ifndef METARESTORE
+	fsnodes_quota_register_inode(p);
+#endif
 	return 0;
 }
 
@@ -7948,6 +7639,11 @@ static void fs_storeacls(FILE *fd) {
 		}
 	}
 	fs_storeacl(nullptr, fd); // end marker
+}
+
+static void fs_storequotas(FILE *fd) {
+	const std::vector<QuotaEntry>& entries = gQuotaDatabase.getEntries();
+	fs_store_generic(fd, entries);
 }
 
 int fs_lostnode(fsnode *p) {
@@ -8032,6 +7728,23 @@ static int fs_loadacls(FILE *fd, int ignoreflag) {
 			return -1;
 		}
 	} while (s == 0);
+	return 0;
+}
+
+static int fs_loadquotas(FILE *fd, int ignoreflag) {
+	try {
+		std::vector<QuotaEntry> entries;
+		fs_load_generic(fd, entries);
+		for (const auto& entry : entries) {
+			gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
+					entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId, entry.limit);
+		}
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "loading quotas: %s", ex.what());
+		if (!ignoreflag || ex.status() != STATUS_OK) {
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -8135,141 +7848,6 @@ int fs_loadfree(FILE *fd) {
 	return 0;
 }
 
-// quota entry:
-// inode:4 exceeded:1 flags:1 ts:4 sinodes:4 hinodes:4 slength:8 hlength:8 ssize:8 hsize:8 srealsize:8 hrealsize:8 = 66B
-
-void fs_storequota(FILE *fd) {
-	uint8_t wbuff[66*100],*ptr;
-	quotanode *qn;
-	uint32_t l;
-	l=0;
-	for (qn = quotahead ; qn ; qn=qn->next) {
-		l++;
-	}
-	ptr = wbuff;
-	put32bit(&ptr,l);
-	if (fwrite(wbuff,1,4,fd)!=(size_t)4) {
-		syslog(LOG_NOTICE,"fwrite error");
-		return;
-	}
-	l=0;
-	ptr=wbuff;
-	for (qn = quotahead ; qn ; qn=qn->next) {
-		if (l==100) {
-			if (fwrite(wbuff,1,66*100,fd)!=(size_t)(66*100)) {
-				syslog(LOG_NOTICE,"fwrite error");
-				return;
-			}
-			l=0;
-			ptr=wbuff;
-		}
-		put32bit(&ptr,qn->node->id);
-		put8bit(&ptr,qn->exceeded);
-		put8bit(&ptr,qn->flags);
-		put32bit(&ptr,qn->stimestamp);
-		put32bit(&ptr,qn->sinodes);
-		put32bit(&ptr,qn->hinodes);
-		put64bit(&ptr,qn->slength);
-		put64bit(&ptr,qn->hlength);
-		put64bit(&ptr,qn->ssize);
-		put64bit(&ptr,qn->hsize);
-		put64bit(&ptr,qn->srealsize);
-		put64bit(&ptr,qn->hrealsize);
-		l++;
-	}
-	if (l>0) {
-		if (fwrite(wbuff,1,66*l,fd)!=(66*l)) {
-			syslog(LOG_NOTICE,"fwrite error");
-			return;
-		}
-	}
-}
-
-int fs_loadquota(FILE *fd,int ignoreflag) {
-	uint8_t rbuff[66*100];
-	const uint8_t *ptr;
-	quotanode *qn;
-	fsnode *fn;
-	uint32_t l,t,id;
-	uint8_t nl=1;
-
-	if (fread(rbuff,1,4,fd)!=4) {
-		int err = errno;
-		if (nl) {
-			fputc('\n',stderr);
-		}
-		errno = err;
-		mfs_errlog(LOG_ERR,"loading quota: read error");
-		return -1;
-	}
-	ptr=rbuff;
-	t = get32bit(&ptr);
-	quotahead = NULL;
-	l=0;
-	while (t>0) {
-		if (l==0) {
-			if (t>100) {
-				if (fread(rbuff,1,66*100,fd)!=66*100) {
-					int err = errno;
-					if (nl) {
-						fputc('\n',stderr);
-					}
-					errno = err;
-					mfs_errlog(LOG_ERR,"loading quota: read error");
-					return -1;
-				}
-				l=100;
-			} else {
-				if (fread(rbuff,1,66*t,fd)!=66*t) {
-					int err = errno;
-					if (nl) {
-						fputc('\n',stderr);
-					}
-					errno = err;
-					mfs_errlog(LOG_ERR,"loading free nodes: read error");
-					return -1;
-				}
-				l=t;
-			}
-			ptr = rbuff;
-		}
-		id = get32bit(&ptr);
-		fn = fsnodes_id_to_node(id);
-		if (fn==NULL || fn->type!=TYPE_DIRECTORY) {
-			if (nl) {
-				fputc('\n',stderr);
-				nl=0;
-			}
-			fprintf(stderr,"quota defined for %s inode: %" PRIu32 "\n",(fn==NULL)?"non existing":"not directory",id);
-#ifndef METARESTORE
-			syslog(LOG_ERR,"quota defined for %s inode: %" PRIu32,(fn==NULL)?"non existing":"not directory",id);
-#endif
-			if (ignoreflag) {
-				ptr+=62;
-			} else {
-				fprintf(stderr,"use mfsmetarestore (option -i) to remove this quota definition");
-				return -1;
-			}
-		} else {
-			qn = fsnodes_new_quotanode(fn);
-			qn->exceeded = get8bit(&ptr);
-			qn->flags = get8bit(&ptr);
-			qn->stimestamp = get32bit(&ptr);
-			qn->sinodes = get32bit(&ptr);
-			qn->hinodes = get32bit(&ptr);
-			qn->slength = get64bit(&ptr);
-			qn->hlength = get64bit(&ptr);
-			qn->ssize = get64bit(&ptr);
-			qn->hsize = get64bit(&ptr);
-			qn->srealsize = get64bit(&ptr);
-			qn->hrealsize = get64bit(&ptr);
-		}
-		l--;
-		t--;
-	}
-	return 0;
-}
-
 void fs_store(FILE *fd,uint8_t fver) {
 	uint8_t hdr[16];
 	uint8_t *ptr;
@@ -8331,20 +7909,6 @@ void fs_store(FILE *fd,uint8_t fver) {
 		offbegin = offend;
 		fseeko(fd,offbegin+16,SEEK_SET);
 
-		fs_storequota(fd);
-
-		offend = ftello(fd);
-		memcpy(hdr,"QUOT 1.0",8);
-		ptr = hdr+8;
-		put64bit(&ptr,offend-offbegin-16);
-		fseeko(fd,offbegin,SEEK_SET);
-		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
-			syslog(LOG_NOTICE,"fwrite error");
-			return;
-		}
-		offbegin = offend;
-		fseeko(fd,offbegin+16,SEEK_SET);
-
 		xattr_store(fd);
 
 		offend = ftello(fd);
@@ -8363,6 +7927,20 @@ void fs_store(FILE *fd,uint8_t fver) {
 
 		offend = ftello(fd);
 		memcpy(hdr,"ACLS 1.0",8);
+		ptr = hdr+8;
+		put64bit(&ptr,offend-offbegin-16);
+		fseeko(fd,offbegin,SEEK_SET);
+		if (fwrite(hdr,1,16,fd)!=(size_t)16) {
+			syslog(LOG_NOTICE,"fwrite error");
+			return;
+		}
+		offbegin = offend;
+		fseeko(fd,offbegin+16,SEEK_SET);
+
+		fs_storequotas(fd);
+
+		offend = ftello(fd);
+		memcpy(hdr,"QUOT 1.1",8);
 		ptr = hdr+8;
 		put64bit(&ptr,offend-offbegin-16);
 		fseeko(fd,offbegin,SEEK_SET);
@@ -8518,15 +8096,6 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 #endif
 					return -1;
 				}
-			} else if (memcmp(hdr,"QUOT 1.0",8)==0) {
-				fprintf(stderr,"loading quota definitions ... ");
-				fflush(stderr);
-				if (fs_loadquota(fd,ignoreflag)<0) {
-#ifndef METARESTORE
-					syslog(LOG_ERR,"error reading metadata (quota)");
-#endif
-					return -1;
-				}
 			} else if (memcmp(hdr,"XATR 1.0",8)==0) {
 				fprintf(stderr,"loading extra attributes (xattr) ... ");
 				fflush(stderr);
@@ -8537,11 +8106,23 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 					return -1;
 				}
 			} else if (memcmp(hdr,"ACLS 1.0",8)==0) {
-				fprintf(stderr,"loading access control lists... ");
+				fprintf(stderr,"loading access control lists ... ");
 				fflush(stderr);
 				if (fs_loadacls(fd, ignoreflag)<0) {
 #ifndef METARESTORE
 					syslog(LOG_ERR,"error reading access control lists");
+#endif
+					return -1;
+				}
+			} else if (memcmp(hdr,"QUOT 1.0",8)==0) {
+				fprintf(stderr,"old quota entries found, ignoring ... ");
+				fseeko(fd,sleng,SEEK_CUR);
+			} else if (memcmp(hdr,"QUOT 1.1",8)==0) {
+				fprintf(stderr,"loading quota entries ... ");
+				fflush(stderr);
+				if (fs_loadquotas(fd, ignoreflag)<0) {
+#ifndef METARESTORE
+					syslog(LOG_ERR,"error reading quota entries");
 #endif
 					return -1;
 				}
@@ -8620,7 +8201,6 @@ void fs_new(void) {
 	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
 	root->data.ddata.stats = sr;
-	root->data.ddata.quota = NULL;
 	root->data.ddata.children = NULL;
 	root->data.ddata.elements = 0;
 	root->data.ddata.nlink = 2;
@@ -8634,6 +8214,7 @@ void fs_new(void) {
 	dirnodes=1;
 	filenodes=0;
 	fs_checksum(ChecksumMode::kForceRecalculate);
+	fsnodes_quota_register_inode(root);
 }
 #endif
 
@@ -8813,7 +8394,6 @@ void fs_term(const char *fname) {
 #endif
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataFSConsistencyException, MetadataException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataConsistencyException, MetadataException);
 char const BackupNewerThanCurrentMsg[] =
@@ -8964,9 +8544,6 @@ void fs_strinit(void) {
 	reservedspace = 0;
 	trashnodes = 0;
 	reservednodes = 0;
-#ifndef METARESTORE
-	quotahead = NULL;
-#endif
 	xattr_init();
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		nodehash[i]=NULL;
@@ -8985,9 +8562,6 @@ void fs_cs_disconnected(void) {
 }
 
 void fs_reload(void) {
-#if VERSHEX>=0x010700
-	QuotaTimeLimit = cfg_getuint32("QUOTA_TIME_LIMIT",7*86400);
-#endif
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
@@ -9014,11 +8588,6 @@ int fs_init(void) {
 	}
 
 	fprintf(stderr,"metadata file has been loaded\n");
-#if VERSHEX>=0x010700
-	QuotaTimeLimit = cfg_getuint32("QUOTA_TIME_LIMIT",7*86400);
-#else
-	QuotaTimeLimit = 7*86400;       // for tests
-#endif
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
@@ -9030,7 +8599,6 @@ int fs_init(void) {
 
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,fsnodes_check_all_quotas);
 	main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
 	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_emptytrash);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_emptyreserved);

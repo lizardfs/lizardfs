@@ -37,9 +37,12 @@
 #include <time.h>
 #include <unistd.h>
 #include <atomic>
+#include <memory>
 
 #include "common/cfg.h"
 #include "common/crc.h"
+#include "common/cwrap.h"
+#include "common/exceptions.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/slogger.h"
@@ -64,13 +67,15 @@
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
-#define RM_RESTART 0
-#define RM_START 1
-#define RM_STOP 2
-#define RM_RELOAD 3
-#define RM_TEST 4
-#define RM_KILL 5
-#define RM_ISALIVE 6
+enum class RunMode {
+	kRestart = 0,
+	kStart = 1,
+	kStop = 2,
+	kReload = 3,
+	kTest = 4,
+	kKill = 5,
+	kIsAlive = 6
+};
 
 typedef struct deentry {
 	void (*fun)(void);
@@ -615,101 +620,165 @@ void changeugid(void) {
 	}
 }
 
-static int lfd = -1;    // main lock
+class FileLock {
+public:
+	enum class LockStatus {
+		kSuccess = 0,
+		kAlive = 1,
+		kAgain = 2,
+		kFail = -1
+	};
 
-pid_t mylock(int fd) {
+	FileLock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck)
+			: fd_(),
+			  name_("." STR(APPNAME) ".lock"),
+			  lockstatus_(LockStatus::kFail),
+			  thisProcessCreatedLockFile_(false) {
+		while ((lockstatus_ = wdlock(runmode, timeout, lockConsistencyCheck)) == LockStatus::kAgain) {
+		}
+		if (lockstatus_ == LockStatus::kFail) {
+			throw FilesystemException("");
+		}
+	}
+	virtual ~FileLock() {
+		/*
+		 * Order of unlock/file deletion matters
+		 * for RunMode::kRestart mode.
+		 * We need to remove file first and then
+		 * unlock file.
+		 */
+		if (thisProcessCreatedLockFile_) {
+			::unlink(name_.c_str());
+		}
+	}
+
+	LockStatus lockstatus() const {
+		return lockstatus_;
+	}
+	const std::string& name() const {
+		return name_;
+	}
+
+private:
+	LockStatus wdlock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck);
+	pid_t mylock();
+	void createLockFile(bool lockConsistencyCheck);
+
+	FileDescriptor fd_;
+	std::string name_;
+	LockStatus lockstatus_;
+	bool thisProcessCreatedLockFile_;
+};
+
+pid_t FileLock::mylock() {
 	struct flock fl;
 	fl.l_start = 0;
 	fl.l_len = 0;
 	fl.l_pid = getpid();
 	fl.l_type = F_WRLCK;
 	fl.l_whence = SEEK_SET;
+	pid_t pid = -1;
 	for (;;) {
-		if (fcntl(fd,F_SETLK,&fl)>=0) { // lock set
-			return 0;       // ok
+		if (fcntl(fd_.get(), F_SETLK, &fl) >= 0) { // lock set
+			pid = 0;                       // ok
+			break;
 		}
-		if (errno!=EAGAIN) {    // error other than "already locked"
-			return -1;      // error
+		if (errno!=EAGAIN) {             // error other than "already locked"
+			break;
 		}
-		if (fcntl(fd,F_GETLK,&fl)<0) {  // get lock owner
-			return -1;      // error getting lock
+		if (fcntl(fd_.get(), F_GETLK, &fl) < 0) {  // get lock owner
+			break;
 		}
-		if (fl.l_type!=F_UNLCK) {       // found lock
-			return fl.l_pid;        // return lock owner
+		if (fl.l_type!=F_UNLCK) {        // found lock
+			pid = fl.l_pid;                // return lock owner
+			break;
 		}
 	}
-	return -1;      // pro forma
+	return pid;
 }
 
-void wdunlock(void) {
-	if (lfd>=0) {
-		close(lfd);
+void FileLock::createLockFile(bool lockConsistencyCheck) {
+	bool notExisted((::access(name_.c_str(), F_OK) != 0) && (errno == ENOENT));
+	fd_.reset(open(name_.c_str(), O_WRONLY | O_CREAT | (lockConsistencyCheck ? O_EXCL : 0), 0666));
+	if (!fd_.isOpened()) {
+		throw FilesystemException("can't create lockfile in working directory");
 	}
+	thisProcessCreatedLockFile_ = notExisted;
 }
 
-int wdlock(uint8_t runmode,uint32_t timeout) {
-	pid_t ownerpid;
-	pid_t newownerpid;
-	uint32_t l;
-
-	lfd = open("." STR(APPNAME) ".lock",O_WRONLY|O_CREAT,0666);
-	if (lfd<0) {
-		mfs_errlog(LOG_ERR,"can't create lockfile in working directory");
-		return -1;
-	}
-	ownerpid = mylock(lfd);
+FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck) {
+	/*
+	 * Race condition is possible here.
+	 * If lockConsistencyCheck is false, the other instance
+	 * that was running when we started can finish when we reach this line
+	 * and can delete lock file so we will not be protected.
+	 * Unraceable implementation (hardlink based) is possible and should be done.
+	 */
+	createLockFile(lockConsistencyCheck);
+	pid_t ownerpid(mylock());
 	if (ownerpid<0) {
 		mfs_errlog(LOG_ERR,"fcntl error");
-		return -1;
+		return LockStatus::kFail;
 	}
 	if (ownerpid>0) {
-		if (runmode==RM_ISALIVE) {
-			return 1;
+		if (runmode==RunMode::kIsAlive) {
+			return LockStatus::kAlive;
 		}
-		if (runmode==RM_TEST) {
+		if (runmode==RunMode::kTest) {
 			fprintf(stderr,STR(APPNAME) " pid: %ld\n",(long)ownerpid);
-			return -1;
+			return LockStatus::kFail;
 		}
-		if (runmode==RM_START) {
+		if (runmode==RunMode::kStart) {
 			fprintf(stderr,"can't start: lockfile is already locked by another process\n");
-			return -1;
+			return LockStatus::kFail;
 		}
-		if (runmode==RM_RELOAD) {
+		if (runmode==RunMode::kReload) {
+			/*
+			 * FIXME: buissiness logic should not be in file locking function.
+			 */
 			if (kill(ownerpid,SIGHUP)<0) {
 				mfs_errlog(LOG_WARNING,"can't send reload signal to lock owner");
-				return -1;
+				return LockStatus::kFail;
 			}
 			fprintf(stderr,"reload signal has beed sent\n");
-			return 0;
+			return LockStatus::kSuccess;
 		}
-		if (runmode==RM_KILL) {
+		if (runmode==RunMode::kKill) {
 			fprintf(stderr,"sending SIGKILL to lock owner (pid:%ld)\n",(long int)ownerpid);
+			/*
+			 * FIXME: buissiness logic should not be in file locking function.
+			 */
 			if (kill(ownerpid,SIGKILL)<0) {
 				mfs_errlog(LOG_WARNING,"can't kill lock owner");
-				return -1;
+				return LockStatus::kFail;
 			}
 		} else {
+			sassert((runmode == RunMode::kStop) || (runmode == RunMode::kRestart));
 			fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld)\n",(long int)ownerpid);
+			/*
+			 * FIXME: buissiness logic should not be in file locking function.
+			 */
 			if (kill(ownerpid,SIGTERM)<0) {
 				mfs_errlog(LOG_WARNING,"can't kill lock owner");
-				return -1;
+				return LockStatus::kFail;
 			}
 		}
-		l=0;
 		fprintf(stderr,"waiting for termination ... ");
 		fflush(stderr);
+		uint32_t l = 0;
+		pid_t newownerpid;
 		do {
-			newownerpid = mylock(lfd);
+			newownerpid = mylock();
 			if (newownerpid<0) {
 				mfs_errlog(LOG_ERR,"fcntl error");
-				return -1;
+				return LockStatus::kFail;
 			}
 			if (newownerpid>0) {
 				l++;
 				if (l>=timeout) {
 					syslog(LOG_ERR,"about %" PRIu32 " seconds passed and lockfile is still locked - giving up",l);
 					fprintf(stderr,"giving up\n");
-					return -1;
+					return LockStatus::kFail;
 				}
 				if (l%10==0) {
 					syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and lock still exists",l);
@@ -718,19 +787,20 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 				}
 				if (newownerpid!=ownerpid) {
 					fprintf(stderr,"\nnew lock owner detected\n");
-					if (runmode==RM_KILL) {
+					if (runmode==RunMode::kKill) {
 						fprintf(stderr,"sending SIGKILL to lock owner (pid:%ld) ... ",(long int)newownerpid);
 						fflush(stderr);
 						if (kill(newownerpid,SIGKILL)<0) {
 							mfs_errlog(LOG_WARNING,"can't kill lock owner");
-							return -1;
+							return LockStatus::kFail;
 						}
 					} else {
+						sassert(runmode == RunMode::kRestart);
 						fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
 						fflush(stderr);
 						if (kill(newownerpid,SIGTERM)<0) {
 							mfs_errlog(LOG_WARNING,"can't kill lock owner");
-							return -1;
+							return LockStatus::kFail;
 						}
 					}
 					ownerpid = newownerpid;
@@ -739,125 +809,22 @@ int wdlock(uint8_t runmode,uint32_t timeout) {
 			sleep(1);
 		} while (newownerpid!=0);
 		fprintf(stderr,"terminated\n");
-		return 0;
+		return (runmode == RunMode::kRestart) ? LockStatus::kAgain : LockStatus::kSuccess;
 	}
-	if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		fprintf(stderr,"lockfile created and locked\n");
-	} else if (runmode==RM_STOP || runmode==RM_KILL) {
+	} else if (runmode==RunMode::kStop || runmode==RunMode::kKill) {
 		fprintf(stderr,"can't find process to terminate\n");
-		return -1;
-	} else if (runmode==RM_RELOAD) {
+		return LockStatus::kFail;
+	} else if (runmode==RunMode::kReload) {
 		fprintf(stderr,"can't find process to send reload signal\n");
-		return -1;
-	} else if (runmode==RM_TEST) {
+		return LockStatus::kFail;
+	} else if (runmode==RunMode::kTest) {
 		fprintf(stderr,STR(APPNAME) " is not running\n");
-	} else if (runmode==RM_ISALIVE) {
-		return 0;
+	} else if (runmode==RunMode::kIsAlive) {
+		return LockStatus::kSuccess;
 	}
-	return 0;
-}
-
-int check_old_locks(uint8_t runmode,uint32_t timeout) {
-	char str[13];
-	uint32_t l;
-	pid_t ptk;
-	char *lockfname;
-
-	lockfname = cfg_getstr("LOCK_FILE",RUN_PATH "/" STR(APPNAME) ".lock");
-	lfd=open(lockfname,O_RDWR);
-	if (lfd<0) {
-		if (errno==ENOENT) {    // no old lock file
-			free(lockfname);
-			return 0;       // ok
-		}
-		mfs_arg_errlog(LOG_ERR,"open %s error",lockfname);
-		free(lockfname);
-		return -1;
-	}
-	if (lockf(lfd,F_TLOCK,0)<0) {
-		if (errno!=EAGAIN) {
-			mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
-			free(lockfname);
-			return -1;
-		}
-		if (runmode==RM_START) {
-			mfs_syslog(LOG_ERR,"old lockfile is locked - can't start");
-			free(lockfname);
-			return -1;
-		}
-		if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RESTART) {
-			fprintf(stderr,"old lockfile found - trying to kill previous instance using data from old lockfile\n");
-		} else if (runmode==RM_RELOAD) {
-			fprintf(stderr,"old lockfile found - sending reload signal using data from old lockfile\n");
-		}
-		l=read(lfd,str,13);
-		if (l==0 || l>=13) {
-			mfs_arg_syslog(LOG_ERR,"wrong pid in old lockfile %s",lockfname);
-			free(lockfname);
-			return -1;
-		}
-		str[l]=0;
-		ptk = strtol(str,NULL,10);
-		if (runmode==RM_RELOAD) {
-			if (kill(ptk,SIGHUP)<0) {
-				mfs_errlog(LOG_WARNING,"can't send reload signal");
-				free(lockfname);
-				return -1;
-			}
-			fprintf(stderr,"reload signal has beed sent\n");
-			return 0;
-		}
-		if (runmode==RM_KILL) {
-			fprintf(stderr,"sending SIGKILL to previous instance (pid:%ld)\n",(long int)ptk);
-			if (kill(ptk,SIGKILL)<0) {
-				mfs_errlog(LOG_WARNING,"can't kill previous process");
-				free(lockfname);
-				return -1;
-			}
-		} else {
-			fprintf(stderr,"sending SIGTERM to previous instance (pid:%ld)\n",(long int)ptk);
-			if (kill(ptk,SIGTERM)<0) {
-				mfs_errlog(LOG_WARNING,"can't kill previous process");
-				free(lockfname);
-				return -1;
-			}
-		}
-		l=0;
-		fprintf(stderr,"waiting for termination ...\n");
-		while (lockf(lfd,F_TLOCK,0)<0) {
-			if (errno!=EAGAIN) {
-				mfs_arg_errlog(LOG_ERR,"lock %s error",lockfname);
-				free(lockfname);
-				return -1;
-			}
-			sleep(1);
-			l++;
-			if (l>=timeout) {
-				mfs_arg_syslog(LOG_ERR,"about %" PRIu32 " seconds passed and old lockfile is still locked - giving up",l);
-				free(lockfname);
-				return -1;
-			}
-			if (l%10==0) {
-				mfs_arg_syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and old lockfile is still locked",l);
-			}
-		}
-		fprintf(stderr,"terminated\n");
-	} else {
-		fprintf(stderr,"found unlocked old lockfile\n");
-		if (runmode==RM_RELOAD) {
-			fprintf(stderr,"can't obtain process id using old lockfile\n");
-			return 0;
-		}
-	}
-	fprintf(stderr,"removing old lockfile\n");
-	close(lfd);
-	unlink(lockfname);
-	free(lockfname);
-	return 0;
-}
-
-void remove_old_wdlock(void) {
-	unlink(".lock_" STR(APPNAME));
+	return LockStatus::kSuccess;
 }
 
 void makedaemon() {
@@ -977,7 +944,6 @@ int main(int argc,char **argv) {
 	char *cfgfile;
 	char *appname;
 	int ch;
-	uint8_t runmode;
 	int rundaemon,logundefined;
 	int lockmemory;
 	int32_t nicelevel;
@@ -1005,7 +971,7 @@ int main(int argc,char **argv) {
 	}
 	locktimeout = 1800;
 	rundaemon = 1;
-	runmode = RM_RESTART;
+	RunMode runmode = RunMode::kRestart;
 	logundefined = 0;
 	lockmemory = 0;
 	appname = argv[0];
@@ -1039,19 +1005,19 @@ int main(int argc,char **argv) {
 	argv += optind;
 	if (argc==1) {
 		if (strcasecmp(argv[0],"start")==0) {
-			runmode = RM_START;
+			runmode = RunMode::kStart;
 		} else if (strcasecmp(argv[0],"stop")==0) {
-			runmode = RM_STOP;
+			runmode = RunMode::kStop;
 		} else if (strcasecmp(argv[0],"restart")==0) {
-			runmode = RM_RESTART;
+			runmode = RunMode::kRestart;
 		} else if (strcasecmp(argv[0],"reload")==0) {
-			runmode = RM_RELOAD;
+			runmode = RunMode::kReload;
 		} else if (strcasecmp(argv[0],"test")==0) {
-			runmode = RM_TEST;
+			runmode = RunMode::kTest;
 		} else if (strcasecmp(argv[0],"kill")==0) {
-			runmode = RM_KILL;
+			runmode = RunMode::kKill;
 		} else if (strcasecmp(argv[0],"isalive")==0) {
-			runmode = RM_ISALIVE;
+			runmode = RunMode::kIsAlive;
 		} else {
 			usage(appname);
 			return LIZARDFS_EXIT_STATUS_ERROR;
@@ -1065,7 +1031,7 @@ int main(int argc,char **argv) {
 		mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
 	}
 
-	if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		if (rundaemon) {
 			makedaemon();
 		} else {
@@ -1102,7 +1068,7 @@ int main(int argc,char **argv) {
 #endif
 	}
 
-	if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		rls.rlim_cur = MFSMAXFILES;
 		rls.rlim_max = MFSMAXFILES;
 		if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
@@ -1124,7 +1090,7 @@ int main(int argc,char **argv) {
 	changeugid();
 
 	wrkdir = cfg_getstr("DATA_PATH",DATA_PATH);
-	if (runmode==RM_START || runmode==RM_RESTART) {
+	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		fprintf(stderr,"working directory: %s\n",wrkdir);
 	}
 
@@ -1142,43 +1108,39 @@ int main(int argc,char **argv) {
 
 	umask(cfg_getuint32("FILE_UMASK",027)&077);
 
-	/* for upgrading from previous versions of MFS */
-	if (check_old_locks(runmode,locktimeout)<0) {
+	std::unique_ptr<FileLock> fl;
+	bool enforceLockfileConsistency(cfg_getint32("ENFORCE_LOCKFILE_CONSISTENCY", 0) == 1 ? true : false);
+	try {
+		/*
+		 * Only kStart should check for lock file consistency.
+		 */
+		fl.reset(new FileLock(runmode, locktimeout, enforceLockfileConsistency && (runmode == RunMode::kStart)));
+	} catch (const FilesystemException& e) {
+		if (e.what()[0]) {
+			mfs_errlog(LOG_ERR, e.what());
+		}
 		if (rundaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
 		free(logappname);
-		wdunlock();
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
-	int lockstatus = wdlock(runmode,locktimeout);
-	if (lockstatus<0) {
-		if (rundaemon) {
-			fputc(0,stderr);
-			close_msg_channel();
-		}
-		closelog();
-		free(logappname);
-		wdunlock();
-		return LIZARDFS_EXIT_STATUS_ERROR;
-	}
-
-	remove_old_wdlock();
-
-	if (runmode==RM_STOP || runmode==RM_KILL || runmode==RM_RELOAD
-			|| runmode==RM_TEST || runmode==RM_ISALIVE) {
+	if (runmode==RunMode::kStop || runmode==RunMode::kKill || runmode==RunMode::kReload
+			|| runmode==RunMode::kTest || runmode==RunMode::kIsAlive) {
 		if (rundaemon) {
 			close_msg_channel();
 		}
 		closelog();
 		free(logappname);
-		wdunlock();
-		if (runmode==RM_ISALIVE) {
-			sassert(lockstatus==0 || lockstatus==1);
-			return (lockstatus ? LIZARDFS_EXIT_STATUS_SUCCESS : LIZARDFS_EXIT_STATUS_NOT_ALIVE);
+		if (runmode==RunMode::kIsAlive) {
+			FileLock::LockStatus lockstatus = fl->lockstatus();
+			sassert((lockstatus == FileLock::LockStatus::kSuccess)
+					|| (lockstatus == FileLock::LockStatus::kAlive));
+			return (lockstatus == FileLock::LockStatus::kAlive
+					? LIZARDFS_EXIT_STATUS_SUCCESS : LIZARDFS_EXIT_STATUS_NOT_ALIVE);
 		} else {
 			return LIZARDFS_EXIT_STATUS_SUCCESS;
 		}
@@ -1246,6 +1208,5 @@ int main(int argc,char **argv) {
 	strerr_term();
 	closelog();
 	free(logappname);
-	wdunlock();
 	return ch;
 }

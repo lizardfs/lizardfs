@@ -156,12 +156,14 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_bindir}/mfsgettrashtime
 %attr(755,root,root) %{_bindir}/mfsmakesnapshot
 %attr(755,root,root) %{_bindir}/mfsmount
+%attr(755,root,root) %{_bindir}/mfsrepquota
 %attr(755,root,root) %{_bindir}/mfsrgetgoal
 %attr(755,root,root) %{_bindir}/mfsrgettrashtime
 %attr(755,root,root) %{_bindir}/mfsrsetgoal
 %attr(755,root,root) %{_bindir}/mfsrsettrashtime
 %attr(755,root,root) %{_bindir}/mfsseteattr
 %attr(755,root,root) %{_bindir}/mfssetgoal
+%attr(755,root,root) %{_bindir}/mfssetquota
 %attr(755,root,root) %{_bindir}/mfssettrashtime
 %attr(755,root,root) %{_bindir}/mfssnapshot
 %attr(755,root,root) %{_bindir}/mfstools
@@ -175,12 +177,14 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/mfsgetgoal.1*
 %{_mandir}/man1/mfsgettrashtime.1*
 %{_mandir}/man1/mfsmakesnapshot.1*
+%{_mandir}/man1/mfsrepquota.1*
 %{_mandir}/man1/mfsrgetgoal.1*
 %{_mandir}/man1/mfsrgettrashtime.1*
 %{_mandir}/man1/mfsrsetgoal.1*
 %{_mandir}/man1/mfsrsettrashtime.1*
 %{_mandir}/man1/mfsseteattr.1*
 %{_mandir}/man1/mfssetgoal.1*
+%{_mandir}/man1/mfssetquota.1*
 %{_mandir}/man1/mfssettrashtime.1*
 %{_mandir}/man1/mfstools.1*
 %{_mandir}/man7/mfs.7*

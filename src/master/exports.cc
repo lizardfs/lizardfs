@@ -227,7 +227,7 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 					f=e;
 				} else if (e->rootuid==0 && f->rootuid!=0) {    // prefer root not restricted to restricted
 					f=e;
-				} else if ((e->sesflags&SESFLAG_CANCHANGEQUOTA)!=0 && (f->sesflags&SESFLAG_CANCHANGEQUOTA)==0) {        // prefer lines with more privileges
+				} else if ((e->sesflags&SESFLAG_ALLCANCHANGEQUOTA)!=0 && (f->sesflags&SESFLAG_ALLCANCHANGEQUOTA)==0) {        // prefer lines with more privileges
 					f=e;
 				} else if (e->needpassword==1 && f->needpassword==0) {  // prefer lines with passwords
 					f=e;
@@ -282,7 +282,7 @@ void exports_freelist(exports *arec) {
 //  password=password
 //  dynamicip
 //  ignoregid
-//  canchangequota
+//  allcanchangequota
 //  mingoal=#
 //  maxgoal=#
 //  mintrashtime=[#w][#d][#h][#m][#[s]]
@@ -663,7 +663,14 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			}
 			break;
 		case 'a':
-			if (strcmp(p,"alldirs")==0) {
+			if (strcmp(p,"allcanchangequota")==0) {
+				if (arec->meta) {
+					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+				} else {
+					arec->sesflags |= SESFLAG_ALLCANCHANGEQUOTA;
+				}
+				o=1;
+			} else if (strcmp(p,"alldirs")==0) {
 				if (arec->meta) {
 					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
@@ -675,16 +682,6 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 		case 'd':
 			if (strcmp(p,"dynamicip")==0) {
 				arec->sesflags |= SESFLAG_DYNAMICIP;
-				o=1;
-			}
-			break;
-		case 'c':
-			if (strcmp(p,"canchangequota")==0) {
-				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
-				} else {
-					arec->sesflags |= SESFLAG_CANCHANGEQUOTA;
-				}
 				o=1;
 			}
 			break;

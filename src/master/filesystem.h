@@ -27,6 +27,7 @@
 #include "common/acl_type.h"
 #include "common/exception.h"
 #include "common/goal.h"
+#include "common/quota.h"
 #include "master/checksum.h"
 
 struct GoalStats {
@@ -71,17 +72,13 @@ uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
 uint8_t fs_write(uint32_t ts,uint32_t inode,uint32_t indx,uint8_t opflag,uint64_t chunkid,uint32_t lockid);
 uint8_t fs_unlock(uint64_t chunkid);
 uint8_t fs_incversion(uint64_t chunkid);
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes,uint32_t qeinodes);
-#else
 uint8_t fs_setgoal(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
-#endif
 uint8_t fs_settrashtime(uint32_t ts,uint32_t inode,uint32_t uid,uint32_t trashtime,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 uint8_t fs_seteattr(uint32_t ts,uint32_t inode,uint32_t uid,uint8_t eattr,uint8_t smode,uint32_t sinodes,uint32_t ncinodes,uint32_t nsinodes);
 uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
 uint8_t fs_deleteacl(uint32_t ts, uint32_t inode, char aclType);
 uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclString);
-uint8_t fs_quota(uint32_t ts,uint32_t inode,uint8_t exceeded,uint8_t flags,uint32_t stimestamp,uint32_t sinodes,uint32_t hinodes,uint64_t slength,uint64_t hlength,uint64_t ssize,uint64_t hsize,uint64_t srealsize,uint64_t hrealsize);
+uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit);
 
 void fs_dump(void);
 void fs_term(const char *fname);
@@ -136,11 +133,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 
 uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
 		GoalStats& goalStats);
-#if VERSHEX>=0x010700
-uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes,uint32_t *qeinodes);
-#else
 uint8_t fs_setgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes);
-#endif
 
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
 void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
@@ -160,6 +153,12 @@ uint8_t fs_getacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl);
 uint8_t fs_setacl(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t uid, uint32_t gid, AclType type, AccessControlList acl);
+
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
+		std::vector<QuotaOwnerAndLimits>& results);
+uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
+		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results);
+uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
 
 // RESERVED
 uint8_t fs_acquire(uint32_t inode,uint32_t sessionid);
@@ -182,11 +181,6 @@ uint8_t fs_getdetachedattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,ui
 
 // EXTRA
 uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *inodes,uint32_t *dirs,uint32_t *files,uint32_t *chunks,uint64_t *length,uint64_t *size,uint64_t *rsize);
-
-// QUOTA
-uint8_t fs_quotacontrol(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t delflag,uint8_t *flags,uint32_t *sinodes,uint64_t *slength,uint64_t *ssize,uint64_t *srealsize,uint32_t *hinodes,uint64_t *hlength,uint64_t *hsize,uint64_t *hrealsize,uint32_t *curinodes,uint64_t *curlength,uint64_t *cursize,uint64_t *currealsize);
-uint32_t fs_getquotainfo_size(void);
-void fs_getquotainfo_data(uint8_t *buff);
 
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);

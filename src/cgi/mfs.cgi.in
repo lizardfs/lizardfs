@@ -25,8 +25,6 @@ CLTOMA_CHUNKSTEST_INFO = (PROTO_BASE+514)
 MATOCL_CHUNKSTEST_INFO = (PROTO_BASE+515)
 CLTOMA_CHUNKS_MATRIX = (PROTO_BASE+516)
 MATOCL_CHUNKS_MATRIX = (PROTO_BASE+517)
-CLTOMA_QUOTA_INFO = (PROTO_BASE+518)
-MATOCL_QUOTA_INFO = (PROTO_BASE+519)
 CLTOMA_EXPORTS_INFO = (PROTO_BASE+520)
 MATOCL_EXPORTS_INFO = (PROTO_BASE+521)
 CLTOMA_MLOG_LIST = (PROTO_BASE+522)
@@ -1331,8 +1329,6 @@ if "EX" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ro/rw</a></th>""" % (createorderlink("EX",7)))
 		out.append("""		<th rowspan="2"><a href="%s">restricted&nbsp;ip</a></th>""" % (createorderlink("EX",8)))
 		out.append("""		<th rowspan="2"><a href="%s">ignore&nbsp;gid</a></th>""" % (createorderlink("EX",9)))
-		if masterversion>=(1,7,0):
-			out.append("""		<th rowspan="2"><a href="%s">can&nbsp;change&nbsp;quota</a></th>""" % (createorderlink("EX",10)))
 		out.append("""		<th colspan="2">map&nbsp;root</th>""")
 		out.append("""		<th colspan="2">map&nbsp;users</th>""")
 		if masterversion>=(1,6,26):
@@ -1659,8 +1655,6 @@ if "MS" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ro/rw</a></th>""" % (createorderlink("MS",7)))
 		out.append("""		<th rowspan="2"><a href="%s">restricted&nbsp;ip</a></th>""" % (createorderlink("MS",8)))
 		out.append("""		<th rowspan="2"><a href="%s">ignore&nbsp;gid</a></th>""" % (createorderlink("MS",9)))
-		if masterversion>=(1,7,0):
-			out.append("""		<th rowspan="2"><a href="%s">can&nbsp;change&nbsp;quota</a></th>""" % (createorderlink("MS",10)))
 		out.append("""		<th colspan="2">map&nbsp;root</th>""")
 		out.append("""		<th colspan="2">map&nbsp;users</th>""")
 		if masterversion>=(1,6,26):
@@ -2000,220 +1994,6 @@ if "MO" in sectionset:
 				for st in xrange(16):
 					out.append("""		<td align="right">%u</td>""" % (stats_l[st]))
 				out.append("""		<td align="right">%u</td>""" % (sum(stats_l)))
-				out.append("""	</tr>""")
-				i+=1
-		out.append("""</table>""")
-		s.close()
-		print "\n".join(out)
-	except Exception:
-		print """<table class="FR" cellspacing="0">"""
-		print """<tr><td align="left"><pre>"""
-		traceback.print_exc(file=sys.stdout)
-		print """</pre></td></tr>"""
-		print """</table>"""
-
-	print """<br/>"""
-
-if "QU" in sectionset:
-	out = []
-
-	try:
-		QUorder = int(fields.getvalue("QUorder"))
-	except Exception:
-		QUorder = 0
-	try:
-		QUrev = int(fields.getvalue("QUrev"))
-	except Exception:
-		QUrev = 0
-
-	try:
-		out.append("""<table class="FR" cellspacing="0">""")
-		out.append("""	<tr><th colspan="16">Active quotas</th></tr>""")
-		out.append("""	<tr>""")
-		out.append("""		<th rowspan="2">#</th>""")
-		out.append("""		<th rowspan="2"><a href="%s">path</a></th>""" % (createorderlink("QU",11)))
-		out.append("""		<th rowspan="2"><a href="%s">exceeded</a></th>""" % (createorderlink("QU",2)))
-		out.append("""	<th colspan="5">soft&nbsp;quota</th>""")
-		out.append("""	<th colspan="4">hard&nbsp;quota</th>""")
-		out.append("""	<th colspan="4">current&nbsp;values</th>""")
-		out.append("""	</tr>""")
-		out.append("""	<tr>""")
-		out.append("""		<th><a href="%s">time&nbsp;to&nbsp;expire</a></th>""" % (createorderlink("QU",10)))
-		out.append("""		<th><a href="%s">inodes</a></th>""" % (createorderlink("QU",11)))
-		out.append("""		<th><a href="%s">length</a></th>""" % (createorderlink("QU",12)))
-		out.append("""		<th><a href="%s">size</a></th>""" % (createorderlink("QU",13)))
-		out.append("""		<th><a href="%s">real&nbsp;size</a></th>""" % (createorderlink("QU",14)))
-		out.append("""		<th><a href="%s">inodes</a></th>""" % (createorderlink("QU",21)))
-		out.append("""		<th><a href="%s">length</a></th>""" % (createorderlink("QU",22)))
-		out.append("""		<th><a href="%s">size</a></th>""" % (createorderlink("QU",23)))
-		out.append("""		<th><a href="%s">real&nbsp;size</a></th>""" % (createorderlink("QU",24)))
-		out.append("""		<th><a href="%s">inodes</a></th>""" % (createorderlink("QU",31)))
-		out.append("""		<th><a href="%s">length</a></th>""" % (createorderlink("QU",32)))
-		out.append("""		<th><a href="%s">size</a></th>""" % (createorderlink("QU",33)))
-		out.append("""		<th><a href="%s">real&nbsp;size</a></th>""" % (createorderlink("QU",34)))
-		out.append("""	</tr>""")
-
-		s = socket.socket()
-		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CLTOMA_QUOTA_INFO,0))
-		header = myrecv(s,8)
-		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCL_QUOTA_INFO and length>=4 and masterversion>=(1,7,0):
-			data = myrecv(s,length)
-			quotas = []
-			pos = 0
-			while pos<length:
-				inode,pleng = struct.unpack(">LL",data[pos:pos+8])
-				pos+=8
-				path = data[pos:pos+pleng]
-				pos+=pleng
-				exceeded,qflags,timetoblock = struct.unpack(">BBL",data[pos:pos+6])
-				pos+=6;
-				sinodes,slength,ssize,srealsize = struct.unpack(">LQQQ",data[pos:pos+28])
-				pos+=28
-				hinodes,hlength,hsize,hrealsize = struct.unpack(">LQQQ",data[pos:pos+28])
-				pos+=28
-				cinodes,clength,csize,crealsize = struct.unpack(">LQQQ",data[pos:pos+28])
-				pos+=28
-				if QUorder==1 or QUorder==0:
-					sf = path
-				elif QUorder==2:
-					sf = exceeded
-				elif QUorder==10:
-					sf = timetoblock
-				elif QUorder==11:
-					sf = sinodes
-				elif QUorder==12:
-					sf = slength
-				elif QUorder==13:
-					sf = ssize
-				elif QUorder==14:
-					sf = srealsize
-				elif QUorder==21:
-					sf = hinodes
-				elif QUorder==22:
-					sf = hlength
-				elif QUorder==23:
-					sf = hsize
-				elif QUorder==24:
-					sf = hrealsize
-				elif QUorder==31:
-					sf = cinodes
-				elif QUorder==32:
-					sf = clength
-				elif QUorder==33:
-					sf = csize
-				elif QUorder==34:
-					sf = crealsize
-				else:
-					sf = 0
-				quotas.append((sf,path,exceeded,qflags,timetoblock,sinodes,slength,ssize,srealsize,hinodes,hlength,hsize,hrealsize,cinodes,clength,csize,crealsize))
-			quotas.sort()
-			if QUrev:
-				quotas.reverse()
-			i = 1
-			for sf,path,exceeded,qflags,timetoblock,sinodes,slength,ssize,srealsize,hinodes,hlength,hsize,hrealsize,cinodes,clength,csize,crealsize in quotas:
-				out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-				out.append("""		<td align="right">%u</td>""" % i)
-				out.append("""		<td align="left">%s</td>""" % path)
-				if exceeded:
-					out.append("""		<td align="center">yes</td>""")
-				else:
-					out.append("""		<td align="center">no</td>""")
-				if timetoblock<0xFFFFFFFF:
-					if timetoblock>0:
-#						days,rest = divmod(timetoblock,86400)
-#						hours,rest = divmod(rest,3600)
-#						min,sec = divmod(rest,60)
-#						if days>0:
-#							tbstr = "%ud,&nbsp;%uh&nbsp;%um&nbsp;%us" % (days,hours,min,sec)
-#						elif hours>0:
-#							tbstr = "%uh&nbsp;%um&nbsp;%us" % (hours,min,sec)
-#						elif min>0:
-#							tbstr = "%um&nbsp;%us" % (min,sec)
-#						else:
-#							tbstr = "%us" % sec
-						out.append("""		<td align="center"><span class="SEXCEEDED"><a style="cursor:default" title="%s">%s</a></span></td>""" % (timeduration_to_fullstr(timetoblock),timeduration_to_shortstr(timetoblock)))
-					else:
-						out.append("""		<td align="center"><span class="EXCEEDED">expired</span></td>""")
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&1:
-					if sinodes>=cinodes:
-						cl="NOTEXCEEDED"
-					elif timetoblock>0:
-						cl="SEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><span class="%s">%u</span></td>""" % (cl,sinodes))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&2:
-					if slength>=clength:
-						cl="NOTEXCEEDED"
-					elif timetoblock>0:
-						cl="SEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(slength),cl,humanize_number(slength,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&4:
-					if ssize>=csize:
-						cl="NOTEXCEEDED"
-					elif timetoblock>0:
-						cl="SEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(ssize),cl,humanize_number(ssize,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&8:
-					if srealsize>=crealsize:
-						cl="NOTEXCEEDED"
-					elif timetoblock>0:
-						cl="SEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(srealsize),cl,humanize_number(srealsize,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&16:
-					if hinodes>=cinodes:
-						cl="NOTEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><span class="%s">%u</span></td>""" % (cl,hinodes))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&32:
-					if hlength>=clength:
-						cl="NOTEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(hlength),cl,humanize_number(hlength,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&64:
-					if hsize>=csize:
-						cl="NOTEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(hsize),cl,humanize_number(hsize,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				if qflags&128:
-					if hrealsize>=crealsize:
-						cl="NOTEXCEEDED"
-					else:
-						cl="EXCEEDED"
-					out.append("""		<td align="right"><a style="cursor:default" title="%s B"><span class="%s">%sB</span></a></td>""" % (decimal_number(hrealsize),cl,humanize_number(hrealsize,"&nbsp;")))
-				else:
-					out.append("""		<td align="center">-</td>""")
-				out.append("""		<td align="right">%u</td>""" % cinodes)
-				out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(clength),humanize_number(clength,"&nbsp;")))
-				out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(csize),humanize_number(csize,"&nbsp;")))
-				out.append("""		<td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (decimal_number(crealsize),humanize_number(crealsize,"&nbsp;")))
 				out.append("""	</tr>""")
 				i+=1
 		out.append("""</table>""")

@@ -1,6 +1,8 @@
 assert_program_installed attr
 
 CHUNKSERVERS=3 \
+	MOUNT_EXTRA_CONFIG="mfsacl" \
+	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	setup_local_empty_lizardfs info
 
 oldmeta="${TEMP_DIR}/old_metadata"
@@ -19,6 +21,10 @@ mkfifo fifo
 touch file
 ln file link
 ln -s file symlink
+
+# set some quotas
+mfssetquota -u $(id -u) 10GB 30GB 0 0 .
+mfssetquota -g $(id -g) 0 0 10k 20k .
 
 # create more files and delete some of them
 touch file{00..99}
@@ -77,6 +83,7 @@ print_metadata() {
 	attr -ql dir
 	attr -qg name3 dir
 	getfacl -R .
+	mfsrepquota -a .
 }
 print_metadata >"$oldmeta"
 

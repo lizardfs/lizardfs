@@ -175,7 +175,6 @@ add_chunkserver() {
 create_mfsmount_cfg() {
 	echo "mfsmaster=$ip_address"
 	echo "mfsport=${lizardfs_info[matocl]}"
-	echo "mfsacl"
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
@@ -190,8 +189,15 @@ add_mount() {
 	mkdir -p "$mount_dir"
 	lizardfs_info[mount${mount_id}]="$mount_dir"
 	max_tries=30
+	fuse_options=""
+	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do
+		fuse_option_name=$(echo $fuse_option | cut -f1 -d'=')
+		mfsmount --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
+				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
+		fuse_options+="-o $fuse_option "
+	done
 	for try in $(seq 1 $max_tries); do
-		mfsmount -o big_writes -c "$mount_cfg" "$mount_dir" && return 0
+		mfsmount -o big_writes -c "$mount_cfg" "$mount_dir" $fuse_options && return 0
 		echo "Retrying in 1 second ($try/$max_tries)..."
 		sleep 1
 	done

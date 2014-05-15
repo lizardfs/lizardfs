@@ -6,8 +6,8 @@
 #include "common/disk_info.h"
 #include "common/human_readable_format.h"
 #include "common/moosefs_vector.h"
+#include "common/server_connection.h"
 #include "probe/list_chunkservers_command.h"
-#include "probe/server_connection.h"
 
 static std::string boolToYesNoString(bool value) {
 	return (value ? "yes" : "no");

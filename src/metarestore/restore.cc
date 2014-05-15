@@ -355,39 +355,6 @@ int do_purge(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	return fs_purge(ts,inode);
 }
 
-int do_quota(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,stimestamp,sinodes,hinodes;
-	uint64_t slength,ssize,srealsize;
-	uint64_t hlength,hsize,hrealsize;
-	uint32_t flags,exceeded;
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(exceeded,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(flags,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(stimestamp,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(sinodes,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(hinodes,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(slength,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hlength,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(ssize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hsize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(srealsize,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU64(hrealsize,ptr);
-	EAT(ptr,filename,lv,')');
-	return fs_quota(ts,inode,exceeded,flags,stimestamp,sinodes,hinodes,slength,hlength,ssize,hsize,srealsize,hrealsize);
-}
-
 int do_release(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	uint32_t inode,cuid;
 	(void)ts;
@@ -434,11 +401,7 @@ int do_seteattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 }
 
 int do_setgoal(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-#if VERSHEX>=0x010700
-	uint32_t inode,uid,ci,nci,npi,qei;
-#else
 	uint32_t inode,uid,ci,nci,npi;
-#endif
 	uint8_t goal,smode;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
@@ -455,17 +418,7 @@ int do_setgoal(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 	GETU32(nci,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(npi,ptr);
-#if VERSHEX>=0x010700
-	if (*ptr==',') {
-		EAT(ptr,filename,lv,',');
-		GETU32(qei,ptr);
-	} else {
-		qei = UINT32_C(0xFFFFFFFF);
-	}
-	return fs_setgoal(ts,inode,uid,goal,smode,ci,nci,npi,qei);
-#else
 	return fs_setgoal(ts,inode,uid,goal,smode,ci,nci,npi);
-#endif
 }
 
 int do_setpath(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -548,6 +501,26 @@ int do_setacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 	EAT(ptr, filename, lv, ')');
 
 	return fs_setacl(ts, inode, aclType, reinterpret_cast<const char*>(aclString));
+}
+
+int do_setquota(const char *filename, uint64_t lv, uint32_t, char *ptr) {
+	char rigor, resource, ownerType;
+	uint32_t ownerId;
+	uint64_t limit;
+
+	EAT(ptr, filename, lv, '(');
+	GETCHAR(rigor, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(resource, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETCHAR(ownerType, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(ownerId, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(limit, ptr);
+	EAT(ptr, filename, lv, ')');
+
+	return fs_quota_set(rigor, resource, ownerType, ownerId, limit);
 }
 
 int do_snapshot(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
@@ -729,11 +702,6 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_purge(filename,lv,ts,ptr+5);
 			}
 			break;
-		case 'Q':
-			if (strncmp(ptr,"QUOTA",5)==0) {
-				status = do_quota(filename,lv,ts,ptr+5);
-			}
-			break;
 		case 'R':
 			if (strncmp(ptr,"RELEASE",7)==0) {
 				status = do_release(filename,lv,ts,ptr+7);
@@ -752,6 +720,8 @@ int restore_line(const char *filename,uint64_t lv,char *line) {
 				status = do_setgoal(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"SETPATH",7)==0) {
 				status = do_setpath(filename,lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETQUOTA",8)==0) {
+				status = do_setquota(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SETTRASHTIME",12)==0) {
 				status = do_settrashtime(filename,lv,ts,ptr+12);
 			} else if (strncmp(ptr,"SETXATTR",8)==0) {

@@ -36,7 +36,7 @@ fi
 check_configuration() {
 	for prog in \
 			$LIZARDFS_ROOT/sbin/{mfsmaster,mfschunkserver} \
-			$LIZARDFS_ROOT/bin/{mfsmount,mfstools,mfscheckfile,mfssetgoal} \
+			$LIZARDFS_ROOT/bin/{mfsmount,mfstools,mfscheckfile,mfssetgoal,mfssetquota,mfsrepquota} \
 			$LIZARDFS_ROOT/bin/file-generate \
 			$LIZARDFS_ROOT/bin/file-validate
 	do

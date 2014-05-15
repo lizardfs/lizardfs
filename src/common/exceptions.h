@@ -7,6 +7,7 @@
 #include "common/mfsstrerr.h"
 #include "common/network_address.h"
 
+LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);
