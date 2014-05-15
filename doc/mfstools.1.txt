@@ -20,6 +20,14 @@ mfstools - perform MooseFS-specific operations
 *mfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
 
 [verse]
+*mfssetquota* (*-u* 'UID' | *-g* 'GID') 'SOFT-LIMIT-SIZE' 'HARD-LIMIT-SIZE'
+              'SOFT-LIMIT-INODES' 'HARD-LIMIT-INODES' 'MOUNTPOINT-ROOT-PATH'
+
+[verse]
+*mfsrepquota* [*-nhH*] (*-u* 'UID' | *-g* 'GID')+ 'MOUNTPOINT-ROOT-PATH'
+*mfsrepquota* [*-nhH*] -a 'MOUNTPOINT-ROOT-PATH'
+
+[verse]
 *mfsgettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
@@ -120,4 +128,4 @@ You should have received a copy of the GNU General Public License along with Liz
 mfsmount(1), mfsappendchunks(1), mfscheckfile(1), mfsdeleattr(1), mfsdirinfo(1), mfsfileinfo(1),
 mfsfilerepair(1), mfsgeteattr(1), mfsgetgoal(1), mfsgettrashtime(1), mfsmakesnapshot(1),
 mfsrgetgoal(1), mfsrgettrashtime(1), mfsrsetgoal(1), mfsrsettrashtime(1), mfsseteattr(1),
-mfssetgoal(1), mfssettrashtime(1), moosefs(7)
+mfssetgoal(1), mfssettrashtime(1), mfsrepquota(1), mfssetquota(1), moosefs(7)

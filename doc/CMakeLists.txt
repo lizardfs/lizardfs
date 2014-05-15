@@ -23,6 +23,8 @@ set(MANPAGES
     mfsrsettrashtime.1  # not a source
     mfsmakesnapshot.1
     mfsmount.1
+    mfsrepquota.1
+    mfssetquota.1       # not a source
     mfstools.1
     mfschunkserver.cfg.5
     mfsexports.cfg.5
