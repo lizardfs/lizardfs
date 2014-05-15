@@ -11,13 +11,14 @@
 # XXX(lamvak): didn't add check for strerror_r function compatible with
 # AC_FUNC_STRERROR_R
 
-include(TestBigEndian)
-include(CheckTypeSize)
-include(CheckStructHasMember)
+include(CheckCXXCompilerFlag)
 include(CheckFunctionExists)
 include(CheckFunctions)
 include(CheckIncludes)
 include(CheckMembers)
+include(CheckStructHasMember)
+include(CheckTypeSize)
+include(TestBigEndian)
 
 set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdlib.h string.h sys/resource.h
     sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h syslog.h unistd.h stdbool.h)
@@ -57,3 +58,5 @@ check_functions("${OPTIONAL_FUNCTIONS}" false)
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")
 set(OPTIONAL_FUNCTIONS2 dup2 mlockall getcwd)
 check_functions("${OPTIONAL_FUNCTIONS2}" false)
+
+check_cxx_compiler_flag(-Wno-gnu   CXX_HAS_WNOGNU)

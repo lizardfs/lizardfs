@@ -64,6 +64,10 @@ include(EnvTests.cmake)
 include(Libraries)
 check_includes("${INCLUDES}")
 
+if(CXX_HAS_WNOGNU)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu")
+endif()
+
 if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
   message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
     set(THROW_INSTEAD_OF_ABORT YES)
