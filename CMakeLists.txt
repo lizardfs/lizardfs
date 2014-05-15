@@ -61,6 +61,8 @@ message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 
 ## All the environment tests (libs, includes, etc.) live here:
 include(EnvTests.cmake)
+include(Libraries)
+check_includes("${INCLUDES}")
 
 if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
   message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
