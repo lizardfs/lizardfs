@@ -1,0 +1,123 @@
+mfstools(1)
+===========
+
+== NAME
+
+mfstools - perform MooseFS-specific operations
+
+== SYNOPSIS
+
+[verse]
+*mfsgetgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+
+[verse]
+*mfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+
+[verse]
+*mfsgettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsrgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+
+[verse]
+*mfsrsettrashtime* [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+
+[verse]
+*mfsgeteattr* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsseteattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+[verse]
+*mfsdeleattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+[verse]
+*mfscheckfile* 'FILE'...
+
+[verse]
+*mfsfileinfo* 'FILE'...
+
+[verse]
+*mfsdirinfo* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsfilerepair* [*-n*|*-h*|*-H*] 'FILE'...
+
+[verse]
+*mfsappendchunks* 'SNAPSHOT_FILE' 'OBJECT'...
+
+[verse]
+*mfsmakesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
+
+== DESCRIPTION
+
+See respective documents.
+
+== GENERAL OPTIONS
+
+Most of *mfstools* use following options to select format of printed numbers:
+
+*-n*::
+Print exact numbers (e.g. 1024).
+
+*-h*::
+Print numbers with binary prefixes (Ki, Mi, Gi as `2^10`, `2^20` etc.).
+
+*-H*::
+Print numbers with SI prefixes (k, M, G as `10^3`, `10^6` etc.).
+
+The same can be achieved by setting *MFSHRFORMAT* environment variable to: *0* (exact numbers),
+*1* or *h* (binary prefixes), *2* or *H* (SI prefixes), *3* or *h+* (exact numbers and binary
+prefixes), *4* or *H+* (exact numbers and SI prefixes). The default is to print just exact numbers.
+
+Other options:
+
+*-r*::
+This option enables recursive mode.
+
+== INHERITANCE
+
+When new object is created in MooseFS, attributes such as goal, trashtime and extra attributes are
+inherited from parent directory. So if you set i.e. "noowner" attribute and goal to 3 in a directory
+then every new object created in this directory will have goal set to 3 and "noowner" flag set. A
+newly created object inherits always the current set of its parent's attributes. Changing a
+directory attribute does not affect its already created children. To change an attribute for a
+directory and all of its children use `'-r'` option.
+
+== NOTES
+
+*mfstools* require MooseFS (*mfsmaster* and *mfsmount*) >= 1.6.0 to work on read-only filesystem.
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmount(1), mfsappendchunks(1), mfscheckfile(1), mfsdeleattr(1), mfsdirinfo(1), mfsfileinfo(1),
+mfsfilerepair(1), mfsgeteattr(1), mfsgetgoal(1), mfsgettrashtime(1), mfsmakesnapshot(1),
+mfsrgetgoal(1), mfsrgettrashtime(1), mfsrsetgoal(1), mfsrsettrashtime(1), mfsseteattr(1),
+mfssetgoal(1), mfssettrashtime(1), moosefs(7)

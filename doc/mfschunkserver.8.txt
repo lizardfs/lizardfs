@@ -1,0 +1,120 @@
+mfschunkserver(8)
+=================
+
+== NAME
+
+mfschunkserver - start, restart or stop Moose File System chunkserver process
+
+== SYNOPSIS
+
+[verse]
+*mfschunkserver* [*-f*] [*-c* 'CFGFILE'] [*-u*] [*-d*] [*-t* 'LOCKTIMEOUT'] ['ACTION']
+
+[verse]
+*mfschunkserver -s* [*-c* 'CFGFILE']
+
+[verse]
+*mfschunkserver -v*
+
+[verse]
+*mfschunkserver -h*
+
+
+== DESCRIPTION
+
+*mfschunkserver* is the data server of Moose File System. Depending on parameters it can start,
+restart or stop MooseFS chunkserver process. Without any options it starts MooseFS chunkserver,
+killing previously run process if lock file exists.
+
+SIGHUP (or *reload* 'ACTION') forces *mfschunkserver* to reload all configuration files.
+
+Starting with version 1.6.0 chunkserver periodically tests stored chunks (see *HDD_TEST_FREQ* option
+in *mfschunkserver.cfg* manual).
+
+Starting with version 1.6.5 MooseFS master doesn't send metadata change logs to chunkserver and
+expect at least one *mfsmetalogger* daemon to connect.
+
+Starting with version 1.6.26 chunkserver scans attached disks in background.
+
+== OPTIONS
+
+*-v*::
+print version information and exit
+
+*-h*::
+print usage information and exit
+
+*-f*::
+(deprecated, use *start* action instead)
+forcily run MooseFS chunkserver process, without trying to kill previous instance (this option
+allows to run MooseFS chunkserver if stale PID file exists)
+
+*-s*::
+(deprecated, use *stop* action instead)
+stop MooseFS chunkserver process
+
+*-c* 'CFGFILE'::
+specify alternative path of configuration file (default is *mfschunkserver.cfg* in system
+configuration directory)
+
+*-u*::
+log undefined configuration values (when default is assumed)
+
+*-d*::
+run in foreground, don't daemonize
+
+*-t* 'LOCKTIMEOUT'::
+how long to wait for lockfile (default is 60 seconds)
+
+'ACTION'
+is the one of *start*, *stop*, *restart*, *reload*, *test*, *isalive* or *kill*. Default action is
+*restart* unless *-s* (stop) or *-f* (start) option is given. Note that *-s* and *-f* options are
+deprecated, likely to disappear and 'ACTION' parameter to become obligatory in MooseFS 1.7.
+
+== FILES
+
+*mfschunkserver.cfg*::
+configuration file for MooseFS chunkserver process; refer to *mfschunkserver.cfg*(5) manual for
+defails
+
+*mfshdd.cfg*::
+list of directories (mountpoints) used for MooseFS storage (one per line; directory prefixed by ***
+character causes given directory to be freed by replicating all data already stored there to another
+locations)
+
+*mfschunkserver.lock*::
+PID file of running MooseFS chunkserver process
+(created in RUN_PATH by MooseFS < 1.6.9)
+
+*.mfschunkserver.lock*::
+lock file of running MooseFS chunkserver process
+(created in data directory since MooseFS 1.6.9)
+
+*`changelog_csback.*.mfs`*::
+MooseFS filesystem metadata change logs (backup of master change log files; used only with MooseFS
+master < 1.6.5)
+
+*data.csstats*::
+Chunkserver charts state
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmaster(8), mfsmount(1), mfschunkserver.cfg(5), mfshdd.cfg(5), moosefs(7)
