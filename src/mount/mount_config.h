@@ -53,6 +53,7 @@ struct mfsopts_ {
 	int debug;
 	int delayedinit;
 	int acl;
+	int rwlock;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
 	int sugidclearmode;
@@ -72,7 +73,7 @@ struct mfsopts_ {
 	uint32_t chunkserverreadto;
 
 	mfsopts_()
-		:       masterhost(NULL),
+		: masterhost(NULL),
 			masterport(NULL),
 			bindhost(NULL),
 			subfolder(NULL),
@@ -88,6 +89,7 @@ struct mfsopts_ {
 			debug(0),
 			delayedinit(0),
 			acl(0),
+			rwlock(1),
 #ifdef __linux__
 			mkdircopysgid(1),
 #else

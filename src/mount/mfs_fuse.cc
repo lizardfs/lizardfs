@@ -138,6 +138,7 @@ static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
+static bool use_rwlock = 0;
 
 enum {
 	OP_STATFS = 0,
@@ -1860,8 +1861,13 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		fuse_reply_err(req, EIO);
 		return;
 	}
-	// acquire read lock, from now we only have to deal with other readers
-	pthread_rwlock_rdlock(&(fileinfo->rwlock));
+	if (use_rwlock) {
+		// acquire shared lock, from now we only have to deal with other readers
+		pthread_rwlock_rdlock(&(fileinfo->rwlock));
+	} else {
+		// acquire unique lock, from now we have exclusive access to this inode
+		pthread_rwlock_wrlock(&(fileinfo->rwlock));
+	}
 	// serialize the following checks and preparations
 	pthread_mutex_lock(&(fileinfo->flushlock));
 	if (fileinfo->mode==IO_WRITEONLY) {
@@ -2460,7 +2466,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 
 void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		int sugid_clear_mode_, bool acl_enabled_) {
+		int sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
@@ -2470,10 +2476,12 @@ void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 	mkdir_copy_sgid = mkdir_copy_sgid_;
 	sugid_clear_mode = sugid_clear_mode_;
 	acl_enabled = acl_enabled_;
+	use_rwlock = use_rwlock_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode_<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
+		fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
 	}
 	mfs_statsptr_init();
 }

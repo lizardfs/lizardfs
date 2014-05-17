@@ -321,7 +321,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.attrcacheto,
 				gMountOptions.mkdircopysgid,
 				gMountOptions.sugidclearmode,
-				gMountOptions.acl);
+				gMountOptions.acl,
+				gMountOptions.rwlock);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
