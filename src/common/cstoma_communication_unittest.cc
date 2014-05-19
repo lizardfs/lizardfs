@@ -16,8 +16,7 @@ TEST(CstomaCommunicationTests, OverwriteStatusField) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 0, 2);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cstoma::serializeStatus(buffer, LIZ_CSTOMA_SET_VERSION,
-			chunkIdIn, chunkTypeIn, statusIn));
+	ASSERT_NO_THROW(cstoma::setVersion::serialize(buffer, chunkIdIn, chunkTypeIn, statusIn));
 	statusIn = ERROR_WRONGOFFSET;
 	cstoma::overwriteStatusField(buffer, statusIn);
 
