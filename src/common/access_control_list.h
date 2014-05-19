@@ -59,10 +59,7 @@ public:
 	std::string toString() const;
 	static AccessControlList fromString(const std::string& string);
 
-	LIZARDFS_DEFINE_SERIALIZE_METHODS(
-			AccessControlList,
-			uint16_t, mode,
-			std::unique_ptr<ExtendedAcl>, extendedAcl);
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(mode, extendedAcl);
 
 	/*
 	 * If acl.extendedAcl is null, then acl represents a minimal ACL

@@ -93,9 +93,7 @@ public:
 		return mask <= 7;
 	}
 
-	LIZARDFS_DEFINE_SERIALIZE_METHODS(ExtendedAcl,
-			AccessMask, owningGroupMask_,
-			std::vector<Entry>, list_);
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(owningGroupMask_, list_);
 
 private:
 	AccessMask owningGroupMask_;

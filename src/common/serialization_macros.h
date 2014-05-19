@@ -61,11 +61,11 @@
 					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
 		} \
 		void serialize(uint8_t** destination) const { \
-			return ::serialize(destination, \
+			::serialize(destination, \
 					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
 		} \
 		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) { \
-			return ::deserialize(source, bytesLeftInBuffer, \
+			::deserialize(source, bytesLeftInBuffer, \
 					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
 		}
 
@@ -112,8 +112,16 @@
 		}
 
 // One macro which creates serialize, deserialize and serializedSize methods
-#define LIZARDFS_DEFINE_SERIALIZE_METHODS(ClassName, ...) \
-		SERIALIZE_METHODS(ClassName, __VA_ARGS__)
+#define LIZARDFS_DEFINE_SERIALIZE_METHODS(...) \
+		uint32_t serializedSize() const { \
+			return ::serializedSize(__VA_ARGS__); \
+		} \
+		void serialize(uint8_t** destination) const { \
+			::serialize(destination, __VA_ARGS__); \
+		} \
+		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) { \
+			::deserialize(source, bytesLeftInBuffer, __VA_ARGS__); \
+		}
 
 // One macro which creates serialize and deserialize functions for network communicates
 #define LIZARDFS_DEFINE_PACKET_SERIALIZATION(NAMESPACE1, NAMESPACE2, ID, VERSION, \
