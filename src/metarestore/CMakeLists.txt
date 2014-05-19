@@ -4,7 +4,7 @@ add_definitions(-DAPPNAME=mfsmetarestore)
 
 collect_sources(METARESTORE)
 
-add_library(metarestore ${METARESTORE_SOURCES} ../master/filesystem.cc ../master/chunks.cc ../master/metadata_dumper.cc ../master/quota_database.cc)
+add_library(metarestore ${METARESTORE_SOURCES} ../master/filesystem.cc ../master/chunks.cc ../master/metadata_dumper.cc ../master/quota_database.cc ../master/chunk_goal_counters.cc)
 target_link_libraries(metarestore mfscommon)
 add_tests(metarestore ${METARESTORE_TESTS})
 
