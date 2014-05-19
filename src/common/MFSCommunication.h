@@ -495,9 +495,17 @@
 #define MATOCS_DUPLICATE (PROTO_BASE+130)
 /// chunkid:64 chunkversion:32 oldchunkid:64 oldchunkversion:32
 
+// 0x046A
+#define LIZ_MATOCS_DUPLICATE_CHUNK (1000U + 130U)
+/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32
+
 // 0x0083
 #define CSTOMA_DUPLICATE (PROTO_BASE+131)
 /// chunkid:64 status:8
+
+// 0x046B
+#define LIZ_CSTOMA_DUPLICATE_CHUNK (1000U + 131U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x008C
 #define MATOCS_SET_VERSION (PROTO_BASE + 140)
@@ -567,9 +575,17 @@
 #define MATOCS_DUPTRUNC (PROTO_BASE+170)
 /// chunkid:64 chunkversion:32 oldchunkid:64 oldchunkversion:32 chunklength:32
 
+// 0x0492
+#define LIZ_MATOCS_DUPTRUNC_CHUNK (1000U + 170U)
+/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32 chunklength:32
+
 // 0x00AB
 #define CSTOMA_DUPTRUNC (PROTO_BASE+171)
 /// chunkid:64 status:8
+
+// 0x0493
+#define LIZ_CSTOMA_DUPTRUNC_CHUNK (1000U + 171U)
+/// chunkid:64 chunktype:8 status:8
 
 // CHUNKSERVER <-> CLIENT/CHUNKSERVER
 

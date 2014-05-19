@@ -67,6 +67,18 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, duplicateChunk, LIZ_CSTOMA_DUPLICATE_CHUNK, 0,
+		uint64_t,  chunkId,
+		ChunkType, chunkType,
+		uint8_t,   status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, duptruncChunk, LIZ_CSTOMA_DUPTRUNC_CHUNK, 0,
+		uint64_t,  chunkId,
+		ChunkType, chunkType,
+		uint8_t,   status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, replicate, LIZ_CSTOMA_REPLICATE, 0,
 		uint64_t,  chunkId,
 		uint32_t,  chunkVersion,

@@ -34,6 +34,23 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t,  oldVersion)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocs, duplicateChunk, LIZ_MATOCS_DUPLICATE_CHUNK, 0,
+		uint64_t, newChunkId,
+		uint32_t, newchunkVersion,
+		ChunkType, chunkType,
+		uint64_t, oldChunkId,
+		uint32_t, oldChunkVersion)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocs, duptruncChunk, LIZ_MATOCS_DUPTRUNC_CHUNK, 0,
+		uint64_t, newChunkId,
+		uint32_t, newchunkVersion,
+		ChunkType, chunkType,
+		uint64_t, oldChunkId,
+		uint32_t, oldChunkVersion,
+		uint32_t, length)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocs, replicate, LIZ_MATOCS_REPLICATE, 0,
 		uint64_t,  chunkId,
 		uint32_t,  chunkVersion,
