@@ -17,7 +17,15 @@ function get_stack () {
 		local args=()
 		local j
 		for (( j = argv_beg + arguments_count - 1; j >= argv_beg; --j )); do
-			args+=("'${BASH_ARGV[$j]}'")
+			# Cut the argument if it's really long (sometimes we use arguments
+			# longer than tens of kilobytes which span over many lines)
+			local arg="${BASH_ARGV[$j]}"
+			if (( ${#arg} > 150 )); then
+				arg="'${arg:0:150}'..."
+			else
+				arg="'$arg'"
+			fi
+			args+=("$arg")
 		done
 		argv_beg=$((argv_beg + arguments_count))
 		if (( i >= skip && line > 0 )); then
