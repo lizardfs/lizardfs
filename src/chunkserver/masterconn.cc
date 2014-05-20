@@ -420,10 +420,12 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	uint32_t sourcesBufferSize;
 	const uint8_t* sourcesBuffer;
 
-	matocs::replicate::deserializePartial(data, chunkId, chunkVersion, chunkType, sourcesBuffer);
+	matocs::replicateChunk::deserializePartial(data,
+			chunkId, chunkVersion, chunkType, sourcesBuffer);
 	sourcesBufferSize = data.size() - (sourcesBuffer - data.data());
 	OutputPacket* outputPacket = new OutputPacket;
-	cstoma::replicate::serialize(outputPacket->packet, chunkId, chunkVersion, chunkType, STATUS_OK);
+	cstoma::replicateChunk::serialize(outputPacket->packet,
+			chunkId, chunkType, STATUS_OK, chunkVersion);
 	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
 			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
 }
@@ -572,7 +574,7 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 			case MATOCS_REPLICATE:
 				masterconn_legacy_replicate(eptr, data.data(), data.size());
 				break;
-			case LIZ_MATOCS_REPLICATE:
+			case LIZ_MATOCS_REPLICATE_CHUNK:
 				masterconn_replicate(data);
 				break;
 			case MATOCS_CHUNKOP:

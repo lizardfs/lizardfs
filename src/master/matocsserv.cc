@@ -930,7 +930,7 @@ int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t versi
 				NetworkAddress(src->servip, src->servport), sourceTypes[i]));
 	}
 	eptr->outputPackets.push_back(OutputPacket());
-	matocs::replicate::serialize(eptr->outputPackets.back().packet,
+	matocs::replicateChunk::serialize(eptr->outputPackets.back().packet,
 			chunkid, version, type, sources);
 	matocsserv_replication_begin(chunkid, version, type,
 			eptr, sourcePointers.size(), sourcePointers.data());
@@ -945,8 +945,8 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
 
-	if (packetType == LIZ_CSTOMA_REPLICATE) {
-		cstoma::replicate::deserialize(data, chunkId, chunkVersion, chunkType, status);
+	if (packetType == LIZ_CSTOMA_REPLICATE_CHUNK) {
+		cstoma::replicateChunk::deserialize(data, chunkId, chunkType, status, chunkVersion);
 	} else {
 		sassert(packetType == CSTOMA_REPLICATE);
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, chunkVersion, status);
@@ -1556,7 +1556,7 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				matocsserv_got_deletechunk_status(eptr, data);
 				break;
 			case CSTOMA_REPLICATE:
-			case LIZ_CSTOMA_REPLICATE:
+			case LIZ_CSTOMA_REPLICATE_CHUNK:
 				matocsserv_got_replicatechunk_status(eptr, data, type);
 				break;
 			case CSTOMA_DUPLICATE:

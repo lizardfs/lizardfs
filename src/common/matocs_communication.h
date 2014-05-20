@@ -51,14 +51,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, length)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocs, replicate, LIZ_MATOCS_REPLICATE, 0,
+		matocs, replicateChunk, LIZ_MATOCS_REPLICATE_CHUNK, 0,
 		uint64_t,  chunkId,
 		uint32_t,  chunkVersion,
 		ChunkType, chunkType,
 		std::vector<ChunkTypeWithAddress>, sources)
 
 namespace matocs {
-namespace replicate {
+namespace replicateChunk {
 inline void deserializePartial(const std::vector<uint8_t>& source,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkType& chunkType, const uint8_t*& sources) {
 	verifyPacketVersionNoHeader(source, 0);

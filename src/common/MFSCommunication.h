@@ -528,7 +528,7 @@
 /// chunkid:64 chunkversion:32 ip:32 port:16
 
 // 0x047e
-#define LIZ_MATOCS_REPLICATE (1000U + 150U)
+#define LIZ_MATOCS_REPLICATE_CHUNK (1000U + 150U)
 /// chunkid:64 chunkversion:32 chunktype:8 sources:(N * [ip:32 port:16 chunktype:8])
 
 // 0x0097
@@ -536,7 +536,7 @@
 /// chunkid:64 chunkversion:32 status:8
 
 // 0x047f
-#define LIZ_CSTOMA_REPLICATE (1000U + 151U)
+#define LIZ_CSTOMA_REPLICATE_CHUNK (1000U + 151U)
 /// chunkid:64 chunktype:8 status:8 chunkversion:32
 
 // 0x0098

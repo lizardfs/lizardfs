@@ -79,8 +79,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, replicate, LIZ_CSTOMA_REPLICATE, 0,
+		cstoma, replicateChunk, LIZ_CSTOMA_REPLICATE_CHUNK, 0,
 		uint64_t,  chunkId,
-		uint32_t,  chunkVersion,
 		ChunkType, chunkType,
-		uint8_t,   status)
+		uint8_t,   status, // status has to be third field to make overwriteStatusField work!!!
+		uint32_t,  chunkVersion)

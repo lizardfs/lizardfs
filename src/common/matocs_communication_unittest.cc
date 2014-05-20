@@ -61,12 +61,12 @@ TEST(MatocsCommunicationTests, Replicate) {
 	};
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(matocs::replicate::serialize(buffer,
+	ASSERT_NO_THROW(matocs::replicateChunk::serialize(buffer,
 			chunkIdIn, chunkVersionIn, chunkTypeIn, serverListIn));
 
-	verifyHeader(buffer, LIZ_MATOCS_REPLICATE);
+	verifyHeader(buffer, LIZ_MATOCS_REPLICATE_CHUNK);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(matocs::replicate::deserialize(buffer,
+	ASSERT_NO_THROW(matocs::replicateChunk::deserialize(buffer,
 			chunkIdOut, chunkVersionOut, chunkTypeOut, serverListOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkId);
