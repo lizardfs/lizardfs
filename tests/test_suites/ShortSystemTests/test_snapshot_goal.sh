@@ -1,4 +1,3 @@
-test_end
 timeout_set '5 minutes'
 
 CHUNKSERVERS=6 \

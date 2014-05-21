@@ -62,20 +62,18 @@ uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra),
 			chunkType, newChunkVersion, 0, 0, length) \
 	: job_inval(jobPool, callback, extra))
 
-#define job_duplicate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, \
+#define job_duplicate(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, chunkType, \
 		chunkIdCopy, chunkVersionCopy) \
 	(((newChunkVersion > 0) && (chunkIdCopy) > 0) \
-	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
-			ChunkType::getStandardChunkType(), newChunkVersion, chunkIdCopy, chunkVersionCopy, \
-			0xFFFFFFFF) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, \
+			newChunkVersion, chunkIdCopy, chunkVersionCopy, 0xFFFFFFFF) \
 	: job_inval(jobPool, callback, extra))
 
-#define job_duptrunc(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, \
+#define job_duptrunc(jobPool, callback, extra, chunkId, chunkVersion, newChunkVersion, chunkType, \
 		chunkIdCopy, chunkVersionCopy, length) \
 	(((newChunkVersion > 0) && (chunkIdCopy) > 0 && (length) != 0xFFFFFFFF) \
-	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, \
-			ChunkType::getStandardChunkType(), newChunkVersion, chunkIdCopy, chunkVersionCopy, \
-			length) \
+	? job_chunkop(jobPool, callback, extra, chunkId, chunkVersion, chunkType, \
+			newChunkVersion, chunkIdCopy, chunkVersionCopy, length) \
 	: job_inval(jobPool, callback, extra))
 
 uint32_t job_open(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,

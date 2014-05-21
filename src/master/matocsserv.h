@@ -51,9 +51,11 @@ int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion
 int matocsserv_send_createchunk(void *e, uint64_t chunkid, ChunkType chunkType, uint32_t version);
 int matocsserv_send_setchunkversion(void *e, uint64_t chunkId, uint32_t newVersion,
 		uint32_t chunkVersion, ChunkType chunkType);
-int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion);
+int matocsserv_send_duplicatechunk(void *e, uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion);
 void matocsserv_send_truncatechunk(void *e, uint64_t chunkid, ChunkType chunkType, uint32_t length,
 		uint32_t version, uint32_t oldversion);
-int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
+int matocsserv_send_duptruncchunk(void *e, uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t length);
 uint32_t matocsserv_get_version(void *e);
 int matocsserv_init(void);

@@ -29,7 +29,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocs, truncateChunk, LIZ_MATOCS_TRUNCATE, 0,
 		uint64_t,  chunkId,
 		ChunkType, chunkType,
-		uint32_t,  length,
+		uint32_t,  length, // if xor chunk - length of chunk part
 		uint32_t,  newVersion,
 		uint32_t,  oldVersion)
 
@@ -48,7 +48,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		ChunkType, chunkType,
 		uint64_t, oldChunkId,
 		uint32_t, oldChunkVersion,
-		uint32_t, length)
+		uint32_t, length) // if xor chunk - length of chunk part
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocs, replicateChunk, LIZ_MATOCS_REPLICATE_CHUNK, 0,

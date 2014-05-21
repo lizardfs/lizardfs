@@ -966,10 +966,9 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 						chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 					}
-					// TODO(msulikowski) implement COW of XOR chunks!
-					s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version,
-							ChunkType::getStandardChunkType());
-					matocsserv_send_duplicatechunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version);
+					s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
+					matocsserv_send_duplicatechunk(s->ptr, c->chunkid, c->version, os->chunkType,
+							oc->chunkid, oc->version);
 					i++;
 				}
 			}
@@ -1009,7 +1008,6 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #ifndef METARESTORE
 int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
 		bool truncatingUpwards, bool quota_exceeded) {
-	slist *os,*s;
 	uint32_t i;
 #else
 int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
@@ -1035,7 +1033,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 			return ERROR_CHUNKBUSY;
 		}
 		i=0;
-		for (s=c->slisthead ;s ; s=s->next) {
+		for (slist *s=c->slisthead ; s ; s=s->next) {
 			if (s->is_valid()) {
 				if (!s->is_busy()) {
 					s->mark_busy();
@@ -1082,8 +1080,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 			return ERROR_QUOTA;
 		}
 		i=0;
-		// TODO add XOR chunks support
-		for (os=oc->slisthead ;os ; os=os->next) {
+		for (slist *os=oc->slisthead ; os ; os=os->next) {
 			if (os->is_valid()) {
 				if (c==NULL) {
 #endif
@@ -1096,10 +1093,20 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 					chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 				}
-				s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version,
-						ChunkType::getStandardChunkType());
-				matocsserv_send_duptruncchunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version,length);
-				i++;
+				if (!truncatingUpwards
+						&& os->chunkType.isXorChunkType()
+						&& os->chunkType.isXorParity()
+						&& (length % (MFSBLOCKSIZE * os->chunkType.getXorLevel()) != 0)) {
+					syslog(LOG_WARNING, "Trying to duptrunc down parity chunk: %016" PRIX64
+							" - currently unsupported!!!", ochunkid);
+					c->updateStats();
+				} else {
+					slist *s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
+					matocsserv_send_duptruncchunk(s->ptr, c->chunkid, c->version,
+							s->chunkType, oc->chunkid, oc->version,
+							ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length));
+					i++;
+				}
 			}
 		}
 		if (c!=NULL) {
@@ -1556,13 +1563,13 @@ void chunk_got_create_status(void *ptr,uint64_t chunkId, ChunkType chunkType, ui
 	chunk_operation_status(c, chunkType, status, ptr);
 }
 
-void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duplicate_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
 	chunk *c;
-	c = chunk_find(chunkid);
+	c = chunk_find(chunkId);
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
+	chunk_operation_status(c, chunkType, status, ptr);
 }
 
 void chunk_got_setversion_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
@@ -1583,13 +1590,13 @@ void chunk_got_truncate_status(void *ptr, uint64_t chunkid, ChunkType chunkType,
 	chunk_operation_status(c, chunkType, status, ptr);
 }
 
-void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duptrunc_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
 	chunk *c;
-	c = chunk_find(chunkid);
+	c = chunk_find(chunkId);
 	if (c==NULL) {
 		return ;
 	}
-	chunk_operation_status(c, ChunkType::getStandardChunkType(), status, ptr);
+	chunk_operation_status(c, chunkType, status, ptr);
 }
 
 /* ----------------------- */

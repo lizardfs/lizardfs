@@ -1,4 +1,3 @@
-test_end
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \

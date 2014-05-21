@@ -2146,7 +2146,8 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 	return STATUS_OK;
 }
 
-static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion) {
+static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t chunkNewVersion,
+		ChunkType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion) {
 	TRACETHIS();
 	folder *f;
 	uint16_t block;
@@ -2171,16 +2172,16 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
 	}
 
-	oc = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	oc = hdd_chunk_find(chunkId, chunkType);
 	if (oc==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	if (oc->version!=version && version>0) {
+	if (oc->version!=chunkVersion && chunkVersion>0) {
 		hdd_chunk_release(oc);
 		return ERROR_WRONGVERSION;
 	}
-	if (copyversion==0) {
-		copyversion = newversion;
+	if (copyChunkVersion==0) {
+		copyChunkVersion = chunkNewVersion;
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	f = hdd_getfolder();
@@ -2189,15 +2190,15 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f, copychunkid, ChunkType::getStandardChunkType(), copyversion);
+	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
 		return ERROR_CHUNKEXIST;
 	}
 
-	if (newversion != version) {
-		if (c->renameChunkFile(c->generateFilenameForVersion(newversion)) < 0) {
+	if (chunkNewVersion != chunkVersion) {
+		if (c->renameChunkFile(c->generateFilenameForVersion(chunkNewVersion)) < 0) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
@@ -2212,7 +2213,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			hdd_chunk_release(oc);
 			return status;  //can't change file version
 		}
-		status = hdd_chunk_overwrite_version(oc, newversion);
+		status = hdd_chunk_overwrite_version(oc, chunkNewVersion);
 		if (status != STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
@@ -2227,7 +2228,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		if (status!=STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
-			hdd_report_damaged_chunk(chunkid);
+			hdd_report_damaged_chunk(chunkId);
 			hdd_chunk_release(oc);
 			return status;
 		}
@@ -2243,8 +2244,8 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	memset(hdrbuffer, 0, c->getHeaderSize());
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
 	uint8_t* ptr = hdrbuffer+8;
-	put64bit(&ptr,copychunkid);
-	put32bit(&ptr,copyversion);
+	put64bit(&ptr,copyChunkId);
+	put32bit(&ptr,copyChunkVersion);
 	memcpy(c->crc, oc->crc, c->getCrcSize());
 	memcpy(hdrbuffer + c->getCrcOffset(), oc->crc, c->getCrcSize());
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
@@ -2270,7 +2271,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			unlink(c->filename().c_str());
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
-			hdd_report_damaged_chunk(chunkid);
+			hdd_report_damaged_chunk(chunkId);
 			hdd_chunk_release(oc);
 			return ERROR_IO;
 		}
@@ -2295,7 +2296,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
-		hdd_report_damaged_chunk(chunkid);
+		hdd_report_damaged_chunk(chunkId);
 		hdd_chunk_release(oc);
 		return status;
 	}
@@ -2486,7 +2487,9 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 	return status;
 }
 
-static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t chunkNewVersion,
+		ChunkType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion,
+		uint32_t copyChunkLength) {
 	TRACETHIS();
 	folder *f;
 	uint16_t block;
@@ -2513,19 +2516,19 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
 	}
 
-	if (length>MFSCHUNKSIZE) {
+	if (copyChunkLength>MFSCHUNKSIZE) {
 		return ERROR_WRONGSIZE;
 	}
-	oc = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	oc = hdd_chunk_find(chunkId, chunkType);
 	if (oc==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	if (oc->version!=version && version>0) {
+	if (oc->version!=chunkVersion && chunkVersion>0) {
 		hdd_chunk_release(oc);
 		return ERROR_WRONGVERSION;
 	}
-	if (copyversion==0) {
-		copyversion = newversion;
+	if (copyChunkVersion==0) {
+		copyChunkVersion = chunkNewVersion;
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	f = hdd_getfolder();
@@ -2534,15 +2537,15 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f,copychunkid,ChunkType::getStandardChunkType(),copyversion);
+	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
 		return ERROR_CHUNKEXIST;
 	}
 
-	if (newversion!=version) {
-		if (oc->renameChunkFile(oc->generateFilenameForVersion(newversion)) < 0) {
+	if (chunkNewVersion!=chunkVersion) {
+		if (oc->renameChunkFile(oc->generateFilenameForVersion(chunkNewVersion)) < 0) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
@@ -2557,7 +2560,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_chunk_release(oc);
 			return status;  //can't change file version
 		}
-		status = hdd_chunk_overwrite_version(oc, newversion);
+		status = hdd_chunk_overwrite_version(oc, chunkNewVersion);
 		if (status != STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			mfs_arg_errlog_silent(LOG_WARNING,
@@ -2572,7 +2575,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		if (status!=STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
-			hdd_report_damaged_chunk(chunkid);
+			hdd_report_damaged_chunk(chunkId);
 			hdd_chunk_release(oc);
 			return status;
 		}
@@ -2585,12 +2588,12 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_chunk_release(oc);
 		return status;
 	}
-	blocks = (length + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+	blocks = (copyChunkLength + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 	memset(hdrbuffer, 0, c->getHeaderSize());
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
 	uint8_t* ptr = hdrbuffer+8;
-	put64bit(&ptr,copychunkid);
-	put32bit(&ptr,copyversion);
+	put64bit(&ptr,copyChunkId);
+	put32bit(&ptr,copyChunkVersion);
 	memcpy(hdrbuffer + c->getCrcOffset(), oc->crc, c->getCrcSize());
 // do not write header yet - only seek to apriopriate position
 	lseek(c->fd, c->getDataBlockOffset(0), SEEK_SET);
@@ -2606,7 +2609,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				unlink(c->filename().c_str());
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
-				hdd_report_damaged_chunk(chunkid);
+				hdd_report_damaged_chunk(chunkId);
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
@@ -2641,7 +2644,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			put32bit(&ptr,emptyblockcrc);
 		}
 	} else { // shrinking
-		uint32_t blocksize = (length / MFSBLOCKSIZE) * MFSBLOCKSIZE;
+		uint32_t blocksize = copyChunkLength - (copyChunkLength / MFSBLOCKSIZE) * MFSBLOCKSIZE;
 		if (blocksize==0) { // aligned shrink
 			for (block=0 ; block<blocks ; block++) {
 				retsize = read(oc->fd,blockbuffer,MFSBLOCKSIZE);
@@ -2653,7 +2656,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
-					hdd_report_damaged_chunk(chunkid);
+					hdd_report_damaged_chunk(chunkId);
 					hdd_chunk_release(oc);
 					return ERROR_IO;
 				}
@@ -2683,7 +2686,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
-					hdd_report_damaged_chunk(chunkid);
+					hdd_report_damaged_chunk(chunkId);
 					hdd_chunk_release(oc);
 					return ERROR_IO;
 				}
@@ -2712,7 +2715,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				unlink(c->filename().c_str());
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
-				hdd_report_damaged_chunk(chunkid);
+				hdd_report_damaged_chunk(chunkId);
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
@@ -2757,7 +2760,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
-		hdd_report_damaged_chunk(chunkid);
+		hdd_report_damaged_chunk(chunkId);
 		hdd_chunk_release(oc);
 		return status;
 	}
@@ -2847,13 +2850,15 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
 			if (copyChunkId==0) {
 				return hdd_int_version(chunkId, chunkVersion, chunkNewVersion, chunkType);
 			} else {
-				return hdd_int_duplicate(chunkId,chunkVersion,chunkNewVersion,copyChunkId,copyChunkVersion);
+				return hdd_int_duplicate(chunkId, chunkVersion, chunkNewVersion, chunkType,
+						copyChunkId, copyChunkVersion);
 			}
 		} else if (length<=MFSCHUNKSIZE) {
 			if (copyChunkId==0) {
 				return hdd_int_truncate(chunkId, chunkType, chunkVersion, chunkNewVersion, length);
 			} else {
-				return hdd_int_duptrunc(chunkId,chunkVersion,chunkNewVersion,copyChunkId,copyChunkVersion,length);
+				return hdd_int_duptrunc(chunkId, chunkVersion, chunkNewVersion, chunkType,
+						copyChunkId, copyChunkVersion, length);
 			}
 		} else {
 			return ERROR_EINVAL;

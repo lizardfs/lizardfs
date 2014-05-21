@@ -80,10 +80,10 @@ void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersi
 void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status);
 
 void chunk_got_create_status(void *ptr, uint64_t chunkid, ChunkType chunkType, uint8_t status);
-void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_duplicate_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
 void chunk_got_setversion_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
 void chunk_got_truncate_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
-void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_duptrunc_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
 
 #endif
 

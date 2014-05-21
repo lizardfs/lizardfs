@@ -319,27 +319,17 @@ void masterconn_setversion(masterconn */*eptr*/, const std::vector<uint8_t>& dat
 			newVersion);
 }
 
-void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint64_t copychunkid;
-	uint32_t copyversion;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_duplicate(masterconn* /*eptr*/,const std::vector<uint8_t>& data) {
+	uint64_t newChunkId, oldChunkId;
+	uint32_t newChunkVersion, oldChunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4+8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%" PRIu32 "/24)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	copychunkid = get64bit(&data);
-	copyversion = get32bit(&data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_DUPLICATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,copychunkid);
-	job_duplicate(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
+	matocs::duplicateChunk::deserialize(data, newChunkId, newChunkVersion, chunkType,
+			oldChunkId, oldChunkVersion);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::duplicateChunk::serialize(outputPacket->packet, newChunkId, chunkType, 0);
+	job_duplicate(jpool, masterconn_lizjobfinished, outputPacket, oldChunkId,
+			oldChunkVersion, oldChunkVersion, chunkType, newChunkId, newChunkVersion);
 }
 
 void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
@@ -356,29 +346,18 @@ void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data)
 			newVersion, chunkLength);
 }
 
-void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint64_t copychunkid;
-	uint32_t copyversion;
-	uint32_t leng;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_duptrunc(masterconn* /*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId, copyChunkId;
+	uint32_t chunkVersion, copyChunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t newLength;
 
-	if (length!=8+4+8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%" PRIu32 "/28)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	copychunkid = get64bit(&data);
-	copyversion = get32bit(&data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	leng = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_DUPTRUNC,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,copychunkid);
-	job_duptrunc(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
+	matocs::duptruncChunk::deserialize(data, copyChunkId, copyChunkVersion,
+			chunkType, chunkId, chunkVersion, newLength);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::duptruncChunk::serialize(outputPacket->packet, copyChunkId, chunkType, 0);
+	job_duptrunc(jpool, masterconn_lizjobfinished, outputPacket, chunkId,
+			chunkVersion, chunkVersion, chunkType, copyChunkId, copyChunkVersion, newLength);
 }
 
 void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -568,8 +547,8 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 			case LIZ_MATOCS_SET_VERSION:
 				masterconn_setversion(eptr, data);
 				break;
-			case MATOCS_DUPLICATE:
-				masterconn_duplicate(eptr, data.data(), data.size());
+			case LIZ_MATOCS_DUPLICATE_CHUNK:
+				masterconn_duplicate(eptr, data);
 				break;
 			case MATOCS_REPLICATE:
 				masterconn_legacy_replicate(eptr, data.data(), data.size());
@@ -583,8 +562,8 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 			case LIZ_MATOCS_TRUNCATE:
 				masterconn_truncate(eptr, data);
 				break;
-			case MATOCS_DUPTRUNC:
-				masterconn_duptrunc(eptr,data.data(), data.size());
+			case LIZ_MATOCS_DUPTRUNC_CHUNK:
+				masterconn_duptrunc(eptr,data);
 				break;
 	//              case MATOCS_STRUCTURE_LOG:
 	//                      masterconn_structure_log(eptr,data,length);
@@ -987,3 +966,4 @@ int masterconn_init(void) {
 	main_reloadregister(masterconn_reload);
 	return 0;
 }
+
