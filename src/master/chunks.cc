@@ -39,6 +39,7 @@
 #include "common/MFSCommunication.h"
 #include "master/checksum.h"
 #include "master/chunk_copies_calculator.h"
+#include "master/chunk_goal_counters.h"
 #include "master/filesystem.h"
 
 #ifdef METARESTORE
@@ -183,34 +184,70 @@ public:
 	uint64_t chunkid;
 	uint64_t checksum;
 	chunk *next;
-	uint32_t *ftab;
 #ifndef METARESTORE
 	slist *slisthead;
 #endif
 	uint32_t version;
 	uint32_t lockid;
 	uint32_t lockedto;
-	uint32_t fcount;
-	uint8_t goal;
 #ifndef METARESTORE
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
+#endif
 private:
+#ifndef METARESTORE
 	uint8_t goalInStats_;
 	uint8_t allMissingParts_, regularMissingParts_;
 	uint8_t allRedundantParts_, regularRedundantParts_;
 	uint8_t allStandardCopies_, regularStandardCopies_;
 	uint8_t allAvailabilityState_, regularAvailabilityState_;
+#endif
+	ChunkGoalCounters goalCounters_;
+
 public:
+#ifndef METARESTORE
 	static ChunksAvailabilityState allChunksAvailability, regularChunksAvailability;
 	static ChunksReplicationState allChunksReplicationState, regularChunksReplicationState;
 	static uint64_t count;
 	static uint64_t allStandardChunkCopies[11][11], regularStandardChunkCopies[11][11];
+#endif
 
-	/*
-	 * This method should be called on a new chunk
-	 */
+	uint8_t goal() const {
+		return goalCounters_.combinedGoal();
+	}
+
+	// number of files this chunk belongs to
+	uint8_t fileCount() const {
+		return goalCounters_.fileCount();
+	}
+
+	// called when this chunks becomes a part of a file with the given goal
+	void addFileWithGoal(uint8_t goal) {
+		goalCounters_.addFile(goal);
+#ifndef METARESTORE
+		updateStats();
+#endif
+	}
+
+	// called when a file that this chunks belongs to is removed
+	void removeFileWithGoal(uint8_t goal) {
+		goalCounters_.removeFile(goal);
+#ifndef METARESTORE
+		updateStats();
+#endif
+	}
+
+	// called when a file that this chunks belongs to changes goal
+	void changeFileGoal(uint8_t prevGoal, uint8_t newGoal) {
+		goalCounters_.changeFileGoal(prevGoal, newGoal);
+#ifndef METARESTORE
+		updateStats();
+#endif
+	}
+
+#ifndef METARESTORE
+	// This method should be called on a new chunk
 	void initStats() {
 		count++;
 		allMissingParts_ = regularMissingParts_ = 0;
@@ -222,32 +259,28 @@ public:
 		updateStats();
 	}
 
-	/*
-	 * This method should be called when chunk is removed
-	 */
+	// This method should be called when a chunk is removed
 	void freeStats() {
 		count--;
 		removeFromStats();
 	}
 
-	/*
-	 * Updates statistics of all chunks
-	 */
+	// Updates statistics of all chunks
 	void updateStats() {
 		removeFromStats();
 		allStandardCopies_ = regularStandardCopies_ = 0;
-		ChunkCopiesCalculator all(goal), regular(goal);
+		ChunkCopiesCalculator all(goal()), regular(goal());
 		for (slist* s = slisthead; s != nullptr; s = s->next) {
 			if (!s->is_valid()) {
 				continue;
 			}
 			all.addPart(s->chunkType);
-			if (s->chunkType.isStandardChunkType() && allStandardCopies_ < 10) {
+			if (s->chunkType.isStandardChunkType()) {
 				allStandardCopies_++;
 			}
 			if (!s->is_todel()) {
 				regular.addPart(s->chunkType);
-				if (s->chunkType.isStandardChunkType() && regularStandardCopies_ < 10) {
+				if (s->chunkType.isStandardChunkType()) {
 					regularStandardCopies_++;
 				}
 			}
@@ -285,33 +318,33 @@ public:
 		return allStandardCopies_;
 	}
 
-	bool is_locked() const {
+	bool isLocked() const {
 		return lockedto >= main_time();
 	}
 
-	void copy_has_wrong_version(slist *s) {
+	void markCopyAsHavingWrongVersion(slist *s) {
 		s->valid = INVALID;
 		updateStats();
 	}
 
-	void invalidate_copy(slist *s) {
+	void invalidateCopy(slist *s) {
 		s->valid = INVALID;
 		s->version = 0;
 		updateStats();
 	}
 
-	void delete_copy(slist *s) {
+	void deleteCopy(slist *s) {
 		s->valid = DEL;
 		updateStats();
 	}
 
-	void unlink_copy(slist *s, slist **prev_next) {
+	void unlinkCopy(slist *s, slist **prev_next) {
 		*prev_next = s->next;
 		slist_free(s);
 		updateStats();
 	}
 
-	slist *add_copy_no_stats_update(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
+	slist* addCopyNoStatsUpdate(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
 		slist *s = slist_malloc();
 		s->ptr = ptr;
 		s->valid = valid;
@@ -323,13 +356,13 @@ public:
 	}
 
 	slist *addCopy(void *ptr, uint8_t valid, uint32_t version, ChunkType type) {
-		slist *s = add_copy_no_stats_update(ptr, valid, version, type);
+		slist *s = addCopyNoStatsUpdate(ptr, valid, version, type);
 		updateStats();
 		return s;
 	}
 
 	ChunkCopiesCalculator makeRegularCopiesCalculator() const {
-		ChunkCopiesCalculator calculator(goal);
+		ChunkCopiesCalculator calculator(goal());
 		for (const slist *s = slisthead; s != nullptr; s = s->next) {
 			if (s->is_valid() && !s->is_todel()) {
 				calculator.addPart(s->chunkType);
@@ -353,13 +386,15 @@ private:
 
 		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
 			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-			allStandardChunkCopies[limitedGoal][allStandardCopies_]--;
-			regularStandardChunkCopies[limitedGoal][regularStandardCopies_]--;
+			uint8_t limitedAll = std::min<uint8_t>(10, allStandardCopies_);
+			uint8_t limitedRegular = std::min<uint8_t>(10, regularStandardCopies_);
+			allStandardChunkCopies[limitedGoal][limitedAll]--;
+			regularStandardChunkCopies[limitedGoal][limitedRegular]--;
 		}
 	}
 
 	void addToStats() {
-		goalInStats_ = goal;
+		goalInStats_ = goal();
 		ChunksAvailabilityState::State chunkState;
 
 		chunkState = static_cast<ChunksAvailabilityState::State>(allAvailabilityState_);
@@ -373,8 +408,10 @@ private:
 
 		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
 			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-			allStandardChunkCopies[limitedGoal][allStandardCopies_]++;
-			regularStandardChunkCopies[limitedGoal][regularStandardCopies_]++;
+			uint8_t limitedAll = std::min<uint8_t>(10, allStandardCopies_);
+			uint8_t limitedRegular = std::min<uint8_t>(10, regularStandardCopies_);
+			allStandardChunkCopies[limitedGoal][limitedAll]++;
+			regularStandardChunkCopies[limitedGoal][limitedRegular]++;
 		}
 	}
 #endif
@@ -463,12 +500,12 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 
 static uint64_t gChunksChecksum;
 
-static uint64_t chunk_checksum(const chunk* ch) {
-	if (!ch) {
+static uint64_t chunk_checksum(const chunk* c) {
+	if (c == nullptr) {
 		return 0;
 	}
 	uint64_t checksum = 64517419147637ULL;
-	hashCombine(checksum, ch->chunkid, ch->version, ch->lockedto, ch->goal, ch->fcount);
+	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->goal(), c->fileCount());
 	return checksum;
 }
 
@@ -549,8 +586,7 @@ static inline chunk* chunk_malloc() {
 		return ret;
 	}
 	if (cbhead==NULL || cbhead->firstfree==CHUNK_BUCKET_SIZE) {
-		cb = (chunk_bucket*)malloc(sizeof(chunk_bucket));
-		passert(cb);
+		cb = new chunk_bucket;
 		cb->next = cbhead;
 		cb->firstfree = 0;
 		cbhead = cb;
@@ -567,14 +603,11 @@ static inline void chunk_free(chunk *p) {
 #else /* USE_CHUNK_BUCKETS */
 
 static inline chunk* chunk_malloc() {
-	chunk *cu;
-	cu = (chunk*)malloc(sizeof(chunk));
-	passert(cu);
-	return cu;
+	return new chunk;
 }
 
 static inline void chunk_free(chunk* p) {
-	free(p);
+	delete p;
 }
 
 #endif /* USE_CHUNK_BUCKETS */
@@ -587,11 +620,8 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	chunkhash[chunkpos] = newchunk;
 	newchunk->chunkid = chunkid;
 	newchunk->version = chunkversion;
-	newchunk->goal = 0;
 	newchunk->lockid = 0;
 	newchunk->lockedto = 0;
-	newchunk->fcount = 0;
-	newchunk->ftab = NULL;
 #ifndef METARESTORE
 	newchunk->needverincrease = 1;
 	newchunk->interrupted = 0;
@@ -684,11 +714,9 @@ void chunk_store_chunkcounters(uint8_t *buff, uint8_t matrixid) {
 }
 #endif
 
+/// updates chunk's goal after a file goal has been changed
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	chunk *c;
-#ifndef METARESTORE
-	uint8_t oldgoal;
-#endif
 	if (prevgoal==newgoal) {
 		return STATUS_OK;
 	}
@@ -696,152 +724,36 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	if (c==NULL) {
 		return ERROR_NOCHUNK;
 	}
-	if (c->fcount==0) {
-#ifndef METARESTORE
-		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",c->chunkid);
-#else
-		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
-#endif
-		return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+	try {
+		c->changeFileGoal(prevgoal, newgoal);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "chunk_change_file: %s", ex.what());
+		return ERROR_CHUNKLOST;
 	}
-#ifndef METARESTORE
-	oldgoal = c->goal;
-#endif
-	if (c->fcount==1) {
-		c->goal = newgoal;
-	} else {
-		if (c->ftab==NULL) {
-			c->ftab = new uint32_t[kMaxOrdinaryGoal + 1];
-			memset(c->ftab, 0, sizeof(uint32_t) * (kMaxOrdinaryGoal + 1));
-			if (isOrdinaryGoal(c->goal)) {
-				c->ftab[c->goal]=c->fcount-1;
-			}
-			if (isOrdinaryGoal(newgoal)) {
-				c->ftab[newgoal]=1;
-			}
-			if (isOrdinaryGoal(c->goal) && isOrdinaryGoal(newgoal)) {
-				if (newgoal > c->goal) {
-					c->goal = newgoal;
-				}
-			}
-		} else {
-			if (isOrdinaryGoal(prevgoal)) {
-				c->ftab[prevgoal]--;
-			}
-			if (isOrdinaryGoal(newgoal)) {
-				c->ftab[newgoal]++;
-			}
-			if (isOrdinaryGoal(c->goal)) {
-				c->goal = kMaxOrdinaryGoal;
-				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
-					c->goal--;
-				}
-			}
-		}
-	}
-#ifndef METARESTORE
-	if (oldgoal != c->goal) {
-		c->updateStats();
-	}
-#endif
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
+/// updates chunk's goal after a file with goal `goal' has been removed
 static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
-#ifndef METARESTORE
-	uint8_t oldgoal;
-#endif
-	if (c->fcount==0) {
-#ifndef METARESTORE
-		syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",c->chunkid);
-#else
-		printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",c->chunkid);
-#endif
-		return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+	try {
+		c->removeFileWithGoal(goal);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "chunk_delete_file_int: %s", ex.what());
+		return ERROR_CHUNKLOST;
 	}
-#ifndef METARESTORE
-	oldgoal = c->goal;
-#endif
-	if (c->fcount==1) {
-		c->goal = 0;
-		c->fcount = 0;
-	} else {
-		if (c->ftab) {
-			if (isOrdinaryGoal(goal)) {
-				c->ftab[goal]--;
-			}
-			if (isOrdinaryGoal(c->goal)) {
-				c->goal = kMaxOrdinaryGoal;
-				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
-					c->goal--;
-				}
-			}
-		}
-		c->fcount--;
-		if (c->fcount==1 && c->ftab) {
-			delete[] c->ftab;
-			c->ftab = NULL;
-		}
-	}
-#ifndef METARESTORE
-	if (oldgoal != c->goal) {
-		c->updateStats();
-	}
-#endif
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
+/// updates chunk's goal after a file with goal `goal' has been added
 static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
-#ifndef METARESTORE
-	uint8_t oldgoal;
-#endif
-#ifndef METARESTORE
-	oldgoal = c->goal;
-#endif
-	if (c->fcount==0) {
-		c->goal = goal;
-		c->fcount = 1;
-	} else if (goal==c->goal) {
-		c->fcount++;
-		if (c->ftab && isOrdinaryGoal(goal)) {
-			c->ftab[goal]++;
-		}
-	} else {
-		if (c->ftab==NULL) {
-			c->ftab = new uint32_t[kMaxOrdinaryGoal + 1];
-			memset(c->ftab, 0, sizeof(uint32_t) * (kMaxOrdinaryGoal + 1));
-			if (isOrdinaryGoal(c->goal)) {
-				c->ftab[c->goal]=c->fcount;
-			}
-			if (isOrdinaryGoal(goal)) {
-				c->ftab[goal]=1;
-			}
-			c->fcount++;
-			if (isOrdinaryGoal(goal) && isOrdinaryGoal(c->goal)) {
-				if (goal > c->goal) {
-					c->goal = goal;
-				}
-			}
-		} else {
-			if (isOrdinaryGoal(goal)) {
-				c->ftab[goal]++;
-			}
-			c->fcount++;
-			if (isOrdinaryGoal(c->goal)) {
-				c->goal = kMaxOrdinaryGoal;
-				while (c->goal > kMinOrdinaryGoal && c->ftab[c->goal]==0) {
-					c->goal--;
-				}
-			}
-		}
+	try {
+		c->addFileWithGoal(goal);
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "chunk_add_file_int: %s", ex.what());
+		return ERROR_CHUNKLOST;
 	}
-#ifndef METARESTORE
-	if (oldgoal != c->goal) {
-		c->updateStats();
-	}
-#endif
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
@@ -874,7 +786,7 @@ int chunk_can_unlock(uint64_t chunkid, uint32_t lockid) {
 		// lockid == 0 -> force unlock
 		return STATUS_OK;
 	}
-	// We will let client to unlock the chunk even if c->lockedto < main_time()
+	// We will let client unlock the chunk even if c->lockedto < main_time()
 	// if he provides lockId that was used to lock the chunk -- this means that nobody
 	// else used this chunk since it was locked (operations like truncate or replicate
 	// would remove such a stale lock before modifying the chunk)
@@ -932,7 +844,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #endif
 	chunk *oc,*c;
 
-	if (ochunkid==0) {      // new chunk
+	if (ochunkid==0) { // new chunk
 #ifndef METARESTORE
 		if (quota_exceeded) {
 			return ERROR_QUOTA;
@@ -958,7 +870,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 		for (i=0; i < serversWithChunkTypes.size(); ++i) {
-			s = c->add_copy_no_stats_update(serversWithChunkTypes[i].first, BUSY,
+			s = c->addCopyNoStatsUpdate(serversWithChunkTypes[i].first, BUSY,
 					c->version, serversWithChunkTypes[i].second);
 			matocsserv_send_createchunk(s->ptr, c->chunkid, s->chunkType, c->version);
 		}
@@ -981,7 +893,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 				return ERROR_WRONGLOCKID;
 			}
 		}
-		if (*lockid == 0 && oc->is_locked()) {
+		if (*lockid == 0 && oc->isLocked()) {
 			return ERROR_LOCKED;
 		}
 		if (oc->isLost()) {
@@ -989,7 +901,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		}
 #endif
 
-		if (oc->fcount==1) {    // refcount==1
+		if (oc->fileCount() == 1) { // refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
 #ifndef METARESTORE
@@ -1028,7 +940,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			}
 #endif
 		} else {
-			if (oc->fcount==0) {    // it's serious structure error
+			if (oc->fileCount() == 0) { // it's serious structure error
 #ifndef METARESTORE
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
@@ -1055,7 +967,7 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 #ifndef METARESTORE
 					}
 					// TODO(msulikowski) implement COW of XOR chunks!
-					s = c->add_copy_no_stats_update(os->ptr, BUSY, c->version,
+					s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version,
 							ChunkType::getStandardChunkType());
 					matocsserv_send_duplicatechunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version);
 					i++;
@@ -1110,12 +1022,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		return ERROR_NOCHUNK;
 	}
 #ifndef METARESTORE
-	if (oc->is_locked()) {
+	if (oc->isLocked()) {
 		return ERROR_LOCKED;
 	}
 	oc->lockid = 0; // remove stale lock if exists
 #endif
-	if (oc->fcount==1) {    // refcount==1
+	if (oc->fileCount() == 1) { // refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
 #ifndef METARESTORE
@@ -1157,7 +1069,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		c->version++;
 #endif
 	} else {
-		if (oc->fcount==0) {    // it's serious structure error
+		if (oc->fileCount() == 0) { // it's serious structure error
 #ifndef METARESTORE
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
 #else
@@ -1184,7 +1096,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 					chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 				}
-				s = c->add_copy_no_stats_update(os->ptr, BUSY, c->version,
+				s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version,
 						ChunkType::getStandardChunkType());
 				matocsserv_send_duptruncchunk(s->ptr,c->chunkid,c->version,oc->chunkid,oc->version,length);
 				i++;
@@ -1220,20 +1132,20 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 
 	*nversion=0;
 	if (ochunkid==0) {
-		return 0;       // not changed
+		return 0; // not changed
 	}
 
 	c = chunk_find(ochunkid);
-	if (c==NULL) {  // no such chunk - erase (nchunkid already is 0 - so just return with "changed" status)
+	if (c==NULL) { // no such chunk - erase (nchunkid already is 0 - so just return with "changed" status)
 		return 1;
 	}
-	if (c->is_locked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
+	if (c->isLocked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
 		return 0;
 	}
 	c->lockid = 0; // remove stale lock if exists
 	bestversion = 0;
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) {       // found chunk that is ok - so return
+		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) { // found chunk that is ok - so return
 			return 0;
 		}
 		if (s->valid == INVALID) {
@@ -1242,7 +1154,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 			}
 		}
 	}
-	if (bestversion==0) {   // didn't find sensible chunk - so erase it
+	if (bestversion==0) { // didn't find sensible chunk - so erase it
 		chunk_delete_file_int(c,goal);
 		return 1;
 	}
@@ -1253,8 +1165,8 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 		}
 	}
 	*nversion = bestversion;
-	c->updateStats();
 	c->needverincrease=1;
+	c->updateStats();
 	chunk_update_checksum(c);
 	return 1;
 }
@@ -1287,7 +1199,7 @@ void chunk_emergency_increase_version(chunk *c) {
 			i++;
 		}
 	}
-	if (i>0) {      // should always be true !!!
+	if (i>0) { // should always be true !!!
 		c->interrupted = 0;
 		c->operation = SET_VERSION;
 		c->version++;
@@ -1431,7 +1343,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 			case DEL:
 				// We requested deletion, but the chunkserver 'has' this copy again.
 				// Repeat deletion request.
-				c->invalidate_copy(s);
+				c->invalidateCopy(s);
 				// fallthrough
 			case INVALID:
 				// leave this copy alone
@@ -1447,7 +1359,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 				s->version = new_version;
 			}
 			if (s->version != c->version) {
-				c->copy_has_wrong_version(s);
+				c->markCopyAsHavingWrongVersion(s);
 				return;
 			}
 			if (!s->is_todel() && todel) {
@@ -1470,7 +1382,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-//              syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
+		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
 		if (chunkid>=nextchunkid) {
 			nextchunkid=chunkid+1;
 		}
@@ -1478,7 +1390,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	}
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
-			c->invalidate_copy(s);
+			c->invalidateCopy(s);
 			c->needverincrease=1;
 			return;
 		}
@@ -1497,7 +1409,7 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 	sptr=&(c->slisthead);
 	while ((s=*sptr)) {
 		if (s->ptr==ptr) {
-			c->unlink_copy(s, sptr);
+			c->unlinkCopy(s, sptr);
 			c->needverincrease=1;
 		} else {
 			sptr = &(s->next);
@@ -1515,7 +1427,7 @@ void chunk_server_disconnected(void *ptr) {
 			while (*st) {
 				s = *st;
 				if (s->ptr == ptr) {
-					c->unlink_copy(s, st);
+					c->unlinkCopy(s, st);
 					c->needverincrease=1;
 				} else {
 					st = &(s->next);
@@ -1558,7 +1470,7 @@ void chunk_got_delete_status(void *ptr, uint64_t chunkId, ChunkType chunkType, u
 			if (s->valid!=DEL) {
 				syslog(LOG_WARNING,"got unexpected delete status");
 			}
-			c->unlink_copy(s, st);
+			c->unlinkCopy(s, st);
 		} else {
 			st = &(s->next);
 		}
@@ -1583,12 +1495,12 @@ void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersi
 					PRIX64 "_%08" PRIX32 ")", chunkId, chunkVersion);
 			if (s->valid == VALID && chunkVersion != c->version) {
 				s->version = chunkVersion;
-				c->copy_has_wrong_version(s);
+				c->markCopyAsHavingWrongVersion(s);
 			}
 			return;
 		}
 	}
-	const uint8_t state = (c->is_locked() || chunkVersion != c->version) ? INVALID : VALID;
+	const uint8_t state = (c->isLocked() || chunkVersion != c->version) ? INVALID : VALID;
 	c->addCopy(ptr, state, chunkVersion, chunkType);
 }
 
@@ -1599,8 +1511,8 @@ void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
 			if (status!=0) {
-				c->interrupted = 1;     // increase version after finish, just in case
-				c->invalidate_copy(s);
+				c->interrupted = 1; // increase version after finish, just in case
+				c->invalidateCopy(s);
 			} else {
 				if (s->is_busy()) {
 					s->unmark_busy();
@@ -1809,7 +1721,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *d
 	const uint32_t newServerVersion = lizardfsVersion(1, 6, 28);
 	std::vector<void*> standardSources;
 	std::vector<void*> newServerSources;
-	ChunkCopiesCalculator newSourcesCalculator(c->goal);
+	ChunkCopiesCalculator newSourcesCalculator(c->goal());
 
 	for (slist *s = c->slisthead ; s ; s = s->next) {
 		if (s->is_valid() && !s->is_busy()) {
@@ -1879,7 +1791,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 2. check number of copies
-	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fcount>0/* c->flisthead */) {
+	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fileCount() > 0) {
 		syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
 		for (s=c->slisthead ; s ; s=s->next) {
 			syslog(LOG_NOTICE,"chunk %016" PRIX64 "_%08" PRIX32 " - invalid copy on (%s - ver:%08" PRIX32 ")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
@@ -1911,7 +1823,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 4. return if chunk is during some operation
-	if (c->operation!=NONE || (c->is_locked())) {
+	if (c->operation!=NONE || (c->isLocked())) {
 		return ;
 	}
 
@@ -1922,11 +1834,11 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 6. delete unused chunk
-	if (c->fcount == 0) {
+	if (c->fileCount()==0) {
 		for (s=c->slisthead ; s ; s=s->next) {
 			if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 				if (s->is_valid() && !s->is_busy()) {
-					c->delete_copy(s);
+					c->deleteCopy(s);
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr, c->chunkid, c->version, s->chunkType);
@@ -1979,7 +1891,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					continue;
 				}
 				if (matocsserv_deletion_counter(s->ptr) < TmpMaxDel) {
-					c->delete_copy(s);
+					c->deleteCopy(s);
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
@@ -2006,10 +1918,10 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			hasXorCopies = true;
 		}
 	}
-	if (isOrdinaryGoal(c->goal)
+	if (isOrdinaryGoal(c->goal())
 			&& !hasXorCopies
 			&& vc + tdc >= serverCount
-			&& vc < c->goal
+			&& vc < c->goal()
 			&& tdc > 0
 			&& vc + tdc > 1) {
 		uint8_t prevdone;
@@ -2017,7 +1929,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		for (s=c->slisthead ; s && prevdone==0 ; s=s->next) {
 			if (s->valid==TDVALID) {
 				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
-					c->delete_copy(s);
+					c->deleteCopy(s);
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
@@ -2038,7 +1950,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->goal >= vc && vc + tdc>0 && (maxUsage - minUsage) > AcceptableDifference) {
+	if (c->goal() >= vc && vc + tdc>0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
@@ -2136,7 +2048,7 @@ void chunk_jobs_main(void) {
 		l=0;
 		cp = &(chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
-			if (c->fcount==0 && c->slisthead==NULL) {
+			if (c->fileCount()==0 && c->slisthead==NULL) {
 				*cp = (c->next);
 				chunk_delete(c);
 			} else {
@@ -2161,7 +2073,7 @@ void chunk_jobs_main(void) {
 				l++;
 			}
 		}
-		jobshpos+=123;  // if HASHSIZE is any power of 2 then any odd number is good here
+		jobshpos+=123; // if HASHSIZE is any power of 2 then any odd number is good here
 		jobshpos%=HASHSIZE;
 	}
 }
@@ -2180,7 +2092,7 @@ void chunk_dump(void) {
 
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=chunkhash[i] ; c ; c=c->next) {
-			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal,c->lockedto);
+			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal(),c->lockedto);
 		}
 	}
 }
@@ -2326,19 +2238,22 @@ void chunk_term(void) {
 #ifdef USE_CHUNK_BUCKETS
 	for (cb = cbhead ; cb ; cb = cbn) {
 		cbn = cb->next;
-		free(cb);
+		delete cb;
 	}
 #else
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (ch = chunkhash[i] ; ch ; ch = chn) {
 			chn = ch->next;
-			free(ch);
+			delete ch;
 		}
 	}
 #endif
 }
 
 void chunk_newfs(void) {
+#ifndef METARESTORE
+	chunk::count = 0;
+#endif
 	nextchunkid = 1;
 }
 
