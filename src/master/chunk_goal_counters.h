@@ -31,11 +31,24 @@ public:
 		return fileCount_;
 	}
 
+	// true if this class has some additional memory allocated on the heap
+	// The class gives the following three guarantees:
+	// * it occupies no additional memory if only files with the same goal were added
+	// * it occupies no additional memory if there are no files or there is only one file added
+	// * it occupies additional memory if there are files with different goals added
+	bool hasAdditionalMemoryAllocated() const {
+		return fileCounters_ != nullptr;
+	}
+
 private:
 	std::unique_ptr<GoalMap<uint32_t>> fileCounters_;
 	uint32_t fileCount_;
 	uint8_t goal_;
 
-	uint8_t recalculateGoal();
+	uint8_t calculateGoal();
+
+	// Free fileCounter_ when it's unneeded
+	void tryDeleteFileCounters();
+
 	void removeFileInternal(uint8_t goal);
 };

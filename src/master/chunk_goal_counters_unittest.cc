@@ -63,3 +63,34 @@ TEST(ChunkGoalCounters, Change) {
 	counters.changeFileGoal(6, 1);
 	EXPECT_EQ(3U, counters.combinedGoal());
 }
+
+TEST(ChunkGoalCounters, HasAdditionalMemoryAllocated1) {
+	ChunkGoalCounters counters;
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.addFile(9);
+	counters.addFile(9);
+	counters.addFile(9);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.addFile(2);
+	EXPECT_TRUE(counters.hasAdditionalMemoryAllocated());
+	counters.removeFile(2);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.removeFile(9);
+	counters.removeFile(9);
+	counters.removeFile(9);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+}
+
+TEST(ChunkGoalCounters, HasAdditionalMemoryAllocated2) {
+	ChunkGoalCounters counters;
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.addFile(1);
+	counters.addFile(1);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.changeFileGoal(1, 3);
+	EXPECT_TRUE(counters.hasAdditionalMemoryAllocated());
+	counters.removeFile(1);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+	counters.removeFile(3);
+	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
+}
