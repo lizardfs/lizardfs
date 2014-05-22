@@ -37,14 +37,33 @@ void ChunkGoalCounters::changeFileGoal(uint8_t prevGoal, uint8_t newGoal) {
 	tryDeleteFileCounters();
 }
 
+/*
+ * The algorithm here works as follows:
+ * * if there is at least one file with goal > 2, than choose the safest of ordinary goals,
+ *   ie. the biggest ordinary goal
+ * * otherwise, if there are files with xor goals or goal 2 (these are all equally safe),
+ *   choose the one which occupies least space (ie. the highest xor level, or goal 2 if no xors)
+ * * otherwise choose goal 1
+ */
 uint8_t ChunkGoalCounters::calculateGoal() {
 	if (fileCount_ == 0) {
 		sassert(!fileCounters_);
 		// No files - no goal
 		return 0;
 	} else if (fileCounters_) {
-		for (uint8_t goal = kMaxOrdinaryGoal; goal >= kMinOrdinaryGoal; --goal) {
-			// Effective goal is the highest used one
+		sassert(3 >= kMinOrdinaryGoal);
+		for (int goal = kMaxOrdinaryGoal; goal >= 3; --goal) {
+			if ((*fileCounters_)[goal] != 0) {
+				return goal;
+			}
+		}
+		for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
+			if ((*fileCounters_)[xorLevelToGoal(level)] != 0) {
+				return xorLevelToGoal(level);
+			}
+		}
+		sassert(2 <= kMaxOrdinaryGoal);
+		for (int goal = 2; goal >= kMinOrdinaryGoal; --goal) {
 			if ((*fileCounters_)[goal] != 0) {
 				return goal;
 			}
@@ -63,6 +82,12 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 	uint8_t goalsUsed = 0;
 	for (uint8_t iGoal = kMaxOrdinaryGoal; iGoal >= kMinOrdinaryGoal; --iGoal) {
 		if ((*fileCounters_)[iGoal] > 0) {
+			++goalsUsed;
+		}
+	}
+	// if i were uint8_t, the condition "i <= kMaxXorGoal" could be always satisfied
+	for (int i = kMinXorGoal; i <= kMaxXorGoal; ++i) {
+		if ((*fileCounters_)[i] > 0) {
 			++goalsUsed;
 		}
 	}
