@@ -1,4 +1,6 @@
-CHUNKSERVERS=3 \
+timeout_set '1 minute'
+
+CHUNKSERVERS=5 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
@@ -6,7 +8,7 @@ CHUNKSERVERS=3 \
 block_size=65536
 cd ${info[mount0]}
 for filesize in 30 90 $((9 * block_size)) $((15 * block_size - 30)) $((15 * block_size + 30)); do
-	for goal in 1 3; do
+	for goal in 1 3 xor2 xor4; do
 		for diff in 30 $block_size $((block_size - 30)) $((block_size + 30)) \
 				$((7 * block_size)) $((7 * block_size + 30)) $((7 * block_size - 30)); do
 			export MESSAGE="Testing filesize=$filesize +/- $diff, goal $goal"
