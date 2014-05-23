@@ -7,7 +7,6 @@
 class TokenBucket {
 public:
 	TokenBucket(SteadyTimePoint now) : rate_(0), budget_(0), budgetCeil_(0), prevTime_(now) {}
-	TokenBucket(const TokenBucket&) = delete;
 
 	// set rate, ceil and (optionally) budget
 	void reconfigure(SteadyTimePoint now, double rate, double budgetCeil);

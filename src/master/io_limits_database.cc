@@ -1,7 +1,8 @@
 #include "config.h"
 #include "master/io_limits_database.h"
 
-void IoLimitsDatabase::setLimits(const IoLimitsConfigLoader::LimitsMap& limits) {
+void IoLimitsDatabase::setLimits(SteadyTimePoint now,
+		const IoLimitsConfigLoader::LimitsMap& limits, uint32_t accumulate_ms) {
 	auto limitsIter = limits.begin();
 	auto groupsIter = groups_.begin();
 	while (true) {
@@ -19,10 +20,14 @@ void IoLimitsDatabase::setLimits(const IoLimitsConfigLoader::LimitsMap& limits) 
 		if (groupsIter == groups_.end() ||
 				groupsIter->first > limitsIter->first) {
 			groupsIter = groups_.insert(groupsIter,
-					std::make_pair(limitsIter->first, GroupState()));
+					std::make_pair(limitsIter->first, TokenBucket(now)));
 		}
 		// groupsIter->first == limitsIter->first
-		groupsIter->second.limit = limitsIter->second * 1024;
+
+		// Limit in LimitsMap is in Kbps, below we convert it into Bps:
+		groupsIter->second.reconfigure(now,
+				limitsIter->second * 1024,
+				limitsIter->second * 1024 * accumulate_ms / 1000);
 		limitsIter++;
 		groupsIter++;
 	}
@@ -36,79 +41,10 @@ std::vector<std::string> IoLimitsDatabase::getGroups() const {
 	return result;
 }
 
-void IoLimitsDatabase::addClient(ClientId id) {
-	std::pair<Clients::iterator, bool> result = clients_.insert(id);
-	if (!result.second) {
-		// this client already exists
-		throw ClientExistsException();
-	}
-}
-
-void IoLimitsDatabase::removeClient(ClientId id) {
-	size_t result = clients_.erase(id);
-	if (result == 0) {
-		// no such client existed
-		throw InvalidClientIdException();
-	}
-	// remove client's allocations in all groups
-	for (auto& groupIter : groups_) {
-		GroupState& group = groupIter.second;
-		auto allocationIter = group.allocations.find(id);
-		if (allocationIter != group.allocations.end()) {
-			group.allocated -= allocationIter->second;
-			group.allocations.erase(allocationIter);
-		}
-	}
-}
-
-uint64_t IoLimitsDatabase::setAllocation(const ClientId id, const GroupId& groupId,
-		const uint64_t goal) {
-	GroupState& group = getGroup(groupId);
-	Allocation& allocation = getAllocation(id, group);
-	int64_t amount = 0;
-	if (goal > allocation && group.allocated < group.limit) {
-		// grow
-		const uint64_t available = group.limit - group.allocated;
-		const uint64_t requested = goal - allocation;
-		amount = std::min(available, requested);
-	} else {
-		// shrink
-		const uint64_t overallocated = (group.allocated > group.limit) ?
-				group.allocated - group.limit : 0;
-		const uint64_t freed = (allocation > goal) ?
-				allocation - goal : 0;
-		amount = -int64_t(std::min(allocation, std::max(overallocated, freed)));
-	}
-	allocation += amount;
-	group.allocated += amount;
-	return allocation;
-}
-
-uint64_t IoLimitsDatabase::getAllocation(const ClientId id, const GroupId& groupId) {
-	GroupState& group = getGroup(groupId);
-	Allocation& allocation = getAllocation(id, group);
-	return allocation;
-}
-
-IoLimitsDatabase::GroupState& IoLimitsDatabase::getGroup(const GroupId& id) {
-	auto group = groups_.find(id);
-	if (group == groups_.end()) {
+uint64_t IoLimitsDatabase::request(SteadyTimePoint now, const GroupId& groupId, uint64_t bytes) {
+	try {
+		return groups_.at(groupId).attempt(now, bytes);
+	} catch (std::out_of_range&) {
 		throw InvalidGroupIdException();
 	}
-	return group->second;
-}
-
-IoLimitsDatabase::Allocation& IoLimitsDatabase::getAllocation(ClientId id, GroupState& group) {
-	auto alloc = group.allocations.find(id);
-	if (alloc == group.allocations.end()) {
-		// this client never allocated bandwidth in this group
-		if (clients_.count(id) > 0) {
-			// valid client, create an entry for it
-			alloc = group.allocations.insert(alloc, {id, Allocation()});
-		} else {
-			// no such client
-			throw InvalidClientIdException();
-		}
-	}
-	return alloc->second;
 }

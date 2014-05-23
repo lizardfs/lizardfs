@@ -189,8 +189,7 @@ static char *ListenPort;
 static uint32_t RejectOld;
 static uint32_t SessionSustainTime;
 
-static double gIoLimitsIncreaseRatio;
-static double gIoLimitsInitialMBps;
+static uint32_t gIoLimitsAccumulate_ms;
 static double gIoLimitsRefreshTime;
 static uint32_t gIoLimitsConfigId;
 static std::string gIoLimitsSubsystem;
@@ -4058,13 +4057,15 @@ int matoclserv_sessionsinit(void) {
 
 int matoclserv_iolimits_reload() {
 	std::string configFile = cfg_getstring("GLOBALIOLIMITS_FILENAME", "");
+	gIoLimitsAccumulate_ms = cfg_get_minvalue("GLOBALIOLIMITS_ACCUMULATE_MS", 250U, 1U);
 
 	if (!configFile.empty()) {
 		try {
 			IoLimitsConfigLoader configLoader;
 			configLoader.load(std::ifstream(configFile));
 			gIoLimitsSubsystem = configLoader.subsystem();
-			gIoLimitsDatabase.setLimits(configLoader.limits());
+			gIoLimitsDatabase.setLimits(
+					SteadyClock::now(), configLoader.limits(), gIoLimitsAccumulate_ms);
 		} catch (Exception& ex) {
 			mfs_arg_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
 					"file (%s): %s", configFile.c_str(), ex.message().c_str());
@@ -4072,11 +4073,10 @@ int matoclserv_iolimits_reload() {
 		}
 	} else {
 		gIoLimitsSubsystem = "";
-		gIoLimitsDatabase.setLimits(IoLimitsConfigLoader::LimitsMap());
+		gIoLimitsDatabase.setLimits(
+				SteadyClock::now(), IoLimitsConfigLoader::LimitsMap(), gIoLimitsAccumulate_ms);
 	}
 
-	gIoLimitsIncreaseRatio = cfg_get_minvalue("GLOBALIOLIMITS_INCREASE_RATIO", 1.2, 1.0);
-	gIoLimitsInitialMBps = cfg_get_minvalue("GLOBALIOLIMITS_INITIAL_MBPS", 1.0, 0.125);
 	gIoLimitsRefreshTime = cfg_get_minvalue("GLOBALIOLIMITS_RENEGOTIATION_PERIOD", 0.1, 0.01);
 
 	gIoLimitsConfigId++;
