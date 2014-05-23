@@ -1891,24 +1891,26 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		}
 		uint32_t copiesRemoved = 0;
 		for (uint32_t i = 0; i < serverCount_ && !toRemove.empty(); ++i) {
-			for (s = c->slisthead; s && s->ptr != ptrs[serverCount_ - 1 - i]; s = s->next) {}
-			if (s && s->valid == VALID) {
+			for (s = c->slisthead; s; s = s->next) {
+				if (s->ptr != ptrs[serverCount_ - 1 - i] || s->valid != VALID) {
+					continue;
+				}
+				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
+					break;
+				}
+
 				auto it = std::find(toRemove.begin(), toRemove.end(), s->chunkType);
 				if (it == toRemove.end()) {
 					continue;
 				}
-				if (matocsserv_deletion_counter(s->ptr) < TmpMaxDel) {
-					c->deleteCopy(s);
-					c->needverincrease=1;
-					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
-					toRemove.erase(it);
-					copiesRemoved++;
-					vc--;
-					dc++;
-				} else {
-					break;
-				}
+				c->deleteCopy(s);
+				c->needverincrease=1;
+				stats_deletions++;
+				matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
+				toRemove.erase(it);
+				copiesRemoved++;
+				vc--;
+				dc++;
 			}
 		}
 		inforec_.done.del_overgoal += copiesRemoved;
