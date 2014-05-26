@@ -173,8 +173,10 @@ public:
 	uint32_t lockedto;
 private: // public/private sections are mixed here to make the struct as small as possible
 	ChunkGoalCounters goalCounters_;
+#ifndef METARESTORE
 	uint8_t allValidCopies_, regularValidCopies_;
 	uint8_t goalInStats_;
+#endif
 public:
 #ifndef METARESTORE
 	uint8_t needverincrease:1;
