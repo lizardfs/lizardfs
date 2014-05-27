@@ -889,10 +889,6 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		}
 		write_data_flush_inode(ino);
 		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
-		while (status==ERROR_LOCKED) {
-			sleep(1);
-			status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
-		}
 		status = mfs_errorconv(status);
 		read_inode_ops(ino);
 		if (status!=0) {

@@ -100,6 +100,7 @@ static uint32_t masterip=0;
 static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
+static unsigned gIoRetries;
 
 static uint8_t fterm;
 
@@ -1137,8 +1138,13 @@ void* fs_receive_thread(void *) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t bgregister) {
+int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
+		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
+		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
+		unsigned retries) {
 	master_statsptr_init();
+
+	gIoRetries = retries;
 
 	fd = -1;
 	sessionlost = bgregister;
@@ -1383,27 +1389,43 @@ uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	const uint8_t *rptr;
 	uint32_t i;
 	uint8_t ret;
-	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CLTOMA_FUSE_TRUNCATE,21);
-	if (wptr==NULL) {
-		return ERROR_IO;
-	}
-	put32bit(&wptr,inode);
-	put8bit(&wptr,opened);
-	put32bit(&wptr,uid);
-	put32bit(&wptr,gid);
-	put64bit(&wptr,attrlength);
-	rptr = fs_sendandreceive(rec,MATOCL_FUSE_TRUNCATE,&i);
-	if (rptr==NULL) {
-		ret = ERROR_IO;
-	} else if (i==1) {
-		ret = rptr[0];
-	} else if (i!=35) {
-		setDisconnect(true);
-		ret = ERROR_IO;
-	} else {
-		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+	unsigned retries = 0;
+	int retrySleepTime_ms = 200;
+
+	while (retries < gIoRetries) {
+		threc *rec = fs_get_my_threc();
+		wptr = fs_createpacket(rec, CLTOMA_FUSE_TRUNCATE, 21);
+		if (wptr==NULL) {
+			return ERROR_IO;
+		}
+		put32bit(&wptr, inode);
+		put8bit(&wptr, opened);
+		put32bit(&wptr, uid);
+		put32bit(&wptr, gid);
+		put64bit(&wptr, attrlength);
+		rptr = fs_sendandreceive(rec, MATOCL_FUSE_TRUNCATE, &i);
+		if (rptr == NULL) {
+			ret = ERROR_IO;
+		} else if (i == 1) {
+			ret = rptr[0];
+		} else if (i != 35) {
+			setDisconnect(true);
+			ret = ERROR_IO;
+		} else {
+			memcpy(attr, rptr, 35);
+			ret = STATUS_OK;
+		}
+		// Waiting for unlocked inode is unlimited
+		if (ret == ERROR_LOCKED) {
+			sleep(1);
+			continue;
+		}
+		if (ret != ERROR_NOTDONE && ret != ERROR_CHUNKLOST) {
+			break;
+		}
+		++retries;
+		usleep(retrySleepTime_ms * 1000);
+		retrySleepTime_ms = std::min(2 * retrySleepTime_ms, 60 * 1000); // max sleep is 60 seconds
 	}
 	return ret;
 }

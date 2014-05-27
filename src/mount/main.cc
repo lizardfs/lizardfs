@@ -508,9 +508,15 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 
 	if (mfsopts.delayedinit) {
-		fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,1);
+		fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
+				mfsopts.meta, mp, mfsopts.subfolder,
+				(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
+				mfsopts.donotrememberpassword, 1, mfsopts.ioretries);
 	} else {
-		if (fs_init_master_connection(mfsopts.bindhost,mfsopts.masterhost,mfsopts.masterport,mfsopts.meta,mp,mfsopts.subfolder,(mfsopts.password||mfsopts.md5pass)?md5pass:NULL,mfsopts.donotrememberpassword,0)<0) {
+		if (fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
+					mfsopts.meta, mp, mfsopts.subfolder,
+					(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
+					mfsopts.donotrememberpassword, 0, mfsopts.ioretries) < 0) {
 			return 1;
 		}
 	}

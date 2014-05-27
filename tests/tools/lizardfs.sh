@@ -90,7 +90,7 @@ create_mfsmaster_cfg() {
 }
 
 lizardfs_chunkserver_daemon() {
-	mfschunkserver -c "${lizardfs_info[chunkserver$1_config]}" "$2" | cat
+	mfschunkserver -c "${lizardfs_info[chunkserver${1}_config]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 
