@@ -60,9 +60,9 @@ private:
 
 class WriteChunkLocator {
 public:
-	WriteChunkLocator()     : inode_(0), index_(0), lockId_(0) {}
+	WriteChunkLocator() : inode_(0), index_(0), lockId_(0) {}
 
-	~WriteChunkLocator() {
+	virtual ~WriteChunkLocator() {
 		try {
 			if (lockId_) {
 				unlockChunk();
@@ -74,8 +74,8 @@ public:
 		}
 	}
 
-	void locateAndLockChunk(uint32_t inode, uint32_t index);
-	void unlockChunk();
+	virtual void locateAndLockChunk(uint32_t inode, uint32_t index);
+	virtual void unlockChunk();
 
 	uint32_t chunkIndex() {
 		return index_;
@@ -89,9 +89,32 @@ public:
 		return locationInfo_;
 	}
 
-private:
+protected:
+	WriteChunkLocator(uint32_t inode, uint32_t index, uint32_t lockId)
+			: inode_(inode),
+			  index_(index),
+			  lockId_(lockId) {
+	}
+
 	uint32_t inode_;
 	uint32_t index_;
 	uint32_t lockId_;
 	ChunkLocationInfo locationInfo_;
+};
+
+// Fit for truncating xor chunks down when master, not client, locks a chunk
+class TruncateWriteChunkLocator : public WriteChunkLocator {
+public:
+	// Locator is created for single operation
+	explicit TruncateWriteChunkLocator(uint32_t inode, uint32_t index, uint32_t lockId)
+		: WriteChunkLocator(inode, index, lockId) {
+	}
+
+	~TruncateWriteChunkLocator() {
+		// Remove information about the lock to prevent ~WriteChunkLocator from unlocking the chunk
+		lockId_ = 0;
+	}
+
+	// In this case a chunk is unlocked by master so this locator will be simply destroyed
+	void unlockChunk() {}
 };
