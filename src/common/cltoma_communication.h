@@ -95,6 +95,22 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, gid,
 		std::vector<QuotaOwner>, owners)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseTruncate, LIZ_CLTOMA_FUSE_TRUNCATE, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		bool, isOpened,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint64_t, length)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseTruncateEnd, LIZ_CLTOMA_FUSE_TRUNCATE_END, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, lockid,
+		uint64_t, length)
+
 namespace cltoma {
 
 namespace fuseReadChunk {

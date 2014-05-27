@@ -1110,12 +1110,23 @@
 
 // 0x01D0
 #define CLTOMA_FUSE_TRUNCATE (PROTO_BASE+464)
-// msgid:32 inode:32 [opened:8] uid:32 gid:32 opened:8 length:64
+/// msgid:32 inode:32 uid:32 gid:32 length:64
+/// msgid:32 inode:32 opened:8 uid:32 gid:32 length:64
+
+// 0x05B8
+#define LIZ_CLTOMA_FUSE_TRUNCATE (1000U + 464U)
+// msgid:32 inode:32 opened:8 uid:32 gid:32 opened:8 length:64
 
 // 0x01D1
 #define MATOCL_FUSE_TRUNCATE (PROTO_BASE+465)
 /// msgid:32 status:8
 /// msgid:32 attr:35B
+
+// 0x05B9
+#define LIZ_MATOCL_FUSE_TRUNCATE (1000U + 465U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 attr:35B
+/// version==2 msgid:32 lockid:32
 
 // 0x01D2
 #define CLTOMA_FUSE_REPAIR (PROTO_BASE+466)
@@ -1223,6 +1234,15 @@
 // 0x01F0
 // #define MATOCL_FUSE_NOTIFY_END (PROTO_BASE+496)
 // msgid:32
+
+// 0x5D9
+#define LIZ_CLTOMA_FUSE_TRUNCATE_END (1000U + 497U)
+/// msgid:32 lockid:32 inode:32 filelength:64
+
+// 0x5DA
+#define LIZ_MATOCL_FUSE_TRUNCATE_END (1000U + 498U)
+/// msgid:32 status:8
+/// msgid:32 attr:35B
 
 // special - reserved (opened) inodes - keep opened files.
 // 0x01F3

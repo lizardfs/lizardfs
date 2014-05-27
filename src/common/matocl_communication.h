@@ -107,6 +107,40 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, messageId,
 		std::vector<QuotaOwnerAndLimits>, ownersAndLimits)
 
+// LIZ_MATOCL_FUSE_TRUNCATE
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kFinishedPacketVersion, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kInProgressPacketVersion, 2)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kFinishedPacketVersion,
+		uint32_t, messageId,
+		Attributes, attributes)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kInProgressPacketVersion,
+		uint32_t, messageId,
+		uint32_t, lockId)
+
+// LIZ_MATOCL_FUSE_TRUNCATE_END
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncateEnd, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncateEnd, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncateEnd, LIZ_MATOCL_FUSE_TRUNCATE_END, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncateEnd, LIZ_MATOCL_FUSE_TRUNCATE_END, kResponsePacketVersion,
+		uint32_t, messageId,
+		Attributes, attributes)
+
 namespace matocl {
 
 namespace fuseReadChunk {
