@@ -476,7 +476,7 @@ int do_setxattr(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 
 int do_deleteacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 	uint32_t inode;
-	char aclType;
+	char aclType = '\0';
 
 	EAT(ptr, filename, lv, '(');
 	GETU32(inode, ptr);
@@ -489,7 +489,7 @@ int do_deleteacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 
 int do_setacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 	uint32_t inode;
-	char aclType;
+	char aclType = '\0';
 	static uint8_t *aclString = NULL;
 	static uint32_t aclSize = 0;
 
@@ -505,7 +505,7 @@ int do_setacl(const char *filename, uint64_t lv, uint32_t ts, char *ptr) {
 }
 
 int do_setquota(const char *filename, uint64_t lv, uint32_t, char *ptr) {
-	char rigor, resource, ownerType;
+	char rigor = '\0', resource = '\0', ownerType = '\0';
 	uint32_t ownerId;
 	uint64_t limit;
 

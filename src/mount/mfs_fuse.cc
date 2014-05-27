@@ -287,22 +287,7 @@ static int mfs_errorconv(int status) {
 		break;
 	}
 	if (debug_mode && ret!=0) {
-#ifdef HAVE_STRERROR_R
-		char errorbuff[500];
-# ifdef STRERROR_R_CHAR_P
-		fprintf(stderr,"status: %s\n",strerror_r(ret,errorbuff,500));
-# else
-		strerror_r(ret,errorbuff,500);
-		fprintf(stderr,"status: %s\n",errorbuff);
-# endif
-#else
-# ifdef HAVE_PERROR
-		errno=ret;
-		perror("status: ");
-# else
-		fprintf(stderr,"status: %d\n",ret);
-# endif
-#endif
+		fprintf(stderr, "status: %s\n", strerr(ret));
 	}
 	return ret;
 }

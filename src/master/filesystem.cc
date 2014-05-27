@@ -104,7 +104,7 @@
 
 enum class AclInheritance {
 	kInheritAcl,
-	kDontInheritAcl,
+	kDontInheritAcl
 };
 
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
@@ -3720,7 +3720,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 		p->mode = (attrmode & 07777) | (p->mode & 0xF000);
 	}
 	if (setmask & (SET_UID_FLAG | SET_GID_FLAG)) {
-		int64_t size;
+		int64_t size = 0;
 		fsnodes_quota_unregister_inode(p);
 		if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
 			size = fsnodes_get_size(p);
@@ -5898,9 +5898,9 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 }
 #else
 uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit) {
-	QuotaRigor quotaRigor;
-	QuotaResource quotaResource;
-	QuotaOwnerType quotaOwnerType;
+	QuotaRigor quotaRigor = QuotaRigor::kSoft;
+	QuotaResource quotaResource = QuotaResource::kSize;
+	QuotaOwnerType quotaOwnerType = QuotaOwnerType::kUser;
 	bool valid = true;
 	valid &= decodeChar("SH", {QuotaRigor::kSoft, QuotaRigor::kHard}, rigor, quotaRigor);
 	valid &= decodeChar("SI", {QuotaResource::kSize, QuotaResource::kInodes}, resource,
