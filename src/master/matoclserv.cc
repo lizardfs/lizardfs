@@ -4098,7 +4098,8 @@ int matoclserv_iolimits_reload() {
 				SteadyClock::now(), IoLimitsConfigLoader::LimitsMap(), gIoLimitsAccumulate_ms);
 	}
 
-	gIoLimitsRefreshTime = cfg_get_minvalue("GLOBALIOLIMITS_RENEGOTIATION_PERIOD", 0.1, 0.01);
+	gIoLimitsRefreshTime = cfg_get_minvalue(
+			"GLOBALIOLIMITS_RENEGOTIATION_PERIOD_SECONDS", 0.1, 0.001);
 
 	gIoLimitsConfigId++;
 
