@@ -1,3 +1,4 @@
+# PERSONALITY = master
 # WORKING_USER = @DEFAULT_USER@
 # WORKING_GROUP = @DEFAULT_GROUP@
 # SYSLOG_IDENT = mfsmaster
@@ -53,3 +54,10 @@
 # deprecated:
 # CHUNKS_DEL_LIMIT - use CHUNKS_SOFT_DEL_LIMIT instead
 # LOCK_FILE - lock system has been changed, and this option is used only to search for old lockfile
+
+# MASTER_RECONNECTION_DELAY = 5
+
+# MASTER_HOST = mfsmaster
+# MASTER_PORT = 9419
+
+# MASTER_TIMEOUT = 60

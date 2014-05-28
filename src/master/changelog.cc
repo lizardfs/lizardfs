@@ -27,6 +27,7 @@
 #include "common/cfg.h"
 #include "common/main.h"
 #include "common/metadata.h"
+#include "common/rotate_files.h"
 #include "master/matomlserv.h"
 
 #define MAXLOGLINESIZE 200000U
@@ -35,18 +36,12 @@ static uint32_t BackLogsNumber;
 static FILE *fd;
 
 void changelog_rotate() {
-	char logname1[100],logname2[100];
-	uint32_t i;
 	if (fd) {
 		fclose(fd);
 		fd=NULL;
 	}
 	if (BackLogsNumber>0) {
-		for (i=BackLogsNumber ; i>0 ; i--) {
-			snprintf(logname1,100,"changelog.%" PRIu32 ".mfs",i);
-			snprintf(logname2,100,"changelog.%" PRIu32 ".mfs",i-1);
-			rename(logname2,logname1);
-		}
+		rotateFiles(kChangelogFilename, BackLogsNumber);
 	} else {
 		unlink(kChangelogFilename);
 	}

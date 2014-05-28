@@ -50,34 +50,44 @@
 
 int changelog_checkname(const char *fname) {
 	const char *ptr = fname;
-	if (strncmp(ptr,"changelog.",10)==0) {
-		ptr+=10;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
+	std::string testName[] = {
+		kChangelogFilename,
+		kChangelogMlFilename
+	};
+
+	for (const std::string& s : testName) {
+		if (strncmp(ptr, s.c_str(), s.length()) == 0) {
+			ptr += s.length();
+			if (*ptr == '.') {
+				++ptr;
+				while (isdigit(*ptr)) {
+					++ptr;
+				}
+				if (*ptr == 0) {
+					return 1;
+				}
+			} else if (*ptr == 0) {
 				return 1;
 			}
 		}
-	} else if (strncmp(ptr,"changelog_ml.",13)==0) {
-		ptr+=13;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
-				return 1;
-			}
-		}
-	} else if (strncmp(ptr,"changelog_ml_back.",18)==0) {
-		ptr+=18;
-		if (*ptr>='0' && *ptr<='9') {
-			while (*ptr>='0' && *ptr<='9') {
-				ptr++;
-			}
-			if (strcmp(ptr,".mfs")==0) {
-				return 1;
+	}
+
+	std::string testNameOld[] = {
+		"changelog.",
+		"changelog_ml.",
+		"changelog_ml_back."
+	};
+
+	for (const std::string& s : testNameOld) {
+		if (strncmp(ptr, s.c_str(), s.length()) == 0) {
+			ptr += s.length();
+			if (isdigit(*ptr)) {
+				while (isdigit(*ptr)) {
+					++ ptr;
+				}
+				if (strcmp(ptr, ".mfs") == 0) {
+					return 1;
+				}
 			}
 		}
 	}
@@ -200,11 +210,11 @@ int main(int argc,char **argv) {
 		// We still load metadata.mfs.back for scenarios where metaretore
 		// is started during migration to lizardfs version with new naming scheme.
 		std::string candidates[] {
-			std::string(kMetadataMlBackFilename) + ".1",
-			std::string(kMetadataBackFilename) + ".1",
-			kMetadataMlBackFilename,
-			std::string(kMetadataBackFilename) + ".1",
-			kMetadataBackFilename,
+			std::string(kMetadataMlFilename) + ".back.1",
+			std::string(kMetadataFilename) + ".back.1",
+			std::string(kMetadataMlFilename) + ".1",
+			std::string(kMetadataFilename) + ".1",
+			kMetadataMlFilename,
 			kMetadataFilename};
 		std::string bestmetadata;
 		uint64_t bestversion = 0;
@@ -355,7 +365,7 @@ int main(int argc,char **argv) {
 	} else {
 		mfs_arg_syslog(LOG_NOTICE, "store metadata into file: %s", metaout.c_str());
 		if (metaout == metadata) {
-			rotateFiles(metaout, metaout + ".back", storedPreviousBackMetaCopies);
+			rotateFiles(metaout, storedPreviousBackMetaCopies);
 		}
 		fs_term(metaout.c_str(), noLock);
 	}

@@ -29,7 +29,9 @@
 #include "master/matoclserv.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
+#include "master/personality.h"
 #include "master/topology.h"
+#include "metalogger/masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -43,6 +45,7 @@ struct run_tab {
 };
 
 run_tab RunTab[]={
+	{metadataserver::personality_init, "personality"}, // has to be first
 	{changelog_init,"change log"},
 	{rnd_init,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matoclserv_networkinit'
@@ -51,6 +54,7 @@ run_tab RunTab[]={
 	{topology_init,"net topology module"},
 	{fs_init,"file system manager"},
 	{chartsdata_init,"charts module"},
+	{masterconn_init,"communication with master server"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
 	{matoclserv_networkinit,"communication with clients"},

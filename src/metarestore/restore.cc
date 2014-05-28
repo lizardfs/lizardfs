@@ -768,55 +768,71 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 	return status;
 }
 
-static uint64_t v=0,lastv=0;
-static const char *lastfn;
-static uint8_t verbosity;
+namespace {
 
-int restore(const char* filename, uint64_t lv, const char *ptr) {
-	int status;
-	if (lastv==0 || v==0) {
-		v = fs_getversion();
-		lastv = lv-1;
+uint64_t nextFsVersion = 0;
+uint64_t currentFsVersion = 0; /* Metadata version from before restore_line() call. */
+/*
+ * By definition:
+ *   nextFsVersion == currentFsVersion + 1
+ * or:
+ *   currentFsVersion == nextFsVersion - 1
+ */
+const char *lastfn = NULL;
+uint8_t verbosity = 0;
+
+}
+
+int restore(const char* filename, uint64_t newLogVersion, const char *ptr) {
+	if (currentFsVersion == 0 || nextFsVersion == 0) {
+		/*
+		 * This is first call to restore().
+		 */
+		nextFsVersion = fs_getversion();
+		currentFsVersion = newLogVersion - 1;
 		lastfn = "(no file)";
 	}
 	if (verbosity > 1) {
 		mfs_arg_syslog(LOG_NOTICE, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %"
 				PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",
-				filename, v, lastv, lv, ptr);
+				filename, nextFsVersion, currentFsVersion, newLogVersion, ptr);
 	}
-	if (lv<lastv) {
+	if (newLogVersion < currentFsVersion) {
 		mfs_arg_syslog(LOG_ERR, "merge error - possibly corrupted input file - ignore entry (filename: %s)",
 				filename);
 		return 0;
-	} else if (lv>=v) {
-		if (lv==lastv) {
-			if (verbosity>1) {
+	} else if (newLogVersion >= nextFsVersion) {
+		if (newLogVersion == currentFsVersion) {
+			if (verbosity > 1) {
 				mfs_arg_syslog(LOG_WARNING, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)",
-						lv, lastfn, filename);
+						newLogVersion, lastfn, filename);
 			}
-		} else if (lv>lastv+1) {
+		} else if (newLogVersion > currentFsVersion + 1) {
 			mfs_arg_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
-					" are missing) - add more files", lastfn, lastv + 1, filename, lv - 1);
+					" are missing) - add more files", lastfn, currentFsVersion + 1, filename, newLogVersion - 1);
 			return -2;
 		} else {
 			if (verbosity > 0) {
 				mfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
-			status = restore_line(filename,lv,ptr);
+			int status = restore_line(filename,newLogVersion,ptr);
 			if (status<0) { // parse error - just ignore this line
 				return 0;
 			}
 			if (status>0) { // other errors - stop processing data
 				return -1;
 			}
-			v = fs_getversion();
-			if (lv+1!=v) {
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, lv, v);
+			nextFsVersion = fs_getversion();
+			if ((newLogVersion + 1) != nextFsVersion) {
+				/*
+				 * restore_line() should bump nextFsVersion by exactly 1, but it didn't.
+				 */
+				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, newLogVersion, nextFsVersion);
 				return -1;
 			}
 		}
 	}
-	lastv = lv;
+	currentFsVersion = newLogVersion;
 	lastfn = filename;
 	return 0;
 }

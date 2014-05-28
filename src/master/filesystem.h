@@ -36,6 +36,10 @@ uint64_t fs_getversion(void);
 /// Returns checksum of the loaded metadata
 uint64_t fs_checksum(ChecksumMode mode);
 
+/*! \brief Load and apply changelogs.
+ */
+int fs_load_changelogs();
+
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)
 uint8_t fs_acquire(const FsContext& context, uint32_t inode, uint32_t sessionid);
@@ -165,4 +169,5 @@ void fs_incversion(uint64_t chunkid);
 void fs_cs_disconnected(void);
 
 int fs_init(void);
+int fs_init(bool force);
 #endif

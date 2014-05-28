@@ -42,8 +42,15 @@
 #include "common/massert.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
+#include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+
+#ifndef METALOGGER
+#include "master/filesystem.h"
+#include "master/personality.h"
+#include "metarestore/restore.h"
+#endif /* #ifndef METALOGGER */
 
 #define MaxPacketSize 1500000
 
@@ -80,6 +87,9 @@ typedef struct masterconn {
 	uint64_t filesize;
 	uint64_t dloffset;
 	uint64_t dlstartuts;
+	bool metadataLoaded_;
+	void* sessionsdownloadinit_handle;
+	void* metachanges_flush_handle;
 } masterconn;
 
 static masterconn *masterconnsingleton=NULL;
@@ -92,7 +102,9 @@ static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
+#ifdef METALOGGER
 static void* download_hook;
+#endif /* #ifndef METALOGGER */
 static uint64_t lastlogversion=0;
 
 static uint32_t stats_bytesout=0;
@@ -105,6 +117,7 @@ void masterconn_stats(uint32_t *bin,uint32_t *bout) {
 	stats_bytesout = 0;
 }
 
+#ifdef METALOGGER
 void masterconn_findlastlogversion(void) {
 	struct stat st;
 	uint8_t buff[32800];    // 32800 = 32768 + 32
@@ -112,14 +125,13 @@ void masterconn_findlastlogversion(void) {
 	uint32_t buffpos;
 	uint64_t lastnewline;
 	int fd;
-
 	lastlogversion = 0;
 
-	if ((stat(kMetadataMlBackFilename, &st) < 0) || (st.st_size == 0) || ((st.st_mode & S_IFMT) != S_IFREG)) {
+	if ((stat(kMetadataMlFilename, &st) < 0) || (st.st_size == 0) || ((st.st_mode & S_IFMT) != S_IFREG)) {
 		return;
 	}
 
-	fd = open("changelog_ml.0.back",O_RDWR);
+	fd = open(kChangelogMlFilename, O_RDWR);
 	if (fd<0) {
 		return;
 	}
@@ -182,6 +194,7 @@ void masterconn_findlastlogversion(void) {
 	close(fd);
 	return;
 }
+#endif /* #ifdef METALOGGER */
 
 uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
 	packetstruct *outpacket;
@@ -229,24 +242,39 @@ void masterconn_sendregister(masterconn *eptr) {
 	}
 }
 
+namespace {
+#ifdef METALOGGER
+	const std::string metadataFilename = kMetadataMlFilename;
+	const std::string metadataTmpFilename = kMetadataMlTmpFilename;
+	const std::string changelogFilename = kChangelogMlFilename;
+	const std::string changelogTmpFilename = kChangelogMlTmpFilename;
+	const std::string sessionsFilename = kSessionsMlFilename;
+	const std::string sessionsTmpFilename = kSessionsMlTmpFilename;
+#else /* #ifdef METALOGGER */
+	const std::string metadataFilename = kMetadataFilename;
+	const std::string metadataTmpFilename = kMetadataTmpFilename;
+	const std::string changelogFilename = kChangelogFilename;
+	const std::string changelogTmpFilename = kChangelogTmpFilename;
+	const std::string sessionsFilename = kSessionsFilename;
+	const std::string sessionsTmpFilename = kSessionsTmpFilename;
+#endif /* #else #ifdef METALOGGER */
+}
+
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	char logname1[100],logname2[100];
 	uint32_t i;
 	uint64_t version;
-	if (length==1 && data[0]==0x55) {
+	if ((length == 1) && (data[0] == FORCE_LOG_ROTATE)) {
+#ifdef METALOGGER
 		if (eptr->logfd!=NULL) {
 			fclose(eptr->logfd);
 			eptr->logfd=NULL;
 		}
 		if (BackLogsNumber>0) {
-			for (i=BackLogsNumber ; i>0 ; i--) {
-				snprintf(logname1,100,"changelog_ml.%" PRIu32 ".mfs",i);
-				snprintf(logname2,100,"changelog_ml.%" PRIu32 ".mfs",i-1);
-				rename(logname2,logname1);
-			}
+			rotateFiles(changelogFilename, BackLogsNumber);
 		} else {
-			unlink("changelog_ml.0.mfs");
+			unlink(changelogFilename.c_str());
 		}
+#endif /* #ifdef METALOGGER */
 		return;
 	}
 	if (length<10) {
@@ -274,9 +302,10 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 			fclose(eptr->logfd);
 			eptr->logfd=NULL;
 		}
+		std::string logname;
 		for (i=0 ; i<=BackLogsNumber ; i++) {
-			snprintf(logname1,100,"changelog_ml.%" PRIu32 ".mfs",i);
-			unlink(logname1);
+			logname.assign(changelogFilename).append(".").append(std::to_string(i));
+			unlink(logname.c_str());
 		}
 		lastlogversion = 0;
 		eptr->mode = KILL;
@@ -284,9 +313,16 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	}
 
 	if (eptr->logfd==NULL) {
-		eptr->logfd = fopen("changelog_ml.0.mfs","a");
+		eptr->logfd = fopen(changelogFilename.c_str(), "a");
 	}
 
+	if (eptr->metadataLoaded_) {
+#ifndef METALOGGER
+		std::string buf(": ");
+		buf.append(reinterpret_cast<const char*>(data));
+		restore("network", version, buf.c_str());
+#endif /* #ifndef METALOGGER */
+	}
 	if (eptr->logfd) {
 		fprintf(eptr->logfd,"%" PRIu64 ": %s\n",version,data);
 		lastlogversion = version;
@@ -335,7 +371,7 @@ void masterconn_sessionsdownloadinit(void) {
 	masterconn_download_init(masterconnsingleton,2);
 }
 
-int masterconn_metadata_check(const char *name) {
+int masterconn_metadata_check(const std::string& name) {
 	try {
 		metadataGetVersion(name);
 		return 0;
@@ -358,24 +394,21 @@ void masterconn_download_next(masterconn *eptr) {
 		if (dltime<=0) {
 			dltime=1;
 		}
-		syslog(LOG_NOTICE,"%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",(filenum==1)?"metadata":(filenum==2)?"sessions":(filenum==11)?"changelog_0":(filenum==12)?"changelog_1":"???",eptr->filesize,dltime/1000000,(uint32_t)(dltime%1000000),(double)(eptr->filesize)/(double)(dltime));
+		std::string changelogFilename_1 = changelogFilename + ".1";
+		std::string changelogFilename_2 = changelogFilename + ".2";
+		syslog(LOG_NOTICE, "%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",
+				(filenum==1) ? "metadata" :
+				(filenum==2) ? "sessions" :
+				(filenum==11) ? changelogFilename_1.c_str() :
+				(filenum==12) ? changelogFilename_2.c_str() : "???",
+				eptr->filesize, dltime/1000000, (uint32_t)(dltime%1000000),
+				(double)(eptr->filesize) / (double)(dltime));
 		if (filenum==1) {
-			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
+			if (masterconn_metadata_check(metadataTmpFilename) == 0) {
 				if (BackMetaCopies>0) {
-					std::string metadata_ml_back_filename_templ = kMetadataMlBackFilename;
-					metadata_ml_back_filename_templ.append(".");
-					namespace fs = boost::filesystem;
-					for (int i = BackMetaCopies-1 ; i>0 ; i--) {
-						std::string after = metadata_ml_back_filename_templ + std::to_string(i + 1);
-						std::string before = metadata_ml_back_filename_templ + std::to_string(i);
-						boost::system::error_code ignore;
-						fs::rename(before, after, ignore);
-					}
-					std::string metadata_ml_back_filename_1 = kMetadataMlBackFilename;
-					metadata_ml_back_filename_1 += ".1";
-					rename(kMetadataMlBackFilename, metadata_ml_back_filename_1.c_str());
+					rotateFiles(metadataFilename, BackMetaCopies, 2);
 				}
-				if (rename("metadata_ml.tmp", kMetadataMlBackFilename) < 0) {
+				if (rename(metadataTmpFilename.c_str(), metadataFilename.c_str()) < 0) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
@@ -385,18 +418,31 @@ void masterconn_download_next(masterconn *eptr) {
 				masterconn_download_init(eptr,2);
 			}
 		} else if (filenum==11) {
-			if (rename("changelog_ml.tmp","changelog_ml_back.0.mfs")<0) {
+			if (rename(changelogTmpFilename.c_str(), changelogFilename_1.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr,12);
 		} else if (filenum==12) {
-			if (rename("changelog_ml.tmp","changelog_ml_back.1.mfs")<0) {
+			if (rename(changelogTmpFilename.c_str(), changelogFilename_2.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr,2);
 		} else if (filenum==2) {
-			if (rename("sessions_ml.tmp","sessions_ml.mfs")<0) {
+			if (rename(sessionsTmpFilename.c_str(), sessionsFilename.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
+			} else {
+#ifndef METALOGGER
+				if (!eptr->metadataLoaded_) {
+					fs_init(true);
+					eptr->metadataLoaded_ = true;
+					if (eptr->logfd) {
+						fclose(eptr->logfd);
+						eptr->logfd = NULL;
+					}
+				} else {
+					fs_load_changelogs();
+				}
+#endif /* #ifndef METALOGGER */
 			}
 		}
 	} else {        // send request for next data packet
@@ -427,11 +473,11 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	eptr->downloadretrycnt = 0;
 	eptr->dlstartuts = main_utime();
 	if (eptr->downloading==1) {
-		eptr->metafd = open("metadata_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open(metadataTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else if (eptr->downloading==2) {
-		eptr->metafd = open("sessions_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open(sessionsTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else if (eptr->downloading==11 || eptr->downloading==12) {
-		eptr->metafd = open("changelog_ml.tmp",O_WRONLY | O_TRUNC | O_CREAT,0666);
+		eptr->metafd = open(changelogTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else {
 		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
 		eptr->mode = KILL;
@@ -528,9 +574,9 @@ void masterconn_beforeclose(masterconn *eptr) {
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
 		eptr->metafd=-1;
-		unlink("metadata_ml.tmp");
-		unlink("sessions_ml.tmp");
-		unlink("changelog_ml.tmp");
+		unlink(metadataTmpFilename.c_str());
+		unlink(sessionsTmpFilename.c_str());
+		unlink(changelogTmpFilename.c_str());
 	}
 	if (eptr->logfd) {
 		fclose(eptr->logfd);
@@ -563,6 +609,9 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 }
 
 void masterconn_term(void) {
+	if (!masterconnsingleton) {
+		return;
+	}
 	packetstruct *pptr,*paptr;
 	masterconn *eptr = masterconnsingleton;
 
@@ -778,6 +827,9 @@ void masterconn_write(masterconn *eptr) {
 
 
 void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+	if (!masterconnsingleton) {
+		return;
+	}
 	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
@@ -805,6 +857,9 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 }
 
 void masterconn_serve(struct pollfd *pdesc) {
+	if (!masterconnsingleton) {
+		return;
+	}
 	uint32_t now=main_time();
 	packetstruct *pptr,*paptr;
 	masterconn *eptr = masterconnsingleton;
@@ -858,13 +913,30 @@ void masterconn_serve(struct pollfd *pdesc) {
 }
 
 void masterconn_reconnect(void) {
+	if (!masterconnsingleton) {
+		return;
+	}
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
 }
 
+void masterconn_become_master() {
+	if (!masterconnsingleton) {
+		return;
+	}
+	masterconn *eptr = masterconnsingleton;
+	main_timeunregister(eptr->sessionsdownloadinit_handle);
+	main_timeunregister(eptr->metachanges_flush_handle);
+	masterconn_term();
+	return;
+}
+
 void masterconn_reload(void) {
+	if (!masterconnsingleton) {
+		return;
+	}
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
@@ -909,12 +981,28 @@ void masterconn_reload(void) {
 	}
 
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
+#ifdef METALOGGER
 	main_timechange(download_hook,TIMEMODE_RUN_LATE,MetaDLFreq*3600,630);
+#endif /* #ifndef METALOGGER */
+
+#ifndef METALOGGER
+	if (metadataserver::isDuringPersonalityChange()) {
+		masterconn_become_master();
+	}
+#endif /* #ifndef METALOGGER */
 }
 
 int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
+#ifndef METALOGGER
+	if (metadataserver::getPersonality() != metadataserver::Personality::kShadow) {
+		return 0;
+	} else {
+		gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
+		gMetadataLockfile->lock(Lockfile::StaleLock::kSwallow);
+	}
+#endif /* #ifndef METALOGGER */
 	masterconn *eptr;
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
@@ -946,21 +1034,27 @@ int masterconn_init(void) {
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
+	eptr->metadataLoaded_ = false;
 	eptr->pdescpos = -1;
 	eptr->logfd = NULL;
 	eptr->metafd = -1;
 	eptr->oldmode = 0;
 
+#ifdef METALOGGER
 	masterconn_findlastlogversion();
+#endif /* #ifdef METALOGGER */
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
+#ifdef METALOGGER
 	download_hook = main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
+#endif /* #ifdef METALOGGER */
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
+	eptr->sessionsdownloadinit_handle = main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
+	eptr->metachanges_flush_handle = main_timeregister(TIMEMODE_RUN_LATE,1,0,masterconn_metachanges_flush);
 	return 0;
 }
+

@@ -41,6 +41,7 @@
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "master/personality.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -335,9 +336,9 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 	if (filenum==1) {
 		eptr->metafd = open(kMetadataFilename, O_RDONLY);
 		eptr->chain1fd = open(kChangelogFilename, O_RDONLY);
-		eptr->chain2fd = open("changelog.1.mfs",O_RDONLY);
+		eptr->chain2fd = open((std::string(kChangelogFilename) + ".1").c_str(), O_RDONLY);
 	} else if (filenum==2) {
-		eptr->metafd = open("sessions.mfs",O_RDONLY);
+		eptr->metafd = open(kSessionsFilename, O_RDONLY);
 	} else if (filenum==11) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
@@ -443,7 +444,7 @@ void matomlserv_broadcast_logrotate() {
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->version>0) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,1);
-			put8bit(&data,0x55);
+			put8bit(&data, FORCE_LOG_ROTATE);
 		}
 	}
 }
@@ -722,6 +723,11 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
+void matomlserv_become_master() {
+	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
+	return;
+}
+
 void matomlserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
@@ -772,6 +778,9 @@ void matomlserv_reload(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
+	if (metadataserver::isDuringPersonalityChange()) {
+		matomlserv_become_master();
+	}
 }
 
 int matomlserv_init(void) {
@@ -804,6 +813,8 @@ int matomlserv_init(void) {
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
-	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
+	if (metadataserver::isMaster()) {
+		matomlserv_become_master();
+	}
 	return 0;
 }

@@ -310,6 +310,8 @@
 #define MFS_XATTR_SIZE_MAX 65536
 #define MFS_XATTR_LIST_MAX 65536
 
+// Metalogger specific messages.
+#define FORCE_LOG_ROTATE 0x55
 
 // ANY <-> ANY
 

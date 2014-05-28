@@ -31,7 +31,6 @@
 #include <unistd.h>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <string>
 #include <vector>
 #include <boost/filesystem.hpp>
@@ -41,11 +40,11 @@
 #include "common/exceptions.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
-#include "common/lockfile.h"
 #include "common/massert.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
 #include "common/rotate_files.h"
+#include "common/setup.h"
 #include "common/slogger.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
@@ -245,11 +244,8 @@ static uint32_t filenodes;
 static uint32_t dirnodes;
 
 static QuotaDatabase gQuotaDatabase;
-static std::unique_ptr<Lockfile> gMetadataLockfile;
 
 #ifndef METARESTORE
-
-static uint32_t gStoredPreviousBackMetaCopies;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -283,6 +279,7 @@ static uint32_t stats_readdir=0;
 static uint32_t stats_open=0;
 static uint32_t stats_read=0;
 static uint32_t stats_write=0;
+static bool gAutoRecovery = false;
 
 void fs_stats(uint32_t stats[16]) {
 	stats[0] = stats_statfs;
@@ -489,9 +486,9 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	return checksum;
 }
 
+#ifndef METARESTORE
 static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
-#ifndef METARESTORE
 void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
 	metadataDumper.pollDesc(pdesc, ndesc);
 }
@@ -3978,7 +3975,7 @@ uint8_t fs_rename(const FsContext& context,
 	if (context.canCheckPermissions() && !fsnodes_sticky_access(swd, node, context.uid())) {
 		return ERROR_EPERM;
 	}
-	if ((context.personality() != master::Personality::kMaster) && (node->id != *inode)) {
+	if ((context.personality() != metadataserver::Personality::kMaster) && (node->id != *inode)) {
 		return ERROR_MISMATCH;
 	} else {
 		*inode = node->id;
@@ -7596,7 +7593,7 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 		throw MetadataConsistencyException("can't read metadata header");
 	}
 #ifndef METARESTORE
-	if (master::getPersonality() == master::Personality::kMaster) {
+	if (metadataserver::isMaster()) {
 		if (memcmp(hdr, "MFSM NEW", 8) == 0) {    // special case - create new file system
 			mfs_syslog(LOG_NOTICE, "create new empty filesystem");
 			fs_new();
@@ -7645,10 +7642,10 @@ void fs_loadall(void) {
 		throw MetadataFsConsistencyException(
 				"temporary metadata file exists, metadata directory is in dirty state");
 	}
-	if ((master::getPersonality() == master::Personality::kMaster) && !fs::exists(kMetadataFilename)) {
+	if ((metadataserver::isMaster()) && !fs::exists(kMetadataFilename)) {
 		std::string currentPath(fs::current_path().string());
-		fprintf(stderr, "Can't open metada file: If this is new instalation "
-			"then rename %s%s.empty as %s%s\n",
+		fprintf(stderr, "Can't open metadata file: If this is new instalation "
+			"then rename %s/%s.empty as %s/%s\n",
 			currentPath.c_str(), kMetadataFilename,
 			currentPath.c_str(), kMetadataFilename);
 	}
@@ -7682,6 +7679,24 @@ void fs_cs_disconnected(void) {
 	test_start_time = main_time()+600;
 }
 
+/*
+ * Initialize subsystems required by Master personality of metadataserver.
+ */
+void fs_become_master() {
+	test_start_time = main_time() + 900;
+	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_test_files);
+	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
+			0, fs_periodic_emptytrash);
+	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
+			0, fs_periodic_emptyreserved);
+	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
+			0, fs_periodic_freeinodes);
+	return;
+}
+
 void fs_reload(void) {
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
@@ -7694,43 +7709,117 @@ void fs_reload(void) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
 	}
 
-	main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
-	main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
-	main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
+	if (metadataserver::isDuringPersonalityChange()) {
+		fs_become_master();
+	} else if (metadataserver::isMaster()) {
+		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
+				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
+		main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
+				cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
+		main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
+				cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
+	}
 }
 
+/*
+ * Load and apply given changelog file.
+ */
 void fs_load_changelog(const std::string& path) {
 	std::ifstream changelog(path);
 	std::string line;
 	size_t end = 0;
+	sassert(metaversion > 0);
+
+	uint32_t skippedEntries = 0;
 	while (std::getline(changelog, line).good()) {
 		uint64_t id = stoull(line, &end);
-		if (restore(kChangelogFilename, id, line.c_str() + end) < 0) {
+		if (id < fs_getversion()) {
+			++skippedEntries;
+			continue;
+		}
+		if (restore(path.c_str(), id, line.c_str() + end) < 0) {
 			throw MetadataConsistencyException("Can't apply changelog " + path);
 		}
 	}
+	if (skippedEntries > 0) {
+		mfs_arg_syslog(LOG_NOTICE, "skipped %" PRIu32 " entries from changelog %s",
+				skippedEntries, path.c_str());
+	}
 }
 
-int fs_init(void) {
-	gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
-	bool autoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1 ? true : false;
-	try {
-		gMetadataLockfile->lock(autoRecovery ? Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
-	} catch (const LockfileException& e) {
-		if (e.reason() == LockfileException::Reason::kStaleLock) {
-			throw LockfileException(
-					std::string(e.what()) + ", consider running `mfsmetarestore -a' to fix problems with your datadir.",
-					LockfileException::Reason::kStaleLock);
+/*
+ * Load and apply changelogs.
+ */
+int fs_load_changelogs() {
+	metadataserver::Personality personality = metadataserver::getPersonality();
+	metadataserver::setPersonality(metadataserver::Personality::kShadow);
+	/*
+	 * We need to load 3 changlog files in extreame case.
+	 * If we are being run as Shadow we need to download two
+	 * changelog files:
+	 * 1 - current changelog => "changelog.mfs.1"
+	 * 2 - previous changelog in case Shadow connects during metadata dump,
+	 *     that is "changelog.mfs.2"
+	 * Beside this we received changelog lines that we stored in
+	 * yet another changelog file => "changelog.mfs"
+	 *
+	 * If we are master we only really care for:
+	 * "changelog.mfs.1" and "changelog.mfs" files.
+	 */
+	const std::string changelogs[] {
+		std::string(kChangelogFilename) + ".2",
+		std::string(kChangelogFilename) + ".1",
+		kChangelogFilename
+	};
+	restore_setverblevel(gVerbosity);
+	namespace fs = boost::filesystem;
+	for (const std::string& s : changelogs) {
+		if (fs::exists(s)) {
+			std::cerr << "Changelog file found and "
+				<< (metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow")
+				<< ", trying to apply " << s << "." << std::endl;
+			uint64_t first = changelogGetFirstLogVersion(s);
+			uint64_t last = changelogGetLastLogVersion(s);
+			if (last >= first) {
+				if (last >= fs_getversion()) {
+					fs_load_changelog(s);
+					std::cerr << "Changelog file " << s << " applied successfully." << std::endl;
+				} else {
+					std::cerr << "Skipping changelog file: " << s << std::endl;
+				}
+			} else {
+				std::cerr << "Changelog inconsistent, run meterestore, current version = "
+					<< fs_getversion() << ", new version = " << first << "." << std::endl;
+				return -1;
+			}
 		}
-		throw;
+	}
+	fs_checksum(ChecksumMode::kForceRecalculate);
+	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
+	metadataserver::setPersonality(personality);
+	return 0;
+}
+
+int do_fs_init(void) {
+	if (!gMetadataLockfile) {
+		gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
+	}
+	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1 ? true : false;
+	if (!gMetadataLockfile->isLocked()) {
+		try {
+			gMetadataLockfile->lock(gAutoRecovery ? Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
+		} catch (const LockfileException& e) {
+			if (e.reason() == LockfileException::Reason::kStaleLock) {
+				throw LockfileException(
+						std::string(e.what()) + ", consider running `mfsmetarestore -a' to fix problems with your datadir.",
+						LockfileException::Reason::kStaleLock);
+			}
+			throw;
+		}
 	}
 	fprintf(stderr,"loading metadata ...\n");
 	fs_strinit();
 	chunk_strinit();
-	test_start_time = main_time()+900;
 	try {
 		fs_loadall();
 	} catch(Exception const& e) {
@@ -7745,46 +7834,47 @@ int fs_init(void) {
 			kDefaultStoredPreviousBackMetaCopies,
 			kMaxStoredPreviousBackMetaCopies);
 
-	namespace fs = boost::filesystem;
-	if (autoRecovery && fs::exists(kChangelogFilename)) {
-		std::cerr << "Changelog file found and auto recovery enabled, trying to apply changelog." << std::endl;
-		uint64_t first = changelogGetFirstLogVersion(kChangelogFilename);
-		uint64_t last = changelogGetLastLogVersion(kChangelogFilename);
-		if (last >= first) {
-			fs_load_changelog(kChangelogFilename);
-			fs_checksum(ChecksumMode::kForceRecalculate);
-			fs_storeall(MetadataDumper::DumpType::kForegroundDump);
-			std::cerr << "Changelog applied successfully." << std::endl;
-		} else {
-			std::cerr << "Changelog inconsistent, run meterestore, current version = "
-				<< fs_getversion() << ", new version = " << first << "." << std::endl;
-			return -1;
+	if (gAutoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
+		int err = fs_load_changelogs();
+		if (err != 0) {
+			return err;
 		}
 	}
-
 	metadataDumper.setMetarestorePath(cfg_get("MFSMETARESTORE_PATH",
 			std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
 
 	main_reloadregister(fs_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
 	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
 		// Secret option disabling periodic metadata dumps
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);
 	}
-	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
-			0, fs_periodic_emptytrash);
-	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
-			0, fs_periodic_emptyreserved);
-	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
-			0, fs_periodic_freeinodes);
+	if (metadataserver::isMaster()) {
+		fs_become_master();
+	}
 	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;
 }
+
+/*
+ * Conditionally initialize filesystem subsystem.
+ */
+int fs_init(bool force) {
+	if (force || (metadataserver::isMaster())) {
+		return do_fs_init();
+	} else {
+		return 0;
+	}
+}
+
+/*
+ * Initialize filesystem subsystem if currently metadataserver have Master personality.
+ */
+int fs_init() {
+	return fs_init(false);
+}
+
 #else
 int fs_init(const char *fname,int ignoreflag, bool noLock) {
 	if (!noLock) {

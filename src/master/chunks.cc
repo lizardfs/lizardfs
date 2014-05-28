@@ -1945,6 +1945,14 @@ void chunk_newfs(void) {
 }
 
 #ifndef METARESTORE
+void chunk_become_master() {
+	starttime = main_time();
+	jobsnorepbefore = starttime+ReplicationsDelayInit;
+	chunk_do_jobs(NULL,JOBS_INIT,0.0,0.0); // clear chunk loop internal data
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
+	return;
+}
+
 void chunk_reload(void) {
 	uint32_t oldMaxDelSoftLimit,oldMaxDelHardLimit;
 	uint32_t repl;
@@ -2037,6 +2045,9 @@ void chunk_reload(void) {
 	if (AcceptableDifference>10.0) {
 		AcceptableDifference = 10.0;
 	}
+	if (metadataserver::isDuringPersonalityChange()) {
+		chunk_become_master();
+	}
 }
 #endif
 
@@ -2120,11 +2131,10 @@ int chunk_strinit(void) {
 #ifndef METARESTORE
 	jobshpos = 0;
 	jobsrebalancecount = 0;
-	starttime = main_time();
-	jobsnorepbefore = starttime+ReplicationsDelayInit;
-	chunk_do_jobs(NULL,JOBS_INIT,0.0,0.0); // clear chunk loop internal data
 	main_reloadregister(chunk_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
+	if (metadataserver::isMaster()) {
+		chunk_become_master();
+	}
 #endif
 	return 1;
 }

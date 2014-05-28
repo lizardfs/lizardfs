@@ -46,6 +46,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocl_communication.h"
+#include "common/metadata.h"
 #include "common/MFSCommunication.h"
 #include "common/random.h"
 #include "common/slogger.h"
@@ -57,6 +58,7 @@
 #include "master/filesystem.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
+#include "master/personality.h"
 
 #define MaxPacketSize 1000000
 
@@ -362,7 +364,7 @@ void matoclserv_store_sessions() {
 	int i;
 	FILE *fd;
 
-	fd = fopen("sessions.mfs.tmp","w");
+	fd = fopen(kSessionsTmpFilename, "w");
 	if (fd==NULL) {
 		mfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
 		return;
@@ -420,7 +422,7 @@ void matoclserv_store_sessions() {
 		mfs_errlog_silent(LOG_WARNING,"can't store sessions, fclose error");
 		return;
 	}
-	if (rename("sessions.mfs.tmp","sessions.mfs")<0) {
+	if (rename(kSessionsTmpFilename, kSessionsFilename) < 0) {
 		mfs_errlog_silent(LOG_WARNING,"can't store sessions, rename error");
 	}
 }
@@ -437,7 +439,7 @@ int matoclserv_load_sessions() {
 	int r;
 	FILE *fd;
 
-	fd = fopen("sessions.mfs","r");
+	fd = fopen(kSessionsFilename, "r");
 	if (fd==NULL) {
 		mfs_errlog_silent(LOG_WARNING,"can't load sessions, fopen error");
 		if (errno==ENOENT) {    // it's ok if file does not exist
@@ -4155,6 +4157,17 @@ int matoclserv_iolimits_reload() {
 	return 0;
 }
 
+void  matoclserv_become_master() {
+	starting = 120;
+	matoclserv_start_cond_check();
+	if (starting) {
+		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
+	}
+	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
+	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	return;
+}
+
 void matoclserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
@@ -4217,6 +4230,9 @@ void matoclserv_reload(void) {
 	free(oldListenPort);
 	tcpclose(lsock);
 	lsock = newlsock;
+	if (metadataserver::isDuringPersonalityChange()) {
+		matoclserv_become_master();
+	}
 }
 
 int matoclserv_networkinit(void) {
@@ -4235,7 +4251,6 @@ int matoclserv_networkinit(void) {
 	}
 
 	exiting = 0;
-	starting = 120;
 	lsock = tcpsocket();
 	if (lsock<0) {
 		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
@@ -4257,12 +4272,10 @@ int matoclserv_networkinit(void) {
 /* CACHENOTIFY
 	matoclserv_dircache_init();
 */
-	matoclserv_start_cond_check();
-	if (starting) {
-		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
+
+	if (metadataserver::isMaster()) {
+		matoclserv_become_master();
 	}
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	main_reloadregister(matoclserv_reload);
 	main_destructregister(matoclserv_term);
 	main_pollregister(matoclserv_desc,matoclserv_serve);

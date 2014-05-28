@@ -4,5 +4,6 @@
 
 #include "common/exception.h"
 
+LIZARDFS_CREATE_EXCEPTION_CLASS(ConfigurationException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
 

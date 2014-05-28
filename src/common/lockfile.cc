@@ -8,7 +8,7 @@
 #include "common/exceptions.h"
 
 Lockfile::Lockfile(const std::string& name)
-		: name_(name), lock_() {
+		: name_(name), lock_(), locked_(false) {
 }
 
 Lockfile::~Lockfile() {
@@ -21,16 +21,16 @@ void Lockfile::lock(StaleLock staleLock) {
 	if (existed && (staleLock == StaleLock::kReject)) {
 		throw LockfileException("Stale lockfile exists.", LockfileException::Reason::kStaleLock);
 	}
-	bool lockAcquired = false;
 	try {
 		lock_ = boost::interprocess::file_lock(name_.c_str());
-		lockAcquired = lock_.try_lock();
+		locked_ = lock_.try_lock();
 	} catch (const std::exception& e) {
 		throw FilesystemException("Locking: " + name_ + ": " + e.what());
 	}
-	if (!lockAcquired) {
+	if (!locked_) {
 		throw LockfileException(name_ + " is already locked!", LockfileException::Reason::kAlreadyLocked);
 	}
+	locked_ = true;
 }
 
 void Lockfile::unlock() {
@@ -40,5 +40,10 @@ void Lockfile::unlock() {
 	} catch (const std::exception& e) {
 		throw FilesystemException("Unlocking: " + name_ + ": " + e.what());
 	}
+	locked_ = false;
+}
+
+bool Lockfile::isLocked() const {
+	return locked_;
 }
 

@@ -60,7 +60,7 @@ function check_backup_copies() {
 function check() {
 	cd "${info[master_data_path]}"
 	rm -f "$TEMP_DIR/metaout"
-	assert_file_exists "changelog.0.mfs"
+	assert_file_exists "changelog.mfs"
 	assert_file_exists "metadata.mfs"
 
 	prev_metadata_inode=$(stat --format=%i metadata.mfs)
@@ -83,8 +83,8 @@ function check() {
 	if [[ $2 == OK ]]; then
 		# check if the dumped metadata is up to date,
 		# ie. if its version is equal to (1 + last entry in changelog.1)
-		assert_file_exists changelog.1.mfs
-		last_change=$(tail -1 changelog.1.mfs | cut -d : -f 1)
+		assert_file_exists changelog.mfs.1
+		last_change=$(tail -1 changelog.mfs.1 | cut -d : -f 1)
 		assert_success test -n "$last_change"
 		assert_equals $((last_change+1)) "$(mfsmetadump metadata.mfs | awk 'NR==2{print $6}')"
 		if ((backup_copies < 5)); then

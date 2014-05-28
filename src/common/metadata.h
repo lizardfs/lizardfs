@@ -4,15 +4,24 @@
 
 #include <cstdint>
 #include <string>
+#include <memory>
 
 #include "common/exception.h"
+#include "common/lockfile.h"
 
 extern const char kMetadataFilename[];
 extern const char kMetadataTmpFilename[];
-extern const char kMetadataBackFilename[];
+extern const char kMetadataMlFilename[];
+extern const char kMetadataMlTmpFilename[];
 extern const char kMetadataEmergencyFilename[];
-extern const char kMetadataMlBackFilename[];
 extern const char kChangelogFilename[];
+extern const char kChangelogTmpFilename[];
+extern const char kChangelogMlFilename[];
+extern const char kChangelogMlTmpFilename[];
+extern const char kSessionsFilename[];
+extern const char kSessionsTmpFilename[];
+extern const char kSessionsMlFilename[];
+extern const char kSessionsMlTmpFilename[];
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataCheckException, Exception);
 
@@ -39,4 +48,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname);
 
 const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
 const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
+
+extern uint32_t gStoredPreviousBackMetaCopies;
+extern std::unique_ptr<Lockfile> gMetadataLockfile;
 
