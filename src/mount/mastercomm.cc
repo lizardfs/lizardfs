@@ -2362,6 +2362,24 @@ uint8_t fs_custom(MessageBuffer& buffer) {
 	return STATUS_OK;
 }
 
+uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType) {
+	threc *rec = fs_get_my_threc();
+	uint32_t *ptr = nullptr;
+	ptr = msgIdPtr(buffer);
+	if (!ptr) {
+		// packet too short
+		return ERROR_EINVAL;
+	}
+	*ptr = htonl(rec->packetId);
+	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, expectedType, buffer)) {
+		return ERROR_IO;
+	}
+	return STATUS_OK;
+}
+
 uint8_t fs_send_custom(MessageBuffer buffer) {
 	threc *rec = fs_get_my_threc();
 	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
