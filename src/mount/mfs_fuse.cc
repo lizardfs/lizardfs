@@ -48,8 +48,10 @@
 #include "common/MFSCommunication.h"
 #include "common/posix_acl_xattr.h"
 #include "common/strerr.h"
+#include "common/time_utils.h"
 #include "mount/dirattrcache.h"
 #include "mount/g_io_limiters.h"
+#include "mount/io_limit_group.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 #include "mount/oplog.h"
@@ -1833,6 +1835,12 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	}
 	try {
 		gIoLimiter.waitForRead(ctx.pid, size);
+		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
+		const uint8_t status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		if (status != 0) {
+			fuse_reply_err(req, status);
+			return;
+		}
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		fuse_reply_err(req, EIO);
@@ -1921,6 +1929,12 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 	}
 	try {
 		gIoLimiter.waitForWrite(ctx.pid, size);
+		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
+		const uint8_t status = gGlobalIoLimiter().waitForWrite(ctx.pid, size, deadline);
+		if (status != 0) {
+			fuse_reply_err(req, status);
+			return;
+		}
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		fuse_reply_err(req, EIO);

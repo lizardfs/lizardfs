@@ -571,6 +571,10 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 #endif
 
 	symlink_cache_init();
+	if (mfsopts.meta == 0) {
+		// initialize the global IO limiter before starting mastercomm threads
+		gGlobalIoLimiter();
+	}
 	fs_init_threads(mfsopts.ioretries);
 	masterproxy_init();
 

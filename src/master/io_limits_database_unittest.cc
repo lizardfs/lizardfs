@@ -30,7 +30,7 @@ TEST(IoLimitsDatabaseTests, Limiting) {
 	ASSERT_EQ(4 * 1024U, db.request(t0, "g22", 6 * 1024U));
 
 	// Limit is exceeded, nothing can be served:
-	ASSERT_EQ(0, db.request(t0, "g22", 5 * 1024U));
+	ASSERT_EQ(0U, db.request(t0, "g22", 5 * 1024U));
 
 	// After another 5 milliseconds another 5 kilobytes can be server:
 	t0 += std::chrono::milliseconds(5);
