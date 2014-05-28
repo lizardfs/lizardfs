@@ -3,6 +3,8 @@
 
 #include <limits>
 
+#include "common/io_limit_group.h"
+
 inline static bool streamReadFailed(const std::istream& stream) {
 	return stream.eof() || stream.fail() || stream.bad();
 }
@@ -36,7 +38,7 @@ void IoLimitsConfigLoader::load(std::istream&& stream) {
 						"' specified more then once.");
 			}
 			limits_[group] = limit;
-			cgroupsInUse |= (group != "unclassified");
+			cgroupsInUse |= (group != kUnclassified);
 		} else if (!command.empty() && command.front() == '#') {
 			stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 		} else {

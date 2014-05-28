@@ -86,7 +86,7 @@ void IoLimiter::waitForRead(pid_t pid, uint64_t bytes) {
 	}
 
 	// Find group for a given pid
-	std::string group = "unclassified";
+	std::string group = kUnclassified;
 	if (usesCgroups_) {
 		try {
 			group = getIoLimitGroupId(pid, subsystem_);
@@ -101,8 +101,8 @@ void IoLimiter::waitForRead(pid_t pid, uint64_t bytes) {
 	// Limit I/O if some limit is specified
 	if (queues_.hasQueue(group)) {
 		queues_.getQueue(group).wait(bytes);
-	} else if (queues_.hasQueue("unclassified")) {
-		queues_.getQueue("unclassified").wait(bytes);
+	} else if (queues_.hasQueue(kUnclassified)) {
+		queues_.getQueue(kUnclassified).wait(bytes);
 	}
 }
 
