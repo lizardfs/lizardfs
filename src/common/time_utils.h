@@ -51,6 +51,7 @@ public:
 	void reset();
 
 	// Returns time since last reset
+	SteadyTimePoint startTime() const;
 	SteadyDuration elapsedTime() const;
 
 	// Returns time since last reset and resets the timer
@@ -75,6 +76,7 @@ private:
 class Timeout : public Timer {
 public:
 	Timeout(std::chrono::nanoseconds);
+	SteadyTimePoint deadline() const;
 	SteadyDuration remainingTime() const;
 	int64_t remaining_ns() const;
 	int64_t remaining_us() const;
