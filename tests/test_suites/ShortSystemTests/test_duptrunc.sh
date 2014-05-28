@@ -1,3 +1,4 @@
+echo "DISABLED UNTIL TRUNCATING XOR CHUNKS IS FULLY IMPLEMENTED" && test_end
 timeout_set '1 minute'
 
 CHUNKSERVERS=5 \

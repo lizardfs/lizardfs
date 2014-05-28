@@ -128,6 +128,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kInProgressPacketVersion,
 		uint32_t, messageId,
+		uint64_t, oldLength,
 		uint32_t, lockId)
 
 // LIZ_MATOCL_FUSE_TRUNCATE_END

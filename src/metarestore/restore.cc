@@ -590,16 +590,22 @@ int do_unlock(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
 }
 
 int do_trunc(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {
-	uint32_t inode,indx;
+	uint32_t inode,indx,lockid;
 	uint64_t chunkid;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(indx,ptr);
+	if (*ptr==',') {
+		EAT(ptr,filename,lv,',');
+		GETU32(lockid,ptr);
+	} else {
+		lockid = 0;
+	}
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_trunc(ts,inode,indx,chunkid);
+	return fs_trunc(ts,inode,indx,chunkid,lockid);
 }
 
 int do_write(const char *filename,uint64_t lv,uint32_t ts,char *ptr) {

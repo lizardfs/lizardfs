@@ -1011,11 +1011,11 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 }
 
 #ifndef METARESTORE
-int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
-		bool truncatingUpwards, bool quota_exceeded) {
+int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t lockid, uint32_t length,
+		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded) {
 	uint32_t i;
 #else
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal) {
+int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t lockid,uint8_t goal) {
 #endif
 	chunk *oc,*c;
 
@@ -1025,10 +1025,16 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 		return ERROR_NOCHUNK;
 	}
 #ifndef METARESTORE
-	if (oc->isLocked()) {
+	if (oc->isLocked() && (lockid == 0 || lockid != oc->lockid)) {
 		return ERROR_LOCKED;
 	}
-	oc->lockid = 0; // remove stale lock if exists
+	if (denyTruncatingParityParts) {
+		for (slist *s = oc->slisthead; s; s = s->next) {
+			if (s->chunkType.isXorChunkType() && s->chunkType.isXorParity()) {
+				return ERROR_NOTPOSSIBLE;
+			}
+		}
+	}
 #endif
 	if (oc->fileCount() == 1) { // refcount==1
 		*nchunkid = ochunkid;
@@ -1043,22 +1049,12 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 				if (!s->is_busy()) {
 					s->mark_busy();
 				}
-				if (!truncatingUpwards
-						&& s->chunkType.isXorChunkType()
-						&& s->chunkType.isXorParity()
-						&& (length % (MFSBLOCKSIZE * s->chunkType.getXorLevel()) != 0)) {
-					syslog(LOG_WARNING, "Trying to truncate parity chunk: %016" PRIX64
-							" - currently unsupported!!!", ochunkid);
-					s->valid = INVALID;
-					c->updateStats();
-				} else {
-					s->version = c->version+1;
-					uint32_t chunkTypeLength =
-							ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length);
-					matocsserv_send_truncatechunk(s->ptr, ochunkid, s->chunkType, chunkTypeLength,
-							c->version + 1, c->version);
-					i++;
-				}
+				s->version = c->version+1;
+				uint32_t chunkTypeLength =
+						ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length);
+				matocsserv_send_truncatechunk(s->ptr, ochunkid, s->chunkType, chunkTypeLength,
+						c->version + 1, c->version);
+				i++;
 			}
 		}
 		if (i>0) {
@@ -1098,20 +1094,11 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 					chunk_add_file_int(c,goal);
 #ifndef METARESTORE
 				}
-				if (!truncatingUpwards
-						&& os->chunkType.isXorChunkType()
-						&& os->chunkType.isXorParity()
-						&& (length % (MFSBLOCKSIZE * os->chunkType.getXorLevel()) != 0)) {
-					syslog(LOG_WARNING, "Trying to duptrunc down parity chunk: %016" PRIX64
-							" - currently unsupported!!!", ochunkid);
-					c->updateStats();
-				} else {
-					slist *s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
-					matocsserv_send_duptruncchunk(s->ptr, c->chunkid, c->version,
-							s->chunkType, oc->chunkid, oc->version,
-							ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length));
-					i++;
-				}
+				slist *s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
+				matocsserv_send_duptruncchunk(s->ptr, c->chunkid, c->version,
+						s->chunkType, oc->chunkid, oc->version,
+						ChunkType::chunkLengthToChunkTypeLength(s->chunkType, length));
+				i++;
 			}
 		}
 		if (c!=NULL) {
@@ -1132,6 +1119,7 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_
 #else
 	c->lockedto=ts+LOCKTIMEOUT;
 #endif
+	c->lockid = lockid;
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }

@@ -3522,7 +3522,9 @@ uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	return STATUS_OK;
 }
 
-uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint64_t length,uint8_t attr[35],uint64_t *chunkid) {
+uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t opened,
+		uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid, uint64_t length,
+		bool denyTruncatingParity, uint32_t lockId, uint8_t attr[35], uint64_t *chunkid) {
 	fsnode *p,*rn;
 	memset(attr,0,35);
 	if (sesflags&SESFLAG_READONLY) {
@@ -3566,21 +3568,16 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (ochunkid>0) {
 				uint8_t status;
 				uint64_t nchunkid;
-				bool truncatingUpwards = (length >= p->data.fdata.length);
-				if (!truncatingUpwards) {
-					syslog(LOG_WARNING,
-							"Potentially dangerous (not fully supported) truncate downwards - "
-							"inode %" PRIu32 " old length: %" PRIu64 " ; new length: %" PRIu64 ")",
-							inode, p->data.fdata.length, length);
-				}
-				status = chunk_multi_truncate(&nchunkid, ochunkid, length & MFSCHUNKMASK, p->goal,
-						truncatingUpwards, fsnodes_size_quota_exceeded(p->uid, p->gid));
+				// We deny truncating parity only if truncating down
+				denyTruncatingParity = denyTruncatingParity && (length < p->data.fdata.length);
+				status = chunk_multi_truncate(&nchunkid, ochunkid, lockId, length & MFSCHUNKMASK,
+						p->goal, denyTruncatingParity, fsnodes_size_quota_exceeded(p->uid, p->gid));
 				if (status!=STATUS_OK) {
 					return status;
 				}
 				p->data.fdata.chunktab[indx] = nchunkid;
 				*chunkid = nchunkid;
-				changelog(metaversion++,"%" PRIu32 "|TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
+				changelog(metaversion++,"%" PRIu32 "|TRUNC(%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu64,(uint32_t)main_time(),inode,indx,lockId,nchunkid);
 				fsnodes_update_checksum(p);
 				return ERROR_DELAYED;
 			}
@@ -3593,7 +3590,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 #endif
 
 #ifdef METARESTORE
-uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
+uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid,uint32_t lockid) {
 	uint64_t ochunkid,nchunkid;
 	uint8_t status;
 	fsnode *p;
@@ -3611,7 +3608,7 @@ uint8_t fs_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
 		return ERROR_EINVAL;
 	}
 	ochunkid = p->data.fdata.chunktab[indx];
-	status = chunk_multi_truncate(ts,&nchunkid,ochunkid,p->goal);
+	status = chunk_multi_truncate(ts,&nchunkid,ochunkid,lockid,p->goal);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -6079,6 +6076,28 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 	*size = sr.size;
 	*rsize = sr.realsize;
 //      syslog(LOG_NOTICE,"using fast stats");
+	return STATUS_OK;
+}
+
+uint8_t fs_get_chunkid(uint32_t rootinode, uint8_t sesflags,
+		uint32_t inode, uint32_t index, uint64_t *chunkid) {
+	fsnode *p;
+	uint8_t status = fsnodes_get_node_for_operation(rootinode, sesflags, 0, 0, MODE_MASK_EMPTY,
+			OperationType::kReadOnly, ExpectedInodeType::kAny, &inode, &p);
+	if (status != STATUS_OK) {
+		return status;
+	}
+	if (p->type != TYPE_FILE && p->type != TYPE_TRASH && p->type != TYPE_RESERVED) {
+		return ERROR_EPERM;
+	}
+	if (index > MAX_INDEX) {
+		return ERROR_INDEXTOOBIG;
+	}
+	if (index < p->data.fdata.chunks) {
+		*chunkid = p->data.fdata.chunktab[index];
+	} else {
+		*chunkid = 0;
+	}
 	return STATUS_OK;
 }
 #endif

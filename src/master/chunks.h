@@ -35,7 +35,7 @@ int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
 int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		uint8_t goal, uint8_t opflag, uint32_t lockid);
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal);
+int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t lockid,uint8_t goal);
 int chunk_unlock(uint64_t chunkid);
 int chunk_increase_version(uint64_t chunkid);
 int chunk_set_version(uint64_t chunkid,uint32_t version);
@@ -62,8 +62,8 @@ int chunk_unlock(uint64_t chunkid);
 
 int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid, uint8_t goal, uint8_t *opflag,
 		uint32_t *lockid, bool usedummylockid, bool quota_exceeded);
-int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t length, uint8_t goal,
-		bool truncatingUpwards, bool quota_exceeded);
+int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t lockid, uint32_t length,
+		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,

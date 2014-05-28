@@ -108,8 +108,10 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, fuseTruncateEnd, LIZ_CLTOMA_FUSE_TRUNCATE_END, 0,
 		uint32_t, messageId,
 		uint32_t, inode,
-		uint32_t, lockid,
-		uint64_t, length)
+		uint32_t, uid,
+		uint32_t, gid,
+		uint64_t, length,
+		uint32_t, lockid)
 
 namespace cltoma {
 
