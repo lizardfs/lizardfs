@@ -324,7 +324,7 @@ bool ChunkWriter::canStartOperation(const Operation& operation) {
 	return true;
 }
 
-void ChunkWriter::startOperation(Operation&& operation) {
+void ChunkWriter::startOperation(Operation operation) {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation");
 	uint32_t combinedStripe = operation.journalPositions.front()->blockIndex / combinedStripeSize_;
 	uint32_t size = operation.journalPositions.front()->size();
@@ -350,7 +350,7 @@ void ChunkWriter::startOperation(Operation&& operation) {
 			uint32_t stripeSize = newBlockChunkType.getStripeSize();
 			uint32_t firstBlockInStripe = (blockIndex / stripeSize) * stripeSize;
 			for (uint32_t i = firstBlockInStripe; i < firstBlockInStripe + stripeSize; ++i) {
-				if (i == newBlock.blockIndex) {
+				if (i == newBlock.blockIndex || i >= MFSBLOCKSINCHUNK) {
 					continue;
 				}
 				// Unxor data

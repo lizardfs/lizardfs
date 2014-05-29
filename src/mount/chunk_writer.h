@@ -148,7 +148,7 @@ private:
 	std::map<OperationId, Operation> pendingOperations_;
 
 	bool canStartOperation(const Operation& operation);
-	void startOperation(Operation&& operation);
+	void startOperation(Operation operation);
 	WriteCacheBlock readBlock(uint32_t blockIndex, ChunkType& readFromChunkType);
 	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
 	uint32_t allocateId() {
