@@ -1455,6 +1455,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				put32bit(&wptr,maxtrashtime);
 			}
 			if (eptr->version >= lizardfsVersion(1, 6, 30)) {
+				eptr->iolimits = true;
 				matoclserv_send_iolimits_cfg(eptr);
 			}
 			eptr->registered = 1;
@@ -1557,6 +1558,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 			if (rcode == REGISTER_RECONNECT) {
 				if (eptr->version >= lizardfsVersion(1, 6, 30) && eptr->sesdata->rootinode != 0) {
+					eptr->iolimits = true;
 					matoclserv_send_iolimits_cfg(eptr);
 				}
 				eptr->registered = 1;
