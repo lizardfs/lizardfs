@@ -192,6 +192,7 @@ static uint32_t SessionSustainTime;
 static double gIoLimitsIncreaseRatio;
 static double gIoLimitsInitialMBps;
 static double gIoLimitsRefreshTime;
+static uint32_t gIoLimitsConfigId;
 static std::string gIoLimitsSubsystem;
 static IoLimitsDatabase gIoLimitsDatabase;
 
@@ -1200,8 +1201,9 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 
 static void matoclserv_send_iolimits_cfg(matoclserventry *eptr) {
 	MessageBuffer buffer;
-	matocl::iolimits_config::serialize(buffer, gIoLimitsSubsystem, gIoLimitsDatabase.getGroups(),
-			gIoLimitsRefreshTime * 1000 * 1000);
+	matocl::iolimitsConfig::serialize(buffer, gIoLimitsConfigId,
+			gIoLimitsRefreshTime * 1000 * 1000, gIoLimitsSubsystem,
+			gIoLimitsDatabase.getGroups());
 	matoclserv_createpacket(eptr, buffer);
 }
 
@@ -1210,27 +1212,6 @@ static void matoclserv_broadcast_iolimits_cfg() {
 		if (eptr->iolimits) {
 			matoclserv_send_iolimits_cfg(eptr);
 		}
-	}
-}
-
-static void matoclserv_enable_io_limits(matoclserventry *eptr) {
-	try {
-		gIoLimitsDatabase.addClient(eptr);
-	} catch (IoLimitsDatabase::ClientExistsException&) {
-		syslog(LOG_NOTICE, "enable_io_limits: IO limits already enabled on this connection, reusing old state");
-	}
-	eptr->iolimits = true;
-	matoclserv_send_iolimits_cfg(eptr);
-}
-
-static void matoclserv_disable_io_limits(matoclserventry *eptr) {
-	if (eptr->iolimits) {
-		try {
-			gIoLimitsDatabase.removeClient(eptr);
-		} catch (IoLimitsDatabase::InvalidClientIdException&) {
-			syslog(LOG_NOTICE, "disable_io_limits: IO limits not enabled");
-		}
-		eptr->iolimits = false;
 	}
 }
 
@@ -1250,8 +1231,6 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode = KILL;
 		return;
 	}
-	// in case some client tries to re-register itself
-	matoclserv_disable_io_limits(eptr);
 	tools = (memcmp(data,FUSE_REGISTER_BLOB_TOOLS_NOACL,64)==0)?1:0;
 	if (eptr->registered==0 && (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
@@ -1477,7 +1456,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				put32bit(&wptr,maxtrashtime);
 			}
 			if (eptr->version >= lizardfsVersion(1, 6, 30)) {
-				matoclserv_enable_io_limits(eptr);
+				matoclserv_send_iolimits_cfg(eptr);
 			}
 			eptr->registered = 1;
 			return;
@@ -1579,7 +1558,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 			if (rcode == REGISTER_RECONNECT) {
 				if (eptr->version >= lizardfsVersion(1, 6, 30) && eptr->sesdata->rootinode != 0) {
-					matoclserv_enable_io_limits(eptr);
+					matoclserv_send_iolimits_cfg(eptr);
 				}
 				eptr->registered = 1;
 			} else {
@@ -3346,34 +3325,7 @@ void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
-void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	std::string group;
-	bool wantMore;
-	uint64_t limit, usage;
-	cltoma::iolimit::deserialize(data, length, group, wantMore, limit, usage);
-	if (wantMore) {
-		const uint64_t ioLimitsInitialBps = 1024 * 1024 * gIoLimitsInitialMBps;
-		limit = ceil(limit * gIoLimitsIncreaseRatio);
-		if (limit < ioLimitsInitialBps) {
-			limit = ioLimitsInitialBps;
-		}
-	} else {
-		limit = usage;
-	}
-	try {
-		limit = gIoLimitsDatabase.setAllocation(eptr, group, limit);
-	} catch (IoLimitsDatabase::InvalidGroupIdException&) {
-		// The client probably hasn't received configuration update notification yet.
-		// Just choke it for this moment.
-		limit = 0;
-	} catch (IoLimitsDatabase::InvalidClientIdException&) {
-		syslog(LOG_WARNING, "CLTOMA_IOLIMIT from wrong client - disconnecting");
-		eptr->mode = KILL;
-		return;
-	}
-	MessageBuffer reply;
-	matocl::iolimit::serialize(reply, group, limit);
-	matoclserv_createpacket(eptr, reply);
+void matoclserv_iolimit(matoclserventry *, const uint8_t *, uint32_t) {
 }
 
 void matocl_session_timedout(session *sesdata) {
@@ -4039,7 +3991,6 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	kptr = &matoclservhead;
 	while ((eptr=*kptr)) {
 		if (eptr->mode == KILL) {
-			matoclserv_disable_io_limits(eptr);
 			matocl_beforedisconnect(eptr);
 			tcpclose(eptr->sock);
 			if (eptr->inputpacket.packet) {
@@ -4127,6 +4078,8 @@ int matoclserv_iolimits_reload() {
 	gIoLimitsIncreaseRatio = cfg_get_minvalue("GLOBALIOLIMITS_INCREASE_RATIO", 1.2, 1.0);
 	gIoLimitsInitialMBps = cfg_get_minvalue("GLOBALIOLIMITS_INITIAL_MBPS", 1.0, 0.125);
 	gIoLimitsRefreshTime = cfg_get_minvalue("GLOBALIOLIMITS_RENEGOTIATION_PERIOD", 0.1, 0.01);
+
+	gIoLimitsConfigId++;
 
 	matoclserv_broadcast_iolimits_cfg();
 

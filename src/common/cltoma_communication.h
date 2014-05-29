@@ -57,10 +57,10 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, iolimit, LIZ_CLTOMA_IOLIMIT, 0,
+		uint32_t, msgid,
+		uint32_t, configVersion,
 		std::string, group,
-		bool, wantMore,
-		uint64_t, currentLimit_Bps,
-		uint64_t, recentUsage_Bps)
+		uint64_t, requestedBytes)
 
 // LIZ_CLTOMA_FUSE_SET_QUOTA
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
