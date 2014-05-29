@@ -1834,10 +1834,12 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 		return;
 	}
 	try {
-		gIoLimiter.waitForRead(ctx.pid, size);
 		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
-		const uint8_t status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
-		if (status != 0) {
+		uint8_t status = gLocalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		if (status == STATUS_OK) {
+			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		}
+		if (status != STATUS_OK) {
 			fuse_reply_err(req, status);
 			return;
 		}
@@ -1928,10 +1930,12 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		return;
 	}
 	try {
-		gIoLimiter.waitForWrite(ctx.pid, size);
 		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
-		const uint8_t status = gGlobalIoLimiter().waitForWrite(ctx.pid, size, deadline);
-		if (status != 0) {
+		uint8_t status = gLocalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		if (status == STATUS_OK) {
+			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		}
+		if (status != STATUS_OK) {
 			fuse_reply_err(req, status);
 			return;
 		}

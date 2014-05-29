@@ -29,6 +29,8 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <fstream>
+
 #include <fuse.h>
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
@@ -580,9 +582,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 	if (mfsopts.meta==0) {
 		try {
+			IoLimitsConfigLoader loader;
 			if (mfsopts.iolimits) {
-				gIoLimiter.readConfiguration(mfsopts.iolimits);
+				loader.load(std::ifstream(mfsopts.iolimits));
 			}
+			// initialize the local limiter before loading configuration
+			gLocalIoLimiter();
+			gMountLimiter().loadConfiguration(loader);
 		} catch (Exception& ex) {
 			fprintf(stderr, "Can't initialize I/O limiting: %s", ex.what());
 			masterproxy_term();

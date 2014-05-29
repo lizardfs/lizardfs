@@ -41,6 +41,7 @@
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/io_limits_config_loader.h"
+#include "common/io_limits_database.h"
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -54,7 +55,6 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
-#include "master/io_limits_database.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 

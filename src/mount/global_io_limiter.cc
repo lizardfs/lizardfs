@@ -69,6 +69,15 @@ bool MasterLimiter::IolimitsConfigHandler::handle(MessageBuffer buffer) {
 	}
 }
 
+uint64_t MountLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
+	return database_.request(SteadyClock::now(), groupId, size);
+}
+
+void MountLimiter::loadConfiguration(const IoLimitsConfigLoader& config) {
+	database_.setLimits(SteadyClock::now(), config.limits(), 200);
+	reconfigure_(1000, config.subsystem(), database_.getGroups());
+}
+
 bool Group::attempt(uint64_t size) {
 	if (lastRequestEndTime_ + shared_.delta < clock_.now()) {
 		reserve_ = 0;

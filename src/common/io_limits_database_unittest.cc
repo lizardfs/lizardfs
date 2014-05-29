@@ -1,5 +1,5 @@
 #include "config.h"
-#include "master/io_limits_database.h"
+#include "common/io_limits_database.h"
 
 #include <gtest/gtest.h>
 
@@ -56,14 +56,14 @@ TEST(IoLimitsDatabaseTests, Accumulate) {
 		// After 236 loops we only have 1KB left:
 		ASSERT_EQ(1024U, db.request(t0, "g22", 1000000000000U));
 		// And nothing more:
-		ASSERT_EQ(0, db.request(t0, "g22", 1U));
+		ASSERT_EQ(0U, db.request(t0, "g22", 1U));
 
 		// After another few milliseconds we can read another few kilobytes.
 		// Let's test few few values:
 		for (auto few = 1; few < 100; ++few) {
 			SCOPED_TRACE("few: " + std::to_string(few));
 			t0 += std::chrono::milliseconds(few);
-			ASSERT_EQ(few * 1024, db.request(t0, "g22", 1000000000000U));
+			ASSERT_EQ(few * 1024U, db.request(t0, "g22", 1000000000000U));
 		}
 	}
 

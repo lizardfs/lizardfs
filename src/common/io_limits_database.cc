@@ -1,5 +1,5 @@
 #include "config.h"
-#include "master/io_limits_database.h"
+#include "common/io_limits_database.h"
 
 void IoLimitsDatabase::setLimits(SteadyTimePoint now,
 		const IoLimitsConfigLoader::LimitsMap& limits, uint32_t accumulate_ms) {

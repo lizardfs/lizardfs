@@ -1,7 +1,17 @@
 #include "config.h"
 #include "mount/g_io_limiters.h"
 
-IoLimiter gIoLimiter;
+ioLimiting::MountLimiter& gMountLimiter() {
+	static ioLimiting::MountLimiter limiter;
+	return limiter;
+}
+
+ioLimiting::LimiterProxy& gLocalIoLimiter() {
+	static ioLimiting::RTClock clock;
+	static ioLimiting::LimiterProxy limiter(gMountLimiter(), clock);
+	return limiter;
+}
+
 ioLimiting::LimiterProxy& gGlobalIoLimiter() {
 	static ioLimiting::MasterLimiter masterLimiter;
 	static ioLimiting::RTClock clock;

@@ -12,6 +12,7 @@
 #include <thread>
 #include <vector>
 
+#include "common/io_limits_database.h"
 #include "common/io_limit_group.h"
 #include "common/time_utils.h"
 #include "mount/mastercomm.h"
@@ -58,6 +59,9 @@ private:
 // the local limiter running in this mount instance
 struct MountLimiter : public Limiter {
 	uint64_t request(const IoLimitGroupId& groupId, uint64_t size) override;
+	void loadConfiguration(const IoLimitsConfigLoader& config);
+private:
+	IoLimitsDatabase database_;
 };
 
 // Abstract clock used by the limiting mechanism, introduced mostly for testing purposed.
