@@ -3324,7 +3324,28 @@ void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
-void matoclserv_iolimit(matoclserventry *, const uint8_t *, uint32_t) {
+void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t msgid;
+	uint32_t configVersion;
+	std::string groupId;
+	uint64_t requestedBytes;
+	cltoma::iolimit::deserialize(data, length, msgid, configVersion, groupId, requestedBytes);
+	uint64_t grantedBytes;
+	if (configVersion != gIoLimitsConfigId) {
+		grantedBytes = 0;
+	} else {
+		try {
+			grantedBytes = gIoLimitsDatabase.request(
+					SteadyClock::now(), groupId, requestedBytes);
+		} catch (IoLimitsDatabase::InvalidGroupIdException&) {
+			syslog(LOG_NOTICE, "LIZ_CLTOMA_IOLIMIT: Invalid group: %s", groupId.c_str());
+			eptr->mode = KILL;
+			return;
+		}
+	}
+	MessageBuffer reply;
+	matocl::iolimit::serialize(reply, msgid, configVersion, groupId, grantedBytes);
+	matoclserv_createpacket(eptr, std::move(reply));
 }
 
 void matocl_session_timedout(session *sesdata) {
