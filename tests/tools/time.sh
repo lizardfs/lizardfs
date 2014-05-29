@@ -1,3 +1,11 @@
+timestamp() {
+	date +%s
+}
+
+nanostamp() {
+	date +%s%N
+}
+
 wait_for() {
 	local goal=$1
 	local time_limit="$2"
