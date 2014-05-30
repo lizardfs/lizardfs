@@ -80,6 +80,8 @@ struct RTClock : public Clock {
 
 // state shared by all limiting groups
 struct SharedState {
+	SharedState(Limiter& limiter, std::chrono::microseconds delta) :
+		limiter(limiter), delta(delta) {}
 	Limiter& limiter;
 	std::chrono::microseconds delta;
 };
@@ -144,7 +146,7 @@ private:
 class LimiterProxy {
 public:
 	LimiterProxy(Limiter& limiter, Clock& clock) :
-		shared_{limiter, std::chrono::milliseconds(100)},
+		shared_(limiter, std::chrono::milliseconds(100)),
 		enabled_(true),
 		clock_(clock)
 	{
