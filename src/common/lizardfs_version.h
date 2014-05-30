@@ -18,4 +18,4 @@ inline std::string lizardfsVersionToString(uint32_t version) {
 }
 
 // Definitions of milestone LizardFS versions
-constexpr uint32_t kFirstXorVersion = lizardfsVersion(1, 6, 29);
+constexpr uint32_t kFirstXorVersion = lizardfsVersion(1, 6, 50);

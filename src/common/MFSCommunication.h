@@ -1372,15 +1372,15 @@
 
 // 0x05F8
 #define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)
-// subsystem:string groups:(vector<string>) frequency:32
+/// cfgversion:32 period:32 subsystem:STDSTRING groups:(vector<STDSTRING>)
 
 // 0x05F9
 #define LIZ_CLTOMA_IOLIMIT (1000U + 529U)
-/// group:STDSTRING wantmore:8 limit:64 usage:64
+/// msgid:32 cfgversion:32 group:STDSTRING bytes:64
 
 // 0x05FA
 #define LIZ_MATOCL_IOLIMIT (1000U + 530U)
-/// group:STDSTRING limit:64
+/// msgid:32 cfgversion:32 group:STDSTRING bytes:64
 
 // 0x05FB
 #define LIZ_CLTOMA_FUSE_SET_ACL (1000U + 531U)

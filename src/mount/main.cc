@@ -23,6 +23,7 @@
 #include <sys/time.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <fstream>
 
 #include "common/crc.h"
 #include "common/md5.h"
@@ -246,6 +247,10 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 #endif
 
 	symlink_cache_init();
+	if (gMountOptions.meta == 0) {
+		// initialize the global IO limiter before starting mastercomm threads
+		gGlobalIoLimiter();
+	}
 	fs_init_threads(gMountOptions.ioretries);
 	masterproxy_init();
 
@@ -262,9 +267,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 	if (gMountOptions.meta==0) {
 		try {
+			IoLimitsConfigLoader loader;
 			if (gMountOptions.iolimits) {
-				gIoLimiter.readConfiguration(gMountOptions.iolimits);
+				loader.load(std::ifstream(gMountOptions.iolimits));
 			}
+			// initialize the local limiter before loading configuration
+			gLocalIoLimiter();
+			gMountLimiter().loadConfiguration(loader);
 		} catch (Exception& ex) {
 			fprintf(stderr, "Can't initialize I/O limiting: %s", ex.what());
 			masterproxy_term();

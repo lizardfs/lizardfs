@@ -85,6 +85,7 @@ uint8_t fs_purge(uint32_t inode);
 
 
 uint8_t fs_custom(MessageBuffer& buffer);
+uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);
 uint8_t fs_send_custom(MessageBuffer buffer);
 
 // called before fork

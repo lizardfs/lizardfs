@@ -36,6 +36,10 @@ void Timer::reset() {
 	startTime_ = now();
 }
 
+SteadyTimePoint Timer::startTime() const {
+	return startTime_;
+}
+
 SteadyDuration Timer::elapsedTime() const {
 	return now() - startTime_;
 }
@@ -84,6 +88,10 @@ int64_t Timer::lap_s() {
 
 Timeout::Timeout(std::chrono::nanoseconds timeout) :
 	timeout_(std::chrono::duration_cast<SteadyDuration>(timeout)) {
+}
+
+SteadyTimePoint Timeout::deadline() const {
+	return startTime() + timeout_;
 }
 
 SteadyDuration Timeout::remainingTime() const {

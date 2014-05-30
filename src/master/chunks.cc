@@ -190,20 +190,25 @@ public:
 	uint32_t version;
 	uint32_t lockid;
 	uint32_t lockedto;
+private: // public/private sections are mixed here to make the struct as small as possible
+	ChunkGoalCounters goalCounters_;
 #ifndef METARESTORE
+	uint8_t allValidCopies_, regularValidCopies_;
+	uint8_t goalInStats_;
+#endif
+#ifndef METARESTORE
+public:
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
 #endif
-private:
 #ifndef METARESTORE
-	uint8_t goalInStats_;
+private:
 	uint8_t allMissingParts_, regularMissingParts_;
 	uint8_t allRedundantParts_, regularRedundantParts_;
 	uint8_t allStandardCopies_, regularStandardCopies_;
 	uint8_t allAvailabilityState_, regularAvailabilityState_;
 #endif
-	ChunkGoalCounters goalCounters_;
 
 public:
 #ifndef METARESTORE

@@ -1,6 +1,10 @@
 # Not enabled yet.
 valgrind_enabled_=
 
+valgrind_enabled() {
+	test -z $valgrind_enabled_ && return 1 || return 0
+}
+
 # Enables valgrind, can be called at the beginning of a test case.
 enable_valgrind() {
 	assert_program_installed valgrind

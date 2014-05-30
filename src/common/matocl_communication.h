@@ -70,16 +70,19 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 // LIZ_MATOCL_IOLIMITS_CONFIG
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, iolimits_config, LIZ_MATOCL_IOLIMITS_CONFIG, 0,
+		matocl, iolimitsConfig, LIZ_MATOCL_IOLIMITS_CONFIG, 0,
+		uint32_t, configVersion,
+		uint32_t, period_us,
 		std::string, subsystem,
-		std::vector<std::string>, groups,
-		uint32_t, renewFrequency_us)
+		std::vector<std::string>, groups)
 
 // LIZ_MATOCL_IOLIMIT
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, iolimit, LIZ_MATOCL_IOLIMIT, 0,
+		uint32_t, msgid,
+		uint32_t, configVersion,
 		std::string, group,
-		uint64_t, limit_Bps)
+		uint64_t, grantedBytes)
 
 // LIZ_MATOCL_FUSE_SET_QUOTA
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

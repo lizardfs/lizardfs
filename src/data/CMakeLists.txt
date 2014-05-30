@@ -8,6 +8,7 @@ install(FILES mfsexports.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsexports.cfg
 install(FILES mfshdd.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfshdd.cfg.dist)
 install(FILES mfsmount.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsmount.cfg.dist)
 install(FILES mfstopology.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfstopology.cfg.dist)
+install(FILES globaliolimits.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME globaliolimits.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfsmaster.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsmaster.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfschunkserver.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfschunkserver.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfsmetalogger.cfg DESTINATION ${ETC_SUBDIR}/mfs RENAME mfsmetalogger.cfg.dist)
