@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <algorithm>
 #include <condition_variable>
 #include <mutex>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
 #include "common/MFSCommunication.h"
@@ -665,11 +667,37 @@ int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uin
 	return 0;
 }
 
+/* glock: UNLOCKED */
+int write_blocks(inodedata *id, uint64_t offset, uint32_t size, const uint8_t* data) {
+	LOG_AVG_TILL_END_OF_SCOPE0("write_blocks");
+	uint32_t chindx = offset >> MFSCHUNKBITS;
+	uint16_t pos = (offset & MFSCHUNKMASK) >> MFSBLOCKBITS;
+	uint32_t from = offset & MFSBLOCKMASK;
+	while (size > 0) {
+		if (size > MFSBLOCKSIZE - from) {
+			if (write_block(id, chindx, pos, from, MFSBLOCKSIZE, data) < 0) {
+				return EIO;
+			}
+			size -= (MFSBLOCKSIZE - from);
+			data += (MFSBLOCKSIZE - from);
+			from = 0;
+			pos++;
+			if (pos == MFSBLOCKSINCHUNK) {
+				pos = 0;
+				chindx++;
+			}
+		} else {
+			if (write_block(id, chindx, pos, from, from + size, data) < 0) {
+				return EIO;
+			}
+			size = 0;
+		}
+	}
+	return 0;
+}
+
 int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 	LOG_AVG_TILL_END_OF_SCOPE0("write_data");
-	uint32_t chindx;
-	uint16_t pos;
-	uint32_t from;
 	int status;
 	inodedata *id = (inodedata*) vid;
 	if (id == NULL) {
@@ -694,31 +722,29 @@ int write_data(void *vid, uint64_t offset, uint32_t size, const uint8_t* data) {
 		return status;
 	}
 
-	LOG_AVG_TILL_END_OF_SCOPE0("write_blocks");
-	chindx = offset >> MFSCHUNKBITS;
-	pos = (offset & MFSCHUNKMASK) >> MFSBLOCKBITS;
-	from = offset & MFSBLOCKMASK;
-	while (size > 0) {
-		if (size > MFSBLOCKSIZE - from) {
-			if (write_block(id, chindx, pos, from, MFSBLOCKSIZE, data) < 0) {
-				return EIO;
-			}
-			size -= (MFSBLOCKSIZE - from);
-			data += (MFSBLOCKSIZE - from);
-			from = 0;
-			pos++;
-			if (pos == MFSBLOCKSINCHUNK) {
-				pos = 0;
-				chindx++;
-			}
-		} else {
-			if (write_block(id, chindx, pos, from, from + size, data) < 0) {
-				return EIO;
-			}
-			size = 0;
-		}
+	return write_blocks(id, offset, size, data);
+}
+
+static void write_data_flushwaiting_increase(inodedata *id, Glock&) {
+	id->flushwaiting++;
+}
+
+static void write_data_flushwaiting_decrease(inodedata *id, Glock&) {
+	id->flushwaiting--;
+	if (id->flushwaiting == 0 && id->writewaiting > 0) {
+		id->writecond.notify_all();
 	}
-	return 0;
+}
+
+static void write_data_lcnt_increase(inodedata *id, Glock&) {
+	id->lcnt++;
+}
+
+static void write_data_lcnt_decrease(inodedata *id, Glock& lock) {
+	id->lcnt--;
+	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
+		write_free_inodedata(id, lock);
+	}
 }
 
 void* write_data_new(uint32_t inode) {
@@ -728,19 +754,17 @@ void* write_data_new(uint32_t inode) {
 	if (id == NULL) {
 		return NULL;
 	}
-	id->lcnt++;
+	write_data_lcnt_increase(id, lock);
 	return id;
 }
 
-
-static int write_data_flush(void* vid, bool decReferenceCounter, Glock& lock) {
+static int write_data_flush(void* vid, Glock& lock) {
 	inodedata* id = (inodedata*) vid;
-	int ret;
 	if (id == NULL) {
 		return EIO;
 	}
 
-	id->flushwaiting++;
+	write_data_flushwaiting_increase(id, lock);
 	// If there are no errors (trycnt==0) and inode is waiting in the delayed queue, speed it up
 	if (id->trycnt == 0 && delayed_queue_remove(id, lock)) {
 		write_enqueue(id, lock);
@@ -749,23 +773,13 @@ static int write_data_flush(void* vid, bool decReferenceCounter, Glock& lock) {
 	while (id->inqueue) {
 		id->flushcond.wait(lock);
 	}
-	id->flushwaiting--;
-	if (id->flushwaiting == 0 && id->writewaiting > 0) {
-		id->writecond.notify_all();
-	}
-	ret = id->status;
-	if (decReferenceCounter) {
-		id->lcnt--;
-	}
-	if (id->lcnt == 0 && !id->inqueue && id->flushwaiting == 0 && id->writewaiting == 0) {
-		write_free_inodedata(id, lock);
-	}
-	return ret;
+	write_data_flushwaiting_decrease(id, lock);
+	return id->status;
 }
 
 int write_data_flush(void* vid) {
 	Glock lock(gMutex);
-	return  write_data_flush(vid, false, lock);
+	return write_data_flush(vid, lock);
 }
 
 uint64_t write_data_getmaxfleng(uint32_t inode) {
@@ -787,10 +801,121 @@ int write_data_flush_inode(uint32_t inode) {
 	if (id == NULL) {
 		return 0;
 	}
-	return write_data_flush(id, false, lock);
+	return write_data_flush(id, lock);
+}
+
+int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uint64_t length,
+		Attributes& attr) {
+	Glock lock(gMutex);
+
+	// 1. Flush writes but don't finish it completely - it'll be done at the end of truncate
+	inodedata* id = write_get_inodedata(inode, lock);
+	if (id == NULL) {
+		return EIO;
+	}
+	write_data_lcnt_increase(id, lock);
+	write_data_flushwaiting_increase(id, lock); // this will block any writing to this inode
+
+	int err = write_data_flush(id, lock);
+	if (err != 0) {
+		write_data_flushwaiting_decrease(id, lock);
+		write_data_lcnt_decrease(id, lock);
+		return err;
+	}
+
+	// 2. Send the request to master
+	uint8_t status;
+	bool writeNeeded;
+	uint64_t oldLength;
+	uint32_t lockId;
+	lock.unlock();
+	int retrySleepTime_us = 200000;
+	uint32_t retries = 0;
+	do {
+		status = fs_truncate(inode, opened, uid, gid, length, writeNeeded, attr, oldLength, lockId);
+		if (status != STATUS_OK) {
+			syslog(LOG_INFO, "truncate file %" PRIu32 " to length %" PRIu64 ": %s (try %d/%d)",
+					inode, length, mfsstrerr(status), int(retries + 1), int(maxretries));
+		}
+		if (retries >= maxretries) {
+			break;
+		}
+		if (status == ERROR_LOCKED) {
+			sleep(1);
+		} else if (status == ERROR_CHUNKLOST || status == ERROR_NOTDONE) {
+			usleep(retrySleepTime_us);
+			retrySleepTime_us = std::min(2 * retrySleepTime_us, 60 * 1000000);
+			++retries;
+		}
+	} while (status == ERROR_LOCKED || status == ERROR_CHUNKLOST || status == ERROR_NOTDONE);
+	lock.lock();
+	if (status != 0 || !writeNeeded) {
+		// Something failed or we have nothing to do more (master server managed to do the truncate)
+		write_data_flushwaiting_decrease(id, lock);
+		write_data_lcnt_decrease(id, lock);
+		if (status == STATUS_OK) {
+			return 0;
+		} else {
+			// status is now MFS status, so we cannot return any errno
+			throw UnrecoverableWriteException("fs_truncate failed", status);
+		}
+	}
+
+	// We have to write zeros in suitable region to update xor parity parts.
+	// Let's calculate size of the region to be zeroed
+	uint64_t endOffset = std::min({
+		oldLength,                            // no further than to the end of the file
+		length + kMaxXorLevel * MFSBLOCKSIZE, // no more than the maximal xor stripe
+		(length + MFSCHUNKSIZE - 1) / MFSCHUNKSIZE * MFSCHUNKSIZE // no beyond the end of chunk
+	});
+
+	if (endOffset > length) {
+		// Something has to be written, so pass our lock to writing threads
+		sassert(id->dataChain.empty());
+		id->locator.reset(new TruncateWriteChunkLocator(inode, length / MFSCHUNKSIZE, lockId));
+
+		// And now pass block of zeros to writing threads
+		std::vector<uint8_t> zeros(endOffset - length, 0);
+		lock.unlock();
+		err = write_blocks(id, length, zeros.size(), zeros.data());
+		lock.lock();
+		if (err != 0) {
+			write_data_flushwaiting_decrease(id, lock);
+			write_data_lcnt_decrease(id, lock);
+			return err;
+		}
+
+		// Wait for writing threads to finish
+		err = write_data_flush(id, lock);
+		id->locator.reset();
+		if (err != 0) {
+			// unlock the chunk here?
+			write_data_flushwaiting_decrease(id, lock);
+			write_data_lcnt_decrease(id, lock);
+			return err;
+		}
+	}
+
+	// Now we can tell the master server to finish the truncate operation and then unblock the inode
+	lock.unlock();
+	status = fs_truncateend(inode, uid, gid, length, lockId, attr);
+	write_data_flushwaiting_decrease(id, lock);
+	write_data_lcnt_decrease(id, lock);
+
+	if (status != STATUS_OK) {
+		// status is now MFS status, so we cannot return any errno
+		throw UnrecoverableWriteException("fs_truncateend failed", status);
+	}
+	return 0;
 }
 
 int write_data_end(void* vid) {
 	Glock lock(gMutex);
-	return write_data_flush(vid, true, lock);
+	inodedata* id = (inodedata*) vid;
+	if (id == NULL) {
+		return EIO;
+	}
+	int status = write_data_flush(id, lock);
+	write_data_lcnt_decrease(id, lock);
+	return status;
 }

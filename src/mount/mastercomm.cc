@@ -1378,35 +1378,98 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	return ret;
 }
 
-uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint64_t attrlength,uint8_t attr[35]) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint8_t ret;
+uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uint64_t length,
+		bool& clientPerforms, Attributes& attr, uint64_t& oldLength, uint32_t& lockId) {
 	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CLTOMA_FUSE_TRUNCATE,21);
-	if (wptr==NULL) {
+	std::vector<uint8_t> message;
+	cltoma::fuseTruncate::serialize(message, rec->packetId, inode, opened, uid, gid, length);
+	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
-	put32bit(&wptr,inode);
-	put8bit(&wptr,opened);
-	put32bit(&wptr,uid);
-	put32bit(&wptr,gid);
-	put64bit(&wptr,attrlength);
-	rptr = fs_sendandreceive(rec,MATOCL_FUSE_TRUNCATE,&i);
-	if (rptr==NULL) {
-		ret = ERROR_IO;
-	} else if (i==1) {
-		ret = rptr[0];
-	} else if (i!=35) {
+
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE, message)) {
+			return ERROR_IO;
+		}
+
+		clientPerforms = false;
+		uint32_t messageId;
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseTruncate::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseTruncate::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE with version"
+						" %d" PRIu32, matocl::fuseTruncate::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseTruncate::kFinishedPacketVersion) {
+			matocl::fuseTruncate::deserialize(message, messageId, attr);
+		} else if (packetVersion == matocl::fuseTruncate::kInProgressPacketVersion) {
+			clientPerforms = true;
+			matocl::fuseTruncate::deserialize(message, messageId, oldLength, lockId);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
-		ret = ERROR_IO;
-	} else {
-		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		return ERROR_IO;
 	}
-	return ret;
+
+	return STATUS_OK;
 }
+
+uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t length, uint32_t lockId,
+		Attributes& attr) {
+	threc *rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseTruncateEnd::serialize(message, rec->packetId, inode, uid, gid, length, lockId);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE_END, message)) {
+			return ERROR_IO;
+		}
+
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		uint32_t messageId;
+		if (packetVersion == matocl::fuseTruncateEnd::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseTruncateEnd::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE_END with version"
+						" %d" PRIu32, matocl::fuseTruncateEnd::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseTruncateEnd::kResponsePacketVersion) {
+			matocl::fuseTruncateEnd::deserialize(message, messageId, attr);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE_END - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE_END message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
+	}
+
+	return STATUS_OK;
+}
+
 
 uint8_t fs_readlink(uint32_t inode,const uint8_t **path) {
 	uint8_t *wptr;

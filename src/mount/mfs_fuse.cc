@@ -906,13 +906,12 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EFBIG));
 			return;
 		}
-		write_data_flush_inode(ino);
-		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
-		while (status==ERROR_LOCKED) {
-			sleep(1);
-			status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
+		try {
+			bool opened = (fi != NULL);
+			status = write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr);
+		} catch (Exception& ex) {
+			status = mfs_errorconv(ex.status());
 		}
-		status = mfs_errorconv(status);
 		read_inode_ops(ino);
 		if (status!=0) {
 			fuse_reply_err(req, status);
