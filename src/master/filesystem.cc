@@ -1110,7 +1110,7 @@ static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *
 static inline fsnode* fsnodes_id_to_node(uint32_t id) {
 	fsnode *p;
 	uint32_t nodepos = NODEHASHPOS(id);
-	for (p=nodehash[nodepos]; p ; p=p->next ) {
+	for (p=nodehash[nodepos]; p ; p=p->next) {
 		if (p->id == id) {
 			return p;
 		}

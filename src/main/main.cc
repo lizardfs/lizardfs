@@ -276,7 +276,7 @@ void free_all_registered_entries(void) {
 
 int canexit() {
 	ceentry *aux;
-	for (aux = cehead ; aux!=NULL ; aux=aux->next ) {
+	for (aux = cehead ; aux!=NULL ; aux=aux->next) {
 		if (aux->fun()==0) {
 			return 0;
 		}
@@ -294,7 +294,7 @@ uint64_t main_utime() {
 
 void destruct() {
 	deentry *deit;
-	for (deit = dehead ; deit!=NULL ; deit=deit->next ) {
+	for (deit = dehead ; deit!=NULL ; deit=deit->next) {
 		deit->fun();
 	}
 }
@@ -401,20 +401,20 @@ void mainloop() {
 		prevtime = now;
 		if (t==0 && r) {
 			cfg_reload();
-			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next ) {
+			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
 				rlit->fun();
 			}
 			r = 0;
 		}
 		if (t==1) {
-			for (weit = wehead ; weit!=NULL ; weit=weit->next ) {
+			for (weit = wehead ; weit!=NULL ; weit=weit->next) {
 				weit->fun();
 			}
 			t = 2;
 		}
 		if (t==2) {
 			i = 1;
-			for (ceit = cehead ; ceit!=NULL && i ; ceit=ceit->next ) {
+			for (ceit = cehead ; ceit!=NULL && i ; ceit=ceit->next) {
 				if (ceit->fun()==0) {
 					i=0;
 				}

@@ -150,7 +150,7 @@ void* job_worker(void *th_arg) {
 	uint32_t jobid;
 	uint32_t op;
 
-//      syslog(LOG_NOTICE,"worker %p started (jobqueue: %p ; jptr:%p ; jptrarg:%p ; status:%p )",(void*)pthread_self(),jp->jobqueue,(void*)&jptr,(void*)&jptrarg,(void*)&status);
+//      syslog(LOG_NOTICE,"worker %p started (jobqueue: %p ; jptr:%p ; jptrarg:%p ; status:%p)",(void*)pthread_self(),jp->jobqueue,(void*)&jptr,(void*)&jptrarg,(void*)&status);
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;

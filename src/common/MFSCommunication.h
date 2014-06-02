@@ -383,8 +383,8 @@
 
 // 0x0067
 // #define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
-// version:32 logdata:string ( N*[ char:8 ] )
-// 0xFF:8 version:64 logdata:string ( N*[ char:8 ] )
+// version:32 logdata:string (N*[ char:8 ])
+// 0xFF:8 version:64 logdata:string (N*[ char:8 ])
 
 // 0x0068
 // #define MATOCS_STRUCTURE_LOG_ROTATE (PROTO_BASE+104)
@@ -557,7 +557,7 @@
 //   in case of BLOCKDEV and CHARDEV instead of 'length:64' on the end there is 'mojor:16 minor:16 empty:32'
 
 // NAME type:
-// ( size:8 data:STRING[size] )
+// (size:8 data:STRING[size])
 
 #define FUSE_REGISTER_BLOB_NOACL       "kFh9mdZsR84l5e675v8bi54VfXaXSYozaU3DSz9AsLLtOtKipzb9aQNkxeOISx64"
 // CLTOMA:

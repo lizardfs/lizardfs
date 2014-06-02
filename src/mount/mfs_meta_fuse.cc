@@ -219,7 +219,7 @@ static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf
 	attrlength = get64bit(&ptr);
 	stbuf->st_ino = inode;
 	if (attrtype==TYPE_FILE || attrtype==TYPE_TRASH || attrtype==TYPE_RESERVED) {
-		stbuf->st_mode = S_IFREG | ( attrmode & 07777);
+		stbuf->st_mode = S_IFREG | (attrmode & 07777);
 	} else {
 		stbuf->st_mode = 0;
 	}

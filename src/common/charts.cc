@@ -1699,7 +1699,7 @@ void charts_makechart(uint32_t type,uint32_t range) {
 	} else {
 		xyear = longrange_year;
 		xmonth = longrange_month;
-		for (i=LENG-longrange_day ; i>=0 ; ) {
+		for (i=LENG-longrange_day ; i>=0 ;) {
 			text[0]=xmonth/10;
 			text[1]=xmonth%10;
 			charts_puttext(XPOS+i+(getmonleng(xyear,xmonth)-11)/2+1,(YPOS+DATA)+4,COLOR_TEXT,text,2,XPOS-1,XPOS+LENG,0,YSIZE-1);

@@ -542,7 +542,7 @@ chunk* chunk_find(uint64_t chunkid) {
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
-	for (chunkit = chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next ) {
+	for (chunkit = chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next) {
 		if (chunkit->chunkid == chunkid) {
 			lastchunkid = chunkid;
 			lastchunkptr = chunkit;
@@ -1209,7 +1209,7 @@ void chunk_server_disconnected(void *ptr) {
 	slist *s,**st;
 	uint32_t i;
 	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next ) {
+		for (c=chunkhash[i] ; c ; c=c->next) {
 			st = &(c->slisthead);
 			while (*st) {
 				s = *st;
@@ -1688,7 +1688,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			if (max>0) {
 				for (i=0 ; i<max && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
 							srcserv=s->ptr;
 						}
@@ -1697,7 +1697,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 			} else {
 				for (i=0 ; i<(servcount-min) && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next ) {}
+						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
 							srcserv=s->ptr;
 						}
@@ -1708,7 +1708,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				if (min>0) {
 					for (i=0 ; i<min && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
+							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next) {}
 							if (s==NULL) {
 								dstserv=ptrs[i];
 							}
@@ -1717,7 +1717,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				} else {
 					for (i=0 ; i<servcount-max && dstserv==NULL ; i++) {
 						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next ) {}
+							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next) {}
 							if (s==NULL) {
 								dstserv=ptrs[i];
 							}

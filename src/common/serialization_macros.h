@@ -57,7 +57,7 @@
 // Methods used for serialization:
 #define SERIALIZE_METHODS(ClassName, ...) \
 		uint32_t serializedSize() const { \
-			return ::serializedSize( \
+			return ::serializedSize(\
 					APPLY1_B(PARAMETER, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__))); \
 		} \
 		void serialize(uint8_t** destination) const { \

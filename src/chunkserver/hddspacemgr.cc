@@ -553,7 +553,7 @@ uint32_t hdd_diskinfo_v1_size() {
 
 	s = 0;
 	zassert(pthread_mutex_lock(&folderlock));
-	for (f=folderhead ; f ; f=f->next ) {
+	for (f=folderhead ; f ; f=f->next) {
 		sl = strlen(f->path);
 		if (sl>255) {
 			sl = 255;
@@ -568,7 +568,7 @@ void hdd_diskinfo_v1_data(uint8_t *buff) {
 	uint32_t sl;
 	uint32_t ei;
 	if (buff) {
-		for (f=folderhead ; f ; f=f->next ) {
+		for (f=folderhead ; f ; f=f->next) {
 			sl = strlen(f->path);
 			if (sl>255) {
 				put8bit(&buff,255);
@@ -600,7 +600,7 @@ uint32_t hdd_diskinfo_v2_size() {
 
 	s = 0;
 	zassert(pthread_mutex_lock(&folderlock));
-	for (f=folderhead ; f ; f=f->next ) {
+	for (f=folderhead ; f ; f=f->next) {
 		sl = strlen(f->path);
 		if (sl>255) {
 			sl = 255;
@@ -664,7 +664,7 @@ void hdd_diskinfo_movestats(void) {
 	folder *f;
 	zassert(pthread_mutex_lock(&folderlock));
 	zassert(pthread_mutex_lock(&statslock));
-	for (f=folderhead ; f ; f=f->next ) {
+	for (f=folderhead ; f ; f=f->next) {
 		if (f->statspos==0) {
 			f->statspos = STATSHISTORY-1;
 		} else {

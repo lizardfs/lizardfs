@@ -362,7 +362,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
-		stbuf->st_mode = S_IFDIR | ( attrmode & 07777);
+		stbuf->st_mode = S_IFDIR | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -370,7 +370,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_SYMLINK:
-		stbuf->st_mode = S_IFLNK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFLNK | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -378,7 +378,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_FILE:
-		stbuf->st_mode = S_IFREG | ( attrmode & 07777);
+		stbuf->st_mode = S_IFREG | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -386,21 +386,21 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_FIFO:
-		stbuf->st_mode = S_IFIFO | ( attrmode & 07777);
+		stbuf->st_mode = S_IFIFO | (attrmode & 07777);
 		stbuf->st_size = 0;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_SOCKET:
-		stbuf->st_mode = S_IFSOCK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFSOCK | (attrmode & 07777);
 		stbuf->st_size = 0;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_BLOCKDEV:
-		stbuf->st_mode = S_IFBLK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFBLK | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
 #ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
@@ -411,7 +411,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_CHARDEV:
-		stbuf->st_mode = S_IFCHR | ( attrmode & 07777);
+		stbuf->st_mode = S_IFCHR | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
 #ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;

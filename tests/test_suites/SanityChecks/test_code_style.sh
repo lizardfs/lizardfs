@@ -1,9 +1,10 @@
 verify_file() {
 	local file="$1"
-	if grep $'[\t ]$' "$file"; then
+	local grep='grep -Hn --color=auto'
+	if $grep $'[\t ]$' "$file"; then
 		test_add_failure "File '$file' contains trailing whitespace"
 	fi
-	if grep $'[^\t]\t[^\t]' "$file"; then
+	if $grep $'[^\t]\t[^\t]' "$file"; then
 		test_add_failure "File '$file' contains tabs which are not used for indentation"
 	fi
 	if [[ $(tail -c1 "$file" | wc -l) != 1 ]]; then
@@ -12,11 +13,14 @@ verify_file() {
 	if [[ $(tail -c3 "$file" | wc -l) == 3 ]]; then
 		test_add_failure "File '$file' ends with more then one blank line"
 	fi
-	if [[ $file =~ [.](cc|c|h|sh|inc)$ ]] && grep $'^    ' "$file"; then
+	if [[ $file =~ [.](cc|c|h|sh|inc)$ ]] && $grep $'^    ' "$file"; then
 		test_add_failure "File '$file' has lines indented with spaces"
 	fi
-	if [[ $file =~ src/.*[.](cc|h)$ ]] && ! grep -q '^# *include "config.h"' "$file"; then
+	if [[ $file =~ src/.*[.](cc|h)$ ]] && ! $grep -q '^# *include "config.h"' "$file"; then
 		test_add_failure "File '$file' does not include config.h"
+	fi
+	if [[ $file =~ src/.*[.](cc|h)$ ]] && $grep '( \| )' "$file"; then
+		test_add_failure "File '$file' has spaces around parens"
 	fi
 }
 
