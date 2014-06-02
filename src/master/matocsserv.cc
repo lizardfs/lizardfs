@@ -816,7 +816,7 @@ int matocsserv_send_createchunk(void *e, uint64_t chunkId, ChunkType chunkType,
 			// send old packet when chunkserver doesn't support xor chunks
 			sassert(chunkType.isStandardChunkType());
 			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_CREATE, chunkId,
-					chunkType, chunkVersion);
+					chunkVersion);
 		} else {
 			matocs::createChunk::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
 					chunkVersion);
