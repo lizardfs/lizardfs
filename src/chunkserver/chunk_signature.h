@@ -2,8 +2,11 @@
 
 #include "config.h"
 
-#include <inttypes.h>
+#include <cstdint>
 #include <cstdlib>
+
+#include "common/chunk_type.h"
+#include "common/serialization_macros.h"
 
 class ChunkSignature {
 public:
@@ -13,31 +16,48 @@ public:
 	static const size_t kVersionOffset = kChunkIdOffset + sizeof(uint64_t);
 	static const size_t kChunkTypeOffset = kVersionOffset + sizeof(uint32_t);
 
+	// Constructs a signature that can be initialized using readFromDescriptor
 	ChunkSignature();
+
+	// Constructs a initialized signature that can be serialized
+	ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+
+	// Initialize this object having a descriptor to file where signature is written at given offset
 	bool readFromDescriptor(int fd, off_t offset);
 
+	// True if the object is initialized from a file which has proper signature ID
 	bool hasValidSignatureId() const {
 		return hasValidSignatureId_;
 	}
 
+	// Returns chunk ID stored in this signature
 	uint64_t chunkId() const {
 		return chunkId_;
 	}
 
+	// Returns version of chunk stored in this signature
 	uint32_t chunkVersion() const {
 		return chunkVersion_;
 	}
 
-	uint8_t chunkTypeId() const {
-		return chunkTypeId_;
+	// Returns chunk type ID stored in this signature
+	ChunkType chunkType() const {
+		return chunkType_;
 	}
 
+	// Serialization
+	uint32_t serializedSize() const;
+	void serialize(uint8_t **destination) const;
+
+	// Signature ID of chunks created by MooseFS or old LizardFS versions (without xor support)
 	static const char kMfsSignatureId[];
+
+	// Signature ID of chunks created by LizardFS versions with xor support
 	static const char kLizSignatureId[];
 
 private:
 	uint64_t chunkId_;
 	uint32_t chunkVersion_;
-	uint8_t chunkTypeId_;
+	ChunkType chunkType_;
 	bool hasValidSignatureId_;
 };

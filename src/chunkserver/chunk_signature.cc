@@ -4,8 +4,6 @@
 #include <unistd.h>
 #include <cstring>
 
-#include "common/chunk_type.h"
-#include "common/datapack.h"
 #include "common/MFSCommunication.h"
 
 const char ChunkSignature::kMfsSignatureId[] = MFSSIGNATURE "C 1.0";
@@ -14,8 +12,15 @@ const char ChunkSignature::kLizSignatureId[] = "LIZC 1.0";
 ChunkSignature::ChunkSignature()
 		: chunkId_(0),
 		  chunkVersion_(0),
-		  chunkTypeId_(ChunkType::getStandardChunkType().chunkTypeId()),
+		  chunkType_(ChunkType::getStandardChunkType()),
 		  hasValidSignatureId_(false) {
+}
+
+ChunkSignature::ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+		: chunkId_(chunkId),
+		  chunkVersion_(chunkVersion),
+		  chunkType_(chunkType),
+		  hasValidSignatureId_(true) {
 }
 
 bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
@@ -36,17 +41,32 @@ bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
 	const uint8_t* ptr = buffer + kSignatureIdSize;
 	chunkId_ = get64bit(&ptr);
 	chunkVersion_ = get32bit(&ptr);
+	chunkType_ = ChunkType::getStandardChunkType();
 
 	// Check if signature is equal to kMfsSignatureId or kLizSignatureId
 	if (memcmp(buffer, kMfsSignatureId, kSignatureIdSize) == 0) {
 		hasValidSignatureId_ = true;
-		chunkTypeId_ = ChunkType::getStandardChunkType().chunkTypeId();
 	} else if (memcmp(buffer, kLizSignatureId, kSignatureIdSize) == 0) {
 		hasValidSignatureId_ = true;
-		chunkTypeId_ = get8bit(&ptr);
+		uint8_t chunkTypeId = get8bit(&ptr);
+		try {
+			::deserialize(&chunkTypeId, sizeof(chunkTypeId), chunkType_);
+		} catch (Exception& ex) {
+			return false;
+		}
 	} else {
 		hasValidSignatureId_ = false;
-		chunkTypeId_ = ChunkType::getStandardChunkType().chunkTypeId();
 	}
 	return true;
 }
+
+uint32_t ChunkSignature::serializedSize() const {
+	return kSignatureIdSize + ::serializedSize(chunkId_, chunkVersion_, chunkType_);
+}
+
+void ChunkSignature::serialize(uint8_t **destination) const {
+	memcpy(*destination, kLizSignatureId, kSignatureIdSize);
+	*destination += kSignatureIdSize;
+	::serialize(destination, chunkId_, chunkVersion_, chunkType_);
+}
+

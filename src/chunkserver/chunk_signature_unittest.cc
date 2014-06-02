@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "common/chunk_type.h"
+#include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
 #include "unittests/TemporaryDirectory.h"
 
@@ -44,5 +45,28 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 	ASSERT_TRUE(chunkSignature.hasValidSignatureId());
 	ASSERT_EQ(chunkId, chunkSignature.chunkId());
 	ASSERT_EQ(version, chunkSignature.chunkVersion());
-	ASSERT_EQ(chunkTypeId, chunkSignature.chunkTypeId());
+	ASSERT_EQ(chunkTypeId, chunkSignature.chunkType().chunkTypeId());
+}
+
+// This test verifies if signature has proper size, because existing chunks
+// created by previous versions of LizardFS have 21-byte signatures.
+TEST(ChunkSignatureTests, SerializedSize) {
+	ASSERT_EQ(21U, ChunkSignature(0x0102030405060708, 0x04030201, xor_1_of_3).serializedSize());
+}
+
+// This test verifies if serialized signature has proper content, because existing chunks
+// created by previous versions of LizardFS already have signatures in this format
+TEST(ChunkSignatureTests, Serialize) {
+	// Serialize some signature
+	std::vector<uint8_t> data;
+	serialize(data, ChunkSignature(0x0102030405060708, 0x04030201, xor_1_of_3));
+
+	// And test if it looks like it should look like
+	std::vector<uint8_t> expectedData = {
+			'L', 'I', 'Z', 'C', ' ', '1', '.', '0', // signature = LIZC 1.0
+			1, 2, 3, 4, 5, 6, 7, 8,                 // id        = 0x0102030405060708
+			4, 3, 2, 1,                             // version   = 0x04030201
+			xor_1_of_3.chunkTypeId(),               // type ID
+	};
+	ASSERT_EQ(expectedData, data);
 }

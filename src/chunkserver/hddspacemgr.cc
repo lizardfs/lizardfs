@@ -1259,14 +1259,14 @@ static inline int chunk_readcrc(Chunk *c) {
 	}
 	if (c->chunkid != chunkSignature.chunkId()
 			|| c->version != chunkSignature.chunkVersion()
-			|| c->type().chunkTypeId() != chunkSignature.chunkTypeId()) {
+			|| c->type().chunkTypeId() != chunkSignature.chunkType().chunkTypeId()) {
 		syslog(LOG_WARNING,
 				"chunk_readcrc: file:%s - wrong id/version/type in header "
 				"(%016" PRIX64 "_%08" PRIX32 ", typeId %" PRIu8 ")",
 				c->filename().c_str(),
 				chunkSignature.chunkId(),
 				chunkSignature.chunkVersion(),
-				chunkSignature.chunkTypeId());
+				chunkSignature.chunkType().chunkTypeId());
 		errno = 0;
 		return ERROR_IO;
 	}
@@ -2023,7 +2023,6 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	folder *f;
 	Chunk *c;
 	int status;
-	uint8_t *ptr;
 	uint8_t *hdrbuffer;
 
 	zassert(pthread_mutex_lock(&folderlock));
@@ -2053,12 +2052,8 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 		return ERROR_IO;
 	}
 	memset(hdrbuffer, 0, c->getHeaderSize());
-	std::string signature(ChunkSignature::kLizSignatureId);
-	memcpy(hdrbuffer, signature.c_str(), signature.length());
-	ptr = hdrbuffer + signature.length();
-	put64bit(&ptr, chunkid);
-	put32bit(&ptr, version);
-	put8bit(&ptr, chunkType.chunkTypeId());
+	uint8_t *ptr = hdrbuffer;
+	serialize(&ptr, ChunkSignature(chunkid, version, chunkType));
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		mfs_arg_errlog_silent(LOG_WARNING,
@@ -2242,10 +2237,8 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		return status;
 	}
 	memset(hdrbuffer, 0, c->getHeaderSize());
-	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
-	uint8_t* ptr = hdrbuffer+8;
-	put64bit(&ptr,copyChunkId);
-	put32bit(&ptr,copyChunkVersion);
+	uint8_t *ptr = hdrbuffer;
+	serialize(&ptr, ChunkSignature(copyChunkId, copyChunkVersion, chunkType));
 	memcpy(c->crc, oc->crc, c->getCrcSize());
 	memcpy(hdrbuffer + c->getCrcOffset(), oc->crc, c->getCrcSize());
 	if (write(c->fd, hdrbuffer, c->getHeaderSize()) != static_cast<ssize_t>(c->getHeaderSize())) {
@@ -2590,10 +2583,8 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 	}
 	blocks = (copyChunkLength + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 	memset(hdrbuffer, 0, c->getHeaderSize());
-	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
-	uint8_t* ptr = hdrbuffer+8;
-	put64bit(&ptr,copyChunkId);
-	put32bit(&ptr,copyChunkVersion);
+	uint8_t *ptr = hdrbuffer;
+	serialize(&ptr, ChunkSignature(copyChunkId, copyChunkVersion, chunkType));
 	memcpy(hdrbuffer + c->getCrcOffset(), oc->crc, c->getCrcSize());
 // do not write header yet - only seek to apriopriate position
 	lseek(c->fd, c->getDataBlockOffset(0), SEEK_SET);
