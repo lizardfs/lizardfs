@@ -107,6 +107,17 @@ Maximum number of chunks to replicate from one chunkserver (default is 10)
 Reject **mfsmount**s older than 1.6.0 (0 or 1, default is 0). Note that *mfsexports* access control
 is NOT used for those old clients.
 
+*GLOBALIOLIMITS_FILENAME*::
+Configuration of global I/O limits (default is no I/O limiting)
+
+*GLOBALIOLIMITS_RENEGOTIATION_PERIOD_SECONDS*::
+How often mountpoints will request bandwidth allocations under constant, predictable load
+(default is 0.1)
+
+*GLOBALIOLIMITS_ACCUMULATE_MS*::
+After inactivity, no waiting is required to transfer the amount of data equivalent to normal
+data flow over the period of that many milliseconds (default is 250)
+
 == NOTES
 
 Chunks in master are tested in loop. Speed (or frequency) is regulated by two options

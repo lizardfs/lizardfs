@@ -104,6 +104,9 @@ try to change nice level to specified value on startup (default: -19)
 *-o mfsioretries=*'N'::
 specify number of retiries before I/O error is returned (default: 30)
 
+*-o mfsiolimits=*'PATH'::
+specify local I/O limiting configuration file (default: no I/O limiting)
+
 General mount options (see *mount*(8) manual):
 
 *-o rw*|*-o ro*::

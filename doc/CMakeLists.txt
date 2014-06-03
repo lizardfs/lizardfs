@@ -26,6 +26,8 @@ set(MANPAGES
     mfsrepquota.1
     mfssetquota.1       # not a source
     mfstools.1
+    globaliolimits.cfg.5
+    iolimits.cfg.5
     mfschunkserver.cfg.5
     mfsexports.cfg.5
     mfshdd.cfg.5
