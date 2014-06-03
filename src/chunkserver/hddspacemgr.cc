@@ -1710,10 +1710,9 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read");
 	TRACETHIS3(chunkid, offset, size);
-	if (offset % MFSBLOCKSIZE != 0) {
-		return ERROR_WRONGOFFSET;
-	}
-	if (size != MFSBLOCKSIZE) {
+
+	uint32_t offsetWithinBlock = offset % MFSBLOCKSIZE;
+	if ((size == 0) || ((offsetWithinBlock + size) > MFSBLOCKSIZE)) {
 		return ERROR_WRONGSIZE;
 	}
 
@@ -1748,18 +1747,37 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 	}
 	c->blockExpectedToBeReadNext = std::max<uint16_t>(block + 1, c->blockExpectedToBeReadNext);
 
-	// Put checksum of the block into buffer
+	// Put checksum of the requested data followed by data itself into buffer.
+	// If possible (in case when whole block is read) try to put data directly
+	// into passed outputBuffer, otherwise use temporary buffer to recompute
+	// the checksum
 	uint8_t crcBuff[sizeof(uint32_t)];
+	int status = STATUS_OK;
+	bool crcWritten = false;
 	if (block >= c->blocks) {
 		uint8_t* crcBuffPointer = crcBuff;
-		put32bit(&crcBuffPointer, mycrc32_zeroblock(0, MFSBLOCKSIZE));
-	} else {
-		memcpy(crcBuff, c->crc + block * sizeof(uint32_t), sizeof(uint32_t));
-	}
-	outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+		put32bit(&crcBuffPointer, mycrc32_zeroblock(0, size));
 
-	// Put the block data into buffer
-	int status = hdd_read_block(c, block, outputBuffer);
+		crcWritten = true;
+		outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+	}
+	if (size == MFSBLOCKSIZE) {
+		if (!crcWritten) {
+			memcpy(crcBuff, c->crc + block * sizeof(uint32_t), sizeof(uint32_t));
+			outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+		}
+		status = hdd_read_block(c, block, outputBuffer);
+	} else {
+		SimpleOutputBuffer tmp(MFSBLOCKSIZE);
+		status = hdd_read_block(c, block, &tmp);
+		if (!crcWritten) {
+			uint8_t* crcBuffPointer = crcBuff;
+			put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + offsetWithinBlock, size));
+			outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+		}
+		outputBuffer->copyIntoBuffer(tmp.data() + offsetWithinBlock, size);
+	}
+
 	PRINTTHIS(status);
 	hdd_chunk_release(c);
 	return status;

@@ -61,6 +61,10 @@ public:
 	WriteStatus writeOutToAFileDescriptor(int outputFileDescriptor);
 
 	size_t bytesInABuffer() const;
+	const uint8_t* data() const {
+		return buffer_.data();
+	}
+
 private:
 	const size_t internalBufferCapacity_;
 	std::vector<uint8_t> buffer_;

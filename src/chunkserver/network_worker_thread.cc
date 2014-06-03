@@ -346,8 +346,11 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		LOG_AVG_STOP(eptr->readOperationTimer);
 	} else {
 		const uint32_t totalRequestSize = eptr->size;
-		const uint32_t thisPartSize = std::min<uint32_t>(totalRequestSize, MFSBLOCKSIZE);
-		const uint16_t totalRequestBlocks = (totalRequestSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+		const uint32_t thisPartOffset = eptr->offset % MFSBLOCKSIZE;
+		const uint32_t thisPartSize = std::min<uint32_t>(
+				totalRequestSize, MFSBLOCKSIZE - thisPartOffset);
+		const uint16_t totalRequestBlocks =
+				(totalRequestSize + thisPartOffset + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
 		std::vector<uint8_t> readDataPrefix;
 		eptr->messageSerializer->serializePrefixOfCstoclReadData(readDataPrefix,
 				eptr->chunkid, eptr->offset, thisPartSize);
