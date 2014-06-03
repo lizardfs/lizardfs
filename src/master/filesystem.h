@@ -65,8 +65,9 @@ uint8_t fs_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclStri
 uint8_t fs_quota_set(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit);
 
 void fs_dump(void);
-void fs_term(const char *fname);
-int fs_init(const char *fname,int ignoreflag);
+void fs_term(const char *fname, bool noLock);
+void fs_cancel(bool noLock);
+int fs_init(const char *fname,int ignoreflag, bool noLock);
 
 #else
 
@@ -173,3 +174,4 @@ void fs_cs_disconnected(void);
 int fs_init(void);
 #endif
 uint64_t fs_checksum(ChecksumMode mode);
+

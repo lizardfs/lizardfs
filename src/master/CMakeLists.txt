@@ -9,6 +9,7 @@ add_tests(master ${MASTER_TESTS})
 
 add_executable(mfsmaster ${MAIN_SRC})
 target_link_libraries(mfsmaster master)
+target_link_libraries(mfsmaster ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 install(TARGETS mfsmaster RUNTIME DESTINATION ${SBIN_SUBDIR})
 
 configure_file(mfsrestoremaster.in mfsrestoremaster @ONLY)

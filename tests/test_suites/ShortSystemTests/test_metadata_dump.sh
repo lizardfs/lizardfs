@@ -51,10 +51,10 @@ chmod a+x $TEMP_DIR/metarestore.sh
 
 backup_copies=1   # First backup was created during the initial restart (aka hack)
 function check_backup_copies() {
-	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.back.? | wc -l)
-	expect_file_exists "${info[master_data_path]}/metadata.mfs.back"
+	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.? | wc -l)
+	expect_file_exists "${info[master_data_path]}/metadata.mfs"
 	for (( i = 1 ; i <= backup_copies ; ++i )); do
-		expect_file_exists "${info[master_data_path]}/metadata.mfs.back.$i"
+		expect_file_exists "${info[master_data_path]}/metadata.mfs.$i"
 	done
 }
 
@@ -64,14 +64,14 @@ function check() {
 	cd "${info[master_data_path]}"
 	rm -f "$TEMP_DIR/metaout"
 	assert_file_exists "changelog.0.mfs"
-	assert_file_exists "metadata.mfs.back"
+	assert_file_exists "metadata.mfs"
 
-	prev_metadata_inode=$(stat --format=%i metadata.mfs.back)
+	prev_metadata_inode=$(stat --format=%i metadata.mfs)
 	lizardfs_master_daemon reload
 	if [[ $2 == OK ]]; then
 		# wait for dump to be finished
-		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.back.1) == $prev_metadata_inode ]]'
-		files_are_renamed='[[ -e metadata.mfs.back && ! -e metadata.mfs.back.tmp ]]'
+		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.1) == $prev_metadata_inode ]]'
+		files_are_renamed='[[ -e metadata.mfs && ! -e metadata.mfs.tmp ]]'
 		assert_success wait_for "$metadata_is_dumped" '10 seconds'
 		assert_success wait_for "$files_are_renamed" '10 seconds'
 	fi
@@ -89,7 +89,7 @@ function check() {
 		assert_file_exists changelog.1.mfs
 		last_change=$(tail -1 changelog.1.mfs | cut -d : -f 1)
 		assert_success test -n "$last_change"
-		assert_equals $((last_change+1)) "$(mfsmetadump metadata.mfs.back | awk 'NR==2{print $6}')"
+		assert_equals $((last_change+1)) "$(mfsmetadump metadata.mfs | awk 'NR==2{print $6}')"
 		if ((backup_copies < 5)); then
 			backup_copies=$((backup_copies + 1))
 		fi

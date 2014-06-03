@@ -9,8 +9,6 @@
 # TOPOLOGY_FILENAME = @ETC_PATH@/mfs/mfstopology.cfg
 
 # DATA_PATH = @DATA_PATH@
-## Do not start if stale lock file exists.
-# ENFORCE_LOCKFILE_CONSISTENCY = 0
 
 # BACK_LOGS = 50
 # BACK_META_KEEP_PREVIOUS = 1

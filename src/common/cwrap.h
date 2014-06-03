@@ -26,3 +26,5 @@ struct CFileCloser {
 
 typedef std::unique_ptr<FILE, CFileCloser> cstream_t;
 
+std::string errorString(int errNo);
+

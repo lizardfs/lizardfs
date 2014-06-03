@@ -18,8 +18,8 @@ public:
 	};
 
 	MetadataDumper(
-			const std::string& metadataBackFilename,
-			const std::string& metadataTmpBackFilename);
+			const std::string& metadataFilename,
+			const std::string& metadataTmpFilename);
 
 	bool dumpSucceeded() const;
 	bool inProgress() const;
@@ -57,6 +57,6 @@ protected:
 	bool dumpingProcessOutputEmpty_;
 
 	std::string metarestorePath_;
-	std::string metadataBackFilename_;
-	std::string metadataTmpBackFilename_;
+	std::string metadataFilename_;
+	std::string metadataTmpFilename_;
 };

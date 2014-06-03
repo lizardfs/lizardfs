@@ -13,15 +13,15 @@ static bool createPipe(int pipefds[2]) {
 }
 
 MetadataDumper::MetadataDumper(
-		const std::string& metadataBackFilename,
-		const std::string& metadataTmpBackFilename)
+		const std::string& metadataFilename,
+		const std::string& metadataTmpFilename)
 		: useMetarestore_(false),
 		  dumpingSucceeded_(true),
 		  dumpingProcessFd_(-1),
 		  dumpingProcessPollFdsPos_(-1),
 		  dumpingProcessOutputEmpty_(true),
-		  metadataBackFilename_(metadataBackFilename),
-		  metadataTmpBackFilename_(metadataTmpBackFilename) {
+		  metadataFilename_(metadataFilename),
+		  metadataTmpFilename_(metadataTmpFilename) {
 }
 
 bool MetadataDumper::dumpSucceeded() const {
@@ -118,12 +118,15 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 				char* metarestoreArgs[] = {
 					const_cast<char*>(metarestorePath_.c_str()),
 					const_cast<char*>("-m"),
-					const_cast<char*>(metadataBackFilename_.c_str()),
+					const_cast<char*>(metadataFilename_.c_str()),
 					const_cast<char*>("-o"),
-					const_cast<char*>(metadataTmpBackFilename_.c_str()),
+					const_cast<char*>(metadataTmpFilename_.c_str()),
 					const_cast<char*>("-k"),
 					const_cast<char*>(checksumStringified.c_str()),
 					const_cast<char*>("changelog.1.mfs"),
+					const_cast<char*>("-B"),
+					const_cast<char*>("1"),
+					const_cast<char*>("-#"),
 					NULL};
 				// the default value of the commandline nice
 				if (nice(10) == -1) {

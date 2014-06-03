@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include <cstdio>
+#include <cstring>
 
 #include "common/massert.h"
 
@@ -43,5 +44,9 @@ bool FileDescriptor::isOpened() const {
 
 void CFileCloser::operator()(FILE* file_) const {
 	::std::fclose(file_);
+}
+
+std::string errorString(int errNo) {
+	return strerror(errNo);
 }
 

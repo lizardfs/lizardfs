@@ -32,5 +32,8 @@ expect_less_or_equal 2 $(get_status lizardfs_master_daemon start)
 expect_less_or_equal 2 $(get_status lizardfs_master_daemon restart)
 expect_equals 1 $(get_status lizardfs_master_daemon isalive)
 mv "${info[master_data_path]}/metadata.mfs.xxx" "${info[master_data_path]}/metadata.mfs"
+expect_less_or_equal 2 $(get_status lizardfs_master_daemon start)
+expect_equals 1 $(get_status lizardfs_master_daemon isalive)
+mfsmetarestore -a -d ${info[master_data_path]}
 expect_equals 0 $(get_status lizardfs_master_daemon start)
 expect_equals 0 $(get_status lizardfs_master_daemon isalive)

@@ -32,6 +32,8 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <string>
+#include <boost/filesystem.hpp>
 
 #include "common/cfg.h"
 #include "common/crc.h"
@@ -113,7 +115,7 @@ void masterconn_findlastlogversion(void) {
 
 	lastlogversion = 0;
 
-	if (stat(METADATA_ML_BACK_FILENAME,&st)<0 || st.st_size==0 || (st.st_mode & S_IFMT)!=S_IFREG) {
+	if ((stat(kMetadataMlBackFilename, &st) < 0) || (st.st_size == 0) || ((st.st_mode & S_IFMT) != S_IFREG)) {
 		return;
 	}
 
@@ -360,16 +362,20 @@ void masterconn_download_next(masterconn *eptr) {
 		if (filenum==1) {
 			if (masterconn_metadata_check("metadata_ml.tmp")==0) {
 				if (BackMetaCopies>0) {
-					char metaname1[100],metaname2[100];
-					int i;
-					for (i=BackMetaCopies-1 ; i>0 ; i--) {
-						snprintf(metaname1,100,METADATA_ML_BACK_FILENAME ".%" PRIu32,i+1);
-						snprintf(metaname2,100,METADATA_ML_BACK_FILENAME ".%" PRIu32,i);
-						rename(metaname2,metaname1);
+					std::string metadata_ml_back_filename_templ = kMetadataMlBackFilename;
+					metadata_ml_back_filename_templ.append(".");
+					namespace fs = boost::filesystem;
+					for (int i = BackMetaCopies-1 ; i>0 ; i--) {
+						std::string after = metadata_ml_back_filename_templ + std::to_string(i + 1);
+						std::string before = metadata_ml_back_filename_templ + std::to_string(i);
+						boost::system::error_code ignore;
+						fs::rename(before, after, ignore);
 					}
-					rename(METADATA_ML_BACK_FILENAME,METADATA_ML_BACK_FILENAME ".1");
+					std::string metadata_ml_back_filename_1 = kMetadataMlBackFilename;
+					metadata_ml_back_filename_1 += ".1";
+					rename(kMetadataMlBackFilename, metadata_ml_back_filename_1.c_str());
 				}
-				if (rename("metadata_ml.tmp",METADATA_ML_BACK_FILENAME)<0) {
+				if (rename("metadata_ml.tmp", kMetadataMlBackFilename) < 0) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
