@@ -1,0 +1,159 @@
+mfsmount(1)
+===========
+
+== NAME
+
+mfsmount - mount Moose File System
+
+== SYNOPSIS
+
+[verse]
+*mfsmount* 'mountpoint' [*-d*] [*-f*] [*-s*] [*-m*] [*-n*] [*-p*]
+         [*-H* 'HOST'] [*-P* 'PORT'] [*-S* 'PATH'] [*-o* 'opt'[,'opt']...]
+
+[verse]
+*mfsmount* *-h*|*--help*
+
+[verse]
+*mfsmount* *-V*|*--version*
+
+== DESCRIPTION
+
+Mount Moose File System.
+
+General options:
+
+*-h*, *--help*::
+display help and exit
+
+*-V*::
+display version information and exit
+
+FUSE options:
+
+*-d*, *-o debug*::
+enable debug mode (implies *-f*)
+
+*-f*::
+foreground operation
+
+*-s*::
+disable multi-threaded operation
+
+MooseFS options:
+
+*-c* 'CFGFILE', *-o mfscfgfile=*'CFGFILE'::
+loads file with additional mount options
+
+*-m*, *--meta*, *-o mfsmeta*::
+mount MFSMETA companion filesystem instead of primary MooseFS
+
+*-n*::
+omit default mount options (*-o allow_other,default_permissions*)
+
+*-p*::
+prompt for password (interactive version of *-o mfspassword=*'PASS')
+
+*-H* 'HOST', *-o mfsmaster=*'HOST'::
+connect with MooseFS master on 'HOST' (default is mfsmaster)
+
+*-P* 'PORT', *-o mfsport=*'PORT'::
+connect with MooseFS master on 'PORT' (default is 9421)
+
+*-B* 'HOST', *-o mfsbind=*'HOST'::
+local address to use for connecting with master instead of default one
+
+*-S* 'PATH', *-o mfssubfolder=*'PATH'::
+mount specified MooseFS directory (default is /, i.e. whole filesystem)
+
+*-o mfspassword=*'PASSWORD'::
+authenticate to MooseFS master with 'PASSWORD'
+
+*-o mfsmd5pass=*'MD5'::
+authenticate to MooseFS master using directly given 'MD5' (only if *mfspassword* option is not
+specified)
+
+*-o mfsdebug*::
+print some MooseFS-specific debugging information
+
+*-o mfscachemode=*'CACHEMODE'::
+set cache mode (see *DATA CACHE MODES*; default is AUTO)
+
+*-o mfscachefiles*::
+(deprecated) preserve file data in cache (equivalent to '-o mfscachemode=YES')
+
+*-o mfsattrcacheto=*'SEC'::
+set attributes cache timeout in seconds (default: 1.0)
+
+*-o mfsentrycacheto=*'SEC'::
+set file entry cache timeout in seconds (default: 0.0, i.e. no cache)
+
+*-o mfsdirentrycacheto=*'SEC'::
+set directory entry cache timeout in seconds (default: 1.0)
+
+*-o mfswritecachesize=*'N'::
+specify write cache size in MiB (in range: 16..2048 - default: 128)
+
+*-o mfsrlimitnofile=*'N'::
+try to change limit of simultaneously opened file descriptors on startup
+(default: 100000)
+
+*-o mfsnice=*'LEVEL'::
+try to change nice level to specified value on startup (default: -19)
+
+*-o mfsioretries=*'N'::
+specify number of retiries before I/O error is returned (default: 30)
+
+*-o mfsiolimits=*'PATH'::
+specify local I/O limiting configuration file (default: no I/O limiting)
+
+General mount options (see *mount*(8) manual):
+
+*-o rw*|*-o ro*::
+Mount file-system in read-write (default) or read-only mode respectively.
+
+*-o suid*|*-o nosuid*::
+Enable or disable suid/sgid attributes to work.
+
+*-o dev*|*-o nodev*::
+Enable or disable character or block special device files interpretation.
+
+*-o exec*|*-o noexec*::
+Allow or disallow execution of binaries.
+
+== DATA CACHE MODES
+
+There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shuldn't
+change it unless you really know what you are doing. In *AUTO* mode data cache is managed
+automatically by mfsmaster.
+
+*NO*,*NONE* or *NEVER*::
+never allow files data to be kept in cache (safest but can reduce efficiency)
+
+*YES* or *ALWAYS*::
+always allow files data to be kept in cache (dangerous)
+
+*AUTO*::
+file cache is managed by mfsmaster automatically (should be very safe and efficient)
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmaster(8), mfstools(1), moosefs(7), mount(8)

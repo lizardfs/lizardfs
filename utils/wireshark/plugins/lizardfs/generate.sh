@@ -57,6 +57,20 @@ cat "$input_file" \
 	> dict_smode-inl.h
 
 cat "$input_file" \
+	| egrep -o '^#define XATTR_SMODE_.*' \
+	| cut -d' ' -f2 \
+	| sort -u \
+	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
+	> dict_xattrsmode-inl.h
+
+cat "$input_file" \
+	| egrep -o '^#define XATTR_GMODE_.*' \
+	| cut -d' ' -f2 \
+	| sort -u \
+	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
+	> dict_xattrgmode-inl.h
+
+cat "$input_file" \
 	| sed -r -e 's#(^|[^/])//([^/]|$).*#\1#' \
 	| awk '/^#define (LIZ_)?..TO.._[A-Z0-9_]+/{print "Packet",$2} /^\/\/\//{sub(/\/\/\//,"DissectAs",$0); print}' \
 	| sed -e 's/([^)]*)/BYTES/g' \

@@ -41,7 +41,7 @@ static bool searchSubsystems(std::istream& is, const std::string& subsystem) {
 
 IoLimitGroupId getIoLimitGroupId(std::istream& input, const std::string& subsystem) {
 	try {
-		for (std::string line; std::getline(input, line); ) {
+		for (std::string line; std::getline(input, line);) {
 			try {
 				std::stringstream ss(line);
 				ss.exceptions(std::stringstream::eofbit);

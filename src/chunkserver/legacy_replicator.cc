@@ -563,7 +563,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		}
 // check packets
 		vbuffs = 0;
-		uint32_t crc;
+		uint32_t crc = 0;
 		for (i=0 ; i<srccnt ; i++) {
 			if (r.repsources[i].mode!=IDLE) {
 				uint32_t type,size;

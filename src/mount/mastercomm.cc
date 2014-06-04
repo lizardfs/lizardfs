@@ -100,6 +100,7 @@ static uint32_t masterip=0;
 static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
+static unsigned gIoRetries;
 
 static uint8_t fterm;
 
@@ -1137,8 +1138,13 @@ void* fs_receive_thread(void *) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *bindhostname,const char *masterhostname,const char *masterportname,uint8_t meta,const char *info,const char *subfolder,const uint8_t passworddigest[16],uint8_t donotrememberpassword,uint8_t bgregister) {
+int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
+		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
+		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
+		unsigned retries) {
 	master_statsptr_init();
+
+	gIoRetries = retries;
 
 	fd = -1;
 	sessionlost = bgregister;
@@ -2281,8 +2287,8 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 		ret = ERROR_IO;
 	} else {
 		*vleng = get32bit(&rptr);
-		*vbuff = (mode==MFS_XATTR_GETA_DATA)?rptr:NULL;
-		if ((mode==MFS_XATTR_GETA_DATA && i!=(*vleng)+4) || (mode==MFS_XATTR_LENGTH_ONLY && i!=4)) {
+		*vbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
+		if ((mode==XATTR_GMODE_GET_DATA && i!=(*vleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
 			ret = ERROR_IO;
 		} else {
@@ -2321,8 +2327,8 @@ uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uin
 		ret = ERROR_IO;
 	} else {
 		*dleng = get32bit(&rptr);
-		*dbuff = (mode==MFS_XATTR_GETA_DATA)?rptr:NULL;
-		if ((mode==MFS_XATTR_GETA_DATA && i!=(*dleng)+4) || (mode==MFS_XATTR_LENGTH_ONLY && i!=4)) {
+		*dbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
+		if ((mode==XATTR_GMODE_GET_DATA && i!=(*dleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
 			ret = ERROR_IO;
 		} else {
@@ -2341,7 +2347,7 @@ uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
-	if (mode>=MFS_XATTR_REMOVE) {
+	if (mode>=XATTR_SMODE_REMOVE) {
 		return ERROR_EINVAL;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETXATTR,19+nleng+vleng);
@@ -2392,7 +2398,7 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	memcpy(wptr,name,nleng);
 	wptr+=nleng;
 	put32bit(&wptr,0);
-	put8bit(&wptr,MFS_XATTR_REMOVE);
+	put8bit(&wptr,XATTR_SMODE_REMOVE);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETXATTR,&i);
 	if (rptr==NULL) {
 		ret = ERROR_IO;

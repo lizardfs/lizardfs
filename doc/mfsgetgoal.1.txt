@@ -1,0 +1,75 @@
+mfsgetgoal(1)
+===========
+
+== NAME
+
+mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
+
+== SYNOPSIS
+
+[verse]
+*mfsgetgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]N|**xor**N 'OBJECT'...
+
+[verse]
+*mfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+
+== DESCRIPTION
+
+*mfsgetgoal* and *mfssetgoal* operate on object's 'goal' value. There are two types of goals:
+ordinary goals (1..9) and xor goals (xor2..xor10). Ordinary 'goal' is the number of copies
+in which all the file's data is stored. It means that the file should survive failure of
+one less chunkservers than its 'goal' value. Ordinary 'goal' must be set between 1 and 9
+(note that 1 is strongly unadvised).
+
+For xor goals the number represents the 'xor level'. A file with the 'xor level' of 'N' has
+all the chunks divided into 'N' parts (kept in one copy) and additionally there is a parity
+part. It means that the disk space needed to store such a file if roughly equal to '(N+1)/N'
+of the file's size and the file should survive failure of one of the chunkservers. Xor level
+must be set between 2 and 10.
+
+*mfsgetgoal* prints current 'goal' value of given object(s). These tools can be used on any file,
+directory or deleted ('trash') file.
+
+== OPTIONS
+
+*-r*::
+This option enables recursive mode, which works as usual for every given file, but for every given
+directory additionally prints current value of all contained objects (files and directories).
+
+\[*+*|*-*]'N'::
+*mfssetgoal* changes current 'goal' value of given object(s). If new value is specified in *+*'N'
+form, 'goal' value is increased to 'N' for objects with lower 'goal' value and unchanged for
+the rest. Similarly, if new value is specified as *-*'N', 'goal' value is decreased to 'N' for
+objects with higher 'goal' value and unchanged for the rest.
+
+*-n*, *-h*, *-H*::
+These options are described in mfstools(1).
+
+== NOTE
+
+*mfsrgetgoal* and *mfsrsetgoal* are deprecated aliases for
+*mfsgetgoal -r* and *mfssetgoal -r* respectively.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfstools(1)

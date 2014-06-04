@@ -1,0 +1,114 @@
+mfsmaster(8)
+============
+
+== NAME
+
+mfsmaster - start, restart or stop Moose File System master process
+
+== SYNOPSIS
+
+[verse]
+mfsmaster [*-f*] [*-c* 'CFGFILE'] [*-u*] [*-d*] [*-t* 'LOCKTIMEOUT'] ['ACTION']
+
+[verse]
+*mfsmaster -s* [*-c* 'CFGFILE']
+
+[verse]
+*mfsmaster -v*
+
+[verse]
+*mfsmaster -h*
+
+== DESCRIPTION
+
+*mfsmaster* is the master program of Moose File System. Depending on parameters it can start,
+restart or stop MooseFS master process. Without any options it starts MooseFS master, killing
+previously run process if lock file exists.
+
+SIGHUP (or 'reload' 'ACTION') forces *mfsmaster* to reload all configuration files.
+
+*-v*::
+print version information and exit
+
+*-h*::
+print usage information and exit
+
+*-f*::
+(deprecated, use *start* action instead)
+forcily run MooseFS master process, without trying to kill
+previous instance (this option allows to run MooseFS master if stale PID file exists)
+
+*-s*::
+(deprecated, use *stop* action instead)
+stop MooseFS master process
+
+*-c* 'CFGFILE'::
+specify alternative path of configuration file (default is *mfsmaster.cfg* in system configuration
+directory)
+
+*-u*::
+log undefined configuration values (when default is assumed)
+
+*-d*::
+run in foreground, don't daemonize
+
+*-t* 'LOCKTIMEOUT'::
+how long to wait for lockfile (default is 60 seconds)
+
+'ACTION'::
+is the one of *start*, *stop*, *restart*, *reload*, *test*, *isalive* or *kill*. Default action is
+*restart* unless *-s* (stop) or *-f* (start) option is given. Note that *-s* and *-f* options are
+deprecated, likely to disappear and 'ACTION' parameter to become obligatory in MooseFS 1.7.
+
+== FILES
+
+*mfsmaster.cfg*::
+configuration file for MooseFS master process (see *mfsmaster.cfg*(5) manual)
+
+*mfsexports.cfg*::
+MooseFS access control file (used with *mfsmount*`s` 1.6.0 or later, see
+*mfsexports.cfg*(5) manual)
+
+*mfstopology.cfg*::
+Network topology definitions (see *mfstopology.cfg*(5) manual)
+
+*mfsmaster.lock*::
+PID file of running MooseFS master process
+(created in RUN_PATH by MooseFS < 1.6.9)
+
+*.mfsmaster.lock*::
+lock file of running MooseFS master process
+(created in data directory since MooseFS 1.6.9)
+
+*metadata.mfs*, *metadata.mfs.back*::
+MooseFS filesystem metadata image
+
+*`changelog.*.mfs`*::
+MooseFS filesystem metadata change logs (merged into *metadata.mfs* once per hour)
+
+*data.stats*::
+MooseFS master charts state
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmetarestore(8), mfschunkserver(8), mfsmount(1),
+mfsmaster.cfg(5), mfsexports.cfg(5), mfstopology.cfg(5),
+moosefs(7)

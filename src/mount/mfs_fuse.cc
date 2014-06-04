@@ -291,22 +291,7 @@ static int mfs_errorconv(int status) {
 		break;
 	}
 	if (debug_mode && ret!=0) {
-#ifdef HAVE_STRERROR_R
-		char errorbuff[500];
-# ifdef STRERROR_R_CHAR_P
-		fprintf(stderr,"status: %s\n",strerror_r(ret,errorbuff,500));
-# else
-		strerror_r(ret,errorbuff,500);
-		fprintf(stderr,"status: %s\n",errorbuff);
-# endif
-#else
-# ifdef HAVE_PERROR
-		errno=ret;
-		perror("status: ");
-# else
-		fprintf(stderr,"status: %d\n",ret);
-# endif
-#endif
+		fprintf(stderr, "status: %s\n", strerr(ret));
 	}
 	return ret;
 }
@@ -366,7 +351,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
-		stbuf->st_mode = S_IFDIR | ( attrmode & 07777);
+		stbuf->st_mode = S_IFDIR | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -374,7 +359,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_SYMLINK:
-		stbuf->st_mode = S_IFLNK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFLNK | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -382,7 +367,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_FILE:
-		stbuf->st_mode = S_IFREG | ( attrmode & 07777);
+		stbuf->st_mode = S_IFREG | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
@@ -390,21 +375,21 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_FIFO:
-		stbuf->st_mode = S_IFIFO | ( attrmode & 07777);
+		stbuf->st_mode = S_IFIFO | (attrmode & 07777);
 		stbuf->st_size = 0;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_SOCKET:
-		stbuf->st_mode = S_IFSOCK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFSOCK | (attrmode & 07777);
 		stbuf->st_size = 0;
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_BLOCKDEV:
-		stbuf->st_mode = S_IFBLK | ( attrmode & 07777);
+		stbuf->st_mode = S_IFBLK | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
 #ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
@@ -415,7 +400,7 @@ static void mfs_attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat 
 #endif
 		break;
 	case TYPE_CHARDEV:
-		stbuf->st_mode = S_IFCHR | ( attrmode & 07777);
+		stbuf->st_mode = S_IFCHR | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
 #ifdef HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
@@ -2096,10 +2081,29 @@ namespace {
 class XattrHandler {
 public:
 	virtual ~XattrHandler() {}
+
+	/*
+	 * handler for request to set an extended attribute
+	 * mode - one of XATTR_SMODE_*
+	 * returns status
+	 */
 	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
 			uint32_t nleng, const char *value, size_t size, int mode) = 0;
+
+	/*
+	 * handler for request to get an extended attribute
+	 * mode - one of XATTR_GMODE_*
+	 * returns status and:
+	 * * sets value is mode is XATTR_GMODE_GET_DATA
+	 * * sets valueLength is mode is XATTR_GMODE_LENGTH_ONLY
+	 */
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) = 0;
+			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) = 0;
+
+	/*
+	 * handler for request to remove an extended attribute
+	 * returns status
+	 */
 	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
 			uint32_t nleng) = 0;
 };
@@ -2113,13 +2117,12 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		const uint8_t *buff;
-		uint32_t leng;
 		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
-				mode, &buff, &leng);
-		if (mode == MFS_XATTR_GETA_DATA && status == STATUS_OK) {
-			buffer = std::vector<uint8_t>(buff, buff+leng);
+				mode, &buff, &valueLength);
+		if (mode == XATTR_GMODE_GET_DATA && status == STATUS_OK) {
+			value = std::vector<uint8_t>(buff, buff + valueLength);
 		}
 		return status;
 	}
@@ -2139,7 +2142,7 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx&, fuse_ino_t, const char *,
-			uint32_t, std::vector<uint8_t>&, int) {
+			uint32_t, int, uint32_t&, std::vector<uint8_t>&) {
 		return error_;
 	}
 
@@ -2175,7 +2178,7 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
-			uint32_t, std::vector<uint8_t>& buffer, int) {
+			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
@@ -2185,7 +2188,8 @@ public:
 			return status;
 		}
 		try {
-			buffer = aclConverter::aclObjectToXattr(acl);
+			value = aclConverter::aclObjectToXattr(acl);
+			valueLength = value.size();
 			return STATUS_OK;
 		} catch (Exception&) {
 			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
@@ -2286,7 +2290,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
-	mode = (flags==XATTR_CREATE)?MFS_XATTR_CREATE_ONLY:(flags==XATTR_REPLACE)?MFS_XATTR_REPLACE_ONLY:MFS_XATTR_CREATE_OR_REPLACE;
+	mode = (flags==XATTR_CREATE)?XATTR_SMODE_CREATE_ONLY:(flags==XATTR_REPLACE)?XATTR_SMODE_REPLACE_ONLY:XATTR_SMODE_CREATE_OR_REPLACE;
 #else
 	mode = 0;
 #endif
@@ -2349,14 +2353,13 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		return;
 	}
 	if (size==0) {
-		mode = MFS_XATTR_LENGTH_ONLY;
+		mode = XATTR_GMODE_LENGTH_ONLY;
 	} else {
-		mode = MFS_XATTR_GETA_DATA;
+		mode = XATTR_GMODE_GET_DATA;
 	}
 	(void)position;
-	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, buffer, mode);
+	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, mode, leng, buffer);
 	buff = buffer.data();
-	leng = buffer.size();
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
@@ -2395,9 +2398,9 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 		return;
 	}
 	if (size==0) {
-		mode = MFS_XATTR_LENGTH_ONLY;
+		mode = XATTR_GMODE_LENGTH_ONLY;
 	} else {
-		mode = MFS_XATTR_GETA_DATA;
+		mode = XATTR_GMODE_GET_DATA;
 	}
 	status = fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng);
 	status = mfs_errorconv(status);

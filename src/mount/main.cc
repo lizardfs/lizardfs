@@ -173,8 +173,10 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.meta,
 				mp,
 				gMountOptions.subfolder,
-				(gMountOptions.password||gMountOptions.md5pass) ?
-						md5pass : NULL, gMountOptions.donotrememberpassword, 1);
+				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
+				gMountOptions.donotrememberpassword,
+				1,
+				gMountOptions.ioretries);
 	} else {
 		if (fs_init_master_connection(
 				gMountOptions.bindhost,
@@ -183,8 +185,10 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.meta,
 				mp,
 				gMountOptions.subfolder,
-				(gMountOptions.password||gMountOptions.md5pass) ?
-						md5pass : NULL, gMountOptions.donotrememberpassword, 0) < 0) {
+				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
+				gMountOptions.donotrememberpassword,
+				0,
+				gMountOptions.ioretries) < 0) {
 			return 1;
 		}
 	}

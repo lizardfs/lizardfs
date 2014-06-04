@@ -72,7 +72,7 @@ line="${line})"
 echo $line
 echo
 line="#define COUNT_ARGS_("
-for i in $(seq 0 $((MAX * 2 ))); do
+for i in $(seq 0 $((MAX * 2))); do
 	line="${line}a$i, "
 done
 line="${line}count, ...) count"

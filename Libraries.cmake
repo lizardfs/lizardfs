@@ -82,6 +82,10 @@ message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
 message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
 
+# Find extra binaries
+find_program(A2X_BINARY a2x)
+message(STATUS "a2x: ${A2X_BINARY}")
+
 # Find crcutil
 set(CRCUTIL_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION}/code)
 set(CRCUTIL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION}/code)

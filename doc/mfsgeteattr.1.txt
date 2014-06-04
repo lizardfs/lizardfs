@@ -1,0 +1,63 @@
+mfsgeteattr(1)
+==============
+
+== NAME
+
+mfsgeteattr, mfsseteattr,  mfsdeleattr - get, set or delete extra attributes
+
+== SYNOPSIS
+
+[verse]
+*mfsgeteattr* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*mfsseteattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+[verse]
+*mfsdeleattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+== DESCRIPTION
+
+*mfsgeteattr*, *mfsseteattr* and *mfsdeleattr*
+tools are used to get, set or delete some extra attributes. Attributes are described below.
+
+== OPTIONS
+
+*-r*::
+This option enables recursive mode.
+
+*-n*, *-h*, *-H*::
+These options are described in mfstools(1).
+
+== EXTRA ATTRIBUTES
+
+*noowner*::
+This flag means, that particular object belongs to current user ('uid' and 'gid' are equal to 'uid'
+and 'gid' values of accessing process). Only root ('uid'=0) sees the real 'uid' and 'gid'.
+
+*noattrcache*::
+This flag means, that standard file attributes such as uid, gid, mode, length and so on won't be
+stored in kernel cache. In MooseFS 1.5 this was the only behaviour, and mfsmount always prevented
+attributes from being stored in kernel cache, but in MooseFS 1.6 attributes can be cached, so in
+very rare ocassions it could be useful to turn it off.
+
+*noentrycache*::
+This flag is similar to above. It prevents directory entries from being cached in kernel.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfstools(1)

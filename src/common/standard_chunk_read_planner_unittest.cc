@@ -12,9 +12,9 @@
 #include "unittests/plan_tester.h"
 
 #define VERIFY_PLAN_FOR(planner, firstBlock, count) \
-	ASSERT_EQ( \
+	ASSERT_EQ(\
 		unittests::PlanTester::expectedAnswer(standard, firstBlock, count), \
-		unittests::PlanTester::executePlan( \
+		unittests::PlanTester::executePlan(\
 				planner.buildPlanFor(firstBlock, count), \
 				planner.partsToUse(), count))
 

@@ -19,11 +19,19 @@
 
 namespace ioLimiting {
 
-// represents the central IO limiter (e.g. running remotely in master)
+/**
+ * High level I/O limiter class. It enables one to configure a limiting by registering a
+ * reconfiguration function, calling it and request a resource assignment. A limiter can be
+ * reconfigured many times.
+ *
+ * This is an ABC. As for now it can represent an I/O limiter running locally in mount,
+ * remotely in master or locally in tests.
+ */
 struct Limiter {
 	// request bandwidth allocation and return obtained result (lower or equal to 'size')
 	virtual uint64_t request(const IoLimitGroupId& groupId, uint64_t size) = 0;
 
+	// Type of a function that will be called to handle a reconfiguration
 	typedef std::function<void (
 			uint32_t /* delta */,
 			const std::string& /* subsystem */,
@@ -37,10 +45,12 @@ protected:
 	ReconfigurationFunction reconfigure_;
 };
 
-// the global limiter running in master
+// An object used locally in mount that communicates with a global limiter
+// running in master
 struct MasterLimiter : public Limiter {
 	MasterLimiter();
 	~MasterLimiter();
+	// Passes a request to master
 	uint64_t request(const IoLimitGroupId& groupId, uint64_t size) override;
 private:
 	class IolimitsConfigHandler : public PacketHandler {
@@ -56,7 +66,7 @@ private:
 	uint32_t configVersion_;
 };
 
-// the local limiter running in this mount instance
+// The local limiter running in this mount instance (used in local I/O limiting)
 struct MountLimiter : public Limiter {
 	uint64_t request(const IoLimitGroupId& groupId, uint64_t size) override;
 	void loadConfiguration(const IoLimitsConfigLoader& config);
@@ -67,7 +77,9 @@ private:
 // Abstract clock used by the limiting mechanism, introduced mostly for testing purposed.
 // Should be monotonic.
 struct Clock {
+	// A method that returns a current time of a clock
 	virtual SteadyTimePoint now() = 0;
+	// A method that sleeps until now() > 'time'
 	virtual void sleepUntil(SteadyTimePoint time) = 0;
 	virtual ~Clock() {}
 };
@@ -78,15 +90,19 @@ struct RTClock : public Clock {
 	void sleepUntil(SteadyTimePoint time) override;
 };
 
-// state shared by all limiting groups
+// State shared by 'Group' instances.
 struct SharedState {
 	SharedState(Limiter& limiter, std::chrono::microseconds delta) :
 		limiter(limiter), delta(delta) {}
+	// A limiter that is used (local or remote)
 	Limiter& limiter;
+	// If a user of a group requests a resource assignment and its request
+	// isn't fully satisfied, it should not send another request sooner then
+	// after 'delta' microseconds:
 	std::chrono::microseconds delta;
 };
 
-// single IO limiting group
+// Single IO limiting group, allowing users to wait for a resource assignment
 class Group {
 public:
 	Group(const SharedState& shared, Clock& clock) : shared_(shared), reserve_(0),
@@ -142,7 +158,8 @@ private:
 	Clock& clock_;
 };
 
-// classifies clients into groups and performs required delays
+// This class is a proxy that locally handles calls to a possibly remote Limiter.
+// It classifies clients into groups and performs required delays.
 class LimiterProxy {
 public:
 	LimiterProxy(Limiter& limiter, Clock& clock) :
@@ -154,9 +171,10 @@ public:
 		limiter.registerReconfigure(std::bind(&LimiterProxy::reconfigure, this, _1, _2, _3));
 	}
 
-	// returns errno-style code
+	// Try to acquire an assignment of 'size' bytes. This method pauses a callee until a request
+	// is satisfied or a deadline is exceeded. Return when returns errno-style code
 	uint8_t waitForRead(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);
-	// returns errno-style code
+	// Works the same as waitForRead
 	uint8_t waitForWrite(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);
 
 private:

@@ -1637,7 +1637,7 @@ void NetworkWorkerThread::servePoll() {
 	}
 
 	jobscnt = job_pool_jobs_count(bgJobPool_);
-//      // Lock free stats_maxjobscnt = max(stats_maxjobscnt, jobscnt), but I don't trust myself :( ...
+//      // Lock free stats_maxjobscnt = max(stats_maxjobscnt, jobscnt), but I don't trust myself :(...
 //      uint32_t expected_value = stats_maxjobscnt;
 //      while (jobscnt > expected_value
 //                      && !stats_maxjobscnt.compare_exchange_strong(expected_value, jobscnt)) {

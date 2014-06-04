@@ -647,7 +647,7 @@ chunk* chunk_find(uint64_t chunkid) {
 	if (lastchunkid==chunkid) {
 		return lastchunkptr;
 	}
-	for (chunkit = chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next ) {
+	for (chunkit = chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next) {
 		if (chunkit->chunkid == chunkid) {
 			lastchunkid = chunkid;
 			lastchunkptr = chunkit;
@@ -1422,7 +1422,7 @@ void chunk_server_disconnected(void *ptr) {
 	slist *s,**st;
 	uint32_t i;
 	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next ) {
+		for (c=chunkhash[i] ; c ; c=c->next) {
 			st = &(c->slisthead);
 			while (*st) {
 				s = *st;
@@ -1963,7 +1963,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			if (max>0) {
 				for (uint32_t i=0 ; i<max && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
+						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
 							srcserv = s->ptr;
 							chunkType = s->chunkType;
@@ -1973,7 +1973,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			} else {
 				for (uint32_t i=0 ; i<(serverCount_-min) && srcserv==NULL ; i++) {
 					if (matocsserv_replication_read_counter(ptrs[serverCount_-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next ) {}
+						for (s=c->slisthead ; s && s->ptr!=ptrs[serverCount_-1-i] ; s=s->next) {}
 						if (s && (s->valid==VALID || s->valid==TDVALID)) {
 							srcserv = s->ptr;
 							chunkType = s->chunkType;

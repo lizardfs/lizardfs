@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common/slogger.h"
 #include "metarestore/restore.h"
 
 #define BSIZE 200000
@@ -72,7 +73,8 @@ void merger_nextentry(uint32_t pos) {
 		if (heap[pos].nextid==0 || (nextid>heap[pos].nextid && nextid<heap[pos].nextid+maxidhole)) {
 			heap[pos].nextid = nextid;
 		} else {
-			fprintf(stderr, "found garbage at the end of file: %s (last correct id: %" PRIu64 ")\n",heap[pos].filename,heap[pos].nextid);
+			mfs_arg_syslog(LOG_ERR, "found garbage at the end of file: %s (last correct id: %" PRIu64 ")",
+					heap[pos].filename, heap[pos].nextid);
 			heap[pos].nextid = 0;
 		}
 	} else {
@@ -101,7 +103,7 @@ void merger_new_entry(const char *filename) {
 		heap[heapsize].nextid = 0;
 		merger_nextentry(heapsize);
 	} else {
-		fprintf(stderr, "can't open changelog file: %s\n",filename);
+		mfs_arg_syslog(LOG_ERR, "can't open changelog file: %s", filename);
 		heap[heapsize].filename = NULL;
 		heap[heapsize].buff = NULL;
 		heap[heapsize].ptr = NULL;
@@ -133,7 +135,7 @@ int merger_loop(void) {
 	hentry h;
 
 	while (heapsize) {
-//              printf("current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
+//              mfs_arg_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {
 			while (heapsize) {
 				heapsize--;

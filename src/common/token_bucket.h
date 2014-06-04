@@ -4,6 +4,14 @@
 
 #include "common/time_utils.h"
 
+/**
+ * TokenBucket is a rate limiter. It distributes 'budget_' resources among clients.
+ * Every nanosecond the available limit grows by 'rate_/(10^9)' resources, but only
+ * up to 'budgetCeil_' limit.
+ *
+ * If a client tries to reserve more resources than are available, it will be assigned
+ * everything that is currently available.
+ */
 class TokenBucket {
 public:
 	TokenBucket(SteadyTimePoint now) : rate_(0), budget_(0), budgetCeil_(0), prevTime_(now) {}

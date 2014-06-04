@@ -13,6 +13,7 @@ done
 . $(which set_lizardfs_constants.sh)
 . tools/stack_trace.sh
 . tools/assert.sh
+. tools/moosefs.sh
 . tools/lizardfs.sh
 . tools/network.sh
 . tools/random.sh

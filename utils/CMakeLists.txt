@@ -1,5 +1,7 @@
 include_directories(${CMAKE_SOURCE_DIR})
 
+install(PROGRAMS cpp-interpreter.sh DESTINATION ${BIN_SUBDIR})
+
 # converter to xor chunks
 add_executable(chunk_converter chunk_converter.cc)
 target_link_libraries(chunk_converter ${ZLIB_LIBRARY})

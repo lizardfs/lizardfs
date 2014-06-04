@@ -8,6 +8,7 @@ fi
 : ${LIZARDFS_DISKS:=}
 : ${LIZARDFS_LOOP_DISKS:=}
 : ${TEMP_DIR:=/tmp/LizardFS-autotests}
+: ${MOOSEFS_DIR:=/tmp/LizardFS-autotests-mfs}
 : ${LIZARDFS_ROOT:=$HOME/local}
 : ${FIRST_PORT_TO_USE:=25000}
 : ${ERROR_FILE:=}

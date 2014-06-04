@@ -329,13 +329,13 @@
 #define AFTER_CREATE 4
 
 
-#define MFS_XATTR_CREATE_OR_REPLACE 0
-#define MFS_XATTR_CREATE_ONLY 1
-#define MFS_XATTR_REPLACE_ONLY 2
-#define MFS_XATTR_REMOVE 3
+#define XATTR_SMODE_CREATE_OR_REPLACE 0
+#define XATTR_SMODE_CREATE_ONLY       1
+#define XATTR_SMODE_REPLACE_ONLY      2
+#define XATTR_SMODE_REMOVE            3
 
-#define MFS_XATTR_GETA_DATA 0
-#define MFS_XATTR_LENGTH_ONLY 1
+#define XATTR_GMODE_GET_DATA   0
+#define XATTR_GMODE_LENGTH_ONLY 1
 
 // MFS uses Linux limits
 #define MFS_XATTR_NAME_MAX 255
@@ -440,8 +440,8 @@
 
 // 0x0067
 // #define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
-// version:32 logdata:string ( N*[ char:8 ] )
-// 0xFF:8 version:64 logdata:string ( N*[ char:8 ] )
+// version:32 logdata:string (N*[ char:8 ])
+// 0xFF:8 version:64 logdata:string (N*[ char:8 ])
 
 // 0x0068
 // #define MATOCS_STRUCTURE_LOG_ROTATE (PROTO_BASE+104)
@@ -710,7 +710,7 @@
 //   in case of BLOCKDEV and CHARDEV instead of 'length:64' on the end there is 'mojor:16 minor:16 empty:32'
 
 // NAME type:
-// ( size:8 data:STRING[size] )
+// (size:8 data:STRING[size])
 
 #define FUSE_REGISTER_BLOB_NOACL       "kFh9mdZsR84l5e675v8bi54VfXaXSYozaU3DSz9AsLLtOtKipzb9aQNkxeOISx64"
 // CLTOMA:
@@ -1174,22 +1174,22 @@
 
 // 0x01DE
 #define CLTOMA_FUSE_GETXATTR (PROTO_BASE+478)
-// msgid:32 inode:32 opened:8 uid:32 gid:32 nleng:8 name:nlengB mode:8
+/// msgid:32 inode:32 opened:8 uid:32 gid:32 name:STRING8 xattrgmode:8
 //   empty name = list names
-//   mode:
+//   xattrgmode:
 //    0 - get data
 //    1 - get length only
 
 // 0x01DF
 #define MATOCL_FUSE_GETXATTR (PROTO_BASE+479)
-// msgid:32 status:8
-// msgid:32 vleng:32
-// msgid:32 vleng:32 value:vlengB
+/// length==5 msgid:32 status:8
+/// length==8 msgid:32 vleng:32
+/// length>8  msgid:32 value:STRING32
 
 // 0x01E0
 #define CLTOMA_FUSE_SETXATTR (PROTO_BASE+480)
-// msgid:32 inode:32 uid:32 gid:32 nleng:8 name:8[NLENG] vleng:32 value:8[VLENG] mode:8
-//   mode:
+/// msgid:32 inode:32 uid:32 gid:32 name:STRING8 value:STRING32 xattrsmode:8
+//   xattrsmode:
 //    0 - create or replace
 //    1 - create only
 //    2 - replace only
@@ -1197,7 +1197,7 @@
 
 // 0x01E1
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
-// msgid:32 status:8
+/// msgid:32 status:8
 
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache

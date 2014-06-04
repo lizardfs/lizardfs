@@ -1,0 +1,149 @@
+mfsmaster.cfg(5)
+================
+
+== NAME
+
+mfsmaster.cfg - main configuration file for mfsmaster
+
+== DESCRIPTION
+
+The file *mfsmaster.cfg* contains configuration of MooseFS master process.
+
+== SYNTAX
+
+Syntax is:
+
+'OPTION' *=* 'VALUE'
+
+Lines starting with *#* character are ignored.
+
+== OPTIONS
+
+Configuration options:
+
+*DATA_PATH*::
+where to store metadata files and lock file
+
+*LOCK_FILE*::
+(deprecated)
+daemon lock/pid file
+
+*WORKING_USER*::
+user to run daemon as
+
+*WORKING_GROUP*::
+group to run daemon as (optional - if empty then default user group will be used)
+
+*SYSLOG_IDENT*::
+name of process to place in syslog messages (default is mfsmaster)
+
+*LOCK_MEMORY*::
+whether to perform mlockall() to avoid swapping out mfsmaster process (default is 0, i.e. no)
+
+*NICE_LEVEL*::
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to
+increase priority)
+
+*EXPORTS_FILENAME*::
+alternative name of *mfsexports.cfg* file
+
+*TOPOLOGY_FILENAME*::
+alternative name of *mfstopology.cfg* file
+
+*BACK_LOGS*::
+number of metadata change log files (default is 50)
+
+*BACK_META_KEEP_PREVIOUS*::
+number of previous metadata files to be kept (default is 1)
+
+*REPLICATIONS_DELAY_INIT*::
+initial delay in seconds before starting replications (default is 300)
+
+*REPLICATIONS_DELAY_DISCONNECT*::
+replication delay in seconds after chunkserver disconnection (default is 3600)
+
+*MATOML_LISTEN_HOST*::
+IP address to listen on for metalogger connections (*** means any)
+
+*MATOML_LISTEN_PORT*::
+port to listen on for metalogger connections (default is 9419)
+
+*MATOML_LOG_PRESERVE_SECONDS*::
+how many seconds of change logs have to be preserved in memory (default is 600; note: logs are
+stored in blocks of 5k lines, so sometimes real number of seconds may be little bigger; zero
+disables extra logs storage)
+
+*MATOCS_LISTEN_HOST*::
+IP address to listen on for chunkserver connections (*** means any)
+
+*MATOCS_LISTEN_PORT*::
+port to listen on for chunkserver connections (default is 9420)
+
+*MATOCU_LISTEN_HOST*::
+IP address to listen on for client (mount) connections (*** means any)
+
+*MATOCU_LISTEN_PORT*::
+port to listen on for client (mount) connections (default is 9421)
+
+*CHUNKS_LOOP_MIN_TIME*::
+Chunks loop shouldn't be done in less seconds than given number (default is 300)
+
+*CHUNKS_LOOP_MAX_CPS*::
+Chunks loop shouldn't check more chunks per seconds than given number (default is 100000)
+
+*CHUNKS_SOFT_DEL_LIMIT*::
+Soft maximum number of chunks to delete on one chunkserver (default is 10)
+
+*CHUNKS_HARD_DEL_LIMIT*::
+Hard maximum number of chunks to delete on one chunkserver (default is 25)
+
+*CHUNKS_WRITE_REP_LIMIT*::
+Maximum number of chunks to replicate to one chunkserver (default is 2)
+
+*CHUNKS_READ_REP_LIMIT*::
+Maximum number of chunks to replicate from one chunkserver (default is 10)
+
+*REJECT_OLD_CLIENTS*::
+Reject **mfsmount**s older than 1.6.0 (0 or 1, default is 0). Note that *mfsexports* access control
+is NOT used for those old clients.
+
+*GLOBALIOLIMITS_FILENAME*::
+Configuration of global I/O limits (default is no I/O limiting)
+
+*GLOBALIOLIMITS_RENEGOTIATION_PERIOD_SECONDS*::
+How often mountpoints will request bandwidth allocations under constant, predictable load
+(default is 0.1)
+
+*GLOBALIOLIMITS_ACCUMULATE_MS*::
+After inactivity, no waiting is required to transfer the amount of data equivalent to normal
+data flow over the period of that many milliseconds (default is 250)
+
+== NOTES
+
+Chunks in master are tested in loop. Speed (or frequency) is regulated by two options
+*CHUNKS_LOOP_MIN_TIME* and *CHUNKS_LOOP_MAX_CPS*. First defines minimal time of the loop and second
+maximal number of chunk tests per second. Typically at the beginning, when number of chunks is
+small, time is constant, regulated by *CHUNK_LOOP_MIN_TIME*, but when number of chunks became bigger
+then time of loop can increase according to *CHUNKS_LOOP_MAX_CPS*.
+
+Deletion limits are defined as 'soft' and 'hard' limit. When number of chunks to delete increases
+from loop to loop then current limit can be temporary increased above soft limit, but never above
+hard limit.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmaster(8), mfsexports.cfg(5), mfstopology.cfg(5)

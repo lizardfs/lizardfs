@@ -1,5 +1,17 @@
 assert_program_installed attr
 
+# Create a tool for getting length of an extended attribute
+cat > "$TEMP_DIR/getlen.sh" <<'END'
+#!/usr/bin/env cpp-interpreter.sh
+#include <sys/xattr.h>
+#include <iostream>
+int main(int, char** argv) {
+	std::cout << getxattr(argv[2], argv[1], 0, 0) << std::endl;
+	return 0;
+}
+END
+chmod +x "$TEMP_DIR/getlen.sh"
+
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
@@ -42,7 +54,10 @@ expect_equals "$(echo -e "$name2\n$name3\n$name5" | sort)" "$(attr -qLl file_lin
 expect_equals "$name6" "$(attr -ql dir)"
 expect_equals "$value1" "$(attr -qg "$name1" .)"
 expect_equals "$value2" "$(attr -qg "$name2" file)"
+expect_equals "${#value2}" "$("$TEMP_DIR/getlen.sh" "user.$name2" file)"
 expect_equals "$value2" "$(attr -qLg "$name2" file_link)"
 expect_equals "$value3" "$(attr -qg "$name3" file)"
+expect_equals "${#value3}" "$("$TEMP_DIR/getlen.sh" "user.$name3" file)"
 expect_equals "$value5" "$(attr -qLg "$name5" file_link)"
 expect_equals "$value6" "$(attr -qg "$name6" dir)"
+expect_equals "${#value6}" "$("$TEMP_DIR/getlen.sh" "user.$name6" dir)"

@@ -28,7 +28,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "-std=c++0x -Wall -Wextra -pedantic -fwrapv")
+set(CMAKE_CXX_FLAGS "-std=c++0x -Wall -Wextra -fwrapv")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_COVERAGE "-O0 -g --coverage")
@@ -45,6 +45,7 @@ set(DEFAULT_USER  "mfs" CACHE STRING "Default user to run daemons as")
 set(DEFAULT_GROUP "mfs" CACHE STRING "Default group to run daemons as")
 set(LIZARDFS_BLOCKS_IN_CHUNK 1024 CACHE INT "Number of blocks in one chunk")
 set(LIZARDFS_BLOCK_SIZE 65536 CACHE INT "Number of bytes in one block")
+option(ENABLE_WERROR        "Enable treating compilation warnings as errors"          OFF)
 option(ENABLE_DEBIAN_PATHS  "Enable Debian-style install paths"                       OFF)
 option(ENABLE_UTILS         "Enable building additional binaries used e.g. in tests"  OFF)
 option(ENABLE_TESTS         "Enable building unit and functional tests"               OFF)
@@ -60,6 +61,7 @@ message(STATUS "DEFAULT_USER: ${DEFAULT_USER}")
 message(STATUS "DEFAULT_GROUP: ${DEFAULT_GROUP}")
 message(STATUS "LIZARDFS_BLOCKS_IN_CHUNK: ${LIZARDFS_BLOCKS_IN_CHUNK}")
 message(STATUS "LIZARDFS_BLOCK_SIZE: ${LIZARDFS_BLOCK_SIZE}")
+message(STATUS "ENABLE_WERROR: ${ENABLE_WERROR}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "ENABLE_UTILS: ${ENABLE_UTILS}")
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
@@ -69,13 +71,26 @@ message(STATUS "ENABLE_REQUEST_LOG: ${ENABLE_REQUEST_LOG}")
 message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
 
-## All the environment tests (libs, includes, etc.) live here:
+# All the environment tests (libs, includes, etc.) live here:
 include(EnvTests.cmake)
 include(Libraries)
 check_includes("${INCLUDES}")
 
+# Disable -pedantic for old gcc because of unfounded
+# "no comma at end of enumerator list" warning during crcutil compilation
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE COMPILER_VERSION)
+if(ENABLE_WERROR AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND COMPILER_VERSION VERSION_LESS 4.7)
+  message(STATUS "Flag '-pedantic' disabled for GCC < 4.7")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
+endif()
+
 if(CXX_HAS_WNOGNU)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu")
+endif()
+
+if(ENABLE_WERROR)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 endif()
 
 if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)

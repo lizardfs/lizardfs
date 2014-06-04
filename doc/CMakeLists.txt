@@ -1,7 +1,64 @@
-file(GLOB MANPAGES *.[0-9])
+if(NOT A2X_BINARY)
+  message(WARNING "Program 'a2x' not found, manpages won't be generated")
+  return()
+endif()
+
+# These manpages should be generated
+set(MANPAGES
+    mfsappendchunks.1
+    mfscheckfile.1
+    mfsdirinfo.1
+    mfsfileinfo.1
+    mfsfilerepair.1
+    mfsgeteattr.1
+    mfsseteattr.1       # not a source
+    mfsdeleattr.1       # not a source
+    mfsgetgoal.1
+    mfssetgoal.1        # not a source
+    mfsrgetgoal.1       # not a source
+    mfsrsetgoal.1       # not a source
+    mfsgettrashtime.1
+    mfssettrashtime.1   # not a source
+    mfsrgettrashtime.1  # not a source
+    mfsrsettrashtime.1  # not a source
+    mfsmakesnapshot.1
+    mfsmount.1
+    mfsrepquota.1
+    mfssetquota.1       # not a source
+    mfstools.1
+    globaliolimits.cfg.5
+    iolimits.cfg.5
+    mfschunkserver.cfg.5
+    mfsexports.cfg.5
+    mfshdd.cfg.5
+    mfsmaster.cfg.5
+    mfsmetalogger.cfg.5
+    mfstopology.cfg.5
+    moosefs.7
+    mfs.7               # not a source
+    mfscgiserv.8
+    mfschunkserver.8
+    mfsmaster.8
+    mfsmetalogger.8
+    mfsmetarestore.8
+)
+
+set(INSTALLED_MANPAGES)
 foreach(MANPAGE ${MANPAGES})
-  if(${MANPAGE} MATCHES ".([0-9])$")
-    set(SECTION_NUMBER ${CMAKE_MATCH_1})
-    install(FILES ${MANPAGE} DESTINATION ${MAN_SUBDIR}/man${SECTION_NUMBER})
+  get_filename_component(MANPAGE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${MANPAGE}.txt ABSOLUTE)
+  string(REGEX MATCH "[0-9]$" SECTION_NUMBER ${MANPAGE})
+  set(GENERATED_MANPAGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
+  if(EXISTS ${MANPAGE_SRC})
+    # Generate from the source...
+    set(MANPAGE_SRC_SYMLINK ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE}.txt)
+    add_custom_command(OUTPUT ${GENERATED_MANPAGE_PATH}
+        COMMAND ln -s -f ${MANPAGE_SRC} ${MANPAGE_SRC_SYMLINK}
+        COMMAND a2x -f manpage ${MANPAGE_SRC_SYMLINK}
+        DEPENDS ${MANPAGE_SRC})
+    # Add this file to the main target's dependencies
+    set(GENERATED_MANPAGES ${GENERATED_MANPAGES} ${GENERATED_MANPAGE_PATH})
   endif()
+  # Install the generated file
+  install(FILES ${GENERATED_MANPAGE_PATH} DESTINATION ${MAN_SUBDIR}/man${SECTION_NUMBER})
 endforeach()
+add_custom_target(manpages ALL SOURCES ${GENERATED_MANPAGES})

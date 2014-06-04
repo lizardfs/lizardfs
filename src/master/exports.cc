@@ -500,7 +500,7 @@ int exports_parsetime(char *timestr,uint32_t *time) {
 	return -1;      // unreachable
 }
 
-// x | x.y | x.y.z -> ( x<<16 + y<<8 + z )
+// x | x.y | x.y.z -> (x<<16 + y<<8 + z)
 int exports_parseversion(char *verstr,uint32_t *version) {
 	uint32_t vp;
 	if (*verstr<'0' || *verstr>'9') {

@@ -170,7 +170,7 @@ void oplog_getdata(unsigned long fh,uint8_t **buff,uint32_t *leng,uint32_t maxle
 	struct timespec ts;
 
 	pthread_mutex_lock(&opbufflock);
-	for (fhptr=fhhead ; fhptr && fhptr->fh != fh ; fhptr=fhptr->next ) {
+	for (fhptr=fhhead ; fhptr && fhptr->fh != fh ; fhptr=fhptr->next) {
 	}
 	if (fhptr==NULL) {
 		*buff = NULL;

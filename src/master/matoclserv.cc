@@ -992,6 +992,7 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	gid=0;
 	auid=0;
 	agid=0;
+	serializer = nullptr;
 	for (eaptr = matoclservhead ; eaptr && eptr==NULL ; eaptr=eaptr->next) {
 		if (eaptr->mode!=KILL) {
 			acl = &(eaptr->chunkdelayedops);
@@ -3048,7 +3049,7 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, const uint8_t *data, uint32_
 		status = ERROR_EINVAL;
 	}
 
-	uint32_t changed = 0, notchanged = 0, notpermitted = 0, quotaexceeded = 0;
+	uint32_t changed = 0, notchanged = 0, notpermitted = 0;
 	if (status == STATUS_OK) {
 		status = fs_setgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, uid, goal,
 				smode, &changed, &notchanged, &notpermitted);
@@ -3173,7 +3174,7 @@ void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 		return;
 	}
 	mode = get8bit(&data);
-	if (mode!=MFS_XATTR_GETA_DATA && mode!=MFS_XATTR_LENGTH_ONLY) {
+	if (mode!=XATTR_GMODE_GET_DATA && mode!=XATTR_GMODE_LENGTH_ONLY) {
 		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,5);
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,ERROR_EINVAL);
@@ -3181,13 +3182,13 @@ void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 		void *xanode;
 		uint32_t xasize;
 		status = fs_listxattr_leng(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,&xanode,&xasize);
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==MFS_XATTR_GETA_DATA)?xasize:0));
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==XATTR_GMODE_GET_DATA)?xasize:0));
 		put32bit(&ptr,msgid);
 		if (status!=STATUS_OK) {
 			put8bit(&ptr,status);
 		} else {
 			put32bit(&ptr,xasize);
-			if (mode==MFS_XATTR_GETA_DATA && xasize>0) {
+			if (mode==XATTR_GMODE_GET_DATA && xasize>0) {
 				fs_listxattr_data(xanode,ptr);
 			}
 		}
@@ -3195,13 +3196,13 @@ void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 		uint8_t *attrvalue;
 		uint32_t avleng;
 		status = fs_getxattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,opened,uid,gid,anleng,attrname,&avleng,&attrvalue);
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==MFS_XATTR_GETA_DATA)?avleng:0));
+		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETXATTR,(status!=STATUS_OK)?5:8+((mode==XATTR_GMODE_GET_DATA)?avleng:0));
 		put32bit(&ptr,msgid);
 		if (status!=STATUS_OK) {
 			put8bit(&ptr,status);
 		} else {
 			put32bit(&ptr,avleng);
-			if (mode==MFS_XATTR_GETA_DATA && avleng>0) {
+			if (mode==XATTR_GMODE_GET_DATA && avleng>0) {
 				memcpy(ptr,attrvalue,avleng);
 			}
 		}

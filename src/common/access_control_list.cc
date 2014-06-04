@@ -49,7 +49,7 @@ AccessControlList AccessControlList::fromString(const std::string& str) {
 	eat(rptr, "/g::");
 	acl.extendedAcl.reset(new ExtendedAcl(accessMaskFromChar(*rptr++)));
 	while (*rptr != '\0') {
-		char entryType;
+		char entryType = '\0';
 		eat(rptr, "/");
 		if (*rptr != '\0') {
 			entryType = *rptr++; // should be 'g' or 'u' -- will be verified in a moment

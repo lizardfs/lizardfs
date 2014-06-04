@@ -4,6 +4,7 @@
 # If out_var provided an associative array with name $out_var
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
+	local use_moosefs=${USE_MOOSEFS:-}
 	local use_ramdisk=${USE_RAMDISK:-}
 	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_chunkservers=${CHUNKSERVERS:-1}
@@ -18,6 +19,12 @@ setup_local_empty_lizardfs() {
 
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
+
+	local oldpath="$PATH"
+	if [[ $use_moosefs ]]; then
+		export PATH="$MOOSEFS_DIR/bin:$MOOSEFS_DIR/sbin:$PATH"
+		build_moosefs
+	fi
 
 	# Start master
 	run_master_server
@@ -58,6 +65,8 @@ setup_local_empty_lizardfs() {
 	for key in "${!lizardfs_info[@]}"; do
 		eval "$out_var['$key']='${lizardfs_info[$key]}'"
 	done
+
+	export PATH="$oldpath"
 }
 
 create_mfsexports_cfg() {
@@ -78,6 +87,11 @@ create_mfsmaster_cfg() {
 	echo "MATOCS_LISTEN_PORT = $matocs_port"
 	echo "MATOCL_LISTEN_PORT = $matocl_port"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
+}
+
+lizardfs_chunkserver_daemon() {
+	mfschunkserver -c "${lizardfs_info[chunkserver${1}_config]}" "$2" | cat
+	return ${PIPESTATUS[0]}
 }
 
 lizardfs_master_daemon() {
@@ -179,6 +193,11 @@ create_mfsmount_cfg() {
 }
 
 add_mount() {
+	# Following two variables are sometimes, but not always inherited from callee,
+	# thus we need to define them once again:
+	local etcdir=$TEMP_DIR/mfs/etc
+	local mntdir=$TEMP_DIR/mnt
+
 	local mount_id=$1
 	local mount_dir=$mntdir/mfs$mount_id
 	local mount_cfg=$etcdir/mfsmount.cfg
@@ -256,3 +275,6 @@ lizardfs_wait_for_ready_chunkservers() {
 lizardfs_wait_for_all_ready_chunkservers() {
 	lizardfs_wait_for_ready_chunkservers ${lizardfs_info[chunkserver_count]}
 }
+
+LIZARDFS_BLOCK_SIZE=$((64 * 1024))
+LIZARDFS_CHUNK_SIZE=$((1024 * LIZARDFS_BLOCK_SIZE))

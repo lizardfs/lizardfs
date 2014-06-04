@@ -184,7 +184,7 @@ class HTTP(ClientHandler):
 		self.requestline = lines[0]
 		try:
 			self.method,self.url,self.protocol = lines[0].strip().split()
-			if not self.protocol.startswith("HTTP/1") or ( self.protocol[7]!='0' and self.protocol[7]!='1') or len(self.protocol)!=8:
+			if not self.protocol.startswith("HTTP/1") or (self.protocol[7]!='0' and self.protocol[7]!='1') or len(self.protocol)!=8:
 				self.method = None
 				self.protocol = "HTTP/1.1"
 				return True
