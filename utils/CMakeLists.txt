@@ -1,5 +1,7 @@
 include_directories(${CMAKE_SOURCE_DIR})
 
+install(PROGRAMS cpp-interpreter.sh DESTINATION ${BIN_SUBDIR})
+
 # test files generator
 add_executable(file-generate file_generate.cc)
 install(TARGETS file-generate RUNTIME DESTINATION ${BIN_SUBDIR})

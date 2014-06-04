@@ -2031,10 +2031,29 @@ namespace {
 class XattrHandler {
 public:
 	virtual ~XattrHandler() {}
+
+	/*
+	 * handler for request to set an extended attribute
+	 * mode - one of XATTR_SMODE_*
+	 * returns status
+	 */
 	virtual uint8_t setxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
 			uint32_t nleng, const char *value, size_t size, int mode) = 0;
+
+	/*
+	 * handler for request to get an extended attribute
+	 * mode - one of XATTR_GMODE_*
+	 * returns status and:
+	 * * sets value is mode is XATTR_GMODE_GET_DATA
+	 * * sets valueLength is mode is XATTR_GMODE_LENGTH_ONLY
+	 */
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) = 0;
+			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) = 0;
+
+	/*
+	 * handler for request to remove an extended attribute
+	 * returns status
+	 */
 	virtual uint8_t removexattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
 			uint32_t nleng) = 0;
 };
@@ -2048,13 +2067,12 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *name,
-			uint32_t nleng, std::vector<uint8_t>& buffer, int mode) {
+			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		const uint8_t *buff;
-		uint32_t leng;
 		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
-				mode, &buff, &leng);
+				mode, &buff, &valueLength);
 		if (mode == XATTR_GMODE_GET_DATA && status == STATUS_OK) {
-			buffer = std::vector<uint8_t>(buff, buff+leng);
+			value = std::vector<uint8_t>(buff, buff + valueLength);
 		}
 		return status;
 	}
@@ -2074,7 +2092,7 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx&, fuse_ino_t, const char *,
-			uint32_t, std::vector<uint8_t>&, int) {
+			uint32_t, int, uint32_t&, std::vector<uint8_t>&) {
 		return error_;
 	}
 
@@ -2110,7 +2128,7 @@ public:
 	}
 
 	virtual uint8_t getxattr(const fuse_ctx& ctx, fuse_ino_t ino, const char *,
-			uint32_t, std::vector<uint8_t>& buffer, int) {
+			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
@@ -2120,7 +2138,8 @@ public:
 			return status;
 		}
 		try {
-			buffer = aclConverter::aclObjectToXattr(acl);
+			value = aclConverter::aclObjectToXattr(acl);
+			valueLength = value.size();
 			return STATUS_OK;
 		} catch (Exception&) {
 			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
@@ -2289,9 +2308,8 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		mode = XATTR_GMODE_GET_DATA;
 	}
 	(void)position;
-	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, buffer, mode);
+	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, mode, leng, buffer);
 	buff = buffer.data();
-	leng = buffer.size();
 	status = mfs_errorconv(status);
 	if (status!=0) {
 		fuse_reply_err(req,status);
