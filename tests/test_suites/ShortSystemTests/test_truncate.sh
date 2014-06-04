@@ -9,7 +9,7 @@ block_size=$LIZARDFS_BLOCK_SIZE
 chunk_size=$LIZARDFS_CHUNK_SIZE
 first_loop=yes
 
-for goal in 2 xor2; do
+for goal in 2 xor3; do
 	if [[ $first_loop == no ]]; then
 		# Empty the ramdisk to prevent running out of space in case of big chunks
 		find_all_chunks | xargs rm -f

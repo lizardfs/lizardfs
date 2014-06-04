@@ -1,5 +1,5 @@
 timeout_set 1 minute
-CHUNKSERVERS=3 \
+CHUNKSERVERS=4 \
 	DISK_PER_CHUNKSERVER=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	USE_RAMDISK=YES \
@@ -7,7 +7,7 @@ CHUNKSERVERS=3 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor2 "$dir"
+mfssetgoal xor3 "$dir"
 
 # Create a temporary file with some data
 file_size_mb=5
@@ -27,8 +27,8 @@ if ! file-validate "$dir/file"; then
 	test_add_failure "Data read from file is different than written"
 fi
 
-# Find the chunkserver serving part 1 of 2 and stop it
-csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_2*')
+# Find the chunkserver serving part 1 of 3 and stop it
+csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_3*')
 mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
 
 # Validate the parity part

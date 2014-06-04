@@ -26,25 +26,25 @@ FILE_SIZE=$((1000 + LIZARDFS_CHUNK_SIZE)) file-generate file
 assert_success file-validate file
 assert_equals "8 standard" "$(chunks_state)"
 
-# Create its snapshots in goal 1 and xor2; there should be still 8 chunk files in total
+# Create its snapshots in goal 1 and xor3; there should be still 8 chunk files in total
 mfsmakesnapshot file file_snapshot1
 mfsmakesnapshot file file_snapshot2
 mfssetgoal 1 file_snapshot1
-mfssetgoal xor2 file_snapshot2
+mfssetgoal xor3 file_snapshot2
 assert_equals "8 standard" "$(chunks_state)"
 
-# Remove file leaving only snapshots; there should be 3 xor2 parts created for 2 chunks (6 total)
+# Remove file leaving only snapshots; there should be 4 xor3 parts created for 2 chunks (8 total)
 mfssettrashtime 0 file*
 rm file
 echo "Waiting for chunks to be converted..."
-assert_success wait_for '[[ "$(chunks_state)" == "6 xor2" ]]' '3 minutes'
+assert_success wait_for '[[ "$(chunks_state)" == "8 xor3" ]]' '3 minutes'
 echo "Checking if chunks are no longer being converted/deleted..."
-assert_failure wait_for '[[ "$(chunks_state)" != "6 xor2" ]]' '30 seconds'
+assert_failure wait_for '[[ "$(chunks_state)" != "8 xor3" ]]' '30 seconds'
 
 # Remove file with goal 1, expect no deletions
 rm file_snapshot1
 echo "Checking if chunks are no longer being converted/deleted..."
-assert_failure wait_for '[[ "$(chunks_state)" != "6 xor2" ]]' '30 seconds'
+assert_failure wait_for '[[ "$(chunks_state)" != "8 xor3" ]]' '30 seconds'
 
 # Make a new snapshot of goal 3, expect 6 standard chunks (2 chunks x 3 copies)
 mfsmakesnapshot file_snapshot2 file_snapshot3

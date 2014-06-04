@@ -29,6 +29,6 @@ dd if=/dev/urandom of="$chunk" bs=1 seek=$damage_start count=$damage_length conv
 MESSAGE="Reading file with corrupted chunk" expect_success file-validate file
 
 echo "Waiting for the chunk to be fixed..."
-assert_success wait_for '[[ $(get_damaged_area "$chunk") == $correct_data ]]' "15 seconds"
+assert_success wait_for '[[ $(get_damaged_area "$chunk") == $correct_data ]]' "25 seconds"
 assert_success wait_for '[[ $(mfsfileinfo file | grep -c copy) == 4 ]]' "5 seconds"
 MESSAGE="Reading file with fixed chunk" expect_success file-validate file
