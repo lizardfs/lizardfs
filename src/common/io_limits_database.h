@@ -13,10 +13,19 @@
 #include "common/io_limits_config_loader.h"
 #include "common/token_bucket.h"
 
+/**
+ * This class is responsible for limiting resources for every group. It gives a user a possibility
+ * to define how does he want to limit each group and provides an interface for acquiring these
+ * resources. It does that by having a separate TokenBucket rate limiter for every GroupID,
+ * initializing it with proper values and passing requests for a given GroupID to an appropriate
+ * TokenBucket.
+ */
 class IoLimitsDatabase {
 public:
 	typedef std::string GroupId;
 
+	// An exception that is thrown if a user requestes an assignment for a group
+	// that cannot be served
 	LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(InvalidGroupIdException, Exception,
 			"invalid group id");
 
