@@ -286,7 +286,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			return 1;
 		}
 		read_data_init(gMountOptions.ioretries);
-		write_data_init(gMountOptions.writecachesize*1024*1024,
+		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,
 				gMountOptions.writewindowsize);
@@ -646,10 +646,10 @@ int main(int argc, char *argv[]) try {
 				gMountOptions.writecachesize);
 		gMountOptions.writecachesize=16;
 	}
-	if (gMountOptions.writecachesize>2048) {
-		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 2048 MiB\n",
+	if (gMountOptions.writecachesize>1024*1024) {
+		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 1 TiB\n",
 				gMountOptions.writecachesize);
-		gMountOptions.writecachesize=2048;
+		gMountOptions.writecachesize=1024*1024;
 	}
 	if (gMountOptions.writeworkers<1) {
 		fprintf(stderr,"no write workers - increasing number of workers to 1\n");
