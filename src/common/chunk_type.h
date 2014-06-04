@@ -37,6 +37,19 @@ public:
 		return isXorChunkType() ? getXorLevel() : 1;
 	}
 
+	// Returns number of blocks of chunk that are stored in this
+	// part if the chunk has blockInChunk blocks
+	uint32_t getNumberOfBlocks(uint32_t blockInChunk) const {
+		if (isStandardChunkType()) {
+			return blockInChunk;
+		} else {
+			sassert(isXorChunkType());
+			uint32_t positionInStripe = (isXorParity()
+					? getXorLevel() - 1 : getXorLevel() - getXorPart());
+			return (blockInChunk + positionInStripe) / getXorLevel();
+		}
+	}
+
 	static uint32_t chunkLengthToChunkTypeLength(ChunkType ct, uint32_t chunkLength) {
 		if (ct.isStandardChunkType()) {
 			return chunkLength;

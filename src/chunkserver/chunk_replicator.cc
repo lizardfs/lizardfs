@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
+#include <string>
 
 #include "common/crc.h"
 #include "common/cstocs_communication.h"
@@ -75,7 +76,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	auto expected = std::make_tuple(chunkId, chunkVersion, chunkType, uint8_t(STATUS_OK));
 	auto actual = std::make_tuple(rxChunkId, rxChunkVersion, rxChunkType, status);
 	if (actual != expected) {
-		throw Exception("Received invalid response for chunk get block"); // TODO print actual, expected
+		throw Exception("Received invalid response for chunk get block");
 	}
 
 	// Success!
@@ -83,16 +84,16 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 		return nrOfBlocks;
 	} else if (chunkType.isXorChunkType()
 			&& (chunkType.isXorParity() || chunkType.getXorPart() == 1)) {
-		return nrOfBlocks * chunkType.getXorLevel();
+		return std::min(MFSBLOCKSINCHUNK, nrOfBlocks * chunkType.getXorLevel());
 	} else {
-		sassert(chunkType.isXorChunkType() && !chunkType.isXorParity()); // TODO poklocic sie
-		return (nrOfBlocks + 1) * chunkType.getXorLevel();
+		sassert(chunkType.isXorChunkType() && !chunkType.isXorParity());
+		return std::min(MFSBLOCKSINCHUNK, (nrOfBlocks + 1) * chunkType.getXorLevel());
 	}
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 		const std::vector<ChunkTypeWithAddress>& sources) {
-	auto isStandardChunkType = [](const ChunkTypeWithAddress& ctwa) { // TODO [=]
+	auto isStandardChunkType = [](const ChunkTypeWithAddress& ctwa) {
 		return ctwa.chunkType.isStandardChunkType();
 	};
 	auto isParityOrXorFirstPart = [](const ChunkTypeWithAddress& ctwa) {
@@ -134,7 +135,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 	uint32_t batchSize = 50;
 	if (fileCreator.chunkType().isXorChunkType()) {
 		ChunkType::XorLevel level = fileCreator.chunkType().getXorLevel();
-		blocks = (blocks + level - 1) / level;
+		blocks = fileCreator.chunkType().getNumberOfBlocks(blocks);
 		// Round batchSize to work better with available xor level:
 		batchSize = level * ((batchSize + level - 1) / level);
 	}

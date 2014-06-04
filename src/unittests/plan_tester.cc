@@ -16,7 +16,7 @@ Block::Block(ChunkType chunkType, uint32_t blocknum) {
 	} else {
 		uint32_t level = chunkType.getXorLevel();
 		if (chunkType.isXorParity()) {
-			uint32_t blocksInParityPart = (MFSBLOCKSINCHUNK + level - 1) / level;
+			uint32_t blocksInParityPart = chunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
 			sassert(blocknum < blocksInParityPart);
 			for (uint32_t i = 0; i < level; ++i) {
 				if (blocknum * level + i < MFSBLOCKSINCHUNK) {
@@ -24,7 +24,7 @@ Block::Block(ChunkType chunkType, uint32_t blocknum) {
 				}
 			}
 		} else {
-			uint32_t blocksInPart = (MFSBLOCKSINCHUNK + level - chunkType.getXorPart()) / level;
+			uint32_t blocksInPart = chunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
 			massert(blocknum < blocksInPart, boost::str(boost::format(
 					"Requested block %1% from %2%") % blocknum % chunkType).c_str());
 			toggle(blocknum * level + chunkType.getXorPart() - 1);

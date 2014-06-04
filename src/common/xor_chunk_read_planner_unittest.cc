@@ -42,13 +42,7 @@ protected:
 		for (ChunkType part : availableParts) {
 			scores[part] = 1.0;
 		}
-		uint32_t level = plannerChunkType.getXorLevel();
-		uint32_t blocksInPart;
-		if (plannerChunkType.isXorParity()) {
-			blocksInPart = (MFSBLOCKSINCHUNK + level - 1) / level;
-		} else {
-			blocksInPart = (MFSBLOCKSINCHUNK + level - plannerChunkType.getXorPart()) / level;
-		}
+		uint32_t blocksInPart = plannerChunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
 
 		XorChunkReadPlanner planner(plannerChunkType);
 		planner.prepare(availableParts, scores);
