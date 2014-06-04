@@ -849,10 +849,10 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 	for (xa = xattr_data_hash[hash]; xa ; xa=xa->next) {
 		if (xa->inode==inode && xa->anleng==anleng && memcmp(xa->attrname,attrname,anleng)==0) {
 			passert(ih);
-			if (mode==MFS_XATTR_CREATE_ONLY) { // create only
+			if (mode==XATTR_SMODE_CREATE_ONLY) { // create only
 				return ERROR_EEXIST;
 			}
-			if (mode==MFS_XATTR_REMOVE) { // remove
+			if (mode==XATTR_SMODE_REMOVE) { // remove
 				ih->anleng -= anleng+1U;
 				ih->avleng -= xa->avleng;
 				xattr_removeentry(xa);
@@ -882,7 +882,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		}
 	}
 
-	if (mode==MFS_XATTR_REPLACE_ONLY || mode==MFS_XATTR_REMOVE) {
+	if (mode==XATTR_SMODE_REPLACE_ONLY || mode==XATTR_SMODE_REMOVE) {
 		return ERROR_ENOATTR;
 	}
 
@@ -5671,7 +5671,7 @@ uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 	if (xattr_namecheck(anleng,attrname)<0) {
 		return ERROR_EINVAL;
 	}
-	if (mode>MFS_XATTR_REMOVE) {
+	if (mode>XATTR_SMODE_REMOVE) {
 		return ERROR_EINVAL;
 	}
 	status = xattr_setattr(inode,anleng,attrname,avleng,attrvalue,mode);
@@ -5726,7 +5726,7 @@ uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 uint8_t fs_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode) {
 	fsnode *p;
 	uint8_t status;
-	if (anleng==0 || anleng>MFS_XATTR_NAME_MAX || avleng>MFS_XATTR_SIZE_MAX || mode>MFS_XATTR_REMOVE) {
+	if (anleng==0 || anleng>MFS_XATTR_NAME_MAX || avleng>MFS_XATTR_SIZE_MAX || mode>XATTR_SMODE_REMOVE) {
 		return ERROR_EINVAL;
 	}
 	p = fsnodes_id_to_node(inode);

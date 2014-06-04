@@ -2053,7 +2053,7 @@ public:
 		uint32_t leng;
 		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
 				mode, &buff, &leng);
-		if (mode == MFS_XATTR_GETA_DATA && status == STATUS_OK) {
+		if (mode == XATTR_GMODE_GET_DATA && status == STATUS_OK) {
 			buffer = std::vector<uint8_t>(buff, buff+leng);
 		}
 		return status;
@@ -2221,7 +2221,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
 		return;
 	}
-	mode = (flags==XATTR_CREATE)?MFS_XATTR_CREATE_ONLY:(flags==XATTR_REPLACE)?MFS_XATTR_REPLACE_ONLY:MFS_XATTR_CREATE_OR_REPLACE;
+	mode = (flags==XATTR_CREATE)?XATTR_SMODE_CREATE_ONLY:(flags==XATTR_REPLACE)?XATTR_SMODE_REPLACE_ONLY:XATTR_SMODE_CREATE_OR_REPLACE;
 #else
 	mode = 0;
 #endif
@@ -2284,9 +2284,9 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 		return;
 	}
 	if (size==0) {
-		mode = MFS_XATTR_LENGTH_ONLY;
+		mode = XATTR_GMODE_LENGTH_ONLY;
 	} else {
-		mode = MFS_XATTR_GETA_DATA;
+		mode = XATTR_GMODE_GET_DATA;
 	}
 	(void)position;
 	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, buffer, mode);
@@ -2330,9 +2330,9 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 		return;
 	}
 	if (size==0) {
-		mode = MFS_XATTR_LENGTH_ONLY;
+		mode = XATTR_GMODE_LENGTH_ONLY;
 	} else {
-		mode = MFS_XATTR_GETA_DATA;
+		mode = XATTR_GMODE_GET_DATA;
 	}
 	status = fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng);
 	status = mfs_errorconv(status);

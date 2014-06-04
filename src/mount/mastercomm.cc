@@ -2137,8 +2137,8 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 		ret = ERROR_IO;
 	} else {
 		*vleng = get32bit(&rptr);
-		*vbuff = (mode==MFS_XATTR_GETA_DATA)?rptr:NULL;
-		if ((mode==MFS_XATTR_GETA_DATA && i!=(*vleng)+4) || (mode==MFS_XATTR_LENGTH_ONLY && i!=4)) {
+		*vbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
+		if ((mode==XATTR_GMODE_GET_DATA && i!=(*vleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
 			ret = ERROR_IO;
 		} else {
@@ -2177,8 +2177,8 @@ uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uin
 		ret = ERROR_IO;
 	} else {
 		*dleng = get32bit(&rptr);
-		*dbuff = (mode==MFS_XATTR_GETA_DATA)?rptr:NULL;
-		if ((mode==MFS_XATTR_GETA_DATA && i!=(*dleng)+4) || (mode==MFS_XATTR_LENGTH_ONLY && i!=4)) {
+		*dbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
+		if ((mode==XATTR_GMODE_GET_DATA && i!=(*dleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
 			ret = ERROR_IO;
 		} else {
@@ -2197,7 +2197,7 @@ uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
 		return ERROR_ENOTSUP;
 	}
-	if (mode>=MFS_XATTR_REMOVE) {
+	if (mode>=XATTR_SMODE_REMOVE) {
 		return ERROR_EINVAL;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETXATTR,19+nleng+vleng);
@@ -2248,7 +2248,7 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	memcpy(wptr,name,nleng);
 	wptr+=nleng;
 	put32bit(&wptr,0);
-	put8bit(&wptr,MFS_XATTR_REMOVE);
+	put8bit(&wptr,XATTR_SMODE_REMOVE);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETXATTR,&i);
 	if (rptr==NULL) {
 		ret = ERROR_IO;
