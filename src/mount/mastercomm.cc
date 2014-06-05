@@ -1388,7 +1388,7 @@ uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
-	uint8_t ret;
+	uint8_t ret = ERROR_IO;
 	unsigned retries = 0;
 	int retrySleepTime_ms = 200;
 
