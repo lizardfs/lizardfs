@@ -31,19 +31,23 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <boost/filesystem.hpp>
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
+#include "common/lockfile.h"
 #include "common/massert.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
+#include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/metadata_dumper.h"
+#include "master/personality.h"
 #include "master/quota_database.h"
 
 #ifdef HAVE_PWD_H
@@ -262,12 +266,11 @@ static uint32_t filenodes;
 static uint32_t dirnodes;
 
 static QuotaDatabase gQuotaDatabase;
+static std::unique_ptr<Lockfile> gMetadataLockfile;
 
 #ifndef METARESTORE
 
 static uint32_t gStoredPreviousBackMetaCopies;
-const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
-const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -335,32 +338,6 @@ void fs_stats(uint32_t stats[16]) {
 	stats_open=0;
 	stats_read=0;
 	stats_write=0;
-}
-
-static void renameBackupFile(bool ifExistsOnly, const std::string& from, const std::string& to) {
-	if (ifExistsOnly) {
-		if (access(from.c_str(), F_OK) != 0 && errno == ENOENT) {
-			return;
-		}
-	}
-	if (rename(from.c_str(), to.c_str()) != 0) {
-		mfs_arg_errlog(LOG_ERR, "rename backup file %s to %s failed", from.c_str(), to.c_str());
-	}
-}
-
-static void renameBackupFiles() {
-	// rename previous backups
-	if (gStoredPreviousBackMetaCopies > 0) {
-		std::string from, to;
-		for (int n = gStoredPreviousBackMetaCopies; n > 1; n--) {
-			renameBackupFile(true,
-					METADATA_BACK_FILENAME "." + std::to_string(n - 1),
-					METADATA_BACK_FILENAME "." + std::to_string(n));
-		}
-		renameBackupFile(true, METADATA_BACK_FILENAME, METADATA_BACK_FILENAME ".1");
-	}
-	renameBackupFile(false, METADATA_BACK_TMP_FILENAME, METADATA_BACK_FILENAME);
-	unlink(METADATA_FILENAME);
 }
 
 #endif // ifndef METARESTORE
@@ -533,7 +510,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	return checksum;
 }
 
-static MetadataDumper metadataDumper(METADATA_BACK_FILENAME, METADATA_BACK_TMP_FILENAME);
+static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #ifndef METARESTORE
 void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
@@ -544,14 +521,14 @@ void metadataPollServe(struct pollfd* pdesc) {
 	metadataDumper.pollServe(pdesc);
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
 		if (metadataDumper.dumpSucceeded()) {
-			renameBackupFiles();
+			rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
 		} else {
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
 				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
 				fs_checksum(ChecksumMode::kForceRecalculate);
 			}
-			unlink(METADATA_BACK_TMP_FILENAME);
+			unlink(kMetadataTmpFilename);
 		}
 	}
 }
@@ -4148,6 +4125,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	return STATUS_OK;
 }
 #else
+
 uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode) {
 	fsnode *wd,*p;
 	if (type!=TYPE_FILE && type!=TYPE_SOCKET && type!=TYPE_FIFO && type!=TYPE_BLOCKDEV && type!=TYPE_CHARDEV && type!=TYPE_DIRECTORY) {
@@ -8226,21 +8204,20 @@ void fs_new(void) {
 }
 #endif
 
-int fs_emergency_storeall(const char *fname) {
-	FILE *fd;
-	fd = fopen(fname,"w");
+int fs_emergency_storeall(const std::string& fname) {
+	cstream_t fd(fopen(fname.c_str(), "w"));
 	if (fd==NULL) {
 		return -1;
 	}
 
-	fs_store_fd(fd);
+	fs_store_fd(fd.get());
 
-	if (ferror(fd)!=0) {
-		fclose(fd);
+	if (ferror(fd.get())!=0) {
 		return -1;
 	}
-	fclose(fd);
-	syslog(LOG_WARNING,"metadata were stored to emergency file: %s - please copy this file to your default location as '" METADATA_FILENAME "'",fname);
+	syslog(LOG_WARNING,
+			"metadata were stored to emergency file: %s - please copy this file to your default location as '%s'",
+			fname.c_str(), kMetadataFilename);
 	return 0;
 }
 
@@ -8248,51 +8225,42 @@ int fs_emergency_saves() {
 #if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
 	struct passwd *p;
 #endif
-	if (fs_emergency_storeall(METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall(kMetadataEmergencyFilename) == 0) {
 		return 0;
 	}
 #if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
 	p = getpwuid(getuid());
 	if (p) {
-		char *fname;
-		int l;
-		l = strlen(p->pw_dir);
-		fname = malloc(l+24);
-		if (fname) {
-			memcpy(fname,p->pw_dir,l);
-			fname[l]='/';
-			memcpy(fname+l+1,METADATA_EMERGENCY_FILENAME,22);
-			fname[l+23]=0;
-			if (fs_emergency_storeall(fname)==0) {
-				free(fname);
-				return 0;
-			}
-			free(fname);
+		std::string fname = p->pw_dir;
+		fname.append("/").append(kMetadataEmergencyFilename);
+		if (fs_emergency_storeall(fname) == 0) {
+			return 0;
 		}
 	}
 #endif
-	if (fs_emergency_storeall("/" METADATA_EMERGENCY_FILENAME)==0) {
+	std::string metadata_emergency_filename = kMetadataEmergencyFilename;
+	if (fs_emergency_storeall("/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/tmp/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/tmp/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/var/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/var/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/usr/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/share/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/usr/share/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/usr/local/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/var/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/usr/local/var/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
-	if (fs_emergency_storeall("/usr/local/share/" METADATA_EMERGENCY_FILENAME)==0) {
+	if (fs_emergency_storeall("/usr/local/share/" + metadata_emergency_filename) == 0) {
 		return 0;
 	}
 	return -1;
@@ -8301,7 +8269,6 @@ int fs_emergency_saves() {
 #ifndef METARESTORE
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
-	FILE *fd;
 
 	if (metadataDumper.inProgress()) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
@@ -8313,8 +8280,8 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	bool child = metadataDumper.start(dumpType, fs_checksum(ChecksumMode::kGetCurrent));
 
 	if (dumpType == MetadataDumper::kForegroundDump) {
-		fd = fopen(METADATA_BACK_TMP_FILENAME, "w");
-		if (fd == NULL) {
+		cstream_t fd(fopen(kMetadataTmpFilename, "w"));
+		if (fd == nullptr) {
 			syslog(LOG_ERR, "can't open metadata file");
 			// try to save in alternative location - just in case
 			fs_emergency_saves();
@@ -8324,12 +8291,12 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			return false;
 		}
 
-		fs_store_fd(fd);
+		fs_store_fd(fd.get());
 
-		if (ferror(fd) != 0) {
+		if (ferror(fd.get()) != 0) {
 			syslog(LOG_ERR, "can't write metadata");
-			fclose(fd);
-			unlink(METADATA_BACK_TMP_FILENAME);
+			fd.reset();
+			unlink(kMetadataTmpFilename);
 			// try to save in alternative location - just in case
 			fs_emergency_saves();
 			if (child) {
@@ -8337,15 +8304,15 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			}
 			return false;
 		} else {
-			if (fflush(fd) == EOF) {
+			if (fflush(fd.get()) == EOF) {
 				mfs_errlog(LOG_ERR, "metadata fflush failed");
-			} else if (fsync(fileno(fd)) == -1) {
+			} else if (fsync(fileno(fd.get())) == -1) {
 				mfs_errlog(LOG_ERR, "metadata fsync failed");
 			}
-			fclose(fd);
+			fd.reset();
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
-				renameBackupFiles();
+				rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
 			}
 		}
 		if (child) {
@@ -8364,16 +8331,14 @@ void fs_dostoreall() {
 void fs_term(void) {
 	for (;;) {
 		if (fs_storeall(MetadataDumper::kForegroundDump)) {
-			// store was successful
-			if (rename(METADATA_BACK_FILENAME, METADATA_FILENAME) < 0) {
-				mfs_errlog(LOG_WARNING, "can't rename " METADATA_BACK_FILENAME " -> " METADATA_FILENAME);
-			}
 			chunk_term();
+			gMetadataLockfile->unlock();
 			return ;
 		}
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
 		sleep(10);
 	}
+	gMetadataLockfile->unlock();
 }
 
 #else
@@ -8396,106 +8361,45 @@ void fs_storeall(const char *fname) {
 	fclose(fd);
 }
 
-void fs_term(const char *fname) {
+void fs_term(const char *fname, bool noLock) {
 	fs_storeall(fname);
+	if (!noLock) {
+		gMetadataLockfile->unlock();
+	}
+}
+
+void fs_cancel(bool noLock) {
+	if (!noLock) {
+		gMetadataLockfile->unlock();
+	}
 }
 #endif
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataFSConsistencyException, MetadataException);
+LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataFsConsistencyException, MetadataException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataConsistencyException, MetadataException);
-char const BackupNewerThanCurrentMsg[] =
-	"backup file is newer than current file - please check"
-	" it manually - propably you should run metarestore";
-char const RenameCurrentToBackupMsg[] =
-	"can't rename " METADATA_FILENAME " -> " METADATA_BACK_FILENAME;
 char const MetadataStructureReadErrorMsg[] = "error reading metadata (structure)";
 
-#ifndef METARESTORE
-void fs_loadall(void) {
-#else
-void fs_loadall(const char *fname,int ignoreflag) {
-#endif
-	uint8_t hdr[8];
-#ifndef METARESTORE
-	uint8_t bhdr[8];
-	uint64_t backversion;
-#endif
-
-#ifdef METARESTORE
-	cstream_t fd(fopen(fname,"r"));
-#else
-	backversion = 0;
-	cstream_t fd(fopen(METADATA_BACK_FILENAME,"r"));
-	if (fd != nullptr) {
-		if (fread(bhdr,1,8,fd.get())==8) {
-			// bhdr is something like "MFSM x.y" or "LFSM x.y" (for Light LizardsFS)
-			std::string sig(reinterpret_cast<const char *>(bhdr), 5);
-			std::string ver(reinterpret_cast<const char *>(bhdr) + 5, 3);
-			if (sig == MFSSIGNATURE "M " && (ver == "1.5" || ver == "1.6" || ver == "2.0")) {
-				backversion = fs_loadversion(fd.get());
-			}
-		}
-	}
-
-	fd.reset(fopen(METADATA_FILENAME,"r"));
-#endif
+void fs_loadall(const std::string& fname,int ignoreflag) {
+	cstream_t fd(fopen(fname.c_str(), "r"));
 	if (fd == nullptr) {
-		int savedErrno(errno);
-#ifndef METARESTORE
-		{
-#if defined(HAVE_GETCWD)
-#ifndef PATH_MAX
-#define PATH_MAX 10000
-#endif
-			char cwdbuf[PATH_MAX+1];
-			int cwdlen;
-			if (getcwd(cwdbuf,PATH_MAX)==NULL) {
-				cwdbuf[0]=0;
-			} else {
-				cwdlen = strlen(cwdbuf);
-				if (cwdlen>0 && cwdlen<PATH_MAX-1 && cwdbuf[cwdlen-1]!='/') {
-					cwdbuf[cwdlen]='/';
-					cwdbuf[cwdlen+1]=0;
-				} else {
-					cwdbuf[0]=0;
-				}
-			}
-
-#else
-			char cwdbuf[1];
-			cwdbuf[0]=0;
-#endif
-			mfs_arg_syslog(LOG_ERR, "Can't open metadata file: If this is new instalation "
-					"then rename %s" METADATA_FILENAME ".empty "
-					"as %s" METADATA_FILENAME "%s",
-					cwdbuf, cwdbuf, cwdbuf[0] ? "" : "(in current working directory)");
-		}
-#endif
-		if (savedErrno == ENOENT)
-			throw MetadataFSConsistencyException("metadata file does not exits");
-		else
-			throw FilesystemException("can't open metadata file");
+		throw FilesystemException("can't open metadata file: " + errorString(errno));
 	}
+	uint8_t hdr[8];
 	if (fread(hdr,1,8,fd.get())!=8) {
 		throw MetadataConsistencyException("can't read metadata header");
 	}
 #ifndef METARESTORE
-	if (memcmp(hdr,"MFSM NEW",8)==0) {      // special case - create new file system
-		if (backversion>0) {
-			throw MetadataConsistencyException(BackupNewerThanCurrentMsg);
+	if (master::getPersonality() == master::Personality::kMaster) {
+		if (memcmp(hdr, "MFSM NEW", 8) == 0) {    // special case - create new file system
+			mfs_syslog(LOG_NOTICE, "create new empty filesystem");
+			fs_new();
+			// after creating new filesystem always create "back" file for using in metarestore
+			fs_storeall(MetadataDumper::kForegroundDump);
+			return;
 		}
-		if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
-			throw FilesystemException(RenameCurrentToBackupMsg);
-		}
-		mfs_syslog(LOG_NOTICE, "create new empty filesystem");
-		fs_new();
-		unlink(METADATA_BACK_TMP_FILENAME);
-		// after creating new filesystem always create "back" file for using in metarestore
-		fs_storeall(MetadataDumper::kForegroundDump);
-		return;
 	}
-#endif
+#endif /* #ifndef METARESTORE */
 	uint8_t metadataVersion;
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0) {
 		metadataVersion = kMetadataVersionMooseFS;
@@ -8506,24 +8410,12 @@ void fs_loadall(const char *fname,int ignoreflag) {
 	} else {
 		throw MetadataConsistencyException("wrong metadata header version");
 	}
-#ifndef METARESTORE
-	if (fs_load(fd.get(), 0, metadataVersion) < 0) {
-#else
 	if (fs_load(fd.get(), ignoreflag, metadataVersion) < 0) {
-#endif
 		throw MetadataConsistencyException(MetadataStructureReadErrorMsg);
 	}
 	if (ferror(fd.get())!=0) {
 		throw MetadataConsistencyException(MetadataStructureReadErrorMsg);
 	}
-#ifndef METARESTORE
-	if (backversion>metaversion) {
-		throw MetadataConsistencyException(BackupNewerThanCurrentMsg);
-	}
-	if (rename(METADATA_FILENAME,METADATA_BACK_FILENAME)<0) {
-		throw FilesystemException(RenameCurrentToBackupMsg);
-	}
-#endif
 	fprintf(stderr,"connecting files and chunks ... ");
 	fflush(stderr);
 	fs_add_files_to_chunks();
@@ -8534,10 +8426,29 @@ void fs_loadall(const char *fname,int ignoreflag) {
 	fprintf(stderr,"file inodes: %" PRIu32 "\n",filenodes);
 	fprintf(stderr,"chunks: %" PRIu32 "\n",chunk_count());
 #endif
-	unlink(METADATA_BACK_TMP_FILENAME);
+	unlink(kMetadataTmpFilename);
 	fs_checksum(ChecksumMode::kForceRecalculate);
 	return;
 }
+
+/* executed in master mode */
+#ifndef METARESTORE
+void fs_loadall(void) {
+	namespace fs = boost::filesystem;
+	if (fs::exists(kMetadataTmpFilename)) {
+		throw MetadataFsConsistencyException(
+				"temporary metadata file exists, metadata directory is in dirty state");
+	}
+	if ((master::getPersonality() == master::Personality::kMaster) && !fs::exists(kMetadataFilename)) {
+		std::string currentPath(fs::current_path().string());
+		fprintf(stderr, "Can't open metada file: If this is new instalation "
+			"then rename %s%s.empty as %s%s\n",
+			currentPath.c_str(), kMetadataFilename,
+			currentPath.c_str(), kMetadataFilename);
+	}
+	fs_loadall(kMetadataFilename, 0);
+}
+#endif /* #ifndef METARESTORE */
 
 void fs_strinit(void) {
 	uint32_t i;
@@ -8579,6 +8490,17 @@ void fs_reload(void) {
 }
 
 int fs_init(void) {
+	gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
+	try {
+		gMetadataLockfile->lock();
+	} catch (const LockfileException& e) {
+		if (e.reason() == LockfileException::Reason::kStaleLock) {
+			throw LockfileException(
+					std::string(e.what()) + ", consider running `mfsmetarestore -a' to fix problems with your datadir.",
+					LockfileException::Reason::kStaleLock);
+		}
+		throw;
+	}
 	fprintf(stderr,"loading metadata ...\n");
 	fs_strinit();
 	chunk_strinit();
@@ -8612,7 +8534,13 @@ int fs_init(void) {
 	return 0;
 }
 #else
-int fs_init(const char *fname,int ignoreflag) {
+int fs_init(const char *fname,int ignoreflag, bool noLock) {
+	if (!noLock) {
+		boost::filesystem::path path(fname);
+		gMetadataLockfile.reset(new Lockfile(
+					(path.parent_path() / (kMetadataFilename + std::string(".lock"))).string()));
+		gMetadataLockfile->lock(Lockfile::StaleLock::kSwallow);
+	}
 	fs_strinit();
 	chunk_strinit();
 	try {

@@ -10,6 +10,10 @@ Ensure you have the following packages installed (for Ubuntu):
 
 If you want to be able to sniff interfaces without root privileges execute:
       sudo chmod +s /usr/bin/dumpcap
+On Debian/Ubuntu system you should use dpkg-statoverride command, i.e.:
+      sudo addgroup pcap
+      sudo adduser ${USER} pcap
+      sudo dpkg-statoverride --update --add root pcap 4750 /usr/bin/dumpcap
 
 # Set some variables
       LIZARDFS_SRCDIR=~/src/lizardfs
@@ -44,6 +48,9 @@ If you want to be able to sniff interfaces without root privileges execute:
       sudo ln -s "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
 # or (depending on your wireshark version)
       sudo ln -s "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so /usr/lib/x86_64-linux-gnu/wireshark/libwireshark3/plugins/
+# or better yet, put plugin in your home directory:
+      mkdir -p ${HOME}/.wireshark/plugins
+      mv "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so ${HOME}/.wireshark/plugins/
 # Enjoy! This plugin recognizes the LizardFS proocol using TCP port numbers. If you use
   non-standard ports (9419-9422) you have to change it in Edit->Preferences->Protocols->LizardFS,
   eg. to parse the communication in our test suite:

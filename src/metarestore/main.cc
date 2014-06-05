@@ -33,7 +33,9 @@
 #include <string>
 #include <vector>
 
+#include "common/cfg.h"
 #include "common/metadata.h"
+#include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/strerr.h"
 #include "master/chunks.h"
@@ -161,23 +163,23 @@ int changelog_checkname(const char *fname) {
 void usage(const char* appname) {
 	mfs_syslog(LOG_ERR, "invalid/missing arguments");
 	fprintf(stderr, "restore metadata:\n"
-			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] -m <meta data file> -o "
+			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] [-B n] -m <meta data file> -o "
 			"<restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
 			"dump metadata:\n"
 			"\t%s [-i] -m <meta data file>\n"
 			"autorestore:\n"
-			"\t%s [-f] [-b] [-i] [-x [-x]] -a [-d <data path>]\n"
+			"\t%s [-f] [-b] [-i] [-x [-x]] [-B n] -a [-d <data path>]\n"
 			"print version:\n"
 			"\t%s -v\n"
 			"\n"
-			"-c - print checksum of the metadata\n"
-			"-k - check checksum against given checksum\n"
-			"-x - produce more verbose output\n"
-			"-xx - even more verbose output\n"
-			"-b - if there is any error in change logs then save the best possible metadata file\n"
-			"-i - ignore some metadata structure errors (attach orphans to root, ignore names "
-			"without inode, etc.)\n"
-			"-f - force loading all changelogs", appname, appname, appname, appname);
+			"-B n - keep n backup copies of metadata file\n"
+			"-c   - print checksum of the metadata\n"
+			"-k   - check checksum against given checksum\n"
+			"-x   - produce more verbose output\n"
+			"-xx  - even more verbose output\n"
+			"-b   - if there is any error in change logs then save the best possible metadata file\n"
+			"-i   - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)\n"
+			"-f   - force loading all changelogs\n", appname, appname, appname, appname);
 }
 
 int main(int argc,char **argv) {
@@ -194,11 +196,13 @@ int main(int argc,char **argv) {
 	char *appname = argv[0];
 	uint64_t firstlv,lastlv;
 	std::unique_ptr<uint64_t> expectedChecksum;
+	int storedPreviousBackMetaCopies = kMaxStoredPreviousBackMetaCopies;
+	bool noLock = false;
 
 	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
-	while ((ch = getopt(argc, argv, "fck:vm:o:d:abxih:?")) != -1) {
+	while ((ch = getopt(argc, argv, "fck:vm:o:d:abB:xih:#?")) != -1) {
 		switch (ch) {
 			case 'v':
 				printf("version: %u.%u.%u",
@@ -222,6 +226,9 @@ int main(int argc,char **argv) {
 			case 'b':
 				savebest=1;
 				break;
+			case 'B':
+				storedPreviousBackMetaCopies = std::stoi(optarg);
+				break;
 			case 'i':
 				ignoreflag=1;
 				break;
@@ -239,6 +246,9 @@ int main(int argc,char **argv) {
 					mfs_arg_syslog(LOG_ERR, "invalid checksum: %s", optarg);
 					return 1;
 				}
+				break;
+			case '#':
+				noLock = true;
 				break;
 			case '?':
 			default:
@@ -262,15 +272,18 @@ int main(int argc,char **argv) {
 			datapath = DATA_PATH;
 		}
 		// All candidates from the least to the most preferred one
-		auto candidates{
-			METADATA_ML_BACK_FILENAME ".1",
-			METADATA_BACK_FILENAME ".1",
-			METADATA_ML_BACK_FILENAME,
-			METADATA_BACK_FILENAME,
-			METADATA_FILENAME};
+		// We still load metadata.mfs.back for scenarios where metaretore
+		// is started during migration to lizardfs version with new naming scheme.
+		std::string candidates[] {
+			std::string(kMetadataMlBackFilename) + ".1",
+			std::string(kMetadataBackFilename) + ".1",
+			kMetadataMlBackFilename,
+			std::string(kMetadataBackFilename) + ".1",
+			kMetadataBackFilename,
+			kMetadataFilename};
 		std::string bestmetadata;
 		uint64_t bestversion = 0;
-		for (const char* candidate : candidates) {
+		for (auto candidate : candidates) {
 			std::string metadata_candidate = std::string(datapath) + "/" + candidate;
 			if (access(metadata_candidate.c_str(), F_OK) != 0) {
 				continue;
@@ -282,7 +295,7 @@ int main(int argc,char **argv) {
 					bestmetadata = metadata_candidate;
 				}
 			} catch (MetadataCheckException& ex) {
-				mfs_arg_syslog(LOG_NOTICE, "skipping malformed metadata file %s: %s", candidate, ex.what());
+				mfs_arg_syslog(LOG_NOTICE, "skipping malformed metadata file %s: %s", candidate.c_str(), ex.what());
 			}
 		}
 		if (bestmetadata.empty()) {
@@ -290,12 +303,16 @@ int main(int argc,char **argv) {
 			return 1;
 		}
 		metadata = bestmetadata;
-		metaout =  datapath + "/" METADATA_FILENAME;
-		mfs_arg_syslog(LOG_NOTICE, "file %s will be used to restore the most recent metadata", metadata.c_str());
+		metaout =  datapath + "/" + kMetadataFilename;
+		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
 	}
-
-	if (fs_init(metadata.c_str(), ignoreflag) != 0) {
-		mfs_arg_syslog(LOG_ERR, "error: can't read metadata from file: %s", metadata.c_str());
+	try {
+		if (fs_init(metadata.c_str(), ignoreflag, noLock) != 0) {
+			mfs_arg_syslog(LOG_NOTICE, "error: can't read metadata from file: %s", metadata.c_str());
+			return 1;
+		}
+	} catch (const std::exception& e) {
+		mfs_arg_syslog(LOG_ERR, "error: can't read metadata from file: %s, %s", metadata.c_str(), e.what());
 		return 1;
 	}
 	if (fs_getversion() == 0) {
@@ -353,6 +370,7 @@ int main(int argc,char **argv) {
 		closedir(dd);
 		if (filenames.empty() && metadata == metaout) {
 			mfs_syslog(LOG_NOTICE, "nothing to do, exiting without changing anything");
+			fs_cancel(noLock);
 			return 0;
 		}
 		merger_start(filenames, MAXIDHOLE);
@@ -413,7 +431,10 @@ int main(int argc,char **argv) {
 		chunk_dump();
 	} else {
 		mfs_arg_syslog(LOG_NOTICE, "store metadata into file: %s", metaout.c_str());
-		fs_term(metaout.c_str());
+		if (metaout == metadata) {
+			rotateFiles(metaout, metaout + ".back", storedPreviousBackMetaCopies);
+		}
+		fs_term(metaout.c_str(), noLock);
 	}
 	return returnStatus;
 }

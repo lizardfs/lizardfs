@@ -333,8 +333,8 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		}
 	}
 	if (filenum==1) {
-		eptr->metafd = open(METADATA_BACK_FILENAME,O_RDONLY);
-		eptr->chain1fd = open("changelog.0.mfs",O_RDONLY);
+		eptr->metafd = open(kMetadataFilename, O_RDONLY);
+		eptr->chain1fd = open(kChangelogFilename, O_RDONLY);
 		eptr->chain2fd = open("changelog.1.mfs",O_RDONLY);
 	} else if (filenum==2) {
 		eptr->metafd = open("sessions.mfs",O_RDONLY);

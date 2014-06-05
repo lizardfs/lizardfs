@@ -26,7 +26,7 @@
 
 #include "common/cfg.h"
 #include "common/main.h"
-#include "master/changelog.h"
+#include "common/metadata.h"
 #include "master/matomlserv.h"
 
 #define MAXLOGLINESIZE 200000U
@@ -48,7 +48,7 @@ void changelog_rotate() {
 			rename(logname2,logname1);
 		}
 	} else {
-		unlink("changelog.0.mfs");
+		unlink(kChangelogFilename);
 	}
 	matomlserv_broadcast_logrotate();
 }
@@ -69,7 +69,7 @@ void changelog(uint64_t version,const char *format,...) {
 	}
 
 	if (fd==NULL) {
-		fd = fopen("changelog.0.mfs","a");
+		fd = fopen(kChangelogFilename, "a");
 		if (!fd) {
 			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,printbuff);
 		}

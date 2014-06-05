@@ -151,7 +151,6 @@ void read_data_init(uint32_t retries) {
 }
 
 void read_data_term(void) {
-	uint32_t i;
 	readrec *rr,*rrn;
 
 	{
@@ -160,13 +159,14 @@ void read_data_term(void) {
 	}
 
 	pthread_join(delayedOpsThread,NULL);
-	for (i=0 ; i<MAPSIZE ; i++) {
-		for (rr = rdinodemap[i] ; rr ; rr = rrn) {
-			rrn = rr->next;
-			delete rr;
-		}
-		rdinodemap[i] = NULL;
+	for (rr = rdhead ; rr ; rr = rrn) {
+		rrn = rr->next;
+		delete rr;
 	}
+	for (auto& rr : rdinodemap) {
+		rr = NULL;
+	}
+	rdhead = NULL;
 }
 
 void read_inode_ops(uint32_t inode) { // attributes of inode have been changed - force reconnect

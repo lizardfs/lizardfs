@@ -431,9 +431,14 @@ int initialize(void) {
 	ok = 1;
 	for (i=0 ; (long int)(RunTab[i].fn)!=0 && ok ; i++) {
 		now = time(NULL);
-		if (RunTab[i].fn()<0) {
-			mfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
-			ok=0;
+		try {
+			if (RunTab[i].fn() < 0) {
+				mfs_arg_syslog(LOG_ERR, "init: %s failed !!!", RunTab[i].name);
+				ok=0;
+			}
+		} catch (const std::exception& e) {
+			mfs_arg_syslog(LOG_ERR, "init: %s failed: %s !!!", RunTab[i].name, e.what());
+			ok = 0;
 		}
 	}
 	return ok;
@@ -629,12 +634,12 @@ public:
 		kFail = -1
 	};
 
-	FileLock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck)
+	FileLock(RunMode runmode, uint32_t timeout)
 			: fd_(),
 			  name_("." STR(APPNAME) ".lock"),
 			  lockstatus_(LockStatus::kFail),
 			  thisProcessCreatedLockFile_(false) {
-		while ((lockstatus_ = wdlock(runmode, timeout, lockConsistencyCheck)) == LockStatus::kAgain) {
+		while ((lockstatus_ = wdlock(runmode, timeout)) == LockStatus::kAgain) {
 		}
 		if (lockstatus_ == LockStatus::kFail) {
 			throw FilesystemException("");
@@ -660,9 +665,9 @@ public:
 	}
 
 private:
-	LockStatus wdlock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck);
+	LockStatus wdlock(RunMode runmode, uint32_t timeout);
 	pid_t mylock();
-	void createLockFile(bool lockConsistencyCheck);
+	void createLockFile();
 
 	FileDescriptor fd_;
 	std::string name_;
@@ -697,24 +702,17 @@ pid_t FileLock::mylock() {
 	return pid;
 }
 
-void FileLock::createLockFile(bool lockConsistencyCheck) {
+void FileLock::createLockFile() {
 	bool notExisted((::access(name_.c_str(), F_OK) != 0) && (errno == ENOENT));
-	fd_.reset(open(name_.c_str(), O_WRONLY | O_CREAT | (lockConsistencyCheck ? O_EXCL : 0), 0666));
+	fd_.reset(open(name_.c_str(), O_WRONLY | O_CREAT, 0666));
 	if (!fd_.isOpened()) {
 		throw FilesystemException("can't create lockfile in working directory");
 	}
 	thisProcessCreatedLockFile_ = notExisted;
 }
 
-FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout, bool lockConsistencyCheck) {
-	/*
-	 * Race condition is possible here.
-	 * If lockConsistencyCheck is false, the other instance
-	 * that was running when we started can finish when we reach this line
-	 * and can delete lock file so we will not be protected.
-	 * Unraceable implementation (hardlink based) is possible and should be done.
-	 */
-	createLockFile(lockConsistencyCheck);
+FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
+	createLockFile();
 	pid_t ownerpid(mylock());
 	if (ownerpid<0) {
 		mfs_errlog(LOG_ERR,"fcntl error");
@@ -1109,12 +1107,11 @@ int main(int argc,char **argv) {
 	umask(cfg_getuint32("FILE_UMASK",027)&077);
 
 	std::unique_ptr<FileLock> fl;
-	bool enforceLockfileConsistency(cfg_getint32("ENFORCE_LOCKFILE_CONSISTENCY", 0) == 1 ? true : false);
 	try {
 		/*
 		 * Only kStart should check for lock file consistency.
 		 */
-		fl.reset(new FileLock(runmode, locktimeout, enforceLockfileConsistency && (runmode == RunMode::kStart)));
+		fl.reset(new FileLock(runmode, locktimeout));
 	} catch (const FilesystemException& e) {
 		if (e.what()[0]) {
 			mfs_errlog(LOG_ERR, e.what());

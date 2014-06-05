@@ -10,6 +10,15 @@
 
 #include "common/datapack.h"
 
+#define METADATA_FILENAME_TEMPL "metadata.mfs"
+const char kMetadataFilename[] = METADATA_FILENAME_TEMPL;
+const char kMetadataTmpFilename[] = METADATA_FILENAME_TEMPL ".tmp";
+const char kMetadataBackFilename[] = METADATA_FILENAME_TEMPL ".back";
+const char kMetadataEmergencyFilename[] = METADATA_FILENAME_TEMPL ".emergency";
+#undef METADATA_FILENAME_TEMPL
+const char kMetadataMlBackFilename[] = "metadata_ml.mfs.back";
+const char kChangelogFilename[] = "changelog.0.mfs";
+
 uint64_t metadata_getversion(const std::string& file) {
 	int fd;
 	char chkbuff[20];

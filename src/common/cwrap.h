@@ -33,3 +33,6 @@ struct CDirCloser {
 
 typedef std::unique_ptr<FILE, CFileCloser> cstream_t;
 typedef std::unique_ptr<DIR, CDirCloser> cdirectory_t;
+
+std::string errorString(int errNo);
+

@@ -2,6 +2,7 @@
 #include "common/cwrap.h"
 
 #include <cstdio>
+#include <cstring>
 #include <unistd.h>
 
 #include "common/massert.h"
@@ -48,3 +49,8 @@ void CFileCloser::operator()(FILE* file_) const {
 void CDirCloser::operator()(DIR* dir) const {
 	closedir(dir);
 }
+
+std::string errorString(int errNo) {
+	return strerror(errNo);
+}
+
