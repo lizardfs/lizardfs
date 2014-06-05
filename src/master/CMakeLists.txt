@@ -8,7 +8,8 @@ target_link_libraries(master mfscommon ${ZLIB_LIBRARIES}
     ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 add_tests(master ${MASTER_TESTS})
 
-add_executable(mfsmaster ${MAIN_SRC})
+set(RESTORE_SRC ${CMAKE_SOURCE_DIR}/src/metarestore/restore.cc)
+add_executable(mfsmaster ${MAIN_SRC} ${RESTORE_SRC})
 target_link_libraries(mfsmaster master)
 install(TARGETS mfsmaster RUNTIME DESTINATION ${SBIN_SUBDIR})
 

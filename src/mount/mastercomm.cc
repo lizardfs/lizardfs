@@ -683,7 +683,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	free(regbuff);
 	lastwrite=time(NULL);
 	if (oninit==0) {
-		syslog(LOG_NOTICE,"registered to master with new session");
+		syslog(LOG_NOTICE,"registered to master with new session (id #%" PRIu32 ")", sessionid);
 	}
 	if (cargs->clearpassword && cargs->passworddigest!=NULL) {
 		memset(cargs->passworddigest,0,16);
@@ -892,7 +892,7 @@ void fs_reconnect() {
 		return;
 	}
 	lastwrite=time(NULL);
-	syslog(LOG_NOTICE,"registered to master");
+	syslog(LOG_NOTICE,"registered to master (session id #%" PRIu32 ")", sessionid);
 }
 
 void fs_close_session(void) {

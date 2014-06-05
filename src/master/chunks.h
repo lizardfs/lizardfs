@@ -25,19 +25,22 @@
 
 #include "master/checksum.h"
 
-#ifdef METARESTORE
+int chunk_increase_version(uint64_t chunkid);
+int chunk_set_version(uint64_t chunkid,uint32_t version);
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
-int chunk_multi_modify(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal,uint8_t opflag);
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint8_t goal);
 int chunk_unlock(uint64_t chunkid);
-int chunk_increase_version(uint64_t chunkid);
-int chunk_set_version(uint64_t chunkid,uint32_t version);
+uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint8_t goal,
+		bool doIncreaseVersion, uint64_t *newChunkId);
 
+#ifdef METARESTORE
 void chunk_dump(void);
-
 #else
+uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
+		uint8_t *opflag, uint64_t *nchunkid);
+uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, bool quota_exceeded,
+		uint64_t *nchunkid);
 void chunk_stats(uint32_t *del,uint32_t *repl);
 void chunk_store_info(uint8_t *buff);
 uint32_t chunk_get_missing_count(void);
@@ -46,16 +49,6 @@ uint32_t chunk_count(void);
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
-
-int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
-int chunk_delete_file(uint64_t chunkid,uint8_t goal);
-int chunk_add_file(uint64_t chunkid,uint8_t goal);
-int chunk_unlock(uint64_t chunkid);
-
-int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid, uint8_t goal, uint8_t *opflag,
-		bool quota_exceeded);
-int chunk_multi_truncate(uint64_t *nchunkid,uint64_t ochunkid,uint32_t length,uint8_t goal,
-		bool quota_exceeded);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);

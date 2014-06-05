@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <memory>
@@ -48,81 +47,6 @@
 #define STR(x) STR_AUX(x)
 
 #define MAXIDHOLE 10000
-
-uint64_t findfirstlogversion(const std::string& fname) {
-	uint8_t buff[50];
-	int32_t s,p;
-	uint64_t fv;
-	int fd;
-
-	fd = open(fname.c_str(), O_RDONLY);
-	if (fd<0) {
-		return 0;
-	}
-	s = read(fd,buff,50);
-	close(fd);
-	if (s<=0) {
-		return 0;
-	}
-	fv = 0;
-	p = 0;
-	while (p<s && buff[p]>='0' && buff[p]<='9') {
-		fv *= 10;
-		fv += buff[p]-'0';
-		p++;
-	}
-	if (p>=s || buff[p]!=':') {
-		return 0;
-	}
-	return fv;
-}
-
-uint64_t findlastlogversion(const std::string& fname) {
-	struct stat st;
-	int fd;
-
-	fd = open(fname.c_str(), O_RDONLY);
-	if (fd < 0) {
-		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
-		return 0;
-	}
-	fstat(fd, &st);
-
-	size_t fileSize = st.st_size;
-
-	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (fileContent == MAP_FAILED) {
-		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
-		close(fd);
-		return 0; // 0 counterintuitively means failure
-	}
-	uint64_t lastLogVersion = 0;
-	// first LF is (should be) the last byte of the file
-	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
-				fname.c_str());
-	} else {
-		size_t pos = fileSize - 1;
-		while (pos > 0) {
-			--pos;
-			if (fileContent[pos] == '\n') {
-				break;
-			}
-		}
-		char *endPtr = NULL;
-		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
-		if (*endPtr != ':') {
-			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
-					fname.c_str());
-			lastLogVersion = 0;
-		}
-	}
-	if (munmap((void*) fileContent, fileSize)) {
-		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
-	}
-	close(fd);
-	return lastLogVersion;
-}
 
 int changelog_checkname(const char *fname) {
 	const char *ptr = fname;
@@ -290,7 +214,7 @@ int main(int argc,char **argv) {
 				continue;
 			}
 			try {
-				uint64_t version = metadata_getversion(metadata_candidate.c_str());
+				uint64_t version = metadataGetVersion(metadata_candidate.c_str());
 				if (version >= bestversion) {
 					bestversion = version;
 					bestmetadata = metadata_candidate;
@@ -336,8 +260,8 @@ int main(int argc,char **argv) {
 		while ((dp = readdir(dd)) != NULL) {
 			if (changelog_checkname(dp->d_name)) {
 				filenames.push_back(datapath + "/" + dp->d_name);
-				firstlv = findfirstlogversion(filenames.back());
-				lastlv = findlastlogversion(filenames.back());
+				firstlv = changelogGetFirstLogVersion(filenames.back());
+				lastlv = changelogGetLastLogVersion(filenames.back());
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					std::ostringstream oss;
@@ -378,8 +302,8 @@ int main(int argc,char **argv) {
 		std::vector<std::string> filenames;
 
 		for (pos=0 ; (int32_t)pos<argc ; pos++) {
-			firstlv = findfirstlogversion(argv[pos]);
-			lastlv = findlastlogversion(argv[pos]);
+			firstlv = changelogGetFirstLogVersion(argv[pos]);
+			lastlv = changelogGetLastLogVersion(argv[pos]);
 			skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 			if (vl>0) {
 				std::ostringstream oss;

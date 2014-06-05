@@ -593,7 +593,7 @@ int matoclserv_insert_openfile(session* cr,uint32_t inode) {
 		}
 		ofpptr = &(ofptr->next);
 	}
-	status = fs_acquire(inode,cr->sessionid);
+	status = fs_acquire(FsContext::getForMaster(main_time()), inode, cr->sessionid);
 	if (status==STATUS_OK) {
 		ofptr = (filelist*)malloc(sizeof(filelist));
 		passert(ofptr);
@@ -604,7 +604,7 @@ int matoclserv_insert_openfile(session* cr,uint32_t inode) {
 	return status;
 }
 
-void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
+void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 	session *asesdata;
 	filelist *ofptr,**ofpptr;
 
@@ -651,6 +651,28 @@ void matoclserv_init_sessions(uint32_t sessionid,uint32_t inode) {
 	ofptr->inode = inode;
 	ofptr->next = *ofpptr;
 	*ofpptr = ofptr;
+}
+
+void matoclserv_remove_open_file(uint32_t sessionid, uint32_t inode) {
+	session *asesdata;
+
+	for (asesdata = sessionshead; asesdata && asesdata->sessionid != sessionid; asesdata = asesdata->next) {
+	}
+	if (asesdata == NULL) {
+		syslog(LOG_ERR, "sessions file is corrupted");
+		return;
+	}
+
+	filelist *ofptr = NULL;
+	filelist** ofpptr = &(asesdata->openedfiles);
+	while ((ofptr = *ofpptr)) {
+		if (ofptr->inode == inode) {
+			*ofpptr = ofptr->next;
+			free(ofptr);
+			break;
+		}
+		ofpptr = &(ofptr->next);
+	}
 }
 
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
@@ -777,6 +799,38 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	default:
 		syslog(LOG_WARNING,"got chunk status, but operation type is unknown");
 	}
+}
+
+static inline void matoclserv_ugid_remap(matoclserventry *eptr,uint32_t *auid,uint32_t *agid) {
+	if (*auid==0) {
+		*auid = eptr->sesdata->rootuid;
+		if (agid) {
+			*agid = eptr->sesdata->rootgid;
+		}
+	} else if (eptr->sesdata->sesflags&SESFLAG_MAPALL) {
+		*auid = eptr->sesdata->mapalluid;
+		if (agid) {
+			*agid = eptr->sesdata->mapallgid;
+		}
+	}
+}
+
+/**
+ * Returns FsContext with session data but without uid/gid data
+ */
+static inline FsContext matoclserv_get_context(matoclserventry *eptr) {
+	return FsContext::getForMaster(main_time(), eptr->sesdata->rootinode, eptr->sesdata->sesflags);
+}
+
+/**
+ * Returns FsContext with session data and uid/gid data
+ */
+static inline FsContext matoclserv_get_context(matoclserventry *eptr, uint32_t uid, uint32_t gid) {
+	uint32_t auid = uid;
+	uint32_t agid = gid;
+	matoclserv_ugid_remap(eptr, &uid, &gid);
+	return FsContext::getForMasterWithSession(main_time(),
+			eptr->sesdata->rootinode, eptr->sesdata->sesflags, uid, gid, auid, agid);
 }
 
 void matoclserv_cserv_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1076,7 +1130,7 @@ void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t len
 }
 
 /* CACHENOTIFY
-void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[35]) {
+void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const Attributes& attr) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1097,7 +1151,7 @@ void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const uint8_t attr[
 	}
 }
 
-void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const uint8_t attr[35],uint32_t ts) {
+void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,uint32_t inode,const Attributes& attr,uint32_t ts) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
 	dirincache *dc;
 	uint8_t *ptr;
@@ -1624,13 +1678,14 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 		inode=0;
 	}
 
+	FsContext context = FsContext::getForMaster(main_time());
 	while ((ofptr=*ofpptr) && inode>0) {
 		if (ofptr->inode<inode) {
-			fs_release(ofptr->inode,eptr->sesdata->sessionid);
+			fs_release(context, ofptr->inode, eptr->sesdata->sessionid);
 			*ofpptr = ofptr->next;
 			free(ofptr);
 		} else if (ofptr->inode>inode) {
-			if (fs_acquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
+			if (fs_acquire(context, inode, eptr->sesdata->sessionid) == STATUS_OK) {
 				ofptr = (filelist*)malloc(sizeof(filelist));
 				passert(ofptr);
 				ofptr->next = *ofpptr;
@@ -1655,7 +1710,7 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 		}
 	}
 	while (inode>0) {
-		if (fs_acquire(inode,eptr->sesdata->sessionid)==STATUS_OK) {
+		if (fs_acquire(context, inode, eptr->sesdata->sessionid) == STATUS_OK) {
 			ofptr = (filelist*)malloc(sizeof(filelist));
 			passert(ofptr);
 			ofptr->next = *ofpptr;
@@ -1671,25 +1726,11 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 		}
 	}
 	while ((ofptr=*ofpptr)) {
-		fs_release(ofptr->inode,eptr->sesdata->sessionid);
+		fs_release(context, ofptr->inode, eptr->sesdata->sessionid);
 		*ofpptr = ofptr->next;
 		free(ofptr);
 	}
 
-}
-
-static inline void matoclserv_ugid_remap(matoclserventry *eptr,uint32_t *auid,uint32_t *agid) {
-	if (*auid==0) {
-		*auid = eptr->sesdata->rootuid;
-		if (agid) {
-			*agid = eptr->sesdata->rootgid;
-		}
-	} else if (eptr->sesdata->sesflags&SESFLAG_MAPALL) {
-		*auid = eptr->sesdata->mapalluid;
-		if (agid) {
-			*agid = eptr->sesdata->mapallgid;
-		}
-	}
 }
 
 void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1743,7 +1784,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t nleng;
 	const uint8_t *name;
 	uint32_t newinode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -1781,7 +1822,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 
 void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -1816,7 +1857,7 @@ void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint16_t setmask;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -1861,7 +1902,7 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 
 void matoclserv_fuse_truncate(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t opened;
@@ -1962,10 +2003,10 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint32_t inode;
 	uint8_t nleng;
 	const uint8_t *name,*path;
-	uint32_t uid,gid,auid,agid;
+	uint32_t uid,gid;
 	uint32_t pleng;
 	uint32_t newinode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t status;
 	uint8_t *ptr;
@@ -1992,13 +2033,12 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	}
 	path = data;
 	data += pleng;
-	auid = uid = get32bit(&data);
-	agid = gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
+	uid = get32bit(&data);
+	gid = get32bit(&data);
 	while (pleng>0 && path[pleng-1]==0) {
 		pleng--;
 	}
-	status = fs_symlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,pleng,path,uid,gid,auid,agid,&newinode,attr);
+	status = fs_symlink(matoclserv_get_context(eptr, uid, gid),inode,nleng,name,pleng,path,&newinode,&attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SYMLINK,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
@@ -2035,7 +2075,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	uint32_t newinode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint8_t status = fs_mknod(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
@@ -2085,7 +2125,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	uint32_t newinode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint8_t status = fs_mkdir(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
 			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
@@ -2178,8 +2218,8 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint32_t inode,inode_src,inode_dst;
 	uint8_t nleng_src,nleng_dst;
 	const uint8_t *name_src,*name_dst;
-	uint32_t uid,gid,auid,agid;
-	uint8_t attr[35];
+	uint32_t uid,gid;
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t status;
 	uint8_t *ptr;
@@ -2207,10 +2247,10 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	name_dst = data;
 	data += nleng_dst;
-	auid = uid = get32bit(&data);
-	agid = gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_rename(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode_src,nleng_src,name_src,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&inode,attr);
+	uid = get32bit(&data);
+	gid = get32bit(&data);
+	status = fs_rename(matoclserv_get_context(eptr, uid, gid),
+			inode_src, nleng_src, name_src, inode_dst, nleng_dst, name_dst, &inode, &attr);
 	if (eptr->version>=0x010615 && status==STATUS_OK) {
 		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RENAME,43);
 	} else {
@@ -2232,9 +2272,9 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	uint32_t inode,inode_dst;
 	uint8_t nleng_dst;
 	const uint8_t *name_dst;
-	uint32_t uid,gid,auid,agid;
+	uint32_t uid,gid;
 	uint32_t newinode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -2254,10 +2294,10 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	}
 	name_dst = data;
 	data += nleng_dst;
-	auid = uid = get32bit(&data);
-	agid = gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_link(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,auid,agid,&newinode,attr);
+	uid = get32bit(&data);
+	gid = get32bit(&data);
+	status = fs_link(matoclserv_get_context(eptr, uid, gid),
+			inode, inode_dst, nleng_dst, name_dst, &newinode, &attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_LINK,(status!=STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
@@ -2345,7 +2385,7 @@ void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint3
 void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid,auid,agid;
 	uint8_t flags;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -2453,11 +2493,7 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint3
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	indx = get32bit(&data);
-	if (eptr->sesdata->sesflags&SESFLAG_READONLY) {
-		status = ERROR_EROFS;
-	} else {
-		status = fs_writechunk(inode,indx,&chunkid,&fleng,&opflag);
-	}
+	status = fs_writechunk(matoclserv_get_context(eptr), inode, indx, &chunkid, &opflag, &fleng);
 	if (status!=STATUS_OK) {
 		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_WRITE_CHUNK,5);
 		put32bit(&ptr,msgid);
@@ -2644,7 +2680,6 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,NULL);
 	trashtime = get32bit(&data);
 	smode = get8bit(&data);
 // limits check
@@ -2668,7 +2703,7 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	}
 
 	if (status==STATUS_OK) {
-		status = fs_settrashtime(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,trashtime,smode,&changed,&notchanged,&notpermitted);
+		status = fs_settrashtime(matoclserv_get_context(eptr, uid, 0), inode, trashtime, smode, &changed, &notchanged, &notpermitted);
 	}
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHTIME,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
@@ -2746,7 +2781,6 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,NULL);
 	goal = get8bit(&data);
 	smode = get8bit(&data);
 // limits check
@@ -2772,7 +2806,8 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		status = ERROR_EINVAL;
 	}
 	if (status==STATUS_OK) {
-		status = fs_setgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,goal,smode,&changed,&notchanged,&notpermitted);
+		status = fs_setgoal(matoclserv_get_context(eptr, uid, 0), inode, goal, smode,
+				&changed, &notchanged, &notpermitted);
 	}
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
@@ -2850,10 +2885,9 @@ void matoclserv_fuse_seteattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	uid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,NULL);
 	eattr = get8bit(&data);
 	smode = get8bit(&data);
-	status = fs_seteattr(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,eattr,smode,&changed,&notchanged,&notpermitted);
+	status = fs_seteattr(matoclserv_get_context(eptr, uid, 0), inode, eattr, smode, &changed, &notchanged, &notpermitted);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETEATTR,(status!=STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=STATUS_OK) {
@@ -2973,7 +3007,7 @@ void matoclserv_fuse_setxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	put8bit(&ptr,status);
 }
 
-void matoclserv_fuse_append(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_append(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t inode,inode_src,uid,gid;
 	uint32_t msgid;
 	uint8_t *ptr;
@@ -2988,8 +3022,7 @@ void matoclserv_fuse_append(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	inode_src = get32bit(&data);
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_append(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_src,uid,gid);
+	status = fs_append(matoclserv_get_context(eptr, uid, gid), inode, inode_src);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_APPEND,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -3022,9 +3055,9 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t
 	data += nleng_dst;
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	matoclserv_ugid_remap(eptr,&uid,&gid);
 	canoverwrite = get8bit(&data);
-	status = fs_snapshot(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,inode_dst,nleng_dst,name_dst,uid,gid,canoverwrite);
+	status = fs_snapshot(matoclserv_get_context(eptr, uid, gid),
+			inode, inode_dst, nleng_dst, name_dst, canoverwrite);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SNAPSHOT,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -3115,7 +3148,7 @@ void matoclserv_fuse_gettrash(matoclserventry *eptr,const uint8_t *data,uint32_t
 
 void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 	uint32_t msgid;
 	uint8_t dtype;
 	uint8_t *ptr;
@@ -3195,7 +3228,7 @@ void matoclserv_fuse_settrashpath(matoclserventry *eptr,const uint8_t *data,uint
 	while (pleng>0 && path[pleng-1]==0) {
 		pleng--;
 	}
-	status = fs_settrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,pleng,path);
+	status = fs_settrashpath(matoclserv_get_context(eptr), inode, pleng, path);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHPATH,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -3213,7 +3246,7 @@ void matoclserv_fuse_undel(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
-	status = fs_undel(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
+	status = fs_undel(matoclserv_get_context(eptr), inode);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_UNDEL,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -3231,7 +3264,7 @@ void matoclserv_fuse_purge(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
-	status = fs_purge(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode);
+	status = fs_purge(matoclserv_get_context(eptr), inode);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_PURGE,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -3263,11 +3296,9 @@ void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint3
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	cltoma::fuseDeleteAcl::deserialize(data, length, messageId, inode, uid, gid, type);
-	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	MessageBuffer reply;
-	uint8_t status = fs_deleteacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
-			inode, uid, gid, type);
+	uint8_t status = fs_deleteacl(matoclserv_get_context(eptr, uid, gid), inode, type);
 	matocl::fuseDeleteAcl::serialize(reply, messageId, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
@@ -3276,12 +3307,10 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
-	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	MessageBuffer reply;
 	AccessControlList acl;
-	uint8_t status = fs_getacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
-			inode, uid, gid, type, acl);
+	uint8_t status = fs_getacl(matoclserv_get_context(eptr, uid, gid), inode, type, acl);
 	if (status == STATUS_OK) {
 		matocl::fuseGetAcl::serialize(reply, messageId, acl);
 	} else {
@@ -3295,11 +3324,9 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	AclType type;
 	AccessControlList acl;
 	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
-	matoclserv_ugid_remap(eptr, &uid, &gid);
 
 	MessageBuffer reply;
-	uint8_t status = fs_setacl(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
-			inode, uid, gid, type, std::move(acl));
+	uint8_t status = fs_setacl(matoclserv_get_context(eptr, uid, gid), inode, type, std::move(acl));
 	matocl::fuseSetAcl::serialize(reply, messageId, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
@@ -3368,10 +3395,11 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
+	FsContext context = FsContext::getForMaster(main_time());
 	while (fl) {
 		afl = fl;
 		fl=fl->next;
-		fs_release(afl->inode,sesdata->sessionid);
+		fs_release(context, afl->inode, sesdata->sessionid);
 		free(afl);
 	}
 	sesdata->openedfiles=NULL;

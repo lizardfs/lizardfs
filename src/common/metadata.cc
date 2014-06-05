@@ -2,6 +2,7 @@
 #include "common/metadata.h"
 
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
@@ -9,6 +10,8 @@
 #include <cstring>
 
 #include "common/datapack.h"
+#include "common/mfserr.h"
+#include "common/slogger.h"
 
 #define METADATA_FILENAME_TEMPL "metadata.mfs"
 const char kMetadataFilename[] = METADATA_FILENAME_TEMPL;
@@ -19,7 +22,7 @@ const char kMetadataEmergencyFilename[] = METADATA_FILENAME_TEMPL ".emergency";
 const char kMetadataMlBackFilename[] = "metadata_ml.mfs.back";
 const char kChangelogFilename[] = "changelog.0.mfs";
 
-uint64_t metadata_getversion(const std::string& file) {
+uint64_t metadataGetVersion(const std::string& file) {
 	int fd;
 	char chkbuff[20];
 	char eofmark[16];
@@ -58,3 +61,79 @@ uint64_t metadata_getversion(const std::string& file) {
 	}
 	return version;
 }
+
+uint64_t changelogGetFirstLogVersion(const std::string& fname) {
+	uint8_t buff[50];
+	int32_t s,p;
+	uint64_t fv;
+	int fd;
+
+	fd = open(fname.c_str(), O_RDONLY);
+	if (fd<0) {
+		return 0;
+	}
+	s = read(fd,buff,50);
+	close(fd);
+	if (s<=0) {
+		return 0;
+	}
+	fv = 0;
+	p = 0;
+	while (p<s && buff[p]>='0' && buff[p]<='9') {
+		fv *= 10;
+		fv += buff[p]-'0';
+		p++;
+	}
+	if (p>=s || buff[p]!=':') {
+		return 0;
+	}
+	return fv;
+}
+
+uint64_t changelogGetLastLogVersion(const std::string& fname) {
+	struct stat st;
+	int fd;
+
+	fd = open(fname.c_str(), O_RDONLY);
+	if (fd < 0) {
+		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
+		return 0;
+	}
+	fstat(fd, &st);
+
+	size_t fileSize = st.st_size;
+
+	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (fileContent == MAP_FAILED) {
+		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
+		close(fd);
+		return 0; // 0 counterintuitively means failure
+	}
+	uint64_t lastLogVersion = 0;
+	// first LF is (should be) the last byte of the file
+	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
+		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
+				fname.c_str());
+	} else {
+		size_t pos = fileSize - 1;
+		while (pos > 0) {
+			--pos;
+			if (fileContent[pos] == '\n') {
+				break;
+			}
+		}
+		char *endPtr = NULL;
+		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
+		if (*endPtr != ':') {
+			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
+					fname.c_str());
+			lastLogVersion = 0;
+		}
+	}
+	if (munmap((void*) fileContent, fileSize)) {
+		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
+	}
+	close(fd);
+	return lastLogVersion;
+}
+

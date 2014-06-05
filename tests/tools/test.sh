@@ -100,7 +100,7 @@ test_cleanup() {
 	retries=0
 	pkill -KILL mfsmount || true
 	pkill -KILL memcheck || true
-	while list_of_mounts=$(cat /etc/mtab | grep mfs | grep fuse); do
+	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
 		if ((++retries == 30)); then
