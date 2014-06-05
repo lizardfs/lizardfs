@@ -263,11 +263,15 @@ find_all_chunks() {
 	done
 }
 
+# print the number of fully operational chunkservers
+lizardfs_ready_chunkservers_count() {
+	lizardfs-probe ready-chunkservers-count localhost ${lizardfs_info[matocl]}
+}
+
 # lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
 lizardfs_wait_for_ready_chunkservers() {
-	local chunkservers=$1
-	local port=${lizardfs_info[matocl]}
-	while (( $(lizardfs-probe ready-chunkservers-count localhost $port) != $chunkservers )); do
+	local expected_count=$1
+	while (( $(lizardfs_ready_chunkservers_count) != $expected_count )); do
 		sleep 0.1
 	done
 }

@@ -56,7 +56,7 @@ number of MooseFS master port to connect with (default is 9419)
 delay in seconds before trying to reconnect to master after disconnection (default is 5)
 
 *MASTER_TIMEOUT*::
-timeout (in seconds) for master connections (default is 60)
+timeout (in seconds) for master connections (default is 60, minimum is 0.01)
 
 *BIND_HOST*::
 local address to use for connecting with master (default is ***, i.e. default local address)

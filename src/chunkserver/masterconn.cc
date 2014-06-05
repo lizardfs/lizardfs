@@ -47,6 +47,7 @@
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "common/time_utils.h"
 #include "devtools/request_log.h"
 
 #define MaxPacketSize 10000
@@ -82,7 +83,7 @@ struct masterconn {
 	int mode;
 	int sock;
 	int32_t pdescpos;
-	uint32_t lastread,lastwrite;
+	Timer lastread,lastwrite;
 	uint8_t hdrbuff[PacketHeader::kSize];
 	InputPacket inputpacket;
 	std::list<OutputPacket> outputPackets;
@@ -102,7 +103,7 @@ static int32_t jobfdpdescpos;
 static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
-static uint32_t Timeout;
+static uint32_t Timeout_ms;
 static void* reconnect_hook;
 
 static uint64_t stats_bytesout=0;
@@ -172,7 +173,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = mainNetworkThreadGetListenIp();
 	myport = mainNetworkThreadGetListenPort();
 	std::vector<uint8_t> serializedPacket;
-	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout, VERSHEX);
+	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms, VERSHEX);
 	masterconn_create_attached_packet(eptr, serializedPacket);
 	hdd_get_chunks_begin();
 	std::vector<ChunkWithVersionAndType> chunks;
@@ -615,7 +616,8 @@ void masterconn_connected(masterconn *eptr) {
 	eptr->inputpacket.packet.clear();
 
 	masterconn_sendregister(eptr);
-	eptr->lastread = eptr->lastwrite = main_time();
+	eptr->lastread.reset();
+	eptr->lastwrite.reset();
 }
 
 int masterconn_initconnect(masterconn *eptr) {
@@ -815,7 +817,6 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 
 void masterconn_serve(struct pollfd *pdesc) {
 	LOG_AVG_TILL_END_OF_SCOPE0("master_serve");
-	uint32_t now=main_time();
 	masterconn *eptr = masterconnsingleton;
 
 	if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLHUP | POLLERR))) {
@@ -835,17 +836,17 @@ void masterconn_serve(struct pollfd *pdesc) {
 		}
 		if (eptr->pdescpos>=0) {
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
-				eptr->lastread = now;
+				eptr->lastread.reset();
 				masterconn_read(eptr);
 			}
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
-				eptr->lastwrite = now;
+				eptr->lastwrite.reset();
 				masterconn_write(eptr);
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread+Timeout<now) {
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread.elapsed_ms() > Timeout_ms) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite+(Timeout/3)<now && eptr->outputPackets.empty()) {
+			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite.elapsed_ms() > (Timeout_ms/3) && eptr->outputPackets.empty()) {
 				masterconn_create_attached_moosefs_packet(eptr, ANTOAN_NOP);
 			}
 		}
@@ -870,6 +871,10 @@ void masterconn_reconnect(void) {
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
+}
+
+static uint32_t get_cfg_timeout() {
+	return 1000 * cfg_get_minmaxvalue<double>("MASTER_TIMEOUT", 60, 0.01, 1000 * 1000);
 }
 
 void masterconn_reload(void) {
@@ -911,16 +916,9 @@ void masterconn_reload(void) {
 		eptr->masteraddrvalid=0;
 	}
 
-	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	Timeout_ms = get_cfg_timeout();
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
-
-	if (Timeout>65536) {
-		Timeout=65535;
-	}
-	if (Timeout<10) {
-		Timeout=10;
-	}
 
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
@@ -933,15 +931,9 @@ int masterconn_init(void) {
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
-	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
+	Timeout_ms = get_cfg_timeout();
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
-	if (Timeout>65536) {
-		Timeout=65535;
-	}
-	if (Timeout<10) {
-		Timeout=10;
-	}
 	eptr = masterconnsingleton = new masterconn;
 	passert(eptr);
 

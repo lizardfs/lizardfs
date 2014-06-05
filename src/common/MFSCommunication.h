@@ -414,7 +414,7 @@
 
 // 0x044C
 #define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
-/// ip:32 port:16 timeout:16 vershex:32
+/// ip:32 port:16 timeout:32 vershex:32
 
 // 0x044D
 #define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)

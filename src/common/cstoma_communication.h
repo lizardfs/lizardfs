@@ -26,7 +26,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, registerHost, LIZ_CSTOMA_REGISTER_HOST, 0,
 		uint32_t, ip,
 		uint16_t, port,
-		uint16_t, timeout,
+		uint32_t, timeout,
 		uint32_t, csVersion)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

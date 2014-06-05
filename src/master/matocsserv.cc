@@ -49,6 +49,7 @@
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "common/time_utils.h"
 #include "master/chunks.h"
 
 #define MaxPacketSize 500000000
@@ -92,7 +93,7 @@ struct matocsserventry {
 	uint8_t mode;
 	int sock;
 	int32_t pdescpos;
-	uint32_t lastread,lastwrite;
+	Timer lastread,lastwrite;
 	InputPacket inputPacket;
 	std::list<OutputPacket> outputPackets;
 
@@ -100,7 +101,7 @@ struct matocsserventry {
 	uint32_t version;
 	uint32_t servip;                // ip to coonnect to
 	uint16_t servport;              // port to connect to
-	uint16_t timeout;               // communication timeout
+	uint32_t timeout;               // communication timeout
 	uint64_t usedspace;             // used hdd space in bytes
 	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
@@ -1179,14 +1180,14 @@ static void update_maxtotalspace(uint64_t totalspace) {
 }
 
 void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t servip,
-		uint16_t servport, uint16_t timeout) {
+		uint16_t servport, uint32_t timeout) {
 	eptr->version  = version;
 	eptr->servip   = servip;
 	eptr->servport = servport;
 	eptr->timeout  = timeout;
 	if (eptr->timeout<10) {
 		syslog(LOG_NOTICE, "CSTOMA_REGISTER communication timeout too small (%"
-				PRIu16 " seconds - should be at least 10 seconds)", eptr->timeout);
+				PRIu32 " milliseconds - should be at least 10 milliseconds)", eptr->timeout);
 		eptr->mode=KILL;
 		return;
 	}
@@ -1291,7 +1292,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			}
 			eptr->servip = get32bit(&data);
 			eptr->servport = get16bit(&data);
-			eptr->timeout = get16bit(&data);
+			eptr->timeout = 1000 * get16bit(&data);
 			eptr->usedspace = get64bit(&data);
 			eptr->totalspace = get64bit(&data);
 			eptr->chunkscount = get32bit(&data);
@@ -1308,7 +1309,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->version = get32bit(&data);
 			eptr->servip = get32bit(&data);
 			eptr->servport = get16bit(&data);
-			eptr->timeout = get16bit(&data);
+			eptr->timeout = 1000 * get16bit(&data);
 			eptr->usedspace = get64bit(&data);
 			eptr->totalspace = get64bit(&data);
 			eptr->chunkscount = get32bit(&data);
@@ -1325,7 +1326,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			uint32_t version = get32bit(&data);
 			uint32_t servip = get32bit(&data);
 			uint16_t servport = get16bit(&data);
-			uint16_t timeout = get16bit(&data);
+			uint32_t timeout = 1000 * get16bit(&data);
 			return matocsserv_register_host(eptr, version, servip, servport, timeout);
 		} else if (rversion==51) {
 			if (((length-1)%12)!=0) {
@@ -1361,11 +1362,9 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 	}
 	if (rversion<=4) {
-		if (eptr->timeout<10) {
-			syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
-			if (eptr->timeout<3) {
-				eptr->timeout=3;
-			}
+		if (eptr->timeout<1000) {
+			syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu16 " milliseconds - should be at least 1 second)",eptr->timeout);
+			eptr->timeout = 1000;
 			return;
 		}
 		if (eptr->servip==0) {
@@ -1426,7 +1425,7 @@ void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8
 	uint32_t version;
 	uint32_t servip;
 	uint16_t servport;
-	uint16_t timeout;
+	uint32_t timeout;
 	verifyPacketVersionNoHeader(data, 0);
 	cstoma::registerHost::deserialize(data, servip, servport, timeout, version);
 	return matocsserv_register_host(eptr, version, servip, servport, timeout);
@@ -1727,7 +1726,6 @@ void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 }
 
 void matocsserv_serve(struct pollfd *pdesc) {
-	uint32_t now=main_time();
 	uint32_t peerip;
 	matocsserventry *eptr,**kptr;
 	int ns;
@@ -1746,14 +1744,14 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->sock = ns;
 			eptr->pdescpos = -1;
 			eptr->mode = HEADER;
-			eptr->lastread = now;
-			eptr->lastwrite = now;
+			eptr->lastread.reset();
+			eptr->lastwrite.reset();
 			tcpgetpeer(eptr->sock,&peerip,NULL);
 			eptr->servstrip = matocsserv_makestrip(peerip);
 			eptr->version = 0;
 			eptr->servip = 0;
 			eptr->servport = 0;
-			eptr->timeout = 60;
+			eptr->timeout = 60000;
 			eptr->usedspace = 0;
 			eptr->totalspace = 0;
 			eptr->chunkscount = 0;
@@ -1775,19 +1773,18 @@ void matocsserv_serve(struct pollfd *pdesc) {
 				eptr->mode = KILL;
 			}
 			if ((pdesc[eptr->pdescpos].revents & POLLIN) && eptr->mode!=KILL) {
-				eptr->lastread = now;
+				eptr->lastread.reset();
 				matocsserv_read(eptr);
 			}
 			if ((pdesc[eptr->pdescpos].revents & POLLOUT) && eptr->mode!=KILL) {
-				eptr->lastwrite = now;
+				eptr->lastwrite.reset();
 				matocsserv_write(eptr);
 			}
 		}
-		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
+		if (eptr->lastread.elapsed_ms() > eptr->timeout) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now
-				&& eptr->outputPackets.empty()) {
+		if (eptr->lastwrite.elapsed_ms() > (eptr->timeout/3) && eptr->outputPackets.empty()) {
 			matocsserv_createpacket(eptr,ANTOAN_NOP,0);
 		}
 	}
