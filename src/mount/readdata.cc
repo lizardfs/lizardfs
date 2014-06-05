@@ -208,7 +208,6 @@ void read_data_init(uint32_t retries) {
 }
 
 void read_data_term(void) {
-	uint32_t i;
 	readrec *rr,*rrn;
 
 	pthread_mutex_lock(&glock);
@@ -216,20 +215,21 @@ void read_data_term(void) {
 	pthread_mutex_unlock(&glock);
 	pthread_join(pthid,NULL);
 	pthread_mutex_destroy(&glock);
-	for (i=0 ; i<MAPSIZE ; i++) {
-		for (rr = rdinodemap[i] ; rr ; rr = rrn) {
-			rrn = rr->next;
-			if (rr->fd>=0) {
-				tcpclose(rr->fd);
-			}
-			if (rr->rbuff!=NULL) {
-				free(rr->rbuff);
-			}
-			pthread_cond_destroy(&(rr->cond));
-			free(rr);
+	for (rr = rdhead ; rr ; rr = rrn) {
+		rrn = rr->next;
+		if (rr->fd>=0) {
+			tcpclose(rr->fd);
 		}
-		rdinodemap[i] = NULL;
+		if (rr->rbuff!=NULL) {
+			free(rr->rbuff);
+		}
+		pthread_cond_destroy(&(rr->cond));
+		free(rr);
 	}
+	for (auto& rr : rdinodemap) {
+		rr = NULL;
+	}
+	rdhead = NULL;
 }
 
 static int read_data_refresh_connection(readrec *rrec) {
