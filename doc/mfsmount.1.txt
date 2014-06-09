@@ -73,6 +73,19 @@ authenticate to MooseFS master with 'PASSWORD'
 authenticate to MooseFS master using directly given 'MD5' (only if *mfspassword* option is not
 specified)
 
+*-o mfsdelayedinit*::
+connection with master is done in background - with this option mount can be run without network
+(good for being run from fstab / init scripts etc.)
+
+*-o mfsacl*::
+enable ACL support (disabled by default)
+
+*-o mfsmkdircopysgid=*'N'::
+sgid bit should be copied during mkdir operation (on linux default: 1, otherwise: 0)
+
+*-o mfssugidclearmode=*'SMODE'::
+set sugid clear mode (see below)
+
 *-o mfsdebug*::
 print some MooseFS-specific debugging information
 
@@ -80,7 +93,7 @@ print some MooseFS-specific debugging information
 set cache mode (see *DATA CACHE MODES*; default is AUTO)
 
 *-o mfscachefiles*::
-(deprecated) preserve file data in cache (equivalent to '-o mfscachemode=YES')
+(deprecated) preserve file data in cache (equivalent to *-o mfscachemode=*'YES')
 
 *-o mfsattrcacheto=*'SEC'::
 set attributes cache timeout in seconds (default: 1.0)
@@ -100,6 +113,13 @@ try to change limit of simultaneously opened file descriptors on startup
 
 *-o mfsnice=*'LEVEL'::
 try to change nice level to specified value on startup (default: -19)
+
+*-o mfsmemlock*::
+try to lock memory (must be enabled at build time)
+
+*-o mfsdonotrememberpassword*::
+do not remember password in memory - more secure, but when session is lost then new session is
+created without password
 
 *-o mfsioretries=*'N'::
 specify number of retiries before I/O error is returned (default: 30)
@@ -135,6 +155,34 @@ always allow files data to be kept in cache (dangerous)
 
 *AUTO*::
 file cache is managed by mfsmaster automatically (should be very safe and efficient)
+
+== SUGID CLEAR MODE
+
+SMODE can be set to:
+
+ - *NEVER* - MFS will not change suid and sgid bit on chown
+
+ - *ALWAYS* - clear suid and sgid on every chown - safest operation
+
+ - *OSX* - standard behavior in OS X and Solaris (chown made by unprivileged user clear suid
+ and sgid)
+
+ - *BSD* - standard behavior in BSD systems (like in OSX, but only when something is really
+  changed)
+
+ - *EXT* - standard behavior in most file systems on Linux (directories not changed,
+  others: suid cleared always, sgid only when group exec bit is set)
+
+ - *XFS* - standard behavior in XFS on Linux (like EXT but directories are changed
+  by unprivileged users)
+
+SMODE extra info:
+
+btrfs,ext2,ext3,ext4,hfs[+],jfs,ntfs and reiserfs on Linux work as 'EXT'.
+
+Only xfs on Linux works a little different. Beware that there is a strange
+operation - chown(-1,-1) which is usually converted by a kernel into something
+like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'
 
 == REPORTING BUGS
 
