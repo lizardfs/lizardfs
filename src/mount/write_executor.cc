@@ -13,7 +13,7 @@
 const uint32_t kReceiveBufferSize = 1024;
 
 WriteExecutor::WriteExecutor(ChunkserverStats& chunkserverStats,
-		const NetworkAddress& headAddress, int headFd,
+		const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
 		: chunkserverStats_(chunkserverStats),
 		  isRunning_(false),
@@ -22,7 +22,9 @@ WriteExecutor::WriteExecutor(ChunkserverStats& chunkserverStats,
 		  chunkType_(chunkType),
 		  chainHead_(headAddress),
 		  chainHeadFd_(headFd),
-		  receiveBuffer_(kReceiveBufferSize) {
+		  receiveBuffer_(kReceiveBufferSize),
+		  unconfirmedPackets_(0),
+		  responseTimeout_(std::chrono::milliseconds(responseTimeout_ms)) {
 	chunkserverStats_.registerWriteOperation(chainHead_);
 }
 
@@ -41,9 +43,11 @@ void WriteExecutor::addChunkserverToChain(const NetworkAddress& address) {
 
 void WriteExecutor::addInitPacket() {
 	sassert(!isRunning_);
+	sassert(unconfirmedPackets_ == 0);
 	pendingPackets_.push_back(Packet());
 	std::vector<uint8_t>& buffer = pendingPackets_.back().buffer;
 	cltocs::writeInit::serialize(buffer, chunkId_, chunkVersion_, chunkType_, chain_);
+	increaseUnconfirmedPacketCount();
 	isRunning_ = true;
 }
 
@@ -61,6 +65,8 @@ void WriteExecutor::addDataPacket(uint32_t writeId,
 			chunkId_, writeId, block, offset, size, crc);
 	packet.data = data;
 	packet.dataSize = size;
+
+	increaseUnconfirmedPacketCount();
 }
 
 void WriteExecutor::addEndPacket() {
@@ -104,6 +110,8 @@ std::vector<WriteExecutor::Status> WriteExecutor::receiveData() {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver: " + std::string(strerr(errno)), server());
 	}
+	// Reset timer after each data read from socket
+	responseTimeout_.reset();
 
 	std::vector<WriteExecutor::Status> statuses;
 	while(receiveBuffer_.hasMessageData()) {
@@ -114,6 +122,10 @@ std::vector<WriteExecutor::Status> WriteExecutor::receiveData() {
 		switch (header.type) {
 			case LIZ_CSTOCL_WRITE_STATUS:
 				statuses.push_back(processStatusMessage(messageData));
+				if (unconfirmedPackets_ == 0) {
+					throw RecoverableWriteException("Received too many statuses from chunkservers");
+				}
+				unconfirmedPackets_--;
 				break;
 			default:
 				throw RecoverableWriteException("Received unknown message from chunkserver ("
@@ -121,8 +133,20 @@ std::vector<WriteExecutor::Status> WriteExecutor::receiveData() {
 		}
 		receiveBuffer_.removeMessage();
 	}
-
 	return std::move(statuses);
+}
+
+bool WriteExecutor::serverTimedOut() const {
+	// Response timeout makes sense only when there's any write in progress
+	return unconfirmedPackets_ > 0 && responseTimeout_.expired();
+}
+
+void WriteExecutor::increaseUnconfirmedPacketCount() {
+	unconfirmedPackets_++;
+	// Start counting if we have just added a packet to executor that has been idle for a while
+	if (unconfirmedPackets_ == 1) {
+		responseTimeout_.reset();
+	}
 }
 
 WriteExecutor::Status WriteExecutor::processStatusMessage(const std::vector<uint8_t>& message) {

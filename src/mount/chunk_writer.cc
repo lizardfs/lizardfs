@@ -103,12 +103,12 @@ ChunkWriter::~ChunkWriter() {
 	}
 }
 
-void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
+void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_ms) {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::init");
 	sassert(pendingOperations_.empty());
 	sassert(executors_.empty());
 
-	Timeout connectTimeout{std::chrono::milliseconds(msTimeout)};
+	Timeout connectTimeout{std::chrono::milliseconds(chunkserverTimeout_ms)};
 	combinedStripeSize_ = 0;
 	locator_ = locator;
 
@@ -137,7 +137,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t msTimeout) {
 		// Create an executor
 		int fd = connector_.startUsingConnection(location.address, connectTimeout);
 		std::unique_ptr<WriteExecutor> executor(new WriteExecutor(
-				chunkserverStats_, location.address, fd,
+				chunkserverStats_, location.address, fd, chunkserverTimeout_ms,
 				locator_->locationInfo().chunkId, locator_->locationInfo().version,
 				location.chunkType));
 		executors_.insert(std::make_pair(fd, std::move(executor)));
@@ -197,8 +197,6 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 	int status = poll(pollFds.data(), pollFds.size(), msTimeout);
 	if (status < 0) {
 		throw RecoverableWriteException("Poll error: " + std::string(strerr(errno)));
-	} else if (status == 0) {
-		return;
 	}
 
 	for (pollfd& pollFd : pollFds) {
@@ -229,6 +227,10 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 			if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
 				throw ChunkserverConnectionException(
 						"Write to chunkserver (poll) error", executor.server());
+			}
+
+			if (executor.serverTimedOut()) {
+				throw ChunkserverConnectionException("Chunkserver timed out", executor.server());
 			}
 		}
 	}

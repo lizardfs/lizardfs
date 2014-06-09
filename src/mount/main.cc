@@ -289,7 +289,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,
-				gMountOptions.writewindowsize);
+				gMountOptions.writewindowsize,
+				gMountOptions.chunkserverwriteto
+				);
 	}
 
 	ch = fuse_mount(mp, args);

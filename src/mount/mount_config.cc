@@ -48,6 +48,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 	MFS_OPT("mfschunkserverreadto=%d", chunkserverreadto, 0),
+	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
@@ -115,6 +116,7 @@ void usage(const char *progname) {
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfschunkserverwriteto=MSEC set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK

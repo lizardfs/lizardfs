@@ -152,7 +152,8 @@ static uint32_t fcbwaiting = 0;
 static int64_t freecacheblocks;
 
 static uint32_t maxretries;
-static uint32_t gWriteWindowSize = 15;
+static uint32_t gWriteWindowSize;
+static uint32_t gChunkserverTimeout_ms;
 
 static inodedata** idhash;
 
@@ -371,12 +372,13 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	try {
 		try {
 			locator->locateAndLockChunk(inodeData_->inode, chunkIndex_);
+
+			// Optimization -- talk with chunkservers only if we have to write any data.
+			// Don't do this if we just have to release some previously unlocked lock.
 			if (haveDataToWrite) {
-				// Optimization -- don't talk with chunkservers if we have just to release
-				// some previously unlocked lock
-				writer.init(locator.get(), 5000);
+				writer.init(locator.get(), gChunkserverTimeout_ms);
 				processDataChain(writer);
-				writer.finish(5000);
+				writer.finish(kTimeToFinishOperations * 1000);
 
 				Glock lock(gMutex);
 				returnJournalToDataChain(writer.releaseJournal(), lock);
@@ -440,7 +442,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 	} catch (Exception& e) {
 		Glock lock(gMutex);
-		write_delayed_enqueue(inodeData_, 1 + std::min<int>(10, inodeData_->trycnt / 3), lock);
+		int waitTime = 1;
+		if (inodeData_->trycnt > 10) {
+			waitTime = std::min<int>(10, inodeData_->trycnt - 9);
+		}
+		write_delayed_enqueue(inodeData_, waitTime, lock);
 	}
 }
 
@@ -574,13 +580,14 @@ void* write_worker(void*) {
 
 /* API | glock: INITIALIZED,UNLOCKED */
 void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
-		uint32_t writewindowsize) {
+		uint32_t writewindowsize, uint32_t chunkserverTimeout_ms) {
 	uint64_t cachebytecount = uint64_t(cachesize) * 1024 * 1024;
 	uint64_t cacheblockcount = (cachebytecount / MFSBLOCKSIZE);
 	uint32_t i;
 	pthread_attr_t thattr;
 
 	gWriteWindowSize = writewindowsize;
+	gChunkserverTimeout_ms = chunkserverTimeout_ms;
 	maxretries = retries;
 	if (cacheblockcount < 10) {
 		cacheblockcount = 10;

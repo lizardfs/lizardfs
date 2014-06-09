@@ -35,6 +35,7 @@ enum {
 };
 
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO 2000
+#define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO 5000
 
 struct mfsopts_ {
 	char *masterhost;
@@ -71,6 +72,7 @@ struct mfsopts_ {
 	double direntrycacheto;
 	char *iolimits;
 	uint32_t chunkserverreadto;
+	uint32_t chunkserverwriteto;
 
 	mfsopts_()
 		: masterhost(NULL),
@@ -108,7 +110,8 @@ struct mfsopts_ {
 			entrycacheto(0.0),
 			direntrycacheto(1.0),
 			iolimits(NULL),
-			chunkserverreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) {
+			chunkserverreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
+			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) {
 	}
 };
 

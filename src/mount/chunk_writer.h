@@ -18,17 +18,32 @@ class ChunkConnector;
 
 class ChunkWriter {
 public:
+	/**
+	 * Constructor
+	 *
+	 * \param stats - database which will be updated by the object when accessing servers
+	 * \param connector - object that will be used to create connection with chunkservers
+	 *        to write to them and read from them
+	 * \param dataChainFd - end of pipe; if anything is written to it, ChunkWriter will break its
+	 *        poll call and look for some new data in write cache for the currently written chunk
+	 */
 	ChunkWriter(ChunkserverStats& stats, ChunkConnector& connector, int dataChainFd);
 	ChunkWriter(const ChunkWriter&) = delete;
 	~ChunkWriter();
 	ChunkWriter& operator=(const ChunkWriter&) = delete;
 
-	/*
-	 * Creates connection chain between client and all chunkservers
+	/**
+	 * Creates connection chain between client and all chunkservers.
 	 * This method will throw an exception if all the connections can't be established
 	 * within the given timeout.
+	 *
+	 * \param locator - an object which will be used during the write process that we initialize
+	 *        to ask the master server about chunkservers that need to be written to
+	 * \param chunkserverTimeout_ms - a timeout which will be used be used during the write process
+	 *        that we initialize; it represents the maximum time that can elapse when we are
+	 *        waiting for each chunkserver to accept connection or send a status message
 	 */
-	void init(WriteChunkLocator* locator, uint32_t msTimeout);
+	void init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_ms);
 
 	/*
 	 * Returns minimum number of blocks which will be written to chunkservers by

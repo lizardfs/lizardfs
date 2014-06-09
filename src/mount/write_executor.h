@@ -23,8 +23,19 @@ public:
 		}
 	};
 
+	/**
+	 * Constructor
+	 *
+	 * \param chunkserverStats - database which will be updated by the object when accessing servers
+	 * \param headAddress - an address of the chunkserver that is the head of the write chain
+	 * \param headFd - a descriptor of the socket connected with \p headAddress
+	 * \param responseTimeout_ms - a maximum time of waiting for a response from the chunkserver
+	 * \param chunkId - a chunk that will be written to
+	 * \param chunkVersion - a chunk that will be written to
+	 * \param chunkType - a chunk that will be written to
+	 */
 	WriteExecutor(ChunkserverStats& chunkserverStats,
-			const NetworkAddress& headAddress, int headFd,
+			const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
 			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
 	WriteExecutor(const WriteExecutor&) = delete;
 	~WriteExecutor();
@@ -36,6 +47,11 @@ public:
 	void addEndPacket();
 	void sendData();
 	std::vector<Status> receiveData();
+
+	/**
+	 * Checks if chunkserver (chain) has exceeded allowed response time
+	 */
+	bool serverTimedOut() const;
 
 	uint32_t getPendingPacketCount() const {
 		return pendingPackets_.size();
@@ -73,6 +89,15 @@ private:
 	std::list<Packet> pendingPackets_;
 	MultiBufferWriter bufferWriter_;
 	MessageReceiveBuffer receiveBuffer_;
+
+	/// Number of WRITE_STATUS messages that are expected to be received from the chunkserver
+	uint32_t unconfirmedPackets_;
+
+	/// Measures time since last read from the chunkserver's socket
+	Timeout responseTimeout_;
+
+	/// Increases a counter and resets timer when needed
+	void increaseUnconfirmedPacketCount();
 
 	Status processStatusMessage(const std::vector<uint8_t>& message);
 };

@@ -94,6 +94,9 @@ set directory entry cache timeout in seconds (default: 1.0)
 *-o mfswritecachesize=*'N'::
 specify write cache size in MiB (in range: 16..2048 - default: 128)
 
+*-o mfschunkserverwriteto=*'MSEC'::
+set chunkserver response timeout during write operation in milliseconds (default: 5000)
+
 *-o mfsrlimitnofile=*'N'::
 try to change limit of simultaneously opened file descriptors on startup
 (default: 100000)
