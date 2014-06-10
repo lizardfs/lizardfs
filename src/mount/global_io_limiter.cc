@@ -110,10 +110,6 @@ bool Group::isFirst(PendingRequests::iterator it) const {
 	return it == pendingRequests_.begin();
 }
 
-bool Group::canAskMaster() const {
-	return !outstandingRequest_ && lastRequestSuccessful_;
-}
-
 void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 	while (!pastRequests_.empty()
 			&& ((pastRequests_.front().creationTime + shared_.delta) < clock_.now())) {
@@ -128,11 +124,11 @@ void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 	}
 	sassert(size > reserve_);
 	size -= reserve_;
-	outstandingRequest_ = true;
+	lastRequestStartTime_ = clock_.now();
 	lock.unlock();
 	uint64_t receivedSize = shared_.limiter.request(groupId_, size);
 	lock.lock();
-	outstandingRequest_ = false;
+	lastRequestEndTime_ = clock_.now();
 	lastRequestSuccessful_ = receivedSize >= size;
 	reserve_ += receivedSize;
 }
@@ -149,20 +145,20 @@ uint8_t Group::wait(uint64_t size, SteadyTimePoint deadline, std::unique_lock<st
 		if (attempt(size)) {
 			status = STATUS_OK;
 			break;
-		} else {
-			if (!canAskMaster()) {
-				SteadyTimePoint nextRequestTime = lastRequestStartTime_ + shared_.delta;
-				if (nextRequestTime > deadline) {
-					break;
-				}
-				lock.unlock();
-				clock_.sleepUntil(nextRequestTime);
-				lock.lock();
-			}
-			lastRequestStartTime_ = clock_.now();
-			askMaster(lock);
-			lastRequestEndTime_ = clock_.now();
 		}
+		if (!lastRequestSuccessful_) {
+			SteadyTimePoint nextRequestTime = lastRequestStartTime_ + shared_.delta;
+			if (nextRequestTime > deadline) {
+				break;
+			}
+			lock.unlock();
+			clock_.sleepUntil(nextRequestTime);
+			lock.lock();
+			if (dead_) {
+				continue;
+			}
+		}
+		askMaster(lock);
 	}
 	dequeue(it);
 	notifyQueue();
@@ -179,7 +175,6 @@ void RTClock::sleepUntil(SteadyTimePoint time) {
 
 void Group::die() {
 	dead_ = true;
-	notifyQueue();
 }
 
 std::shared_ptr<Group> LimiterProxy::getGroup(const IoLimitGroupId& groupId) const {

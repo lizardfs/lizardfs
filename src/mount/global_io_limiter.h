@@ -106,8 +106,7 @@ struct SharedState {
 class Group {
 public:
 	Group(const SharedState& shared, const std::string& groupId, Clock& clock) : shared_(shared),
-		groupId_(groupId), reserve_(0), outstandingRequest_(false), lastRequestSuccessful_(true),
-		dead_(false), clock_(clock) {}
+		groupId_(groupId), reserve_(0), lastRequestSuccessful_(true), dead_(false), clock_(clock) {}
 	virtual ~Group() {}
 
 	// wait until we are allowed to transfer size bytes, return errno-style code
@@ -136,7 +135,6 @@ private:
 	bool isFirst(PendingRequests::iterator) const;
 	bool attempt(uint64_t size);
 	void askMaster(std::unique_lock<std::mutex>& lock);
-	bool canAskMaster() const;
 	void notifyQueue();
 
 	const SharedState& shared_;
@@ -153,7 +151,6 @@ private:
 	// that we neither can resign from using start time for purposes described above, due to the
 	// fact that some decisions are made on a basis of its value before the communication starts.
 	SteadyTimePoint lastRequestEndTime_;
-	bool outstandingRequest_;
 	bool lastRequestSuccessful_;
 	bool dead_;
 	Clock& clock_;
