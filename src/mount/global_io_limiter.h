@@ -105,13 +105,13 @@ struct SharedState {
 // Single IO limiting group, allowing users to wait for a resource assignment
 class Group {
 public:
-	Group(const SharedState& shared, Clock& clock) : shared_(shared), reserve_(0),
-		outstandingRequest_(false), lastRequestSuccessful_(true), dead_(false), clock_(clock) {}
+	Group(const SharedState& shared, const std::string& groupId, Clock& clock) : shared_(shared),
+		groupId_(groupId), reserve_(0), outstandingRequest_(false), lastRequestSuccessful_(true),
+		dead_(false), clock_(clock) {}
 	virtual ~Group() {}
 
 	// wait until we are allowed to transfer size bytes, return errno-style code
-	uint8_t wait(const IoLimitGroupId& groupId, uint64_t size,
-			const SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock);
+	uint8_t wait(uint64_t size, const SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock);
 	// notify all waitees that the group has been removed
 	void die();
 private:
@@ -135,11 +135,12 @@ private:
 	void dequeue(PendingRequests::iterator it);
 	bool isFirst(PendingRequests::iterator) const;
 	bool attempt(uint64_t size);
-	void askMaster(const IoLimitGroupId& groupId, std::unique_lock<std::mutex>& lock);
+	void askMaster(std::unique_lock<std::mutex>& lock);
 	bool canAskMaster() const;
 	void notifyQueue();
 
 	const SharedState& shared_;
+	const std::string groupId_;
 	PastRequests pastRequests_;
 	PendingRequests pendingRequests_;
 	uint64_t reserve_;

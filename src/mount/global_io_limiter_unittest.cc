@@ -112,14 +112,14 @@ TEST(LimiterGroupTests, GroupDeadline) {
 	UnlimitedLimiter limiter;
 	SharedState shared{limiter, std::chrono::seconds(1)};
 	FastClock clock;
-	Group group(shared, clock);
+	Group group(shared, "group", clock);
 
 	std::mutex mutex;
 	std::unique_lock<std::mutex> lock(mutex);
 
-	ASSERT_EQ(ETIMEDOUT, group.wait("group", 1, clock.now() - std::chrono::seconds(1), lock));
-	ASSERT_EQ(ETIMEDOUT, group.wait("group", 1, clock.now(), lock));
-	ASSERT_EQ(STATUS_OK, group.wait("group", 1, clock.now() + std::chrono::seconds(1), lock));
+	ASSERT_EQ(ETIMEDOUT, group.wait(1, clock.now() - std::chrono::seconds(1), lock));
+	ASSERT_EQ(ETIMEDOUT, group.wait(1, clock.now(), lock));
+	ASSERT_EQ(STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 }
 
 // Check if the request is handled without any sleeps when the limit is not reached
@@ -128,14 +128,14 @@ TEST(LimiterGroupTests, NoSleepWhenLimitNotReached) {
 	SharedState shared{limiter, std::chrono::seconds(1)};
 	FastClock clock;
 	SteadyTimePoint testBegin = clock.now();
-	Group group(shared, clock);
+	Group group(shared, "group", clock);
 
 	std::mutex mutex;
 	std::unique_lock<std::mutex> lock(mutex);
 
 	auto loops = 1234;
 	for (int i = 0; i < loops; i++) {
-		group.wait("group", 1, SteadyTimePoint() + SteadyDuration(std::chrono::seconds(1)), lock);
+		group.wait(1, SteadyTimePoint() + SteadyDuration(std::chrono::seconds(1)), lock);
 	}
 	ASSERT_EQ(testBegin, clock.now());
 }
@@ -148,7 +148,7 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 	limiter.database.setLimits(clock.now(), {{"group", 0/*KBps*/}}, 250);
 
 	SharedState shared{limiter, std::chrono::milliseconds(1)};
-	Group group(shared, clock);
+	Group group(shared, "group", clock);
 
 	std::mutex mutex;
 
@@ -162,8 +162,8 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 				std::async(std::launch::async, [&group, &total, &clock, &mutex, &someoneFinished]()
 				{
 					std::unique_lock<std::mutex> lock(mutex);
-					uint8_t status = group.wait("group",
-							1024 * 1024/*1MB*/, clock.now() + std::chrono::seconds(10), lock);
+					uint8_t status = group.wait(1024 * 1024/*1MB*/,
+							clock.now() + std::chrono::seconds(10), lock);
 					ASSERT_EQ(STATUS_OK, status);
 					total++;
 					someoneFinished.notify_all();
@@ -198,7 +198,7 @@ TEST(LimiterGroupTests, Die) {
 	IoLimitsDatabaseLimiter limiter(clock);
 	limiter.database.setLimits(clock.now(), {{"group", 1000}}, 250);
 	SharedState shared{limiter, std::chrono::seconds(100)};
-	Group group(shared, clock);
+	Group group(shared, "group", clock);
 
 	std::mutex mutex;
 
@@ -206,13 +206,13 @@ TEST(LimiterGroupTests, Die) {
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(STATUS_OK, group.wait("group", 1, clock.now() + std::chrono::seconds(1), lock));
+		ASSERT_EQ(STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 	}
 	group.die(); // .. but not after 'die' is called:
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(ENOENT, group.wait("group", 1, clock.now() + std::chrono::seconds(1), lock));
+		ASSERT_EQ(ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 	}
 }
 
