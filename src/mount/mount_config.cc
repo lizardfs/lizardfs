@@ -30,6 +30,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsmemlock", memlock, 1),
 #endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
+	MFS_OPT("mfscacheperinodepercentage=%u", cachePerInodePercentage, 0),
 	MFS_OPT("mfswriteworkers=%u", writeworkers, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfswritewindowsize=%u", writewindowsize, 0),
@@ -123,6 +124,8 @@ void usage(const char *progname) {
 "    -o mfsmemlock               try to lock memory\n"
 #endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
+"    -o mfscacheperinodepercentage  define what part of the write cache non occupied by other inodes"
+"                                   can a single inode occupy (in %%, default: 25)\n"
 "    -o mfswriteworkers=N        define number of write workers (default: 10)\n"
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfswritewindowsize=N     define write window size (in blocks) for each chunk (default: 15)\n"

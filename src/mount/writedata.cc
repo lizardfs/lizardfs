@@ -155,6 +155,9 @@ static uint32_t maxretries;
 static uint32_t gWriteWindowSize;
 static uint32_t gChunkserverTimeout_ms;
 
+// percentage of the free cache (1% - 100%) which can be used by one inode
+static uint32_t gCachePerInodePercentage;
+
 static inodedata** idhash;
 
 static pthread_t delayed_queue_worker_th;
@@ -179,8 +182,12 @@ void write_cb_acquire_blocks(uint32_t count, Glock&) {
 void write_cb_wait_for_block(inodedata* id, Glock& glock) {
 	LOG_AVG_TILL_END_OF_SCOPE0("write_cb_wait_for_block");
 	fcbwaiting++;
+	uint64_t dataChainSize = id->dataChain.size();
 	while (freecacheblocks <= 0
-			|| static_cast<int32_t>(id->dataChain.size()) > (freecacheblocks / 3)) {
+			// dataChainSize / (dataChainSize + freecacheblocks) > gCachePerInodePercentage / 100
+			// really means "0 > 0"
+			|| dataChainSize * 100 > (dataChainSize + freecacheblocks) * gCachePerInodePercentage)
+	{
 		fcbcond.wait(glock);
 	}
 	fcbwaiting--;
@@ -580,7 +587,7 @@ void* write_worker(void*) {
 
 /* API | glock: INITIALIZED,UNLOCKED */
 void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
-		uint32_t writewindowsize, uint32_t chunkserverTimeout_ms) {
+		uint32_t writewindowsize, uint32_t chunkserverTimeout_ms, uint32_t cachePerInodePercentage) {
 	uint64_t cachebytecount = uint64_t(cachesize) * 1024 * 1024;
 	uint64_t cacheblockcount = (cachebytecount / MFSBLOCKSIZE);
 	uint32_t i;
@@ -594,6 +601,7 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
 	}
 
 	freecacheblocks = cacheblockcount;
+	gCachePerInodePercentage = cachePerInodePercentage;
 
 	idhash = (inodedata**) malloc(sizeof(inodedata*) * IDHASHSIZE);
 	for (i = 0; i < IDHASHSIZE; i++) {

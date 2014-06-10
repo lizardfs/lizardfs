@@ -25,7 +25,8 @@
 #include "common/attributes.h"
 
 void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
-		uint32_t writewindowsize, uint32_t chunkserverTimeout_ms);
+		uint32_t writewindowsize, uint32_t chunkserverTimeout_ms,
+		uint32_t cachePerInodePercentage);
 void write_data_term(void);
 void* write_data_new(uint32_t inode);
 int write_data_end(void *vid);

@@ -64,6 +64,7 @@ struct mfsopts_ {
 	int passwordask;
 	int donotrememberpassword;
 	unsigned writecachesize;
+	unsigned cachePerInodePercentage;
 	unsigned writeworkers;
 	unsigned ioretries;
 	unsigned writewindowsize;
@@ -103,6 +104,7 @@ struct mfsopts_ {
 			passwordask(0),
 			donotrememberpassword(0),
 			writecachesize(0),
+			cachePerInodePercentage(25),
 			writeworkers(10),
 			ioretries(30),
 			writewindowsize(15),

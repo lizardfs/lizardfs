@@ -290,8 +290,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,
 				gMountOptions.writewindowsize,
-				gMountOptions.chunkserverwriteto
-				);
+				gMountOptions.chunkserverwriteto,
+				gMountOptions.cachePerInodePercentage);
 	}
 
 	ch = fuse_mount(mp, args);
@@ -642,6 +642,16 @@ int main(int argc, char *argv[]) try {
 	}
 	if (gMountOptions.writecachesize==0) {
 		gMountOptions.writecachesize=128;
+	}
+	if (gMountOptions.cachePerInodePercentage < 1) {
+		fprintf(stderr, "cache per inode percentage too low (%u %%) - increased to 1%%\n",
+				gMountOptions.cachePerInodePercentage);
+		gMountOptions.cachePerInodePercentage = 1;
+	}
+	if (gMountOptions.cachePerInodePercentage > 100) {
+		fprintf(stderr, "cache per inode percentage too big (%u %%) - decreased to 100%%\n",
+				gMountOptions.cachePerInodePercentage);
+		gMountOptions.cachePerInodePercentage = 100;
 	}
 	if (gMountOptions.writecachesize<16) {
 		fprintf(stderr,"write cache size too low (%u MiB) - increased to 16 MiB\n",
