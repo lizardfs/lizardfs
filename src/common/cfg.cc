@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <string>
 
 #include "common/massert.h"
 #include "common/slogger.h"
@@ -37,7 +38,14 @@ static char *cfgfname;
 static paramstr *paramhead=NULL;
 static int logundefined=0;
 
-int cfg_reload (void) {
+int cfg_reload(void) {
+	int lu = logundefined;
+	std::string configfname(cfgfname);
+	cfg_term();
+	return cfg_load(configfname.c_str(), lu);
+}
+
+static int cfg_do_load (void) {
 	FILE *fd;
 	char linebuff[1000];
 	uint32_t nps,npe,vps,vpe,i;
@@ -114,7 +122,7 @@ int cfg_load (const char *configfname,int _lu) {
 	logundefined = _lu;
 	cfgfname = strdup(configfname);
 
-	return cfg_reload();
+	return cfg_do_load();
 }
 
 int cfg_isdefined(const char *name) {
