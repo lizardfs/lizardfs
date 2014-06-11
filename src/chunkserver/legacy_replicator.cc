@@ -31,6 +31,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include "chunkserver/g_limiters.h"
 #include "chunkserver/hddspacemgr.h"
 #include "common/crc.h"
 #include "common/datapack.h"
@@ -520,6 +521,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		}
 	}
 // create read request
+	uint32_t requestsSummaryLength = 0;
 	for (i=0 ; i<srccnt ; i++) {
 		if (r.repsources[i].blocks>0) {
 			uint32_t leng;
@@ -530,6 +532,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 				return ERROR_OUTOFMEMORY;
 			}
 			leng = r.repsources[i].blocks*MFSBLOCKSIZE;
+			requestsSummaryLength += leng;
 			put64bit(&wptr,r.repsources[i].chunkid);
 			put32bit(&wptr,r.repsources[i].version);
 			put32bit(&wptr,0);
@@ -537,6 +540,12 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		} else {
 			rep_no_packet(r.repsources+i);
 		}
+	}
+// wait for replication bandwidth limit to be assigned
+	status = replicationBandwidthLimiter().wait(requestsSummaryLength, std::chrono::seconds(60));
+	if (status != STATUS_OK) {
+		syslog(LOG_WARNING, "Replication bandwidth limit error: %s", mfsstrerr(status));
+		return status;
 	}
 // send read request
 	if (rep_send_all_packets(&r,SENDMSECTO)<0) {

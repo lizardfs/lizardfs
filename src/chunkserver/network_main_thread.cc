@@ -19,6 +19,7 @@
 #include <tuple>
 
 #include "chunkserver/bgjobs.h"
+#include "chunkserver/g_limiters.h"
 #include "chunkserver/hdd_readahead.h"
 #include "chunkserver/network_main_thread.h"
 #include "chunkserver/network_stats.h"
@@ -219,6 +220,15 @@ int mainNetworkThreadInit(void) {
 	}
 	sassert(!networkThreads.empty());
 	nextNetworkThread = networkThreadObjects.end();
+
+	try {
+		// TODO Load limit from configuration
+		// replicationIoLimiter().setLimit(x);
+	} catch (std::exception& e) {
+		mfs_arg_errlog(LOG_ERR,
+				"main server module: can't initialize replication bandwidth limiter: %s", e.what());
+		return -1;
+	}
 
 	return 0;
 }

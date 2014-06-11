@@ -8,6 +8,7 @@
 
 #include "common/cltoma_communication.h"
 #include "common/io_limit_group.h"
+#include "common/io_limiting.h"
 #include "common/io_limits_database.h"
 #include "common/matocl_communication.h"
 #include "unittests/packet.h"

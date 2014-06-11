@@ -1,6 +1,8 @@
 #include "config.h"
 #include "mount/g_io_limiters.h"
 
+#include "mount/global_io_limiter.h"
+
 ioLimiting::MountLimiter& gMountLimiter() {
 	static ioLimiting::MountLimiter limiter;
 	return limiter;

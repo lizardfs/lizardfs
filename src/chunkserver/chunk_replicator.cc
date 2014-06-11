@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "chunkserver/g_limiters.h"
 #include "common/crc.h"
 #include "common/cstocs_communication.h"
 #include "common/exception.h"
@@ -141,12 +142,19 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 	}
 
 	fileCreator.create();
-	Timeout timeout{std::chrono::seconds(60)};
+	static const SteadyDuration maxWaitTime = std::chrono::seconds(60);
+	Timeout timeout{maxWaitTime};
 	for (uint32_t firstBlock = 0; firstBlock < blocks; firstBlock += batchSize) {
 		// Plan the operation
 		uint32_t nrOfBlocks = std::min(blocks - firstBlock, batchSize);
 		ReadPlanner::Plan plan = planner->buildPlanFor(firstBlock, nrOfBlocks);
 
+		// Wait for limit to be assigned
+		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, maxWaitTime);
+		if (status != STATUS_OK) {
+			syslog(LOG_WARNING, "Replication bandwidth limiting error: %s", mfsstrerr(status));
+			return;
+		}
 		// Execute the plan
 		std::vector<uint8_t> buffer;
 		ReadPlanExecutor::ChunkTypeLocations locations;
