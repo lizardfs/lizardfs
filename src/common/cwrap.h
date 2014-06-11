@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <memory>
+#include <string>
 
 class FileDescriptor {
 public:
