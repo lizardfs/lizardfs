@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <cstdio>
 #include <memory>
+#include <string>
 
 class FileDescriptor {
 public:
