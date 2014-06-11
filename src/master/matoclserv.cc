@@ -3637,8 +3637,7 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 					SteadyClock::now(), groupId, requestedBytes);
 		} catch (IoLimitsDatabase::InvalidGroupIdException&) {
 			syslog(LOG_NOTICE, "LIZ_CLTOMA_IOLIMIT: Invalid group: %s", groupId.c_str());
-			eptr->mode = KILL;
-			return;
+			grantedBytes = 0;
 		}
 	}
 	MessageBuffer reply;

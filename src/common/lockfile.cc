@@ -17,7 +17,7 @@ Lockfile::~Lockfile() {
 void Lockfile::lock(StaleLock staleLock) {
 	bool existed = boost::filesystem::exists(name_);
 	FileDescriptor fd(::open(name_.c_str(), O_CREAT | O_RDWR, 0644));
-
+	fd.close();
 	if (existed && (staleLock == StaleLock::kReject)) {
 		throw LockfileException("Stale lockfile exists.", LockfileException::Reason::kStaleLock);
 	}

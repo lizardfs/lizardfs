@@ -110,12 +110,7 @@ bool Group::isFirst(PendingRequests::iterator it) const {
 	return it == pendingRequests_.begin();
 }
 
-bool Group::canAskMaster() const {
-	return !outstandingRequest_ && lastRequestSuccessful_;
-}
-
-void Group::askMaster(const IoLimitGroupId& groupId,
-		std::unique_lock<std::mutex>& lock) {
+void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 	while (!pastRequests_.empty()
 			&& ((pastRequests_.front().creationTime + shared_.delta) < clock_.now())) {
 		pastRequests_.pop_front();
@@ -129,17 +124,16 @@ void Group::askMaster(const IoLimitGroupId& groupId,
 	}
 	sassert(size > reserve_);
 	size -= reserve_;
-	outstandingRequest_ = true;
+	lastRequestStartTime_ = clock_.now();
 	lock.unlock();
-	uint64_t receivedSize = shared_.limiter.request(groupId, size);
+	uint64_t receivedSize = shared_.limiter.request(groupId_, size);
 	lock.lock();
-	outstandingRequest_ = false;
+	lastRequestEndTime_ = clock_.now();
 	lastRequestSuccessful_ = receivedSize >= size;
 	reserve_ += receivedSize;
 }
 
-uint8_t Group::wait(const IoLimitGroupId& groupId, uint64_t size,
-		SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock) {
+uint8_t Group::wait(uint64_t size, SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock) {
 	PendingRequests::iterator it = enqueue(size);
 	it->cond.wait(lock, [this, it]() {return isFirst(it);});
 	uint8_t status = ETIMEDOUT;
@@ -151,20 +145,20 @@ uint8_t Group::wait(const IoLimitGroupId& groupId, uint64_t size,
 		if (attempt(size)) {
 			status = STATUS_OK;
 			break;
-		} else {
-			if (!canAskMaster()) {
-				SteadyTimePoint nextRequestTime = lastRequestStartTime_ + shared_.delta;
-				if (nextRequestTime > deadline) {
-					break;
-				}
-				lock.unlock();
-				clock_.sleepUntil(nextRequestTime);
-				lock.lock();
-			}
-			lastRequestStartTime_ = clock_.now();
-			askMaster(groupId, lock);
-			lastRequestEndTime_ = clock_.now();
 		}
+		if (!lastRequestSuccessful_) {
+			SteadyTimePoint nextRequestTime = lastRequestStartTime_ + shared_.delta;
+			if (nextRequestTime > deadline) {
+				break;
+			}
+			lock.unlock();
+			clock_.sleepUntil(nextRequestTime);
+			lock.lock();
+			if (dead_) {
+				continue;
+			}
+		}
+		askMaster(lock);
 	}
 	dequeue(it);
 	notifyQueue();
@@ -181,7 +175,6 @@ void RTClock::sleepUntil(SteadyTimePoint time) {
 
 void Group::die() {
 	dead_ = true;
-	notifyQueue();
 }
 
 std::shared_ptr<Group> LimiterProxy::getGroup(const IoLimitGroupId& groupId) const {
@@ -209,7 +202,7 @@ uint8_t LimiterProxy::waitForRead(const pid_t pid, const uint64_t size, SteadyTi
 		if (!group) {
 			return EPERM;
 		}
-		status = group->wait(groupId, size, deadline, lock);
+		status = group->wait(size, deadline, lock);
 	} while (status == ENOENT); // loop if the group disappeared due to reconfiguration
 	return status;
 }
@@ -249,8 +242,9 @@ void LimiterProxy::reconfigure(uint32_t delta_us, const std::string& subsystem,
 		if (oldIter == groups_.end() ||
 				oldIter->first > newIter->get()) {
 			// new group has been added
-			oldIter = groups_.insert(oldIter, std::move(std::make_pair(newIter->get(),
-						std::move(std::make_shared<Group>(shared_, clock_)))));
+			const std::string& groupId = newIter->get();
+			oldIter = groups_.insert(oldIter, std::move(std::make_pair(groupId,
+					std::move(std::make_shared<Group>(shared_, groupId, clock_)))));
 		} else {
 			// existing group with the same name
 			if (differentSubsystem) {
@@ -258,7 +252,8 @@ void LimiterProxy::reconfigure(uint32_t delta_us, const std::string& subsystem,
 				// notify waitees
 				oldIter->second->die();
 				// unreference the old group and create a new one
-				oldIter->second = std::move(std::make_shared<Group>(shared_, clock_));
+				const std::string& groupId = newIter->get();
+				oldIter->second = std::move(std::make_shared<Group>(shared_, groupId, clock_));
 			}
 		}
 		newIter++;
