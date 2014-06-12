@@ -36,6 +36,7 @@
 #include "common/cfg.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
+#include "common/setup.h"
 #include "common/slogger.h"
 #include "common/strerr.h"
 #include "master/chunks.h"
@@ -199,6 +200,7 @@ int main(int argc,char **argv) {
 	int storedPreviousBackMetaCopies = kMaxStoredPreviousBackMetaCopies;
 	bool noLock = false;
 
+	prepareEnvironment();
 	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 

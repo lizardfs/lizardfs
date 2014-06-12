@@ -48,6 +48,7 @@
 #include "common/exceptions.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/setup.h"
 #include "common/slogger.h"
 #include "common/strerr.h"
 
@@ -951,6 +952,7 @@ int main(int argc,char **argv) {
 	uint8_t movewarning;
 	struct rlimit rls;
 
+	prepareEnvironment();
 	strerr_init();
 	mycrc32_init();
 
