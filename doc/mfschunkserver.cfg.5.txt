@@ -76,6 +76,10 @@ chunk test period in seconds (default is 10)
 *HDD_CONF_FILENAME*::
 alternative name of *mfshdd.cfg* file
 
+*REPLICATION_BANDWIDTH_LIMIT_KBPS*::
+limit how many kilobytes can be replicated from other chunkservers to this chunkserver in every
+second
+
 == COPYRIGHT
 
 Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.

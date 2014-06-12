@@ -55,6 +55,14 @@ static uint32_t gNrOfNetworkWorkers;
 static uint32_t gNrOfHddWorkersPerNetworkWorker;
 static uint32_t gBgjobsCountPerNetworkWorker;
 
+void replicationBandwidthLimitReload() {
+	if (cfg_isdefined("REPLICATION_BANDWIDTH_LIMIT_KBPS")) {
+		replicationBandwidthLimiter().setLimit(cfg_getuint32("REPLICATION_BANDWIDTH_LIMIT_KBPS", 0));
+	} else {
+		replicationBandwidthLimiter().unsetLimit();
+	}
+}
+
 void mainNetworkThreadReload(void) {
 	TRACETHIS();
 
@@ -65,6 +73,14 @@ void mainNetworkThreadReload(void) {
 	cfg_warning_on_value_change(
 			"BGJOBSCNT_PER_NETWORK_WORKER", gBgjobsCountPerNetworkWorker);
 	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 1);
+
+	try {
+		replicationBandwidthLimitReload();
+	} catch (std::exception& ex) {
+		mfs_arg_errlog(LOG_ERR,
+				"main server module: can't reload REPLICATION_BANDWIDTH_LIMIT_KBPS: %s",
+				ex.what());
+	}
 
 	gHDDReadAhead.setReadAhead_kB(
 			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSCHUNKSIZE / 1024));
@@ -222,8 +238,7 @@ int mainNetworkThreadInit(void) {
 	nextNetworkThread = networkThreadObjects.end();
 
 	try {
-		// TODO Load limit from configuration
-		// replicationIoLimiter().setLimit(x);
+		replicationBandwidthLimitReload();
 	} catch (std::exception& e) {
 		mfs_arg_errlog(LOG_ERR,
 				"main server module: can't initialize replication bandwidth limiter: %s", e.what());
