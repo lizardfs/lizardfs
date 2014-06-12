@@ -8,10 +8,6 @@ CHUNKSERVERS=3 \
 	MASTER_EXTRA_CONFIG="$master_extra_config" \
 	setup_local_empty_lizardfs info
 
-# hack: metadata restoration doesn't work on fresh installations
-lizardfs_master_daemon restart
-
-# 'metaout_tmp' is used to ensure 'metaout' is complete when "created"
 cat > $TEMP_DIR/metarestore.sh << END
 #!/bin/bash
 touch $TEMP_DIR/dump_started

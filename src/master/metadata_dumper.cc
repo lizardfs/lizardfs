@@ -219,7 +219,7 @@ void MetadataDumper::waitUntilFinished(SteadyDuration timeout) {
 		pollServe(pfd);
 	}
 	if (inProgress()) {
-		syslog(LOG_ERR, "dumping didn't finish in specified timeout: %.2lf s",
+		syslog(LOG_ERR, "dumping didn't finish in specified timeout: %.2f s",
 				std::chrono::duration_cast<std::chrono::duration<double, std::ratio<1>>>(
 					timeout).count());
 		// mark finish anyway

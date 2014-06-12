@@ -316,9 +316,7 @@ int main(int argc,char **argv) {
 		return 1;
 	}
 	if (fs_getversion() == 0) {
-		// TODO(msulikowski) make it work! :)
-		mfs_syslog(LOG_ERR,
-				"error: applying changes to an empty metadata file (version 0) not supported!!!");
+		mfs_syslog(LOG_ERR, "invalid metadata version (0)");
 		return 1;
 	}
 	if (vl > 0) {

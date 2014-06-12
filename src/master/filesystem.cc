@@ -8066,7 +8066,7 @@ void fs_new(void) {
 	uint32_t nodepos;
 	statsrecord *sr;
 	maxnodeid = MFS_ROOT_ID;
-	metaversion = 0;
+	metaversion = 1;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
 	freelist = NULL;

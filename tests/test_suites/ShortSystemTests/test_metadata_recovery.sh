@@ -8,8 +8,6 @@ CHUNKSERVERS=3 \
 oldmeta="${TEMP_DIR}/old_metadata"
 newmeta="${TEMP_DIR}/new_metadata"
 
-# hack: metadata restoration doesn't work on fresh installations
-lizardfs_master_daemon restart
 lizardfs_metalogger_daemon start
 
 cd "${info[mount0]}"
