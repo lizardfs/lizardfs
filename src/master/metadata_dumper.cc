@@ -1,8 +1,9 @@
 #include "config.h"
 #include "master/metadata_dumper.h"
 
-#include <signal.h>
 #include <string.h>
+
+#include "common/massert.h"
 
 static bool createPipe(int pipefds[2]) {
 	if (pipe(pipefds) != 0) {
@@ -199,4 +200,34 @@ void MetadataDumper::dumpingFinished() {
 	if (dumpingProcessOutputEmpty_) {
 		syslog(LOG_WARNING, "the dumping process finished without producing output");
 	}
+}
+
+void MetadataDumper::waitUntilFinished(SteadyDuration timeout) {
+	// pollDesc uses at most one pollfd
+	struct pollfd pfd[2];
+	uint32_t n;
+	Timeout stopwatch(timeout);
+	while (inProgress() && !stopwatch.expired()) {
+		n = 0;
+		pollDesc(pfd, &n);
+		sassert(n <= 1);
+		// on 0 `poll' returns immediately and that's fine
+		if (poll(pfd, n, stopwatch.remaining_ms()) == -1) {
+			mfs_errlog(LOG_ERR, "poll error during waiting for dumping to finish");
+			break;
+		}
+		pollServe(pfd);
+	}
+	if (inProgress()) {
+		syslog(LOG_ERR, "dumping didn't finish in specified timeout: %.2lf s",
+				std::chrono::duration_cast<std::chrono::duration<double, std::ratio<1>>>(
+					timeout).count());
+		// mark finish anyway
+		dumpingFinished();
+	}
+}
+
+void MetadataDumper::waitUntilFinished() {
+	// let's say a year is enough
+	waitUntilFinished(std::chrono::hours(24 * 365));
 }

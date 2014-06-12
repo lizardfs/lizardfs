@@ -8227,6 +8227,9 @@ void fs_dostoreall() {
 }
 
 void fs_term(void) {
+	if (metadataDumper.inProgress()) {
+		metadataDumper.waitUntilFinished();
+	}
 	for (;;) {
 		if (fs_storeall(MetadataDumper::kForegroundDump)) {
 			chunk_term();
