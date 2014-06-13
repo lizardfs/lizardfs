@@ -156,8 +156,9 @@ private:
 	typedef std::tuple<Operation, LongKey, LongKey> AverageRequest;
 	typedef Duration AvgDuration;
 	typedef uint64_t NrOfOccurences;
+	typedef Duration MaxDuration;
 	typedef std::map<AverageRequest,
-			std::tuple<AvgDuration, NrOfOccurences>> AverageRequestTimes;
+			std::tuple<AvgDuration, NrOfOccurences, MaxDuration>> AverageRequestTimes;
 
 	Requests requests;
 	AverageRequestTimes selectedRequestsAverages;
@@ -286,7 +287,9 @@ public:
 				// Update sum
 				std::get<0>(req) + duration,
 				// Update counter
-				std::get<1>(req) + 1);
+				std::get<1>(req) + 1,
+				// Update max
+				std::max<TimeInMicroseconds>(std::get<2>(req), duration));
 	}
 
 	void swap(Requests& requests_, AverageRequestTimes& selectedAvgRequests_) {
