@@ -30,9 +30,8 @@
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 
 #define CSMSECTIMEOUT 5000
 

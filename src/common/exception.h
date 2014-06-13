@@ -6,7 +6,7 @@
 #include <string>
 
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 
 class Exception : public std::exception {
 public:

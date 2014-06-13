@@ -33,9 +33,8 @@
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "mount/cscomm.h"
 #include "mount/csdb.h"
 #include "mount/mastercomm.h"

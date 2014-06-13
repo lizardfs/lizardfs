@@ -5,7 +5,7 @@
 
 #include "common/human_readable_format.h"
 #include "common/MFSCommunication.h"
-#include "common/strerr.h"
+#include "common/mfserr.h"
 #include "probe/info_command.h"
 #include "probe/list_chunkservers_command.h"
 #include "probe/list_disks_command.h"

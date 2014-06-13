@@ -39,10 +39,9 @@
 #include "common/human_readable_format.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)

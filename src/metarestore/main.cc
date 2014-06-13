@@ -35,10 +35,10 @@
 
 #include "common/cfg.h"
 #include "common/metadata.h"
+#include "common/mfserr.h"
 #include "common/rotate_files.h"
 #include "common/setup.h"
 #include "common/slogger.h"
-#include "common/strerr.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
 #include "metarestore/merger.h"

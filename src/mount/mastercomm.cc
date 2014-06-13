@@ -44,9 +44,9 @@
 #include "common/matocl_communication.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
+#include "common/mfserr.h"
 #include "common/packet.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
 

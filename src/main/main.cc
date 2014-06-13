@@ -48,9 +48,9 @@
 #include "common/exceptions.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/mfserr.h"
 #include "common/setup.h"
 #include "common/slogger.h"
-#include "common/strerr.h"
 
 #if defined(HAVE_MLOCKALL)
 #  if defined(HAVE_SYS_MMAN_H)

@@ -38,7 +38,7 @@
 #include "common/crc.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
-#include "common/strerr.h"
+#include "common/mfserr.h"
 #include "mount/csdb.h"
 #include "mount/g_io_limiters.h"
 #include "mount/mastercomm.h"
