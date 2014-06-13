@@ -248,18 +248,25 @@ find_first_chunkserver_with_chunks_matching() {
 	return 1
 }
 
+# print absolute paths of all chunk files on selected server, one per line
+find_chunkserver_chunks() {
+	local chunkserver_number=$1
+	shift
+	local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
+			"${lizardfs_info[chunkserver${chunkserver_number}_hdd]}")
+	if (( $# > 0 )); then
+		find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+	else
+		find $hdds -name "chunk*.mfs"
+	fi
+}
+
 # print absolute paths of all chunk files on all servers used in test, one per line
 find_all_chunks() {
 	local count=${lizardfs_info[chunkserver_count]}
 	local chunkserver
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
-		local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
-				"${lizardfs_info[chunkserver${chunkserver}_hdd]}")
-		if (( $# > 0 )); then
-			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
-		else
-			find $hdds -name "chunk*.mfs"
-		fi
+		find_chunkserver_chunks $chunkserver "$@"
 	done
 }
 
