@@ -8173,7 +8173,10 @@ int fs_init(void) {
 
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
+	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
+		// Secret option disabling periodic metadata dumps
+		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
+	}
 	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_emptytrash);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_emptyreserved);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fsnodes_freeinodes);
