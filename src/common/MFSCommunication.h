@@ -113,8 +113,9 @@
 #define ERROR_ENOATTR         38        // Attribute not found
 #define ERROR_ENOTSUP         39        // Operation not supported
 #define ERROR_ERANGE          40        // Result too large
+#define ERROR_TIMEOUT         41        // Timeout
 
-#define ERROR_MAX             41
+#define ERROR_MAX             42
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -158,6 +159,7 @@
 	"Attribute not found", \
 	"Operation not supported", \
 	"Result too large", \
+	"Timeout", \
 	"Unknown MFS error"
 
 /* type for readdir command */

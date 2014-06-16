@@ -1763,7 +1763,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
 		}
 		if (status != STATUS_OK) {
-			fuse_reply_err(req, status);
+			fuse_reply_err(req, mfs_errorconv_dbg(status));
 			return;
 		}
 	} catch (Exception& ex) {
@@ -1859,7 +1859,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
 		}
 		if (status != STATUS_OK) {
-			fuse_reply_err(req, status);
+			fuse_reply_err(req, mfs_errorconv_dbg(status));
 			return;
 		}
 	} catch (Exception& ex) {

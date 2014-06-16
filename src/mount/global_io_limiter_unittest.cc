@@ -117,8 +117,8 @@ TEST(LimiterGroupTests, GroupDeadline) {
 	std::mutex mutex;
 	std::unique_lock<std::mutex> lock(mutex);
 
-	ASSERT_EQ(ETIMEDOUT, group.wait(1, clock.now() - std::chrono::seconds(1), lock));
-	ASSERT_EQ(ETIMEDOUT, group.wait(1, clock.now(), lock));
+	ASSERT_EQ(ERROR_TIMEOUT, group.wait(1, clock.now() - std::chrono::seconds(1), lock));
+	ASSERT_EQ(ERROR_TIMEOUT, group.wait(1, clock.now(), lock));
 	ASSERT_EQ(STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 }
 
@@ -212,7 +212,7 @@ TEST(LimiterGroupTests, Die) {
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+		ASSERT_EQ(ERROR_ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 	}
 }
 

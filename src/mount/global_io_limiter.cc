@@ -136,10 +136,10 @@ void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 uint8_t Group::wait(uint64_t size, SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock) {
 	PendingRequests::iterator it = enqueue(size);
 	it->cond.wait(lock, [this, it]() {return isFirst(it);});
-	uint8_t status = ETIMEDOUT;
+	uint8_t status = ERROR_TIMEOUT;
 	while (clock_.now() < deadline) {
 		if (dead_) {
-			status = ENOENT;
+			status = ERROR_ENOENT;
 			break;
 		}
 		if (attempt(size)) {
@@ -200,10 +200,10 @@ uint8_t LimiterProxy::waitForRead(const pid_t pid, const uint64_t size, SteadyTi
 		// quickly unreference this group from the groups_ map without waiting for us.
 		std::shared_ptr<Group> group = getGroup(groupId);
 		if (!group) {
-			return EPERM;
+			return ERROR_EPERM;
 		}
 		status = group->wait(size, deadline, lock);
-	} while (status == ENOENT); // loop if the group disappeared due to reconfiguration
+	} while (status == ERROR_ENOENT); // loop if the group disappeared due to reconfiguration
 	return status;
 }
 
