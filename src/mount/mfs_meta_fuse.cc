@@ -36,6 +36,7 @@
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "mount/exports.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 
@@ -62,13 +63,10 @@ typedef struct _pathbuf {
 #define META_ROOT_MODE 0555
 
 #define META_TRASH_INODE (FUSE_ROOT_ID+1)
-#define META_TRASH_MODE 0700
 #define META_TRASH_NAME "trash"
 #define META_UNDEL_INODE (FUSE_ROOT_ID+2)
-#define META_UNDEL_MODE 0200
 #define META_UNDEL_NAME "undel"
 #define META_RESERVED_INODE (FUSE_ROOT_ID+3)
-#define META_RESERVED_MODE 0500
 #define META_RESERVED_NAME "reserved"
 
 #define META_INODE_MIN META_ROOT_INODE
@@ -182,15 +180,15 @@ static void mfs_meta_stat(uint32_t inode, struct stat *stbuf) {
 		break;
 	case META_TRASH_INODE:
 		stbuf->st_nlink = 3;
-		stbuf->st_mode = S_IFDIR | META_TRASH_MODE ;
+		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0777 : 0700) ;
 		break;
 	case META_UNDEL_INODE:
 		stbuf->st_nlink = 2;
-		stbuf->st_mode = S_IFDIR | META_UNDEL_MODE ;
+		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0777 : 0200) ;
 		break;
 	case META_RESERVED_INODE:
 		stbuf->st_nlink = 2;
-		stbuf->st_mode = S_IFDIR | META_RESERVED_MODE ;
+		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0555 : 0500) ;
 		break;
 	}
 	stbuf->st_uid = 0;

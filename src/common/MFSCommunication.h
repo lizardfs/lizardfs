@@ -248,6 +248,7 @@
 #define SESFLAG_ALLCANCHANGEQUOTA 0x08  // quota can be modified also by a non-root user
 #define SESFLAG_MAPALL            0x10  // all users (except root) are mapped to specific uid and gid
 #define SESFLAG_NOMASTERPERMCHECK 0x20  // disable permission checks in master server
+#define SESFLAG_NONROOTMETA       0x40  // allow non-root users to use filesystem mounted in the meta mode
 
 #define SESFLAG_POS_STRINGS \
 	"read-only", \
@@ -256,7 +257,7 @@
 	"all_can_change_quota", \
 	"map_all", \
 	"no_master_permission_check", \
-	"undefined_flag_6", \
+	"available_for_non_root_users", \
 	"undefined_flag_7"
 
 #define SESFLAG_NEG_STRINGS \
