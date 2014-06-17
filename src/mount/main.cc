@@ -60,7 +60,6 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #if defined(__APPLE__)
 #define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=600,iosize=65536"

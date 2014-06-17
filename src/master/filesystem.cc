@@ -723,6 +723,7 @@ static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const ui
 	return (hash&(XATTR_DATA_HASH_SIZE-1));
 }
 
+#ifndef METARESTORE
 static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
 	uint32_t i;
 	for (i=0 ; i<anleng ; i++) {
@@ -732,6 +733,7 @@ static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
 	}
 	return 0;
 }
+#endif /* METARESTORE */
 
 static inline void xattr_removeentry(xattr_data_entry *xa) {
 	*(xa->previnode) = xa->nextinode;
@@ -1520,6 +1522,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	return p;
 }
 
+#ifndef METARESTORE
 static inline uint32_t fsnodes_getpath_size(fsedge *e) {
 	uint32_t size;
 	fsnode *p;
@@ -1565,6 +1568,7 @@ static inline void fsnodes_getpath_data(fsedge *e,uint8_t *path,uint32_t size) {
 		p = p->parents->parent;
 	}
 }
+#endif /* METARESTORE */
 
 static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 	uint32_t size;

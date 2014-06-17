@@ -28,7 +28,6 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #define MAX_INDEX 0x7FFFFFFF
 #define MAX_CHUNKS_PER_FILE (MAX_INDEX+1)

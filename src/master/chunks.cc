@@ -497,19 +497,24 @@ static inline chunk* chunk_malloc() {
 	return ret;
 }
 
+#ifndef METARESTORE
 static inline void chunk_free(chunk *p) {
 	p->next = chfreehead;
 	chfreehead = p;
 }
+#endif /* METARESTORE */
+
 #else /* USE_CHUNK_BUCKETS */
 
 static inline chunk* chunk_malloc() {
 	return new chunk;
 }
 
+#ifndef METARESTORE
 static inline void chunk_free(chunk* p) {
 	delete p;
 }
+#endif /* METARESTORE */
 
 #endif /* USE_CHUNK_BUCKETS */
 
