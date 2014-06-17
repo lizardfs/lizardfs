@@ -2169,7 +2169,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 	is_new = 0;
 	for (;;) {
 		partleng=0;
-		while (path[partleng]!='/' && partleng<pleng) {
+		while ((partleng < pleng) && (path[partleng] != '/')) {
 			partleng++;
 		}
 		if (partleng==pleng) {  // last name
