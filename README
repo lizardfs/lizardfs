@@ -1,32 +1,11 @@
-LizardFS is a networking, distributed file system.
+LizardFS is a highly reliable, scalable and efficent distributed file system. It spreads data over a number of physical servers, making it visible to an end user as a single file system.
 
-It spreads data over several physical locations (servers), which are visible to a user as one resource (available through FUSE).
-
-LizardFS is fault tolerant at data level, not (yet) completely on metadata level.
-
-The goals behind LizardFS are:
-
-    Providing free:
-        - Highly Reliable,
-        - Highly Scalable,
-        - Highly Available,
-        - Highly Secure,
-        - Highly Efficient file system solution.
-    Adapting modern agile development of distributed system in C++:
-        - git - https://github.com/lizardfs/lizardfs,
-        - jenkins (for access please contact contact@lizardfs.org),
-        - gerrit (for access please contact contact@lizardfs.org),
-        - unit testing.
-    Active cooperation with open source community.
-    Developing test infrastructure standards for distributed file systems.
+Useful links:
+    - Main code repository - http://cr.skytechnology.pl:8081/lizardfs,
+    - GitHub repository mirror - https://github.com/lizardfs/lizardfs,
+    - Code review system - http://cr.skytechnology.pl:8081/,
+    - Continuous integration system - http://jenkins.lizardfs.org/.
 
 LizardFS is a fork of MooseFS.
 
-Motivations behind creating this fork are:
-
-    - rare updates of git repository,
-    - lack of community (only 2 developers made commits to public git repository at sourceforge),
-    - increase in the number of possible contributors with a simultaneous lack of response on the part of moosefs maintainers,
-    - our ability to perfect the tool.
-
-More info at: www.lizardfs.org.
+More info can be found at www.lizardfs.com.
