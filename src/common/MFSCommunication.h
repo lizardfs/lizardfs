@@ -1221,6 +1221,14 @@
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 limits:(vector<QuotaOwnerAndLimits>)
 
+// 0x0607
+#define LIZ_CLTOMA_IOLIMITS_STATUS (1000U + 543U)
+/// msgid:32
+
+// 0x0608
+#define LIZ_MATOCL_IOLIMITS_STATUS (1000U + 544U)
+/// msgid:32 cfgversion:32 period:32 accumulation:32 subsystem:STDSTRING groupslimits:(vector<STDSTRING, uint64_t>)
+
 // CHUNKSERVER STATS
 
 // 0x00258

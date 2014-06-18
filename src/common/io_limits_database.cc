@@ -41,6 +41,14 @@ std::vector<std::string> IoLimitsDatabase::getGroups() const {
 	return result;
 }
 
+std::vector<IoGroupAndLimit> IoLimitsDatabase::getGroupsAndLimits() const {
+	std::vector<IoGroupAndLimit> result;
+	for (const auto& group : groups_) {
+		result.push_back({group.first, (uint64_t)group.second.rate()});
+	}
+	return result;
+}
+
 uint64_t IoLimitsDatabase::request(SteadyTimePoint now, const GroupId& groupId, uint64_t bytes) {
 	try {
 		return groups_.at(groupId).attempt(now, bytes);

@@ -11,7 +11,15 @@
 
 #include "common/exception.h"
 #include "common/io_limits_config_loader.h"
+#include "common/serialization_macros.h"
 #include "common/token_bucket.h"
+
+/**
+ * Simple class to make serialization easier
+ */
+LIZARDFS_DEFINE_SERIALIZABLE_CLASS(IoGroupAndLimit,
+		std::string, group,
+		uint64_t   , limit);
 
 /**
  * This class is responsible for limiting resources for every group. It gives a user a possibility
@@ -40,6 +48,9 @@ public:
 
 	// get a list of all groups
 	std::vector<std::string> getGroups() const;
+
+	// get a vector of all groups with their limits in bytes per second
+	std::vector<IoGroupAndLimit> getGroupsAndLimits() const;
 
 	// try to satisfy client's request to change limit in given I/O group, return assigned limit
 	uint64_t request(SteadyTimePoint now, const GroupId& groupId, uint64_t bytes);

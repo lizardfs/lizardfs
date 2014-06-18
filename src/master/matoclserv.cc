@@ -804,6 +804,21 @@ void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint3
 	matoclserv_createpacket(eptr,MATOCL_CSSERV_REMOVESERV,0);
 }
 
+void matoclserv_iolimits_status(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	uint32_t messageId;
+	cltoma::iolimitsStatus::deserialize(data, length, messageId);
+
+	MessageBuffer buffer;
+	matocl::iolimitsStatus::serialize(buffer,
+			messageId,
+			gIoLimitsConfigId,
+			gIoLimitsRefreshTime * 1000 * 1000,
+			gIoLimitsAccumulate_ms,
+			gIoLimitsSubsystem,
+			gIoLimitsDatabase.getGroupsAndLimits());
+	matoclserv_createpacket(eptr, std::move(buffer));
+}
+
 void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	matoclserventry *eaptr;
@@ -3466,6 +3481,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_CSSERV_REMOVESERV:
 					matoclserv_cserv_removeserv(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_IOLIMITS_STATUS:
+					matoclserv_iolimits_status(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
