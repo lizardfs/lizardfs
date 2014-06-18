@@ -22,12 +22,12 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fuse/fuse_lowlevel.h>
 
 #include "common/datapack.h"
+#include "mount/lizard_client_context.h"
 
 typedef struct _dircache {
-	struct fuse_ctx ctx;
+	LizardClient::Context ctx;
 	uint32_t parent;
 	const uint8_t *dbuff;
 	uint32_t dsize;
@@ -137,7 +137,8 @@ void dcache_makeinodehash(dircache *d) {
 	}
 }
 
-void* dcache_new(const struct fuse_ctx *ctx,uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
+void* dcache_new(const LizardClient::Context *ctx,
+		uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	dircache *d;
 	d = (dircache*) malloc(sizeof(dircache));
 	d->ctx.pid = ctx->pid;
@@ -219,7 +220,8 @@ static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t 
 	return 0;
 }
 
-uint8_t dcache_lookup(const struct fuse_ctx *ctx,uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
+uint8_t dcache_lookup(const LizardClient::Context *ctx,uint32_t parent,
+		uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
 	dircache *d;
 	pthread_mutex_lock(&glock);
 	for (d=head ; d ; d=d->next) {
@@ -234,7 +236,7 @@ uint8_t dcache_lookup(const struct fuse_ctx *ctx,uint32_t parent,uint8_t nleng,c
 	return 0;
 }
 
-uint8_t dcache_getattr(const struct fuse_ctx *ctx,uint32_t inode,uint8_t attr[35]) {
+uint8_t dcache_getattr(const LizardClient::Context *ctx,uint32_t inode,uint8_t attr[35]) {
 	dircache *d;
 	pthread_mutex_lock(&glock);
 	for (d=head ; d ; d=d->next) {

@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include <inttypes.h>
-#include <fuse/fuse_lowlevel.h>
+#include <mount/lizard_client_context.h>
 
 #ifndef __printflike
 #ifdef __GNUC__
@@ -31,7 +31,8 @@
 #endif
 #endif /* __printflike */
 
-void oplog_printf(const struct fuse_ctx &ctx,const char *format,...) __printflike(2, 3);
+void oplog_printf(
+		const struct LizardClient::Context &ctx,const char *format,...) __printflike(2, 3);
 unsigned long oplog_newhandle(int hflag);
 void oplog_releasehandle(unsigned long fh);
 void oplog_getdata(unsigned long fh,uint8_t **buff,uint32_t *leng,uint32_t maxleng);
