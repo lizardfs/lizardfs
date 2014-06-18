@@ -29,7 +29,7 @@ void ListChunkserversCommand::run(const Options& options) const {
 	}
 
 	std::vector<ChunkserverEntry> chunkservers =
-			getChunkserversList(options.arguments(0), options.arguments(1));
+			getChunkserversList(options.argument(0), options.argument(1));
 
 	if (!options.isSet(kPorcelainMode)) {
 		std::cout << "address\tversion\tchunks\tspace\tchunks to del\tto delete\terrors"

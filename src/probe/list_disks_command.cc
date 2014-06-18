@@ -179,7 +179,7 @@ void ListDisksCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 	std::vector<ChunkserverEntry> chunkservers = ListChunkserversCommand::getChunkserversList(
-			options.arguments(0), options.arguments(1));
+			options.argument(0), options.argument(1));
 	for (ChunkserverEntry cs : chunkservers) {
 		std::vector<uint8_t> request, response;
 		serializeMooseFsPacket(request, CLTOCS_HDD_LIST_V2);

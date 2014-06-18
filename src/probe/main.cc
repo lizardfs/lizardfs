@@ -7,6 +7,7 @@
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "probe/info_command.h"
+#include "probe/io_limits_status_command.h"
 #include "probe/list_chunkservers_command.h"
 #include "probe/list_disks_command.h"
 #include "probe/list_mounts_command.h"
@@ -16,6 +17,7 @@ int main(int argc, const char** argv) {
 	strerr_init();
 	std::vector<const LizardFsProbeCommand*> allCommands = {
 			new InfoCommand(),
+			new IoLimitsStatusCommand(),
 			new ListChunkserversCommand(),
 			new ListDisksCommand(),
 			new ListMountsCommand(),
