@@ -15,6 +15,7 @@ fi
 : ${RAMDISK_DIR:=/mnt/ramdisk}
 : ${TEST_OUTPUT_DIR:=$TEMP_DIR}
 : ${USE_VALGRIND:=}
+: ${DEBUG:=}
 
 # This has to be an absolute path!
 TEMP_DIR=$(readlink -m "$TEMP_DIR")

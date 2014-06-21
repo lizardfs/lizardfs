@@ -37,6 +37,9 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	if [[ ${DEBUG} ]]; then
+		set +x
+	fi
 	test_freeze_result
 	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
 	cd
@@ -77,6 +80,10 @@ test_begin() {
 	timeout_init
 	if [[ ${USE_VALGRIND} ]]; then
 		enable_valgrind
+	fi
+	if [[ ${DEBUG} ]]; then
+		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
+		set -x
 	fi
 }
 
