@@ -3860,7 +3860,7 @@ uint8_t fs_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name
 	if (fsnodes_nameisused(wd,nleng,name)) {
 		return ERROR_EEXIST;
 	}
-	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,0,uid,gid,0,AclInheritance::kDontInheritAcl);
+	p = fsnodes_create_node(ts,wd,nleng,name,type,mode,0,uid,gid,0,AclInheritance::kInheritAcl);
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
 		fsnodes_update_checksum(p);
