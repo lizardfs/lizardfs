@@ -2,13 +2,21 @@ Source: mfs
 Section: admin
 Priority: extra
 Maintainer: Peter aNeutrino <contact@lizardfs.org>
-Build-Depends: debhelper (>= 5), cmake (>= 2.8), libc6-dev, libfuse-dev, pkg-config, zlib1g-dev, python
-Standards-Version: 3.7.3
+Build-Depends: asciidoc (>= 8.6.6),
+               debhelper (>= 9),
+               cmake (>= 2.8),
+               libfuse-dev,
+               pkg-config,
+               zlib1g-dev,
+               python,
+               libboost-filesystem-dev (>= 1.48) | libboost-filesystem1.48-dev | libboost-filesystem1.54-dev | libboost-filesystem1.55-dev,
+Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
 Package: mfs-common
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         adduser
 Description: MooseFS common files
  Files and services common for all MooseFS daemons.
 
@@ -38,12 +46,14 @@ Description: MooseFS client
 
 Package: mfs-cgi
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         python
 Description: MooseFS CGI Monitor
  MooseFS CGI Monitor.
 
 Package: mfs-cgiserv
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-cgi
+Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-cgi,
+         python
 Description: Simple CGI-capable HTTP server to run MooseFS CGI Monitor
  Simple CGI-capable HTTP server to run MooseFS CGI Monitor.
