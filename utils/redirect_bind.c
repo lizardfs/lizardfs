@@ -8,7 +8,8 @@
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	static int (*_bind)(int, const struct sockaddr*, socklen_t) = NULL;
 	struct sockaddr_in addr_in = * (const struct sockaddr_in*) addr;
-	int type, length = sizeof(type);
+	int type;
+	socklen_t length = sizeof(type);
 	getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &type, &length);
 	if (type == SOCK_STREAM) {
 		int port = ntohs(addr_in.sin_port);
