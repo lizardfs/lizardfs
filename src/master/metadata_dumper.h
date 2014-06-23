@@ -9,6 +9,7 @@
 #include <string>
 
 #include "common/slogger.h"
+#include "common/time_utils.h"
 
 class MetadataDumper {
 public:
@@ -34,6 +35,12 @@ public:
 	// for poll
 	void pollDesc(struct pollfd *pdesc, uint32_t *ndesc);
 	void pollServe(struct pollfd *pdesc);
+
+	/// waits until the metadumper finishes
+	void waitUntilFinished();
+
+	/// waits until the metadumper finishes but not longer than timeout
+	void waitUntilFinished(SteadyDuration timeout);
 
 protected:
 	void dumpingFinished();

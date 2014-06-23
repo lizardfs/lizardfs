@@ -75,7 +75,11 @@ create_mfsexports_cfg() {
 		additional=",$additional"
 	fi
 	echo "* / rw,alldirs,maproot=0$additional"
-	echo "* . rw"
+	local meta_additional=${MFSEXPORTS_META_EXTRA_OPTIONS-}
+	if [[ $meta_additional ]]; then
+		meta_additional=",$meta_additional"
+	fi
+	echo "* . rw$meta_additional"
 }
 
 create_mfsmaster_cfg() {

@@ -693,6 +693,13 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 					arec->sesflags |= SESFLAG_NOMASTERPERMCHECK;
 				}
 				o=1;
+			} else if (strcmp(p,"nonrootmeta")==0) {
+				if (arec->meta) {
+					arec->sesflags |= SESFLAG_NONROOTMETA;
+				} else {
+					mfs_arg_syslog(LOG_WARNING,"non-meta option ignored: %s",p);
+				}
+				o=1;
 			}
 			break;
 		case 'm':

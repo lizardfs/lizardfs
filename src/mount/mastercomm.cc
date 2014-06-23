@@ -47,6 +47,7 @@
 #include "common/packet.h"
 #include "common/sockets.h"
 #include "common/strerr.h"
+#include "mount/exports.h"
 #include "mount/stats.h"
 
 struct threc {
@@ -731,6 +732,13 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 				} else {
 					fprintf(stderr,"%" PRIu32,mapallgid);
 				}
+			}
+		} else {
+			// meta
+			if (sesflags & SESFLAG_NONROOTMETA) {
+				nonRootAllowedToUseMeta() = true;
+			} else {
+				nonRootAllowedToUseMeta() = false;
 			}
 		}
 		if (mingoal>0 && maxgoal>0) {

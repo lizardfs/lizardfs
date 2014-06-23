@@ -74,6 +74,9 @@ requires password authentication in order to access specified resource
 *alldirs*::
 allows to mount any subdirectory of specified directory (similarly to NFS)
 
+*nonrootmeta*::
+allows non-root users to use filesystem mounted in the meta mode (option available only in this mode)
+
 Default options are: *ro,maproot=999:999*.
 
 == NOTES

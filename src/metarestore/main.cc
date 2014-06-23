@@ -36,6 +36,7 @@
 #include "common/cfg.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
+#include "common/setup.h"
 #include "common/slogger.h"
 #include "common/strerr.h"
 #include "master/chunks.h"
@@ -45,7 +46,6 @@
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-const char id[]="@(#) version: " STR(PACKAGE_VERSION_MAJOR) "." STR(PACKAGE_VERSION_MINOR) "." STR(PACKAGE_VERSION_MICRO) ", written by Jakub Kruszona-Zawadzki";
 
 #define MAXIDHOLE 10000
 
@@ -199,6 +199,7 @@ int main(int argc,char **argv) {
 	int storedPreviousBackMetaCopies = kMaxStoredPreviousBackMetaCopies;
 	bool noLock = false;
 
+	prepareEnvironment();
 	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
@@ -316,9 +317,7 @@ int main(int argc,char **argv) {
 		return 1;
 	}
 	if (fs_getversion() == 0) {
-		// TODO(msulikowski) make it work! :)
-		mfs_syslog(LOG_ERR,
-				"error: applying changes to an empty metadata file (version 0) not supported!!!");
+		mfs_syslog(LOG_ERR, "invalid metadata version (0)");
 		return 1;
 	}
 	if (vl > 0) {

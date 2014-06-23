@@ -3,7 +3,7 @@
 
 namespace master {
 
-static Personality gPersonality;
+static Personality gPersonality = Personality::kMaster;
 
 Personality getPersonality() {
 	return gPersonality;

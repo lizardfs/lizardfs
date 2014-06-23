@@ -29,7 +29,7 @@ static uint8_t p[256];
 
 int rnd_init(void) {
 	uint8_t key[64],vkey[64];
-	register uint8_t x;
+	uint8_t x;
 	uint16_t l;
 
 	srandom(time(NULL));
@@ -61,7 +61,7 @@ int rnd_init(void) {
 }
 
 #define RND_RC4_STEP(result) { \
-	register uint8_t x; \
+	uint8_t x; \
 	x = j+p[i]; \
 	j = p[x]; \
 	x = p[j]; \

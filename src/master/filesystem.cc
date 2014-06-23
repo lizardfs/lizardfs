@@ -80,17 +80,6 @@
 #define XATTR_INODE_HASH_SIZE 65536
 #define XATTR_DATA_HASH_SIZE 524288
 
-/*
-#ifdef CACHENOTIFY
-#define ATTR_CACHE_DISABLE_DELTA 10
-#define ATTR_CACHE_ENABLE_DELTA 120
-#endif
-*/
-
-//#define GOAL(x) ((x)&0xF)
-//#define DELETE(x) (((x)>>4)&1)
-//#define SETGOAL(x,y) ((x)=((x)&0xF0)|((y)&0xF))
-//#define SETDELETE(x,y) ((x)=((x)&0xF)|((y)&0x10))
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
 
@@ -196,38 +185,16 @@ public:
 		struct _sdata {                         // type==TYPE_SYMLINK
 			uint32_t pleng;
 			uint8_t *path;
-/*
-#ifdef CACHENOTIFY
-			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
-#endif
-*/
 		} sdata;
 		struct _devdata {
 			uint32_t rdev;                          // type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
-/*
-#ifdef CACHENOTIFY
-			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
-#endif
-*/
 		} devdata;
 		struct _fdata {                         // type==TYPE_FILE ; type==TYPE_TRASH ; type==TYPE_RESERVED
 			uint64_t length;
 			uint64_t *chunktab;
 			uint32_t chunks;
-/*
-#ifdef CACHENOTIFY
-			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
-#endif
-*/
 			sessionidrec *sessionids;
 		} fdata;
-/*
-#ifdef CACHENOTIFY
-		struct _odata {
-			uint32_t lastattrchange;        // even - store attr in cache / odd - do not store attr in cache
-		} odata;
-#endif
-*/
 	} data;
 	fsedge *parents;
 	fsnode *next;
@@ -755,6 +722,7 @@ static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const ui
 	return (hash&(XATTR_DATA_HASH_SIZE-1));
 }
 
+#ifndef METARESTORE
 static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
 	uint32_t i;
 	for (i=0 ; i<anleng ; i++) {
@@ -764,6 +732,7 @@ static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
 	}
 	return 0;
 }
+#endif /* METARESTORE */
 
 static inline void xattr_removeentry(xattr_data_entry *xa) {
 	*(xa->previnode) = xa->nextinode;
@@ -1321,11 +1290,6 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 	uint8_t *ptr;
 	uint16_t mode;
 	uint32_t nlink;
-/*
-#ifdef CACHENOTIFY
-	uint8_t attrnocache;
-#endif
-*/
 	fsedge *e;
 	(void)sesflags;
 	ptr = attr;
@@ -1340,32 +1304,6 @@ static inline void fsnodes_fill_attr(fsnode *node,fsnode *parent,uint32_t uid,ui
 			mode |= (MATTR_NOECACHE<<12);
 		}
 	}
-/*
-#ifdef CACHENOTIFY
-	switch (node->type) {
-	case TYPE_FILE:
-		attrnocache = node->data.fdata.lastattrchange&1;
-		break;
-	case TYPE_SYMLINK:
-		attrnocache = node->data.sdata.lastattrchange&1;
-		break;
-	case TYPE_CHARDEV:
-	case TYPE_BLOCKDEV:
-		attrnocache = node->data.devdata.lastattrchange&1;
-		break;
-	case TYPE_SOCKET:
-	case TYPE_FIFO:
-		attrnocache = node->data.odata.lastattrchange&1;
-		break;
-	default:
-		attrnocache=0;
-	}
-	if (attrnocache || (node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
-//      if ((node->type==TYPE_FILE && node->data.fdata.noattrcache) || (node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
-#else
-	... standard condition ...
-#endif
-*/
 	if ((node->mode&((EATTR_NOOWNER|EATTR_NOACACHE)<<12)) || (sesflags&SESFLAG_MAPALL)) {
 		mode |= (MATTR_NOACACHE<<12);
 	}
@@ -1485,20 +1423,6 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 		}
 	}
 #endif
-#ifndef METARESTORE
-/*
-#ifdef CACHENOTIFY
-	if (e->parent) {
-		matoclserv_notify_unlink(e->parent->id,e->nleng,e->name,ts);
-		if (e->child->type==TYPE_DIRECTORY) {
-			fsnodes_attr_changed(e->parent,ts);             // nlink attr in the parent directory has changed
-		} else {
-			fsnodes_attr_changed_other_parents(e->child,e->parent->id,ts);  // inform other parents that nlink attr has changed
-		}
-	}
-#endif
-*/
-#endif
 	free(e->name);
 	free(e);
 }
@@ -1507,11 +1431,6 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	fsedge *e;
 #ifndef METARESTORE
 	statsrecord sr;
-/*
-#ifdef CACHENOTIFY
-	uint8_t attr[35];
-#endif
-*/
 #endif
 #ifdef EDGEHASH
 	uint32_t hpos;
@@ -1563,21 +1482,6 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 		child->ctime = ts;
 		fsnodes_update_checksum(child);
 	}
-#ifndef METARESTORE
-/*
-#ifdef CACHENOTIFY
-	if (child->type!=TYPE_DIRECTORY) {      // directory can have only one parent, so do not send this information when directory is relinked (moved)
-		fsnodes_attr_changed_other_parents(child,parent->id,ts);        // inform other parents that nlink attr has changed
-	}
-	fsnodes_fill_attr(child,parent,0,0,0,0,0,attr);
-	matoclserv_notify_link(parent->id,nleng,name,child->id,attr,ts);
-	if (child->type==TYPE_DIRECTORY) {
-		matoclserv_notify_parent(child->id,parent->id);
-		fsnodes_attr_changed(parent,ts);                // nlink attr in the parent directory has changed
-	}
-#endif
-*/
-#endif
 }
 
 static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng,
@@ -1653,34 +1557,14 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 		p->data.fdata.chunks = 0;
 		p->data.fdata.chunktab = NULL;
 		p->data.fdata.sessionids = NULL;
-/*
-#ifdef CACHENOTIFY
-		p->data.fdata.lastattrchange = 0;
-#endif
-*/
 		break;
 	case TYPE_SYMLINK:
 		p->data.sdata.pleng = 0;
 		p->data.sdata.path = NULL;
-/*
-#ifdef CACHENOTIFY
-		p->data.sdata.lastattrchange = 0;
-#endif
-*/
 		break;
 	case TYPE_BLOCKDEV:
 	case TYPE_CHARDEV:
 		p->data.devdata.rdev = 0;
-/*
-#ifdef CACHENOTIFY
-		p->data.devdata.lastattrchange = 0;
-		break;
-	case TYPE_SOCKET:
-	case TYPE_FIFO:
-		p->data.odata.lastattrchange = 0;
-		break;
-#endif
-*/
 	}
 	p->parents = NULL;
 	nodepos = NODEHASHPOS(p->id);
@@ -1698,6 +1582,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	return p;
 }
 
+#ifndef METARESTORE
 static inline uint32_t fsnodes_getpath_size(fsedge *e) {
 	uint32_t size;
 	fsnode *p;
@@ -1743,6 +1628,7 @@ static inline void fsnodes_getpath_data(fsedge *e,uint8_t *path,uint32_t size) {
 		p = p->parents->parent;
 	}
 }
+#endif /* METARESTORE */
 
 static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 	uint32_t size;
@@ -2027,18 +1913,8 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 #else /* ! METARESTORE */
 	dstobj->mtime = ts;
 	dstobj->atime = ts;
-/*
-#ifdef CACHENOTIFY
-	fsnodes_attr_changed(dstobj,ts);
-#endif
-*/
 	if (srcobj->atime!=ts) {
 		srcobj->atime = ts;
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(srcobj,ts);
-#endif
-*/
 	}
 #endif
 	fsnodes_update_checksum(srcobj);
@@ -2148,11 +2024,6 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		dirnodes--;
 #ifndef METARESTORE
 		free(toremove->data.ddata.stats);
-/*
-#ifdef CACHENOTIFY
-		matoclserv_notify_remove(toremove->id);
-#endif
-*/
 #endif
 	}
 	if (toremove->type==TYPE_FILE || toremove->type==TYPE_TRASH || toremove->type==TYPE_RESERVED) {
@@ -2365,7 +2236,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 	is_new = 0;
 	for (;;) {
 		partleng=0;
-		while (path[partleng]!='/' && partleng<pleng) {
+		while ((partleng < pleng) && (path[partleng] != '/')) {
 			partleng++;
 		}
 		if (partleng==pleng) {  // last name
@@ -2555,13 +2426,6 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 				}
 				node->ctime = ts;
 				fsnodes_update_checksum(node);
-/*
-#ifndef METARESTORE
-#ifdef CACHENOTIFY
-				fsnodes_attr_changed(node,ts);
-#endif
-#endif
-*/
 			} else {
 				(*ncinodes)++;
 			}
@@ -2607,13 +2471,6 @@ static inline void fsnodes_settrashtime_recursive(fsnode *node,uint32_t ts,uint3
 				(*sinodes)++;
 				node->ctime = ts;
 				fsnodes_update_checksum(node);
-/*
-#ifndef METARESTORE
-#ifdef CACHENOTIFY
-				fsnodes_attr_changed(node,ts);
-#endif
-#endif
-*/
 			} else {
 				(*ncinodes)++;
 			}
@@ -2654,13 +2511,6 @@ static inline void fsnodes_seteattr_recursive(fsnode *node,uint32_t ts,uint32_t 
 			node->mode = (node->mode&0xFFF) | (((uint16_t)neweattr)<<12);
 			(*sinodes)++;
 			node->ctime = ts;
-/*
-#ifndef METARESTORE
-#ifdef CACHENOTIFY
-			fsnodes_attr_changed(node,ts);
-#endif
-#endif
-*/
 		} else {
 			(*ncinodes)++;
 		}
@@ -2729,13 +2579,6 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 				fsnodes_get_stats(dstnode,&nsr);
 				fsnodes_add_sub_stats(parentnode,&nsr,&psr);
 				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
-/*
-#ifdef CACHENOTIFY
-				if (dstnode->data.fdata.length>0) {
-					fsnodes_attr_changed(dstnode,ts);
-				}
-#endif
-*/
 #endif
 			}
 		} else if (srcnode->type==TYPE_SYMLINK) {
@@ -2768,13 +2611,6 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 		dstnode->atime = srcnode->atime;
 		dstnode->mtime = srcnode->mtime;
 		dstnode->ctime = ts;
-#ifndef METARESTORE
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(dstnode,ts);
-#endif
-*/
-#endif
 	} else {
 		if (srcnode->type==TYPE_FILE || srcnode->type==TYPE_DIRECTORY || srcnode->type==TYPE_SYMLINK || srcnode->type==TYPE_BLOCKDEV || srcnode->type==TYPE_CHARDEV || srcnode->type==TYPE_SOCKET || srcnode->type==TYPE_FIFO) {
 #ifndef METARESTORE
@@ -2831,13 +2667,6 @@ static inline void fsnodes_snapshot(uint32_t ts,fsnode *srcnode,fsnode *parentno
 			} else if (srcnode->type==TYPE_BLOCKDEV || srcnode->type==TYPE_CHARDEV) {
 				dstnode->data.devdata.rdev = srcnode->data.devdata.rdev;
 			}
-#ifndef METARESTORE
-/*
-#ifdef CACHENOTIFY
-			fsnodes_attr_changed(dstnode,ts);
-#endif
-*/
-#endif
 		}
 	}
 	fsnodes_update_checksum(dstnode);
@@ -3369,11 +3198,6 @@ uint8_t fs_access(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint32_t *inode,uint8_t attr[35]) {
 	fsnode *wd,*rn;
 	fsedge *e;
-/*
-#ifdef CACHENOTIFY
-	uint32_t ts = main_time();
-#endif
-*/
 
 	*inode = 0;
 	memset(attr,0,35);
@@ -3446,11 +3270,6 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 	if (!e) {
 		return ERROR_ENOENT;
 	}
-/*
-#ifdef CACHENOTIFY
-	fsnodes_attr_access(e->child,ts);
-#endif
-*/
 	*inode = e->child->id;
 	fsnodes_fill_attr(e->child,wd,uid,gid,auid,agid,sesflags,attr);
 	stats_lookup++;
@@ -3459,11 +3278,6 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 
 uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t attr[35]) {
 	fsnode *p,*rn;
-/*
-#ifdef CACHENOTIFY
-	uint32_t ts = main_time();
-#endif
-*/
 
 	(void)sesflags;
 	memset(attr,0,35);
@@ -3489,11 +3303,6 @@ uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 			}
 		}
 	}
-/*
-#ifdef CACHENOTIFY
-	fsnodes_attr_access(p,ts);
-#endif
-*/
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
 	stats_getattr++;
 	return STATUS_OK;
@@ -3648,11 +3457,6 @@ uint8_t fs_do_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 	p->ctime = p->mtime = ts;
 	fsnodes_update_checksum(p);
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
-/*
-#ifdef CACHENOTIFY
-	fsnodes_attr_changed(p,ts);
-#endif
-*/
 	stats_setattr++;
 	return STATUS_OK;
 }
@@ -3800,11 +3604,6 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	p->ctime = ts;
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
 	fsnodes_update_checksum(p);
-/*
-#ifdef CACHENOTIFY
-	fsnodes_attr_changed(p,ts);
-#endif
-*/
 	stats_setattr++;
 	return STATUS_OK;
 }
@@ -3890,11 +3689,6 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 	if (p->atime!=ts) {
 		p->atime = ts;
 		fsnodes_update_checksum(p);
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(p,ts);
-#endif
-*/
 		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,inode);
 	}
 	stats_readlink++;
@@ -4767,11 +4561,6 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 		fsnodes_update_checksum(p);
 		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,p->id);
 		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(p,ts);
-#endif
-*/
 	} else {
 		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
 	}
@@ -4964,11 +4753,6 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 		p->atime = ts;
 		fsnodes_update_checksum(p);
 		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,inode);
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(p,ts);
-#endif
-*/
 	}
 	stats_read++;
 	return STATUS_OK;
@@ -5042,11 +4826,6 @@ uint8_t fs_writechunk(uint32_t inode, uint32_t indx, bool usedummylockid,
 	changelog(metaversion++,"%" PRIu32 "|WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu32 "):%" PRIu64,ts,inode,indx,*opflag,lockid,nchunkid);
 	if (p->mtime!=ts || p->ctime!=ts) {
 		p->mtime = p->ctime = ts;
-/*
-#ifdef CACHENOTIFY
-		fsnodes_attr_changed(p,ts);
-#endif
-*/
 	}
 	fsnodes_update_checksum(p);
 	stats_write++;
@@ -5130,11 +4909,6 @@ uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lo
 			p->mtime = p->ctime = ts;
 			fsnodes_update_checksum(p);
 			changelog(metaversion++,"%" PRIu32 "|LENGTH(%" PRIu32 ",%" PRIu64 ")",ts,inode,length);
-/*
-#ifdef CACHENOTIFY
-			fsnodes_attr_changed(p,ts);
-#endif
-*/
 		}
 	}
 	changelog(metaversion++,"%" PRIu32 "|UNLOCK(%" PRIu64 ")",ts,chunkid);
@@ -7451,20 +7225,10 @@ int fs_loadnode(FILE *fd) {
 		break;
 	case TYPE_SOCKET:
 	case TYPE_FIFO:
-/*
-#ifdef CACHENOTIFY
-		p->data.odata.lastattrchange=0;
-#endif
-*/
 		break;
 	case TYPE_BLOCKDEV:
 	case TYPE_CHARDEV:
 		p->data.devdata.rdev = get32bit(&ptr);
-/*
-#ifdef CACHENOTIFY
-		p->data.devdata.lastattrchange=0;
-#endif
-*/
 		break;
 	case TYPE_SYMLINK:
 		pleng = get32bit(&ptr);
@@ -7487,11 +7251,6 @@ int fs_loadnode(FILE *fd) {
 		} else {
 			p->data.sdata.path = NULL;
 		}
-/*
-#ifdef CACHENOTIFY
-		p->data.sdata.lastattrchange=0;
-#endif
-*/
 		break;
 	case TYPE_FILE:
 	case TYPE_TRASH:
@@ -7562,11 +7321,6 @@ int fs_loadnode(FILE *fd) {
 #ifndef METARESTORE
 		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
 #endif
-/*
-#ifdef CACHENOTIFY
-		p->data.fdata.lastattrchange=0;
-#endif
-*/
 	}
 	p->parents = NULL;
 	nodepos = NODEHASHPOS(p->id);
@@ -8168,7 +7922,7 @@ void fs_new(void) {
 	uint32_t nodepos;
 	statsrecord *sr;
 	maxnodeid = MFS_ROOT_ID;
-	metaversion = 0;
+	metaversion = 1;
 	nextsessionid = 1;
 	fsnodes_init_freebitmask();
 	freelist = NULL;
@@ -8329,6 +8083,9 @@ void fs_dostoreall() {
 }
 
 void fs_term(void) {
+	if (metadataDumper.inProgress()) {
+		metadataDumper.waitUntilFinished();
+	}
 	for (;;) {
 		if (fs_storeall(MetadataDumper::kForegroundDump)) {
 			chunk_term();
@@ -8525,7 +8282,10 @@ int fs_init(void) {
 
 	main_reloadregister(fs_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,fs_test_files);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
+	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
+		// Secret option disabling periodic metadata dumps
+		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_dostoreall);
+	}
 	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_emptytrash);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_emptyreserved);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,fsnodes_freeinodes);
