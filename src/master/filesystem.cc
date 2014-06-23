@@ -5062,7 +5062,7 @@ uint8_t fs_apply_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8
 
 uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 	fsnode *p;
-	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != STATUS_OK) {
 		return status;
 	}
@@ -5088,7 +5088,7 @@ uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 
 uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList acl) {
 	fsnode *p;
-	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != STATUS_OK) {
 		return status;
 	}
@@ -5189,6 +5189,9 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 }
 
 uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry>& entries) {
+	if (sesflags & SESFLAG_READONLY) {
+		return ERROR_EROFS;
+	}
 	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return ERROR_EPERM;
 	}
