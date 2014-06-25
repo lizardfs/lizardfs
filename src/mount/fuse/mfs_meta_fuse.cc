@@ -23,7 +23,7 @@
 #endif
 
 #include "config.h"
-#include "mount/mfs_meta_fuse.h"
+#include "mount/fuse/mfs_meta_fuse.h"
 
 #include <errno.h>
 #include <pthread.h>

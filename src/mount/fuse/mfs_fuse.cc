@@ -17,7 +17,7 @@
  */
 
 #include "config.h"
-#include "mount/mfs_fuse.h"
+#include "mount/fuse/mfs_fuse.h"
 
 #include <memory>
 #include <string>
