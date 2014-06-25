@@ -54,6 +54,7 @@ option(ENABLE_LIGHTMFS      "Enable light version of LizardFS"                  
 option(ENABLE_DEBIAN_PATHS  "Enable Debian-style install paths"                       OFF)
 option(ENABLE_UTILS         "Enable building additional binaries used e.g. in tests"  OFF)
 option(ENABLE_TESTS         "Enable building unit and functional tests"               OFF)
+option(ENABLE_DOCS          "Enable building the documentation"                       ON)
 option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
@@ -65,6 +66,7 @@ message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
 message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "ENABLE_UTILS: ${ENABLE_UTILS}")
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+message(STATUS "ENABLE_DOCS: ${ENABLE_DOCS}")
 message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 
 # All the environment tests (libs, includes, etc.) live here:
@@ -204,6 +206,8 @@ if(BUILD_TESTS)
   add_subdirectory(src/unittests)
   add_subdirectory(tests)
 endif()
-add_subdirectory(doc)
+if(ENABLE_DOCS)
+  add_subdirectory(doc)
+endif()
 
 include(Packages.cmake)
