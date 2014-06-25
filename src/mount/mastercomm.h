@@ -84,7 +84,7 @@ uint8_t fs_send_custom(MessageBuffer buffer);
 int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
 		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
 		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
-		unsigned retries);
+		unsigned retries, unsigned reportreservedperiod);
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);

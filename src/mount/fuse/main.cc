@@ -149,6 +149,7 @@ struct mfsopts {
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	unsigned reportreservedperiod;
 	char *iolimits;
 };
 
@@ -204,6 +205,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
@@ -267,6 +269,7 @@ static void usage(const char *progname) {
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
+"    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK
@@ -510,12 +513,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
 				mfsopts.meta, mp, mfsopts.subfolder,
 				(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
-				mfsopts.donotrememberpassword, 1, mfsopts.ioretries);
+				mfsopts.donotrememberpassword, 1, mfsopts.ioretries, mfsopts.reportreservedperiod);
 	} else {
 		if (fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
 					mfsopts.meta, mp, mfsopts.subfolder,
 					(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
-					mfsopts.donotrememberpassword, 0, mfsopts.ioretries) < 0) {
+					mfsopts.donotrememberpassword, 0, mfsopts.ioretries,
+					mfsopts.reportreservedperiod) < 0) {
 			return 1;
 		}
 	}
@@ -886,6 +890,7 @@ int main(int argc, char *argv[]) {
 	mfsopts.attrcacheto = 1.0;
 	mfsopts.entrycacheto = 0.0;
 	mfsopts.direntrycacheto = 1.0;
+	mfsopts.reportreservedperiod = 60;
 
 	custom_cfg = 0;
 

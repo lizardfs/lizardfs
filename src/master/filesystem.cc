@@ -214,6 +214,12 @@ typedef struct _freenode {
 	struct _freenode *next;
 } freenode;
 
+#ifndef METARESTORE
+static void* gEmptyTrashHook;
+static void* gEmptyReservedHook;
+static void* gFreeInodesHook;
+#endif
+
 static uint32_t *freebitmask;
 static uint32_t bitmasksize;
 static uint32_t searchpos;
@@ -656,7 +662,7 @@ static uint32_t fs_do_freeinodes(uint32_t ts) {
 	freenode *n,*an;
 	uint32_t fi = 0;
 	n = freelist;
-	while (n && n->ftime+86400<ts) {
+	while (n && n->ftime+MFS_INODE_REUSE_DELAY<ts) {
 		fi++;
 		pos = (n->id >> 5);
 		mask = 1<<(n->id&0x1F);
@@ -7684,6 +7690,13 @@ void fs_reload(void) {
 	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
 	}
+
+	main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
+	main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0);
+	main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
 }
 
 void fs_load_changelog(const std::string& path) {
@@ -7756,9 +7769,12 @@ int fs_init(void) {
 		// Secret option disabling periodic metadata dumps
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);
 	}
-	main_timeregister(TIMEMODE_RUN_LATE,300,0,fs_periodic_emptytrash);
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_periodic_emptyreserved);
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,fs_periodic_freeinodes);
+	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0, fs_periodic_emptytrash);
+	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0, fs_periodic_emptyreserved);
+	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
+			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0, fs_periodic_freeinodes);
 	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;

@@ -122,7 +122,10 @@ do not remember password in memory - more secure, but when session is lost then 
 created without password
 
 *-o mfsioretries=*'N'::
-specify number of retiries before I/O error is returned (default: 30)
+specify number of retries before I/O error is returned (default: 30)
+
+*-o mfsreportreservedperiod=*'N'::
+specify interval of reporting reserved inodes in seconds (default: 60)
 
 *-o mfsiolimits=*'PATH'::
 specify local I/O limiting configuration file (default: no I/O limiting)

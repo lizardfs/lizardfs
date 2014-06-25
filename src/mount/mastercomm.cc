@@ -103,6 +103,7 @@ static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
 static unsigned gIoRetries;
+static unsigned gReservedInodesPeriod;
 
 static uint8_t fterm;
 
@@ -919,7 +920,7 @@ void* fs_nop_thread(void *arg) {
 	int32_t inodesleng;
 	acquired_file *afptr;
 	int now;
-	int inodeswritecnt=0;
+	uint32_t inodeswritecnt=0;
 	(void)arg;
 	for (;;) {
 		now = time(NULL);
@@ -944,12 +945,8 @@ void* fs_nop_thread(void *arg) {
 				}
 				lastwrite=now;
 			}
-			if (inodeswritecnt<=0 || inodeswritecnt>60) {
-				inodeswritecnt=60;
-			} else {
-				inodeswritecnt--;
-			}
-			if (inodeswritecnt==0) {        // HELD INODES
+			if (++inodeswritecnt >= gReservedInodesPeriod) {
+				inodeswritecnt = 0;
 				std::unique_lock<std::mutex> asLock(acquiredFileMutex);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
@@ -1150,10 +1147,11 @@ void* fs_receive_thread(void *) {
 int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
 		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
 		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
-		unsigned retries) {
+		unsigned retries, unsigned reportreservedperiod) {
 	master_statsptr_init();
 
 	gIoRetries = retries;
+	gReservedInodesPeriod = reportreservedperiod;
 
 	fd = -1;
 	sessionlost = bgregister;
