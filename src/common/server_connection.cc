@@ -6,6 +6,7 @@
 #include "common/multi_buffer_writer.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
+#include "common/to_string.h"
 
 static const uint32_t kTimeout_ms = 5000;
 
@@ -70,7 +71,7 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 
 	if (reader.getMessageHeader().type != expectedType) {
 		throw Exception("Received unexpected message #" +
-				std::to_string(reader.getMessageHeader().type));
+				toString(reader.getMessageHeader().type));
 	}
 
 	uint32_t length = reader.getMessageHeader().length;

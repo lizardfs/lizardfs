@@ -6,6 +6,7 @@
 #include <boost/filesystem.hpp>
 
 #include "common/slogger.h"
+#include "common/to_string.h"
 
 namespace {
 
@@ -30,8 +31,8 @@ void rotateFiles(const std::string& file, int storedPreviousCopies) {
 	if (storedPreviousCopies > 0) {
 		for (int n = storedPreviousCopies; n > 1; n--) {
 			rotateFile(true,
-					file + "." + std::to_string(n - 1),
-					file + "." + std::to_string(n));
+					file + "." + toString(n - 1),
+					file + "." + toString(n));
 		}
 		rotateFile(true, file, file + ".1");
 	}

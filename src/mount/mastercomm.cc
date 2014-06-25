@@ -47,6 +47,7 @@
 #include "common/mfserr.h"
 #include "common/packet.h"
 #include "common/sockets.h"
+#include "common/to_string.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
 
@@ -1541,7 +1542,7 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 			return STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(),
-					"unknown version " + std::to_string(packetVersion));
+					"unknown version " + toString(packetVersion));
 			return ERROR_IO;
 		}
 		return ERROR_ENOTSUP;
@@ -1583,7 +1584,7 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 			return STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(),
-					"unknown version " + std::to_string(packetVersion));
+					"unknown version " + toString(packetVersion));
 			return ERROR_IO;
 		}
 		return ERROR_ENOTSUP;
@@ -2320,7 +2321,7 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 			return STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
-					"unknown version " + std::to_string(packetVersion));
+					"unknown version " + toString(packetVersion));
 			return ERROR_IO;
 		}
 	} catch (Exception& ex) {

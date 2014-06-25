@@ -8,6 +8,7 @@
 
 #include "common/MFSCommunication.h"
 #include "common/serialization.h"
+#include "common/to_string.h"
 
 // Legacy MooseFS packet format:
 //
@@ -240,8 +241,8 @@ inline void verifyPacketVersionNoHeader(const uint8_t* source, uint32_t bytesInB
 	deserializePacketVersionNoHeader(source, bytesInBuffer, actualVersion);
 	if (actualVersion != expectedVersion) {
 		throw IncorrectDeserializationException(
-				"expected packet version " + std::to_string(expectedVersion) +
-				", got " + std::to_string(actualVersion));
+				"expected packet version " + toString(expectedVersion) +
+				", got " + toString(actualVersion));
 	}
 }
 

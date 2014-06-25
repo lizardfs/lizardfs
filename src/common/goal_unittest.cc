@@ -3,9 +3,11 @@
 
 #include <gtest/gtest.h>
 
+#include "common/to_string.h"
+
 TEST(GoalTests, IsGoalValid) {
 	for (int goal = 0; goal <= std::numeric_limits<uint8_t>::max(); ++goal) {
-		SCOPED_TRACE("Testing goal " + std::to_string(goal));
+		SCOPED_TRACE("Testing goal " + toString(goal));
 		if (goal >= 1 && goal <= 9) {
 			EXPECT_TRUE(isGoalValid(goal));
 		} else {

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "common/time_utils.h"
+#include "common/to_string.h"
 
 TEST(IoLimitsDatabaseTests, GetGroups) {
 	IoLimitsDatabase db;
@@ -44,13 +45,13 @@ TEST(IoLimitsDatabaseTests, Accumulate) {
 	db.setLimits(t0, {{"g22", 1000}}, 237);
 
 	for (auto twice : {1, 2}) {
-		SCOPED_TRACE("i: " + std::to_string(twice));
+		SCOPED_TRACE("i: " + toString(twice));
 		// After many seconds have passed without any traffic..
 		t0 += std::chrono::seconds(5);
 
 		// ..We can still only distribute (1000KB * 237ms / 1s) bytes
 		for (auto j = 0; j < 236; ++j) {
-			SCOPED_TRACE("j: " + std::to_string(j));
+			SCOPED_TRACE("j: " + toString(j));
 			ASSERT_EQ(1024U, db.request(t0, "g22", 1024U));
 		}
 		// After 236 loops we only have 1KB left:
@@ -61,7 +62,7 @@ TEST(IoLimitsDatabaseTests, Accumulate) {
 		// After another few milliseconds we can read another few kilobytes.
 		// Let's test few few values:
 		for (auto few = 1; few < 100; ++few) {
-			SCOPED_TRACE("few: " + std::to_string(few));
+			SCOPED_TRACE("few: " + toString(few));
 			t0 += std::chrono::milliseconds(few);
 			ASSERT_EQ(few * 1024U, db.request(t0, "g22", 1000000000000U));
 		}

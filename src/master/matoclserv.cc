@@ -50,6 +50,7 @@
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "common/to_string.h"
 #include "master/chartsdata.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
@@ -2027,7 +2028,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 				inode, name, type, mode, umask, uid, gid, rdev);
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown packet type for matoclserv_fuse_mknod: " + std::to_string(packetType));
+				"Unknown packet type for matoclserv_fuse_mknod: " + toString(packetType));
 	}
 	uint32_t auid = uid;
 	uint32_t agid = gid;
@@ -2077,7 +2078,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 				inode, name, mode, umask, uid, gid, copysgid);
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown packet type for matoclserv_fuse_mkdir: " + std::to_string(packetType));
+				"Unknown packet type for matoclserv_fuse_mkdir: " + toString(packetType));
 	}
 	uint32_t auid = uid;
 	uint32_t agid = gid;
@@ -3330,7 +3331,7 @@ void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32
 		status = fs_quota_get(eptr->sesdata->sesflags, uid, gid, owners, results);
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown LIZ_CLTOMA_FUSE_GET_QUOTA version: " + std::to_string(version));
+				"Unknown LIZ_CLTOMA_FUSE_GET_QUOTA version: " + toString(version));
 	}
 	MessageBuffer reply;
 	if (status == STATUS_OK) {

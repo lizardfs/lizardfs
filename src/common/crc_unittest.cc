@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "common/MFSCommunication.h"
+#include "common/to_string.h"
 
 TEST(CrcTests, MyCrc32) {
 	std::vector<std::pair<std::string, uint32_t>> data {
@@ -39,7 +40,7 @@ TEST(CrcTests, MyCrc32Combine) {
 	uint32_t crc = mycrc32(0, data.data(), data.size());
 	for (size_t length = 2; length < MFSBLOCKSIZE; length *= 2) {
 		for (int8_t offset : {-1, 0, 1}) { // (1, 2, 3), (3, 4, 5), (7, 8, 9), (15, 16, 17)...
-			SCOPED_TRACE("MFSBLOCKSIZE = " + std::to_string(MFSBLOCKSIZE) + ". Testing combine for length=" + std::to_string(length + offset));
+			SCOPED_TRACE("MFSBLOCKSIZE = " + toString(MFSBLOCKSIZE) + ". Testing combine for length=" + toString(length + offset));
 			uint32_t crc1 = mycrc32(0, data.data(), data.size() - (length + offset));
 			uint32_t crc2 = mycrc32(0, data.data() + data.size() - (length + offset), (length + offset));
 			uint32_t combined = mycrc32_combine(crc1, crc2, (length + offset));

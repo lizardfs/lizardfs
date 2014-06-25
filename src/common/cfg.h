@@ -24,6 +24,8 @@
 #include <syslog.h>
 #include <string>
 
+#include "common/to_string.h"
+
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,const type def)
 
 int cfg_load (const char *fname,int logundefined);
@@ -70,7 +72,7 @@ T cfg_get_minvalue(const char* name, T defaultValue, T minValue) {
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue < minValue) {
 		syslog(LOG_WARNING, "config value %s was set to %s but minimal value is %s - increasing",
-				name, std::to_string(configValue).c_str(), std::to_string(minValue).c_str());
+				name, toString(configValue).c_str(), toString(minValue).c_str());
 		configValue = minValue;
 	}
 	return configValue;
@@ -81,7 +83,7 @@ T cfg_get_maxvalue(const char* name, T defaultValue, T maxValue) {
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue > maxValue) {
 		syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
-				name, std::to_string(configValue).c_str(), std::to_string(maxValue).c_str());
+				name, toString(configValue).c_str(), toString(maxValue).c_str());
 		configValue = maxValue;
 	}
 	return configValue;
@@ -92,11 +94,11 @@ T cfg_get_minmaxvalue(const char* name, T defaultValue, T minValue, T maxValue) 
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue < minValue) {
 		syslog(LOG_WARNING, "config value %s was set to %s, but minimal value is %s - increasing",
-				name, std::to_string(configValue).c_str(), std::to_string(minValue).c_str());
+				name, toString(configValue).c_str(), toString(minValue).c_str());
 		configValue = minValue;
 	} else if (configValue > maxValue) {
 		syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
-				name, std::to_string(configValue).c_str(), std::to_string(maxValue).c_str());
+				name, toString(configValue).c_str(), toString(maxValue).c_str());
 		configValue = maxValue;
 	}
 	return configValue;

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "common/serialization.h"
+#include "common/to_string.h"
 
 enum class AclType : uint8_t { kAccess, kDefault };
 
@@ -31,6 +32,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, Acl
 			val = AclType::kAccess;
 			break;
 	default: throw IncorrectDeserializationException(
-			"Deserialized malformed value of AclType: " + std::to_string(deserializedValue));
+			"Deserialized malformed value of AclType: " + toString(deserializedValue));
 	}
 }

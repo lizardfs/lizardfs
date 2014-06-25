@@ -10,6 +10,7 @@
 #include "common/io_limit_group.h"
 #include "common/io_limits_database.h"
 #include "common/matocl_communication.h"
+#include "common/to_string.h"
 #include "unittests/packet.h"
 
 using namespace ioLimiting;
@@ -173,7 +174,7 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 	// Set limit to 1MB per millisecond (1024*1000KBps), run the test for N milliseconds:
 	limiter.database.setLimits(clock.now(), {{"group", 1024 * 1000}}, 250);
 	for (int i = 1; i <= N; i++) {
-		SCOPED_TRACE("i: " + std::to_string(i));
+		SCOPED_TRACE("i: " + toString(i));
 		clock.increase(std::chrono::milliseconds(1));
 		// Expect that after each millisecond exactly one 1MB operation will succeed:
 		std::unique_lock<std::mutex> lock(mutex);
@@ -184,7 +185,7 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 	// Raise the limit to 2MB per millisecond, run the test for next N milliseconds:
 	limiter.database.setLimits(clock.now(), {{"group", 2 * 1024 * 1000}}, 250);
 	for (int i = 1; i <= N; i++) {
-		SCOPED_TRACE("i: " + std::to_string(i));
+		SCOPED_TRACE("i: " + toString(i));
 		clock.increase(std::chrono::milliseconds(1));
 		// Expect that after each millisecond exactly two 1MB operations will succeed:
 		std::unique_lock<std::mutex> lock(mutex);
@@ -223,13 +224,13 @@ TEST(LimiterGroupTests, Die) {
 // combinations
 TEST(LimiterProxyTests, EndTimeAfterManyParallelReads) {
 	for (int delta_us : {1, 567, 89012}) {
-		SCOPED_TRACE("delta_us: " + std::to_string(delta_us));
+		SCOPED_TRACE("delta_us: " + toString(delta_us));
 
 		for (const int N : {1, 5}) {
-			SCOPED_TRACE("N: " + std::to_string(N));
+			SCOPED_TRACE("N: " + toString(N));
 
 			for (const int M : {1, 7}) {
-				SCOPED_TRACE("M: " + std::to_string(M));
+				SCOPED_TRACE("M: " + toString(M));
 
 				FastClock clock;
 				IoLimitsDatabaseLimiter limiter(clock);
@@ -343,10 +344,10 @@ TEST(LimiterProxyTests, ManyMountsSummaryThroughput) {
 // Check if we don't communicate with the master too often
 TEST(LimiterProxyTests, NumberOfRequestesSentToMaster) {
 	for (auto delta_ms : {1, 11, 37, 128, 5678}) {
-		SCOPED_TRACE("delta_ms: " + std::to_string(delta_ms));
+		SCOPED_TRACE("delta_ms: " + toString(delta_ms));
 
 		for (auto N : {1, 77, 129}) {
-			SCOPED_TRACE("N: " + std::to_string(N));
+			SCOPED_TRACE("N: " + toString(N));
 
 			ManuallyAdjustedClock clock;
 			IoLimitsDatabaseLimiter limiter(clock);
