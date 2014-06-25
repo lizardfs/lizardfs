@@ -1,10 +1,17 @@
 timeout_set 5 minutes
+
 CHUNKSERVERS=1 \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
-	MOUNT_EXTRA_CONFIG="mfsacl" \
-	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1|AUTO_RECOVERY = 1" \
+	MOUNTS=2 \
 	USE_RAMDISK="YES" \
+	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
+	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
+	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1|AUTO_RECOVERY = 1" \
 	setup_local_empty_lizardfs info
+
+# Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
+export MFS_META_MOUNT_PATH=${info[mount1]}
 
 for generator in $(metadata_get_all_generators); do
 	export MESSAGE="Testing generator $generator"

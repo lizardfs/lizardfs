@@ -191,9 +191,11 @@ add_chunkserver() {
 }
 
 create_mfsmount_cfg() {
+	local this_mount_cfg_variable="MOUNT_${1}_EXTRA_CONFIG"
 	echo "mfsmaster=$ip_address"
 	echo "mfsport=${lizardfs_info[matocl]}"
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
+	echo "${!this_mount_cfg_variable-}" | tr '|' '\n'
 }
 
 do_mount() {
@@ -214,14 +216,12 @@ add_mount() {
 	local mntdir=$TEMP_DIR/mnt
 
 	local mount_id=$1
-	local mount_dir=$mntdir/mfs$mount_id
-	local mount_cfg=$etcdir/mfsmount.cfg
-	if ! [[ -f "$mount_cfg" ]]; then
-		create_mfsmount_cfg > "$mount_cfg"
-		lizardfs_info[mount_config]="$mount_cfg"
-	fi
+	local mount_dir=$mntdir/mfs${mount_id}
+	local mount_cfg=$etcdir/mfsmount${mount_id}.cfg
+	create_mfsmount_cfg ${mount_id} > "$mount_cfg"
 	mkdir -p "$mount_dir"
 	lizardfs_info[mount${mount_id}]="$mount_dir"
+	lizardfs_info[mount${mount_id}_config]="$mount_cfg"
 	max_tries=30
 	fuse_options=""
 	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do

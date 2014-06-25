@@ -1,10 +1,16 @@
 timeout_set 2 minutes
-assert_program_installed attr
 
 CHUNKSERVERS=3 \
-	MOUNT_EXTRA_CONFIG="mfsacl" \
+	MOUNTS=2 \
+	USE_RAMDISK="YES" \
+	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
 	setup_local_empty_lizardfs info
+
+# Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
+export MFS_META_MOUNT_PATH=${info[mount1]}
 
 lizardfs_metalogger_daemon start
 

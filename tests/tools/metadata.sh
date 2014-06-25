@@ -61,6 +61,23 @@ metadata_generate_unlink() {
 	rm -r -f unlink_dir
 }
 
+metadata_generate_trash_ops() {
+	touch trashed_file
+	if [[ ${MFS_META_MOUNT_PATH-} ]]; then
+		# Hack: create three files using mfsmakesnapshot so that they will never be opened
+		for i in 1 2 3; do
+				mfsmakesnapshot trashed_file trashed_file_$i
+		done
+		mfssettrashtime 60 trashed_file*
+		rm trashed_file_*
+		# Generate SETPATH, UNDEL, and PURGE changes
+		echo "untrashed_dir/untrashed_file" > "$MFS_META_MOUNT_PATH"/trash/*trashed_file_3
+		mv "$MFS_META_MOUNT_PATH"/trash/*untrashed_file "$MFS_META_MOUNT_PATH"/trash/undel
+		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
+		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
+	fi
+}
+
 metadata_generate_setgoal() {
 	for goal in 1 2 3 4 ; do
 		touch setgoal$goal
@@ -201,6 +218,7 @@ metadata_get_all_generators() {
 	echo metadata_generate_funny_inodes
 	echo metadata_generate_quotas
 	echo metadata_generate_unlink
+	echo metadata_generate_trash_ops
 	echo metadata_generate_setgoal
 	echo metadata_generate_settrashtime
 	echo metadata_generate_seteattr

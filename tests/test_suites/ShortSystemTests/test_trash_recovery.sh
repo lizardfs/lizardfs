@@ -1,15 +1,10 @@
 MOUNTS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_0_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
 	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
 	setup_local_empty_lizardfs info
-
-# In this test mountpoint #0 will be used for ordinary operations
-# and mountpoint #1 will be used for meta operations
-
-fusermount -u "${info[mount1]}"
-FUSE_EXTRA_CONFIG="mfsmeta" add_mount 1
 
 stat_basic_info() {
 	stat --format="%A %u %g %i %s" "$@"
