@@ -112,7 +112,7 @@ metadata_generate_seteattr() {
 	chmod 777 seteattr_recursive/dir{1,2}
 	touch seteattr_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch seteattr_recursive/dir{1,2}/file2
-	mfsseteattr -f noowner seteattr_recursive
+	mfsseteattr -r -f noowner seteattr_recursive
 }
 
 metadata_generate_chunks() {
