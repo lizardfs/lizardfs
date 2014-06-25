@@ -228,7 +228,7 @@ int main(int argc,char **argv) {
 				savebest=1;
 				break;
 			case 'B':
-				storedPreviousBackMetaCopies = std::stoi(optarg);
+				storedPreviousBackMetaCopies = atoi(optarg);
 				break;
 			case 'i':
 				ignoreflag=1;
