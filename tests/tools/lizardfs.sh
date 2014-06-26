@@ -70,16 +70,27 @@ setup_local_empty_lizardfs() {
 }
 
 create_mfsexports_cfg() {
+	local base="* / rw,alldirs,maproot=0"
+	local meta_base="* . rw"
 	local additional=${MFSEXPORTS_EXTRA_OPTIONS-}
+	local meta_additional=${MFSEXPORTS_META_EXTRA_OPTIONS-}
 	if [[ $additional ]]; then
 		additional=",$additional"
 	fi
-	echo "* / rw,alldirs,maproot=0$additional"
-	local meta_additional=${MFSEXPORTS_META_EXTRA_OPTIONS-}
 	if [[ $meta_additional ]]; then
 		meta_additional=",$meta_additional"
 	fi
-	echo "* . rw$meta_additional"
+	# general entries
+	echo "${base}${additional}"
+	echo "${meta_base}${meta_additional}"
+	# per-mount entries
+	for ((mntid=0 ; mntid<number_of_mounts; ++mntid)); do
+		local this_mount_exports_variable="MOUNT_${mntid}_EXTRA_EXPORTS"
+		local this_mount_exports=${!this_mount_exports_variable-}
+		if [[ ${this_mount_exports} ]]; then
+			echo "${base},password=${mntid}${additional},${this_mount_exports}"
+		fi
+	done
 }
 
 create_mfsmaster_cfg() {
@@ -192,8 +203,13 @@ add_chunkserver() {
 
 create_mfsmount_cfg() {
 	local this_mount_cfg_variable="MOUNT_${1}_EXTRA_CONFIG"
+	local this_mount_exports_variable="MOUNT_${1}_EXTRA_EXPORTS"
 	echo "mfsmaster=$ip_address"
 	echo "mfsport=${lizardfs_info[matocl]}"
+	if [[ ${!this_mount_exports_variable-} ]]; then
+		# we want custom exports options, so we need to identify with a password
+		echo "mfspassword=${1}"
+	fi
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_mount_cfg_variable-}" | tr '|' '\n'
 }
