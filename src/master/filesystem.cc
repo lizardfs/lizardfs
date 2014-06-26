@@ -7693,7 +7693,7 @@ void fs_reload(void) {
 	main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 	main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0);
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
 	main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
 }
@@ -7769,11 +7769,14 @@ int fs_init(void) {
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);
 	}
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0, fs_periodic_emptytrash);
+			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
+			0, fs_periodic_emptytrash);
 	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0, fs_periodic_emptyreserved);
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
+			0, fs_periodic_emptyreserved);
 	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0, fs_periodic_freeinodes);
+			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
+			0, fs_periodic_freeinodes);
 	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;
