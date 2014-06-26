@@ -6,7 +6,6 @@
 
 #include "common/serialization.h"
 #include "common/serialization_macros_generated.h"
-#include "common/to_string.h"
 
 // Macros used to concatenate two macro names:
 #define PASTE(a,b) a ## b
@@ -107,7 +106,7 @@
 			deserialize(source, bytesLeftInBuffer, tmp); \
 			if (tmp >= COUNT_ARGS(__VA_ARGS__)) { \
 				throw IncorrectDeserializationException("Bad " #EnumClassName \
-						" value = " + toString(uint32_t(tmp))); \
+						" value = " + std::to_string(uint32_t(tmp))); \
 			}; \
 			value = static_cast<EnumClassName>(tmp); \
 		}

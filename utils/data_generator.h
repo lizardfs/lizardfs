@@ -57,18 +57,14 @@ public:
 		uint64_t expectedSize;
 		if(read(fd, &expectedSize, sizeof(expectedSize)) != sizeof(expectedSize)) {
 			// The file if too short, so the first bytes are corrupted.
-			std::stringstream ss;
-			ss << "(inode " << fileInformation.st_ino << ")" <<
-					" file too short (" << actualSize << " bytes)";
-			throw std::length_error(ss.str());
+			throw std::length_error("(inode " + std::to_string(fileInformation.st_ino) + ")"
+					" file too short (" + std::to_string(actualSize) + " bytes)");
 		}
 		expectedSize = be64toh(expectedSize);
 		if (expectedSize != (size_t)fileInformation.st_size) {
-			std::stringstream ss;
-			ss << "(inode " + fileInformation.st_ino << ")" <<
-					" file should be " << expectedSize <<
-					" bytes long, but is " << actualSize << " bytes long\n";
-			error = ss.str();
+			error = "(inode " + std::to_string(fileInformation.st_ino) + ")"
+					" file should be " + std::to_string(expectedSize) +
+					" bytes long, but is " + std::to_string(actualSize) + " bytes long\n";
 		}
 
 		/* Check the data */

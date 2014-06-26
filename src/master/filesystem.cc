@@ -47,7 +47,6 @@
 #include "common/MFSCommunication.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
-#include "common/to_string.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/metadata_dumper.h"
@@ -6163,7 +6162,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 			// this is end marker
 			return 1;
 		} else if (size > 10000000) {
-			throw Exception("strange size of entry: " + toString(size), ERROR_ERANGE);
+			throw Exception("strange size of entry: " + std::to_string(size), ERROR_ERANGE);
 		}
 
 		// Read the entry
@@ -6177,7 +6176,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 		deserialize(buffer, inode);
 		fsnode* p = fsnodes_id_to_node(inode);
 		if (!p) {
-			throw Exception("unknown inode: " + toString(inode));
+			throw Exception("unknown inode: " + std::to_string(inode));
 		}
 
 		// Deserialize ACL

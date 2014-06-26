@@ -366,8 +366,8 @@ void masterconn_download_next(masterconn *eptr) {
 					metadata_ml_back_filename_templ.append(".");
 					namespace fs = boost::filesystem;
 					for (int i = BackMetaCopies-1 ; i>0 ; i--) {
-						std::string after = metadata_ml_back_filename_templ + toString(i + 1);
-						std::string before = metadata_ml_back_filename_templ + toString(i);
+						std::string after = metadata_ml_back_filename_templ + std::to_string(i + 1);
+						std::string before = metadata_ml_back_filename_templ + std::to_string(i);
 						boost::system::error_code ignore;
 						fs::rename(before, after, ignore);
 					}

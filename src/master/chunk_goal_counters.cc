@@ -1,5 +1,4 @@
 #include "config.h"
-#include "common/to_string.h"
 #include "master/chunk_goal_counters.h"
 
 #include "common/goal.h"
@@ -8,7 +7,7 @@ ChunkGoalCounters::ChunkGoalCounters() : fileCount_(0), goal_(0) {}
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
 	if (!isGoalValid(goal)) {
-		throw InvalidOperation("Invalid goal " + toString(goal));
+		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCount_ == 0) {
 		goal_ = goal;
@@ -75,17 +74,17 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 
 void ChunkGoalCounters::removeFileInternal(uint8_t goal) {
 	if (!isGoalValid(goal)) {
-		throw InvalidOperation("Invalid goal " + toString(goal));
+		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCounters_) {
 		sassert(fileCount_ > 1);
 		if ((*fileCounters_)[goal] == 0) {
-			throw InvalidOperation("No file with goal " + toString(goal) + " to remove");
+			throw InvalidOperation("No file with goal " + std::to_string(goal) + " to remove");
 		}
 		(*fileCounters_)[goal]--;
 	} else {
 		if (goal_ != goal) {
-			throw InvalidOperation("No file with goal " + toString(goal) + " to remove");
+			throw InvalidOperation("No file with goal " + std::to_string(goal) + " to remove");
 		}
 	}
 	fileCount_--;

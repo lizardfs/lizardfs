@@ -26,13 +26,12 @@
 #include <syslog.h>
 
 #include "common/mfserr.h"
-#include "common/to_string.h"
 
 #ifdef THROW_INSTEAD_OF_ABORT
 #  include <stdexcept>
 #  include <string>
 #  define ABORT_OR_THROW (throw std::runtime_error(std::string(__FILE__ ":") + \
-			toString(__LINE__)))
+			std::to_string(__LINE__)))
 #else
 #  define ABORT_OR_THROW abort()
 #endif

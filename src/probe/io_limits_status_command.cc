@@ -6,7 +6,6 @@
 
 #include "common/cltoma_communication.h"
 #include "common/server_connection.h"
-#include "common/to_string.h"
 
 std::string IoLimitsStatusCommand::name() const {
 	return "iolimits-status";
@@ -83,8 +82,8 @@ void IoLimitsStatusCommand::printPorcelain(uint32_t configId,
 
 std::string IoLimitsStatusCommand::printPeriod(uint32_t period_us) const {
 	std::stringstream result;
-	result << toString(period_us / 1000) << '.' <<
-			std::setw(3) << std::setfill('0') << toString(period_us % 1000);
+	result << std::to_string(period_us / 1000) << '.' <<
+			std::setw(3) << std::setfill('0') << std::to_string(period_us % 1000);
 	return result.str();
 }
 

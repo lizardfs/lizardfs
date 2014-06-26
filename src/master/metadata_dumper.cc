@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "common/massert.h"
-#include "common/to_string.h"
 
 static bool createPipe(int pipefds[2]) {
 	if (pipe(pipefds) != 0) {
@@ -116,7 +115,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 			}
 			if (useMetarestore_ && dumpingSucceeded_) {
 				// exec mfsmetarestore
-				std::string checksumStringified = toString(checksum);
+				std::string checksumStringified = std::to_string(checksum);
 				char* metarestoreArgs[] = {
 					const_cast<char*>(metarestorePath_.c_str()),
 					const_cast<char*>("-m"),

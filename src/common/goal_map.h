@@ -7,7 +7,6 @@
 #include "common/exception.h"
 #include "common/goal.h"
 #include "common/serialization_macros.h"
-#include "common/to_string.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(GoalMapInvalidGoalException, Exception);
 
@@ -23,7 +22,7 @@ public:
 		if (goal == 0) {
 			return zero_;
 		}
-		throw GoalMapInvalidGoalException("Invalid goal: " + toString((uint32_t)goal));
+		throw GoalMapInvalidGoalException("Invalid goal: " + std::to_string((uint32_t)goal));
 	}
 
 	const T& operator[](uint8_t goal) const {

@@ -66,7 +66,7 @@ PosixAclXattr aclConverter::extractPosixObject(const uint8_t* buffer, uint32_t b
 AccessControlList aclConverter::posixToAclObject(const PosixAclXattr& posix) {
 	if (posix.version != POSIX_ACL_XATTR_VERSION) {
 		throw AclConversionException("Incorrect POSIX ACL xattr version: " +
-				toString(posix.version));
+				std::to_string(posix.version));
 	}
 	if (posix.entries.empty()) {
 		throw AclConversionException("Empty POSIX ACL xattr object");
