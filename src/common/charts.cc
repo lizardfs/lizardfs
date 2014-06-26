@@ -17,7 +17,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include "config.h"
+#  include "common/platform.h"
 #else
 #  define HAVE_ZLIB_H 1
 #  define HAVE_STRUCT_TM_TM_GMTOFF 1

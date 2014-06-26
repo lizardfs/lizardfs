@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <inttypes.h>
 #include <mount/lizard_client_context.h>

@@ -17,7 +17,7 @@
  */
 
 
-#include "config.h"
+#include "common/platform.h"
 #include "chunkserver/replicator.h"
 
 #include <errno.h>

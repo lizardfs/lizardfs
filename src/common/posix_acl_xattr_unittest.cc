@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/posix_acl_xattr.h"
 
 #include <gtest/gtest.h>

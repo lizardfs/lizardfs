@@ -94,6 +94,7 @@
 #cmakedefine HAVE_WRITEV
 #cmakedefine HAVE_GETRUSAGE
 #cmakedefine HAVE_SETITIMER
+#cmakedefine HAVE_STD_TO_STRING
 
 /* [CMake] Optional functions #2 */
 #cmakedefine HAVE_DUP2

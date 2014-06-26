@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include "common/matocl_communication.h"
 #include "probe/lizardfs_probe_command.h"

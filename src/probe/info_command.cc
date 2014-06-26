@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "probe/info_command.h"
 
 #include <iostream>

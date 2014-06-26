@@ -22,7 +22,7 @@
 # endif
 #endif
 
-#include "config.h"
+#include "common/platform.h"
 #include "mount/lizard_client.h"
 
 #include <assert.h>

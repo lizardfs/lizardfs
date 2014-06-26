@@ -16,7 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#include "common/platform.h"
 #include "mount/writedata.h"
 
 #include <errno.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #define LIZARDFS_DEFINE_INOUT_PAIR(type, name, inVal, outVal) \
 		type name##Out{outVal}, name##In{inVal}

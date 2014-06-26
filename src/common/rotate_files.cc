@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/rotate_files.h"
 
 #include <syslog.h>

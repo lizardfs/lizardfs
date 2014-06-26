@@ -10,3 +10,13 @@ function(check_functions FUNCTIONS REQUIRED)
   endforeach()
 endfunction()
 
+function(check_template_function_exists HEADER CALL OUTPUT_VARIABLE)
+	if (NOT DEFINED ${OUTPUT_VARIABLE})
+		check_cxx_source_compiles("
+#include <${HEADER}>
+	int main(int, char**) {
+		${CALL};
+		return 0;
+}" ${OUTPUT_VARIABLE})
+	endif()
+endfunction()

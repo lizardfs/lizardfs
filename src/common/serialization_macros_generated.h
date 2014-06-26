@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 // DO NOT MODIFY THIS FILE BY HAND!
 //

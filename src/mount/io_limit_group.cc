@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "mount/io_limit_group.h"
 
 #include <fstream>

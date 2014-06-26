@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "probe/options.h"
 
 Options::Options(const std::vector<std::string>& expectedOptions,

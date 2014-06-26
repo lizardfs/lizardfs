@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <arpa/inet.h>
 #include <functional>
