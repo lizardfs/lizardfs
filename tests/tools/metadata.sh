@@ -64,17 +64,33 @@ metadata_generate_unlink() {
 metadata_generate_trash_ops() {
 	touch trashed_file
 	if [[ ${MFS_META_MOUNT_PATH-} ]]; then
-		# Hack: create three files using mfsmakesnapshot so that they will never be opened
-		for i in 1 2 3; do
+		# Hack: create files using mfsmakesnapshot so that they will never be opened
+		for i in 1 2 3 4 5; do
 				mfsmakesnapshot trashed_file trashed_file_$i
 		done
 		mfssettrashtime 60 trashed_file*
+		mfssettrashtime 1 trashed_file_4
+		mfssettrashtime 0 trashed_file_5
+		# Open descriptor of trashed_file_5
+		exec 150<>trashed_file_5
 		rm trashed_file_*
+		# Close descriptor of trashed_file_5
+		exec 150>&-
 		# Generate SETPATH, UNDEL, and PURGE changes
 		echo "untrashed_dir/untrashed_file" > "$MFS_META_MOUNT_PATH"/trash/*trashed_file_3
 		mv "$MFS_META_MOUNT_PATH"/trash/*untrashed_file "$MFS_META_MOUNT_PATH"/trash/undel
 		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
 		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
+		# Wait for generation of EMPTYTRASH for trashed_file_4
+		assert_success wait_for 'grep EMPTYTRASH "${CHANGELOG_0}"' '10 seconds'
+		assert_success wait_for 'grep EMPTYRESERVED "${CHANGELOG_0}"' '10 seconds'
+		local changelog=$(cat ${CHANGELOG_0})
+		assert_awk_finds '/EMPTYTRASH/' "$changelog"
+		assert_awk_finds '/RELEASE/' "$changelog"
+		assert_awk_finds '/EMPTYRESERVED/' "$changelog"
+		assert_awk_finds '/SETPATH/' "$changelog"
+		assert_awk_finds '/UNDEL/' "$changelog"
+		assert_awk_finds '/PURGE/' "$changelog"
 	fi
 }
 
