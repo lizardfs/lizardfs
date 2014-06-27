@@ -127,6 +127,15 @@ metadata_generate_settrashtime() {
 	touch settrashtime_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch settrashtime_recursive/dir{1,2}/file2
 	mfssettrashtime -r 123456 settrashtime_recursive
+
+	mkdir -p settrashtime_incdec
+	mfssettrashtime 100 settrashtime_incdec
+	for i in 100 150 200 250 300; do
+		touch settrashtime_incdec/file$i
+		mfssettrashtime $i settrashtime_incdec/file$i
+	done
+	mfssettrashtime -r 200+ settrashtime_incdec
+	mfssettrashtime -r 200- settrashtime_incdec
 }
 
 metadata_generate_seteattr() {
