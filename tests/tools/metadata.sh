@@ -16,6 +16,9 @@ metadata_print() {
 		getfattr -d "$file"
 		getfacl "$file"
 	done
+	find . -type l | sort | while read file; do
+		echo "Link: $file -> $(readlink "$file")"
+	done
 	find . | sort | while read file; do
 		stat -c "$format" "$file"
 	done
@@ -147,6 +150,7 @@ metadata_generate_snapshot() {
 	mkdir dir_snapshot
 	chmod 777 dir_snapshot
 	echo abcd | tee dir_snapshot/file1 dir_snapshot/file2 >/dev/null
+	ln -s file1 dir_snapshot/symlink
 	sudo -HEnu lizardfstest_2 touch dir_snapshot/file_3
 	sudo -HEnu lizardfstest_3 bash -c 'echo xyz > dir_snapshot/file_5'
 	mkdir dir_snapshot/level_2
@@ -159,6 +163,13 @@ metadata_generate_snapshot() {
 	mfsmakesnapshot snapshot_file snapshot_file_s2
 	echo bbb >> snapshot_file_s1
 	truncate -s 1 snapshot_file_s2
+
+	# Test snapshot -o
+	mkdir -p dir_snapshot_2
+	touch dir_snapshot_2/file4
+	mfsmakesnapshot -o dir_snapshot/level_2/file4 dir_snapshot_2/
+	mfsmakesnapshot dir_snapshot dir_snapshot_s2
+	mfsmakesnapshot -o dir_snapshot dir_snapshot_s2
 }
 
 metadata_generate_xattrs() {
