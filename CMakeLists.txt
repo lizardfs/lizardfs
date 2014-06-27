@@ -56,10 +56,12 @@ option(ENABLE_DEBIAN_PATHS  "Enable Debian-style install paths"                 
 option(ENABLE_UTILS         "Enable building additional binaries used e.g. in tests"  OFF)
 option(ENABLE_TESTS         "Enable building unit and functional tests"               OFF)
 option(ENABLE_DOCS          "Enable building the documentation"                       ON)
+option(ENABLE_EXIT_ON_USR1  "Enable handler for SIGUSR1 which calls exit()"           OFF)
+option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
+# end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)
 option(ENABLE_CRC           "Enable checksums"                                        ON)
 option(ENABLE_REQUEST_LOG   "Enable logging request times"                            OFF)
-option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
 option(USE_LEGACY_READ_MESSAGES "Enable sending old type of messages by mount"        OFF)
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
@@ -73,10 +75,12 @@ message(STATUS "ENABLE_DEBIAN_PATHS: ${ENABLE_DEBIAN_PATHS}")
 message(STATUS "ENABLE_UTILS: ${ENABLE_UTILS}")
 message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
 message(STATUS "ENABLE_DOCS: ${ENABLE_DOCS}")
+message(STATUS "ENABLE_EXIT_ON_USR1: ${ENABLE_EXIT_ON_USR1}")
+message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+# end of LizardFS options values
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
 message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
 message(STATUS "ENABLE_REQUEST_LOG: ${ENABLE_REQUEST_LOG}")
-message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
 
 # All the environment tests (libs, includes, etc.) live here:

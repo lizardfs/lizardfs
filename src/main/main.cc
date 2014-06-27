@@ -16,7 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#include "common/platform.h"
 #include "init.h"
 
 #include <errno.h>
@@ -43,6 +43,7 @@
 #include "common/crc.h"
 #include "common/cwrap.h"
 #include "common/exceptions.h"
+#include "common/exit_status.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
@@ -349,6 +350,9 @@ void mainloop() {
 					} else if (sigid=='\002') {
 						syslog(LOG_NOTICE,"reloading config files");
 						r = 1;
+					} else if (sigid=='\003') {
+						syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
+						exit(LIZARDFS_EXIT_STATUS_GENTLY_KILL);
 					}
 				}
 			}
@@ -491,7 +495,7 @@ static int ignoresignal[]={
 #ifdef SIGINFO
 	SIGINFO,
 #endif
-#ifdef SIGUSR1
+#if defined(SIGUSR1) && !defined(ENABLE_EXIT_ON_USR1)
 	SIGUSR1,
 #endif
 #ifdef SIGUSR2
@@ -502,6 +506,13 @@ static int ignoresignal[]={
 #endif
 #ifdef SIGCLD
 	SIGCLD,
+#endif
+	-1
+};
+
+static int exitsignal[]={
+#if defined(SIGUSR1) && defined(ENABLE_EXIT_ON_USR1)
+	SIGUSR1,
 #endif
 	-1
 };
@@ -518,6 +529,11 @@ void termhandle(int signo) {
 
 void reloadhandle(int signo) {
 	signo = write(signalpipe[1],"\002",1); // see above
+	(void)signo;
+}
+
+void exithandle(int signo) {
+	signo = write(signalpipe[1],"\003",1); // see above
 	(void)signo;
 }
 
@@ -541,6 +557,10 @@ void set_signal_handlers(int daemonflag) {
 	sa.sa_handler = reloadhandle;
 	for (i=0 ; reloadsignal[i]>0 ; i++) {
 		sigaction(reloadsignal[i],&sa,(struct sigaction *)0);
+	}
+	sa.sa_handler = exithandle;
+	for (i=0 ; exitsignal[i]>0 ; i++) {
+		sigaction(exitsignal[i],&sa,(struct sigaction *)0);
 	}
 	sa.sa_handler = SIG_IGN;
 	for (i=0 ; ignoresignal[i]>0 ; i++) {
@@ -747,7 +767,11 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			/*
 			 * FIXME: buissiness logic should not be in file locking function.
 			 */
+#ifdef ENABLE_EXIT_ON_USR1
+			if (kill(ownerpid,SIGUSR1)<0) {
+#else
 			if (kill(ownerpid,SIGKILL)<0) {
+#endif
 				mfs_errlog(LOG_WARNING,"can't kill lock owner");
 				return LockStatus::kFail;
 			}

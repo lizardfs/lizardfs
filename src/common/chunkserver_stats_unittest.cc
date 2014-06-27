@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/chunkserver_stats.h"
 
 #include <gtest/gtest.h>

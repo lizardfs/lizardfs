@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "chunkserver/chunk_signature.h"
 
 #include <unistd.h>

@@ -16,7 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#include "common/platform.h"
 #include "mount/mastercomm.h"
 
 #include <arpa/inet.h>
@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <pthread.h>
 #include <pwd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +33,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <unordered_map>
@@ -40,6 +42,7 @@
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/exception.h"
+#include "common/exit_status.h"
 #include "common/lizardfs_version.h"
 #include "common/matocl_communication.h"
 #include "common/md5.h"
@@ -105,6 +108,7 @@ static unsigned gIoRetries;
 static unsigned gReservedInodesPeriod;
 
 static uint8_t fterm;
+static std::atomic<bool> gIsKilled(false);
 
 typedef std::unordered_map<PacketHeader::Type, PacketHandler*> PerTypePacketHandlers;
 static PerTypePacketHandlers perTypePacketHandlers;
@@ -914,6 +918,12 @@ void fs_close_session(void) {
 	}
 }
 
+#ifdef ENABLE_EXIT_ON_USR1
+static void usr1_handler(int) {
+	gIsKilled = true;
+}
+#endif
+
 void* fs_nop_thread(void *arg) {
 	uint8_t *ptr,hdr[12],*inodespacket;
 	int32_t inodesleng;
@@ -921,6 +931,12 @@ void* fs_nop_thread(void *arg) {
 	int now;
 	uint32_t inodeswritecnt=0;
 	(void)arg;
+
+#ifdef ENABLE_EXIT_ON_USR1
+	if (signal(SIGUSR1, usr1_handler) == SIG_ERR) {
+		mabort("Can't set handler for SIGUSR1");
+	}
+#endif
 	for (;;) {
 		now = time(NULL);
 		std::unique_lock<std::mutex> fdLock(fdMutex);
@@ -929,6 +945,10 @@ void* fs_nop_thread(void *arg) {
 				fs_close_session();
 			}
 			return NULL;
+		}
+		if (gIsKilled) {
+			syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
+			exit(LIZARDFS_EXIT_STATUS_GENTLY_KILL);
 		}
 		if (disconnect == false && fd >= 0) {
 			if (lastwrite+2<now) {  // NOP

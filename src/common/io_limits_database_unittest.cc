@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/io_limits_database.h"
 
 #include <gtest/gtest.h>

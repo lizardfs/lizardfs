@@ -5,7 +5,7 @@
  *      Author: Marcin Sulikowski
  */
 
-#include "config.h"
+#include "common/platform.h"
 #include "devtools/mycrc32/mycrc32.h"
 
 #include <cstdio>

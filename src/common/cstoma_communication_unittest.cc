@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/cstoma_communication.h"
 
 #include <gtest/gtest.h>

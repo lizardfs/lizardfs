@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include "common/chunk_type_with_address.h"
 #include "common/packet.h"

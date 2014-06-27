@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "probe/io_limits_status_command.h"
 
 #include <iomanip>

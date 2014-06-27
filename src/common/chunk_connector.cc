@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/chunk_connector.h"
 
 #include <errno.h>

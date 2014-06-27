@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include "common/io_limiting.h"
 #include "mount/mastercomm.h"

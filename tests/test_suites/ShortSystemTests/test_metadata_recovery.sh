@@ -1,10 +1,25 @@
-timeout_set 2 minutes
-assert_program_installed attr
+timeout_set 3 minutes
+
+master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
+master_cfg+="|AUTO_RECOVERY = 1"
+master_cfg+="|EMPTY_TRASH_PERIOD = 1"
+master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
 
 CHUNKSERVERS=3 \
-	MOUNT_EXTRA_CONFIG="mfsacl" \
+	MOUNTS=2 \
+	USE_RAMDISK="YES" \
+	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsreportreservedperiod=1" \
+	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
+	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
+
+# Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
+export MFS_META_MOUNT_PATH=${info[mount1]}
+
+# Save path of changelog.0.mfs in CHANGELOG_0 to make it possible to verify generated changes
+export CHANGELOG_0="${info[master_data_path]}"/changelog.0.mfs
 
 lizardfs_metalogger_daemon start
 

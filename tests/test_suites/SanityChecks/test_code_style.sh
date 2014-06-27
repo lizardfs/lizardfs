@@ -16,8 +16,8 @@ verify_file() {
 	if [[ $file =~ [.](cc|c|h|sh|inc)$ ]] && $grep $'^    ' "$file"; then
 		test_add_failure "File '$file' has lines indented with spaces"
 	fi
-	if [[ $file =~ src/.*[.](cc|h)$ ]] && ! $grep -q '^# *include "config.h"' "$file"; then
-		test_add_failure "File '$file' does not include config.h"
+	if [[ $file =~ src/.*[.](cc|h)$ ]] && [[ $file != src/common/platform.h ]] && ! $grep -q '^# *include "common/platform.h"' "$file"; then
+		test_add_failure "File '$file' does not include common/platform.h"
 	fi
 	if [[ $file =~ src/.*[.](cc|h)$ ]] && $grep '( \| )' "$file"; then
 		test_add_failure "File '$file' has spaces around parens"

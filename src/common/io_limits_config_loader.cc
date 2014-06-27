@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/io_limits_config_loader.h"
 
 #include <limits>

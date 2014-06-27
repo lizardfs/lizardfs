@@ -8,7 +8,7 @@
 #pragma once
 
 #ifdef ENABLE_TRACES
-#include "config.h"
+#include "common/platform.h"
 
 #include <pthread.h>
 #include <sys/time.h>

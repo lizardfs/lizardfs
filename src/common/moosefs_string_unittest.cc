@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/moosefs_string.h"
 
 #include <gtest/gtest.h>

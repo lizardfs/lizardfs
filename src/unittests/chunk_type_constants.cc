@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "unittests/chunk_type_constants.h"
 
 const ChunkType standard{ChunkType::getStandardChunkType()};

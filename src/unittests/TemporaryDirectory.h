@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <sys/time.h>
 #include <unistd.h>

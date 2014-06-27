@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 /**
  * Function returning reference to a variable determining if non-root users are allowed to

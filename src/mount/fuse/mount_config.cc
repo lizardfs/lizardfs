@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "mount/fuse/mount_config.h"
 
 #include <stdio.h>

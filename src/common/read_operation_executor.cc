@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/read_operation_executor.h"
 
 #include <poll.h>

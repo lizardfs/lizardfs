@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef ENABLE_REQUEST_LOG
-#include "config.h"
+#include "common/platform.h"
 
 #include <pthread.h>
 #include <sys/time.h>

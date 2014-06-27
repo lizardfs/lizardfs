@@ -2,7 +2,7 @@
 
 // A queue which transparently deduplicates inserted elements
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <mutex>
 #include <queue>

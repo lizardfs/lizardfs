@@ -16,7 +16,7 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#include "common/platform.h"
 #include "master/filesystem.h"
 
 #include <errno.h>
@@ -3044,12 +3044,13 @@ uint8_t fs_purge(const FsContext& context, uint32_t inode) {
 	} else if (p->type != TYPE_TRASH) {
 		return ERROR_ENOENT;
 	}
-
+	uint32_t purged_inode = p->id; // This should be equal to inode, because p is not a directory
 	fsnodes_purge(context.ts(), p);
+
 	if (context.isPersonalityMaster()) {
 		changelog(metaversion,
 				"%" PRIu32 "|PURGE(%" PRIu32 ")",
-				context.ts(), p->id);
+				context.ts(), purged_inode);
 	}
 	metaversion++;
 	return STATUS_OK;
@@ -5142,7 +5143,7 @@ uint8_t fs_apply_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8
 
 uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 	fsnode *p;
-	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != STATUS_OK) {
 		return status;
 	}
@@ -5168,7 +5169,7 @@ uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 
 uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList acl) {
 	fsnode *p;
-	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != STATUS_OK) {
 		return status;
 	}
@@ -5269,6 +5270,9 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 }
 
 uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry>& entries) {
+	if (sesflags & SESFLAG_READONLY) {
+		return ERROR_EROFS;
+	}
 	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return ERROR_EPERM;
 	}
@@ -7794,7 +7798,7 @@ void fs_reload(void) {
 	main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 	main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0);
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
 	main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
 }
@@ -7870,11 +7874,14 @@ int fs_init(void) {
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);
 	}
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0, fs_periodic_emptytrash);
+			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
+			0, fs_periodic_emptytrash);
 	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_PERIOD", 60, 1), 0, fs_periodic_emptyreserved);
+			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
+			0, fs_periodic_emptyreserved);
 	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0, fs_periodic_freeinodes);
+			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
+			0, fs_periodic_freeinodes);
 	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;

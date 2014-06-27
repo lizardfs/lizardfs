@@ -18,14 +18,10 @@
 
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <inttypes.h>
 #include <poll.h>
-
-#define LIZARDFS_EXIT_STATUS_SUCCESS 0
-#define LIZARDFS_EXIT_STATUS_NOT_ALIVE 1
-#define LIZARDFS_EXIT_STATUS_ERROR 2
 
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1

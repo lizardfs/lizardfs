@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "chunkserver/output_buffers.h"
 
 #include <fcntl.h>

@@ -12,6 +12,7 @@
 # AC_FUNC_STRERROR_R
 
 include(CheckCXXCompilerFlag)
+include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CheckFunctions)
 include(CheckIncludes)
@@ -46,6 +47,7 @@ check_members("struct rusage" "ru_maxrss" "sys/resource.h")
 
 CHECK_FUNCTION_EXISTS(fork     HAVE_WORKING_FORK)
 CHECK_FUNCTION_EXISTS(vfork    HAVE_WORKING_VFORK)
+CHECK_TEMPLATE_FUNCTION_EXISTS("string" "std::to_string(0)" HAVE_STD_TO_STRING)
 
 set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
   gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "master/metadata_dumper.h"
 
 #include <string.h>

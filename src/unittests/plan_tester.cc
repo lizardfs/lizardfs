@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "unittests/plan_tester.h"
 
 #include <algorithm>

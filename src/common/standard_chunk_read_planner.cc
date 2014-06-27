@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/standard_chunk_read_planner.h"
 
 #include <algorithm>

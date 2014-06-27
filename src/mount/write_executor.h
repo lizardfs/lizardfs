@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include "common/chunk_type.h"
 #include "common/chunkserver_stats.h"

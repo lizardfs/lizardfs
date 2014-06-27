@@ -17,7 +17,7 @@
  */
 
 #define MMAP_ALLOC 1
-#include "config.h"
+#include "common/platform.h"
 #include "chunkserver/hddspacemgr.h"
 
 #include <dirent.h>

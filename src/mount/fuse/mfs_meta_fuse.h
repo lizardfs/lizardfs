@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <fuse/fuse_lowlevel.h>
 

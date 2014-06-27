@@ -22,7 +22,7 @@
 # endif
 #endif
 
-#include "config.h"
+#include "common/platform.h"
 #include "mount/fuse/mfs_meta_fuse.h"
 
 #include <errno.h>

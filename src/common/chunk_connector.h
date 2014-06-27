@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include "common/connection_pool.h"
 #include "common/sockets.h"

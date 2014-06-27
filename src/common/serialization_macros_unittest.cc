@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/serialization_macros.h"
 
 #include <tuple>

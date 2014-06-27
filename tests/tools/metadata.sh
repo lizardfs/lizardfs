@@ -16,10 +16,15 @@ metadata_print() {
 		getfattr -d "$file"
 		getfacl "$file"
 	done
+	find . -type l | sort | while read file; do
+		echo "Link: $file -> $(readlink "$file")"
+	done
 	find . | sort | while read file; do
 		stat -c "$format" "$file"
 	done
-	mfsrepquota -a .
+	if [[ $(stat -c "%i" .) == 1 ]]; then
+		mfsrepquota -a .
+	fi
 }
 
 # Extract version from metadata file
@@ -61,6 +66,39 @@ metadata_generate_unlink() {
 	rm -r -f unlink_dir
 }
 
+metadata_generate_trash_ops() {
+	touch trashed_file
+	if [[ ${MFS_META_MOUNT_PATH-} ]]; then
+		# Hack: create files using mfsmakesnapshot so that they will never be opened
+		for i in 1 2 3 4 5; do
+				mfsmakesnapshot trashed_file trashed_file_$i
+		done
+		mfssettrashtime 60 trashed_file*
+		mfssettrashtime 1 trashed_file_4
+		mfssettrashtime 0 trashed_file_5
+		# Open descriptor of trashed_file_5
+		exec 150<>trashed_file_5
+		rm trashed_file_*
+		# Close descriptor of trashed_file_5
+		exec 150>&-
+		# Generate SETPATH, UNDEL, and PURGE changes
+		echo "untrashed_dir/untrashed_file" > "$MFS_META_MOUNT_PATH"/trash/*trashed_file_3
+		mv "$MFS_META_MOUNT_PATH"/trash/*untrashed_file "$MFS_META_MOUNT_PATH"/trash/undel
+		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
+		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
+		# Wait for generation of EMPTYTRASH for trashed_file_4
+		assert_success wait_for 'grep EMPTYTRASH "${CHANGELOG_0}"' '10 seconds'
+		assert_success wait_for 'grep EMPTYRESERVED "${CHANGELOG_0}"' '10 seconds'
+		local changelog=$(cat ${CHANGELOG_0})
+		assert_awk_finds '/EMPTYTRASH/' "$changelog"
+		assert_awk_finds '/RELEASE/' "$changelog"
+		assert_awk_finds '/EMPTYRESERVED/' "$changelog"
+		assert_awk_finds '/SETPATH/' "$changelog"
+		assert_awk_finds '/UNDEL/' "$changelog"
+		assert_awk_finds '/PURGE/' "$changelog"
+	fi
+}
+
 metadata_generate_setgoal() {
 	for goal in 1 2 3 4 ; do
 		touch setgoal$goal
@@ -71,6 +109,14 @@ metadata_generate_setgoal() {
 	touch setgoal_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch setgoal_recursive/dir{1,2}/file2
 	mfssetgoal -r 7 setgoal_recursive
+
+	mkdir -p setgoal_incdec
+	for goal in {1..9}; do
+		touch setgoal_incdec/setgoal$goal
+		mfssetgoal $goal setgoal_incdec/setgoal$goal
+	done
+	mfssetgoal -r 6- setgoal_incdec
+	mfssetgoal -r 3+ setgoal_incdec
 }
 
 metadata_generate_settrashtime() {
@@ -83,6 +129,15 @@ metadata_generate_settrashtime() {
 	touch settrashtime_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch settrashtime_recursive/dir{1,2}/file2
 	mfssettrashtime -r 123456 settrashtime_recursive
+
+	mkdir -p settrashtime_incdec
+	mfssettrashtime 100 settrashtime_incdec
+	for i in 100 150 200 250 300; do
+		touch settrashtime_incdec/file$i
+		mfssettrashtime $i settrashtime_incdec/file$i
+	done
+	mfssettrashtime -r 200+ settrashtime_incdec
+	mfssettrashtime -r 200- settrashtime_incdec
 }
 
 metadata_generate_seteattr() {
@@ -95,7 +150,7 @@ metadata_generate_seteattr() {
 	chmod 777 seteattr_recursive/dir{1,2}
 	touch seteattr_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch seteattr_recursive/dir{1,2}/file2
-	mfsseteattr -f noowner seteattr_recursive
+	mfsseteattr -r -f noowner seteattr_recursive
 }
 
 metadata_generate_chunks() {
@@ -114,6 +169,7 @@ metadata_generate_snapshot() {
 	mkdir dir_snapshot
 	chmod 777 dir_snapshot
 	echo abcd | tee dir_snapshot/file1 dir_snapshot/file2 >/dev/null
+	ln -s file1 dir_snapshot/symlink
 	sudo -HEnu lizardfstest_2 touch dir_snapshot/file_3
 	sudo -HEnu lizardfstest_3 bash -c 'echo xyz > dir_snapshot/file_5'
 	mkdir dir_snapshot/level_2
@@ -126,6 +182,13 @@ metadata_generate_snapshot() {
 	mfsmakesnapshot snapshot_file snapshot_file_s2
 	echo bbb >> snapshot_file_s1
 	truncate -s 1 snapshot_file_s2
+
+	# Test snapshot -o
+	mkdir -p dir_snapshot_2
+	touch dir_snapshot_2/file4
+	mfsmakesnapshot -o dir_snapshot/level_2/file4 dir_snapshot_2/
+	mfsmakesnapshot dir_snapshot dir_snapshot_s2
+	mfsmakesnapshot -o dir_snapshot dir_snapshot_s2
 }
 
 metadata_generate_xattrs() {
@@ -201,6 +264,7 @@ metadata_get_all_generators() {
 	echo metadata_generate_funny_inodes
 	echo metadata_generate_quotas
 	echo metadata_generate_unlink
+	echo metadata_generate_trash_ops
 	echo metadata_generate_setgoal
 	echo metadata_generate_settrashtime
 	echo metadata_generate_seteattr

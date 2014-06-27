@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "master/chunk_goal_counters.h"
 
 #include "common/goal.h"

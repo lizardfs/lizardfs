@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 #include <errno.h>
 #include <stdio.h>

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "mount/masterproxy.h"
 
 #include <errno.h>

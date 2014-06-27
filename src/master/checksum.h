@@ -1,5 +1,5 @@
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 enum class ChecksumMode { kGetCurrent, kForceRecalculate };

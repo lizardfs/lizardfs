@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/cwrap.h"
 
 #include <cstdio>

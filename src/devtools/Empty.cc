@@ -1,1 +1,1 @@
-#include "config.h"
+#include "common/platform.h"

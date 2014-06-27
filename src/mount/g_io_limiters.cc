@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "mount/g_io_limiters.h"
 
 #include "mount/global_io_limiter.h"

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "probe/lizardfs_probe_command.h"
 
 const std::string LizardFsProbeCommand::kPorcelainMode = "--porcelain";

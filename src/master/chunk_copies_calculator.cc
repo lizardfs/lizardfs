@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "master/chunk_copies_calculator.h"
 
 #include <algorithm>

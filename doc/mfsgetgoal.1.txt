@@ -14,10 +14,10 @@ mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
 *mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]N|**xor**N 'OBJECT'...
+*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] N[*+*|*-*]|**xor**N 'OBJECT'...
 
 [verse]
-*mfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+*mfsrsetgoal* [*-n*|*-h*|*-H*] N[*+*|*-*] 'OBJECT'...
 
 == DESCRIPTION
 
@@ -42,10 +42,10 @@ directory or deleted ('trash') file.
 This option enables recursive mode, which works as usual for every given file, but for every given
 directory additionally prints current value of all contained objects (files and directories).
 
-\[*+*|*-*]'N'::
-*mfssetgoal* changes current 'goal' value of given object(s). If new value is specified in *+*'N'
+'N'\[*+*|*-*]::
+*mfssetgoal* changes current 'goal' value of given object(s). If new value is specified in 'N'*+*
 form, 'goal' value is increased to 'N' for objects with lower 'goal' value and unchanged for
-the rest. Similarly, if new value is specified as *-*'N', 'goal' value is decreased to 'N' for
+the rest. Similarly, if new value is specified as 'N'*-*, 'goal' value is decreased to 'N' for
 objects with higher 'goal' value and unchanged for the rest.
 
 *-n*, *-h*, *-H*::

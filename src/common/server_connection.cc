@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/server_connection.h"
 
 #include "common/message_receive_buffer.h"

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "unittests/mocks/chunk_connector_mock.h"
 
 ChunkConnectorMock::ChunkConnectorMock(std::initializer_list<Modules::value_type> modules)

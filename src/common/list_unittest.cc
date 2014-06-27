@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "common/list.h"
 
 #include <gtest/gtest.h>

@@ -14,10 +14,10 @@ mfsgettrashtime, mfssettrashtime, mfsrgettrashtime, mfsrsettrashtime - get or se
 *mfsrgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+*mfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] SECONDS[*+*|*-*] 'OBJECT'...
 
 [verse]
-*mfsrsettrashtime* [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+*mfsrsettrashtime* [*-n*|*-h*|*-H*] SECONDS[*+*|*-*] 'OBJECT'...
 
 
 == DESCRIPTION
@@ -34,9 +34,9 @@ This option enables recursive mode, which works as usual for every given file, b
 directory additionally prints current 'trashtime' value of all contained objects (files and
 directories).
 
-\[*+*|*-*]'N'::
-If new value is specified in *+*'N' form, 'trashtime' value is increased to 'N' for objects with
-lower 'trashtime' value and unchanged for the rest. Similarly, if new value is specified as *-*'N',
+'N'\[*+*|*-*]::
+If new value is specified in 'N'*+* form, 'trashtime' value is increased to 'N' for objects with
+lower 'trashtime' value and unchanged for the rest. Similarly, if new value is specified as 'N'*-*,
 'trashtime' value is decreased to 'N' for objects with higher 'trashtime' value and unchanged for
 the rest. These tools can be used on any file, directory or deleted ('trash') file.
 

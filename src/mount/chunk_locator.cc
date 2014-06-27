@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "mount/chunk_locator.h"
 
 #include <unistd.h>

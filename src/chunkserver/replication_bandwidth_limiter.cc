@@ -1,4 +1,4 @@
-#include "config.h"
+#include "common/platform.h"
 #include "chunkserver/replication_bandwidth_limiter.h"
 
 using namespace ioLimiting;
