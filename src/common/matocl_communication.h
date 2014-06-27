@@ -6,6 +6,7 @@
 #include "common/attributes.h"
 #include "common/chunk_type_with_address.h"
 #include "common/chunks_availability_state.h"
+#include "common/io_limits_database.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_string.h"
 #include "common/packet.h"
@@ -109,6 +110,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetQuota, LIZ_MATOCL_FUSE_GET_QUOTA, kResponsePacketVersion,
 		uint32_t, messageId,
 		std::vector<QuotaOwnerAndLimits>, ownersAndLimits)
+
+// LIZ_MATOCL_IOLIMITS_STATUS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, iolimitsStatus, LIZ_MATOCL_IOLIMITS_STATUS, 0,
+		uint32_t, messageId,
+		uint32_t, configId,
+		uint32_t, period_us,
+		uint32_t, accumulate_ms,
+		std::string, subsystem,
+		std::vector<IoGroupAndLimit>, groupsAndLimits)
 
 // LIZ_MATOCL_FUSE_TRUNCATE
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kStatusPacketVersion, 0)

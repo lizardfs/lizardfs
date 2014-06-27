@@ -196,6 +196,17 @@ create_mfsmount_cfg() {
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
+do_mount() {
+	local mount_id=$1
+	for try in $(seq 1 $max_tries); do
+		${lizardfs_info[mntcall${mount_id}]} && return 0
+		echo "Retrying in 1 second ($try/$max_tries)..."
+		sleep 1
+	done
+	echo "Cannot mount in $mount_dir, exiting"
+	exit 2
+}
+
 add_mount() {
 	# Following two variables are sometimes, but not always inherited from callee,
 	# thus we need to define them once again:
@@ -219,13 +230,20 @@ add_mount() {
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	for try in $(seq 1 $max_tries); do
-		mfsmount -o big_writes -c "$mount_cfg" "$mount_dir" $fuse_options && return 0
-		echo "Retrying in 1 second ($try/$max_tries)..."
-		sleep 1
-	done
-	echo "Cannot mount in $mount_dir, exiting"
-	exit 2
+	lizardfs_info[mntcall$mount_id]="mfsmount -o big_writes -c $mount_cfg $mount_dir $fuse_options"
+	do_mount ${mount_id}
+}
+
+remove_mount() {
+	local mount_id=$1
+	local mount_dir=${lizardfs_info[mount${mount_id}]}
+	fusermount -u ${mount_dir}
+}
+
+remount() {
+	local mount_id=$1
+	remove_mount ${mount_id}
+	do_mount ${mount_id}
 }
 
 mfs_dir_info() {
@@ -281,8 +299,10 @@ lizardfs_ready_chunkservers_count() {
 
 # lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
 lizardfs_wait_for_ready_chunkservers() {
-	local expected_count=$1
-	while (( $(lizardfs_ready_chunkservers_count) != $expected_count )); do
+	local chunkservers=$1
+	local port=${lizardfs_info[matocl]}
+	while [[ "$(lizardfs-probe ready-chunkservers-count localhost $port 2>/dev/null | cat)" \
+			!= "$chunkservers" ]]; do
 		sleep 0.1
 	done
 }

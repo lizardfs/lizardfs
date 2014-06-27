@@ -32,15 +32,7 @@ uint8_t ReplicationBandwidthLimiter::wait(uint64_t requestedSize, const SteadyDu
 		return STATUS_OK;
 	}
 	std::unique_lock<std::mutex> lock(mutex_);
-	int status = group_->wait(requestedSize, SteadyClock::now() + timeout, lock);
-	// Convert errno-like code to MFS status
-	if (status == ENOENT) {
-		// This should never happen so return anything
-		return ERROR_ENOTSUP;
-	} else if (status == ETIMEDOUT) {
-		return ERROR_TIMEOUT;
-	}
-	return STATUS_OK;
+	return group_->wait(requestedSize, SteadyClock::now() + timeout, lock);
 }
 
 uint64_t ReplicationBandwidthLimiter::ReplicationLimiter::request(

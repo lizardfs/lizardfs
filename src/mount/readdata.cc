@@ -36,15 +36,13 @@
 #include "common/connection_pool.h"
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
-#include "mount/mount_config.h"
 
 #define USECTICK 333333
 #define REFRESHTICKS 15
@@ -81,6 +79,7 @@ static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t delayedOpsThread;
 static uint32_t maxRetries;
+static uint32_t gChunkServerReadTimeout;
 static bool readDataTerminate;
 
 void* read_data_delayed_ops(void *arg) {
@@ -135,7 +134,7 @@ void read_data_end(void* rr) {
 	rrec->expired = true;
 }
 
-void read_data_init(uint32_t retries) {
+void read_data_init(uint32_t retries, uint32_t chunkServerReadTimeout) {
 	uint32_t i;
 	pthread_attr_t thattr;
 
@@ -144,6 +143,7 @@ void read_data_init(uint32_t retries) {
 		rdinodemap[i]=NULL;
 	}
 	maxRetries=retries;
+	gChunkServerReadTimeout = chunkServerReadTimeout;
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&delayedOpsThread,&thattr,read_data_delayed_ops,NULL);
@@ -223,7 +223,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
 		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
 		// than short poll() followed by nonproductive usleep().
-		uint32_t timeout_ms = std::max(gMountOptions.chunkserverreadto, sleepTime_ms);
+		uint32_t timeout_ms = std::max(gChunkServerReadTimeout, sleepTime_ms);
 		Timeout communicationTimeout = Timeout(std::chrono::milliseconds(timeout_ms));
 		sleepTime_ms = 0;
 		try {

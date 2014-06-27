@@ -28,7 +28,7 @@ void InfoCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 
-	ServerConnection connection(options.arguments(0), options.arguments(1));
+	ServerConnection connection(options.argument(0), options.argument(1));
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_INFO);
 	response = connection.sendAndReceive(request, MATOCL_INFO);

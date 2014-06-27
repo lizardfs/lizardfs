@@ -2,9 +2,9 @@
 #include "probe/server_connection.h"
 
 #include "common/message_receive_buffer.h"
+#include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "common/time_utils.h"
 
 static const uint32_t kTimeout_ms = 5000;

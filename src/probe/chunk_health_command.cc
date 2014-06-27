@@ -41,7 +41,7 @@ void ChunksHealthCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name() + '\n');
 	}
 
-	ServerConnection connection(options.arguments(0), options.arguments(1));
+	ServerConnection connection(options.argument(0), options.argument(1));
 	std::vector<uint8_t> request, response;
 	bool regularOnly = false;
 	cltoma::xorChunksHealth::serialize(request, regularOnly);

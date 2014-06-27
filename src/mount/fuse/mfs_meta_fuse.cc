@@ -23,7 +23,7 @@
 #endif
 
 #include "config.h"
-#include "mount/mfs_meta_fuse.h"
+#include "mount/fuse/mfs_meta_fuse.h"
 
 #include <errno.h>
 #include <pthread.h>
@@ -133,40 +133,6 @@ static void mfs_meta_type_to_stat(uint32_t inode,uint8_t type, struct stat *stbu
 		stbuf->st_mode = 0;
 	}
 }
-
-static int mfs_errorconv(int status) {
-	switch (status) {
-		case STATUS_OK:
-			return 0;
-		case ERROR_EPERM:
-			return EPERM;
-		case ERROR_ENOTDIR:
-			return ENOTDIR;
-		case ERROR_ENOENT:
-			return ENOENT;
-		case ERROR_EACCES:
-			return EACCES;
-		case ERROR_EEXIST:
-			return EEXIST;
-		case ERROR_EINVAL:
-			return EINVAL;
-		case ERROR_ENOTEMPTY:
-			return ENOTEMPTY;
-		case ERROR_IO:
-			return EIO;
-		case ERROR_EROFS:
-			return EROFS;
-		case ERROR_QUOTA:
-#ifdef EDQUOT
-			return EDQUOT;
-#else
-			return ENOSPC;
-#endif
-		default:
-			return EINVAL;
-	}
-}
-
 
 static void mfs_meta_stat(uint32_t inode, struct stat *stbuf) {
 	int now;

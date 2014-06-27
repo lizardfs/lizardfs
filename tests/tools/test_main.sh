@@ -24,4 +24,5 @@ done
 . tools/time.sh
 . tools/string.sh
 . tools/quota.sh
+. tools/metadata.sh
 

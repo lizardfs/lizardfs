@@ -1,10 +1,57 @@
 #include "config.h"
-#include "common/strerr.h"
+#include "common/mfserr.h"
 
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <errno.h>
 #include <inttypes.h>
-#include <stdlib.h>
-#include <string.h>
+
+#ifndef EDQUOT
+# define EDQUOT ENOSPC
+#endif
+#ifndef ENOATTR
+# ifdef ENODATA
+#  define ENOATTR ENODATA
+# else
+#  define ENOATTR ENOENT
+# endif
+#endif
+
+int mfs_errorconv(uint8_t status) {
+	switch (status) {
+		case STATUS_OK:
+			return 0;
+		case ERROR_EPERM:
+			return EPERM;
+		case ERROR_ENOTDIR:
+			return ENOTDIR;
+		case ERROR_ENOENT:
+			return ENOENT;
+		case ERROR_EACCES:
+			return EACCES;
+		case ERROR_EEXIST:
+			return EEXIST;
+		case ERROR_EINVAL:
+			return EINVAL;
+		case ERROR_ENOTEMPTY:
+			return ENOTEMPTY;
+		case ERROR_IO:
+			return EIO;
+		case ERROR_EROFS:
+			return EROFS;
+		case ERROR_QUOTA:
+			return EDQUOT;
+		case ERROR_ENOATTR:
+			return ENOATTR;
+		case ERROR_ENOTSUP:
+			return ENOTSUP;
+		case ERROR_ERANGE:
+			return ERANGE;
+		default:
+			return EINVAL;
+	}
+}
 
 typedef struct errent {
 	int num;
@@ -466,11 +513,11 @@ static errent errtab[] = {
 	{EXFULL,"EXFULL (Exchange full)"},
 #endif
 
-// This doesn't exist in errno.h, but we define it to better handle bugs involving passing
-// wrong error code to strerr.
+	// This doesn't exist in errno.h, but we define it to better handle bugs involving passing
+	// wrong error code to strerr.
 	{0,"ESUCCESS (Success)"},
 
-// List terminator, str must be NULL.
+	// List terminator, str must be NULL.
 	{0,NULL}
 };
 

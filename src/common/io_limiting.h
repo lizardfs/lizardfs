@@ -76,7 +76,7 @@ public:
 		groupId_(groupId), reserve_(0), lastRequestSuccessful_(true), dead_(false), clock_(clock) {}
 	virtual ~Group() {}
 
-	// wait until we are allowed to transfer size bytes, return errno-style code
+	// wait until we are allowed to transfer size bytes, return MFS status
 	uint8_t wait(uint64_t size, const SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock);
 	// notify all waitees that the group has been removed
 	void die();

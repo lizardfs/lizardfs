@@ -839,22 +839,11 @@ int chunk_get_validcopies(uint64_t chunkid, uint8_t *vcopies) {
 	}
 	return STATUS_OK;
 }
-#endif
 
-
-#ifndef METARESTORE
-int chunk_multi_modify(uint64_t *nchunkid, uint64_t ochunkid, uint8_t goal, uint8_t *opflag,
-		uint32_t *lockid, bool usedummylockid, bool quota_exceeded) {
-	slist *os,*s;
-	uint32_t i;
-#else
-int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
-		uint8_t goal, uint8_t opflag, uint32_t lockid) {
-#endif
-	chunk *oc,*c;
-
-	if (ochunkid==0) { // new chunk
-#ifndef METARESTORE
+uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
+		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid) {
+	chunk *c = NULL;
+	if (ochunkid == 0) { // new chunk
 		if (quota_exceeded) {
 			return ERROR_QUOTA;
 		}
@@ -863,37 +852,29 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
-			// if there are chunkservers and it's at least one minute after start then it means that there is no space left
-			if (uscount > 0 && (uint32_t)(main_time()) > (starttime + 600)) {
+			if ((uscount > 0) && (main_time() > (starttime+600))) { // if there are chunkservers and it's at least one minute after start then it means that there is no space left
 				return ERROR_NOSPACE;
 			} else {
 				return ERROR_NOCHUNKSERVERS;
 			}
 		}
-#endif
 		c = chunk_new(nextchunkid++, 1);
-#ifndef METARESTORE
 		c->interrupted = 0;
 		c->operation = CREATE;
-#endif
 		chunk_add_file_int(c,goal);
-#ifndef METARESTORE
-		for (i=0; i < serversWithChunkTypes.size(); ++i) {
-			s = c->addCopyNoStatsUpdate(serversWithChunkTypes[i].first, BUSY,
+		for (uint32_t i = 0; i < serversWithChunkTypes.size(); ++i) {
+			slist *s = c->addCopyNoStatsUpdate(serversWithChunkTypes[i].first, BUSY,
 					c->version, serversWithChunkTypes[i].second);
 			matocsserv_send_createchunk(s->ptr, c->chunkid, s->chunkType, c->version);
 		}
 		c->updateStats();
 		*opflag=1;
-#endif
 		*nchunkid = c->chunkid;
 	} else {
-		c = NULL;
-		oc = chunk_find(ochunkid);
+		chunk *oc = chunk_find(ochunkid);
 		if (oc==NULL) {
 			return ERROR_NOCHUNK;
 		}
-#ifndef METARESTORE
 		if (*lockid != 0 && *lockid != oc->lockid) {
 			if (oc->lockid == 0 || oc->lockedto == 0) {
 				// Lock was removed by some chunk operation or by a different client
@@ -908,19 +889,16 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		if (oc->isLost()) {
 			return ERROR_CHUNKLOST;
 		}
-#endif
 
 		if (oc->fileCount() == 1) { // refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
-#ifndef METARESTORE
-
 			if (c->operation!=NONE) {
 				return ERROR_CHUNKBUSY;
 			}
 			if (c->needverincrease) {
-				i=0;
-				for (s=c->slisthead ;s ; s=s->next) {
+				uint32_t i = 0;
+				for (slist *s=c->slisthead ;s ; s=s->next) {
 					if (s->is_valid()) {
 						if (!s->is_busy()) {
 							s->mark_busy();
@@ -943,39 +921,25 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 			} else {
 				*opflag=0;
 			}
-#else
-			if (opflag) {
-				c->version++;
-			}
-#endif
 		} else {
 			if (oc->fileCount() == 0) { // it's serious structure error
-#ifndef METARESTORE
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-#else
-				printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
-#endif
 				return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 			}
-#ifndef METARESTORE
 			if (quota_exceeded) {
 				return ERROR_QUOTA;
 			}
-			i=0;
-			for (os=oc->slisthead ;os ; os=os->next) {
+			uint32_t i = 0;
+			for (slist *os=oc->slisthead ;os ; os=os->next) {
 				if (os->is_valid()) {
 					if (c==NULL) {
-#endif
 						c = chunk_new(nextchunkid++, 1);
-#ifndef METARESTORE
 						c->interrupted = 0;
 						c->operation = DUPLICATE;
-#endif
 						chunk_delete_file_int(oc,goal);
 						chunk_add_file_int(c,goal);
-#ifndef METARESTORE
 					}
-					s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
+					slist *s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
 					matocsserv_send_duplicatechunk(s->ptr, c->chunkid, c->version, os->chunkType,
 							oc->chunkid, oc->version);
 					i++;
@@ -985,18 +949,14 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 				c->updateStats();
 			}
 			if (i>0) {
-#endif
 				*nchunkid = c->chunkid;
-#ifndef METARESTORE
 				*opflag=1;
 			} else {
 				return ERROR_CHUNKLOST;
 			}
-#endif
 		}
 	}
 
-#ifndef METARESTORE
 	c->lockedto = main_time() + LOCKTIMEOUT;
 	if (*lockid == 0) {
 		if (usedummylockid) {
@@ -1006,21 +966,13 @@ int chunk_multi_modify(uint32_t ts, uint64_t *nchunkid, uint64_t ochunkid,
 		}
 	}
 	c->lockid = *lockid;
-#else
-	c->lockedto=ts+LOCKTIMEOUT;
-	c->lockid = lockid;
-#endif
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
 
-#ifndef METARESTORE
-int chunk_multi_truncate(uint64_t *nchunkid, uint64_t ochunkid, uint32_t lockid, uint32_t length,
-		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded) {
+uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length,
+		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded, uint64_t *nchunkid) {
 	uint32_t i;
-#else
-int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32_t lockid,uint8_t goal) {
-#endif
 	chunk *oc,*c;
 
 	c=NULL;
@@ -1028,7 +980,6 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 	if (oc==NULL) {
 		return ERROR_NOCHUNK;
 	}
-#ifndef METARESTORE
 	if (oc->isLocked() && (lockid == 0 || lockid != oc->lockid)) {
 		return ERROR_LOCKED;
 	}
@@ -1039,11 +990,9 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 			}
 		}
 	}
-#endif
 	if (oc->fileCount() == 1) { // refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
-#ifndef METARESTORE
 		if (c->operation!=NONE) {
 			return ERROR_CHUNKBUSY;
 		}
@@ -1068,19 +1017,11 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 		} else {
 			return ERROR_CHUNKLOST;
 		}
-#else
-		c->version++;
-#endif
 	} else {
 		if (oc->fileCount() == 0) { // it's serious structure error
-#ifndef METARESTORE
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-#else
-			printf("serious structure inconsistency: (chunkid:%016" PRIX64 ")\n",ochunkid);
-#endif
 			return ERROR_CHUNKLOST; // ERROR_STRUCTURE
 		}
-#ifndef METARESTORE
 		if (quota_exceeded) {
 			return ERROR_QUOTA;
 		}
@@ -1088,15 +1029,11 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 		for (slist *os=oc->slisthead ; os ; os=os->next) {
 			if (os->is_valid()) {
 				if (c==NULL) {
-#endif
 					c = chunk_new(nextchunkid++, 1);
-#ifndef METARESTORE
 					c->interrupted = 0;
 					c->operation = DUPTRUNC;
-#endif
 					chunk_delete_file_int(oc,goal);
 					chunk_add_file_int(c,goal);
-#ifndef METARESTORE
 				}
 				slist *s = c->addCopyNoStatsUpdate(os->ptr, BUSY, c->version, os->chunkType);
 				matocsserv_send_duptruncchunk(s->ptr, c->chunkid, c->version,
@@ -1109,22 +1046,49 @@ int chunk_multi_truncate(uint32_t ts,uint64_t *nchunkid,uint64_t ochunkid,uint32
 			c->updateStats();
 		}
 		if (i>0) {
-#endif
 			*nchunkid = c->chunkid;
-#ifndef METARESTORE
 		} else {
 			return ERROR_CHUNKLOST;
 		}
-#endif
 	}
 
-#ifndef METARESTORE
 	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
-#else
-	c->lockedto=ts+LOCKTIMEOUT;
-#endif
 	c->lockid = lockid;
 	chunk_update_checksum(c);
+	return STATUS_OK;
+}
+#endif // ! METARESTORE
+
+uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lockid, uint8_t goal,
+		bool doIncreaseVersion, uint64_t *newChunkId) {
+	chunk *c;
+	if (oldChunkId == 0) { // new chunk
+		c = chunk_new(nextchunkid++, 1);
+		chunk_add_file_int(c, goal);
+	} else {
+		chunk *oc = chunk_find(oldChunkId);
+		if (oc == NULL) {
+			return ERROR_NOCHUNK;
+		}
+		if (oc->fileCount() == 0) { // refcount == 0
+			syslog(LOG_WARNING,
+					"serious structure inconsistency: (chunkid:%016" PRIX64 ")", oldChunkId);
+			return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+		} else if (oc->fileCount() == 1) { // refcount == 1
+			c = oc;
+			if (doIncreaseVersion) {
+				c->version++;
+			}
+		} else {
+			c = chunk_new(nextchunkid++, 1);
+			chunk_delete_file_int(oc, goal);
+			chunk_add_file_int(c, goal);
+		}
+	}
+	c->lockedto = ts + LOCKTIMEOUT;
+	c->lockid = lockid;
+	chunk_update_checksum(c);
+	*newChunkId = c->chunkid;
 	return STATUS_OK;
 }
 
@@ -1174,7 +1138,8 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	chunk_update_checksum(c);
 	return 1;
 }
-#else
+#endif
+
 int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -1185,7 +1150,6 @@ int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 void chunk_emergency_increase_version(chunk *c) {
@@ -1213,7 +1177,7 @@ void chunk_emergency_increase_version(chunk *c) {
 	fs_incversion(c->chunkid);
 	chunk_update_checksum(c);
 }
-#else
+#endif
 int chunk_increase_version(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -1224,7 +1188,6 @@ int chunk_increase_version(uint64_t chunkid) {
 	chunk_update_checksum(c);
 	return STATUS_OK;
 }
-#endif
 
 #ifndef METARESTORE
 

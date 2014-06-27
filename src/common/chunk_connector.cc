@@ -4,8 +4,8 @@
 #include <errno.h>
 #include <algorithm>
 
+#include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "common/time_utils.h"
 #include "mount/exceptions.h"
 

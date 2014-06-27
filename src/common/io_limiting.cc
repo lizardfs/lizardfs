@@ -80,10 +80,10 @@ void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 uint8_t Group::wait(uint64_t size, SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock) {
 	PendingRequests::iterator it = enqueue(size);
 	it->cond.wait(lock, [this, it]() {return isFirst(it);});
-	uint8_t status = ETIMEDOUT;
+	uint8_t status = ERROR_TIMEOUT;
 	while (clock_.now() < deadline) {
 		if (dead_) {
-			status = ENOENT;
+			status = ERROR_ENOENT;
 			break;
 		}
 		if (attempt(size)) {

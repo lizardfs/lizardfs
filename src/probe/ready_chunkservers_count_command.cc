@@ -21,7 +21,7 @@ void ReadyChunkserversCountCommand::run(const Options& options) const {
 	}
 	uint32_t readyChunkservers = 0;
 	std::vector<ChunkserverEntry> chunkservers = ListChunkserversCommand::getChunkserversList(
-			options.arguments(0), options.arguments(1));
+			options.argument(0), options.argument(1));
 	for (const ChunkserverEntry& cs : chunkservers) {
 		if (cs.totalSpace > 0) {
 			++readyChunkservers;

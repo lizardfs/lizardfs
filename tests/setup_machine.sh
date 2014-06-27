@@ -76,6 +76,24 @@ for username in lizardfstest_{0..9}; do
 	fi
 done
 
+echo ; echo 'Fixing GIDs of users'
+for name in lizardfstest lizardfstest_{0..9}; do
+	uid=$(getent passwd "$name" | cut -d: -f3)
+	gid=$(getent group  "$name" | cut -d: -f3)
+	if [[ $uid == "" || $gid == "" ]]; then
+		exit 1
+	fi
+	if [[ $uid == $gid ]]; then
+		# UID is equal to GID -- we have to change it to something different,
+		# so find some other free gid
+		newgid=$((gid * 2))
+		while getent group $newgid; do
+			newgid=$((newgid + 1))
+		done
+		groupmod -g $newgid $name
+	fi
+done
+
 echo ; echo Prepare /etc/fuse.conf
 if ! grep '^[[:blank:]]*user_allow_other' /etc/fuse.conf >/dev/null; then
 	echo "user_allow_other" >> /etc/fuse.conf

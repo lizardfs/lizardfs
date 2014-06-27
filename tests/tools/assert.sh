@@ -94,6 +94,14 @@ assert_template_awk_finds_no_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_no_diff <string1> <string2>
+assert_template_no_diff_() {
+	local diff=$(diff -u5 <(echo -n "$1") <(echo -n "$2")) || true
+	if [[ -n "$diff" ]]; then
+		$FAIL_FUNCTION $'Strings are different:\n'"$diff"
+	fi
+}
+
 # This function returns a line from some source file of this test suite
 test_absolute_path_=$(readlink -m .)
 get_source_line() {

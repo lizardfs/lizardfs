@@ -56,6 +56,11 @@ number of metadata change log files (default is 50)
 *BACK_META_KEEP_PREVIOUS*::
 number of previous metadata files to be kept (default is 1)
 
+*AUTO_RECOVERY*::
+when this option is set (equals 1) master will try to recover metadata from changelog when it
+is being started after a crash; otherwise it will refuse to start and 'mfsmetarestore' should be
+used to recover the metadata (default is 0)
+
 *REPLICATIONS_DELAY_INIT*::
 initial delay in seconds before starting replications (default is 300)
 
@@ -102,6 +107,15 @@ Maximum number of chunks to replicate to one chunkserver (default is 2)
 
 *CHUNKS_READ_REP_LIMIT*::
 Maximum number of chunks to replicate from one chunkserver (default is 10)
+
+*EMPTY_TRASH_PERIOD*::
+Interval of removing files from trash in seconds (default is 300)
+
+*EMPTY_RESERVED_INODES_PERIOD*::
+Interval of removing reserved files in seconds (default is 60)
+
+*FREE_INODES_PERIOD*::
+Interval of freeing inodes being unused for longer than 24 hours in seconds (default is 60)
 
 *REJECT_OLD_CLIENTS*::
 Reject **mfsmount**s older than 1.6.0 (0 or 1, default is 0). Note that *mfsexports* access control

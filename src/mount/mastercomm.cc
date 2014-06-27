@@ -44,9 +44,9 @@
 #include "common/matocl_communication.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
+#include "common/mfserr.h"
 #include "common/packet.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
 
@@ -102,6 +102,7 @@ static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
 static unsigned gIoRetries;
+static unsigned gReservedInodesPeriod;
 
 static uint8_t fterm;
 
@@ -682,7 +683,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	free(regbuff);
 	lastwrite=time(NULL);
 	if (oninit==0) {
-		syslog(LOG_NOTICE,"registered to master with new session");
+		syslog(LOG_NOTICE,"registered to master with new session (id #%" PRIu32 ")", sessionid);
 	}
 	if (cargs->clearpassword && cargs->passworddigest!=NULL) {
 		memset(cargs->passworddigest,0,16);
@@ -891,7 +892,7 @@ void fs_reconnect() {
 		return;
 	}
 	lastwrite=time(NULL);
-	syslog(LOG_NOTICE,"registered to master");
+	syslog(LOG_NOTICE,"registered to master (session id #%" PRIu32 ")", sessionid);
 }
 
 void fs_close_session(void) {
@@ -918,7 +919,7 @@ void* fs_nop_thread(void *arg) {
 	int32_t inodesleng;
 	acquired_file *afptr;
 	int now;
-	int inodeswritecnt=0;
+	uint32_t inodeswritecnt=0;
 	(void)arg;
 	for (;;) {
 		now = time(NULL);
@@ -943,12 +944,8 @@ void* fs_nop_thread(void *arg) {
 				}
 				lastwrite=now;
 			}
-			if (inodeswritecnt<=0 || inodeswritecnt>60) {
-				inodeswritecnt=60;
-			} else {
-				inodeswritecnt--;
-			}
-			if (inodeswritecnt==0) {        // HELD INODES
+			if (++inodeswritecnt >= gReservedInodesPeriod) {
+				inodeswritecnt = 0;
 				std::unique_lock<std::mutex> asLock(acquiredFileMutex);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
@@ -1149,10 +1146,11 @@ void* fs_receive_thread(void *) {
 int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
 		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
 		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
-		unsigned retries) {
+		unsigned retries, unsigned reportreservedperiod) {
 	master_statsptr_init();
 
 	gIoRetries = retries;
+	gReservedInodesPeriod = reportreservedperiod;
 
 	fd = -1;
 	sessionlost = bgregister;

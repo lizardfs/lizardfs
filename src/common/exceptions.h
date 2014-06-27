@@ -4,7 +4,7 @@
 
 #include "common/chunk_type.h"
 #include "common/exception.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/network_address.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);

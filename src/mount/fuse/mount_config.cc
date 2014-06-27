@@ -1,5 +1,5 @@
 #include "config.h"
-#include "mount/mount_config.h"
+#include "mount/fuse/mount_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,6 +47,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 	MFS_OPT("mfschunkserverreadto=%d", chunkserverreadto, 0),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
@@ -116,6 +117,7 @@ void usage(const char *progname) {
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
+"    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfschunkserverwriteto=MSEC set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"

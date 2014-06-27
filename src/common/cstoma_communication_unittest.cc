@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "common/crc.h"
-#include "common/strerr.h"
+#include "common/mfserr.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
 #include "unittests/operators.h"

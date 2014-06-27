@@ -34,7 +34,7 @@ void FileDescriptor::reset(int fd) {
 
 void FileDescriptor::close() {
 	massert(fd_ >= 0, "file descriptor is not opened");
-	TEMP_FAILURE_RETRY(::close(fd_));
+	::close(fd_);
 	fd_ = -1;
 }
 

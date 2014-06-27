@@ -71,6 +71,7 @@ struct mfsopts_ {
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	unsigned reportreservedperiod;
 	char *iolimits;
 	uint32_t chunkserverreadto;
 	uint32_t chunkserverwriteto;
@@ -111,6 +112,7 @@ struct mfsopts_ {
 			attrcacheto(1.0),
 			entrycacheto(0.0),
 			direntrycacheto(1.0),
+			reportreservedperiod(60),
 			iolimits(NULL),
 			chunkserverreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) {

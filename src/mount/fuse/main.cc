@@ -28,15 +28,15 @@
 #include "common/crc.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
+#include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "common/wrong_crc_notifier.h"
+#include "mount/fuse/mfs_fuse.h"
+#include "mount/fuse/mfs_meta_fuse.h"
+#include "mount/fuse/mount_config.h"
 #include "mount/g_io_limiters.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
-#include "mount/mfs_fuse.h"
-#include "mount/mfs_meta_fuse.h"
-#include "mount/mount_config.h"
 #include "mount/readdata.h"
 #include "mount/stats.h"
 #include "mount/symlinkcache.h"
@@ -175,7 +175,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
 				gMountOptions.donotrememberpassword,
 				1,
-				gMountOptions.ioretries);
+				gMountOptions.ioretries,
+				gMountOptions.reportreservedperiod);
 	} else {
 		if (fs_init_master_connection(
 				gMountOptions.bindhost,
@@ -187,7 +188,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
 				gMountOptions.donotrememberpassword,
 				0,
-				gMountOptions.ioretries) < 0) {
+				gMountOptions.ioretries,
+				gMountOptions.reportreservedperiod) < 0) {
 			return 1;
 		}
 	}
@@ -284,7 +286,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			symlink_cache_term();
 			return 1;
 		}
-		read_data_init(gMountOptions.ioretries);
+		read_data_init(gMountOptions.ioretries, gMountOptions.chunkserverreadto);
 		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,

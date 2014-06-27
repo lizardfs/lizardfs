@@ -19,7 +19,7 @@ public:
 		return arguments_;
 	}
 
-	const std::string& arguments(uint32_t pos) const {
+	const std::string& argument(uint32_t pos) const {
 		return arguments_[pos];
 	}
 

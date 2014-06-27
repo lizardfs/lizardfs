@@ -75,7 +75,7 @@ static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 	pthread_mutex_unlock(&opbufflock);
 }
 
-void oplog_printf(const struct fuse_ctx &ctx,const char *format,...) {
+void oplog_printf(const struct LizardClient::Context &ctx,const char *format,...) {
 	va_list ap;
 	char buff[LINELENG];
 	uint32_t leng;

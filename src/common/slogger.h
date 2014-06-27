@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <syslog.h>
 
-#include "common/strerr.h"
+#include "common/mfserr.h"
 
 #define mfs_syslog(priority,msg) {\
 	syslog((priority),"%s",(msg)); \

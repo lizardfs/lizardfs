@@ -37,6 +37,9 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	if [[ ${DEBUG} ]]; then
+		set +x
+	fi
 	test_freeze_result
 	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
 	cd
@@ -78,6 +81,10 @@ test_begin() {
 	if [[ ${USE_VALGRIND} ]]; then
 		enable_valgrind
 	fi
+	if [[ ${DEBUG} ]]; then
+		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
+		set -x
+	fi
 }
 
 # Try to chmod 777 all files and subdirectories in given directory using passwordless sudo
@@ -93,7 +100,7 @@ test_cleanup() {
 	retries=0
 	pkill -KILL mfsmount || true
 	pkill -KILL memcheck || true
-	while list_of_mounts=$(cat /etc/mtab | grep mfs | grep fuse); do
+	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
 		if ((++retries == 30)); then

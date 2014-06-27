@@ -22,5 +22,5 @@
 
 #include <inttypes.h>
 
-int restore(const char *filename,uint64_t lv,char *ptr);
+int restore(const char* filename, uint64_t lv, const char* ptr);
 void restore_setverblevel(uint8_t _vlevel);

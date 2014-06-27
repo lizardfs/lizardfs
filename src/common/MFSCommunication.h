@@ -133,11 +133,11 @@
 #define ERROR_ENOATTR         38        // Attribute not found
 #define ERROR_ENOTSUP         39        // Operation not supported
 #define ERROR_ERANGE          40        // Result too large
+#define ERROR_TIMEOUT         41        // Timeout
 
-#define ERROR_NOTLOCKED       41        // No such lock
-#define ERROR_WRONGLOCKID     42        // Wrong lock id
+#define ERROR_NOTLOCKED       42        // No such lock
+#define ERROR_WRONGLOCKID     43        // Wrong lock id
 
-#define ERROR_TIMEOUT         43        // Timeout
 #define ERROR_NOTPOSSIBLE     44        // It's not possible to perform operation in this way
 #define ERROR_RESERVED2       45
 #define ERROR_RESERVED3       46
@@ -186,9 +186,9 @@
 	"Attribute not found", \
 	"Operation not supported", \
 	"Result too large", \
+	"Timeout", \
 	"No such lock", \
 	"Wrong lock id", \
-	"Timeout", \
 	"Operation not possible", \
 	"Unknown MFS error", \
 	"Unknown MFS error", \
@@ -1434,6 +1434,14 @@
 #define LIZ_MATOCL_FUSE_GET_QUOTA (1000U + 542U)
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 limits:(vector<QuotaOwnerAndLimits>)
+
+// 0x0607
+#define LIZ_CLTOMA_IOLIMITS_STATUS (1000U + 543U)
+/// msgid:32
+
+// 0x0608
+#define LIZ_MATOCL_IOLIMITS_STATUS (1000U + 544U)
+/// msgid:32 cfgversion:32 period:32 accumulation:32 subsystem:STDSTRING groupslimits:(vector<STDSTRING, uint64_t>)
 
 // CHUNKSERVER STATS
 

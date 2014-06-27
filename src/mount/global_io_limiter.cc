@@ -97,10 +97,10 @@ uint8_t LimiterProxy::waitForRead(const pid_t pid, const uint64_t size, SteadyTi
 		// quickly unreference this group from the groups_ map without waiting for us.
 		std::shared_ptr<Group> group = getGroup(groupId);
 		if (!group) {
-			return EPERM;
+			return ERROR_EPERM;
 		}
 		status = group->wait(size, deadline, lock);
-	} while (status == ENOENT); // loop if the group disappeared due to reconfiguration
+	} while (status == ERROR_ENOENT); // loop if the group disappeared due to reconfiguration
 	return status;
 }
 

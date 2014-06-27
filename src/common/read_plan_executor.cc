@@ -9,9 +9,9 @@
 #include "common/chunkserver_stats.h"
 #include "common/exceptions.h"
 #include "common/massert.h"
+#include "common/mfserr.h"
 #include "common/read_operation_executor.h"
 #include "common/sockets.h"
-#include "common/strerr.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
 

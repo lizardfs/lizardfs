@@ -37,7 +37,7 @@
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 

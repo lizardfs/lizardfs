@@ -59,7 +59,7 @@ void ListMountsCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 
-	ServerConnection connection(options.arguments(0), options.arguments(1));
+	ServerConnection connection(options.argument(0), options.argument(1));
 	MooseFSVector<MountEntry> mounts;
 	std::vector<uint8_t> request, response;
 	serializeMooseFsPacket(request, CLTOMA_SESSION_LIST, true);

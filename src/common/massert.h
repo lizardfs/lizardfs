@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-#include "common/strerr.h"
+#include "common/mfserr.h"
 
 #ifdef THROW_INSTEAD_OF_ABORT
 #  include <stdexcept>

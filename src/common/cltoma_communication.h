@@ -95,6 +95,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, gid,
 		std::vector<QuotaOwner>, owners)
 
+// LIZ_CLTOMA_IOLIMITS_STATUS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, iolimitsStatus, LIZ_CLTOMA_IOLIMITS_STATUS, 0,
+		uint32_t, messageId)
+
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, fuseTruncate, LIZ_CLTOMA_FUSE_TRUNCATE, 0,
 		uint32_t, messageId,

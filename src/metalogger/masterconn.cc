@@ -337,7 +337,7 @@ void masterconn_sessionsdownloadinit(void) {
 
 int masterconn_metadata_check(const char *name) {
 	try {
-		metadata_getversion(name);
+		metadataGetVersion(name);
 		return 0;
 	} catch (MetadataCheckException& ex) {
 		syslog(LOG_NOTICE, "Verification of the downloaded metadata file failed: %s", ex.what());

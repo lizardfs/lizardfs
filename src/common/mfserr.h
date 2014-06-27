@@ -20,8 +20,19 @@
 
 #include "config.h"
 
+#include <inttypes.h>
+
 #include "common/MFSCommunication.h"
 
+/// returns errno string representation
+const char* strerr(int error);
+void strerr_init();
+void strerr_term();
+
+/// converts mfs error to errno
+int mfs_errorconv(uint8_t status);
+
+/// returns mfs error string representation
 static inline const char* mfsstrerr(uint8_t status) {
 	static const char* errtab[]={ERROR_STRINGS};
 	if (status>ERROR_MAX) {

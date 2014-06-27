@@ -50,7 +50,7 @@ public:
 	}
 
 	// Try to acquire an assignment of 'size' bytes. This method pauses a callee until a request
-	// is satisfied or a deadline is exceeded. Return when returns errno-style code
+	// is satisfied or a deadline is exceeded. Return when returns MFS status
 	uint8_t waitForRead(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);
 	// Works the same as waitForRead
 	uint8_t waitForWrite(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);

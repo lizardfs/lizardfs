@@ -44,7 +44,7 @@
 #include "common/massert.h"
 #include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
-#include "common/mfsstrerr.h"
+#include "common/mfserr.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
