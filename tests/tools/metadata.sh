@@ -107,6 +107,14 @@ metadata_generate_setgoal() {
 	touch setgoal_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch setgoal_recursive/dir{1,2}/file2
 	mfssetgoal -r 7 setgoal_recursive
+
+	mkdir -p setgoal_incdec
+	for goal in {1..9}; do
+		touch setgoal_incdec/setgoal$goal
+		mfssetgoal $goal setgoal_incdec/setgoal$goal
+	done
+	mfssetgoal -r 6- setgoal_incdec
+	mfssetgoal -r 3+ setgoal_incdec
 }
 
 metadata_generate_settrashtime() {
