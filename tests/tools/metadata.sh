@@ -22,7 +22,9 @@ metadata_print() {
 	find . | sort | while read file; do
 		stat -c "$format" "$file"
 	done
-	mfsrepquota -a .
+	if [[ $(stat -c "%i" .) == 1 ]]; then
+		mfsrepquota -a .
+	fi
 }
 
 # Extract version from metadata file
