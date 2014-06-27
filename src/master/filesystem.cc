@@ -2975,12 +2975,13 @@ uint8_t fs_purge(const FsContext& context, uint32_t inode) {
 	} else if (p->type != TYPE_TRASH) {
 		return ERROR_ENOENT;
 	}
-
+	uint32_t purged_inode = p->id; // This should be equal to inode, because p is not a directory
 	fsnodes_purge(context.ts(), p);
+
 	if (context.isPersonalityMaster()) {
 		changelog(metaversion,
 				"%" PRIu32 "|PURGE(%" PRIu32 ")",
-				context.ts(), p->id);
+				context.ts(), purged_inode);
 	}
 	metaversion++;
 	return STATUS_OK;
