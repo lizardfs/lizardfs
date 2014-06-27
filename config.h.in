@@ -103,3 +103,4 @@
 
 /* [CMake] Other */
 #cmakedefine WORDS_BIGENDIAN
+#cmakedefine ENABLE_EXIT_ON_USR1

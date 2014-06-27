@@ -48,7 +48,7 @@ test_end() {
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
-			pkill -TERM -u lizardfstest mfs || true
+			pkill -USR1 -u lizardfstest mfs || true
 			if ! pgrep -u lizardfstest mfs >/dev/null; then
 				echo "All LizardFS processes terminated"
 				break
