@@ -77,9 +77,9 @@ lizardfs_chunkserver_daemon 0 start
 lizardfs_wait_for_ready_chunkservers 1
 cd "$TEMP_DIR"
 # Unmount MooseFS client:
-fusermount -u ${info[mount0]}
+assert_success lizardfs_mount_unmount 0
 # Mount LizardFS client:
-add_mount 0
+assert_success lizardfs_mount_start 0
 cd -
 # Test if all files produced so far are readable:
 assert_success file-validate file0

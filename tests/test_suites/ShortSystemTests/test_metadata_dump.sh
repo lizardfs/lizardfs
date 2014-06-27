@@ -203,7 +203,7 @@ cp -r dir0 dir1
 check master OK
 
 # 3. We don't want background dump
-sed -ie 's/PREFER_BACKGROUND_DUMP = 1/PREFER_BACKGROUND_DUMP = 0/' "${lizardfs_info[master_cfg]}"
+sed -ie 's/PREFER_BACKGROUND_DUMP = 1/PREFER_BACKGROUND_DUMP = 0/' "${info[master_cfg]}"
 
 cp $TEMP_DIR/metarestore_error_if_executed.sh $TEMP_DIR/metarestore.sh
 mkdir dir{11..22}

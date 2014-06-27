@@ -31,12 +31,12 @@ build_moosefs() {
 }
 
 moosefs_chunkserver_daemon() {
-	"$MOOSEFS_DIR/sbin/mfschunkserver" -c "${lizardfs_info[chunkserver$1_config]}" "$2" | cat
+	"$MOOSEFS_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_config]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 
 moosefs_master_daemon() {
-	"$MOOSEFS_DIR/sbin/mfsmaster" -c "${lizardfs_info[master_cfg]}" "$1" | cat
+	"$MOOSEFS_DIR/sbin/mfsmaster" -c "${lizardfs_info_[master_cfg]}" "$1" | cat
 	return ${PIPESTATUS[0]}
 }
 
