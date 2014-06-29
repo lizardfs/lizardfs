@@ -3,8 +3,8 @@
 
 #ifndef HAVE_STD_TO_STRING
 
+#include <sstream>
 #include <string>
-#include <stringstream>
 
 namespace std {
 
