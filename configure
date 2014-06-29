@@ -17,6 +17,5 @@ install:
 distclean:
 	rm -rf build-pack
 	rm -rf external/gtest*
-	rm -rf external/crcutil*
 	rm -f Makefile
 END
