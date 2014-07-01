@@ -55,8 +55,28 @@ message(STATUS "a2x: ${A2X_BINARY}")
 
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread program_options)
 find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
+
+# Find Thrift
+find_package(Thrift COMPONENTS library)
+if(THRIFT_FOUND)
+  message(STATUS "Found Thrift")
+else()
+  message(STATUS "Could NOT find Thrift")
+  message(STATUS "   If it's installed in a non-standard path, set THRIFT_ROOT variable")
+  message(STATUS "   to point this path (cmake -DTHRIFT_ROOT=...)")
+endif()
+
+# Find polonaise
+find_package(Polonaise 0.1 EXACT QUIET)
+if(POLONAISE_FOUND)
+  message(STATUS "Found Polonaise")
+else()
+  message(STATUS "Could NOT find Polonaise")
+  message(STATUS "   If it's installed in a non-standard path, set Polonaise_DIR variable")
+  message(STATUS "   to point this path (cmake -DPolonaise_DIR=...)")
+endif()
 
 # Find crcutil
 set(CRCUTIL_VERSION crcutil-1.0)
