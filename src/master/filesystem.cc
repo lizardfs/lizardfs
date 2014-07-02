@@ -7407,7 +7407,7 @@ void fs_new(void) {
 
 int fs_emergency_storeall(const std::string& fname) {
 	cstream_t fd(fopen(fname.c_str(), "w"));
-	if (fd==NULL) {
+	if (fd == nullptr) {
 		return -1;
 	}
 
