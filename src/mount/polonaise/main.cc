@@ -22,19 +22,38 @@
 
 using namespace ::polonaise;
 
-static Status status(StatusCode::type etype) {
+/**
+ * Prepare a Polonaise's Status exception which informs the client that current operation
+ * can't be performed in LizardFS.
+ * It indicates denied permissions (e.g. on operation of access) or some error.
+ * \param type Status code
+ * \return exception
+ */
+static Status status(StatusCode::type type) {
 	Status ex;
-	ex.statusCode = etype;
+	ex.statusCode = type;
 	return ex;
 }
 
+/**
+ * Prepare a Polonaise's Failure exception which informs the client that arguments passed
+ * to server are incorrect
+ * \param message description of failure
+ * \return exception
+ */
 static Failure failure(std::string message) {
 	Failure ex;
-	ex.message = message;
+	ex.message = std::move(message);
 	return ex;
 }
 
-StatusCode::type errnoToStatusCode(int errNo) {
+/**
+ * Convert errno to Polonaise's StatusCode
+ * \param errNo errno number from LizardFS client
+ * \throw Failure when errno number is unknown
+ * \return corresponding StatusCode for Polonaise client
+ */
+StatusCode::type toStatusCode(int errNo) throw(Failure) {
 	static std::map<int, StatusCode::type> statuses = {
 			{ E2BIG, StatusCode::kE2BIG },
 			{ EACCES, StatusCode::kEACCES },
@@ -84,17 +103,12 @@ StatusCode::type errnoToStatusCode(int errNo) {
 	return it->second;
 }
 
-#define OPERATION_PROLOG\
-	try {
-
-#define OPERATION_EPILOG\
-		} catch (LizardClient::RequestException& ex) {\
-			throw status(errnoToStatusCode(ex.errNo));\
-		} catch (Failure& ex) {\
-			std::cerr << __FUNCTION__ << " failure: " << ex.message << std::endl;\
-			throw failure(std::string(__FUNCTION__) + ": " + ex.message);\
-		}
-
+/**
+ * Convert general Thrift integer type to int32_t
+ * \param value input value
+ * \throw Failure when given number exceeds returned type limits
+ * \return value in int32_t
+ */
 static uint32_t toInt32(int64_t value) {
 	if (value < INT32_MIN || value > INT32_MAX) {
 		throw failure("Incorrect int32_t value: " + std::to_string(value));
@@ -102,6 +116,12 @@ static uint32_t toInt32(int64_t value) {
 	return (int32_t)value;
 }
 
+/**
+ * Convert general Thrift integer type to uint32_t
+ * \param value input value
+ * \throw Failure when given number exceeds returned type limits
+ * \return value in uint32_t
+ */
 static uint32_t toUint32(int64_t value) {
 	if (value < 0 || value > UINT32_MAX) {
 		throw failure("Incorrect uint32_t value: " + std::to_string(value));
@@ -109,6 +129,12 @@ static uint32_t toUint32(int64_t value) {
 	return (uint32_t)value;
 }
 
+/**
+ * Convert general Thrift integer type to uint64_t
+ * \param value input value
+ * \throw Failure when given number exceeds returned type limits
+ * \return value in uint64_t
+ */
 static uint64_t toUint64(int64_t value) {
 	if (value < 0) {
 		throw failure("Incorrect uint64_t value: " + std::to_string(value));
@@ -116,101 +142,64 @@ static uint64_t toUint64(int64_t value) {
 	return (uint64_t)value;
 }
 
-static int convertFlags(int32_t clientFlags) {
+/**
+ * Convert flags from Polonaise client to LizardFS ones
+ * \param polonaiseFlags flags in Polonaise format
+ * \return flags in LizardFS format
+ */
+static int toLizardFsFlags(int32_t polonaiseFlags) {
 	int flags = 0;
-	if ((clientFlags & OpenFlags::kRead) && !(clientFlags & OpenFlags::kWrite)) {
+	if ((polonaiseFlags & OpenFlags::kRead) && !(polonaiseFlags & OpenFlags::kWrite)) {
 		flags |= O_RDONLY;
 	}
-	else if (!(clientFlags & OpenFlags::kRead) && (clientFlags & OpenFlags::kWrite)) {
+	else if (!(polonaiseFlags & OpenFlags::kRead) && (polonaiseFlags & OpenFlags::kWrite)) {
 		flags |= O_WRONLY;
 	}
-	else if ((clientFlags & OpenFlags::kRead) && (clientFlags & OpenFlags::kWrite)) {
+	else if ((polonaiseFlags & OpenFlags::kRead) && (polonaiseFlags & OpenFlags::kWrite)) {
 		flags |= O_RDWR;
 	}
 
-	if (clientFlags & OpenFlags::kCreate) {
+	if (polonaiseFlags & OpenFlags::kCreate) {
 		flags |= O_CREAT;
 	}
-	if (clientFlags & OpenFlags::kExclusive) {
+	if (polonaiseFlags & OpenFlags::kExclusive) {
 		flags |= O_EXCL;
 	}
-	if (clientFlags & OpenFlags::kTrunc) {
+	if (polonaiseFlags & OpenFlags::kTrunc) {
 		flags |= O_TRUNC;
 	}
-	if (clientFlags & OpenFlags::kAppend) {
+	if (polonaiseFlags & OpenFlags::kAppend) {
 		flags |= O_APPEND;
 	}
 	return flags;
 }
 
-static int32_t convertAccessMask(int32_t clientMask) {
+/**
+ * Convert access mask from Polonaise client to LizardFS one
+ * \param polonaiseMask mask in Polonaise format
+ * \return mask in LizardFS format
+ */
+static int32_t toLizardFsAccessMask(int32_t polonaiseMask) {
 	int32_t mask = 0;
-	if (clientMask & AccessMask::kRead) {
+	if (polonaiseMask & AccessMask::kRead) {
 		mask |= MODE_MASK_R;
 	}
-	if (clientMask & AccessMask::kWrite) {
+	if (polonaiseMask & AccessMask::kWrite) {
 		mask |= MODE_MASK_W;
 	}
-	if (clientMask & AccessMask::kExecute) {
+	if (polonaiseMask & AccessMask::kExecute) {
 		mask |= MODE_MASK_X;
 	}
 	return mask;
 }
 
-static void convertStat(const struct stat& in, FileStat& out) throw(Failure) {
-	switch (in.st_mode & S_IFMT) {
-		case S_IFDIR:
-			out.type = FileType::kDirectory;
-			break;
-		case S_IFCHR:
-			out.type = FileType::kCharDevice;
-			break;
-		case S_IFBLK:
-			out.type = FileType::kBlockDevice;
-			break;
-		case S_IFREG:
-			out.type = FileType::kRegular;
-			break;
-		case S_IFIFO:
-			out.type = FileType::kFifo;
-			break;
-		case S_IFLNK:
-			out.type = FileType::kSymlink;
-			break;
-		case S_IFSOCK:
-			out.type = FileType::kSocket;
-			break;
-		default:
-			throw failure("Unknown inode type: " + std::to_string(in.st_mode & S_IFMT));
-	}
-
-	out.dev = in.st_dev;
-	out.inode = in.st_ino;
-	out.nlink = in.st_nlink;
-	out.mode = in.st_mode;
-	out.uid = in.st_uid;
-	out.gid = in.st_gid;
-	out.rdev = in.st_rdev;
-	out.size = in.st_size;
-	out.blockSize = in.st_blksize;
-	out.blocks = in.st_blocks;
-	out.atime = in.st_atime;
-	out.mtime = in.st_mtime;
-	out.ctime = in.st_ctime;
-}
-
-static void convertEntry(const LizardClient::EntryParam& in, EntryReply& out) throw(Failure) {
-	if (in.attr_timeout < 0.0 || in.entry_timeout < 0.0) {
-		throw failure("Invalid timeout");
-	}
-	out.inode = in.ino;
-	out.generation = in.generation;
-	convertStat(in.attr, out.attributes);
-	out.attributesTimeout = in.attr_timeout;
-	out.entryTimeout = in.entry_timeout;
-}
-
-static LizardClient::Context convertContext(const Context& ctx) throw(Failure) {
+/**
+ * Convert operation context to LizardFS format
+ * \param ctx context in Polonaise format
+ * \throw Failure when context couldn't be converted
+ * \return converted context
+ */
+static LizardClient::Context toLizardFsContext(const Context& ctx) throw(Failure) {
 	try {
 		LizardClient::Context outCtx(toUint32(ctx.uid), toUint32(ctx.gid), toInt32(ctx.pid),
 				toUint32(ctx.umask));
@@ -221,50 +210,159 @@ static LizardClient::Context convertContext(const Context& ctx) throw(Failure) {
 }
 
 /**
- * TODO Comments everywhere
+ * Convert file statistics from C standard type to a Polonaise one
+ * \param in standard file stats
+ * \throw Failure when file type is unknown
+ * \return Polonaise files stats
+ */
+static FileStat toFileStat(const struct stat& in) throw(Failure) {
+	FileStat result;
+	switch (in.st_mode & S_IFMT) {
+		case S_IFDIR:
+			result.type = FileType::kDirectory;
+			break;
+		case S_IFCHR:
+			result.type = FileType::kCharDevice;
+			break;
+		case S_IFBLK:
+			result.type = FileType::kBlockDevice;
+			break;
+		case S_IFREG:
+			result.type = FileType::kRegular;
+			break;
+		case S_IFIFO:
+			result.type = FileType::kFifo;
+			break;
+		case S_IFLNK:
+			result.type = FileType::kSymlink;
+			break;
+		case S_IFSOCK:
+			result.type = FileType::kSocket;
+			break;
+		default:
+			throw failure("Unknown file type: " + std::to_string(in.st_mode & S_IFMT));
+	}
+
+	result.dev = in.st_dev;
+	result.inode = in.st_ino;
+	result.nlink = in.st_nlink;
+	result.mode = in.st_mode;
+	result.uid = in.st_uid;
+	result.gid = in.st_gid;
+	result.rdev = in.st_rdev;
+	result.size = in.st_size;
+	result.blockSize = in.st_blksize;
+	result.blocks = in.st_blocks;
+	result.atime = in.st_atime;
+	result.mtime = in.st_mtime;
+	result.ctime = in.st_ctime;
+	return result;
+}
+
+/**
+ * Convert file's entry to be sent to Polonaise client
+ * \param in LizardFS's entry
+ * \throw Failure when file type couldn't be converted
+ * \return Polonaise's entry
+ */
+static EntryReply toEntryReply(const LizardClient::EntryParam& in) throw(Failure) {
+	if (in.attr_timeout < 0.0 || in.entry_timeout < 0.0) {
+		throw failure("Invalid timeout");
+	}
+	EntryReply result;
+	result.inode = in.ino;
+	result.generation = in.generation;
+	result.attributes = std::move(toFileStat(in.attr));
+	result.attributesTimeout = in.attr_timeout;
+	result.entryTimeout = in.entry_timeout;
+	return result;
+}
+
+/**
+ * Begin a general handling of exceptions
+ */
+#define OPERATION_PROLOG\
+	try {
+
+/**
+ * End a general handling of exceptions
+ */
+#define OPERATION_EPILOG\
+		} catch (LizardClient::RequestException& ex) {\
+			throw status(toStatusCode(ex.errNo));\
+		} catch (Failure& ex) {\
+			std::cerr << __FUNCTION__ << " failure: " << ex.message << std::endl;\
+			throw failure(std::string(__FUNCTION__) + ": " + ex.message);\
+		}
+
+/**
+ * Polonaise interface which operates on a LizardFS client
  */
 class PolonaiseHandler : virtual public PolonaiseIf {
 public:
+	/**
+	 * Constructor
+	 */
 	PolonaiseHandler() : lastDescriptor_(g_polonaise_constants.kNullDescriptor) {}
 
+	/**
+	 * Implement Polonaise.initSession method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	SessionId initSession() {
 		OPERATION_PROLOG
 		return 0;
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.lookup method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void lookup(EntryReply& _return, const Context& context, const Inode inode,
 			const std::string& name) {
 		OPERATION_PROLOG
 		LizardClient::EntryParam entry = LizardClient::lookup(
-				convertContext(context),
+				toLizardFsContext(context),
 				toUint64(inode),
 				name.c_str());
-		convertEntry(entry, _return);
+		_return = std::move(toEntryReply(entry));
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.getattr method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void getattr(AttributesReply& _return, const Context& context, const Inode inode,
 			const Descriptor descriptor) {
 		OPERATION_PROLOG
 		LizardClient::AttrReply reply = LizardClient::getattr(
-				convertContext(context),
+				toLizardFsContext(context),
 				toUint64(inode),
 				getFileInfo(descriptor));
-		convertStat(reply.attr, _return.attributes);
+		_return.attributes = std::move(toFileStat(reply.attr));
 		_return.attributesTimeout = reply.attrTimeout;
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.opendir method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	Descriptor opendir(const Context& context, const Inode inode) {
 		OPERATION_PROLOG
 		Descriptor descriptor = ++lastDescriptor_;
 		fileInfos_.insert({descriptor, LizardClient::FileInfo(0, 0, 0, 0)});
-		LizardClient::opendir(convertContext(context), toUint32(inode), getFileInfo(descriptor));
+		LizardClient::opendir(toLizardFsContext(context), toUint32(inode), getFileInfo(descriptor));
 		return descriptor;
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.readdir method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void readdir(std::vector<DirectoryEntry> & _return, const Context& context,
 			const Inode inode, const int64_t firstEntryOffset,
 			const int64_t maxNumberOfEntries, const Descriptor descriptor) {
@@ -273,7 +371,7 @@ public:
 			throw failure("Null descriptor");
 		}
 		std::vector<LizardClient::DirEntry> entries = LizardClient::readdir(
-				convertContext(context),
+				toLizardFsContext(context),
 				toUint64(inode),
 				firstEntryOffset,
 				toUint64(maxNumberOfEntries),
@@ -283,34 +381,46 @@ public:
 		for (LizardClient::DirEntry& entry : entries) {
 			_return.push_back({});
 			_return.back().name = std::move(entry.name);
-			convertStat(entry.attr, _return.back().attributes);
+			_return.back().attributes = std::move(toFileStat(entry.attr));
 			_return.back().nextEntryOffset = entry.nextEntryOffset;
 		}
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.releasedir method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void releasedir(const Context& context, const Inode inode, const Descriptor descriptor) {
 		OPERATION_PROLOG
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			throw failure("Null descriptor");
 		}
-		LizardClient::releasedir(convertContext(context), toUint64(inode), getFileInfo(descriptor));
+		LizardClient::releasedir(toLizardFsContext(context), toUint64(inode), getFileInfo(descriptor));
 		fileInfos_.erase(descriptor);
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.access method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void access(const Context& context, const Inode inode, const int32_t mask) {
 		OPERATION_PROLOG
-		LizardClient::access(convertContext(context), toUint64(inode), convertAccessMask(mask));
+		LizardClient::access(toLizardFsContext(context), toUint64(inode), toLizardFsAccessMask(mask));
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.open method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void open(OpenReply& _return, const Context& context, const Inode inode, const int32_t flags) {
 		OPERATION_PROLOG
 		Descriptor descriptor = ++lastDescriptor_;
-		fileInfos_.insert({descriptor, LizardClient::FileInfo(convertFlags(flags), 0, 0, 0)});
+		fileInfos_.insert({descriptor, LizardClient::FileInfo(toLizardFsFlags(flags), 0, 0, 0)});
 		LizardClient::FileInfo* fi = getFileInfo(descriptor);
-		LizardClient::open(convertContext(context), toUint64(inode), fi);
+		LizardClient::open(toLizardFsContext(context), toUint64(inode), fi);
 		_return.descriptor = descriptor;
 		_return.directIo = fi->direct_io;
 		_return.keepCache = fi->keep_cache;
@@ -318,6 +428,10 @@ public:
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.read method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void read(std::string& _return, const Context& context, const Inode inode,
 			const int64_t offset, const int64_t size, const Descriptor descriptor) {
 		OPERATION_PROLOG
@@ -325,7 +439,7 @@ public:
 			throw failure("Null descriptor");
 		}
 		std::vector<uint8_t> buffer = LizardClient::read(
-				convertContext(context),
+				toLizardFsContext(context),
 				toUint64(inode),
 				size,
 				offset,
@@ -334,28 +448,40 @@ public:
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.flush method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void flush(const Context& context, const Inode inode, const Descriptor descriptor) {
 		OPERATION_PROLOG
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			throw failure("Null descriptor");
 		}
-		LizardClient::flush(convertContext(context), toUint64(inode), getFileInfo(descriptor));
+		LizardClient::flush(toLizardFsContext(context), toUint64(inode), getFileInfo(descriptor));
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.release method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void release(const Context& context, const Inode inode, const Descriptor descriptor) {
 		OPERATION_PROLOG
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			throw failure("Null descriptor");
 		}
-		LizardClient::release(convertContext(context), toUint64(inode), getFileInfo(descriptor));
+		LizardClient::release(toLizardFsContext(context), toUint64(inode), getFileInfo(descriptor));
 		fileInfos_.erase(descriptor);
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.statfs method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
 	void statfs(StatFsReply& _return, const Context& context, const Inode inode) {
 		OPERATION_PROLOG
-		struct statvfs sv = LizardClient::statfs(convertContext(context), toUint64(inode));
+		struct statvfs sv = LizardClient::statfs(toLizardFsContext(context), toUint64(inode));
 		_return.filesystemId = sv.f_fsid;
 		_return.maxNameLength = sv.f_namemax;
 		_return.blockSize = sv.f_bsize;
@@ -369,6 +495,12 @@ public:
 	}
 
 private:
+	/**
+	 * Get file information for LizardFS by a descriptor
+	 * \param descriptor identifier of opened file
+	 * \throw Failure when descriptor doesn't exist
+	 * \return pointer to file information or NULL when null descriptor is given
+	 */
 	LizardClient::FileInfo* getFileInfo(Descriptor descriptor) {
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			return nullptr;
@@ -380,7 +512,14 @@ private:
 		return &it->second;
 	}
 
+	/**
+	 * Map for containing file information for each opened file
+	 */
 	std::map<Descriptor, LizardClient::FileInfo> fileInfos_;
+
+	/**
+	 * Last descriptor used
+	 */
 	Descriptor lastDescriptor_;
 };
 
