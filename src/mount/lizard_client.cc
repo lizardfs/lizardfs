@@ -61,8 +61,6 @@
 
 namespace LizardClient {
 
-#define READDIR_BUFFSIZE 50000
-
 #define MAX_FILE_SIZE (int64_t)(MFS_MAX_FILE_SIZE)
 
 #define PKGVERSION ((PACKAGE_VERSION_MAJOR)*1000000+(PACKAGE_VERSION_MINOR)*1000+(PACKAGE_VERSION_MICRO))
@@ -1214,13 +1212,11 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 	}
 }
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
-			FileInfo* fi) {
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi) {
 	int status;
 	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
-	uint8_t end;
 	uint8_t nleng;
 	uint32_t inode;
 	uint8_t type;
@@ -1228,11 +1224,11 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
-		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
+		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
 	}
 	if (off<0) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	PthreadMutexWrapper lock((dirinfo->lock));
@@ -1257,7 +1253,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 		}
 		status = errorconv_dbg(status);
 		if (status!=0) {
-			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(status));
+			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(status));
 			throw RequestException(status);
 		}
 		if (dirinfo->dcache) {
@@ -1271,7 +1267,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 		if (needscopy) {
 			dirinfo->p = (const uint8_t*) malloc(dsize);
 			if (dirinfo->p == NULL) {
-				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
+				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
 				throw RequestException(EINVAL);
 			}
 			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
@@ -1286,23 +1282,21 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 	dirinfo->wasread=1;
 
 	std::vector<DirEntry> ret;
-	if (off>=(off_t)(dirinfo->size)) {;
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+	if (off>=(off_t)(dirinfo->size)) {
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
 	} else {
-		if (size>READDIR_BUFFSIZE) {
-			size=READDIR_BUFFSIZE;
-		}
 		ptr = dirinfo->p+off;
 		eptr = dirinfo->p+dirinfo->size;
-		end = 0;
+		off_t nextoff = off; // offset of the next entry
 
-		while (ptr<eptr && end==0) {
+		while (ptr<eptr && ret.size() < maxEntries) {
+			sassert(ptr == dirinfo->p + nextoff);
 			nleng = ptr[0];
 			ptr++;
 			memcpy(name,ptr,nleng);
 			name[nleng]=0;
 			ptr+=nleng;
-			off+=nleng+((dirinfo->dataformat)?40:6);
+			nextoff+=nleng+((dirinfo->dataformat)?40:6);
 			if (ptr+5<=eptr) {
 				inode = get32bit(&ptr);
 				if (dirinfo->dataformat) {
@@ -1313,14 +1307,14 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 					type_to_stat(inode,type,&stbuf);
 				}
 				try {
-					ret.push_back(DirEntry{name, stbuf, off, size});
+					ret.push_back(DirEntry{name, stbuf, nextoff});
 				} catch (std::bad_alloc& e) {
 					throw RequestException(ENOMEM);
 				}
 			}
 		}
 
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ret.size());
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,(unsigned long int)ret.size());
 	}
 	return ret;
 }

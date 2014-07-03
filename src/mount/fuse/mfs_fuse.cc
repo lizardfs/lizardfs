@@ -280,27 +280,45 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 		struct fuse_file_info *fi) {
 	try {
-		auto fsDirEntries = LizardClient::readdir(
-				get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
-
-		if (fsDirEntries.empty()) {
-			fuse_reply_buf(req, NULL, 0);
-			return;
-		}
-
 		char buffer[READDIR_BUFFSIZE];
-		size_t opos, oleng;
-		opos = 0;
-		for (auto& e : fsDirEntries) {
-			oleng = fuse_add_direntry(req, buffer + opos, e.size - opos, e.name.c_str(),
-					&(e.stbuf), e.off);
-			if (opos + oleng > size) {
+		if (size > READDIR_BUFFSIZE) {
+			size = READDIR_BUFFSIZE;
+		}
+		size_t bytesInBuffer = 0;
+		bool end = false;
+		while (!end) {
+			// Calculate approximated number of entries which will fit in the buffer. If this
+			// number is smaller than the actual value, LizardClient::readdir will be called more
+			// than once for a single mfs_readdir (this will eg. generate more oplog entries than
+			// one might expect). If it's bigger, the code will be slightly less optimal because
+			// superfluous entries will be extracted by LizardClient::readdir and then discarded by
+			// us. Using maxEntries=+inf makes the complexity of the getdents syscall O(n^2).
+			// The expression below generates some upper bound of the actual number of entries
+			// to be returned (because fuse adds 24 bytes of metadata to each file name in
+			// fuse_add_direntry and aligns size up to 8 bytes), so LizardClient::readdir
+			// should be called only once.
+			size_t maxEntries = 1 + size / 32;
+			// Now extract some entries and rewrite them into the buffer.
+			auto fsDirEntries = LizardClient::readdir(get_context(req),
+					ino, off, maxEntries, fuse_file_info_wrapper(fi));
+			if (fsDirEntries.empty()) {
+				end = true; // no more entries
 				break;
-			} else {
-				opos += oleng;
+			}
+			for (const auto& e : fsDirEntries) {
+				size_t entrySize = fuse_add_direntry(req,
+						buffer + bytesInBuffer, size,
+						e.name.c_str(), &(e.attr), e.nextEntryOffset);
+				if (entrySize > size) {
+					end = true; // buffer is full
+					break;
+				}
+				off = e.nextEntryOffset; // update offset of the next call to LizardClient::readdir
+				bytesInBuffer += entrySize;
+				size -= entrySize; // decrease remaining buffer size
 			}
 		}
-		fuse_reply_buf(req, buffer, opos);
+		fuse_reply_buf(req, buffer, bytesInBuffer);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.errNo);
 	}

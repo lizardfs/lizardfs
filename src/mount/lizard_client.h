@@ -64,9 +64,8 @@ struct AttrReply {
  */
 struct DirEntry {
 	std::string name;
-	struct stat stbuf;
-	off_t off;
-	size_t size;
+	struct stat attr;
+	off_t nextEntryOffset;
 };
 
 /**
@@ -135,8 +134,7 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi);
 
 void opendir(Context ctx, Inode ino, FileInfo* fi);
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
-		FileInfo* fi);
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi);
 
 void releasedir(Context ctx, Inode ino, FileInfo* fi);
 
