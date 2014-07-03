@@ -2,9 +2,6 @@
 #define HAVE_PWD_H
 #define HAVE_STRERROR_R
 #define MASTERINFO_WITH_VERSION
-// #define WORKER_DEBUG  // camelon: transfered from code, commented when creating this file
-// #define BUFFER_DEBUG  // camelon: as above
-// #define HAVE_SYS_RUSAGE_H
 
 /* Definitions transfered to preprocessor */
 #define PACKAGE_VERSION_MAJOR @PACKAGE_VERSION_MAJOR@
