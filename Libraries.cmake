@@ -69,7 +69,7 @@ else()
 endif()
 
 # Find Polonaise
-set(POLONAISE_REQUIRED_VERSION 0.1.0)
+set(POLONAISE_REQUIRED_VERSION 0.2.0)
 find_package(Polonaise ${POLONAISE_REQUIRED_VERSION} EXACT QUIET NO_MODULE NO_CMAKE_BUILDS_PATH)
 if(POLONAISE_FOUND)
   message(STATUS "Found Polonaise")

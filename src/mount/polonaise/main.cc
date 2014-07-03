@@ -85,7 +85,6 @@ StatusCode::type errnoToStatusCode(int errNo) {
 }
 
 #define OPERATION_PROLOG\
-	printf("%s\n", __FUNCTION__);\
 	try {
 
 #define OPERATION_EPILOG\
@@ -117,34 +116,46 @@ static uint64_t toUint64(int64_t value) {
 	return (uint64_t)value;
 }
 
-/* For future use
-static int convertFlags(int32_t flagsFromClient) {
+static int convertFlags(int32_t clientFlags) {
 	int flags = 0;
-	if ((flagsFromClient & OpenFlags::kRead) && !(flagsFromClient & OpenFlags::kWrite)) {
+	if ((clientFlags & OpenFlags::kRead) && !(clientFlags & OpenFlags::kWrite)) {
 		flags |= O_RDONLY;
 	}
-	else if (!(flagsFromClient & OpenFlags::kRead) && (flagsFromClient & OpenFlags::kWrite)) {
+	else if (!(clientFlags & OpenFlags::kRead) && (clientFlags & OpenFlags::kWrite)) {
 		flags |= O_WRONLY;
 	}
-	else if ((flagsFromClient & OpenFlags::kRead) && (flagsFromClient & OpenFlags::kWrite)) {
+	else if ((clientFlags & OpenFlags::kRead) && (clientFlags & OpenFlags::kWrite)) {
 		flags |= O_RDWR;
 	}
 
-	if (flagsFromClient & OpenFlags::kCreate) {
+	if (clientFlags & OpenFlags::kCreate) {
 		flags |= O_CREAT;
 	}
-	if (flagsFromClient & OpenFlags::kExclusive) {
+	if (clientFlags & OpenFlags::kExclusive) {
 		flags |= O_EXCL;
 	}
-	if (flagsFromClient & OpenFlags::kTrunc) {
+	if (clientFlags & OpenFlags::kTrunc) {
 		flags |= O_TRUNC;
 	}
-	if (flagsFromClient & OpenFlags::kAppend) {
+	if (clientFlags & OpenFlags::kAppend) {
 		flags |= O_APPEND;
 	}
 	return flags;
 }
-*/
+
+static int32_t convertAccessMask(int32_t clientMask) {
+	int32_t mask = 0;
+	if (clientMask & AccessMask::kRead) {
+		mask |= MODE_MASK_R;
+	}
+	if (clientMask & AccessMask::kWrite) {
+		mask |= MODE_MASK_W;
+	}
+	if (clientMask & AccessMask::kExecute) {
+		mask |= MODE_MASK_X;
+	}
+	return mask;
+}
 
 static void convertStat(const struct stat& in, FileStat& out) throw(Failure) {
 	switch (in.st_mode & S_IFMT) {
@@ -249,8 +260,7 @@ public:
 		OPERATION_PROLOG
 		Descriptor descriptor = ++lastDescriptor_;
 		fileInfos_.insert({descriptor, LizardClient::FileInfo(0, 0, 0, 0)});
-		LizardClient::FileInfo* fileInfo = getFileInfo(descriptor);
-		LizardClient::opendir(convertContext(context), toUint32(inode), fileInfo);
+		LizardClient::opendir(convertContext(context), toUint32(inode), getFileInfo(descriptor));
 		return descriptor;
 		OPERATION_EPILOG
 	}
@@ -286,6 +296,75 @@ public:
 		}
 		LizardClient::releasedir(convertContext(context), toUint64(inode), getFileInfo(descriptor));
 		fileInfos_.erase(descriptor);
+		OPERATION_EPILOG
+	}
+
+	void access(const Context& context, const Inode inode, const int32_t mask) {
+		OPERATION_PROLOG
+		LizardClient::access(convertContext(context), toUint64(inode), convertAccessMask(mask));
+		OPERATION_EPILOG
+	}
+
+	void open(OpenReply& _return, const Context& context, const Inode inode, const int32_t flags) {
+		OPERATION_PROLOG
+		Descriptor descriptor = ++lastDescriptor_;
+		fileInfos_.insert({descriptor, LizardClient::FileInfo(convertFlags(flags), 0, 0, 0)});
+		LizardClient::FileInfo* fi = getFileInfo(descriptor);
+		LizardClient::open(convertContext(context), toUint64(inode), fi);
+		_return.descriptor = descriptor;
+		_return.directIo = fi->direct_io;
+		_return.keepCache = fi->keep_cache;
+		_return.nonSeekable = 0;
+		OPERATION_EPILOG
+	}
+
+	void read(std::string& _return, const Context& context, const Inode inode,
+			const int64_t offset, const int64_t size, const Descriptor descriptor) {
+		OPERATION_PROLOG
+		if (descriptor == g_polonaise_constants.kNullDescriptor) {
+			throw failure("Null descriptor");
+		}
+		std::vector<uint8_t> buffer = LizardClient::read(
+				convertContext(context),
+				toUint64(inode),
+				size,
+				offset,
+				getFileInfo(descriptor));
+		_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+		OPERATION_EPILOG
+	}
+
+	void flush(const Context& context, const Inode inode, const Descriptor descriptor) {
+		OPERATION_PROLOG
+		if (descriptor == g_polonaise_constants.kNullDescriptor) {
+			throw failure("Null descriptor");
+		}
+		LizardClient::flush(convertContext(context), toUint64(inode), getFileInfo(descriptor));
+		OPERATION_EPILOG
+	}
+
+	void release(const Context& context, const Inode inode, const Descriptor descriptor) {
+		OPERATION_PROLOG
+		if (descriptor == g_polonaise_constants.kNullDescriptor) {
+			throw failure("Null descriptor");
+		}
+		LizardClient::release(convertContext(context), toUint64(inode), getFileInfo(descriptor));
+		fileInfos_.erase(descriptor);
+		OPERATION_EPILOG
+	}
+
+	void statfs(StatFsReply& _return, const Context& context, const Inode inode) {
+		OPERATION_PROLOG
+		struct statvfs sv = LizardClient::statfs(convertContext(context), toUint64(inode));
+		_return.filesystemId = sv.f_fsid;
+		_return.maxNameLength = sv.f_namemax;
+		_return.blockSize = sv.f_bsize;
+		_return.totalBlocks = sv.f_blocks;
+		_return.freeBlocks = sv.f_bfree;
+		_return.availableBlocks = sv.f_bavail;
+		_return.totalFiles = sv.f_files;
+		_return.freeFiles = sv.f_ffree;
+		_return.availableFiles = sv.f_favail;
 		OPERATION_EPILOG
 	}
 
@@ -326,10 +405,12 @@ int main (int argc, char **argv) {
 	fs_init_threads(ioretries);
 	masterproxy_init();
 	gLocalIoLimiter();
+	IoLimitsConfigLoader loader;
+	gMountLimiter().loadConfiguration(loader);
 	csdb_init();
 	read_data_init(ioretries);
 	write_data_init(cachesize_MB * 1024 * 1024, ioretries);
-	LizardClient::init(0, 1, 0.0, 0.0, 0.0, 0, 0, true);
+	LizardClient::init(1, 1, 0.0, 0.0, 0.0, 0, 0, true);
 
 	int port = 9090;
 	using namespace ::apache::thrift;
