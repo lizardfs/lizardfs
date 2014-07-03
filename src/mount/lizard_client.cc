@@ -313,7 +313,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	attrctime = get32bit(&ptr);
 	attrnlink = get32bit(&ptr);
 	stbuf->st_ino = inode;
-#ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
 	stbuf->st_blksize = MFSBLOCKSIZE;
 #endif
 	switch (attrtype) {
@@ -321,7 +321,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFDIR | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
@@ -329,7 +329,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFLNK | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
@@ -337,43 +337,43 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFREG | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
 	case TYPE_FIFO:
 		stbuf->st_mode = S_IFIFO | (attrmode & 07777);
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_SOCKET:
 		stbuf->st_mode = S_IFSOCK | (attrmode & 07777);
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_BLOCKDEV:
 		stbuf->st_mode = S_IFBLK | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
 #endif
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_CHARDEV:
 		stbuf->st_mode = S_IFCHR | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
 #endif
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
@@ -385,7 +385,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	stbuf->st_atime = attratime;
 	stbuf->st_mtime = attrmtime;
 	stbuf->st_ctime = attrctime;
-#ifdef HAVE_STRUCT_STAT_ST_BIRTHTIME
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BIRTHTIME
 	stbuf->st_birthtime = attrctime;        // for future use
 #endif
 	stbuf->st_nlink = attrnlink;
@@ -440,7 +440,7 @@ void makemodestr(char modestr[11],uint16_t mode) {
 void makeattrstr(char *buff,uint32_t size,struct stat *stbuf) {
 	char modestr[11];
 	makemodestr(modestr,stbuf->st_mode);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 	if (modestr[0]=='b' || modestr[0]=='c') {
 		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%" PRIu64 ",%08lX]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(uint64_t)(stbuf->st_size),(unsigned long int)(stbuf->st_rdev));
 	} else {

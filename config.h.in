@@ -1,6 +1,6 @@
 /* Extra definitions used in code but not checked by anything */
-#define HAVE_PWD_H
-#define HAVE_STRERROR_R
+#define LIZARDFS_HAVE_PWD_H
+#define LIZARDFS_HAVE_STRERROR_R
 #define MASTERINFO_WITH_VERSION
 
 /* Definitions transfered to preprocessor */
@@ -36,67 +36,67 @@
 #endif
 
 /* [CMake] Includes */
-#cmakedefine HAVE_ARPA_INET_H
-#cmakedefine HAVE_FCNTL_H
-#cmakedefine HAVE_INTTYPES_H
-#cmakedefine HAVE_LIMITS_H
-#cmakedefine HAVE_NETDB_H
-#cmakedefine HAVE_NETINET_IN_H
-#cmakedefine HAVE_STDDEF_H
-#cmakedefine HAVE_STDLIB_H
-#cmakedefine HAVE_STRING_H
-#cmakedefine HAVE_SYS_RESOURCE_H
-#cmakedefine HAVE_SYS_SOCKET_H
-#cmakedefine HAVE_SYS_STATVFS_H
-#cmakedefine HAVE_SYS_TIME_H
-#cmakedefine HAVE_SYSLOG_H
-#cmakedefine HAVE_UNISTD_H
-#cmakedefine HAVE_STDBOOL_H
+#cmakedefine LIZARDFS_HAVE_ARPA_INET_H
+#cmakedefine LIZARDFS_HAVE_FCNTL_H
+#cmakedefine LIZARDFS_HAVE_INTTYPES_H
+#cmakedefine LIZARDFS_HAVE_LIMITS_H
+#cmakedefine LIZARDFS_HAVE_NETDB_H
+#cmakedefine LIZARDFS_HAVE_NETINET_IN_H
+#cmakedefine LIZARDFS_HAVE_STDDEF_H
+#cmakedefine LIZARDFS_HAVE_STDLIB_H
+#cmakedefine LIZARDFS_HAVE_STRING_H
+#cmakedefine LIZARDFS_HAVE_SYS_RESOURCE_H
+#cmakedefine LIZARDFS_HAVE_SYS_SOCKET_H
+#cmakedefine LIZARDFS_HAVE_SYS_STATVFS_H
+#cmakedefine LIZARDFS_HAVE_SYS_TIME_H
+#cmakedefine LIZARDFS_HAVE_SYSLOG_H
+#cmakedefine LIZARDFS_HAVE_UNISTD_H
+#cmakedefine LIZARDFS_HAVE_STDBOOL_H
 
 /* [CMake] Structures */
-#cmakedefine HAVE_STRUCT_STAT_ST_BLOCKS
-#cmakedefine HAVE_STRUCT_STAT_ST_RDEV
-#cmakedefine HAVE_STRUCT_STAT_ST_BIRTHTIME
-#cmakedefine HAVE_STRUCT_STAT_ST_BLKSIZE
-#cmakedefine HAVE_STRUCT_STAT_ST_FLAGS
-#cmakedefine HAVE_STRUCT_TM_TM_GMTOFF
-#cmakedefine HAVE_STRUCT_RUSAGE_RU_MAXRSS
+#cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
+#cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
+#cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_BIRTHTIME
+#cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
+#cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_FLAGS
+#cmakedefine LIZARDFS_HAVE_STRUCT_TM_TM_GMTOFF
+#cmakedefine LIZARDFS_HAVE_STRUCT_RUSAGE_RU_MAXRSS
 
 /* [CMake] Required functions */
-#cmakedefine HAVE_ATEXIT
-#cmakedefine HAVE_BZERO
-#cmakedefine HAVE_FTRUNCATE
-#cmakedefine HAVE_GETADDRINFO
-#cmakedefine HAVE_GETPASS
-#cmakedefine HAVE_GETTIMEOFDAY
-#cmakedefine HAVE_MEMMOVE
-#cmakedefine HAVE_MEMSET
-#cmakedefine HAVE_MKDIR
-#cmakedefine HAVE_REALPATH
-#cmakedefine HAVE_POLL
-#cmakedefine HAVE_SOCKET
-#cmakedefine HAVE_STRCHR
-#cmakedefine HAVE_STRDUP
-#cmakedefine HAVE_STRTOL
-#cmakedefine HAVE_STRTOUL
-#cmakedefine HAVE_FTELLO
-#cmakedefine HAVE_FSEEKO
+#cmakedefine LIZARDFS_HAVE_ATEXIT
+#cmakedefine LIZARDFS_HAVE_BZERO
+#cmakedefine LIZARDFS_HAVE_FTRUNCATE
+#cmakedefine LIZARDFS_HAVE_GETADDRINFO
+#cmakedefine LIZARDFS_HAVE_GETPASS
+#cmakedefine LIZARDFS_HAVE_GETTIMEOFDAY
+#cmakedefine LIZARDFS_HAVE_MEMMOVE
+#cmakedefine LIZARDFS_HAVE_MEMSET
+#cmakedefine LIZARDFS_HAVE_MKDIR
+#cmakedefine LIZARDFS_HAVE_REALPATH
+#cmakedefine LIZARDFS_HAVE_POLL
+#cmakedefine LIZARDFS_HAVE_SOCKET
+#cmakedefine LIZARDFS_HAVE_STRCHR
+#cmakedefine LIZARDFS_HAVE_STRDUP
+#cmakedefine LIZARDFS_HAVE_STRTOL
+#cmakedefine LIZARDFS_HAVE_STRTOUL
+#cmakedefine LIZARDFS_HAVE_FTELLO
+#cmakedefine LIZARDFS_HAVE_FSEEKO
 
 /* [CMake] Optional functions */
-#cmakedefine HAVE_STRERROR
-#cmakedefine HAVE_PERROR
-#cmakedefine HAVE_PREAD
-#cmakedefine HAVE_PWRITE
-#cmakedefine HAVE_READV
-#cmakedefine HAVE_WRITEV
-#cmakedefine HAVE_GETRUSAGE
-#cmakedefine HAVE_SETITIMER
-#cmakedefine HAVE_STD_TO_STRING
+#cmakedefine LIZARDFS_HAVE_STRERROR
+#cmakedefine LIZARDFS_HAVE_PERROR
+#cmakedefine LIZARDFS_HAVE_PREAD
+#cmakedefine LIZARDFS_HAVE_PWRITE
+#cmakedefine LIZARDFS_HAVE_READV
+#cmakedefine LIZARDFS_HAVE_WRITEV
+#cmakedefine LIZARDFS_HAVE_GETRUSAGE
+#cmakedefine LIZARDFS_HAVE_SETITIMER
+#cmakedefine LIZARDFS_HAVE_STD_TO_STRING
 
 /* [CMake] Optional functions #2 */
-#cmakedefine HAVE_DUP2
-#cmakedefine HAVE_MLOCKALL
-#cmakedefine HAVE_GETCWD
+#cmakedefine LIZARDFS_HAVE_DUP2
+#cmakedefine LIZARDFS_HAVE_MLOCKALL
+#cmakedefine LIZARDFS_HAVE_GETCWD
 
 /* [CMake] Other */
 #cmakedefine WORDS_BIGENDIAN

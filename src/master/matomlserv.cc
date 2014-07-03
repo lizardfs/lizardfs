@@ -393,12 +393,12 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_DATA,16+leng);
 	put64bit(&ptr,offset);
 	put32bit(&ptr,leng);
-#ifdef HAVE_PREAD
+#ifdef LIZARDFS_HAVE_PREAD
 	ret = pread(eptr->metafd,ptr+4,leng,offset);
-#else /* HAVE_PWRITE */
+#else /* LIZARDFS_HAVE_PWRITE */
 	lseek(eptr->metafd,offset,SEEK_SET);
 	ret = read(eptr->metafd,ptr+4,leng);
-#endif /* HAVE_PWRITE */
+#endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		mfs_errlog_silent(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;

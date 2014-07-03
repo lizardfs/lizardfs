@@ -55,7 +55,7 @@
 
 #define PRESERVE_BLOCK 1
 
-#if defined(HAVE_PREAD) && defined(HAVE_PWRITE)
+#if defined(LIZARDFS_HAVE_PREAD) && defined(LIZARDFS_HAVE_PWRITE)
 #  define USE_PIO 1
 #endif
 

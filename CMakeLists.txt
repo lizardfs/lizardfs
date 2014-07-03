@@ -41,7 +41,7 @@ set(CMAKE_CXX_FLAGS_CLANG_SANITIZE_THREAD "-g -O0 -fsanitize=thread")
 
 add_definitions(-D_LARGEFILE_SOURCE)
 add_definitions(-D_FILE_OFFSET_BITS=64)
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions(-DLIZARDFS_HAVE_CONFIG_H)
 add_definitions(-D__STDC_LIMIT_MACROS)
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_FORMAT_MACROS)

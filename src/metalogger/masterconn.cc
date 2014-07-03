@@ -525,12 +525,12 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		eptr->mode = KILL;
 		return;
 	}
-#ifdef HAVE_PWRITE
+#ifdef LIZARDFS_HAVE_PWRITE
 	ret = pwrite(eptr->metafd,data,leng,offset);
-#else /* HAVE_PWRITE */
+#else /* LIZARDFS_HAVE_PWRITE */
 	lseek(eptr->metafd,offset,SEEK_SET);
 	ret = write(eptr->metafd,data,leng);
-#endif /* HAVE_PWRITE */
+#endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		mfs_errlog_silent(LOG_NOTICE,"error writing metafile");
 		if (eptr->downloadretrycnt>=5) {

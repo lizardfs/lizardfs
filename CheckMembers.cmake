@@ -1,7 +1,7 @@
 function(check_members STRUCT MEMBERS HEADER)
   foreach(MEMBER ${MEMBERS})
     string(REPLACE " " "_" STRUCT_STR ${STRUCT})
-    string(TOUPPER "HAVE_${STRUCT_STR}_${MEMBER}" VAR)
+    string(TOUPPER "LIZARDFS_HAVE_${STRUCT_STR}_${MEMBER}" VAR)
     CHECK_STRUCT_HAS_MEMBER(${STRUCT} ${MEMBER} ${HEADER} ${VAR})
     if(NOT ${${VAR}} EQUAL 1)
       set(${VAR} 0)

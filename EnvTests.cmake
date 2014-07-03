@@ -44,9 +44,9 @@ check_members("struct stat" "${ST_MEMBERS_CHECKED}" "sys/stat.h")
 check_members("struct tm" "tm_gmtoff" "time.h")
 check_members("struct rusage" "ru_maxrss" "sys/resource.h")
 
-CHECK_FUNCTION_EXISTS(fork     HAVE_WORKING_FORK)
-CHECK_FUNCTION_EXISTS(vfork    HAVE_WORKING_VFORK)
-CHECK_TEMPLATE_FUNCTION_EXISTS("string" "std::to_string(0)" HAVE_STD_TO_STRING)
+CHECK_FUNCTION_EXISTS(fork     LIZARDFS_HAVE_WORKING_FORK)
+CHECK_FUNCTION_EXISTS(vfork    LIZARDFS_HAVE_WORKING_VFORK)
+CHECK_TEMPLATE_FUNCTION_EXISTS("string" "std::to_string(0)" LIZARDFS_HAVE_STD_TO_STRING)
 
 set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
   gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol

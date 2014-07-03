@@ -1,6 +1,6 @@
 function(check_functions FUNCTIONS REQUIRED)
   foreach(FUNC ${FUNCTIONS})
-    string(TOUPPER "HAVE_${FUNC}" VAR)
+    string(TOUPPER "LIZARDFS_HAVE_${FUNC}" VAR)
     CHECK_FUNCTION_EXISTS(${FUNC} ${VAR})
     if(${REQUIRED})
       if("${${VAR}}" STREQUAL "" OR NOT ${${VAR}} EQUAL 1)

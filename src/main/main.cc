@@ -54,11 +54,11 @@
 #include "common/setup.h"
 #include "common/slogger.h"
 
-#if defined(HAVE_MLOCKALL)
-#  if defined(HAVE_SYS_MMAN_H)
+#if defined(LIZARDFS_HAVE_MLOCKALL)
+#  if defined(LIZARDFS_HAVE_SYS_MMAN_H)
 #    include <sys/mman.h>
 #  endif
-#  if defined(HAVE_SYS_RESOURCE_H)
+#  if defined(LIZARDFS_HAVE_SYS_RESOURCE_H)
 #    include <sys/resource.h>
 #  endif
 #  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)

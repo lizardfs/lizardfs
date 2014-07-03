@@ -53,7 +53,7 @@
 #include "master/quota_database.h"
 #include "metarestore/restore.h"
 
-#ifdef HAVE_PWD_H
+#ifdef LIZARDFS_HAVE_PWD_H
 #  include <pwd.h>
 #endif
 #ifndef METARESTORE
@@ -7420,13 +7420,13 @@ int fs_emergency_storeall(const std::string& fname) {
 }
 
 int fs_emergency_saves() {
-#if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
+#if defined(LIZARDFS_HAVE_PWD_H) && defined(LIZARDFS_HAVE_GETPWUID)
 	struct passwd *p;
 #endif
 	if (fs_emergency_storeall(kMetadataEmergencyFilename) == 0) {
 		return 0;
 	}
-#if defined(HAVE_PWD_H) && defined(HAVE_GETPWUID)
+#if defined(LIZARDFS_HAVE_PWD_H) && defined(LIZARDFS_HAVE_GETPWUID)
 	p = getpwuid(getuid());
 	if (p) {
 		std::string fname = p->pw_dir;
