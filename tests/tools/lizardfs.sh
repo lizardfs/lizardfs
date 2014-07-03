@@ -258,7 +258,8 @@ add_mount_() {
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	lizardfs_info_[mntcall$mount_id]="mfsmount -c $mount_cfg $mount_dir $fuse_options"
+	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
 }
 
