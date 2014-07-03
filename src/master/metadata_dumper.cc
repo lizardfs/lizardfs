@@ -123,6 +123,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 			if (useMetarestore_ && dumpingSucceeded_) {
 				// exec mfsmetarestore
 				std::string checksumStringified = std::to_string(checksum);
+				std::string storedMetaCopies = std::to_string(gStoredPreviousBackMetaCopies);
 				char* metarestoreArgs[] = {
 					const_cast<char*>(metarestorePath_.c_str()),
 					const_cast<char*>("-m"),
@@ -132,7 +133,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 					const_cast<char*>("-k"),
 					const_cast<char*>(checksumStringified.c_str()),
 					const_cast<char*>("-B"),
-					const_cast<char*>(std::to_string(gStoredPreviousBackMetaCopies).c_str()),
+					const_cast<char*>(storedMetaCopies.c_str()),
 					const_cast<char*>("-#"),
 					const_cast<char*>(changelogFilename.c_str()),
 					NULL};
