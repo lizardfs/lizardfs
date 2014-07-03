@@ -44,9 +44,6 @@ endif()
 find_package(Socket)
 find_package(Threads)
 find_package(ZLIB REQUIRED)
-set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
@@ -55,6 +52,11 @@ message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
 # Find extra binaries
 find_program(A2X_BINARY a2x)
 message(STATUS "a2x: ${A2X_BINARY}")
+
+# Find Boost
+set(BOOST_MIN_VERSION "1.48.0")
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
 
 # Find crcutil
 set(CRCUTIL_VERSION crcutil-1.0)
