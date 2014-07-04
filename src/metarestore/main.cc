@@ -140,8 +140,7 @@ int main(int argc,char **argv) {
 	while ((ch = getopt(argc, argv, "fck:vm:o:d:abB:xih:#?")) != -1) {
 		switch (ch) {
 			case 'v':
-				printf("version: %u.%u.%u",
-						PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR, PACKAGE_VERSION_MICRO);
+				printf("version: %s\n", LIZARDFS_PACKAGE_VERSION);
 				return 0;
 			case 'o':
 				metaout = optarg;

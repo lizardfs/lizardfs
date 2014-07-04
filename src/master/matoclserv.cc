@@ -1025,9 +1025,9 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 	memusage = 0;
 #endif
 	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
-	put16bit(&ptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&ptr,PACKAGE_VERSION_MINOR);
-	put8bit(&ptr,PACKAGE_VERSION_MICRO);
+	put16bit(&ptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+	put8bit(&ptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+	put8bit(&ptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	/* --- */
 	put64bit(&ptr,memusage);
 	/* --- */
@@ -1507,9 +1507,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (eptr->version==0x010615) {
 				put32bit(&wptr,0);
 			} else if (eptr->version>=0x010616) {
-				put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-				put8bit(&wptr,PACKAGE_VERSION_MINOR);
-				put8bit(&wptr,PACKAGE_VERSION_MICRO);
+				put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+				put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+				put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);
@@ -1589,9 +1589,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 			sessionid = eptr->sesdata->sessionid;
 			if (eptr->version>=0x010615) {
-				put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-				put8bit(&wptr,PACKAGE_VERSION_MINOR);
-				put8bit(&wptr,PACKAGE_VERSION_MICRO);
+				put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+				put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+				put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 			}
 			put32bit(&wptr,sessionid);
 			put8bit(&wptr,sesflags);

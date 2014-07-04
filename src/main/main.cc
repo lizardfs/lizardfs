@@ -1009,7 +1009,7 @@ int main(int argc,char **argv) {
 	while ((ch = getopt(argc, argv, "c:dht:uvx?")) != -1) {
 		switch(ch) {
 			case 'v':
-				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
+				printf("version: %s\n",LIZARDFS_PACKAGE_VERSION);
 				return 0;
 			case 'd':
 				rundaemon=0;

@@ -7161,7 +7161,7 @@ void fs_store(FILE *fd,uint8_t fver) {
 }
 
 static void fs_store_fd(FILE* fd) {
-#if VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+#if LIZARDFS_VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 	const char hdr[] = MFSSIGNATURE "M 2.0";
 	const uint8_t metadataVersion = kMetadataVersionWithSections;
 #else

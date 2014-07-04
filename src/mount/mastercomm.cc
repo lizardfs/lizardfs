@@ -567,9 +567,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
 	wptr+=64;
 	put8bit(&wptr,(cargs->meta)?REGISTER_NEWMETASESSION:REGISTER_NEWSESSION);
-	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&wptr,PACKAGE_VERSION_MINOR);
-	put8bit(&wptr,PACKAGE_VERSION_MICRO);
+	put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	put32bit(&wptr,ileng);
 	memcpy(wptr,cargs->info,ileng);
 	wptr+=ileng;
@@ -846,9 +846,9 @@ void fs_reconnect() {
 	wptr+=64;
 	put8bit(&wptr,REGISTER_RECONNECT);
 	put32bit(&wptr,sessionid);
-	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&wptr,PACKAGE_VERSION_MINOR);
-	put8bit(&wptr,PACKAGE_VERSION_MICRO);
+	put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	if (tcptowrite(fd,regbuff,8+64+9,1000)!=8+64+9) {
 		syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
 		tcpclose(fd);

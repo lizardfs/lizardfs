@@ -336,9 +336,9 @@ int master_register_old(int rfd) {
 	put32bit(&wptr,68);
 	memcpy(wptr,FUSE_REGISTER_BLOB_TOOLS_NOACL,64);
 	wptr+=64;
-	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&wptr,PACKAGE_VERSION_MINOR);
-	put8bit(&wptr,PACKAGE_VERSION_MICRO);
+	put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	if (tcpwrite(rfd,regbuff,8+68)!=8+68) {
 		printf("register to master: send error\n");
 		return -1;
@@ -377,9 +377,9 @@ int master_register(int rfd,uint32_t cuid) {
 	wptr+=64;
 	put8bit(&wptr,REGISTER_TOOLS);
 	put32bit(&wptr,cuid);
-	put16bit(&wptr,PACKAGE_VERSION_MAJOR);
-	put8bit(&wptr,PACKAGE_VERSION_MINOR);
-	put8bit(&wptr,PACKAGE_VERSION_MICRO);
+	put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
+	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	if (tcpwrite(rfd,regbuff,8+73)!=8+73) {
 		printf("register to master: send error\n");
 		return -1;
