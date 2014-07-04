@@ -2933,11 +2933,12 @@ uint8_t fs_settrashpath(const FsContext& context,
 	p->parents->nleng = pleng;
 	fsedges_update_checksum(p->parents);
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|SETPATH(%" PRIu32 ",%s)",
-				context.ts(), p->id, fsnodes_escape_name(pleng, newpath));
+		fs_changelog(context.ts(),
+				"SETPATH(%" PRIu32 ",%s)",
+				p->id, fsnodes_escape_name(pleng, newpath));
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -2983,11 +2984,10 @@ uint8_t fs_purge(const FsContext& context, uint32_t inode) {
 	fsnodes_purge(context.ts(), p);
 
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|PURGE(%" PRIu32 ")",
-				context.ts(), purged_inode);
+		fs_changelog(context.ts(), "PURGE(%" PRIu32 ")", purged_inode);
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -3273,7 +3273,9 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 				}
 				p->data.fdata.chunktab[indx] = nchunkid;
 				*chunkid = nchunkid;
-				fs_changelog((uint32_t)main_time(), "TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,inode,indx,nchunkid);
+				fs_changelog(main_time(),
+						"TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,
+						inode, indx, nchunkid);
 				fsnodes_update_checksum(p);
 				return ERROR_DELAYED;
 			}
@@ -3321,7 +3323,7 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 
 #ifndef METARESTORE
 uint8_t fs_end_setlength(uint64_t chunkid) {
-	fs_changelog((uint32_t)main_time(), "UNLOCK(%" PRIu64 ")",chunkid);
+	fs_changelog(main_time(), "UNLOCK(%" PRIu64 ")", chunkid);
 	return chunk_unlock(chunkid);
 }
 #endif
@@ -3644,9 +3646,9 @@ uint8_t fs_symlink(
 	}
 	if (context.isPersonalityMaster()) {
 		*inode = p->id;
-		changelog(metaversion,
-				"%" PRIu32 "|SYMLINK(%" PRIu32 ",%s,%s,%" PRIu32 ",%" PRIu32 "):%" PRIu32,
-				context.ts(), wd->id,
+		fs_changelog(context.ts(),
+				"SYMLINK(%" PRIu32 ",%s,%s,%" PRIu32 ",%" PRIu32 "):%" PRIu32,
+				wd->id,
 				fsnodes_escape_name(nleng, name),
 				fsnodes_escape_name(pleng, newpath),
 				context.uid(), context.gid(), p->id);
@@ -3654,8 +3656,8 @@ uint8_t fs_symlink(
 		if (*inode != p->id) {
 			return ERROR_MISMATCH;
 		}
+		metaversion++;
 	}
-	metaversion++;
 #ifndef METARESTORE
 	stats_symlink++;
 #endif /* #ifndef METARESTORE */
@@ -3720,7 +3722,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	}
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	fs_changelog((uint32_t)main_time(), "CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),type,p->mode & 07777,uid,gid,rdev,p->id);
+	fs_changelog(main_time(),"CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),type,p->mode & 07777,uid,gid,rdev,p->id);
 	stats_mknod++;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
@@ -3776,7 +3778,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	fs_changelog((uint32_t)main_time(), "CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,p->mode & 07777,uid,gid,0,p->id);
+	fs_changelog(main_time(), "CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,p->mode & 07777,uid,gid,0,p->id);
 	stats_mkdir++;
 	return STATUS_OK;
 }
@@ -4011,16 +4013,17 @@ uint8_t fs_rename(const FsContext& context,
 		fsnodes_fill_attr(context, node, dwd, *attr);
 	}
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion, "%" PRIu32 "|MOVE(%" PRIu32 ",%s,%" PRIu32 ",%s):%" PRIu32,
-				context.ts(),
+		fs_changelog(context.ts(),
+				"MOVE(%" PRIu32 ",%s,%" PRIu32 ",%s):%" PRIu32,
 				swd->id, fsnodes_escape_name(nleng_src, name_src),
 				dwd->id, fsnodes_escape_name(nleng_dst, name_dst),
 				node->id);
+	} else {
+		metaversion++;
 	}
 #ifndef METARESTORE
 	stats_rename++;
 #endif
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -4060,14 +4063,15 @@ uint8_t fs_link(const FsContext& context,
 		fsnodes_fill_attr(context, sp, dwd, *attr);
 	}
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|LINK(%" PRIu32 ",%" PRIu32 ",%s)",
-				context.ts(), sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst));
+		fs_changelog(context.ts(),
+				"LINK(%" PRIu32 ",%" PRIu32 ",%s)",
+				sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst));
+	} else {
+		metaversion++;
 	}
 #ifndef METARESTORE
 	stats_link++;
 #endif
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -4101,11 +4105,12 @@ uint8_t fs_snapshot(const FsContext& context,
 	}
 	fsnodes_snapshot(context.ts(), sp, dwd, nleng_dst, name_dst);
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion, "%" PRIu32 "|SNAPSHOT(%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
-				context.ts(), sp->id, dwd->id,
-				fsnodes_escape_name(nleng_dst, name_dst), canoverwrite);
+		fs_changelog(context.ts(),
+				"SNAPSHOT(%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
+				sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst), canoverwrite);
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -4137,11 +4142,10 @@ uint8_t fs_append(const FsContext& context, uint32_t inode, uint32_t inode_src) 
 		return status;
 	}
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|APPEND(%" PRIu32 ",%" PRIu32 ")",
-				context.ts(), p->id, sp->id);
+		fs_changelog(context.ts(), "APPEND(%" PRIu32 ",%" PRIu32 ")", p->id, sp->id);
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	return status;
 }
 
@@ -4307,11 +4311,10 @@ uint8_t fs_acquire(const FsContext& context, uint32_t inode, uint32_t sessionid)
 	p->data.fdata.sessionids = cr;
 	fsnodes_update_checksum(p);
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|ACQUIRE(%" PRIu32 ",%" PRIu32 ")",
-				context.ts(), inode, sessionid);
+		fs_changelog(context.ts(), "ACQUIRE(%" PRIu32 ",%" PRIu32 ")", inode, sessionid);
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	return STATUS_OK;
 }
 
@@ -4330,17 +4333,16 @@ uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid)
 		if (cr->sessionid==sessionid) {
 			*crp = cr->next;
 			sessionidrec_free(cr);
-			if (context.isPersonalityMaster()) {
-				changelog(metaversion,
-						"%" PRIu32 "|RELEASE(%" PRIu32 ",%" PRIu32 ")",
-						context.ts(), inode, sessionid);
-			}
 #ifndef METARESTORE
 			if (context.isPersonalityShadow()) {
 				matoclserv_remove_open_file(sessionid, inode);
 			}
 #endif /* #ifndef METARESTORE */
-			metaversion++;
+			if (context.isPersonalityMaster()) {
+				fs_changelog(context.ts(), "RELEASE(%" PRIu32 ",%" PRIu32 ")", inode, sessionid);
+			} else {
+				metaversion++;
+			}
 			fsnodes_update_checksum(p);
 			return STATUS_OK;
 		} else {
@@ -4355,7 +4357,7 @@ uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid)
 
 #ifndef METARESTORE
 uint32_t fs_newsessionid(void) {
-	fs_changelog((uint32_t)main_time(), "SESSION():%" PRIu32,nextsessionid);
+	fs_changelog(main_time(), "SESSION():%" PRIu32,nextsessionid);
 	return nextsessionid++;
 }
 #endif
@@ -4479,11 +4481,12 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 		*length = p->data.fdata.length;
 	}
 	if (context.isPersonalityMaster()) {
-		changelog(metaversion,
-				"%" PRIu32 "|WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,
-				context.ts(), inode, indx, *opflag, nchunkid);
+		fs_changelog(context.ts(),
+				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,
+				inode, indx, *opflag, nchunkid);
+	} else {
+		metaversion++;
 	}
-	metaversion++;
 	if (p->mtime != context.ts() || p->ctime != context.ts()) {
 		p->mtime = p->ctime = context.ts();
 	}
@@ -4518,7 +4521,7 @@ uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid) {
 }
 
 void fs_incversion(uint64_t chunkid) {
-	fs_changelog((uint32_t)main_time(), "INCVERSION(%" PRIu64 ")",chunkid);
+	fs_changelog(main_time(), "INCVERSION(%" PRIu64 ")", chunkid);
 }
 #endif
 
@@ -4810,8 +4813,8 @@ uint8_t fs_setgoal(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		fs_changelog(
-				context.ts(), "SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+		fs_changelog(context.ts(),
+				"SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), goal, smode, si, nci, nsi);
 	} else {
 		metaversion++;
@@ -4856,8 +4859,8 @@ uint8_t fs_settrashtime(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		fs_changelog(
-				context.ts(), "SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+		fs_changelog(context.ts(),
+				"SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), trashtime, smode, si, nci, nsi);
 	} else {
 		metaversion++;
@@ -4898,8 +4901,8 @@ uint8_t fs_seteattr(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		fs_changelog(
-				context.ts(), "SETEATTR(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+		fs_changelog(context.ts(),
+				"SETEATTR(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), eattr, smode, si, nci, nsi);
 	} else {
 		metaversion++;
@@ -5078,8 +5081,8 @@ uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 	status = fsnodes_deleteacl(p, type, context.ts());
 	if (context.isPersonalityMaster()) {
 		if (status == STATUS_OK) {
-			fs_changelog(
-					context.ts(), "DELETEACL(%" PRIu32 ",%c)",
+			fs_changelog(context.ts(),
+					"DELETEACL(%" PRIu32 ",%c)",
 					p->id, (type == AclType::kAccess ? 'a' : 'd'));
 		}
 	} else {
@@ -5105,8 +5108,8 @@ uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, Access
 	status = fsnodes_setacl(p, type, std::move(acl), context.ts());
 	if (context.isPersonalityMaster()) {
 		if (status == STATUS_OK) {
-			fs_changelog(
-					context.ts(), "SETACL(%" PRIu32 ",%c,%s)",
+			fs_changelog(context.ts(),
+					"SETACL(%" PRIu32 ",%c,%s)",
 					p->id, (type == AclType::kAccess ? 'a' : 'd'), aclString.c_str());
 		}
 	} else {
@@ -5693,8 +5696,8 @@ static void fs_periodic_emptytrash(void) {
 	uint32_t ts = main_time();
 	InodeInfo ii = fs_do_emptytrash(ts);
 	if (ii.free > 0 || ii.reserved > 0) {
-		fs_changelog(
-				ts, "EMPTYTRASH():%" PRIu32 ",%" PRIu32,
+		fs_changelog(ts,
+				"EMPTYTRASH():%" PRIu32 ",%" PRIu32,
 				ii.free, ii.reserved);
 	}
 }
