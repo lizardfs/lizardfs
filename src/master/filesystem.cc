@@ -7762,7 +7762,7 @@ void fs_load_changelog(const std::string& path) {
 		} else if (!first) {
 			first = id;
 		}
-		if (restore(path.c_str(), id, line.c_str() + end) < 0) {
+		if (restore(path.c_str(), id, line.c_str() + end, RestoreRigor::kIgnoreParseErrors) < 0) {
 			throw MetadataConsistencyException("Can't apply changelog " + path);
 		}
 	}
@@ -7841,6 +7841,10 @@ int fs_load_changelogs() {
 	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
 	metadataserver::setPersonality(personality);
 	return 0;
+}
+
+void fs_unload() {
+	mabort("Terminating. Metadata reloading not implemented.");
 }
 
 int do_fs_init(void) {

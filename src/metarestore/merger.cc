@@ -136,7 +136,8 @@ int merger_loop(void) {
 
 	while (heapsize) {
 //              mfs_arg_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
-		if ((status=restore(heap[0].filename,heap[0].nextid,heap[0].ptr))<0) {
+		if ((status=restore(heap[0].filename, heap[0].nextid, heap[0].ptr,
+				RestoreRigor::kIgnoreParseErrors)) < 0) {
 			while (heapsize) {
 				heapsize--;
 				merger_delete_entry();

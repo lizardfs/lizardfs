@@ -797,7 +797,7 @@ uint8_t verbosity = 0;
 
 }
 
-int restore(const char* filename, uint64_t newLogVersion, const char *ptr) {
+int restore(const char* filename, uint64_t newLogVersion, const char *ptr, RestoreRigor rigor) {
 	if (currentFsVersion == 0 || nextFsVersion == 0) {
 		/*
 		 * This is first call to restore().
@@ -830,8 +830,8 @@ int restore(const char* filename, uint64_t newLogVersion, const char *ptr) {
 				mfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
 			int status = restore_line(filename,newLogVersion,ptr);
-			if (status<0) { // parse error - just ignore this line
-				return 0;
+			if (status<0) { // parse error - stop processing if requested
+				return (rigor == RestoreRigor::kIgnoreParseErrors ? 0 : -1);
 			}
 			if (status>0) { // other errors - stop processing data
 				return -1;

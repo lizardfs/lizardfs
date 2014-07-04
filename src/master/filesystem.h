@@ -95,6 +95,11 @@ uint8_t fs_apply_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t
 uint8_t fs_apply_unlock(uint64_t chunkid);
 uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
 
+/// Unloads metadata.
+/// This should be called in the shadow master each time it needs to download
+/// metadata file from the active metadata server again.
+void fs_unload();
+
 #ifdef METARESTORE
 
 void fs_dump(void);

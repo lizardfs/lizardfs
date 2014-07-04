@@ -321,7 +321,10 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		std::string buf(": ");
 		buf.append(reinterpret_cast<const char*>(data));
 		static char const network[] = "network";
-		restore(network, version, buf.c_str());
+		if (restore(network, version, buf.c_str(), RestoreRigor::kDontIgnoreAnyErrors) < 0) {
+			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it");
+			fs_unload();
+		}
 #endif /* #ifndef METALOGGER */
 	}
 	if (eptr->logfd) {

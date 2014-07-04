@@ -22,5 +22,7 @@
 
 #include <inttypes.h>
 
-int restore(const char* filename, uint64_t lv, const char* ptr);
+enum class RestoreRigor { kIgnoreParseErrors, kDontIgnoreAnyErrors };
+
+int restore(const char* filename, uint64_t lv, const char* ptr, RestoreRigor rigor);
 void restore_setverblevel(uint8_t _vlevel);
