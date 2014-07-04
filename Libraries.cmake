@@ -68,12 +68,17 @@ else()
   message(STATUS "   to point this path (cmake -DTHRIFT_ROOT=...)")
 endif()
 
-# Find polonaise
-find_package(Polonaise 0.1 EXACT QUIET)
+# Find Polonaise
+set(POLONAISE_REQUIRED_VERSION 0.1.0)
+find_package(Polonaise ${POLONAISE_REQUIRED_VERSION} EXACT QUIET NO_MODULE NO_CMAKE_BUILDS_PATH)
 if(POLONAISE_FOUND)
   message(STATUS "Found Polonaise")
 else()
-  message(STATUS "Could NOT find Polonaise")
+  message(STATUS "Could NOT find Polonaise v${POLONAISE_REQUIRED_VERSION}")
+  if (Polonaise_CONSIDERED_VERSIONS)
+    message(STATUS "   Incompatible versions ${Polonaise_CONSIDERED_VERSIONS} "
+        "found in ${Polonaise_CONSIDERED_CONFIGS}")
+  endif()
   message(STATUS "   If it's installed in a non-standard path, set Polonaise_DIR variable")
   message(STATUS "   to point this path (cmake -DPolonaise_DIR=...)")
 endif()
