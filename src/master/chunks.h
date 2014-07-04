@@ -34,6 +34,9 @@ int chunk_unlock(uint64_t chunkid);
 uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint8_t goal,
 		bool doIncreaseVersion, uint64_t *newChunkId);
 
+// Tries to set next chunk id to a passed value, returns status
+uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet);
+
 #ifdef METARESTORE
 void chunk_dump(void);
 #else

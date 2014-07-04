@@ -3321,6 +3321,18 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 	return STATUS_OK;
 }
 
+uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId) {
+	uint8_t status = chunk_set_next_chunkid(nextChunkId);
+	if (context.isPersonalityMaster()) {
+		if (status == STATUS_OK) {
+			fs_changelog(context.ts(), "NEXTCHUNKID(%" PRIu64 ")", nextChunkId);
+		}
+	} else {
+		metaversion++;
+	}
+	return status;
+}
+
 #ifndef METARESTORE
 uint8_t fs_end_setlength(uint64_t chunkid) {
 	fs_changelog(main_time(), "UNLOCK(%" PRIu64 ")", chunkid);

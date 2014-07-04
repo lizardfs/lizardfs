@@ -1011,6 +1011,18 @@ int chunk_increase_version(uint64_t chunkid) {
 	return STATUS_OK;
 }
 
+uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
+	if (nextChunkIdToBeSet >= nextchunkid) {
+		nextchunkid = nextChunkIdToBeSet;
+		return STATUS_OK;
+	} else {
+		syslog(LOG_WARNING,"was asked to increase the next chunk id to %" PRIu64 ", but it was"
+				"already set to a bigger value %" PRIu64 ". Ignoring.",
+				nextChunkIdToBeSet, nextchunkid);
+		return ERROR_MISMATCH;
+	}
+}
+
 #ifndef METARESTORE
 
 typedef struct locsort {
@@ -1077,7 +1089,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	if (c==NULL) {
 		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "_%08" PRIX32 "), so create it for future deletion",chunkid,version);
 		if (chunkid>=nextchunkid) {
-			nextchunkid=chunkid+1;
+			fs_set_nextchunkid(FsContext::getForMaster(main_time()), chunkid + 1);
 		}
 		c = chunk_new(chunkid, new_version);
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;

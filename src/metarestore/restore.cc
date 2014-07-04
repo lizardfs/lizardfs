@@ -602,6 +602,15 @@ int do_unlock(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	return fs_apply_unlock(chunkid);
 }
 
+int do_nextchunkid(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
+	uint64_t nextChunkId;
+	EAT(ptr, filename, lv, '(');
+	GETU64(nextChunkId, ptr);
+	EAT(ptr, filename, lv, ')');
+	return fs_set_nextchunkid(FsContext::getForRestore(ts), nextChunkId);
+}
+
+
 int do_trunc(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	uint32_t inode,indx;
 	uint64_t chunkid;
@@ -701,6 +710,11 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 		case 'M':
 			if (strncmp(ptr,"MOVE",4)==0) {
 				status = do_move(filename,lv,ts,ptr+4);
+			}
+			break;
+		case 'N':
+			if (strncmp(ptr, "NEXTCHUNKID", 11) == 0) {
+				status = do_nextchunkid(filename,lv,ts,ptr + 11);
 			}
 			break;
 		case 'P':

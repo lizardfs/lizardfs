@@ -75,6 +75,7 @@ uint8_t fs_symlink(const FsContext& context,
 uint8_t fs_undel(const FsContext& context, uint32_t inode);
 uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 		uint64_t *chunkid, uint8_t *opflag, uint64_t *length);
+uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore
 uint8_t fs_apply_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
