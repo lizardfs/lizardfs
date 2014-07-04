@@ -320,6 +320,15 @@ void fs_stats(uint32_t stats[16]) {
 
 static uint64_t gFsNodesChecksum;
 
+// Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
+// proper timestamp to changelog entry
+template <typename... Args>
+void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
+	std::string tmp = "%" PRIu32 "|";
+	tmp += format;
+	changelog(metaversion++, tmp.c_str(), ts, args...);
+}
+
 static uint64_t fsnodes_checksum(const fsnode* node) {
 	if (!node) {
 		return 0;
@@ -693,7 +702,7 @@ static void fs_periodic_freeinodes(void) {
 	uint32_t ts = main_time();
 	uint32_t fi = fs_do_freeinodes(ts);
 	if (fi > 0) {
-		changelog(metaversion++, "%" PRIu32 "|FREEINODES():%" PRIu32, ts, fi);
+		fs_changelog(ts, "FREEINODES():%" PRIu32, fi);
 	}
 }
 #endif
@@ -2949,9 +2958,7 @@ uint8_t fs_undel(const FsContext& context, uint32_t inode) {
 	status = fsnodes_undel(context.ts(), p);
 	if (context.isPersonalityMaster()) {
 		if (status == STATUS_OK) {
-			changelog(metaversion++,
-					"%" PRIu32 "|UNDEL(%" PRIu32 ")",
-					context.ts(), p->id);
+			fs_changelog(context.ts(), "UNDEL(%" PRIu32 ")", p->id);
 		}
 	} else {
 		metaversion++;
@@ -3266,7 +3273,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 				}
 				p->data.fdata.chunktab[indx] = nchunkid;
 				*chunkid = nchunkid;
-				changelog(metaversion++,"%" PRIu32 "|TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,(uint32_t)main_time(),inode,indx,nchunkid);
+				fs_changelog((uint32_t)main_time(), "TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,inode,indx,nchunkid);
 				fsnodes_update_checksum(p);
 				return ERROR_DELAYED;
 			}
@@ -3314,7 +3321,7 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 
 #ifndef METARESTORE
 uint8_t fs_end_setlength(uint64_t chunkid) {
-	changelog(metaversion++,"%" PRIu32 "|UNLOCK(%" PRIu64 ")",(uint32_t)main_time(),chunkid);
+	fs_changelog((uint32_t)main_time(), "UNLOCK(%" PRIu64 ")",chunkid);
 	return chunk_unlock(chunkid);
 }
 #endif
@@ -3357,7 +3364,7 @@ uint8_t fs_do_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 		}
 	}
 	fsnodes_setlength(p,length);
-	changelog(metaversion++,"%" PRIu32 "|LENGTH(%" PRIu32 ",%" PRIu64 ")",ts,inode,p->data.fdata.length);
+	fs_changelog(ts, "LENGTH(%" PRIu32 ",%" PRIu64 ")",inode,p->data.fdata.length);
 	p->ctime = p->mtime = ts;
 	fsnodes_update_checksum(p);
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
@@ -3491,7 +3498,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	} else if (setmask & SET_MTIME_FLAG) {
 		p->mtime = attrmtime;
 	}
-	changelog(metaversion++,"%" PRIu32 "|ATTR(%" PRIu32 ",%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",ts,inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);
+	fs_changelog(ts, "ATTR(%" PRIu32 ",%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);
 	p->ctime = ts;
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
 	fsnodes_update_checksum(p);
@@ -3578,7 +3585,7 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 	if (p->atime!=ts) {
 		p->atime = ts;
 		fsnodes_update_checksum(p);
-		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,inode);
+		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
 	}
 	stats_readlink++;
 	return STATUS_OK;
@@ -3713,7 +3720,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	}
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),type,p->mode & 07777,uid,gid,rdev,p->id);
+	fs_changelog((uint32_t)main_time(), "CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),type,p->mode & 07777,uid,gid,rdev,p->id);
 	stats_mknod++;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
@@ -3769,7 +3776,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	p = fsnodes_create_node(main_time(),wd,nleng,name,TYPE_DIRECTORY,mode,umask,uid,gid,copysgid,AclInheritance::kInheritAcl);
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
-	changelog(metaversion++,"%" PRIu32 "|CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,(uint32_t)main_time(),parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,p->mode & 07777,uid,gid,0,p->id);
+	fs_changelog((uint32_t)main_time(), "CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,parent,fsnodes_escape_name(nleng,name),TYPE_DIRECTORY,p->mode & 07777,uid,gid,0,p->id);
 	stats_mkdir++;
 	return STATUS_OK;
 }
@@ -3853,7 +3860,7 @@ uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 	if (e->child->type==TYPE_DIRECTORY) {
 		return ERROR_EPERM;
 	}
-	changelog(metaversion++,"%" PRIu32 "|UNLINK(%" PRIu32 ",%s):%" PRIu32,ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
+	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32,parent,fsnodes_escape_name(nleng,name),e->child->id);
 	fsnodes_unlink(ts,e);
 	stats_unlink++;
 	return STATUS_OK;
@@ -3912,7 +3919,7 @@ uint8_t fs_rmdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 	if (e->child->data.ddata.children!=NULL) {
 		return ERROR_ENOTEMPTY;
 	}
-	changelog(metaversion++,"%" PRIu32 "|UNLINK(%" PRIu32 ",%s):%" PRIu32,ts,parent,fsnodes_escape_name(nleng,name),e->child->id);
+	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32,parent,fsnodes_escape_name(nleng,name),e->child->id);
 	fsnodes_unlink(ts,e);
 	stats_rmdir++;
 	return STATUS_OK;
@@ -4183,7 +4190,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	if (p->atime!=ts) {
 		p->atime = ts;
 		fsnodes_update_checksum(p);
-		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,p->id);
+		fs_changelog(ts, "ACCESS(%" PRIu32 ")",p->id);
 		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
 	} else {
 		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
@@ -4348,7 +4355,7 @@ uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid)
 
 #ifndef METARESTORE
 uint32_t fs_newsessionid(void) {
-	changelog(metaversion++,"%" PRIu32 "|SESSION():%" PRIu32,(uint32_t)main_time(),nextsessionid);
+	fs_changelog((uint32_t)main_time(), "SESSION():%" PRIu32,nextsessionid);
 	return nextsessionid++;
 }
 #endif
@@ -4385,7 +4392,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 	if (p->atime!=ts) {
 		p->atime = ts;
 		fsnodes_update_checksum(p);
-		changelog(metaversion++,"%" PRIu32 "|ACCESS(%" PRIu32 ")",ts,inode);
+		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
 	}
 	stats_read++;
 	return STATUS_OK;
@@ -4503,15 +4510,15 @@ uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid) {
 			fsnodes_setlength(p,length);
 			p->mtime = p->ctime = ts;
 			fsnodes_update_checksum(p);
-			changelog(metaversion++,"%" PRIu32 "|LENGTH(%" PRIu32 ",%" PRIu64 ")",ts,inode,length);
+			fs_changelog(ts, "LENGTH(%" PRIu32 ",%" PRIu64 ")",inode,length);
 		}
 	}
-	changelog(metaversion++,"%" PRIu32 "|UNLOCK(%" PRIu64 ")",ts,chunkid);
+	fs_changelog(ts, "UNLOCK(%" PRIu64 ")",chunkid);
 	return chunk_unlock(chunkid);
 }
 
 void fs_incversion(uint64_t chunkid) {
-	changelog(metaversion++,"%" PRIu32 "|INCVERSION(%" PRIu64 ")",(uint32_t)main_time(),chunkid);
+	fs_changelog((uint32_t)main_time(), "INCVERSION(%" PRIu64 ")",chunkid);
 }
 #endif
 
@@ -4569,7 +4576,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 	fsnodes_get_stats(p,&psr);
 	for (indx=0 ; indx<p->data.fdata.chunks ; indx++) {
 		if (chunk_repair(p->goal,p->data.fdata.chunktab[indx],&nversion)) {
-			changelog(metaversion++,"%" PRIu32 "|REPAIR(%" PRIu32 ",%" PRIu32 "):%" PRIu32,ts,inode,indx,nversion);
+			fs_changelog(ts, "REPAIR(%" PRIu32 ",%" PRIu32 "):%" PRIu32,inode,indx,nversion);
 			p->mtime = p->ctime = ts;
 			if (nversion>0) {
 				(*repaired)++;
@@ -4803,9 +4810,9 @@ uint8_t fs_setgoal(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		changelog(metaversion++,
-				"%" PRIu32 "|SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
-				context.ts(), p->id, context.uid(), goal, smode, si, nci, nsi);
+		fs_changelog(
+				context.ts(), "SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+				p->id, context.uid(), goal, smode, si, nci, nsi);
 	} else {
 		metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
@@ -4849,9 +4856,9 @@ uint8_t fs_settrashtime(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		changelog(metaversion++,
-				"%" PRIu32 "|SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
-				context.ts(), p->id, context.uid(), trashtime, smode, si, nci, nsi);
+		fs_changelog(
+				context.ts(), "SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+				p->id, context.uid(), trashtime, smode, si, nci, nsi);
 	} else {
 		metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
@@ -4891,9 +4898,9 @@ uint8_t fs_seteattr(const FsContext& context,
 		*sinodes = si;
 		*ncinodes = nci;
 		*nsinodes = nsi;
-		changelog(metaversion++,
-				"%" PRIu32 "|SETEATTR(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
-				context.ts(), p->id, context.uid(), eattr, smode, si, nci, nsi);
+		fs_changelog(
+				context.ts(), "SETEATTR(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
+				p->id, context.uid(), eattr, smode, si, nci, nsi);
 	} else {
 		metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
@@ -4993,7 +5000,7 @@ uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 	}
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
-	changelog(metaversion++,"%" PRIu32 "|SETXATTR(%" PRIu32 ",%s,%s,%" PRIu8 ")",ts,inode,fsnodes_escape_name(anleng,attrname),fsnodes_escape_name(avleng,attrvalue),mode);
+	fs_changelog(ts, "SETXATTR(%" PRIu32 ",%s,%s,%" PRIu8 ")",inode,fsnodes_escape_name(anleng,attrname),fsnodes_escape_name(avleng,attrvalue),mode);
 	return STATUS_OK;
 }
 
@@ -5071,9 +5078,9 @@ uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 	status = fsnodes_deleteacl(p, type, context.ts());
 	if (context.isPersonalityMaster()) {
 		if (status == STATUS_OK) {
-			changelog(metaversion++,
-					"%" PRIu32 "|DELETEACL(%" PRIu32 ",%c)",
-					context.ts(), p->id, (type == AclType::kAccess ? 'a' : 'd'));
+			fs_changelog(
+					context.ts(), "DELETEACL(%" PRIu32 ",%c)",
+					p->id, (type == AclType::kAccess ? 'a' : 'd'));
 		}
 	} else {
 		metaversion++;
@@ -5098,9 +5105,9 @@ uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, Access
 	status = fsnodes_setacl(p, type, std::move(acl), context.ts());
 	if (context.isPersonalityMaster()) {
 		if (status == STATUS_OK) {
-			changelog(metaversion++,
-					"%" PRIu32 "|SETACL(%" PRIu32 ",%c,%s)",
-					context.ts(), p->id, (type == AclType::kAccess ? 'a' : 'd'), aclString.c_str());
+			fs_changelog(
+					context.ts(), "SETACL(%" PRIu32 ",%c,%s)",
+					p->id, (type == AclType::kAccess ? 'a' : 'd'), aclString.c_str());
 		}
 	} else {
 		metaversion++;
@@ -5196,8 +5203,7 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 		const QuotaOwner& owner = entry.entryKey.owner;
 		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
 				owner.ownerId, entry.limit);
-		changelog(metaversion++, "%" PRIu32 "|SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
-				main_time(),
+		fs_changelog(main_time(), "SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
 				(entry.entryKey.rigor == QuotaRigor::kSoft)? 'S' : 'H',
 				(entry.entryKey.resource == QuotaResource::kSize)? 'S' : 'I',
 				(owner.ownerType == QuotaOwnerType::kUser)? 'U' : 'G',
@@ -5687,9 +5693,9 @@ static void fs_periodic_emptytrash(void) {
 	uint32_t ts = main_time();
 	InodeInfo ii = fs_do_emptytrash(ts);
 	if (ii.free > 0 || ii.reserved > 0) {
-		changelog(metaversion++,
-				"%" PRIu32 "|EMPTYTRASH():%" PRIu32 ",%" PRIu32,
-				ts, ii.free, ii.reserved);
+		fs_changelog(
+				ts, "EMPTYTRASH():%" PRIu32 ",%" PRIu32,
+				ii.free, ii.reserved);
 	}
 }
 #endif
@@ -5724,7 +5730,7 @@ static void fs_periodic_emptyreserved(void) {
 	uint32_t ts = main_time();
 	uint32_t fi = fs_do_emptyreserved(ts);
 	if (fi>0) {
-		changelog(metaversion++,"%" PRIu32 "|EMPTYRESERVED():%" PRIu32,ts,fi);
+		fs_changelog(ts, "EMPTYRESERVED():%" PRIu32,fi);
 	}
 }
 #endif
