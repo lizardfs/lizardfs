@@ -3982,7 +3982,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
-		} else {
+		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = (matoclserventry*) malloc(sizeof(matoclserventry));
@@ -4014,6 +4014,8 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->cacheddirs = NULL;
 */
 			memset(eptr->passwordrnd,0,32);
+		} else {
+			tcpclose(ns);
 		}
 	}
 

@@ -646,7 +646,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"Master<->ML socket: accept error");
-		} else {
+		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = (matomlserventry*) malloc(sizeof(matomlserventry));
@@ -672,6 +672,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->metafd=-1;
 			eptr->chain1fd=-1;
 			eptr->chain2fd=-1;
+		} else {
+			tcpclose(ns);
 		}
 	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
