@@ -81,7 +81,6 @@ typedef struct masterconn {
 
 	uint8_t downloadretrycnt;
 	uint8_t downloading;
-	uint8_t oldmode;
 	FILE *logfd;    // using stdio because this is text file
 	int metafd;     // using standard unix I/O because this is binary file
 	uint64_t filesize;
@@ -412,11 +411,7 @@ void masterconn_download_next(masterconn *eptr) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
-			if (eptr->oldmode==0) {
-				masterconn_download_init(eptr,11);
-			} else {
-				masterconn_download_init(eptr,2);
-			}
+			masterconn_download_init(eptr,11);
 		} else if (filenum==11) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_1.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
@@ -567,10 +562,6 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 }
 
 void masterconn_beforeclose(masterconn *eptr) {
-	if (eptr->downloading==11 || eptr->downloading==12) {   // old (version less than 1.6.18) master patch
-		syslog(LOG_WARNING,"old master detected - please upgrade your master server and then restart metalogger");
-		eptr->oldmode=1;
-	}
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
 		eptr->metafd=-1;
@@ -1038,7 +1029,6 @@ int masterconn_init(void) {
 	eptr->pdescpos = -1;
 	eptr->logfd = NULL;
 	eptr->metafd = -1;
-	eptr->oldmode = 0;
 
 #ifdef METALOGGER
 	masterconn_findlastlogversion();
