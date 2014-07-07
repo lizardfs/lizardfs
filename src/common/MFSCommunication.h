@@ -312,6 +312,10 @@
 
 // Metalogger specific messages.
 #define FORCE_LOG_ROTATE 0x55
+#define DOWNLOAD_METADATA_MFS 1
+#define DOWNLOAD_CHANGELOG_MFS 11
+#define DOWNLOAD_CHANGELOG_MFS_1 12
+#define DOWNLOAD_SESSIONS_MFS 2
 
 // ANY <-> ANY
 

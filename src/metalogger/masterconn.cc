@@ -86,7 +86,8 @@ typedef struct masterconn {
 	uint64_t filesize;
 	uint64_t dloffset;
 	uint64_t dlstartuts;
-	bool metadataLoaded_;
+	bool metadataDownloaded_;
+	bool filesystemInitialized_;
 	void* sessionsdownloadinit_handle;
 	void* metachanges_flush_handle;
 } masterconn;
@@ -315,11 +316,12 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		eptr->logfd = fopen(changelogFilename.c_str(), "a");
 	}
 
-	if (eptr->metadataLoaded_) {
+	if (eptr->metadataDownloaded_) {
 #ifndef METALOGGER
 		std::string buf(": ");
 		buf.append(reinterpret_cast<const char*>(data));
-		restore("network", version, buf.c_str());
+		static char const network[] = "network";
+		restore(network, version, buf.c_str());
 #endif /* #ifndef METALOGGER */
 	}
 	if (eptr->logfd) {
@@ -363,11 +365,11 @@ void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 }
 
 void masterconn_metadownloadinit(void) {
-	masterconn_download_init(masterconnsingleton,1);
+	masterconn_download_init(masterconnsingleton, DOWNLOAD_METADATA_MFS);
 }
 
 void masterconn_sessionsdownloadinit(void) {
-	masterconn_download_init(masterconnsingleton,2);
+	masterconn_download_init(masterconnsingleton, DOWNLOAD_SESSIONS_MFS);
 }
 
 int masterconn_metadata_check(const std::string& name) {
@@ -396,13 +398,13 @@ void masterconn_download_next(masterconn *eptr) {
 		std::string changelogFilename_1 = changelogFilename + ".1";
 		std::string changelogFilename_2 = changelogFilename + ".2";
 		syslog(LOG_NOTICE, "%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",
-				(filenum==1) ? "metadata" :
-				(filenum==2) ? "sessions" :
-				(filenum==11) ? changelogFilename_1.c_str() :
-				(filenum==12) ? changelogFilename_2.c_str() : "???",
+				(filenum == DOWNLOAD_METADATA_MFS) ? "metadata" :
+				(filenum == DOWNLOAD_SESSIONS_MFS) ? "sessions" :
+				(filenum == DOWNLOAD_CHANGELOG_MFS) ? changelogFilename_1.c_str() :
+				(filenum == DOWNLOAD_CHANGELOG_MFS_1) ? changelogFilename_2.c_str() : "???",
 				eptr->filesize, dltime/1000000, (uint32_t)(dltime%1000000),
 				(double)(eptr->filesize) / (double)(dltime));
-		if (filenum==1) {
+		if (filenum == DOWNLOAD_METADATA_MFS) {
 			if (masterconn_metadata_check(metadataTmpFilename) == 0) {
 				if (BackMetaCopies>0) {
 					rotateFiles(metadataFilename, BackMetaCopies, 2);
@@ -411,31 +413,33 @@ void masterconn_download_next(masterconn *eptr) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
-			masterconn_download_init(eptr,11);
-		} else if (filenum==11) {
+			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS);
+		} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_1.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
-			masterconn_download_init(eptr,12);
-		} else if (filenum==12) {
+			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS_1);
+		} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_2.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
-			masterconn_download_init(eptr,2);
-		} else if (filenum==2) {
+			masterconn_download_init(eptr, DOWNLOAD_SESSIONS_MFS);
+		} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
 			if (rename(sessionsTmpFilename.c_str(), sessionsFilename.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
-				if (!eptr->metadataLoaded_) {
-					fs_init(true);
-					eptr->metadataLoaded_ = true;
+				if (!eptr->filesystemInitialized_) {
 					if (eptr->logfd) {
 						fclose(eptr->logfd);
 						eptr->logfd = NULL;
 					}
-				} else {
+					fs_init(true);
+					eptr->filesystemInitialized_ = true;
+					eptr->metadataDownloaded_ = true;
+				} else if (!eptr->metadataDownloaded_) {
 					fs_load_changelogs();
+					eptr->metadataDownloaded_ = true;
 				}
 #endif /* #ifndef METALOGGER */
 			}
@@ -467,11 +471,12 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	eptr->dloffset = 0;
 	eptr->downloadretrycnt = 0;
 	eptr->dlstartuts = main_utime();
-	if (eptr->downloading==1) {
+	if (eptr->downloading == DOWNLOAD_METADATA_MFS) {
 		eptr->metafd = open(metadataTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
-	} else if (eptr->downloading==2) {
+	} else if (eptr->downloading == DOWNLOAD_SESSIONS_MFS) {
 		eptr->metafd = open(sessionsTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
-	} else if (eptr->downloading==11 || eptr->downloading==12) {
+	} else if ((eptr->downloading == DOWNLOAD_CHANGELOG_MFS)
+			|| (eptr->downloading == DOWNLOAD_CHANGELOG_MFS_1)) {
 		eptr->metafd = open(changelogTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else {
 		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
@@ -633,6 +638,7 @@ void masterconn_term(void) {
 
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
+	eptr->metadataDownloaded_ = false;
 	eptr->mode=HEADER;
 	eptr->inputpacket.next = NULL;
 	eptr->inputpacket.bytesleft = 8;
@@ -1025,7 +1031,8 @@ int masterconn_init(void) {
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
-	eptr->metadataLoaded_ = false;
+	eptr->filesystemInitialized_ = false;
+	eptr->metadataDownloaded_ = false;
 	eptr->pdescpos = -1;
 	eptr->logfd = NULL;
 	eptr->metafd = -1;

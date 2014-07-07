@@ -7751,16 +7751,26 @@ void fs_load_changelog(const std::string& path) {
 	size_t end = 0;
 	sassert(metaversion > 0);
 
+	uint64_t first = 0;
+	uint64_t id = 0;
 	uint32_t skippedEntries = 0;
 	while (std::getline(changelog, line).good()) {
-		uint64_t id = stoull(line, &end);
+		id = stoull(line, &end);
 		if (id < fs_getversion()) {
 			++skippedEntries;
 			continue;
+		} else if (!first) {
+			first = id;
 		}
 		if (restore(path.c_str(), id, line.c_str() + end) < 0) {
 			throw MetadataConsistencyException("Can't apply changelog " + path);
 		}
+	}
+	if (id >= first) {
+		mfs_arg_syslog(LOG_NOTICE, "applied changes from %" PRIu64 " to %" PRIu64 " from %s",
+				first, id, path.c_str());
+	} else {
+		mfs_arg_syslog(LOG_NOTICE, "no changes applied from %s", path.c_str());
 	}
 	if (skippedEntries > 0) {
 		mfs_arg_syslog(LOG_NOTICE, "skipped %" PRIu32 " entries from changelog %s",
@@ -7787,32 +7797,40 @@ int fs_load_changelogs() {
 	 * If we are master we only really care for:
 	 * "changelog.mfs.1" and "changelog.mfs" files.
 	 */
-	const std::string changelogs[] {
+	static const std::string changelogs[] {
 		std::string(kChangelogFilename) + ".2",
 		std::string(kChangelogFilename) + ".1",
 		kChangelogFilename
 	};
 	restore_setverblevel(gVerbosity);
 	namespace fs = boost::filesystem;
+	bool oldExists = false;
 	for (const std::string& s : changelogs) {
 		if (fs::exists(s)) {
-			std::cerr << "Changelog file found and "
-				<< (metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow")
-				<< ", trying to apply " << s << "." << std::endl;
+			oldExists = true;
+			mfs_arg_syslog(LOG_NOTICE, "Changelog file found and %s, trying to apply %s.",
+					(metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow"),
+					s.c_str());
 			uint64_t first = changelogGetFirstLogVersion(s);
 			uint64_t last = changelogGetLastLogVersion(s);
 			if (last >= first) {
 				if (last >= fs_getversion()) {
 					fs_load_changelog(s);
-					std::cerr << "Changelog file " << s << " applied successfully." << std::endl;
+					mfs_arg_syslog(LOG_NOTICE, "Changelog file %s applied successfully.", s.c_str());
 				} else {
-					std::cerr << "Skipping changelog file: " << s << std::endl;
+					mfs_arg_syslog(LOG_WARNING,
+							"Skipping changelog file: %s [%" PRIu64 "-%" PRIu64 "]",
+							s.c_str(), fs_getversion(), last);
 				}
 			} else {
-				std::cerr << "Changelog inconsistent, run meterestore, current version = "
-					<< fs_getversion() << ", new version = " << first << "." << std::endl;
+				mfs_arg_syslog(LOG_ERR,
+						"Changelog inconsistent, run meterestore,"
+						" current version = %" PRIu64 ", new version = %" PRIu64 ".",
+						fs_getversion(), first);
 				return -1;
 			}
+		} else if (oldExists) {
+			mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 		}
 	}
 	fs_checksum(ChecksumMode::kForceRecalculate);

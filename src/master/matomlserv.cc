@@ -319,7 +319,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		return;
 	}
 	filenum = get8bit(&data);
-	if (filenum==1 || filenum==2) {
+	if ((filenum == DOWNLOAD_METADATA_MFS) || (filenum == DOWNLOAD_SESSIONS_MFS)) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 			eptr->metafd=-1;
@@ -333,19 +333,19 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 			eptr->chain2fd=-1;
 		}
 	}
-	if (filenum==1) {
+	if (filenum == DOWNLOAD_METADATA_MFS) {
 		eptr->metafd = open(kMetadataFilename, O_RDONLY);
 		eptr->chain1fd = open(kChangelogFilename, O_RDONLY);
 		eptr->chain2fd = open((std::string(kChangelogFilename) + ".1").c_str(), O_RDONLY);
-	} else if (filenum==2) {
+	} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
 		eptr->metafd = open(kSessionsFilename, O_RDONLY);
-	} else if (filenum==11) {
+	} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
 		eptr->metafd = eptr->chain1fd;
 		eptr->chain1fd = -1;
-	} else if (filenum==12) {
+	} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
