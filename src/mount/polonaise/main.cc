@@ -542,7 +542,7 @@ public:
 				toLizardFsContext(context),
 				toUint64(inode),
 				getFileInfo(descriptor));
-		fileInfos_.erase(descriptor);
+		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}
 
@@ -693,7 +693,7 @@ public:
 			throw makeFailure("Null descriptor");
 		}
 		LizardClient::release(toLizardFsContext(context), toUint64(inode), getFileInfo(descriptor));
-		fileInfos_.erase(descriptor);
+		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}
 
@@ -790,10 +790,25 @@ private:
 	 * \return descriptor
 	 */
 	Descriptor createDescriptor(int32_t polonaiseFlags) {
+		std::lock_guard<std::mutex> lock(mutex_);
 		Descriptor descriptor = ++lastDescriptor_;
 		fileInfos_.insert({descriptor,
 				LizardClient::FileInfo(toLizardFsFlags(polonaiseFlags), 0, 0, descriptor)});
 		return descriptor;
+	}
+
+	/**
+	 * Removes an entry of opened file
+	 * \param descriptor descriptor to be deleted
+	 * \throw Failure when descriptor doesn't exist
+	 */
+	void removeDescriptor(Descriptor descriptor) {
+		std::lock_guard<std::mutex> lock(mutex_);
+		auto it = fileInfos_.find(descriptor);
+		if (it == fileInfos_.end()) {
+			throw makeFailure("descriptor " + std::to_string(descriptor) + " not found");
+		}
+		fileInfos_.erase(it);
 	}
 
 	/**
@@ -803,6 +818,7 @@ private:
 	 * \return pointer to file information or NULL when null descriptor is given
 	 */
 	LizardClient::FileInfo* getFileInfo(Descriptor descriptor) {
+		std::lock_guard<std::mutex> lock(mutex_);
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			return nullptr;
 		}
@@ -812,6 +828,11 @@ private:
 		}
 		return &it->second;
 	}
+
+	/**
+	 * Mutex for operations which modify fileInfos_ and lastDescriptor_
+	 */
+	std::mutex mutex_;
 
 	/**
 	 * Map for containing file information for each opened file
