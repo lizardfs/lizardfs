@@ -1038,6 +1038,7 @@ int masterconn_init(void) {
 	eptr->metafd = -1;
 
 #ifdef METALOGGER
+	changelogsMigrateFrom_1_6_29("changelog_ml");
 	masterconn_findlastlogversion();
 #endif /* #ifdef METALOGGER */
 	if (masterconn_initconnect(eptr)<0) {

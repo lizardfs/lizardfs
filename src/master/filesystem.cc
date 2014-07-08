@@ -7785,7 +7785,7 @@ int fs_load_changelogs() {
 	metadataserver::Personality personality = metadataserver::getPersonality();
 	metadataserver::setPersonality(metadataserver::Personality::kShadow);
 	/*
-	 * We need to load 3 changlog files in extreame case.
+	 * We need to load 3 changelog files in extreme case.
 	 * If we are being run as Shadow we need to download two
 	 * changelog files:
 	 * 1 - current changelog => "changelog.mfs.1"
@@ -7805,33 +7805,37 @@ int fs_load_changelogs() {
 	restore_setverblevel(gVerbosity);
 	namespace fs = boost::filesystem;
 	bool oldExists = false;
-	for (const std::string& s : changelogs) {
-		if (fs::exists(s)) {
-			oldExists = true;
-			mfs_arg_syslog(LOG_NOTICE, "Changelog file found and %s, trying to apply %s.",
-					(metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow"),
-					s.c_str());
-			uint64_t first = changelogGetFirstLogVersion(s);
-			uint64_t last = changelogGetLastLogVersion(s);
-			if (last >= first) {
-				if (last >= fs_getversion()) {
-					fs_load_changelog(s);
-					mfs_arg_syslog(LOG_NOTICE, "Changelog file %s applied successfully.", s.c_str());
+	try {
+		for (const std::string& s : changelogs) {
+			if (fs::exists(s)) {
+				oldExists = true;
+				mfs_arg_syslog(LOG_NOTICE, "Changelog file found and %s, trying to apply %s.",
+						(metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow"),
+						s.c_str());
+				uint64_t first = changelogGetFirstLogVersion(s);
+				uint64_t last = changelogGetLastLogVersion(s);
+				if (last >= first) {
+					if (last >= fs_getversion()) {
+						fs_load_changelog(s);
+						mfs_arg_syslog(LOG_NOTICE, "Changelog file %s applied successfully.", s.c_str());
+					} else {
+						mfs_arg_syslog(LOG_WARNING,
+								"Skipping changelog file: %s [%" PRIu64 "-%" PRIu64 "]",
+								s.c_str(), fs_getversion(), last);
+					}
 				} else {
-					mfs_arg_syslog(LOG_WARNING,
-							"Skipping changelog file: %s [%" PRIu64 "-%" PRIu64 "]",
-							s.c_str(), fs_getversion(), last);
+					mfs_arg_syslog(LOG_ERR,
+							"Changelog inconsistent, run meterestore,"
+							" current version = %" PRIu64 ", new version = %" PRIu64 ".",
+							fs_getversion(), first);
+					return -1;
 				}
-			} else {
-				mfs_arg_syslog(LOG_ERR,
-						"Changelog inconsistent, run meterestore,"
-						" current version = %" PRIu64 ", new version = %" PRIu64 ".",
-						fs_getversion(), first);
-				return -1;
+			} else if (oldExists) {
+				mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 			}
-		} else if (oldExists) {
-			mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 		}
+	} catch (fs::filesystem_error& ex) {
+		throw FilesystemException("Error loading changelogs" + std::string(ex.what()));
 	}
 	fs_checksum(ChecksumMode::kForceRecalculate);
 	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
@@ -7859,14 +7863,8 @@ int do_fs_init(void) {
 	fprintf(stderr,"loading metadata ...\n");
 	fs_strinit();
 	chunk_strinit();
-	try {
-		fs_loadall();
-	} catch(Exception const& e) {
-		fprintf(stderr, "%s\n", e.what());
-		syslog(LOG_ERR, "%s", e.what());
-		return -1;
-	}
-
+	changelogsMigrateFrom_1_6_29("changelog");
+	fs_loadall();
 	fprintf(stderr,"metadata file has been loaded\n");
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
@@ -7924,12 +7922,7 @@ int fs_init(const char *fname,int ignoreflag, bool noLock) {
 	}
 	fs_strinit();
 	chunk_strinit();
-	try {
-		fs_loadall(fname,ignoreflag);
-	} catch (Exception const& e) {
-		mfs_arg_syslog(LOG_ERR, "%s", e.what());
-		return -1;
-	}
+	fs_loadall(fname,ignoreflag);
 	return 0;
 }
 #endif
