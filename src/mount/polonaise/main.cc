@@ -2,7 +2,7 @@
 
 #include <fcntl.h>
 #include <iostream>
-
+#include <boost/make_shared.hpp>
 #include <polonaise/polonaise_constants.h>
 #include <polonaise/Polonaise.h>
 #include <thrift/protocol/TBinaryProtocol.h>
@@ -845,6 +845,21 @@ private:
 	Descriptor lastDescriptor_;
 };
 
+// Creates a TBufferedTransport with a read buffer of 512 KiB and write buffer size of 4KiB
+class BigBufferedTransportFactory : public apache::thrift::transport::TTransportFactory {
+public:
+	static const uint32_t kReadBufferSize = 512 * 1024;
+	static const uint32_t kWriteBufferSize = 4096;
+
+	virtual boost::shared_ptr<apache::thrift::transport::TTransport> getTransport(
+			boost::shared_ptr<apache::thrift::transport::TTransport> transport) {
+		return boost::make_shared<apache::thrift::transport::TBufferedTransport>(
+				transport, kReadBufferSize, kWriteBufferSize);
+	}
+};
+const uint32_t BigBufferedTransportFactory::kReadBufferSize;
+const uint32_t BigBufferedTransportFactory::kWriteBufferSize;
+
 int main (int argc, char **argv) {
 	uint32_t ioretries = 30;
 	uint32_t cachesize_MB = 10;
@@ -884,9 +899,8 @@ int main (int argc, char **argv) {
 	boost::shared_ptr<PolonaiseHandler> handler(new PolonaiseHandler());
 	boost::shared_ptr<TProcessor> processor(new PolonaiseProcessor(handler));
 	boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(port));
-	boost::shared_ptr<TTransportFactory> transportFactory(new TBufferedTransportFactory());
+	boost::shared_ptr<TTransportFactory> transportFactory(new BigBufferedTransportFactory());
 	boost::shared_ptr<TProtocolFactory> protocolFactory(new TBinaryProtocolFactory());
-
 	TThreadedServer server(processor, serverTransport, transportFactory, protocolFactory);
 	server.serve();
 	return 0;
