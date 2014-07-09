@@ -43,8 +43,9 @@ test_end() {
 	test_freeze_result
 	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
 	cd
-	# terminate valgrind processes to get complete memcheck logs from them
-	{ pkill -TERM memcheck &> /dev/null && sleep 3; } || true
+	if valgrind_enabled; then
+		valgrind_terminate
+	fi
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
@@ -79,7 +80,7 @@ test_begin() {
 	set -E
 	timeout_init
 	if [[ ${USE_VALGRIND} ]]; then
-		enable_valgrind
+		valgrind_enable
 	fi
 	if [[ ${DEBUG} ]]; then
 		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
