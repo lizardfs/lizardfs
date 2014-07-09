@@ -25,4 +25,4 @@ done
 . tools/string.sh
 . tools/quota.sh
 . tools/metadata.sh
-
+. tools/color.sh
