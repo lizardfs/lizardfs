@@ -100,6 +100,8 @@ test_cleanup() {
 	retries=0
 	pkill -KILL mfsmount || true
 	pkill -KILL memcheck || true
+	# 'grep mfs' below is important. In tests we mount some filesystem by hand
+	# assuming that they will be found with this pattern and unmounted.
 	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
