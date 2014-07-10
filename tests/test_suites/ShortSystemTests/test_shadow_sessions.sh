@@ -1,0 +1,49 @@
+MOUNTS=2 \
+	MASTERSERVERS=2 \
+	CHUNKSERVERS=1 \
+	USE_RAMDISK=YES \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsacl" \
+	MOUNT_0_EXTRA_EXPORTS="ro,allcanchangequota" \
+	MOUNT_1_EXTRA_EXPORTS="rw,alldirs,allcanchangequota,maxtrashtime=1234567,mapall=lizardfstest_6:lizardfstest_4" \
+	setup_local_empty_lizardfs info
+
+mkdir "${info[mount1]}/subdir"
+
+echo 'mfssubfolder=/subdir' >>"${info[mount1_config]}"
+lizardfs_mount_unmount 1
+lizardfs_mount_start 1
+
+lizardfs_master_n 1 start
+
+cd "${info[mount1]}"
+for generator in $(metadata_get_all_generators |grep -v metadata_generate_uids_gids); do
+	eval "$generator"
+done
+
+metadata_validate_files
+
+mount1meta=$(metadata_print)
+cd "${info[mount0]}"
+mount0meta=$(metadata_print)
+
+sleep 3
+cd
+lizardfs_master_daemon kill
+
+lizardfs_make_conf_for_master 1
+lizardfs_master_daemon reload
+
+lizardfs_wait_for_all_ready_chunkservers
+
+# check restored filesystem
+cd "${info[mount0]}"
+assert_no_diff "$mount0meta" "$(metadata_print)"
+assert_failure touch newfile
+cd "${info[mount1]}"
+assert_no_diff "$mount1meta" "$(metadata_print)"
+assert_success touch newfile
+
+touch nowaythiswilleverwork
+assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
+
+metadata_validate_files
