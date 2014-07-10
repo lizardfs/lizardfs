@@ -1078,8 +1078,8 @@ static inline fsnode* fsnodes_id_to_node(uint32_t id) {
 	return NULL;
 }
 
-// returns 1 only if f is ancestor of p
-static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
+// returns true iff f is ancestor of p
+static inline bool fsnodes_isancestor(fsnode *f,fsnode *p) {
 	fsedge *e;
 	for (e=p->parents ; e ; e=e->nextparent) {      // check all parents of 'p' because 'p' can be any object, so it can be hardlinked
 		p=e->parent;    // warning !!! since this point 'p' is used as temporary variable
@@ -1095,6 +1095,16 @@ static inline int fsnodes_isancestor(fsnode *f,fsnode *p) {
 		}
 	}
 	return 0;
+}
+
+// returns true iff p is reserved or in trash or f is ancestor of p
+static inline bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f,fsnode *p) {
+	// Return 1 if file is reservered:
+	if (p && (p->type == TYPE_RESERVED || p->type == TYPE_TRASH)) {
+		return 1;
+	}
+	// Or if f is ancestor of p
+	return fsnodes_isancestor(f, p);
 }
 
 // quota
@@ -2785,7 +2795,7 @@ static uint8_t fsnodes_get_node_for_operation(
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn, p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn, p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3101,7 +3111,7 @@ uint8_t fs_access(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3134,7 +3144,7 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 			if (!wd) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,wd)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,wd)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3212,7 +3222,7 @@ uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3246,7 +3256,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3372,7 +3382,7 @@ uint8_t fs_do_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3413,7 +3423,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3586,7 +3596,7 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3708,7 +3718,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 			if (!wd) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,wd)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,wd)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3767,7 +3777,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 			if (!wd) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,wd)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,wd)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3850,7 +3860,7 @@ uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 			if (!wd) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,wd)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,wd)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -3906,7 +3916,7 @@ uint8_t fs_rmdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nl
 			if (!wd) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,wd)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,wd)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4183,7 +4193,7 @@ uint8_t fs_readdir_size(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4237,7 +4247,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4271,7 +4281,7 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4577,7 +4587,7 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4681,7 +4691,7 @@ uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gm
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4726,7 +4736,7 @@ uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t ino
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4780,7 +4790,7 @@ uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t g
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4949,7 +4959,7 @@ uint8_t fs_listxattr_leng(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uin
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -4993,7 +5003,7 @@ uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -5040,7 +5050,7 @@ uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
@@ -5310,7 +5320,7 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (!p) {
 				return ERROR_ENOENT;
 			}
-			if (!fsnodes_isancestor(rn,p)) {
+			if (!fsnodes_isancestor_or_node_reserved_or_trash(rn,p)) {
 				return ERROR_EPERM;
 			}
 		}
