@@ -250,38 +250,47 @@ typedef struct _sessionidrec_bucket {
 	struct _sessionidrec_bucket *next;
 } sessionidrec_bucket;
 
-static xattr_inode_entry **xattr_inode_hash;
-static xattr_data_entry **xattr_data_hash;
-static uint32_t *freebitmask;
-static uint32_t bitmasksize;
-static uint32_t searchpos;
-static freenode *freelist,**freetail;
-static fsedge *trash;
-static fsedge *reserved;
-static fsnode *root;
-static fsnode* nodehash[NODEHASHSIZE];
-static fsedge* edgehash[EDGEHASHSIZE];
-static freenode_bucket *fnbhead = NULL;
-static freenode *fnfreehead = NULL;
-static sessionidrec_bucket *crbhead = NULL;
-static sessionidrec *crfreehead = NULL;
+namespace {
+/** Metadata of the filesystem.
+ *  All the static variables managed by function in this file which form metadata of the filesystem.
+ */
+struct FilesystemMetadata {
+	xattr_inode_entry **xattr_inode_hash;
+	xattr_data_entry **xattr_data_hash;
+	uint32_t *freebitmask;
+	uint32_t bitmasksize;
+	uint32_t searchpos;
+	freenode *freelist,**freetail;
+	fsedge *trash;
+	fsedge *reserved;
+	fsnode *root;
+	fsnode* nodehash[NODEHASHSIZE];
+	fsedge* edgehash[EDGEHASHSIZE];
+	freenode_bucket *fnbhead;
+	freenode *fnfreehead;
+	sessionidrec_bucket *crbhead;
+	sessionidrec *crfreehead;
 
-static uint32_t maxnodeid;
-static uint32_t nextsessionid;
-static uint32_t nodes;
-static uint64_t metaversion;
-static uint64_t trashspace;
-static uint64_t reservedspace;
-static uint32_t trashnodes;
-static uint32_t reservednodes;
-static uint32_t filenodes;
-static uint32_t dirnodes;
+	uint32_t maxnodeid;
+	uint32_t nextsessionid;
+	uint32_t nodes;
+	uint64_t metaversion;
+	uint64_t trashspace;
+	uint64_t reservedspace;
+	uint32_t trashnodes;
+	uint32_t reservednodes;
+	uint32_t filenodes;
+	uint32_t dirnodes;
 
-static QuotaDatabase gQuotaDatabase;
+	QuotaDatabase gQuotaDatabase;
 
-static uint64_t gFsNodesChecksum;
-static uint64_t gFsEdgesChecksum;
-static uint64_t gXattrChecksum;
+	uint64_t gFsNodesChecksum;
+	uint64_t gFsEdgesChecksum;
+	uint64_t gXattrChecksum;
+};
+} // anonymous namespace
+
+static FilesystemMetadata* gMetadata = new FilesystemMetadata{};
 
 #ifndef METARESTORE
 
@@ -366,7 +375,7 @@ template <typename... Args>
 void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
 	std::string tmp = "%" PRIu32 "|";
 	tmp += format;
-	changelog(metaversion++, tmp.c_str(), ts, args...);
+	changelog(gMetadata->metaversion++, tmp.c_str(), ts, args...);
 }
 
 static uint64_t fsnodes_checksum(const fsnode* node) {
@@ -414,18 +423,18 @@ static void fsnodes_update_checksum(fsnode* node) {
 	if (!node) {
 		return;
 	}
-	removeFromChecksum(gFsNodesChecksum, node->checksum);
+	removeFromChecksum(gMetadata->gFsNodesChecksum, node->checksum);
 	node->checksum = fsnodes_checksum(node);
-	addToChecksum(gFsNodesChecksum, node->checksum);
+	addToChecksum(gMetadata->gFsNodesChecksum, node->checksum);
 }
 
 static void fsnodes_recalculate_checksum() {
-	gFsNodesChecksum = 12345; // arbitrary number
+	gMetadata->gFsNodesChecksum = 12345; // arbitrary number
 	// nodes
 	for (uint32_t i = 0; i < NODEHASHSIZE; i++) {
-		for (fsnode* node = nodehash[i]; node; node = node->next) {
+		for (fsnode* node = gMetadata->nodehash[i]; node; node = node->next) {
 			node->checksum = fsnodes_checksum(node);
-			addToChecksum(gFsNodesChecksum, node->checksum);
+			addToChecksum(gMetadata->gFsNodesChecksum, node->checksum);
 		}
 	}
 }
@@ -466,22 +475,22 @@ static void fsedges_update_checksum(fsedge* edge) {
 	if (!edge) {
 		return;
 	}
-	removeFromChecksum(gFsEdgesChecksum, edge->checksum);
+	removeFromChecksum(gMetadata->gFsEdgesChecksum, edge->checksum);
 	edge->checksum = fsedges_checksum(edge);
-	addToChecksum(gFsEdgesChecksum, edge->checksum);
+	addToChecksum(gMetadata->gFsEdgesChecksum, edge->checksum);
 }
 
 static void fsedges_recalculate_checksum() {
-	gFsEdgesChecksum = 1231241261;
+	gMetadata->gFsEdgesChecksum = 1231241261;
 	// edges
-	if (root) {
-		fsedges_checksum_edges_rec(gFsEdgesChecksum, root);
+	if (gMetadata->root) {
+		fsedges_checksum_edges_rec(gMetadata->gFsEdgesChecksum, gMetadata->root);
 	}
-	if (trash) {
-		fsedges_checksum_edges_list(gFsEdgesChecksum, trash);
+	if (gMetadata->trash) {
+		fsedges_checksum_edges_list(gMetadata->gFsEdgesChecksum, gMetadata->trash);
 	}
-	if (reserved) {
-		fsedges_checksum_edges_list(gFsEdgesChecksum, reserved);
+	if (gMetadata->reserved) {
+		fsedges_checksum_edges_list(gMetadata->gFsEdgesChecksum, gMetadata->reserved);
 	}
 }
 
@@ -498,35 +507,35 @@ static void xattr_update_checksum(xattr_data_entry* xde) {
 	if (!xde) {
 		return;
 	}
-	removeFromChecksum(gXattrChecksum, xde->checksum);
+	removeFromChecksum(gMetadata->gXattrChecksum, xde->checksum);
 	xde->checksum = xattr_checksum(xde);
-	addToChecksum(gXattrChecksum, xde->checksum);
+	addToChecksum(gMetadata->gXattrChecksum, xde->checksum);
 }
 
 static void xattr_recalculate_checksum() {
-	gXattrChecksum = 29857986791741783ULL;
+	gMetadata->gXattrChecksum = 29857986791741783ULL;
 	for (int i = 0; i < XATTR_DATA_HASH_SIZE; ++i) {
-		for (xattr_data_entry* xde = xattr_data_hash[i]; xde; xde = xde->next) {
+		for (xattr_data_entry* xde = gMetadata->xattr_data_hash[i]; xde; xde = xde->next) {
 			xde->checksum = xattr_checksum(xde);
-			addToChecksum(gXattrChecksum, xde->checksum);
+			addToChecksum(gMetadata->gXattrChecksum, xde->checksum);
 		}
 	}
 }
 
 uint64_t fs_checksum(ChecksumMode mode) {
 	uint64_t checksum = 0x1251;
-	addToChecksum(checksum, maxnodeid);
-	addToChecksum(checksum, metaversion);
-	addToChecksum(checksum, nextsessionid);
+	addToChecksum(checksum, gMetadata->maxnodeid);
+	addToChecksum(checksum, gMetadata->metaversion);
+	addToChecksum(checksum, gMetadata->nextsessionid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
 		fsedges_recalculate_checksum();
 		xattr_recalculate_checksum();
 	}
-	addToChecksum(checksum, gFsNodesChecksum);
-	addToChecksum(checksum, gFsEdgesChecksum);
-	addToChecksum(checksum, gXattrChecksum);
-	addToChecksum(checksum, gQuotaDatabase.checksum());
+	addToChecksum(checksum, gMetadata->gFsNodesChecksum);
+	addToChecksum(checksum, gMetadata->gFsEdgesChecksum);
+	addToChecksum(checksum, gMetadata->gXattrChecksum);
+	addToChecksum(checksum, gMetadata->gQuotaDatabase.checksum());
 	addToChecksum(checksum, chunk_checksum(mode));
 	return checksum;
 }
@@ -558,80 +567,80 @@ void metadataPollServe(struct pollfd* pdesc) {
 static inline freenode* freenode_malloc() {
 	freenode_bucket *fnb;
 	freenode *ret;
-	if (fnfreehead) {
-		ret = fnfreehead;
-		fnfreehead = ret->next;
+	if (gMetadata->fnfreehead) {
+		ret = gMetadata->fnfreehead;
+		gMetadata->fnfreehead = ret->next;
 		return ret;
 	}
-	if (fnbhead==NULL || fnbhead->firstfree==FREENODE_BUCKET_SIZE) {
+	if (gMetadata->fnbhead==NULL || gMetadata->fnbhead->firstfree==FREENODE_BUCKET_SIZE) {
 		fnb = (freenode_bucket*)malloc(sizeof(freenode_bucket));
 		passert(fnb);
-		fnb->next = fnbhead;
+		fnb->next = gMetadata->fnbhead;
 		fnb->firstfree = 0;
-		fnbhead = fnb;
+		gMetadata->fnbhead = fnb;
 	}
-	ret = (fnbhead->bucket)+(fnbhead->firstfree);
-	fnbhead->firstfree++;
+	ret = (gMetadata->fnbhead->bucket)+(gMetadata->fnbhead->firstfree);
+	gMetadata->fnbhead->firstfree++;
 	return ret;
 }
 
 static inline void freenode_free(freenode *p) {
-	p->next = fnfreehead;
-	fnfreehead = p;
+	p->next = gMetadata->fnfreehead;
+	gMetadata->fnfreehead = p;
 }
 
 static inline sessionidrec* sessionidrec_malloc() {
 	sessionidrec_bucket *crb;
 	sessionidrec *ret;
-	if (crfreehead) {
-		ret = crfreehead;
-		crfreehead = ret->next;
+	if (gMetadata->crfreehead) {
+		ret = gMetadata->crfreehead;
+		gMetadata->crfreehead = ret->next;
 		return ret;
 	}
-	if (crbhead==NULL || crbhead->firstfree==CUIDREC_BUCKET_SIZE) {
+	if (gMetadata->crbhead==NULL || gMetadata->crbhead->firstfree==CUIDREC_BUCKET_SIZE) {
 		crb = (sessionidrec_bucket*)malloc(sizeof(sessionidrec_bucket));
 		passert(crb);
-		crb->next = crbhead;
+		crb->next = gMetadata->crbhead;
 		crb->firstfree = 0;
-		crbhead = crb;
+		gMetadata->crbhead = crb;
 	}
-	ret = (crbhead->bucket)+(crbhead->firstfree);
-	crbhead->firstfree++;
+	ret = (gMetadata->crbhead->bucket)+(gMetadata->crbhead->firstfree);
+	gMetadata->crbhead->firstfree++;
 	return ret;
 }
 
 static inline void sessionidrec_free(sessionidrec *p) {
-	p->next = crfreehead;
-	crfreehead = p;
+	p->next = gMetadata->crfreehead;
+	gMetadata->crfreehead = p;
 }
 
 uint32_t fsnodes_get_next_id() {
 	uint32_t i,mask;
-	while (searchpos<bitmasksize && freebitmask[searchpos]==0xFFFFFFFF) {
-		searchpos++;
+	while (gMetadata->searchpos<gMetadata->bitmasksize && gMetadata->freebitmask[gMetadata->searchpos]==0xFFFFFFFF) {
+		gMetadata->searchpos++;
 	}
-	if (searchpos==bitmasksize) {   // no more freeinodes
+	if (gMetadata->searchpos==gMetadata->bitmasksize) {   // no more freeinodes
 		uint32_t *tmpfbm;
-		bitmasksize+=0x80;
-		tmpfbm = freebitmask;
-		freebitmask = (uint32_t*)realloc(freebitmask,bitmasksize*sizeof(uint32_t));
-		if (freebitmask==NULL) {
+		gMetadata->bitmasksize+=0x80;
+		tmpfbm = gMetadata->freebitmask;
+		gMetadata->freebitmask = (uint32_t*)realloc(gMetadata->freebitmask,gMetadata->bitmasksize*sizeof(uint32_t));
+		if (gMetadata->freebitmask==NULL) {
 			free(tmpfbm); // pro forma - satisfy cppcheck
 		}
-		passert(freebitmask);
-		memset(freebitmask+searchpos,0,0x80*sizeof(uint32_t));
+		passert(gMetadata->freebitmask);
+		memset(gMetadata->freebitmask+gMetadata->searchpos,0,0x80*sizeof(uint32_t));
 	}
-	mask = freebitmask[searchpos];
+	mask = gMetadata->freebitmask[gMetadata->searchpos];
 	i=0;
 	while (mask&1) {
 		i++;
 		mask>>=1;
 	}
 	mask = 1<<i;
-	freebitmask[searchpos] |= mask;
-	i+=(searchpos<<5);
-	if (i>maxnodeid) {
-		maxnodeid=i;
+	gMetadata->freebitmask[gMetadata->searchpos] |= mask;
+	i+=(gMetadata->searchpos<<5);
+	if (i>gMetadata->maxnodeid) {
+		gMetadata->maxnodeid=i;
 	}
 	return i;
 }
@@ -642,39 +651,39 @@ void fsnodes_free_id(uint32_t id,uint32_t ts) {
 	n->id = id;
 	n->ftime = ts;
 	n->next = NULL;
-	*freetail = n;
-	freetail = &(n->next);
+	*gMetadata->freetail = n;
+	gMetadata->freetail = &(n->next);
 }
 
 static uint32_t fs_do_freeinodes(uint32_t ts) {
 	uint32_t pos,mask;
 	freenode *n,*an;
 	uint32_t fi = 0;
-	n = freelist;
+	n = gMetadata->freelist;
 	while (n && n->ftime+MFS_INODE_REUSE_DELAY<ts) {
 		fi++;
 		pos = (n->id >> 5);
 		mask = 1<<(n->id&0x1F);
-		freebitmask[pos] &= ~mask;
-		if (pos<searchpos) {
-			searchpos = pos;
+		gMetadata->freebitmask[pos] &= ~mask;
+		if (pos<gMetadata->searchpos) {
+			gMetadata->searchpos = pos;
 		}
 		an = n->next;
 		freenode_free(n);
 		n = an;
 	}
 	if (n) {
-		freelist = n;
+		gMetadata->freelist = n;
 	} else {
-		freelist = NULL;
-		freetail = &(freelist);
+		gMetadata->freelist = NULL;
+		gMetadata->freetail = &(gMetadata->freelist);
 	}
 	return fi;
 }
 
 uint8_t fs_apply_freeinodes(uint32_t ts, uint32_t freeinodes) {
 	uint32_t fi = fs_do_freeinodes(ts);
-	metaversion++;
+	gMetadata->metaversion++;
 	if (freeinodes != fi) {
 		return ERROR_MISMATCH;
 	}
@@ -692,19 +701,19 @@ static void fs_periodic_freeinodes(void) {
 #endif
 
 void fsnodes_init_freebitmask (void) {
-	bitmasksize = 0x100+(((maxnodeid)>>5)&0xFFFFFF80U);
-	freebitmask = (uint32_t*)malloc(bitmasksize*sizeof(uint32_t));
-	passert(freebitmask);
-	memset(freebitmask,0,bitmasksize*sizeof(uint32_t));
-	freebitmask[0]=1;       // reserve inode 0
-	searchpos = 0;
+	gMetadata->bitmasksize = 0x100+(((gMetadata->maxnodeid)>>5)&0xFFFFFF80U);
+	gMetadata->freebitmask = (uint32_t*)malloc(gMetadata->bitmasksize*sizeof(uint32_t));
+	passert(gMetadata->freebitmask);
+	memset(gMetadata->freebitmask,0,gMetadata->bitmasksize*sizeof(uint32_t));
+	gMetadata->freebitmask[0]=1;       // reserve inode 0
+	gMetadata->searchpos = 0;
 }
 
 void fsnodes_used_inode (uint32_t id) {
 	uint32_t pos,mask;
 	pos = id>>5;
 	mask = 1<<(id&0x1F);
-	freebitmask[pos]|=mask;
+	gMetadata->freebitmask[pos]|=mask;
 }
 
 
@@ -745,14 +754,14 @@ static inline void xattr_removeentry(xattr_data_entry *xa) {
 	if (xa->next) {
 		xa->next->prev = xa->prev;
 	}
-	removeFromChecksum(gXattrChecksum, xa->checksum);
+	removeFromChecksum(gMetadata->gXattrChecksum, xa->checksum);
 	delete xa;
 }
 
 void xattr_removeinode(uint32_t inode) {
 	xattr_inode_entry *ih,**ihp;
 
-	ihp = &(xattr_inode_hash[xattr_inode_hash_fn(inode)]);
+	ihp = &(gMetadata->xattr_inode_hash[xattr_inode_hash_fn(inode)]);
 	while ((ih = *ihp)) {
 		if (ih->inode==inode) {
 			while (ih->data_head) {
@@ -783,10 +792,10 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 	}
 
 	ihash = xattr_inode_hash_fn(inode);
-	for (ih = xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
+	for (ih = gMetadata->xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
 
 	hash = xattr_data_hash_fn(inode,anleng,attrname);
-	for (xa = xattr_data_hash[hash]; xa ; xa=xa->next) {
+	for (xa = gMetadata->xattr_data_hash[hash]; xa ; xa=xa->next) {
 		if (xa->inode==inode && xa->anleng==anleng && memcmp(xa->attrname,attrname,anleng)==0) {
 			passert(ih);
 			if (mode==XATTR_SMODE_CREATE_ONLY) { // create only
@@ -844,12 +853,12 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		xa->attrvalue = NULL;
 	}
 	xa->avleng = avleng;
-	xa->next = xattr_data_hash[hash];
+	xa->next = gMetadata->xattr_data_hash[hash];
 	if (xa->next) {
 		xa->next->prev = &(xa->next);
 	}
-	xa->prev = xattr_data_hash + hash;
-	xattr_data_hash[hash] = xa;
+	xa->prev = gMetadata->xattr_data_hash + hash;
+	gMetadata->xattr_data_hash[hash] = xa;
 
 	if (ih) {
 		xa->nextinode = ih->data_head;
@@ -869,8 +878,8 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		ih->data_head = xa;
 		ih->anleng = anleng+1U;
 		ih->avleng = avleng;
-		ih->next = xattr_inode_hash[ihash];
-		xattr_inode_hash[ihash] = ih;
+		ih->next = gMetadata->xattr_inode_hash[ihash];
+		gMetadata->xattr_inode_hash[ihash] = ih;
 	}
 	xa->checksum = 0;
 	xattr_update_checksum(xa);
@@ -880,7 +889,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 uint8_t xattr_getattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint32_t *avleng,uint8_t **attrvalue) {
 	xattr_data_entry *xa;
 
-	for (xa = xattr_data_hash[xattr_data_hash_fn(inode,anleng,attrname)] ; xa ; xa=xa->next) {
+	for (xa = gMetadata->xattr_data_hash[xattr_data_hash_fn(inode,anleng,attrname)] ; xa ; xa=xa->next) {
 		if (xa->inode==inode && xa->anleng==anleng && memcmp(xa->attrname,attrname,anleng)==0) {
 			if (xa->avleng>MFS_XATTR_SIZE_MAX) {
 				return ERROR_ERANGE;
@@ -898,7 +907,7 @@ uint8_t xattr_listattr_leng(uint32_t inode,void **xanode,uint32_t *xasize) {
 	xattr_data_entry *xa;
 
 	*xasize = 0;
-	for (ih = xattr_inode_hash[xattr_inode_hash_fn(inode)] ; ih ; ih=ih->next) {
+	for (ih = gMetadata->xattr_inode_hash[xattr_inode_hash_fn(inode)] ; ih ; ih=ih->next) {
 		if (ih->inode==inode) {
 			*xanode = ih;
 			for (xa=ih->data_head ; xa ; xa=xa->nextinode) {
@@ -978,7 +987,7 @@ static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8
 static inline int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
 	fsedge *ei;
 	if (node->data.ddata.elements>LOOKUPNOHASHLIMIT) {
-		ei = edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
+		ei = gMetadata->edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
 		while (ei) {
 			if (ei->parent==node && nleng==ei->nleng && memcmp((char*)(ei->name),(char*)name,nleng)==0) {
 				return 1;
@@ -1005,7 +1014,7 @@ static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *
 		return NULL;
 	}
 	if (node->data.ddata.elements>LOOKUPNOHASHLIMIT) {
-		ei = edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
+		ei = gMetadata->edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
 		while (ei) {
 			if (ei->parent==node && nleng==ei->nleng && memcmp((char*)(ei->name),(char*)name,nleng)==0) {
 				return ei;
@@ -1027,7 +1036,7 @@ static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *
 static inline fsnode* fsnodes_id_to_node(uint32_t id) {
 	fsnode *p;
 	uint32_t nodepos = NODEHASHPOS(id);
-	for (p=nodehash[nodepos]; p ; p=p->next) {
+	for (p=gMetadata->nodehash[nodepos]; p ; p=p->next) {
 		if (p->id == id) {
 			return p;
 		}
@@ -1067,24 +1076,24 @@ static inline bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f,fsnode
 // quota
 
 static bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
+	return gMetadata->gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid, gid);
 }
 
 static bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
+	return gMetadata->gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid, gid);
 }
 
 static void fsnodes_quota_register_inode(fsnode *node) {
-	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
+	gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
 }
 
 static void fsnodes_quota_unregister_inode(fsnode *node) {
-	gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
+	gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
 }
 
 static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
 	if (delta != 0) {
-		gQuotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
+		gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid, delta);
 	}
 }
 
@@ -1163,7 +1172,7 @@ static inline void fsnodes_sub_stats(fsnode *parent,statsrecord *sr) {
 		psr->length -= sr->length;
 		psr->size -= sr->size;
 		psr->realsize -= sr->realsize;
-		if (parent!=root) {
+		if (parent!=gMetadata->root) {
 			for (e=parent->parents ; e ; e=e->nextparent) {
 				fsnodes_sub_stats(e->parent,sr);
 			}
@@ -1183,7 +1192,7 @@ static inline void fsnodes_add_stats(fsnode *parent,statsrecord *sr) {
 		psr->length += sr->length;
 		psr->size += sr->size;
 		psr->realsize += sr->realsize;
-		if (parent!=root) {
+		if (parent!=gMetadata->root) {
 			for (e=parent->parents ; e ; e=e->nextparent) {
 				fsnodes_add_stats(e->parent,sr);
 			}
@@ -1317,7 +1326,7 @@ static inline void fsnodes_fill_attr(const FsContext& context,
 
 static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 	statsrecord sr;
-	removeFromChecksum(gFsEdgesChecksum, e->checksum);
+	removeFromChecksum(gMetadata->gFsEdgesChecksum, e->checksum);
 	if (e->parent) {
 		fsnodes_get_stats(e->child,&sr);
 		fsnodes_sub_stats(e->parent,&sr);
@@ -1374,12 +1383,12 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	child->parents = e;
 	e->prevparent = &(child->parents);
 	hpos = EDGEHASHPOS(fsnodes_hash(parent->id,nleng,name));
-	e->next = edgehash[hpos];
+	e->next = gMetadata->edgehash[hpos];
 	if (e->next) {
 		e->next->prev = &(e->next);
 	}
-	edgehash[hpos] = e;
-	e->prev = &(edgehash[hpos]);
+	gMetadata->edgehash[hpos] = e;
+	e->prev = &(gMetadata->edgehash[hpos]);
 	e->checksum = 0;
 	fsedges_update_checksum(e);
 
@@ -1404,12 +1413,12 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	statsrecord *sr;
 	uint32_t nodepos;
 	p = new fsnode(type);
-	nodes++;
+	gMetadata->nodes++;
 	if (type==TYPE_DIRECTORY) {
-		dirnodes++;
+		gMetadata->dirnodes++;
 	}
 	if (type==TYPE_FILE) {
-		filenodes++;
+		gMetadata->filenodes++;
 	}
 /* create node */
 	p->id = fsnodes_get_next_id();
@@ -1475,8 +1484,8 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	}
 	p->parents = NULL;
 	nodepos = NODEHASHPOS(p->id);
-	p->next = nodehash[nodepos];
-	nodehash[nodepos] = p;
+	p->next = gMetadata->nodehash[nodepos];
+	gMetadata->nodehash[nodepos] = p;
 	p->checksum = 0;
 	fsnodes_update_checksum(p);
 	fsnodes_link(ts,node,p,nleng,name);
@@ -1496,7 +1505,7 @@ static inline uint32_t fsnodes_getpath_size(fsedge *e) {
 	}
 	p = e->parent;
 	size = e->nleng;
-	while (p!=root && p->parents) {
+	while (p!=gMetadata->root && p->parents) {
 		size += p->parents->nleng+1;
 		p = p->parents->parent;
 	}
@@ -1519,7 +1528,7 @@ static inline void fsnodes_getpath_data(fsedge *e,uint8_t *path,uint32_t size) {
 		path[--size]='/';
 	}
 	p = e->parent;
-	while (p!=root && p->parents) {
+	while (p!=gMetadata->root && p->parents) {
 		if (size>=p->parents->nleng) {
 			size-=p->parents->nleng;
 			memcpy(path+size,p->parents->name,p->parents->nleng);
@@ -1542,7 +1551,7 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 
 	p = e->parent;
 	size = e->nleng;
-	while (p!=root && p->parents) {
+	while (p!=gMetadata->root && p->parents) {
 		size += p->parents->nleng+1;    // get first parent !!!
 		p = p->parents->parent;         // when folders can be hardlinked it's the only way to obtain path (one of them)
 	}
@@ -1559,7 +1568,7 @@ static inline void fsnodes_getpath(fsedge *e,uint16_t *pleng,uint8_t **path) {
 		ret[--size]='/';
 	}
 	p = e->parent;
-	while (p!=root && p->parents) {
+	while (p!=gMetadata->root && p->parents) {
 		if (size>=p->parents->nleng) {
 			size-=p->parents->nleng;
 			memcpy(ret+size,p->parents->name,p->parents->nleng);
@@ -1686,7 +1695,7 @@ static inline void fsnodes_getdirdata(uint32_t rootinode,uint32_t uid,uint32_t g
 				::memcpy(dbuff, attr, sizeof (attr));
 			} else {
 				if (rootinode==MFS_ROOT_ID) {
-					fsnodes_fill_attr(root, p, uid, gid, auid, agid, sesflags, attr);
+					fsnodes_fill_attr(gMetadata->root, p, uid, gid, auid, agid, sesflags, attr);
 					::memcpy(dbuff, attr, sizeof (attr));
 				} else {
 					fsnode *rn = fsnodes_id_to_node(rootinode);
@@ -1799,11 +1808,11 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 
 	length = (((uint64_t)dstchunks)<<MFSCHUNKBITS)+srcobj->data.fdata.length;
 	if (dstobj->type==TYPE_TRASH) {
-		trashspace -= dstobj->data.fdata.length;
-		trashspace += length;
+		gMetadata->trashspace -= dstobj->data.fdata.length;
+		gMetadata->trashspace += length;
 	} else if (dstobj->type==TYPE_RESERVED) {
-		reservedspace -= dstobj->data.fdata.length;
-		reservedspace += length;
+		gMetadata->reservedspace -= dstobj->data.fdata.length;
+		gMetadata->reservedspace += length;
 	}
 	dstobj->data.fdata.length = length;
 	fsnodes_get_stats(dstobj,&nsr);
@@ -1845,11 +1854,11 @@ static inline void fsnodes_setlength(fsnode *obj,uint64_t length) {
 	statsrecord psr,nsr;
 	fsnodes_get_stats(obj,&psr);
 	if (obj->type==TYPE_TRASH) {
-		trashspace -= obj->data.fdata.length;
-		trashspace += length;
+		gMetadata->trashspace -= obj->data.fdata.length;
+		gMetadata->trashspace += length;
 	} else if (obj->type==TYPE_RESERVED) {
-		reservedspace -= obj->data.fdata.length;
-		reservedspace += length;
+		gMetadata->reservedspace -= obj->data.fdata.length;
+		gMetadata->reservedspace += length;
 	}
 	obj->data.fdata.length = length;
 	if (length>0) {
@@ -1910,7 +1919,7 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	}
 // remove from idhash
 	nodepos = NODEHASHPOS(toremove->id);
-	ptr = &(nodehash[nodepos]);
+	ptr = &(gMetadata->nodehash[nodepos]);
 	while (*ptr) {
 		if (*ptr==toremove) {
 			*ptr=toremove->next;
@@ -1918,17 +1927,17 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		}
 		ptr = &((*ptr)->next);
 	}
-	removeFromChecksum(gFsNodesChecksum, toremove->checksum);
+	removeFromChecksum(gMetadata->gFsNodesChecksum, toremove->checksum);
 // and free
-	nodes--;
+	gMetadata->nodes--;
 	if (toremove->type==TYPE_DIRECTORY) {
-		dirnodes--;
+		gMetadata->dirnodes--;
 	}
 	if (toremove->type==TYPE_FILE || toremove->type==TYPE_TRASH || toremove->type==TYPE_RESERVED) {
 		uint32_t i;
 		uint64_t chunkid;
 		fsnodes_quota_update_size(toremove, -fsnodes_get_size(toremove));
-		filenodes--;
+		gMetadata->filenodes--;
 		for (i=0 ; i<toremove->data.fdata.chunks ; i++) {
 			chunkid = toremove->data.fdata.chunktab[i];
 			if (chunkid>0) {
@@ -1955,7 +1964,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 
 	child = e->child;
 	if (child->parents->nextparent==NULL) { // last link
-		if (child->type==TYPE_FILE && (child->trashtime>0 || child->data.fdata.sessionids!=NULL)) {     // go to trash or reserved ? - get path
+		if (child->type==TYPE_FILE && (child->trashtime>0 || child->data.fdata.sessionids!=NULL)) { // go to trash or reserved ? - get path
 			fsnodes_getpath(e,&pleng,&path);
 		}
 	}
@@ -1971,19 +1980,19 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				e->name = path;
 				e->child = child;
 				e->parent = NULL;
-				e->nextchild = trash;
+				e->nextchild = gMetadata->trash;
 				e->nextparent = NULL;
-				e->prevchild = &trash;
+				e->prevchild = &gMetadata->trash;
 				e->prevparent = &(child->parents);
 				if (e->nextchild) {
 					e->nextchild->prevchild = &(e->nextchild);
 				}
 				e->next = NULL;
 				e->prev = NULL;
-				trash = e;
+				gMetadata->trash = e;
 				child->parents = e;
-				trashspace += child->data.fdata.length;
-				trashnodes++;
+				gMetadata->trashspace += child->data.fdata.length;
+				gMetadata->trashnodes++;
 				e->checksum = 0;
 				fsedges_update_checksum(e);
 			} else if (child->data.fdata.sessionids!=NULL) {
@@ -1994,19 +2003,19 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				e->name = path;
 				e->child = child;
 				e->parent = NULL;
-				e->nextchild = reserved;
+				e->nextchild = gMetadata->reserved;
 				e->nextparent = NULL;
-				e->prevchild = &reserved;
+				e->prevchild = &gMetadata->reserved;
 				e->prevparent = &(child->parents);
 				if (e->nextchild) {
 					e->nextchild->prevchild = &(e->nextchild);
 				}
 				e->next = NULL;
 				e->prev = NULL;
-				reserved = e;
+				gMetadata->reserved = e;
 				child->parents = e;
-				reservedspace += child->data.fdata.length;
-				reservednodes++;
+				gMetadata->reservedspace += child->data.fdata.length;
+				gMetadata->reservednodes++;
 				e->checksum = 0;
 				fsedges_update_checksum(e);
 			} else {
@@ -2027,23 +2036,23 @@ static inline int fsnodes_purge(uint32_t ts,fsnode *p) {
 	e = p->parents;
 
 	if (p->type==TYPE_TRASH) {
-		trashspace -= p->data.fdata.length;
-		trashnodes--;
+		gMetadata->trashspace -= p->data.fdata.length;
+		gMetadata->trashnodes--;
 		if (p->data.fdata.sessionids!=NULL) {
 			p->type = TYPE_RESERVED;
 			fsnodes_update_checksum(p);
-			reservedspace += p->data.fdata.length;
-			reservednodes++;
+			gMetadata->reservedspace += p->data.fdata.length;
+			gMetadata->reservednodes++;
 			*(e->prevchild) = e->nextchild;
 			if (e->nextchild) {
 				e->nextchild->prevchild = e->prevchild;
 			}
-			e->nextchild = reserved;
-			e->prevchild = &(reserved);
+			e->nextchild = gMetadata->reserved;
+			e->prevchild = &(gMetadata->reserved);
 			if (e->nextchild) {
 				e->nextchild->prevchild = &(e->nextchild);
 			}
-			reserved = e;
+			gMetadata->reserved = e;
 			return 0;
 		} else {
 			fsnodes_remove_edge(ts,e);
@@ -2051,8 +2060,8 @@ static inline int fsnodes_purge(uint32_t ts,fsnode *p) {
 			return 1;
 		}
 	} else if (p->type==TYPE_RESERVED) {
-		reservedspace -= p->data.fdata.length;
-		reservednodes--;
+		gMetadata->reservedspace -= p->data.fdata.length;
+		gMetadata->reservednodes--;
 		fsnodes_remove_edge(ts,e);
 		fsnodes_remove_node(ts,p);
 		return 1;
@@ -2116,7 +2125,7 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 
 /* create path */
 	n = NULL;
-	p = root;
+	p = gMetadata->root;
 	is_new = 0;
 	for (;;) {
 		partleng=0;
@@ -2133,8 +2142,8 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 			fsnodes_update_checksum(node);
 			fsnodes_link(ts,p,node,partleng,path);
 			fsnodes_remove_edge(ts,e);
-			trashspace -= node->data.fdata.length;
-			trashnodes--;
+			gMetadata->trashspace -= node->data.fdata.length;
+			gMetadata->trashnodes--;
 			return STATUS_OK;
 		} else {
 			if (is_new==0) {
@@ -2772,14 +2781,14 @@ uint8_t fs_readreserved_size(uint32_t rootinode,uint8_t sesflags,uint32_t *dbuff
 		return ERROR_EPERM;
 	}
 	(void)sesflags;
-	*dbuffsize = fsnodes_getdetachedsize(reserved);
+	*dbuffsize = fsnodes_getdetachedsize(gMetadata->reserved);
 	return STATUS_OK;
 }
 
 void fs_readreserved_data(uint32_t rootinode,uint8_t sesflags,uint8_t *dbuff) {
 	(void)rootinode;
 	(void)sesflags;
-	fsnodes_getdetacheddata(reserved,dbuff);
+	fsnodes_getdetacheddata(gMetadata->reserved,dbuff);
 }
 
 
@@ -2788,14 +2797,14 @@ uint8_t fs_readtrash_size(uint32_t rootinode,uint8_t sesflags,uint32_t *dbuffsiz
 		return ERROR_EPERM;
 	}
 	(void)sesflags;
-	*dbuffsize = fsnodes_getdetachedsize(trash);
+	*dbuffsize = fsnodes_getdetachedsize(gMetadata->trash);
 	return STATUS_OK;
 }
 
 void fs_readtrash_data(uint32_t rootinode,uint8_t sesflags,uint8_t *dbuff) {
 	(void)rootinode;
 	(void)sesflags;
-	fsnodes_getdetacheddata(trash,dbuff);
+	fsnodes_getdetacheddata(gMetadata->trash,dbuff);
 }
 
 /* common procedure for trash and reserved files */
@@ -2881,7 +2890,7 @@ uint8_t fs_settrashpath(const FsContext& context,
 				"SETPATH(%" PRIu32 ",%s)",
 				p->id, fsnodes_escape_name(pleng, newpath));
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return STATUS_OK;
 }
@@ -2906,7 +2915,7 @@ uint8_t fs_undel(const FsContext& context, uint32_t inode) {
 			fs_changelog(context.ts(), "UNDEL(%" PRIu32 ")", p->id);
 		}
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -2930,7 +2939,7 @@ uint8_t fs_purge(const FsContext& context, uint32_t inode) {
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "PURGE(%" PRIu32 ")", purged_inode);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return STATUS_OK;
 }
@@ -2938,13 +2947,13 @@ uint8_t fs_purge(const FsContext& context, uint32_t inode) {
 #ifndef METARESTORE
 void fs_info(uint64_t *totalspace,uint64_t *availspace,uint64_t *trspace,uint32_t *trnodes,uint64_t *respace,uint32_t *renodes,uint32_t *inodes,uint32_t *dnodes,uint32_t *fnodes) {
 	matocsserv_getspace(totalspace,availspace);
-	*trspace = trashspace;
-	*trnodes = trashnodes;
-	*respace = reservedspace;
-	*renodes = reservednodes;
-	*inodes = nodes;
-	*dnodes = dirnodes;
-	*fnodes = filenodes;
+	*trspace = gMetadata->trashspace;
+	*trnodes = gMetadata->trashnodes;
+	*respace = gMetadata->reservedspace;
+	*renodes = gMetadata->reservednodes;
+	*inodes = gMetadata->nodes;
+	*dnodes = gMetadata->dirnodes;
+	*fnodes = gMetadata->filenodes;
 }
 
 uint8_t fs_getrootinode(uint32_t *rootinode,const uint8_t *path) {
@@ -2954,7 +2963,7 @@ uint8_t fs_getrootinode(uint32_t *rootinode,const uint8_t *path) {
 	fsedge *e;
 
 	name = path;
-	p = root;
+	p = gMetadata->root;
 	for (;;) {
 		while (*name=='/') {
 			name++;
@@ -2987,9 +2996,9 @@ void fs_statfs(uint32_t rootinode,uint8_t sesflags,uint64_t *totalspace,uint64_t
 	statsrecord sr;
 	(void)sesflags;
 	if (rootinode==MFS_ROOT_ID) {
-		*trspace = trashspace;
-		*respace = reservedspace;
-		rn = root;
+		*trspace = gMetadata->trashspace;
+		*respace = gMetadata->reservedspace;
+		rn = gMetadata->root;
 	} else {
 		*trspace = 0;
 		*respace = 0;
@@ -3018,7 +3027,7 @@ uint8_t fs_apply_access(uint32_t ts,uint32_t inode) {
 		return ERROR_ENOENT;
 	}
 	p->atime = ts;
-	metaversion++;
+	gMetadata->metaversion++;
 	return STATUS_OK;
 }
 
@@ -3060,7 +3069,7 @@ uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t n
 	*inode = 0;
 	memset(attr,0,35);
 	if (rootinode==MFS_ROOT_ID) {
-		rn = root;
+		rn = gMetadata->root;
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
 			return ERROR_ENOENT;
@@ -3260,7 +3269,7 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 		return ERROR_MISMATCH;
 	}
 	p->data.fdata.chunktab[indx] = nchunkid;
-	metaversion++;
+	gMetadata->metaversion++;
 	fsnodes_update_checksum(p);
 	return STATUS_OK;
 }
@@ -3272,7 +3281,7 @@ uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId) {
 			fs_changelog(context.ts(), "NEXTCHUNKID(%" PRIu64 ")", nextChunkId);
 		}
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -3285,7 +3294,7 @@ uint8_t fs_end_setlength(uint64_t chunkid) {
 #endif
 
 uint8_t fs_apply_unlock(uint64_t chunkid) {
-	metaversion++;
+	gMetadata->metaversion++;
 	return chunk_unlock(chunkid);
 }
 
@@ -3483,7 +3492,7 @@ uint8_t fs_apply_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint
 	p->mtime = mtime;
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
-	metaversion++;
+	gMetadata->metaversion++;
 	return STATUS_OK;
 }
 
@@ -3500,7 +3509,7 @@ uint8_t fs_apply_length(uint32_t ts,uint32_t inode,uint64_t length) {
 	p->mtime = ts;
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
-	metaversion++;
+	gMetadata->metaversion++;
 	return STATUS_OK;
 }
 
@@ -3612,7 +3621,7 @@ uint8_t fs_symlink(
 		if (*inode != p->id) {
 			return ERROR_MISMATCH;
 		}
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
 	stats_symlink++;
@@ -3763,7 +3772,7 @@ uint8_t fs_apply_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t
 	if (inode!=p->id) {
 		return ERROR_MISMATCH;
 	}
-	metaversion++;
+	gMetadata->metaversion++;
 	return STATUS_OK;
 }
 
@@ -3905,7 +3914,7 @@ uint8_t fs_apply_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t
 		return ERROR_ENOTEMPTY;
 	}
 	fsnodes_unlink(ts,e);
-	metaversion++;
+	gMetadata->metaversion++;
 	return STATUS_OK;
 }
 
@@ -3975,7 +3984,7 @@ uint8_t fs_rename(const FsContext& context,
 				dwd->id, fsnodes_escape_name(nleng_dst, name_dst),
 				node->id);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
 	stats_rename++;
@@ -4023,7 +4032,7 @@ uint8_t fs_link(const FsContext& context,
 				"LINK(%" PRIu32 ",%" PRIu32 ",%s)",
 				sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst));
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
 	stats_link++;
@@ -4065,7 +4074,7 @@ uint8_t fs_snapshot(const FsContext& context,
 				"SNAPSHOT(%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
 				sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst), canoverwrite);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return STATUS_OK;
 }
@@ -4100,7 +4109,7 @@ uint8_t fs_append(const FsContext& context, uint32_t inode, uint32_t inode_src) 
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "APPEND(%" PRIu32 ",%" PRIu32 ")", p->id, sp->id);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -4269,7 +4278,7 @@ uint8_t fs_acquire(const FsContext& context, uint32_t inode, uint32_t sessionid)
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "ACQUIRE(%" PRIu32 ",%" PRIu32 ")", inode, sessionid);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return STATUS_OK;
 }
@@ -4297,7 +4306,7 @@ uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid)
 			if (context.isPersonalityMaster()) {
 				fs_changelog(context.ts(), "RELEASE(%" PRIu32 ",%" PRIu32 ")", inode, sessionid);
 			} else {
-				metaversion++;
+				gMetadata->metaversion++;
 			}
 			fsnodes_update_checksum(p);
 			return STATUS_OK;
@@ -4313,16 +4322,16 @@ uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid)
 
 #ifndef METARESTORE
 uint32_t fs_newsessionid(void) {
-	fs_changelog(main_time(), "SESSION():%" PRIu32,nextsessionid);
-	return nextsessionid++;
+	fs_changelog(main_time(), "SESSION():%" PRIu32,gMetadata->nextsessionid);
+	return gMetadata->nextsessionid++;
 }
 #endif
 uint8_t fs_apply_session(uint32_t sessionid) {
-	if (sessionid!=nextsessionid) {
+	if (sessionid!=gMetadata->nextsessionid) {
 		return ERROR_MISMATCH;
 	}
-	metaversion++;
-	nextsessionid++;
+	gMetadata->metaversion++;
+	gMetadata->nextsessionid++;
 	return STATUS_OK;
 }
 
@@ -4441,7 +4450,7 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,
 				inode, indx, *opflag, nchunkid);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	if (p->mtime != context.ts() || p->ctime != context.ts()) {
 		p->mtime = p->ctime = context.ts();
@@ -4482,7 +4491,7 @@ void fs_incversion(uint64_t chunkid) {
 #endif
 
 uint8_t fs_apply_incversion(uint64_t chunkid) {
-	metaversion++;
+	gMetadata->metaversion++;
 	return chunk_increase_version(chunkid);
 }
 
@@ -4590,7 +4599,7 @@ uint8_t fs_apply_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversi
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
 	fsnodes_quota_update_size(p, nsr.size - psr.size);
-	metaversion++;
+	gMetadata->metaversion++;
 	p->mtime = p->ctime = ts;
 	fsnodes_update_checksum(p);
 	return status;
@@ -4773,7 +4782,7 @@ uint8_t fs_setgoal(const FsContext& context,
 				"SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), goal, smode, si, nci, nsi);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
 			return ERROR_MISMATCH;
 		}
@@ -4819,7 +4828,7 @@ uint8_t fs_settrashtime(const FsContext& context,
 				"SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), trashtime, smode, si, nci, nsi);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
 			return ERROR_MISMATCH;
 		}
@@ -4861,7 +4870,7 @@ uint8_t fs_seteattr(const FsContext& context,
 				"SETEATTR(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 "):%" PRIu32 ",%" PRIu32 ",%" PRIu32,
 				p->id, context.uid(), eattr, smode, si, nci, nsi);
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 		if ((*sinodes != si) || (*ncinodes != nci) || (*nsinodes != nsi)) {
 			return ERROR_MISMATCH;
 		}
@@ -5018,7 +5027,7 @@ uint8_t fs_apply_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8
 		return status;
 	}
 	p->ctime = ts;
-	metaversion++;
+	gMetadata->metaversion++;
 	fsnodes_update_checksum(p);
 	return status;
 }
@@ -5042,7 +5051,7 @@ uint8_t fs_deleteacl(const FsContext& context, uint32_t inode, AclType type) {
 					p->id, (type == AclType::kAccess ? 'a' : 'd'));
 		}
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -5069,7 +5078,7 @@ uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, Access
 					p->id, (type == AclType::kAccess ? 'a' : 'd'), aclString.c_str());
 		}
 	} else {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -5107,7 +5116,7 @@ uint8_t fs_apply_setacl(uint32_t ts, uint32_t inode, char aclType, const char *a
 	}
 	uint8_t status = fsnodes_setacl(p, aclTypeEnum, std::move(acl), ts);
 	if (status == STATUS_OK) {
-		metaversion++;
+		gMetadata->metaversion++;
 	}
 	return status;
 }
@@ -5118,7 +5127,7 @@ uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
 	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return ERROR_EPERM;
 	}
-	results = gQuotaDatabase.getAll();
+	results = gMetadata->gQuotaDatabase.getAll();
 	return STATUS_OK;
 }
 
@@ -5142,7 +5151,7 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 				return ERROR_EINVAL;
 			}
 		}
-		const QuotaLimits *result = gQuotaDatabase.get(owner.ownerType, owner.ownerId);
+		const QuotaLimits *result = gMetadata->gQuotaDatabase.get(owner.ownerType, owner.ownerId);
 		if (result) {
 			tmp.emplace_back(owner, *result);
 		}
@@ -5160,7 +5169,7 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 	}
 	for (const QuotaEntry& entry : entries) {
 		const QuotaOwner& owner = entry.entryKey.owner;
-		gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
+		gMetadata->gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource, owner.ownerType,
 				owner.ownerId, entry.limit);
 		fs_changelog(main_time(), "SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
 				(entry.entryKey.rigor == QuotaRigor::kSoft)? 'S' : 'H',
@@ -5185,8 +5194,8 @@ uint8_t fs_apply_setquota(char rigor, char resource, char ownerType, uint32_t ow
 	if (!valid) {
 		return ERROR_EINVAL;
 	}
-	metaversion++;
-	gQuotaDatabase.set(quotaRigor, quotaResource, quotaOwnerType, ownerId, limit);
+	gMetadata->metaversion++;
+	gMetadata->gQuotaDatabase.set(quotaRigor, quotaResource, quotaOwnerType, ownerId, limit);
 	return STATUS_OK;
 }
 
@@ -5280,7 +5289,7 @@ void fs_add_files_to_chunks() {
 	uint64_t chunkid;
 	fsnode *f;
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		for (f=nodehash[i] ; f ; f=f->next) {
+		for (f=gMetadata->nodehash[i] ; f ; f=f->next) {
 			if (f->type==TYPE_FILE || f->type==TYPE_TRASH || f->type==TYPE_RESERVED) {
 				for (j=0 ; j<f->data.fdata.chunks ; j++) {
 					chunkid = f->data.fdata.chunktab[j];
@@ -5441,7 +5450,7 @@ void fs_test_files() {
 		fsinfo_loopend = main_time();
 	}
 	for (k=0 ; k<(NODEHASHSIZE/14400) && i<NODEHASHSIZE ; k++,i++) {
-		for (f=nodehash[i] ; f ; f=f->next) {
+		for (f=gMetadata->nodehash[i] ; f ; f=f->next) {
 			if (f->type==TYPE_FILE || f->type==TYPE_TRASH || f->type==TYPE_RESERVED) {
 				valid = 1;
 				ugflag = 0;
@@ -5628,7 +5637,7 @@ static InodeInfo fs_do_emptytrash(uint32_t ts) {
 	fsedge *e;
 	fsnode *p;
 	InodeInfo ii{0, 0};
-	e = trash;
+	e = gMetadata->trash;
 	while (e) {
 		p = e->child;
 		e = e->nextchild;
@@ -5657,7 +5666,7 @@ static void fs_periodic_emptytrash(void) {
 
 uint8_t fs_apply_emptytrash(uint32_t ts, uint32_t freeinodes, uint32_t reservedinodes) {
 	InodeInfo ii = fs_do_emptytrash(ts);
-	metaversion++;
+	gMetadata->metaversion++;
 	if ((freeinodes != ii.free) || (reservedinodes != ii.reserved)) {
 		return ERROR_MISMATCH;
 	}
@@ -5668,7 +5677,7 @@ static uint32_t fs_do_emptyreserved(uint32_t ts) {
 	fsedge *e;
 	fsnode *p;
 	uint32_t fi = 0;
-	e = reserved;
+	e = gMetadata->reserved;
 	while (e) {
 		p = e->child;
 		e = e->nextchild;
@@ -5692,7 +5701,7 @@ static void fs_periodic_emptyreserved(void) {
 
 uint8_t fs_apply_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 	uint32_t fi = fs_do_emptyreserved(ts);
-	metaversion++;
+	gMetadata->metaversion++;
 	if (freeinodes!=fi) {
 		return ERROR_MISMATCH;
 	}
@@ -5700,7 +5709,7 @@ uint8_t fs_apply_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 }
 
 uint64_t fs_getversion() {
-	return metaversion;
+	return gMetadata->metaversion;
 }
 
 enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
@@ -5799,7 +5808,7 @@ void fs_dumpnodes() {
 	uint32_t i;
 	fsnode *p;
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		for (p=nodehash[i] ; p ; p=p->next) {
+		for (p=gMetadata->nodehash[i] ; p ; p=p->next) {
 			fs_dumpnode(p);
 		}
 	}
@@ -5824,7 +5833,7 @@ void fs_dumpedges(fsnode *f) {
 
 void fs_dumpfree() {
 	freenode *n;
-	for (n=freelist ; n ; n=n->next) {
+	for (n=gMetadata->freelist ; n ; n=n->next) {
 		printf("I|i:%10" PRIu32 "|f:%10" PRIu32 "\n",n->id,n->ftime);
 	}
 }
@@ -5834,7 +5843,7 @@ void xattr_dump() {
 	xattr_data_entry *xa;
 
 	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
-		for (xa=xattr_data_hash[i] ; xa ; xa=xa->next) {
+		for (xa=gMetadata->xattr_data_hash[i] ; xa ; xa=xa->next) {
 			printf("X|i:%10" PRIu32 "|n:%s|v:%s\n",xa->inode,fsnodes_escape_name(xa->anleng,xa->attrname),fsnodes_escape_name(xa->avleng,xa->attrvalue));
 		}
 	}
@@ -5843,9 +5852,9 @@ void xattr_dump() {
 
 void fs_dump(void) {
 	fs_dumpnodes();
-	fs_dumpedges(root);
-	fs_dumpedgelist(trash);
-	fs_dumpedgelist(reserved);
+	fs_dumpedges(gMetadata->root);
+	fs_dumpedgelist(gMetadata->trash);
+	fs_dumpedgelist(gMetadata->reserved);
 	fs_dumpfree();
 	xattr_dump();
 }
@@ -5859,7 +5868,7 @@ void xattr_store(FILE *fd) {
 	xattr_data_entry *xa;
 
 	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
-		for (xa=xattr_data_hash[i] ; xa ; xa=xa->next) {
+		for (xa=gMetadata->xattr_data_hash[i] ; xa ; xa=xa->next) {
 			ptr = hdrbuff;
 			put32bit(&ptr,xa->inode);
 			put8bit(&ptr,xa->anleng);
@@ -5943,7 +5952,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 		}
 
 		ihash = xattr_inode_hash_fn(inode);
-		for (ih = xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
+		for (ih = gMetadata->xattr_inode_hash[ihash]; ih && ih->inode!=inode; ih=ih->next) {}
 
 		if (ih && ih->anleng+anleng+1>MFS_XATTR_LIST_MAX) {
 			if (nl) {
@@ -5992,12 +6001,12 @@ int xattr_load(FILE *fd,int ignoreflag) {
 		}
 		xa->avleng = avleng;
 		hash = xattr_data_hash_fn(inode,xa->anleng,xa->attrname);
-		xa->next = xattr_data_hash[hash];
+		xa->next = gMetadata->xattr_data_hash[hash];
 		if (xa->next) {
 			xa->next->prev = &(xa->next);
 		}
-		xa->prev = xattr_data_hash + hash;
-		xattr_data_hash[hash] = xa;
+		xa->prev = gMetadata->xattr_data_hash + hash;
+		gMetadata->xattr_data_hash[hash] = xa;
 
 		if (ih) {
 			xa->nextinode = ih->data_head;
@@ -6017,23 +6026,23 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			ih->data_head = xa;
 			ih->anleng = anleng+1U;
 			ih->avleng = avleng;
-			ih->next = xattr_inode_hash[ihash];
-			xattr_inode_hash[ihash] = ih;
+			ih->next = gMetadata->xattr_inode_hash[ihash];
+			gMetadata->xattr_inode_hash[ihash] = ih;
 		}
 	}
 }
 
 void xattr_init(void) {
 	uint32_t i;
-	xattr_data_hash = (xattr_data_entry**) malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
-	passert(xattr_data_hash);
+	gMetadata->xattr_data_hash = (xattr_data_entry**) malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
+	passert(gMetadata->xattr_data_hash);
 	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
-		xattr_data_hash[i]=NULL;
+		gMetadata->xattr_data_hash[i]=NULL;
 	}
-	xattr_inode_hash = (xattr_inode_entry**) malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
-	passert(xattr_inode_hash);
+	gMetadata->xattr_inode_hash = (xattr_inode_entry**) malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
+	passert(gMetadata->xattr_inode_hash);
 	for (i=0 ; i<XATTR_INODE_HASH_SIZE ; i++) {
-		xattr_inode_hash[i]=NULL;
+		gMetadata->xattr_inode_hash[i]=NULL;
 	}
 }
 
@@ -6257,28 +6266,28 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	if (parent_id==0) {
 		if (e->child->type==TYPE_TRASH) {
 			e->parent = NULL;
-			e->nextchild = trash;
+			e->nextchild = gMetadata->trash;
 			if (e->nextchild) {
 				e->nextchild->prevchild = &(e->nextchild);
 			}
-			trash = e;
-			e->prevchild = &trash;
+			gMetadata->trash = e;
+			e->prevchild = &gMetadata->trash;
 			e->next = NULL;
 			e->prev = NULL;
-			trashspace += e->child->data.fdata.length;
-			trashnodes++;
+			gMetadata->trashspace += e->child->data.fdata.length;
+			gMetadata->trashnodes++;
 		} else if (e->child->type==TYPE_RESERVED) {
 			e->parent = NULL;
-			e->nextchild = reserved;
+			e->nextchild = gMetadata->reserved;
 			if (e->nextchild) {
 				e->nextchild->prevchild = &(e->nextchild);
 			}
-			reserved = e;
-			e->prevchild = &reserved;
+			gMetadata->reserved = e;
+			e->prevchild = &gMetadata->reserved;
 			e->next = NULL;
 			e->prev = NULL;
-			reservedspace += e->child->data.fdata.length;
-			reservednodes++;
+			gMetadata->reservedspace += e->child->data.fdata.length;
+			gMetadata->reservednodes++;
 		} else {
 			if (nl) {
 				fputc('\n',stderr);
@@ -6390,12 +6399,12 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			e->parent->data.ddata.nlink++;
 		}
 		hpos = EDGEHASHPOS(fsnodes_hash(e->parent->id,e->nleng,e->name));
-		e->next = edgehash[hpos];
+		e->next = gMetadata->edgehash[hpos];
 		if (e->next) {
 			e->next->prev = &(e->next);
 		}
-		edgehash[hpos] = e;
-		e->prev = &(edgehash[hpos]);
+		gMetadata->edgehash[hpos] = e;
+		e->prev = &(gMetadata->edgehash[hpos]);
 	}
 	e->nextparent = e->child->parents;
 	if (e->nextparent) {
@@ -6709,15 +6718,15 @@ int fs_loadnode(FILE *fd) {
 	}
 	p->parents = NULL;
 	nodepos = NODEHASHPOS(p->id);
-	p->next = nodehash[nodepos];
-	nodehash[nodepos] = p;
+	p->next = gMetadata->nodehash[nodepos];
+	gMetadata->nodehash[nodepos] = p;
 	fsnodes_used_inode(p->id);
-	nodes++;
+	gMetadata->nodes++;
 	if (type==TYPE_DIRECTORY) {
-		dirnodes++;
+		gMetadata->dirnodes++;
 	}
 	if (type==TYPE_FILE || type==TYPE_TRASH || type==TYPE_RESERVED) {
-		filenodes++;
+		gMetadata->filenodes++;
 	}
 	fsnodes_quota_register_inode(p);
 	return 0;
@@ -6727,7 +6736,7 @@ void fs_storenodes(FILE *fd) {
 	uint32_t i;
 	fsnode *p;
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		for (p=nodehash[i] ; p ; p=p->next) {
+		for (p=gMetadata->nodehash[i] ; p ; p=p->next) {
 			fs_storenode(p,fd);
 		}
 	}
@@ -6752,15 +6761,15 @@ void fs_storeedges_rec(fsnode *f,FILE *fd) {
 }
 
 void fs_storeedges(FILE *fd) {
-	fs_storeedges_rec(root,fd);
-	fs_storeedgelist(trash,fd);
-	fs_storeedgelist(reserved,fd);
+	fs_storeedges_rec(gMetadata->root,fd);
+	fs_storeedgelist(gMetadata->trash,fd);
+	fs_storeedgelist(gMetadata->reserved,fd);
 	fs_storeedge(NULL,fd);  // end marker
 }
 
 static void fs_storeacls(FILE *fd) {
 	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-		for (fsnode *p = nodehash[i]; p; p = p->next) {
+		for (fsnode *p = gMetadata->nodehash[i]; p; p = p->next) {
 			if (p->extendedAcl || p->defaultAcl) {
 				fs_storeacl(p, fd);
 			}
@@ -6770,7 +6779,7 @@ static void fs_storeacls(FILE *fd) {
 }
 
 static void fs_storequotas(FILE *fd) {
-	const std::vector<QuotaEntry>& entries = gQuotaDatabase.getEntries();
+	const std::vector<QuotaEntry>& entries = gMetadata->gQuotaDatabase.getEntries();
 	fs_store_generic(fd, entries);
 }
 
@@ -6784,8 +6793,8 @@ int fs_lostnode(fsnode *p) {
 		} else {
 			l = snprintf((char*)artname,40,"lost_node_%" PRIu32 ".%" PRIu32,p->id,i);
 		}
-		if (!fsnodes_nameisused(root,l,artname)) {
-			fsnodes_link(0,root,p,l,artname);
+		if (!fsnodes_nameisused(gMetadata->root,l,artname)) {
+			fsnodes_link(0,gMetadata->root,p,l,artname);
 			return 1;
 		}
 		i++;
@@ -6799,8 +6808,8 @@ int fs_checknodes(int ignoreflag) {
 	fsnode *p;
 	nl=1;
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		for (p=nodehash[i] ; p ; p=p->next) {
-			if (p->parents==NULL && p!=root) {
+		for (p=gMetadata->nodehash[i] ; p ; p=p->next) {
+			if (p->parents==NULL && p!=gMetadata->root) {
 				if (nl) {
 					fputc('\n',stderr);
 					nl=0;
@@ -6862,7 +6871,7 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 		std::vector<QuotaEntry> entries;
 		fs_load_generic(fd, entries);
 		for (const auto& entry : entries) {
-			gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
+			gMetadata->gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
 					entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId, entry.limit);
 		}
 	} catch (Exception& ex) {
@@ -6879,7 +6888,7 @@ void fs_storefree(FILE *fd) {
 	freenode *n;
 	uint32_t l;
 	l=0;
-	for (n=freelist ; n ; n=n->next) {
+	for (n=gMetadata->freelist ; n ; n=n->next) {
 		l++;
 	}
 	ptr = wbuff;
@@ -6890,7 +6899,7 @@ void fs_storefree(FILE *fd) {
 	}
 	l=0;
 	ptr=wbuff;
-	for (n=freelist ; n ; n=n->next) {
+	for (n=gMetadata->freelist ; n ; n=n->next) {
 		if (l==1024) {
 			if (fwrite(wbuff,1,8*1024,fd)!=(size_t)(8*1024)) {
 				syslog(LOG_NOTICE,"fwrite error");
@@ -6930,8 +6939,8 @@ int fs_loadfree(FILE *fd) {
 	}
 	ptr=rbuff;
 	t = get32bit(&ptr);
-	freelist = NULL;
-	freetail = &(freelist);
+	gMetadata->freelist = NULL;
+	gMetadata->freetail = &(gMetadata->freelist);
 	l=0;
 	while (t>0) {
 		if (l==0) {
@@ -6965,8 +6974,8 @@ int fs_loadfree(FILE *fd) {
 		n->id = get32bit(&ptr);
 		n->ftime = get32bit(&ptr);
 		n->next = NULL;
-		*freetail = n;
-		freetail = &(n->next);
+		*gMetadata->freetail = n;
+		gMetadata->freetail = &(n->next);
 		fsnodes_used_inode(n->id);
 		l--;
 		t--;
@@ -6980,9 +6989,9 @@ void fs_store(FILE *fd,uint8_t fver) {
 	off_t offbegin,offend;
 
 	ptr = hdr;
-	put32bit(&ptr,maxnodeid);
-	put64bit(&ptr,metaversion);
-	put32bit(&ptr,nextsessionid);
+	put32bit(&ptr,gMetadata->maxnodeid);
+	put64bit(&ptr,gMetadata->metaversion);
+	put32bit(&ptr,gMetadata->nextsessionid);
 	if (fwrite(hdr,1,16,fd)!=(size_t)16) {
 		syslog(LOG_NOTICE,"fwrite error");
 		return;
@@ -7138,9 +7147,9 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 		return -1;
 	}
 	ptr = hdr;
-	maxnodeid = get32bit(&ptr);
-	metaversion = get64bit(&ptr);
-	nextsessionid = get32bit(&ptr);
+	gMetadata->maxnodeid = get32bit(&ptr);
+	gMetadata->metaversion = get64bit(&ptr);
+	gMetadata->nextsessionid = get32bit(&ptr);
 	fsnodes_init_freebitmask();
 
 	if (fver < kMetadataVersionWithSections) {
@@ -7287,8 +7296,8 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 
 	fprintf(stderr,"checking filesystem consistency ... ");
 	fflush(stderr);
-	root = fsnodes_id_to_node(MFS_ROOT_ID);
-	if (root==NULL) {
+	gMetadata->root = fsnodes_id_to_node(MFS_ROOT_ID);
+	if (gMetadata->root==NULL) {
 		mfs_syslog(LOG_ERR, "error reading metadata (root node not found !!!)");
 		return -1;
 	}
@@ -7303,38 +7312,38 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 void fs_new(void) {
 	uint32_t nodepos;
 	statsrecord *sr;
-	maxnodeid = MFS_ROOT_ID;
-	metaversion = 1;
-	nextsessionid = 1;
+	gMetadata->maxnodeid = MFS_ROOT_ID;
+	gMetadata->metaversion = 1;
+	gMetadata->nextsessionid = 1;
 	fsnodes_init_freebitmask();
-	freelist = NULL;
-	freetail = &(freelist);
-	root = new fsnode(TYPE_DIRECTORY);
-	root->id = MFS_ROOT_ID;
-	root->ctime = root->mtime = root->atime = main_time();
-	root->goal = DEFAULT_GOAL;
-	root->trashtime = DEFAULT_TRASHTIME;
-	root->mode = 0777;
-	root->uid = 0;
-	root->gid = 0;
+	gMetadata->freelist = NULL;
+	gMetadata->freetail = &(gMetadata->freelist);
+	gMetadata->root = new fsnode(TYPE_DIRECTORY);
+	gMetadata->root->id = MFS_ROOT_ID;
+	gMetadata->root->ctime = gMetadata->root->mtime = gMetadata->root->atime = main_time();
+	gMetadata->root->goal = DEFAULT_GOAL;
+	gMetadata->root->trashtime = DEFAULT_TRASHTIME;
+	gMetadata->root->mode = 0777;
+	gMetadata->root->uid = 0;
+	gMetadata->root->gid = 0;
 	sr = (statsrecord*) malloc(sizeof(statsrecord));
 	passert(sr);
 	memset(sr,0,sizeof(statsrecord));
-	root->data.ddata.stats = sr;
-	root->data.ddata.children = NULL;
-	root->data.ddata.elements = 0;
-	root->data.ddata.nlink = 2;
-	root->parents = NULL;
-	nodepos = NODEHASHPOS(root->id);
-	root->next = nodehash[nodepos];
-	nodehash[nodepos] = root;
-	fsnodes_used_inode(root->id);
+	gMetadata->root->data.ddata.stats = sr;
+	gMetadata->root->data.ddata.children = NULL;
+	gMetadata->root->data.ddata.elements = 0;
+	gMetadata->root->data.ddata.nlink = 2;
+	gMetadata->root->parents = NULL;
+	nodepos = NODEHASHPOS(gMetadata->root->id);
+	gMetadata->root->next = gMetadata->nodehash[nodepos];
+	gMetadata->nodehash[nodepos] = gMetadata->root;
+	fsnodes_used_inode(gMetadata->root->id);
 	chunk_newfs();
-	nodes=1;
-	dirnodes=1;
-	filenodes=0;
+	gMetadata->nodes=1;
+	gMetadata->dirnodes=1;
+	gMetadata->filenodes=0;
 	fs_checksum(ChecksumMode::kForceRecalculate);
-	fsnodes_quota_register_inode(root);
+	fsnodes_quota_register_inode(gMetadata->root);
 }
 #endif
 
@@ -7560,9 +7569,9 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 	fs_add_files_to_chunks();
 	fprintf(stderr,"ok\n");
 #ifndef METARESTORE
-	fprintf(stderr,"all inodes: %" PRIu32 "\n",nodes);
-	fprintf(stderr,"directory inodes: %" PRIu32 "\n",dirnodes);
-	fprintf(stderr,"file inodes: %" PRIu32 "\n",filenodes);
+	fprintf(stderr,"all inodes: %" PRIu32 "\n",gMetadata->nodes);
+	fprintf(stderr,"directory inodes: %" PRIu32 "\n",gMetadata->dirnodes);
+	fprintf(stderr,"file inodes: %" PRIu32 "\n",gMetadata->filenodes);
 	fprintf(stderr,"chunks: %" PRIu32 "\n",chunk_count());
 #endif
 	unlink(kMetadataTmpFilename);
@@ -7591,19 +7600,19 @@ void fs_loadall(void) {
 
 void fs_strinit(void) {
 	uint32_t i;
-	root = NULL;
-	trash = NULL;
-	reserved = NULL;
-	trashspace = 0;
-	reservedspace = 0;
-	trashnodes = 0;
-	reservednodes = 0;
+	gMetadata->root = NULL;
+	gMetadata->trash = NULL;
+	gMetadata->reserved = NULL;
+	gMetadata->trashspace = 0;
+	gMetadata->reservedspace = 0;
+	gMetadata->trashnodes = 0;
+	gMetadata->reservednodes = 0;
 	xattr_init();
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		nodehash[i]=NULL;
+		gMetadata->nodehash[i]=NULL;
 	}
 	for (i=0 ; i<EDGEHASHSIZE ; i++) {
-		edgehash[i]=NULL;
+		gMetadata->edgehash[i]=NULL;
 	}
 }
 
@@ -7662,7 +7671,7 @@ void fs_load_changelog(const std::string& path) {
 	std::ifstream changelog(path);
 	std::string line;
 	size_t end = 0;
-	sassert(metaversion > 0);
+	sassert(gMetadata->metaversion > 0);
 
 	uint64_t first = 0;
 	uint64_t id = 0;
