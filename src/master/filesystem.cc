@@ -157,9 +157,6 @@ struct xattr_inode_entry {
 	struct xattr_inode_entry *next;
 };
 
-static xattr_inode_entry **xattr_inode_hash;
-static xattr_data_entry **xattr_data_hash;
-
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
@@ -204,27 +201,39 @@ typedef struct _freenode {
 	struct _freenode *next;
 } freenode;
 
-#ifndef METARESTORE
-static void* gEmptyTrashHook;
-static void* gEmptyReservedHook;
-static void* gFreeInodesHook;
-#endif
+#define FREENODE_BUCKET_SIZE 5000
+typedef struct _freenode_bucket {
+	freenode bucket[FREENODE_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _freenode_bucket *next;
+} freenode_bucket;
 
+#define CUIDREC_BUCKET_SIZE 1000
+typedef struct _sessionidrec_bucket {
+	sessionidrec bucket[CUIDREC_BUCKET_SIZE];
+	uint32_t firstfree;
+	struct _sessionidrec_bucket *next;
+} sessionidrec_bucket;
+
+static xattr_inode_entry **xattr_inode_hash;
+static xattr_data_entry **xattr_data_hash;
 static uint32_t *freebitmask;
 static uint32_t bitmasksize;
 static uint32_t searchpos;
 static freenode *freelist,**freetail;
-
 static fsedge *trash;
 static fsedge *reserved;
 static fsnode *root;
 static fsnode* nodehash[NODEHASHSIZE];
 static fsedge* edgehash[EDGEHASHSIZE];
+static freenode_bucket *fnbhead = NULL;
+static freenode *fnfreehead = NULL;
+static sessionidrec_bucket *crbhead = NULL;
+static sessionidrec *crfreehead = NULL;
 
 static uint32_t maxnodeid;
 static uint32_t nextsessionid;
 static uint32_t nodes;
-
 static uint64_t metaversion;
 static uint64_t trashspace;
 static uint64_t reservedspace;
@@ -235,7 +244,16 @@ static uint32_t dirnodes;
 
 static QuotaDatabase gQuotaDatabase;
 
+static uint64_t gFsNodesChecksum;
+static uint64_t gFsEdgesChecksum;
+static uint64_t gXattrChecksum;
+
 #ifndef METARESTORE
+
+static void* gEmptyTrashHook;
+static void* gEmptyReservedHook;
+static void* gFreeInodesHook;
+static bool gAutoRecovery = false;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -269,7 +287,6 @@ static uint32_t stats_readdir=0;
 static uint32_t stats_open=0;
 static uint32_t stats_read=0;
 static uint32_t stats_write=0;
-static bool gAutoRecovery = false;
 
 void fs_stats(uint32_t stats[16]) {
 	stats[0] = stats_statfs;
@@ -307,8 +324,6 @@ void fs_stats(uint32_t stats[16]) {
 }
 
 #endif // ifndef METARESTORE
-
-static uint64_t gFsNodesChecksum;
 
 // Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
 // proper timestamp to changelog entry
@@ -380,8 +395,6 @@ static void fsnodes_recalculate_checksum() {
 	}
 }
 
-static uint64_t gFsEdgesChecksum;
-
 static uint64_t fsedges_checksum(const fsedge* edge) {
 	if (!edge) {
 		return 0;
@@ -436,8 +449,6 @@ static void fsedges_recalculate_checksum() {
 		fsedges_checksum_edges_list(gFsEdgesChecksum, reserved);
 	}
 }
-
-static uint64_t gXattrChecksum;
 
 static uint64_t xattr_checksum(const xattr_data_entry* xde) {
 	if (!xde) {
@@ -509,17 +520,6 @@ void metadataPollServe(struct pollfd* pdesc) {
 }
 #endif
 
-#define FREENODE_BUCKET_SIZE 5000
-
-typedef struct _freenode_bucket {
-	freenode bucket[FREENODE_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _freenode_bucket *next;
-} freenode_bucket;
-
-static freenode_bucket *fnbhead = NULL;
-static freenode *fnfreehead = NULL;
-
 static inline freenode* freenode_malloc() {
 	freenode_bucket *fnb;
 	freenode *ret;
@@ -544,17 +544,6 @@ static inline void freenode_free(freenode *p) {
 	p->next = fnfreehead;
 	fnfreehead = p;
 }
-
-#define CUIDREC_BUCKET_SIZE 1000
-
-typedef struct _sessionidrec_bucket {
-	sessionidrec bucket[CUIDREC_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _sessionidrec_bucket *next;
-} sessionidrec_bucket;
-
-static sessionidrec_bucket *crbhead = NULL;
-static sessionidrec *crfreehead = NULL;
 
 static inline sessionidrec* sessionidrec_malloc() {
 	sessionidrec_bucket *crb;
