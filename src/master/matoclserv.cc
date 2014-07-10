@@ -676,6 +676,14 @@ void matoclserv_remove_open_file(uint32_t sessionid, uint32_t inode) {
 	}
 }
 
+void matoclserv_reset_session_timeouts() {
+	session *asesdata;
+	uint32_t now = main_time();
+	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
+		asesdata->disconnected = now;
+	}
+}
+
 uint8_t* matoclserv_createpacket(matoclserventry *eptr,uint32_t type,uint32_t size) {
 	packetstruct *outpacket;
 	uint8_t *ptr;
@@ -4161,6 +4169,7 @@ int matoclserv_iolimits_reload() {
 
 void  matoclserv_become_master() {
 	starting = 120;
+	matoclserv_reset_session_timeouts();
 	matoclserv_start_cond_check();
 	if (starting) {
 		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
