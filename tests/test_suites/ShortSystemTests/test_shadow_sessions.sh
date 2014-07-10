@@ -1,3 +1,6 @@
+timeout_set '90 seconds'
+
+# Test if sessions are properly supported after promoting the shadow server.
 MOUNTS=2 \
 	MASTERSERVERS=2 \
 	CHUNKSERVERS=1 \
@@ -22,6 +25,14 @@ done
 
 metadata_validate_files
 
+# Check if using removed files works as expected:
+echo "ala ma kota" > removed_file
+mfssettrashtime 0 removed_file
+exec 11<> removed_file
+rm removed_file
+echo -n "u huhu" >&11
+assert_equals "u huhu kota" "$(cat /proc/$$/fd/11)"
+
 mount1meta=$(metadata_print)
 cd "${info[mount0]}"
 mount0meta=$(metadata_print)
@@ -45,5 +56,9 @@ assert_success touch newfile
 
 touch nowaythiswilleverwork
 assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
+
+# Check if using removed files works as expected after promotion:
+echo -n " prrrrrr" >&11
+assert_equals "u huhu prrrrrr" "$(cat /proc/$$/fd/11)"
 
 metadata_validate_files
