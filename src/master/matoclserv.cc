@@ -1613,7 +1613,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			sessionid = get32bit(&rptr);
 			eptr->version = get32bit(&rptr);
 			eptr->sesdata = matoclserv_find_session(sessionid);
-			if (eptr->sesdata==NULL) {
+			if (eptr->sesdata == NULL || eptr->sesdata->peerip == 0) {
 				status = ERROR_BADSESSIONID;
 			} else {
 				if ((eptr->sesdata->sesflags&SESFLAG_DYNAMICIP)==0 && eptr->peerip!=eptr->sesdata->peerip) {
