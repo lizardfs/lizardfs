@@ -46,7 +46,7 @@ END
 cp $TEMP_DIR/metarestore_ok.sh $TEMP_DIR/metarestore.sh
 chmod a+x $TEMP_DIR/metarestore.sh
 
-backup_copies=0
+backup_copies=1
 function check_backup_copies() {
 	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.? | wc -l)
 	expect_file_exists "${info[master_data_path]}/metadata.mfs"

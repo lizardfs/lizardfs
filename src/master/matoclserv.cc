@@ -3789,8 +3789,6 @@ void matoclserv_term(void) {
 	matoclserventry *eptr,*eptrn;
 	packetstruct *pptr,*pptrn;
 	chunklist *cl,*cln;
-	session *ss,*ssn;
-	filelist *of,*ofn;
 
 	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
@@ -3813,17 +3811,7 @@ void matoclserv_term(void) {
 		}
 		free(eptr);
 	}
-	for (ss = sessionshead ; ss ; ss = ssn) {
-		ssn = ss->next;
-		for (of = ss->openedfiles ; of ; of = ofn) {
-			ofn = of->next;
-			free(of);
-		}
-		if (ss->info) {
-			free(ss->info);
-		}
-		free(ss);
-	}
+	matoclserv_session_unload();
 
 	free(ListenHost);
 	free(ListenPort);
@@ -4294,3 +4282,19 @@ int matoclserv_networkinit(void) {
 	main_canexitregister(matoclserv_canexit);
 	return 0;
 }
+
+void matoclserv_session_unload(void) {
+	for (session* ss = sessionshead, *ssn = NULL; ss ; ss = ssn) {
+		ssn = ss->next;
+		for (filelist* of = ss->openedfiles, *ofn = NULL; of; of = ofn) {
+			ofn = of->next;
+			free(of);
+		}
+		if (ss->info) {
+			free(ss->info);
+		}
+		free(ss);
+	}
+	sessionshead = nullptr;
+}
+
