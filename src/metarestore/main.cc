@@ -302,7 +302,9 @@ int main(int argc,char **argv) {
 		closedir(dd);
 		if (filenames.empty() && metadata == metaout) {
 			mfs_syslog(LOG_NOTICE, "nothing to do, exiting without changing anything");
-			fs_cancel(noLock);
+			if (!noLock) {
+				fs_unlock();
+			}
 			return 0;
 		}
 		merger_start(filenames, MAXIDHOLE);

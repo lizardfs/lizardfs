@@ -100,11 +100,13 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 /// metadata file from the active metadata server again.
 void fs_unload();
 
+/// Removes metadata lock leaving working directory in a clean state
+void fs_unlock();
+
 #ifdef METARESTORE
 
 void fs_dump(void);
 void fs_term(const char *fname, bool noLock);
-void fs_cancel(bool noLock);
 int fs_init(const char *fname,int ignoreflag, bool noLock);
 
 #else

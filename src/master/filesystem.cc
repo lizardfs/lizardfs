@@ -255,8 +255,9 @@ namespace {
  *  All the static variables managed by function in this file which form metadata of the filesystem.
  */
 struct FilesystemMetadata {
-	xattr_inode_entry **xattr_inode_hash;
-	xattr_data_entry **xattr_data_hash;
+public:
+	xattr_inode_entry* xattr_inode_hash[XATTR_INODE_HASH_SIZE];
+	xattr_data_entry* xattr_data_hash[XATTR_DATA_HASH_SIZE];
 	uint32_t *freebitmask;
 	uint32_t bitmasksize;
 	uint32_t searchpos;
@@ -287,10 +288,107 @@ struct FilesystemMetadata {
 	uint64_t gFsNodesChecksum;
 	uint64_t gFsEdgesChecksum;
 	uint64_t gXattrChecksum;
+
+	FilesystemMetadata()
+			: xattr_inode_hash{},
+			  xattr_data_hash{},
+			  freebitmask{},
+			  bitmasksize{},
+			  searchpos{},
+			  freelist{},
+			  freetail{},
+			  trash{},
+			  reserved{},
+			  root{},
+			  nodehash{},
+			  edgehash{},
+			  fnbhead{},
+			  fnfreehead{},
+			  crbhead{},
+			  crfreehead{},
+			  maxnodeid{},
+			  nextsessionid{},
+			  nodes{},
+			  metaversion{},
+			  trashspace{},
+			  reservedspace{},
+			  trashnodes{},
+			  reservednodes{},
+			  filenodes{},
+			  dirnodes{},
+			  gQuotaDatabase{},
+			  gFsNodesChecksum{},
+			  gFsEdgesChecksum{},
+			  gXattrChecksum{} {
+	}
+
+	~FilesystemMetadata() {
+		// Free memory allocated in xattr_inode_hash hashmap
+		for (uint32_t i = 0; i < XATTR_INODE_HASH_SIZE; ++i) {
+			freeListConnectedUsingNext(xattr_inode_hash[i]);
+		}
+
+		// Free memory allocated in xattr_data_hash hashmap
+		for (uint32_t i = 0; i < XATTR_DATA_HASH_SIZE; ++i) {
+			deleteListConnectedUsingNext(xattr_data_hash[i]);
+		}
+
+		// Free memory allocated in freebitmask
+		free(freebitmask);
+
+		// Free memory allocated in trash list
+		while (trash != nullptr) {
+			fsedge* next = trash->nextchild;
+			delete trash;
+			trash = next;
+		}
+
+		// Free memory allocated in reserved list
+		while (reserved != nullptr) {
+			fsedge* next = reserved->nextchild;
+			delete reserved;
+			reserved = next;
+		}
+
+		// Free memory allocated in nodehash hashmap
+		for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
+			deleteListConnectedUsingNext(nodehash[i]);
+		}
+
+		// Free memory allocated in edgehash hashmap
+		for (uint32_t i = 0; i < EDGEHASHSIZE; ++i) {
+			deleteListConnectedUsingNext(edgehash[i]);
+		}
+
+		// Free memory allocated in fnbhead, crbhead lists
+		freeListConnectedUsingNext(fnbhead);
+		freeListConnectedUsingNext(crbhead);
+	}
+
+private:
+	// Frees a C-style list with elements connected using e->next pointer and allocated using malloc
+	template <typename T>
+	void freeListConnectedUsingNext(T* &list) {
+		while (list != nullptr) {
+			T* next = list->next;
+			free(list);
+			list = next;
+		}
+	}
+
+	// Frees a C-style list with elements connected using e->next pointer and allocated using new
+	template <typename T>
+	void deleteListConnectedUsingNext(T* &list) {
+		while (list != nullptr) {
+			T* next = list->next;
+			delete list;
+			list = next;
+		}
+	}
 };
 } // anonymous namespace
 
-static FilesystemMetadata* gMetadata = new FilesystemMetadata{};
+static FilesystemMetadata* gMetadata = nullptr;
 
 #ifndef METARESTORE
 
@@ -6032,20 +6130,6 @@ int xattr_load(FILE *fd,int ignoreflag) {
 	}
 }
 
-void xattr_init(void) {
-	uint32_t i;
-	gMetadata->xattr_data_hash = (xattr_data_entry**) malloc(sizeof(xattr_data_entry*)*XATTR_DATA_HASH_SIZE);
-	passert(gMetadata->xattr_data_hash);
-	for (i=0 ; i<XATTR_DATA_HASH_SIZE ; i++) {
-		gMetadata->xattr_data_hash[i]=NULL;
-	}
-	gMetadata->xattr_inode_hash = (xattr_inode_entry**) malloc(sizeof(xattr_inode_entry*)*XATTR_INODE_HASH_SIZE);
-	passert(gMetadata->xattr_inode_hash);
-	for (i=0 ; i<XATTR_INODE_HASH_SIZE ; i++) {
-		gMetadata->xattr_inode_hash[i]=NULL;
-	}
-}
-
 template <class... Args>
 static void fs_store_generic(FILE *fd, Args&&... args) {
 	static std::vector<uint8_t> buffer;
@@ -7409,6 +7493,10 @@ int fs_emergency_saves() {
 	return -1;
 }
 
+void fs_unlock() {
+	gMetadataLockfile->unlock();
+}
+
 #ifndef METARESTORE
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
@@ -7467,11 +7555,9 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	return true;
 }
 
-#ifndef METARESTORE
 void fs_periodic_storeall() {
 	fs_storeall(MetadataDumper::kBackgroundDump); // ignore error
 }
-#endif
 
 void fs_term(void) {
 	if (metadataDumper.inProgress()) {
@@ -7479,14 +7565,14 @@ void fs_term(void) {
 	}
 	for (;;) {
 		if (fs_storeall(MetadataDumper::kForegroundDump)) {
-			chunk_term();
-			gMetadataLockfile->unlock();
-			return ;
+			break;
 		}
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
 		sleep(10);
 	}
-	gMetadataLockfile->unlock();
+	chunk_term();
+	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
+	fs_unlock();
 }
 
 #else
@@ -7512,13 +7598,7 @@ void fs_storeall(const char *fname) {
 void fs_term(const char *fname, bool noLock) {
 	fs_storeall(fname);
 	if (!noLock) {
-		gMetadataLockfile->unlock();
-	}
-}
-
-void fs_cancel(bool noLock) {
-	if (!noLock) {
-		gMetadataLockfile->unlock();
+		fs_unlock();
 	}
 }
 #endif
@@ -7599,21 +7679,7 @@ void fs_loadall(void) {
 #endif /* #ifndef METARESTORE */
 
 void fs_strinit(void) {
-	uint32_t i;
-	gMetadata->root = NULL;
-	gMetadata->trash = NULL;
-	gMetadata->reserved = NULL;
-	gMetadata->trashspace = 0;
-	gMetadata->reservedspace = 0;
-	gMetadata->trashnodes = 0;
-	gMetadata->reservednodes = 0;
-	xattr_init();
-	for (i=0 ; i<NODEHASHSIZE ; i++) {
-		gMetadata->nodehash[i]=NULL;
-	}
-	for (i=0 ; i<EDGEHASHSIZE ; i++) {
-		gMetadata->edgehash[i]=NULL;
-	}
+	gMetadata = new FilesystemMetadata;
 }
 
 #ifndef METARESTORE
