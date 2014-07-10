@@ -304,9 +304,9 @@ private:
 };
 
 #ifndef METARESTORE
-uint64_t chunk::count = 0;
-uint64_t chunk::allValidCopies[11][11] = {{0}};
-uint64_t chunk::regularValidCopies[11][11] = {{0}};
+uint64_t chunk::count;
+uint64_t chunk::allValidCopies[11][11];
+uint64_t chunk::regularValidCopies[11][11];
 #endif
 
 #define CHUNK_BUCKET_SIZE 20000
@@ -348,10 +348,26 @@ struct ChunksMetadata {
 			nextchunkid{1},
 			chunksChecksum{} {
 	}
+
+	~ChunksMetadata() {
+#ifndef METARESTORE
+		slist_bucket *sbn;
+		for (slist_bucket *sb = sbhead; sb; sb = sbn) {
+			sbn = sb->next;
+			delete sb;
+		}
+#endif
+
+		chunk_bucket *cbn;
+		for (chunk_bucket *cb = cbhead; cb; cb = cbn) {
+			cbn = cb->next;
+			delete cb;
+		}
+	}
 };
 } // anonymous namespace
 
-static ChunksMetadata* gChunksMetadata = new ChunksMetadata;
+static ChunksMetadata* gChunksMetadata;
 
 #define LOCKTIMEOUT 120
 #define UNUSED_DELETE_TIMEOUT (86400*7)
@@ -453,7 +469,7 @@ static inline slist* slist_malloc() {
 		return ret;
 	}
 	if (gChunksMetadata->sbhead==NULL || gChunksMetadata->sbhead->firstfree==SLIST_BUCKET_SIZE) {
-		sb = (slist_bucket*)malloc(sizeof(slist_bucket));
+		sb = new slist_bucket;
 		passert(sb);
 		sb->next = gChunksMetadata->sbhead;
 		sb->firstfree = 0;
@@ -1866,19 +1882,7 @@ void chunk_store(FILE *fd) {
 }
 
 void chunk_term(void) {
-#ifndef METARESTORE
-	slist_bucket *sb,*sbn;
-	for (sb = gChunksMetadata->sbhead ; sb ; sb = sbn) {
-		sbn = sb->next;
-		free(sb);
-	}
-#endif
-
-	chunk_bucket *cb,*cbn;
-	for (cb = gChunksMetadata->cbhead ; cb ; cb = cbn) {
-		cbn = cb->next;
-		delete cb;
-	}
+	delete gChunksMetadata;
 }
 
 void chunk_newfs(void) {
@@ -1996,8 +2000,16 @@ void chunk_reload(void) {
 #endif
 
 int chunk_strinit(void) {
+	gChunksMetadata = new ChunksMetadata;
+
 #ifndef METARESTORE
-	uint32_t looptime;
+	chunk::count = 0;
+	for (int i = 0; i < 11; ++i) {
+		for (int j = 0; j < 11; ++j) {
+			chunk::allValidCopies[i][j] = 0;
+			chunk::regularValidCopies[i][j] = 0;
+		}
+	}
 
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
 	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
@@ -2027,6 +2039,8 @@ int chunk_strinit(void) {
 		fprintf(stderr,"write replication limit is zero !!!\n");
 		return -1;
 	}
+
+	uint32_t looptime;
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
 		fprintf(stderr,"Defining loop time by CHUNKS_LOOP_TIME option is deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME\n");
 		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
