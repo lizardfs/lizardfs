@@ -111,16 +111,22 @@ typedef struct _sessionidrec {
 
 class fsnode;
 
-typedef struct _fsedge {
+struct fsedge {
 	fsnode *child,*parent;
-	struct _fsedge *nextchild,*nextparent;
-	struct _fsedge **prevchild,**prevparent;
-	struct _fsedge *next,**prev;
+	struct fsedge *nextchild,*nextparent;
+	struct fsedge **prevchild,**prevparent;
+	struct fsedge *next,**prev;
 	uint64_t checksum;
 	uint16_t nleng;
-//      uint16_t nhash;
 	uint8_t *name;
-} fsedge;
+
+	fsedge() : name(nullptr) {}
+
+	~fsedge() {
+		free(name);
+	}
+};
+void free(fsedge*); // disable freeing using free at link time :)
 
 typedef struct _statsrecord {
 	uint32_t inodes;
@@ -147,7 +153,15 @@ struct xattr_data_entry {
 	uint64_t checksum;
 	struct xattr_data_entry **previnode,*nextinode;
 	struct xattr_data_entry **prev,*next;
+
+	xattr_data_entry() : attrname(nullptr), attrvalue(nullptr) {}
+
+	~xattr_data_entry() {
+		free(attrname);
+		free(attrvalue);
+	}
 };
+void free(xattr_data_entry*); // disable freeing using free at link time :)
 
 struct xattr_inode_entry {
 	uint32_t inode;
@@ -193,7 +207,28 @@ public:
 	fsedge *parents;
 	fsnode *next;
 	uint64_t checksum;
+
+	fsnode(uint8_t type) : type(type) {
+		if (type == TYPE_DIRECTORY) {
+			data.ddata.stats = nullptr;
+		} else if (type == TYPE_SYMLINK) {
+			data.sdata.path = nullptr;
+		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
+			data.fdata.chunktab = nullptr;
+		}
+	}
+
+	~fsnode() {
+		if (type == TYPE_DIRECTORY) {
+			free(data.ddata.stats);
+		} else if (type == TYPE_SYMLINK) {
+			free(data.sdata.path);
+		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
+			free(data.fdata.chunktab);
+		}
+	}
 };
+void free(fsnode*); // disable freeing using free at link time :)
 
 typedef struct _freenode {
 	uint32_t id;
@@ -710,12 +745,8 @@ static inline void xattr_removeentry(xattr_data_entry *xa) {
 	if (xa->next) {
 		xa->next->prev = xa->prev;
 	}
-	free(xa->attrname);
-	if (xa->attrvalue) {
-		free(xa->attrvalue);
-	}
 	removeFromChecksum(gXattrChecksum, xa->checksum);
-	free(xa);
+	delete xa;
 }
 
 void xattr_removeinode(uint32_t inode) {
@@ -799,8 +830,7 @@ uint8_t xattr_setattr(uint32_t inode,uint8_t anleng,const uint8_t *attrname,uint
 		return ERROR_ERANGE;
 	}
 
-	xa = (xattr_data_entry*) malloc(sizeof(xattr_data_entry));
-	passert(xa);
+	xa = new xattr_data_entry;
 	xa->inode = inode;
 	xa->attrname = (uint8_t*) malloc(anleng);
 	passert(xa->attrname);
@@ -1316,8 +1346,7 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 			e->next->prev = e->prev;
 		}
 	}
-	free(e->name);
-	free(e);
+	delete e;
 }
 
 static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_t nleng,const uint8_t *name) {
@@ -1325,8 +1354,7 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	statsrecord sr;
 	uint32_t hpos;
 
-	e = (fsedge*) malloc(sizeof(fsedge));
-	passert(e);
+	e = new fsedge;
 	e->nleng = nleng;
 	e->name = (uint8_t*) malloc(nleng);
 	passert(e->name);
@@ -1375,8 +1403,7 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	fsnode *p;
 	statsrecord *sr;
 	uint32_t nodepos;
-	p = new fsnode();
-	passert(p);
+	p = new fsnode(type);
 	nodes++;
 	if (type==TYPE_DIRECTORY) {
 		dirnodes++;
@@ -1386,7 +1413,6 @@ static inline fsnode* fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nl
 	}
 /* create node */
 	p->id = fsnodes_get_next_id();
-	p->type = type;
 	p->ctime = p->mtime = p->atime = ts;
 	if (type==TYPE_DIRECTORY || type==TYPE_FILE) {
 		p->goal = node->goal;
@@ -1897,7 +1923,6 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 	nodes--;
 	if (toremove->type==TYPE_DIRECTORY) {
 		dirnodes--;
-		free(toremove->data.ddata.stats);
 	}
 	if (toremove->type==TYPE_FILE || toremove->type==TYPE_TRASH || toremove->type==TYPE_RESERVED) {
 		uint32_t i;
@@ -1912,12 +1937,6 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 				}
 			}
 		}
-		if (toremove->data.fdata.chunktab!=NULL) {
-			free(toremove->data.fdata.chunktab);
-		}
-	}
-	if (toremove->type==TYPE_SYMLINK) {
-		free(toremove->data.sdata.path);
 	}
 	fsnodes_free_id(toremove->id,ts);
 	xattr_removeinode(toremove->id);
@@ -1947,8 +1966,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				child->type = TYPE_TRASH;
 				child->ctime = ts;
 				fsnodes_update_checksum(child);
-				e = (fsedge*) malloc(sizeof(fsedge));
-				passert(e);
+				e = new fsedge;
 				e->nleng = pleng;
 				e->name = path;
 				e->child = child;
@@ -1971,8 +1989,7 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 			} else if (child->data.fdata.sessionids!=NULL) {
 				child->type = TYPE_RESERVED;
 				fsnodes_update_checksum(child);
-				e = (fsedge*) malloc(sizeof(fsedge));
-				passert(e);
+				e = new fsedge;
 				e->nleng = pleng;
 				e->name = path;
 				e->child = child;
@@ -5942,8 +5959,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			}
 		}
 
-		xa = (xattr_data_entry*) malloc(sizeof(xattr_data_entry));
-		passert(xa);
+		xa = new xattr_data_entry;
 		xa->inode = inode;
 		xa->attrname = (uint8_t*) malloc(anleng);
 		passert(xa->attrname);
@@ -5952,8 +5968,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			if (nl) {
 				fputc('\n',stderr);
 			}
-			free(xa->attrname);
-			free(xa);
+			delete xa;
 			errno = err;
 			mfs_errlog(LOG_ERR,"loading xattr: read error");
 			return -1;
@@ -5967,9 +5982,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				if (nl) {
 					fputc('\n',stderr);
 				}
-				free(xa->attrname);
-				free(xa->attrvalue);
-				free(xa);
+				delete xa;
 				errno = err;
 				mfs_errlog(LOG_ERR,"loading xattr: read error");
 				return -1;
@@ -6204,8 +6217,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	if (parent_id==0 && child_id==0) {      // last edge
 		return 1;
 	}
-	e = (fsedge*) malloc(sizeof(fsedge));
-	passert(e);
+	e = new fsedge;
 	e->nleng = get16bit(&ptr);
 	if (e->nleng==0) {
 		if (nl) {
@@ -6213,7 +6225,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			nl=0;
 		}
 		mfs_arg_syslog(LOG_ERR,"loading edge: %" PRIu32 "->%" PRIu32 " error: empty name",parent_id,child_id);
-		free(e);
+		delete e;
 		return -1;
 	}
 	e->name = (uint8_t*) malloc(e->nleng);
@@ -6226,8 +6238,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 		}
 		errno = err;
 		mfs_errlog(LOG_ERR,"loading edge: read error");
-		free(e->name);
-		free(e);
+		delete e;
 		return -1;
 	}
 	e->child = fsnodes_id_to_node(child_id);
@@ -6237,8 +6248,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			nl=0;
 		}
 		mfs_arg_syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
-		free(e->name);
-		free(e);
+		delete e;
 		if (ignoreflag) {
 			return 0;
 		}
@@ -6277,8 +6287,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			mfs_arg_syslog(LOG_ERR,
 					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad child type (%c)\n",
 					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id, e->child->type);
-			free(e->name);
-			free(e);
+			delete e;
 			return -1;
 		}
 	} else {
@@ -6297,8 +6306,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 					mfs_arg_syslog(LOG_ERR,
 							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
 							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
-					free(e->name);
-					free(e);
+					delete e;
 					return -1;
 				}
 				mfs_arg_syslog(LOG_ERR,
@@ -6308,8 +6316,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			} else {
 				mfs_syslog(LOG_ERR,
 						"use mfsmetarestore (option -i) to attach this node to root dir\n");
-				free(e->name);
-				free(e);
+				delete e;
 				return -1;
 			}
 		}
@@ -6327,8 +6334,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 					mfs_arg_syslog(LOG_ERR,
 							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
 							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
-					free(e->name);
-					free(e);
+					delete e;
 					return -1;
 				}
 				mfs_arg_syslog(LOG_ERR,
@@ -6338,8 +6344,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			} else {
 				mfs_syslog(LOG_ERR,
 						"use mfsmetarestore (option -i) to attach this node to root dir\n");
-				free(e->name);
-				free(e);
+				delete e;
 				return -1;
 			}
 		}
@@ -6362,8 +6367,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 						current_tail = &((*current_tail)->nextchild);
 					}
 				} else {
-					free(e->name);
-					free(e);
+					delete e;
 					return -1;
 				}
 			} else {
@@ -6530,9 +6534,7 @@ int fs_loadnode(FILE *fd) {
 	if (type==0) {  // last node
 		return 1;
 	}
-	p = new fsnode();
-	passert(p);
-	p->type = type;
+	p = new fsnode(type);
 	switch (type) {
 	case TYPE_DIRECTORY:
 	case TYPE_FIFO:
@@ -7307,10 +7309,8 @@ void fs_new(void) {
 	fsnodes_init_freebitmask();
 	freelist = NULL;
 	freetail = &(freelist);
-	root = new fsnode();
-	passert(root);
+	root = new fsnode(TYPE_DIRECTORY);
 	root->id = MFS_ROOT_ID;
-	root->type = TYPE_DIRECTORY;
 	root->ctime = root->mtime = root->atime = main_time();
 	root->goal = DEFAULT_GOAL;
 	root->trashtime = DEFAULT_TRASHTIME;
