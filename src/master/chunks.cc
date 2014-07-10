@@ -48,10 +48,6 @@
 #  include "master/topology.h"
 #endif
 
-#define USE_SLIST_BUCKETS 1
-#define USE_FLIST_BUCKETS 1
-#define USE_CHUNK_BUCKETS 1
-
 #define MINLOOPTIME 1
 #define MAXLOOPTIME 7200
 #define MAXCPS 10000000
@@ -141,9 +137,7 @@ struct slist {
 	}
 };
 
-#ifdef USE_SLIST_BUCKETS
 #define SLIST_BUCKET_SIZE 5000
-
 struct slist_bucket {
 	slist bucket[SLIST_BUCKET_SIZE];
 	uint32_t firstfree;
@@ -152,7 +146,6 @@ struct slist_bucket {
 
 static slist_bucket *sbhead = NULL;
 static slist *slfreehead = NULL;
-#endif /* USE_SLIST_BUCKET */
 
 #endif /* METARESTORE */
 
@@ -322,7 +315,6 @@ uint64_t chunk::allValidCopies[11][11] = {{0}};
 uint64_t chunk::regularValidCopies[11][11] = {{0}};
 #endif
 
-#ifdef USE_CHUNK_BUCKETS
 #define CHUNK_BUCKET_SIZE 20000
 struct chunk_bucket {
 	chunk bucket[CHUNK_BUCKET_SIZE];
@@ -332,7 +324,6 @@ struct chunk_bucket {
 
 static chunk_bucket *cbhead = NULL;
 static chunk *chfreehead = NULL;
-#endif /* USE_CHUNK_BUCKETS */
 
 static chunk *chunkhash[HASHSIZE];
 static uint64_t nextchunkid=1;
@@ -436,7 +427,6 @@ uint64_t chunk_checksum(ChecksumMode mode) {
 }
 
 #ifndef METARESTORE
-#ifdef USE_SLIST_BUCKETS
 static inline slist* slist_malloc() {
 	slist_bucket *sb;
 	slist *ret;
@@ -461,23 +451,8 @@ static inline void slist_free(slist *p) {
 	p->next = slfreehead;
 	slfreehead = p;
 }
-#else /* USE_SLIST_BUCKETS */
-
-static inline slist* slist_malloc() {
-	slist *sl;
-	sl = (slist*)malloc(sizeof(slist));
-	passert(sl);
-	return sl;
-}
-
-static inline void slist_free(slist* p) {
-	free(p);
-}
-
-#endif /* USE_SLIST_BUCKETS */
 #endif /* !METARESTORE */
 
-#ifdef USE_CHUNK_BUCKETS
 static inline chunk* chunk_malloc() {
 	chunk_bucket *cb;
 	chunk *ret;
@@ -503,20 +478,6 @@ static inline void chunk_free(chunk *p) {
 	chfreehead = p;
 }
 #endif /* METARESTORE */
-
-#else /* USE_CHUNK_BUCKETS */
-
-static inline chunk* chunk_malloc() {
-	return new chunk;
-}
-
-#ifndef METARESTORE
-static inline void chunk_free(chunk* p) {
-	delete p;
-}
-#endif /* METARESTORE */
-
-#endif /* USE_CHUNK_BUCKETS */
 
 chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	uint32_t chunkpos = HASHPOS(chunkid);
@@ -1889,64 +1850,18 @@ void chunk_store(FILE *fd) {
 
 void chunk_term(void) {
 #ifndef METARESTORE
-# ifdef USE_SLIST_BUCKETS
 	slist_bucket *sb,*sbn;
-# else
-	slist *sl,*sln;
-# endif
-# if 0
-# ifdef USE_FLIST_BUCKETS
-	flist_bucket *fb,*fbn;
-# else
-	flist *fl,*fln;
-# endif
-# endif
-# ifdef USE_CHUNK_BUCKETS
-	chunk_bucket *cb,*cbn;
-# endif
-# if !defined(USE_SLIST_BUCKETS) || !defined(USE_FLIST_BUCKETS) || !defined(USE_CHUNK_BUCKETS)
-	uint32_t i;
-	chunk *ch,*chn;
-# endif
-#else
-# ifdef USE_CHUNK_BUCKETS
-	chunk_bucket *cb,*cbn;
-# else
-	uint32_t i;
-	chunk *ch,*chn;
-# endif
-#endif
-
-#ifndef METARESTORE
-# ifdef USE_SLIST_BUCKETS
 	for (sb = sbhead ; sb ; sb = sbn) {
 		sbn = sb->next;
 		free(sb);
 	}
-# else
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
-			for (sl = ch->slisthead ; sl ; sl = sln) {
-				sln = sl->next;
-				free(sl);
-			}
-		}
-	}
-# endif
 #endif
-#ifdef USE_CHUNK_BUCKETS
+
+	chunk_bucket *cb,*cbn;
 	for (cb = cbhead ; cb ; cb = cbn) {
 		cbn = cb->next;
 		delete cb;
 	}
-#else
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (ch = chunkhash[i] ; ch ; ch = chn) {
-			chn = ch->next;
-			delete ch;
-		}
-	}
-#endif
 }
 
 void chunk_newfs(void) {
