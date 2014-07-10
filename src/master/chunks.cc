@@ -144,12 +144,6 @@ struct slist_bucket {
 	slist_bucket *next;
 };
 
-static slist_bucket *sbhead = NULL;
-static slist *slfreehead = NULL;
-
-#endif /* METARESTORE */
-
-#ifndef METARESTORE
 static inline slist* slist_malloc();
 static inline void slist_free(slist *p);
 #endif
@@ -322,13 +316,24 @@ struct chunk_bucket {
 	chunk_bucket *next;
 };
 
+// server lists
+#ifndef METARESTORE
+static slist_bucket *sbhead = NULL;
+static slist *slfreehead = NULL;
+#endif
+
+// chunks
 static chunk_bucket *cbhead = NULL;
 static chunk *chfreehead = NULL;
-
 static chunk *chunkhash[HASHSIZE];
-static uint64_t nextchunkid=1;
-#define LOCKTIMEOUT 120
+static uint64_t lastchunkid=0;
+static chunk* lastchunkptr=NULL;
 
+// other chunks metadata information
+static uint64_t nextchunkid=1;
+static uint64_t gChunksChecksum;
+
+#define LOCKTIMEOUT 120
 #define UNUSED_DELETE_TIMEOUT (86400*7)
 
 #ifndef METARESTORE
@@ -368,12 +373,6 @@ struct loop_info {
 static loop_info chunksinfo = {{0,0,0,0,0},{0,0,0,0,0},0};
 static uint32_t chunksinfo_loopstart=0,chunksinfo_loopend=0;
 
-#endif
-
-static uint64_t lastchunkid=0;
-static chunk* lastchunkptr=NULL;
-
-#ifndef METARESTORE
 static uint32_t stats_deletions=0;
 static uint32_t stats_replications=0;
 
@@ -384,9 +383,7 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 	stats_replications = 0;
 }
 
-#endif
-
-static uint64_t gChunksChecksum;
+#endif // ! METARESTORE
 
 static uint64_t chunk_checksum(const chunk* c) {
 	if (c == nullptr) {
