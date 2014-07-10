@@ -65,20 +65,14 @@
 #  include "master/matocsserv.h"
 #endif
 
-#define USE_FREENODE_BUCKETS 1
-#define USE_CUIDREC_BUCKETS 1
-#define EDGEHASH 1
-
 #define NODEHASHBITS (22)
 #define NODEHASHSIZE (1<<NODEHASHBITS)
 #define NODEHASHPOS(nodeid) ((nodeid)&(NODEHASHSIZE-1))
 
-#ifdef EDGEHASH
 #define EDGEHASHBITS (22)
 #define EDGEHASHSIZE (1<<EDGEHASHBITS)
 #define EDGEHASHPOS(hash) ((hash)&(EDGEHASHSIZE-1))
 #define LOOKUPNOHASHLIMIT 10
-#endif
 
 #define XATTR_INODE_HASH_SIZE 65536
 #define XATTR_DATA_HASH_SIZE 524288
@@ -121,9 +115,7 @@ typedef struct _fsedge {
 	fsnode *child,*parent;
 	struct _fsedge *nextchild,*nextparent;
 	struct _fsedge **prevchild,**prevparent;
-#ifdef EDGEHASH
 	struct _fsedge *next,**prev;
-#endif
 	uint64_t checksum;
 	uint16_t nleng;
 //      uint16_t nhash;
@@ -227,9 +219,7 @@ static fsedge *trash;
 static fsedge *reserved;
 static fsnode *root;
 static fsnode* nodehash[NODEHASHSIZE];
-#ifdef EDGEHASH
 static fsedge* edgehash[EDGEHASHSIZE];
-#endif
 
 static uint32_t maxnodeid;
 static uint32_t nextsessionid;
@@ -519,7 +509,6 @@ void metadataPollServe(struct pollfd* pdesc) {
 }
 #endif
 
-#ifdef USE_FREENODE_BUCKETS
 #define FREENODE_BUCKET_SIZE 5000
 
 typedef struct _freenode_bucket {
@@ -555,22 +544,7 @@ static inline void freenode_free(freenode *p) {
 	p->next = fnfreehead;
 	fnfreehead = p;
 }
-#else /* USE_FREENODE_BUCKETS */
 
-static inline freenode* freenode_malloc() {
-	freenode *fn;
-	fn = (freenode*)malloc(sizeof(freenode));
-	passert(fn);
-	return fn;
-}
-
-static inline void freenode_free(freenode* p) {
-	free(p);
-}
-
-#endif /* USE_FREENODE_BUCKETS */
-
-#ifdef USE_CUIDREC_BUCKETS
 #define CUIDREC_BUCKET_SIZE 1000
 
 typedef struct _sessionidrec_bucket {
@@ -606,20 +580,6 @@ static inline void sessionidrec_free(sessionidrec *p) {
 	p->next = crfreehead;
 	crfreehead = p;
 }
-#else /* USE_CUIDREC_BUCKETS */
-
-static inline sessionidrec* sessionidrec_malloc() {
-	sessionidrec *sidrec;
-	sidrec = (sessionidrec*)malloc(sizeof(sessionidrec));
-	passert(sidrec);
-	return sidrec;
-}
-
-static inline void sessionidrec_free(sessionidrec* p) {
-	free(p);
-}
-
-#endif /* USE_CUIDREC_BUCKETS */
 
 uint32_t fsnodes_get_next_id() {
 	uint32_t i,mask;
@@ -987,7 +947,6 @@ static char* fsnodes_escape_name(uint32_t nleng,const uint8_t *name) {
 	return currescname;
 }
 
-#ifdef EDGEHASH
 static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
 	uint32_t hash,i;
 	hash = ((parentid * 0x5F2318BD) + nleng);
@@ -996,11 +955,9 @@ static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8
 	}
 	return hash;
 }
-#endif
 
 static inline int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
 	fsedge *ei;
-#ifdef EDGEHASH
 	if (node->data.ddata.elements>LOOKUPNOHASHLIMIT) {
 		ei = edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
 		while (ei) {
@@ -1018,15 +975,6 @@ static inline int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *
 			ei = ei->nextchild;
 		}
 	}
-#else
-	ei = node->data.ddata.children;
-	while (ei) {
-		if (nleng==ei->nleng && memcmp((char*)(ei->name),(char*)name,nleng)==0) {
-			return 1;
-		}
-		ei = ei->nextchild;
-	}
-#endif
 	return 0;
 }
 
@@ -1037,7 +985,6 @@ static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *
 	if (node->type!=TYPE_DIRECTORY) {
 		return NULL;
 	}
-#ifdef EDGEHASH
 	if (node->data.ddata.elements>LOOKUPNOHASHLIMIT) {
 		ei = edgehash[EDGEHASHPOS(fsnodes_hash(node->id,nleng,name))];
 		while (ei) {
@@ -1055,15 +1002,6 @@ static inline fsedge* fsnodes_lookup(fsnode *node,uint16_t nleng,const uint8_t *
 			ei = ei->nextchild;
 		}
 	}
-#else
-	ei = node->data.ddata.children;
-	while (ei) {
-		if (nleng==ei->nleng && memcmp((char*)(ei->name),(char*)name,nleng)==0) {
-			return ei;
-		}
-		ei = ei->nextchild;
-	}
-#endif
 	return NULL;
 }
 
@@ -1383,14 +1321,12 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 	if (e->nextparent) {
 		e->nextparent->prevparent = e->prevparent;
 	}
-#ifdef EDGEHASH
 	if (e->prev) {
 		*(e->prev) = e->next;
 		if (e->next) {
 			e->next->prev = e->prev;
 		}
 	}
-#endif
 	free(e->name);
 	free(e);
 }
@@ -1398,9 +1334,7 @@ static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_t nleng,const uint8_t *name) {
 	fsedge *e;
 	statsrecord sr;
-#ifdef EDGEHASH
 	uint32_t hpos;
-#endif
 
 	e = (fsedge*) malloc(sizeof(fsedge));
 	passert(e);
@@ -1422,7 +1356,6 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	}
 	child->parents = e;
 	e->prevparent = &(child->parents);
-#ifdef EDGEHASH
 	hpos = EDGEHASHPOS(fsnodes_hash(parent->id,nleng,name));
 	e->next = edgehash[hpos];
 	if (e->next) {
@@ -1430,7 +1363,6 @@ static inline void fsnodes_link(uint32_t ts,fsnode *parent,fsnode *child,uint16_
 	}
 	edgehash[hpos] = e;
 	e->prev = &(edgehash[hpos]);
-#endif
 	e->checksum = 0;
 	fsedges_update_checksum(e);
 
@@ -2039,10 +1971,8 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				if (e->nextchild) {
 					e->nextchild->prevchild = &(e->nextchild);
 				}
-#ifdef EDGEHASH
 				e->next = NULL;
 				e->prev = NULL;
-#endif
 				trash = e;
 				child->parents = e;
 				trashspace += child->data.fdata.length;
@@ -2065,10 +1995,8 @@ static inline void fsnodes_unlink(uint32_t ts,fsedge *e) {
 				if (e->nextchild) {
 					e->nextchild->prevchild = &(e->nextchild);
 				}
-#ifdef EDGEHASH
 				e->next = NULL;
 				e->prev = NULL;
-#endif
 				reserved = e;
 				child->parents = e;
 				reservedspace += child->data.fdata.length;
@@ -5628,7 +5556,6 @@ void fs_test_files() {
 							fs_test_log_inconsistency(e,"nextparent/prevparent",NULL,0);
 						}
 					}
-#ifdef EDGEHASH
 				} else if (e->next) {
 					if (e->next->prev != &(e->next)) {
 						if (leng<MSGBUFFSIZE) {
@@ -5637,7 +5564,6 @@ void fs_test_files() {
 							fs_test_log_inconsistency(e,"nexthash/prevhash",NULL,0);
 						}
 					}
-#endif
 				}
 			}
 			if (f->type == TYPE_DIRECTORY) {
@@ -5670,7 +5596,6 @@ void fs_test_files() {
 								fs_test_log_inconsistency(e,"nextparent/prevparent",NULL,0);
 							}
 						}
-#ifdef EDGEHASH
 					} else if (e->next) {
 						if (e->next->prev != &(e->next)) {
 							if (leng<MSGBUFFSIZE) {
@@ -5679,7 +5604,6 @@ void fs_test_files() {
 								fs_test_log_inconsistency(e,"nexthash/prevhash",NULL,0);
 							}
 						}
-#endif
 					}
 				}
 			}
@@ -6259,9 +6183,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 	const uint8_t *ptr;
 	uint32_t parent_id;
 	uint32_t child_id;
-#ifdef EDGEHASH
 	uint32_t hpos;
-#endif
 	fsedge *e;
 	statsrecord sr;
 	static fsedge **root_tail;
@@ -6342,10 +6264,8 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			}
 			trash = e;
 			e->prevchild = &trash;
-#ifdef EDGEHASH
 			e->next = NULL;
 			e->prev = NULL;
-#endif
 			trashspace += e->child->data.fdata.length;
 			trashnodes++;
 		} else if (e->child->type==TYPE_RESERVED) {
@@ -6356,10 +6276,8 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			}
 			reserved = e;
 			e->prevchild = &reserved;
-#ifdef EDGEHASH
 			e->next = NULL;
 			e->prev = NULL;
-#endif
 			reservedspace += e->child->data.fdata.length;
 			reservednodes++;
 		} else {
@@ -6478,7 +6396,6 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 		if (e->child->type==TYPE_DIRECTORY) {
 			e->parent->data.ddata.nlink++;
 		}
-#ifdef EDGEHASH
 		hpos = EDGEHASHPOS(fsnodes_hash(e->parent->id,e->nleng,e->name));
 		e->next = edgehash[hpos];
 		if (e->next) {
@@ -6486,7 +6403,6 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 		}
 		edgehash[hpos] = e;
 		e->prev = &(edgehash[hpos]);
-#endif
 	}
 	e->nextparent = e->child->parents;
 	if (e->nextparent) {
@@ -7697,11 +7613,9 @@ void fs_strinit(void) {
 	for (i=0 ; i<NODEHASHSIZE ; i++) {
 		nodehash[i]=NULL;
 	}
-#ifdef EDGEHASH
 	for (i=0 ; i<EDGEHASHSIZE ; i++) {
 		edgehash[i]=NULL;
 	}
-#endif
 }
 
 #ifndef METARESTORE
