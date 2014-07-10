@@ -1,10 +1,10 @@
 #pragma once
 #include "config.h"
 
-#ifndef HAVE_STD_TO_STRING
+#ifndef LIZARDFS_HAVE_STD_TO_STRING
 
+#include <sstream>
 #include <string>
-#include <stringstream>
 
 namespace std {
 
@@ -17,4 +17,4 @@ inline std::string to_string(const T& val) {
 
 }
 
-#endif /* #ifndef HAVE_STD_TO_STRING */
+#endif /* #ifndef LIZARDFS_HAVE_STD_TO_STRING */

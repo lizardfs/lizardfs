@@ -37,6 +37,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <atomic>
+#include <list>
 #include <memory>
 
 #include "common/cfg.h"
@@ -50,11 +51,11 @@
 #include "common/setup.h"
 #include "common/slogger.h"
 
-#if defined(HAVE_MLOCKALL)
-#  if defined(HAVE_SYS_MMAN_H)
+#if defined(LIZARDFS_HAVE_MLOCKALL)
+#  if defined(LIZARDFS_HAVE_SYS_MMAN_H)
 #    include <sys/mman.h>
 #  endif
-#  if defined(HAVE_SYS_RESOURCE_H)
+#  if defined(LIZARDFS_HAVE_SYS_RESOURCE_H)
 #    include <sys/resource.h>
 #  endif
 #  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
@@ -128,16 +129,22 @@ typedef struct eloopentry {
 static eloopentry *eloophead=NULL;
 
 
-typedef struct timeentry {
+struct timeentry {
+	typedef void (*fun_t)(void);
+	timeentry(uint32_t ne, uint32_t sec, uint32_t off, int mod, fun_t f)
+		: nextevent(ne), seconds(sec), offset(off), mode(mod), fun(f) {
+	}
 	uint32_t nextevent;
 	uint32_t seconds;
 	uint32_t offset;
 	int mode;
-	void (*fun)(void);
-	struct timeentry *next;
-} timeentry;
+	fun_t fun;
+};
 
-static timeentry *timehead=NULL;
+typedef std::list<timeentry> TimeEntries;
+namespace {
+TimeEntries gTimeEntries;
+}
 
 static std::atomic<uint32_t> now;
 static std::atomic<uint64_t> usecnow;
@@ -196,23 +203,26 @@ void main_eachloopregister (void (*fun)(void)) {
 }
 
 void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void)) {
-	timeentry *aux;
 	if (seconds==0 || offset>=seconds) {
 		return NULL;
 	}
-	aux = (timeentry*)malloc(sizeof(timeentry));
-	passert(aux);
-	aux->nextevent = ((now / seconds) * seconds) + offset;
-	while (aux->nextevent<now) {
-		aux->nextevent+=seconds;
+	uint32_t nextevent = ((now / seconds) * seconds) + offset;
+	while (nextevent<now) {
+		nextevent+=seconds;
 	}
-	aux->seconds = seconds;
-	aux->offset = offset;
-	aux->mode = mode;
-	aux->fun = fun;
-	aux->next = timehead;
-	timehead = aux;
-	return aux;
+	gTimeEntries.push_front(timeentry(nextevent, seconds, offset, mode, fun));
+	return &gTimeEntries.front();
+}
+
+void main_timeunregister(void* handler) {
+	TimeEntries::iterator it(gTimeEntries.begin());
+	for (TimeEntries::iterator end(gTimeEntries.end()); it != end; ++it) {
+		if (&(*it) == handler) {
+			gTimeEntries.erase(it);
+			break;
+		}
+	}
+	massert(it != gTimeEntries.end(), "unregistering unknown handle from time table");
 }
 
 int main_timechange(void* x,int mode,uint32_t seconds,uint32_t offset) {
@@ -239,7 +249,6 @@ void free_all_registered_entries(void) {
 	rlentry *re,*ren;
 	pollentry *pe,*pen;
 	eloopentry *ee,*een;
-	timeentry *te,*ten;
 
 	for (de = dehead ; de ; de = den) {
 		den = de->next;
@@ -271,10 +280,7 @@ void free_all_registered_entries(void) {
 		free(ee);
 	}
 
-	for (te = timehead ; te ; te = ten) {
-		ten = te->next;
-		free(te);
-	}
+	gTimeEntries.clear();
 }
 
 int canexit() {
@@ -307,7 +313,6 @@ void mainloop() {
 	struct timeval tv;
 	pollentry *pollit;
 	eloopentry *eloopit;
-	timeentry *timeit;
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
@@ -366,38 +371,38 @@ void mainloop() {
 		if (now<prevtime) {
 			// time went backward !!! - recalculate "nextevent" time
 			// adding previous_time_to_run prevents from running next event too soon.
-			for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
-				uint32_t previous_time_to_run = timeit->nextevent - prevtime;
-				if (previous_time_to_run > timeit->seconds) {
-					previous_time_to_run = timeit->seconds;
+			for (timeentry& timeit : gTimeEntries) {
+				uint32_t previous_time_to_run = timeit.nextevent - prevtime;
+				if (previous_time_to_run > timeit.seconds) {
+					previous_time_to_run = timeit.seconds;
 				}
-				timeit->nextevent = ((now / timeit->seconds) * timeit->seconds) + timeit->offset;
-				while (timeit->nextevent <= now+previous_time_to_run) {
-					timeit->nextevent += timeit->seconds;
+				timeit.nextevent = ((now / timeit.seconds) * timeit.seconds) + timeit.offset;
+				while (timeit.nextevent <= now+previous_time_to_run) {
+					timeit.nextevent += timeit.seconds;
 				}
 			}
 		} else if (now>prevtime+3600) {
 			// time went forward !!! - just recalculate "nextevent" time
-			for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
-				timeit->nextevent = ((now / timeit->seconds) * timeit->seconds) + timeit->offset;
-				while (now >= timeit->nextevent) {
-					timeit->nextevent += timeit->seconds;
+			for (timeentry& timeit : gTimeEntries) {
+				timeit.nextevent = ((now / timeit.seconds) * timeit.seconds) + timeit.offset;
+				while (now >= timeit.nextevent) {
+					timeit.nextevent += timeit.seconds;
 				}
 			}
 		}
-		for (timeit = timehead ; timeit != NULL ; timeit = timeit->next) {
-			if (now >= timeit->nextevent) {
-				if (timeit->mode == TIMEMODE_RUN_LATE) {
-					while (now >= timeit->nextevent) {
-						timeit->nextevent += timeit->seconds;
+		for (timeentry& timeit : gTimeEntries) {
+			if (now >= timeit.nextevent) {
+				if (timeit.mode == TIMEMODE_RUN_LATE) {
+					while (now >= timeit.nextevent) {
+						timeit.nextevent += timeit.seconds;
 					}
-					timeit->fun();
-				} else { /* timeit->mode == TIMEMODE_SKIP_LATE */
-					if (now == timeit->nextevent) {
-						timeit->fun();
+					timeit.fun();
+				} else { /* timeit.mode == TIMEMODE_SKIP_LATE */
+					if (now == timeit.nextevent) {
+						timeit.fun();
 					}
-					while (now >= timeit->nextevent) {
-						timeit->nextevent += timeit->seconds;
+					while (now >= timeit.nextevent) {
+						timeit.nextevent += timeit.seconds;
 					}
 				}
 			}
@@ -1000,10 +1005,10 @@ int main(int argc,char **argv) {
 	lockmemory = 0;
 	appname = argv[0];
 
-	while ((ch = getopt(argc, argv, "c:dht:uv?")) != -1) {
+	while ((ch = getopt(argc, argv, "c:dht:uvx?")) != -1) {
 		switch(ch) {
 			case 'v':
-				printf("version: %u.%u.%u\n",PACKAGE_VERSION_MAJOR,PACKAGE_VERSION_MINOR,PACKAGE_VERSION_MICRO);
+				printf("version: %s\n",LIZARDFS_PACKAGE_VERSION);
 				return 0;
 			case 'd':
 				rundaemon=0;
@@ -1019,6 +1024,9 @@ int main(int argc,char **argv) {
 				break;
 			case 'u':
 				logundefined=1;
+				break;
+			case 'x':
+				++gVerbosity;
 				break;
 			default:
 				usage(appname);

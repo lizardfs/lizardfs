@@ -87,9 +87,9 @@ metadata_generate_trash_ops() {
 		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
 		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
 		# Wait for generation of EMPTYTRASH for trashed_file_4
-		assert_success wait_for 'grep EMPTYTRASH "${CHANGELOG_0}"' '10 seconds'
-		assert_success wait_for 'grep EMPTYRESERVED "${CHANGELOG_0}"' '10 seconds'
-		local changelog=$(cat ${CHANGELOG_0})
+		assert_success wait_for 'grep EMPTYTRASH "${CHANGELOG}"' '10 seconds'
+		assert_success wait_for 'grep EMPTYRESERVED "${CHANGELOG}"' '10 seconds'
+		local changelog=$(cat ${CHANGELOG})
 		assert_awk_finds '/EMPTYTRASH/' "$changelog"
 		assert_awk_finds '/RELEASE/' "$changelog"
 		assert_awk_finds '/EMPTYRESERVED/' "$changelog"

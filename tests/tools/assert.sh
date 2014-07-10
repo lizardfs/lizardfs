@@ -49,6 +49,13 @@ assert_template_less_than_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_not_equal <string1> <string2>
+assert_template_not_equal_() {
+	if [[ "$1" == "$2" ]]; then
+		$FAIL_FUNCTION "Expected string different than $1"
+	fi
+}
+
 # (assert|assertlocal|expect)_equals <expected_string> <actual_string>
 assert_template_equals_() {
 	if [[ "$1" != "$2" ]]; then

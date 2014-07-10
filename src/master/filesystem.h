@@ -52,6 +52,10 @@ uint64_t fs_getversion(void);
 /// Returns checksum of the loaded metadata
 uint64_t fs_checksum(ChecksumMode mode);
 
+/*! \brief Load and apply changelogs.
+ */
+int fs_load_changelogs();
+
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)
 uint8_t fs_acquire(const FsContext& context, uint32_t inode, uint32_t sessionid);
@@ -88,6 +92,7 @@ uint8_t fs_undel(const FsContext& context, uint32_t inode);
 uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 		bool usedummylockid, /* inout */ uint32_t *lockid,
 		uint64_t *chunkid, uint8_t *opflag, uint64_t *length);
+uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore
 uint8_t fs_apply_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
@@ -107,11 +112,18 @@ uint8_t fs_apply_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t
 uint8_t fs_apply_unlock(uint64_t chunkid);
 uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid,uint32_t lockid);
 
+/// Unloads metadata.
+/// This should be called in the shadow master each time it needs to download
+/// metadata file from the active metadata server again.
+void fs_unload();
+
+/// Removes metadata lock leaving working directory in a clean state
+void fs_unlock();
+
 #ifdef METARESTORE
 
 void fs_dump(void);
 void fs_term(const char *fname, bool noLock);
-void fs_cancel(bool noLock);
 int fs_init(const char *fname,int ignoreflag, bool noLock);
 
 #else
@@ -187,5 +199,5 @@ void fs_incversion(uint64_t chunkid);
 void fs_cs_disconnected(void);
 
 int fs_init(void);
-
+int fs_init(bool force);
 #endif

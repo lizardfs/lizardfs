@@ -42,9 +42,16 @@ public:
 	 */
 	void unlock();
 
+	/*! \brief Tell if this lockfile is currently locked.
+	 *
+	 * \return True iff this locked is currently locked.
+	 */
+	bool isLocked() const;
+
 private:
 	std::string name_;
 	boost::interprocess::file_lock lock_;
+	bool locked_;
 };
 
 /*! \brief Lockfile related exception.
@@ -77,6 +84,7 @@ public:
 	Reason reason() const {
 		return reason_;
 	}
+
 private:
 	Reason reason_;
 };

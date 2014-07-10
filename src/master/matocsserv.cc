@@ -51,6 +51,7 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "master/chunks.h"
+#include "master/personality.h"
 
 #define MaxPacketSize 500000000
 
@@ -1734,7 +1735,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
-		} else {
+		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = new matocsserventry;
@@ -1765,6 +1766,8 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->incsdb = 0;
 
 			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
+		} else {
+			tcpclose(ns);
 		}
 	}
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {

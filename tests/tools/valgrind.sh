@@ -6,7 +6,7 @@ valgrind_enabled() {
 }
 
 # Enables valgrind, can be called at the beginning of a test case.
-enable_valgrind() {
+valgrind_enable() {
 	assert_program_installed valgrind
 	if [[ -z $valgrind_enabled_ ]]; then
 		valgrind_enabled_=1
@@ -27,5 +27,19 @@ enable_valgrind() {
 		echo " --- valgrind enabled in this test case ($(valgrind --version)) --- "
 		command_prefix="${valgrind_command} ${command_prefix}"
 		timeout_set_multiplier 10 # some tests need so big one
+	fi
+}
+
+# Terminate valgrind processes to get complete memcheck logs from them
+valgrind_terminate() {
+	if pgrep -u lizardfstest memcheck >/dev/null; then
+		echo " --- valgrind: Waiting for all processes to be termianted --- "
+		pkill -u lizardfstest --signal TERM memcheck
+		wait_for '! pgrep -u lizardfstest memcheck >/dev/null' '60 seconds' || true
+		if pgrep -u lizardfstest memcheck >/dev/null; then
+			echo " --- valgrind: Stop FAILED --- "
+		else
+			echo " --- valgrind: Stop OK --- "
+		fi
 	fi
 }

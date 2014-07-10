@@ -442,7 +442,7 @@ static unsigned int strncpy_remove_commas(char *dstbuff, unsigned int dstsize,ch
 	return l;
 }
 
-#if HAVE_FUSE_VERSION
+#if LIZARDFS_HAVE_FUSE_VERSION
 static unsigned int strncpy_escape_commas(char *dstbuff, unsigned int dstsize,char *src) {
 	char c;
 	unsigned int l;
@@ -470,7 +470,7 @@ static unsigned int strncpy_escape_commas(char *dstbuff, unsigned int dstsize,ch
 void make_fsname(struct fuse_args *args) {
 	char fsnamearg[256];
 	unsigned int l;
-#if HAVE_FUSE_VERSION
+#if LIZARDFS_HAVE_FUSE_VERSION
 	int libver;
 	libver = fuse_version();
 	if (libver >= 27) {
@@ -533,7 +533,7 @@ void make_fsname(struct fuse_args *args) {
 		}
 		fsnamearg[l]=0;
 #endif
-#if HAVE_FUSE_VERSION
+#if LIZARDFS_HAVE_FUSE_VERSION
 	}
 #endif
 	fuse_opt_insert_arg(args, 1, fsnamearg);

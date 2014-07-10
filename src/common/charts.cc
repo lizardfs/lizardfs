@@ -16,11 +16,11 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
+#ifdef LIZARDFS_HAVE_CONFIG_H
 #  include "common/platform.h"
 #else
-#  define HAVE_ZLIB_H 1
-#  define HAVE_STRUCT_TM_TM_GMTOFF 1
+#  define LIZARDFS_HAVE_ZLIB_H 1
+#  define LIZARDFS_HAVE_STRUCT_TM_TM_GMTOFF 1
 #endif
 
 #include "common/charts.h"
@@ -41,7 +41,7 @@
 #include "common/massert.h"
 #include "common/slogger.h"
 
-#ifdef HAVE_ZLIB_H
+#ifdef LIZARDFS_HAVE_ZLIB_H
 #  include <zlib.h>
 #endif
 
@@ -100,7 +100,7 @@ static std::string csv_data;
 static uint8_t rawchart[RAWSIZE];
 static uint8_t compbuff[CBUFFSIZE];
 static uint32_t compsize=0;
-#ifdef HAVE_ZLIB_H
+#ifdef LIZARDFS_HAVE_ZLIB_H
 static z_stream zstr;
 #else
 static uint8_t warning[50] = {
@@ -1009,7 +1009,7 @@ void charts_inittimepointers (void) {
 	if (timepoint[SHORTRANGE]==0) {
 		now = time(NULL);
 		ts = localtime(&now);
-#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+#ifdef LIZARDFS_HAVE_STRUCT_TM_TM_GMTOFF
 		local = now+ts->tm_gmtoff;
 #else
 		local = now;
@@ -1055,7 +1055,7 @@ void charts_add (uint64_t *data,uint32_t datats) {
 	int32_t nowtime,delta;
 
 	ts = localtime(&now);
-#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+#ifdef LIZARDFS_HAVE_STRUCT_TM_TM_GMTOFF
 	local = now+ts->tm_gmtoff;
 #else
 	local = now;
@@ -1223,7 +1223,7 @@ void charts_term (void) {
 	if (series) {
 		free(series);
 	}
-#ifdef HAVE_ZLIB_H
+#ifdef LIZARDFS_HAVE_ZLIB_H
 	deflateEnd(&zstr);
 #endif
 }
@@ -1312,18 +1312,18 @@ int charts_init (const uint32_t *calcs,const statdef *stats,const estatdef *esta
 	charts_inittimepointers();
 	charts_add(NULL,time(NULL));
 
-#ifdef HAVE_ZLIB_H
+#ifdef LIZARDFS_HAVE_ZLIB_H
 	zstr.zalloc = NULL;
 	zstr.zfree = NULL;
 	zstr.opaque = NULL;
 	if (deflateInit(&zstr,Z_DEFAULT_COMPRESSION)!=Z_OK) {
 		return -1;
 	}
-#endif /* HAVE_ZLIB_H */
+#endif /* LIZARDFS_HAVE_ZLIB_H */
 	return 0;
 }
 
-#ifndef HAVE_ZLIB_H
+#ifndef LIZARDFS_HAVE_ZLIB_H
 static inline void charts_putwarning(uint32_t posx,uint32_t posy,uint8_t color) {
 	uint8_t *w,c,fx,fy,b;
 	uint32_t x,y;
@@ -1851,7 +1851,7 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 	}
 }
 
-#ifndef HAVE_ZLIB_H
+#ifndef LIZARDFS_HAVE_ZLIB_H
 
 #define MOD_ADLER 65521
 
@@ -1906,7 +1906,7 @@ int charts_fake_compress(uint8_t *src,uint32_t srcsize,uint8_t *dst,uint32_t *ds
 	*dstsize = edstsize;
 	return 0;
 }
-#endif /* ! HAVE_ZLIB_H */
+#endif /* ! LIZARDFS_HAVE_ZLIB_H */
 
 
 uint32_t charts_make_csv(uint32_t number) {
@@ -1967,7 +1967,7 @@ uint32_t charts_make_csv(uint32_t number) {
 	tmepoch.tm_sec = 0;
 	csv_time = mktime(&tmepoch);
 
-#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+#ifdef LIZARDFS_HAVE_STRUCT_TM_TM_GMTOFF
 	csv_time += tmepoch.tm_gmtoff;
 #endif
 	csv_data ="timestamp,,,\n";
@@ -2012,13 +2012,13 @@ uint32_t charts_make_png(uint32_t number) {
 	}
 
 	charts_makechart(chtype,chrange);
-#ifndef HAVE_ZLIB_H
+#ifndef LIZARDFS_HAVE_ZLIB_H
 	charts_putwarning(47,0,COLOR_TEXT);
 #endif
 
 	charts_chart_to_rawchart();
 
-#ifdef HAVE_ZLIB_H
+#ifdef LIZARDFS_HAVE_ZLIB_H
 	if (deflateReset(&zstr)!=Z_OK) {
 		compsize = 0;
 		return sizeof(png_1x1);
@@ -2036,13 +2036,13 @@ uint32_t charts_make_png(uint32_t number) {
 	}
 
 	compsize = zstr.total_out;
-#else /* HAVE_ZLIB_H */
+#else /* LIZARDFS_HAVE_ZLIB_H */
 	compsize = CBUFFSIZE;
 	if (charts_fake_compress(rawchart,RAWSIZE,compbuff,&compsize)<0) {
 		compsize = 0;
 		return sizeof(png_1x1);
 	}
-#endif /* HAVE_ZLIB_H */
+#endif /* LIZARDFS_HAVE_ZLIB_H */
 
 	return sizeof(png_header)+compsize+sizeof(png_tailer);
 }

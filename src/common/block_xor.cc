@@ -8,7 +8,7 @@
 
 #if defined(__GNUC__) && defined(__GNUC_MINOR__)
 #  if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)
-#    define HAVE_BUILTIN_ASSUME_ALIGNED
+#    define LIZARDFS_HAVE_BUILTIN_ASSUME_ALIGNED
 #  endif
 #endif
 
@@ -54,7 +54,7 @@ static inline void blockXorAligned(uint8_t* dest, const uint8_t* source, size_t 
 	intptr_t d = reinterpret_cast<intptr_t>(dest);
 	intptr_t s = reinterpret_cast<intptr_t>(source);
 	sassert(d % ALIGNMENT == 0 && s % ALIGNMENT == 0);
-#ifdef HAVE_BUILTIN_ASSUME_ALIGNED
+#ifdef LIZARDFS_HAVE_BUILTIN_ASSUME_ALIGNED
 	uint8_t* alignedDest =
 		static_cast<uint8_t*>(__builtin_assume_aligned(dest, ALIGNMENT));
 	const uint8_t* alignedSource =

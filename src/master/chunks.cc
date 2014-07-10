@@ -53,10 +53,6 @@
 #  include "master/topology.h"
 #  endif
 
-#define USE_SLIST_BUCKETS 1
-#define USE_FLIST_BUCKETS 1
-#define USE_CHUNK_BUCKETS 1
-
 #define MINLOOPTIME 1
 #define MAXLOOPTIME 7200
 #define MAXCPS 10000000
@@ -66,6 +62,7 @@
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
 
 #ifndef METARESTORE
+
 
 /* chunk.operation */
 enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
@@ -157,9 +154,7 @@ struct slist {
 	}
 };
 
-#ifdef USE_SLIST_BUCKETS
 #define SLIST_BUCKET_SIZE 5000
-
 struct slist_bucket {
 	slist bucket[SLIST_BUCKET_SIZE];
 	uint32_t firstfree;
@@ -170,7 +165,6 @@ struct slist_bucket {
 
 static slist_bucket *sbhead = NULL;
 static slist *slfreehead = NULL;
-#endif /* USE_SLIST_BUCKET */
 
 #endif /* METARESTORE */
 
@@ -429,7 +423,6 @@ uint64_t chunk::allStandardChunkCopies[11][11] = {{0}};
 uint64_t chunk::regularStandardChunkCopies[11][11] = {{0}};
 #endif
 
-#ifdef USE_CHUNK_BUCKETS
 #define CHUNK_BUCKET_SIZE 20000
 struct chunk_bucket {
 	chunk bucket[CHUNK_BUCKET_SIZE];
@@ -439,7 +432,6 @@ struct chunk_bucket {
 
 static chunk_bucket *cbhead = NULL;
 static chunk *chfreehead = NULL;
-#endif /* USE_CHUNK_BUCKETS */
 
 static chunk *chunkhash[HASHSIZE];
 static uint64_t nextchunkid=1;
@@ -543,7 +535,6 @@ uint64_t chunk_checksum(ChecksumMode mode) {
 }
 
 #ifndef METARESTORE
-#ifdef USE_SLIST_BUCKETS
 static inline slist* slist_malloc() {
 	slist_bucket *sb;
 	slist *ret;
@@ -567,20 +558,8 @@ static inline void slist_free(slist *p) {
 	p->next = slfreehead;
 	slfreehead = p;
 }
-#else /* USE_SLIST_BUCKETS */
-
-static inline slist* slist_malloc() {
-	return new slist;
-}
-
-static inline void slist_free(slist* p) {
-	delete p;
-}
-
-#endif /* USE_SLIST_BUCKETS */
 #endif /* !METARESTORE */
 
-#ifdef USE_CHUNK_BUCKETS
 static inline chunk* chunk_malloc() {
 	chunk_bucket *cb;
 	chunk *ret;
@@ -606,20 +585,6 @@ static inline void chunk_free(chunk *p) {
 	chfreehead = p;
 }
 #endif /* METARESTORE */
-
-#else /* USE_CHUNK_BUCKETS */
-
-static inline chunk* chunk_malloc() {
-	return new chunk;
-}
-
-#ifndef METARESTORE
-static inline void chunk_free(chunk* p) {
-	delete p;
-}
-#endif /* METARESTORE */
-
-#endif /* USE_CHUNK_BUCKETS */
 
 chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	uint32_t chunkpos = HASHPOS(chunkid);
@@ -1189,6 +1154,18 @@ int chunk_increase_version(uint64_t chunkid) {
 	return STATUS_OK;
 }
 
+uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
+	if (nextChunkIdToBeSet >= nextchunkid) {
+		nextchunkid = nextChunkIdToBeSet;
+		return STATUS_OK;
+	} else {
+		syslog(LOG_WARNING,"was asked to increase the next chunk id to %" PRIu64 ", but it was"
+				"already set to a bigger value %" PRIu64 ". Ignoring.",
+				nextChunkIdToBeSet, nextchunkid);
+		return ERROR_MISMATCH;
+	}
+}
+
 #ifndef METARESTORE
 
 const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly) {
@@ -1292,7 +1269,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 	if (c==NULL) {
 		// chunkserver has nonexistent chunk, so create it for future deletion
 		if (chunkid>=nextchunkid) {
-			nextchunkid=chunkid+1;
+			fs_set_nextchunkid(FsContext::getForMaster(main_time()), chunkid + 1);
 		}
 		c = chunk_new(chunkid, new_version);
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
@@ -1976,8 +1953,9 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 }
 
+static std::unique_ptr<ChunkWorker> gChunkWorker;
+
 void chunk_jobs_main(void) {
-	static ChunkWorker chunkWorker;
 	uint32_t i,l,lc,r;
 	uint16_t usableServerCount, totalServerCount;
 	static uint16_t lastTotalServerCount = 0;
@@ -2007,11 +1985,11 @@ void chunk_jobs_main(void) {
 		return;
 	}
 
-	chunkWorker.doEverySecondTasks();
+	gChunkWorker->doEverySecondTasks();
 	lc = 0;
 	for (i=0 ; i<HashSteps && lc<HashCPS ; i++) {
 		if (jobshpos==0) {
-			chunkWorker.doEveryLoopTasks();
+			gChunkWorker->doEveryLoopTasks();
 		}
 		// delete unused chunks from structures
 		l=0;
@@ -2032,13 +2010,13 @@ void chunk_jobs_main(void) {
 		// do jobs on rest of them
 			for (c=chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
-					chunkWorker.doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+					gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				}
 				l++;
 			}
 			l=0;
 			for (c=chunkhash[jobshpos] ; l<r && c ; c=c->next) {
-				chunkWorker.doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+				gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				l++;
 			}
 		}
@@ -2159,64 +2137,18 @@ void chunk_store(FILE *fd) {
 
 void chunk_term(void) {
 #ifndef METARESTORE
-# ifdef USE_SLIST_BUCKETS
 	slist_bucket *sb,*sbn;
-# else
-	slist *sl,*sln;
-# endif
-# if 0
-# ifdef USE_FLIST_BUCKETS
-	flist_bucket *fb,*fbn;
-# else
-	flist *fl,*fln;
-# endif
-# endif
-# ifdef USE_CHUNK_BUCKETS
-	chunk_bucket *cb,*cbn;
-# endif
-# if !defined(USE_SLIST_BUCKETS) || !defined(USE_FLIST_BUCKETS) || !defined(USE_CHUNK_BUCKETS)
-	uint32_t i;
-	chunk *ch,*chn;
-# endif
-#else
-# ifdef USE_CHUNK_BUCKETS
-	chunk_bucket *cb,*cbn;
-# else
-	uint32_t i;
-	chunk *ch,*chn;
-# endif
-#endif
-
-#ifndef METARESTORE
-# ifdef USE_SLIST_BUCKETS
 	for (sb = sbhead ; sb ; sb = sbn) {
 		sbn = sb->next;
 		delete sb;
 	}
-# else
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (ch = chunkhash[i] ; ch ; ch = ch->next) {
-			for (sl = ch->slisthead ; sl ; sl = sln) {
-				sln = sl->next;
-				delete sl;
-			}
-		}
-	}
-# endif
 #endif
-#ifdef USE_CHUNK_BUCKETS
+
+	chunk_bucket *cb,*cbn;
 	for (cb = cbhead ; cb ; cb = cbn) {
 		cbn = cb->next;
 		delete cb;
 	}
-#else
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (ch = chunkhash[i] ; ch ; ch = chn) {
-			chn = ch->next;
-			delete ch;
-		}
-	}
-#endif
 }
 
 void chunk_newfs(void) {
@@ -2227,6 +2159,14 @@ void chunk_newfs(void) {
 }
 
 #ifndef METARESTORE
+void chunk_become_master() {
+	starttime = main_time();
+	jobsnorepbefore = starttime+ReplicationsDelayInit;
+	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
+	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
+	return;
+}
+
 void chunk_reload(void) {
 	uint32_t repl;
 	uint32_t looptime;
@@ -2321,6 +2261,9 @@ void chunk_reload(void) {
 	if (AcceptableDifference>10.0) {
 		AcceptableDifference = 10.0;
 	}
+	if (metadataserver::isDuringPersonalityChange()) {
+		chunk_become_master();
+	}
 }
 #endif
 
@@ -2409,10 +2352,10 @@ int chunk_strinit(void) {
 #ifndef METARESTORE
 	jobshpos = 0;
 	jobsrebalancecount = 0;
-	starttime = main_time();
-	jobsnorepbefore = starttime+ReplicationsDelayInit;
 	main_reloadregister(chunk_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
+	if (metadataserver::isMaster()) {
+		chunk_become_master();
+	}
 #endif
 	return 1;
 }

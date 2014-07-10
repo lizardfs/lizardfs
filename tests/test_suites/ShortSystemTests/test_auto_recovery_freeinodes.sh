@@ -14,7 +14,7 @@ CHUNKSERVERS=1 \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 
-changelog_file="${info[master_data_path]}/changelog.0.mfs"
+changelog_file="${info[master_data_path]}/changelog.mfs"
 metadata_file="${info[master_data_path]}/metadata.mfs"
 
 # Remember version of the metadata file. We expect it not to change when generating data.

@@ -7,7 +7,7 @@
 #include <cstring>
 #include <vector>
 
-#define HAVE_SPLICE 1 // TODO(alek) zmienna do konfiga
+#define LIZARDFS_HAVE_SPLICE 1 // TODO(alek) zmienna do konfiga
 
 class OutputBuffer {
 public:
@@ -27,7 +27,7 @@ public:
 	virtual ~OutputBuffer() {};
 };
 
-#ifdef HAVE_SPLICE
+#ifdef LIZARDFS_HAVE_SPLICE
 class AvoidingCopyingOutputBuffer : public OutputBuffer {
 public:
 	AvoidingCopyingOutputBuffer(size_t internalBufferCapacity);
@@ -48,7 +48,7 @@ private:
 
 	size_t bytesInABuffer_;
 };
-#endif /* HAVE_SPLICE */
+#endif /* LIZARDFS_HAVE_SPLICE */
 
 class SimpleOutputBuffer : public OutputBuffer {
 public:

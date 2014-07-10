@@ -1,0 +1,65 @@
+Since crcutil is a library, and rather small, template library,
+it is better to compile it directly into your code. Or you could
+build a library for interface.cc and use it.
+
+
+Building and running the tests (Linux/GCC, MacOSX/GCC)
+------------------------------------------------------
+
+Run
+  ./autogen.sh <target> <compiler_flags>
+or
+  ./autogen.sh <target> "-m32 -march=i686 <compiler_flags>"
+to build and run 64-bit and 32-bit <target> with GCC.
+
+Typically, <compiler_flags> is not required.
+
+Useful values for <target> are:
+  clean
+  configure
+  check
+
+E.g.
+  ./autogen.sh check
+will build and run 64-bit unittest, whilst
+  ./autogen.sh clean
+will clean everything up.
+
+
+Why ./autogen.sh? Two reasons:
+
+1. Automake is well beyond my comprehension, and I am unable to create
+   "Makefile.am" consistently. So autogen.sh has that piece of black magic.
+
+2. autogen.sh detects version of GCC and provides different compile options
+   to work around differences between compiler versions that cannot
+   be detected at compile time.
+
+You still can do
+  ./configure CXXFLAGS="-O3" CFLAGS="-O3"
+(if you use GCC before 4.5.0) or
+  ./configure CXXFLAGS="-O3 -mcrc32" CFLAGS="-O3"
+and then run
+  make check
+but the use of "./autogen.sh" is the preferred way to go.
+
+
+Building and running the tests (Windows, CL or ICL compiler)
+------------------------------------------------------------
+
+Run
+  nmake -f Makefile.win cl64
+or
+  nmake -f Makefile.win cl32
+or
+  nmake -f Makefile.win icl64
+or
+  nmake -f Makefile.win icl32
+to build and 64-bit and 32-bit unit test using
+Microsoft CL and Intel's ICL compilers respectively.
+
+Run
+  nmake -f Makefile.win clean
+to clean everything up.
+
+[The end of the document]

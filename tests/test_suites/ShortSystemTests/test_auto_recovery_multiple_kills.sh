@@ -18,8 +18,8 @@ CHUNKSERVERS=1 \
 # Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
 export MFS_META_MOUNT_PATH=${info[mount1]}
 
-# Save path of changelog.0.mfs in CHANGELOG_0 to make it possible to verify generated changes
-export CHANGELOG_0="${info[master_data_path]}"/changelog.0.mfs
+# Save path of changelog.mfs in CHANGELOG to make it possible to verify generated changes
+export CHANGELOG="${info[master_data_path]}/changelog.mfs"
 
 for generator in $(metadata_get_all_generators); do
 	export MESSAGE="Testing generator $generator"

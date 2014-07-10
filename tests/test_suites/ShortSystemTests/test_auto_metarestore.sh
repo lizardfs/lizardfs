@@ -20,7 +20,7 @@ lizardfs_metalogger_daemon kill
 
 # Function takes three metadata files as arguments and tries to recover the filesystem
 verify_recovery() {
-	declare -A files=([metadata.mfs]="$1" [metadata.mfs.back]="$2" [metadata_ml.mfs.back]="$3")
+	declare -A files=([metadata.mfs]="$1" [metadata.mfs.1]="$2" [metadata_ml.mfs]="$3")
 	rm -f "${info[master_data_path]}"/metadata*
 	local filelist=""
 	for file in "${!files[@]}"; do

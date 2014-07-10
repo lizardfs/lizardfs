@@ -19,7 +19,7 @@ public:
 	 * \param ts - a timestamp of the operations made in this context
 	 */
 	static FsContext getForRestore(uint32_t ts) {
-		return FsContext(ts, master::Personality::kShadow);
+		return FsContext(ts, metadataserver::Personality::kShadow);
 	}
 
 	/**
@@ -32,7 +32,7 @@ public:
 	 * \param gid - gid of the user which will perform operations in this context
 	 */
 	static FsContext getForRestoreWithUidGid(uint32_t ts, uint32_t uid, uint32_t gid) {
-		return FsContext(ts, master::Personality::kShadow, uid, gid, uid, gid);
+		return FsContext(ts, metadataserver::Personality::kShadow, uid, gid, uid, gid);
 	}
 
 	/**
@@ -42,7 +42,7 @@ public:
 	 * \param ts - a timestamp of the operations made in this context
 	 */
 	static FsContext getForMaster(uint32_t ts) {
-		return FsContext(ts, master::Personality::kMaster);
+		return FsContext(ts, metadataserver::Personality::kMaster);
 	}
 
 	/**
@@ -53,7 +53,7 @@ public:
 	 * \param ts - a timestamp of the operations made in this context
 	 */
 	static FsContext getForMaster(uint32_t ts, uint32_t rootinode, uint8_t sesflags) {
-		return FsContext(ts, master::Personality::kMaster, rootinode, sesflags);
+		return FsContext(ts, metadataserver::Personality::kMaster, rootinode, sesflags);
 	}
 
 	/**
@@ -73,7 +73,7 @@ public:
 	static FsContext getForMasterWithSession(uint32_t ts,
 			uint32_t rootinode, uint8_t sesflags,
 			uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid) {
-		return FsContext(ts, master::Personality::kMaster,
+		return FsContext(ts, metadataserver::Personality::kMaster,
 				rootinode, sesflags, uid, gid, auid, agid);
 	}
 
@@ -81,7 +81,7 @@ public:
 	 * Returns true if we can check permissions in this context
 	 */
 	bool canCheckPermissions() const {
-		return (hasSessionData_ && hasUidGidData_ && personality_ == master::Personality::kMaster);
+		return (hasSessionData_ && hasUidGidData_ && personality_ == metadataserver::Personality::kMaster);
 	}
 
 	/**
@@ -123,21 +123,21 @@ public:
 	 * Returns true if this is context of the master server
 	 */
 	bool isPersonalityMaster() const {
-		return personality_ == master::Personality::kMaster;
+		return personality_ == metadataserver::Personality::kMaster;
 	}
 
 	/**
 	 * Returns true if this is context of metarestore or the shadow master
 	 */
 	bool isPersonalityShadow() const {
-		return personality_ == master::Personality::kShadow;
+		return personality_ == metadataserver::Personality::kShadow;
 	}
 
 	/**
 	 * Returns personality.
 	 * This is a personality of the process which performs changes in this context
 	 */
-	master::Personality personality() const {
+	metadataserver::Personality personality() const {
 		return personality_;
 	}
 
@@ -173,7 +173,7 @@ public:
 
 private:
 	uint32_t ts_;
-	master::Personality personality_;
+	metadataserver::Personality personality_;
 	bool hasSessionData_;
 	uint32_t rootinode_;
 	uint8_t sesflags_;
@@ -183,7 +183,7 @@ private:
 	/**
 	 * Constructs object with session data and uid/gid data.
 	 */
-	FsContext(uint32_t ts, master::Personality personality,
+	FsContext(uint32_t ts, metadataserver::Personality personality,
 			uint32_t rootinode, uint8_t sesflags,
 			uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid)
 			: ts_(ts),
@@ -201,7 +201,7 @@ private:
 	/**
 	 * Constructs object with session data and without uid/gid data.
 	 */
-	FsContext(uint32_t ts, master::Personality personality, uint32_t rootinode, uint8_t sesflags)
+	FsContext(uint32_t ts, metadataserver::Personality personality, uint32_t rootinode, uint8_t sesflags)
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(true),
@@ -217,7 +217,7 @@ private:
 	/**
 	 * Constructs object without session data and without uid/gid data.
 	 */
-	FsContext(uint32_t ts, master::Personality personality)
+	FsContext(uint32_t ts, metadataserver::Personality personality)
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(false),
@@ -233,7 +233,7 @@ private:
 	/**
 	 * Constructs object without session data and with uid/gid data.
 	 */
-	FsContext(uint32_t ts, master::Personality personality,
+	FsContext(uint32_t ts, metadataserver::Personality personality,
 			uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid)
 			: ts_(ts),
 			  personality_(personality),

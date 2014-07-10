@@ -1,35 +1,3 @@
-# Download crcutil
-set(CRCUTIL_VERSION crcutil-1.0)
-set(CRCUTIL_ARCHIVE ${CRCUTIL_VERSION}.tar.gz)
-set(CRCUTIL_URL http://crcutil.googlecode.com/files/${CRCUTIL_ARCHIVE})
-set(CRCUTIL_MD5 94cb7014d4078c138d3c9646fcf1fec5)
-if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION})
-  message(STATUS "Downloading ${CRCUTIL_URL} ...")
-  file(DOWNLOAD
-      ${CRCUTIL_URL}
-      ${CMAKE_BINARY_DIR}/${CRCUTIL_ARCHIVE}
-      INACTIVITY_TIMEOUT 15
-      STATUS DOWNLOAD_STATUS
-      EXPECTED_MD5 ${CRCUTIL_MD5}
-      SHOW_PROGRESS)
-  list(GET DOWNLOAD_STATUS 0 DOWNLOAD_STATUS_ERROR_CODE)
-  list(GET DOWNLOAD_STATUS 1 DOWNLOAD_STATUS_MESSAGE)
-  if (NOT DOWNLOAD_STATUS_ERROR_CODE EQUAL 0)
-    message(FATAL_ERROR "Downloading failed: ${DOWNLOAD_STATUS_MESSAGE}")
-  endif()
-  message(STATUS "Unpacking ${CRCUTIL_ARCHIVE} ...")
-  execute_process(COMMAND tar -xzf ${CMAKE_BINARY_DIR}/${CRCUTIL_ARCHIVE}
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/external
-      RESULT_VARIABLE TAR_ERROR
-      ERROR_VARIABLE  TAR_ERROR_MESSAGE)
-  if(NOT TAR_ERROR STREQUAL 0)
-    message(FATAL_ERROR "tar -xzf ${CRCUTIL_ARCHIVE} failed: ${TAR_ERROR_MESSAGE}")
-  endif()
-  if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION})
-    message(FATAL_ERROR "Extracting ${CRCUTIL_ARCHIVE} didn't produce directory ${CRCUTIL_VERSION}")
-  endif()
-endif()
-
 # Download GoogleTest
 if(ENABLE_TESTS)
   set(GTEST_VERSION 1.7.0)
@@ -76,9 +44,6 @@ endif()
 find_package(Socket)
 find_package(Threads)
 find_package(ZLIB REQUIRED)
-set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
@@ -88,7 +53,38 @@ message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
 find_program(A2X_BINARY a2x)
 message(STATUS "a2x: ${A2X_BINARY}")
 
+# Find Boost
+set(BOOST_MIN_VERSION "1.48.0")
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
+
+# Find Thrift
+find_package(Thrift COMPONENTS library)
+if(THRIFT_FOUND)
+  message(STATUS "Found Thrift")
+else()
+  message(STATUS "Could NOT find Thrift")
+  message(STATUS "   If it's installed in a non-standard path, set THRIFT_ROOT variable")
+  message(STATUS "   to point this path (cmake -DTHRIFT_ROOT=...)")
+endif()
+
+# Find Polonaise
+set(POLONAISE_REQUIRED_VERSION 0.3.0)
+find_package(Polonaise ${POLONAISE_REQUIRED_VERSION} EXACT QUIET NO_MODULE NO_CMAKE_BUILDS_PATH)
+if(POLONAISE_FOUND)
+  message(STATUS "Found Polonaise")
+else()
+  message(STATUS "Could NOT find Polonaise v${POLONAISE_REQUIRED_VERSION}")
+  if (Polonaise_CONSIDERED_VERSIONS)
+    message(STATUS "   Incompatible versions ${Polonaise_CONSIDERED_VERSIONS} "
+        "found in ${Polonaise_CONSIDERED_CONFIGS}")
+  endif()
+  message(STATUS "   If it's installed in a non-standard path, set Polonaise_DIR variable")
+  message(STATUS "   to point this path (cmake -DPolonaise_DIR=...)")
+endif()
+
 # Find crcutil
+set(CRCUTIL_VERSION crcutil-1.0)
 set(CRCUTIL_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION}/code)
 set(CRCUTIL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/${CRCUTIL_VERSION}/code)
 

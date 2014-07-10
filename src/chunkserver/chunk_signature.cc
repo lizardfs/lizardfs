@@ -26,7 +26,7 @@ ChunkSignature::ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkTyp
 bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
 	const ssize_t maxSignatureSize = kSignatureIdSize + 13;
 	uint8_t buffer[maxSignatureSize];
-#ifdef HAVE_PREAD
+#ifdef LIZARDFS_HAVE_PREAD
 	ssize_t ret = pread(fd, buffer, maxSignatureSize, offset);
 #else
 	if (lseek(fd, offset, SEEK_SET) != offset) {

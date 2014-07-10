@@ -6,7 +6,7 @@ CHUNKSERVERS=0 \
 # Generate empty metadata file by stopping the master server and generate a long changelog.
 lizardfs_master_daemon stop
 assert_equals 1 $(metadata_get_version "${info[master_data_path]}/metadata.mfs")
-generate_changelog > "${info[master_data_path]}/changelog.0.mfs"
+generate_changelog > "${info[master_data_path]}/changelog.mfs"
 
 # Start mfsmetarestore in background and wait until it starts to apply
 # the changelog. This process will then last for a couple of seconds.

@@ -12,7 +12,7 @@
 #include "common/massert.h"
 #include "devtools/request_log.h"
 
-#ifdef HAVE_SPLICE
+#ifdef LIZARDFS_HAVE_SPLICE
 AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCapacity)
 	: internalBufferCapacity_(internalBufferCapacity),
 	  bytesInABuffer_(0) {
@@ -91,7 +91,7 @@ OutputBuffer::WriteStatus AvoidingCopyingOutputBuffer::writeOutToAFileDescriptor
 size_t AvoidingCopyingOutputBuffer::bytesInABuffer() const {
 	return bytesInABuffer_;
 }
-#endif /* HAVE_SPLICE */
+#endif /* LIZARDFS_HAVE_SPLICE */
 
 SimpleOutputBuffer::SimpleOutputBuffer(size_t internalBufferCapacity)
 	: internalBufferCapacity_(internalBufferCapacity),
@@ -126,15 +126,15 @@ ssize_t SimpleOutputBuffer::copyIntoBuffer(int inputFileDescriptor, size_t len, 
 	eassert(len + bufferUnflushedDataOneAfterLastIndex_ <= internalBufferCapacity_);
 	off_t bytes_written = 0;
 	while (len > 0) {
-#if defined(HAVE_PREAD) // TODO(alek) syfne te ifdefy
+#if defined(LIZARDFS_HAVE_PREAD) // TODO(alek) syfne te ifdefy
 		ssize_t ret = pread(inputFileDescriptor, (void*)&buffer_[bufferUnflushedDataOneAfterLastIndex_], len,
 				(offset ? *offset : 0));
-#else /* !HAVE_PREAD */
+#else /* !LIZARDFS_HAVE_PREAD */
 		if (offset) {
 			lseek(inputFileDescriptor_, *offset, SEEK_SET);
 		}
 		ssize_t ret = read(inputFileDescriptor, (void*)&buffer[bufferUnflushedDataOneAfterLastIndex_], len);
-#endif /* HAVE_PREAD */
+#endif /* LIZARDFS_HAVE_PREAD */
 		if (ret <= 0) {
 			return bytes_written;
 		}

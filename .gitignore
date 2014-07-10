@@ -3,7 +3,6 @@
 
 # External libraries #
 ######################
-/external/crcutil-1.0
 /external/gtest-1.7.0
 
 # Vim files #

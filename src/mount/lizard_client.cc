@@ -63,11 +63,12 @@
 
 namespace LizardClient {
 
-#define READDIR_BUFFSIZE 50000
-
 #define MAX_FILE_SIZE (int64_t)(MFS_MAX_FILE_SIZE)
 
-#define PKGVERSION ((PACKAGE_VERSION_MAJOR)*1000000+(PACKAGE_VERSION_MINOR)*1000+(PACKAGE_VERSION_MICRO))
+#define PKGVERSION \
+		((LIZARDFS_PACKAGE_VERSION_MAJOR)*1000000 + \
+		(LIZARDFS_PACKAGE_VERSION_MINOR)*1000 + \
+		(LIZARDFS_PACKAGE_VERSION_MICRO))
 
 // #define MASTER_NAME ".master"
 // #define MASTER_INODE 0x7FFFFFFF
@@ -355,7 +356,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	attrctime = get32bit(&ptr);
 	attrnlink = get32bit(&ptr);
 	stbuf->st_ino = inode;
-#ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
 	stbuf->st_blksize = MFSBLOCKSIZE;
 #endif
 	switch (attrtype) {
@@ -363,7 +364,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFDIR | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
@@ -371,7 +372,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFLNK | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
@@ -379,43 +380,43 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 		stbuf->st_mode = S_IFREG | (attrmode & 07777);
 		attrlength = get64bit(&ptr);
 		stbuf->st_size = attrlength;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = (attrlength+511)/512;
 #endif
 		break;
 	case TYPE_FIFO:
 		stbuf->st_mode = S_IFIFO | (attrmode & 07777);
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_SOCKET:
 		stbuf->st_mode = S_IFSOCK | (attrmode & 07777);
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_BLOCKDEV:
 		stbuf->st_mode = S_IFBLK | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
 #endif
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
 	case TYPE_CHARDEV:
 		stbuf->st_mode = S_IFCHR | (attrmode & 07777);
 		attrrdev = get32bit(&ptr);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 		stbuf->st_rdev = attrrdev;
 #endif
 		stbuf->st_size = 0;
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 		stbuf->st_blocks = 0;
 #endif
 		break;
@@ -427,7 +428,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	stbuf->st_atime = attratime;
 	stbuf->st_mtime = attrmtime;
 	stbuf->st_ctime = attrctime;
-#ifdef HAVE_STRUCT_STAT_ST_BIRTHTIME
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BIRTHTIME
 	stbuf->st_birthtime = attrctime;        // for future use
 #endif
 	stbuf->st_nlink = attrnlink;
@@ -482,7 +483,7 @@ void makemodestr(char modestr[11],uint16_t mode) {
 void makeattrstr(char *buff,uint32_t size,struct stat *stbuf) {
 	char modestr[11];
 	makemodestr(modestr,stbuf->st_mode);
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_RDEV
 	if (modestr[0]=='b' || modestr[0]=='c') {
 		snprintf(buff,size,"[%s:0%06o,%u,%ld,%ld,%lu,%lu,%lu,%" PRIu64 ",%08lX]",modestr,(unsigned int)(stbuf->st_mode),(unsigned int)(stbuf->st_nlink),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(unsigned long int)(stbuf->st_ctime),(uint64_t)(stbuf->st_size),(unsigned long int)(stbuf->st_rdev));
 	} else {
@@ -1257,13 +1258,11 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 	}
 }
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
-			FileInfo* fi) {
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi) {
 	int status;
 	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
-	uint8_t end;
 	uint8_t nleng;
 	uint32_t inode;
 	uint8_t type;
@@ -1271,11 +1270,11 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
-		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
+		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
 	}
 	if (off<0) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	PthreadMutexWrapper lock((dirinfo->lock));
@@ -1300,7 +1299,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 		}
 		status = errorconv_dbg(status);
 		if (status!=0) {
-			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(status));
+			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(status));
 			throw RequestException(status);
 		}
 		if (dirinfo->dcache) {
@@ -1314,7 +1313,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 		if (needscopy) {
 			dirinfo->p = (const uint8_t*) malloc(dsize);
 			if (dirinfo->p == NULL) {
-				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EINVAL));
+				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
 				throw RequestException(EINVAL);
 			}
 			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
@@ -1329,23 +1328,21 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 	dirinfo->wasread=1;
 
 	std::vector<DirEntry> ret;
-	if (off>=(off_t)(dirinfo->size)) {;
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+	if (off>=(off_t)(dirinfo->size)) {
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
 	} else {
-		if (size>READDIR_BUFFSIZE) {
-			size=READDIR_BUFFSIZE;
-		}
 		ptr = dirinfo->p+off;
 		eptr = dirinfo->p+dirinfo->size;
-		end = 0;
+		off_t nextoff = off; // offset of the next entry
 
-		while (ptr<eptr && end==0) {
+		while (ptr<eptr && ret.size() < maxEntries) {
+			sassert(ptr == dirinfo->p + nextoff);
 			nleng = ptr[0];
 			ptr++;
 			memcpy(name,ptr,nleng);
 			name[nleng]=0;
 			ptr+=nleng;
-			off+=nleng+((dirinfo->dataformat)?40:6);
+			nextoff+=nleng+((dirinfo->dataformat)?40:6);
 			if (ptr+5<=eptr) {
 				inode = get32bit(&ptr);
 				if (dirinfo->dataformat) {
@@ -1356,14 +1353,14 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, size_t size, off_t off,
 					type_to_stat(inode,type,&stbuf);
 				}
 				try {
-					ret.push_back(DirEntry{name, stbuf, off, size});
+					ret.push_back(DirEntry{name, stbuf, nextoff});
 				} catch (std::bad_alloc& e) {
 					throw RequestException(ENOMEM);
 				}
 			}
 		}
 
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ret.size());
+		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,(unsigned long int)ret.size());
 	}
 	return ret;
 }

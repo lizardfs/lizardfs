@@ -4,3 +4,4 @@
 /*! \brief Prepare proper environment for program execution.
  */
 void prepareEnvironment();
+extern int gVerbosity;

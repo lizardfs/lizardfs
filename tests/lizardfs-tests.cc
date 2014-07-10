@@ -35,7 +35,7 @@ protected:
 
 #define add_test_case(suite, name) \
 	TEST_F(suite, name) { \
-		run_test_case( \
+		run_test_case(\
 			TO_STRING(TEST_DATA_PATH) "/test_suites/" \
 			TO_STRING(suite) "/" TO_STRING(name) ".sh" \
 		); \

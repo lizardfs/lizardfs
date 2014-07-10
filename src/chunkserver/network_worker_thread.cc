@@ -131,15 +131,15 @@ packetstruct* worker_create_detached_packet_with_output_buffer(
 	uint32_t sizeOfWholePacket = PacketHeader::kSize + header.length;
 	packetstruct* outPacket = new packetstruct();
 	passert(outPacket);
-#ifdef HAVE_SPLICE
+#ifdef LIZARDFS_HAVE_SPLICE
 	if (NetworkWorkerThread::useSplice && sizeOfWholePacket < 512 * 1024u) {
 		outPacket->outputBuffer.reset(new AvoidingCopyingOutputBuffer(512 * 1024u));
 	} else {
 		outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));
 	}
-#else /* HAVE_SPLICE */
+#else /* LIZARDFS_HAVE_SPLICE */
 	outPacket->outputBuffer.reset(new SimpleOutputBuffer(sizeOfWholePacket));
-#endif /* HAVE_SPLICE */
+#endif /* LIZARDFS_HAVE_SPLICE */
 	if (outPacket->outputBuffer->copyIntoBuffer(packetPrefix) != (ssize_t)packetPrefix.size()) {
 		delete outPacket;
 		return nullptr;

@@ -41,6 +41,7 @@
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "master/personality.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -318,7 +319,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		return;
 	}
 	filenum = get8bit(&data);
-	if (filenum==1 || filenum==2) {
+	if ((filenum == DOWNLOAD_METADATA_MFS) || (filenum == DOWNLOAD_SESSIONS_MFS)) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 			eptr->metafd=-1;
@@ -332,19 +333,19 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 			eptr->chain2fd=-1;
 		}
 	}
-	if (filenum==1) {
+	if (filenum == DOWNLOAD_METADATA_MFS) {
 		eptr->metafd = open(kMetadataFilename, O_RDONLY);
 		eptr->chain1fd = open(kChangelogFilename, O_RDONLY);
-		eptr->chain2fd = open("changelog.1.mfs",O_RDONLY);
-	} else if (filenum==2) {
-		eptr->metafd = open("sessions.mfs",O_RDONLY);
-	} else if (filenum==11) {
+		eptr->chain2fd = open((std::string(kChangelogFilename) + ".1").c_str(), O_RDONLY);
+	} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
+		eptr->metafd = open(kSessionsFilename, O_RDONLY);
+	} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
 		eptr->metafd = eptr->chain1fd;
 		eptr->chain1fd = -1;
-	} else if (filenum==12) {
+	} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
@@ -392,12 +393,12 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_DATA,16+leng);
 	put64bit(&ptr,offset);
 	put32bit(&ptr,leng);
-#ifdef HAVE_PREAD
+#ifdef LIZARDFS_HAVE_PREAD
 	ret = pread(eptr->metafd,ptr+4,leng,offset);
-#else /* HAVE_PWRITE */
+#else /* LIZARDFS_HAVE_PWRITE */
 	lseek(eptr->metafd,offset,SEEK_SET);
 	ret = read(eptr->metafd,ptr+4,leng);
-#endif /* HAVE_PWRITE */
+#endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		mfs_errlog_silent(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;
@@ -443,7 +444,7 @@ void matomlserv_broadcast_logrotate() {
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->version>0) {
 			data = matomlserv_createpacket(eptr,MATOML_METACHANGES_LOG,1);
-			put8bit(&data,0x55);
+			put8bit(&data, FORCE_LOG_ROTATE);
 		}
 	}
 }
@@ -645,7 +646,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"Master<->ML socket: accept error");
-		} else {
+		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = (matomlserventry*) malloc(sizeof(matomlserventry));
@@ -671,6 +672,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->metafd=-1;
 			eptr->chain1fd=-1;
 			eptr->chain2fd=-1;
+		} else {
+			tcpclose(ns);
 		}
 	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
@@ -720,6 +723,11 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			kptr = &(eptr->next);
 		}
 	}
+}
+
+void matomlserv_become_master() {
+	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
+	return;
 }
 
 void matomlserv_reload(void) {
@@ -772,6 +780,9 @@ void matomlserv_reload(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
+	if (metadataserver::isDuringPersonalityChange()) {
+		matomlserv_become_master();
+	}
 }
 
 int matomlserv_init(void) {
@@ -804,6 +815,8 @@ int matomlserv_init(void) {
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
-	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
+	if (metadataserver::isMaster()) {
+		matomlserv_become_master();
+	}
 	return 0;
 }

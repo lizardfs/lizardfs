@@ -33,7 +33,7 @@ TEST(CstomaCommunicationTests, RegisterHost) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, ip, 127001, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint16_t, port, 8080, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, timeout, 100000, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, csVersion, VERSHEX, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, csVersion, LIZARDFS_VERSHEX, 0);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(cstoma::registerHost::serialize(buffer,

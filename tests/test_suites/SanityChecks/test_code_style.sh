@@ -19,7 +19,7 @@ verify_file() {
 	if [[ $file =~ src/.*[.](cc|h)$ ]] && [[ $file != src/common/platform.h ]] && ! $grep -q '^# *include "common/platform.h"' "$file"; then
 		test_add_failure "File '$file' does not include common/platform.h"
 	fi
-	if [[ $file =~ src/.*[.](cc|h)$ ]] && $grep '( \| )' "$file"; then
+	if [[ $file =~ [.](cc|h)$ ]] && $grep '( \| )' "$file"; then
 		test_add_failure "File '$file' has spaces around parens"
 	fi
 }
@@ -32,4 +32,5 @@ fi
 git ls-tree -r --name-only HEAD \
 		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in)$' \
 		| grep -v 'mfs[.]cgi[.]in' \
+		| grep -v '^external/' \
 		| while read file; do verify_file "$file"; done

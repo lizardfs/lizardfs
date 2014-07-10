@@ -43,8 +43,9 @@ test_end() {
 	test_freeze_result
 	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
 	cd
-	# terminate valgrind processes to get complete memcheck logs from them
-	{ pkill -TERM memcheck &> /dev/null && sleep 3; } || true
+	if valgrind_enabled; then
+		valgrind_terminate
+	fi
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
@@ -79,7 +80,7 @@ test_begin() {
 	set -E
 	timeout_init
 	if [[ ${USE_VALGRIND} ]]; then
-		enable_valgrind
+		valgrind_enable
 	fi
 	if [[ ${DEBUG} ]]; then
 		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
@@ -100,6 +101,8 @@ test_cleanup() {
 	retries=0
 	pkill -KILL mfsmount || true
 	pkill -KILL memcheck || true
+	# 'grep mfs' below is important. In tests we mount some filesystem by hand
+	# assuming that they will be found with this pattern and unmounted.
 	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1

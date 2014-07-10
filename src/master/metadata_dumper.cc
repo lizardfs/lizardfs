@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "common/massert.h"
+#include "common/metadata.h"
+#include "master/personality.h"
 
 static bool createPipe(int pipefds[2]) {
 	if (pipe(pipefds) != 0) {
@@ -79,8 +81,13 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 
 	int pipeFd[2] = {-1, -1}; // invalid fds
 	dumpingProcessFd_ = -1;
-
-	if (useMetarestore_ && dumpingSucceeded_ && access("changelog.1.mfs", F_OK) == -1) {
+	/*
+	 * Changelog files were rotated before entering this function.
+	 * Current changelog is now kChangelogFilename + ".1".
+	 */
+	std::string changelogFilename = kChangelogFilename;
+	changelogFilename += ".1";
+	if (useMetarestore_ && dumpingSucceeded_ && (access(changelogFilename.c_str(), F_OK) == -1)) {
 		if (errno == ENOENT || errno == EACCES) {
 			syslog(LOG_ERR, "no current changelog, dump by master");
 		} else {
@@ -116,6 +123,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 			if (useMetarestore_ && dumpingSucceeded_) {
 				// exec mfsmetarestore
 				std::string checksumStringified = std::to_string(checksum);
+				std::string storedMetaCopies = std::to_string(gStoredPreviousBackMetaCopies);
 				char* metarestoreArgs[] = {
 					const_cast<char*>(metarestorePath_.c_str()),
 					const_cast<char*>("-m"),
@@ -124,10 +132,10 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 					const_cast<char*>(metadataTmpFilename_.c_str()),
 					const_cast<char*>("-k"),
 					const_cast<char*>(checksumStringified.c_str()),
-					const_cast<char*>("changelog.1.mfs"),
 					const_cast<char*>("-B"),
-					const_cast<char*>("1"),
+					const_cast<char*>(storedMetaCopies.c_str()),
 					const_cast<char*>("-#"),
+					const_cast<char*>(changelogFilename.c_str()),
 					NULL};
 				// the default value of the commandline nice
 				if (nice(10) == -1) {
@@ -231,3 +239,4 @@ void MetadataDumper::waitUntilFinished() {
 	// let's say a year is enough
 	waitUntilFinished(std::chrono::hours(24 * 365));
 }
+

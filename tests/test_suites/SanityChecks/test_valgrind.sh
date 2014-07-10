@@ -1,5 +1,4 @@
-timeout_set 20 seconds  # To be multiplied by enable_valgrind
-enable_valgrind
+valgrind_enable
 
 CHUNKSERVERS=1 \
 	MOUNTS=2 \

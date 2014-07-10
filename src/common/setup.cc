@@ -38,3 +38,5 @@ void prepareEnvironment() {
 	return;
 }
 
+int gVerbosity = 0;
+

@@ -22,7 +22,7 @@ assert_success rm "$chunk"
 
 # Truncate file (this will generate INCVERSION change) and remember the metadata
 truncate -s 1 dir/file
-assert_awk_finds '/INCVERSION/' "$(cat "${info[master_data_path]}"/changelog.0.mfs)"
+assert_awk_finds '/INCVERSION/' "$(cat "${info[master_data_path]}"/changelog.mfs)"
 echo b > something_more  # To make sure that after INCVERSION we are able to apply other changes
 metadata=$(metadata_print)
 

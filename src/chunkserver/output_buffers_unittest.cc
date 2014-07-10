@@ -14,7 +14,7 @@
 TEST(OutputBufferTests, outputBuffersTest) {
 	std::vector<std::shared_ptr<OutputBuffer>> outputBuffers = {
 			std::shared_ptr<OutputBuffer>(new SimpleOutputBuffer(512*1024)),
-#ifdef HAVE_SPLICE
+#ifdef LIZARDFS_HAVE_SPLICE
 			std::shared_ptr<OutputBuffer>(new AvoidingCopyingOutputBuffer(512*1024)),
 #endif
 	};

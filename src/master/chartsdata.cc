@@ -34,12 +34,12 @@
 #include "master/filesystem.h"
 #include "master/matoclserv.h"
 
-#if defined(HAVE_GETRUSAGE) && defined(HAVE_STRUCT_RUSAGE_RU_MAXRSS)
+#if defined(LIZARDFS_HAVE_GETRUSAGE) && defined(LIZARDFS_HAVE_STRUCT_RUSAGE_RU_MAXRSS)
 #  include <sys/types.h>
-#  ifdef HAVE_SYS_RESOURCE_H
+#  ifdef LIZARDFS_HAVE_SYS_RESOURCE_H
 #    include <sys/resource.h>
 #  endif
-#  ifdef HAVE_SYS_RUSAGE_H
+#  ifdef LIZARDFS_HAVE_SYS_RUSAGE_H
 #    include <sys/rusage.h>
 #  endif
 #  ifndef RUSAGE_SELF
@@ -48,7 +48,7 @@
 #  define MEMORY_USAGE 1
 #endif
 
-#if defined(HAVE_SETITIMER)
+#if defined(LIZARDFS_HAVE_SETITIMER)
 #  include <sys/time.h>
 #  ifndef ITIMER_REAL
 #    define ITIMER_REAL 0

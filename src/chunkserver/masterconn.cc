@@ -173,7 +173,8 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = mainNetworkThreadGetListenIp();
 	myport = mainNetworkThreadGetListenPort();
 	std::vector<uint8_t> serializedPacket;
-	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms, VERSHEX);
+	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms,
+			LIZARDFS_VERSHEX);
 	masterconn_create_attached_packet(eptr, serializedPacket);
 	hdd_get_chunks_begin();
 	std::vector<ChunkWithVersionAndType> chunks;

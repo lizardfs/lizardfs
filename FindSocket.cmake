@@ -18,8 +18,8 @@
 include(CheckFunctionExists)
 
 if(NOT SOCKET_FOUND AND NOT NO_SOCKET)
-	check_function_exists(socket HAVE_SOCKET)
-	if(HAVE_SOCKET)
+	check_function_exists(socket LIZARDFS_HAVE_SOCKET)
+	if(LIZARDFS_HAVE_SOCKET)
 		set(SOCKET_FOUND TRUE)
 		set(SOCKET_LIBRARIES "")
 	else()

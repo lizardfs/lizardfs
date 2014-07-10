@@ -275,7 +275,7 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 		gMountOptions.nostdmountoptions = 1;
 		return 0;
 	case KEY_VERSION:
-		fprintf(stderr, "MFS version %s\n", VERSION);
+		fprintf(stderr, "MFS version %s\n", LIZARDFS_PACKAGE_VERSION);
 		{
 			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
