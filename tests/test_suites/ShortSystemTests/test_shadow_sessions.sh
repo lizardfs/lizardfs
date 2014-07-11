@@ -22,7 +22,6 @@ cd "${info[mount1]}"
 for generator in $(metadata_get_all_generators |grep -v metadata_generate_uids_gids); do
 	eval "$generator"
 done
-
 metadata_validate_files
 
 # Check if using removed files works as expected:
@@ -32,28 +31,23 @@ exec 11<> removed_file
 rm removed_file
 echo -n "u huhu" >&11
 assert_equals "u huhu kota" "$(cat /proc/$$/fd/11)"
+cd
 
-mount1meta=$(metadata_print)
-cd "${info[mount0]}"
-mount0meta=$(metadata_print)
+mount1meta=$(metadata_print "${info[mount1]}")
+mount0meta=$(metadata_print "${info[mount0]}")
 
 sleep 3
-cd
 lizardfs_master_daemon kill
-
 lizardfs_make_conf_for_master 1
 lizardfs_master_daemon reload
-
 lizardfs_wait_for_all_ready_chunkservers
 
 # check restored filesystem
-cd "${info[mount0]}"
-assert_no_diff "$mount0meta" "$(metadata_print)"
-assert_failure touch newfile
+assert_no_diff "$mount0meta" "$(metadata_print "${info[mount0]}")"
+assert_failure touch "${info[mount0]}"/newfile
 cd "${info[mount1]}"
 assert_no_diff "$mount1meta" "$(metadata_print)"
 assert_success touch newfile
-
 touch nowaythiswilleverwork
 assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
 

@@ -26,9 +26,9 @@ touch file{00..99}
 assert_eventually '[[ $(grep -c RELEASE "$changelog_file") == 100 ]]'
 mfssettrashtime 0 file*
 rm file{10..80}
+cd
 
 # Decrease timestamp for all operations in changelog by a factor of at least 24h
-cd
 lizardfs_master_daemon kill
 assert_equals "$metadata_version" "$(metadata_get_version "$metadata_file")"
 sed -i -e 's/: ./: /' "$changelog_file" # Remove first digit from all timestamps (subtract 37 years)
@@ -42,16 +42,13 @@ assert_less_than "$metadata_version" "$new_metadata_version"
 # Wait for FREEINODES and create some new files so that some inode numbers (eg. 20) are reused
 assert_eventually 'grep -q FREEINODES "$changelog_file"'
 assert_awk_finds_no '/CREATE.*:20$/' "$(cat "$changelog_file")"
-cd "${info[mount0]}"
-touch file{0000..099}
+touch "${info[mount0]}"/file{0000..099}
 assert_awk_finds    '/CREATE.*:20$/' "$(cat "$changelog_file")" # Make sure that inode 20 was reused
 
 # Simulate crash of the master server, auto recover metadata applying FREEINODES and check it
-metadata=$(metadata_print)
-cd
+metadata=$(metadata_print "${info[mount0]}")
 lizardfs_master_daemon kill
 assert_equals "$new_metadata_version" "$(metadata_get_version "$metadata_file")"
 assert_success lizardfs_master_daemon start
 lizardfs_wait_for_all_ready_chunkservers
-cd ${info[mount0]}
-assert_no_diff "$metadata" "$(metadata_print)"
+assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"

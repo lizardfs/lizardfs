@@ -42,9 +42,7 @@ for generator in $(metadata_get_all_generators); do
 	# Restore the filesystem from changelog by starting master server and check it
 	assert_success lizardfs_master_daemon start
 	lizardfs_wait_for_all_ready_chunkservers
-	cd "${info[mount0]}"
-	assert_no_diff "$metadata" "$(metadata_print)"
-	cd
+	assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"
 done
 
 # Check if we can read files

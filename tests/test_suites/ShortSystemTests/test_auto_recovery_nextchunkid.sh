@@ -31,5 +31,4 @@ lizardfs_master_daemon kill
 assert_awk_finds '/NEXTCHUNKID/' "$(cat "${info[master_data_path]}"/changelog.mfs)"
 assert_success lizardfs_master_daemon start
 lizardfs_wait_for_all_ready_chunkservers
-cd "${info[mount0]}"
-assert_no_diff "$metadata" "$(metadata_print)"
+assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"
