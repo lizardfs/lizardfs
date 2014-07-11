@@ -7500,7 +7500,11 @@ void fs_unlock() {
 #ifndef METARESTORE
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
-
+	if (gMetadata == nullptr) {
+		// Periodic dump in shadow master or a reload with DUMP_METADATA_ON_RELOAD
+		syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
+		return false;
+	}
 	if (metadataDumper.inProgress()) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
 		return false;
@@ -7564,7 +7568,7 @@ void fs_term(void) {
 		metadataDumper.waitUntilFinished();
 	}
 	for (;;) {
-		if (fs_storeall(MetadataDumper::kForegroundDump)) {
+		if (gMetadata == nullptr || fs_storeall(MetadataDumper::kForegroundDump)) {
 			break;
 		}
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
