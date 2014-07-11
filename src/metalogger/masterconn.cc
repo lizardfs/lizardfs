@@ -97,9 +97,9 @@ static masterconn *masterconnsingleton=NULL;
 // from config
 static uint32_t BackLogsNumber;
 static uint32_t BackMetaCopies;
-static char *MasterHost;
-static char *MasterPort;
-static char *BindHost;
+static std::string MasterHost;
+static std::string MasterPort;
+static std::string BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
 #ifdef METALOGGER
@@ -623,9 +623,6 @@ void masterconn_term(void) {
 
 	delete masterconnsingleton;
 	masterconnsingleton = NULL;
-	free(MasterHost);
-	free(MasterPort);
-	free(BindHost);
 }
 
 void masterconn_connected(masterconn *eptr) {
@@ -650,17 +647,19 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (eptr->masteraddrvalid==0) {
 		uint32_t mip,bip;
 		uint16_t mport;
-		if (tcpresolve(BindHost,NULL,&bip,NULL,1)>=0) {
+		if (tcpresolve(BindHost.c_str(), NULL, &bip, NULL, 1)>=0) {
 			eptr->bindip = bip;
 		} else {
 			eptr->bindip = 0;
 		}
-		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
+		if (tcpresolve(MasterHost.c_str(), MasterPort.c_str(), &mip, &mport, 0)>=0) {
 			eptr->masterip = mip;
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			mfs_arg_syslog(LOG_WARNING,
+					"can't resolve master host/port (%s:%s)",
+					MasterHost.c_str(), MasterPort.c_str());
 			return -1;
 		}
 	}
@@ -929,17 +928,18 @@ void masterconn_reload(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 
-	free(MasterHost);
-	free(MasterPort);
-	free(BindHost);
+	std::string newMasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	std::string newMasterPort = cfg_getstring("MASTER_PORT","9419");
+	std::string newBindHost = cfg_getstring("BIND_HOST","*");
 
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
-	MasterPort = cfg_getstr("MASTER_PORT","9419");
-	BindHost = cfg_getstr("BIND_HOST","*");
-
-	eptr->masteraddrvalid = 0;
-	if (eptr->mode!=FREE) {
-		eptr->mode = KILL;
+	if (newMasterHost != MasterHost || newMasterPort != MasterPort || newBindHost != BindHost) {
+		MasterHost = newMasterHost;
+		MasterPort = newMasterPort;
+		BindHost = newBindHost;
+		eptr->masteraddrvalid = 0;
+		if (eptr->mode != FREE) {
+			eptr->mode = KILL;
+		}
 	}
 
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
