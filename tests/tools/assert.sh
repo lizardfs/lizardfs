@@ -63,6 +63,13 @@ assert_template_equals_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_matches <regex> <string>
+assert_template_matches_() {
+	if [[ ! "$2" =~ $1 ]]; then
+		$FAIL_FUNCTION "Expected: $2 to match regex $1"
+	fi
+}
+
 # (assert|assertlocal|expect)_near <expected_number> <actual_number> <max_absolute_error>
 assert_template_near_() {
 	if ! (( $1 - $3 <= $2 && $2 <= $1 + $3 )); then
@@ -113,6 +120,15 @@ assert_template_no_diff_() {
 	local diff=$(diff -u5 <(echo -n "$1") <(echo -n "$2")) || true
 	if [[ -n "$diff" ]]; then
 		$FAIL_FUNCTION $'Strings are different:\n'"$diff"
+	fi
+}
+
+# (assert|assertlocal|expect)_eventually <command> [<timeout>]
+assert_template_eventually_() {
+	local command=$1
+	local timeout=${2:-15 seconds}
+	if ! wait_for "$command" "$timeout"; then
+		$FAIL_FUNCTION "'$command' didn't succedd within $timeout"
 	fi
 }
 

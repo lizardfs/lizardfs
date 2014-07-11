@@ -1,4 +1,6 @@
 metadata_print() {
+( # This function calls cd, so run it in a subshell
+	cd "${1:-.}"
 	assert_program_installed getfattr
 	local file
 	local format=$'inode %i; type %F; name %n\n'
@@ -25,6 +27,7 @@ metadata_print() {
 	if [[ $(stat -c "%i" .) == 1 ]]; then
 		mfsrepquota -a .
 	fi
+)
 }
 
 # Extract version from metadata file
