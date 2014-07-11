@@ -260,6 +260,6 @@ int dcm_init(void) {
 	return 0;
 }
 
-void dcm_unload() {
+void dcm_clear() {
 	dcm_init();
 }

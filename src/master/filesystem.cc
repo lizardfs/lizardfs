@@ -7706,6 +7706,7 @@ void fs_cs_disconnected(void) {
  * Initialize subsystems required by Master personality of metadataserver.
  */
 void fs_become_master() {
+	dcm_clear();
 	test_start_time = main_time() + 900;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_test_files);
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
@@ -7854,7 +7855,7 @@ void fs_unload() {
 	restore_reset();
 	matoclserv_session_unload();
 	chunk_unload();
-	dcm_unload();
+	dcm_clear();
 	delete gMetadata;
 	gMetadata = nullptr;
 }
