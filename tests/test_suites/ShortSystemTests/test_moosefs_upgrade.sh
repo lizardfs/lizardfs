@@ -33,7 +33,7 @@ moosefs_chunkserver_daemon 1 stop
 assert_success generate_file file1
 assert_success file-validate file1
 lizardfs_chunkserver_daemon 1 start
-assert_success wait_for \
+assert_eventually \
 		'[[ $(mfscheckfile file1 | grep "chunks with 2 copies" | wc -l) == 1 ]]' '20 seconds'
 moosefs_chunkserver_daemon 0 stop
 # Check if LizardFS CS can serve newly replicated chunks to MooseFS client:
@@ -43,7 +43,7 @@ assert_success file-validate file1
 assert_success generate_file file2
 assert_success file-validate file2
 moosefs_chunkserver_daemon 0 start
-assert_success wait_for '[[ $(mfscheckfile file2 | grep "chunks with 2 copies" | wc -l) == 1 ]]' '20 seconds'
+assert_eventually '[[ $(mfscheckfile file2 | grep "chunks with 2 copies" | wc -l) == 1 ]]' '20 seconds'
 lizardfs_chunkserver_daemon 1 stop
 # Check if MooseFS CS can serve newly replicated chunks (check if the file is consistent):
 assert_success file-validate file2

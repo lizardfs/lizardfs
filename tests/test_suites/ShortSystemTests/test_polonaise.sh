@@ -19,7 +19,7 @@ mkdir -p "$mnt"
 # fsname below is important. When the test is ended framework unmounts all the filesystems
 # that match a given regex.
 polonaise-fuse-client "$mnt" -o big_writes,allow_other,fsname=mfspolon &
-assert_success wait_for 'mfsdirinfo "$mnt"' '10 seconds'
+assert_eventually 'mfsdirinfo "$mnt"'
 
 # Perform a compilation
 cd "$mnt"

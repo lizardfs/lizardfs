@@ -17,7 +17,7 @@ list_chunkservers() {
 }
 
 export MESSAGE="Veryfing chunkservers list with all the chunkservers up"
-expect_success wait_for \
+expect_eventually \
 	'(($(list_chunkservers | awk "{chunks += \$3} END {print chunks}") == 7))' \
 	'30 seconds'
 cslist=$(list_chunkservers)

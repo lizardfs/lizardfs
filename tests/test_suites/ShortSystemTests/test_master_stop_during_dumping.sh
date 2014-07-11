@@ -21,6 +21,6 @@ touch "${info[mount0]}"/file
 
 # begin dumping
 lizardfs_master_daemon reload
-wait_for 'test -e $TEMP_DIR/dump_started' '15 seconds'
+assert_eventually 'test -e $TEMP_DIR/dump_started'
 # before dumping ends, stop the server - it should succeed
 lizardfs_master_daemon stop

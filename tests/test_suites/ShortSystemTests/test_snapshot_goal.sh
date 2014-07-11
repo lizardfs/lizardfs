@@ -25,7 +25,7 @@ assert_equals 8 $(find_all_chunks | wc -l)
 mfssettrashtime 0 file*
 rm file
 echo "Waiting for chunks to be deleted..."
-assert_success wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 4 ]]' '3 minutes'
+assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 4 ]]' '3 minutes'
 echo "Checking if chunks are no longer being deleted..."
 assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) != 4 ]]' '30 seconds'
 assert_equals 4 $(mfsfileinfo file_snapshot1 | grep -c copy)
@@ -39,7 +39,7 @@ assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) != 4 ]]
 mfsmakesnapshot file_snapshot2 file_snapshot3
 mfssetgoal 3 file_snapshot3
 echo "Waiting for chunks to be replicated..."
-assert_success wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 6 ]]' '30 seconds'
+assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 6 ]]' '30 seconds'
 assert_equals 6 $(mfsfileinfo file_snapshot3 | grep -c copy)
 
 # Verify if file's data isn't damaged

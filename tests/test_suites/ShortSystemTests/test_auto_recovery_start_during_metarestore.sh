@@ -11,7 +11,7 @@ generate_changelog > "${info[master_data_path]}/changelog.mfs"
 # Start mfsmetarestore in background and wait until it starts to apply
 # the changelog. This process will then last for a couple of seconds.
 mfsmetarestore -a -d "${info[master_data_path]}" &
-wait_for 'test -e "${info[master_data_path]}/metadata.mfs.lock"' "15 seconds"
+assert_eventually 'test -e "${info[master_data_path]}/metadata.mfs.lock"'
 sleep 1
 
 # Try to start the master server. This should fail, because mfsmetarestore holds the lock.

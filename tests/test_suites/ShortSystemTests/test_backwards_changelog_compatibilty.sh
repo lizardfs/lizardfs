@@ -11,8 +11,8 @@ for n in {1..10}; do
 	touch file_${n}.{1..10}
 	prev_version=$(metadata_get_version "$metadata_file")
 	lizardfs_master_daemon reload
-	assert_success wait_for '(( $(metadata_get_version "$metadata_file") > prev_version ))' '10 seconds'
-	assert_success wait_for "test -f '${info[master_data_path]}/changelog.mfs.$n'" '10 seconds'
+	assert_eventually '(( $(metadata_get_version "$metadata_file") > prev_version ))'
+	assert_eventually "test -f '${info[master_data_path]}/changelog.mfs.$n'"
 done
 
 cd ${info[master_data_path]}

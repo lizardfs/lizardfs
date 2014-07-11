@@ -23,7 +23,7 @@ metadata_version=$(metadata_get_version "$metadata_file")
 # Create and remove inodes, which later will be freed generating FREEINODES entry in changelog
 cd ${info[mount0]}
 touch file{00..99}
-wait_for '[[ $(grep -c RELEASE "$changelog_file") == 100 ]]' '10 seconds'
+assert_eventually '[[ $(grep -c RELEASE "$changelog_file") == 100 ]]'
 mfssettrashtime 0 file*
 rm file{10..80}
 
@@ -40,7 +40,7 @@ new_metadata_version=$(metadata_get_version "$metadata_file")
 assert_less_than "$metadata_version" "$new_metadata_version"
 
 # Wait for FREEINODES and create some new files so that some inode numbers (eg. 20) are reused
-wait_for 'grep -q FREEINODES "$changelog_file"' '10 seconds'
+assert_eventually 'grep -q FREEINODES "$changelog_file"'
 assert_awk_finds_no '/CREATE.*:20$/' "$(cat "$changelog_file")"
 cd "${info[mount0]}"
 touch file{0000..099}
