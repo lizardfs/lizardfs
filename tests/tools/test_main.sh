@@ -5,8 +5,7 @@ unalias -a
 shopt -s expand_aliases extdebug
 
 command_prefix=
-for i in mfsmaster mfschunkserver mfsmount mfsmetarestore mfsmetalogger \
-		lizardfs-polonaise-server; do
+for i in mfsmaster mfschunkserver mfsmount mfsmetarestore mfsmetalogger; do
 	alias $i="\${command_prefix} $i"
 done
 
