@@ -241,10 +241,12 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 	}
 	if (old_changes_head->minversion>version) {
 		syslog(LOG_WARNING,"meta logger wants changes since version: %" PRIu64 ", but minimal version in storage is: %" PRIu64,version,old_changes_head->minversion);
-		return;
+		// TODO(msulikowski) send a special message which will cause the shadow master to unload fs
 	}
 	for (oc=old_changes_head ; oc ; oc=oc->next) {
-		if (oc->minversion<=version && (oc->next==NULL || oc->next->minversion>version)) {
+		if (oc->minversion>=version) {
+			start=1;
+		} else if (oc->minversion<=version && (oc->next==NULL || oc->next->minversion>version)) {
 			start=1;
 		}
 		if (start) {

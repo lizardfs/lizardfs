@@ -87,9 +87,11 @@ typedef struct masterconn {
 	uint64_t filesize;
 	uint64_t dloffset;
 	uint64_t dlstartuts;
-	bool filesystemInSync;
 	void* sessionsdownloadinit_handle;
 	void* metachanges_flush_handle;
+#ifndef METALOGGER
+	bool filesystemIsLoaded;
+#endif
 } masterconn;
 
 static masterconn *masterconnsingleton=NULL;
@@ -259,15 +261,19 @@ namespace {
 #endif /* #else #ifdef METALOGGER */
 }
 
-void kill_session(masterconn* eptr) {
+void masterconn_kill_session(masterconn* eptr) {
 	eptr->logfd.reset();
-#ifndef METALOGGER
-	restore_reset();
-	fs_unload();
-#endif /* #ifdef METALOGGER */
-	lastlogversion = 0;
 	eptr->mode = KILL;
-	eptr->filesystemInSync = false;
+}
+
+void masterconn_force_metadata_download(masterconn* eptr) {
+#ifndef METALOGGER
+	fs_unload();
+	restore_reset();
+	eptr->filesystemIsLoaded = false;
+#endif
+	lastlogversion = 0;
+	masterconn_kill_session(eptr);
 }
 
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -304,7 +310,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 	if ((lastlogversion > 0) && (version != (lastlogversion + 1))) {
 		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
-		kill_session(eptr);
+		masterconn_force_metadata_download(eptr);
 		return;
 	}
 
@@ -312,18 +318,19 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		eptr->logfd = cstream_t(fopen(changelogFilename.c_str(), "a"));
 	}
 
-	if (eptr->filesystemInSync) {
 #ifndef METALOGGER
+	if (eptr->filesystemIsLoaded) {
 		std::string buf(": ");
 		buf.append(reinterpret_cast<const char*>(data));
 		static char const network[] = "network";
 		if (restore(network, version, buf.c_str(), RestoreRigor::kDontIgnoreAnyErrors) < 0) {
 			mfs_syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it");
-			kill_session(eptr);
+			masterconn_force_metadata_download(eptr);
 			return;
 		}
-#endif /* #ifndef METALOGGER */
 	}
+#endif /* #ifndef METALOGGER */
+
 	if (eptr->logfd) {
 		fprintf(eptr->logfd.get(), "%" PRIu64 ": %s\n", version, data);
 		lastlogversion = version;
@@ -429,12 +436,12 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
-				if (!eptr->filesystemInSync) {
+				if (!eptr->filesystemIsLoaded) {
 					eptr->logfd.reset();
 					fs_loadall();
 					lastlogversion = fs_getversion() - 1;
 					mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
-					eptr->filesystemInSync = true;
+					eptr->filesystemIsLoaded = true;
 				}
 #endif /* #ifndef METALOGGER */
 			}
@@ -724,13 +731,13 @@ void masterconn_read(masterconn *eptr) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection was reset by Master");
-			kill_session(eptr);
+			masterconn_kill_session(eptr);
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
 				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
-				kill_session(eptr);
+				masterconn_kill_session(eptr);
 			}
 			return;
 		}
@@ -749,7 +756,7 @@ void masterconn_read(masterconn *eptr) {
 			if (size>0) {
 				if (size>MaxPacketSize) {
 					syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
-					kill_session(eptr);
+					masterconn_kill_session(eptr);
 					return;
 				}
 				eptr->inputpacket.packet = (uint8_t*) malloc(size);
@@ -1019,14 +1026,14 @@ int masterconn_init(void) {
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
-	eptr->filesystemInSync = false;
 	eptr->pdescpos = -1;
 	eptr->metafd = -1;
-
-#ifdef METALOGGER
+#ifndef METALOGGER
+	eptr->filesystemIsLoaded = false;
+#else
 	changelogsMigrateFrom_1_6_29("changelog_ml");
 	masterconn_findlastlogversion();
-#endif /* #ifdef METALOGGER */
+#endif /* #else ifndef METALOGGER */
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
