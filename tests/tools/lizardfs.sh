@@ -155,9 +155,9 @@ create_mfsmaster_shadow_cfg_() {
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = $etcdir/mfsexports.cfg"
 	echo "DATA_PATH = $masterserver_data_path"
-	echo "MATOML_LISTEN_PORT = $matoml_port"
-	echo "MATOCS_LISTEN_PORT = $matocs_port"
-	echo "MATOCL_LISTEN_PORT = $matocl_port"
+	echo "MATOML_LISTEN_PORT = $shadow_matoml_port"
+	echo "MATOCS_LISTEN_PORT = $shadow_matocs_port"
+	echo "MATOCL_LISTEN_PORT = $shadow_matocl_port"
 	echo "PERSONALITY = shadow"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
@@ -207,14 +207,15 @@ add_metadata_server_() {
 	local masterserver_cfg=$etcdir/mfsmaster${masterserver_id}.cfg
 	mkdir "$masterserver_data_path"
 
-	local matoml_port
-	local matocl_port
-	local matocs_port
-	get_next_port_number matoml_port
-	get_next_port_number matocl_port
-	get_next_port_number matocs_port
 
 	if [ "$personality" == "master" ]; then
+		local matoml_port
+		local matocl_port
+		local matocs_port
+		get_next_port_number matoml_port
+		get_next_port_number matocl_port
+		get_next_port_number matocs_port
+
 		current_master=$masterserver_id
 
 		lizardfs_info_[matoml]=$matoml_port
@@ -223,22 +224,30 @@ add_metadata_server_() {
 
 		create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
 		cp "$masterserver_master_cfg" "$masterserver_cfg"
-	else # shadow
-		local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
-		create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
-		create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
-
-		cp "$masterserver_shadow_cfg" "$masterserver_cfg"
-		lizardfs_info_[master${masterserver_id}_shadow_cfg]=$masterserver_shadow_cfg
 	fi
+
+	local shadow_matoml_port
+	local shadow_matocl_port
+	local shadow_matocs_port
+	get_next_port_number shadow_matoml_port
+	get_next_port_number shadow_matocl_port
+	get_next_port_number shadow_matocs_port
+
+	# shadow
+	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
+	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
+	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
+
+	cp "$masterserver_shadow_cfg" "$masterserver_cfg"
+	lizardfs_info_[master${masterserver_id}_shadow_cfg]=$masterserver_shadow_cfg
 
 	lizardfs_info_[master${masterserver_id}_master_cfg]=$masterserver_master_cfg
 	lizardfs_info_[master${masterserver_id}_cfg]=$masterserver_cfg
 	lizardfs_info_[master${masterserver_id}_data_path]=$masterserver_data_path
 
-	lizardfs_info_[master${masterserver_id}_matoml]=$matoml_port
-	lizardfs_info_[master${masterserver_id}_matocl]=$matocl_port
-	lizardfs_info_[master${masterserver_id}_matocs]=$matocs_port
+	lizardfs_info_[master${masterserver_id}_matoml]=$shadow_matoml_port
+	lizardfs_info_[master${masterserver_id}_matocl]=$shadow_matocl_port
+	lizardfs_info_[master${masterserver_id}_matocs]=$shadow_matocs_port
 
 	if [ "$personality" == "master" ]; then
 		create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
