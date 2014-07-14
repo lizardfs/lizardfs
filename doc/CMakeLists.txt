@@ -5,6 +5,7 @@ endif()
 
 # These manpages should be generated
 set(MANPAGES
+    lizardfs.7          # not a source
     mfsappendchunks.1
     mfscheckfile.1
     mfsdirinfo.1

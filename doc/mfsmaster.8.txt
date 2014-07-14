@@ -3,7 +3,7 @@ mfsmaster(8)
 
 == NAME
 
-mfsmaster - start, restart or stop Moose File System master process
+mfsmaster - start, restart or stop Moose File System metadata server process
 
 == SYNOPSIS
 
@@ -21,9 +21,25 @@ mfsmaster [*-f*] [*-c* 'CFGFILE'] [*-u*] [*-d*] [*-t* 'LOCKTIMEOUT'] ['ACTION']
 
 == DESCRIPTION
 
-*mfsmaster* is the master program of Moose File System. Depending on parameters it can start,
-restart or stop MooseFS master process. Without any options it starts MooseFS master, killing
-previously run process if lock file exists.
+*mfsmaster* is the metadata server program of Moose File System. Depending on parameters it can
+start, restart or stop MooseFS metadata server process. Without any options it starts MooseFS
+metadata server, killing previously run process if lock file exists.
+
+Metadata server can work in one of two modes (personalities):
+
+. master
+. shadow
+
+If metadata server works with 'master' personality it acts as main metadata server
+govering all file system metadata modifications.
+If metadata server works with 'shadow' personality it acts as backup metadata server
+ready for immediate deployment as new 'master' in case of current 'master' failure.
+Shadow only accepts connections from lizardfs-probe, i.e. mfschunkserver, mfsmetalogger
+and mfsmount (the client) are not allowed to connect to 'shadow' instance.
+
+Current metadata server personality is defined in metadata server configuration file
+and can be changed on the fly from 'shadow' to 'master' by proper modification and reloading
+of its configuration file.
 
 SIGHUP (or 'reload' 'ACTION') forces *mfsmaster* to reload all configuration files.
 
