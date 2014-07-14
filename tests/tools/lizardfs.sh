@@ -143,6 +143,7 @@ create_mfsexports_cfg_() {
 
 create_mfsmaster_master_cfg_() {
 	echo "PERSONALITY = master"
+	echo "SYSLOG_IDENT = master_${masterserver_id}"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
@@ -155,6 +156,7 @@ create_mfsmaster_master_cfg_() {
 
 create_mfsmaster_shadow_cfg_() {
 	echo "PERSONALITY = shadow"
+	echo "SYSLOG_IDENT = shadow_${masterserver_id}"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
@@ -262,6 +264,7 @@ create_mfshdd_cfg_() {
 }
 
 create_mfschunkserver_cfg_() {
+	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "DATA_PATH = $chunkserver_data_path"
