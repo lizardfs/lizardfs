@@ -26,16 +26,19 @@ setup_local_empty_lizardfs() {
 		build_moosefs
 	fi
 
-	# Start one masterserver with personality master
-	lizardfs_info_[masterserver_count]=0
+	# Prepare configuration for metadata servers
+	prepare_common_metadata_server_files_
 	add_metadata_server_ 0 "master"
-	lizardfs_master_daemon start
-	lizardfs_info_[masterserver_count]=$number_of_masterservers
-
-	# Prepare masterservers with personality shadow
 	for ((msid=1 ; msid<number_of_masterservers; ++msid)); do
 		add_metadata_server_ $msid "shadow"
 	done
+	lizardfs_info_[current_master]=0
+	lizardfs_info_[master_cfg]=${lizardfs_info_[master0_cfg]}
+	lizardfs_info_[master_data_path]=${lizardfs_info_[master0_data_path]}
+	lizardfs_info_[masterserver_count]=$number_of_masterservers
+
+	# Start one masterserver with personality master
+	lizardfs_master_daemon start
 
 	# Prepare the metalogger, so that any test can start it
 	prepare_metalogger_
@@ -139,26 +142,26 @@ create_mfsexports_cfg_() {
 }
 
 create_mfsmaster_master_cfg_() {
+	echo "PERSONALITY = master"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
-	echo "EXPORTS_FILENAME = $etcdir/mfsexports.cfg"
+	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
-	echo "PERSONALITY = master"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
 create_mfsmaster_shadow_cfg_() {
+	echo "PERSONALITY = shadow"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
-	echo "EXPORTS_FILENAME = $etcdir/mfsexports.cfg"
+	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
 	echo "DATA_PATH = $masterserver_data_path"
-	echo "MATOML_LISTEN_PORT = $shadow_matoml_port"
-	echo "MATOCS_LISTEN_PORT = $shadow_matocs_port"
-	echo "MATOCL_LISTEN_PORT = $shadow_matocl_port"
-	echo "PERSONALITY = shadow"
+	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
+	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
+	echo "MATOCL_LISTEN_PORT = $masterserver_matocl_port"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
@@ -183,80 +186,49 @@ lizardfs_current_master_id() {
 	echo ${lizardfs_info_[current_master]}
 }
 
-add_metaserver_already_called_as_master="false";
+prepare_common_metadata_server_files_() {
+	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
+	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
+	get_next_port_number "lizardfs_info_[matoml]"
+	get_next_port_number "lizardfs_info_[matocl]"
+	get_next_port_number "lizardfs_info_[matocs]"
+}
+
 add_metadata_server_() {
 	local masterserver_id=$1
 	local personality=$2
 
-	if [ "$add_metaserver_already_called_as_master" != "true" ]; then
-		if [ "$personality" != "master" ]; then
-			echo "First call to add_metadata_server_ function should have `
-					`personality == master, but got $personality" >&2
-			exit 2
-		else
-			add_metaserver_already_called_as_master="true"
-		fi
-	elif [ "$personality" != "shadow" ]; then
-		echo "All calls to add_metadata_server_ except the first one should `
-				`have personality == shadow, but got $personality" >&2
-		exit 2
-	fi
-
+	local masterserver_matoml_port
+	local masterserver_matocl_port
+	local masterserver_matocs_port
 	local masterserver_data_path=$vardir/master${masterserver_id}
 	local masterserver_master_cfg=$etcdir/mfsmaster${masterserver_id}_master.cfg
+	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
 	local masterserver_cfg=$etcdir/mfsmaster${masterserver_id}.cfg
+
+	get_next_port_number masterserver_matoml_port
+	get_next_port_number masterserver_matocl_port
+	get_next_port_number masterserver_matocs_port
 	mkdir "$masterserver_data_path"
+	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
+	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
 
-
-	if [ "$personality" == "master" ]; then
-		local matoml_port
-		local matocl_port
-		local matocs_port
-		get_next_port_number matoml_port
-		get_next_port_number matocl_port
-		get_next_port_number matocs_port
-
-		current_master=$masterserver_id
-
-		lizardfs_info_[matoml]=$matoml_port
-		lizardfs_info_[matocl]=$matocl_port
-		lizardfs_info_[matocs]=$matocs_port
-
-		create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
+	if [[ "$personality" == "master" ]]; then
 		cp "$masterserver_master_cfg" "$masterserver_cfg"
+		echo -n 'MFSM NEW' > "$masterserver_data_path/metadata.mfs"
+	elif [[ "$personality" == "shadow" ]]; then
+		cp "$masterserver_shadow_cfg" "$masterserver_cfg"
+	else
+		test_fail "Wrong personality $personality"
 	fi
 
-	local shadow_matoml_port
-	local shadow_matocl_port
-	local shadow_matocs_port
-	get_next_port_number shadow_matoml_port
-	get_next_port_number shadow_matocl_port
-	get_next_port_number shadow_matocs_port
-
-	# shadow
-	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
-	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
-	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
-
-	cp "$masterserver_shadow_cfg" "$masterserver_cfg"
 	lizardfs_info_[master${masterserver_id}_shadow_cfg]=$masterserver_shadow_cfg
-
 	lizardfs_info_[master${masterserver_id}_master_cfg]=$masterserver_master_cfg
 	lizardfs_info_[master${masterserver_id}_cfg]=$masterserver_cfg
 	lizardfs_info_[master${masterserver_id}_data_path]=$masterserver_data_path
-
-	lizardfs_info_[master${masterserver_id}_matoml]=$shadow_matoml_port
-	lizardfs_info_[master${masterserver_id}_matocl]=$shadow_matocl_port
-	lizardfs_info_[master${masterserver_id}_matocs]=$shadow_matocs_port
-
-	if [ "$personality" == "master" ]; then
-		create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
-		lizardfs_info_[master_cfg]=${lizardfs_info_[master${masterserver_id}_cfg]}
-		lizardfs_info_[master_data_path]=${lizardfs_info_[master${masterserver_id}_data_path]}
-		lizardfs_info_[current_master]=${masterserver_id}
-		cp ${lizardfs_info_[master${masterserver_id}_master_cfg]} ${lizardfs_info_[master_cfg]}
-		echo -n 'MFSM NEW' > "${lizardfs_info_[master_data_path]}/metadata.mfs"
-	fi
+	lizardfs_info_[master${masterserver_id}_matoml]=$masterserver_matoml_port
+	lizardfs_info_[master${masterserver_id}_matocl]=$masterserver_matocl_port
+	lizardfs_info_[master${masterserver_id}_matocs]=$masterserver_matocs_port
 }
 
 create_mfsmetalogger_cfg_() {
