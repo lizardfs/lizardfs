@@ -132,6 +132,13 @@ assert_template_eventually_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_empty <string>
+assert_template_empty_() {
+	if [[ -n $1 ]]; then
+		$FAIL_FUNCTION "Expected empty string, got '$1'"
+	fi
+}
+
 # This function returns a line from some source file of this test suite
 test_absolute_path_=$(readlink -m .)
 get_source_line() {

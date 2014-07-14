@@ -324,7 +324,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 		}
 		id->datachainhead=NULL;
 		id->inqueue=0;
-
+		id->maxfleng=0; // proper file length is now on the master server, remove our length cache
 		if (id->flushwaiting>0) {
 			pthread_cond_broadcast(&(id->flushcond));
 		}
