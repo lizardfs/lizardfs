@@ -998,9 +998,9 @@ int masterconn_init(void) {
 	masterconn *eptr;
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY", 1);
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
-	MasterPort = cfg_getstr("MASTER_PORT","9419");
-	BindHost = cfg_getstr("BIND_HOST","*");
+	MasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstring("MASTER_PORT","9419");
+	BindHost = cfg_getstring("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
