@@ -79,6 +79,7 @@ typedef struct matomlserventry {
 static matomlserventry *matomlservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
+static bool gExiting = false;
 
 typedef struct old_changes_entry {
 	uint64_t version;
@@ -622,10 +623,14 @@ void matomlserv_write(matomlserventry *eptr) {
 void matomlserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	uint32_t pos = *ndesc;
 	matomlserventry *eptr;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
+	if (!gExiting) {
+		pdesc[pos].fd = lsock;
+		pdesc[pos].events = POLLIN;
+		lsockpdescpos = pos;
+		pos++;
+	} else {
+		lsockpdescpos = -1;
+	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
 		pdesc[pos].fd = eptr->sock;
 		pdesc[pos].events = POLLIN;
@@ -727,6 +732,19 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
+void matomlserv_wantexit(void) {
+	gExiting = true;
+}
+
+int matomlserv_canexit(void) {
+	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->outputhead != nullptr) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void matomlserv_become_master() {
 	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return;
@@ -814,6 +832,8 @@ int matomlserv_init(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
+	main_wantexitregister(matomlserv_wantexit);
+	main_canexitregister(matomlserv_canexit);
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
