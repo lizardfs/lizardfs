@@ -139,6 +139,26 @@ assert_template_empty_() {
 	fi
 }
 
+# (assert|assertlocal|expect)_eventually_prints <string> <command> [<timeout>]
+assert_template_eventually_prints_() {
+	local string=$1
+	local command=$2
+	local timeout=${3:-15 seconds}
+	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
+		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout"
+	fi
+}
+
+# (assert|assertlocal|expect)_eventually_equals <command1> <command2> [<timeout>]
+assert_template_eventually_equals_() {
+	local command1=$1
+	local command2=$2
+	local timeout=${3:-15 seconds}
+	if ! wait_for "[[ \$($command1) == \$($command2) ]]" "$timeout"; then
+		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout"
+	fi
+}
+
 # This function returns a line from some source file of this test suite
 test_absolute_path_=$(readlink -m .)
 get_source_line() {

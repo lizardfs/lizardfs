@@ -1049,3 +1049,6 @@ int masterconn_init(void) {
 	return 0;
 }
 
+bool masterconn_is_connected() {
+	return (masterconnsingleton && masterconnsingleton->sock != -1);
+}

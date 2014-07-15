@@ -5807,6 +5807,9 @@ uint8_t fs_apply_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 }
 
 uint64_t fs_getversion() {
+	if (!gMetadata) {
+		throw NoMetadataException();
+	}
 	return gMetadata->metaversion;
 }
 

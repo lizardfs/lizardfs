@@ -24,3 +24,5 @@
 #include <stdio.h>
 
 int masterconn_init(void);
+
+bool masterconn_is_connected();

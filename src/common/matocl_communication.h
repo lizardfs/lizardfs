@@ -117,3 +117,9 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, accumulate_ms,
 		std::string, subsystem,
 		std::vector<IoGroupAndLimit>, groupsAndLimits)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, metadataserverStatus, LIZ_MATOCL_METADATASERVER_STATUS, 0,
+		uint32_t, messageId,
+		uint8_t, status,
+		uint64_t, metadataVersion)

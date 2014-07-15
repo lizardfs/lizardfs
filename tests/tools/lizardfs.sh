@@ -405,5 +405,19 @@ lizardfs_wait_for_all_ready_chunkservers() {
 	lizardfs_wait_for_ready_chunkservers ${lizardfs_info_[chunkserver_count]}
 }
 
+# lizardfs_shadow_synchronized <num> -- check if shadow <num> is fully synchronized with master
+lizardfs_shadow_synchronized() {
+	local num=$1
+	local port1=${lizardfs_info_[matocl]}
+	local port2=${lizardfs_info_[master${num}_matocl]}
+	local probe1="lizardfs-probe metadataserver-status --porcelain localhost $port1"
+	local probe2="lizardfs-probe metadataserver-status --porcelain localhost $port2"
+	if [[ "$($probe1 | cut -f3)" == "$($probe2 | cut -f3)" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))
 LIZARDFS_CHUNK_SIZE=$((1024 * LIZARDFS_BLOCK_SIZE))

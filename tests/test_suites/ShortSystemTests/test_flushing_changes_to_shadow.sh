@@ -31,7 +31,7 @@ sed -i -e "s/^MASTER_PORT.*/MASTER_PORT = $proxy_port/" "${info[master1_cfg]}"
 
 # Start shadow master and wait until it synchronizes
 assert_success lizardfs_master_n 1 start
-assert_eventually 'test -e "$s/metadata.mfs.1"'
+assert_eventually "lizardfs_shadow_synchronized 1"
 
 # Pause traffic from master to shadow
 rm "$TEMP_DIR/gogo"
@@ -42,7 +42,7 @@ begin_ts=$(timestamp)
 ( sleep 3; touch "$TEMP_DIR/gogo"; ) &
 assert_success lizardfs_master_daemon stop
 
-assert_eventually 'cmp <(get_changes "$m" |tail) <(get_changes "$s" |tail) &>/dev/null'
+assert_eventually_equals 'get_changes "$m" |tail' 'get_changes "$s" |tail'
 end_ts=$(timestamp)
 duration=$((end_ts - begin_ts))
 # The traffic was paused for 3 seconds, let's check if we didn't succeed too soon

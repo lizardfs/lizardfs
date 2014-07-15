@@ -21,14 +21,11 @@ touch "$TEMP_DIR/dump_finished"
 END
 chmod +x "$TEMP_DIR/metarestore.sh"
 
-m=${info[master0_data_path]} # master's working directory
-s=${info[master1_data_path]} # shadow's working directory
-
 # Generate some files
 cd "${info[mount0]}"
 touch file_before_shadow_start_{1..20}
 lizardfs_master_n 1 start                              # Connect shadow master
-wait_for 'test -e "$s"/changelog.mfs.1' '15 seconds'   # Wait for shadow to connect
+assert_eventually "lizardfs_shadow_synchronized 1"
 touch file_after_shadow_connects_{1..20}
 lizardfs_master_n 1 reload                             # Start dumping metadata in shadow master
 wait_for 'test -e $TEMP_DIR/dump_started' '15 seconds'
@@ -37,9 +34,7 @@ metadata=$(metadata_print)
 cd
 
 # Wait for master and shadow master to synchronize
-assert_equals 1 $(metadata_get_version "$m/metadata.mfs") # check that all the changelogs are needed
-assert_less_than 60 $(get_changes "$m" | wc -l)    # checks that there are some non-empty changelogs
-assert_success wait_for 'cmp <(get_changes "$m") <(get_changes "$s")' '30 seconds' # Compare changelog entries
+assert_eventually "lizardfs_shadow_synchronized 1"
 
 # Promote shadow master to master
 lizardfs_master_daemon kill

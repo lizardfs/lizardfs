@@ -310,6 +310,10 @@
 #define MFS_XATTR_SIZE_MAX 65536
 #define MFS_XATTR_LIST_MAX 65536
 
+#define LIZ_METADATASERVER_STATUS_MASTER 1
+#define LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED 2
+#define LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED 3
+
 // Metalogger specific messages.
 #define FORCE_LOG_ROTATE 0x55
 #define DOWNLOAD_METADATA_MFS 1
@@ -1237,6 +1241,14 @@
 // 0x0608
 #define LIZ_MATOCL_IOLIMITS_STATUS (1000U + 544U)
 /// msgid:32 cfgversion:32 period:32 accumulation:32 subsystem:STDSTRING groupslimits:(vector<STDSTRING, uint64_t>)
+
+// 0x0609
+#define LIZ_CLTOMA_METADATASERVER_STATUS (1000U + 545U)
+/// msgid:32
+
+// 0x060a
+#define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
+/// msgid:32 status:8 metadata_version:64
 
 // CHUNKSERVER STATS
 

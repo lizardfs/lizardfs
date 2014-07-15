@@ -30,6 +30,8 @@
 #include "master/checksum.h"
 #include "master/fs_context.h"
 
+LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
+
 /// Returns version of the loaded metadata
 uint64_t fs_getversion(void);
 

@@ -59,6 +59,7 @@
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
+#include "metalogger/masterconn.h"
 
 #define MaxPacketSize 1000000
 
@@ -880,6 +881,28 @@ void matoclserv_iolimits_status(matoclserventry* eptr, const uint8_t* data, uint
 			gIoLimitsAccumulate_ms,
 			gIoLimitsSubsystem,
 			gIoLimitsDatabase.getGroupsAndLimits());
+	matoclserv_createpacket(eptr, std::move(buffer));
+}
+
+void matoclserv_metadataserver_status(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	uint32_t messageId;
+	cltoma::metadataserverStatus::deserialize(data, length, messageId);
+
+	uint64_t metadataVersion = 0;
+	try {
+		metadataVersion = fs_getversion();
+	} catch (NoMetadataException&) {}
+	uint8_t status = metadataserver::isMaster() ?
+			LIZ_METADATASERVER_STATUS_MASTER :
+			(masterconn_is_connected() ?
+				LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED :
+				LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED);
+
+	MessageBuffer buffer;
+	matocl::metadataserverStatus::serialize(buffer,
+			messageId,
+			status,
+			metadataVersion);
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
@@ -3482,7 +3505,16 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 		return;
 	}
 	try {
-		if (eptr->registered==0) {      // unregistered clients - beware that in this context sesdata is NULL
+		if (!metadataserver::isMaster()) {     // shadow
+			switch (type) {
+				case LIZ_CLTOMA_METADATASERVER_STATUS:
+					matoclserv_metadataserver_status(eptr, data, length);
+					break;
+				default:
+					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
+					eptr->mode = KILL;
+			}
+		} else if (eptr->registered==0) {      // unregistered clients - beware that in this context sesdata is NULL
 			switch (type) {
 				case CLTOMA_FUSE_REGISTER:
 					matoclserv_fuse_register(eptr,data,length);
@@ -3522,6 +3554,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_IOLIMITS_STATUS:
 					matoclserv_iolimits_status(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_METADATASERVER_STATUS:
+					matoclserv_metadataserver_status(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
@@ -3978,7 +4013,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
 			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
-		} else if (metadataserver::isMaster()) {
+		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
 			eptr = (matoclserventry*) malloc(sizeof(matoclserventry));
@@ -4010,8 +4045,6 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->cacheddirs = NULL;
 */
 			memset(eptr->passwordrnd,0,32);
-		} else {
-			tcpclose(ns);
 		}
 	}
 
