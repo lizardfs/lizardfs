@@ -371,6 +371,15 @@
 #define MLTOMA_DOWNLOAD_END (PROTO_BASE+64)
 /// -
 
+// 0x0433
+#define LIZ_MLTOMA_REGISTER_SHADOW (1000U + 65)
+/// version==0 vershex:32 timeout:32 metadataversion:64
+
+// 0x0433
+#define LIZ_MATOML_REGISTER_SHADOW (1000U + 66)
+/// version==0 status:8
+/// version==1 vershex:32 metadataversion:64
+
 // CHUNKSERVER <-> MASTER
 
 // 0x0064

@@ -41,8 +41,10 @@
 #include "common/datapack.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matoml_communication.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
+#include "common/mltoma_communication.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
@@ -219,11 +221,38 @@ uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
 	return ptr;
 }
 
+void masterconn_createpacket(masterconn *eptr, std::vector<uint8_t> data) {
+	packetstruct *outpacket = (packetstruct*) malloc(sizeof(packetstruct));
+	passert(outpacket);
+	outpacket->packet = (uint8_t*) malloc(data.size());
+	passert(outpacket->packet);
+	memcpy(outpacket->packet, data.data(), data.size());
+	outpacket->bytesleft = data.size();
+	outpacket->startptr = outpacket->packet;
+	outpacket->next = nullptr;
+	*(eptr->outputtail) = outpacket;
+	eptr->outputtail = &(outpacket->next);
+}
+
 void masterconn_sendregister(masterconn *eptr) {
 	uint8_t *buff;
 
 	eptr->downloading=0;
 	eptr->metafd=-1;
+
+#if (VERSHEX >= VERSHEX)
+#ifndef METALOGGER
+	// To be activated in the next release
+	uint64_t metadataVersion = 0;
+	if (eptr->filesystemIsLoaded) {
+		metadataVersion = fs_getversion();
+	}
+	std::vector<uint8_t> request;
+	mltoma::registerShadow::serialize(request, LIZARDFS_VERSHEX, Timeout * 1000, metadataVersion);
+	masterconn_createpacket(eptr, std::move(request));
+	return;
+#endif
+#endif
 
 	if (lastlogversion>0) {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
@@ -275,6 +304,28 @@ void masterconn_force_metadata_download(masterconn* eptr) {
 	lastlogversion = 0;
 	masterconn_kill_session(eptr);
 }
+
+#ifndef METALOGGER
+void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t length) {
+	PacketVersion responseVersion;
+	deserializePacketVersionNoHeader(data, length, responseVersion);
+	if (responseVersion == matoml::registerShadow::kStatusPacketVersion) {
+		uint8_t status;
+		matoml::registerShadow::deserialize(data, length, status);
+		syslog(LOG_NOTICE, "Cannot register to master: %s", mfsstrerr(status));
+		eptr->mode = KILL;
+	} else if (responseVersion == matoml::registerShadow::kResponsePacketVersion) {
+		uint32_t masterVersion;
+		uint64_t masterMetadataVersion;
+		matoml::registerShadow::deserialize(data, length, masterVersion, masterMetadataVersion);
+		if (eptr->filesystemIsLoaded && fs_getversion() != masterMetadataVersion) {
+			masterconn_force_metadata_download(eptr);
+		}
+	} else {
+		syslog(LOG_NOTICE, "Unknown register response: #%u", unsigned(responseVersion));
+	}
+}
+#endif
 
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t version;
@@ -580,26 +631,36 @@ void masterconn_beforeclose(masterconn *eptr) {
 }
 
 void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
-	switch (type) {
-		case ANTOAN_NOP:
-			break;
-		case ANTOAN_UNKNOWN_COMMAND: // for future use
-			break;
-		case ANTOAN_BAD_COMMAND_SIZE: // for future use
-			break;
-		case MATOML_METACHANGES_LOG:
-			masterconn_metachanges_log(eptr,data,length);
-			break;
-		case MATOML_DOWNLOAD_START:
-			masterconn_download_start(eptr,data,length);
-			break;
-		case MATOML_DOWNLOAD_DATA:
-			masterconn_download_data(eptr,data,length);
-			break;
-		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
-			eptr->mode = KILL;
-			break;
+	try {
+		switch (type) {
+			case ANTOAN_NOP:
+				break;
+			case ANTOAN_UNKNOWN_COMMAND: // for future use
+				break;
+			case ANTOAN_BAD_COMMAND_SIZE: // for future use
+				break;
+#ifndef METALOGGER
+			case LIZ_MATOML_REGISTER_SHADOW:
+				masterconn_registered(eptr,data,length);
+				break;
+#endif
+			case MATOML_METACHANGES_LOG:
+				masterconn_metachanges_log(eptr,data,length);
+				break;
+			case MATOML_DOWNLOAD_START:
+				masterconn_download_start(eptr,data,length);
+				break;
+			case MATOML_DOWNLOAD_DATA:
+				masterconn_download_data(eptr,data,length);
+				break;
+			default:
+				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+				eptr->mode = KILL;
+				break;
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - cannot deserialize: %s", type, ex.what());
+		eptr->mode = KILL;
 	}
 }
 
