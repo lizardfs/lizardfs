@@ -3,7 +3,7 @@ mfsmaster(8)
 
 == NAME
 
-mfsmaster - start, restart or stop Moose File System metadata server process
+mfsmaster - start, restart or stop Lizard File System metadata server process
 
 == SYNOPSIS
 
@@ -21,8 +21,8 @@ mfsmaster [*-f*] [*-c* 'CFGFILE'] [*-u*] [*-d*] [*-t* 'LOCKTIMEOUT'] ['ACTION']
 
 == DESCRIPTION
 
-*mfsmaster* is the metadata server program of Moose File System. Depending on parameters it can
-start, restart or stop MooseFS metadata server process. Without any options it starts MooseFS
+*mfsmaster* is the metadata server program of Lizard File System. Depending on parameters it can
+start, restart or stop LizardFS metadata server process. Without any options it starts LizardFS
 metadata server, killing previously run process if lock file exists.
 
 Metadata server can work in one of two modes (personalities):
@@ -51,12 +51,12 @@ print usage information and exit
 
 *-f*::
 (deprecated, use *start* action instead)
-forcily run MooseFS master process, without trying to kill
-previous instance (this option allows to run MooseFS master if stale PID file exists)
+forcily run LizardFS master process, without trying to kill
+previous instance (this option allows to run LizardFS master if stale PID file exists)
 
 *-s*::
 (deprecated, use *stop* action instead)
-stop MooseFS master process
+stop LizardFS master process
 
 *-c* 'CFGFILE'::
 specify alternative path of configuration file (default is *mfsmaster.cfg* in system configuration
@@ -73,37 +73,35 @@ how long to wait for lockfile (default is 60 seconds)
 
 'ACTION'::
 is the one of *start*, *stop*, *restart*, *reload*, *test*, *isalive* or *kill*. Default action is
-*restart* unless *-s* (stop) or *-f* (start) option is given. Note that *-s* and *-f* options are
-deprecated, likely to disappear and 'ACTION' parameter to become obligatory in MooseFS 1.7.
+*restart*.
 
 == FILES
 
 *mfsmaster.cfg*::
-configuration file for MooseFS master process (see *mfsmaster.cfg*(5) manual)
+configuration file for LizardFS master process (see *mfsmaster.cfg*(5) manual)
 
 *mfsexports.cfg*::
-MooseFS access control file (used with *mfsmount*`s` 1.6.0 or later, see
+LizardFS access control file (used with *mfsmount*`s` 1.6.0 or later, see
 *mfsexports.cfg*(5) manual)
 
 *mfstopology.cfg*::
 Network topology definitions (see *mfstopology.cfg*(5) manual)
 
 *mfsmaster.lock*::
-PID file of running MooseFS master process
-(created in RUN_PATH by MooseFS < 1.6.9)
+PID file of running LizardFS master process
 
 *.mfsmaster.lock*::
-lock file of running MooseFS master process
-(created in data directory since MooseFS 1.6.9)
+lock file of running LizardFS master process
+(created in data directory)
 
 *metadata.mfs*, *metadata.mfs.back*::
-MooseFS filesystem metadata image
+LizardFS filesystem metadata image
 
 *`changelog.*.mfs`*::
-MooseFS filesystem metadata change logs (merged into *metadata.mfs* once per hour)
+LizardFS filesystem metadata change logs (merged into *metadata.mfs* once per hour)
 
 *data.stats*::
-MooseFS master charts state
+LizardFS master charts state
 
 == REPORTING BUGS
 

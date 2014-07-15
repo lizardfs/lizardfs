@@ -3,7 +3,7 @@ mfsmetarestore(8)
 
 == NAME
 
-mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata image
+mfsmetarestore - replay LizardFS metadata change logs or dump LizardFS metadata image
 
 == SYNOPSIS
 
@@ -27,7 +27,7 @@ mfsmetarestore - replay MooseFS metadata change logs or dump MooseFS metadata im
 When *mfsmetarestore* is called with both *-m* and *-o* options, it replays given 'CHANGELOGFILEs'
 on 'OLDMETADATAFILE' and writes result to 'NEWMETADATAFILE'. Multiple change log files can be given.
 
-*mfsmetarestore* with just *-m* 'METADATAFILE' option dumps MooseFS metadata image file in human
+*mfsmetarestore* with just *-m* 'METADATAFILE' option dumps LizardFS metadata image file in human
 readable form.
 
 *mfsmetarestore* called with -a option automatically performs all operations needed to merge change
@@ -54,13 +54,13 @@ specify output metadata image file
 == FILES
 
 *metadata.mfs*::
-Moose File System metadata image as read by *mfsmaster* process
+Lizard File System metadata image as read by *mfsmaster* process
 
 *metadata.mfs.back*::
-Moose File System metadata image as left by killed or crashed *mfsmaster* process
+Lizard File System metadata image as left by killed or crashed *mfsmaster* process
 
 *changelog.***.mfs*::
-Moose File System metadata change logs
+Lizard File System metadata change logs
 
 == REPORTING BUGS
 

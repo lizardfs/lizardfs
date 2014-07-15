@@ -37,9 +37,7 @@ and 'gid' values of accessing process). Only root ('uid'=0) sees the real 'uid' 
 
 *noattrcache*::
 This flag means, that standard file attributes such as uid, gid, mode, length and so on won't be
-stored in kernel cache. In MooseFS 1.5 this was the only behaviour, and mfsmount always prevented
-attributes from being stored in kernel cache, but in MooseFS 1.6 attributes can be cached, so in
-very rare ocassions it could be useful to turn it off.
+stored in kernel cache.
 
 *noentrycache*::
 This flag is similar to above. It prevents directory entries from being cached in kernel.

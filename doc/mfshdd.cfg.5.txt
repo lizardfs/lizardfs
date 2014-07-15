@@ -3,14 +3,13 @@ mfshdd.cfg(5)
 
 == NAME
 
-mfshdd.cfg - list of MooseFS storage directories for mfschunkserver
+mfshdd.cfg - list of LizardFS storage directories for mfschunkserver
 
 == DESCRIPTION
 
-The file *mfshdd.cfg* contains list of directories (mountpoints) used for MooseFS storage (one per
+The file *mfshdd.cfg* contains list of directories (mountpoints) used for LizardFS storage (one per
 line). Directory prefixed by *** character causes given directory to be freed by replicating all
-data already stored there to another locations. Lines starting with *#* character are ignored
-(since MooseFS 1.6.0).
+data already stored there to another locations. Lines starting with *#* character are ignored.
 
 == COPYRIGHT
 

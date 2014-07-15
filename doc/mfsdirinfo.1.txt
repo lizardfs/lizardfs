@@ -12,7 +12,7 @@ mfsdirinfo - show directories stats
 
 == DESCRIPTION
 
-*mfsdirinfo* is extended, MooseFS-specific equivalent of *du -s* command. It prints summary for each
+*mfsdirinfo* is extended, LizardFS-specific equivalent of *du -s* command. It prints summary for each
 specified object (single file or directory tree).
 
 == OPTIONS

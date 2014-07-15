@@ -3,7 +3,7 @@ mfscgiserv(8)
 
 == NAME
 
-mfscgiserv - start HTTP/CGI server for Moose File System monitoring
+mfscgiserv - start HTTP/CGI server for Lizard File System monitoring
 
 == SYNOPSIS
 
@@ -16,7 +16,7 @@ mfscgiserv - start HTTP/CGI server for Moose File System monitoring
 
 == DESCRIPTION
 
-*mfscgiserv* is a very simple HTTP server capable of running CGI scripts for Moose File System
+*mfscgiserv* is a very simple HTTP server capable of running CGI scripts for Lizard File System
 monitoring.
 
 == OPTIONS

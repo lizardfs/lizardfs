@@ -3,7 +3,7 @@ mfsmetalogger(8)
 
 == NAME
 
-mfsmetalogger - start, restart or stop Moose File System metalogger process
+mfsmetalogger - start, restart or stop Lizard File System metalogger process
 
 == SYNOPSIS
 
@@ -21,29 +21,17 @@ mfsmetalogger - start, restart or stop Moose File System metalogger process
 
 == DESCRIPTION
 
-*mfsmetalogger* is the metadata replication server of Moose File System. Depending on parameters it
-can start, restart or stop MooseFS metalogger process. Without any options it starts MooseFS
+*mfsmetalogger* is the metadata replication server of Lizard File System. Depending on parameters it
+can start, restart or stop LizardFS metalogger process. Without any options it starts LizardFS
 metalogger, killing previously run process if lock file exists.
 
 SIGHUP (or 'reload' 'ACTION') forces *mfsmetalogger* to reload all configuration files.
-
-mfsmetalogger exists since 1.6.5 version of MooseFS; before this version *mfschunkserver*(8) was
-responsible of logging metadata changes.
 
 *-v*::
 print version information and exit
 
 *-h*::
 print usage information and exit
-
-*-f*::
-(deprecated, use *start* action instead)
-forcily run MooseFS metalogger process, without trying to kill previous instance (this option allows
-to run MooseFS metalogger if stale PID file exists)
-
-*-s*::
-(deprecated, use *stop* action instead)
-stop MooseFS metalogger process
 
 *-c* 'CFGFILE'::
 specify alternative path of configuration file (default is *mfsmetalogger.cfg* in system
@@ -60,31 +48,29 @@ how long to wait for lockfile (default is 60 seconds)
 
 'ACTION'
 is the one of *start*, *stop*, *restart*, *reload*, *test*, *isalive* or *kill*. Default action is
-*restart* unless *-s* (stop) or *-f* (start) option is given. Note that *-s* and *-f* options are
-deprecated, likely to disappear and 'ACTION' parameter to become obligatory in MooseFS 1.7.
+*restart*.
 
 == FILES
 
 *mfsmetalogger.cfg*::
-configuration file for MooseFS metalogger process; refer to *mfsmetalogger.cfg*(5) manual for
+configuration file for LizardFS metalogger process; refer to *mfsmetalogger.cfg*(5) manual for
 defails
 
 *mfsmetalogger.lock*::
-PID file of running MooseFS metalogger process
-(created in RUN_PATH by MooseFS < 1.6.9)
+PID file of running LizardFS metalogger process
 
 *.mfsmetalogger.lock*::
-lock file of running MooseFS metalogger process
-(created in data directory since MooseFS 1.6.9)
+lock file of running LizardFS metalogger process
+(created in data directory)
 
 *changelog_ml.***.mfs*::
-MooseFS filesystem metadata change logs (backup of master change log files)
+LizardFS filesystem metadata change logs (backup of master change log files)
 
 *metadata.ml.mfs.back*::
-Latest copy of complete metadata.mfs.back file from MooseFS master.
+Latest copy of complete metadata.mfs.back file from LizardFS master.
 
 *sessions.ml.mfs*::
-Latest copy of sessions.mfs file from MooseFS master.
+Latest copy of sessions.mfs file from LizardFS master.
 
 == REPORTING BUGS
 
