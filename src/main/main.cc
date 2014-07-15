@@ -491,6 +491,8 @@ const std::string& set_syslog_ident() {
 }
 
 void main_reload() {
+	syslog(LOG_NOTICE, "Changing SYSLOG_IDENT to %s",
+			cfg_get("SYSLOG_IDENT", STR(APPNAME)).c_str());
 	set_syslog_ident();
 }
 
@@ -1206,7 +1208,6 @@ int main(int argc,char **argv) {
 #endif
 	fprintf(stderr, "initializing %s modules ...\n", logappname.c_str());
 
-	main_reloadregister(main_reload);
 	if (initialize()) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
@@ -1216,6 +1217,7 @@ int main(int argc,char **argv) {
 			close_msg_channel();
 		}
 		if (initialize_late()) {
+			main_reloadregister(main_reload); // this will be the first thing to do
 			mainloop();
 			ch=LIZARDFS_EXIT_STATUS_SUCCESS;
 		} else {
