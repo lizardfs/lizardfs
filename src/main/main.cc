@@ -820,6 +820,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		fflush(stderr);
 		uint32_t l = 0;
 		pid_t newownerpid;
+		uint32_t checksPerSecond = 10;
 		do {
 			newownerpid = mylock();
 			if (newownerpid<0) {
@@ -828,14 +829,18 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			}
 			if (newownerpid>0) {
 				l++;
-				if (l>=timeout) {
-					syslog(LOG_ERR,"about %" PRIu32 " seconds passed and lockfile is still locked - giving up",l);
+				uint32_t secondsElapsed = l / checksPerSecond;
+				if (secondsElapsed >= timeout) {
+					syslog(LOG_ERR,
+							"about %" PRIu32 " seconds passed and lock still exists - giving up",
+							secondsElapsed);
 					fprintf(stderr,"giving up\n");
 					return LockStatus::kFail;
 				}
-				if (l%10==0) {
-					syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and lock still exists",l);
-					fprintf(stderr,"%" PRIu32 "s ",l);
+				if (l % (10 * checksPerSecond) == 0) {
+					syslog(LOG_WARNING, "about %" PRIu32 " seconds passed and lock still exists",
+							secondsElapsed);
+					fprintf(stderr,"%" PRIu32 "s ", secondsElapsed);
 					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
@@ -859,7 +864,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 					ownerpid = newownerpid;
 				}
 			}
-			sleep(1);
+			usleep(1000000 / checksPerSecond);
 		} while (newownerpid!=0);
 		fprintf(stderr,"terminated\n");
 		return (runmode == RunMode::kRestart) ? LockStatus::kAgain : LockStatus::kSuccess;
