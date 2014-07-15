@@ -1,0 +1,8 @@
+# /etc/default/lizardfs-master
+
+# Start lizardfs-master from init.d script on boot.
+#   Only allowed values are "true" and "false".
+#   Undefined values default to "false".
+LIZARDFSMASTER_ENABLE=false
+
+DAEMON_OPTS=""

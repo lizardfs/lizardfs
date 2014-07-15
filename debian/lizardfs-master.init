@@ -1,44 +1,44 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:		mfs-metalogger
+# Provides:		lizardfs-master
 # Required-Start:	$network $remote_fs
 # Required-Stop:	$remote_fs
 # Default-Start:	2 3 4 5
 # Default-Stop:		0 1 6
-# Short-Description:	Start mfs-metalogger at boot time
-# Description:		mfs-metaloggers provide metadata replication for MooseFS.
+# Short-Description:	Start lizardfs-master at boot time
+# Description:		lizardfs-master provides metadata management for LizardFS.
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/sbin/mfsmetalogger
-NAME=mfsmetalogger
-DESC=mfs-metalogger
+DAEMON=/usr/sbin/mfsmaster
+NAME=mfsmaster
+DESC=lizardfs-master
 DEFAULT_WORKING_USER=mfs
 DEFAULT_WORKING_GROUP=mfs
 DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_RUN_PATH=/var/lib/mfs
-DEFAULT_CFG=/etc/mfs/mfsmetalogger.cfg
-COMPAT_CFG=/etc/mfsmetalogger.cfg
+DEFAULT_RUN_PATH=/var/run/mfs
+DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
+COMPAT_CFG=/etc/mfsmaster.cfg
 
 test -e $DAEMON || exit 0
 
-# Include mfs-metalogger defaults if available
+# Include lizardfs-master defaults if available
 . /lib/lsb/init-functions
-MFSMETALOGGER_ENABLE=false
-MFSMETALOGGER_CONFIG_FILE=
-MFSMETALOGGER_DEFAULTS_FILE=/etc/default/mfs-metalogger
-if [ -s "$MFSMETALOGGER_DEFAULTS_FILE" ]; then
-    . "$MFSMETALOGGER_DEFAULTS_FILE"
-    case "x$MFSMETALOGGER_ENABLE" in
+LIZARDFSMASTER_ENABLE=false
+LIZARDFSMASTER_CONFIG_FILE=
+LIZARDFSMASTER_DEFAULTS_FILE=/etc/default/lizardfs-master
+if [ -s "$LIZARDFSMASTER_DEFAULTS_FILE" ]; then
+    . "$LIZARDFSMASTER_DEFAULTS_FILE"
+    case "x$LIZARDFSMASTER_ENABLE" in
         xtrue) ;;
         xfalse)
-	    log_warning_msg "mfs-metalogger not enabled in \"$MFSMETALOGGER_DEFAULTS_FILE\", exiting..."
+	    log_warning_msg "lizardfs-master not enabled in \"$LIZARDFSMASTER_DEFAULTS_FILE\", exiting..."
 	    exit 0
 	    ;;
         *)
-            log_failure_msg "value of MFSMETALOGGER_ENABLE must be either 'true' or 'false';"
-            log_failure_msg "not starting mfs-metalogger."
+            log_failure_msg "value of LIZARDFSMASTER_ENABLE must be either 'true' or 'false';"
+            log_failure_msg "not starting lizardfs-master."
             exit 1
             ;;
     esac
@@ -46,8 +46,8 @@ fi
 
 set -e
 
-if [ -n "$MFSMETALOGGER_CONFIG_FILE" ]; then
-	CFGFILE="$MFSMETALOGGER_CONFIG_FILE"
+if [ -n "$LIZARDFSMASTER_CONFIG_FILE" ]; then
+	CFGFILE="$LIZARDFSMASTER_CONFIG_FILE"
 elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 	CFGFILE="$DEFAULT_CFG"
 else
@@ -56,8 +56,7 @@ fi
 
 get_config_value_from_CFGFILE()
 {
-	# parsing the value of config options from CFGFILE
-	echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+		echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
 }
 
 if [ -s "$CFGFILE" ]; then
@@ -66,6 +65,7 @@ if [ -s "$CFGFILE" ]; then
 	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
 	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 fi
+
 : ${DATA_PATH:=$DEFAULT_DATA_PATH}
 : ${RUN_PATH:=$DEFAULT_RUN_PATH}
 : ${WORKING_USER:=$DEFAULT_WORKING_USER}
@@ -79,6 +79,11 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+	if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
+		if [ ! -e "$DATA_PATH"/metadata.mfs.back ]; then
+			echo "MFSM NEW" > "$DATA_PATH"/metadata.mfs
+		fi
+	fi
 
 	if [ ! -d "$RUN_PATH" ]; then
 		mkdir -p "$RUN_PATH"
@@ -91,30 +96,28 @@ case "$1" in
 	start)
 		check_dirs
 		echo "Starting $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS start
+		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} $DAEMON_OPTS start
 		;;
 
 	stop)
 		echo "Stopping $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} stop
-		echo "$NAME."
+		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} stop
 		;;
 
 	reload|force-reload)
-		check_dirs
 		echo "Reloading $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} reload
+		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} reload
 		;;
 
 	restart)
 		check_dirs
 		echo "Restarting $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS restart
+		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} restart
 		;;
 
 	*)
 		N=/etc/init.d/$NAME
-		echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
+		echo "Usage: $N {start|stop|restart|force-reload}" >&2
 		exit 1
 		;;
 esac

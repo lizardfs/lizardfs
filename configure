@@ -6,13 +6,13 @@ cd build-pack
 cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=NO -DCMAKE_INSTALL_PREFIX=/ -DENABLE_DEBIAN_PATHS=YES
 cat >../Makefile <<END
 all:
-	make -C build-pack all
+	make --no-print-directory -C build-pack all
 
 clean:
-	make -C build-pack clean
+	make --no-print-directory -C build-pack clean
 
 install:
-	make -C build-pack install
+	make --no-print-directory -C build-pack install
 
 distclean:
 	rm -rf build-pack

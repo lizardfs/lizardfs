@@ -1,7 +1,7 @@
-Source: mfs
+Source: lizardfs
 Section: admin
 Priority: extra
-Maintainer: Peter aNeutrino <contact@lizardfs.org>
+Maintainer: Adam Ochmanski <contact@lizardfs.org>
 Build-Depends: asciidoc (>= 8.6.6),
                debhelper (>= 9),
                cmake (>= 2.8),
@@ -13,47 +13,74 @@ Build-Depends: asciidoc (>= 8.6.6),
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
-Package: mfs-common
+Package: lizardfs-common
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          adduser
-Description: MooseFS common files
- Files and services common for all MooseFS daemons.
+Conflicts: mfs-common
+Replaces: mfs-common
+Provides: mfs-common
+Description: LizardFS common files
+ Files and services common for all LizardFS daemons.
 
-Package: mfs-master
+Package: lizardfs-master
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
-Description: MooseFS master server
- MooseFS master (metadata) server.
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
+Conflicts: mfs-master
+Replaces: mfs-master
+Provides: mfs-master
+Description: LizardFS master server
+ LizardFS master (metadata) server.
 
-Package: mfs-metalogger
+Package: lizardfs-metalogger
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
-Description: MooseFS metalogger server
- MooseFS metalogger (metadata replication) server.
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
+Conflicts: mfs-metalogger
+Replaces: mfs-metalogger
+Provides: mfs-metalogger
+Description: LizardFS metalogger server
+ LizardFS metalogger (metadata replication) server.
 
-Package: mfs-chunkserver
+Package: lizardfs-chunkserver
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-common
-Description: MooseFS data server
- MooseFS data server.
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
+Conflicts: mfs-chunkserver
+Replaces: mfs-chunkserver
+Provides: mfs-chunkserver
+Description: LizardFS data server
+ LizardFS data server.
 
-Package: mfs-client
+Package: lizardfs-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: MooseFS client
- MooseFS clients: mfsmount and mfstools.
+Conflicts: mfs-client
+Replaces: mfs-client
+Provides: mfs-client
+Description: LizardFS client
+ LizardFS clients: mfsmount and mfstools.
 
-Package: mfs-cgi
+Package: lizardfs-adm
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: LizardFS administration tools
+ LizardFS administration tools: lizardfs-probe
+
+Package: lizardfs-cgi
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          python
-Description: MooseFS CGI Monitor
- MooseFS CGI Monitor.
+Conflicts: mfs-cgi
+Replaces: mfs-cgi
+Provides: mfs-cgi
+Description: LizardFS CGI Monitor
+ LizardFS CGI Monitor.
 
-Package: mfs-cgiserv
+Package: lizardfs-cgiserv
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, mfs-cgi,
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-cgi,
          python
-Description: Simple CGI-capable HTTP server to run MooseFS CGI Monitor
- Simple CGI-capable HTTP server to run MooseFS CGI Monitor.
+Conflicts: mfs-cgiserv
+Replaces: mfs-cgiserv
+Provides: mfs-cgiserv
+Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
+ Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
