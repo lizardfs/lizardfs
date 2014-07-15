@@ -337,6 +337,9 @@
 // 0x0032
 #define MLTOMA_REGISTER (PROTO_BASE+50)
 /// rver==1:8 vershex:32 timeout:16
+/// rver==2:8 vershex:32 timeout:16 minversion:64
+/// rver==3:8 vershex:32 timeout:16
+/// rver==4:8 vershex:32 timeout:16 minversion:64
 
 // 0x0033
 #define MATOML_METACHANGES_LOG (PROTO_BASE+51)

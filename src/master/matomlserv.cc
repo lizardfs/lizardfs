@@ -35,6 +35,7 @@
 #include "common/cfg.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/metadata.h"
@@ -70,6 +71,7 @@ typedef struct matomlserventry {
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;
+	bool shadow;
 
 	int metafd,chain1fd,chain2fd;
 
@@ -265,9 +267,6 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 }
 
 void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t rversion;
-	uint64_t minversion;
-
 	if (eptr->version>0) {
 		syslog(LOG_WARNING,"got register message from registered metalogger !!!");
 		eptr->mode=KILL;
@@ -278,36 +277,37 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->mode=KILL;
 		return;
 	} else {
-		rversion = get8bit(&data);
-		if (rversion==1) {
-			if (length!=7) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 1) - wrong size (%" PRIu32 "/7)",length);
-				eptr->mode=KILL;
-				return;
-			}
-			eptr->version = get32bit(&data);
-			eptr->timeout = get16bit(&data);
-		} else if (rversion==2) {
-			if (length!=7+8) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 2) - wrong size (%" PRIu32 "/15)",length);
-				eptr->mode=KILL;
-				return;
-			}
-			eptr->version = get32bit(&data);
-			eptr->timeout = get16bit(&data);
-			minversion = get64bit(&data);
-			matomlserv_send_old_changes(eptr,minversion);
-		} else {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 "/1)",rversion);
+		uint8_t rversion = get8bit(&data);
+		if (rversion < 1 || rversion > 4) {
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 ")",rversion);
 			eptr->mode=KILL;
 			return;
+		}
+		static const uint32_t expected_length[] = {0, 7, 7+8, 7, 7+8};
+		if (length != expected_length[rversion]) {
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver %" PRIu8 ") - wrong size (%" PRIu32
+					"/%" PRIu32 ")", rversion, length, expected_length[rversion]);
+			eptr->mode=KILL;
+			return;
+		}
+		eptr->version = get32bit(&data);
+		eptr->timeout = get16bit(&data);
+		eptr->shadow = (rversion == 3 || rversion == 4);
+		if (eptr->version < LIZARDFS_VERSHEX) {
+			syslog(LOG_NOTICE, "MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old client (%s)",
+					rversion, lizardfsVersionToString(eptr->version).c_str());
+			eptr->mode=KILL;
+			return;
+		}
+		if (rversion == 2 || rversion == 4) {
+			uint64_t minversion = get64bit(&data);
+			matomlserv_send_old_changes(eptr,minversion);
 		}
 		if (eptr->timeout<10) {
 			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
-			return;
 		}
 	}
 }
