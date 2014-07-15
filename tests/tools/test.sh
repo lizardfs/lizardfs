@@ -37,6 +37,7 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	trap - DEBUG
 	if [[ ${DEBUG} ]]; then
 		set +x
 	fi
@@ -67,6 +68,18 @@ test_end() {
 	fi
 }
 
+debug_command() {
+	local depth=${#BASH_SOURCE[@]}
+	if (( --depth < 1 )); then
+		return 0;
+	fi
+	if (( depth <= DEBUG_LEVEL )); then
+		local indent=">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+		echo "${indent:0:$depth} $(basename "${BASH_SOURCE[1]}"):${BASH_LINENO[0]}:`
+				`${FUNCNAME[1]}(): ${BASH_COMMAND}" >&2 | true
+	fi
+}
+
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {
@@ -85,6 +98,10 @@ test_begin() {
 	if [[ ${DEBUG} ]]; then
 		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
 		set -x
+	fi
+	if (( $DEBUG_LEVEL >= 1 )); then
+		trap 'debug_command' DEBUG
+		set -T
 	fi
 }
 
