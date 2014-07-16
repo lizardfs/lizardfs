@@ -39,6 +39,7 @@
 #include "common/crc.h"
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matoml_communication.h"
@@ -240,7 +241,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	eptr->downloading=0;
 	eptr->metafd=-1;
 
-#if (VERSHEX >= VERSHEX)
+#if LIZARDFS_VERSHEX > LIZARDFS_VERSION(2, 5, 0)
 #ifndef METALOGGER
 	// To be activated in the next release
 	uint64_t metadataVersion = 0;
