@@ -1,3 +1,4 @@
+timeout_set '1 minute'
 assert_program_installed socat
 
 # start_proxy <listen> <forward>
