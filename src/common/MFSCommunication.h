@@ -353,7 +353,7 @@
 
 // 0x003C
 #define MLTOMA_DOWNLOAD_START (PROTO_BASE+60)
-/// -
+/// filenum:8
 
 // 0x003D
 #define MATOML_DOWNLOAD_START (PROTO_BASE+61)
