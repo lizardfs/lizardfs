@@ -50,7 +50,7 @@ mfssettrashtime $trash_time file
 begin_ts=$(timestamp)
 rm file
 assert_success stat "$file_in_trash" >/dev/null
-assert_success wait_for '[ $(ls "$trash" | grep -v undel | wc -l) == 0 ] ' "$((trash_time + 10)) seconds"
+assert_eventually '[ $(ls "$trash" | grep -v undel | wc -l) == 0 ] ' "$((trash_time + 10)) seconds"
 end_ts=$(timestamp)
 duration=$((end_ts - begin_ts))
 assert_less_or_equal trash_time $trash_time $duration

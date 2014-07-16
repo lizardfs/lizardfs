@@ -46,7 +46,7 @@ END
 cp $TEMP_DIR/metarestore_ok.sh $TEMP_DIR/metarestore.sh
 chmod a+x $TEMP_DIR/metarestore.sh
 
-backup_copies=0
+backup_copies=1
 function check_backup_copies() {
 	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.? | wc -l)
 	expect_file_exists "${info[master_data_path]}/metadata.mfs"
@@ -69,13 +69,13 @@ function check() {
 		# wait for dump to be finished
 		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.1) == $prev_metadata_inode ]]'
 		files_are_renamed='[[ -e metadata.mfs && ! -e metadata.mfs.tmp ]]'
-		assert_success wait_for "$metadata_is_dumped" '10 seconds'
-		assert_success wait_for "$files_are_renamed" '10 seconds'
+		assert_eventually "$metadata_is_dumped"
+		assert_eventually "$files_are_renamed"
 	fi
 
 	# verify if metadata was or was not used
 	if [[ $1 == metarestore ]]; then
-		assert_success wait_for 'test -e $TEMP_DIR/metaout' '10 seconds'
+		assert_eventually 'test -e $TEMP_DIR/metaout'
 	else
 		assert_file_not_exists "$TEMP_DIR/metaout"
 	fi

@@ -101,6 +101,10 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, messageId)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, metadataserverStatus, LIZ_CLTOMA_METADATASERVER_STATUS, 0,
+		uint32_t, messageId)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, fuseTruncate, LIZ_CLTOMA_FUSE_TRUNCATE, 0,
 		uint32_t, messageId,
 		uint32_t, inode,

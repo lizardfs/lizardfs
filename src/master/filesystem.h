@@ -46,6 +46,8 @@ struct GoalStats {
 	}
 };
 
+LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
+
 /// Returns version of the loaded metadata
 uint64_t fs_getversion(void);
 
@@ -55,6 +57,9 @@ uint64_t fs_checksum(ChecksumMode mode);
 /*! \brief Load and apply changelogs.
  */
 int fs_load_changelogs();
+/*! \brief Load whole filesystem information.
+ */
+int fs_loadall();
 
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)

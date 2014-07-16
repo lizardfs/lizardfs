@@ -5907,6 +5907,9 @@ uint8_t fs_apply_emptyreserved(uint32_t ts,uint32_t freeinodes) {
 }
 
 uint64_t fs_getversion() {
+	if (!gMetadata) {
+		throw NoMetadataException();
+	}
 	return gMetadata->metaversion;
 }
 
@@ -7601,7 +7604,11 @@ void fs_unlock() {
 #ifndef METARESTORE
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
-
+	if (gMetadata == nullptr) {
+		// Periodic dump in shadow master or a reload with DUMP_METADATA_ON_RELOAD
+		syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
+		return false;
+	}
 	if (metadataDumper.inProgress()) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
 		return false;
@@ -7665,13 +7672,13 @@ void fs_term(void) {
 		metadataDumper.waitUntilFinished();
 	}
 	for (;;) {
-		if (fs_storeall(MetadataDumper::kForegroundDump)) {
+		if (gMetadata == nullptr || fs_storeall(MetadataDumper::kForegroundDump)) {
 			break;
 		}
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
 		sleep(10);
 	}
-	chunk_term();
+	chunk_unload();
 	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
 	fs_unlock();
 }
@@ -7760,9 +7767,17 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 	return;
 }
 
+void fs_strinit(void) {
+	gMetadata = new FilesystemMetadata;
+}
+
 /* executed in master mode */
 #ifndef METARESTORE
-void fs_loadall(void) {
+int fs_loadall(void) {
+	fprintf(stderr,"loading metadata ...\n");
+	fs_strinit();
+	chunk_strinit();
+	changelogsMigrateFrom_1_6_29("changelog");
 	namespace fs = boost::filesystem;
 	if (fs::exists(kMetadataTmpFilename)) {
 		throw MetadataFsConsistencyException(
@@ -7776,14 +7791,16 @@ void fs_loadall(void) {
 			currentPath.c_str(), kMetadataFilename);
 	}
 	fs_loadall(kMetadataFilename, 0);
-}
-#endif /* #ifndef METARESTORE */
+	fprintf(stderr,"metadata file has been loaded\n");
 
-void fs_strinit(void) {
-	gMetadata = new FilesystemMetadata;
+	if (gAutoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
+		int err = fs_load_changelogs();
+		if (err != 0) {
+			return err;
+		}
+	}
+	return 0;
 }
-
-#ifndef METARESTORE
 
 void fs_cs_disconnected(void) {
 	test_start_time = main_time()+600;
@@ -7793,6 +7810,7 @@ void fs_cs_disconnected(void) {
  * Initialize subsystems required by Master personality of metadataserver.
  */
 void fs_become_master() {
+	dcm_clear();
 	test_start_time = main_time() + 900;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_test_files);
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
@@ -7820,6 +7838,10 @@ void fs_reload(void) {
 	}
 
 	if (metadataserver::isDuringPersonalityChange()) {
+		if (!gMetadata) {
+			syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
+			exit(1);
+		}
 		fs_become_master();
 	} else if (metadataserver::isMaster()) {
 		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
@@ -7933,17 +7955,24 @@ int fs_load_changelogs() {
 }
 
 void fs_unload() {
-	mabort("Terminating. Metadata reloading not implemented.");
+	mfs_arg_syslog(LOG_WARNING, "unloading filesystem at %" PRIu64, fs_getversion());
+	restore_reset();
+	matoclserv_session_unload();
+	chunk_unload();
+	dcm_clear();
+	delete gMetadata;
+	gMetadata = nullptr;
 }
 
-int do_fs_init(void) {
+int fs_init(bool doLoad) {
 	if (!gMetadataLockfile) {
 		gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
 	}
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1 ? true : false;
 	if (!gMetadataLockfile->isLocked()) {
 		try {
-			gMetadataLockfile->lock(gAutoRecovery ? Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
+			gMetadataLockfile->lock((gAutoRecovery || !metadataserver::isMaster()) ?
+					Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
 		} catch (const LockfileException& e) {
 			if (e.reason() == LockfileException::Reason::kStaleLock) {
 				throw LockfileException(
@@ -7953,19 +7982,12 @@ int do_fs_init(void) {
 			throw;
 		}
 	}
-	fprintf(stderr,"loading metadata ...\n");
-	fs_strinit();
-	chunk_strinit();
-	changelogsMigrateFrom_1_6_29("changelog");
-	fs_loadall();
-	fprintf(stderr,"metadata file has been loaded\n");
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
 			kMaxStoredPreviousBackMetaCopies);
-
-	if (gAutoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
-		int err = fs_load_changelogs();
+	if (doLoad || (metadataserver::isMaster())) {
+		int err = fs_loadall();
 		if (err != 0) {
 			return err;
 		}
@@ -7985,17 +8007,6 @@ int do_fs_init(void) {
 	main_pollregister(metadataPollDesc, metadataPollServe);
 	main_destructregister(fs_term);
 	return 0;
-}
-
-/*
- * Conditionally initialize filesystem subsystem.
- */
-int fs_init(bool force) {
-	if (force || (metadataserver::isMaster())) {
-		return do_fs_init();
-	} else {
-		return 0;
-	}
 }
 
 /*

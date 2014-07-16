@@ -259,3 +259,7 @@ int dcm_init(void) {
 	dcm_lru_last = DCM_TAB_LENG-1;
 	return 0;
 }
+
+void dcm_clear() {
+	dcm_init();
+}

@@ -37,11 +37,15 @@
 
 #include "common/cfg.h"
 #include "common/crc.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matoml_communication.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
+#include "common/mltoma_communication.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
@@ -81,15 +85,16 @@ typedef struct masterconn {
 
 	uint8_t downloadretrycnt;
 	uint8_t downloading;
-	FILE *logfd;    // using stdio because this is text file
+	cstream_t logfd;    // using stdio because this is text file
 	int metafd;     // using standard unix I/O because this is binary file
 	uint64_t filesize;
 	uint64_t dloffset;
 	uint64_t dlstartuts;
-	bool metadataDownloaded_;
-	bool filesystemInitialized_;
 	void* sessionsdownloadinit_handle;
 	void* metachanges_flush_handle;
+#ifndef METALOGGER
+	bool filesystemIsLoaded;
+#endif
 } masterconn;
 
 static masterconn *masterconnsingleton=NULL;
@@ -97,9 +102,9 @@ static masterconn *masterconnsingleton=NULL;
 // from config
 static uint32_t BackLogsNumber;
 static uint32_t BackMetaCopies;
-static char *MasterHost;
-static char *MasterPort;
-static char *BindHost;
+static std::string MasterHost;
+static std::string MasterPort;
+static std::string BindHost;
 static uint32_t Timeout;
 static void* reconnect_hook;
 #ifdef METALOGGER
@@ -217,12 +222,38 @@ uint8_t* masterconn_createpacket(masterconn *eptr,uint32_t type,uint32_t size) {
 	return ptr;
 }
 
+void masterconn_createpacket(masterconn *eptr, std::vector<uint8_t> data) {
+	packetstruct *outpacket = (packetstruct*) malloc(sizeof(packetstruct));
+	passert(outpacket);
+	outpacket->packet = (uint8_t*) malloc(data.size());
+	passert(outpacket->packet);
+	memcpy(outpacket->packet, data.data(), data.size());
+	outpacket->bytesleft = data.size();
+	outpacket->startptr = outpacket->packet;
+	outpacket->next = nullptr;
+	*(eptr->outputtail) = outpacket;
+	eptr->outputtail = &(outpacket->next);
+}
+
 void masterconn_sendregister(masterconn *eptr) {
 	uint8_t *buff;
 
 	eptr->downloading=0;
 	eptr->metafd=-1;
-	eptr->logfd=NULL;
+
+#if LIZARDFS_VERSHEX > LIZARDFS_VERSION(2, 5, 0)
+#ifndef METALOGGER
+	// To be activated in the next release
+	uint64_t metadataVersion = 0;
+	if (eptr->filesystemIsLoaded) {
+		metadataVersion = fs_getversion();
+	}
+	std::vector<uint8_t> request;
+	mltoma::registerShadow::serialize(request, LIZARDFS_VERSHEX, Timeout * 1000, metadataVersion);
+	masterconn_createpacket(eptr, std::move(request));
+	return;
+#endif
+#endif
 
 	if (lastlogversion>0) {
 		buff = masterconn_createpacket(eptr,MLTOMA_REGISTER,1+4+2+8);
@@ -260,15 +291,48 @@ namespace {
 #endif /* #else #ifdef METALOGGER */
 }
 
+void masterconn_kill_session(masterconn* eptr) {
+	eptr->logfd.reset();
+	eptr->mode = KILL;
+}
+
+void masterconn_force_metadata_download(masterconn* eptr) {
+#ifndef METALOGGER
+	fs_unload();
+	restore_reset();
+	eptr->filesystemIsLoaded = false;
+#endif
+	lastlogversion = 0;
+	masterconn_kill_session(eptr);
+}
+
+#ifndef METALOGGER
+void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t length) {
+	PacketVersion responseVersion;
+	deserializePacketVersionNoHeader(data, length, responseVersion);
+	if (responseVersion == matoml::registerShadow::kStatusPacketVersion) {
+		uint8_t status;
+		matoml::registerShadow::deserialize(data, length, status);
+		syslog(LOG_NOTICE, "Cannot register to master: %s", mfsstrerr(status));
+		eptr->mode = KILL;
+	} else if (responseVersion == matoml::registerShadow::kResponsePacketVersion) {
+		uint32_t masterVersion;
+		uint64_t masterMetadataVersion;
+		matoml::registerShadow::deserialize(data, length, masterVersion, masterMetadataVersion);
+		if (eptr->filesystemIsLoaded && fs_getversion() != masterMetadataVersion) {
+			masterconn_force_metadata_download(eptr);
+		}
+	} else {
+		syslog(LOG_NOTICE, "Unknown register response: #%u", unsigned(responseVersion));
+	}
+}
+#endif
+
 void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t i;
 	uint64_t version;
 	if ((length == 1) && (data[0] == FORCE_LOG_ROTATE)) {
 #ifdef METALOGGER
-		if (eptr->logfd!=NULL) {
-			fclose(eptr->logfd);
-			eptr->logfd=NULL;
-		}
+		eptr->logfd.reset();
 		if (BackLogsNumber>0) {
 			rotateFiles(changelogFilename, BackLogsNumber);
 		} else {
@@ -296,39 +360,31 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	data++;
 	version = get64bit(&data);
 
-	if (lastlogversion>0 && version!=lastlogversion+1) {
+	if ((lastlogversion > 0) && (version != (lastlogversion + 1))) {
 		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
-		if (eptr->logfd!=NULL) {
-			fclose(eptr->logfd);
-			eptr->logfd=NULL;
-		}
-		std::string logname;
-		for (i=0 ; i<=BackLogsNumber ; i++) {
-			logname.assign(changelogFilename).append(".").append(std::to_string(i));
-			unlink(logname.c_str());
-		}
-		lastlogversion = 0;
-		eptr->mode = KILL;
+		masterconn_force_metadata_download(eptr);
 		return;
 	}
 
-	if (eptr->logfd==NULL) {
-		eptr->logfd = fopen(changelogFilename.c_str(), "a");
+	if (!eptr->logfd) {
+		eptr->logfd = cstream_t(fopen(changelogFilename.c_str(), "a"));
 	}
 
-	if (eptr->metadataDownloaded_) {
 #ifndef METALOGGER
+	if (eptr->filesystemIsLoaded) {
 		std::string buf(": ");
 		buf.append(reinterpret_cast<const char*>(data));
 		static char const network[] = "network";
 		if (restore(network, version, buf.c_str(), RestoreRigor::kDontIgnoreAnyErrors) < 0) {
-			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it");
-			fs_unload();
+			mfs_syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it");
+			masterconn_force_metadata_download(eptr);
+			return;
 		}
-#endif /* #ifndef METALOGGER */
 	}
+#endif /* #ifndef METALOGGER */
+
 	if (eptr->logfd) {
-		fprintf(eptr->logfd,"%" PRIu64 ": %s\n",version,data);
+		fprintf(eptr->logfd.get(), "%" PRIu64 ": %s\n", version, data);
 		lastlogversion = version;
 	} else {
 		syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
@@ -338,7 +394,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 void masterconn_metachanges_flush(void) {
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->logfd) {
-		fflush(eptr->logfd);
+		fflush(eptr->logfd.get());
 	}
 }
 
@@ -432,17 +488,12 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
-				if (!eptr->filesystemInitialized_) {
-					if (eptr->logfd) {
-						fclose(eptr->logfd);
-						eptr->logfd = NULL;
-					}
-					fs_init(true);
-					eptr->filesystemInitialized_ = true;
-					eptr->metadataDownloaded_ = true;
-				} else if (!eptr->metadataDownloaded_) {
-					fs_load_changelogs();
-					eptr->metadataDownloaded_ = true;
+				if (!eptr->filesystemIsLoaded) {
+					eptr->logfd.reset();
+					fs_loadall();
+					lastlogversion = fs_getversion() - 1;
+					mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
+					eptr->filesystemIsLoaded = true;
 				}
 #endif /* #ifndef METALOGGER */
 			}
@@ -577,33 +628,40 @@ void masterconn_beforeclose(masterconn *eptr) {
 		unlink(sessionsTmpFilename.c_str());
 		unlink(changelogTmpFilename.c_str());
 	}
-	if (eptr->logfd) {
-		fclose(eptr->logfd);
-		eptr->logfd = NULL;
-	}
+	eptr->logfd.reset();
 }
 
 void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
-	switch (type) {
-		case ANTOAN_NOP:
-			break;
-		case ANTOAN_UNKNOWN_COMMAND: // for future use
-			break;
-		case ANTOAN_BAD_COMMAND_SIZE: // for future use
-			break;
-		case MATOML_METACHANGES_LOG:
-			masterconn_metachanges_log(eptr,data,length);
-			break;
-		case MATOML_DOWNLOAD_START:
-			masterconn_download_start(eptr,data,length);
-			break;
-		case MATOML_DOWNLOAD_DATA:
-			masterconn_download_data(eptr,data,length);
-			break;
-		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
-			eptr->mode = KILL;
-			break;
+	try {
+		switch (type) {
+			case ANTOAN_NOP:
+				break;
+			case ANTOAN_UNKNOWN_COMMAND: // for future use
+				break;
+			case ANTOAN_BAD_COMMAND_SIZE: // for future use
+				break;
+#ifndef METALOGGER
+			case LIZ_MATOML_REGISTER_SHADOW:
+				masterconn_registered(eptr,data,length);
+				break;
+#endif
+			case MATOML_METACHANGES_LOG:
+				masterconn_metachanges_log(eptr,data,length);
+				break;
+			case MATOML_DOWNLOAD_START:
+				masterconn_download_start(eptr,data,length);
+				break;
+			case MATOML_DOWNLOAD_DATA:
+				masterconn_download_data(eptr,data,length);
+				break;
+			default:
+				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+				eptr->mode = KILL;
+				break;
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - cannot deserialize: %s", type, ex.what());
+		eptr->mode = KILL;
 	}
 }
 
@@ -632,16 +690,12 @@ void masterconn_term(void) {
 		}
 	}
 
-	free(eptr);
-	free(MasterHost);
-	free(MasterPort);
-	free(BindHost);
+	delete masterconnsingleton;
 	masterconnsingleton = NULL;
 }
 
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
-	eptr->metadataDownloaded_ = false;
 	eptr->mode=HEADER;
 	eptr->inputpacket.next = NULL;
 	eptr->inputpacket.bytesleft = 8;
@@ -662,17 +716,19 @@ int masterconn_initconnect(masterconn *eptr) {
 	if (eptr->masteraddrvalid==0) {
 		uint32_t mip,bip;
 		uint16_t mport;
-		if (tcpresolve(BindHost,NULL,&bip,NULL,1)>=0) {
+		if (tcpresolve(BindHost.c_str(), NULL, &bip, NULL, 1)>=0) {
 			eptr->bindip = bip;
 		} else {
 			eptr->bindip = 0;
 		}
-		if (tcpresolve(MasterHost,MasterPort,&mip,&mport,0)>=0) {
+		if (tcpresolve(MasterHost.c_str(), MasterPort.c_str(), &mip, &mport, 0)>=0) {
 			eptr->masterip = mip;
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			mfs_arg_syslog(LOG_WARNING,
+					"can't resolve master host/port (%s:%s)",
+					MasterHost.c_str(), MasterPort.c_str());
 			return -1;
 		}
 	}
@@ -737,13 +793,13 @@ void masterconn_read(masterconn *eptr) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection was reset by Master");
-			eptr->mode = KILL;
+			masterconn_kill_session(eptr);
 			return;
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
 				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
-				eptr->mode = KILL;
+				masterconn_kill_session(eptr);
 			}
 			return;
 		}
@@ -762,7 +818,7 @@ void masterconn_read(masterconn *eptr) {
 			if (size>0) {
 				if (size>MaxPacketSize) {
 					syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
-					eptr->mode = KILL;
+					masterconn_kill_session(eptr);
 					return;
 				}
 				eptr->inputpacket.packet = (uint8_t*) malloc(size);
@@ -941,17 +997,18 @@ void masterconn_reload(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 
-	free(MasterHost);
-	free(MasterPort);
-	free(BindHost);
+	std::string newMasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	std::string newMasterPort = cfg_getstring("MASTER_PORT","9419");
+	std::string newBindHost = cfg_getstring("BIND_HOST","*");
 
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
-	MasterPort = cfg_getstr("MASTER_PORT","9419");
-	BindHost = cfg_getstr("BIND_HOST","*");
-
-	eptr->masteraddrvalid = 0;
-	if (eptr->mode!=FREE) {
-		eptr->mode = KILL;
+	if (newMasterHost != MasterHost || newMasterPort != MasterPort || newBindHost != BindHost) {
+		MasterHost = newMasterHost;
+		MasterPort = newMasterPort;
+		BindHost = newBindHost;
+		eptr->masteraddrvalid = 0;
+		if (eptr->mode != FREE) {
+			eptr->mode = KILL;
+		}
 	}
 
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
@@ -998,17 +1055,14 @@ int masterconn_init(void) {
 #ifndef METALOGGER
 	if (metadataserver::getPersonality() != metadataserver::Personality::kShadow) {
 		return 0;
-	} else {
-		gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
-		gMetadataLockfile->lock(Lockfile::StaleLock::kSwallow);
 	}
 #endif /* #ifndef METALOGGER */
 	masterconn *eptr;
 
-	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
-	MasterPort = cfg_getstr("MASTER_PORT","9419");
-	BindHost = cfg_getstr("BIND_HOST","*");
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY", 1);
+	MasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	MasterPort = cfg_getstring("MASTER_PORT","9419");
+	BindHost = cfg_getstring("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
@@ -1029,21 +1083,19 @@ int masterconn_init(void) {
 	if (MetaDLFreq>(BackLogsNumber/2)) {
 		MetaDLFreq=BackLogsNumber/2;
 	}
-	eptr = masterconnsingleton = (masterconn*) malloc(sizeof(masterconn));
+	eptr = masterconnsingleton = new masterconn();
 	passert(eptr);
 
 	eptr->masteraddrvalid = 0;
 	eptr->mode = FREE;
-	eptr->filesystemInitialized_ = false;
-	eptr->metadataDownloaded_ = false;
 	eptr->pdescpos = -1;
-	eptr->logfd = NULL;
 	eptr->metafd = -1;
-
-#ifdef METALOGGER
+#ifndef METALOGGER
+	eptr->filesystemIsLoaded = false;
+#else
 	changelogsMigrateFrom_1_6_29("changelog_ml");
 	masterconn_findlastlogversion();
-#endif /* #ifdef METALOGGER */
+#endif /* #else ifndef METALOGGER */
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
@@ -1059,3 +1111,6 @@ int masterconn_init(void) {
 	return 0;
 }
 
+bool masterconn_is_connected() {
+	return (masterconnsingleton && masterconnsingleton->sock != -1);
+}

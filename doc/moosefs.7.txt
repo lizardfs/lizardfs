@@ -1,22 +1,23 @@
-moosefs(7)
+lizardfs(7)
 ==========
 
 == NAME
 
-moosefs, mfs - a networking, distributed, fault-tolerant file system
+lizardfs, moosefs, mfs - a networking, distributed, highly available file system
 
 == DESCRIPTION
 
-MooseFS is a networking, distributed file system. It spreads data over several physical
+LizardFS is a networking, highly available, distributed
+file system. It spreads data over several physical
 localisations (servers), which are visible to a user as one resource. For standard file operations
-MooseFS acts as other Unix-alike file systems. It has hierarchical structure (directory tree),
+LizardFS acts as other Unix-alike file systems. It has hierarchical structure (directory tree),
 stores files' attributes (permissions, last access and modification times) as well as makes it
 possible to create special files (block and character devices, pipes and sockets), symbolic links
-(file names pointing to another files accessible locally, not necessarily on MooseFS) and hard links
-(different names of files which refer to the same data on MooseFS). Access to the file system can be
+(file names pointing to another files accessible locally, not necessarily on LizardFS) and hard links
+(different names of files which refer to the same data on LizardFS). Access to the file system can be
 limited basing on IP address and/or password.
 
-Distinctive features of MooseFS are:
+Distinctive features of LizardFS are:
 
  - higher reliability (data can be stored in several copies on separate computers)
 
@@ -31,20 +32,25 @@ Distinctive features of MooseFS are:
 
 == ARCHITECTURE
 
-MooseFS installation consists of four types of machines:
+LizardFS installation consists of five types of machines:
 
- - managing server (a single computer managing the whole filesystem, storing metadata for every file
-   (information on size, attributes and file localisation(s), including all information about
-   non-regular files, i.e. directories, sockets, pipes and devices).
+ - master metadata server (or `the master') a managing server - single computer managing the whole
+   filesystem, storing metadata for every file (information on size, attributes and file
+   localisation(s), including all information about non-regular files, i.e. directories,
+   sockets, pipes and devices.
+
+ - metadata server shadows (or `the shadow') - almost identical to the master,
+   there can be any number  of those, they work as master metadata server backup and they are ready
+   for immediate deployment as new master in case of current master failure.
 
  - data servers (any number of commodity servers storing files data and replicating it among
    themselves (if a certain file is supposed to exist in more than one copy).
 
- - metadata backup servers (any number of servers, all of which store metadata changelogs and
+ - metadata backup servers - any number of servers, all of which store metadata changelogs and
    periodically downloading base metadata file; it's easy to run mfsmaster process on such machine when
    primary master stops working.
 
- - client computers referring to MooseFS stored files - any number of machines with working mfsmount
+ - client computers referring to LizardFS stored files - any number of machines with working mfsmount
    process that communicates with the managing server to receive and modify file information and with
    chunkservers to exchange actual file data.
 
@@ -78,4 +84,4 @@ You should have received a copy of the GNU General Public License along with Liz
 
 == SEE ALSO
 
-mfschunkserver(8), mfsmaster(8), mfsmetalogger(8), mfsmount(1), mfstools(1)
+mfschunkserver(8), mfsmaster(8), mfsmetalogger(8), mfsmount(1), mfstools(1), lizardfs-probe(8)

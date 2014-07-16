@@ -37,7 +37,7 @@ assert_equals "8 standard" "$(chunks_state)"
 mfssettrashtime 0 file*
 rm file
 echo "Waiting for chunks to be converted..."
-assert_success wait_for '[[ "$(chunks_state)" == "8 xor3" ]]' '3 minutes'
+assert_eventually '[[ "$(chunks_state)" == "8 xor3" ]]' '3 minutes'
 echo "Checking if chunks are no longer being converted/deleted..."
 assert_failure wait_for '[[ "$(chunks_state)" != "8 xor3" ]]' '30 seconds'
 
@@ -50,7 +50,7 @@ assert_failure wait_for '[[ "$(chunks_state)" != "8 xor3" ]]' '30 seconds'
 mfsmakesnapshot file_snapshot2 file_snapshot3
 mfssetgoal 3 file_snapshot3
 echo "Waiting for chunks to be converted..."
-assert_success wait_for '[[ "$(chunks_state)" == "6 standard" ]]' '1 minute'
+assert_eventually '[[ "$(chunks_state)" == "6 standard" ]]' '1 minute'
 
 # Verify if file's data isn't damaged
 assert_success file-validate file*

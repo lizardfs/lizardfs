@@ -37,6 +37,7 @@ test_frozen() {
 # You can call this function in a test case to immediatelly end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
+	trap - DEBUG
 	if [[ ${DEBUG} ]]; then
 		set +x
 	fi
@@ -49,8 +50,9 @@ test_end() {
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
-			pkill -USR1 -u lizardfstest mfs || true
-			if ! pgrep -u lizardfstest mfs >/dev/null; then
+			local pattern='mfs|lizardfs-polo|polonaise-'
+			pkill -USR1 -u lizardfstest "$pattern" || true
+			if ! pgrep -u lizardfstest "$pattern" >/dev/null; then
 				echo "All LizardFS processes terminated"
 				break
 			fi
@@ -64,6 +66,18 @@ test_end() {
 		# Remove syslog.log from ERROR_DIR, because it would cause the test to fail
 		rm -f "$ERROR_DIR/syslog.log"
 		exit 0
+	fi
+}
+
+debug_command() {
+	local depth=${#BASH_SOURCE[@]}
+	if (( --depth < 1 )); then
+		return 0;
+	fi
+	if (( depth <= DEBUG_LEVEL )); then
+		local indent=">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+		echo "${indent:0:$depth} $(basename "${BASH_SOURCE[1]}"):${BASH_LINENO[0]}:`
+				`${FUNCNAME[1]}(): ${BASH_COMMAND}" >&2 | true
 	fi
 }
 
@@ -85,6 +99,10 @@ test_begin() {
 	if [[ ${DEBUG} ]]; then
 		export PS4='+$(basename "${BASH_SOURCE:-}"):${LINENO:-}:${FUNCNAME[0]:+${FUNCNAME[0]}():} '
 		set -x
+	fi
+	if (( $DEBUG_LEVEL >= 1 )); then
+		trap 'debug_command' DEBUG
+		set -T
 	fi
 }
 

@@ -1,4 +1,6 @@
 metadata_print() {
+( # This function calls cd, so run it in a subshell
+	cd "${1:-.}"
 	assert_program_installed getfattr
 	local file
 	local format=$'inode %i; type %F; name %n\n'
@@ -25,6 +27,7 @@ metadata_print() {
 	if [[ $(stat -c "%i" .) == 1 ]]; then
 		mfsrepquota -a .
 	fi
+)
 }
 
 # Extract version from metadata file
@@ -87,8 +90,8 @@ metadata_generate_trash_ops() {
 		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
 		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
 		# Wait for generation of EMPTYTRASH for trashed_file_4
-		assert_success wait_for 'grep EMPTYTRASH "${CHANGELOG}"' '10 seconds'
-		assert_success wait_for 'grep EMPTYRESERVED "${CHANGELOG}"' '10 seconds'
+		assert_eventually 'grep EMPTYTRASH "${CHANGELOG}"'
+		assert_eventually 'grep EMPTYRESERVED "${CHANGELOG}"'
 		local changelog=$(cat ${CHANGELOG})
 		assert_awk_finds '/EMPTYTRASH/' "$changelog"
 		assert_awk_finds '/RELEASE/' "$changelog"
@@ -296,4 +299,9 @@ generate_changelog() {
 			print(i": 1|CREATE(1,f"i",f,420,9,9,0):"i)
 		}
 	}' < /dev/null
+}
+
+# get_changes <dir> -- prints all the changes that can be found in changelog in the given directory
+get_changes() {
+	find "$1" -regextype posix-egrep -regex '.*/changelog.mfs([.][0-9]+)?$' | xargs sort -n -u
 }

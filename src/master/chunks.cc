@@ -159,16 +159,8 @@ struct slist_bucket {
 	slist bucket[SLIST_BUCKET_SIZE];
 	uint32_t firstfree;
 	slist_bucket *next;
-	slist_bucket() : firstfree(0) {
-	}
 };
 
-static slist_bucket *sbhead = NULL;
-static slist *slfreehead = NULL;
-
-#endif /* METARESTORE */
-
-#ifndef METARESTORE
 static inline slist* slist_malloc();
 static inline void slist_free(slist *p);
 #endif
@@ -418,9 +410,9 @@ private:
 #ifndef METARESTORE
 ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
 ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
-uint64_t chunk::count = 0;
-uint64_t chunk::allStandardChunkCopies[11][11] = {{0}};
-uint64_t chunk::regularStandardChunkCopies[11][11] = {{0}};
+uint64_t chunk::count;
+uint64_t chunk::allStandardChunkCopies[11][11];
+uint64_t chunk::regularStandardChunkCopies[11][11];
 #endif
 
 #define CHUNK_BUCKET_SIZE 20000
@@ -430,13 +422,60 @@ struct chunk_bucket {
 	chunk_bucket *next;
 };
 
-static chunk_bucket *cbhead = NULL;
-static chunk *chfreehead = NULL;
+namespace {
+struct ChunksMetadata {
+#ifndef METARESTORE
+	// server lists
+	slist_bucket *sbhead;
+	slist *slfreehead;
+#endif
 
-static chunk *chunkhash[HASHSIZE];
-static uint64_t nextchunkid=1;
+	// chunks
+	chunk_bucket *cbhead;
+	chunk *chfreehead;
+	chunk *chunkhash[HASHSIZE];
+	uint64_t lastchunkid;
+	chunk* lastchunkptr;
+
+	// other chunks metadata information
+	uint64_t nextchunkid;
+	uint64_t chunksChecksum;
+
+	ChunksMetadata() :
+#ifndef METARESTORE
+			sbhead{},
+			slfreehead{},
+#endif
+			cbhead{},
+			chfreehead{},
+			chunkhash{},
+			lastchunkid{},
+			lastchunkptr{},
+			nextchunkid{1},
+			chunksChecksum{} {
+	}
+
+	~ChunksMetadata() {
+#ifndef METARESTORE
+		slist_bucket *sbn;
+		for (slist_bucket *sb = sbhead; sb; sb = sbn) {
+			sbn = sb->next;
+			delete sb;
+		}
+#endif
+
+		chunk_bucket *cbn;
+		for (chunk_bucket *cb = cbhead; cb; cb = cbn) {
+			cbn = cb->next;
+			delete cb;
+		}
+	}
+};
+} // anonymous namespace
+
+static ChunksMetadata* gChunksMetadata;
+
 #define LOCKTIMEOUT 120
-
 #define UNUSED_DELETE_TIMEOUT (86400*7)
 
 #ifndef METARESTORE
@@ -476,12 +515,6 @@ struct loop_info {
 static loop_info chunksinfo = {{0,0,0,0,0},{0,0,0,0,0},0};
 static uint32_t chunksinfo_loopstart=0,chunksinfo_loopend=0;
 
-#endif
-
-static uint64_t lastchunkid=0;
-static chunk* lastchunkptr=NULL;
-
-#ifndef METARESTORE
 static uint32_t stats_deletions=0;
 static uint32_t stats_replications=0;
 
@@ -492,9 +525,7 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 	stats_replications = 0;
 }
 
-#endif
-
-static uint64_t gChunksChecksum;
+#endif // ! METARESTORE
 
 static uint64_t chunk_checksum(const chunk* c) {
 	if (c == nullptr) {
@@ -509,28 +540,28 @@ static void chunk_update_checksum(chunk* ch) {
 	if (!ch) {
 		return;
 	}
-	removeFromChecksum(gChunksChecksum, ch->checksum);
+	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 	ch->checksum = chunk_checksum(ch);
-	addToChecksum(gChunksChecksum, ch->checksum);
+	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 }
 
 static void chunk_recalculate_checksum() {
-	gChunksChecksum = 78765491511151883ULL;
+	gChunksMetadata->chunksChecksum = 78765491511151883ULL;
 	for (int i = 0; i < HASHSIZE; ++i) {
-		for (chunk* ch = chunkhash[i]; ch; ch = ch->next) {
+		for (chunk* ch = gChunksMetadata->chunkhash[i]; ch; ch = ch->next) {
 			ch->checksum = chunk_checksum(ch);
-			addToChecksum(gChunksChecksum, ch->checksum);
+			addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 		}
 	}
 }
 
 uint64_t chunk_checksum(ChecksumMode mode) {
 	uint64_t checksum = 46586918175221;
-	addToChecksum(checksum, nextchunkid);
+	addToChecksum(checksum, gChunksMetadata->nextchunkid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		chunk_recalculate_checksum();
 	}
-	addToChecksum(checksum, gChunksChecksum);
+	addToChecksum(checksum, gChunksMetadata->chunksChecksum);
 	return checksum;
 }
 
@@ -538,51 +569,52 @@ uint64_t chunk_checksum(ChecksumMode mode) {
 static inline slist* slist_malloc() {
 	slist_bucket *sb;
 	slist *ret;
-	if (slfreehead) {
-		ret = slfreehead;
-		slfreehead = ret->next;
+	if (gChunksMetadata->slfreehead) {
+		ret = gChunksMetadata->slfreehead;
+		gChunksMetadata->slfreehead = ret->next;
 		return ret;
 	}
-	if (sbhead==NULL || sbhead->firstfree==SLIST_BUCKET_SIZE) {
+	if (gChunksMetadata->sbhead==NULL || gChunksMetadata->sbhead->firstfree==SLIST_BUCKET_SIZE) {
 		sb = new slist_bucket;
 		passert(sb);
-		sb->next = sbhead;
-		sbhead = sb;
+		sb->next = gChunksMetadata->sbhead;
+		sb->firstfree = 0;
+		gChunksMetadata->sbhead = sb;
 	}
-	ret = (sbhead->bucket)+(sbhead->firstfree);
-	sbhead->firstfree++;
+	ret = (gChunksMetadata->sbhead->bucket)+(gChunksMetadata->sbhead->firstfree);
+	gChunksMetadata->sbhead->firstfree++;
 	return ret;
 }
 
 static inline void slist_free(slist *p) {
-	p->next = slfreehead;
-	slfreehead = p;
+	p->next = gChunksMetadata->slfreehead;
+	gChunksMetadata->slfreehead = p;
 }
 #endif /* !METARESTORE */
 
 static inline chunk* chunk_malloc() {
 	chunk_bucket *cb;
 	chunk *ret;
-	if (chfreehead) {
-		ret = chfreehead;
-		chfreehead = ret->next;
+	if (gChunksMetadata->chfreehead) {
+		ret = gChunksMetadata->chfreehead;
+		gChunksMetadata->chfreehead = ret->next;
 		return ret;
 	}
-	if (cbhead==NULL || cbhead->firstfree==CHUNK_BUCKET_SIZE) {
+	if (gChunksMetadata->cbhead==NULL || gChunksMetadata->cbhead->firstfree==CHUNK_BUCKET_SIZE) {
 		cb = new chunk_bucket;
-		cb->next = cbhead;
+		cb->next = gChunksMetadata->cbhead;
 		cb->firstfree = 0;
-		cbhead = cb;
+		gChunksMetadata->cbhead = cb;
 	}
-	ret = (cbhead->bucket)+(cbhead->firstfree);
-	cbhead->firstfree++;
+	ret = (gChunksMetadata->cbhead->bucket)+(gChunksMetadata->cbhead->firstfree);
+	gChunksMetadata->cbhead->firstfree++;
 	return ret;
 }
 
 #ifndef METARESTORE
 static inline void chunk_free(chunk *p) {
-	p->next = chfreehead;
-	chfreehead = p;
+	p->next = gChunksMetadata->chfreehead;
+	gChunksMetadata->chfreehead = p;
 }
 #endif /* METARESTORE */
 
@@ -590,8 +622,8 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *newchunk;
 	newchunk = chunk_malloc();
-	newchunk->next = chunkhash[chunkpos];
-	chunkhash[chunkpos] = newchunk;
+	newchunk->next = gChunksMetadata->chunkhash[chunkpos];
+	gChunksMetadata->chunkhash[chunkpos] = newchunk;
 	newchunk->chunkid = chunkid;
 	newchunk->version = chunkversion;
 	newchunk->lockid = 0;
@@ -603,8 +635,8 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	newchunk->slisthead = NULL;
 	newchunk->initStats();
 #endif
-	lastchunkid = chunkid;
-	lastchunkptr = newchunk;
+	gChunksMetadata->lastchunkid = chunkid;
+	gChunksMetadata->lastchunkptr = newchunk;
 	newchunk->checksum = 0;
 	chunk_update_checksum(newchunk);
 	return newchunk;
@@ -613,13 +645,13 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
-	if (lastchunkid==chunkid) {
-		return lastchunkptr;
+	if (gChunksMetadata->lastchunkid==chunkid) {
+		return gChunksMetadata->lastchunkptr;
 	}
-	for (chunkit = chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next) {
+	for (chunkit = gChunksMetadata->chunkhash[chunkpos] ; chunkit ; chunkit = chunkit->next) {
 		if (chunkit->chunkid == chunkid) {
-			lastchunkid = chunkid;
-			lastchunkptr = chunkit;
+			gChunksMetadata->lastchunkid = chunkid;
+			gChunksMetadata->lastchunkptr = chunkit;
 			return chunkit;
 		}
 	}
@@ -628,9 +660,9 @@ chunk* chunk_find(uint64_t chunkid) {
 
 #ifndef METARESTORE
 void chunk_delete(chunk* c) {
-	if (lastchunkptr==c) {
-		lastchunkid=0;
-		lastchunkptr=NULL;
+	if (gChunksMetadata->lastchunkptr==c) {
+		gChunksMetadata->lastchunkid=0;
+		gChunksMetadata->lastchunkptr=NULL;
 	}
 	c->freeStats();
 	chunk_free(c);
@@ -823,7 +855,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 				return ERROR_NOCHUNKSERVERS;
 			}
 		}
-		c = chunk_new(nextchunkid++, 1);
+		c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 		c->interrupted = 0;
 		c->operation = CREATE;
 		chunk_add_file_int(c,goal);
@@ -898,7 +930,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 			for (slist *os=oc->slisthead ;os ; os=os->next) {
 				if (os->is_valid()) {
 					if (c==NULL) {
-						c = chunk_new(nextchunkid++, 1);
+						c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 						c->interrupted = 0;
 						c->operation = DUPLICATE;
 						chunk_delete_file_int(oc,goal);
@@ -994,7 +1026,7 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length
 		for (slist *os=oc->slisthead ; os ; os=os->next) {
 			if (os->is_valid()) {
 				if (c==NULL) {
-					c = chunk_new(nextchunkid++, 1);
+					c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 					c->interrupted = 0;
 					c->operation = DUPTRUNC;
 					chunk_delete_file_int(oc,goal);
@@ -1028,7 +1060,7 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lock
 		bool doIncreaseVersion, uint64_t *newChunkId) {
 	chunk *c;
 	if (oldChunkId == 0) { // new chunk
-		c = chunk_new(nextchunkid++, 1);
+		c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 		chunk_add_file_int(c, goal);
 	} else {
 		chunk *oc = chunk_find(oldChunkId);
@@ -1045,7 +1077,7 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lock
 				c->version++;
 			}
 		} else {
-			c = chunk_new(nextchunkid++, 1);
+			c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 			chunk_delete_file_int(oc, goal);
 			chunk_add_file_int(c, goal);
 		}
@@ -1155,13 +1187,13 @@ int chunk_increase_version(uint64_t chunkid) {
 }
 
 uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
-	if (nextChunkIdToBeSet >= nextchunkid) {
-		nextchunkid = nextChunkIdToBeSet;
+	if (nextChunkIdToBeSet >= gChunksMetadata->nextchunkid) {
+		gChunksMetadata->nextchunkid = nextChunkIdToBeSet;
 		return STATUS_OK;
 	} else {
 		syslog(LOG_WARNING,"was asked to increase the next chunk id to %" PRIu64 ", but it was"
 				"already set to a bigger value %" PRIu64 ". Ignoring.",
-				nextChunkIdToBeSet, nextchunkid);
+				nextChunkIdToBeSet, gChunksMetadata->nextchunkid);
 		return ERROR_MISMATCH;
 	}
 }
@@ -1268,7 +1300,7 @@ void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, Chunk
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		// chunkserver has nonexistent chunk, so create it for future deletion
-		if (chunkid>=nextchunkid) {
+		if (chunkid>=gChunksMetadata->nextchunkid) {
 			fs_set_nextchunkid(FsContext::getForMaster(main_time()), chunkid + 1);
 		}
 		c = chunk_new(chunkid, new_version);
@@ -1327,8 +1359,8 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
-		if (chunkid>=nextchunkid) {
-			nextchunkid=chunkid+1;
+		if (chunkid>=gChunksMetadata->nextchunkid) {
+			gChunksMetadata->nextchunkid=chunkid+1;
 		}
 		c = chunk_new(chunkid, 0);
 	}
@@ -1366,7 +1398,7 @@ void chunk_server_disconnected(void *ptr) {
 	slist *s,**st;
 	uint32_t i;
 	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next) {
+		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
 			st = &(c->slisthead);
 			while (*st) {
 				s = *st;
@@ -1993,7 +2025,7 @@ void chunk_jobs_main(void) {
 		}
 		// delete unused chunks from structures
 		l=0;
-		cp = &(chunkhash[jobshpos]);
+		cp = &(gChunksMetadata->chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
 			if (c->fileCount()==0 && c->slisthead==NULL) {
 				*cp = (c->next);
@@ -2008,14 +2040,14 @@ void chunk_jobs_main(void) {
 			r = rndu32_ranged(l);
 			l=0;
 		// do jobs on rest of them
-			for (c=chunkhash[jobshpos] ; c ; c=c->next) {
+			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
 					gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				}
 				l++;
 			}
 			l=0;
-			for (c=chunkhash[jobshpos] ; l<r && c ; c=c->next) {
+			for (c=gChunksMetadata->chunkhash[jobshpos] ; l<r && c ; c=c->next) {
 				gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				l++;
 			}
@@ -2038,7 +2070,7 @@ void chunk_dump(void) {
 	uint32_t i;
 
 	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next) {
+		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
 			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal(),c->lockedto);
 		}
 	}
@@ -2058,7 +2090,7 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 		return -1;
 	}
 	ptr = hdr;
-	nextchunkid = get64bit(&ptr);
+	gChunksMetadata->nextchunkid = get64bit(&ptr);
 	int32_t serializedChunkSize = (loadLockIds
 			? kSerializedChunkSizeWithLockId : kSerializedChunkSizeNoLockId);
 	std::vector<uint8_t> loadbuff(serializedChunkSize);
@@ -2090,6 +2122,7 @@ int chunk_load(FILE *fd, bool loadLockIds) {
 }
 
 void chunk_store(FILE *fd) {
+	passert(gChunksMetadata);
 	uint8_t hdr[8];
 	uint8_t storebuff[kSerializedChunkSizeWithLockId * CHUNKCNT];
 	uint8_t *ptr;
@@ -2100,14 +2133,14 @@ void chunk_store(FILE *fd) {
 	uint32_t version;
 	uint32_t lockedto, lockid;
 	ptr = hdr;
-	put64bit(&ptr,nextchunkid);
+	put64bit(&ptr,gChunksMetadata->nextchunkid);
 	if (fwrite(hdr,1,8,fd)!=(size_t)8) {
 		return;
 	}
 	j=0;
 	ptr = storebuff;
 	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=chunkhash[i] ; c ; c=c->next) {
+		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
 			chunkid = c->chunkid;
 			put64bit(&ptr,chunkid);
 			version = c->version;
@@ -2135,27 +2168,16 @@ void chunk_store(FILE *fd) {
 	}
 }
 
-void chunk_term(void) {
-#ifndef METARESTORE
-	slist_bucket *sb,*sbn;
-	for (sb = sbhead ; sb ; sb = sbn) {
-		sbn = sb->next;
-		delete sb;
-	}
-#endif
-
-	chunk_bucket *cb,*cbn;
-	for (cb = cbhead ; cb ; cb = cbn) {
-		cbn = cb->next;
-		delete cb;
-	}
+void chunk_unload(void) {
+	delete gChunksMetadata;
+	gChunksMetadata = nullptr;
 }
 
 void chunk_newfs(void) {
 #ifndef METARESTORE
 	chunk::count = 0;
 #endif
-	nextchunkid = 1;
+	gChunksMetadata->nextchunkid = 1;
 }
 
 #ifndef METARESTORE
@@ -2268,8 +2290,20 @@ void chunk_reload(void) {
 #endif
 
 int chunk_strinit(void) {
+	gChunksMetadata = new ChunksMetadata;
+
 #ifndef METARESTORE
-	uint32_t looptime;
+	chunk::count = 0;
+	for (int i = 0; i < 11; ++i) {
+		for (int j = 0; j < 11; ++j) {
+			chunk::allStandardChunkCopies[i][j] = 0;
+			chunk::regularStandardChunkCopies[i][j] = 0;
+		}
+	}
+	chunk::allChunksAvailability = ChunksAvailabilityState();
+	chunk::regularChunksAvailability = ChunksAvailabilityState();
+	chunk::allChunksReplicationState = ChunksReplicationState();
+	chunk::regularChunksReplicationState = ChunksReplicationState();
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
@@ -2304,6 +2338,8 @@ int chunk_strinit(void) {
 		fprintf(stderr,"write replication limit is zero !!!\n");
 		return -1;
 	}
+
+	uint32_t looptime;
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
 		fprintf(stderr,"Defining loop time by CHUNKS_LOOP_TIME option is deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME\n");
 		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
@@ -2345,11 +2381,6 @@ int chunk_strinit(void) {
 	if (AcceptableDifference>10.0) {
 		AcceptableDifference = 10.0;
 	}
-#endif
-	for (uint32_t i=0 ; i<HASHSIZE ; i++) {
-		chunkhash[i]=NULL;
-	}
-#ifndef METARESTORE
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);

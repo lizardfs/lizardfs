@@ -809,13 +809,19 @@ uint8_t verbosity = 0;
 
 }
 
+void restore_reset() {
+	nextFsVersion = 0;
+	currentFsVersion = 0;
+	lastfn = NULL;
+}
+
 int restore(const char* filename, uint64_t newLogVersion, const char *ptr, RestoreRigor rigor) {
 	if (currentFsVersion == 0 || nextFsVersion == 0) {
 		/*
 		 * This is first call to restore().
 		 */
 		nextFsVersion = fs_getversion();
-		currentFsVersion = newLogVersion - 1;
+		currentFsVersion = nextFsVersion - 1;
 		lastfn = "(no file)";
 	}
 	if (verbosity > 1) {
@@ -824,8 +830,10 @@ int restore(const char* filename, uint64_t newLogVersion, const char *ptr, Resto
 				filename, nextFsVersion, currentFsVersion, newLogVersion, ptr);
 	}
 	if (newLogVersion < currentFsVersion) {
-		mfs_arg_syslog(LOG_ERR, "merge error - possibly corrupted input file - ignore entry (filename: %s)",
-				filename);
+		mfs_arg_syslog(LOG_ERR,
+				"merge error - possibly corrupted input file - ignore entry"
+				" (filename: %s, versions: %" PRIu64 ", %" PRIu64 ")",
+				filename, newLogVersion, currentFsVersion);
 		return 0;
 	} else if (newLogVersion >= nextFsVersion) {
 		if (newLogVersion == currentFsVersion) {

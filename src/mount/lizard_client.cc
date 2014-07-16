@@ -729,6 +729,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		oplog_printf(ctx,"getattr (%lu) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
+	maxfleng = write_data_getmaxfleng(ino);
 	if (usedircache && dcache_getattr(&ctx,ino,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"getattr: sending data from dircache\n");
@@ -744,14 +745,9 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		oplog_printf(ctx,"getattr (%lu): %s",(unsigned long int)ino,strerr(status));
 		throw RequestException(status);
 	}
-	if (attr[0]==TYPE_FILE) {
-		maxfleng = write_data_getmaxfleng(ino);
-	} else {
-		maxfleng = 0;
-	}
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(ino,attr,&o_stbuf);
-	if (maxfleng>(uint64_t)(o_stbuf.st_size)) {
+	if (attr[0]==TYPE_FILE && maxfleng>(uint64_t)(o_stbuf.st_size)) {
 		o_stbuf.st_size=maxfleng;
 	}
 	attr_timeout = (attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
@@ -796,6 +792,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 	}
 
 	status = EINVAL;
+	maxfleng = write_data_getmaxfleng(ino);
 	if ((to_set & (LIZARDFS_SET_ATTR_MODE
 			| LIZARDFS_SET_ATTR_UID
 			| LIZARDFS_SET_ATTR_GID
@@ -863,6 +860,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		try {
 			bool opened = (fi != NULL);
 			status = write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr);
+			maxfleng = 0; // after the flush master server has valid length, don't use our length cache
 		} catch (Exception& ex) {
 			status = errorconv_dbg(ex.status());
 		}
@@ -876,14 +874,9 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
 		throw RequestException(status);
 	}
-	if (attr[0]==TYPE_FILE) {
-		maxfleng = write_data_getmaxfleng(ino);
-	} else {
-		maxfleng = 0;
-	}
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(ino,attr,&o_stbuf);
-	if (maxfleng>(uint64_t)(o_stbuf.st_size)) {
+	if (attr[0]==TYPE_FILE && maxfleng>(uint64_t)(o_stbuf.st_size)) {
 		o_stbuf.st_size=maxfleng;
 	}
 	attr_timeout = (attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;

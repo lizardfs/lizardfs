@@ -1,0 +1,8 @@
+# /etc/default/lizardfs-metalogger
+
+# Start lizardfs-metalogger from init.d script on boot.
+#   Only allowed values are "true" and "false".
+#   Undefined values default to "false".
+LIZARDFSMETALOGGER_ENABLE=false
+
+DAEMON_OPTS=""

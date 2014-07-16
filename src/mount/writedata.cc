@@ -306,6 +306,7 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 		write_cb_release_blocks(id->dataChain.size(), lock);
 		id->dataChain.clear();
 		id->inqueue = false;
+		id->maxfleng = 0; // proper file length is now on the master server, remove our length cache
 		if (id->flushwaiting > 0) {
 			id->flushcond.notify_all();
 		}

@@ -7,7 +7,7 @@ mfsmaster.cfg - main configuration file for mfsmaster
 
 == DESCRIPTION
 
-The file *mfsmaster.cfg* contains configuration of MooseFS master process.
+The file *mfsmaster.cfg* contains configuration of LizardFS metadata server process.
 
 == SYNTAX
 
@@ -20,6 +20,19 @@ Lines starting with *#* character are ignored.
 == OPTIONS
 
 Configuration options:
+
+*PERSONALITY*::
+Current 'personality' of this instance of metadata server.
+Valid values are 'master' and 'shadow'. Only one metadata server in LizardFS shall have 'master'
+personality. +
+PERSONALITY = 'master' +
+means that this instance of metadata server acts as main metadata server
+govering all file system metadata modifications. +
+PERSONALITY = 'shadow' +
+means that this instance of metadata server acts as backup metadata server
+ready for immediate deployment as new 'master' in case of current 'master' failure. +
+Metadata server personality can be changed at any moment as long as one changes personality from
+'shadow' to 'master', changing personality the other way around is forbidden.
 
 *DATA_PATH*::
 where to store metadata files and lock file
@@ -131,6 +144,21 @@ How often mountpoints will request bandwidth allocations under constant, predict
 *GLOBALIOLIMITS_ACCUMULATE_MS*::
 After inactivity, no waiting is required to transfer the amount of data equivalent to normal
 data flow over the period of that many milliseconds (default is 250)
+
+Options below are mandatory for all Shadow instances:
+
+*MASTER_HOST*::
+address of the host running LizardFS metadata server that currently acts as 'master'
+
+*MASTER_PORT*::
+port number where LizardFS metadata server currently running as 'master' listens for connections
+from 'shadow's and metaloggers (default is 9420)
+
+*MASTER_RECONNECTION_DELAY*::
+delay in seconds before trying to reconnect to metadata server after disconnection (default is 30)
+
+*MASTER_TIMEOUT*::
+timeout (in seconds) for metadata server connections (default is 60)
 
 == NOTES
 

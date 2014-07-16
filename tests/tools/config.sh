@@ -16,6 +16,7 @@ fi
 : ${TEST_OUTPUT_DIR:=$TEMP_DIR}
 : ${USE_VALGRIND:=}
 : ${DEBUG:=}
+: ${DEBUG_LEVEL:=0}
 
 # This has to be an absolute path!
 TEMP_DIR=$(readlink -m "$TEMP_DIR")

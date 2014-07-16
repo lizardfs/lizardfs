@@ -1,44 +1,45 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:		mfs-chunkserver
+# Provides:		lizardfs-chunkserver
 # Required-Start:	$network $remote_fs
 # Required-Stop:	$remote_fs
 # Default-Start:	2 3 4 5
 # Default-Stop:		0 1 6
-# Short-Description:	Start mfs-chunkserver at boot time
-# Description:		mfs-chunkservers provide storage space for MooseFS.
+# Short-Description:	Start lizardfs-chunkserver at boot time
+# Description:		lizardfs-chunkservers provide storage space for LizardFS.
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfschunkserver
 NAME=mfschunkserver
-DESC=mfs-chunkserver
+DESC=lizardfs-chunkserver
 DEFAULT_WORKING_USER=mfs
 DEFAULT_WORKING_GROUP=mfs
 DEFAULT_DATA_PATH=/var/lib/mfs
+DEFAULT_RUN_PATH=/var/run/mfs
 DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
 COMPAT_CFG=/etc/mfschunkserver.cfg
 
 test -e $DAEMON || exit 0
 
-# Include mfs-chunkserver defaults if available
+# Include lizardfs-chunkserver defaults if available
 . /lib/lsb/init-functions
-MFSCHUNKSERVER_ENABLE=false
-MFSCHUNKSERVER_CONFIG_FILE=
-MFSCHUNKSERVER_DEFAULTS_FILE=/etc/default/mfs-chunkserver
+LIZARDFSCHUNKSERVER_ENABLE=false
+LIZARDFSCHUNKSERVER_CONFIG_FILE=
+LIZARDFSCHUNKSERVER_DEFAULTS_FILE=/etc/default/lizardfs-chunkserver
 
-if [ -s "$MFSCHUNKSERVER_DEFAULTS_FILE" ]; then
-    . "$MFSCHUNKSERVER_DEFAULTS_FILE"
-    case "x$MFSCHUNKSERVER_ENABLE" in
+if [ -s "$LIZARDFSCHUNKSERVER_DEFAULTS_FILE" ]; then
+    . "$LIZARDFSCHUNKSERVER_DEFAULTS_FILE"
+    case "x$LIZARDFSCHUNKSERVER_ENABLE" in
         xtrue) ;;
         xfalse)
-	    log_warning_msg "mfs-chunkserver not enabled in \"$MFSCHUNKSERVER_DEFAULTS_FILE\", exiting..."
+	    log_warning_msg "lizardfs-chunkserver not enabled in \"$LIZARDFSCHUNKSERVER_DEFAULTS_FILE\", exiting..."
 	    exit 0
 	    ;;
         *)
-            log_failure_msg "value of MFSCHUNKSERVER_ENABLE must be either 'true' or 'false';"
-            log_failure_msg "not starting mfs-chunkserver."
+            log_failure_msg "value of LIZARDFSCHUNKSERVER_ENABLE must be either 'true' or 'false';"
+            log_failure_msg "not starting lizardfs-chunkserver."
             exit 1
             ;;
     esac
@@ -46,8 +47,8 @@ fi
 
 set -e
 
-if [ -n "$MFSCHUNKSERVER_CONFIG_FILE" ]; then
-	CFGFILE="$MFSCHUNKSERVER_CONFIG_FILE"
+if [ -n "$LIZARDFSCHUNKSERVER_CONFIG_FILE" ]; then
+	CFGFILE="$LIZARDFSCHUNKSERVER_CONFIG_FILE"
 elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 	CFGFILE="$DEFAULT_CFG"
 else
@@ -62,12 +63,14 @@ get_config_value_from_CFGFILE()
 
 if [ -s "$CFGFILE" ]; then
        DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+       RUN_PATH=$(get_config_value_from_CFGFILE "RUN_PATH")
        WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
        WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 
 fi
 
 : ${DATA_PATH:=$DEFAULT_DATA_PATH}
+: ${RUN_PATH:=$DEFAULT_RUN_PATH}
 : ${WORKING_USER:=$DEFAULT_WORKING_USER}
 : ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
 
@@ -79,30 +82,36 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+
+	if [ ! -d "$RUN_PATH" ]; then
+		mkdir -p "$RUN_PATH"
+	fi
+	chmod 0755 "$RUN_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$RUN_PATH"
 }
 
 case "$1" in
 	start)
 		check_dirs
 		echo "Starting $DESC:"
-		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS start
+		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS start
 		;;
 
 	stop)
 		echo "Stopping $DESC:"
-		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} stop
+		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} stop
 		;;
 
 	reload|force-reload)
 		check_dirs
 		echo "Reloading $DESC:"
-		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} reload
+		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} reload
 		;;
 
 	restart)
 		check_dirs
 		echo "Restarting $DESC:"
-		$DAEMON ${MFSCHUNKSERVER_CONFIG_FILE:+-c $MFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS restart
+		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS restart
 		;;
 
 	*)

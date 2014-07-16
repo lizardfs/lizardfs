@@ -43,4 +43,4 @@ usr/share/man/man1/mfssettrashtime.1
 usr/share/man/man1/mfstools.1
 usr/share/man/man7/mfs.7
 usr/share/man/man7/moosefs.7
-usr/share/man/man8/mfsmount.8
+usr/share/man/man1/mfsmount.1

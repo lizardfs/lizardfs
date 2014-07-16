@@ -1,43 +1,44 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:		mfs-metalogger
+# Provides:		lizardfs-metalogger
 # Required-Start:	$network $remote_fs
 # Required-Stop:	$remote_fs
 # Default-Start:	2 3 4 5
 # Default-Stop:		0 1 6
-# Short-Description:	Start mfs-metalogger at boot time
-# Description:		mfs-metaloggers provide metadata replication for MooseFS.
+# Short-Description:	Start lizardfs-metalogger at boot time
+# Description:		lizardfs-metaloggers provide metadata replication for LizardFS.
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfsmetalogger
 NAME=mfsmetalogger
-DESC=mfs-metalogger
+DESC=lizardfs-metalogger
 DEFAULT_WORKING_USER=mfs
 DEFAULT_WORKING_GROUP=mfs
 DEFAULT_DATA_PATH=/var/lib/mfs
+DEFAULT_RUN_PATH=/var/lib/mfs
 DEFAULT_CFG=/etc/mfs/mfsmetalogger.cfg
 COMPAT_CFG=/etc/mfsmetalogger.cfg
 
 test -e $DAEMON || exit 0
 
-# Include mfs-metalogger defaults if available
+# Include lizardfs-metalogger defaults if available
 . /lib/lsb/init-functions
-MFSMETALOGGER_ENABLE=false
-MFSMETALOGGER_CONFIG_FILE=
-MFSMETALOGGER_DEFAULTS_FILE=/etc/default/mfs-metalogger
-if [ -s "$MFSMETALOGGER_DEFAULTS_FILE" ]; then
-    . "$MFSMETALOGGER_DEFAULTS_FILE"
-    case "x$MFSMETALOGGER_ENABLE" in
+LIZARDFSMETALOGGER_ENABLE=false
+LIZARDFSMETALOGGER_CONFIG_FILE=
+LIZARDFSMETALOGGER_DEFAULTS_FILE=/etc/default/lizardfs-metalogger
+if [ -s "$LIZARDFSMETALOGGER_DEFAULTS_FILE" ]; then
+    . "$LIZARDFSMETALOGGER_DEFAULTS_FILE"
+    case "x$LIZARDFSMETALOGGER_ENABLE" in
         xtrue) ;;
         xfalse)
-	    log_warning_msg "mfs-metalogger not enabled in \"$MFSMETALOGGER_DEFAULTS_FILE\", exiting..."
+	    log_warning_msg "lizardfs-metalogger not enabled in \"$LIZARDFSMETALOGGER_DEFAULTS_FILE\", exiting..."
 	    exit 0
 	    ;;
         *)
-            log_failure_msg "value of MFSMETALOGGER_ENABLE must be either 'true' or 'false';"
-            log_failure_msg "not starting mfs-metalogger."
+            log_failure_msg "value of LIZARDFSMETALOGGER_ENABLE must be either 'true' or 'false';"
+            log_failure_msg "not starting lizardfs-metalogger."
             exit 1
             ;;
     esac
@@ -45,8 +46,8 @@ fi
 
 set -e
 
-if [ -n "$MFSMETALOGGER_CONFIG_FILE" ]; then
-	CFGFILE="$MFSMETALOGGER_CONFIG_FILE"
+if [ -n "$LIZARDFSMETALOGGER_CONFIG_FILE" ]; then
+	CFGFILE="$LIZARDFSMETALOGGER_CONFIG_FILE"
 elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
 	CFGFILE="$DEFAULT_CFG"
 else
@@ -61,10 +62,12 @@ get_config_value_from_CFGFILE()
 
 if [ -s "$CFGFILE" ]; then
 	DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+	RUN_PATH=$(get_config_value_from_CFGFILE "RUN_PATH")
 	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
 	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 fi
 : ${DATA_PATH:=$DEFAULT_DATA_PATH}
+: ${RUN_PATH:=$DEFAULT_RUN_PATH}
 : ${WORKING_USER:=$DEFAULT_WORKING_USER}
 : ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
 
@@ -76,31 +79,37 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+
+	if [ ! -d "$RUN_PATH" ]; then
+		mkdir -p "$RUN_PATH"
+	fi
+	chmod 0755 "$RUN_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$RUN_PATH"
 }
 
 case "$1" in
 	start)
 		check_dirs
 		echo "Starting $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS start
+		$DAEMON ${LIZARDFSMETALOGGER_CONFIG_FILE:+-c $LIZARDFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS start
 		;;
 
 	stop)
 		echo "Stopping $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} stop
+		$DAEMON ${LIZARDFSMETALOGGER_CONFIG_FILE:+-c $LIZARDFSMETALOGGER_CONFIG_FILE} stop
 		echo "$NAME."
 		;;
 
 	reload|force-reload)
 		check_dirs
 		echo "Reloading $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} reload
+		$DAEMON ${LIZARDFSMETALOGGER_CONFIG_FILE:+-c $LIZARDFSMETALOGGER_CONFIG_FILE} reload
 		;;
 
 	restart)
 		check_dirs
 		echo "Restarting $DESC:"
-		$DAEMON ${MFSMETALOGGER_CONFIG_FILE:+-c $MFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS restart
+		$DAEMON ${LIZARDFSMETALOGGER_CONFIG_FILE:+-c $LIZARDFSMETALOGGER_CONFIG_FILE} $DAEMON_OPTS restart
 		;;
 
 	*)

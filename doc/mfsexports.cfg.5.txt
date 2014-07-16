@@ -3,11 +3,11 @@ mfsexports.cfg(5)
 
 == NAME
 
-mfsexports.cfg - MooseFS access control for mfsmounts
+mfsexports.cfg - LizardFS access control for mfsmounts
 
 == DESCRIPTION
 
-The file *mfsexports.cfg* contains MooseFS access list for *mfsmount*
+The file *mfsexports.cfg* contains LizardFS access list for *mfsmount*
 clients.
 
 == SYNTAX
@@ -30,7 +30,7 @@ Lines starting with *#* character are ignored.
 
 - *f.f.f.f-t.t.t.t* IP range specified by from-to addresses (inclusive)
 
-'DIRECTORY' could be */* or path relative to MooseFS root; special value *.* means MFSMETA companion
+'DIRECTORY' could be */* or path relative to LizardFS root; special value *.* means MFSMETA companion
 filesystem.
 
 == OPTIONS
@@ -88,7 +88,7 @@ TDUR can be specified as number without time unit (number of seconds) or combina
 time units. Time units are: *W*,*D*,*H*,*M*,*S*. Order is important - less significant time units
 can't be defined before more significant time units.
 
-Option *mapall* works in MooseFS in different way than in NFS, because of using FUSE's
+Option *mapall* works in LizardFS in different way than in NFS, because of using FUSE's
 "default_permissions" option. When mapall option is used, users see all objects with uid equal to
 mapped uid as their own and all other as root's objects. Similarly objects with gid equal to mapped
 gid are seen as objects with current user's primary group and all other objects as objects with

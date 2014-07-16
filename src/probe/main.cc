@@ -12,6 +12,7 @@
 #include "probe/list_chunkservers_command.h"
 #include "probe/list_disks_command.h"
 #include "probe/list_mounts_command.h"
+#include "probe/metadataserver_status_command.h"
 #include "probe/ready_chunkservers_count_command.h"
 
 int main(int argc, const char** argv) {
@@ -23,6 +24,7 @@ int main(int argc, const char** argv) {
 			new ListChunkserversCommand(),
 			new ListDisksCommand(),
 			new ListMountsCommand(),
+			new MetadataserverStatusCommand(),
 			new ReadyChunkserversCountCommand(),
 	};
 

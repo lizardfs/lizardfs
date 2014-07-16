@@ -3,7 +3,7 @@ mfstopology.cfg(5)
 
 == NAME
 
-mfstopology.cfg - MooseFS network topology definitions
+mfstopology.cfg - LizardFS network topology definitions
 
 == DESCRIPTION
 

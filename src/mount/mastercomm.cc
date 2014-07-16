@@ -1039,6 +1039,8 @@ bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) 
 }
 
 void* fs_receive_thread(void *) {
+	uint32_t initialReconnectSleep_ms = 100;
+	uint32_t reconnectSleep_ms = initialReconnectSleep_ms;
 	for (;;) {
 		std::unique_lock<std::mutex>fdLock(fdMutex);
 		if (fterm) {
@@ -1077,8 +1079,19 @@ void* fs_receive_thread(void *) {
 		}
 		if (fd==-1) {
 			fdLock.unlock();
-			sleep(2);       // reconnect every 2 seconds
+			usleep(reconnectSleep_ms * 1000);
+			// slowly increase timeout before each retry
+			if (reconnectSleep_ms < 5 * initialReconnectSleep_ms) {
+				reconnectSleep_ms += initialReconnectSleep_ms / 2;
+			} else if (reconnectSleep_ms < 10 * initialReconnectSleep_ms) {
+				reconnectSleep_ms += initialReconnectSleep_ms;
+			} else {
+				reconnectSleep_ms = 20 * initialReconnectSleep_ms;
+			}
 			continue;
+		} else {
+			// connecection succeeded -- reset timeout the initial value
+			reconnectSleep_ms = initialReconnectSleep_ms;
 		}
 		fdLock.unlock();
 

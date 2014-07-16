@@ -35,3 +35,4 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode);
 void matoclserv_remove_open_file(uint32_t sessionid,uint32_t inode);
 int matoclserv_sessionsinit(void);
 int matoclserv_networkinit(void);
+void matoclserv_session_unload(void);

@@ -1,12 +1,12 @@
 # Fancy reporting
 
 report() {
-	$(${@})
-	if [ "${*}" = "${*/test//}" ] ; then
+	$("${@}")
+	if [[ "${*}" =~ "test" ]] ; then
 		msg MAGENTA "${*}"
 	fi
-	sleep .1
 	if [ "${!#}" != "test" ] ; then
+		sleep .1
 		report_masters
 	fi
 }

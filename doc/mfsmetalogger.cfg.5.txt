@@ -7,7 +7,7 @@ mfsmetalogger.cfg - configuration file for mfsmetalogger
 
 == DESCRIPTION
 
-The file *mfsmetalogger.cfg* contains configuration of MooseFS metalogger process.
+The file *mfsmetalogger.cfg* contains configuration of LizardFS metalogger process.
 
 == SYNTAX
 
@@ -53,10 +53,10 @@ number of previous metadata files to be kept (default is 3)
 metadata download frequency in hours (default is 24, at most *BACK_LOGS*/2)
 
 *MASTER_HOST*::
-address of MooseFS master host to connect with (default is mfsmaster)
+address of LizardFS master host to connect with (default is mfsmaster)
 
 *MASTER_PORT*::
-number of MooseFS master port to connect with (default is 9420)
+number of LizardFS master port to connect with (default is 9420)
 
 *MASTER_RECONNECTION_DELAY*::
 delay in seconds before trying to reconnect to master after disconnection (default is 30)

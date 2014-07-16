@@ -35,12 +35,16 @@
 #include "common/cfg.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matoml_communication.h"
 #include "common/metadata.h"
+#include "common/mltoma_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "master/filesystem.h"
 #include "master/personality.h"
 
 #define MaxPacketSize 1500000
@@ -70,6 +74,7 @@ typedef struct matomlserventry {
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;
+	bool shadow;
 
 	int metafd,chain1fd,chain2fd;
 
@@ -79,6 +84,7 @@ typedef struct matomlserventry {
 static matomlserventry *matomlservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
+static bool gExiting = false;
 
 typedef struct old_changes_entry {
 	uint64_t version;
@@ -229,6 +235,19 @@ uint8_t* matomlserv_createpacket(matomlserventry *eptr,uint32_t type,uint32_t si
 	return ptr;
 }
 
+void matomlserv_createpacket(matomlserventry *eptr, std::vector<uint8_t> data) {
+	packetstruct *outpacket = (packetstruct*) malloc(sizeof(packetstruct));
+	passert(outpacket);
+	outpacket->packet = (uint8_t*) malloc(data.size());
+	passert(outpacket->packet);
+	memcpy(outpacket->packet, data.data(), data.size());
+	outpacket->bytesleft = data.size();
+	outpacket->startptr = outpacket->packet;
+	outpacket->next = nullptr;
+	*(eptr->outputtail) = outpacket;
+	eptr->outputtail = &(outpacket->next);
+}
+
 void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 	old_changes_block *oc;
 	old_changes_entry *oce;
@@ -241,10 +260,12 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 	}
 	if (old_changes_head->minversion>version) {
 		syslog(LOG_WARNING,"meta logger wants changes since version: %" PRIu64 ", but minimal version in storage is: %" PRIu64,version,old_changes_head->minversion);
-		return;
+		// TODO(msulikowski) send a special message which will cause the shadow master to unload fs
 	}
 	for (oc=old_changes_head ; oc ; oc=oc->next) {
-		if (oc->minversion<=version && (oc->next==NULL || oc->next->minversion>version)) {
+		if (oc->minversion>=version) {
+			start=1;
+		} else if (oc->minversion<=version && (oc->next==NULL || oc->next->minversion>version)) {
 			start=1;
 		}
 		if (start) {
@@ -262,9 +283,6 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 }
 
 void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t rversion;
-	uint64_t minversion;
-
 	if (eptr->version>0) {
 		syslog(LOG_WARNING,"got register message from registered metalogger !!!");
 		eptr->mode=KILL;
@@ -275,38 +293,84 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->mode=KILL;
 		return;
 	} else {
-		rversion = get8bit(&data);
-		if (rversion==1) {
-			if (length!=7) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 1) - wrong size (%" PRIu32 "/7)",length);
-				eptr->mode=KILL;
-				return;
-			}
-			eptr->version = get32bit(&data);
-			eptr->timeout = get16bit(&data);
-		} else if (rversion==2) {
-			if (length!=7+8) {
-				syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver 2) - wrong size (%" PRIu32 "/15)",length);
-				eptr->mode=KILL;
-				return;
-			}
-			eptr->version = get32bit(&data);
-			eptr->timeout = get16bit(&data);
-			minversion = get64bit(&data);
-			matomlserv_send_old_changes(eptr,minversion);
-		} else {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 "/1)",rversion);
+		uint8_t rversion = get8bit(&data);
+		if (rversion < 1 || rversion > 4) {
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 ")",rversion);
 			eptr->mode=KILL;
 			return;
+		}
+		static const uint32_t expected_length[] = {0, 7, 7+8, 7, 7+8};
+		if (length != expected_length[rversion]) {
+			syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver %" PRIu8 ") - wrong size (%" PRIu32
+					"/%" PRIu32 ")", rversion, length, expected_length[rversion]);
+			eptr->mode=KILL;
+			return;
+		}
+		eptr->version = get32bit(&data);
+		eptr->timeout = get16bit(&data);
+		eptr->shadow = (rversion == 3 || rversion == 4);
+		if (eptr->version < LIZARDFS_VERSHEX) {
+			syslog(LOG_NOTICE,
+					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old client (v%s) from %s",
+					rversion, lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
+			eptr->mode=KILL;
+			return;
+		}
+		if (rversion == 2 || rversion == 4) {
+			uint64_t minversion = get64bit(&data);
+			matomlserv_send_old_changes(eptr,minversion);
 		}
 		if (eptr->timeout<10) {
 			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
-			return;
 		}
 	}
+}
+
+void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t version, timeout_ms;
+	uint64_t shadowMetadataVersion;
+	mltoma::registerShadow::deserialize(data, length, version, timeout_ms, shadowMetadataVersion);
+	eptr->timeout = timeout_ms / 1000;
+	eptr->version = version;
+	eptr->shadow = true;
+	if (eptr->timeout < 10) {
+		syslog(LOG_NOTICE,
+				"MLTOMA_REGISTER_SHADOW communication timeout too small (%" PRIu32 " milliseconds)"
+				" - should be at least 10 seconds; increasing to 10 seconds", timeout_ms);
+		if (eptr->timeout < 10) {
+			eptr->timeout = 10;
+		}
+	}
+	if (eptr->version < LIZARDFS_VERSHEX) {
+		syslog(LOG_NOTICE,
+				"MLTOMA_REGISTER_SHADOW - rejected old client (v%s) from %s",
+				lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
+		std::vector<uint8_t> reply;
+		matoml::registerShadow::serialize(reply, uint8_t(ERROR_REGISTER));
+		matomlserv_createpacket(eptr, std::move(reply));
+		return;
+	}
+
+	uint64_t myMedatataVersion = fs_getversion();
+	uint64_t replyVersion;
+	if (myMedatataVersion > shadowMetadataVersion
+			&& old_changes_head != nullptr
+			&& old_changes_head->minversion <= shadowMetadataVersion) {
+		// Our version is newer than shadow's, but we can cheat a bit by sending old changes
+		replyVersion = shadowMetadataVersion;
+	} else {
+		// We don't have the required changes in memory. Let's say what is our version of metadata
+		// and shadow will have to download our metadata file
+		replyVersion = myMedatataVersion;
+	}
+
+	std::vector<uint8_t> reply;
+	matoml::registerShadow::serialize(reply, LIZARDFS_VERSHEX, replyVersion);
+	matomlserv_createpacket(eptr, std::move(reply));
+	matomlserv_send_old_changes(eptr, replyVersion - 1); // this function expects lastlogversion
 }
 
 void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -465,28 +529,36 @@ void matomlserv_beforeclose(matomlserventry *eptr) {
 }
 
 void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
-	switch (type) {
-		case ANTOAN_NOP:
-			break;
-		case ANTOAN_UNKNOWN_COMMAND: // for future use
-			break;
-		case ANTOAN_BAD_COMMAND_SIZE: // for future use
-			break;
-		case MLTOMA_REGISTER:
-			matomlserv_register(eptr,data,length);
-			break;
-		case MLTOMA_DOWNLOAD_START:
-			matomlserv_download_start(eptr,data,length);
-			break;
-		case MLTOMA_DOWNLOAD_DATA:
-			matomlserv_download_data(eptr,data,length);
-			break;
-		case MLTOMA_DOWNLOAD_END:
-			matomlserv_download_end(eptr,data,length);
-			break;
-		default:
-			syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
-			eptr->mode=KILL;
+	try {
+		switch (type) {
+			case ANTOAN_NOP:
+				break;
+			case ANTOAN_UNKNOWN_COMMAND: // for future use
+				break;
+			case ANTOAN_BAD_COMMAND_SIZE: // for future use
+				break;
+			case MLTOMA_REGISTER:
+				matomlserv_register(eptr,data,length);
+				break;
+			case LIZ_MLTOMA_REGISTER_SHADOW:
+				matomlserv_register_shadow(eptr,data,length);
+				break;
+			case MLTOMA_DOWNLOAD_START:
+				matomlserv_download_start(eptr,data,length);
+				break;
+			case MLTOMA_DOWNLOAD_DATA:
+				matomlserv_download_data(eptr,data,length);
+				break;
+			case MLTOMA_DOWNLOAD_END:
+				matomlserv_download_end(eptr,data,length);
+				break;
+			default:
+				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
+				eptr->mode=KILL;
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - cannot deserialize: %s", type, ex.what());
+		eptr->mode = KILL;
 	}
 }
 
@@ -620,10 +692,14 @@ void matomlserv_write(matomlserventry *eptr) {
 void matomlserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	uint32_t pos = *ndesc;
 	matomlserventry *eptr;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
+	if (!gExiting) {
+		pdesc[pos].fd = lsock;
+		pdesc[pos].events = POLLIN;
+		lsockpdescpos = pos;
+		pos++;
+	} else {
+		lsockpdescpos = -1;
+	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
 		pdesc[pos].fd = eptr->sock;
 		pdesc[pos].events = POLLIN;
@@ -725,6 +801,19 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	}
 }
 
+void matomlserv_wantexit(void) {
+	gExiting = true;
+}
+
+int matomlserv_canexit(void) {
+	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->outputhead != nullptr) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void matomlserv_become_master() {
 	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return;
@@ -812,6 +901,8 @@ int matomlserv_init(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
+	main_wantexitregister(matomlserv_wantexit);
+	main_canexitregister(matomlserv_canexit);
 	main_reloadregister(matomlserv_reload);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);

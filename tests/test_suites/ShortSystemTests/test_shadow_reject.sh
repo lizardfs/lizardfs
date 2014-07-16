@@ -36,11 +36,13 @@ run_my_client() {
 	assert_equals "$expected_status" `cat ${TEMP_DIR}/${ma_to_someone}_exit_status || echo 1`
 }
 
-run_my_client assert_success 0 1 matocl
+# Shadow accepts matocl connections, but doesn't respond to most messages. TODO: verify it.
+#run_my_client assert_success 0 1 matocl
 run_my_client assert_success 0 1 matocs
 run_my_client assert_success 0 1 matoml
 
-rm ${TEMP_DIR}/mato{cl,ml,cs}_exit_status
+#rm ${TEMP_DIR}/mato{cl,ml,cs}_exit_status
+rm ${TEMP_DIR}/mato{ml,cs}_exit_status
 lizardfs_master_daemon stop
 lizardfs_make_conf_for_master 1
 lizardfs_master_daemon reload

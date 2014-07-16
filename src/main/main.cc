@@ -148,6 +148,7 @@ TimeEntries gTimeEntries;
 
 static std::atomic<uint32_t> now;
 static std::atomic<uint64_t> usecnow;
+static bool gRunAsDaemon = true;
 
 static int signalpipe[2];
 
@@ -469,7 +470,30 @@ int initialize_late(void) {
 	return ok;
 }
 
+const std::string& set_syslog_ident() {
+	static std::string logIdent;
+	logIdent = cfg_get("SYSLOG_IDENT", std::string(STR(APPNAME)));
+	if (logIdent.empty()) {
+		logIdent = STR(APPNAME);
+	}
+	closelog();
+	if (gRunAsDaemon) {
+		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_DAEMON);
+	} else {
+#if defined(LOG_PERROR)
+		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
+#else
+		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_USER);
+#endif
+	}
+	return logIdent;
+}
 
+void main_reload() {
+	syslog(LOG_NOTICE, "Changing SYSLOG_IDENT to %s",
+			cfg_get("SYSLOG_IDENT", STR(APPNAME)).c_str());
+	set_syslog_ident();
+}
 
 /* signals */
 
@@ -795,6 +819,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		fflush(stderr);
 		uint32_t l = 0;
 		pid_t newownerpid;
+		uint32_t checksPerSecond = 10;
 		do {
 			newownerpid = mylock();
 			if (newownerpid<0) {
@@ -803,14 +828,18 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			}
 			if (newownerpid>0) {
 				l++;
-				if (l>=timeout) {
-					syslog(LOG_ERR,"about %" PRIu32 " seconds passed and lockfile is still locked - giving up",l);
+				uint32_t secondsElapsed = l / checksPerSecond;
+				if (secondsElapsed >= timeout) {
+					syslog(LOG_ERR,
+							"about %" PRIu32 " seconds passed and lock still exists - giving up",
+							secondsElapsed);
 					fprintf(stderr,"giving up\n");
 					return LockStatus::kFail;
 				}
-				if (l%10==0) {
-					syslog(LOG_WARNING,"about %" PRIu32 " seconds passed and lock still exists",l);
-					fprintf(stderr,"%" PRIu32 "s ",l);
+				if (l % (10 * checksPerSecond) == 0) {
+					syslog(LOG_WARNING, "about %" PRIu32 " seconds passed and lock still exists",
+							secondsElapsed);
+					fprintf(stderr,"%" PRIu32 "s ", secondsElapsed);
 					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
@@ -834,7 +863,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 					ownerpid = newownerpid;
 				}
 			}
-			sleep(1);
+			usleep(1000000 / checksPerSecond);
 		} while (newownerpid!=0);
 		fprintf(stderr,"terminated\n");
 		return (runmode == RunMode::kRestart) ? LockStatus::kAgain : LockStatus::kSuccess;
@@ -967,12 +996,11 @@ void usage(const char *appname) {
 }
 
 int main(int argc,char **argv) {
-	char *logappname;
 	char *wrkdir;
 	char *cfgfile;
 	char *appname;
 	int ch;
-	int rundaemon,logundefined;
+	int logundefined;
 	int lockmemory;
 	int32_t nicelevel;
 	uint32_t locktimeout;
@@ -999,7 +1027,6 @@ int main(int argc,char **argv) {
 		close(fd);
 	}
 	locktimeout = 1800;
-	rundaemon = 1;
 	RunMode runmode = RunMode::kRestart;
 	logundefined = 0;
 	lockmemory = 0;
@@ -1011,7 +1038,7 @@ int main(int argc,char **argv) {
 				printf("version: %s\n",LIZARDFS_PACKAGE_VERSION);
 				return 0;
 			case 'd':
-				rundaemon=0;
+				gRunAsDaemon = false;
 				break;
 			case 't':
 				locktimeout=strtoul(optarg,NULL,10);
@@ -1064,7 +1091,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-		if (rundaemon) {
+		if (gRunAsDaemon) {
 			makedaemon();
 		} else {
 			set_signal_handlers(0);
@@ -1076,29 +1103,7 @@ int main(int argc,char **argv) {
 	}
 	free(cfgfile);
 
-	logappname = cfg_getstr("SYSLOG_IDENT",STR(APPNAME));
-
-	if (rundaemon) {
-		if (logappname[0]) {
-			openlog(logappname, LOG_PID | LOG_NDELAY , LOG_DAEMON);
-		} else {
-			openlog(STR(APPNAME), LOG_PID | LOG_NDELAY , LOG_DAEMON);
-		}
-	} else {
-#if defined(LOG_PERROR)
-		if (logappname[0]) {
-			openlog(logappname, LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
-		} else {
-			openlog(STR(APPNAME), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
-		}
-#else
-		if (logappname[0]) {
-			openlog(logappname, LOG_PID | LOG_NDELAY, LOG_USER);
-		} else {
-			openlog(STR(APPNAME), LOG_PID | LOG_NDELAY, LOG_USER);
-		}
-#endif
-	}
+	const std::string& logappname = set_syslog_ident();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		rls.rlim_cur = MFSMAXFILES;
@@ -1128,12 +1133,11 @@ int main(int argc,char **argv) {
 
 	if (chdir(wrkdir)<0) {
 		mfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
-		if (rundaemon) {
+		if (gRunAsDaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
-		free(logappname);
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 	free(wrkdir);
@@ -1150,22 +1154,20 @@ int main(int argc,char **argv) {
 		if (e.what()[0]) {
 			mfs_errlog(LOG_ERR, e.what());
 		}
-		if (rundaemon) {
+		if (gRunAsDaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
 		}
 		closelog();
-		free(logappname);
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
 	if (runmode==RunMode::kStop || runmode==RunMode::kKill || runmode==RunMode::kReload
 			|| runmode==RunMode::kTest || runmode==RunMode::kIsAlive) {
-		if (rundaemon) {
+		if (gRunAsDaemon) {
 			close_msg_channel();
 		}
 		closelog();
-		free(logappname);
 		if (runmode==RunMode::kIsAlive) {
 			FileLock::LockStatus lockstatus = fl->lockstatus();
 			sassert((lockstatus == FileLock::LockStatus::kSuccess)
@@ -1208,17 +1210,18 @@ int main(int argc,char **argv) {
 		mfs_syslog(LOG_WARNING,"memory lock not supported !!!");
 	}
 #endif
-	fprintf(stderr,"initializing %s modules ...\n",logappname);
+	fprintf(stderr, "initializing %s modules ...\n", logappname.c_str());
 
 	if (initialize()) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
 		}
-		fprintf(stderr,"%s daemon initialized properly\n",logappname);
-		if (rundaemon) {
+		fprintf(stderr, "%s daemon initialized properly\n", logappname.c_str());
+		if (gRunAsDaemon) {
 			close_msg_channel();
 		}
 		if (initialize_late()) {
+			main_reloadregister(main_reload); // this will be the first thing to do
 			mainloop();
 			ch=LIZARDFS_EXIT_STATUS_SUCCESS;
 		} else {
@@ -1226,7 +1229,7 @@ int main(int argc,char **argv) {
 		}
 	} else {
 		fprintf(stderr,"error occured during initialization - exiting\n");
-		if (rundaemon) {
+		if (gRunAsDaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
 		}
@@ -1238,6 +1241,5 @@ int main(int argc,char **argv) {
 	cfg_term();
 	strerr_term();
 	closelog();
-	free(logappname);
 	return ch;
 }

@@ -1,3 +1,22 @@
+lizardfs (2.5.0) stable; urgency=medium
+
+  * (master) High availability provided by shadow master servers
+  * (mount, chunkserver) CRC algorithm replaced with a 3 times faster
+    implementation
+  * (mount, master) Support for quotas (for users and groups)
+  * (mount, master) Support for posix access contol lists (requires additional
+    OS support)
+  * (mount, master) Support for global I/O limiting (bandwidth limiting)
+  * (mount) Support for per-mountpoint I/O limiting (bandwidth limiting)
+  * (adm) New package lizardfs-adm with a lizardfs-probe command-line tool
+    which can be used to query the installation for variuos parameteres
+  * (master) New mechanism of storing metadata backup files which improves
+    performance of the hourly metadata dumps
+  * (all) A comprehensive test suite added
+  * (all) Multiple bugfixes
+
+ -- Marcin Sulikowski <sulik@lizardfs.org>  Tue, 15 Jul 2014 17:28:51 +0200
+
 mfs (1.6.28) unstable; urgency=medium
 
   * (all) compile with g++ by default

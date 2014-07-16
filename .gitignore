@@ -30,3 +30,20 @@ compile_commands.json
 # QtCreator user profiles #
 ###########################
 *.user
+
+# Debian builds #
+#################
+/Makefile
+/debian/files
+/debian/*.debhelper
+/debian/*.substvars
+/debian/*.debhelper.log
+/debian/lizardfs-adm/
+/debian/lizardfs-cgi/
+/debian/lizardfs-cgiserv/
+/debian/lizardfs-chunkserver/
+/debian/lizardfs-client/
+/debian/lizardfs-common/
+/debian/lizardfs-master/
+/debian/lizardfs-metalogger/
+/debian/tmp/

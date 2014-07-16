@@ -85,7 +85,7 @@ int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 
 int chunk_load(FILE *fd, bool loadLockIds);
 void chunk_store(FILE *fd);
-void chunk_term(void);
+void chunk_unload(void);
 void chunk_newfs(void);
 int chunk_strinit(void);
 uint64_t chunk_checksum(ChecksumMode mode);

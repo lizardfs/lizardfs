@@ -60,5 +60,6 @@ assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
 # Check if using removed files works as expected after promotion:
 echo -n " prrrrrr" >&11
 assert_equals "u huhu prrrrrr" "$(cat /proc/$$/fd/11)"
+exec 11>&-      # close the descriptor to allow clean umount
 
 metadata_validate_files
