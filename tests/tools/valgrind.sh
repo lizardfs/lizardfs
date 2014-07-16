@@ -32,11 +32,12 @@ valgrind_enable() {
 
 # Terminate valgrind processes to get complete memcheck logs from them
 valgrind_terminate() {
-	if pgrep -u lizardfstest memcheck >/dev/null; then
+	local pattern='memcheck|polonaise-'
+	if pgrep -u lizardfstest "$pattern" >/dev/null; then
 		echo " --- valgrind: Waiting for all processes to be termianted --- "
-		pkill -u lizardfstest --signal TERM memcheck
+		pkill -u lizardfstest --signal TERM "$pattern"
 		wait_for '! pgrep -u lizardfstest memcheck >/dev/null' '60 seconds' || true
-		if pgrep -u lizardfstest memcheck >/dev/null; then
+		if pgrep -u lizardfstest "$pattern" >/dev/null; then
 			echo " --- valgrind: Stop FAILED --- "
 		else
 			echo " --- valgrind: Stop OK --- "

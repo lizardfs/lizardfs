@@ -1,6 +1,7 @@
 #include "common/platform.h"
 
 #include <fcntl.h>
+#include <signal.h>
 #include <iostream>
 #include <boost/make_shared.hpp>
 #include <polonaise/polonaise_constants.h>
@@ -860,6 +861,16 @@ public:
 const uint32_t BigBufferedTransportFactory::kReadBufferSize;
 const uint32_t BigBufferedTransportFactory::kWriteBufferSize;
 
+static std::unique_ptr<apache::thrift::server::TThreadedServer> gServer;
+static sig_atomic_t gTerminated = 0;
+
+void termhandle(int) {
+	gTerminated = 1;
+	if (gServer) {
+		gServer->stop();
+	}
+}
+
 int main (int argc, char **argv) {
 	uint32_t ioretries = 30;
 	uint32_t cachesize_MB = 10;
@@ -870,6 +881,16 @@ int main (int argc, char **argv) {
 				"    Default listen port is 9090" << std::endl;
 		return 1;
 	}
+
+	struct sigaction sa;
+	sa.sa_flags = 0;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = termhandle;
+	sigaction(SIGTERM, &sa, nullptr);
+	sigaction(SIGINT, &sa, nullptr);
+#if defined(SIGUSR1) && defined(ENABLE_EXIT_ON_USR1)
+	sigaction(SIGUSR1, &sa, nullptr);
+#endif
 
 	// Initialize LizardFS client
 	strerr_init();
@@ -901,7 +922,18 @@ int main (int argc, char **argv) {
 	boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(port));
 	boost::shared_ptr<TTransportFactory> transportFactory(new BigBufferedTransportFactory());
 	boost::shared_ptr<TProtocolFactory> protocolFactory(new TBinaryProtocolFactory());
-	TThreadedServer server(processor, serverTransport, transportFactory, protocolFactory);
-	server.serve();
+	gServer.reset(
+			new TThreadedServer(processor, serverTransport, transportFactory, protocolFactory));
+	if (gTerminated == 0) {
+		gServer->serve();
+	}
+
+	write_data_term();
+	read_data_term();
+	csdb_term();
+	masterproxy_term();
+	fs_term();
+	symlink_cache_term();
+
 	return 0;
 }
