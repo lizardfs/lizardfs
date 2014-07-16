@@ -35,9 +35,9 @@ compile_commands.json
 #################
 /Makefile
 /debian/files
-/denian/*.debhelper
-/denian/*.substvars
-/denian/*.debhelper.log
+/debian/*.debhelper
+/debian/*.substvars
+/debian/*.debhelper.log
 /debian/lizardfs-adm/
 /debian/lizardfs-cgi/
 /debian/lizardfs-cgiserv/
