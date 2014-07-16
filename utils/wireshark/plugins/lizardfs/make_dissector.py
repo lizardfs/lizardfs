@@ -9,7 +9,7 @@ oct_fields = ['mode', 'modemask', 'umask']
 hex_fields = ['vershex', 'rver', 'ip', 'crc']
 for pfx in chunk_prefixes:
     hex_fields += [pfx + 'chunkid', pfx + 'chunkversion']
-fields_with_dictionary = ['type', 'gmode', 'smode', 'status', 'nodetype', 'xattrgmode', 'xattrsmode']
+fields_with_dictionary = ['type', 'gmode', 'smode', 'status', 'serverstatus', 'nodetype', 'xattrgmode', 'xattrsmode']
 
 class Types:
     int_dec = 1

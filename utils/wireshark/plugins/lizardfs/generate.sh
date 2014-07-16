@@ -30,6 +30,13 @@ cat "$input_file" \
 	> dict_status-inl.h
 
 cat "$input_file" \
+	| egrep -o '^#define LIZ_METADATASERVER_STATUS_.*' \
+	| cut -d' ' -f2 \
+	| sort -u \
+	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
+	> dict_serverstatus-inl.h
+
+cat "$input_file" \
 	| egrep -o '^#define TYPE_[A-Z]+' \
 	| cut -d' ' -f2 \
 	| sort -u \
