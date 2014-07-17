@@ -1,7 +1,9 @@
 metadata_print() {
 ( # This function calls cd, so run it in a subshell
 	cd "${1:-.}"
+if [[ ! ${DISABLE_PRINTING_XATTRS:-} ]]; then
 	assert_program_installed getfattr
+fi
 	local file
 	local format=$'inode %i; type %F; name %n\n'
 	format+=$'mask %A; uid %u; gid %g\n'
@@ -15,8 +17,10 @@ metadata_print() {
 		mfsgettrashtime "$file"
 		mfsgeteattr "$file"
 		mfsdirinfo "$file"
+if [[ ! ${DISABLE_PRINTING_XATTRS:-} ]]; then
 		getfattr -d "$file"
 		getfacl "$file"
+fi
 	done
 	find . -type l | sort | while read file; do
 		echo "Link: $file -> $(readlink "$file")"
