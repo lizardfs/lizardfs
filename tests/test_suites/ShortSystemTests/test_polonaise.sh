@@ -11,7 +11,10 @@ CHUNKSERVERS=1 \
 	setup_local_empty_lizardfs info
 
 # Start Polonaise
-lizardfs-polonaise-server localhost ${info[matocl]} "${info[mount0]}" &>/dev/null &
+lizardfs-polonaise-server \
+	--master-host=localhost \
+	--master-port=${info[matocl]} \
+	--bind-port 9090 &> /dev/null &
 sleep 3
 mnt="$TEMP_DIR/mfspolon"
 mkdir -p "$mnt"

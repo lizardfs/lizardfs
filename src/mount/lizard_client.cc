@@ -2210,7 +2210,7 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		int sugid_clear_mode_, bool acl_enabled_) {
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
@@ -2218,11 +2218,11 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 	entry_cache_timeout = entry_cache_timeout_;
 	attr_cache_timeout = attr_cache_timeout_;
 	mkdir_copy_sgid = mkdir_copy_sgid_;
-	sugid_clear_mode = sugid_clear_mode_;
+	sugid_clear_mode = static_cast<decltype (sugid_clear_mode)>(sugid_clear_mode_);
 	acl_enabled = acl_enabled_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
-		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode_<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode_]:"???");
+		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
 	}
 	statsptr_init();

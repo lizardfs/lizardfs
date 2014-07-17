@@ -138,7 +138,7 @@ struct mfsopts {
 	int acl;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
-	int sugidclearmode;
+	SugidClearMode sugidclearmode;
 	char *cachemode;
 	int cachefiles;
 	int keepcache;
@@ -634,7 +634,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		mfs_meta_init(mfsopts.debug,mfsopts.entrycacheto,mfsopts.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(mfsopts.debug,mfsopts.keepcache,mfsopts.direntrycacheto,mfsopts.entrycacheto,mfsopts.attrcacheto,mfsopts.mkdircopysgid,mfsopts.sugidclearmode,mfsopts.acl);
+		mfs_init(mfsopts.debug, mfsopts.keepcache, mfsopts.direntrycacheto, mfsopts.entrycacheto,
+				mfsopts.attrcacheto, mfsopts.mkdircopysgid, mfsopts.sugidclearmode, mfsopts.acl);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -946,26 +947,26 @@ int main(int argc, char *argv[]) {
 	}
 	if (mfsopts.sugidclearmodestr==NULL) {
 #if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+		mfsopts.sugidclearmode = SugidClearMode::kExt;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+		mfsopts.sugidclearmode = SugidClearMode::kBsd;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+		mfsopts.sugidclearmode = SugidClearMode::kOsx;
 #else
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+		mfsopts.sugidclearmode = SugidClearMode::kNever;
 #endif
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"NEVER")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+		mfsopts.sugidclearmode = SugidClearMode::kNever;
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"ALWAYS")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_ALWAYS;
+		mfsopts.sugidclearmode = SugidClearMode::kAlways;
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"OSX")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+		mfsopts.sugidclearmode = SugidClearMode::kOsx;
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"BSD")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+		mfsopts.sugidclearmode = SugidClearMode::kBsd;
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"EXT")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+		mfsopts.sugidclearmode = SugidClearMode::kExt;
 	} else if (strcasecmp(mfsopts.sugidclearmodestr,"XFS")==0) {
-		mfsopts.sugidclearmode = SUGID_CLEAR_MODE_XFS;
+		mfsopts.sugidclearmode = SugidClearMode::kXfs;
 	} else {
 		fprintf(stderr,"unrecognized sugidclearmode option\nsee: %s -h for help\n",argv[0]);
 		return 1;

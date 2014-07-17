@@ -3438,7 +3438,7 @@ uint8_t fs_do_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint3
 }
 
 
-uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t sugidclearmode,Attributes& attr) {
+uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,SugidClearMode sugidclearmode,Attributes& attr) {
 	fsnode *p,*rn;
 	uint32_t ts = main_time();
 
@@ -3502,23 +3502,23 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	// then do it yourself
 	if ((p->mode & 06000) && (setmask&(SET_UID_FLAG|SET_GID_FLAG))) { // this is "chown" operation and suid or sgid bit is set
 		switch (sugidclearmode) {
-		case SUGID_CLEAR_MODE_ALWAYS:
+		case SugidClearMode::kAlways:
 			p->mode &= 0171777; // safest approach - always delete both suid and sgid
 			attrmode &= 01777;
 			break;
-		case SUGID_CLEAR_MODE_OSX:
+		case SugidClearMode::kOsx:
 			if (uid!=0) { // OSX+Solaris - every change done by unprivileged user should clear suid and sgid
 				p->mode &= 0171777;
 				attrmode &= 01777;
 			}
 			break;
-		case SUGID_CLEAR_MODE_BSD:
-			if (uid!=0 && (setmask&SET_GID_FLAG) && p->gid!=attrgid) { // *BSD - like in OSX but only when something is actually changed
+		case SugidClearMode::kBsd:
+			if (uid!=0 && (setmask&SET_GID_FLAG) && p->gid!=attrgid) { // *BSD - like in kOsx but only when something is actually changed
 				p->mode &= 0171777;
 				attrmode &= 01777;
 			}
 			break;
-		case SUGID_CLEAR_MODE_EXT:
+		case SugidClearMode::kExt:
 			if (p->type!=TYPE_DIRECTORY) {
 				if (p->mode & 010) { // when group exec is set - clear both bits
 					p->mode &= 0171777;
@@ -3529,7 +3529,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 				}
 			}
 			break;
-		case SUGID_CLEAR_MODE_XFS:
+		case SugidClearMode::kXfs:
 			if (p->type!=TYPE_DIRECTORY) { // similar to EXT3, but unprivileged users also clear suid/sgid bits on directories
 				if (p->mode & 010) {
 					p->mode &= 0171777;
@@ -3542,6 +3542,8 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 				p->mode &= 0171777;
 				attrmode &= 01777;
 			}
+			break;
+		case SugidClearMode::kNever:
 			break;
 		}
 	}

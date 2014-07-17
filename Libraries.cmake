@@ -55,7 +55,7 @@ message(STATUS "a2x: ${A2X_BINARY}")
 
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread program_options)
 find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
 
 # Find Thrift
@@ -72,7 +72,12 @@ endif()
 set(POLONAISE_REQUIRED_VERSION 0.3.0)
 find_package(Polonaise ${POLONAISE_REQUIRED_VERSION} EXACT QUIET NO_MODULE NO_CMAKE_BUILDS_PATH)
 if(POLONAISE_FOUND)
-  message(STATUS "Found Polonaise")
+	if(Boost_PROGRAM_OPTIONS_FOUND)
+	  message(STATUS "Found Polonaise")
+	else()
+		message(STATUS "Missing Polonaise dependencies: boost-program_options")
+		set(POLONAISE_FOUND false)
+	endif()
 else()
   message(STATUS "Could NOT find Polonaise v${POLONAISE_REQUIRED_VERSION}")
   if (Polonaise_CONSIDERED_VERSIONS)

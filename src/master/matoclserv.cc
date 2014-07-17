@@ -1893,7 +1893,7 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
-	uint8_t sugidclearmode;
+	SugidClearMode sugidclearmode;
 	uint16_t attrmode;
 	uint32_t attruid,attrgid,attratime,attrmtime;
 	if (length!=35 && length!=36) {
@@ -1913,9 +1913,9 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	attratime = get32bit(&data);
 	attrmtime = get32bit(&data);
 	if (length==36) {
-		sugidclearmode = get8bit(&data);
+		sugidclearmode = static_cast<SugidClearMode>(get8bit(&data));
 	} else {
-		sugidclearmode = SUGID_CLEAR_MODE_ALWAYS; // this is safest option
+		sugidclearmode = SugidClearMode::kAlways; // this is safest option
 	}
 	status = fs_setattr(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, uid, gid, auid, agid,
