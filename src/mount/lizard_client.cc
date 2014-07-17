@@ -315,6 +315,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	attrmtime = get32bit(&ptr);
 	attrctime = get32bit(&ptr);
 	attrnlink = get32bit(&ptr);
+	memset(stbuf, 0, sizeof(*stbuf));
 	stbuf->st_ino = inode;
 #ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
 	stbuf->st_blksize = MFSBLOCKSIZE;
