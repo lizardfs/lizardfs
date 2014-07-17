@@ -4591,8 +4591,8 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	ochunkid = p->data.fdata.chunktab[indx];
 	if (context.isPersonalityMaster()) {
 #ifndef METARESTORE
-		status = chunk_multi_modify(ochunkid, lockid, p->goal,
-				quota_exceeded, usedummylockid, opflag, &nchunkid);
+		status = chunk_multi_modify(ochunkid, lockid, p->goal, usedummylockid,
+				quota_exceeded, opflag, &nchunkid);
 #else
 		(void)usedummylockid;
 #endif
