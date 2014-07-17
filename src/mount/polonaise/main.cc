@@ -936,7 +936,6 @@ int main (int argc, char **argv) {
 
 	write_data_term();
 	read_data_term();
-	csdb_term();
 	masterproxy_term();
 	fs_term();
 	symlink_cache_term();
