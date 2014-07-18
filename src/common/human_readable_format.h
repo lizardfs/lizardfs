@@ -3,6 +3,7 @@
 #include "common/platform.h"
 
 #include <cstdint>
+#include <ctime>
 #include <string>
 
 std::string convertToSi(uint64_t number);
