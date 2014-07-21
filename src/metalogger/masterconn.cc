@@ -490,10 +490,17 @@ void masterconn_download_next(masterconn *eptr) {
 #ifndef METALOGGER
 				if (!eptr->filesystemIsLoaded) {
 					eptr->logfd.reset();
-					fs_loadall();
-					lastlogversion = fs_getversion() - 1;
-					mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
-					eptr->filesystemIsLoaded = true;
+					try {
+						fs_loadall();
+						lastlogversion = fs_getversion() - 1;
+						mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
+						eptr->filesystemIsLoaded = true;
+					} catch (Exception& ex) {
+						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
+								ex.what());
+
+						masterconn_force_metadata_download(eptr);
+					}
 				}
 #endif /* #ifndef METALOGGER */
 			}
