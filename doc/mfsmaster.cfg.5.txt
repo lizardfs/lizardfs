@@ -160,6 +160,9 @@ delay in seconds before trying to reconnect to metadata server after disconnecti
 *MASTER_TIMEOUT*::
 timeout (in seconds) for metadata server connections (default is 60)
 
+*METADATA_CHECKSUM_INTERVAL*::
+how often metadata checksum shall be sent to backup servers (default is: every 50 metadata updates)
+
 == NOTES
 
 Chunks in master are tested in loop. Speed (or frequency) is regulated by two options

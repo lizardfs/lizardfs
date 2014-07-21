@@ -54,9 +54,5 @@ uint64_t changelogGetLastLogVersion(const std::string& fname);
  */
 void changelogsMigrateFrom_1_6_29(const std::string& fname);
 
-const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
-const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
-
-extern uint32_t gStoredPreviousBackMetaCopies;
 extern std::unique_ptr<Lockfile> gMetadataLockfile;
 

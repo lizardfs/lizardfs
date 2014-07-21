@@ -31,6 +31,8 @@ cd
 # Decrease timestamp for all operations in changelog by a factor of at least 24h
 lizardfs_master_daemon kill
 assert_equals "$metadata_version" "$(metadata_get_version "$metadata_file")"
+# Replace all CHECKSUM entries in changelog with meaningless entry, so that the changelog will stay consistent
+sed -i -e 's/CHECKSUM.*/ACCESS(1)/' "$changelog_file"
 sed -i -e 's/: ./: /' "$changelog_file" # Remove first digit from all timestamps (subtract 37 years)
 
 # Start the master server (it will recover and dump metadata) and remember version of the new file.

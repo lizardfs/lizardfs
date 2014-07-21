@@ -83,6 +83,7 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore
+uint8_t fs_apply_checksum(const std::string& version, uint64_t checksum);
 uint8_t fs_apply_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
 uint8_t fs_apply_access(uint32_t ts,uint32_t inode);
 uint8_t fs_apply_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t atime,uint32_t mtime);
@@ -107,6 +108,12 @@ void fs_unload();
 
 /// Removes metadata lock leaving working directory in a clean state
 void fs_unlock();
+
+// Number of changelog file versions
+const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
+const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
+
+extern uint32_t gStoredPreviousBackMetaCopies;
 
 #ifdef METARESTORE
 
