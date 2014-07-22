@@ -57,6 +57,7 @@ option(ENABLE_TESTS         "Enable building unit and functional tests"         
 option(ENABLE_DOCS          "Enable building the documentation"                       ON)
 option(ENABLE_EXIT_ON_USR1  "Enable handler for SIGUSR1 which calls exit()"           OFF)
 option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
+option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                          OFF)
 # end of LizardFS options
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
@@ -71,6 +72,7 @@ message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
 message(STATUS "ENABLE_DOCS: ${ENABLE_DOCS}")
 message(STATUS "ENABLE_EXIT_ON_USR1: ${ENABLE_EXIT_ON_USR1}")
 message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+message(STATUS "ENABLE_DEBUG_LOG: ${ENABLE_DEBUG_LOG}")
 # end of LizardFS options values
 
 # All the environment tests (libs, includes, etc.) live here:
