@@ -18,3 +18,23 @@ inline std::string to_string(const T& val) {
 }
 
 #endif /* #ifndef LIZARDFS_HAVE_STD_TO_STRING */
+
+#ifndef LIZARDFS_HAVE_STD_STOULL
+
+#include <cstdlib>
+#include <string>
+
+namespace std {
+
+inline unsigned long long stoull(const std::string& s, std::size_t* pos = 0, int base = 10) {
+	char* end = nullptr;
+	unsigned long long val = strtoull(s.c_str(), &end, base);
+	if (pos != nullptr) {
+		*pos = end - s.c_str();
+	}
+	return val;
+}
+
+}
+
+#endif /* #ifndef LIZARDFS_HAVE_STD_STOULL */
