@@ -469,6 +469,8 @@ void fs_stats(uint32_t stats[16]) {
 
 // Number of changelog file versions
 uint32_t gStoredPreviousBackMetaCopies;
+// Checksum validation
+static bool gDisableChecksumVerification = false;
 
 // Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
 // proper timestamp to changelog entry
@@ -3164,7 +3166,7 @@ uint8_t fs_apply_checksum(const std::string& version, uint64_t checksum) {
 	std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
 	uint64_t computedChecksum = fs_checksum(ChecksumMode::kGetCurrent);
 	gMetadata->metaversion++;
-	if (version == versionString) {
+	if (!gDisableChecksumVerification && (version == versionString)) {
 		if (checksum != computedChecksum) {
 			return ERROR_MISMATCH;
 		}
@@ -7821,7 +7823,6 @@ void fs_become_master() {
 	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
 			0, fs_periodic_freeinodes);
-	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
 	return;
 }
 
@@ -7850,8 +7851,9 @@ void fs_reload(void) {
 				cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
 		main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
-		ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
 	}
+	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
+	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 }
 
 /*
@@ -7984,6 +7986,7 @@ int fs_init(bool doLoad) {
 		}
 	}
 	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
+	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
