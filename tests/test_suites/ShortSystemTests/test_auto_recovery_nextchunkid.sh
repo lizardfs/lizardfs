@@ -1,7 +1,11 @@
+master_cfg="AUTO_RECOVERY = 1"
+master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
+master_cfg+="|DISABLE_METADATA_CHECKSUM_VERIFICATION = 1"
+
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1|MAGIC_DISABLE_METADATA_DUMPS = 1" \
+	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 
 # Create 6 chunks, saving the changelog after generating 3 of them

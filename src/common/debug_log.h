@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-#ifdef ENABLE_DEBUG_LOG
+#ifdef LIZARDFS_ENABLE_DEBUG_LOG
 # define DEBUG_LOG(TAG) debugLog(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__)
 # define DEBUG_LOGF(TAG, format, ...) debugLogf(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__, \
 		format, __VA_ARGS__)
@@ -20,6 +20,7 @@
 class DebugLog {
 public:
 	typedef std::vector<std::string> Paths;
+
 	/*! \brief Create new DebugLog object.
 	 *
 	 * Newly created DebugLog object will have opened given number of files,
@@ -66,14 +67,17 @@ public:
 		*buffer_ << manip;
 		return *this;
 	}
+
 private:
 	typedef std::unique_ptr<std::ofstream> Stream;
+
 	void flush() {
 		for (Stream& o : streams_) {
 			*o << buffer_->str();
 		}
 		buffer_->str(std::string());
 	}
+
 	std::unique_ptr<std::stringstream> buffer_;
 	std::vector<Stream> streams_;
 };

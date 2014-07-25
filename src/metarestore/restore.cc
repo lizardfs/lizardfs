@@ -28,6 +28,10 @@
 #include "common/slogger.h"
 #include "master/filesystem.h"
 
+#ifndef METARESTORE
+# include "common/debug_log.h"
+#endif
+
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
@@ -787,9 +791,18 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 		default:
 			break;
 	}
+
 	if (status == ERROR_MAX) {
+#ifndef METARESTORE
+		DEBUG_LOG("master.mismatch")
+				<< "File " << filename << ", " << lv << line << " -- unknown entry ";
+#endif
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
 	} else if (status != STATUS_OK) {
+#ifndef METARESTORE
+		DEBUG_LOG("master.mismatch")
+				<< "File " << filename << ", " << lv << line << " -- " << mfsstrerr(status);
+#endif
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
 	}
 	return status;

@@ -104,4 +104,4 @@
 /* [CMake] Other */
 #cmakedefine WORDS_BIGENDIAN
 #cmakedefine ENABLE_EXIT_ON_USR1
-#cmakedefine ENABLE_DEBUG_LOG
+#cmakedefine LIZARDFS_ENABLE_DEBUG_LOG

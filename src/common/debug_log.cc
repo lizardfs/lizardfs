@@ -10,32 +10,34 @@
 namespace {
 
 DebugLog::Paths getPathsForPrefix(const std::string& prefix) {
-	std::string magicDebugLog = cfg_get("MAGIC_DEBUG_LOG", std::string());
-	if (magicDebugLog.empty()) {
-		return DebugLog::Paths();
-	}
-	std::string::size_type pos = 0;
 	DebugLog::Paths paths;
-	do {
-		std::string::size_type end = magicDebugLog.find(",", pos);
-		std::string entry(magicDebugLog.substr(pos, end != std::string::npos ? end - pos : end));
-		pos = end != std::string::npos ? end + 1 : end;
-		std::string::size_type sepPos = entry.find(":");
-		if (sepPos == std::string::npos) {
+	for (std::string suffix : {"", "_A", "_B", "_C"}) {
+		std::string configEntryName = "MAGIC_DEBUG_LOG" + suffix;
+		std::string magicDebugLog = cfg_get(configEntryName.c_str(), "");
+		if (magicDebugLog.empty()) {
 			continue;
 		}
-		std::string key = entry.substr(0, sepPos);
-		if (prefix.find(key) != std::string::npos) {
-			paths.push_back(entry.substr(sepPos + 1));
-		}
-	} while (pos != std::string::npos);
+		std::string::size_type pos = 0;
+		do {
+			std::string::size_type end = magicDebugLog.find(",", pos);
+			std::string entry(magicDebugLog.substr(pos, end != std::string::npos ? end - pos : end));
+			pos = end != std::string::npos ? end + 1 : end;
+			std::string::size_type sepPos = entry.find(":");
+			if (sepPos == std::string::npos) {
+				continue;
+			}
+			std::string key = entry.substr(0, sepPos);
+			if (prefix.find(key) != std::string::npos) {
+				paths.push_back(entry.substr(sepPos + 1));
+			}
+		} while (pos != std::string::npos);
+	}
 	return paths;
 }
 
 }
 
-DebugLog::DebugLog(const Paths& paths)
-		: buffer_(new std::stringstream), streams_() {
+DebugLog::DebugLog(const Paths& paths) : buffer_(new std::stringstream), streams_() {
 	for (const std::string& p : paths) {
 		Stream stream(new std::ofstream);
 		stream->open(p, std::ios::app);
