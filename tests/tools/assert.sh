@@ -126,7 +126,7 @@ assert_template_no_diff_() {
 # (assert|assertlocal|expect)_eventually <command> [<timeout>]
 assert_template_eventually_() {
 	local command=$1
-	local timeout=${2:-15 seconds}
+	local timeout=${2:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "$command" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't succedd within $timeout"
 	fi
@@ -143,7 +143,7 @@ assert_template_empty_() {
 assert_template_eventually_prints_() {
 	local string=$1
 	local command=$2
-	local timeout=${3:-15 seconds}
+	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout"
 	fi
@@ -153,7 +153,7 @@ assert_template_eventually_prints_() {
 assert_template_eventually_equals_() {
 	local command1=$1
 	local command2=$2
-	local timeout=${3:-15 seconds}
+	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command1) == \$($command2) ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout"
 	fi
@@ -168,6 +168,14 @@ get_source_line() {
 }
 
 # Internal functions
+
+get_timeout_for_assert_eventually_() {
+	if valgrind_enabled; then
+		echo 60
+	else
+		echo 15
+	fi
+}
 
 create_error_message_() {
 	local message=${MESSAGE:-}
