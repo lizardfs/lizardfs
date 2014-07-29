@@ -244,6 +244,18 @@ public:
 		addToStats();
 	}
 
+	bool isSafe() const {
+		return allValidCopies_ >= 2;
+	}
+
+	bool isEndangered() const {
+		return allValidCopies_ == 1;
+	}
+
+	bool isLost() const {
+		return allValidCopies_ == 0;
+	}
+
 	uint8_t allValidCopiesCount() const {
 		return allValidCopies_;
 	}
@@ -766,6 +778,24 @@ int chunk_unlock(uint64_t chunkid) {
 }
 
 #ifndef METARESTORE
+bool chunk_has_only_invalid_copies(uint64_t chunkid) {
+	if (chunkid == 0) {
+		return false;
+	}
+	chunk *c = chunk_find(chunkid);
+	if (c == NULL || !c->isLost()) {
+		return false;
+	}
+	// Chunk is lost, so it can only have INVALID or DEL copies.
+	// Return true it there is at least one INVALID.
+	for (slist *s = c->slisthead; s != nullptr; s = s->next) {
+		if (s->valid == INVALID) {
+			return true;
+		}
+	}
+	return false;
+}
+
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 	chunk *c;
 	*vcopies = 0;
