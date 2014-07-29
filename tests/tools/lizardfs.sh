@@ -10,6 +10,7 @@ setup_local_empty_lizardfs() {
 	local number_of_chunkservers=${CHUNKSERVERS:-1}
 	local number_of_mounts=${MOUNTS:-1}
 	local disks_per_chunkserver=${DISK_PER_CHUNKSERVER:-1}
+	local auto_shadow_master=${AUTO_SHADOW_MASTER:-YES}
 	local ip_address=$(get_ip_addr)
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
@@ -66,6 +67,15 @@ setup_local_empty_lizardfs() {
 		add_mount_ $mntid
 	done
 
+	export PATH="$oldpath"
+
+	# Add shadow master if not present (and not disabled); wait for it to synchronize
+	if [[ $auto_shadow_master == YES && $number_of_masterservers == 1 ]]; then
+		add_metadata_server_ auto "shadow"
+		lizardfs_master_n auto start
+		assert_eventually 'lizardfs_shadow_synchronized auto'
+	fi
+
 	# Wait for chunkservers
 	lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
 
@@ -76,8 +86,6 @@ setup_local_empty_lizardfs() {
 	for key in "${!lizardfs_info_[@]}"; do
 		eval "$out_var['$key']='${lizardfs_info_[$key]}'"
 	done
-
-	export PATH="$oldpath"
 }
 
 # lizardfs_chunkserver_daemon <id> start|stop|restart|kill|tests|isalive|...

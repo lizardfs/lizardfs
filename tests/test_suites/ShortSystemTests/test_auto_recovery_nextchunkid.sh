@@ -6,6 +6,7 @@ CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
+	AUTO_SHADOW_MASTER="NO" \
 	setup_local_empty_lizardfs info
 
 # Create 6 chunks, saving the changelog after generating 3 of them

@@ -13,6 +13,7 @@ CHUNKSERVERS=1 \
 	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsattrcacheto=0,mfsreportreservedperiod=1" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
+	AUTO_SHADOW_MASTER="NO" \
 	setup_local_empty_lizardfs info
 
 changelog_file="${info[master_data_path]}/changelog.mfs"
