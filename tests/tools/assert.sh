@@ -171,9 +171,9 @@ get_source_line() {
 
 get_timeout_for_assert_eventually_() {
 	if valgrind_enabled; then
-		echo 60
+		echo 60 seconds
 	else
-		echo 15
+		echo 15 seconds
 	fi
 }
 
