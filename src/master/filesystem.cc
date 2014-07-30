@@ -5918,6 +5918,11 @@ uint64_t fs_getversion() {
 enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 
 #ifdef METARESTORE
+
+void fs_disable_checksum_verification(bool value) {
+	gDisableChecksumVerification = value;
+}
+
 /* DUMP */
 
 void fs_dumpedge(fsedge *e) {

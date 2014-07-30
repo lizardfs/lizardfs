@@ -120,6 +120,7 @@ extern uint32_t gStoredPreviousBackMetaCopies;
 void fs_dump(void);
 void fs_term(const char *fname, bool noLock);
 int fs_init(const char *fname,int ignoreflag, bool noLock);
+void fs_disable_checksum_verification(bool value);
 
 #else
 
