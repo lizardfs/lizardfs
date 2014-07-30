@@ -143,9 +143,6 @@ else()
 endif()
 
 if(ENABLE_TESTS)
-  if(NOT Boost_FOUND)
-    message(FATAL_ERROR "Boost is required by LizardFS tests")
-  endif()
   set(BUILD_TESTS ON)
   set(BUILD_UTILS ON)
 endif()
@@ -191,6 +188,7 @@ function(add_tests TESTED_LIBRARY)
   set(TEST_LIBRARIES ${TMP} CACHE INTERNAL "" FORCE)
 endfunction(add_tests)
 
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
 add_subdirectory(external)
 add_subdirectory(src/common)
