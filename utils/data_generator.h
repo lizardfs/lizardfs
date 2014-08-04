@@ -1,6 +1,6 @@
 #pragma once
+#include "config.h"
 
-#include <endian.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -9,6 +9,14 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+
+#if defined (LIZARDFS_HAVE_ENDIAN_H)
+# include <endian.h>
+#elif defined (LIZARDFS_HAVE_SYS_ENDIAN_H)
+# include <sys/endian.h>
+#else
+#error Missing endian.h header.
+#endif
 
 #include "utils/asserts.h"
 #include "utils/configuration.h"

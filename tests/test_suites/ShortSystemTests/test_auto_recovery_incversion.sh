@@ -1,9 +1,13 @@
+master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
+master_cfg+="|AUTO_RECOVERY = 1"
+master_cfg+="|DISABLE_METADATA_CHECKSUM_VERIFICATION = 1"
+
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
-	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1|AUTO_RECOVERY = 1" \
+	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 
 # Remember version of the metadata file. We expect it not to change when generating data.

@@ -38,6 +38,7 @@
 
 /* [CMake] Includes */
 #cmakedefine LIZARDFS_HAVE_ARPA_INET_H
+#cmakedefine LIZARDFS_HAVE_ENDIAN_H
 #cmakedefine LIZARDFS_HAVE_FCNTL_H
 #cmakedefine LIZARDFS_HAVE_INTTYPES_H
 #cmakedefine LIZARDFS_HAVE_LIMITS_H
@@ -46,6 +47,7 @@
 #cmakedefine LIZARDFS_HAVE_STDDEF_H
 #cmakedefine LIZARDFS_HAVE_STDLIB_H
 #cmakedefine LIZARDFS_HAVE_STRING_H
+#cmakedefine LIZARDFS_HAVE_SYS_ENDIAN_H
 #cmakedefine LIZARDFS_HAVE_SYS_RESOURCE_H
 #cmakedefine LIZARDFS_HAVE_SYS_SOCKET_H
 #cmakedefine LIZARDFS_HAVE_SYS_STATVFS_H
@@ -93,6 +95,7 @@
 #cmakedefine LIZARDFS_HAVE_GETRUSAGE
 #cmakedefine LIZARDFS_HAVE_SETITIMER
 #cmakedefine LIZARDFS_HAVE_STD_TO_STRING
+#cmakedefine LIZARDFS_HAVE_STD_STOULL
 
 /* [CMake] Optional functions #2 */
 #cmakedefine LIZARDFS_HAVE_DUP2
@@ -102,3 +105,4 @@
 /* [CMake] Other */
 #cmakedefine WORDS_BIGENDIAN
 #cmakedefine ENABLE_EXIT_ON_USR1
+#cmakedefine LIZARDFS_ENABLE_DEBUG_LOG

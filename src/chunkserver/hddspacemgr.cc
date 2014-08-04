@@ -506,7 +506,7 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 				diskInfo.path = dots + diskInfo.path.substr(diskInfo.path.length()
 						- substrSize, substrSize);
 			}
-			diskInfo.entrySize = serializedSize(diskInfo);
+			diskInfo.entrySize = serializedSize(diskInfo) - serializedSize(diskInfo.entrySize);
 			diskInfo.flags = (f->todel ? DiskInfo::kToDeleteFlagMask : 0)
 					+ (f->damaged ? DiskInfo::kDamagedFlagMask : 0)
 					+ (f->scanstate == SCST_SCANINPROGRESS ? DiskInfo::kScanInProgressFlagMask : 0);

@@ -28,6 +28,10 @@
 #include "common/slogger.h"
 #include "master/filesystem.h"
 
+#ifndef METARESTORE
+# include "common/debug_log.h"
+#endif
+
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
@@ -232,6 +236,17 @@ int do_attr(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	GETU32(mtime,ptr);
 	EAT(ptr,filename,lv,')');
 	return fs_apply_attr(ts,inode,mode,uid,gid,atime,mtime);
+}
+
+int do_checksum(const char *filename, uint64_t lv, uint32_t, const char *ptr) {
+	uint8_t version[256];
+	uint64_t checksum;
+	EAT(ptr,filename,lv,'(');
+	GETNAME(version,ptr,filename,lv,')');
+	EAT(ptr,filename,lv,')');
+	EAT(ptr,filename,lv,':');
+	GETU64(checksum,ptr);
+	return fs_apply_checksum((char*)&version, checksum);
 }
 
 int do_create(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
@@ -684,7 +699,9 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 			}
 			break;
 		case 'C':
-			if (strncmp(ptr,"CREATE",6)==0) {
+			if (strncmp(ptr,"CHECKSUM",8)==0) {
+				status = do_checksum(filename,lv,ts,ptr+8);
+			} else if (strncmp(ptr,"CREATE",6)==0) {
 				status = do_create(filename,lv,ts,ptr+6);
 			} else if (strncmp(ptr,"CUSTOMER",8)==0) {      // deprecated
 				status = do_session(filename,lv,ts,ptr+8);
@@ -786,9 +803,18 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 		default:
 			break;
 	}
+
 	if (status == ERROR_MAX) {
+#ifndef METARESTORE
+		DEBUG_LOG("master.mismatch")
+				<< "File " << filename << ", " << lv << line << " -- unknown entry ";
+#endif
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
 	} else if (status != STATUS_OK) {
+#ifndef METARESTORE
+		DEBUG_LOG("master.mismatch")
+				<< "File " << filename << ", " << lv << line << " -- " << mfsstrerr(status);
+#endif
 		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
 	}
 	return status;

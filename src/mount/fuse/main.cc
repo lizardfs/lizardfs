@@ -605,26 +605,26 @@ int main(int argc, char *argv[]) try {
 	}
 	if (gMountOptions.sugidclearmodestr==NULL) {
 #if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+		gMountOptions.sugidclearmode = SugidClearMode::kExt;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+		gMountOptions.sugidclearmode = SugidClearMode::kBsd;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+		gMountOptions.sugidclearmode = SugidClearMode::kOsx;
 #else
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+		gMountOptions.sugidclearmode = SugidClearMode::kNever;
 #endif
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"NEVER")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_NEVER;
+		gMountOptions.sugidclearmode = SugidClearMode::kNever;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"ALWAYS")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_ALWAYS;
+		gMountOptions.sugidclearmode = SugidClearMode::kAlways;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"OSX")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_OSX;
+		gMountOptions.sugidclearmode = SugidClearMode::kOsx;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"BSD")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_BSD;
+		gMountOptions.sugidclearmode = SugidClearMode::kBsd;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"EXT")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_EXT;
+		gMountOptions.sugidclearmode = SugidClearMode::kExt;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"XFS")==0) {
-		gMountOptions.sugidclearmode = SUGID_CLEAR_MODE_XFS;
+		gMountOptions.sugidclearmode = SugidClearMode::kXfs;
 	} else {
 		fprintf(stderr,"unrecognized sugidclearmode option\nsee: %s -h for help\n",argv[0]);
 		return 1;

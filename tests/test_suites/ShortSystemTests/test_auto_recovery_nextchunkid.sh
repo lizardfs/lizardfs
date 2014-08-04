@@ -1,7 +1,12 @@
+master_cfg="AUTO_RECOVERY = 1"
+master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
+master_cfg+="|DISABLE_METADATA_CHECKSUM_VERIFICATION = 1"
+
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1|MAGIC_DISABLE_METADATA_DUMPS = 1" \
+	MASTER_EXTRA_CONFIG="$master_cfg" \
+	AUTO_SHADOW_MASTER="NO" \
 	setup_local_empty_lizardfs info
 
 # Create 6 chunks, saving the changelog after generating 3 of them
@@ -31,5 +36,4 @@ lizardfs_master_daemon kill
 assert_awk_finds '/NEXTCHUNKID/' "$(cat "${info[master_data_path]}"/changelog.mfs)"
 assert_success lizardfs_master_daemon start
 lizardfs_wait_for_all_ready_chunkservers
-cd "${info[mount0]}"
-assert_no_diff "$metadata" "$(metadata_print)"
+assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"

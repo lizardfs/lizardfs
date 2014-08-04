@@ -1,4 +1,3 @@
-timeout_set '1 minute'
 assert_program_installed socat
 
 # start_proxy <listen> <forward>
@@ -18,6 +17,7 @@ start_proxy() {
 CHUNKSERVERS=1 \
 	MASTERSERVERS=2 \
 	USE_RAMDISK="YES" \
+	MASTER_EXTRA_CONFIG="MASTER_TIMEOUT = 10000" \
 	setup_local_empty_lizardfs info
 
 m=${info[master0_data_path]} # master's working directory
@@ -34,17 +34,19 @@ sed -i -e "s/^MASTER_PORT.*/MASTER_PORT = $proxy_port/" "${info[master1_cfg]}"
 assert_success lizardfs_master_n 1 start
 assert_eventually "lizardfs_shadow_synchronized 1"
 
-# Pause traffic from master to shadow
+# Pause traffic from master to shadow and generate enough changes to make write() to socket block
 rm "$TEMP_DIR/gogo"
+mkdir "${info[mount0]}"/directory_with_name_long_enough_to_generate_a_big_changelog_entry{1..2000}
 
-mkdir "${info[mount0]}"/directory_with_name_long_enough_to_generate_a_big_changelog_entry{1..10000}
+# Send SIGTERM to the master server and 10 seconds later resume the traffic
 begin_ts=$(timestamp)
-# Wait 3 seconds and resume the traffic between master and shadow
-( sleep 3; touch "$TEMP_DIR/gogo"; ) &
+( sleep 10; touch "$TEMP_DIR/gogo"; ) &
 assert_success lizardfs_master_daemon stop
-
-assert_eventually_equals 'get_changes "$m" |tail' 'get_changes "$s" |tail'
 end_ts=$(timestamp)
+
+# The traffic was paused for 10 seconds, let's check if we didn't succeed too soon
 duration=$((end_ts - begin_ts))
-# The traffic was paused for 3 seconds, let's check if we didn't succeed too soon
-assert_less_or_equal 3 $duration
+assert_less_or_equal 10 $duration
+
+# Let all the buffers be flushed and verify if all the changelogs were transferred
+assert_eventually_equals 'get_changes "$m" | tail' 'get_changes "$s" | tail'

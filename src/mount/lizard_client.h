@@ -156,7 +156,7 @@ EntryParam create(Context ctx, Inode parent, const char *name,
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		int sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_);
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rw_lock_);
 
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);

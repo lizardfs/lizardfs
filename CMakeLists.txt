@@ -58,6 +58,7 @@ option(ENABLE_TESTS         "Enable building unit and functional tests"         
 option(ENABLE_DOCS          "Enable building the documentation"                       ON)
 option(ENABLE_EXIT_ON_USR1  "Enable handler for SIGUSR1 which calls exit()"           OFF)
 option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
+option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                          OFF)
 # end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)
 option(ENABLE_CRC           "Enable checksums"                                        ON)
@@ -77,6 +78,7 @@ message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
 message(STATUS "ENABLE_DOCS: ${ENABLE_DOCS}")
 message(STATUS "ENABLE_EXIT_ON_USR1: ${ENABLE_EXIT_ON_USR1}")
 message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+message(STATUS "ENABLE_DEBUG_LOG: ${ENABLE_DEBUG_LOG}")
 # end of LizardFS options values
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
 message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
@@ -151,11 +153,13 @@ if(ENABLE_UTILS)
 endif()
 
 if(ENABLE_TESTS)
-  if(NOT Boost_FILESYSTEM_FOUND OR NOT Boost_SYSTEM_FOUND)
-    message(FATAL_ERROR "Boost filesystem is required by LizardFS tests")
-  endif()
   set(BUILD_TESTS ON)
   set(BUILD_UTILS ON)
+  set(LIZARDFS_ENABLE_DEBUG_LOG ON)
+endif()
+
+if(ENABLE_DEBUG_LOG)
+  set(LIZARDFS_ENABLE_DEBUG_LOG ON)
 endif()
 
 if(ENABLE_TRACES)
@@ -227,6 +231,7 @@ function(add_tests TESTED_LIBRARY)
   set(TEST_LIBRARIES ${TMP} CACHE INTERNAL "" FORCE)
 endfunction(add_tests)
 
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
 add_subdirectory(external)
 add_subdirectory(src/common)

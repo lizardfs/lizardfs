@@ -8,13 +8,13 @@ mfsmetarestore - replay LizardFS metadata change logs or dump LizardFS metadata 
 == SYNOPSIS
 
 [verse]
-*mfsmetarestore* *-m* 'OLDMETADATAFILE' *-o* 'NEWMETADATAFILE' ['CHANGELOGFILE'...]
+*mfsmetarestore* [*-z*] *-m* 'OLDMETADATAFILE' *-o* 'NEWMETADATAFILE' ['CHANGELOGFILE'...]
 
 [verse]
 *mfsmetarestore* *-m* 'METADATAFILE'
 
 [verse]
-*mfsmetarestore* *-a* [*-d* 'DIRECTORY']
+*mfsmetarestore* [*-z*] *-a* [*-d* 'DIRECTORY']
 
 [verse]
 *mfsmetarestore -v*
@@ -50,6 +50,9 @@ specify input metadata image file
 
 *-o* 'NEWMETADATAFILE'::
 specify output metadata image file
+
+*-z*::
+ignore metadata checksum inconsistency while applying changelogs
 
 == FILES
 

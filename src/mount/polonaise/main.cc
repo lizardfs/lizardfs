@@ -19,6 +19,8 @@
 #include "mount/readdata.h"
 #include "mount/symlinkcache.h"
 #include "mount/writedata.h"
+#include "mount/polonaise/options.h"
+#include "mount/polonaise/setup.h"
 
 using namespace ::polonaise;
 
@@ -871,22 +873,13 @@ void termhandle(int) {
 }
 
 int main (int argc, char **argv) {
-	uint32_t ioretries = 30;
-	uint32_t cachesize_MB = 10;
-	uint32_t reportreservedperiod = 60;
 	bool userwlock = true;
 	auto writeworkers = 30;
 	auto writewindowsize = 15;
 	auto chunkserverreadto = 2000;
 	auto chunkserverwriteto = 5000;
 	auto cacheperinodepercentage = 25;
-
-	if (argc < 4 || argc > 5) {
-		std::cerr << "Usage: " << argv[0] <<
-				" <master ip> <master port> <mountpoint> [<listen port>]\n" <<
-				"    Default listen port is 9090" << std::endl;
-		return 1;
-	}
+	parse_command_line(argc, argv, gSetup);
 
 	struct sigaction sa;
 	sa.sa_flags = 0;
@@ -901,31 +894,34 @@ int main (int argc, char **argv) {
 	// Initialize LizardFS client
 	strerr_init();
 	mycrc32_init();
-	if (fs_init_master_connection(nullptr, argv[1], argv[2], 0, argv[3], "/", nullptr,
-			0, 0, ioretries, reportreservedperiod) < 0) {
+	if (fs_init_master_connection(nullptr,
+				gSetup.master_host.c_str(), gSetup.master_port.c_str(),
+				0, gSetup.mountpoint.c_str(), gSetup.subfolder.c_str(), nullptr,
+				gSetup.forget_password, 0, gSetup.io_retries, gSetup.report_reserved_period) < 0) {
 		std::cerr << "Can't initialize connection with master server" << std::endl;
 		return 2;
 	}
 	symlink_cache_init();
 	gGlobalIoLimiter();
-	fs_init_threads(ioretries);
+	fs_init_threads(gSetup.io_retries);
 	masterproxy_init();
 	gLocalIoLimiter();
 	IoLimitsConfigLoader loader;
 	gMountLimiter().loadConfiguration(loader);
-	read_data_init(ioretries, chunkserverreadto);
-	write_data_init(cachesize_MB * 1024 * 1024, ioretries, writeworkers,
+	read_data_init(gSetup.io_retries, chunkserverreadto);
+	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries, writeworkers,
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
-	LizardClient::init(1, 1, 0.0, 0.0, 0.0, 0, 0, true, userwlock);
+	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
+			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
+			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, userwlock);
 
 	// Thrift server start
-	int port = argc == 5 ? std::stoi(argv[4]) : 9090;
 	using namespace ::apache::thrift;
 	using namespace ::apache::thrift::transport;
 	using namespace ::apache::thrift::server;
 	boost::shared_ptr<PolonaiseHandler> handler(new PolonaiseHandler());
 	boost::shared_ptr<TProcessor> processor(new PolonaiseProcessor(handler));
-	boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(port));
+	boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(gSetup.bind_port));
 	boost::shared_ptr<TTransportFactory> transportFactory(new BigBufferedTransportFactory());
 	boost::shared_ptr<TProtocolFactory> protocolFactory(new TBinaryProtocolFactory());
 	gServer.reset(

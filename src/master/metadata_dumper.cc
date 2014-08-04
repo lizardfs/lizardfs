@@ -5,6 +5,7 @@
 
 #include "common/massert.h"
 #include "common/metadata.h"
+#include "master/filesystem.h"
 #include "master/personality.h"
 
 static bool createPipe(int pipefds[2]) {

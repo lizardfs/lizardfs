@@ -97,18 +97,19 @@ int changelog_checkname(const char *fname) {
 void usage(const char* appname) {
 	mfs_syslog(LOG_ERR, "invalid/missing arguments");
 	fprintf(stderr, "restore metadata:\n"
-			"\t%s [-c] [-k <checksum>] [-f] [-b] [-i] [-x [-x]] [-B n] -m <meta data file> -o "
+			"\t%s [-c] [-k <checksum>] [-z] [-f] [-b] [-i] [-x [-x]] [-B n] -m <meta data file> -o "
 			"<restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
 			"dump metadata:\n"
 			"\t%s [-i] -m <meta data file>\n"
 			"autorestore:\n"
-			"\t%s [-f] [-b] [-i] [-x [-x]] [-B n] -a [-d <data path>]\n"
+			"\t%s [-f] [-z] [-b] [-i] [-x [-x]] [-B n] -a [-d <data path>]\n"
 			"print version:\n"
 			"\t%s -v\n"
 			"\n"
 			"-B n - keep n backup copies of metadata file\n"
 			"-c   - print checksum of the metadata\n"
 			"-k   - check checksum against given checksum\n"
+			"-z   - ignore metadata checksum inconsistency while applying changelogs\n"
 			"-x   - produce more verbose output\n"
 			"-xx  - even more verbose output\n"
 			"-b   - if there is any error in change logs then save the best possible metadata file\n"
@@ -137,7 +138,7 @@ int main(int argc,char **argv) {
 	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
-	while ((ch = getopt(argc, argv, "fck:vm:o:d:abB:xih:#?")) != -1) {
+	while ((ch = getopt(argc, argv, "fck:vm:o:d:abB:xih:z#?")) != -1) {
 		switch (ch) {
 			case 'v':
 				printf("version: %s\n", LIZARDFS_PACKAGE_VERSION);
@@ -180,6 +181,9 @@ int main(int argc,char **argv) {
 					mfs_arg_syslog(LOG_ERR, "invalid checksum: %s", optarg);
 					return 1;
 				}
+				break;
+			case 'z':
+				fs_disable_checksum_verification(true);
 				break;
 			case '#':
 				noLock = true;

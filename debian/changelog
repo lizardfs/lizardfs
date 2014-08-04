@@ -1,3 +1,7 @@
+lizardfs (2.5.1) unstable; urgency=low
+
+ -- Marcin Sulikowski <sulik@lizardfs.org>  Fri, 18 Jul 2014 14:00:11 +0200
+
 lizardfs (2.5.0) stable; urgency=medium
 
   * (master) High availability provided by shadow master servers

@@ -100,6 +100,7 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore
+uint8_t fs_apply_checksum(const std::string& version, uint64_t checksum);
 uint8_t fs_apply_create(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint8_t type,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t inode);
 uint8_t fs_apply_access(uint32_t ts,uint32_t inode);
 uint8_t fs_apply_attr(uint32_t ts,uint32_t inode,uint32_t mode,uint32_t uid,uint32_t gid,uint32_t atime,uint32_t mtime);
@@ -125,11 +126,18 @@ void fs_unload();
 /// Removes metadata lock leaving working directory in a clean state
 void fs_unlock();
 
+// Number of changelog file versions
+const uint32_t kDefaultStoredPreviousBackMetaCopies = 1;
+const uint32_t kMaxStoredPreviousBackMetaCopies = 99;
+
+extern uint32_t gStoredPreviousBackMetaCopies;
+
 #ifdef METARESTORE
 
 void fs_dump(void);
 void fs_term(const char *fname, bool noLock);
 int fs_init(const char *fname,int ignoreflag, bool noLock);
+void fs_disable_checksum_verification(bool value);
 
 #else
 
@@ -145,7 +153,7 @@ void fs_statfs(uint32_t rootinode,uint8_t sesflags,uint64_t *totalspace,uint64_t
 uint8_t fs_access(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,int modemask);
 uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint32_t *inode,Attributes& attr);
 uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,Attributes& attr);
-uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t sugidclearmode,Attributes& attr);
+uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,SugidClearMode sugidclearmode,Attributes& attr);
 uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,
 		uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,
 		uint64_t length,bool denyTruncatingParity,uint32_t lockid,Attributes& attr,uint64_t *chunkid);

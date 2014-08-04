@@ -306,12 +306,14 @@
 	NULL
 
 // sugicclearmode in fs_setattr
-#define SUGID_CLEAR_MODE_NEVER 0
-#define SUGID_CLEAR_MODE_ALWAYS 1
-#define SUGID_CLEAR_MODE_OSX 2
-#define SUGID_CLEAR_MODE_BSD 3
-#define SUGID_CLEAR_MODE_EXT 4
-#define SUGID_CLEAR_MODE_XFS 5
+enum class SugidClearMode {
+	kNever = 0,
+	kAlways = 1,
+	kOsx = 2,
+	kBsd = 3,
+	kExt = 4,
+	kXfs = 5
+};
 
 #define SUGID_CLEAR_MODE_OPTIONS 6
 

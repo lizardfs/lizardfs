@@ -1,0 +1,81 @@
+We are pleased to announce the release of LizardFS 2.5.0.
+
+This release adds several major features often requested by our users:
+- high availbility of the whole filesystem
+- disk space and inode quotas for users and groups
+- POSIX Access Control Lists
+- POSIX Extended Attributes
+- I/O bandwidth limiting (globally and per-mountpoint)
+- command line monitoring tool
+
+Other improvements include:
+- high performance CRC checksum implementation
+- reduced overhead of hourly metadata backups
+
+
+High availbility
+
+LizardFS 2.5.0 includes the new 'shadow master' server which maintains
+a current copy of filesystem metadata and is prepared to immediately
+replace the master metadata server in case of a failure. This feature
+combined with replication of file data allows LizardFS to remain fully
+operational after crash of any particular machine in the cluster.
+
+Shadow master obtains metadata updates from the master server using the
+old MooseFS/LizardFS metalogger protocol. This facilitates no-downtime
+upgrades from older version of LizardFS and from MooseFS 1.6.27.
+
+
+Quotas
+
+LizardFS 2.5.0 provides a quota mechanism similar to these found in
+common UNIX filesystems. Filesystem administrator can define limits on
+the number of files or amount of disk space owned by users and groups.
+
+Quotas are controlled by special tools 'mfssetquota' and 'mfsrepquota',
+which work analogously to the generic 'setquota' and 'repquota' tools.
+
+
+POSIX Access Control Lists
+
+ACLs allow fine-grained control over individual users' rights to read
+or modify particular files and directories.
+
+LizardFS 2.5.0 supports POSIX ACLs on Linux using the generic 'setfacl'
+and 'getfacl' tools. This feature requires our modifed version of fuse
+(kernel module and the library).
+
+
+POSIX Extended Attributes
+
+LizardFS 2.5.0 supports POSIX xattrs using generic tools.
+
+
+I/O bandwidth limiting
+
+LizardFS 2.5.0 provides an I/O bandwidth limiting mechanism integrated
+with Linux cgroups. Applications reading from the filesystem are
+grouped by their cgroup ID and the administrator can place limits on
+bandwidth consumed to satisfy read and write requests from each group.
+
+The limits can be enforced globally (across multiple mountpoints) or
+locally (on one mountpoint).
+
+
+Command line monitoring tool
+
+LizardFS 2.5.0 introduces the new 'lizardfs-probe' command line tool
+which queries the master server for various information concerning
+filesystem health and activity.
+
+
+High performance CRC checksum implementation
+
+In LizardFS 2.5.0, we switched to a new, three times faster CRC
+implementation to reduce latency and overhead of checksum calculations.
+
+
+Reduced overhead of hourly metadata backups
+
+LizardFS 2.5.0 provides a new metadata backup generation mechanism
+which works fully in background and doesn't affect the master server.

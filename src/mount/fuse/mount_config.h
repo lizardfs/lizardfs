@@ -6,6 +6,8 @@
 #include <string.h>
 #include <fuse.h>
 
+#include "common/MFSCommunication.h"
+
 #if defined(LIZARDFS_HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) \
 		&& defined(MCL_FUTURE)
 #  define MFS_USE_MEMLOCK
@@ -57,7 +59,7 @@ struct mfsopts_ {
 	int rwlock;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
-	int sugidclearmode;
+	SugidClearMode sugidclearmode;
 	char *cachemode;
 	int cachefiles;
 	int keepcache;

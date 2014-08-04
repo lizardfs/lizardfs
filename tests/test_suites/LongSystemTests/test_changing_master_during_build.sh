@@ -5,7 +5,7 @@ MASTERSERVERS=$metaservers_nr \
 	CHUNKSERVERS=2 \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER"
+	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 wait_for_shadow_to_run_and_sync() {

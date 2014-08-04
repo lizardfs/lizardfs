@@ -41,7 +41,6 @@ const char kSessionsFilename[] = SESSIONS_FILENAME;
 const char kSessionsTmpFilename[] = SESSIONS_FILENAME ".tmp";
 #undef SESSIONS_FILENAME
 
-uint32_t gStoredPreviousBackMetaCopies;
 std::unique_ptr<Lockfile> gMetadataLockfile;
 
 uint64_t metadataGetVersion(const std::string& file) {
@@ -162,7 +161,8 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 	std::string name_new, name_old;
 	namespace fs = boost::filesystem;
-	for (uint32_t i = 0; i < kMaxStoredPreviousBackMetaCopies; i++) {
+	for (uint32_t i = 0; i < 99; i++) {
+	// 99 is the maximum number of changelog file in versions up to 1.6.29.
 		name_old = fname + "." + std::to_string(i) + ".mfs";
 		name_new = fname + ".mfs";
 		if (i != 0) {
