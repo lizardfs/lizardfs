@@ -51,6 +51,7 @@
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "master/changelog.h"
 #include "master/chartsdata.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
@@ -1711,6 +1712,7 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 	}
 
 	FsContext context = FsContext::getForMaster(main_time());
+	changelog_disable_flush();
 	while ((ofptr=*ofpptr) && inode>0) {
 		if (ofptr->inode<inode) {
 			fs_release(context, ofptr->inode, eptr->sesdata->sessionid);
@@ -1762,7 +1764,7 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 		*ofpptr = ofptr->next;
 		free(ofptr);
 	}
-
+	changelog_enable_flush();
 }
 
 void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
