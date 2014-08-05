@@ -146,9 +146,11 @@ struct mfsopts {
 	int donotrememberpassword;
 	unsigned writecachesize;
 	unsigned ioretries;
+	unsigned aclcachesize;
 	double attrcacheto;
 	double entrycacheto;
 	double direntrycacheto;
+	double aclcacheto;
 	unsigned reportreservedperiod;
 	char *iolimits;
 };
@@ -192,6 +194,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsmemlock", memlock, 1),
 #endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
+	MFS_OPT("mfsaclcachesize=%u", aclcachesize, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
 	MFS_OPT("mfsdebug", debug, 1),
 	MFS_OPT("mfsmeta", meta, 1),
@@ -205,6 +208,7 @@ static struct fuse_opt mfs_opts_stage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsaclcacheto=%lf", aclcacheto, 0),
 	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 
@@ -269,6 +273,7 @@ static void usage(const char *progname) {
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
+"    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
 "    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
@@ -276,6 +281,7 @@ static void usage(const char *progname) {
 "    -o mfsmemlock               try to lock memory\n"
 #endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
+"    -o mfsaclcachesize=N        define ACL cache size in number of entries (0: no cache; default: 1000)\n"
 "    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
@@ -886,11 +892,13 @@ int main(int argc, char *argv[]) {
 	mfsopts.cachefiles = 0;
 	mfsopts.cachemode = NULL;
 	mfsopts.writecachesize = 0;
+	mfsopts.aclcachesize = 1000;
 	mfsopts.ioretries = 30;
 	mfsopts.passwordask = 0;
 	mfsopts.attrcacheto = 1.0;
 	mfsopts.entrycacheto = 0.0;
 	mfsopts.direntrycacheto = 1.0;
+	mfsopts.aclcacheto = 1.0;
 	mfsopts.reportreservedperiod = 60;
 
 	custom_cfg = 0;
@@ -987,12 +995,16 @@ int main(int argc, char *argv[]) {
 		mfsopts.writecachesize=128;
 	}
 	if (mfsopts.writecachesize<16) {
-		fprintf(stderr,"write cache size to low (%u MiB) - increased to 16 MiB\n",mfsopts.writecachesize);
+		fprintf(stderr,"write cache size too low (%u MiB) - increased to 16 MiB\n",mfsopts.writecachesize);
 		mfsopts.writecachesize=16;
 	}
 	if (mfsopts.writecachesize>2048) {
-		fprintf(stderr,"write cache size to big (%u MiB) - decresed to 2048 MiB\n",mfsopts.writecachesize);
+		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 2048 MiB\n",mfsopts.writecachesize);
 		mfsopts.writecachesize=2048;
+	}
+	if (mfsopts.aclcachesize > 1000 * 1000) {
+		fprintf(stderr,"acl cache size too big (%u) - decreased to 1000000\n",mfsopts.aclcachesize);
+		mfsopts.aclcachesize=1000 * 1000;
 	}
 
 	if (mfsopts.nostdmountoptions==0) {
