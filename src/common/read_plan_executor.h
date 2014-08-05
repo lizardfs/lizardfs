@@ -21,7 +21,7 @@ public:
 	ReadPlanExecutor(
 			ChunkserverStats& chunkserverStats,
 			uint64_t chunkId, uint32_t chunkVersion,
-			const ReadPlanner::Plan& plan);
+			std::unique_ptr<ReadPlanner::Plan> plan);
 
 	/*
 	 * Executes the plan using given locations, connection pool and connector.
@@ -35,7 +35,7 @@ private:
 	ChunkserverStats& chunkserverStats_;
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
-	const ReadPlanner::Plan plan_;
+	std::unique_ptr<const ReadPlanner::Plan> plan_;
 
 	void executeReadOperations(uint8_t* buffer,
 			const ChunkTypeLocations& locations,

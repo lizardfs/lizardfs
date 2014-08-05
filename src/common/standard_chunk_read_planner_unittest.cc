@@ -12,11 +12,13 @@
 #include "unittests/plan_tester.h"
 
 #define VERIFY_PLAN_FOR(planner, firstBlock, count) \
-	ASSERT_EQ(\
-		unittests::PlanTester::expectedAnswer(standard, firstBlock, count), \
-		unittests::PlanTester::executePlan(\
-				planner.buildPlanFor(firstBlock, count), \
-				planner.partsToUse(), count))
+	do {\
+		auto plan = planner.buildPlanFor(firstBlock, count); \
+		SCOPED_TRACE("Veryfing plan " + ::testing::PrintToString(*plan)); \
+		ASSERT_EQ(\
+				unittests::PlanTester::expectedAnswer(standard, firstBlock, count), \
+				unittests::PlanTester::executePlan(*plan, planner.partsToUse(), count)); \
+	} while (0)
 
 class StandardReadPlannerTests : public testing::Test {
 public:

@@ -145,9 +145,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 	static const SteadyDuration maxWaitTime = std::chrono::seconds(60);
 	Timeout timeout{maxWaitTime};
 	for (uint32_t firstBlock = 0; firstBlock < blocks; firstBlock += batchSize) {
-		// Plan the operation
 		uint32_t nrOfBlocks = std::min(blocks - firstBlock, batchSize);
-		ReadPlanner::Plan plan = planner->buildPlanFor(firstBlock, nrOfBlocks);
 
 		// Wait for limit to be assigned
 		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, maxWaitTime);
@@ -155,14 +153,15 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 			syslog(LOG_WARNING, "Replication bandwidth limiting error: %s", mfsstrerr(status));
 			return;
 		}
-		// Execute the plan
+		// Build and execute the plan
 		std::vector<uint8_t> buffer;
 		ReadPlanExecutor::ChunkTypeLocations locations;
 		for (const auto& source : sources) {
 			locations[source.chunkType] = source.address;
 		}
 		ReadPlanExecutor executor(chunkserverStats_,
-				fileCreator.chunkId(), fileCreator.chunkVersion(), plan);
+				fileCreator.chunkId(), fileCreator.chunkVersion(),
+				planner->buildPlanFor(firstBlock, nrOfBlocks));
 		executor.executePlan(buffer, locations, connector_, timeout);
 
 		for (uint32_t i = 0; i < nrOfBlocks; ++i) {

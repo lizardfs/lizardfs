@@ -71,7 +71,7 @@ std::vector<Block> PlanTester::executePlan(const ReadPlanner::Plan& plan,
 	sassert(plan.requiredBufferSize % MFSBLOCKSIZE == 0);
 	std::vector<Block> blocks(plan.requiredBufferSize / MFSBLOCKSIZE);
 	sassert(blocks.size() >= blockCount);
-	for (const auto& chunkTypeAndOperation : plan.readOperations) {
+	for (const auto& chunkTypeAndOperation : plan.basicReadOperations) {
 		ChunkType chunkType = chunkTypeAndOperation.first;
 		sassert(std::count(availableParts.begin(), availableParts.end(), chunkType) > 0);
 		const ReadPlanner::ReadOperation& operation = chunkTypeAndOperation.second;
@@ -84,15 +84,16 @@ std::vector<Block> PlanTester::executePlan(const ReadPlanner::Plan& plan,
 			blocks[blockInBuffer] = Block(chunkType, firstBlock + i);
 		}
 	}
-	for (const auto& operation : plan.xorOperations) {
+	for (const auto& operation : plan.getPostProcessOperationsForBasicPlan()) {
 		sassert(operation.destinationOffset % MFSBLOCKSIZE == 0);
 		uint32_t destBlock = operation.destinationOffset / MFSBLOCKSIZE;
 		sassert(destBlock < blocks.size());
+		blocks[destBlock] = blocks[operation.sourceOffset / MFSBLOCKSIZE]; // simulate memcpy
 		for (uint32_t srcOffset : operation.blocksToXorOffsets) {
 			sassert(srcOffset % MFSBLOCKSIZE == 0);
 			uint32_t srcBlock = srcOffset / MFSBLOCKSIZE;
 			sassert(srcBlock < blocks.size());
-			blocks[destBlock].xorWith(blocks[srcBlock]);
+			blocks[destBlock].xorWith(blocks[srcBlock]); // simulate blockXor
 		}
 	}
 	blocks.resize(blockCount);

@@ -18,11 +18,11 @@
 ReadPlanExecutor::ReadPlanExecutor(
 		ChunkserverStats& chunkserverStats,
 		uint64_t chunkId, uint32_t chunkVersion,
-		const ReadPlanner::Plan& plan)
+		std::unique_ptr<ReadPlanner::Plan> plan)
 		: chunkserverStats_(chunkserverStats),
 		  chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
-		  plan_(plan) {
+		  plan_(std::move(plan)) {
 }
 
 void ReadPlanExecutor::executePlan(
@@ -31,7 +31,7 @@ void ReadPlanExecutor::executePlan(
 		ChunkConnector& connector,
 		const Timeout& communicationTimeout) {
 	const size_t initialSizeOfTheBuffer = buffer.size();
-	buffer.resize(initialSizeOfTheBuffer + plan_.requiredBufferSize);
+	buffer.resize(initialSizeOfTheBuffer + plan_->requiredBufferSize);
 	try {
 		uint8_t* dataBufferAddress = buffer.data() + initialSizeOfTheBuffer;
 		executeReadOperations(dataBufferAddress, locations, connector, communicationTimeout);
@@ -51,7 +51,7 @@ void ReadPlanExecutor::executeReadOperations(
 	try {
 		ChunkserverStatsProxy statsProxy(chunkserverStats_);
 		// Connect to all needed chunkservers
-		for (const auto& chunkTypeReadInfo : plan_.readOperations) {
+		for (const auto& chunkTypeReadInfo : plan_->basicReadOperations) {
 			const ChunkType chunkType = chunkTypeReadInfo.first;
 			const ReadPlanner::ReadOperation& readOperation = chunkTypeReadInfo.second;
 			sassert(locations.count(chunkType) == 1);
@@ -129,9 +129,13 @@ void ReadPlanExecutor::executeReadOperations(
 }
 
 void ReadPlanExecutor::executeXorOperations(uint8_t* buffer) {
-	for (const ReadPlanner::XorBlockOperation& xorOperation : plan_.xorOperations) {
-		uint8_t* destination = buffer + xorOperation.destinationOffset;
-		for (uint32_t sourceBlockOffset : xorOperation.blocksToXorOffsets) {
+	for (const auto& operation : plan_->getPostProcessOperationsForBasicPlan()) {
+		uint8_t* destination = buffer + operation.destinationOffset;
+		if (operation.sourceOffset != operation.destinationOffset) {
+			uint8_t* source = buffer + operation.sourceOffset;
+			memcpy(destination, source, MFSBLOCKSIZE);
+		}
+		for (uint32_t sourceBlockOffset : operation.blocksToXorOffsets) {
 			const uint8_t* source = buffer + sourceBlockOffset;
 			blockXor(destination, source, MFSBLOCKSIZE);
 		}

@@ -5,6 +5,7 @@
 
 #include "common/goal.h"
 #include "common/MFSCommunication.h"
+#include "common/single_variant_read_plan.h"
 
 namespace {
 
@@ -35,10 +36,10 @@ private:
 class StandardChunkReadPlanner::StandardPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
 	StandardPlanBuilder(): PlanBuilder(BUILDER_STANDARD) {}
-	virtual Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual std::unique_ptr<Plan> buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
 };
 
-ReadPlanner::Plan StandardChunkReadPlanner::StandardPlanBuilder::buildPlan(
+std::unique_ptr<ReadPlanner::Plan> StandardChunkReadPlanner::StandardPlanBuilder::buildPlan(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	ReadPlanner::ReadOperation readOp;
 	readOp.requestOffset = firstBlock * MFSBLOCKSIZE;
@@ -47,10 +48,10 @@ ReadPlanner::Plan StandardChunkReadPlanner::StandardPlanBuilder::buildPlan(
 		readOp.readDataOffsets.push_back(block * MFSBLOCKSIZE);
 	}
 
-	Plan plan;
+	std::unique_ptr<ReadPlanner::Plan> plan(new SingleVariantReadPlan);
 	ChunkType chunkType = ChunkType::getStandardChunkType();
-	plan.readOperations[chunkType] = readOp;
-	plan.requiredBufferSize = readOp.requestSize;
+	plan->basicReadOperations[chunkType] = readOp;
+	plan->requiredBufferSize = readOp.requestSize;
 	return plan;
 }
 
@@ -67,7 +68,7 @@ public:
 		missingPart_ = missingPart;
 	}
 
-	Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
+	std::unique_ptr<ReadPlanner::Plan> buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
 
 	ChunkType::XorLevel level() {
 		return level_;
@@ -186,7 +187,7 @@ private:
 		}
 		// add this ReadOperation to the plan
 		ChunkType partType = correspondingChunkType(part);
-		plan.readOperations[partType] = readOp;
+		plan.basicReadOperations[partType] = readOp;
 	}
 
 	// build ReadOperations for all parts
@@ -223,23 +224,23 @@ private:
 	}
 
 	// build single XorBlockOperation to recover one missing block
-	inline void buildXorOperationForStripe(Plan& plan, uint32_t stripe,
-			uint32_t firstBlock, uint32_t blockCount) const {
+	inline void buildXorOperationForStripe(SingleVariantReadPlan& plan,
+			uint32_t stripe, uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
-		XorBlockOperation xorOp;
-		xorOp.destinationOffset =
+		PostProcessOperation op;
+		op.destinationOffset = op.sourceOffset =
 				toBytes(destinationOffset(stripe, missingPart_, firstBlock, lastBlock));
 		for (uint32_t part = 1; part <= lastPartInStripe(stripe); ++part) {
 			if (part != missingPart_) {
-				xorOp.blocksToXorOffsets.push_back(toBytes(
+				op.blocksToXorOffsets.push_back(toBytes(
 					destinationOffset(stripe, part, firstBlock, lastBlock)));
 			}
 		}
-		plan.xorOperations.push_back(xorOp);
+		plan.addPostProcessOperation(std::move(op));
 	}
 
 	// build all required XorOperations
-	inline void buildXorOperations(Plan& plan,
+	inline void buildXorOperations(SingleVariantReadPlan& plan,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
 		for (uint32_t stripe = firstStripe(firstBlock); stripe <= lastStripe(lastBlock); ++stripe) {
@@ -254,14 +255,14 @@ private:
 	}
 };
 
-ReadPlanner::Plan StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
+std::unique_ptr<ReadPlanner::Plan> StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
 		uint32_t firstBlock, uint32_t blockCount) const {
-	Plan plan;
+	SingleVariantReadPlan plan;
 	buildReadOperations(plan, firstBlock, blockCount);
 	if (missingPart_ != 0) {
 		buildXorOperations(plan, firstBlock, blockCount);
 	}
-	return plan;
+	return std::unique_ptr<ReadPlanner::Plan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
 float xorPlanScore(const std::map<ChunkType, float>& serverScores, int level) {
@@ -389,7 +390,7 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 	}
 }
 
-ReadPlanner::Plan StandardChunkReadPlanner::buildPlanFor(
+std::unique_ptr<ReadPlanner::Plan> StandardChunkReadPlanner::buildPlanFor(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	sassert(firstBlock + blockCount <= MFSBLOCKSINCHUNK);
 	sassert(currentBuilder_ != nullptr);

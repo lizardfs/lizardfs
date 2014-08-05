@@ -87,8 +87,8 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		// We have to request for availableSize rounded up to MFSBLOCKSIZE
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
-		ReadPlanner::Plan plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
-		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version, plan);
+		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version,
+				planner_.buildPlanFor(firstBlockToRead, blockToReadCount));
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);

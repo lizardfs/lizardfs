@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "common/goal.h"
+#include "common/single_variant_read_plan.h"
 #include "common/standard_chunk_read_planner.h"
 
 class XorChunkReadPlanner::PlanBuilder {
@@ -13,7 +14,7 @@ public:
 		sassert(chunkType_.isXorChunkType());
 	}
 	virtual ~PlanBuilder() {}
-	virtual Plan build(uint32_t firstBlock, uint32_t blockCount) const = 0;
+	virtual std::unique_ptr<Plan> build(uint32_t firstBlock, uint32_t blockCount) const = 0;
 
 protected:
 	const ChunkType chunkType_;
@@ -22,7 +23,7 @@ protected:
 class XorChunkReadPlanner::CopyPartPlanBuilder : public XorChunkReadPlanner::PlanBuilder {
 public:
 	explicit CopyPartPlanBuilder(ChunkType readChunkType) : PlanBuilder(readChunkType) {}
-	virtual Plan build(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual std::unique_ptr<Plan> build(uint32_t firstBlock, uint32_t blockCount) const;
 };
 
 class XorChunkReadPlanner::XorPlanBuilder : public XorChunkReadPlanner::PlanBuilder {
@@ -35,45 +36,48 @@ public:
 		standardPlanner_.prepare(availableParts, serverScores);
 		sassert(standardPlanner_.isReadingPossible());
 	}
-	virtual Plan build(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual std::unique_ptr<Plan> build(uint32_t firstBlock, uint32_t blockCount) const;
 
 private:
 	const std::vector<ChunkType> availableParts_;
 	StandardChunkReadPlanner standardPlanner_;
 
-	void swapBlocks(Plan& plan, const std::map<uint32_t, uint32_t>& offsetMapping) const;
+	// Modifies the plan using the given block permutation (offsetMapping)
+	void swapBlocks(SingleVariantReadPlan& plan,
+			const std::map<uint32_t, uint32_t>& offsetMapping) const;
 };
 
-ReadPlanner::Plan XorChunkReadPlanner::CopyPartPlanBuilder::build(
+std::unique_ptr<ReadPlanner::Plan> XorChunkReadPlanner::CopyPartPlanBuilder::build(
 		uint32_t firstBlock, uint32_t blockCount) const {
-	Plan plan;
+	SingleVariantReadPlan plan;
 	plan.requiredBufferSize = blockCount * MFSBLOCKSIZE;
-	ReadOperation& readOperation = plan.readOperations[chunkType_];
+	ReadOperation& readOperation = plan.basicReadOperations[chunkType_];
 	readOperation.requestOffset = firstBlock * MFSBLOCKSIZE;
 	readOperation.requestSize = blockCount * MFSBLOCKSIZE;
 	for (uint32_t i = 0; i < blockCount; ++i) {
 		readOperation.readDataOffsets.push_back(i * MFSBLOCKSIZE);
 	}
-	return std::move(plan);
+	return std::unique_ptr<Plan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
-void XorChunkReadPlanner::XorPlanBuilder::swapBlocks(Plan& plan,
+void XorChunkReadPlanner::XorPlanBuilder::swapBlocks(SingleVariantReadPlan& plan,
 		const std::map<uint32_t, uint32_t>& offsetMapping) const {
-	for (auto& chunkTypeAndReadOperation : plan.readOperations) {
+	for (auto& chunkTypeAndReadOperation : plan.basicReadOperations) {
 		ReadOperation& operation = chunkTypeAndReadOperation.second;
 		for (size_t i = 0; i < operation.readDataOffsets.size(); ++i) {
 			operation.readDataOffsets[i] = offsetMapping.at(operation.readDataOffsets[i]);
 		}
 	}
-	for (auto& xorOperation : plan.xorOperations) {
-		xorOperation.destinationOffset = offsetMapping.at(xorOperation.destinationOffset);
-		for (uint32_t& sourceOffset : xorOperation.blocksToXorOffsets) {
+	for (auto& operation : plan.postProcessOpearations()) {
+		operation.destinationOffset = offsetMapping.at(operation.destinationOffset);
+		operation.sourceOffset = offsetMapping.at(operation.sourceOffset);
+		for (uint32_t& sourceOffset : operation.blocksToXorOffsets) {
 			sourceOffset = offsetMapping.at(sourceOffset);
 		}
 	}
 }
 
-ReadPlanner::Plan XorChunkReadPlanner::XorPlanBuilder::build(
+std::unique_ptr<ReadPlanner::Plan> XorChunkReadPlanner::XorPlanBuilder::build(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	uint32_t level = chunkType_.getXorLevel();
 
@@ -91,21 +95,21 @@ ReadPlanner::Plan XorChunkReadPlanner::XorPlanBuilder::build(
 		firstBlockInChunk = firstBlock * level + part - 1;
 		blockCountInChunk = 1 + (blockCount - 1) * level;
 	}
-	Plan plan = standardPlanner_.buildPlanFor(firstBlockInChunk, blockCountInChunk);
+	SingleVariantReadPlan plan(standardPlanner_.buildPlanFor(firstBlockInChunk, blockCountInChunk));
 
-	// Calculate the parity if we recover a parity part
+	// Calculate the parity if we recover a parity part by adding some xor operations
+	// to the list of post-process operations from the original plan
 	if (chunkType_.isXorParity()) {
 		for (uint32_t i = 0; i < blockCount; ++i) {
-			plan.xorOperations.push_back(XorBlockOperation());
-			XorBlockOperation& xorOperation = plan.xorOperations.back();
-			xorOperation.destinationOffset = i * level * MFSBLOCKSIZE;
+			PostProcessOperation operation;
+			operation.destinationOffset = operation.sourceOffset = i * level * MFSBLOCKSIZE;
 			for (uint32_t j = 1; j < level; ++j) {
 				if (i * level + j < blockCountInChunk) {
-					xorOperation.blocksToXorOffsets.push_back((i * level + j) * MFSBLOCKSIZE);
+					operation.blocksToXorOffsets.push_back((i * level + j) * MFSBLOCKSIZE);
 				}
 			}
-			if (xorOperation.blocksToXorOffsets.empty()) {
-				plan.xorOperations.pop_back();
+			if (!operation.blocksToXorOffsets.empty()) {
+				plan.addPostProcessOperation(std::move(operation));
 			}
 		}
 	}
@@ -124,7 +128,7 @@ ReadPlanner::Plan XorChunkReadPlanner::XorPlanBuilder::build(
 	swapBlocks(plan, reverseMapping);
 
 	// The plan is ready!
-	return std::move(plan);
+	return std::unique_ptr<ReadPlanner::Plan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
 XorChunkReadPlanner::XorChunkReadPlanner(ChunkType readChunkType) : chunkType_(readChunkType) {
@@ -195,7 +199,7 @@ bool XorChunkReadPlanner::isReadingPossible() const {
 	return static_cast<bool>(planBuilder_);
 }
 
-ReadPlanner::Plan XorChunkReadPlanner::buildPlanFor(
+std::unique_ptr<ReadPlanner::Plan> XorChunkReadPlanner::buildPlanFor(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	sassert(firstBlock + blockCount <= MFSBLOCKSINCHUNK);
 	sassert(planBuilder_ != nullptr);

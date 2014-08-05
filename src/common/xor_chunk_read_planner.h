@@ -13,7 +13,8 @@ public:
 			const std::map<ChunkType, float>& serverScores);
 	virtual std::vector<ChunkType> partsToUse() const;
 	virtual bool isReadingPossible() const;
-	virtual ReadPlanner::Plan buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual std::unique_ptr<ReadPlanner::Plan> buildPlanFor(
+			uint32_t firstBlock, uint32_t blockCount) const;
 
 private:
 	class PlanBuilder;

@@ -10,7 +10,7 @@ public:
 			const std::map<ChunkType, float>& serverScores);
 	virtual std::vector<ChunkType> partsToUse() const;
 	virtual bool isReadingPossible() const;
-	virtual Plan buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual std::unique_ptr<Plan> buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const;
 
 private:
 	enum PlanBuilderType {
@@ -23,7 +23,7 @@ private:
 	public:
 		PlanBuilder(PlanBuilderType type) : type_(type) {}
 		virtual ~PlanBuilder() {}
-		virtual Plan buildPlan(uint32_t firstBlock, uint32_t blockCount) const = 0;
+		virtual std::unique_ptr<Plan> buildPlan(uint32_t firstBlock, uint32_t blockCount) const = 0;
 		PlanBuilderType type() const { return type_; }
 
 	private:
