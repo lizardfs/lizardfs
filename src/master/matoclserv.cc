@@ -1601,6 +1601,12 @@ static void matoclserv_broadcast_iolimits_cfg() {
 	}
 }
 
+void matoclserv_ping(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+	uint32_t size;
+	deserializeAllMooseFsPacketDataNoHeader(data, length, size);
+	matoclserv_createpacket(eptr, ANTOAN_PING_REPLY, size);
+}
+
 void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	const uint8_t *rptr;
 	uint8_t *wptr;
@@ -3797,6 +3803,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 		return;
 	}
 	if (type==ANTOAN_BAD_COMMAND_SIZE) { // for future use
+		return;
+	}
+	if (type==ANTOAN_PING) {
+		matoclserv_ping(eptr,data,length);
 		return;
 	}
 	try {
