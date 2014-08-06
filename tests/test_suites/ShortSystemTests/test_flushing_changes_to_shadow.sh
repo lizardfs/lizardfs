@@ -1,3 +1,4 @@
+timeout_set '40 seconds'
 assert_program_installed socat
 
 # start_proxy <listen> <forward>
@@ -36,7 +37,7 @@ assert_eventually "lizardfs_shadow_synchronized 1"
 
 # Pause traffic from master to shadow and generate enough changes to make write() to socket block
 rm "$TEMP_DIR/gogo"
-mkdir "${info[mount0]}"/directory_with_name_long_enough_to_generate_a_big_changelog_entry{1..2000}
+mkdir "${info[mount0]}"/directory_with_name_long_enough_to_generate_a_big_changelog_entry{1..4000}
 
 # Send SIGTERM to the master server and 10 seconds later resume the traffic
 begin_ts=$(timestamp)
