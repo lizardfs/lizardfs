@@ -1,4 +1,4 @@
-timeout_set '15 minutes'
+timeout_set '40 minutes'
 
 metaservers_nr=2
 MASTERSERVERS=$metaservers_nr \
