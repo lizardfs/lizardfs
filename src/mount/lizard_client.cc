@@ -44,10 +44,12 @@
 #include "common/acl_converter.h"
 #include "common/acl_type.h"
 #include "common/datapack.h"
+#include "common/lru_cache.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/time_utils.h"
+#include "mount/acl_cache.h"
 #include "mount/dirattrcache.h"
 #include "mount/g_io_limiters.h"
 #include "mount/io_limit_group.h"
@@ -133,6 +135,14 @@ static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
+
+static std::unique_ptr<AclCache> acl_cache;
+
+inline void eraseAclCache(Inode inode) {
+	acl_cache->erase(
+			inode    , 0, 0, (AclType)0,
+			inode + 1, 0, 0, (AclType)0);
+}
 
 // TODO consider making oplog_printf asynchronous
 
@@ -803,6 +813,9 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 			write_data_flush_inode(ino);
 		}
 		status = fs_setattr(ino,ctx.uid,ctx.gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr);
+		if (to_set & (LIZARDFS_SET_ATTR_MODE | LIZARDFS_SET_ATTR_UID | LIZARDFS_SET_ATTR_GID)) {
+			eraseAclCache(ino);
+		}
 		status = errorconv_dbg(status);
 		if (status!=0) {
 			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
@@ -1927,7 +1940,7 @@ private:
 
 class AclXattrHandler : public XattrHandler {
 public:
-	AclXattrHandler(AclType type) : type_(type) {}
+	AclXattrHandler(AclType type) : type_(type) { }
 
 	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, const char *value, size_t size, int) {
@@ -1945,7 +1958,9 @@ public:
 		} catch (Exception&) {
 			return ERROR_EINVAL;
 		}
-		return fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
+		auto ret = fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
+		eraseAclCache(ino);
+		return ret;
 	}
 
 	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *,
@@ -1953,15 +1968,19 @@ public:
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
-		AccessControlList acl;
-		uint8_t status = fs_getacl(ino, ctx.uid, ctx.gid, type_, acl);
-		if (status != STATUS_OK) {
-			return status;
-		}
+
 		try {
-			value = aclConverter::aclObjectToXattr(acl);
-			valueLength = value.size();
-			return STATUS_OK;
+			AclCacheEntry cacheEntry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid, type_);
+			if (cacheEntry) {
+				value = aclConverter::aclObjectToXattr(*cacheEntry);
+				valueLength = value.size();
+				return STATUS_OK;
+			} else {
+				return ERROR_ENOATTR;
+			}
+		} catch (AclAcquisitionException& e) {
+			sassert((e.status() != STATUS_OK) && (e.status() != ERROR_ENOATTR));
+			return e.status();
 		} catch (Exception&) {
 			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
 			return ERROR_IO;
@@ -1973,11 +1992,14 @@ public:
 		if (!acl_enabled) {
 			return ERROR_ENOTSUP;
 		}
-		return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+		auto ret = fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+		eraseAclCache(ino);
+		return ret;
 	}
 
 private:
 	AclType type_;
+	SteadyClock clock_;
 };
 
 } // anonymous namespace
@@ -2210,7 +2232,8 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_) {
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
+		unsigned acl_cache_size_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
@@ -2224,8 +2247,15 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
+		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%d\n",
+				acl_cache_timeout_, acl_cache_size_);
 	}
 	statsptr_init();
+
+	acl_cache.reset(new AclCache(
+			std::chrono::milliseconds((int)(1000 * acl_cache_timeout_)),
+			acl_cache_size_,
+			getAcl));
 }
 
 } // namespace LizardClient

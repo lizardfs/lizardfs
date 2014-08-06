@@ -641,7 +641,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
 		mfs_init(mfsopts.debug, mfsopts.keepcache, mfsopts.direntrycacheto, mfsopts.entrycacheto,
-				mfsopts.attrcacheto, mfsopts.mkdircopysgid, mfsopts.sugidclearmode, mfsopts.acl);
+				mfsopts.attrcacheto, mfsopts.mkdircopysgid, mfsopts.sugidclearmode, mfsopts.acl,
+				mfsopts.aclcacheto, mfsopts.aclcachesize);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {

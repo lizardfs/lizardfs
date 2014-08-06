@@ -908,7 +908,7 @@ int main (int argc, char **argv) {
 	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
 			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
-			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false);
+			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, 0, 0);
 
 	// Thrift server start
 	using namespace ::apache::thrift;

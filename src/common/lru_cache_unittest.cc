@@ -136,7 +136,7 @@ TEST(LruCacheTests, TestMultiThreadedCache) {
 	auto fun = [](uint64_t i) {
 		return i;
 	};
-	LruCacheMt<uint64_t, uint64_t> cache(std::chrono::seconds(1000000), 100, fun);
+	TreeLruCacheMt<uint64_t, uint64_t> cache(std::chrono::seconds(1000000), 100, fun);
 	SteadyTimePoint t0;
 
 	std::vector<std::future<void>> asyncs;
@@ -146,8 +146,7 @@ TEST(LruCacheTests, TestMultiThreadedCache) {
 				{
 					for (uint64_t j = 0; j < 1000; ++j) {
 						ASSERT_EQ(j, cache.get(t0, j));
-						ASSERT_NO_THROW(cache.erase(j));
-						ASSERT_NO_THROW(cache.cleanup(t0, 2));
+						ASSERT_NO_THROW(cache.erase(j - 5, j + 5));
 					}
 				}));
 	}
