@@ -29,6 +29,7 @@
 #include "common/quota.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
+#include "master/metadata_dumper.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
@@ -44,6 +45,13 @@ int fs_load_changelogs();
 /*! \brief Load whole filesystem information.
  */
 int fs_loadall();
+
+/*! \brief Dump current state of file system metadata.
+ *
+ * \param dumpType - choose between foreground and background dumping.
+ * \return True iff dump completed succefully.
+ */
+bool fs_storeall(MetadataDumper::DumpType dumpType);
 
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)
@@ -105,9 +113,6 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 /// This should be called in the shadow master each time it needs to download
 /// metadata file from the active metadata server again.
 void fs_unload();
-
-/// Tries to dump metadata in the foreground, returns false on error.
-bool fs_storeall_now();
 
 /// Removes metadata lock leaving working directory in a clean state
 void fs_unlock();

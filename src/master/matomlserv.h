@@ -27,4 +27,9 @@ void matomlserv_mloglist_data(uint8_t *ptr);
 
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 void matomlserv_broadcast_logrotate();
+/*! \brief Broadcast status of metadata dump process to all interested parties.
+ *
+ * \param status - status to broadcast.
+ */
+void matomlserv_broadcast_filesystem(uint8_t status);
 int matomlserv_init(void);

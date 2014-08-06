@@ -49,7 +49,7 @@
 #include "common/slogger.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
-#include "master/metadata_dumper.h"
+#include "master/matomlserv.h"
 #include "master/personality.h"
 #include "master/quota_database.h"
 #include "metarestore/restore.h"
@@ -365,6 +365,7 @@ public:
 		freeListConnectedUsingNext(fnbhead);
 		freeListConnectedUsingNext(crbhead);
 	}
+
 
 private:
 	// Frees a C-style list with elements connected using e->next pointer and allocated using malloc
@@ -698,7 +699,9 @@ void metadataPollServe(struct pollfd* pdesc) {
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
 		if (metadataDumper.dumpSucceeded()) {
 			rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
+			matomlserv_broadcast_filesystem(STATUS_OK);
 		} else {
+			matomlserv_broadcast_filesystem(ERROR_IO);
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
 				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
@@ -7655,6 +7658,7 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	// child == true says that we forked
 	// bg may be changed to dump in foreground in case of a fork error
 	bool child = metadataDumper.start(dumpType, fs_checksum(ChecksumMode::kGetCurrent));
+	bool succeeded = false;
 
 	if (dumpType == MetadataDumper::kForegroundDump) {
 		cstream_t fd(fopen(kMetadataTmpFilename, "w"));
@@ -7665,6 +7669,7 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
+			matomlserv_broadcast_filesystem(ERROR_IO);
 			return false;
 		}
 
@@ -7679,12 +7684,15 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
+			matomlserv_broadcast_filesystem(ERROR_IO);
 			return false;
 		} else {
 			if (fflush(fd.get()) == EOF) {
 				mfs_errlog(LOG_ERR, "metadata fflush failed");
 			} else if (fsync(fileno(fd.get())) == -1) {
 				mfs_errlog(LOG_ERR, "metadata fsync failed");
+			} else {
+				succeeded = true;
 			}
 			fd.reset();
 			if (!child) {
@@ -7696,13 +7704,10 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			printf("OK\n"); // give mfsmetarestore another chance
 			exit(0);
 		}
+		matomlserv_broadcast_filesystem(succeeded ? STATUS_OK : ERROR_IO);
 	}
 	sassert(!child);
-	return true;
-}
-
-bool fs_storeall_now() {
-	return fs_storeall(MetadataDumper::kForegroundDump);
+	return succeeded;
 }
 
 void fs_periodic_storeall() {
