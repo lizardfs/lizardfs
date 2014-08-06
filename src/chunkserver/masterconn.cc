@@ -30,6 +30,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <algorithm>
 #include <list>
 
 #include "chunkserver/bgjobs.h"
@@ -218,16 +219,27 @@ void masterconn_check_hdd_reports() {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
 		}
 		chunks.clear();
+		// FIXME use chunkIdWithType instead of chunkId for reporting lost chunks
 		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
 		if (!chunks.empty()) {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
 		}
 		std::vector<ChunkWithVersionAndType> chunksWithVersionAndType;
 		hdd_get_new_chunks(chunksWithVersionAndType);
-		if (!chunksWithVersionAndType.empty()) {
+		size_t firstIndexToBeSent = 0;
+		size_t kNewChunkLimit = 1000;
+		while (firstIndexToBeSent < chunksWithVersionAndType.size()) {
+			size_t firstIndexNotToBeSent = std::min(
+					firstIndexToBeSent + kNewChunkLimit,
+					chunksWithVersionAndType.size());
+			std::vector<ChunkWithVersionAndType> toBeSent(
+					chunksWithVersionAndType.begin() + firstIndexToBeSent,
+					chunksWithVersionAndType.begin() + firstIndexNotToBeSent);
+
 			std::vector<uint8_t> buffer;
-			cstoma::chunkNew::serialize(buffer, chunksWithVersionAndType);
+			cstoma::chunkNew::serialize(buffer, toBeSent);
 			masterconn_create_attached_packet(eptr, buffer);
+			firstIndexToBeSent = firstIndexNotToBeSent;
 		}
 	}
 }

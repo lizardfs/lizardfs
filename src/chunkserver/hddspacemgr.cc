@@ -1144,7 +1144,7 @@ static inline void hdd_error_occured(Chunk *c) {
 
 /* interface */
 
-#define CHUNKS_CUT_COUNT 10000
+#define CHUNKS_CUT_COUNT 1000
 static uint32_t hdd_get_chunks_pos;
 
 void hdd_get_chunks_begin() {
