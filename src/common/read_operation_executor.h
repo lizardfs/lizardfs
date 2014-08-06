@@ -20,6 +20,9 @@ public:
 			int fd,
 			uint8_t* buffer);
 
+	ReadOperationExecutor(const ReadOperationExecutor&) = delete;
+	ReadOperationExecutor(ReadOperationExecutor&&) = default;
+
 	/*
 	 * Prepares (LIZ_)CLTOCS_READ message and sends it to the chunkserver
 	 */
@@ -38,10 +41,23 @@ public:
 	 */
 	void readAll(const Timeout& timeout);
 
+	/**
+	 * Checks if the read operation is finished.
+	 */
 	bool isFinished() const {
 		return state_ == kFinished;
 	}
 
+	/**
+	 * A getter.
+	 */
+	ChunkType chunkType() const {
+		return chunkType_;
+	}
+
+	/**
+	 * A getter.
+	 */
 	const NetworkAddress& server() const {
 		return server_;
 	}

@@ -157,10 +157,11 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		for (const auto& source : sources) {
 			locations[source.chunkType] = source.address;
 		}
+		ReadPlanExecutor::Timeouts timeouts(timeout.remaining_ms(), timeout.remaining_ms());
 		ReadPlanExecutor executor(chunkserverStats_,
 				fileCreator.chunkId(), fileCreator.chunkVersion(),
 				planner->buildPlanFor(firstBlock, nrOfBlocks));
-		executor.executePlan(buffer, locations, connector_, timeout);
+		executor.executePlan(buffer, locations, connector_, timeouts, timeout);
 
 		for (uint32_t i = 0; i < nrOfBlocks; ++i) {
 			uint32_t offset = i * MFSBLOCKSIZE;

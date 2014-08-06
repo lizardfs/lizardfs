@@ -18,18 +18,39 @@ class ReadPlanExecutor {
 public:
 	typedef std::map<ChunkType, NetworkAddress> ChunkTypeLocations;
 
+	/// Timeouts for ReadPlanExecutor::executePlan.
+	struct Timeouts {
+		/// Timeout for creating TCP connections and rending requests.
+		uint32_t connectTimeout_ms;
+
+		/// Timeout after which additional read operations will be started.
+		uint32_t basicTimeout_ms;
+
+		Timeouts(uint32_t connectTimeout_ms, uint32_t basicTimeout_ms)
+				: connectTimeout_ms(connectTimeout_ms),
+				  basicTimeout_ms(basicTimeout_ms) {
+		}
+	};
+
 	ReadPlanExecutor(
 			ChunkserverStats& chunkserverStats,
 			uint64_t chunkId, uint32_t chunkVersion,
 			std::unique_ptr<ReadPlanner::Plan> plan);
 
-	/*
-	 * Executes the plan using given locations, connection pool and connector.
+	/**
+	 * Executes the plan.
 	 * The data will be appended to the buffer.
+	 * \param buffer       buffer, where the data will be stored (>= plan_.requiredBufferSize)
+	 * \param locations    locations of all the chunkTypes that exist in the plan
+	 * \param connector    object which will be used to obtain connections to chunkservers
+	 * \param timeouts     settings of timeouts which influence how the executor works
+	 * \param totalTimeout timeout of the whole operation
 	 */
 	void executePlan(std::vector<uint8_t>& buffer,
 			const ChunkTypeLocations& locations,
-			ChunkConnector& connector, const Timeout& communicationTimeout);
+			ChunkConnector& connector,
+			const Timeouts& timeouts,
+			const Timeout& totalTimeout);
 
 private:
 	ChunkserverStats& chunkserverStats_;
@@ -37,8 +58,29 @@ private:
 	const uint32_t chunkVersion_;
 	std::unique_ptr<const ReadPlanner::Plan> plan_;
 
-	void executeReadOperations(uint8_t* buffer,
+	/**
+	 * Executes read operations from plan_.
+	 * Starts with basicReadOperations and (if basicTimeout expires) starts
+	 * additionalReadOperations.
+	 * \param buffer     buffer, where the data will be stored (>= plan_.requiredBufferSize)
+	 * \param locations  locations of all the chunkTypes that exist in the plan
+	 * \param connector  object which will be used to obtain connections to chunkservers
+	 * \param timeouts   a set of timeouts for the execution
+	 * \return list of post-process operations that need to be done
+	 */
+	std::vector<ReadPlanner::PostProcessOperation> executeReadOperations(
+			uint8_t* buffer,
 			const ChunkTypeLocations& locations,
-			ChunkConnector& connector, const Timeout& communicationTimeout);
-	void executeXorOperations(uint8_t* buffer);
+			ChunkConnector& connector,
+			const Timeouts& timeouts,
+			const Timeout& totalTimeout);
+
+	/**
+	 * Executes given post-processing operations
+	 * \param operations  list of operations to execute
+	 * \param buffer      buffer to post-process
+	 */
+	void executePostProcessing(
+			const std::vector<ReadPlanner::PostProcessOperation> operations,
+			uint8_t* buffer);
 };

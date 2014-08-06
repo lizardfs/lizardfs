@@ -92,7 +92,11 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 				planner_.buildPlanFor(firstBlockToRead, blockToReadCount));
 		uint32_t initialBufferSize = buffer.size();
 		try {
-			executor.executePlan(buffer, chunkTypeLocations_, connector_, communicationTimeout);
+			executor.executePlan(buffer, chunkTypeLocations_, connector_,
+					ReadPlanExecutor::Timeouts(
+							communicationTimeout.remaining_ms(),
+							communicationTimeout.remaining_ms()),
+					communicationTimeout);
 		} catch (ChunkCrcException &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
 			throw;
