@@ -24,6 +24,7 @@
 #include <syslog.h>
 #include <numeric>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 
 /* fast integer hash functions by Thomas Wang */
@@ -144,3 +145,34 @@ inline void addToChecksum(uint64_t& checksum, uint64_t hash) {
 inline void removeFromChecksum(uint64_t& checksum, uint64_t hash) {
 	checksum ^= hash;
 }
+
+/**
+ * A class providing dumb hashing function for std::tuple's
+ */
+template <class... Args>
+struct AlmostGenericTupleHash {
+	typedef std::tuple<Args...> Tuple;
+
+	uint64_t operator()(const Tuple& t) const noexcept {
+		uint64_t seed = 0;
+		tupleHashCombine(seed, t);
+		return seed;
+	}
+
+private:
+	template<uint64_t> struct int_{};
+
+	template <size_t Position>
+	void tupleHashCombine(uint64_t& seed, const Tuple& t, int_<Position>) const noexcept {
+		hashCombineRaw(seed, std::get<Position>(t));
+		tupleHashCombine(seed, t, int_<Position + 1>());
+	}
+
+	void tupleHashCombine(uint64_t&, const Tuple&,
+			int_<std::tuple_size<Tuple>::value>) const noexcept {
+	}
+
+	void tupleHashCombine(uint64_t& seed, const Tuple& t) const noexcept {
+		tupleHashCombine(seed, t, int_<0>());
+	}
+};

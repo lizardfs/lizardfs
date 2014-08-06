@@ -34,6 +34,7 @@
 #define MAXLOGNUMBER 1000U
 static uint32_t BackLogsNumber;
 static FILE *fd;
+static bool gFlush = true;
 
 void changelog_rotate() {
 	if (fd) {
@@ -72,7 +73,9 @@ void changelog(uint64_t version,const char *format,...) {
 
 	if (fd) {
 		fprintf(fd,"%" PRIu64 ": %s\n",version,printbuff);
-		fflush(fd);
+		if (gFlush) {
+			fflush(fd);
+		}
 	}
 	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
@@ -95,3 +98,15 @@ int changelog_init(void) {
 	fd = NULL;
 	return 0;
 }
+
+void changelog_disable_flush(void) {
+	gFlush = false;
+}
+
+void changelog_enable_flush(void) {
+	gFlush = true;
+	if (fd) {
+		fflush(fd);
+	}
+}
+

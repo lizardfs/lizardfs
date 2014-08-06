@@ -25,3 +25,5 @@
 void changelog_rotate(void);
 void changelog(uint64_t version,const char *format,...);
 int changelog_init(void);
+void changelog_disable_flush(void);
+void changelog_enable_flush(void);
