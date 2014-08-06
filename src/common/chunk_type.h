@@ -29,6 +29,10 @@ public:
 		return chunkTypeId_ == otherChunkType.chunkTypeId_;
 	}
 
+	bool operator!=(const ChunkType& otherChunkType) const {
+		return chunkTypeId_ != otherChunkType.chunkTypeId_;
+	}
+
 	bool operator<(const ChunkType& otherChunkType) const {
 		return chunkTypeId_ < otherChunkType.chunkTypeId_;
 	}

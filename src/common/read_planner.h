@@ -119,8 +119,7 @@ public:
 	};
 
 	virtual ~ReadPlanner() {}
-	virtual void prepare(const std::vector<ChunkType>& availableParts,
-			const std::map<ChunkType, float>& serverScores) = 0;
+	virtual void prepare(const std::vector<ChunkType>& availableParts) = 0;
 	virtual std::vector<ChunkType> partsToUse() const = 0;
 	virtual bool isReadingPossible() const = 0;
 	virtual std::unique_ptr<Plan> buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const = 0;

@@ -55,7 +55,8 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 			}
 		}
 	}
-	planner_.prepare(availableChunkTypes, bestScores);
+	planner_.setScores(std::move(bestScores));
+	planner_.prepare(availableChunkTypes);
 	if (!planner_.isReadingPossible()) {
 		throw NoValidCopiesReadException("no valid copies");
 	}

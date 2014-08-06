@@ -265,30 +265,7 @@ std::unique_ptr<ReadPlanner::Plan> StandardChunkReadPlanner::XorPlanBuilder::bui
 	return std::unique_ptr<ReadPlanner::Plan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
-float xorPlanScore(const std::map<ChunkType, float>& serverScores, int level) {
-	float score = 1;
-	for (ChunkType::XorPart part = 1; part <= level; part++) {
-		ChunkType type = ChunkType::getXorChunkType(level, part);
-		score *= serverScores.at(type);
-	}
-	return score;
-}
-
-float xorPlanScore(const std::map<ChunkType, float>& serverScores, int level, int missing) {
-	float score = 1;
-	for (ChunkType::XorPart part = 1; part <= level; part++) {
-		if (part == missing) {
-			continue;
-		}
-		ChunkType type = ChunkType::getXorChunkType(level, part);
-		score *= serverScores.at(type);
-	}
-	score *= serverScores.at(ChunkType::getXorParityChunkType(level));
-	return score;
-}
-
-void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts,
-		const std::map<ChunkType, float>& serverScores) {
+void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) {
 	currentBuilder_ = nullptr;
 	planBuilders_[BUILDER_STANDARD].reset(new StandardPlanBuilder);
 	planBuilders_[BUILDER_XOR].reset(new XorPlanBuilder(0, 0));
@@ -297,20 +274,13 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 	std::sort(partsToUse.begin(), partsToUse.end());
 	partsToUse.erase(std::unique(partsToUse.begin(), partsToUse.end()), partsToUse.end());
 
-	float bestScore = -1;
-
 	std::vector<bool> isParityForLevelAvailable(kMaxXorLevel + 1, false);
 	std::vector<int> partsForLevelAvailable(kMaxXorLevel + 1, 0);
 
 	for (const ChunkType& chunkType : partsToUse) {
 		if (chunkType.isStandardChunkType()) {
 			// standard chunk replica available
-			float score = serverScores.at(chunkType);
-			if (score > bestScore) {
-				bestScore = score;
-				setCurrentBuilderToStandard();
-			}
-
+			return setCurrentBuilderToStandard();
 		} else {
 			sassert(chunkType.isXorChunkType());
 			if (chunkType.isXorParity()) {
@@ -323,41 +293,7 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 
 	for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level) {
-			if (isParityForLevelAvailable[level]) {
-				// use scores to decide whether to use parity or not
-				ChunkType::XorPart worstPart = 0;
-				float worstScore = serverScores.at(ChunkType::getXorParityChunkType(level));
-
-				for (ChunkType::XorPart part = 1; part <= level; part++) {
-					ChunkType type = ChunkType::getXorChunkType(level, part);
-					float score = serverScores.at(type);
-					if (score < worstScore) {
-					       worstScore = score;
-					       worstPart = part;
-					}
-				}
-
-				if (worstPart == 0) {
-					float score = xorPlanScore(serverScores, level);
-					if (score > bestScore) {
-						bestScore = score;
-						setCurrentBuilderToXor(level, 0);
-					}
-				} else {
-					float score = xorPlanScore(serverScores, level, worstPart);
-					if (score > bestScore) {
-						bestScore = score;
-						setCurrentBuilderToXor(level, worstPart);
-					}
-				}
-			} else {
-				// no parity, but all normal parts available
-				float score = xorPlanScore(serverScores, level);
-				if (score > bestScore) {
-					bestScore = score;
-					setCurrentBuilderToXor(level, 0);
-				}
-			}
+			return setCurrentBuilderToXor(level, 0);
 		}
 	}
 
@@ -381,11 +317,7 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 
 				}
 			}
-			float score = xorPlanScore(serverScores, level, missingPart);
-			if (score > bestScore) {
-				bestScore = score;
-				setCurrentBuilderToXor(level, missingPart);
-			}
+			return setCurrentBuilderToXor(level, missingPart);
 		}
 	}
 }
@@ -446,8 +378,4 @@ void StandardChunkReadPlanner::setCurrentBuilderToXor(
 	XorPlanBuilder* builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
 	builder->reset(level, missingPart);
 	currentBuilder_ = builder;
-}
-
-void StandardChunkReadPlanner::unsetCurrentBuilder() {
-	currentBuilder_ = nullptr;
 }

@@ -21,33 +21,24 @@ class XorChunkReadPlannerTests: public testing::Test {
 protected:
 	void checkChoice(ChunkType plannerChunkType,
 			const std::vector<ChunkType>& availableParts, const std::vector<ChunkType>& expected) {
-		for (ChunkType part : availableParts) {
-			scores[part] = 1.0;
-		}
 		XorChunkReadPlanner planner(plannerChunkType);
-		planner.prepare(availableParts, scores);
+		planner.prepare(availableParts);
 		EXPECT_EQ(expected, planner.partsToUse());
 	}
 
 	void checkImpossibleness(ChunkType plannerChunkType, const std::vector<ChunkType>& availableParts) {
-		for (ChunkType part : availableParts) {
-			scores[part] = 1.0;
-		}
 		XorChunkReadPlanner planner(plannerChunkType);
-		planner.prepare(availableParts, scores);
+		planner.prepare(availableParts);
 		EXPECT_FALSE(planner.isReadingPossible());
 	}
 
 	void verifyPlanner(ChunkType plannerChunkType, const std::vector<ChunkType>& availableParts) {
 		SCOPED_TRACE("Testing recovery of " + ::testing::PrintToString(plannerChunkType));
 		SCOPED_TRACE("Testing reading from " + ::testing::PrintToString(availableParts));
-		for (ChunkType part : availableParts) {
-			scores[part] = 1.0;
-		}
 		uint32_t blocksInPart = plannerChunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
 
 		XorChunkReadPlanner planner(plannerChunkType);
-		planner.prepare(availableParts, scores);
+		planner.prepare(availableParts);
 		VERIFY_PLAN_FOR(plannerChunkType, planner, 0, 1); // blocks: 0
 		VERIFY_PLAN_FOR(plannerChunkType, planner, 0, 2); // blocks: 0, 1
 		VERIFY_PLAN_FOR(plannerChunkType, planner, 0, 3); // blocks: 0, 1, 2
@@ -77,9 +68,6 @@ protected:
 		VERIFY_PLAN_FOR(plannerChunkType, planner, 3, blocksInPart - 3);
 		VERIFY_PLAN_FOR(plannerChunkType, planner, 4, blocksInPart - 4);
 	}
-
-protected:
-	std::map<ChunkType, float> scores;
 };
 
 TEST_F(XorChunkReadPlannerTests, ChoosePartsToUseStandard1) {

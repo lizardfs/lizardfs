@@ -28,12 +28,10 @@ public:
 
 class XorChunkReadPlanner::XorPlanBuilder : public XorChunkReadPlanner::PlanBuilder {
 public:
-	explicit XorPlanBuilder(ChunkType readChunkType,
-			const std::vector<ChunkType>& availableParts,
-			const std::map<ChunkType, float>& serverScores)
+	explicit XorPlanBuilder(ChunkType readChunkType, const std::vector<ChunkType>& availableParts)
 			: PlanBuilder(readChunkType),
 			  availableParts_(availableParts) {
-		standardPlanner_.prepare(availableParts, serverScores);
+		standardPlanner_.prepare(availableParts);
 		sassert(standardPlanner_.isReadingPossible());
 	}
 	virtual std::unique_ptr<Plan> build(uint32_t firstBlock, uint32_t blockCount) const;
@@ -137,8 +135,7 @@ XorChunkReadPlanner::XorChunkReadPlanner(ChunkType readChunkType) : chunkType_(r
 
 XorChunkReadPlanner::~XorChunkReadPlanner() {}
 
-void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts,
-		const std::map<ChunkType, float>& scores) {
+void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) {
 	if (std::count(availableParts.begin(), availableParts.end(), chunkType_) > 0) {
 		planBuilder_.reset(new CopyPartPlanBuilder(chunkType_));
 		partsToUse_ = {chunkType_};
@@ -146,7 +143,7 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts,
 	} else if (std::count(availableParts.begin(), availableParts.end(),
 			ChunkType::getStandardChunkType()) > 0) {
 		partsToUse_ = {ChunkType::getStandardChunkType()};
-		planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_, scores));
+		planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_));
 		return;
 	}
 
@@ -188,7 +185,7 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts,
 			partsToUse_.push_back(part);
 		}
 	}
-	planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_, scores));
+	planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_));
 }
 
 std::vector<ChunkType> XorChunkReadPlanner::partsToUse() const {

@@ -40,13 +40,11 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkType chunkType,
 	}
 
 	std::vector<ChunkType> availableParts;
-	std::map<ChunkType, float> scores;
 	for (const auto& source : sources) {
 		availableParts.push_back(source.chunkType);
-		scores[source.chunkType] = 1.0;
 	}
-	planner->prepare(availableParts, scores);
-	return std::move(planner);
+	planner->prepare(availableParts);
+	return planner;
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,

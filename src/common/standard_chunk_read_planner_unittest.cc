@@ -29,19 +29,11 @@ public:
 				xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3,
 				xor_p_of_6, xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_4_of_6, xor_5_of_6, xor_6_of_6,
 		};
-		for (ChunkType part : partsUsedInTests) {
-			scores[part] = 1.0;
-		}
 	}
-protected:
-	std::map<ChunkType, float> scores;
 
 	void verifyPlanner(const std::vector<ChunkType>& availableParts) {
-		for (ChunkType part : availableParts) {
-			scores[part] = 1.0;
-		}
 		StandardChunkReadPlanner planner;
-		planner.prepare(availableParts, scores);
+		planner.prepare(availableParts);
 		VERIFY_PLAN_FOR(planner, 0, 1); // blocks: 0
 		VERIFY_PLAN_FOR(planner, 0, 2); // blocks: 0, 1
 		VERIFY_PLAN_FOR(planner, 0, 3); // blocks: 0, 1, 2
@@ -77,7 +69,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard1) {
 	std::vector<ChunkType> chunks{standard, standard, standard};
 	std::vector<ChunkType> expected{standard};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -85,7 +77,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard2) {
 	std::vector<ChunkType> chunks{standard, xor_1_of_2};
 	std::vector<ChunkType> expected{standard};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -93,7 +85,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard3) {
 	std::vector<ChunkType> chunks{standard, xor_p_of_3};
 	std::vector<ChunkType> expected{standard};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -101,7 +93,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard4) {
 	std::vector<ChunkType> chunks{standard, xor_1_of_2, xor_p_of_2};
 	std::vector<ChunkType> expected{standard};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -109,7 +101,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor1) {
 	std::vector<ChunkType> chunks{xor_p_of_2, xor_1_of_2, xor_2_of_2};
 	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -117,7 +109,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor2) {
 	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2};
 	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -125,7 +117,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor3) {
 	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	std::vector<ChunkType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -133,7 +125,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseXorParity1) {
 	std::vector<ChunkType> chunks{xor_p_of_2, xor_2_of_2};
 	std::vector<ChunkType> expected{xor_p_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -141,7 +133,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseXorParity2) {
 	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_1_of_2, xor_p_of_2};
 	std::vector<ChunkType> expected{xor_p_of_2, xor_1_of_2};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -149,7 +141,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXor1) {
 	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	std::vector<ChunkType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -157,7 +149,7 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXor2) {
 	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_p_of_3};
 	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
@@ -165,35 +157,35 @@ TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXorParity1) {
 	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_1_of_2, xor_p_of_2};
 	std::vector<ChunkType> expected{xor_p_of_3, xor_1_of_3, xor_2_of_3};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible1) {
 	std::vector<ChunkType> chunks { };
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible2) {
 	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible3) {
 	std::vector<ChunkType> chunks{xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible4) {
 	std::vector<ChunkType> chunks{xor_p_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
 	StandardChunkReadPlanner planner;
-	planner.prepare(chunks, scores);
+	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 

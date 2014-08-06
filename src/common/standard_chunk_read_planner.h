@@ -6,11 +6,11 @@
 
 class StandardChunkReadPlanner : public ReadPlanner {
 public:
-	virtual void prepare(const std::vector<ChunkType>& availableParts,
-			const std::map<ChunkType, float>& serverScores);
-	virtual std::vector<ChunkType> partsToUse() const;
-	virtual bool isReadingPossible() const;
-	virtual std::unique_ptr<Plan> buildPlanFor(uint32_t firstBlock, uint32_t blockCount) const;
+	virtual void prepare(const std::vector<ChunkType>& availableParts) override;
+	virtual std::vector<ChunkType> partsToUse() const override;
+	virtual bool isReadingPossible() const override;
+	virtual std::unique_ptr<Plan> buildPlanFor(
+			uint32_t firstBlock, uint32_t blockCount) const override;
 
 private:
 	enum PlanBuilderType {
@@ -38,5 +38,4 @@ private:
 
 	void setCurrentBuilderToStandard();
 	void setCurrentBuilderToXor(ChunkType::XorLevel level, ChunkType::XorPart missingPart);
-	void unsetCurrentBuilder();
 };
