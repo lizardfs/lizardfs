@@ -538,8 +538,8 @@ static uint64_t fsnodes_checksum(const fsnode* node) {
 			hashCombine(seed, node->data.devdata.rdev);
 			break;
 		case TYPE_SYMLINK:
-			hashCombine(seed, node->data.sdata.pleng, node->data.sdata.path,
-					node->data.sdata.pleng);
+			hashCombine(seed, node->data.sdata.pleng,
+					ByteArray(node->data.sdata.path, node->data.sdata.pleng));
 			break;
 		case TYPE_FILE:
 		case TYPE_TRASH:
@@ -590,7 +590,7 @@ static uint64_t fsedges_checksum(const fsedge* edge) {
 	if (edge->parent) {
 		hashCombine(seed, edge->parent->id);
 	}
-	hashCombine(seed, edge->child->id, edge->nleng, edge->name, edge->nleng);
+	hashCombine(seed, edge->child->id, edge->nleng, ByteArray(edge->name, edge->nleng));
 	return seed;
 }
 
@@ -642,7 +642,8 @@ static uint64_t xattr_checksum(const xattr_data_entry* xde) {
 		return 0;
 	}
 	uint64_t seed = 645819511511147ULL;
-	hashCombine(seed, xde->inode, xde->attrname, xde->anleng, xde->attrvalue, xde->avleng);
+	hashCombine(seed, xde->inode, ByteArray(xde->attrname, xde->anleng),
+			ByteArray(xde->attrvalue, xde->avleng));
 	return seed;
 }
 
@@ -667,19 +668,19 @@ static void xattr_recalculate_checksum() {
 
 uint64_t fs_checksum(ChecksumMode mode) {
 	uint64_t checksum = 0x1251;
-	addToChecksum(checksum, gMetadata->maxnodeid);
-	addToChecksum(checksum, gMetadata->metaversion);
-	addToChecksum(checksum, gMetadata->nextsessionid);
+	hashCombine(checksum, gMetadata->maxnodeid);
+	hashCombine(checksum, gMetadata->metaversion);
+	hashCombine(checksum, gMetadata->nextsessionid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
 		fsedges_recalculate_checksum();
 		xattr_recalculate_checksum();
 	}
-	addToChecksum(checksum, gMetadata->gFsNodesChecksum);
-	addToChecksum(checksum, gMetadata->gFsEdgesChecksum);
-	addToChecksum(checksum, gMetadata->gXattrChecksum);
-	addToChecksum(checksum, gMetadata->gQuotaDatabase.checksum());
-	addToChecksum(checksum, chunk_checksum(mode));
+	hashCombine(checksum, gMetadata->gFsNodesChecksum);
+	hashCombine(checksum, gMetadata->gFsEdgesChecksum);
+	hashCombine(checksum, gMetadata->gXattrChecksum);
+	hashCombine(checksum, gMetadata->gQuotaDatabase.checksum());
+	hashCombine(checksum, chunk_checksum(mode));
 	return checksum;
 }
 
