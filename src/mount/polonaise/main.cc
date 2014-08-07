@@ -98,6 +98,7 @@ StatusCode::type toStatusCode(int errNo) throw(Failure) {
 			{ ETIMEDOUT, StatusCode::kETIMEDOUT },
 			{ ETXTBSY, StatusCode::kETXTBSY },
 			{ EXDEV, StatusCode::kEXDEV },
+			{ EDQUOT, StatusCode::kEDQUOT },
 	};
 
 	auto it = statuses.find(errNo);
