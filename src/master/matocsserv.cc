@@ -1682,6 +1682,7 @@ void matocsserv_read(matocsserventry *eptr) {
 			eptr->mode=HEADER;
 			matocsserv_gotpacket(eptr, header.type, eptr->inputPacket.data);
 			eptr->inputPacket = InputPacket();
+			break;
 		}
 	}
 }

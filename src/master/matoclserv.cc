@@ -4237,6 +4237,7 @@ void matoclserv_read(matoclserventry *eptr) {
 				free(eptr->inputpacket.packet);
 			}
 			eptr->inputpacket.packet=NULL;
+			break;
 		}
 	}
 }

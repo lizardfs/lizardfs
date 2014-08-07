@@ -655,6 +655,7 @@ void matomlserv_read(matomlserventry *eptr) {
 				free(eptr->inputpacket.packet);
 			}
 			eptr->inputpacket.packet=NULL;
+			break;
 		}
 	}
 }
