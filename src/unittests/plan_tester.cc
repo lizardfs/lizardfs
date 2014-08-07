@@ -9,7 +9,7 @@
 
 namespace unittests {
 
-Block::Block(ChunkType chunkType, uint32_t blocknum) {
+Block::Block(ChunkType chunkType, uint32_t blocknum) : isInitialized_(true) {
 	if (chunkType.isStandardChunkType()) {
 		sassert(blocknum < MFSBLOCKSINCHUNK);
 		toggle(blocknum);
@@ -33,16 +33,22 @@ Block::Block(ChunkType chunkType, uint32_t blocknum) {
 }
 
 void Block::xorWith(const Block& block) {
+	if (!block.isInitialized()) {
+		isInitialized_ = false;
+	}
 	for (uint32_t blocknum : block.xoredBlocks_) {
 		toggle(blocknum);
 	}
 }
 
 bool Block::operator==(const Block& block) const {
-	return xoredBlocks_ == block.xoredBlocks_;
+	return (xoredBlocks_ == block.xoredBlocks_) && block.isInitialized() && isInitialized();
 }
 
 void Block::toggle(uint32_t blocknum) {
+	if (!isInitialized_) {
+		return;
+	}
 	if (xoredBlocks_.count(blocknum) == 0) {
 		xoredBlocks_.insert(blocknum);
 	} else {
@@ -51,7 +57,9 @@ void Block::toggle(uint32_t blocknum) {
 }
 
 std::ostream& operator<<(std::ostream& out, const Block& block) {
-	if (block.xoredBlocks_.empty()) {
+	if (!block.isInitialized()) {
+		out << "<garbage>";
+	} else if (block.xoredBlocks_.empty()) {
 		out << "<empty>";
 	} else {
 		bool putCross = false;
@@ -66,15 +74,18 @@ std::ostream& operator<<(std::ostream& out, const Block& block) {
 	return out;
 }
 
-std::vector<Block> PlanTester::executePlan(const ReadPlanner::Plan& plan,
-		const std::vector<ChunkType>& availableParts, uint32_t blockCount) {
+std::vector<Block> PlanTester::executePlan(
+		const ReadPlanner::Plan& plan,
+		const std::vector<ChunkType>& availableParts,
+		uint32_t blockCount,
+		const std::set<ChunkType>& failingParts) {
 	sassert(plan.requiredBufferSize % MFSBLOCKSIZE == 0);
 	std::vector<Block> blocks(plan.requiredBufferSize / MFSBLOCKSIZE);
 	sassert(blocks.size() >= blockCount);
-	for (const auto& chunkTypeAndOperation : plan.basicReadOperations) {
-		ChunkType chunkType = chunkTypeAndOperation.first;
+
+	// This helper function applies the 'operation' on 'chunkType' to the 'blocks' vector
+	auto doReadOperation = [&](ChunkType chunkType, const ReadPlanner::ReadOperation& operation) {
 		sassert(std::count(availableParts.begin(), availableParts.end(), chunkType) > 0);
-		const ReadPlanner::ReadOperation& operation = chunkTypeAndOperation.second;
 		sassert(operation.readDataOffsets.size() * MFSBLOCKSIZE == operation.requestSize);
 		sassert(operation.requestOffset % MFSBLOCKSIZE == 0);
 		uint32_t firstBlock = operation.requestOffset / MFSBLOCKSIZE;
@@ -83,8 +94,40 @@ std::vector<Block> PlanTester::executePlan(const ReadPlanner::Plan& plan,
 			uint32_t blockInBuffer = operation.readDataOffsets[i] / MFSBLOCKSIZE;
 			blocks[blockInBuffer] = Block(chunkType, firstBlock + i);
 		}
+	};
+
+	// Perform read operations
+	bool additionalReadOperationsExecuted = false;
+	std::set<ChunkType> unfinishedOperations;
+	for (const auto& chunkTypeAndOperation : plan.basicReadOperations) {
+		if (failingParts.count(chunkTypeAndOperation.first) == 0) {
+			doReadOperation(chunkTypeAndOperation.first, chunkTypeAndOperation.second);
+		} else {
+			unfinishedOperations.insert(chunkTypeAndOperation.first);
+		}
 	}
-	for (const auto& operation : plan.getPostProcessOperationsForBasicPlan()) {
+	if (!unfinishedOperations.empty()) {
+		// perform additionalReadOperations only when some basic already operation failed
+		for (const auto& chunkTypeAndOperation : plan.additionalReadOperations) {
+			if (failingParts.count(chunkTypeAndOperation.first) == 0) {
+				doReadOperation(chunkTypeAndOperation.first, chunkTypeAndOperation.second);
+			} else {
+				unfinishedOperations.insert(chunkTypeAndOperation.first);
+			}
+		}
+		additionalReadOperationsExecuted = true;
+	}
+
+	// Choose post-processing operations (if we managed to finish reading)
+	std::vector<ReadPlanner::PostProcessOperation> postProcessing;
+	if (!additionalReadOperationsExecuted) {
+		postProcessing = plan.getPostProcessOperationsForBasicPlan();
+	} else if (plan.isReadingFinished(unfinishedOperations)) {
+		postProcessing = plan.getPostProcessOperationsForExtendedPlan(unfinishedOperations);
+	}
+
+	// Do the post-processing
+	for (const auto& operation : postProcessing) {
 		sassert(operation.destinationOffset % MFSBLOCKSIZE == 0);
 		uint32_t destBlock = operation.destinationOffset / MFSBLOCKSIZE;
 		sassert(destBlock < blocks.size());
@@ -96,8 +139,10 @@ std::vector<Block> PlanTester::executePlan(const ReadPlanner::Plan& plan,
 			blocks[destBlock].xorWith(blocks[srcBlock]); // simulate blockXor
 		}
 	}
+
+	// Remove blocks that are not part of the answer and return them
 	blocks.resize(blockCount);
-	return std::move(blocks);
+	return blocks;
 }
 
 std::vector<Block> PlanTester::expectedAnswer(ChunkType chunkType,
