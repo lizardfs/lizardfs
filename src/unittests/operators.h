@@ -40,4 +40,16 @@ inline void PrintTo(const ReadPlanner::Plan& plan, std::ostream* out) {
 	for (const auto& op : plan.getPostProcessOperationsForBasicPlan()) {
 		*out << "\n    " << ::testing::PrintToString(op);
 	}
+	std::set<ChunkType> usedParts;
+	for (const auto& partAndOperation : plan.getAllReadOperations()) {
+		usedParts.insert(partAndOperation.first);
+	}
+	for (ChunkType part : usedParts) {
+		if (plan.isReadingFinished({part})) {
+			*out << "\n  postprocessing for {" << part << "} unfinished:";
+			for (const auto& op : plan.getPostProcessOperationsForExtendedPlan({part})) {
+				*out << "\n    " << ::testing::PrintToString(op);
+			}
+		}
+	}
 }
