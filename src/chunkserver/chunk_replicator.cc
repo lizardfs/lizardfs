@@ -18,7 +18,7 @@
 #include "common/xor_chunk_read_planner.h"
 
 static ConnectionPool pool;
-static ChunkConnectorUsingPool connector(0, pool);
+static ChunkConnectorUsingPool connector(pool);
 ChunkReplicator gReplicator(connector);
 
 ChunkReplicator::ChunkReplicator(ChunkConnector& connector) : connector_(connector), stats_(0) {}

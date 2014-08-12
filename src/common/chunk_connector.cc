@@ -9,12 +9,11 @@
 #include "common/time_utils.h"
 #include "mount/exceptions.h"
 
-static int64_t timeoutTime(uint8_t tryCounter) {
-	// JKZ's algorithm
-	return (tryCounter % 2) ? (30 * (1 << (tryCounter >> 1))) : (20 * (1 << (tryCounter >> 1)));
+static int64_t timeoutTime(int64_t rtt, uint8_t tryCounter) {
+	return rtt * (1 << (tryCounter / 2)) * 3 / (tryCounter % 2 == 0 ? 3 : 2);
 }
 
-ChunkConnector::ChunkConnector(uint32_t sourceIp) : sourceIp_(sourceIp) {
+ChunkConnector::ChunkConnector(uint32_t sourceIp) : roundTripTime_ms_(20), sourceIp_(sourceIp) {
 }
 
 int ChunkConnector::startUsingConnection(const NetworkAddress& server,
@@ -38,7 +37,9 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 				break;
 			}
 		}
-		int64_t connectTimeout = std::min(timeoutTime(retries), timeout.remaining_ms());
+		int64_t connectTimeout = std::min(
+				timeoutTime(roundTripTime_ms_, retries),
+				timeout.remaining_ms());
 		connectTimeout = std::max(int64_t(1), connectTimeout); // tcpnumtoconnect doesn't like 0
 		if (tcpnumtoconnect(fd, server.ip, server.port, connectTimeout) < 0) {
 			err = errno;
@@ -63,7 +64,7 @@ void ChunkConnector::endUsingConnection(int fd, const NetworkAddress& /* server 
 	tcpclose(fd);
 }
 
-ChunkConnectorUsingPool::ChunkConnectorUsingPool(uint32_t sourceIp, ConnectionPool& connectionPool)
+ChunkConnectorUsingPool::ChunkConnectorUsingPool(ConnectionPool& connectionPool, uint32_t sourceIp)
 		: ChunkConnector(sourceIp),
 		  connectionPool_(connectionPool) {
 }

@@ -8,12 +8,26 @@
 
 class ChunkConnector {
 public:
-	ChunkConnector(uint32_t sourceIp);
+	ChunkConnector(uint32_t sourceIp = 0);
 	virtual ~ChunkConnector() {}
 	virtual int startUsingConnection(const NetworkAddress& server, const Timeout& timeout) const;
 	virtual void endUsingConnection(int fd, const NetworkAddress& server) const;
 
+	/// A setter.
+	void setRoundTripTime(uint32_t roundTripTime_ms) {
+		roundTripTime_ms_ = roundTripTime_ms;
+	}
+
+	/// A setter.
+	void setSourceIp(uint32_t sourceIp) {
+		sourceIp_ = sourceIp;
+	}
+
 private:
+	/// Time after which SYN packet will be considered lost during the first retry of tcptoconnect.
+	uint32_t roundTripTime_ms_;
+
+	/// IP address to bind to when connecting chunkservers.
 	uint32_t sourceIp_;
 };
 
@@ -65,7 +79,7 @@ class ChunkConnectorUsingPool : public ChunkConnector {
 public:
 	static const uint32_t kConnectionPoolTimeout_s = 3;
 
-	ChunkConnectorUsingPool(uint32_t sourceIp, ConnectionPool& connectionPool);
+	ChunkConnectorUsingPool(ConnectionPool& connectionPool, uint32_t sourceIp = 0);
 	virtual int startUsingConnection(const NetworkAddress& server, const Timeout& timeout) const;
 	virtual void endUsingConnection(int fd, const NetworkAddress& server) const;
 

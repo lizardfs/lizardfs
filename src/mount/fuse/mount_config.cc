@@ -51,7 +51,10 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsaclcacheto=%lf", aclcacheto, 0),
 	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
-	MFS_OPT("mfschunkserverreadto=%d", chunkserverreadto, 0),
+	MFS_OPT("mfschunkserverrtt=%d", chunkserverrtt, 0),
+	MFS_OPT("mfschunkserverconnectreadto=%d", chunkserverconnectreadto, 0),
+	MFS_OPT("mfschunkserverbasicreadto=%d", chunkserverbasicreadto, 0),
+	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
@@ -121,8 +124,11 @@ void usage(const char *progname) {
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
 "    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
 "    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
-"    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
-"    -o mfschunkserverwriteto=MSEC set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
+"    -o mfschunkserverrtt=MSEC   set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver (default: " STR(LIZARDFS_MOUNT_DEFAULT_RTT) ")\n"
+"    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfschunkserverbasicreadto=MSEC   set timeout for executing the basic variant of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
 "    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK

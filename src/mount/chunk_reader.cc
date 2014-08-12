@@ -9,20 +9,23 @@
 #include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
 
-ChunkReader::ChunkReader(ChunkConnector& connector, ReadChunkLocator& locator)
-	: connector_(connector), locator_(locator), inode_(0), index_(0) {
+ChunkReader::ChunkReader(ChunkConnector& connector)
+		: connector_(connector),
+		  inode_(0),
+		  index_(0) {
 }
 
-void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
+void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool forcePrepare) {
 	if (inode != inode_ || index != index_) {
 		// we moved to a new chunk
 		crcErrors_.clear();
-	} else {
-		// we are called due to an error
-		locator_.invalidateCache(inode, index);
+	} else if (!forcePrepare) {
+		// we didn't change chunk and aren't forced to prepare again
+		return;
 	}
 	inode_ = inode;
 	index_ = index;
+	locator_.invalidateCache(inode, index);
 	location_ = locator_.locateChunk(inode, index);
 	if (location_->isEmptyChunk()) {
 		return;
@@ -32,8 +35,8 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 	std::map<ChunkType, float> bestScores;
 
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
-		const ChunkType &type = chunkTypeWithAddress.chunkType;
-		const NetworkAddress &address = chunkTypeWithAddress.address;
+		const ChunkType& type = chunkTypeWithAddress.chunkType;
+		const NetworkAddress& address = chunkTypeWithAddress.address;
 
 		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
 			continue;
@@ -63,6 +66,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index) {
 }
 
 uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
+		uint32_t connectTimeout_ms, uint32_t basicTimeout_ms,
 		const Timeout& communicationTimeout) {
 	if (size == 0) {
 		return 0;
@@ -93,10 +97,12 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			executor.executePlan(buffer, chunkTypeLocations_, connector_,
-					ReadPlanExecutor::Timeouts(
-							communicationTimeout.remaining_ms(),
-							communicationTimeout.remaining_ms()),
+					ReadPlanExecutor::Timeouts(connectTimeout_ms, basicTimeout_ms),
 					communicationTimeout);
+			// After executing the plan we want use the feedback to modify our planer a bit
+			for (auto partOmited : executor.partsOmitted()) {
+				planner_.startAvoidingPart(partOmited);
+			}
 		} catch (ChunkCrcException &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
 			throw;

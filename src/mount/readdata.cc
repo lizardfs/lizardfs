@@ -53,7 +53,6 @@
 #define MAPINDX(inode) (inode&MAPMASK)
 
 struct readrec {
-	ChunkConnectorUsingPool connector;
 	ChunkReader reader;
 	std::vector<uint8_t> readBufer;
 	uint32_t inode;
@@ -62,9 +61,8 @@ struct readrec {
 	struct readrec *next;           // gMutex
 	struct readrec *mapnext;        // gMutex
 
-	readrec(uint32_t inode, ConnectionPool& pool, ReadChunkLocator& locator)
-			: connector(fs_getsrcip(), pool),
-			  reader(connector, locator),
+	readrec(uint32_t inode, ChunkConnector& connector)
+			: reader(connector),
 			  inode(inode),
 			  refreshCounter(0),
 			  expired(false),
@@ -73,13 +71,16 @@ struct readrec {
 	}
 };
 
-static ConnectionPool readConnectionPool;
+static ConnectionPool gReadConnectionPool;
+static ChunkConnectorUsingPool gChunkConnector(gReadConnectionPool);
 static std::mutex gMutex;
 static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t delayedOpsThread;
 static uint32_t maxRetries;
-static uint32_t gChunkServerReadTimeout;
+static uint32_t gChunkserverConnectTimeout_ms;
+static uint32_t gChunkserverBasicReadTimeout_ms;
+static uint32_t gChunkserverTotalReadTimeout_ms;
 static bool readDataTerminate;
 
 void* read_data_delayed_ops(void *arg) {
@@ -87,7 +88,7 @@ void* read_data_delayed_ops(void *arg) {
 	readrec **rrecmap;
 	(void)arg;
 	for (;;) {
-		readConnectionPool.cleanup();
+		gReadConnectionPool.cleanup();
 		std::unique_lock<std::mutex> lock(gMutex);
 		if (readDataTerminate) {
 			return NULL;
@@ -117,8 +118,8 @@ void* read_data_delayed_ops(void *arg) {
 	}
 }
 
-void* read_data_new(uint32_t inode, ReadChunkLocator *locator) {
-	readrec *rrec = new readrec(inode, readConnectionPool, *locator);
+void* read_data_new(uint32_t inode) {
+	readrec *rrec = new readrec(inode, gChunkConnector);
 	std::unique_lock<std::mutex> lock(gMutex);
 	rrec->next = rdhead;
 	rdhead = rrec;
@@ -134,7 +135,11 @@ void read_data_end(void* rr) {
 	rrec->expired = true;
 }
 
-void read_data_init(uint32_t retries, uint32_t chunkServerReadTimeout) {
+void read_data_init(uint32_t retries,
+		uint32_t chunkserverRoundTripTime_ms,
+		uint32_t chunkserverConnectTimeout_ms,
+		uint32_t chunkServerBasicReadTimeout_ms,
+		uint32_t chunkserverTotalReadTimeout_ms) {
 	uint32_t i;
 	pthread_attr_t thattr;
 
@@ -143,7 +148,11 @@ void read_data_init(uint32_t retries, uint32_t chunkServerReadTimeout) {
 		rdinodemap[i]=NULL;
 	}
 	maxRetries=retries;
-	gChunkServerReadTimeout = chunkServerReadTimeout;
+	gChunkserverConnectTimeout_ms = chunkserverConnectTimeout_ms;
+	gChunkserverBasicReadTimeout_ms = chunkServerBasicReadTimeout_ms;
+	gChunkserverTotalReadTimeout_ms = chunkserverTotalReadTimeout_ms;
+	gChunkConnector.setRoundTripTime(chunkserverRoundTripTime_ms);
+	gChunkConnector.setSourceIp(fs_getsrcip());
 	pthread_attr_init(&thattr);
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&delayedOpsThread,&thattr,read_data_delayed_ops,NULL);
@@ -223,13 +232,13 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
 		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
 		// than short poll() followed by nonproductive usleep().
-		uint32_t timeout_ms = std::max(gChunkServerReadTimeout, sleepTime_ms);
+		uint32_t timeout_ms = std::max(gChunkserverTotalReadTimeout_ms, sleepTime_ms);
 		Timeout communicationTimeout = Timeout(std::chrono::milliseconds(timeout_ms));
 		sleepTime_ms = 0;
 		try {
 			uint32_t chunkIndex = currentOffset / MFSCHUNKSIZE;
 			if (forcePrepare || preparedInode != rrec->inode || preparedChunkIndex != chunkIndex) {
-				rrec->reader.prepareReadingChunk(rrec->inode, chunkIndex);
+				rrec->reader.prepareReadingChunk(rrec->inode, chunkIndex, forcePrepare);
 				preparedChunkIndex = chunkIndex;
 				preparedInode = rrec->inode;
 				forcePrepare = false;
@@ -245,7 +254,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				sizeInChunk = bytesToReadLeft;
 			}
 			uint32_t bytesReadFromChunk = rrec->reader.readData(
-					rrec->readBufer, offsetInChunk, sizeInChunk, communicationTimeout);
+					rrec->readBufer, offsetInChunk, sizeInChunk,
+					gChunkserverConnectTimeout_ms, gChunkserverBasicReadTimeout_ms,
+					communicationTimeout);
 			// No exceptions thrown. We can increase the counters and go to the next chunk
 			bytesRead += bytesReadFromChunk;
 			currentOffset += bytesReadFromChunk;

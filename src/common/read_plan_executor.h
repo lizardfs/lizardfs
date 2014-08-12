@@ -52,11 +52,21 @@ public:
 			const Timeouts& timeouts,
 			const Timeout& totalTimeout);
 
+	/**
+	 * Gets feedback from the execution phase.
+	 * \return set of parts from which reading data was abandoned
+	 *         during the last successful call to executePlan
+	 */
+	const std::set<ChunkType>& partsOmitted() const {
+		return partsOmitted_;
+	}
+
 private:
 	ChunkserverStats& chunkserverStats_;
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
 	std::unique_ptr<const ReadPlan> plan_;
+	std::set<ChunkType> partsOmitted_;
 
 	/**
 	 * Executes read operations from plan_.

@@ -166,6 +166,7 @@ static void* jqueue;
 static std::list<DelayedQueueEntry> delayedQueue;
 
 static ConnectionPool gChunkserverConnectionPool;
+static ChunkConnectorUsingPool gChunkConnector(gChunkserverConnectionPool);
 
 void write_cb_release_blocks(uint32_t count, Glock&) {
 	freecacheblocks += count;
@@ -368,8 +369,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	lock.unlock();
 
 	/*  Process the job */
-	ChunkConnectorUsingPool connector(fs_getsrcip(), gChunkserverConnectionPool);
-	ChunkWriter writer(globalChunkserverStats, connector, inodeData_->newDataInChainPipe[0]);
+	ChunkWriter writer(globalChunkserverStats, gChunkConnector, inodeData_->newDataInChainPipe[0]);
 	wholeOperationTimer.reset();
 	std::unique_ptr<WriteChunkLocator> locator = std::move(inodeData_->locator);
 	if (!locator) {
@@ -593,6 +593,7 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
 	uint32_t i;
 	pthread_attr_t thattr;
 
+	gChunkConnector.setSourceIp(fs_getsrcip());
 	gWriteWindowSize = writewindowsize;
 	gChunkserverTimeout_ms = chunkserverTimeout_ms;
 	maxretries = retries;

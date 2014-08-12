@@ -877,7 +877,10 @@ int main (int argc, char **argv) {
 	bool userwlock = true;
 	auto writeworkers = 30;
 	auto writewindowsize = 15;
-	auto chunkserverreadto = 2000;
+	auto chunkserverrtt = 200;
+	auto chunkserverconnectreadto = 2000;
+	auto chunkserverbasicreadto = 2000;
+	auto chunkservertotalreadto = 2000;
 	auto chunkserverwriteto = 5000;
 	auto cacheperinodepercentage = 25;
 	parse_command_line(argc, argv, gSetup);
@@ -909,7 +912,11 @@ int main (int argc, char **argv) {
 	gLocalIoLimiter();
 	IoLimitsConfigLoader loader;
 	gMountLimiter().loadConfiguration(loader);
-	read_data_init(gSetup.io_retries, chunkserverreadto);
+	read_data_init(gSetup.io_retries,
+			chunkserverrtt,
+			chunkserverconnectreadto,
+			chunkserverbasicreadto,
+			chunkservertotalreadto);
 	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries, writeworkers,
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,

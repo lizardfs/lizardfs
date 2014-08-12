@@ -38,7 +38,7 @@ public:
 		sassert(!connectionPool_);
 		connectionPool_.reset(new ConnectionPool);
 		init(std::unique_ptr<ChunkConnector>(
-				new ChunkConnectorUsingPool(sourceIp, *connectionPool_)));
+				new ChunkConnectorUsingPool(*connectionPool_, sourceIp)));
 	}
 
 	void init(std::unique_ptr<ChunkConnector> chunkConnector) {

@@ -125,7 +125,7 @@ enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 typedef struct _finfo {
 	uint8_t mode;
 	void *data;
-	pthread_rwlock_t rwlock;
+	pthread_mutex_t lock;
 	pthread_mutex_t flushlock;
 } finfo;
 
@@ -1400,8 +1400,8 @@ static finfo* fs_newfileinfo(uint8_t accmode,uint32_t inode) {
 	finfo *fileinfo;
 	fileinfo = (finfo*) malloc(sizeof(finfo));
 	pthread_mutex_init(&(fileinfo->flushlock),NULL);
-	pthread_rwlock_init(&(fileinfo->rwlock),NULL);
-	PthreadRwLockWrapper lock((fileinfo->rwlock)); // make helgrind happy
+	pthread_mutex_init(&(fileinfo->lock),NULL);
+	PthreadMutexWrapper lock((fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
 	/* old FreeBSD fuse reads whole file when opening with O_WRONLY|O_APPEND,
 	 * so can't open it write-only */
@@ -1412,7 +1412,7 @@ static finfo* fs_newfileinfo(uint8_t accmode,uint32_t inode) {
 #else
 	if (accmode == O_RDONLY) {
 		fileinfo->mode = IO_READONLY;
-		fileinfo->data = new ReadChunkLocator();
+		fileinfo->data = read_data_new(inode);
 	} else if (accmode == O_WRONLY) {
 		fileinfo->mode = IO_WRITEONLY;
 		fileinfo->data = write_data_new(inode);
@@ -1424,22 +1424,16 @@ static finfo* fs_newfileinfo(uint8_t accmode,uint32_t inode) {
 	return fileinfo;
 }
 
-void delete_read_chunk_locator(void *locatorp) {
-	ReadChunkLocator* locator = static_cast<ReadChunkLocator*>(locatorp);
-	delete locator;
-}
-
 void remove_file_info(FileInfo *f) {
 	finfo* fileinfo = (finfo*)(f->fh);
-	PthreadRwLockWrapper lock((fileinfo->rwlock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode == IO_READONLY || fileinfo->mode == IO_READ) {
-		delete_read_chunk_locator(fileinfo->data);
-		fileinfo->data = NULL;
+		read_data_end(fileinfo->data);
 	} else if (fileinfo->mode == IO_WRITEONLY || fileinfo->mode == IO_WRITE) {
 		write_data_end(fileinfo->data);
 	}
 	lock.unlock(); // This unlock is needed, since we want to destroy the mutex
-	pthread_rwlock_destroy(&(fileinfo->rwlock));
+	pthread_mutex_destroy(&(fileinfo->lock));
 	pthread_mutex_destroy(&(fileinfo->flushlock));
 	free(fileinfo);
 }
@@ -1737,8 +1731,7 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
-	bool use_write_lock(!use_rwlock);
-	PthreadRwLockWrapper rwlock((fileinfo->rwlock), use_write_lock);
+	PthreadMutexWrapper lock(fileinfo->lock);
 	PthreadMutexWrapper flushlock(fileinfo->flushlock);
 	if (fileinfo->mode==IO_WRITEONLY) {
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
@@ -1757,12 +1750,10 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 	}
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_NONE) {
 		fileinfo->mode = IO_READ;
-		fileinfo->data = new ReadChunkLocator();
+		fileinfo->data = read_data_new(ino);
 	}
 	// end of reader critical section
 	flushlock.unlock();
-
-	void *rrec = read_data_new(ino, static_cast<ReadChunkLocator*>(fileinfo->data));
 
 	write_data_flush_inode(ino);
 
@@ -1773,7 +1764,7 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 
 	uint32_t ssize = alignedSize;
 	buff = NULL;    // use internal 'readdata' buffer
-	err = read_data(rrec, alignedOffset, &ssize, &buff);
+	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while reading inode %lu\n",(unsigned long int)ino);
@@ -1797,7 +1788,6 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ssize);
 		ret = std::vector<uint8_t>(buff, buff + ssize);
 	}
-	read_data_end(rrec);
 	return ret;
 }
 
@@ -1845,13 +1835,13 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
-	PthreadRwLockWrapper lock((fileinfo->rwlock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_READONLY) {
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
 		throw RequestException(EACCES);
 	}
 	if (fileinfo->mode==IO_READ) {
-		delete_read_chunk_locator(fileinfo->data);
+		read_data_end(fileinfo->data);
 		fileinfo->data = NULL;
 	}
 	if (fileinfo->mode==IO_READ || fileinfo->mode==IO_NONE) {
@@ -1893,7 +1883,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	}
 //      syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
-	PthreadRwLockWrapper lock((fileinfo->rwlock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
@@ -1923,7 +1913,7 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 		throw RequestException(EBADF);
 	}
 	err = 0;
-	PthreadRwLockWrapper lock((fileinfo->rwlock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}

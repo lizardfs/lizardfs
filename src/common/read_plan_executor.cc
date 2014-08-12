@@ -216,6 +216,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 				if (descriptorsForBasicReadOperations.empty()) {
 					// All the basic operations are now finished. This condition will always
 					// be false in kInvalidDescriptor is in descriptorsForBasicReadOperations.
+					partsOmitted_ = networkingFailures;
 					return plan_->getPostProcessOperationsForBasicPlan();
 				}
 			} else {
@@ -225,6 +226,10 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 
 		// Check if we are finished now
 		if (additionalOperationsStarted && plan_->isReadingFinished(unfinishedOperations)) {
+			partsOmitted_ = networkingFailures;
+			for (const auto& fdAndExecutor : executors) {
+				partsOmitted_.insert(fdAndExecutor.second.chunkType());
+			}
 			return plan_->getPostProcessOperationsForExtendedPlan(unfinishedOperations);
 		}
 	}

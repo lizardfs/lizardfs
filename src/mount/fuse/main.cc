@@ -286,7 +286,11 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			symlink_cache_term();
 			return 1;
 		}
-		read_data_init(gMountOptions.ioretries, gMountOptions.chunkserverreadto);
+		read_data_init(gMountOptions.ioretries,
+				gMountOptions.chunkserverrtt,
+				gMountOptions.chunkserverconnectreadto,
+				gMountOptions.chunkserverbasicreadto,
+				gMountOptions.chunkservertotalreadto);
 		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,
