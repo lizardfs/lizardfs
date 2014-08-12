@@ -7,6 +7,7 @@
 #include <mutex>
 #include <set>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 
 #include "common/hashfn.h"
@@ -14,13 +15,35 @@
 #include "common/time_utils.h"
 
 /**
+ * Options for LruCache.
+ */
+struct LruCacheOption {
+	// Map type used by the cache
+	typedef std::true_type  UseHashMap;
+	typedef std::false_type UseTreeMap;
+
+	// Reentrant map will use a mutex internally to work with multiple threads
+	struct Reentrant {
+		typedef std::mutex Mutex;
+	};
+
+	// Not-reentrant map doesn't use any locking
+	struct NotReentrant {
+		struct Mutex {
+			void lock() {}
+			void unlock() {}
+		};
+	};
+};
+
+/**
  * A map caching 'Values' for 'Keys' in LRU manner.
  *
  * 'KeysTupleToTimeAndValue' is an internal map type used by the cache. For details have a look
  * at example usages. If possible use 'LruCache' typedef instead.
  */
-template <class Value, class KeysTupleToTimeAndValue, class Mutex, class... Keys>
-class LruCacheBase {
+template <class HashMapType, class ReentrancyType, class Value, class... Keys>
+class LruCache {
 public:
 	typedef std::function<Value(Keys...)> ValueObtainer;
 
@@ -31,7 +54,7 @@ public:
 	 * \param valueObtainer a function that is used for obatining a value for a given key, if
 	 *                   cached value was not available.
 	 */
-	LruCacheBase(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer)
+	LruCache(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer)
 		: maxTime_(maxTime), maxElements_(maxElements), valueObtainer_(valueObtainer) {
 	}
 
@@ -141,6 +164,19 @@ public:
 	}
 
 private:
+	typedef std::tuple<Keys...> KeysTuple;
+	typedef std::pair<SteadyTimePoint, Value> TimeAndValue;
+	typedef AlmostGenericTupleHash<Keys...> Hasher;
+	typedef std::pair<SteadyTimePoint, const KeysTuple*> TimeAndKeysPtr;
+
+	typedef typename std::conditional<
+				HashMapType::value,
+				std::unordered_map<KeysTuple, TimeAndValue, Hasher>,
+				std::map<KeysTuple, TimeAndValue>
+			>::type KeysTupleToTimeAndValue;
+
+	typedef typename ReentrancyType::Mutex Mutex;
+
 	/**
 	 * Given an iterator erases a cache entry without acquiring a lock. Return 1 if some element
 	 * was removed and 0 otherwise.
@@ -183,60 +219,6 @@ private:
 	uint64_t maxElements_;
 	ValueObtainer valueObtainer_;
 	Mutex mutex_;
-
-	typedef std::tuple<Keys...> KeysTuple;
-	typedef std::pair<SteadyTimePoint, Value> TimeAndValue;
-	typedef std::pair<SteadyTimePoint, const KeysTuple*> TimeAndKeysPtr;
-
 	KeysTupleToTimeAndValue keysToTimeAndValue_;
 	std::set<TimeAndKeysPtr> timeToKeys_;
 };
-
-/**
- * Mutex that does nothing, to be used when synchronization is not needed
- */
-struct SingleThreadMutex {
-	void lock() {
-	}
-	void unlock() {
-	}
-};
-
-template <class Value, class... Keys>
-using TreeLruCache = LruCacheBase<
-		Value,
-		std::map<
-				std::tuple<Keys...>,
-				std::pair<SteadyTimePoint, Value>>,
-		SingleThreadMutex,
-		Keys...>;
-
-template <class Value, class... Keys>
-using TreeLruCacheMt = LruCacheBase<
-		Value,
-		std::map<
-				std::tuple<Keys...>,
-				std::pair<SteadyTimePoint, Value>>,
-		std::mutex,
-		Keys...>;
-
-template <class Value, class... Keys>
-using LruCache = LruCacheBase<
-		Value,
-		std::unordered_map<
-				std::tuple<Keys...>,
-				std::pair<SteadyTimePoint, Value>,
-				AlmostGenericTupleHash<Keys...>>,
-		SingleThreadMutex,
-		Keys...>;
-
-template <class Value, class... Keys>
-using LruCacheMt = LruCacheBase<
-		Value,
-		std::unordered_map<
-				std::tuple<Keys...>,
-				std::pair<SteadyTimePoint, Value>,
-				AlmostGenericTupleHash<Keys...>>,
-		std::mutex,
-		Keys...>;
-

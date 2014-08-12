@@ -11,7 +11,11 @@ LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(AclAcquisitionException, Exception, "ACL acq
 
 typedef std::shared_ptr<AccessControlList> AclCacheEntry;
 
-typedef TreeLruCacheMt<AclCacheEntry, uint32_t, uint32_t, uint32_t, AclType> AclCache;
+typedef LruCache<
+		LruCacheOption::UseTreeMap,
+		LruCacheOption::Reentrant,
+		AclCacheEntry,
+		uint32_t, uint32_t, uint32_t, AclType> AclCache;
 
 inline AclCacheEntry getAcl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	AclCacheEntry acl(new AccessControlList());

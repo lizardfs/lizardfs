@@ -7,8 +7,14 @@
 
 #include "common/massert.h"
 
+typedef LruCache<
+		LruCacheOption::UseHashMap,
+		LruCacheOption::NotReentrant,
+		uint64_t,
+		uint64_t> HashLruCache;
+
 TEST(LruCacheTests, TestIfCacheUsedIndeed) {
-	std::unique_ptr<LruCache<uint64_t, uint64_t>> fibonacciNumbers;
+	std::unique_ptr<HashLruCache> fibonacciNumbers;
 	SteadyTimePoint t0;
 	SteadyDuration d0 = std::chrono::duration_cast<SteadyDuration>(std::chrono::seconds(123));
 	auto maxElements = 1000000;
@@ -23,7 +29,7 @@ TEST(LruCacheTests, TestIfCacheUsedIndeed) {
 			return fibonacciNumbers->get(t0, i - 1) + fibonacciNumbers->get(t0, i - 2);
 		}
 	};
-	fibonacciNumbers.reset(new LruCache<uint64_t, uint64_t>(d0, maxElements, fibonacciFunction));
+	fibonacciNumbers.reset(new HashLruCache(d0, maxElements, fibonacciFunction));
 
 	ASSERT_NO_THROW(fibonacciNumbers->get(t0, 100));
 	ASSERT_NO_THROW(fibonacciNumbers->get(t0, 500));
@@ -45,7 +51,7 @@ TEST(LruCacheTests, TestErase) {
 		return 2 * i;
 	};
 
-	LruCache<uint64_t, uint64_t> cache(d0, maxElements, fun);
+	HashLruCache cache(d0, maxElements, fun);
 
 	ASSERT_EQ(2u, cache.get(t0, 1));
 	ASSERT_EQ(4u, cache.get(t0, 2));
@@ -79,7 +85,7 @@ TEST(LruCacheTests, TestMaxTime) {
 		functionArguments.push_back(i);
 		return i;
 	};
-	LruCache<uint64_t, uint64_t> cache(std::chrono::seconds(5), 10000, fun);
+	HashLruCache cache(std::chrono::seconds(5), 10000, fun);
 
 	// We use cache that invalides entries after 5 seconds. Every second we will try
 	// to read value from cache
@@ -106,7 +112,7 @@ TEST(LruCacheTests, TestMaxSize) {
 	};
 
 	uint64_t maxSize = 5;
-	LruCache<uint64_t, uint64_t> cache(std::chrono::seconds(1000000), maxSize, fun);
+	HashLruCache cache(std::chrono::seconds(1000000), maxSize, fun);
 
 	SteadyTimePoint t0;
 	for (int i = 0; i < 2; ++i) {
@@ -132,11 +138,17 @@ TEST(LruCacheTests, TestMaxSize) {
 	}
 }
 
+typedef LruCache<
+		LruCacheOption::UseTreeMap,
+		LruCacheOption::Reentrant,
+		uint64_t,
+		uint64_t> TreeLruCacheMt;
+
 TEST(LruCacheTests, TestMultiThreadedCache) {
 	auto fun = [](uint64_t i) {
 		return i;
 	};
-	TreeLruCacheMt<uint64_t, uint64_t> cache(std::chrono::seconds(1000000), 100, fun);
+	TreeLruCacheMt cache(std::chrono::seconds(1000000), 100, fun);
 	SteadyTimePoint t0;
 
 	std::vector<std::future<void>> asyncs;
