@@ -35,7 +35,7 @@ public:
 	ReadPlanExecutor(
 			ChunkserverStats& chunkserverStats,
 			uint64_t chunkId, uint32_t chunkVersion,
-			std::unique_ptr<ReadPlanner::Plan> plan);
+			std::unique_ptr<ReadPlan> plan);
 
 	/**
 	 * Executes the plan.
@@ -56,7 +56,7 @@ private:
 	ChunkserverStats& chunkserverStats_;
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
-	std::unique_ptr<const ReadPlanner::Plan> plan_;
+	std::unique_ptr<const ReadPlan> plan_;
 
 	/**
 	 * Executes read operations from plan_.
@@ -68,7 +68,7 @@ private:
 	 * \param timeouts   a set of timeouts for the execution
 	 * \return list of post-process operations that need to be done
 	 */
-	std::vector<ReadPlanner::PostProcessOperation> executeReadOperations(
+	std::vector<ReadPlan::PostProcessOperation> executeReadOperations(
 			uint8_t* buffer,
 			const ChunkTypeLocations& locations,
 			ChunkConnector& connector,
@@ -81,6 +81,6 @@ private:
 	 * \param buffer      buffer to post-process
 	 */
 	void executePostProcessing(
-			const std::vector<ReadPlanner::PostProcessOperation> operations,
+			const std::vector<ReadPlan::PostProcessOperation> operations,
 			uint8_t* buffer);
 };

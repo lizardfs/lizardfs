@@ -7,24 +7,24 @@
 #include "common/read_planner.h"
 
 /**
- * ReadPlanner::Plan for a single variant.
+ * ReadPlan for a single variant.
  * A class which handles only the basic variant of a read plan, ie. the one which needs all basic
  * read operations to be finished and has a hard-coded list of post-process operations for this
  * variant.
  */
-class SingleVariantReadPlan : public ReadPlanner::Plan {
+class SingleVariantReadPlan : public ReadPlan {
 public:
 	SingleVariantReadPlan() {}
 
 	SingleVariantReadPlan(SingleVariantReadPlan&&) = default;
 
-	SingleVariantReadPlan(std::unique_ptr<Plan> plan) {
+	SingleVariantReadPlan(std::unique_ptr<ReadPlan> plan) {
 		requiredBufferSize = plan->requiredBufferSize;
 		postProcessOperations_ = plan->getPostProcessOperationsForBasicPlan();
 		basicReadOperations = std::move(plan->basicReadOperations);
 	}
 
-	SingleVariantReadPlan(std::vector<ReadPlanner::PostProcessOperation> operations)
+	SingleVariantReadPlan(std::vector<ReadPlan::PostProcessOperation> operations)
 			: postProcessOperations_(std::move(operations)) {
 	}
 
@@ -32,12 +32,12 @@ public:
 		return false;
 	}
 
-	std::vector<ReadPlanner::PostProcessOperation> getPostProcessOperationsForBasicPlan(
+	std::vector<ReadPlan::PostProcessOperation> getPostProcessOperationsForBasicPlan(
 			) const override {
 		return postProcessOperations_;
 	}
 
-	std::vector<ReadPlanner::PostProcessOperation> getPostProcessOperationsForExtendedPlan(
+	std::vector<ReadPlan::PostProcessOperation> getPostProcessOperationsForExtendedPlan(
 			const std::set<ChunkType>& unfinished) const override {
 		sassert(isReadingFinished(unfinished));
 		return {};
@@ -47,17 +47,17 @@ public:
 	 * Adds an operation to list returned by \p getPostProcessOperationsForBasicPlan.
 	 * \param op    operation to be added
 	 */
-	void addPostProcessOperation(ReadPlanner::PostProcessOperation op) {
+	void addPostProcessOperation(ReadPlan::PostProcessOperation op) {
 		postProcessOperations_.push_back(std::move(op));
 	}
 
 	/**
 	 * A getter which allows to modify the list.
 	 */
-	std::vector<ReadPlanner::PostProcessOperation>& postProcessOpearations() {
+	std::vector<ReadPlan::PostProcessOperation>& postProcessOpearations() {
 		return postProcessOperations_;
 	}
 
 private:
-	std::vector<ReadPlanner::PostProcessOperation> postProcessOperations_;
+	std::vector<ReadPlan::PostProcessOperation> postProcessOperations_;
 };

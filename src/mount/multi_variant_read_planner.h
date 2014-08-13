@@ -15,7 +15,7 @@ public:
 	void prepare(const std::vector<ChunkType>& availableParts) override;
 	std::vector<ChunkType> partsToUse() const override;
 	bool isReadingPossible() const override;
-	std::unique_ptr<ReadPlanner::Plan> buildPlanFor(
+	std::unique_ptr<ReadPlan> buildPlanFor(
 			uint32_t firstBlock, uint32_t blockCount) const override;
 
 	/**

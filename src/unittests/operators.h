@@ -13,18 +13,18 @@ inline std::ostream& operator<<(std::ostream& out, const ChunkType& chunkType) {
 	return out;
 }
 
-inline void PrintTo(const ReadPlanner::ReadOperation& op, std::ostream* out) {
+inline void PrintTo(const ReadPlan::ReadOperation& op, std::ostream* out) {
 	*out << "read(" << op.requestOffset << ", " << op.requestSize << ") : "
 			<< ::testing::PrintToString(op.readDataOffsets);
 }
 
-inline void PrintTo(const ReadPlanner::PostProcessOperation& op, std::ostream* out) {
+inline void PrintTo(const ReadPlan::PostProcessOperation& op, std::ostream* out) {
 	*out << "  dest = " << op.destinationOffset << ", src = " << op.sourceOffset
 			<< ", xor = " << ::testing::PrintToString(op.blocksToXorOffsets);
 }
 
-inline void PrintTo(const ReadPlanner::Plan& plan, std::ostream* out) {
-	*out << "ReadPlanner::Plan";
+inline void PrintTo(const ReadPlan& plan, std::ostream* out) {
+	*out << "ReadPlan";
 	*out << "\n  bufferSize: " << plan.requiredBufferSize;
 	*out << "\n  basic read operations:";
 	for (const auto& op : plan.basicReadOperations) {

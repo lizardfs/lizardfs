@@ -9,7 +9,7 @@ public:
 	virtual void prepare(const std::vector<ChunkType>& availableParts) override;
 	virtual std::vector<ChunkType> partsToUse() const override;
 	virtual bool isReadingPossible() const override;
-	virtual std::unique_ptr<Plan> buildPlanFor(
+	virtual std::unique_ptr<ReadPlan> buildPlanFor(
 			uint32_t firstBlock, uint32_t blockCount) const override;
 
 private:
@@ -23,7 +23,8 @@ private:
 	public:
 		PlanBuilder(PlanBuilderType type) : type_(type) {}
 		virtual ~PlanBuilder() {}
-		virtual std::unique_ptr<Plan> buildPlan(uint32_t firstBlock, uint32_t blockCount) const = 0;
+		virtual std::unique_ptr<ReadPlan> buildPlan(
+				uint32_t firstBlock, uint32_t blockCount) const = 0;
 		PlanBuilderType type() const { return type_; }
 
 	private:

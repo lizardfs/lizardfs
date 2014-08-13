@@ -20,7 +20,7 @@
 ReadPlanExecutor::ReadPlanExecutor(
 		ChunkserverStats& chunkserverStats,
 		uint64_t chunkId, uint32_t chunkVersion,
-		std::unique_ptr<ReadPlanner::Plan> plan)
+		std::unique_ptr<ReadPlan> plan)
 		: chunkserverStats_(chunkserverStats),
 		  chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
@@ -46,7 +46,7 @@ void ReadPlanExecutor::executePlan(
 	}
 }
 
-std::vector<ReadPlanner::PostProcessOperation> ReadPlanExecutor::executeReadOperations(
+std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperations(
 		uint8_t* buffer,
 		const ChunkTypeLocations& locations,
 		ChunkConnector& connector,
@@ -74,7 +74,7 @@ std::vector<ReadPlanner::PostProcessOperation> ReadPlanExecutor::executeReadOper
 	});
 
 	// A function which starts a new operation. Returns a file descriptor of the created socket.
-	auto startReadOperation = [&](ChunkType chunkType, const ReadPlanner::ReadOperation& op) {
+	auto startReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& op) {
 		if (networkingFailures.count(chunkType) != 0) {
 			// Don't even try to start any additional operations from a chunkserver that
 			// already failed before, because we won't be able to use the downloaded data.
@@ -210,7 +210,7 @@ std::vector<ReadPlanner::PostProcessOperation> ReadPlanExecutor::executeReadOper
 }
 
 void ReadPlanExecutor::executePostProcessing(
-		const std::vector<ReadPlanner::PostProcessOperation> operations,
+		const std::vector<ReadPlan::PostProcessOperation> operations,
 		uint8_t* buffer) {
 	for (const auto& operation : operations) {
 		uint8_t* destination = buffer + operation.destinationOffset;

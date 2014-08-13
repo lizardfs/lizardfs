@@ -478,7 +478,7 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromC
 	if (sourceChunkType.isXorChunkType()) {
 		stripe /= sourceChunkType.getXorLevel();
 	}
-	ReadPlanner::ReadOperation readOperation;
+	ReadPlan::ReadOperation readOperation;
 	readOperation.requestOffset = stripe * MFSBLOCKSIZE;
 	readOperation.requestSize = MFSBLOCKSIZE;
 	readOperation.readDataOffsets.push_back(0);

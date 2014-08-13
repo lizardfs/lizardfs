@@ -39,7 +39,7 @@ public:
 	 * \param failingParts    list of parts from which reading will not be done
 	 */
 	static std::vector<Block> executePlan(
-			const ReadPlanner::Plan& plan,
+			const ReadPlan& plan,
 			const std::vector<ChunkType>& availableParts,
 			uint32_t blockCount,
 			const std::set<ChunkType>& failingParts = {});

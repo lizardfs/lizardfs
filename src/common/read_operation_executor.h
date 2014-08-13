@@ -12,7 +12,7 @@
 class ReadOperationExecutor {
 public:
 	ReadOperationExecutor(
-			const ReadPlanner::ReadOperation& readOperation,
+			const ReadPlan::ReadOperation& readOperation,
 			uint64_t chunkId,
 			uint32_t chunkVersion,
 			const ChunkType& chunkType,
@@ -79,7 +79,7 @@ private:
 	PacketHeader packetHeader_;
 
 	/* Read operation that this object will execute */
-	const ReadPlanner::ReadOperation readOperation_;
+	const ReadPlan::ReadOperation readOperation_;
 
 	/* The buffer, where the data will be placed according to readOperation_.offsetsOfBlocks */
 	uint8_t* const dataBuffer_;

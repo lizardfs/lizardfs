@@ -186,7 +186,7 @@ static void testPlanner(const ReadPlanner& planner, ChunkType partNotUsedInTheBa
 		SCOPED_TRACE("Testing block count " + ::testing::PrintToString(blockCount));
 
 		// Prepare a plan
-		std::unique_ptr<ReadPlanner::Plan> plan;
+		std::unique_ptr<ReadPlan> plan;
 		ASSERT_NO_THROW(plan = planner.buildPlanFor(firstBlock, blockCount));
 		std::vector<unittests::Block> expectedResult =
 				unittests::PlanTester::expectedAnswer(standard, firstBlock, blockCount);

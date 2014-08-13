@@ -17,7 +17,7 @@
 static const uint32_t kMaxMessageLength = MFSBLOCKSIZE + 1024;
 
 ReadOperationExecutor::ReadOperationExecutor(
-		const ReadPlanner::ReadOperation& readOperation,
+		const ReadPlan::ReadOperation& readOperation,
 		uint64_t chunkId,
 		uint32_t chunkVersion,
 		const ChunkType& chunkType,

@@ -10,14 +10,14 @@
 namespace {
 
 /**
- * ReadPlanner::Plan for reading from all available xor parts.
+ * ReadPlan for reading from all available xor parts.
  * In such a plan reading is completed when at most one xor part is missing.
  */
-class ReadFromAllXorPartsPlan : public ReadPlanner::Plan {
+class ReadFromAllXorPartsPlan : public ReadPlan {
 public:
 	/// A constructor from other plan.
 	/// Discards additional read operations (if any).
-	ReadFromAllXorPartsPlan(std::unique_ptr<Plan> plan,
+	ReadFromAllXorPartsPlan(std::unique_ptr<ReadPlan> plan,
 			ChunkType::XorLevel xorLevel, uint32_t firstBlock, uint32_t blockCount)
 			: xorLevel_(xorLevel),
 			  firstBlock_(firstBlock),
@@ -31,14 +31,14 @@ public:
 		return unfinished.size() <= 1;
 	}
 
-	std::vector<ReadPlanner::PostProcessOperation> getPostProcessOperationsForBasicPlan(
+	std::vector<PostProcessOperation> getPostProcessOperationsForBasicPlan(
 			) const override {
 		auto currentLayout = getLayoutAfterReadOperations(
 				ReadOperations(basicReadOperations.begin(), basicReadOperations.end()));
 		return guessPostProcessOperations(std::move(currentLayout));
 	}
 
-	std::vector<ReadPlanner::PostProcessOperation> getPostProcessOperationsForExtendedPlan(
+	std::vector<PostProcessOperation> getPostProcessOperationsForExtendedPlan(
 			const std::set<ChunkType>& unfinished) const override {
 		sassert(isReadingFinished(unfinished));
 		ReadOperations finishedOperations;
@@ -83,7 +83,7 @@ private:
 	typedef std::vector<Block> Layout;
 
 	/// List of read operations for a plan.
-	typedef std::vector<std::pair<ChunkType, ReadPlanner::ReadOperation>> ReadOperations;
+	typedef std::vector<std::pair<ChunkType, ReadOperation>> ReadOperations;
 
 	/// Returns layout of the buffer after completing read operations from this plan.
 	/// \param unfinished    set of parts from which we didn't finish reading
@@ -102,7 +102,7 @@ private:
 
 	/// Calculates post-processing operations.
 	/// \param actualLayout    layout of the buffer after finishing read operations
-	std::vector<ReadPlanner::PostProcessOperation> guessPostProcessOperations(
+	std::vector<ReadPlan::PostProcessOperation> guessPostProcessOperations(
 			Layout actualLayout) const {
 		// Generate the layout that is expected to be achieved after completing the plan,
 		// ie. just blocks from non-parity parts
@@ -115,7 +115,7 @@ private:
 
 		// Now we will calculate all the operations needed to transform
 		// 'actualLayout' into 'expectedLayout' and store then in the ret variable.
-		std::vector<ReadPlanner::PostProcessOperation> ret;
+		std::vector<PostProcessOperation> ret;
 
 		// In the first pass try to fix all invalid blocks, because fixing them may require using
 		// blocks that will be overwritten by the second pass. Eg. if we have the following layout:
@@ -142,7 +142,7 @@ private:
 	// The function calculates an operation needed to
 	// recover a block 'block' at the position 'destinationPosition',
 	// when the current layout is as in 'currentLayout'.
-	ReadPlanner::PostProcessOperation guessOperationForBlock(
+	PostProcessOperation guessOperationForBlock(
 			const Block& block, uint32_t destinationPosition,
 			const Layout& currentLayout) const {
 		std::set<ChunkType> chunkTypesToXor;
@@ -151,7 +151,7 @@ private:
 		for (uint32_t position = 0; position < currentLayout.size(); ++position) {
 			if (currentLayout[position] == block) {
 				// There is an exact copy available! Just request to memcpy it.
-				ReadPlanner::PostProcessOperation op;
+				PostProcessOperation op;
 				op.destinationOffset = destinationPosition * MFSBLOCKSIZE;
 				op.sourceOffset = position * MFSBLOCKSIZE;
 				return op;
@@ -165,7 +165,7 @@ private:
 		}
 
 		// Now generate a xor operation
-		ReadPlanner::PostProcessOperation op;
+		PostProcessOperation op;
 		op.destinationOffset = destinationPosition * MFSBLOCKSIZE;
 		if (positionsToXor.count(destinationPosition) > 0) {
 			// no memcpy needed, one of blocks to xor is in the proper place
@@ -212,7 +212,7 @@ ChunkType getWorstPart(
 // Subtracts two read operations.
 // Ie. removes from op1 the part that is covered by op2.
 // As the result, op1 may have requestSize==0.
-void subtractReadOperation(ReadPlanner::ReadOperation& op1, const ReadPlanner::ReadOperation& op2) {
+void subtractReadOperation(ReadPlan::ReadOperation& op1, const ReadPlan::ReadOperation& op2) {
 	uint32_t op1End = op1.requestOffset + op1.requestSize;
 	uint32_t op2End = op2.requestOffset + op2.requestSize;
 
@@ -290,7 +290,7 @@ bool MultiVariantReadPlanner::isReadingPossible() const {
 	return standardPlanner_.isReadingPossible();
 }
 
-std::unique_ptr<ReadPlanner::Plan> MultiVariantReadPlanner::buildPlanFor(
+std::unique_ptr<ReadPlan> MultiVariantReadPlanner::buildPlanFor(
 		uint32_t firstBlock, uint32_t blockCount) const {
 	// Let's start with building a plan using the standard planner
 	auto standardPlan = standardPlanner_.buildPlanFor(firstBlock, blockCount);
@@ -303,7 +303,7 @@ std::unique_ptr<ReadPlanner::Plan> MultiVariantReadPlanner::buildPlanFor(
 	}
 
 	// We are reading xor from all parts, so let's prepare a new plan.
-	std::unique_ptr<ReadPlanner::Plan> plan(new ReadFromAllXorPartsPlan(
+	std::unique_ptr<ReadPlan> plan(new ReadFromAllXorPartsPlan(
 			std::move(standardPlan), stripeSize, firstBlock, blockCount));
 
 	// For each available part read all the blocks that are needed to recover any block
@@ -312,7 +312,7 @@ std::unique_ptr<ReadPlanner::Plan> MultiVariantReadPlanner::buildPlanFor(
 	uint32_t firstStripe = firstBlock / stripeSize;
 	uint32_t stripes = (firstBlock + blockCount - 1) / stripeSize - firstStripe + 1;
 	for (const auto& part : partsToUse_) {
-		ReadOperation op;
+		ReadPlan::ReadOperation op;
 		uint32_t blocksToReadFromPart = stripes;
 		if (firstStripe + blocksToReadFromPart > part.getNumberOfBlocks(MFSBLOCKSINCHUNK)) {
 			// some parts don't contain blocks from the last stripe, so don't read them

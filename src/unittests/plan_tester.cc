@@ -75,7 +75,7 @@ std::ostream& operator<<(std::ostream& out, const Block& block) {
 }
 
 std::vector<Block> PlanTester::executePlan(
-		const ReadPlanner::Plan& plan,
+		const ReadPlan& plan,
 		const std::vector<ChunkType>& availableParts,
 		uint32_t blockCount,
 		const std::set<ChunkType>& failingParts) {
@@ -84,7 +84,7 @@ std::vector<Block> PlanTester::executePlan(
 	sassert(blocks.size() >= blockCount);
 
 	// This helper function applies the 'operation' on 'chunkType' to the 'blocks' vector
-	auto doReadOperation = [&](ChunkType chunkType, const ReadPlanner::ReadOperation& operation) {
+	auto doReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& operation) {
 		sassert(std::count(availableParts.begin(), availableParts.end(), chunkType) > 0);
 		sassert(operation.readDataOffsets.size() * MFSBLOCKSIZE == operation.requestSize);
 		sassert(operation.requestOffset % MFSBLOCKSIZE == 0);
@@ -119,7 +119,7 @@ std::vector<Block> PlanTester::executePlan(
 	}
 
 	// Choose post-processing operations (if we managed to finish reading)
-	std::vector<ReadPlanner::PostProcessOperation> postProcessing;
+	std::vector<ReadPlan::PostProcessOperation> postProcessing;
 	if (!additionalReadOperationsExecuted) {
 		postProcessing = plan.getPostProcessOperationsForBasicPlan();
 	} else if (plan.isReadingFinished(unfinishedOperations)) {
