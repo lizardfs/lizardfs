@@ -488,6 +488,7 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint8_t recvStatus;
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
+	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
 	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - Dumping metadata in foreground",
 			mfsstrerr(recvStatus));
 	uint8_t status = fs_storeall_now() ? STATUS_OK : ERROR_IO;
