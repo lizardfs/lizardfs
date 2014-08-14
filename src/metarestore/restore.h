@@ -25,5 +25,5 @@
 enum class RestoreRigor { kIgnoreParseErrors, kDontIgnoreAnyErrors };
 
 void restore_reset();
-int restore(const char* filename, uint64_t lv, const char* ptr, RestoreRigor rigor);
+uint8_t restore(const char* filename, uint64_t lv, const char* ptr, RestoreRigor rigor);
 void restore_setverblevel(uint8_t _vlevel);

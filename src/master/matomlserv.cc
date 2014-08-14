@@ -485,6 +485,20 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
+void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint8_t recvStatus;
+	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
+	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - Dumping metadata in foreground",
+			mfsstrerr(recvStatus));
+	uint8_t status = fs_storeall_now() ? STATUS_OK : ERROR_IO;
+	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
+		fs_checksum(ChecksumMode::kForceRecalculate);
+	}
+	std::vector<uint8_t> reply;
+	matoml::changelogApplyError::serialize(reply, status);
+	matomlserv_createpacket(eptr, std::move(reply));
+}
+
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize) {
 	matomlserventry *eptr;
 	uint8_t *data;
@@ -551,6 +565,9 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case MLTOMA_DOWNLOAD_END:
 				matomlserv_download_end(eptr,data,length);
+				break;
+			case LIZ_MLTOMA_CHANGELOG_APPLY_ERROR:
+				matomlserv_changelog_apply_error(eptr, data, length);
 				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);

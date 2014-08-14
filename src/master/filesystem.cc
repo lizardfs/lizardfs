@@ -3177,7 +3177,7 @@ uint8_t fs_apply_checksum(const std::string& version, uint64_t checksum) {
 	gMetadata->metaversion++;
 	if (!gDisableChecksumVerification && (version == versionString)) {
 		if (checksum != computedChecksum) {
-			return ERROR_MISMATCH;
+			return ERROR_BADMETADATACHECKSUM;
 		}
 	}
 	return STATUS_OK;
@@ -7701,6 +7701,10 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	return true;
 }
 
+bool fs_storeall_now() {
+	return fs_storeall(MetadataDumper::kForegroundDump);
+}
+
 void fs_periodic_storeall() {
 	fs_storeall(MetadataDumper::kBackgroundDump); // ignore error
 }
@@ -7919,8 +7923,10 @@ void fs_load_changelog(const std::string& path) {
 		} else if (!first) {
 			first = id;
 		}
-		if (restore(path.c_str(), id, line.c_str() + end, RestoreRigor::kIgnoreParseErrors) < 0) {
-			throw MetadataConsistencyException("Can't apply changelog " + path);
+		uint8_t status = restore(path.c_str(), id, line.c_str() + end,
+				RestoreRigor::kIgnoreParseErrors);
+		if (status != STATUS_OK) {
+			throw MetadataConsistencyException("Can't apply changelog " + path, status);
 		}
 	}
 	if (id >= first) {

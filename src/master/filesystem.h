@@ -106,6 +106,9 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 /// metadata file from the active metadata server again.
 void fs_unload();
 
+/// Tries to dump metadata in the foreground, returns false on error.
+bool fs_storeall_now();
+
 /// Removes metadata lock leaving working directory in a clean state
 void fs_unlock();
 

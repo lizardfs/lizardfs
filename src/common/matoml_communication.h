@@ -18,3 +18,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matoml, registerShadow, LIZ_MATOML_REGISTER_SHADOW, kResponsePacketVersion,
 		uint32_t, version,
 		uint64_t, metadataVersion)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matoml, changelogApplyError, LIZ_MATOML_CHANGELOG_APPLY_ERROR, 0,
+		uint8_t, status)
