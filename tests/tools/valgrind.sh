@@ -12,7 +12,8 @@ valgrind_enable() {
 		valgrind_enabled_=1
 
 		# Build a valgrind invocation which will properly run memcheck.
-		local valgrind_command="valgrind -q --tool=memcheck --leak-check=full"
+		local valgrind_command="valgrind -q --tool=memcheck --leak-check=full`
+				` --suppressions=$SOURCE_DIR/tests/tools/valgrind.supp"
 
 		# New ( >= 3.9) versions of valgrind support some nice heuristics which remove
 		# a couple of false positives (eg. leak reports when there is a reachable std::string).
@@ -34,8 +35,8 @@ valgrind_enable() {
 valgrind_terminate() {
 	local pattern='memcheck|polonaise-'
 	if pgrep -u lizardfstest "$pattern" >/dev/null; then
-		echo " --- valgrind: Waiting for all processes to be termianted --- "
-		pkill -u lizardfstest --signal TERM "$pattern"
+		echo " --- valgrind: Waiting for all processes to be terminated --- "
+		pkill -TERM -u lizardfstest "$pattern"
 		wait_for '! pgrep -u lizardfstest memcheck >/dev/null' '60 seconds' || true
 		if pgrep -u lizardfstest "$pattern" >/dev/null; then
 			echo " --- valgrind: Stop FAILED --- "

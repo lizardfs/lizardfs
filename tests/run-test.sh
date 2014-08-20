@@ -66,7 +66,7 @@ for log_file in "$ERROR_DIR"/* ; do
 			cat "${log_file}"
 		fi
 		if [[ $TEST_OUTPUT_DIR ]]; then
-			cp "${log_file}" "$TEST_OUTPUT_DIR/$(date '+%F_%T')__$(basename -s .sh $1)__${log_file_name}"
+			cp "${log_file}" "$TEST_OUTPUT_DIR/$(date '+%F_%T')__$(basename $1 .sh)__${log_file_name}"
 		fi
 	fi
 done
