@@ -79,6 +79,8 @@ enum class RunMode {
 	kIsAlive = 6
 };
 
+static bool nextPollNonblocking = false;
+
 typedef struct deentry {
 	void (*fun)(void);
 	struct deentry *next;
@@ -152,6 +154,10 @@ static bool gRunAsDaemon = true;
 static int signalpipe[2];
 
 /* interface */
+
+void main_make_next_poll_nonblocking() {
+	nextPollNonblocking = true;
+}
 
 void main_destructregister (void (*fun)(void)) {
 	deentry *aux=(deentry*)malloc(sizeof(deentry));
@@ -331,7 +337,8 @@ void mainloop() {
 		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
 			pollit->desc(pdesc,&ndesc);
 		}
-		i = poll(pdesc,ndesc,50);
+		i = poll(pdesc,ndesc, nextPollNonblocking ? 0 : 50);
+		nextPollNonblocking = false;
 		gettimeofday(&tv,NULL);
 		usecnow = tv.tv_sec;
 		usecnow *= 1000000;
