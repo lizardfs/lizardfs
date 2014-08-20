@@ -25,7 +25,6 @@
 #include <numeric>
 #include <stdexcept>
 #include <tuple>
-#include <type_traits>
 
 /* fast integer hash functions by Thomas Wang */
 /* all of them pass the avalanche test */
@@ -78,13 +77,26 @@ static inline uint64_t hash64(uint64_t key) {
 	return key;
 }
 
+// This is the generic hashing function template declaration.
+//
+// There is no general definition; definitions are provided per-specialization for
+// supported types only.
+//
+// The function is declared as a template to ensure that hash(unsupported_type)
+// fails with 'undefined reference to hash<unsupported_type>' instead of attempting
+// to cast unsupported_type to some random type supported by hash e.g. bool.
+template <class T>
+uint64_t hash(T);
+
 #define HASH_PRIMITIVE32(type) \
-static inline uint64_t hash(type val) { \
+template<> \
+inline uint64_t hash<type>(type val) { \
 	return hash32mult(val); \
 }
 
 #define HASH_PRIMITIVE64(type) \
-static inline uint64_t hash(type val) { \
+template<> \
+inline uint64_t hash<type>(type val) { \
 	return hash64(val); \
 }
 
@@ -109,33 +121,34 @@ static inline void hashCombineRaw(uint64_t& seed, uint64_t hash) {
 static inline void hashCombine(uint64_t&) {
 }
 
-/// when a uint8_t* is followed by an integral type, assume it is a bytearray and its length
-template<class T, class... Args, class = typename std::enable_if<std::is_integral<T>::value>::type>
-static inline void hashCombine(uint64_t& seed, const uint8_t* str, T strLen, Args... args);
-
 template<class T, class... Args>
 static inline void hashCombine(uint64_t& seed, const T& val, Args... args) {
-	hashCombineRaw(seed, hash(val));
+	hashCombineRaw(seed, hash<T>(val));
 	hashCombine(seed, args...);
 }
 
-/// doesn't modify its argument and returns result
-template <typename T>
-static inline uint64_t hashCombineReturn(uint64_t hash, const T& val) {
-	hashCombine(hash, val);
-	return hash;
-}
+// ByteArray can be used to checksum byte arrays.
+// The first element is the pointer to the array, the second is the size.
+// Examples:
+//     return hash(ByteArray(&foo, sizeof(foo)))
+//     hashCombine(checksum, foo, ByteArray(bar, bar_size), baz, qaz)
+struct ByteArray {
+	ByteArray(const uint8_t *ptr, const size_t size) : ptr(ptr), size(size) {}
+	ByteArray(const char *ptr, const size_t size)
+			: ptr(reinterpret_cast<const uint8_t*>(ptr)),
+			  size(size) {
+	 }
+	const uint8_t *ptr;
+	const size_t size;
+};
 
-/// hash byte array
-static inline uint64_t hash(const uint8_t* str, uint32_t len) {
-	const uint64_t init = 399871011; // arbitrary number
-	return std::accumulate(str, str + len, init, hashCombineReturn<uint8_t>);
-}
-
-template<class T, class... Args, class>
-static inline void hashCombine(uint64_t& seed, const uint8_t* str, T strLen, Args... args) {
-	hashCombineRaw(seed, hash(str, strLen));
-	hashCombine(seed, args...);
+template<>
+inline uint64_t hash<ByteArray>(ByteArray array) {
+	uint64_t seed = 399871011; // arbitrary number
+	for (size_t i = 0; i < array.size; i++) {
+		hashCombine(seed, array.ptr[i]);
+	}
+	return seed;
 }
 
 // functions for dynamically changing checksums

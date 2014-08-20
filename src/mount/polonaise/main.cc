@@ -97,6 +97,7 @@ StatusCode::type toStatusCode(int errNo) throw(Failure) {
 			{ ETIMEDOUT, StatusCode::kETIMEDOUT },
 			{ ETXTBSY, StatusCode::kETXTBSY },
 			{ EXDEV, StatusCode::kEXDEV },
+			{ EDQUOT, StatusCode::kEDQUOT },
 	};
 
 	auto it = statuses.find(errNo);
@@ -913,7 +914,7 @@ int main (int argc, char **argv) {
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
 			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
-			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, userwlock);
+			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, userwlock, 0, 0);
 
 	// Thrift server start
 	using namespace ::apache::thrift;

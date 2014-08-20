@@ -329,6 +329,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.mkdircopysgid,
 				gMountOptions.sugidclearmode,
 				gMountOptions.acl,
+				gMountOptions.aclcacheto,
+				gMountOptions.aclcachesize,
 				gMountOptions.rwlock);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
@@ -549,7 +551,7 @@ int main(int argc, char *argv[]) try {
 	strerr_init();
 	mycrc32_init();
 
-   init_fuse_lowlevel_ops();
+	init_fuse_lowlevel_ops();
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 
@@ -674,6 +676,11 @@ int main(int argc, char *argv[]) try {
 	}
 	if (gMountOptions.nostdmountoptions==0) {
 		fuse_opt_add_arg(&args, "-o" DEFAULT_OPTIONS);
+	}
+	if (gMountOptions.aclcachesize > 1000 * 1000) {
+		fprintf(stderr,"acl cache size too big (%u) - decreased to 1000000\n",
+				gMountOptions.aclcachesize);
+		gMountOptions.aclcachesize = 1000 * 1000;
 	}
 
 	make_fsname(&args);

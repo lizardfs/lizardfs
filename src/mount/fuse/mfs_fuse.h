@@ -62,4 +62,5 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name);
 void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_ = true);
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
+		unsigned acl_cache_size_, bool use_rwlock_ = true);

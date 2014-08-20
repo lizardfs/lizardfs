@@ -56,6 +56,8 @@ struct mfsopts_ {
 	int debug;
 	int delayedinit;
 	int acl;
+	double aclcacheto;
+	unsigned aclcachesize;
 	int rwlock;
 	int mkdircopysgid;
 	char *sugidclearmodestr;
@@ -95,6 +97,8 @@ struct mfsopts_ {
 			debug(0),
 			delayedinit(0),
 			acl(0),
+			aclcacheto(1.0),
+			aclcachesize(1000),
 			rwlock(1),
 #ifdef __linux__
 			mkdircopysgid(1),

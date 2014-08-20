@@ -55,7 +55,7 @@ message(STATUS "a2x: ${A2X_BINARY}")
 
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread program_options)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS regex thread program_options iostreams)
 find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem system REQUIRED)
 
 # Find Thrift
@@ -69,7 +69,7 @@ else()
 endif()
 
 # Find Polonaise
-set(POLONAISE_REQUIRED_VERSION 0.3.0)
+set(POLONAISE_REQUIRED_VERSION 0.3.1)
 find_package(Polonaise ${POLONAISE_REQUIRED_VERSION} EXACT QUIET NO_MODULE NO_CMAKE_BUILDS_PATH)
 if(POLONAISE_FOUND)
 	if(Boost_PROGRAM_OPTIONS_FOUND)

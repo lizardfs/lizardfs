@@ -484,6 +484,7 @@ void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
  *  Entry is added during destruction, so that it will be generated after end of function
  *  where ChecksumUpdater is created.
  */
+#ifndef METARESTORE
 class ChecksumUpdater {
 public:
 	ChecksumUpdater(uint32_t ts)
@@ -492,14 +493,12 @@ public:
 	virtual ~ChecksumUpdater() {
 		if (gMetadata->metaversion > lastEntry_ + period_) {
 			lastEntry_ = gMetadata->metaversion;
-#ifndef METARESTORE
 			if (metadataserver::isMaster()) {
 				std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
 				uint64_t checksum = fs_checksum(ChecksumMode::kGetCurrent);
 				fs_changelog(ts_, "CHECKSUM(%s):%" PRIu64, versionString.c_str(), checksum);
 				return;
 			}
-#endif /* #ifndef METARESTORE */
 		}
 	}
 	static void setPeriod(uint32_t period) {
@@ -513,6 +512,13 @@ private:
 
 uint32_t ChecksumUpdater::period_;
 uint32_t ChecksumUpdater::lastEntry_ = 0;
+
+#else /* #ifndef METARESTORE */
+class ChecksumUpdater {
+public:
+	ChecksumUpdater(uint32_t) {}
+};
+#endif /* #ifndef METARESTORE */
 
 static uint64_t fsnodes_checksum(const fsnode* node) {
 	if (!node) {
@@ -531,8 +537,8 @@ static uint64_t fsnodes_checksum(const fsnode* node) {
 			hashCombine(seed, node->data.devdata.rdev);
 			break;
 		case TYPE_SYMLINK:
-			hashCombine(seed, node->data.sdata.pleng, node->data.sdata.path,
-					node->data.sdata.pleng);
+			hashCombine(seed, node->data.sdata.pleng,
+					ByteArray(node->data.sdata.path, node->data.sdata.pleng));
 			break;
 		case TYPE_FILE:
 		case TYPE_TRASH:
@@ -583,7 +589,7 @@ static uint64_t fsedges_checksum(const fsedge* edge) {
 	if (edge->parent) {
 		hashCombine(seed, edge->parent->id);
 	}
-	hashCombine(seed, edge->child->id, edge->nleng, edge->name, edge->nleng);
+	hashCombine(seed, edge->child->id, edge->nleng, ByteArray(edge->name, edge->nleng));
 	return seed;
 }
 
@@ -635,7 +641,8 @@ static uint64_t xattr_checksum(const xattr_data_entry* xde) {
 		return 0;
 	}
 	uint64_t seed = 645819511511147ULL;
-	hashCombine(seed, xde->inode, xde->attrname, xde->anleng, xde->attrvalue, xde->avleng);
+	hashCombine(seed, xde->inode, ByteArray(xde->attrname, xde->anleng),
+			ByteArray(xde->attrvalue, xde->avleng));
 	return seed;
 }
 
@@ -660,19 +667,19 @@ static void xattr_recalculate_checksum() {
 
 uint64_t fs_checksum(ChecksumMode mode) {
 	uint64_t checksum = 0x1251;
-	addToChecksum(checksum, gMetadata->maxnodeid);
-	addToChecksum(checksum, gMetadata->metaversion);
-	addToChecksum(checksum, gMetadata->nextsessionid);
+	hashCombine(checksum, gMetadata->maxnodeid);
+	hashCombine(checksum, gMetadata->metaversion);
+	hashCombine(checksum, gMetadata->nextsessionid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
 		fsedges_recalculate_checksum();
 		xattr_recalculate_checksum();
 	}
-	addToChecksum(checksum, gMetadata->gFsNodesChecksum);
-	addToChecksum(checksum, gMetadata->gFsEdgesChecksum);
-	addToChecksum(checksum, gMetadata->gXattrChecksum);
-	addToChecksum(checksum, gMetadata->gQuotaDatabase.checksum());
-	addToChecksum(checksum, chunk_checksum(mode));
+	hashCombine(checksum, gMetadata->gFsNodesChecksum);
+	hashCombine(checksum, gMetadata->gFsEdgesChecksum);
+	hashCombine(checksum, gMetadata->gXattrChecksum);
+	hashCombine(checksum, gMetadata->gQuotaDatabase.checksum());
+	hashCombine(checksum, chunk_checksum(mode));
 	return checksum;
 }
 

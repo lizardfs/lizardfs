@@ -8,9 +8,9 @@ TEST(HashTests, StringHashTest) {
 	std::string s1 = "foo bar";
 	std::string s2 = "";
 	std::string s3 = "foo bas";
-	uint64_t h1 = hash(reinterpret_cast<const uint8_t*>(s1.data()), s1.length());
-	uint64_t h2 = hash(reinterpret_cast<const uint8_t*>(s2.data()), s2.length());
-	uint64_t h3 = hash(reinterpret_cast<const uint8_t*>(s3.data()), s3.length());
+	uint64_t h1 = hash(ByteArray(s1.data(), s1.length()));
+	uint64_t h2 = hash(ByteArray(s2.data(), s2.length()));
+	uint64_t h3 = hash(ByteArray(s3.data(), s3.length()));
 	EXPECT_NE(h1, h2);
 	EXPECT_NE(h1, h3);
 	EXPECT_NE(h2, h3);
@@ -105,7 +105,7 @@ TEST(HashTests, VariadicHashCombineTest) {
 	hashCombine(seed1, static_cast<unsigned long>(10));
 	hashCombine(seed1, static_cast<long long>(11));
 	hashCombine(seed1, static_cast<unsigned long long>(12));
-	hashCombineRaw(seed1, hash(reinterpret_cast<const uint8_t*>(str.data()), str.length()));
+	hashCombineRaw(seed1, hash(ByteArray(str.data(), str.length())));
 
 	hashCombine(
 			seed2,
@@ -121,7 +121,6 @@ TEST(HashTests, VariadicHashCombineTest) {
 			static_cast<unsigned long>(10),
 			static_cast<long long>(11),
 			static_cast<unsigned long long>(12),
-			reinterpret_cast<const uint8_t*>(str.data()),
-			static_cast<uint32_t>(str.length()));
+			ByteArray(str.data(), str.length()));
 	EXPECT_EQ(seed1, seed2);
 }

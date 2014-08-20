@@ -4,9 +4,14 @@
 
 #include <string>
 
+#include "common/hashfn.h"
 #include "common/serialization.h"
 
 enum class AclType : uint8_t { kAccess, kDefault };
+
+static inline void hashCombineRaw(uint64_t& seed, AclType hash) {
+	return hashCombineRaw(seed, uint64_t(hash));
+}
 
 // TODO(msulikowski) think of some macros which would automatically generate
 // such a code for enum classes
