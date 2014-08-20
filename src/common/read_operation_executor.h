@@ -79,7 +79,7 @@ private:
 	PacketHeader packetHeader_;
 
 	/* Read operation that this object will execute */
-	const ReadPlan::ReadOperation readOperation_;
+	ReadPlan::ReadOperation readOperation_;
 
 	/* The buffer, where the data will be placed according to readOperation_.offsetsOfBlocks */
 	uint8_t* const dataBuffer_;
