@@ -28,9 +28,11 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <algorithm>
 
 #include "common/datapack.h"
 #include "common/hashfn.h"
+#include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "master/checksum.h"
@@ -136,6 +138,11 @@ struct slist {
 		}
 	}
 };
+
+#ifndef METARESTORE
+static std::vector<void*> zombieServersHandledInThisLoop;
+static std::vector<void*> zombieServersToBeHandledInNextLoop;
+#endif // METARESTORE
 
 #define SLIST_BUCKET_SIZE 5000
 struct slist_bucket {
@@ -535,6 +542,76 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	return newchunk;
 }
 
+#ifndef METARESTORE
+void chunk_emergency_increase_version(chunk *c) {
+	slist *s;
+	uint32_t i;
+	i=0;
+	for (s=c->slisthead ;s ; s=s->next) {
+		if (s->is_valid()) {
+			if (!s->is_busy()) {
+				s->mark_busy();
+			}
+			s->version = c->version+1;
+			matocsserv_send_setchunkversion(s->ptr,c->chunkid,c->version+1,c->version);
+			i++;
+		}
+	}
+	if (i>0) { // should always be true !!!
+		c->interrupted = 0;
+		c->operation = SET_VERSION;
+		c->version++;
+	} else {
+		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
+	}
+	fs_incversion(c->chunkid);
+	chunk_update_checksum(c);
+}
+
+bool chunk_server_is_disconnected(void* ptr) {
+	for (auto zombies : {&zombieServersHandledInThisLoop, &zombieServersToBeHandledInNextLoop}) {
+		if (std::find(zombies->begin(), zombies->end(), ptr) != zombies->end()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void chunk_handle_disconnected_copies(chunk* c) {
+	slist *s, **st;
+	st = &(c->slisthead);
+	bool lostCopyFound = false;
+	while (*st) {
+		s = *st;
+		if (chunk_server_is_disconnected(s->ptr)) {
+			c->unlinkCopy(s, st);
+			c->needverincrease=1;
+			lostCopyFound = true;
+		} else {
+			st = &(s->next);
+		}
+	}
+	if (lostCopyFound && c->operation!=NONE) {
+		bool any_copy_busy = false;
+		uint8_t valid_copies = 0;
+		for (s=c->slisthead ; s ; s=s->next) {
+			any_copy_busy |= s->is_busy();
+			valid_copies += s->is_valid() ? 1 : 0;
+		}
+		if (any_copy_busy) {
+			c->interrupted = 1;
+		} else {
+			if (valid_copies > 0) {
+				chunk_emergency_increase_version(c);
+			} else {
+				matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
+				c->operation=NONE;
+			}
+		}
+	}
+}
+#endif
+
 chunk* chunk_find(uint64_t chunkid) {
 	uint32_t chunkpos = HASHPOS(chunkid);
 	chunk *chunkit;
@@ -545,6 +622,9 @@ chunk* chunk_find(uint64_t chunkid) {
 		if (chunkit->chunkid == chunkid) {
 			gChunksMetadata->lastchunkid = chunkid;
 			gChunksMetadata->lastchunkptr = chunkit;
+#ifndef METARESTORE
+			chunk_handle_disconnected_copies(chunkit);
+#endif // METARESTORE
 			return chunkit;
 		}
 	}
@@ -968,32 +1048,6 @@ int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	return STATUS_OK;
 }
 
-#ifndef METARESTORE
-void chunk_emergency_increase_version(chunk *c) {
-	slist *s;
-	uint32_t i;
-	i=0;
-	for (s=c->slisthead ;s ; s=s->next) {
-		if (s->is_valid()) {
-			if (!s->is_busy()) {
-				s->mark_busy();
-			}
-			s->version = c->version+1;
-			matocsserv_send_setchunkversion(s->ptr,c->chunkid,c->version+1,c->version);
-			i++;
-		}
-	}
-	if (i>0) { // should always be true !!!
-		c->interrupted = 0;
-		c->operation = SET_VERSION;
-		c->version++;
-	} else {
-		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
-	}
-	fs_incversion(c->chunkid);
-	chunk_update_checksum(c);
-}
-#endif
 int chunk_increase_version(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
@@ -1176,42 +1230,42 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 }
 
 void chunk_server_disconnected(void *ptr) {
-	chunk *c;
-	slist *s,**st;
-	uint32_t i;
-	for (i=0 ; i<HASHSIZE ; i++) {
-		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
-			st = &(c->slisthead);
-			while (*st) {
-				s = *st;
-				if (s->ptr == ptr) {
-					c->unlinkCopy(s, st);
-					c->needverincrease=1;
-				} else {
-					st = &(s->next);
-				}
+	zombieServersToBeHandledInNextLoop.push_back(ptr);
+	if (zombieServersHandledInThisLoop.empty()) {
+		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
+	}
+	main_make_next_poll_nonblocking();
+	fs_cs_disconnected();
+	gChunksMetadata->lastchunkid = 0;
+	gChunksMetadata->lastchunkptr = NULL;
+}
+
+/*
+ * A function that is called in every main loop iteration, that cleans chunk structs
+ */
+void chunk_clean_zombie_servers_a_bit() {
+	static uint32_t currentPosition = 0;
+	if (zombieServersHandledInThisLoop.empty()) {
+		return;
+	}
+	for (auto i = 0; i < 100 ; ++i) {
+		if (currentPosition < HASHSIZE) {
+			chunk* c;
+			for (c=gChunksMetadata->chunkhash[currentPosition] ; c ; c=c->next) {
+				chunk_handle_disconnected_copies(c);
 			}
-			if (c->operation!=NONE) {
-				bool any_copy_busy = false;
-				uint8_t valid_copies = 0;
-				for (s=c->slisthead ; s ; s=s->next) {
-					any_copy_busy |= s->is_busy();
-					valid_copies += s->is_valid() ? 1 : 0;
-				}
-				if (any_copy_busy) {
-					c->interrupted = 1;
-				} else {
-					if (valid_copies > 0) {
-						chunk_emergency_increase_version(c);
-					} else {
-						matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
-						c->operation=NONE;
-					}
-				}
+			++currentPosition;
+		} else {
+			for (auto& server : zombieServersHandledInThisLoop) {
+				matocsserv_remove_server(server);
 			}
+			zombieServersHandledInThisLoop.clear();
+			std::swap(zombieServersHandledInThisLoop, zombieServersToBeHandledInNextLoop);
+			currentPosition = 0;
+			break;
 		}
 	}
-	fs_cs_disconnected();
+	main_make_next_poll_nonblocking();
 }
 
 void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
@@ -1746,6 +1800,7 @@ void chunk_jobs_main(void) {
 		l=0;
 		cp = &(gChunksMetadata->chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
+			chunk_handle_disconnected_copies(c);
 			if (c->fileCount()==0 && c->slisthead==NULL) {
 				*cp = (c->next);
 				chunk_delete(c);
@@ -1859,6 +1914,9 @@ void chunk_store(FILE *fd) {
 	ptr = storebuff;
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
+#ifndef METARESTORE
+			chunk_handle_disconnected_copies(c);
+#endif
 			chunkid = c->chunkid;
 			put64bit(&ptr,chunkid);
 			version = c->version;
@@ -2087,6 +2145,7 @@ int chunk_strinit(void) {
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
+	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {
 		chunk_become_master();
 	}
