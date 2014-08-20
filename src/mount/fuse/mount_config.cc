@@ -30,6 +30,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsmemlock", memlock, 1),
 #endif
 	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
+	MFS_OPT("mfsaclcachesize=%u", aclcachesize, 0),
 	MFS_OPT("mfscacheperinodepercentage=%u", cachePerInodePercentage, 0),
 	MFS_OPT("mfswriteworkers=%u", writeworkers, 0),
 	MFS_OPT("mfsioretries=%u", ioretries, 0),
@@ -47,6 +48,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
 	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
 	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
+	MFS_OPT("mfsaclcacheto=%lf", aclcacheto, 0),
 	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 	MFS_OPT("mfschunkserverreadto=%d", chunkserverreadto, 0),
@@ -117,6 +119,7 @@ void usage(const char *progname) {
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
 "    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
+"    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
 "    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfschunkserverreadto=MSEC  set timeout for whole communication with a chunkserver during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfschunkserverwriteto=MSEC set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
@@ -126,6 +129,7 @@ void usage(const char *progname) {
 "    -o mfsmemlock               try to lock memory\n"
 #endif
 "    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
+"    -o mfsaclcachesize=N        define ACL cache size in number of entries (0: no cache; default: 1000)\n"
 "    -o mfscacheperinodepercentage  define what part of the write cache non occupied by other inodes"
 "                                   can a single inode occupy (in %%, default: 25)\n"
 "    -o mfswriteworkers=N        define number of write workers (default: 10)\n"
