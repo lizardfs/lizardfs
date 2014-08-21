@@ -66,6 +66,8 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	std::set<ChunkType> networkingFailures;
 	NetworkAddress lastConnectionFailure;  // last server to which we weren't able to connect
 
+	const int kInvalidDescriptor = -1;
+
 	// This closes all the opened TCP connections when this function returns or throws
 	auto disconnector = makeLambdaGuard([&]() {
 		for (const auto& fdAndExecutor : executors) {
@@ -74,11 +76,11 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	});
 
 	// A function which starts a new operation. Returns a file descriptor of the created socket.
-	auto startReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& op) {
+	auto startReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& op) -> int {
 		if (networkingFailures.count(chunkType) != 0) {
 			// Don't even try to start any additional operations from a chunkserver that
 			// already failed before, because we won't be able to use the downloaded data.
-			return -1;
+			return kInvalidDescriptor;
 		}
 		sassert(locations.count(chunkType) == 1);
 		const NetworkAddress& server = locations.at(chunkType);
@@ -86,40 +88,44 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 		try {
 			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
 			int fd = connector.startUsingConnection(server, connectTimeout);
-			if (totalTimeout.expired()) {
-				// totalTimeout might expire during establishing the connection
-				throw RecoverableReadException("Chunkserver communication timed out");
+			try {
+				if (totalTimeout.expired()) {
+					// totalTimeout might expire during establishing the connection
+					throw RecoverableReadException("Chunkserver communication timed out");
+				}
+				ReadOperationExecutor executor(op,
+						chunkId_, chunkVersion_, chunkType,
+						server, fd, buffer);
+				executor.sendReadRequest(connectTimeout);
+				executors.insert(std::make_pair(fd, std::move(executor)));
+			} catch (...) {
+				tcpclose(fd);
+				throw;
 			}
-			ReadOperationExecutor executor(op,
-					chunkId_, chunkVersion_, chunkType,
-					server, fd, buffer);
-			executor.sendReadRequest(connectTimeout);
-			executors.insert(std::make_pair(fd, std::move(executor)));
-			descriptorsForBasicReadOperations.insert(fd);
 			return fd;
 		} catch (ChunkserverConnectionException& ex) {
 			lastConnectionFailure = server;
 			statsProxy.markDefective(server);
 			networkingFailures.insert(chunkType);
-			return -1;
+			return kInvalidDescriptor;
 		}
 	};
 
 	// A function which verifies if we are able to finish executing
 	// the plan if there were any networking failures
-	auto isFinishingPossible = [&]() {
+	auto isFinishingPossible = [&]() -> bool {
 		if (networkingFailures.empty()) {
 			return true;
 		}
-		bool anyBasicOperationFailed = descriptorsForBasicReadOperations.count(-1);
+		bool anyBasicOperationFailed = descriptorsForBasicReadOperations.count(kInvalidDescriptor);
 		return !anyBasicOperationFailed || plan_->isReadingFinished(networkingFailures);
 	};
 
 	// Connect to all needed chunkservers from basicReadOperations
 	for (const auto& chunkTypeReadInfo : plan_->basicReadOperations) {
 		int fd = startReadOperation(chunkTypeReadInfo.first, chunkTypeReadInfo.second);
-		// fd may be equal to -1 in case of a failure, but we will insert it to the set anyway
-		// to remember that some basic operation is unfinished all the time
+		// fd may be equal to kInvalidDescriptor in case of a failure, but we will insert it to
+		// the set anyway to remember that some basic operation is unfinished all the time
 		descriptorsForBasicReadOperations.insert(fd);
 	}
 	if (!isFinishingPossible()) {
@@ -131,7 +137,10 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	Timeout basicTimeout(std::chrono::milliseconds(timeouts.basicTimeout_ms));
 	bool additionalOperationsStarted = false;
 	while (true) {
-		if (!additionalOperationsStarted && basicTimeout.expired() && !totalTimeout.expired()) {
+		if (!additionalOperationsStarted
+				&& (basicTimeout.expired()
+						|| descriptorsForBasicReadOperations.count(kInvalidDescriptor) != 0)
+				&& !totalTimeout.expired()) {
 			// We have to start additionalReadOperations now
 			for (const auto& chunkTypeReadInfo : plan_->additionalReadOperations) {
 				startReadOperation(chunkTypeReadInfo.first, chunkTypeReadInfo.second);
@@ -143,6 +152,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			additionalOperationsStarted = true;
 		}
 
+		// Prepare for poll
 		std::vector<pollfd> pollFds;
 		for (const auto& fdAndExecutor : executors) {
 			pollFds.push_back(pollfd());
@@ -151,6 +161,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			pollFds.back().revents = 0;
 		}
 
+		// Call poll
 		int pollTimeout = (basicTimeout.expired()
 				? totalTimeout.remaining_ms()
 				: basicTimeout.remaining_ms());
@@ -161,7 +172,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			} else {
 				throw RecoverableReadException("Poll error: " + std::string(strerr(errno)));
 			}
-		} else if (status == 0 && additionalOperationsStarted) {
+		} else if (status == 0 && totalTimeout.expired()) {
 			// The time is out, our chunkservers appear to be completely unresponsive.
 			statsProxy.allPendingDefective();
 			NetworkAddress offender = executors.begin()->second.server();
@@ -169,6 +180,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 					"Chunkserver communication timed out: " + offender.toString());
 		}
 
+		// Process poll's output -- read from chunkservers
 		std::set<ChunkType> unfinishedOperations = networkingFailures;
 		for (pollfd& pollFd : pollFds) {
 			int fd = pollFd.fd;
@@ -184,9 +196,16 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			} catch (ChunkserverConnectionException& ex) {
 				statsProxy.markDefective(server);
 				networkingFailures.insert(executor.chunkType());
+				if (descriptorsForBasicReadOperations.count(fd) != 0) {
+					descriptorsForBasicReadOperations.erase(fd);
+					descriptorsForBasicReadOperations.insert(kInvalidDescriptor);
+				}
+				tcpclose(fd);
+				executors.erase(fd);
 				if (!isFinishingPossible()) {
 					throw;
 				}
+				continue;
 			}
 			if (executor.isFinished()) {
 				statsProxy.unregisterReadOperation(server);
@@ -195,18 +214,21 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 				executors.erase(fd);
 				descriptorsForBasicReadOperations.erase(fd);
 				if (descriptorsForBasicReadOperations.empty()) {
-					// all the basic operations are now finished.
+					// All the basic operations are now finished. This condition will always
+					// be false in kInvalidDescriptor is in descriptorsForBasicReadOperations.
 					return plan_->getPostProcessOperationsForBasicPlan();
 				}
 			} else {
 				unfinishedOperations.insert(executor.chunkType());
 			}
-			if (additionalOperationsStarted && plan_->isReadingFinished(unfinishedOperations)) {
-				return plan_->getPostProcessOperationsForExtendedPlan(unfinishedOperations);
-			}
+		}
+
+		// Check if we are finished now
+		if (additionalOperationsStarted && plan_->isReadingFinished(unfinishedOperations)) {
+			return plan_->getPostProcessOperationsForExtendedPlan(unfinishedOperations);
 		}
 	}
-	mabort("Bad code path -- reached an unreachable code");
+	mabort("Bad code path; reached an unreachable code in ReadPlanExecutor::executeReadOperations");
 }
 
 void ReadPlanExecutor::executePostProcessing(
