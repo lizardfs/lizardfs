@@ -42,7 +42,7 @@ public:
 			const ReadPlan& plan,
 			const std::vector<ChunkType>& availableParts,
 			uint32_t blockCount,
-			const std::set<ChunkType>& failingParts = {});
+			const std::set<ChunkType>& failingParts = std::set<ChunkType>());
 
 	/**
 	 * Returns list of blocks from a given part.

@@ -26,7 +26,7 @@ static Set getPartsToUseInBasicPlan(const ReadPlanner& planner) {
 
 // For the given set of parts, returns a set of parts which would be used in the basic variant
 static Set getPartsToUseInBasicPlan(std::vector<ChunkType> availableParts,
-		std::map<ChunkType, float> scores = {}) {
+		std::map<ChunkType, float> scores = std::map<ChunkType, float>()) {
 	MultiVariantReadPlanner planner;
 	planner.setScores(std::move(scores));
 	planner.prepare(availableParts);
