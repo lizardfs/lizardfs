@@ -1,4 +1,5 @@
 CHUNKSERVERS=0 \
+	USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1" \
 	MOUNTS=0 \
 	setup_local_empty_lizardfs info

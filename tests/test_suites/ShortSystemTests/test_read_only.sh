@@ -3,6 +3,7 @@ assert_program_installed attr
 
 MOUNTS=2 \
 CHUNKSERVERS=3 \
+	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfsacl" \
 	MOUNT_1_EXTRA_EXPORTS="ro,mfscachemode=NEVER" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \

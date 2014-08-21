@@ -2,6 +2,7 @@ timeout_set 1 minute
 assert_program_installed nc
 
 MASTERSERVERS=2 \
+	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
 lizardfs_master_n 1 start
