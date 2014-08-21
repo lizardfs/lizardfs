@@ -33,6 +33,9 @@ void main_reloadregister (void (*fun)(void));
 void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *));
 void main_eachloopregister (void (*fun)(void));
 void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
+/*! \brief Make the next poll nonblocking
+ */
+void main_make_next_poll_nonblocking();
 /*! \brief Unregister previously registered timed event handler.
  *
  * \param hadle - handle to currently registered timed event.
