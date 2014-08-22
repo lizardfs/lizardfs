@@ -1,0 +1,18 @@
+--- src/mount/fuse/main.cc.old  2014-07-21 10:36:00.000000000 +0300
++++ src/mount/fuse/main.cc      2014-07-23 13:31:11.719214824 +0300
+@@ -176,7 +176,6 @@
+ static struct fuse_opt mfs_opts_stage1[] = {
+        FUSE_OPT_KEY("mfscfgfile=",    KEY_CFGFILE),
+        FUSE_OPT_KEY("-c ",            KEY_CFGFILE),
+-       FUSE_OPT_END
+ };
+
+ static struct fuse_opt mfs_opts_stage2[] = {
+@@ -222,7 +221,6 @@
+        FUSE_OPT_KEY("--version",      KEY_VERSION),
+        FUSE_OPT_KEY("-h",             KEY_HELP),
+        FUSE_OPT_KEY("--help",         KEY_HELP),
+-       FUSE_OPT_END
+ };
+
+ static void usage(const char *progname) {
