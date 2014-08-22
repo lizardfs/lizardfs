@@ -13,7 +13,6 @@ Group:          System Environment/Daemons
 URL:            http://www.lizardfs.org/
 Source0:        https://github.com/lizardfs/lizardfs/archive/v%{version}.tar.gz
 Patch0:         lizardfs_redhat_fix.patch
-Patch1:         lizardfs_init.patch
 BuildRequires:  fuse-devel
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
@@ -84,7 +83,6 @@ LizardFS command line administration utility.
 %setup -q
 
 %patch0 -p0 -b .patch0
-%patch1 -p0 -b .patch1
 
 %build
 %configure
