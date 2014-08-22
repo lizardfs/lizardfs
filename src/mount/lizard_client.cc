@@ -59,6 +59,7 @@
 #include "mount/readdata.h"
 #include "mount/stats.h"
 #include "mount/symlinkcache.h"
+#include "mount/tweaks.h"
 #include "mount/writedata.h"
 
 namespace LizardClient {
@@ -96,9 +97,14 @@ static const uint8_t statsattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0
 // 0x0100 == 0b100000000 == 0400
 static const uint8_t oplogattr[35]={'f', 0x01,0x00, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
+#define TWEAKS_FILE_NAME ".lizardfs_tweaks"
+#define TWEAKS_FILE_INODE 0x7FFFFFF3
+// 0x01A4 == 0b110100100 == 0644
+static const uint8_t tweaksfileattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
+
 #define MIN_SPECIAL_INODE 0x7FFFFFF0
 #define IS_SPECIAL_INODE(ino) ((ino)>=MIN_SPECIAL_INODE)
-#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 || strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 || strcmp(OPHISTORY_NAME,(name))==0/* || strcmp(ATTRCACHE_NAME,(name))==0*/))
+#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 || strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 || strcmp(OPHISTORY_NAME,(name))==0 || strcmp(TWEAKS_FILE_NAME,(name))==0))
 
 typedef struct _sinfo {
 	char *buff;
@@ -117,6 +123,15 @@ typedef struct _dirbuf {
 	void *dcache;
 	pthread_mutex_t lock;
 } dirbuf;
+
+struct MagicFile {
+	MagicFile() : wasRead(false), wasWritten(false) {}
+
+	std::mutex mutex;
+	std::string value;
+	bool wasRead;
+	bool wasWritten;
+};
 
 enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 
@@ -606,6 +621,16 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
 			return e;
 		}
+		if (strcmp(name,TWEAKS_FILE_NAME)==0) {
+			e.ino = TWEAKS_FILE_INODE;
+			e.attr_timeout = 3600.0;
+			e.entry_timeout = 3600.0;
+			attr_to_stat(TWEAKS_FILE_INODE, tweaksfileattr, &e.attr);
+			stats_inc(OP_LOOKUP_INTERNAL);
+			makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx,"lookup (%lu,%s) (internal node: TWEAKS_FILE): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			return e;
+		}
 		if (strcmp(name,OPLOG_NAME)==0) {
 			e.ino = OPLOG_INODE;
 			e.attr_timeout = 3600.0;
@@ -692,6 +717,20 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		oplog_printf(ctx,"getattr (%lu) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
+	if (ino==TWEAKS_FILE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
+		if (fi != NULL) {
+			// fstat is called on an open descriptor -- provide the actual length
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			o_stbuf.st_size = file->value.size();
+		}
+		stats_inc(OP_GETATTR);
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"getattr (%lu) (internal node: TWEAKS_FILE): OK (3600,%s)",(unsigned long int)ino,attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,oplogattr,&o_stbuf);
@@ -752,6 +791,19 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		attr_to_stat(ino,statsattr,&o_stbuf);
 		makeattrstr(attrstr,256,&o_stbuf);
 		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
+		if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			file->value.resize(stbuf->st_size);
+			o_stbuf.st_size = stbuf->st_size;
+		}
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: TWEAKS_FILE): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
@@ -1525,6 +1577,15 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		return;
 	}
 
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = new MagicFile;
+		fi->fh = (unsigned long)(file);
+		fi->direct_io = 1;
+		fi->keep_cache = 0;
+		oplog_printf(ctx,"open (%lu) (internal node: TWEAKS_FILE): OK (1,0)",(unsigned long int)ino);
+		return;
+	}
+
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 			oplog_printf(ctx,"open (%lu) (internal node: %s): %s",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",strerr(EACCES));
@@ -1599,6 +1660,26 @@ void release(Context ctx, Inode ino, FileInfo* fi) {
 		oplog_printf(ctx,"release (%lu) (internal node: STATS): OK",(unsigned long int)ino);
 		return;
 	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		if (file->wasWritten) {
+			auto separatorPos = file->value.find('=');
+			if (separatorPos == file->value.npos) {
+				syslog(LOG_INFO, "TWEAKS_FILE: Wrong value '%s'", file->value.c_str());
+			} else {
+				std::string name = file->value.substr(0, separatorPos);
+				std::string value = file->value.substr(separatorPos + 1);
+				if (!value.empty() && value.back() == '\n') {
+					value.resize(value.size() - 1);
+				}
+				gTweaks.setValue(name, value);
+				syslog(LOG_INFO, "TWEAKS_FILE: Setting '%s' to '%s'", name.c_str(), value.c_str());
+			}
+		}
+		delete file;
+		oplog_printf(ctx,"release (%lu) (internal node: TWEAKS_FILE): OK",(unsigned long int)ino);
+		return;
+	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		oplog_releasehandle(fi->fh);
 		oplog_printf(ctx,"release (%lu) (internal node: %s): OK",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
@@ -1658,6 +1739,26 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
 		}
 		return ret;
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		std::unique_lock<std::mutex> lock(file->mutex);
+		if (!file->wasRead) {
+			file->value = gTweaks.getAllValues();
+			file->wasRead = true;
+		}
+		if (off >= static_cast<off_t>(file->value.size())) {
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+			return std::vector<uint8_t>();
+		} else {
+			size_t availableBytes = size;
+			if ((uint64_t)(off + size) > (uint64_t)file->value.size()) {
+				availableBytes = file->value.size() - off;
+			}
+			const uint8_t* data = reinterpret_cast<const uint8_t*>(file->value.data()) + off;
+			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(availableBytes));
+			return std::vector<uint8_t>(data, data + availableBytes);
+		}
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		oplog_getdata(fi->fh,&buff,&ssize,size);
@@ -1747,6 +1848,17 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			statsinfo->reset=1;
 		}
+		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
+		return size;
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		std::unique_lock<std::mutex> lock(file->mutex);
+		if (off + size > file->value.size()) {
+			file->value.resize(off + size);
+		}
+		file->value.replace(off, size, buf, size);
+		file->wasWritten = true;
 		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
 		return size;
 	}
