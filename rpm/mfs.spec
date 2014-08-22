@@ -2,76 +2,89 @@
 # "rh" for Fedora/RHEL/CentOS
 # ... (other awaiting contribution)
 
-#define	distro	rh
+#define distro  rh
 
-Summary:	MooseFS - distributed, fault tolerant file system
-Name:		mfs
-Version:	1.6.28
-Release:	1%{?distro}
-License:	GPL v3
-Group:		System Environment/Daemons
-URL:		http://www.lizardfs.org/
-Source0:	https://github.com/lizardfs/lizardfs/archive/v%{version}.tar.gz
-BuildRequires:	fuse-devel
-BuildRequires:	pkgconfig
-BuildRequires:	zlib-devel
-BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Summary:        LizardFS - distributed, fault tolerant file system
+Name:           lizardfs
+Version:        2.5.0
+Release:        1%{?distro}
+License:        GPL v3
+Group:          System Environment/Daemons
+URL:            http://www.lizardfs.org/
+Source0:        https://github.com/lizardfs/lizardfs/archive/v%{version}.tar.gz
+Patch0:         lizardfs_redhat_fix.patch
+Patch1:         lizardfs_init.patch
+BuildRequires:  fuse-devel
+BuildRequires:  pkgconfig
+BuildRequires:  zlib-devel
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%define		_localstatedir	/var/lib
-%define		mfsconfdir	%{_sysconfdir}/mfs
+%define         _localstatedir  /var/lib
+%define         mfsconfdir      %{_sysconfdir}/mfs
 
 %description
 MooseFS is an Open Source, easy to deploy and maintain, distributed,
 fault tolerant file system for POSIX compliant OSes.
 LizardFS is fork of MooseFS. For more information please visit
-http://lizardfs.org
+http://lizardfs.com
 
 %package master
-Summary:	MooseFS master server
-Group:		System Environment/Daemons
+Summary:        LizardFS master server
+Group:          System Environment/Daemons
 
 %description master
-MooseFS master (metadata) server together with metarestore utility.
+LizardFS master (metadata) server together with metarestore utility.
 
 %package metalogger
-Summary:	MooseFS metalogger server
-Group:		System Environment/Daemons
+Summary:        LizardFS metalogger server
+Group:          System Environment/Daemons
 
 %description metalogger
-MooseFS metalogger (metadata replication) server.
+LizardFS metalogger (metadata replication) server.
 
 %package chunkserver
-Summary:	MooseFS data server
-Group:		System Environment/Daemons
+Summary:        LizardFS data server
+Group:          System Environment/Daemons
 
 %description chunkserver
-MooseFS data server.
+LizardFS data server.
 
 %package client
-Summary:	MooseFS client
-Group:		System Environment/Daemons
+Summary:        LizardFS client
+Group:          System Environment/Daemons
+Requires:       fuse
 
 %description client
-MooseFS client: mfsmount and mfstools.
+LizardFS client: mfsmount and mfstools.
 
 %package cgi
-Summary:	MooseFS CGI Monitor
-Group:		System Environment/Daemons
-Requires:	python
+Summary:        LizardFS CGI Monitor
+Group:          System Environment/Daemons
+Requires:       python
 
 %description cgi
-MooseFS CGI Monitor.
+LizardFS CGI Monitor.
 
 %package cgiserv
-Summary:	Simple CGI-capable HTTP server to run MooseFS CGI Monitor
-Group:		System Environment/Daemons
-Requires:	%{name}-cgi = %{version}-%{release}
+Summary:        Simple CGI-capable HTTP server to run LizardFS CGI Monitor
+Group:          System Environment/Daemons
+Requires:       %{name}-cgi = %{version}-%{release}
 
 %description cgiserv
-Simple CGI-capable HTTP server to run MooseFS CGI Monitor.
+Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
+
+%package adm
+Summary:        LizardFS administration utility
+Group:          System Environment/Daemons
+
+%description adm
+LizardFS command line administration utility.
 
 %prep
 %setup -q
+
+%patch0 -p0 -b .patch0
+%patch1 -p0 -b .patch1
 
 %build
 %configure
@@ -81,14 +94,14 @@ make %{?_smp_mflags}
 rm -rf $RPM_BUILD_ROOT
 
 make install \
-	DESTDIR=$RPM_BUILD_ROOT
+        DESTDIR=$RPM_BUILD_ROOT
 
 %if "%{distro}" == "rh"
 install -d $RPM_BUILD_ROOT%{_initrddir}
 for f in rpm/rh/*.init ; do
-	sed -e 's,@sysconfdir@,%{_sysconfdir},;
-		s,@sbindir@,%{_sbindir},;
-		s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
+        sed -e 's,@sysconfdir@,%{_sysconfdir},;
+                s,@sbindir@,%{_sbindir},;
+                s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
 done
 %endif
 
@@ -102,18 +115,23 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/mfsrestoremaster
 %attr(755,root,root) %{_sbindir}/mfsmetadump
 %attr(755,root,root) %{_sbindir}/mfsmetarestore
+%attr(755,mfs,mfs) %{_localstatedir}/mfs
 %{_mandir}/man5/mfsexports.cfg.5*
 %{_mandir}/man5/mfstopology.cfg.5*
 %{_mandir}/man5/mfsmaster.cfg.5*
+%{_mandir}/man5/globaliolimits.cfg.5*
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
+%{_mandir}/man7/lizardfs.7*
 %{_mandir}/man8/mfsmaster.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{mfsconfdir}/mfsexports.cfg.dist
 %{mfsconfdir}/mfstopology.cfg.dist
 %{mfsconfdir}/mfsmaster.cfg.dist
+%{mfsconfdir}/globaliolimits.cfg.dist
+
 %dir %{_localstatedir}/mfs
-%{_localstatedir}/mfs/metadata.mfs.empty
+%attr(640,root,root) %{_localstatedir}/mfs/metadata.mfs.empty
 %if "%{distro}" == "rh"
 %attr(754,root,root) %{_initrddir}/mfsmaster
 %endif
@@ -122,6 +140,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmetalogger
+%attr(755,mfs,mfs) %{_localstatedir}/mfs
 %{_mandir}/man5/mfsmetalogger.cfg.5*
 %{_mandir}/man8/mfsmetalogger.8*
 %{mfsconfdir}/mfsmetalogger.cfg.dist
@@ -133,6 +152,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_sbindir}/mfschunkserver
+%attr(755,mfs,mfs) %{_localstatedir}/mfs
 %{_mandir}/man5/mfschunkserver.cfg.5*
 %{_mandir}/man5/mfshdd.cfg.5*
 %{_mandir}/man8/mfschunkserver.8*
@@ -187,13 +207,17 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/mfssetquota.1*
 %{_mandir}/man1/mfssettrashtime.1*
 %{_mandir}/man1/mfstools.1*
+%{_mandir}/man5/iolimits.cfg.5*
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
-%{_mandir}/man8/mfsmount.8*
+%{_mandir}/man1/mfsmount.1*
 %{mfsconfdir}/mfsmount.cfg.dist
+%{mfsconfdir}/iolimits.cfg.dist
 
 %files cgi
 %defattr(644,root,root,755)
+%attr(755,root,root) %{_datadir}/mfscgi/mfs.cgi
+%attr(755,root,root) %{_datadir}/mfscgi/chart.cgi
 %doc NEWS README UPGRADE
 %{_datadir}/mfscgi
 
@@ -205,7 +229,20 @@ rm -rf $RPM_BUILD_ROOT
 %attr(754,root,root) %{_initrddir}/mfscgiserv
 %endif
 
+%files adm
+%defattr(644,root,root,755)
+%doc NEWS README UPGRADE
+%attr(755,root,root) %{_bindir}/lizardfs-probe
+%{_mandir}/man8/lizardfs-probe.8*
+
 %changelog
+* Wed Jul 23 2014 George Lucan <george.lucan@yahoo.com> - 2.5.0
+- (all) lizardfs rebranding
+- (adm) introduce adm package
+- (master) add globaliolimits.cfg and manuals
+- (client) add iolimits.cfg and manuals
+
+
 * Wed Oct 16 2013 Peter aNeutrino <contact@lizardfs.org> - 1.6.28-1
 - (all) compile with g++ by default
 - (deb) fix init scripts for debian packages
