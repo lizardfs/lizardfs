@@ -14,7 +14,7 @@
 # Source networking configuration.
 . /etc/sysconfig/network
 
-MFSCGISERV_USER=nobody
+MFSCGISERV_USER=mfs
 
 # Source initialization configuration.
 [ -r "/etc/sysconfig/mfscgiserv" ] && . /etc/sysconfig/mfscgiserv
