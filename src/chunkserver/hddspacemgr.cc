@@ -120,6 +120,7 @@ typedef struct dopchunk {
 
 static uint32_t HDDTestFreq = 10;
 static uint64_t LeaveFree;
+static std::atomic<bool> PerformFsync;
 
 /* folders data */
 static folder *folderhead = NULL;
@@ -1576,26 +1577,28 @@ static int hdd_io_end(Chunk *c) {
 			errno = errmem;
 			return status;
 		}
-		ts = get_usectime();
+		if (PerformFsync) {
+			ts = get_usectime();
 #ifdef F_FULLFSYNC
-		if (fcntl(c->fd,F_FULLFSYNC)<0) {
-			int errmem = errno;
-			mfs_arg_errlog_silent(LOG_WARNING,
-					"hdd_io_end: file:%s - fsync (via fcntl) error", c->filename().c_str());
-			errno = errmem;
-			return ERROR_IO;
-		}
+			if (fcntl(c->fd,F_FULLFSYNC)<0) {
+				int errmem = errno;
+				mfs_arg_errlog_silent(LOG_WARNING,
+						"hdd_io_end: file:%s - fsync (via fcntl) error", c->filename().c_str());
+				errno = errmem;
+				return ERROR_IO;
+			}
 #else
-		if (fsync(c->fd)<0) {
-			int errmem = errno;
-			mfs_arg_errlog_silent(LOG_WARNING,
-					"hdd_io_end: file:%s - fsync (direct call) error", c->filename().c_str());
-			errno = errmem;
-			return ERROR_IO;
-		}
+			if (fsync(c->fd)<0) {
+				int errmem = errno;
+				mfs_arg_errlog_silent(LOG_WARNING,
+						"hdd_io_end: file:%s - fsync (direct call) error", c->filename().c_str());
+				errno = errmem;
+				return ERROR_IO;
+			}
 #endif
-		te = get_usectime();
-		hdd_stats_datafsync(c->owner,te-ts);
+			te = get_usectime();
+			hdd_stats_datafsync(c->owner,te-ts);
+		}
 	}
 	c->crcrefcount--;
 	if (c->crcrefcount==0) {
@@ -3842,6 +3845,8 @@ void hdd_reload(void) {
 	TRACETHIS();
 	char *LeaveFreeStr;
 
+	PerformFsync = cfg_getuint32("PERFORM_FSYNC", 1);
+
 	zassert(pthread_mutex_lock(&testlock));
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
@@ -3904,6 +3909,8 @@ int hdd_init(void) {
 # endif
 
 	emptyblockcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE);
+
+	PerformFsync = cfg_getuint32("PERFORM_FSYNC", 1);
 
 	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
 	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
