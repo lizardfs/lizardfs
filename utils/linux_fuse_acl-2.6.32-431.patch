@@ -1,0 +1,54 @@
+--- a/include/linux/fuse.h      2013-11-11 04:53:30.000000000 +0200
++++ b/include/linux/fuse.h      2014-07-23 14:37:00.000000000 +0300
+@@ -140,11 +140,13 @@
+ /**
+  * INIT request/reply flags
+  *
++ * FUSE_ACL: access control lists
+  * FUSE_EXPORT_SUPPORT: filesystem handles lookups of "." and ".."
+  * FUSE_DONT_MASK: don't apply umask to file mode on create operations
+  * FUSE_AUTO_INVAL_DATA: automatically invalidate cached pages
+  * FUSE_ASYNC_DIO: asynchronous direct I/O submission
+  */
++#define FUSE_ACL               (1 << 31)
+ #define FUSE_ASYNC_READ                (1 << 0)
+ #define FUSE_POSIX_LOCKS       (1 << 1)
+ #define FUSE_FILE_OPS          (1 << 2)
+--- a/fs/fuse/inode.c   2013-11-11 04:53:30.000000000 +0200
++++ b/fs/fuse/inode.c   2014-07-23 14:35:07.000000000 +0300
+@@ -441,6 +441,7 @@
+        OPT_ALLOW_OTHER,
+        OPT_MAX_READ,
+        OPT_BLKSIZE,
++       OPT_ACL,
+        OPT_ERR
+ };
+.
+@@ -453,6 +454,7 @@
+        {OPT_ALLOW_OTHER,               "allow_other"},
+        {OPT_MAX_READ,                  "max_read=%u"},
+        {OPT_BLKSIZE,                   "blksize=%u"},
++       {OPT_ACL,                       "acl"},
+        {OPT_ERR,                       NULL}
+ };
+.
+@@ -522,6 +524,10 @@
+                        d->blksize = value;
+                        break;
+.
++               case OPT_ACL:
++                       d->flags |= FUSE_ACL;
++                       break;
++
+                default:
+                        return 0;
+                }
+@@ -542,6 +548,8 @@
+        seq_printf(m, ",group_id=%u", fc->group_id);
+        if (fc->flags & FUSE_DEFAULT_PERMISSIONS)
+                seq_puts(m, ",default_permissions");
++       if (fc->flags & FUSE_ACL)
++               seq_puts(m, ",acl");
+        if (fc->flags & FUSE_ALLOW_OTHER)
+                seq_puts(m, ",allow_other");
+        if (fc->max_read != ~0)
