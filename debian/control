@@ -9,7 +9,11 @@ Build-Depends: asciidoc (>= 8.6.6),
                pkg-config,
                zlib1g-dev,
                python,
-               libboost-filesystem-dev (>= 1.48) | libboost-filesystem1.48-dev | libboost-filesystem1.54-dev | libboost-filesystem1.55-dev,
+               libboost-filesystem-dev (>= 1.48) | libboost-filesystem1.48-dev,
+               docbook-xml,
+               docbook-xsl,
+               xsltproc,
+               libxml2-utils
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
