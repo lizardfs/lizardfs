@@ -48,6 +48,13 @@ restart () {
     start
 }
 
+reload () {
+    echo -n $"Reloading $prog: "
+    $prog reload
+    RETVAL=$?
+    return $RETVAL
+}
+
 case "$1" in
   start)
     start
@@ -55,8 +62,11 @@ case "$1" in
   stop)
     stop
     ;;
-  restart|reload)
+  restart)
     restart
+    ;;
+  reload)
+    reload
     ;;
   condrestart)
     [ -e /var/lock/subsys/$prog ] && restart
