@@ -27,7 +27,7 @@ prog="mfsmetalogger"
 
 start () {
     echo -n $"Starting $prog: "
-    daemon $prog >/dev/null 2>&1
+    daemon $prog
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$prog
@@ -36,7 +36,7 @@ start () {
 
 stop () {
     echo -n $"Stopping $prog: "
-    $prog stop >/dev/null 2>&1 || killproc $prog >/dev/null 2>&1
+    $prog stop || killproc $prog
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$prog
