@@ -861,7 +861,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 							return LockStatus::kFail;
 						}
 					} else {
-						sassert(runmode == RunMode::kRestart);
+						sassert((runmode == RunMode::kStop) || (runmode == RunMode::kRestart));
 						fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
 						fflush(stderr);
 						if (kill(newownerpid,SIGTERM)<0) {
