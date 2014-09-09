@@ -3,6 +3,7 @@ set -ue
 cd "$(dirname "$0")"
 mkdir -p build-pack
 cd build-pack
+rm -f CMakeCache.txt
 cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=NO -DCMAKE_INSTALL_PREFIX=/ -DENABLE_DEBIAN_PATHS=YES
 cat >../Makefile <<END
 all:
