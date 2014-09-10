@@ -23,7 +23,7 @@ for level in 2 3 4 7 9; do
 	# Distribute these processes between 3 first mountpoints (mount0, mount1, mount2)
 	for i in {0..199}; do
 		( sleep 0.$((2 * i + 100)) && dd if="$source" of="${info[mount$((i%3))]}/$file" \
-				bs=1KiB skip=$i seek=$i count=1 conv=notrunc status=none ) &
+				bs=1KiB skip=$i seek=$i count=1 conv=notrunc 2>/dev/null ) &
 	done
 	# In the meanwhile, shorten file from 400K to 200K, chopping 1 kB in each of 200 steps
 	# Sometimes share mountpoint with dd (mount2), sometimes not (mount3, mount4)
