@@ -1821,7 +1821,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 }
 
 void matocsserv_remove_server(void *ptr) {
-	free(ptr);
+	delete (matocsserventry*)ptr;
 }
 
 void matocsserv_reload(void) {
