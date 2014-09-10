@@ -36,6 +36,7 @@
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/debug_log.h"
 #include "common/exceptions.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
@@ -395,6 +396,7 @@ static void* gEmptyTrashHook;
 static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
+static bool gMagicAutoFileRepair = false;
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -4601,6 +4603,19 @@ uint8_t fs_apply_session(uint32_t sessionid) {
 }
 
 #ifndef METARESTORE
+uint8_t fs_auto_repair_if_needed(fsnode *p, uint32_t chunkIndex) {
+	uint64_t chunkId = (chunkIndex < p->data.fdata.chunks ? p->data.fdata.chunktab[chunkIndex] : 0);
+	if (chunkId != 0 && chunk_has_only_invalid_copies(chunkId)) {
+		uint32_t notchanged, erased, repaired;
+		fs_repair(MFS_ROOT_ID, 0, p->id, 0, 0, &notchanged, &erased, &repaired);
+		syslog(LOG_NOTICE, "auto repair inode %" PRIu32 ", chunk %016" PRIX64 ": "
+				"not changed: %" PRIu32 ", erased: %" PRIu32 ", repaired: %" PRIu32,
+				p->id, chunkId, notchanged, erased, repaired);
+		DEBUG_LOG("master.fs.file_auto_repaired") << p->id << " " << repaired;
+	}
+	return STATUS_OK;
+}
+
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
@@ -4618,6 +4633,11 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 	if (indx>MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
 	}
+#ifndef METARESTORE
+	if (gMagicAutoFileRepair) {
+		fs_auto_repair_if_needed(p, indx);
+	}
+#endif
 	if (indx<p->data.fdata.chunks) {
 		*chunkid = p->data.fdata.chunktab[indx];
 	}
@@ -4653,6 +4673,11 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	if (indx > MAX_INDEX) {
 		return ERROR_INDEXTOOBIG;
 	}
+#ifndef METARESTORE
+	if (gMagicAutoFileRepair && context.isPersonalityMaster()) {
+		fs_auto_repair_if_needed(p, indx);
+	}
+#endif
 
 	const bool quota_exceeded = fsnodes_size_quota_exceeded(p->uid, p->gid);
 	statsrecord psr;
@@ -7939,18 +7964,26 @@ void fs_become_master() {
 	return;
 }
 
-void fs_reload(void) {
+static void fs_read_config_file() {
+	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
+	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
+	gMagicAutoFileRepair = cfg_getint32("MAGIC_AUTO_FILE_REPAIR", 0) == 1;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
 			kMaxStoredPreviousBackMetaCopies);
+
+	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
+}
+
+void fs_reload(void) {
+	fs_read_config_file();
 	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
 	}
-
 	if (metadataserver::isDuringPersonalityChange()) {
 		if (!gMetadata) {
 			syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
@@ -7965,8 +7998,6 @@ void fs_reload(void) {
 		main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
 	}
-	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
-	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 }
 
 /*
@@ -8081,10 +8112,10 @@ void fs_unload() {
 }
 
 int fs_init(bool doLoad) {
+	fs_read_config_file();
 	if (!gMetadataLockfile) {
 		gMetadataLockfile.reset(new Lockfile(kMetadataFilename + std::string(".lock")));
 	}
-	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1 ? true : false;
 	if (!gMetadataLockfile->isLocked()) {
 		try {
 			gMetadataLockfile->lock((gAutoRecovery || !metadataserver::isMaster()) ?
@@ -8098,22 +8129,12 @@ int fs_init(bool doLoad) {
 			throw;
 		}
 	}
-	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
-	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
-	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
-			"BACK_META_KEEP_PREVIOUS",
-			kDefaultStoredPreviousBackMetaCopies,
-			kMaxStoredPreviousBackMetaCopies);
 	if (doLoad || (metadataserver::isMaster())) {
 		int err = fs_loadall();
 		if (err != 0) {
 			return err;
 		}
 	}
-	metadataDumper.setMetarestorePath(cfg_get("MFSMETARESTORE_PATH",
-			std::string(SBIN_PATH "/mfsmetarestore")));
-	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
-
 	main_reloadregister(fs_reload);
 	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
 		// Secret option disabling periodic metadata dumps

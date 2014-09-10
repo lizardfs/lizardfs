@@ -57,6 +57,9 @@ const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly
 const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly);
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 
+/// Checks if the given chunk has only invalid copies (ie. needs to be repaired).
+bool chunk_has_only_invalid_copies(uint64_t chunkid);
+
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 

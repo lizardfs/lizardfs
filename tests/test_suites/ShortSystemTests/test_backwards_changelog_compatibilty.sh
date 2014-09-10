@@ -1,8 +1,16 @@
 USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="DUMP_METADATA_ON_RELOAD = 1|MAGIC_DISABLE_METADATA_DUMPS = 1" \
 	setup_local_empty_lizardfs info
-
 lizardfs_metalogger_daemon start
+
+# Prints md5 hashes of all master's and metalogger's changelog files.
+# changelog_ml.mfs.1 and changelog_ml.mfs.2 are omitted, because metalogger
+# overwrites these two when starting and we don't want a race in:
+#   lizardfs_metalogger_daemon start
+#   assert_no_diff "$expected_changelogs" "$(changelog_checksums)"
+changelog_checksums() {
+	md5sum changelog*.mfs* | grep -v '_ml[.]mfs[.][12]' | sort
+}
 
 metadata_file="${info[master_data_path]}/metadata.mfs"
 cd "${info[mount0]}"
@@ -20,7 +28,7 @@ lizardfs_master_daemon stop
 lizardfs_metalogger_daemon stop
 echo 111 > changelog.mfs
 echo kazik > changelog_ml.mfs
-expected_changelogs=$(md5sum changelog*.mfs* | sort)
+expected_changelogs=$(changelog_checksums)
 
 # Rename changelog files so they simulate old version
 for i in {1..99}; do
@@ -33,9 +41,9 @@ for i in {1..99}; do
 done
 mv changelog.mfs changelog.0.mfs
 mv changelog_ml.mfs changelog_ml.0.mfs
-assert_not_equal "$expected_changelogs" "$(md5sum changelog*.mfs* | sort)"
+assert_not_equal "$expected_changelogs" "$(changelog_checksums)"
 
 # Start master and metalogger, and make sure they properly rename changelog files
 lizardfs_master_daemon start
 lizardfs_metalogger_daemon start
-assert_no_diff "$expected_changelogs" "$(md5sum changelog*.mfs* | sort)"
+assert_no_diff "$expected_changelogs" "$(changelog_checksums)"

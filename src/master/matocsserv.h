@@ -29,6 +29,7 @@
 struct matocsserventry;
 
 int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port);
+void matocsserv_remove_server(void *ptr);
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
 uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
 std::vector<std::pair<matocsserventry*, ChunkType>>

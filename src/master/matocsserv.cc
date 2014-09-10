@@ -1814,11 +1814,14 @@ void matocsserv_serve(struct pollfd *pdesc) {
 				free(eptr->servstrip);
 			}
 			*kptr = eptr->next;
-			delete eptr;
 		} else {
 			kptr = &(eptr->next);
 		}
 	}
+}
+
+void matocsserv_remove_server(void *ptr) {
+	free(ptr);
 }
 
 void matocsserv_reload(void) {

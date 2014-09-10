@@ -1,5 +1,6 @@
 timeout_set 3 minutes
-setup_local_empty_lizardfs info
+USE_RAMDISK=YES \
+	setup_local_empty_lizardfs info
 lizardfs_metalogger_daemon start
 
 # Create 100 files and save 5 metadata files containing 20, 40, 60, 80 and 100 of them. Remove all

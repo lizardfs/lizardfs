@@ -422,6 +422,7 @@ void mainloop() {
 				rlit->fun();
 			}
 			r = 0;
+			DEBUG_LOG("main.reload");
 		}
 		if (t==1) {
 			for (weit = wehead ; weit!=NULL ; weit=weit->next) {

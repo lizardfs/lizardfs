@@ -1,4 +1,5 @@
 CHUNKSERVERS=1 \
+	USE_RAMDISK=YES \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_TIMEOUT = 0.5" \
 	setup_local_empty_lizardfs info
 

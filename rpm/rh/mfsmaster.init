@@ -21,14 +21,13 @@
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
 [ -x "@sbindir@/mfsmaster" ] || exit 1
-[ -r "@sysconfdir@/mfs/mfsexports.cfg" -o -r "@sysconfdir@/mfsexports.cfg" ] || exit 1
 
 RETVAL=0
 prog="mfsmaster"
 
 start () {
     echo -n $"Starting $prog: "
-    daemon $prog >/dev/null 2>&1
+    daemon $prog
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$prog
@@ -37,7 +36,7 @@ start () {
 
 stop () {
     echo -n $"Stopping $prog: "
-    $prog stop >/dev/null 2>&1 || killproc $prog >/dev/null 2>&1
+    $prog stop || killproc $prog
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$prog
@@ -49,6 +48,13 @@ restart () {
     start
 }
 
+reload () {
+    echo -n $"Reloading $prog: "
+    $prog reload
+    RETVAL=$?
+    return $RETVAL
+}
+
 case "$1" in
   start)
     start
@@ -56,8 +62,11 @@ case "$1" in
   stop)
     stop
     ;;
-  restart|reload)
+  restart)
     restart
+    ;;
+  reload)
+    reload
     ;;
   condrestart)
     [ -e /var/lock/subsys/$prog ] && restart

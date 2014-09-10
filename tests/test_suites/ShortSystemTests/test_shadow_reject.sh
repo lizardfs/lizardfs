@@ -2,27 +2,28 @@ timeout_set 1 minute
 assert_program_installed nc
 
 MASTERSERVERS=2 \
+	USE_RAMDISK=YES \
+	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG=main.reload:${TEMP_DIR}/reloads" \
 	setup_local_empty_lizardfs info
 
 lizardfs_master_n 1 start
+assert_eventually 'lizardfs_shadow_synchronized 1'
 
 my_client() {
 	local metaserver="$1"
 	local ma_to_someone="$2"
 
-	if [[ ${1} == 0 ]] ; then
+	if [[ ${1} == 0 ]]; then
 		local PORT=${info[${2}]}
 	else
 		local PORT=${info[master${1}_${2}]}
 	fi
 	echo "Connecting to metadata server ${1} ${2} port ${PORT}..."
-	nc -q -1 0 ${PORT} | cat > ${TEMP_DIR}/nc_out
-	local result="${PIPESTATUS[0]}";
+	nc -q 1000 localhost ${PORT} | cat > ${TEMP_DIR}/nc_out
+	local result="${PIPESTATUS[0]}"
 	echo "$result" > ${TEMP_DIR}/${2}_exit_status
 	echo "Connecting to metadata server ${1} ${2} result: $result"
 }
-
-sleep 2
 
 run_my_client() {
 	local assert="$1"
@@ -41,12 +42,12 @@ run_my_client() {
 run_my_client assert_success 0 1 matocs
 run_my_client assert_success 0 1 matoml
 
-#rm ${TEMP_DIR}/mato{cl,ml,cs}_exit_status
 rm ${TEMP_DIR}/mato{ml,cs}_exit_status
 lizardfs_master_daemon stop
 lizardfs_make_conf_for_master 1
+truncate -s 0 ${TEMP_DIR}/reloads
 lizardfs_master_daemon reload
-sleep 2
+assert_eventually 'grep -q main.reload ${TEMP_DIR}/reloads'
 
 run_my_client assert_failure 1 0 matocl
 run_my_client assert_failure 1 0 matocs
