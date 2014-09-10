@@ -20,7 +20,7 @@ dd if=/dev/urandom of="$dir/file" bs=1MiB count=$file_size_mb
 # Overwirte the file using data from the temporary file
 # Use 20 parallel threads, each of them overwrites a random 1 KB block
 seq 0 $((file_size_mb*1024-1)) | shuf | xargs -P20 -IXX \
-		dd if="$tmpf" of="$dir/file" bs=1024 count=1 seek=XX skip=XX conv=notrunc status=none
+		dd if="$tmpf" of="$dir/file" bs=1024 count=1 seek=XX skip=XX conv=notrunc 2>/dev/null
 
 # Validate in the usual way
 if ! file-validate "$dir/file"; then

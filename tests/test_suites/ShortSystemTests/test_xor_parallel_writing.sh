@@ -21,7 +21,7 @@ for i in {0..9}; do
 	(
 		file="${info[mount${i}]}/file"
 		seq $i 10 $((25*1024-1)) | shuf | expect_success xargs -P5 -IXX \
-				dd if="$tmpf" of="$file" bs=1K count=1 seek=XX skip=XX conv=notrunc status=none
+				dd if="$tmpf" of="$file" bs=1K count=1 seek=XX skip=XX conv=notrunc 2>/dev/null
 	) &
 done
 wait

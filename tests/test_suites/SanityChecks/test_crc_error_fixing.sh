@@ -9,7 +9,7 @@ damage_start=100K
 damage_length=12
 
 get_damaged_area() {
-	dd bs=1 skip=$damage_start count=$damage_length if="$1" status=none | base64
+	dd bs=1 skip=$damage_start count=$damage_length if="$1" 2>/dev/null | base64
 }
 
 # Create a file
