@@ -1298,6 +1298,13 @@ void chunk_clean_zombie_servers_a_bit() {
 	main_make_next_poll_nonblocking();
 }
 
+int chunk_canexit(void) {
+	if (zombieServersHandledInThisLoop.size() + zombieServersToBeHandledInNextLoop.size() > 0) {
+		return 0;
+	}
+	return 1;
+}
+
 void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	slist *s,**st;
@@ -2175,6 +2182,7 @@ int chunk_strinit(void) {
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
+	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {
 		chunk_become_master();
