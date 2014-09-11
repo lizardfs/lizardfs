@@ -550,6 +550,7 @@ public:
 	void end(){
 		updateChecksum();
 		reset();
+		DEBUG_LOG("master.fs.checksum.updater_end");
 	}
 
 	// is recalculating in progress?
@@ -650,14 +651,17 @@ private:
 		if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
 			syslog(LOG_WARNING,"FsNodes checksum mismatch found, replacing with a new value.");
 			gMetadata->fsNodesChecksum = fsNodesChecksum;
+			DEBUG_LOG("master.fs.checksum.mismatch");
 		}
 		if (fsEdgesChecksum != gMetadata->fsEdgesChecksum) {
 			syslog(LOG_WARNING,"FsEdges checksum mismatch found, replacing with a new value.");
 			gMetadata->fsEdgesChecksum = fsEdgesChecksum;
+			DEBUG_LOG("master.fs.checksum.mismatch");
 		}
 		if (xattrChecksum != gMetadata->xattrChecksum) {
 			syslog(LOG_WARNING,"Xattr checksum mismatch found, replacing with a new value.");
 			gMetadata->xattrChecksum = xattrChecksum;
+			DEBUG_LOG("master.fs.checksum.mismatch");
 		}
 	}
 
@@ -685,16 +689,19 @@ public:
 	}
 	virtual ~ChecksumUpdater() {
 		if (gMetadata->metaversion > lastEntry_ + period_) {
-			lastEntry_ = gMetadata->metaversion;
-			if (metadataserver::isMaster() && !gChecksumBackgroundUpdater.inProgress()) {
-				std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
-				uint64_t checksum = fs_checksum(ChecksumMode::kGetCurrent);
-				fs_changelog(ts_, "CHECKSUM(%s):%" PRIu64, versionString.c_str(), checksum);
-			}
+			writeToChangelog(ts_);
 		}
 	}
 	static void setPeriod(uint32_t period) {
 		period_ = period;
+	}
+	static void writeToChangelog(uint32_t ts) {
+		lastEntry_ = gMetadata->metaversion;
+		if (metadataserver::isMaster() && !gChecksumBackgroundUpdater.inProgress()) {
+			std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
+			uint64_t checksum = fs_checksum(ChecksumMode::kGetCurrent);
+			fs_changelog(ts, "CHECKSUM(%s):%" PRIu64, versionString.c_str(), checksum);
+		}
 	}
 private:
 	uint32_t ts_;
@@ -8217,6 +8224,9 @@ void fs_reload(void) {
 	fs_read_config_file();
 	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
+	}
+	if (cfg_getuint32("RECALCULATE_CHECKSUM_ON_RELOAD", 0) == 1) {
+		fs_start_checksum_recalculation();
 	}
 	if (metadataserver::isDuringPersonalityChange()) {
 		if (!gMetadata) {

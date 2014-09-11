@@ -508,6 +508,7 @@ ChecksumRecalculationStatus chunks_update_checksum_a_bit(uint32_t speedLimit) {
 	gChunksMetadata->checksumRecalculationPosition = 0;
 	if (gChunksMetadata->chunksChecksum != gChunksMetadata->chunksChecksumRecalculated) {
 		syslog(LOG_WARNING,"Chunks metadata checksum mismatch found, replacing with a new value.");
+		DEBUG_LOG("master.fs.checksum.mismatch");
 		gChunksMetadata->chunksChecksum = gChunksMetadata->chunksChecksumRecalculated;
 	}
 	return ChecksumRecalculationStatus::kDone;
