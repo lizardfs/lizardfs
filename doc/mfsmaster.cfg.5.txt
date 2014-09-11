@@ -145,6 +145,15 @@ How often mountpoints will request bandwidth allocations under constant, predict
 After inactivity, no waiting is required to transfer the amount of data equivalent to normal
 data flow over the period of that many milliseconds (default is 250)
 
+*METADATA_CHECKSUM_INTERVAL*::
+how often metadata checksum shall be sent to backup servers (default is: every 50 metadata updates)
+
+*METADATA_CHECKSUM_RECALCULATION_SPEED*::
+how fast should metadata be recalculated in background (default : 100 objects per function call)
+
+*DISABLE_METADATA_CHECKSUM_VERIFICATION*::
+should checksum verification be disabled while applying changelog
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::
@@ -159,12 +168,6 @@ delay in seconds before trying to reconnect to metadata server after disconnecti
 
 *MASTER_TIMEOUT*::
 timeout (in seconds) for metadata server connections (default is 60)
-
-*METADATA_CHECKSUM_INTERVAL*::
-how often metadata checksum shall be sent to backup servers (default is: every 50 metadata updates)
-
-*DISABLE_METADATA_CHECKSUM_VERIFICATION*::
-should checksum verification be disabled while applying changelog
 
 == NOTES
 

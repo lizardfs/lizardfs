@@ -33,17 +33,19 @@
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
-/// Returns version of the loaded metadata
+/// Returns version of the loaded metadata.
 uint64_t fs_getversion(void);
 
-/// Returns checksum of the loaded metadata
+/// Returns checksum of the loaded metadata.
 uint64_t fs_checksum(ChecksumMode mode);
 
-/*! \brief Load and apply changelogs.
- */
+/// Starts recalculating metadata checksum in background.
+void fs_start_checksum_recalculation();
+
+/// Load and apply changelogs.
 int fs_load_changelogs();
-/*! \brief Load whole filesystem information.
- */
+
+/// Load whole filesystem information.
 int fs_loadall();
 
 /*! \brief Dump current state of file system metadata.

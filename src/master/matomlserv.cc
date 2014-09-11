@@ -544,7 +544,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	gShadowQueue.addRequest(eptr);
 	fs_storeall(MetadataDumper::kBackgroundDump);
 	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
-		fs_checksum(ChecksumMode::kForceRecalculate);
+		fs_start_checksum_recalculation();
 	}
 }
 

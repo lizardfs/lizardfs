@@ -69,14 +69,17 @@
 #define NODEHASHBITS (22)
 #define NODEHASHSIZE (1<<NODEHASHBITS)
 #define NODEHASHPOS(nodeid) ((nodeid)&(NODEHASHSIZE-1))
+#define NODECHECKSUMSEED 12345
 
 #define EDGEHASHBITS (22)
 #define EDGEHASHSIZE (1<<EDGEHASHBITS)
 #define EDGEHASHPOS(hash) ((hash)&(EDGEHASHSIZE-1))
+#define EDGECHECKSUMSEED 1231241261
 #define LOOKUPNOHASHLIMIT 10
 
 #define XATTR_INODE_HASH_SIZE 65536
 #define XATTR_DATA_HASH_SIZE 524288
+#define XATTRCHECKSUMSEED 29857986791741783ULL
 
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
@@ -286,9 +289,9 @@ public:
 
 	QuotaDatabase gQuotaDatabase;
 
-	uint64_t gFsNodesChecksum;
-	uint64_t gFsEdgesChecksum;
-	uint64_t gXattrChecksum;
+	uint64_t fsNodesChecksum;
+	uint64_t fsEdgesChecksum;
+	uint64_t xattrChecksum;
 
 	FilesystemMetadata()
 			: xattr_inode_hash{},
@@ -318,9 +321,9 @@ public:
 			  filenodes{},
 			  dirnodes{},
 			  gQuotaDatabase{},
-			  gFsNodesChecksum{},
-			  gFsEdgesChecksum{},
-			  gXattrChecksum{} {
+			  fsNodesChecksum{},
+			  fsEdgesChecksum{},
+			  xattrChecksum{} {
 	}
 
 	~FilesystemMetadata() {
@@ -484,6 +487,192 @@ void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
 	changelog(gMetadata->metaversion++, tmp.c_str(), ts, args...);
 }
 
+static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
+	uint32_t hash,i;
+	hash = ((parentid * 0x5F2318BD) + nleng);
+	for (i=0 ; i<nleng ; i++) {
+		hash = hash*33+name[i];
+	}
+	return hash;
+}
+
+static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const uint8_t *attrname) {
+	uint32_t hash = inode*5381U;
+	while (anleng) {
+		hash = (hash * 33U) + (*attrname);
+		attrname++;
+		anleng--;
+	}
+	return (hash&(XATTR_DATA_HASH_SIZE-1));
+}
+
+/*!
+ * \brief Steps during recalculating checksum in the background
+ * It is essential that kNone is at the beginning, and kDone at the end.
+ */
+enum class ChecksumRecalculatingStep {
+	kNone, kTrash, kReserved, kNodes, kEdges, kXattrs, kChunks, kDone};
+
+// Special behavior for ++ChecksumRecalculatingStep
+ChecksumRecalculatingStep& operator++ (ChecksumRecalculatingStep &c) {
+	sassert(c != ChecksumRecalculatingStep::kDone);
+	c = static_cast<ChecksumRecalculatingStep>(static_cast<int>(c) + 1);
+	return c;
+}
+
+/*!
+ * \brief Updates checksums in the background, recalculating them from the beginning.
+ *
+ * Recalculation is done in steps as described in ChecksumRecalculatingStep.
+ * This class holds information about the recalculation progress,
+ * actual recalculating is done in function fs_background_checksum_recalculation_a_bit().
+ * Controls recalculation of fsNodesChecksum, fsEdgesChecksum and xattrChecksum.
+ * ChunksChecksum is recalculated externally using chunks_update_checksum_a_bit().
+ */
+class ChecksumBackgroundUpdater {
+public:
+	ChecksumBackgroundUpdater()
+		: speedLimit_(0) {// Not important, redefined in fs_read_config_file()
+		reset();
+	}
+
+	// start recalculating, true if succeeds
+	bool start() {
+		if (step_ == ChecksumRecalculatingStep::kNone) {
+			++step_;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	// end recalculating and update checksums if mismatch found
+	void end(){
+		updateChecksum();
+		reset();
+	}
+
+	// is recalculating in progress?
+	bool inProgress() {
+		return step_ != ChecksumRecalculatingStep::kNone;
+	}
+
+	ChecksumRecalculatingStep getStep() {
+		return step_;
+	}
+
+	// go to next step of recalculating, resets position
+	void incStep() {
+		++step_;
+		position_ = 0;
+	}
+
+	int32_t getPosition() {
+		return position_;
+	}
+
+	void incPosition() {
+		++position_;
+	}
+
+	// is node already included in the background checksum?
+	bool isNodeIncluded(fsnode* node) {
+		if (step_ > ChecksumRecalculatingStep::kNodes) {
+			return true;
+		}
+		if (step_ == ChecksumRecalculatingStep::kNodes && NODEHASHPOS(node->id) < position_) {
+			return true;
+		}
+		return false;
+	}
+
+	// is edge already included in the background checksum?
+	bool isEdgeIncluded(fsedge* edge) {
+		if (edge->child->type == TYPE_TRASH) {
+			if (step_ > ChecksumRecalculatingStep::kTrash) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+		if (edge->child->type == TYPE_RESERVED) {
+			if (step_ > ChecksumRecalculatingStep::kReserved) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+		if (step_ > ChecksumRecalculatingStep::kEdges) {
+			return true;
+		}
+		if (step_ == ChecksumRecalculatingStep::kEdges
+				&& EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->nleng, edge->name)) < position_) {
+			return true;
+		}
+		return false;
+	}
+
+	// is xattr already included in the background checksum?
+	bool isXattrIncluded(xattr_data_entry* xde) {
+		if (step_ > ChecksumRecalculatingStep::kXattrs) {
+			return true;
+		}
+		if (step_ == ChecksumRecalculatingStep::kXattrs
+				&& xattr_data_hash_fn(xde->inode, xde->anleng, xde->attrname) < position_) {
+			return true;
+		}
+		return false;
+	}
+
+	void setSpeedLimit(uint32_t value) {
+		speedLimit_ = value;
+	}
+
+	uint32_t getSpeedLimit() {
+		return speedLimit_;
+	}
+
+	// Checksum values
+	uint64_t fsNodesChecksum;
+	uint64_t fsEdgesChecksum;
+	uint64_t xattrChecksum;
+private:
+	// current step
+	ChecksumRecalculatingStep step_;
+
+	// How many objects should be processed per one fs_background_checksum_recalculation_a_bit() ?
+	uint32_t speedLimit_;
+
+	// current position in hashtable
+	uint32_t position_;
+
+	void updateChecksum() {
+		if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
+			syslog(LOG_WARNING,"FsNodes checksum mismatch found, replacing with a new value.");
+			gMetadata->fsNodesChecksum = fsNodesChecksum;
+		}
+		if (fsEdgesChecksum != gMetadata->fsEdgesChecksum) {
+			syslog(LOG_WARNING,"FsEdges checksum mismatch found, replacing with a new value.");
+			gMetadata->fsEdgesChecksum = fsEdgesChecksum;
+		}
+		if (xattrChecksum != gMetadata->xattrChecksum) {
+			syslog(LOG_WARNING,"Xattr checksum mismatch found, replacing with a new value.");
+			gMetadata->xattrChecksum = xattrChecksum;
+		}
+	}
+
+	// prepare for next checksum recalculation
+	void reset() {
+		position_ = 0;
+		step_ = ChecksumRecalculatingStep::kNone;
+		fsNodesChecksum = NODECHECKSUMSEED;
+		fsEdgesChecksum = EDGECHECKSUMSEED;
+		xattrChecksum = XATTRCHECKSUMSEED;
+	}
+};
+
+static ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
+
 /*! \brief Periodically adds CHECKSUM changelog entry.
  *  Entry is added during destruction, so that it will be generated after end of function
  *  where ChecksumUpdater is created.
@@ -497,11 +686,10 @@ public:
 	virtual ~ChecksumUpdater() {
 		if (gMetadata->metaversion > lastEntry_ + period_) {
 			lastEntry_ = gMetadata->metaversion;
-			if (metadataserver::isMaster()) {
+			if (metadataserver::isMaster() && !gChecksumBackgroundUpdater.inProgress()) {
 				std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
 				uint64_t checksum = fs_checksum(ChecksumMode::kGetCurrent);
 				fs_changelog(ts_, "CHECKSUM(%s):%" PRIu64, versionString.c_str(), checksum);
-				return;
 			}
 		}
 	}
@@ -565,22 +753,38 @@ static uint64_t fsnodes_checksum(const fsnode* node) {
 	return seed;
 }
 
+void fsnodes_checksum_add_to_background(fsnode* node) {
+	if (!node) {
+		return;
+	}
+	removeFromChecksum(gMetadata->fsNodesChecksum, node->checksum);
+	node->checksum = fsnodes_checksum(node);
+	addToChecksum(gMetadata->fsNodesChecksum, node->checksum);
+	addToChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, node->checksum);
+}
+
 static void fsnodes_update_checksum(fsnode* node) {
 	if (!node) {
 		return;
 	}
-	removeFromChecksum(gMetadata->gFsNodesChecksum, node->checksum);
+	if (gChecksumBackgroundUpdater.isNodeIncluded(node)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, node->checksum);
+	}
+	removeFromChecksum(gMetadata->fsNodesChecksum, node->checksum);
 	node->checksum = fsnodes_checksum(node);
-	addToChecksum(gMetadata->gFsNodesChecksum, node->checksum);
+	addToChecksum(gMetadata->fsNodesChecksum, node->checksum);
+	if (gChecksumBackgroundUpdater.isNodeIncluded(node)) {
+		addToChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, node->checksum);
+	}
 }
 
 static void fsnodes_recalculate_checksum() {
-	gMetadata->gFsNodesChecksum = 12345; // arbitrary number
+	gMetadata->fsNodesChecksum = NODECHECKSUMSEED; // arbitrary number
 	// nodes
 	for (uint32_t i = 0; i < NODEHASHSIZE; i++) {
 		for (fsnode* node = gMetadata->nodehash[i]; node; node = node->next) {
 			node->checksum = fsnodes_checksum(node);
-			addToChecksum(gMetadata->gFsNodesChecksum, node->checksum);
+			addToChecksum(gMetadata->fsNodesChecksum, node->checksum);
 		}
 	}
 }
@@ -617,26 +821,42 @@ static void fsedges_checksum_edges_rec(uint64_t& checksum, fsnode* node) {
 	}
 }
 
+void fsedges_checksum_add_to_background(fsedge* edge) {
+	if (!edge) {
+		return;
+	}
+	removeFromChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
+	edge->checksum = fsedges_checksum(edge);
+	addToChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
+	addToChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
+}
+
 static void fsedges_update_checksum(fsedge* edge) {
 	if (!edge) {
 		return;
 	}
-	removeFromChecksum(gMetadata->gFsEdgesChecksum, edge->checksum);
+	if (gChecksumBackgroundUpdater.isEdgeIncluded(edge)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
+	}
+	removeFromChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
 	edge->checksum = fsedges_checksum(edge);
-	addToChecksum(gMetadata->gFsEdgesChecksum, edge->checksum);
+	addToChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
+	if (gChecksumBackgroundUpdater.isEdgeIncluded(edge)) {
+		addToChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
+	}
 }
 
 static void fsedges_recalculate_checksum() {
-	gMetadata->gFsEdgesChecksum = 1231241261;
+	gMetadata->fsEdgesChecksum = EDGECHECKSUMSEED;
 	// edges
 	if (gMetadata->root) {
-		fsedges_checksum_edges_rec(gMetadata->gFsEdgesChecksum, gMetadata->root);
+		fsedges_checksum_edges_rec(gMetadata->fsEdgesChecksum, gMetadata->root);
 	}
 	if (gMetadata->trash) {
-		fsedges_checksum_edges_list(gMetadata->gFsEdgesChecksum, gMetadata->trash);
+		fsedges_checksum_edges_list(gMetadata->fsEdgesChecksum, gMetadata->trash);
 	}
 	if (gMetadata->reserved) {
-		fsedges_checksum_edges_list(gMetadata->gFsEdgesChecksum, gMetadata->reserved);
+		fsedges_checksum_edges_list(gMetadata->fsEdgesChecksum, gMetadata->reserved);
 	}
 }
 
@@ -650,21 +870,37 @@ static uint64_t xattr_checksum(const xattr_data_entry* xde) {
 	return seed;
 }
 
+void xattr_checksum_add_to_background(xattr_data_entry* xde) {
+	if (!xde) {
+		return;
+	}
+	removeFromChecksum(gMetadata->xattrChecksum, xde->checksum);
+	xde->checksum = xattr_checksum(xde);
+	addToChecksum(gMetadata->xattrChecksum, xde->checksum);
+	addToChecksum(gChecksumBackgroundUpdater.xattrChecksum, xde->checksum);
+}
+
 static void xattr_update_checksum(xattr_data_entry* xde) {
 	if (!xde) {
 		return;
 	}
-	removeFromChecksum(gMetadata->gXattrChecksum, xde->checksum);
+	if (gChecksumBackgroundUpdater.isXattrIncluded(xde)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.xattrChecksum, xde->checksum);
+	}
+	removeFromChecksum(gMetadata->xattrChecksum, xde->checksum);
 	xde->checksum = xattr_checksum(xde);
-	addToChecksum(gMetadata->gXattrChecksum, xde->checksum);
+	if (gChecksumBackgroundUpdater.isXattrIncluded(xde)) {
+		addToChecksum(gChecksumBackgroundUpdater.xattrChecksum, xde->checksum);
+	}
+	addToChecksum(gMetadata->xattrChecksum, xde->checksum);
 }
 
 static void xattr_recalculate_checksum() {
-	gMetadata->gXattrChecksum = 29857986791741783ULL;
+	gMetadata->xattrChecksum = XATTRCHECKSUMSEED;
 	for (int i = 0; i < XATTR_DATA_HASH_SIZE; ++i) {
 		for (xattr_data_entry* xde = gMetadata->xattr_data_hash[i]; xde; xde = xde->next) {
 			xde->checksum = xattr_checksum(xde);
-			addToChecksum(gMetadata->gXattrChecksum, xde->checksum);
+			addToChecksum(gMetadata->xattrChecksum, xde->checksum);
 		}
 	}
 }
@@ -679,15 +915,21 @@ uint64_t fs_checksum(ChecksumMode mode) {
 		fsedges_recalculate_checksum();
 		xattr_recalculate_checksum();
 	}
-	hashCombine(checksum, gMetadata->gFsNodesChecksum);
-	hashCombine(checksum, gMetadata->gFsEdgesChecksum);
-	hashCombine(checksum, gMetadata->gXattrChecksum);
+	hashCombine(checksum, gMetadata->fsNodesChecksum);
+	hashCombine(checksum, gMetadata->fsEdgesChecksum);
+	hashCombine(checksum, gMetadata->xattrChecksum);
 	hashCombine(checksum, gMetadata->gQuotaDatabase.checksum());
 	hashCombine(checksum, chunk_checksum(mode));
 	return checksum;
 }
 
 #ifndef METARESTORE
+void fs_start_checksum_recalculation() {
+	if (gChecksumBackgroundUpdater.start()) {
+		main_make_next_poll_nonblocking();
+	}
+}
+
 static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
@@ -705,7 +947,7 @@ void metadataPollServe(struct pollfd* pdesc) {
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
 				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
-				fs_checksum(ChecksumMode::kForceRecalculate);
+				fs_start_checksum_recalculation();
 			}
 			unlink(kMetadataTmpFilename);
 		}
@@ -873,16 +1115,6 @@ static inline uint32_t xattr_inode_hash_fn(uint32_t inode) {
 	return ((inode*0x72B5F387U)&(XATTR_INODE_HASH_SIZE-1));
 }
 
-static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const uint8_t *attrname) {
-	uint32_t hash = inode*5381U;
-	while (anleng) {
-		hash = (hash * 33U) + (*attrname);
-		attrname++;
-		anleng--;
-	}
-	return (hash&(XATTR_DATA_HASH_SIZE-1));
-}
-
 #ifndef METARESTORE
 static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
 	uint32_t i;
@@ -904,7 +1136,10 @@ static inline void xattr_removeentry(xattr_data_entry *xa) {
 	if (xa->next) {
 		xa->next->prev = xa->prev;
 	}
-	removeFromChecksum(gMetadata->gXattrChecksum, xa->checksum);
+	if (gChecksumBackgroundUpdater.isXattrIncluded(xa)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.xattrChecksum, xa->checksum);
+	}
+	removeFromChecksum(gMetadata->xattrChecksum, xa->checksum);
 	delete xa;
 }
 
@@ -1123,15 +1358,6 @@ static char* fsnodes_escape_name(uint32_t nleng,const uint8_t *name) {
 	}
 	currescname[i]=0;
 	return currescname;
-}
-
-static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
-	uint32_t hash,i;
-	hash = ((parentid * 0x5F2318BD) + nleng);
-	for (i=0 ; i<nleng ; i++) {
-		hash = hash*33+name[i];
-	}
-	return hash;
 }
 
 static inline int fsnodes_nameisused(fsnode *node,uint16_t nleng,const uint8_t *name) {
@@ -1476,7 +1702,10 @@ static inline void fsnodes_fill_attr(const FsContext& context,
 
 static inline void fsnodes_remove_edge(uint32_t ts,fsedge *e) {
 	statsrecord sr;
-	removeFromChecksum(gMetadata->gFsEdgesChecksum, e->checksum);
+	if (gChecksumBackgroundUpdater.isEdgeIncluded(e)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, e->checksum);
+	}
+	removeFromChecksum(gMetadata->fsEdgesChecksum, e->checksum);
 	if (e->parent) {
 		fsnodes_get_stats(e->child,&sr);
 		fsnodes_sub_stats(e->parent,&sr);
@@ -2077,7 +2306,10 @@ static inline void fsnodes_remove_node(uint32_t ts,fsnode *toremove) {
 		}
 		ptr = &((*ptr)->next);
 	}
-	removeFromChecksum(gMetadata->gFsNodesChecksum, toremove->checksum);
+	if (gChecksumBackgroundUpdater.isNodeIncluded(toremove)) {
+		removeFromChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, toremove->checksum);
+	}
+	removeFromChecksum(gMetadata->fsNodesChecksum, toremove->checksum);
 // and free
 	gMetadata->nodes--;
 	if (toremove->type==TYPE_DIRECTORY) {
@@ -5579,7 +5811,99 @@ uint32_t fs_test_log_inconsistency(fsedge *e,const char *iname,char *buff,uint32
 	return leng;
 }
 
-void fs_test_files() {
+/*
+ * A function that is called every main loop iteration,
+ * recalculates checksums in the backround background using gChecksumBackgroundUpdater
+ * Recalculated checksums are FsNodesChecksum, FsEdgesChecksum, XattrChecksum and ChunksChecksum.
+ * ChunksChecksum is recalculated externally using chunks_update_checksum_a_bit().
+ */
+static void fs_background_checksum_recalculation_a_bit() {
+	uint32_t recalculated = 0;
+
+	switch (gChecksumBackgroundUpdater.getStep()) {
+		case ChecksumRecalculatingStep::kNone: // Recalculation not in progress.
+			return;
+		case ChecksumRecalculatingStep::kTrash:
+			// Trash has to be recalculated in one step, as it is on a list.
+			for (fsedge* edge = gMetadata->trash; edge; edge = edge->nextchild) {
+				fsedges_checksum_add_to_background(edge);
+			}
+			gChecksumBackgroundUpdater.incStep();
+			break;
+		case ChecksumRecalculatingStep::kReserved:
+			// Reserved has to be recalculated in one step, as it is on a list.
+			for (fsedge* edge = gMetadata->reserved; edge; edge = edge->nextchild) {
+				fsedges_checksum_add_to_background(edge);
+			}
+			gChecksumBackgroundUpdater.incStep();
+			break;
+		case ChecksumRecalculatingStep::kNodes:
+			// Nodes are in a hashtable, therefore they can be recalculated in multiple steps.
+			while (gChecksumBackgroundUpdater.getPosition() < NODEHASHSIZE) {
+				for (fsnode* node = gMetadata->nodehash[gChecksumBackgroundUpdater.getPosition()];
+						node; node = node->next) {
+					fsnodes_checksum_add_to_background(node);
+					++recalculated;
+				}
+				gChecksumBackgroundUpdater.incPosition();
+				if (recalculated >= gChecksumBackgroundUpdater.getSpeedLimit()) {
+					break;
+				}
+			}
+			if (gChecksumBackgroundUpdater.getPosition() == NODEHASHSIZE) {
+				gChecksumBackgroundUpdater.incStep();
+			}
+			break;
+		case ChecksumRecalculatingStep::kEdges:
+			// Edges (not ones in trash or reserved) are in a hashtable,
+			// therefore they can be recalculated in multiple steps.
+			while (gChecksumBackgroundUpdater.getPosition() < EDGEHASHSIZE) {
+				for (fsedge* edge = gMetadata->edgehash[gChecksumBackgroundUpdater.getPosition()];
+						edge; edge = edge->next) {
+					fsedges_checksum_add_to_background(edge);
+					++recalculated;
+				}
+				gChecksumBackgroundUpdater.incPosition();
+				if (recalculated >= gChecksumBackgroundUpdater.getSpeedLimit()) {
+					break;
+				}
+			}
+			if (gChecksumBackgroundUpdater.getPosition() == EDGEHASHSIZE) {
+				gChecksumBackgroundUpdater.incStep();
+			}
+			break;
+		case ChecksumRecalculatingStep::kXattrs:
+			// Xattrs are in a hashtable, therefore they can be recalculated in multiple steps.
+			while (gChecksumBackgroundUpdater.getPosition() < XATTR_DATA_HASH_SIZE) {
+				for (xattr_data_entry* xde = gMetadata->xattr_data_hash[gChecksumBackgroundUpdater.getPosition()];
+						xde; xde = xde->next) {
+					xattr_checksum_add_to_background(xde);
+					++recalculated;
+				}
+				gChecksumBackgroundUpdater.incPosition();
+				if (recalculated >= gChecksumBackgroundUpdater.getSpeedLimit()) {
+					break;
+				}
+			}
+			if (gChecksumBackgroundUpdater.getPosition() == XATTR_DATA_HASH_SIZE) {
+				gChecksumBackgroundUpdater.incStep();
+			}
+			break;
+		case ChecksumRecalculatingStep::kChunks:
+			// Chunks can be processed in multiple steps.
+			if (chunks_update_checksum_a_bit(gChecksumBackgroundUpdater.getSpeedLimit())
+					== ChecksumRecalculationStatus::kDone) {
+				gChecksumBackgroundUpdater.incStep();
+			}
+			break;
+		case ChecksumRecalculatingStep::kDone:
+			gChecksumBackgroundUpdater.end();
+			return;
+	}
+	main_make_next_poll_nonblocking();
+}
+
+void fs_periodic_test_files() {
 	static uint32_t i=0;
 	uint32_t j;
 	uint32_t k;
@@ -5859,7 +6183,6 @@ void fs_test_files() {
 	}
 }
 #endif
-
 
 struct InodeInfo {
 	uint32_t free;
@@ -7859,7 +8182,8 @@ void fs_cs_disconnected(void) {
 void fs_become_master() {
 	dcm_clear();
 	test_start_time = main_time() + 900;
-	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_test_files);
+	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
+	main_eachloopregister(fs_background_checksum_recalculation_a_bit);
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
 			0, fs_periodic_emptytrash);
@@ -7882,6 +8206,8 @@ static void fs_read_config_file() {
 			kMaxStoredPreviousBackMetaCopies);
 
 	ChecksumUpdater::setPeriod(cfg_getint32("METADATA_CHECKSUM_INTERVAL", 50));
+	gChecksumBackgroundUpdater.setSpeedLimit(
+			cfg_getint32("METADATA_CHECKSUM_RECALCULATION_SPEED", 100));
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
@@ -8005,7 +8331,6 @@ int fs_load_changelogs() {
 	} catch (fs::filesystem_error& ex) {
 		throw FilesystemException("Error loading changelogs" + std::string(ex.what()));
 	}
-	fs_checksum(ChecksumMode::kForceRecalculate);
 	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
 	metadataserver::setPersonality(personality);
 	return 0;

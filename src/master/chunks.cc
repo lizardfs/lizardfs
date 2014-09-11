@@ -58,6 +58,8 @@
 #define HASHSIZE 0x100000
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
 
+#define CHECKSUMSEED 78765491511151883ULL
+
 #ifndef METARESTORE
 
 enum {JOBS_INIT,JOBS_EVERYLOOP,JOBS_EVERYSECOND};
@@ -353,6 +355,8 @@ struct ChunksMetadata {
 	// other chunks metadata information
 	uint64_t nextchunkid;
 	uint64_t chunksChecksum;
+	uint64_t chunksChecksumRecalculated;
+	uint32_t checksumRecalculationPosition;
 
 	ChunksMetadata() :
 #ifndef METARESTORE
@@ -365,7 +369,9 @@ struct ChunksMetadata {
 			lastchunkid{},
 			lastchunkptr{},
 			nextchunkid{1},
-			chunksChecksum{} {
+			chunksChecksum{},
+			chunksChecksumRecalculated{},
+			checksumRecalculationPosition{0} {
 	}
 
 	~ChunksMetadata() {
@@ -449,17 +455,64 @@ static uint64_t chunk_checksum(const chunk* c) {
 	return checksum;
 }
 
-static void chunk_update_checksum(chunk* ch) {
+static void chunk_checksum_add_to_background(chunk* ch) {
 	if (!ch) {
 		return;
 	}
 	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 	ch->checksum = chunk_checksum(ch);
+	addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
 	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 }
 
+static void chunk_update_checksum(chunk* ch) {
+	if (!ch) {
+		return;
+	}
+	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
+		removeFromChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
+	}
+	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
+	ch->checksum = chunk_checksum(ch);
+	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
+		addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
+	}
+	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
+}
+
+/*!
+ * \brief update chunks checksum in the background
+ * \param limit for processed chunks per function call
+ * \return info whether all chunks were updated or not.
+ */
+
+ChecksumRecalculationStatus chunks_update_checksum_a_bit(uint32_t speedLimit) {
+	if (gChunksMetadata->checksumRecalculationPosition == 0) {
+		gChunksMetadata->chunksChecksumRecalculated = CHECKSUMSEED;
+	}
+	uint32_t recalculated = 0;
+	while (gChunksMetadata->checksumRecalculationPosition < HASHSIZE) {
+		chunk* c;
+		for (c = gChunksMetadata->chunkhash[gChunksMetadata->checksumRecalculationPosition]; c; c=c->next) {
+			chunk_checksum_add_to_background(c);
+			++recalculated;
+		}
+		++gChunksMetadata->checksumRecalculationPosition;
+		if (recalculated >= speedLimit) {
+			return ChecksumRecalculationStatus::kInProgress;
+		}
+	}
+	// Recalculating chunks checksum finished
+	gChunksMetadata->checksumRecalculationPosition = 0;
+	if (gChunksMetadata->chunksChecksum != gChunksMetadata->chunksChecksumRecalculated) {
+		syslog(LOG_WARNING,"Chunks metadata checksum mismatch found, replacing with a new value.");
+		gChunksMetadata->chunksChecksum = gChunksMetadata->chunksChecksumRecalculated;
+	}
+	return ChecksumRecalculationStatus::kDone;
+}
+
 static void chunk_recalculate_checksum() {
-	gChunksMetadata->chunksChecksum = 78765491511151883ULL;
+	gChunksMetadata->chunksChecksum = CHECKSUMSEED;
 	for (int i = 0; i < HASHSIZE; ++i) {
 		for (chunk* ch = gChunksMetadata->chunkhash[i]; ch; ch = ch->next) {
 			ch->checksum = chunk_checksum(ch);
