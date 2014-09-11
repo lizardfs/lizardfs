@@ -27,15 +27,14 @@ lizardfs_master_n 1 start
 cd "${info[mount0]}"
 metadata_generate_all
 metadata=$(metadata_print)
+cd
 
 # simulate master server failure and recovery from shadow
-sleep 3
-cd
+assert_eventually "lizardfs_shadow_synchronized 1"
 lizardfs_master_daemon kill
 
 lizardfs_make_conf_for_master 1
 lizardfs_master_daemon reload
-
 lizardfs_wait_for_all_ready_chunkservers
 
 # check restored filesystem
