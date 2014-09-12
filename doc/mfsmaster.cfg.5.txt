@@ -168,6 +168,10 @@ should checksum verification be disabled while applying changelog
 when this option is set to 1 inode access time is not updated on every access, otherwise
 (when set to 0) it is updated (default is 0)
 
+*METADATA_SAVE_REQUEST_MIN_PERIOD*::
+minimal time in seconds between metadata dumps caused by requests from shadow masters
+(default is 1800)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::

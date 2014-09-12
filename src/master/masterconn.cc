@@ -707,9 +707,12 @@ void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uin
 	DEBUG_LOG("master.matoml_changelog_apply_error") << "status: " << int(status);
 	if (status == STATUS_OK) {
 		masterconn_force_metadata_download(eptr);
+	} else if (status == ERROR_DELAYED) {
+		eptr->state = MasterConnectionState::kLimbo;
+		syslog(LOG_NOTICE, "Master temporarily refused to produce a new metadata image");
 	} else {
 		eptr->state = MasterConnectionState::kLimbo;
-		syslog(LOG_NOTICE, "Master failed to produce new metadata: %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Master failed to produce a new metadata image: %s", mfsstrerr(status));
 	}
 }
 

@@ -89,6 +89,12 @@ static int lsock;
 static int32_t lsockpdescpos;
 static bool gExiting = false;
 
+/// Miminal period (in seconds) between two metadata save processes requested by shadow masters
+static uint32_t gMinMetadataSaveRequestPeriod_s;
+
+/// Timestamp of the last metadata save request
+static uint32_t gLastMetadataSaveRequestTimestamp = 0;
+
 typedef struct old_changes_entry {
 	uint64_t version;
 	uint32_t length;
@@ -566,17 +572,31 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint8_t recvStatus;
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
-	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
 	if (gExiting) {
 		syslog(LOG_NOTICE,"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR - ignoring in the exit phase");
 		return;
 	}
-	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - dumping metadata",
-			mfsstrerr(recvStatus));
-	gShadowQueue.addRequest(eptr);
-	fs_storeall(MetadataDumper::kBackgroundDump);
-	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
-		fs_start_checksum_recalculation();
+
+	int32_t secondsSinceLastRequest = main_time() - gLastMetadataSaveRequestTimestamp;
+	if (secondsSinceLastRequest >= int32_t(gMinMetadataSaveRequestPeriod_s)) {
+		gLastMetadataSaveRequestTimestamp = main_time();
+		DEBUG_LOG("master.mltoma_changelog_apply_error") << "do";
+		syslog(LOG_INFO,
+				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
+				mfsstrerr(recvStatus));
+		gShadowQueue.addRequest(eptr);
+		fs_storeall(MetadataDumper::kBackgroundDump);
+		if (recvStatus == ERROR_BADMETADATACHECKSUM) {
+			fs_start_checksum_recalculation();
+		}
+	} else {
+		DEBUG_LOG("master.mltoma_changelog_apply_error") << "delay";
+		syslog(LOG_INFO,
+				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - "
+				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "
+				"previous request and METADATA_SAVE_REQUEST_MIN_PERIOD=%" PRIu32,
+				mfsstrerr(recvStatus), secondsSinceLastRequest, gMinMetadataSaveRequestPeriod_s);
+		matomlserv_createpacket(eptr, matoml::changelogApplyError::build(ERROR_DELAYED));
 	}
 }
 
@@ -927,9 +947,17 @@ void matomlserv_become_master() {
 	return;
 }
 
+/// Read values from the config file into global variables.
+/// Used on init and reload.
+void matomlserv_read_config_file() {
+	gMinMetadataSaveRequestPeriod_s = cfg_getuint32("METADATA_SAVE_REQUEST_MIN_PERIOD", 1800);
+}
+
 void matomlserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
+
+	matomlserv_read_config_file();
 
 	oldListenHost = ListenHost;
 	oldListenPort = ListenPort;
@@ -980,6 +1008,7 @@ void matomlserv_reload(void) {
 }
 
 int matomlserv_init(void) {
+	matomlserv_read_config_file();
 	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
 

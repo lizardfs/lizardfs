@@ -197,5 +197,13 @@
 ## (Default: 0)
 # DISABLE_METADATA_CHECKSUM_VERIFICATION = 0
 
+## Should atime updates be disabled, boolean.
+## (Default: 0)
+# NO_ATIME = 0
+
+## Minimal time in seconds between metadata dumps caused by requests from shadow masters.
+## (Default: 1800)
+# METADATA_SAVE_REQUEST_MIN_PERIOD = 1800
+
 # deprecated:
 # CHUNKS_DEL_LIMIT - use CHUNKS_SOFT_DEL_LIMIT instead
