@@ -498,10 +498,30 @@ const std::string& set_syslog_ident() {
 	return logIdent;
 }
 
+static void main_configure_debug_log() {
+	std::string debugLogConfiguration;
+	for (std::string suffix : {"", "_A", "_B", "_C"}) {
+		std::string configEntryName = "MAGIC_DEBUG_LOG" + suffix;
+		std::string value = cfg_get(configEntryName.c_str(), "");
+		if (value.empty()) {
+			continue;
+		}
+		if (!debugLogConfiguration.empty()) {
+			debugLogConfiguration += ',';
+		}
+		debugLogConfiguration += value;
+	}
+	DebugLog::setConfiguration(std::move(debugLogConfiguration));
+}
+
 void main_reload() {
+	// Reload SYSLOG_IDENT
 	syslog(LOG_NOTICE, "Changing SYSLOG_IDENT to %s",
 			cfg_get("SYSLOG_IDENT", STR(APPNAME)).c_str());
 	set_syslog_ident();
+
+	// Reload MAGIC_DEBUG_LOG
+	main_configure_debug_log();
 }
 
 /* signals */
@@ -1111,7 +1131,7 @@ int main(int argc,char **argv) {
 		fprintf(stderr,"can't load config file: %s - using defaults\n",cfgfile);
 	}
 	free(cfgfile);
-
+	main_configure_debug_log();
 	const std::string& logappname = set_syslog_ident();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {

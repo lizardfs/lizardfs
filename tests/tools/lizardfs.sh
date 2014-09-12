@@ -151,12 +151,14 @@ create_mfsexports_cfg_() {
 
 # Creates MAGIC_DEBUG_LOG which will cause test to fail is some error is logged by any daemon
 create_magic_debug_log_entry_() {
+	local servername=$1
+
 	# By default, fail on all prefixes passed in DEBUG_LOG_FAIL_ON
 	local prefixes=${DEBUG_LOG_FAIL_ON:-}
 
 	# This is a list of other entries, which are added to each test (but can be disabled)
 	# Add all these entries to the 'prefixes' list if not disabled using DEBUG_LOG_DISABLE_FAIL_ON
-	local auto_prefixes=("master.mismatch")
+	local auto_prefixes=("fatal.assert" "fatal.abort" "master.mismatch")
 	local disable_regex=${DEBUG_LOG_DISABLE_FAIL_ON:-$^} # default value matches nothing
 	local prefix
 	for prefix in "${auto_prefixes[@]}"; do
@@ -169,10 +171,10 @@ create_magic_debug_log_entry_() {
 	if [[ $prefixes ]]; then
 		echo -n "MAGIC_DEBUG_LOG_C = "
 		for prefix in $prefixes; do
-			echo -n "$prefix:$ERROR_DIR/debug_log_errors.log,"
+			echo -n "$prefix:$ERROR_DIR/debug_log_errors_${servername}.log,"
 		done
 		echo
-	fi
+	fi | sed -e 's/,$//'
 }
 
 create_mfsmaster_master_cfg_() {
@@ -187,7 +189,7 @@ create_mfsmaster_master_cfg_() {
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
-	create_magic_debug_log_entry_
+	create_magic_debug_log_entry_ "master_${masterserver_id}"
 }
 
 create_mfsmaster_shadow_cfg_() {
@@ -204,7 +206,7 @@ create_mfsmaster_shadow_cfg_() {
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
-	create_magic_debug_log_entry_
+	create_magic_debug_log_entry_ "shadow_${masterserver_id}"
 }
 
 lizardfs_make_conf_for_shadow() {
@@ -278,7 +280,7 @@ create_mfsmetalogger_cfg_() {
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
-	create_magic_debug_log_entry_
+	create_magic_debug_log_entry_ "mfsmetalogger"
 }
 
 prepare_metalogger_() {
@@ -312,7 +314,7 @@ create_mfschunkserver_cfg_() {
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
 	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
-	create_magic_debug_log_entry_
+	create_magic_debug_log_entry_ "chunkserver_${chunkserver_id}"
 }
 
 add_chunkserver_() {

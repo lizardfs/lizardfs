@@ -4,10 +4,11 @@
 #include <fstream>
 #include <sstream>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #ifdef LIZARDFS_ENABLE_DEBUG_LOG
-# define DEBUG_LOG(TAG) debugLog(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__)
+# define DEBUG_LOG(TAG) debugLog(TAG, __FILE__, __func__, __LINE__)
 # define DEBUG_LOGF(TAG, format, ...) debugLogf(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__, \
 		format, __VA_ARGS__)
 #else
@@ -68,6 +69,18 @@ public:
 		return *this;
 	}
 
+	/*! \brief Configure DebugLog
+	 *
+	 * \param configuration - a string in the form: prefix1:file1,prefix2:file2...
+	 */
+	static void setConfiguration(std::string configuration);
+
+	/*! \brief Get the current configuration of the DebugLog
+	 *
+	 * \return current configuration, ie. a string in the form: prefix1:file1,prefix2:file2...
+	 */
+	static std::string getConfiguration();
+
 private:
 	typedef std::unique_ptr<std::ofstream> Stream;
 
@@ -77,6 +90,16 @@ private:
 		}
 		buffer_->str(std::string());
 	}
+
+	/*! \brief Guards access to configurationString_
+	 */
+	static std::mutex configurationMutex_;
+
+	/*! \brief String with DebugLog's configuration
+	 *
+	 * The format is: prefix1:file1,prefix2:file2,prefix3:file3,...,prefixN:fileN
+	 */
+	static std::string configurationString_;
 
 	std::unique_ptr<std::stringstream> buffer_;
 	std::vector<Stream> streams_;
