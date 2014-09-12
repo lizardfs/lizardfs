@@ -477,7 +477,10 @@ static void chunk_update_checksum(chunk* ch) {
 	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 	ch->checksum = chunk_checksum(ch);
 	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
+		DEBUG_LOG("master.fs.checksum.changing_recalculated_chunk");
 		addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
+	} else {
+		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_chunk");
 	}
 	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 }

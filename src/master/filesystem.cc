@@ -578,51 +578,66 @@ public:
 
 	// is node already included in the background checksum?
 	bool isNodeIncluded(fsnode* node) {
+		auto ret = false;
 		if (step_ > ChecksumRecalculatingStep::kNodes) {
-			return true;
+			ret = true;
 		}
 		if (step_ == ChecksumRecalculatingStep::kNodes && NODEHASHPOS(node->id) < position_) {
-			return true;
+			ret = true;
 		}
-		return false;
+		if (ret) {
+			DEBUG_LOG("master.fs.checksum.changing_recalculated_node");
+		} else {
+			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_node");
+		}
+		return ret;
 	}
 
 	// is edge already included in the background checksum?
 	bool isEdgeIncluded(fsedge* edge) {
+		auto ret = false;
 		if (edge->child->type == TYPE_TRASH) {
 			if (step_ > ChecksumRecalculatingStep::kTrash) {
-				return true;
+				ret = true;
 			} else {
-				return false;
+				ret = false;
 			}
-		}
-		if (edge->child->type == TYPE_RESERVED) {
+		} else if (edge->child->type == TYPE_RESERVED) {
 			if (step_ > ChecksumRecalculatingStep::kReserved) {
-				return true;
+				ret = true;
 			} else {
-				return false;
+				ret = false;
 			}
-		}
-		if (step_ > ChecksumRecalculatingStep::kEdges) {
-			return true;
-		}
-		if (step_ == ChecksumRecalculatingStep::kEdges
+		} else if (step_ > ChecksumRecalculatingStep::kEdges) {
+			ret = true;
+		} else if (step_ == ChecksumRecalculatingStep::kEdges
 				&& EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->nleng, edge->name)) < position_) {
-			return true;
+			ret = true;
 		}
-		return false;
+		if (ret) {
+			DEBUG_LOG("master.fs.checksum.changing_recalculated_edge");
+		} else {
+			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_edge");
+		}
+		return ret;
 	}
 
 	// is xattr already included in the background checksum?
 	bool isXattrIncluded(xattr_data_entry* xde) {
+		auto ret = false;
 		if (step_ > ChecksumRecalculatingStep::kXattrs) {
-			return true;
+			ret = true;
 		}
 		if (step_ == ChecksumRecalculatingStep::kXattrs
 				&& xattr_data_hash_fn(xde->inode, xde->anleng, xde->attrname) < position_) {
-			return true;
+			ret = true;
 		}
-		return false;
+		if (ret) {
+			DEBUG_LOG("master.fs.checksum.changing_recalculated_xattr");
+		} else {
+			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_xattr");
+		}
+		return ret;
 	}
 
 	void setSpeedLimit(uint32_t value) {
