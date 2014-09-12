@@ -21,5 +21,5 @@ assert_success awk '
 	/^master.mismatch/ && i == 0 {i++; next;}
 	/^master.mltoma_changelog_apply_error/ && i == 1 {i++; next;}
 	/^master.matoml_changelog_apply_error/ && i == 2 {i++; next;}
-	{printf "Wrong line %d: %s\n", i, $0; exit 1}
+	END {if (i != 3) {exit 1}}
 	' ${TEMP_DIR}/log
