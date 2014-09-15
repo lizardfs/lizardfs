@@ -120,7 +120,15 @@
 #define ERROR_PARSE                   44    // Parsing unsuccessful
 #define ERROR_METADATAVERSIONMISMATCH 45    // Metadata version mismatch
 
-#define ERROR_MAX                     46
+#define ERROR_NOTLOCKED               46    // No such lock
+#define ERROR_WRONGLOCKID             47    // Wrong lock id
+
+#define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
+#define ERROR_RESERVED2               49
+#define ERROR_RESERVED3               50
+#define ERROR_RESERVED4               51
+
+#define ERROR_MAX                     52
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -169,6 +177,12 @@
 	"Changelog inconsistent", \
 	"Parsing unsuccessful", \
 	"Metadata version mismatch", \
+	"No such lock", \
+	"Wrong lock id", \
+	"Operation not possible", \
+	"Unknown MFS error", \
+	"Unknown MFS error", \
+	"Unknown MFS error", \
 	"Unknown MFS error"
 
 /* type for readdir command */
