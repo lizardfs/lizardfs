@@ -244,6 +244,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.3
+- (none) None
+
 * Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.2
 - (master, shadow) Metadata checksum mechanism, allowing to
   find and fix possible metadata inconsistencies between master

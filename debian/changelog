@@ -1,3 +1,9 @@
+lizardfs (2.5.3) unstable; urgency=low
+
+  * (none) None
+
+ -- Alek Lewandowski <contact@lizardfs.org>  Mon, 15 Sep 2014 14:00:00 +0200
+
 lizardfs (2.5.2) stable; urgency=low
 
   * (master, shadow) Metadata checksum mechanism, allowing to find and
