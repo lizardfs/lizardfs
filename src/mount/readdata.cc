@@ -38,6 +38,7 @@
 #include "mount/cscomm.h"
 #include "mount/csdb.h"
 #include "mount/mastercomm.h"
+#include "mount/tweaks.h"
 
 #define USECTICK 333333
 
@@ -75,7 +76,7 @@ static readrec *rdhead=NULL;
 static pthread_t pthid;
 static pthread_mutex_t glock;
 
-static uint32_t maxretries;
+static std::atomic<uint32_t> maxretries;
 static uint8_t rterm;
 
 #define TIMEDIFF(tv1,tv2) (((int64_t)((tv1).tv_sec-(tv2).tv_sec))*1000000LL+(int64_t)((tv1).tv_usec-(tv2).tv_usec))
@@ -204,6 +205,8 @@ void read_data_init(uint32_t retries) {
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&pthid,&thattr,read_data_delayed_ops,NULL);
 	pthread_attr_destroy(&thattr);
+
+	gTweaks.registerVariable("ReadMaxRetries", maxretries);
 }
 
 void read_data_term(void) {

@@ -46,6 +46,7 @@
 #include "mount/chunkserver_write_chain.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
+#include "mount/tweaks.h"
 
 // TODO: wtf?!
 // #define WORKER_DEBUG 1
@@ -99,7 +100,7 @@ static uint8_t fcbwaiting;
 static cblock *cacheblocks,*freecblockshead;
 static uint32_t freecacheblocks;
 
-static uint32_t maxretries;
+static std::atomic<uint32_t> maxretries;
 
 static inodedata **idhash;
 
@@ -831,6 +832,8 @@ void write_data_init (uint32_t cachesize,uint32_t retries) {
 		pthread_create(write_worker_th+i,&thattr,write_worker,(void*)(unsigned long)(i));
 	}
 	pthread_attr_destroy(&thattr);
+
+	gTweaks.registerVariable("WriteMaxRetries", maxretries);
 }
 
 void write_data_term(void) {

@@ -150,6 +150,7 @@ static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
+static std::atomic<bool> gDirectIo(false);
 
 static std::unique_ptr<AclCache> acl_cache;
 
@@ -1626,7 +1627,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 	if (debug_mode) {
 		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",(unsigned long int)ino,(unsigned long int)fi->keep_cache);
 	}
-	fi->direct_io = 0;
+	fi->direct_io = gDirectIo;
 	oplog_printf(ctx,"open (%lu): OK (%lu,%lu)",(unsigned long int)ino,(unsigned long int)fi->direct_io,(unsigned long int)fi->keep_cache);
 }
 
@@ -2368,6 +2369,12 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 			std::chrono::milliseconds((int)(1000 * acl_cache_timeout_)),
 			acl_cache_size_,
 			getAcl));
+
+	gTweaks.registerVariable("DirectIO", gDirectIo);
+	gTweaks.registerVariable("AclCacheMaxTime", acl_cache->maxTime_ms);
+	gTweaks.registerVariable("AclCacheHit", acl_cache->cacheHit);
+	gTweaks.registerVariable("AclCacheExpired", acl_cache->cacheExpired);
+	gTweaks.registerVariable("AclCacheMiss", acl_cache->cacheMiss);
 }
 
 } // namespace LizardClient
