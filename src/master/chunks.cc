@@ -447,7 +447,9 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 #endif // ! METARESTORE
 
 static uint64_t chunk_checksum(const chunk* c) {
-	if (c == nullptr) {
+	if (c == nullptr || c->fileCount() == 0) {
+		// We treat chunks with fileCount=0 as non-existent, so that we don't have to notify shadow
+		// masters when we remove them from our structures.
 		return 0;
 	}
 	uint64_t checksum = 64517419147637ULL;
