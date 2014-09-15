@@ -1,6 +1,17 @@
-lizardfs (2.5.1) unstable; urgency=low
+lizardfs (2.5.2) stable; urgency=low
 
- -- Marcin Sulikowski <sulik@lizardfs.org>  Fri, 18 Jul 2014 14:00:11 +0200
+  * (master, shadow) Metadata checksum mechanism, allowing to find and
+    fix possible metadata inconsistencies between master and shadow
+  * (mount, master) ACL cache in mount, reducing the load of the master
+    server
+  * (packaging) Support packaging for RedHat based systems
+  * (master) Improved chunkserver deregistration mechanism in order to
+    avoid temporary master unresponsiveness
+  * (polonaise) Add filesystem API for developers allowing to use the
+    filesystem without FUSE (and thus working also on Windows)
+  * (all) Minor fixes and improvements
+
+ -- Alek Lewandowski <contact@lizardfs.org>  Mon, 15 Sep 2014 14:00:00 +0200
 
 lizardfs (2.5.0) stable; urgency=medium
 

@@ -1,9 +1,25 @@
 This file contains some important notes on upgrade process.
 
+* Upgrading to LizardFS 2.5.2:
+
+    Upgrade is possible from:
+    - MooseFS  1.6.27 -- 1.6.27-5
+    - LizardFS 1.6.28 -- 2.5.0
+
+    When upgrading from LizardFS 2.5.0:
+    - Upgrade shadow master servers before the master server; shadow master will always
+      refuse to connect to the master server in any newer version.
+    - Clients, chunkservers and the master server can be upgraded in any order (all of them
+      are compatible with each other).
+
+    When upgrading from previous releases:
+    - There is no possibility to use shadow masters 2.5.2 before upgrading the master server.
+    - Upgrade the master server first, then all the chunkservers and then clients.
+
 * Upgrading to LizardFS 2.5.0:
 
     Upgrade is possible from:
-    - MooseFS 1.6.27 -- 1.6.27-5
+    - MooseFS  1.6.27 -- 1.6.27-5
     - LizardFS 1.6.28
 
     Master server has to be upgraded before any client.
