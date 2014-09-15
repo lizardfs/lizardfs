@@ -1048,14 +1048,7 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 	}
 	fs_info(&totalspace,&availspace,&trspace,&trnodes,&respace,&renodes,&inodes,&dnodes,&fnodes);
 	chunk_info(&chunks,&chunkcopies,&tdcopies);
-#ifdef MEMORY_USAGE
 	memusage = chartsdata_memusage();
-#else
-	/* XXX(lamvak): what exactly should be inserted here when there's no MEMORY_USAGE
-	 * probably needs a fix
-	 */
-	memusage = 0;
-#endif
 	ptr = matoclserv_createpacket(eptr,MATOCL_INFO,76);
 	put16bit(&ptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
 	put8bit(&ptr,LIZARDFS_PACKAGE_VERSION_MINOR);
