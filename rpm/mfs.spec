@@ -6,7 +6,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        2.5.0
+Version:        2.5.2
 Release:        1%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -244,11 +244,39 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Wed Jul 23 2014 George Lucan <george.lucan@yahoo.com> - 2.5.0
-- (all) lizardfs rebranding
-- (adm) introduce adm package
-- (master) add globaliolimits.cfg and manuals
-- (client) add iolimits.cfg and manuals
+* Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.3
+- (none) None
+
+* Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.2
+- (master, shadow) Metadata checksum mechanism, allowing to
+  find and fix possible metadata inconsistencies between master
+  and shadow
+- (mount, master) ACL cache in mount, reducing the load of
+  the master server
+- (packaging) Support packaging for RedHat based systems
+- (master) Improved chunkserver deregistration mechanism in
+  order to avoid temporary master unresponsiveness
+- (polonaise) Add filesystem API for developers allowing to
+  use the filesystem without FUSE (and thus working also on
+  Windows)
+- (all) Minor fixes and improvements
+
+* Wed Jul 15 2014 Marcin Sulikowski <sulik@lizardfs.org> - 2.5.0
+- (master) High availability provided by shadow master servers
+- (mount, chunkserver) CRC algorithm replaced with a 3 times faster
+  implementation
+- (mount, master) Support for quotas (for users and groups)
+- (mount, master) Support for posix access contol lists (requires
+  additional OS support)
+- (mount, master) Support for global I/O limiting (bandwidth limiting)
+- (mount) Support for per-mountpoint I/O limiting (bandwidth limiting)
+- (adm) New package lizardfs-adm with a lizardfs-probe command-line
+  tool which can be used to query the installation for variuos
+  parameteres
+- (master) New mechanism of storing metadata backup files which
+  improves performance of the hourly metadata dumps
+- (all) A comprehensive test suite added
+- (all) Multiple bugfixes
 
 
 * Wed Oct 16 2013 Peter aNeutrino <contact@lizardfs.org> - 1.6.28-1

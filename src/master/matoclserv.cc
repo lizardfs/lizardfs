@@ -3642,7 +3642,7 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	cltoma::fuseGetAcl::deserialize(data, length, messageId, inode, uid, gid, type);
-	DEBUG_LOG("master.matocl.getacl") << inode;
+	DEBUG_LOG("master.cltoma_fuse_getacl") << inode;
 
 	MessageBuffer reply;
 	AccessControlList acl;

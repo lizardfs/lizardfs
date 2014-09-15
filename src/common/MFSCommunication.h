@@ -86,63 +86,69 @@
 
 #define MFS_INODE_REUSE_DELAY 86400
 
-#define STATUS_OK              0        // OK
+#define STATUS_OK                      0    // OK
 
-#define ERROR_EPERM            1        // Operation not permitted
-#define ERROR_ENOTDIR          2        // Not a directory
-#define ERROR_ENOENT           3        // No such file or directory
-#define ERROR_EACCES           4        // Permission denied
-#define ERROR_EEXIST           5        // File exists
-#define ERROR_EINVAL           6        // Invalid argument
-#define ERROR_ENOTEMPTY        7        // Directory not empty
-#define ERROR_CHUNKLOST        8        // Chunk lost
-#define ERROR_OUTOFMEMORY      9        // Out of memory
+#define ERROR_EPERM                    1    // Operation not permitted
+#define ERROR_ENOTDIR                  2    // Not a directory
+#define ERROR_ENOENT                   3    // No such file or directory
+#define ERROR_EACCES                   4    // Permission denied
+#define ERROR_EEXIST                   5    // File exists
+#define ERROR_EINVAL                   6    // Invalid argument
+#define ERROR_ENOTEMPTY                7    // Directory not empty
+#define ERROR_CHUNKLOST                8    // Chunk lost
+#define ERROR_OUTOFMEMORY              9    // Out of memory
 
-#define ERROR_INDEXTOOBIG     10        // Index too big
-#define ERROR_LOCKED          11        // Chunk locked
-#define ERROR_NOCHUNKSERVERS  12        // No chunk servers
-#define ERROR_NOCHUNK         13        // No such chunk
-#define ERROR_CHUNKBUSY       14        // Chunk is busy
-#define ERROR_REGISTER        15        // Incorrect register BLOB
-#define ERROR_NOTDONE         16        // None of chunk servers performed requested operation
-#define ERROR_NOTOPENED       17        // File not opened
-#define ERROR_NOTSTARTED      18        // Write not started
+#define ERROR_INDEXTOOBIG             10    // Index too big
+#define ERROR_LOCKED                  11    // Chunk locked
+#define ERROR_NOCHUNKSERVERS          12    // No chunk servers
+#define ERROR_NOCHUNK                 13    // No such chunk
+#define ERROR_CHUNKBUSY               14    // Chunk is busy
+#define ERROR_REGISTER                15    // Incorrect register BLOB
+#define ERROR_NOTDONE                 16    // None of chunk servers performed requested operation
+#define ERROR_NOTOPENED               17    // File not opened
+#define ERROR_NOTSTARTED              18    // Write not started
 
-#define ERROR_WRONGVERSION    19        // Wrong chunk version
-#define ERROR_CHUNKEXIST      20        // Chunk already exists
-#define ERROR_NOSPACE         21        // No space left
-#define ERROR_IO              22        // IO error
-#define ERROR_BNUMTOOBIG      23        // Incorrect block number
-#define ERROR_WRONGSIZE       24        // Incorrect size
-#define ERROR_WRONGOFFSET     25        // Incorrect offset
-#define ERROR_CANTCONNECT     26        // Can't connect
-#define ERROR_WRONGCHUNKID    27        // Incorrect chunk id
-#define ERROR_DISCONNECTED    28        // Disconnected
-#define ERROR_CRC             29        // CRC error
-#define ERROR_DELAYED         30        // Operation delayed
-#define ERROR_CANTCREATEPATH  31        // Can't create path
+#define ERROR_WRONGVERSION            19    // Wrong chunk version
+#define ERROR_CHUNKEXIST              20    // Chunk already exists
+#define ERROR_NOSPACE                 21    // No space left
+#define ERROR_IO                      22    // IO error
+#define ERROR_BNUMTOOBIG              23    // Incorrect block number
+#define ERROR_WRONGSIZE               24    // Incorrect size
+#define ERROR_WRONGOFFSET             25    // Incorrect offset
+#define ERROR_CANTCONNECT             26    // Can't connect
+#define ERROR_WRONGCHUNKID            27    // Incorrect chunk id
+#define ERROR_DISCONNECTED            28    // Disconnected
+#define ERROR_CRC                     29    // CRC error
+#define ERROR_DELAYED                 30    // Operation delayed
+#define ERROR_CANTCREATEPATH          31    // Can't create path
 
-#define ERROR_MISMATCH        32        // Data mismatch
+#define ERROR_MISMATCH                32    // Data mismatch
 
-#define ERROR_EROFS           33        // Read-only file system
-#define ERROR_QUOTA           34        // Quota exceeded
-#define ERROR_BADSESSIONID    35        // Bad session id
-#define ERROR_NOPASSWORD      36        // Password is needed
-#define ERROR_BADPASSWORD     37        // Incorrect password
+#define ERROR_EROFS                   33    // Read-only file system
+#define ERROR_QUOTA                   34    // Quota exceeded
+#define ERROR_BADSESSIONID            35    // Bad session id
+#define ERROR_NOPASSWORD              36    // Password is needed
+#define ERROR_BADPASSWORD             37    // Incorrect password
 
-#define ERROR_ENOATTR         38        // Attribute not found
-#define ERROR_ENOTSUP         39        // Operation not supported
-#define ERROR_ERANGE          40        // Result too large
-#define ERROR_TIMEOUT         41        // Timeout
+#define ERROR_ENOATTR                 38    // Attribute not found
+#define ERROR_ENOTSUP                 39    // Operation not supported
+#define ERROR_ERANGE                  40    // Result too large
+#define ERROR_TIMEOUT                 41    // Timeout
 
-#define ERROR_NOTLOCKED       42        // No such lock
-#define ERROR_WRONGLOCKID     43        // Wrong lock id
+#define ERROR_BADMETADATACHECKSUM     42    // Metadata checksum not matching
+#define ERROR_CHANGELOGINCONSISTENT   43    // Changelog inconsistent
+#define ERROR_PARSE                   44    // Parsing unsuccessful
+#define ERROR_METADATAVERSIONMISMATCH 45    // Metadata version mismatch
 
-#define ERROR_NOTPOSSIBLE     44        // It's not possible to perform operation in this way
-#define ERROR_RESERVED2       45
-#define ERROR_RESERVED3       46
-#define ERROR_RESERVED4       47
-#define ERROR_MAX             48
+#define ERROR_NOTLOCKED               46    // No such lock
+#define ERROR_WRONGLOCKID             47    // Wrong lock id
+
+#define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
+#define ERROR_RESERVED2               49
+#define ERROR_RESERVED3               50
+#define ERROR_RESERVED4               51
+
+#define ERROR_MAX                     52
 
 #define ERROR_STRINGS \
 	"OK", \
@@ -187,6 +193,10 @@
 	"Operation not supported", \
 	"Result too large", \
 	"Timeout", \
+	"Metadata checksum not matching", \
+	"Changelog inconsistent", \
+	"Parsing unsuccessful", \
+	"Metadata version mismatch", \
 	"No such lock", \
 	"Wrong lock id", \
 	"Operation not possible", \
@@ -413,14 +423,22 @@ enum class SugidClearMode {
 #define MLTOMA_DOWNLOAD_END (PROTO_BASE+64)
 /// -
 
-// 0x0433
+// 0x0429
 #define LIZ_MLTOMA_REGISTER_SHADOW (1000U + 65)
 /// version==0 vershex:32 timeout:32 metadataversion:64
 
-// 0x0433
+// 0x042A
 #define LIZ_MATOML_REGISTER_SHADOW (1000U + 66)
 /// version==0 status:8
 /// version==1 vershex:32 metadataversion:64
+
+// 0x42B
+#define LIZ_MLTOMA_CHANGELOG_APPLY_ERROR (1000U + 67)
+/// status:8
+
+// 0x42C
+#define LIZ_MATOML_CHANGELOG_APPLY_ERROR (1000U + 68)
+/// status:8
 
 // CHUNKSERVER <-> MASTER
 

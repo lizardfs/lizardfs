@@ -49,6 +49,7 @@
 #include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "common/time_utils.h"
 
 #ifndef METALOGGER
 #include "master/filesystem.h"
@@ -63,6 +64,14 @@
 // mode
 enum {FREE,CONNECTING,HEADER,DATA,KILL};
 
+enum class MasterConnectionState {
+	kNone,
+	kSynchronized,
+	kDownloading,
+	kDumpRequestPending,
+	kLimbo /*!< Got response from master regarding its inability to dump metadata. */
+};
+
 typedef struct packetstruct {
 	struct packetstruct *next;
 	uint8_t *startptr;
@@ -70,9 +79,10 @@ typedef struct packetstruct {
 	uint8_t *packet;
 } packetstruct;
 
-typedef struct masterconn {
+struct masterconn {
 	int mode;
 	int sock;
+	uint32_t version;
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
@@ -92,10 +102,38 @@ typedef struct masterconn {
 	uint64_t dlstartuts;
 	void* sessionsdownloadinit_handle;
 	void* metachanges_flush_handle;
-#ifndef METALOGGER
-	bool filesystemIsLoaded;
-#endif
-} masterconn;
+	MasterConnectionState state;
+	uint8_t error_status;
+	Timeout changelog_apply_error_packet_time;
+	masterconn()
+			: mode(),
+			  sock(),
+			  version(),
+			  pdescpos(),
+			  lastread(),
+			  lastwrite(),
+			  hdrbuff(),
+			  inputpacket(),
+			  outputhead(),
+			  outputtail(),
+			  bindip(),
+			  masterip(),
+			  masterport(),
+			  masteraddrvalid(),
+			  downloadretrycnt(),
+			  downloading(),
+			  logfd(),
+			  metafd(),
+			  filesize(),
+			  dloffset(),
+			  dlstartuts(),
+			  sessionsdownloadinit_handle(),
+			  metachanges_flush_handle(),
+			  state(),
+			  error_status(),
+			  changelog_apply_error_packet_time(std::chrono::seconds(10)) {
+	}
+};
 
 static masterconn *masterconnsingleton=NULL;
 
@@ -245,7 +283,7 @@ void masterconn_sendregister(masterconn *eptr) {
 #ifndef METALOGGER
 	// To be activated in the next release
 	uint64_t metadataVersion = 0;
-	if (eptr->filesystemIsLoaded) {
+	if (eptr->state == MasterConnectionState::kSynchronized) {
 		metadataVersion = fs_getversion();
 	}
 	std::vector<uint8_t> request;
@@ -298,12 +336,31 @@ void masterconn_kill_session(masterconn* eptr) {
 
 void masterconn_force_metadata_download(masterconn* eptr) {
 #ifndef METALOGGER
+	eptr->state = MasterConnectionState::kNone;
 	fs_unload();
 	restore_reset();
-	eptr->filesystemIsLoaded = false;
 #endif
 	lastlogversion = 0;
 	masterconn_kill_session(eptr);
+}
+
+void masterconn_request_metadata_dump(masterconn* eptr) {
+	std::vector<uint8_t> buffer;
+	mltoma::changelogApplyError::serialize(buffer, eptr->error_status);
+	masterconn_createpacket(eptr, std::move(buffer));
+	eptr->state = MasterConnectionState::kDumpRequestPending;
+	eptr->changelog_apply_error_packet_time.reset();
+}
+
+void masterconn_handle_changelog_apply_error(masterconn* eptr, uint8_t status) {
+	if (eptr->version <= lizardfsVersion(2, 5, 0)) {
+		syslog(LOG_NOTICE, "Dropping in-memory metadata and starting download from master");
+		masterconn_force_metadata_download(eptr);
+	} else {
+		syslog(LOG_NOTICE, "Waiting for master to produce up-to-date metadata image");
+		eptr->error_status = status;
+		masterconn_request_metadata_dump(eptr);
+	}
 }
 
 #ifndef METALOGGER
@@ -319,7 +376,8 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 		uint32_t masterVersion;
 		uint64_t masterMetadataVersion;
 		matoml::registerShadow::deserialize(data, length, masterVersion, masterMetadataVersion);
-		if (eptr->filesystemIsLoaded && fs_getversion() != masterMetadataVersion) {
+		eptr->version = masterVersion;
+		if ((eptr->state == MasterConnectionState::kSynchronized) && (fs_getversion() != masterMetadataVersion)) {
 			masterconn_force_metadata_download(eptr);
 		}
 	} else {
@@ -362,7 +420,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 	if ((lastlogversion > 0) && (version != (lastlogversion + 1))) {
 		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
-		masterconn_force_metadata_download(eptr);
+		masterconn_handle_changelog_apply_error(eptr, ERROR_METADATAVERSIONMISMATCH);
 		return;
 	}
 
@@ -371,13 +429,16 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	}
 
 #ifndef METALOGGER
-	if (eptr->filesystemIsLoaded) {
+	if (eptr->state == MasterConnectionState::kSynchronized) {
 		std::string buf(": ");
 		buf.append(reinterpret_cast<const char*>(data));
 		static char const network[] = "network";
-		if (restore(network, version, buf.c_str(), RestoreRigor::kDontIgnoreAnyErrors) < 0) {
-			mfs_syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it");
-			masterconn_force_metadata_download(eptr);
+		uint8_t status;
+		if ((status = restore(network, version, buf.c_str(),
+				RestoreRigor::kDontIgnoreAnyErrors)) != STATUS_OK) {
+			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
+					mfsstrerr(status));
+			masterconn_handle_changelog_apply_error(eptr, status);
 			return;
 		}
 	}
@@ -420,10 +481,13 @@ void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_START,1);
 		put8bit(&ptr,filenum);
 		eptr->downloading=filenum;
+		if (filenum == DOWNLOAD_METADATA_MFS) {
+			masterconnsingleton->state = MasterConnectionState::kDownloading;
+		}
 	}
 }
 
-void masterconn_metadownloadinit(void) {
+void masterconn_metadownloadinit() {
 	masterconn_download_init(masterconnsingleton, DOWNLOAD_METADATA_MFS);
 }
 
@@ -488,18 +552,24 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
-				if (!eptr->filesystemIsLoaded) {
+				if (eptr->state != MasterConnectionState::kSynchronized) {
+					sassert(eptr->state == MasterConnectionState::kDownloading);
 					eptr->logfd.reset();
 					try {
 						fs_loadall();
 						lastlogversion = fs_getversion() - 1;
 						mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
-						eptr->filesystemIsLoaded = true;
+						eptr->state = MasterConnectionState::kSynchronized;
 					} catch (Exception& ex) {
 						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
 								ex.what());
-
-						masterconn_force_metadata_download(eptr);
+						uint8_t status = ex.status();
+						if (status == STATUS_OK) {
+							// unknown error - tell the master to apply changelogs and hope that
+							// all will be good
+							status = ERROR_CHANGELOGINCONSISTENT;
+						}
+						masterconn_handle_changelog_apply_error(eptr, status);
 					}
 				}
 #endif /* #ifndef METALOGGER */
@@ -627,6 +697,18 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	masterconn_download_next(eptr);
 }
 
+void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uint32_t length) {
+	uint8_t status;
+	matoml::changelogApplyError::deserialize(data, length, status);
+	DEBUG_LOG("master.matoml_changelog_apply_error") << "status: " << int(status);
+	if (status == STATUS_OK) {
+		masterconn_force_metadata_download(eptr);
+	} else {
+		eptr->state = MasterConnectionState::kLimbo;
+		syslog(LOG_NOTICE, "Master failed to produce new metadata: %s", mfsstrerr(status));
+	}
+}
+
 void masterconn_beforeclose(masterconn *eptr) {
 	if (eptr->metafd>=0) {
 		close(eptr->metafd);
@@ -660,6 +742,9 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 				break;
 			case MATOML_DOWNLOAD_DATA:
 				masterconn_download_data(eptr,data,length);
+				break;
+			case LIZ_MATOML_CHANGELOG_APPLY_ERROR:
+				masterconn_changelog_apply_error(eptr, data, length);
 				break;
 			default:
 				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
@@ -704,6 +789,7 @@ void masterconn_term(void) {
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
 	eptr->mode=HEADER;
+	eptr->version = 0;
 	eptr->inputpacket.next = NULL;
 	eptr->inputpacket.bytesleft = 8;
 	eptr->inputpacket.startptr = eptr->hdrbuff;
@@ -714,6 +800,8 @@ void masterconn_connected(masterconn *eptr) {
 	masterconn_sendregister(eptr);
 	if (lastlogversion==0) {
 		masterconn_metadownloadinit();
+	} else if (eptr->state == MasterConnectionState::kDumpRequestPending) {
+		masterconn_request_metadata_dump(eptr);
 	}
 	eptr->lastread = eptr->lastwrite = main_time();
 }
@@ -983,6 +1071,11 @@ void masterconn_reconnect(void) {
 	if (eptr->mode==FREE) {
 		masterconn_initconnect(eptr);
 	}
+	if ((eptr->mode == HEADER || eptr->mode == DATA) && eptr->state == MasterConnectionState::kLimbo) {
+		if (eptr->changelog_apply_error_packet_time.expired()) {
+			masterconn_request_metadata_dump(eptr);
+		}
+	}
 }
 
 void masterconn_become_master() {
@@ -1097,12 +1190,11 @@ int masterconn_init(void) {
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
 	eptr->metafd = -1;
-#ifndef METALOGGER
-	eptr->filesystemIsLoaded = false;
-#else
+	eptr->state = MasterConnectionState::kNone;
+#ifdef METALOGGER
 	changelogsMigrateFrom_1_6_29("changelog_ml");
 	masterconn_findlastlogversion();
-#endif /* #else ifndef METALOGGER */
+#endif /* #ifdef METALOGGER */
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}

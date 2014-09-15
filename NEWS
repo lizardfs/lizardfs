@@ -1,5 +1,14 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (2.5.2) (2014-09-15)
+
+  - (master, shadow) Metadata checksum mechanism, allowing to find and fix possible metadata inconsistencies between master and shadow
+  - (mount, master) ACL cache in mount, reducing the load of the master server
+  - (packaging) Support packaging for RedHat based systems
+  - (master) Improved chunkserver deregistration mechanism in order to avoid temporary master unresponsiveness
+  - (polonaise) Add filesystem API for developers allowing to use the filesystem without FUSE (and thus working also on Windows)
+  - (all) Minor fixes and improvements
+
 * LizardFS 2.5.0 (2014-07-15)
 
   - (master) High availability provided by shadow master servers

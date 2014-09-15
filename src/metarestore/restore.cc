@@ -841,7 +841,7 @@ void restore_reset() {
 	lastfn = NULL;
 }
 
-int restore(const char* filename, uint64_t newLogVersion, const char *ptr, RestoreRigor rigor) {
+uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, RestoreRigor rigor) {
 	if (currentFsVersion == 0 || nextFsVersion == 0) {
 		/*
 		 * This is first call to restore().
@@ -860,7 +860,7 @@ int restore(const char* filename, uint64_t newLogVersion, const char *ptr, Resto
 				"merge error - possibly corrupted input file - ignore entry"
 				" (filename: %s, versions: %" PRIu64 ", %" PRIu64 ")",
 				filename, newLogVersion, currentFsVersion);
-		return 0;
+		return STATUS_OK;
 	} else if (newLogVersion >= nextFsVersion) {
 		if (newLogVersion == currentFsVersion) {
 			if (verbosity > 1) {
@@ -870,17 +870,17 @@ int restore(const char* filename, uint64_t newLogVersion, const char *ptr, Resto
 		} else if (newLogVersion > currentFsVersion + 1) {
 			mfs_arg_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
 					" are missing) - add more files", lastfn, currentFsVersion + 1, filename, newLogVersion - 1);
-			return -2;
+			return ERROR_CHANGELOGINCONSISTENT;
 		} else {
 			if (verbosity > 0) {
 				mfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
 			int status = restore_line(filename,newLogVersion,ptr);
 			if (status<0) { // parse error - stop processing if requested
-				return (rigor == RestoreRigor::kIgnoreParseErrors ? 0 : -1);
+				return (rigor == RestoreRigor::kIgnoreParseErrors ? 0 : ERROR_PARSE);
 			}
-			if (status>0) { // other errors - stop processing data
-				return -1;
+			if (status != STATUS_OK) { // other errors - stop processing data
+				return status;
 			}
 			nextFsVersion = fs_getversion();
 			if ((newLogVersion + 1) != nextFsVersion) {
@@ -888,13 +888,13 @@ int restore(const char* filename, uint64_t newLogVersion, const char *ptr, Resto
 				 * restore_line() should bump nextFsVersion by exactly 1, but it didn't.
 				 */
 				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, newLogVersion, nextFsVersion);
-				return -1;
+				return ERROR_METADATAVERSIONMISMATCH;
 			}
 		}
 	}
 	currentFsVersion = newLogVersion;
 	lastfn = filename;
-	return 0;
+	return STATUS_OK;
 }
 
 void restore_setverblevel(uint8_t _vlevel) {

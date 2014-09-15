@@ -31,6 +31,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <set>
 
 #include "common/cfg.h"
 #include "common/crc.h"
@@ -99,6 +100,56 @@ typedef struct old_changes_block {
 	uint64_t minversion;
 	struct old_changes_block *next;
 } old_changes_block;
+
+void matomlserv_createpacket(matomlserventry *eptr, std::vector<uint8_t> data);
+
+/*! \brief Keep queue of Shadows interested in receiving information
+ * regarding status of requested metadata dump.
+ */
+class ShadowQueue {
+public:
+	/*! \brief Add shadow connection handler to the queue.
+	 *
+	 * \param eptr - connection handler to be queued.
+	 */
+	void addRequest(matomlserventry* eptr) {
+		shadowRequests_.insert(eptr);
+	}
+
+	/*! \brief Remove given connection handler from queue.
+	 *
+	 * \param eptr - connection handler to be removed from queue.
+	 */
+	void removeRequest(matomlserventry* eptr) {
+		shadowRequests_.erase(eptr);
+	}
+
+	/*! \brief Handle all awaiting Shadows in queue.
+	 *
+	 * Broadcast metadata dump status and clear the queue.
+	 *
+	 * \param status - status of recently finished metadata dump.
+	 */
+	void handleRequests(uint8_t status) {
+		for (matomlserventry* eptr : shadowRequests_) {
+			std::vector<uint8_t> reply;
+			matoml::changelogApplyError::serialize(reply, status);
+			matomlserv_createpacket(eptr, std::move(reply));
+		}
+		shadowRequests_.clear();
+	}
+private:
+	typedef std::set<matomlserventry*> ShadowRequests;
+	ShadowRequests shadowRequests_;
+} gShadowQueue;
+
+/*! \brief Forward metadata dump status to Shadow queue.
+ *
+ * \param status - status to be forwarded.
+ */
+void matomlserv_broadcast_filesystem(uint8_t status) {
+	gShadowQueue.handleRequests(status);
+}
 
 static old_changes_block *old_changes_head=NULL;
 static old_changes_block *old_changes_current=NULL;
@@ -374,15 +425,13 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 }
 
 void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t filenum;
-	uint64_t size;
-	uint8_t *ptr;
 	if (length!=1) {
 		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%" PRIu32 "/1)",length);
 		eptr->mode=KILL;
 		return;
 	}
-	filenum = get8bit(&data);
+	uint8_t filenum = get8bit(&data);
+
 	if ((filenum == DOWNLOAD_METADATA_MFS) || (filenum == DOWNLOAD_SESSIONS_MFS)) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
@@ -419,6 +468,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		eptr->mode=KILL;
 		return;
 	}
+	uint8_t *ptr;
 	if (eptr->metafd<0) {
 		if (filenum==11 || filenum==12) {
 			ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,8);
@@ -430,7 +480,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 			return;
 		}
 	}
-	size = lseek(eptr->metafd,0,SEEK_END);
+	uint64_t size = lseek(eptr->metafd,0,SEEK_END);
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_START,8);
 	put64bit(&ptr,size);    // ok
 }
@@ -485,6 +535,19 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
+void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint8_t recvStatus;
+	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
+	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
+	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - dumping metadata",
+			mfsstrerr(recvStatus));
+	gShadowQueue.addRequest(eptr);
+	fs_storeall(MetadataDumper::kBackgroundDump);
+	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
+		fs_start_checksum_recalculation();
+	}
+}
+
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize) {
 	matomlserventry *eptr;
 	uint8_t *data;
@@ -526,6 +589,7 @@ void matomlserv_beforeclose(matomlserventry *eptr) {
 		close(eptr->chain2fd);
 		eptr->chain2fd=-1;
 	}
+	gShadowQueue.removeRequest(eptr);
 }
 
 void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *data,uint32_t length) {
@@ -551,6 +615,9 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 				break;
 			case MLTOMA_DOWNLOAD_END:
 				matomlserv_download_end(eptr,data,length);
+				break;
+			case LIZ_MLTOMA_CHANGELOG_APPLY_ERROR:
+				matomlserv_changelog_apply_error(eptr, data, length);
 				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
@@ -912,3 +979,4 @@ int matomlserv_init(void) {
 	}
 	return 0;
 }
+

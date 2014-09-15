@@ -130,14 +130,14 @@ int merger_start(const std::vector<std::string>& filenames, uint64_t maxhole) {
 	return 0;
 }
 
-int merger_loop(void) {
-	int status;
+uint8_t merger_loop(void) {
+	uint8_t status;
 	hentry h;
 
 	while (heapsize) {
 //              mfs_arg_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename, heap[0].nextid, heap[0].ptr,
-				RestoreRigor::kIgnoreParseErrors)) < 0) {
+				RestoreRigor::kIgnoreParseErrors)) != STATUS_OK) {
 			while (heapsize) {
 				heapsize--;
 				merger_delete_entry();

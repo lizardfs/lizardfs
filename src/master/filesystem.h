@@ -31,6 +31,7 @@
 #include "common/quota.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
+#include "master/metadata_dumper.h"
 
 struct GoalStats {
 	uint32_t filesWithXorLevel[kMaxXorLevel + 1];
@@ -48,18 +49,27 @@ struct GoalStats {
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
-/// Returns version of the loaded metadata
+/// Returns version of the loaded metadata.
 uint64_t fs_getversion(void);
 
-/// Returns checksum of the loaded metadata
+/// Returns checksum of the loaded metadata.
 uint64_t fs_checksum(ChecksumMode mode);
 
-/*! \brief Load and apply changelogs.
- */
+/// Starts recalculating metadata checksum in background.
+void fs_start_checksum_recalculation();
+
+/// Load and apply changelogs.
 int fs_load_changelogs();
-/*! \brief Load whole filesystem information.
- */
+
+/// Load whole filesystem information.
 int fs_loadall();
+
+/*! \brief Dump current state of file system metadata.
+ *
+ * \param dumpType - choose between foreground and background dumping.
+ * \return True iff dump completed succefully.
+ */
+bool fs_storeall(MetadataDumper::DumpType dumpType);
 
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)

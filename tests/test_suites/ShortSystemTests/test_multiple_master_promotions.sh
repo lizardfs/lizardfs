@@ -8,16 +8,10 @@ MASTERSERVERS=$metaservers_nr \
 	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
-wait_for_shadow_to_run_and_sync() {
-	shadow_id=$1
-	assert_eventually 'test -e "${info[master${shadow_id}_data_path]}/metadata.mfs.lock"'
-	assert_eventually 'test -e "${info[master${shadow_id}_data_path]}/changelog.mfs.3"'
-}
-
 # Start shadow masters
 for ((shadow_id=1 ; shadow_id<metaservers_nr; ++shadow_id)); do
 	lizardfs_master_n $shadow_id start
-	wait_for_shadow_to_run_and_sync $shadow_id
+	assert_eventually "lizardfs_shadow_synchronized $shadow_id"
 done
 
 for ((loop_nr=0 ; loop_nr<$((2 * metaservers_nr)); ++loop_nr)); do
@@ -28,6 +22,7 @@ for ((loop_nr=0 ; loop_nr<$((2 * metaservers_nr)); ++loop_nr)); do
 	new_master_id=$(((loop_nr + 1) % metaservers_nr))
 
 	# Kill the previous master
+	assert_eventually "lizardfs_shadow_synchronized $new_master_id"
 	lizardfs_master_daemon kill
 	lizardfs_make_conf_for_shadow $prev_master_id
 
@@ -38,7 +33,7 @@ for ((loop_nr=0 ; loop_nr<$((2 * metaservers_nr)); ++loop_nr)); do
 	# Demote previous master to shadow
 	lizardfs_make_conf_for_shadow $prev_master_id
 	lizardfs_master_n $prev_master_id start
-	wait_for_shadow_to_run_and_sync $prev_master_id
+	assert_eventually "lizardfs_shadow_synchronized $prev_master_id"
 
 	lizardfs_wait_for_all_ready_chunkservers
 

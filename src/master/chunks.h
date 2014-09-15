@@ -92,3 +92,4 @@ void chunk_unload(void);
 void chunk_newfs(void);
 int chunk_strinit(void);
 uint64_t chunk_checksum(ChecksumMode mode);
+ChecksumRecalculationStatus chunks_update_checksum_a_bit(uint32_t speedLimit);

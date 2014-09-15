@@ -125,7 +125,6 @@ int main(int argc,char **argv) {
 	int ignoreflag = 0;
 	int forcealllogs = 0;
 	bool printhash = false;
-	int status;
 	int skip;
 	std::string metaout, metadata, datapath;
 	char *appname = argv[0];
@@ -349,9 +348,9 @@ int main(int argc,char **argv) {
 		merger_start(filenames, MAXIDHOLE);
 	}
 
-	status = merger_loop();
+	uint8_t status = merger_loop();
 
-	if (status<0 && savebest==0) {
+	if (status != STATUS_OK && savebest==0) {
 		return 1;
 	}
 

@@ -62,6 +62,8 @@
 #define HASHSIZE 0x100000
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
 
+#define CHECKSUMSEED 78765491511151883ULL
+
 #ifndef METARESTORE
 
 
@@ -446,6 +448,8 @@ struct ChunksMetadata {
 	// other chunks metadata information
 	uint64_t nextchunkid;
 	uint64_t chunksChecksum;
+	uint64_t chunksChecksumRecalculated;
+	uint32_t checksumRecalculationPosition;
 
 	ChunksMetadata() :
 #ifndef METARESTORE
@@ -458,7 +462,9 @@ struct ChunksMetadata {
 			lastchunkid{},
 			lastchunkptr{},
 			nextchunkid{1},
-			chunksChecksum{} {
+			chunksChecksum{},
+			chunksChecksumRecalculated{},
+			checksumRecalculationPosition{0} {
 	}
 
 	~ChunksMetadata() {
@@ -534,7 +540,9 @@ void chunk_stats(uint32_t *del,uint32_t *repl) {
 #endif // ! METARESTORE
 
 static uint64_t chunk_checksum(const chunk* c) {
-	if (c == nullptr) {
+	if (c == nullptr || c->fileCount() == 0) {
+		// We treat chunks with fileCount=0 as non-existent, so that we don't have to notify shadow
+		// masters when we remove them from our structures.
 		return 0;
 	}
 	uint64_t checksum = 64517419147637ULL;
@@ -542,17 +550,68 @@ static uint64_t chunk_checksum(const chunk* c) {
 	return checksum;
 }
 
-static void chunk_update_checksum(chunk* ch) {
+static void chunk_checksum_add_to_background(chunk* ch) {
 	if (!ch) {
 		return;
 	}
 	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 	ch->checksum = chunk_checksum(ch);
+	addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
 	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 }
 
+static void chunk_update_checksum(chunk* ch) {
+	if (!ch) {
+		return;
+	}
+	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
+		removeFromChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
+	}
+	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
+	ch->checksum = chunk_checksum(ch);
+	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
+		DEBUG_LOG("master.fs.checksum.changing_recalculated_chunk");
+		addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
+	} else {
+		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_chunk");
+	}
+	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
+}
+
+/*!
+ * \brief update chunks checksum in the background
+ * \param limit for processed chunks per function call
+ * \return info whether all chunks were updated or not.
+ */
+
+ChecksumRecalculationStatus chunks_update_checksum_a_bit(uint32_t speedLimit) {
+	if (gChunksMetadata->checksumRecalculationPosition == 0) {
+		gChunksMetadata->chunksChecksumRecalculated = CHECKSUMSEED;
+	}
+	uint32_t recalculated = 0;
+	while (gChunksMetadata->checksumRecalculationPosition < HASHSIZE) {
+		chunk* c;
+		for (c = gChunksMetadata->chunkhash[gChunksMetadata->checksumRecalculationPosition]; c; c=c->next) {
+			chunk_checksum_add_to_background(c);
+			++recalculated;
+		}
+		++gChunksMetadata->checksumRecalculationPosition;
+		if (recalculated >= speedLimit) {
+			return ChecksumRecalculationStatus::kInProgress;
+		}
+	}
+	// Recalculating chunks checksum finished
+	gChunksMetadata->checksumRecalculationPosition = 0;
+	if (gChunksMetadata->chunksChecksum != gChunksMetadata->chunksChecksumRecalculated) {
+		syslog(LOG_WARNING,"Chunks metadata checksum mismatch found, replacing with a new value.");
+		DEBUG_LOG("master.fs.checksum.mismatch");
+		gChunksMetadata->chunksChecksum = gChunksMetadata->chunksChecksumRecalculated;
+	}
+	return ChecksumRecalculationStatus::kDone;
+}
+
 static void chunk_recalculate_checksum() {
-	gChunksMetadata->chunksChecksum = 78765491511151883ULL;
+	gChunksMetadata->chunksChecksum = CHECKSUMSEED;
 	for (int i = 0; i < HASHSIZE; ++i) {
 		for (chunk* ch = gChunksMetadata->chunkhash[i]; ch; ch = ch->next) {
 			ch->checksum = chunk_checksum(ch);
@@ -1501,6 +1560,13 @@ void chunk_clean_zombie_servers_a_bit() {
 		}
 	}
 	main_make_next_poll_nonblocking();
+}
+
+int chunk_canexit(void) {
+	if (zombieServersHandledInThisLoop.size() + zombieServersToBeHandledInNextLoop.size() > 0) {
+		return 0;
+	}
+	return 1;
 }
 
 void chunk_got_delete_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status) {
@@ -2459,6 +2525,7 @@ int chunk_strinit(void) {
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
+	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {
 		chunk_become_master();

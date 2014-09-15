@@ -4,6 +4,8 @@ master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 master_cfg+="|AUTO_RECOVERY = 1"
 master_cfg+="|EMPTY_TRASH_PERIOD = 1"
 master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
+master_cfg+="|RECALCULATE_CHECKSUM_ON_RELOAD = 1"
+master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum:$TEMP_DIR/log"
 
 CHUNKSERVERS=3 \
 	MOUNTS=2 \
@@ -13,6 +15,7 @@ CHUNKSERVERS=3 \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
+	DEBUG_LOG_FAIL_ON="master.fs.checksum.mismatch" \
 	setup_local_empty_lizardfs info
 
 # Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
@@ -28,6 +31,11 @@ cd "${info[mount0]}"
 metadata_generate_all
 metadata=$(metadata_print)
 
+# Check if the metadata checksum is fine.
+# Possible checksum mismatch will be reported at the end of the test.
+lizardfs_master_daemon reload
+assert_eventually 'egrep "master.fs.checksum.updater_end" "$TEMP_DIR/log"'
+
 # simulate master server failure and recovery
 sleep 3
 cd
@@ -40,4 +48,5 @@ lizardfs_master_daemon start
 # check restored filesystem
 cd "${info[mount0]}"
 assert_no_diff "$metadata" "$(metadata_print)"
+lizardfs_wait_for_all_ready_chunkservers
 metadata_validate_files

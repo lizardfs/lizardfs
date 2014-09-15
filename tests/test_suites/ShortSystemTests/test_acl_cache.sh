@@ -5,7 +5,7 @@ file2_acl='user::rw- user:lizardfstest_2:rwx group::rw- group:lizardfstest_5:-w-
 file3_acl='user::rw- user:lizardfstest_3:-w- group::rw- group:lizardfstest_6:rwx mask::rwx other::r--'
 
 count_misses() {
-	cat "$TEMP_DIR/aclcache.log" | grep "master.matocl.getacl: $(stat -c %i $1)" | wc -l
+	cat "$TEMP_DIR/aclcache.log" | grep "master.cltoma_fuse_getacl: $(stat -c %i $1)" | wc -l
 }
 
 check_misses() {
@@ -22,7 +22,7 @@ function get_facl() {
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
-	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = master.matocl.getacl:$TEMP_DIR/aclcache.log" \
+	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = master.cltoma_fuse_getacl:$TEMP_DIR/aclcache.log" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl|mfsaclcachesize=2|mfsaclcacheto=5.0" \
 	setup_local_empty_lizardfs info
 
