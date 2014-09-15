@@ -178,6 +178,7 @@ create_magic_debug_log_entry_() {
 }
 
 create_mfsmaster_master_cfg_() {
+	local this_module_cfg_variable="MASTER_${masterserver_id}_EXTRA_CONFIG"
 	echo "PERSONALITY = master"
 	echo "SYSLOG_IDENT = master_${masterserver_id}"
 	echo "WORKING_USER = $(id -nu)"
@@ -188,11 +189,13 @@ create_mfsmaster_master_cfg_() {
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
-	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	create_magic_debug_log_entry_ "master_${masterserver_id}"
+	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
+	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
 create_mfsmaster_shadow_cfg_() {
+	local this_module_cfg_variable="MASTER_${masterserver_id}_EXTRA_CONFIG"
 	echo "PERSONALITY = shadow"
 	echo "SYSLOG_IDENT = shadow_${masterserver_id}"
 	echo "WORKING_USER = $(id -nu)"
@@ -205,8 +208,9 @@ create_mfsmaster_shadow_cfg_() {
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
-	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	create_magic_debug_log_entry_ "shadow_${masterserver_id}"
+	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
+	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
 lizardfs_make_conf_for_shadow() {
@@ -279,8 +283,8 @@ create_mfsmetalogger_cfg_() {
 	echo "DATA_PATH = ${lizardfs_info_[master_data_path]}"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
-	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
 	create_magic_debug_log_entry_ "mfsmetalogger"
+	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
 prepare_metalogger_() {
@@ -305,6 +309,7 @@ create_mfshdd_cfg_() {
 }
 
 create_mfschunkserver_cfg_() {
+	local this_module_cfg_variable="CHUNKSERVER_${chunkserver_id}_EXTRA_CONFIG"
 	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
@@ -313,8 +318,9 @@ create_mfschunkserver_cfg_() {
 	echo "MASTER_HOST = $ip_address"
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
-	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
 	create_magic_debug_log_entry_ "chunkserver_${chunkserver_id}"
+	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
+	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
 add_chunkserver_() {

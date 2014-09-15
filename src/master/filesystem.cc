@@ -966,6 +966,7 @@ void metadataPollServe(struct pollfd* pdesc) {
 		if (metadataDumper.dumpSucceeded()) {
 			rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
 			matomlserv_broadcast_filesystem(STATUS_OK);
+			DEBUG_LOG("master.fs.stored");
 		} else {
 			matomlserv_broadcast_filesystem(ERROR_IO);
 			if (metadataDumper.useMetarestore()) {
@@ -8045,6 +8046,7 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
 				rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
+				DEBUG_LOG("master.fs.stored");
 			}
 		}
 		if (child) {
