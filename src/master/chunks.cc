@@ -709,10 +709,14 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 
 #ifndef METARESTORE
 void chunk_emergency_increase_version(chunk *c) {
-	slist *s;
-	uint32_t i;
-	i=0;
-	for (s=c->slisthead ;s ; s=s->next) {
+	if (c->isLost()) { // should always be false !!!
+		syslog(LOG_ERR, "chunk_emergency_increase_version called on a lost chunk");
+		matoclserv_chunk_status(c->chunkid, ERROR_CHUNKLOST);
+		c->operation = NONE;
+		return;
+	}
+	uint32_t i = 0;
+	for (slist *s=c->slisthead ;s ; s=s->next) {
 		if (s->is_valid()) {
 			if (!s->is_busy()) {
 				s->mark_busy();
@@ -727,11 +731,13 @@ void chunk_emergency_increase_version(chunk *c) {
 		c->interrupted = 0;
 		c->operation = SET_VERSION;
 		c->version++;
+		chunk_update_checksum(c);
+		fs_incversion(c->chunkid);
 	} else {
-		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
+		syslog(LOG_ERR, "chunk %016" PRIX64 " lost in emergency increase version", c->chunkid);
+		matoclserv_chunk_status(c->chunkid, ERROR_CHUNKLOST);
+		c->operation = NONE;
 	}
-	fs_incversion(c->chunkid);
-	chunk_update_checksum(c);
 }
 
 bool chunk_server_is_disconnected(void* ptr) {
@@ -759,15 +765,13 @@ void chunk_handle_disconnected_copies(chunk* c) {
 	}
 	if (lostCopyFound && c->operation!=NONE) {
 		bool any_copy_busy = false;
-		uint8_t valid_copies = 0;
 		for (s=c->slisthead ; s ; s=s->next) {
 			any_copy_busy |= s->is_busy();
-			valid_copies += s->is_valid() ? 1 : 0;
 		}
 		if (any_copy_busy) {
 			c->interrupted = 1;
 		} else {
-			if (valid_copies > 0) {
+			if (!c->isLost()) {
 				chunk_emergency_increase_version(c);
 			} else {
 				matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
@@ -1618,7 +1622,6 @@ void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersi
 
 void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *ptr) {
 	slist *s;
-	uint8_t valid_copies = 0;
 	bool any_copy_busy = false;
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
@@ -1632,10 +1635,9 @@ void chunk_operation_status(chunk *c, ChunkType chunkType, uint8_t status,void *
 			}
 		}
 		any_copy_busy |= s->is_busy();
-		valid_copies += s->is_valid() ? 1 : 0;
 	}
 	if (!any_copy_busy) {
-		if (valid_copies > 0) {
+		if (!c->isLost()) {
 			if (c->interrupted) {
 				chunk_emergency_increase_version(c);
 			} else {
