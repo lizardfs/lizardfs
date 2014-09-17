@@ -25,22 +25,22 @@ assert_equals 8 $(find_all_chunks | wc -l)
 mfssettrashtime 0 file*
 rm file
 echo "Waiting for chunks to be deleted..."
-assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 4 ]]' '3 minutes'
+assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep copy | wc -l) == 4 ]]' '3 minutes'
 echo "Checking if chunks are no longer being deleted..."
-assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) != 4 ]]' '30 seconds'
-assert_equals 4 $(mfsfileinfo file_snapshot1 | grep -c copy)
+assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep copy | wc -l) != 4 ]]' '30 seconds'
+assert_equals 4 $(mfsfileinfo file_snapshot1 | grep copy | wc -l)
 
 # Remove file with goal 1, expect no deletions
 rm file_snapshot1
 echo "Checking if chunks are not being deleted..."
-assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) != 4 ]]' '30 seconds'
+assert_failure wait_for '[[ $(mfsfileinfo file_snapshot2 | grep copy | wc -l) != 4 ]]' '30 seconds'
 
 # Make a new snapshot of goal 3, expect that number of copies increases to 6
 mfsmakesnapshot file_snapshot2 file_snapshot3
 mfssetgoal 3 file_snapshot3
 echo "Waiting for chunks to be replicated..."
-assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep -c copy) == 6 ]]' '30 seconds'
-assert_equals 6 $(mfsfileinfo file_snapshot3 | grep -c copy)
+assert_eventually '[[ $(mfsfileinfo file_snapshot2 | grep copy | wc -l) == 6 ]]' '30 seconds'
+assert_equals 6 $(mfsfileinfo file_snapshot3 | grep copy | wc -l)
 
 # Verify if file's data isn't damaged
 assert_success file-validate file*
