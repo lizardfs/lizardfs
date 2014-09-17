@@ -5000,8 +5000,8 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	}
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(),
-				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,
-				inode, indx, *opflag, nchunkid);
+				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu32 "):%" PRIu64,
+				inode, indx, *opflag, *lockid, nchunkid);
 	} else {
 		gMetadata->metaversion++;
 	}

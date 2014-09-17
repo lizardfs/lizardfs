@@ -546,7 +546,7 @@ static uint64_t chunk_checksum(const chunk* c) {
 		return 0;
 	}
 	uint64_t checksum = 64517419147637ULL;
-	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->goal(), c->fileCount());
+	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->lockid, c->goal(), c->fileCount());
 	return checksum;
 }
 
@@ -1264,7 +1264,6 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	if (c->isLocked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
 		return 0;
 	}
-	c->lockid = 0; // remove stale lock if exists
 	bestversion = 0;
 	for (s=c->slisthead ; s ; s=s->next) {
 		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) { // found chunk that is ok - so return
@@ -1863,7 +1862,6 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *d
 		return false;
 	}
 	stats_replications++;
-	c->lockid = 0;             // remove stale lock
 	c->needverincrease = 1;
 	return true;
 }
