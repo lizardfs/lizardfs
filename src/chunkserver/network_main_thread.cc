@@ -227,6 +227,18 @@ int mainNetworkThreadInit(void) {
 	main_destructregister(mainNetworkThreadTerm);
 	main_pollregister(mainNetworkThreadDesc, mainNetworkThreadServe);
 
+	try {
+		replicationBandwidthLimitReload();
+	} catch (std::exception& e) {
+		mfs_arg_errlog(LOG_ERR,
+				"main server module: can't initialize replication bandwidth limiter: %s", e.what());
+		return -1;
+	}
+
+	return 0;
+}
+
+int mainNetworkThreadInitThreads(void) {
 	for (unsigned i = 0; i < gNrOfNetworkWorkers; ++i) {
 		networkThreadObjects.emplace_back(gNrOfHddWorkersPerNetworkWorker,
 				gBgjobsCountPerNetworkWorker);
@@ -236,15 +248,6 @@ int mainNetworkThreadInit(void) {
 	}
 	sassert(!networkThreads.empty());
 	nextNetworkThread = networkThreadObjects.end();
-
-	try {
-		replicationBandwidthLimitReload();
-	} catch (std::exception& e) {
-		mfs_arg_errlog(LOG_ERR,
-				"main server module: can't initialize replication bandwidth limiter: %s", e.what());
-		return -1;
-	}
-
 	return 0;
 }
 

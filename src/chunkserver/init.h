@@ -44,6 +44,8 @@ run_tab RunTab[]={
 	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
+	{masterconn_init_threads,"master connection module - threads"},
 	{hdd_late_init,"hdd space manager - threads"},
+	{mainNetworkThreadInitThreads,"main server module - threads"},
 	{(runfn)0,"****"}
 };

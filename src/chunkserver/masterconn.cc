@@ -959,11 +959,6 @@ int masterconn_init(void) {
 		return -1;
 	}
 
-	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
-	if (jpool==NULL) {
-		return -1;
-	}
-
 	main_eachloopregister(masterconn_check_hdd_reports);
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rndu32_ranged(ReconnectionDelay),masterconn_reconnect);
 	main_destructregister(masterconn_term);
@@ -972,3 +967,10 @@ int masterconn_init(void) {
 	return 0;
 }
 
+int masterconn_init_threads(void) {
+	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
+	if (jpool==NULL) {
+		return -1;
+	}
+	return 0;
+}
