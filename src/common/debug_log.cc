@@ -64,12 +64,13 @@ DebugLog debugLog(const std::string& tag, const char* originFile,
 		const char* originFunction, int originLine) {
 	DebugLog t(getPathsForPrefix(DebugLog::getConfiguration(), tag));
 	static const bool logOrigin = ::getenv("LIZARDFS_LOG_ORIGIN") != nullptr;
-	t << tag << ": ";
 	if (logOrigin) {
 		static const char* relativePath = strstr(__FILE__, "src/common/debug_log.cc");
-		static int const pathNameOhffset = relativePath ? relativePath - __FILE__ : 0;
-		t << (originFile + pathNameOhffset) << ":" << originLine << ":" << originFunction << ": ";
+		static int const pathNameOffset = relativePath ? relativePath - __FILE__ : 0;
+		const char* originFileRelative = originFile + pathNameOffset;
+		t << "# " << originFileRelative << ":" << originLine << ":" << originFunction << std::endl;
 	}
+	t << tag << ": ";
 	return t;
 }
 
