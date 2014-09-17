@@ -66,7 +66,6 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
 int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks);
-int hdd_get_checksum(uint64_t chunkid, uint32_t version, uint32_t *checksum);
 
 /* chunk operations */
 
@@ -121,10 +120,6 @@ void hdd_test_chunk(ChunkWithVersionAndType chunk);
 /* initialization */
 int hdd_late_init(void);
 int hdd_init(void);
-
-/* debug only */
-void hdd_test_show_chunks(void);
-void hdd_test_show_openedchunks(void);
 
 class HddspacemgrChunkFileCreator : public ChunkFileCreator {
 public:

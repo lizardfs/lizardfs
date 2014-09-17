@@ -117,7 +117,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parse() {
 		return ERROR_INVALID_FILENAME;
 	}
 
-	if (consume(".mfs") != Parser::OK) {
+	if (consume(".liz") != Parser::OK) {
 		return ERROR_INVALID_FILENAME;
 	}
 

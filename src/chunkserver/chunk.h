@@ -12,6 +12,7 @@
 
 #define STATSHISTORY (24*60)
 #define LASTERRSIZE 30
+constexpr int kHddBlockSize = MFSBLOCKSIZE + 4;
 
 enum ChunkState {
 	CH_AVAIL,
@@ -79,12 +80,9 @@ public:
 
 	Chunk(uint64_t chunkId, ChunkType type, ChunkState state);
 	const std::string& filename() const { return filename_; };
-	off_t getCrcOffset() const;
-	size_t getCrcSize() const;
-	uint32_t getCrc(uint16_t blockNumber) const;
 	off_t getDataBlockOffset(uint16_t blockNumber) const;
+	off_t getCrcAndDataBlockOffset(uint16_t blockNumber) const;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const;
-	size_t getHeaderSize() const;
 	void readaheadHeader() const;
 	off_t getSignatureOffset() const;
 	bool isFileSizeValid(off_t fileSize) const;
@@ -102,13 +100,11 @@ public:
 	struct folder *owner;
 	uint32_t version;
 	uint16_t blocks;
-	uint16_t crcrefcount;
+	uint16_t refcount;
 	uint8_t opensteps;
-	uint8_t crcsteps;
-	uint8_t crcchanged;
+	bool wasChanged;
 	ChunkState state;
 	cntcond *ccond;
-	uint8_t *crc;
 	int fd;
 	uint16_t blockExpectedToBeReadNext;
 	uint8_t validattr;

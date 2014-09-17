@@ -230,3 +230,13 @@ void mycrc32_init(void) {
 #endif // WORDS_BIGENDIAN
 
 #endif // ENABLE_CRC
+
+void recompute_crc_if_block_empty(uint8_t* block, uint32_t& crc) {
+	// If both block and crcBuffer consist only of zeros recompute the crc
+	if (crc == 0) {
+		if (block[0] == 0 && !memcmp(block, block + 1, MFSBLOCKSIZE - 1)) {
+			static uint32_t emptyBlockCrc = mycrc32_zeroblock(0, MFSBLOCKSIZE);
+			crc = emptyBlockCrc;
+		}
+	}
+}

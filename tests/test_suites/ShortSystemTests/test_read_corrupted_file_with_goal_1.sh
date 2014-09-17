@@ -8,7 +8,7 @@ cd "${info[mount0]}"
 FILE_SIZE=1234567 file-generate file
 
 hdd=$(cat "${info[chunkserver0_hdd]}")
-find "$hdd" -name 'chunk_*.mfs' | xargs -d'\n' -IXX \
+find "$hdd" -name 'chunk_*.liz' | xargs -d'\n' -IXX \
 		dd if=/dev/zero of=XX bs=1 count=4 seek=100k conv=notrunc
 
 if timeout -s KILL 3s file-validate file; then

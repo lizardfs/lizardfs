@@ -520,29 +520,6 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 }
 */
 
-void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t status;
-	uint32_t checksum;
-
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_checksum(chunkid,version,&checksum);
-	if (status!=STATUS_OK) {
-		masterconn_create_attached_moosefs_packet(
-				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, status);
-	} else {
-		masterconn_create_attached_moosefs_packet(
-				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, checksum);
-	}
-}
-
 void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint8_t>& data) {
 	try {
 		switch (type) {
@@ -585,9 +562,6 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint
 	//              case MATOCS_STRUCTURE_LOG_ROTATE:
 	//                      masterconn_structure_log_rotate(eptr,data,length);
 	//                      break;
-			case ANTOCS_CHUNK_CHECKSUM:
-				masterconn_chunk_checksum(eptr,data.data(), data.size());
-				break;
 			default:
 				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 				eptr->mode = KILL;

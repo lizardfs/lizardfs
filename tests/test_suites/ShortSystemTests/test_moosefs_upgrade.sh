@@ -1,5 +1,7 @@
 timeout_set 4 minutes
 
+test_end # Test disabled until backward compability for chunks is added
+
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
 	USE_MOOSEFS=YES \

@@ -12,18 +12,18 @@ awkscript='
 }
 /parity/ {
 	split($3, server, ":")
-	printf "CS%s/chunks%s/chunk_xor_parity_of_%s_%s.mfs\n", server[2], dir, $5, chunkid
+	printf "CS%s/chunks%s/chunk_xor_parity_of_%s_%s.liz\n", server[2], dir, $5, chunkid
 	next
 }
 /part/ {
 	split($3, server, ":")
 	split($5, part, "/")
-	printf "CS%s/chunks%s/chunk_xor_%s_of_%s_%s.mfs\n", server[2], dir, part[1], part[2], chunkid
+	printf "CS%s/chunks%s/chunk_xor_%s_of_%s_%s.liz\n", server[2], dir, part[1], part[2], chunkid
 	next
 }
 {
 	split($3, server, ":")
-	printf "CS%s/chunks%s/chunk_%s.mfs\n", server[2], dir, chunkid
+	printf "CS%s/chunks%s/chunk_%s.liz\n", server[2], dir, chunkid
 	next
 }
 '

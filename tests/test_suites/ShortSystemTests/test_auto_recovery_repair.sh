@@ -18,13 +18,13 @@ assert_equals 3 $(find_chunkserver_chunks 1 | wc -l)
 
 # Stop chunkserver0, and remove second chunk from it
 lizardfs_chunkserver_daemon 0 stop
-chunk=$(find_chunkserver_chunks 0 -name "chunk_0000000000000002_00000001.mfs")
+chunk=$(find_chunkserver_chunks 0 -name "chunk_0000000000000002_00000001.liz")
 assert_success rm "$chunk"
 
 # Update first chunk of the file, this will change it's version to 2 on CS 1.
 dd if=/dev/zero of=dir/file conv=notrunc bs=32KiB count=2
-assert_equals 1 $(find_chunkserver_chunks 0 -name "chunk_0000000000000001_00000001.mfs" | wc -l)
-assert_equals 1 $(find_chunkserver_chunks 1 -name "chunk_0000000000000001_00000002.mfs" | wc -l)
+assert_equals 1 $(find_chunkserver_chunks 0 -name "chunk_0000000000000001_00000001.liz" | wc -l)
+assert_equals 1 $(find_chunkserver_chunks 1 -name "chunk_0000000000000001_00000002.liz" | wc -l)
 
 # Stop chunkserver1, turn on chunkserver 0 again. File should have two chunks lost.
 lizardfs_chunkserver_daemon 1 stop

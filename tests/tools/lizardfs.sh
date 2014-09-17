@@ -415,9 +415,9 @@ find_chunkserver_chunks() {
 	local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
 			"${lizardfs_info_[chunkserver${chunkserver_number}_hdd]}")
 	if (( $# > 0 )); then
-		find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+		find $hdds -name "chunk*.liz" -a "(" "$@" ")"
 	else
-		find $hdds -name "chunk*.mfs"
+		find $hdds -name "chunk*.liz"
 	fi
 }
 

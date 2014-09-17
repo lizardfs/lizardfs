@@ -18,7 +18,7 @@ dd if="$TEMP_DIR/newfile" of=file conv=notrunc
 
 # Check if there are chunks with version different than 1
 hdd=$(cat "${info[chunkserver0_hdd]}")
-number_of_chunks=$(find "$hdd" -name 'chunk*.mfs' | grep -v '_00000001[.]mfs' | wc -l)
+number_of_chunks=$(find "$hdd" -name 'chunk*.liz' | grep -v '_00000001[.]liz' | wc -l)
 if (( number_of_chunks != 1 )); then
 	test_fail "Chunk didn't change version after modifying"
 fi

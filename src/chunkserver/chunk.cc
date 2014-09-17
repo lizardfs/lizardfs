@@ -13,13 +13,11 @@ Chunk::Chunk(uint64_t chunkId, ChunkType type, ChunkState state)
 	  owner(NULL),
 	  version(0),
 	  blocks(0),
-	  crcrefcount(0),
+	  refcount(0),
 	  opensteps(0),
-	  crcsteps(0),
-	  crcchanged(0),
+	  wasChanged(false),
 	  state(state),
 	  ccond(NULL),
-	  crc(NULL),
 	  fd(-1),
 	  blockExpectedToBeReadNext(0),
 	  validattr(0),
@@ -42,66 +40,24 @@ std::string Chunk::generateFilenameForVersion(uint32_t version) const {
 		}
 		ss << (unsigned)type_.getXorLevel() << "_";
 	}
-	sprintf(buffer, "%016" PRIX64 "_%08" PRIX32 ".mfs", chunkid, version);
+	sprintf(buffer, "%016" PRIX64 "_%08" PRIX32 ".liz", chunkid, version);
 	ss << buffer;
 	return ss.str();
 }
 
-off_t Chunk::getCrcOffset() const {
-	return 1024;
-}
-
-size_t Chunk::getCrcSize() const {
-	return 4 * maxBlocksInFile();
-}
-
-uint32_t Chunk::getCrc(uint16_t blockNumber) const {
-	sassert(blockNumber < blocks);
-	const uint8_t *ptr = crc + (blockNumber * serializedSize(uint32_t()));
-	return get32bit(&ptr);
-}
-
 off_t Chunk::getDataBlockOffset(uint16_t blockNumber) const {
-	return getHeaderSize() + static_cast<uint32_t>(blockNumber) * MFSBLOCKSIZE;
+	return static_cast<uint32_t>(blockNumber) * kHddBlockSize + 4;
+}
+off_t Chunk::getCrcAndDataBlockOffset(uint16_t blockNumber) const {
+	return static_cast<uint32_t>(blockNumber) * kHddBlockSize;
 }
 
 off_t Chunk::getFileSizeFromBlockCount(uint32_t blockCount) const {
-	return getHeaderSize() + blockCount * MFSBLOCKSIZE;
-}
-
-size_t Chunk::getHeaderSize() const {
-	sassert(type_.isStandardChunkType() || type_.isXorChunkType());
-	if (type_.isStandardChunkType()) {
-		return 1024 + 4 * MFSBLOCKSINCHUNK;
-	} else {
-		uint32_t requiredHeaderSize = 1024 + 4 * maxBlocksInFile();
-		// header size is equal to the requiredHeaderSize rounded up to typical disk block size
-		uint32_t diskBlockSize = 4096; // 4 kB
-		off_t dataOffset = (requiredHeaderSize + diskBlockSize - 1) / diskBlockSize * diskBlockSize;
-		return dataOffset;
-	}
-}
-
-void Chunk::readaheadHeader() const {
-	posix_fadvise(fd, 0, getHeaderSize(), POSIX_FADV_WILLNEED);
-}
-
-off_t Chunk::getSignatureOffset() const {
-	return 0;
+	return blockCount * kHddBlockSize;
 }
 
 bool Chunk::isFileSizeValid(off_t fileSize) const {
-	if (fileSize < static_cast<off_t>(getHeaderSize())) {
-		return false;
-	}
-	fileSize -= getHeaderSize();
-	if (fileSize % MFSBLOCKSIZE != 0) {
-		return false;
-	}
-	if (fileSize / MFSBLOCKSIZE > maxBlocksInFile()) {
-		return false;
-	}
-	return true;
+	return fileSize % kHddBlockSize == 0;
 }
 
 uint32_t Chunk::maxBlocksInFile() const {
@@ -125,8 +81,7 @@ int Chunk::renameChunkFile(const std::string& newFilename) {
 
 void Chunk::setBlockCountFromFizeSize(off_t fileSize) {
 	sassert(isFileSizeValid(fileSize));
-	fileSize -= getHeaderSize();
-	blocks = fileSize / MFSBLOCKSIZE;
+	blocks = fileSize / kHddBlockSize;
 }
 
 uint32_t Chunk::getSubfolderNumber(uint64_t chunkId) {
