@@ -1239,6 +1239,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 	}
 
 	status = fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "unlink (%lu,%s): %s",
@@ -1360,6 +1361,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 	}
 
 	status = fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "rmdir (%lu,%s): %s",
@@ -1539,6 +1541,8 @@ void rename(Context ctx, Inode parent, const char *name,
 
 	status = fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
 	status = errorconv_dbg(status);
+	dcache_invalidate(parent);
+	dcache_invalidate(newparent);
 	if (status!=0) {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 				(unsigned long int)parent,
