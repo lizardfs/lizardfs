@@ -57,9 +57,10 @@ public:
 	void addOperation(WriteCacheBlock&& block);
 
 	/*
-	 * Starts these added operations, which are worth starting right now
+	 * Starts these added operations, which are worth starting right now.
+	 * Returns number of operations started.
 	 */
-	void startNewOperations();
+	uint32_t startNewOperations();
 
 	/*
 	 * Processes all started operations for at most specified time (0 - asap)

@@ -84,6 +84,8 @@ struct inodedata {
 	std::unique_ptr<WriteChunkLocator> locator;
 	int newDataInChainPipe[2];
 	bool workerWaitingForData;
+	Timer lastWriteToDataChain;
+	Timer lastWriteToChunkservers;
 
 	inodedata(uint32_t inode)
 			: inode(inode),
@@ -128,6 +130,34 @@ struct inodedata {
 	bool isDataChainPipeValid() {
 		return newDataInChainPipe[0] >= 0;
 	}
+
+	/*! Check if inode requires flushing all its data chain to chunkservers.
+	 *
+	 * Returns true if anyone requested to flush the data by calling write_data_flush
+	 * or write_data_flush_inode or the data in data chain is too old to keep it longer in
+	 * our buffers. If this function returns false, we write only full stripes from data
+	 * chain to chunkservers.
+	 * glock: LOCKED
+	 */
+	bool requiresFlushing() const {
+		return (flushwaiting > 0
+				|| lastWriteToDataChain.elapsed_ms() >= kMaximumTimeInDataChainSinceLastWrite_ms
+				|| lastWriteToChunkservers.elapsed_ms() >= kMaximumTimeInDataChainSinceLastFlush_ms);
+	}
+
+private:
+	/*! Limit for \p lastWriteToChunkservers after which we force a flush.
+	 *
+	 * Maximum time for data to be kept in data chain waiting for collecting a full stripe.
+	 */
+	static const uint32_t kMaximumTimeInDataChainSinceLastFlush_ms = 15000;
+
+	/*! Limit for \p lastWriteToDataChain after which we force a flush.
+	 *
+	 * Maximum time for data to be kept in data chain waiting for collecting a full stripe
+	 * if no new data is written into the data chain
+	 */
+	static const uint32_t kMaximumTimeInDataChainSinceLastWrite_ms = 5000;
 };
 
 struct DelayedQueueEntry {
@@ -295,8 +325,8 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 		id->status = status;
 	}
 	status = id->status;
-	if (id->flushwaiting > 0) {
-		// Don't sleep if someone is waiting for the data to be flushed
+	if (id->requiresFlushing() > 0) {
+		// Don't sleep if we have to write all the data immediately
 		seconds = 0;
 	}
 	if (!id->dataChain.empty() && status == 0) { // still have some work to do
@@ -395,7 +425,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 			Glock lock(gMutex);
 			inodeData_->minimumBlocksToWrite = writer.getMinimumBlockCountWorthWriting();
-			bool canWait = inodeData_->flushwaiting == 0;
+			bool canWait = !inodeData_->requiresFlushing();
 			if (!haveAnyBlockInCurrentChunk(lock)) {
 				// There is no need to wait if we have just finished writing some chunk.
 				// Let's immediately start writing the next chunk (if there is any).
@@ -476,7 +506,8 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 
 		// If we have sent the previous message and have some time left, we can take
 		// another block from current chunk to process it simultaneously. We won't take anything
-		// new if we've already sent 15 blocks and didn't receive status from the chunkserver.
+		// new if we've already sent 'gWriteWindowSize' blocks and didn't receive status from
+		// the chunkserver.
 		if (wholeOperationTimer.elapsed_s() + kTimeToFinishOperations < maximumTime
 				&& writer.acceptsNewOperations()) {
 			Glock lock(gMutex);
@@ -487,8 +518,8 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 				inodeData_->dataChain.pop_front();
 				write_cb_release_blocks(1, lock);
 			}
-			if (inodeData_->flushwaiting > 0 && !haveAnyBlockInCurrentChunk(lock)) {
-				// No more data will arrive, so flush everything
+			if (inodeData_->requiresFlushing() && !haveAnyBlockInCurrentChunk(lock)) {
+				// No more data and some flushing is needed or required, so flush everything
 				writer.startFlushMode();
 			}
 			if (writer.getUnfinishedOperationsCount() < gWriteWindowSize) {
@@ -497,8 +528,9 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 		} else if (writer.acceptsNewOperations()) {
 			// We are running out of time...
 			Glock lock(gMutex);
-			if (inodeData_->flushwaiting == 0) {
-				// Nobody is waiting for the data to be flushed. Let's postpone any operations
+			if (!inodeData_->requiresFlushing()) {
+				// Nobody is waiting for the data to be flushed and the data in write chain
+				// isn't too old. Let's postpone any operations
 				// that didn't start yet and finish them in the next time slice for this chunk
 				writer.dropNewOperations();
 			} else {
@@ -507,7 +539,10 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 			}
 		}
 
-		writer.startNewOperations();
+		if (writer.startNewOperations() > 0) {
+			Glock lock(gMutex);
+			inodeData_->lastWriteToChunkservers.reset();
+		}
 		if (writer.getPendingOperationsCount() == 0) {
 			return;
 		} else if (wholeOperationTimer.elapsed_s() >= maximumTime) {
@@ -558,7 +593,7 @@ bool InodeChunkWriter::haveBlockWorthWriting(uint32_t unfinishedOperationCount, 
 		// Always start full blocks; start partial blocks only if we have to flush the data
 		// or the block won't be expanded (only the last one can be) to a full block
 		return (block.size() == MFSBLOCKSIZE
-				|| inodeData_->flushwaiting > 0
+				|| inodeData_->requiresFlushing()
 				|| inodeData_->dataChain.size() > 1);
 	}
 }
@@ -649,6 +684,8 @@ void write_data_term(void) {
 /* glock: UNLOCKED */
 int write_block(inodedata *id, uint32_t chindx, uint16_t pos, uint32_t from, uint32_t to, const uint8_t *data) {
 	Glock lock(gMutex);
+	id->lastWriteToDataChain.reset();
+
 	// Try to expand the last block
 	if (!id->dataChain.empty()) {
 		auto& lastBlock = id->dataChain.back();

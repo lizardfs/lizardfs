@@ -154,8 +154,9 @@ uint32_t ChunkWriter::getMinimumBlockCountWorthWriting() {
 	return combinedStripeSize_;
 }
 
-void ChunkWriter::startNewOperations() {
+uint32_t ChunkWriter::startNewOperations() {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startNewOperations");
+	uint32_t operationsStarted = 0;
 	// Start all possible operations. Break at the first operation that can't be started, because
 	// we have to preserve the order of operations in order to ensure the files contain proper data
 	for (auto i = newOperations_.begin(); i != newOperations_.end(); i = newOperations_.erase(i)) {
@@ -171,7 +172,9 @@ void ChunkWriter::startNewOperations() {
 			break;
 		}
 		startOperation(std::move(operation));
+		++operationsStarted;
 	}
+	return operationsStarted;
 }
 
 void ChunkWriter::processOperations(uint32_t msTimeout) {

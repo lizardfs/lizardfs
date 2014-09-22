@@ -145,7 +145,8 @@ assert_template_eventually_prints_() {
 	local command=$2
 	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
-		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout"
+		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout. "`
+				`"It prints now: '$(eval "$command" || true)'"
 	fi
 }
 
