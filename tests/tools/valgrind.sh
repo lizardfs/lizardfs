@@ -47,4 +47,5 @@ valgrind_terminate() {
 			echo " --- valgrind: Stop OK --- "
 		fi
 	fi
+	rm -f /tmp/vgdb-pipe*by-lizardfstest* || true  # clean up any garbage left in /tmp
 }
