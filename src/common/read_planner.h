@@ -38,6 +38,18 @@ public:
 		std::vector<uint32_t> readDataOffsets;
 	};
 
+	struct PrefetchOperation {
+		/*
+		 * Offset to be sent in PREFETCH request
+		 */
+		uint32_t requestOffset;
+
+		/*
+		 * Size to be sent in PREFETCH request
+		 */
+		uint32_t requestSize;
+	};
+
 	struct PostProcessOperation {
 		/*
 		 * Offset of a block, which will be:
@@ -107,6 +119,12 @@ public:
 	 * These operations should be performed to fulfill the read request
 	 */
 	std::map<ChunkType, ReadOperation> basicReadOperations;
+
+	/**
+	 * List of read operations that are expected to be executed soon, thus it might be worth
+	 * to run them in advance
+	 */
+	std::map<ChunkType, PrefetchOperation> prefetchOperations;
 
 	/**
 	 * Additional list of read operations.

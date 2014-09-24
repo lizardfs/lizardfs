@@ -34,7 +34,7 @@ public:
 	 */
 	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
 			uint32_t connectTimeout_ms, uint32_t basicTimeout_ms,
-			const Timeout& communicationTimeout);
+			const Timeout& communicationTimeout, bool prefetchXorStripes);
 
 	uint32_t inode() {
 		return inode_;
@@ -58,4 +58,5 @@ private:
 	MultiVariantReadPlanner planner_;
 	std::map<ChunkType, NetworkAddress> chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
+	bool chunkAlreadyRead;
 };

@@ -81,6 +81,7 @@ static pthread_t delayedOpsThread;
 static uint32_t gChunkserverConnectTimeout_ms;
 static uint32_t gChunkserverBasicReadTimeout_ms;
 static uint32_t gChunkserverTotalReadTimeout_ms;
+static std::atomic<bool> gPrefetchXorStripes;
 static bool readDataTerminate;
 static std::atomic<uint32_t> maxRetries;
 
@@ -140,7 +141,8 @@ void read_data_init(uint32_t retries,
 		uint32_t chunkserverRoundTripTime_ms,
 		uint32_t chunkserverConnectTimeout_ms,
 		uint32_t chunkServerBasicReadTimeout_ms,
-		uint32_t chunkserverTotalReadTimeout_ms) {
+		uint32_t chunkserverTotalReadTimeout_ms,
+		bool prefetchXorStripes) {
 	uint32_t i;
 	pthread_attr_t thattr;
 
@@ -152,6 +154,8 @@ void read_data_init(uint32_t retries,
 	gChunkserverConnectTimeout_ms = chunkserverConnectTimeout_ms;
 	gChunkserverBasicReadTimeout_ms = chunkServerBasicReadTimeout_ms;
 	gChunkserverTotalReadTimeout_ms = chunkserverTotalReadTimeout_ms;
+	gPrefetchXorStripes = prefetchXorStripes;
+	gTweaks.registerVariable("PrefetchXorStripes", gPrefetchXorStripes);
 	gChunkConnector.setRoundTripTime(chunkserverRoundTripTime_ms);
 	gChunkConnector.setSourceIp(fs_getsrcip());
 	pthread_attr_init(&thattr);
@@ -259,7 +263,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			uint32_t bytesReadFromChunk = rrec->reader.readData(
 					rrec->readBufer, offsetInChunk, sizeInChunk,
 					gChunkserverConnectTimeout_ms, gChunkserverBasicReadTimeout_ms,
-					communicationTimeout);
+					communicationTimeout, gPrefetchXorStripes);
 			// No exceptions thrown. We can increase the counters and go to the next chunk
 			bytesRead += bytesReadFromChunk;
 			currentOffset += bytesReadFromChunk;

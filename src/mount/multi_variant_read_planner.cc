@@ -24,6 +24,7 @@ public:
 			  blockCount_(blockCount) {
 		requiredBufferSize = std::move(plan->requiredBufferSize);
 		basicReadOperations = std::move(plan->basicReadOperations);
+		prefetchOperations = std::move(plan->prefetchOperations);
 	}
 
 	bool isReadingFinished(const std::set<ChunkType>& unfinished) const override {

@@ -290,7 +290,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.chunkserverrtt,
 				gMountOptions.chunkserverconnectreadto,
 				gMountOptions.chunkserverbasicreadto,
-				gMountOptions.chunkservertotalreadto);
+				gMountOptions.chunkservertotalreadto,
+				gMountOptions.prefetchxorstripes);
 		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,

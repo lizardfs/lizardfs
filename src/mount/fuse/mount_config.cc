@@ -55,6 +55,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfschunkserverconnectreadto=%d", chunkserverconnectreadto, 0),
 	MFS_OPT("mfschunkserverbasicreadto=%d", chunkserverbasicreadto, 0),
 	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
+	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
@@ -128,8 +129,8 @@ void usage(const char *progname) {
 "    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfschunkserverbasicreadto=MSEC   set timeout for executing the basic variant of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfsprefetchxorstripes    prefetch full xor stripe on every first read of a xor chunk\n"
 "    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
-"    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK
 "    -o mfsmemlock               try to lock memory\n"

@@ -219,6 +219,16 @@ private:
 			if (readSize > 0) {
 				// converting positive readSize from int32_t to uint32_t
 				buildReadOperationForPart(plan, part, readOffset, readSize, firstBlock, blockCount);
+			} else {
+				ReadPlan::PrefetchOperation op;
+				op.requestOffset = toBytes(firstStripe(firstBlock));
+				// Above we use firstStripe(firstBlock), when actually it is more likely that the
+				// next requested block will be lastBlock+1, therefore firstStripe(lastBlock+1)
+				// would be more likely guess. However, prefetching one block more than necessary
+				// costs us less than prefetching one block too far when mfs_fuse reorders requests
+				// and we will soon be reading firstStripe(firstBlock).
+				op.requestSize = MFSBLOCKSIZE;
+				plan.prefetchOperations[correspondingChunkType(part)] = op;
 			}
 		}
 	}
@@ -260,6 +270,7 @@ std::unique_ptr<ReadPlan> StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
 	SingleVariantReadPlan plan;
 	buildReadOperations(plan, firstBlock, blockCount);
 	if (missingPart_ != 0) {
+		plan.prefetchOperations.clear();
 		buildXorOperations(plan, firstBlock, blockCount);
 	}
 	return std::unique_ptr<ReadPlan>(new SingleVariantReadPlan(std::move(plan)));

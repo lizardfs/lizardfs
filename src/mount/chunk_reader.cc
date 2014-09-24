@@ -12,7 +12,8 @@
 ChunkReader::ChunkReader(ChunkConnector& connector)
 		: connector_(connector),
 		  inode_(0),
-		  index_(0) {
+		  index_(0),
+		  chunkAlreadyRead(false) {
 }
 
 void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool forcePrepare) {
@@ -27,6 +28,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 	index_ = index;
 	locator_.invalidateCache(inode, index);
 	location_ = locator_.locateChunk(inode, index);
+	chunkAlreadyRead = false;
 	if (location_->isEmptyChunk()) {
 		return;
 	}
@@ -66,8 +68,8 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 }
 
 uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
-		uint32_t connectTimeout_ms, uint32_t basicTimeout_ms,
-		const Timeout& communicationTimeout) {
+		uint32_t connectTimeout_ms, uint32_t basicTimeout_ms, const Timeout& communicationTimeout,
+		bool prefetchXorStripes) {
 	if (size == 0) {
 		return 0;
 	}
@@ -92,10 +94,19 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		// We have to request for availableSize rounded up to MFSBLOCKSIZE
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+		auto plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
+		if (!prefetchXorStripes || chunkAlreadyRead || size != availableSize) {
+			// Disable prefetching if:
+			// - it was disabled with a config option
+			// - all chunk parts were read before (in this case we rely on pagecache)
+			// - we're reading the end of a chunk (there is no point in prefetching anything)
+			plan->prefetchOperations.clear();
+		}
 		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version,
-				planner_.buildPlanFor(firstBlockToRead, blockToReadCount));
+				std::move(plan));
 		uint32_t initialBufferSize = buffer.size();
 		try {
+			chunkAlreadyRead = true;
 			executor.executePlan(buffer, chunkTypeLocations_, connector_,
 					ReadPlanExecutor::Timeouts(connectTimeout_ms, basicTimeout_ms),
 					communicationTimeout);

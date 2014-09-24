@@ -8,6 +8,7 @@
 
 #include "common/block_xor.h"
 #include "common/chunkserver_stats.h"
+#include "common/cltocs_communication.h"
 #include "common/exceptions.h"
 #include "common/lambda_guard.h"
 #include "common/massert.h"
@@ -111,6 +112,40 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 		}
 	};
 
+	// A function which starts a new prefetch operation. Does not return a status.
+	auto startPrefetchOperation = [&](ChunkType chunkType, const ReadPlan::PrefetchOperation& op)
+			-> void {
+		sassert(locations.count(chunkType) == 1);
+		const NetworkAddress& server = locations.at(chunkType);
+		try {
+			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
+			int fd = connector.startUsingConnection(server, connectTimeout);
+			try {
+				if (totalTimeout.expired()) {
+					// totalTimeout might expire during establishing the connection
+					throw RecoverableReadException("Chunkserver communication timed out");
+				}
+				std::vector<uint8_t> message;
+				cltocs::prefetch::serialize(message, chunkId_, chunkVersion_, chunkType,
+						op.requestOffset, op.requestSize);
+				int32_t ret = tcptowrite(fd, message.data(), message.size(),
+						connectTimeout.remaining_ms());
+				if (ret != (int32_t)message.size()) {
+					throw ChunkserverConnectionException(
+							"Cannot send PREFETCH request to the chunkserver: "
+									+ std::string(strerr(errno)),
+							server);
+				}
+			} catch (...) {
+				tcpclose(fd);
+				throw;
+			}
+			connector.endUsingConnection(fd, server);
+		} catch (ChunkserverConnectionException& ex) {
+			// That's a pity
+		}
+	};
+
 	// A function which verifies if we are able to finish executing
 	// the plan if there were any networking failures
 	auto isFinishingPossible = [&]() -> bool {
@@ -130,6 +165,10 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	}
 	if (!isFinishingPossible()) {
 		throw RecoverableReadException("Can't connect to " + lastConnectionFailure.toString());
+	}
+	// Send prefetch request for data that is expected to be needed soon (but not now)
+	for (const auto& prefetchOperation : plan_->prefetchOperations) {
+		startPrefetchOperation(prefetchOperation.first, prefetchOperation.second);
 	}
 
 	// Receive responses

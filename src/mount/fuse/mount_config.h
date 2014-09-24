@@ -82,6 +82,7 @@ struct mfsopts_ {
 	int chunkserverconnectreadto;
 	int chunkserverbasicreadto;
 	int chunkservertotalreadto;
+	int prefetchxorstripes;
 	int chunkserverwriteto;
 
 	mfsopts_()
@@ -128,6 +129,7 @@ struct mfsopts_ {
 			chunkserverconnectreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			chunkserverbasicreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			chunkservertotalreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
+			prefetchxorstripes(0),
 			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) {
 	}
 };
