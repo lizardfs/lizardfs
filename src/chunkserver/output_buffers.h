@@ -64,6 +64,7 @@ public:
 	const uint8_t* data() const {
 		return buffer_.data();
 	}
+	void clear();
 
 private:
 	const size_t internalBufferCapacity_;

@@ -452,6 +452,31 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 	worker_read_continue(eptr, true);
 }
 
+void worker_prefetch(csserventry *eptr, const uint8_t *data, PacketHeader::Type type, PacketHeader::Length length) {
+	sassert(type == LIZ_CLTOCS_PREFETCH);
+	try {
+			cltocs::prefetch::deserialize(data, length,
+					eptr->chunkid,
+					eptr->version,
+					eptr->chunkType,
+					eptr->offset,
+					eptr->size);
+	} catch (IncorrectDeserializationException&) {
+		syslog(LOG_NOTICE, "prefetch: Cannot deserialize PREFETCH message (type:%"
+				PRIX32 ", length:%" PRIu32 ")", type, length);
+		eptr->state = CLOSE;
+		return;
+	}
+	// Start prefetching in background, don't wait for it to complete
+	auto firstBlock = eptr->offset / MFSBLOCKSIZE;
+	auto lastByte = eptr->offset + eptr->size - 1;
+	auto lastBlock = lastByte / MFSBLOCKSIZE;
+	auto nrOfBlocks = lastBlock - firstBlock + 1;
+	job_prefetch(eptr->workerJobPool, eptr->chunkid, eptr->version, eptr->chunkType,
+			firstBlock, nrOfBlocks);
+}
+
+
 // bg writing
 
 void worker_write_finished(uint8_t status, void *e) {
@@ -897,6 +922,9 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 		case CLTOCS_READ:
 		case LIZ_CLTOCS_READ:
 			worker_read_init(eptr, data, type, length);
+			break;
+		case LIZ_CLTOCS_PREFETCH:
+			worker_prefetch(eptr, data, type, length);
 			break;
 		case CLTOCS_WRITE:
 		case LIZ_CLTOCS_WRITE_INIT:

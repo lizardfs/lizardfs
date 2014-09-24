@@ -657,6 +657,10 @@ enum class SugidClearMode {
 #define LIZ_CSTOCL_READ_DATA (1000U + 202U)
 /// chunkid:64 offset:32 size:32 crc:32 data:BYTES[size]
 
+// 0x04B3
+#define LIZ_CLTOCS_PREFETCH (1000U + 203U)
+/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
 /// chunkid:64 chunkversion:32 chain:(N * [ip:32 port:16])

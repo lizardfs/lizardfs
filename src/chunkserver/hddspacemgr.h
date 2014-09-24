@@ -55,6 +55,8 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 /* I/O operations */
 int hdd_open(uint64_t chunkid, ChunkType chunkType);
 int hdd_close(uint64_t chunkid, ChunkType chunkType);
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlock,
+		uint16_t nrOfBlocks);
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
 		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer);

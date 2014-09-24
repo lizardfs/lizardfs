@@ -122,6 +122,11 @@ size_t SimpleOutputBuffer::bytesInABuffer() const {
 	return bufferUnflushedDataOneAfterLastIndex_ - bufferUnflushedDataFirstIndex_;
 }
 
+void SimpleOutputBuffer::clear() {
+	bufferUnflushedDataFirstIndex_ = 0;
+	bufferUnflushedDataOneAfterLastIndex_ = 0;
+}
+
 ssize_t SimpleOutputBuffer::copyIntoBuffer(int inputFileDescriptor, size_t len, off_t* offset) {
 	eassert(len + bufferUnflushedDataOneAfterLastIndex_ <= internalBufferCapacity_);
 	off_t bytes_written = 0;

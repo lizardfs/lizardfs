@@ -50,6 +50,7 @@
 #include "common/crc.h"
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/debug_log.h"
 #include "common/disk_info.h"
 #include "common/list.h"
 #include "common/main.h"
@@ -1699,6 +1700,53 @@ int hdd_read_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 	}
 
 	return STATUS_OK;
+}
+
+/**
+ * Unlike other hdd_... functions this one reports errors to syslog. That's due to the fact that
+ * nobody else looks at these errors and we don't want to lose information about them.
+ */
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlock,
+		uint16_t nrOfBlocks) {
+	LOG_AVG_TILL_END_OF_SCOPE0("hdd_prefetch_blocks");
+
+	auto status = hdd_open(chunkid, chunkType);
+	if (status != STATUS_OK) {
+		syslog(LOG_WARNING, "error opening chunk for prefetching: %" PRIu64 " - %s", chunkid,
+				mfsstrerr(status));
+		return status;
+	}
+
+	Chunk* c = hdd_chunk_find(chunkid, chunkType);
+	if (c==NULL) {
+		syslog(LOG_WARNING, "error finding chunk for prefetching: %" PRIu64 " - %s", chunkid,
+				mfsstrerr(status));
+		return ERROR_NOCHUNK;
+	}
+	SimpleOutputBuffer buffer = SimpleOutputBuffer(MFSBLOCKSIZE);
+	for (auto block = firstBlock; block < firstBlock + nrOfBlocks; block++) {
+		buffer.clear();
+		status |= hdd_read_block(c, block, &buffer);
+		if (status != STATUS_OK) {
+			syslog(LOG_WARNING, "error prefetching chunk: %" PRIu64 " - %s", chunkid,
+					mfsstrerr(status));
+			break;
+		}
+	}
+	hdd_chunk_release(c);
+
+	DEBUG_LOG("chunkserver.hdd_prefetch_blocks")
+			<< "chunk:" << chunkid
+			<< " status:" << uint16_t(status)
+			<< " firstBlock:" << firstBlock
+			<< " nrOfBlocks:" << nrOfBlocks;
+
+	status |= hdd_close(chunkid, chunkType);
+	if (status != STATUS_OK) {
+		syslog(LOG_WARNING, "error closing prefetched chunk: %" PRIu64 " - %s", chunkid,
+				mfsstrerr(status));
+	}
+	return status;
 }
 
 static void hdd_prefetch(Chunk& chunk, uint16_t firstBlock, uint32_t numberOfBlocks) {

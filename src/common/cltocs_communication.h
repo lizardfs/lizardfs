@@ -5,6 +5,12 @@
 #include "common/chunk_type.h"
 #include "common/network_address.h"
 #include "common/packet.h"
+#include "common/serialization_macros.h"
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltocs, prefetch, LIZ_CLTOCS_PREFETCH, 0,
+		uint64_t, chunkId, uint32_t, chunkVersion, ChunkType, chunkType,
+		uint32_t, readOffset, uint32_t, readSize)
 
 namespace cltocs {
 

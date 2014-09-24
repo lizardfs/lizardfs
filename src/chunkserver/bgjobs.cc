@@ -57,6 +57,7 @@ enum {
 	OP_OPEN,
 	OP_CLOSE,
 	OP_READ,
+	OP_PREFETCH,
 	OP_WRITE,
 	OP_LEGACY_REPLICATE,
 	OP_REPLICATE,
@@ -88,6 +89,15 @@ struct chunk_read_args {
 	uint32_t blocksToBeReadAhead;
 	OutputBuffer* outputBuffer;
 	bool performHddOpen;
+};
+
+// for OP_PREFETCH
+struct chunk_prefetch_args {
+	uint64_t chunkid;
+	uint32_t version;
+	ChunkType chunkType;
+	uint32_t firstBlock;
+	uint32_t nrOfBlocks;
 };
 
 // for OP_WRITE
@@ -171,14 +181,6 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	return 1;       // not last
 }
 
-#define opargs ((chunk_chunkop_args*)(jptr->args))
-#define ocargs ((chunk_open_and_close_args*)(jptr->args))
-#define rdargs ((chunk_read_args*)(jptr->args))
-#define wrargs ((chunk_write_args*)(jptr->args))
-#define lrpargs ((chunk_legacy_replication_args*)(jptr->args))
-#define rpargs ((chunk_replication_args*)(jptr->args))
-#define gbargs ((chunk_get_blocks_args*)(jptr->args))
-
 void* job_worker(void *th_arg) {
 	TRACETHIS();
 	jobpool *jp = (jobpool*)th_arg;
@@ -208,6 +210,8 @@ void* job_worker(void *th_arg) {
 				status = ERROR_EINVAL;
 				break;
 			case OP_CHUNKOP:
+			{
+				auto opargs = (chunk_chunkop_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
@@ -216,22 +220,30 @@ void* job_worker(void *th_arg) {
 							opargs->length);
 				}
 				break;
+			}
 			case OP_OPEN:
+			{
+				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
 					status = hdd_open(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
+			}
 			case OP_CLOSE:
+			{
+				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
 					status = hdd_close(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
+			}
 			case OP_READ:
 			{
+				auto rdargs = (chunk_read_args*)(jptr->args);
 				LOG_AVG_TILL_END_OF_SCOPE0("job_read");
 				if (rdargs->performHddOpen) {
 					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
@@ -248,7 +260,16 @@ void* job_worker(void *th_arg) {
 				}
 				break;
 			}
+			case OP_PREFETCH:
+			{
+				auto prefetchArgs = (chunk_prefetch_args*)(jptr->args);
+				status = hdd_prefetch_blocks(prefetchArgs->chunkid, prefetchArgs->chunkType,
+						prefetchArgs->firstBlock, prefetchArgs->nrOfBlocks);
+				break;
+			}
 			case OP_WRITE:
+			{
+				auto wrargs = (chunk_write_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
@@ -257,7 +278,10 @@ void* job_worker(void *th_arg) {
 							wrargs->buffer);
 				}
 				break;
+			}
 			case OP_GET_BLOCKS:
+			{
+				auto gbargs = (chunk_get_blocks_args*)(jptr->args);
 				if (jstate == JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
@@ -265,7 +289,10 @@ void* job_worker(void *th_arg) {
 							gbargs->chunkVersion, gbargs->blocks);
 				}
 				break;
+			}
 			case OP_LEGACY_REPLICATE:
+			{
+				auto lrpargs = (chunk_legacy_replication_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
@@ -273,7 +300,10 @@ void* job_worker(void *th_arg) {
 							((uint8_t*)(jptr->args)) + sizeof(chunk_legacy_replication_args));
 				}
 				break;
+			}
 			case OP_REPLICATE:
+			{
+				auto rpargs = (chunk_replication_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
@@ -290,6 +320,7 @@ void* job_worker(void *th_arg) {
 					}
 				}
 				break;
+			}
 			default: // OP_EXIT
 //                              syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
 				return NULL;
@@ -536,6 +567,22 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	args->performHddOpen = performHddOpen;
 	return job_new(jp,OP_READ,args,callback,extra);
 }
+
+uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint32_t firstBlockToBePrefetched, uint32_t nrOfBlocksToBePrefetched) {
+	TRACETHIS();
+	jobpool* jp = (jobpool*)jpool;
+	chunk_prefetch_args* args;
+	args = (chunk_prefetch_args*) malloc(sizeof(chunk_prefetch_args));
+	passert(args);
+	args->chunkid = chunkid;
+	args->version = version;
+	args->chunkType = chunkType;
+	args->firstBlock = firstBlockToBePrefetched;
+	args->nrOfBlocks = nrOfBlocksToBePrefetched;
+	return job_new(jp,OP_PREFETCH, args, nullptr, nullptr);
+}
+
 
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
