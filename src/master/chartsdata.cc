@@ -139,11 +139,15 @@ static const estatdef estatdefs[]=ESTATDEFS
 #ifdef CPU_USAGE
 static struct itimerval it_set;
 #endif
+
 #ifdef MEMORY_USAGE
 static uint64_t memusage;
-
-uint64_t chartsdata_memusage(void) {  // used only in sections with MEMORY_USAGE
+uint64_t chartsdata_memusage(void) {
 	return memusage;
+}
+#else
+uint64_t chartsdata_memusage(void) {
+	return 0;
 }
 #endif
 

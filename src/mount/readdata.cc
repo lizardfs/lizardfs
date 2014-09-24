@@ -43,6 +43,7 @@
 #include "mount/chunk_reader.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
+#include "mount/tweaks.h"
 
 #define USECTICK 333333
 #define REFRESHTICKS 15
@@ -77,11 +78,11 @@ static std::mutex gMutex;
 static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t delayedOpsThread;
-static uint32_t maxRetries;
 static uint32_t gChunkserverConnectTimeout_ms;
 static uint32_t gChunkserverBasicReadTimeout_ms;
 static uint32_t gChunkserverTotalReadTimeout_ms;
 static bool readDataTerminate;
+static std::atomic<uint32_t> maxRetries;
 
 void* read_data_delayed_ops(void *arg) {
 	readrec *rrec,**rrecp;
@@ -157,6 +158,8 @@ void read_data_init(uint32_t retries,
 	pthread_attr_setstacksize(&thattr,0x100000);
 	pthread_create(&delayedOpsThread,&thattr,read_data_delayed_ops,NULL);
 	pthread_attr_destroy(&thattr);
+
+	gTweaks.registerVariable("ReadMaxRetries", maxRetries);
 }
 
 void read_data_term(void) {

@@ -61,6 +61,7 @@
 #include "mount/readdata.h"
 #include "mount/stats.h"
 #include "mount/symlinkcache.h"
+#include "mount/tweaks.h"
 #include "mount/writedata.h"
 
 namespace LizardClient {
@@ -98,9 +99,14 @@ static const uint8_t statsattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0
 // 0x0100 == 0b100000000 == 0400
 static const uint8_t oplogattr[35]={'f', 0x01,0x00, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
+#define TWEAKS_FILE_NAME ".lizardfs_tweaks"
+#define TWEAKS_FILE_INODE 0x7FFFFFF3
+// 0x01A4 == 0b110100100 == 0644
+static const uint8_t tweaksfileattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
+
 #define MIN_SPECIAL_INODE 0x7FFFFFF0
 #define IS_SPECIAL_INODE(ino) ((ino)>=MIN_SPECIAL_INODE)
-#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 || strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 || strcmp(OPHISTORY_NAME,(name))==0/* || strcmp(ATTRCACHE_NAME,(name))==0*/))
+#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 || strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 || strcmp(OPHISTORY_NAME,(name))==0 || strcmp(TWEAKS_FILE_NAME,(name))==0))
 
 typedef struct _sinfo {
 	char *buff;
@@ -119,6 +125,15 @@ typedef struct _dirbuf {
 	void *dcache;
 	pthread_mutex_t lock;
 } dirbuf;
+
+struct MagicFile {
+	MagicFile() : wasRead(false), wasWritten(false) {}
+
+	std::mutex mutex;
+	std::string value;
+	bool wasRead;
+	bool wasWritten;
+};
 
 enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 
@@ -139,6 +154,7 @@ static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
 bool use_rwlock = 0;
+static std::atomic<bool> gDirectIo(false);
 
 static std::unique_ptr<AclCache> acl_cache;
 
@@ -561,9 +577,13 @@ struct statvfs statfs(Context ctx, Inode ino) {
 	stfsbuf.f_ffree = 1000000000+PKGVERSION;
 	stfsbuf.f_favail = 1000000000+PKGVERSION;
 	//stfsbuf.f_flag = ST_RDONLY;
-	oplog_printf(ctx,
-			"statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
-			(unsigned long int)ino, totalspace, availspace, trashspace, reservedspace, inodes);
+	oplog_printf(ctx, "statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
+			(unsigned long int)ino,
+			totalspace,
+			availspace,
+			trashspace,
+			reservedspace,
+			inodes);
 	return stfsbuf;
 }
 
@@ -572,7 +592,9 @@ void access(Context ctx, Inode ino, int mask) {
 
 	int mmode;
 
-	oplog_printf(ctx,"access (%lu,0x%X)",(unsigned long int)ino,mask);
+	oplog_printf(ctx, "access (%lu,0x%X)",
+			(unsigned long int)ino,
+			mask);
 	stats_inc(OP_ACCESS);
 #if (R_OK==MODE_MASK_R) && (W_OK==MODE_MASK_W) && (X_OK==MODE_MASK_X)
 	mmode = mask & (MODE_MASK_R | MODE_MASK_W | MODE_MASK_X);
@@ -613,13 +635,18 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 	int status;
 
 	if (debug_mode) {
-		oplog_printf(ctx,"lookup (%lu,%s) ...",(unsigned long int)parent,name);
+		oplog_printf(ctx, "lookup (%lu,%s) ...",
+				(unsigned long int)parent,
+				name);
 		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
 		stats_inc(OP_LOOKUP);
-		oplog_printf(ctx,"lookup (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "lookup (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 	if (parent==MFS_ROOT_ID) {
@@ -633,7 +660,13 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			attr_to_stat(MASTERINFO_INODE,masterinfoattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
 			return e;
 		}
 		if (strcmp(name,STATS_NAME)==0) {
@@ -643,7 +676,29 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			attr_to_stat(STATS_INODE,statsattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: STATS): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: STATS): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
+			return e;
+		}
+		if (strcmp(name,TWEAKS_FILE_NAME)==0) {
+			e.ino = TWEAKS_FILE_INODE;
+			e.attr_timeout = 3600.0;
+			e.entry_timeout = 3600.0;
+			attr_to_stat(TWEAKS_FILE_INODE, tweaksfileattr, &e.attr);
+			stats_inc(OP_LOOKUP_INTERNAL);
+			makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: TWEAKS_FILE): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
 			return e;
 		}
 		if (strcmp(name,OPLOG_NAME)==0) {
@@ -653,7 +708,13 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			attr_to_stat(OPLOG_INODE,oplogattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPLOG): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: OPLOG): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
 			return e;
 		}
 		if (strcmp(name,OPHISTORY_NAME)==0) {
@@ -663,7 +724,13 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			attr_to_stat(OPHISTORY_INODE,oplogattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
-			oplog_printf(ctx,"lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
 			return e;
 		}
 	}
@@ -674,7 +741,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 		stats_inc(OP_DIRCACHE_LOOKUP);
 		status = 0;
 		icacheflag = 1;
-//              oplog_printf(ctx,"lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
+//              oplog_printf(ctx, "lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		stats_inc(OP_LOOKUP);
 		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr);
@@ -682,7 +749,10 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 		icacheflag = 0;
 	}
 	if (status!=0) {
-		oplog_printf(ctx,"lookup (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
+		oplog_printf(ctx, "lookup (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(status));
 		throw RequestException(status);
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -699,7 +769,14 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 		e.attr.st_size=maxfleng;
 	}
 	makeattrstr(attrstr,256,&e.attr);
-	oplog_printf(ctx,"lookup (%lu,%s)%s: OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,icacheflag?" (using open dir cache)":"",e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+	oplog_printf(ctx, "lookup (%lu,%s)%s: OK (%.1f,%lu,%.1f,%s)",
+			(unsigned long int)parent,
+			name,
+			icacheflag?" (using open dir cache)":"",
+			e.entry_timeout,
+			(unsigned long int)e.ino,
+			e.attr_timeout,
+			attrstr);
 	return e;
 }
 
@@ -713,7 +790,8 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 	(void)fi;
 
 	if (debug_mode) {
-		oplog_printf(ctx,"getattr (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "getattr (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
 	}
 	if (ino==MASTERINFO_INODE) {
@@ -721,7 +799,9 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		attr_to_stat(ino,masterinfoattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
 		makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"getattr (%lu) (internal node: MASTERINFO): OK (3600,%s)",(unsigned long int)ino,attrstr);
+		oplog_printf(ctx, "getattr (%lu) (internal node: MASTERINFO): OK (3600,%s)",
+				(unsigned long int)ino,
+				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 	if (ino==STATS_INODE) {
@@ -729,7 +809,25 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		attr_to_stat(ino,statsattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
 		makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"getattr (%lu) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,attrstr);
+		oplog_printf(ctx, "getattr (%lu) (internal node: STATS): OK (3600,%s)",
+				(unsigned long int)ino,
+				attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
+		if (fi != NULL) {
+			// fstat is called on an open descriptor -- provide the actual length
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			o_stbuf.st_size = file->value.size();
+		}
+		stats_inc(OP_GETATTR);
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx, "getattr (%lu) (internal node: TWEAKS_FILE): OK (3600,%s)",
+				(unsigned long int)ino,
+				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
@@ -737,7 +835,10 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		attr_to_stat(ino,oplogattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
 		makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"getattr (%lu) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
+		oplog_printf(ctx, "getattr (%lu) (internal node: %s): OK (3600,%s)",
+				(unsigned long int)ino,
+				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 	maxfleng = write_data_getmaxfleng(ino);
@@ -753,7 +854,9 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		status = errorconv_dbg(status);
 	}
 	if (status!=0) {
-		oplog_printf(ctx,"getattr (%lu): %s",(unsigned long int)ino,strerr(status));
+		oplog_printf(ctx, "getattr (%lu): %s",
+				(unsigned long int)ino,
+				strerr(status));
 		throw RequestException(status);
 	}
 	memset(&o_stbuf, 0, sizeof(struct stat));
@@ -763,7 +866,10 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 	}
 	attr_timeout = (attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	makeattrstr(attrstr,256,&o_stbuf);
-	oplog_printf(ctx,"getattr (%lu): OK (%.1f,%s)",(unsigned long int)ino,attr_timeout,attrstr);
+	oplog_printf(ctx, "getattr (%lu): OK (%.1f,%s)",
+			(unsigned long int)ino,
+			attr_timeout,
+			attrstr);
 	return AttrReply{o_stbuf, attr_timeout};
 }
 
@@ -780,25 +886,96 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 	makemodestr(modestr,stbuf->st_mode);
 	stats_inc(OP_SETATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) ...",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size));
-		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "])\n",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size));
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) ...",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size));
+		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "])\n",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size));
 	}
 	if (ino==MASTERINFO_INODE) {
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EPERM));
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
 	if (ino==STATS_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,statsattr,&o_stbuf);
 		makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: STATS): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attrstr);
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: STATS): OK (3600,%s)",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
+		if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			file->value.resize(stbuf->st_size);
+			o_stbuf.st_size = stbuf->st_size;
+		}
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: TWEAKS_FILE): OK (3600,%s)",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,oplogattr,&o_stbuf);
 		makeattrstr(attrstr,256,&o_stbuf);
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: %s): OK (3600,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",attrstr);
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: %s): OK (3600,%s)",
+				(unsigned long int)ino,
+				to_set,modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
 
@@ -815,7 +992,17 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);    // ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = errorconv_dbg(status);
 		if (status!=0) {
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+					(unsigned long int)ino,
+					to_set,
+					modestr+1,
+					(unsigned int)(stbuf->st_mode & 07777),
+					(long int)stbuf->st_uid,
+					(long int)stbuf->st_gid,
+					(unsigned long int)(stbuf->st_atime),
+					(unsigned long int)(stbuf->st_mtime),
+					(uint64_t)(stbuf->st_size),
+					strerr(status));
 			throw RequestException(status);
 		}
 	}
@@ -858,17 +1045,47 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		}
 		status = errorconv_dbg(status);
 		if (status!=0) {
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+					(unsigned long int)ino,
+					to_set,
+					modestr+1,
+					(unsigned int)(stbuf->st_mode & 07777),
+					(long int)stbuf->st_uid,
+					(long int)stbuf->st_gid,
+					(unsigned long int)(stbuf->st_atime),
+					(unsigned long int)(stbuf->st_mtime),
+					(uint64_t)(stbuf->st_size),
+					strerr(status));
 			throw RequestException(status);
 		}
 	}
 	if (to_set & LIZARDFS_SET_ATTR_SIZE) {
 		if (stbuf->st_size<0) {
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EINVAL));
+			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+					(unsigned long int)ino,
+					to_set,
+					modestr+1,
+					(unsigned int)(stbuf->st_mode & 07777),
+					(long int)stbuf->st_uid,
+					(long int)stbuf->st_gid,
+					(unsigned long int)(stbuf->st_atime),
+					(unsigned long int)(stbuf->st_mtime),
+					(uint64_t)(stbuf->st_size),
+					strerr(EINVAL));
 			throw RequestException(EINVAL);
 		}
 		if (stbuf->st_size>=MAX_FILE_SIZE) {
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(EFBIG));
+			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+					(unsigned long int)ino,
+					to_set,
+					modestr+1,
+					(unsigned int)(stbuf->st_mode & 07777),
+					(long int)stbuf->st_uid,
+					(long int)stbuf->st_gid,
+					(unsigned long int)(stbuf->st_atime),
+					(unsigned long int)(stbuf->st_mtime),
+					(uint64_t)(stbuf->st_size),
+					strerr(EFBIG));
 			throw RequestException(EFBIG);
 		}
 		try {
@@ -880,12 +1097,32 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		}
 		read_inode_ops(ino);
 		if (status!=0) {
-			oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
+			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+					(unsigned long int)ino,
+					to_set,
+					modestr+1,
+					(unsigned int)(stbuf->st_mode & 07777),
+					(long int)stbuf->st_uid,
+					(long int)stbuf->st_gid,
+					(unsigned long int)(stbuf->st_atime),
+					(unsigned long int)(stbuf->st_mtime),
+					(uint64_t)(stbuf->st_size),
+					strerr(status));
 			throw RequestException(status);
 		}
 	}
 	if (status!=0) {        // should never happend but better check than sorry
-		oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),strerr(status));
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				strerr(status));
 		throw RequestException(status);
 	}
 	memset(&o_stbuf, 0, sizeof(struct stat));
@@ -895,7 +1132,18 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 	}
 	attr_timeout = (attr_get_mattr(attr)&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	makeattrstr(attrstr,256,&o_stbuf);
-	oplog_printf(ctx,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): OK (%.1f,%s)",(unsigned long int)ino,to_set,modestr+1,(unsigned int)(stbuf->st_mode & 07777),(long int)stbuf->st_uid,(long int)stbuf->st_gid,(unsigned long int)(stbuf->st_atime),(unsigned long int)(stbuf->st_mtime),(uint64_t)(stbuf->st_size),attr_timeout,attrstr);
+	oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): OK (%.1f,%s)",
+			(unsigned long int)ino,
+			to_set,
+			modestr+1,
+			(unsigned int)(stbuf->st_mode & 07777),
+			(long int)stbuf->st_uid,
+			(long int)stbuf->st_gid,
+			(unsigned long int)(stbuf->st_atime),
+			(unsigned long int)(stbuf->st_mtime),
+			(uint64_t)(stbuf->st_size),
+			attr_timeout,
+			attrstr);
 	return AttrReply{o_stbuf, attr_timeout};
 }
 
@@ -913,12 +1161,28 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 	makemodestr(modestr,mode);
 	stats_inc(OP_MKNOD);
 	if (debug_mode) {
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX) ...",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev);
-		fprintf(stderr,"mknod (%lu,%s,%s:0%04o,0x%08lX)\n",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev);
+		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX) ...",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev);
+		fprintf(stderr,"mknod (%lu,%s,%s:0%04o,0x%08lX)\n",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 	if (S_ISFIFO(mode)) {
@@ -932,13 +1196,25 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 	} else if (S_ISREG(mode) || (mode&0170000)==0) {
 		type = TYPE_FILE;
 	} else {
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(EPERM));
+		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
 
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(EACCES));
+			oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
+					(unsigned long int)parent,
+					name,
+					modestr,
+					(unsigned int)mode,
+					(unsigned long int)rdev,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
@@ -946,7 +1222,13 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.umask,ctx.uid,ctx.gid,rdev,inode,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): %s",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,strerr(status));
+		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -955,7 +1237,16 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		attr_to_stat(inode,attr,&e.attr);
 		makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"mknod (%lu,%s,%s:0%04o,0x%08lX): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,modestr,(unsigned int)mode,(unsigned long int)rdev,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): OK (%.1f,%lu,%.1f,%s)",
+				(unsigned long int)parent,
+				name,
+				modestr,
+				(unsigned int)mode,
+				(unsigned long int)rdev,
+				e.entry_timeout,
+				(unsigned long int)e.ino,
+				e.attr_timeout,
+				attrstr);
 		return e;
 	}
 }
@@ -966,29 +1257,43 @@ void unlink(Context ctx, Inode parent, const char *name) {
 
 	stats_inc(OP_UNLINK);
 	if (debug_mode) {
-		oplog_printf(ctx,"unlink (%lu,%s) ...",(unsigned long int)parent,name);
+		oplog_printf(ctx, "unlink (%lu,%s) ...",
+				(unsigned long int)parent,
+				name);
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(EACCES));
+			oplog_printf(ctx, "unlink (%lu,%s): %s",
+					(unsigned long int)parent,
+					name,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "unlink (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"unlink (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
+		oplog_printf(ctx, "unlink (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(status));
 		throw RequestException(status);
 	} else {
-		oplog_printf(ctx,"unlink (%lu,%s): OK",(unsigned long int)parent,name);
+		oplog_printf(ctx, "unlink (%lu,%s): OK",
+				(unsigned long int)parent,
+				name);
 		return;
 	}
 }
@@ -1006,25 +1311,48 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 	makemodestr(modestr,mode);
 	stats_inc(OP_MKDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o) ...",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
-		fprintf(stderr,"mkdir (%lu,%s,d%s:0%04o)\n",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
+		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o) ...",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode);
+		fprintf(stderr,"mkdir (%lu,%s,d%s:0%04o)\n",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EACCES));
+			oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
+					(unsigned long int)parent,
+					name,
+					modestr+1,
+					(unsigned int)mode,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.umask,ctx.uid,ctx.gid,mkdir_copy_sgid,inode,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
+		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1033,7 +1361,15 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:direntry_cache_timeout;
 		attr_to_stat(inode,attr,&e.attr);
 		makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"mkdir (%lu,%s,d%s:0%04o): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): OK (%.1f,%lu,%.1f,%s)",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				e.entry_timeout,
+				(unsigned long int)e.ino,
+				e.attr_timeout,
+				attrstr);
 		return e;
 	}
 }
@@ -1044,28 +1380,42 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 
 	stats_inc(OP_RMDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"rmdir (%lu,%s) ...",(unsigned long int)parent,name);
+		oplog_printf(ctx, "rmdir (%lu,%s) ...",
+				(unsigned long int)parent,
+				name);
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(EACCES));
+			oplog_printf(ctx, "rmdir (%lu,%s): %s",
+					(unsigned long int)parent,
+					name,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "rmdir (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"rmdir (%lu,%s): %s",(unsigned long int)parent,name,strerr(status));
+		oplog_printf(ctx, "rmdir (%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				strerr(status));
 		throw RequestException(status);
 	} else {
-		oplog_printf(ctx,"rmdir (%lu,%s): OK",(unsigned long int)parent,name);
+		oplog_printf(ctx, "rmdir (%lu,%s): OK",
+				(unsigned long int)parent,
+				name);
 		return;
 	}
 }
@@ -1082,25 +1432,40 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 
 	stats_inc(OP_SYMLINK);
 	if (debug_mode) {
-		oplog_printf(ctx,"symlink (%s,%lu,%s) ...",path,(unsigned long int)parent,name);
+		oplog_printf(ctx, "symlink (%s,%lu,%s) ...",
+				path,
+				(unsigned long int)parent,
+				name);
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(EACCES));
+			oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
+					path,
+					(unsigned long int)parent,
+					name,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
+				path,
+				(unsigned long int)parent,
+				name,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_symlink(parent,nleng,(const uint8_t*)name,(const uint8_t*)path,ctx.uid,ctx.gid,&inode,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"symlink (%s,%lu,%s): %s",path,(unsigned long int)parent,name,strerr(status));
+		oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
+				path,
+				(unsigned long int)parent,
+				name,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1109,7 +1474,14 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		attr_to_stat(inode,attr,&e.attr);
 		makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"symlink (%s,%lu,%s): OK (%.1f,%lu,%.1f,%s)",path,(unsigned long int)parent,name,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx, "symlink (%s,%lu,%s): OK (%.1f,%lu,%.1f,%s)",
+				path,
+				(unsigned long int)parent,
+				name,
+				e.entry_timeout,
+				(unsigned long int)e.ino,
+				e.attr_timeout,
+				attrstr);
 		return e;
 	}
 }
@@ -1119,23 +1491,30 @@ std::string readlink(Context ctx, Inode ino) {
 	const uint8_t *path;
 
 	if (debug_mode) {
-		oplog_printf(ctx,"readlink (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "readlink (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
 	}
 	if (symlink_cache_search(ino,&path)) {
 		stats_inc(OP_READLINK_CACHED);
-		oplog_printf(ctx,"readlink (%lu) (using cache): OK (%s)",(unsigned long int)ino,(char*)path);
+		oplog_printf(ctx, "readlink (%lu) (using cache): OK (%s)",
+				(unsigned long int)ino,
+				(char*)path);
 		return std::string((char*)path);
 	}
 	stats_inc(OP_READLINK);
 	status = fs_readlink(ino,&path);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"readlink (%lu): %s",(unsigned long int)ino,strerr(status));
+		oplog_printf(ctx, "readlink (%lu): %s",
+				(unsigned long int)ino,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		symlink_cache_insert(ino,path);
-		oplog_printf(ctx,"readlink (%lu): OK (%s)",(unsigned long int)ino,(char*)path);
+		oplog_printf(ctx, "readlink (%lu): OK (%s)",
+				(unsigned long int)ino,
+				(char*)path);
 		return std::string((char*)path);
 	}
 }
@@ -1149,39 +1528,78 @@ void rename(Context ctx, Inode parent, const char *name,
 
 	stats_inc(OP_RENAME);
 	if (debug_mode) {
-		oplog_printf(ctx,"rename (%lu,%s,%lu,%s) ...",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
-		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
+		oplog_printf(ctx, "rename (%lu,%s,%lu,%s) ...",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname);
+		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(EACCES));
+			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
+					(unsigned long int)parent,
+					name,
+					(unsigned long int)newparent,
+					newname,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	if (newparent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
-			oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(EACCES));
+			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
+					(unsigned long int)parent,
+					name,
+					(unsigned long int)newparent,
+					newname,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 	newnleng = strlen(newname);
 	if (newnleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
 	status = errorconv_dbg(status);
+	dcache_invalidate(parent);
+	dcache_invalidate(newparent);
 	if (status!=0) {
-		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): %s",(unsigned long int)parent,name,(unsigned long int)newparent,newname,strerr(status));
+		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname,
+				strerr(status));
 		throw RequestException(status);
 	} else {
-		oplog_printf(ctx,"rename (%lu,%s,%lu,%s): OK",(unsigned long int)parent,name,(unsigned long int)newparent,newname);
+		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): OK",
+				(unsigned long int)parent,
+				name,
+				(unsigned long int)newparent,
+				newname);
 		return;
 	}
 }
@@ -1198,29 +1616,51 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 
 	stats_inc(OP_LINK);
 	if (debug_mode) {
-		oplog_printf(ctx,"link (%lu,%lu,%s) ...",(unsigned long int)ino,(unsigned long int)newparent,newname);
-		fprintf(stderr,"link (%lu,%lu,%s)\n",(unsigned long int)ino,(unsigned long int)newparent,newname);
+		oplog_printf(ctx, "link (%lu,%lu,%s) ...",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname);
+		fprintf(stderr,"link (%lu,%lu,%s)\n",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(EACCES));
+		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname,
+				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
 	if (newparent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
-			oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(EACCES));
+			oplog_printf(ctx, "link (%lu,%lu,%s): %s",
+					(unsigned long int)ino,
+					(unsigned long int)newparent,
+					newname,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	newnleng = strlen(newname);
 	if (newnleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
 	status = fs_link(ino,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"link (%lu,%lu,%s): %s",(unsigned long int)ino,(unsigned long int)newparent,newname,strerr(status));
+		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1229,7 +1669,14 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		attr_to_stat(inode,attr,&e.attr);
 		makeattrstr(attrstr,256,&e.attr);
-		oplog_printf(ctx,"link (%lu,%lu,%s): OK (%.1f,%lu,%.1f,%s)",(unsigned long int)ino,(unsigned long int)newparent,newname,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr);
+		oplog_printf(ctx, "link (%lu,%lu,%s): OK (%.1f,%lu,%.1f,%s)",
+				(unsigned long int)ino,
+				(unsigned long int)newparent,
+				newname,
+				e.entry_timeout,
+				(unsigned long int)e.ino,
+				e.attr_timeout,
+				attrstr);
 		return e;
 	}
 }
@@ -1240,17 +1687,22 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 
 	stats_inc(OP_OPENDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"opendir (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "opendir (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"opendir (%lu)\n",(unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(ENOTDIR));
+		oplog_printf(ctx, "opendir (%lu): %s",
+				(unsigned long int)ino,
+				strerr(ENOTDIR));
 		throw RequestException(ENOTDIR);
 	}
 	status = fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R);    // at least test rights
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"opendir (%lu): %s",(unsigned long int)ino,strerr(status));
+		oplog_printf(ctx, "opendir (%lu): %s",
+				(unsigned long int)ino,
+				strerr(status));
 		throw RequestException(status);
 	} else {
 		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
@@ -1261,7 +1713,8 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
 		fi->fh = (unsigned long)dirinfo;
-		oplog_printf(ctx,"opendir (%lu): OK",(unsigned long int)ino);
+		oplog_printf(ctx, "opendir (%lu): OK",
+				(unsigned long int)ino);
 	}
 }
 
@@ -1277,11 +1730,21 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
-		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
+		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",
+				(unsigned long int)ino,
+				(uint64_t)maxEntries,
+				(uint64_t)off);
+		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",
+				(unsigned long int)ino,
+				(uint64_t)maxEntries,
+				(uint64_t)off);
 	}
 	if (off<0) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
+		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)maxEntries,
+				(uint64_t)off,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	PthreadMutexWrapper lock((dirinfo->lock));
@@ -1306,7 +1769,11 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 		}
 		status = errorconv_dbg(status);
 		if (status!=0) {
-			oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(status));
+			oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+					(unsigned long int)ino,
+					(uint64_t)maxEntries,
+					(uint64_t)off,
+					strerr(status));
 			throw RequestException(status);
 		}
 		if (dirinfo->dcache) {
@@ -1320,7 +1787,11 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 		if (needscopy) {
 			dirinfo->p = (const uint8_t*) malloc(dsize);
 			if (dirinfo->p == NULL) {
-				oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,strerr(EINVAL));
+				oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+						(unsigned long int)ino,
+						(uint64_t)maxEntries,
+						(uint64_t)off,
+						strerr(EINVAL));
 				throw RequestException(EINVAL);
 			}
 			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
@@ -1336,7 +1807,10 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 
 	std::vector<DirEntry> ret;
 	if (off>=(off_t)(dirinfo->size)) {
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off);
+		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
+				(unsigned long int)ino,
+				(uint64_t)maxEntries,
+				(uint64_t)off);
 	} else {
 		ptr = dirinfo->p+off;
 		eptr = dirinfo->p+dirinfo->size;
@@ -1367,7 +1841,11 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 			}
 		}
 
-		oplog_printf(ctx,"readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)maxEntries,(uint64_t)off,(unsigned long int)ret.size());
+		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+				(unsigned long int)ino,
+				(uint64_t)maxEntries,
+				(uint64_t)off,
+				(unsigned long int)ret.size());
 	}
 	return ret;
 }
@@ -1378,7 +1856,8 @@ void releasedir(Context ctx, Inode ino, FileInfo* fi) {
 
 	stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
-		oplog_printf(ctx,"releasedir (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "releasedir (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
 	PthreadMutexWrapper lock((dirinfo->lock));
@@ -1392,11 +1871,12 @@ void releasedir(Context ctx, Inode ino, FileInfo* fi) {
 	}
 	free(dirinfo);
 	fi->fh = 0;
-	oplog_printf(ctx,"releasedir (%lu): OK",(unsigned long int)ino);
+	oplog_printf(ctx, "releasedir (%lu): OK",
+			(unsigned long int)ino);
 }
 
 
-static finfo* fs_newfileinfo(uint8_t accmode,uint32_t inode) {
+static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 	finfo *fileinfo;
 	fileinfo = (finfo*) malloc(sizeof(finfo));
 	pthread_mutex_init(&(fileinfo->flushlock),NULL);
@@ -1464,18 +1944,35 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 	makemodestr(modestr,mode);
 	stats_inc(OP_CREATE);
 	if (debug_mode) {
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
-		fprintf(stderr,"create (%lu,%s,-%s:0%04o)\n",(unsigned long int)parent,name,modestr+1,(unsigned int)mode);
+		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o)",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode);
+		fprintf(stderr,"create (%lu,%s,-%s:0%04o)\n",
+				(unsigned long int)parent,
+				name,modestr+1,
+				(unsigned int)mode);
 	}
 	if (parent==MFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
-			oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EACCES));
+			oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
+					(unsigned long int)parent,
+					name,
+					modestr+1,
+					(unsigned int)mode,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(ENAMETOOLONG));
+		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
 
@@ -1487,20 +1984,35 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	} else {
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(EINVAL));
+		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 
 	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.umask,ctx.uid,ctx.gid,0,inode,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (mknod): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
+		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o) (mknod): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(status));
 		throw RequestException(status);
 	}
 	status = fs_opencheck(inode,ctx.uid,ctx.gid,oflags,NULL);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"create (%lu,%s,-%s:0%04o) (open): %s",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,strerr(status));
+		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o) (open): %s",
+				(unsigned long int)parent,
+				name,
+				modestr+1,
+				(unsigned int)mode,
+				strerr(status));
 		throw RequestException(status);
 	}
 
@@ -1515,14 +2027,25 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
 	}
 	if (debug_mode) {
-		fprintf(stderr,"create (%lu) ok -> keep cache: %lu\n",(unsigned long int)inode,(unsigned long int)fi->keep_cache);
+		fprintf(stderr,"create (%lu) ok -> keep cache: %lu\n",
+				(unsigned long int)inode,
+				(unsigned long int)fi->keep_cache);
 	}
 	e.ino = inode;
 	e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 	attr_to_stat(inode,attr,&e.attr);
 	makeattrstr(attrstr,256,&e.attr);
-	oplog_printf(ctx,"create (%lu,%s,-%s:0%04o): OK (%.1f,%lu,%.1f,%s,%lu)",(unsigned long int)parent,name,modestr+1,(unsigned int)mode,e.entry_timeout,(unsigned long int)e.ino,e.attr_timeout,attrstr,(unsigned long int)fi->keep_cache);
+	oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): OK (%.1f,%lu,%.1f,%s,%lu)",
+			(unsigned long int)parent,
+			name,
+			modestr+1,
+			(unsigned int)mode,
+			e.entry_timeout,
+			(unsigned long int)e.ino,
+			e.attr_timeout,
+			attrstr,
+			(unsigned long int)fi->keep_cache);
 	return e;
 }
 
@@ -1536,19 +2059,23 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 
 	stats_inc(OP_OPEN);
 	if (debug_mode) {
-		oplog_printf(ctx,"open (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "open (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
 	}
 
 	if (ino==MASTERINFO_INODE) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-			oplog_printf(ctx,"open (%lu) (internal node: MASTERINFO): %s",(unsigned long int)ino,strerr(EACCES));
+			oplog_printf(ctx, "open (%lu) (internal node: MASTERINFO): %s",
+					(unsigned long int)ino,
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 		fi->fh = 0;
 		fi->direct_io = 0;
 		fi->keep_cache = 1;
-		oplog_printf(ctx,"open (%lu) (internal node: MASTERINFO): OK (0,1)",(unsigned long int)ino);
+		oplog_printf(ctx, "open (%lu) (internal node: MASTERINFO): OK (0,1)",
+				(unsigned long int)ino);
 		return;
 	}
 
@@ -1556,7 +2083,9 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		sinfo *statsinfo;
 		statsinfo = (sinfo*) malloc(sizeof(sinfo));
 		if (statsinfo==NULL) {
-			oplog_printf(ctx,"open (%lu) (internal node: STATS): %s",(unsigned long int)ino,strerr(ENOMEM));
+			oplog_printf(ctx, "open (%lu) (internal node: STATS): %s",
+					(unsigned long int)ino,
+					strerr(ENOMEM));
 			throw RequestException(ENOMEM);
 		}
 		pthread_mutex_init(&(statsinfo->lock),NULL);    // make helgrind happy
@@ -1566,19 +2095,35 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		fi->fh = (unsigned long)statsinfo;
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
-		oplog_printf(ctx,"open (%lu) (internal node: STATS): OK (1,0)",(unsigned long int)ino);
+		oplog_printf(ctx, "open (%lu) (internal node: STATS): OK (1,0)",
+				(unsigned long int)ino);
+		return;
+	}
+
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = new MagicFile;
+		fi->fh = (unsigned long)(file);
+		fi->direct_io = 1;
+		fi->keep_cache = 0;
+		oplog_printf(ctx, "open (%lu) (internal node: TWEAKS_FILE): OK (1,0)",
+				(unsigned long int)ino);
 		return;
 	}
 
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-			oplog_printf(ctx,"open (%lu) (internal node: %s): %s",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",strerr(EACCES));
+			oplog_printf(ctx, "open (%lu) (internal node: %s): %s",
+					(unsigned long int)ino,
+					(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
 		fi->fh = oplog_newhandle((ino==OPHISTORY_INODE)?1:0);
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
-		oplog_printf(ctx,"open (%lu) (internal node: %s): OK (1,0)",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
+		oplog_printf(ctx, "open (%lu) (internal node: %s): OK (1,0)",
+				(unsigned long int)ino,
+				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
 		return;
 	}
 
@@ -1593,7 +2138,9 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 	status = fs_opencheck(ino,ctx.uid,ctx.gid,oflags,attr);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"open (%lu): %s",(unsigned long int)ino,strerr(status));
+		oplog_printf(ctx, "open (%lu): %s",
+				(unsigned long int)ino,
+				strerr(status));
 		throw RequestException(status);
 	}
 
@@ -1608,23 +2155,32 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
 	}
 	if (debug_mode) {
-		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",(unsigned long int)ino,(unsigned long int)fi->keep_cache);
+		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",
+				(unsigned long int)ino,
+				(unsigned long int)fi->keep_cache);
 	}
-	fi->direct_io = 0;
-	oplog_printf(ctx,"open (%lu): OK (%lu,%lu)",(unsigned long int)ino,(unsigned long int)fi->direct_io,(unsigned long int)fi->keep_cache);
+	fi->direct_io = gDirectIo;
+	oplog_printf(ctx, "open (%lu): OK (%lu,%lu)",
+			(unsigned long int)ino,
+			(unsigned long int)fi->direct_io,
+			(unsigned long int)fi->keep_cache);
 }
 
-void release(Context ctx, Inode ino, FileInfo* fi) {
+void release(Context ctx,
+			Inode ino,
+			FileInfo* fi) {
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 
 	stats_inc(OP_RELEASE);
 	if (debug_mode) {
-		oplog_printf(ctx,"release (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "release (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
 	}
 
 	if (ino==MASTERINFO_INODE) {
-		oplog_printf(ctx,"release (%lu) (internal node: MASTERINFO): OK",(unsigned long int)ino);
+		oplog_printf(ctx, "release (%lu) (internal node: MASTERINFO): OK",
+				(unsigned long int)ino);
 		return;
 	}
 	if (ino==STATS_INODE) {
@@ -1641,22 +2197,50 @@ void release(Context ctx, Inode ino, FileInfo* fi) {
 			pthread_mutex_destroy(&(statsinfo->lock));      // make helgrind happy
 			free(statsinfo);
 		}
-		oplog_printf(ctx,"release (%lu) (internal node: STATS): OK",(unsigned long int)ino);
+		oplog_printf(ctx, "release (%lu) (internal node: STATS): OK",
+				(unsigned long int)ino);
+		return;
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		if (file->wasWritten) {
+			auto separatorPos = file->value.find('=');
+			if (separatorPos == file->value.npos) {
+				syslog(LOG_INFO, "TWEAKS_FILE: Wrong value '%s'", file->value.c_str());
+			} else {
+				std::string name = file->value.substr(0, separatorPos);
+				std::string value = file->value.substr(separatorPos + 1);
+				if (!value.empty() && value.back() == '\n') {
+					value.resize(value.size() - 1);
+				}
+				gTweaks.setValue(name, value);
+				syslog(LOG_INFO, "TWEAKS_FILE: Setting '%s' to '%s'", name.c_str(), value.c_str());
+			}
+		}
+		delete file;
+		oplog_printf(ctx, "release (%lu) (internal node: TWEAKS_FILE): OK",
+				(unsigned long int)ino);
 		return;
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		oplog_releasehandle(fi->fh);
-		oplog_printf(ctx,"release (%lu) (internal node: %s): OK",(unsigned long int)ino,(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
+		oplog_printf(ctx, "release (%lu) (internal node: %s): OK",
+				(unsigned long int)ino,
+				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
 		return;
 	}
 	if (fileinfo!=NULL) {
 		remove_file_info(fi);
 	}
 	fs_release(ino);
-	oplog_printf(ctx,"release (%lu): OK",(unsigned long int)ino);
+	oplog_printf(ctx, "release (%lu): OK",
+			(unsigned long int)ino);
 }
 
-std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
+std::vector<uint8_t> read(Context ctx,
+			Inode ino,
+			size_t size,
+			off_t off,
 			FileInfo* fi) {
 	LOG_AVG_TILL_END_OF_SCOPE0("read");
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
@@ -1667,22 +2251,39 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 	stats_inc(OP_READ);
 	if (debug_mode) {
 		if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 ") ...",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off);
 		}
-		fprintf(stderr,"read from inode %lu up to %" PRIu64 " bytes from position %" PRIu64 "\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		fprintf(stderr,"read from inode %lu up to %" PRIu64 " bytes from position %" PRIu64 "\n",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off);
 	}
 	if (ino==MASTERINFO_INODE) {
 		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
 		masterproxy_getlocation(masterinfo);
 		if (off>=14) {
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off);
 		} else if (off+size>14) {
 			std::copy(masterinfo + off, masterinfo + 14, std::back_inserter(ret));
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(14-off));
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off,
+					(unsigned long int)(14-off));
 		} else {
 			std::copy(masterinfo + off, masterinfo + off + size, std::back_inserter(ret));
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off,
+					(unsigned long int)size);
 		}
 		return ret;
 	}
@@ -1691,18 +2292,59 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			if (off>=statsinfo->leng) {
-				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+				oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
+						(unsigned long int)ino,
+						(uint64_t)size,
+						(uint64_t)off);
 			} else if ((uint64_t)(off+size)>(uint64_t)(statsinfo->leng)) {
 				std::copy(statsinfo->buff + off, statsinfo->buff + statsinfo->leng, std::back_inserter(ret));
-				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)(statsinfo->leng-off));
+				oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+						(unsigned long int)ino,
+						(uint64_t)size,
+						(uint64_t)off,
+						(unsigned long int)(statsinfo->leng-off));
 			} else {
 				std::copy(statsinfo->buff + off, statsinfo->buff + off + size, std::back_inserter(ret));
-				oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
+				oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+						(unsigned long int)ino,
+						(uint64_t)size,
+						(uint64_t)off,
+						(unsigned long int)size);
 			}
 		} else {
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off);
 		}
 		return ret;
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		std::unique_lock<std::mutex> lock(file->mutex);
+		if (!file->wasRead) {
+			file->value = gTweaks.getAllValues();
+			file->wasRead = true;
+		}
+		if (off >= static_cast<off_t>(file->value.size())) {
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off);
+			return std::vector<uint8_t>();
+		} else {
+			size_t availableBytes = size;
+			if ((uint64_t)(off + size) > (uint64_t)file->value.size()) {
+				availableBytes = file->value.size() - off;
+			}
+			const uint8_t* data = reinterpret_cast<const uint8_t*>(file->value.data()) + off;
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off,
+					(unsigned long int)(availableBytes));
+			return std::vector<uint8_t>(data, data + availableBytes);
+		}
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
 		uint32_t ssize;
@@ -1711,11 +2353,19 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 		return std::vector<uint8_t>(buff, buff + ssize);
 	}
 	if (fileinfo==NULL) {
-		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EBADF));
+		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EBADF));
 		throw RequestException(EBADF);
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
-		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
+		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EFBIG));
 		throw RequestException(EFBIG);
 	}
 	try {
@@ -1734,16 +2384,25 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 	PthreadMutexWrapper lock(fileinfo->lock);
 	PthreadMutexWrapper flushlock(fileinfo->flushlock);
 	if (fileinfo->mode==IO_WRITEONLY) {
-		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
+		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
 	if (fileinfo->mode==IO_WRITE) {
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
 			if (debug_mode) {
-				fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
+				fprintf(stderr,"IO error occured while writting inode %lu\n",
+						(unsigned long int)ino);
 			}
-			oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off,
+					strerr(err));
 			throw RequestException(err);
 		}
 		write_data_end(fileinfo->data);
@@ -1767,9 +2426,14 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while reading inode %lu\n",(unsigned long int)ino);
+			fprintf(stderr,"IO error occured while reading inode %lu\n",
+					(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
+		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(err));
 		throw RequestException(err);
 	} else {
 		uint32_t replyOffset = off - alignedOffset;
@@ -1783,9 +2447,15 @@ std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off,
 			ssize = 0;
 		}
 		if (debug_mode) {
-			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",ssize,(unsigned long int)ino);
+			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",
+					ssize,
+					(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)ssize);
+		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				(unsigned long int)ssize);
 		ret = std::vector<uint8_t>(buff, buff + ssize);
 	}
 	return ret;
@@ -1798,11 +2468,21 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 
 	stats_inc(OP_WRITE);
 	if (debug_mode) {
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
-		fprintf(stderr,"write to inode %lu %" PRIu64 " bytes at position %" PRIu64 "\n",(unsigned long int)ino,(uint64_t)size,(uint64_t)off);
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 ") ...",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off);
+		fprintf(stderr,"write to inode %lu %" PRIu64 " bytes at position %" PRIu64 "\n",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off);
 	}
 	if (ino==MASTERINFO_INODE || ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
 	if (ino==STATS_INODE) {
@@ -1811,15 +2491,42 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			statsinfo->reset=1;
 		}
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				(unsigned long int)size);
+		return size;
+	}
+	if (ino==TWEAKS_FILE_INODE) {
+		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+		std::unique_lock<std::mutex> lock(file->mutex);
+		if (off + size > file->value.size()) {
+			file->value.resize(off + size);
+		}
+		file->value.replace(off, size, buf, size);
+		file->wasWritten = true;
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				(unsigned long int)size);
 		return size;
 	}
 	if (fileinfo==NULL) {
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EBADF));
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EBADF));
 		throw RequestException(EBADF);
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EFBIG));
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EFBIG));
 		throw RequestException(EFBIG);
 	}
 	try {
@@ -1837,7 +2544,11 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	}
 	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_READONLY) {
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(EACCES));
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
 	if (fileinfo->mode==IO_READ) {
@@ -1853,13 +2564,23 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 		if (debug_mode) {
 			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,strerr(err));
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				strerr(err));
 		throw RequestException(err);
 	} else {
 		if (debug_mode) {
-			fprintf(stderr,"%" PRIu64 " bytes have been written to inode %lu\n",(uint64_t)size,(unsigned long int)ino);
+			fprintf(stderr,"%" PRIu64 " bytes have been written to inode %lu\n",
+					(uint64_t)size,
+					(unsigned long int)ino);
 		}
-		oplog_printf(ctx,"write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",(unsigned long int)ino,(uint64_t)size,(uint64_t)off,(unsigned long int)size);
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				(uint64_t)off,
+				(unsigned long int)size);
 		return size;
 	}
 }
@@ -1870,15 +2591,19 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 
 	stats_inc(OP_FLUSH);
 	if (debug_mode) {
-		oplog_printf(ctx,"flush (%lu) ...",(unsigned long int)ino);
+		oplog_printf(ctx, "flush (%lu) ...",
+				(unsigned long int)ino);
 		fprintf(stderr,"flush (%lu)\n",(unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"flush (%lu): OK",(unsigned long int)ino);
+		oplog_printf(ctx, "flush (%lu): OK",
+				(unsigned long int)ino);
 		return;
 	}
 	if (fileinfo==NULL) {
-		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(EBADF));
+		oplog_printf(ctx, "flush (%lu): %s",
+				(unsigned long int)ino,
+				strerr(EBADF));
 		throw RequestException(EBADF);
 	}
 //      syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
@@ -1888,10 +2613,13 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 		err = write_data_flush(fileinfo->data);
 	}
 	if (err!=0) {
-		oplog_printf(ctx,"flush (%lu): %s",(unsigned long int)ino,strerr(err));
+		oplog_printf(ctx, "flush (%lu): %s",
+				(unsigned long int)ino,
+				strerr(err));
 		throw RequestException(err);
 	} else {
-		oplog_printf(ctx,"flush (%lu): OK",(unsigned long int)ino);
+		oplog_printf(ctx, "flush (%lu): OK",
+				(unsigned long int)ino);
 	}
 }
 
@@ -1901,15 +2629,22 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 
 	stats_inc(OP_FSYNC);
 	if (debug_mode) {
-		oplog_printf(ctx,"fsync (%lu,%d) ...",(unsigned long int)ino,datasync);
+		oplog_printf(ctx, "fsync (%lu,%d) ...",
+				(unsigned long int)ino,
+				datasync);
 		fprintf(stderr,"fsync (%lu,%d)\n",(unsigned long int)ino,datasync);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"fsync (%lu,%d): OK",(unsigned long int)ino,datasync);
+		oplog_printf(ctx, "fsync (%lu,%d): OK",
+				(unsigned long int)ino,
+				datasync);
 		return;
 	}
 	if (fileinfo==NULL) {
-		oplog_printf(ctx,"fsync (%lu,%d): %s",(unsigned long int)ino,datasync,strerr(EBADF));
+		oplog_printf(ctx, "fsync (%lu,%d): %s",
+				(unsigned long int)ino,
+				datasync,
+				strerr(EBADF));
 		throw RequestException(EBADF);
 	}
 	err = 0;
@@ -1918,10 +2653,15 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 		err = write_data_flush(fileinfo->data);
 	}
 	if (err!=0) {
-		oplog_printf(ctx,"fsync (%lu,%d): %s",(unsigned long int)ino,datasync,strerr(err));
+		oplog_printf(ctx, "fsync (%lu,%d): %s",
+				(unsigned long int)ino,
+				datasync,
+				strerr(err));
 		throw RequestException(err);
 	} else {
-		oplog_printf(ctx,"fsync (%lu,%d): OK",(unsigned long int)ino,datasync);
+		oplog_printf(ctx, "fsync (%lu,%d): OK",
+				(unsigned long int)ino,
+				datasync);
 	}
 }
 
@@ -2097,20 +2837,43 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 
 	stats_inc(OP_SETXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d) ...",(unsigned long int)ino,name,(uint64_t)size,flags);
-		fprintf(stderr,"setxattr (%lu,%s,%" PRIu64 ",%d)",(unsigned long int)ino,name,(uint64_t)size,flags);
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d) ...",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags);
+		fprintf(stderr,"setxattr (%lu,%s,%" PRIu64 ",%d)",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EPERM));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
 	if (size>MFS_XATTR_SIZE_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns E2BIG here
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(E2BIG));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(E2BIG));
 		throw RequestException(E2BIG);
 #else
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ERANGE));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(ERANGE));
 		throw RequestException(ERANGE);
 #endif
 	}
@@ -2118,24 +2881,49 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EPERM));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 #else
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ERANGE));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(ERANGE));
 		throw RequestException(ERANGE);
 #endif
 	}
 	if (nleng==0) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	if (strcmp(name,"security.capability")==0) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(ENOTSUP));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(ENOTSUP));
 		throw RequestException(ENOTSUP);
 	}
 #if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
 	if ((flags&XATTR_CREATE) && (flags&XATTR_REPLACE)) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(EINVAL));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	mode = (flags==XATTR_CREATE)?XATTR_SMODE_CREATE_ONLY:(flags==XATTR_REPLACE)?XATTR_SMODE_REPLACE_ONLY:XATTR_SMODE_CREATE_OR_REPLACE;
@@ -2146,14 +2934,22 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 	status = choose_xattr_handler(name)->setxattr(ctx, ino, name, nleng, value, size, mode);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): %s",(unsigned long int)ino,name,(uint64_t)size,flags,strerr(status));
+		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				flags,
+				strerr(status));
 		throw RequestException(status);
 	}
-	oplog_printf(ctx,"setxattr (%lu,%s,%" PRIu64 ",%d): OK",(unsigned long int)ino,name,(uint64_t)size,flags);
+	oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): OK",
+			(unsigned long int)ino,
+			name,
+			(uint64_t)size,
+			flags);
 }
 
-XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size,
-		uint32_t position) {
+XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint32_t position) {
 	uint32_t nleng;
 	int status;
 	uint8_t mode;
@@ -2164,30 +2960,53 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size,
 
 	stats_inc(OP_GETXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 ") ...",(unsigned long int)ino,name,(uint64_t)size);
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 ") ...",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size);
 		fprintf(stderr,"getxattr (%lu,%s,%" PRIu64 ")",(unsigned long int)ino,name,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENODATA));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(ENODATA));
 		throw RequestException(ENODATA);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EPERM));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 #else
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ERANGE));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(ERANGE));
 		throw RequestException(ERANGE);
 #endif
 	}
 	if (nleng==0) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(EINVAL));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	if (strcmp(name,"security.capability")==0) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ENOTSUP));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(ENOTSUP));
 		throw RequestException(ENOTSUP);
 	}
 	if (size==0) {
@@ -2200,18 +3019,34 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size,
 	buff = buffer.data();
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(status));
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				strerr(status));
 		throw RequestException(status);
 	}
 	if (size==0) {
-		oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,name,(uint64_t)size,leng);
+		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",
+				(unsigned long int)ino,
+				name,
+				(uint64_t)size,
+				leng);
 		return XattrReply{leng, {}};
 	} else {
 		if (leng>size) {
-			oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): %s",(unsigned long int)ino,name,(uint64_t)size,strerr(ERANGE));
+			oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
+					(unsigned long int)ino,
+					name,
+					(uint64_t)size,
+					strerr(ERANGE));
 			throw RequestException(ERANGE);
 		} else {
-			oplog_printf(ctx,"getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,name,(uint64_t)size,leng);
+			oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",
+					(unsigned long int)ino,
+					name,
+					(uint64_t)size,
+					leng);
 			return XattrReply{leng, std::vector<uint8_t>(buff, buff + leng)};
 		}
 	}
@@ -2225,11 +3060,16 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 
 	stats_inc(OP_LISTXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 ") ...",(unsigned long int)ino,(uint64_t)size);
+		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 ") ...",
+				(unsigned long int)ino,
+				(uint64_t)size);
 		fprintf(stderr,"listxattr (%lu,%" PRIu64 ")",(unsigned long int)ino,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(EPERM));
+		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
 	if (size==0) {
@@ -2240,18 +3080,30 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 	status = fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(status));
+		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				strerr(status));
 		throw RequestException(status);
 	}
 	if (size==0) {
-		oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,(uint64_t)size,leng);
+		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",
+				(unsigned long int)ino,
+				(uint64_t)size,
+				leng);
 		return XattrReply{leng, {}};
 	} else {
 		if (leng>size) {
-			oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): %s",(unsigned long int)ino,(uint64_t)size,strerr(ERANGE));
+			oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					strerr(ERANGE));
 			throw RequestException(ERANGE);
 		} else {
-			oplog_printf(ctx,"listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",(unsigned long int)ino,(uint64_t)size,leng);
+			oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					leng);
 			return XattrReply{leng, std::vector<uint8_t>(buff, buff + leng)};
 		}
 	}
@@ -2263,35 +3115,54 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 
 	stats_inc(OP_REMOVEXATTR);
 	if (debug_mode) {
-		oplog_printf(ctx,"removexattr (%lu,%s) ...",(unsigned long int)ino,name);
+		oplog_printf(ctx, "removexattr (%lu,%s) ...",
+				(unsigned long int)ino,
+				name);
 		fprintf(stderr,"removexattr (%lu,%s)",(unsigned long int)ino,name);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
+		oplog_printf(ctx, "removexattr (%lu,%s): %s",
+				(unsigned long int)ino,
+				name,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EPERM));
+		oplog_printf(ctx, "removexattr (%lu,%s): %s",
+				(unsigned long int)ino,
+				name,
+				strerr(EPERM));
 		throw RequestException(EPERM);
 #else
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(ERANGE));
+		oplog_printf(ctx, "removexattr (%lu,%s): %s",
+				(unsigned long int)ino,
+				name,
+				strerr(ERANGE));
 		throw RequestException(ERANGE);
 #endif
 	}
 	if (nleng==0) {
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(EINVAL));
+		oplog_printf(ctx, "removexattr (%lu,%s): %s",
+				(unsigned long int)ino,
+				name,
+				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
 	status = choose_xattr_handler(name)->removexattr(ctx, ino, name, nleng);
 	status = errorconv_dbg(status);
 	if (status!=0) {
-		oplog_printf(ctx,"removexattr (%lu,%s): %s",(unsigned long int)ino,name,strerr(status));
+		oplog_printf(ctx, "removexattr (%lu,%s): %s",
+				(unsigned long int)ino,
+				name,
+				strerr(status));
 		throw RequestException(status);
 	} else {
-		oplog_printf(ctx,"removexattr (%lu,%s): OK",(unsigned long int)ino,name);
+		oplog_printf(ctx, "removexattr (%lu,%s): OK",
+				(unsigned long int)ino,
+				name);
 	}
 }
 
@@ -2323,6 +3194,12 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 			std::chrono::milliseconds((int)(1000 * acl_cache_timeout_)),
 			acl_cache_size_,
 			getAcl));
+
+	gTweaks.registerVariable("DirectIO", gDirectIo);
+	gTweaks.registerVariable("AclCacheMaxTime", acl_cache->maxTime_ms);
+	gTweaks.registerVariable("AclCacheHit", acl_cache->cacheHit);
+	gTweaks.registerVariable("AclCacheExpired", acl_cache->cacheExpired);
+	gTweaks.registerVariable("AclCacheMiss", acl_cache->cacheMiss);
 }
 
 } // namespace LizardClient

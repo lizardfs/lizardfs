@@ -25,7 +25,7 @@ metadata_version=$(metadata_get_version "$metadata_file")
 # Create and remove inodes, which later will be freed generating FREEINODES entry in changelog
 cd ${info[mount0]}
 touch file{00..99}
-assert_eventually '[[ $(grep -c RELEASE "$changelog_file") == 100 ]]'
+assert_eventually '[[ $(grep RELEASE "$changelog_file" | wc -l) == 100 ]]'
 mfssettrashtime 0 file*
 rm file{10..80}
 cd

@@ -55,6 +55,7 @@
 #include "mount/global_chunkserver_stats.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
+#include "mount/tweaks.h"
 #include "mount/write_cache_block.h"
 
 #ifndef EDQUOT
@@ -173,6 +174,7 @@ struct DelayedQueueEntry {
 
 } // anonymous namespace
 
+static std::atomic<uint32_t> maxretries;
 static std::mutex gMutex;
 typedef std::unique_lock<std::mutex> Glock;
 
@@ -180,7 +182,6 @@ static std::condition_variable fcbcond;
 static uint32_t fcbwaiting = 0;
 static int64_t freecacheblocks;
 
-static uint32_t maxretries;
 static uint32_t gWriteWindowSize;
 static uint32_t gChunkserverTimeout_ms;
 
@@ -654,6 +655,8 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
 		pthread_create(&th, &thattr, write_worker, (void*) (unsigned long) (i));
 	}
 	pthread_attr_destroy(&thattr);
+
+	gTweaks.registerVariable("WriteMaxRetries", maxretries);
 }
 
 void write_data_term(void) {

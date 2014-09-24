@@ -25,6 +25,9 @@ valgrind_enable() {
 		# Valgrind error messages will be written here.
 		valgrind_command+=" --log-file=${ERROR_DIR}/valgrind_%p.log"
 
+		# Valgrind errors will generate suppresions:
+		valgrind_command+=" --gen-suppressions=all"
+
 		echo " --- valgrind enabled in this test case ($(valgrind --version)) --- "
 		command_prefix="${valgrind_command} ${command_prefix}"
 		timeout_set_multiplier 10 # some tests need so big one
@@ -44,4 +47,5 @@ valgrind_terminate() {
 			echo " --- valgrind: Stop OK --- "
 		fi
 	fi
+	rm -f /tmp/vgdb-pipe*by-lizardfstest* || true  # clean up any garbage left in /tmp
 }

@@ -37,6 +37,7 @@ if [[ $# != 1 ]]; then
 fi
 export SOURCE_DIR=$(readlink -m "$(dirname "$0")/..")
 export ERROR_DIR=/tmp/lizardfs_error_dir
+export LIZARDFS_LOG_ORIGIN=yes # adds file:line:function to debug logs
 umask 0022
 rm -rf "${ERROR_DIR}"
 mkdir "${ERROR_DIR}"
@@ -62,7 +63,7 @@ for log_file in "$ERROR_DIR"/* ; do
 		if [[ $log_file_name != syslog.log ]]; then
 			# Do not inform users that there is nonempty syslog
 			# It is always nonempty if the test failed
-			echo "Error in ${log_file_name}" | tee "${ERROR_FILE}"
+			echo "(FATAL) Errors in ${log_file_name}" | tee "${ERROR_FILE}"
 			cat "${log_file}"
 		fi
 		if [[ $TEST_OUTPUT_DIR ]]; then

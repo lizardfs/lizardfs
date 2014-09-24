@@ -19,9 +19,9 @@
 #include "common/platform.h"
 #include "mount/dirattrcache.h"
 
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mutex>
 
 #include "common/datapack.h"
 #include "mount/lizard_client_context.h"
@@ -29,6 +29,7 @@
 typedef struct _dircache {
 	LizardClient::Context ctx;
 	uint32_t parent;
+	bool valid;
 	const uint8_t *dbuff;
 	uint32_t dsize;
 	uint32_t hashsize;
@@ -37,8 +38,8 @@ typedef struct _dircache {
 	struct _dircache *next,**prev;
 } dircache;
 
-static dircache *head;
-static pthread_mutex_t glock = PTHREAD_MUTEX_INITIALIZER;
+static dircache *gHead;
+static std::mutex gMutex;
 
 static inline uint32_t dcache_hash(const uint8_t *name,uint8_t nleng) {
 	uint32_t hash=5381;
@@ -140,35 +141,44 @@ void dcache_makeinodehash(dircache *d) {
 void* dcache_new(const LizardClient::Context *ctx,
 		uint32_t parent,const uint8_t *dbuff,uint32_t dsize) {
 	dircache *d;
+	std::unique_lock<std::mutex> lock(gMutex);
 	d = (dircache*) malloc(sizeof(dircache));
 	d->ctx.pid = ctx->pid;
 	d->ctx.uid = ctx->uid;
 	d->ctx.gid = ctx->gid;
 	d->parent = parent;
+	d->valid = true;
 	d->dbuff = dbuff;
 	d->dsize = dsize;
 	d->hashsize = 0;
 	d->namehashtab = NULL;
 	d->inodehashtab = NULL;
-	pthread_mutex_lock(&glock);
-	if (head) {
-		head->prev = &(d->next);
+	if (gHead) {
+		gHead->prev = &(d->next);
 	}
-	d->next = head;
-	d->prev = &head;
-	head = d;
-	pthread_mutex_unlock(&glock);
+	d->next = gHead;
+	d->prev = &gHead;
+	gHead = d;
 	return d;
+}
+
+void dcache_invalidate(uint32_t parent) {
+	std::unique_lock<std::mutex> lock(gMutex);
+	for (dircache *d = gHead; d != nullptr; d = d->next) {
+		if (d->parent == parent) {
+			d->valid = false;
+		}
+	}
 }
 
 void dcache_release(void *r) {
 	dircache *d = (dircache*)r;
-	pthread_mutex_lock(&glock);
+	std::unique_lock<std::mutex> lock(gMutex);
 	if (d->next) {
 		d->next->prev = d->prev;
 	}
 	*(d->prev) = d->next;
-	pthread_mutex_unlock(&glock);
+	lock.unlock();
 	if (d->namehashtab) {
 		free(d->namehashtab);
 	}
@@ -223,30 +233,30 @@ static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t 
 uint8_t dcache_lookup(const LizardClient::Context *ctx,uint32_t parent,
 		uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
 	dircache *d;
-	pthread_mutex_lock(&glock);
-	for (d=head ; d ; d=d->next) {
-		if (parent==d->parent && ctx->pid==d->ctx.pid && ctx->uid==d->ctx.uid && ctx->gid==d->ctx.gid) {
+	std::unique_lock<std::mutex> lock(gMutex);
+	for (d=gHead ; d ; d=d->next) {
+		if (d->valid
+				&& parent==d->parent
+				&& ctx->pid==d->ctx.pid
+				&& ctx->uid==d->ctx.uid
+				&& ctx->gid==d->ctx.gid) {
 			if (dcache_namehashsearch(d,nleng,name,inode,attr)) {
-				pthread_mutex_unlock(&glock);
 				return 1;
 			}
 		}
 	}
-	pthread_mutex_unlock(&glock);
 	return 0;
 }
 
 uint8_t dcache_getattr(const LizardClient::Context *ctx,uint32_t inode,uint8_t attr[35]) {
 	dircache *d;
-	pthread_mutex_lock(&glock);
-	for (d=head ; d ; d=d->next) {
+	std::unique_lock<std::mutex> lock(gMutex);
+	for (d=gHead ; d ; d=d->next) {
 		if (ctx->pid==d->ctx.pid && ctx->uid==d->ctx.uid && ctx->gid==d->ctx.gid) {
 			if (dcache_inodehashsearch(d,inode,attr)) {
-				pthread_mutex_unlock(&glock);
 				return 1;
 			}
 		}
 	}
-	pthread_mutex_unlock(&glock);
 	return 0;
 }

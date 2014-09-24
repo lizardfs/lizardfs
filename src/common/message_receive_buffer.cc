@@ -5,7 +5,7 @@
 #include <cstring>
 
 ssize_t MessageReceiveBuffer::readFrom(int fd) {
-	eassert(bytesReceived_ < buffer_.size())
+	eassert(bytesReceived_ < buffer_.size());
 	int ret = read(fd, buffer_.data() + bytesReceived_, buffer_.size() - bytesReceived_);
 	if (ret < 0) {
 		return ret;

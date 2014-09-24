@@ -1349,14 +1349,7 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 			&statistics.trashNodes, &statistics.reservedSpace, &statistics.reservedNodes,
 			&statistics.allNodes, &statistics.dirNodes, &statistics.fileNodes);
 	chunk_info(&statistics.chunks, &statistics.chunkCopies, &statistics.regularCopies);
-#ifdef MEMORY_USAGE
 	statistics.memoryUsage = chartsdata_memusage();
-#else
-	/* XXX(lamvak): what exactly should be inserted here when there's no MEMORY_USAGE
-	 * probably needs a fix
-	 */
-	statistics.memoryUsage = 0;
-#endif
 	std::vector<uint8_t> response;
 	serializeMooseFsPacket(response, MATOCL_INFO, statistics);
 	matoclserv_createpacket(eptr, response);

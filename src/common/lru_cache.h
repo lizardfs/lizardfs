@@ -2,6 +2,7 @@
 
 #include "common/platform.h"
 
+#include <atomic>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -55,7 +56,13 @@ public:
 	 *                   cached value was not available.
 	 */
 	LruCache(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer)
-		: maxTime_(maxTime), maxElements_(maxElements), valueObtainer_(valueObtainer) {
+		: cacheHit(0),
+		  cacheExpired(0),
+		  cacheMiss(0),
+		  maxTime_ms(std::chrono::duration_cast<std::chrono::milliseconds>(maxTime).count()),
+		  maxTime_(maxTime),
+		  maxElements_(maxElements),
+		  valueObtainer_(valueObtainer) {
 	}
 
 	/**
@@ -66,19 +73,28 @@ public:
 	 */
 	Value get(SteadyTimePoint currentTs, Keys... keys) {
 		std::unique_lock<Mutex> lock(mutex_);
+		uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(maxTime_).count();
+		if (maxTime_ms != ms) {
+			maxTime_ = std::chrono::milliseconds(maxTime_ms);
+		}
 		auto keyTuple = std::make_tuple(keys...);
 		auto iterator = keysToTimeAndValue_.find(keyTuple);
 		if (iterator != keysToTimeAndValue_.end()) {
 			auto keyTuplePointer = &iterator->first;
 			auto& ts = std::get<0>(iterator->second);
 			if (ts + maxTime_ >= currentTs) {
+				++cacheHit;
 				auto& value = std::get<1>(iterator->second);
 				return value;
 			} else {
+				++cacheExpired;
+				++cacheMiss;
 				auto tsAndKeys = std::make_pair(ts, keyTuplePointer);
 				sassert(timeToKeys_.erase(tsAndKeys) == 1);
 				keysToTimeAndValue_.erase(keyTuple);
 			}
+		} else {
+			++cacheMiss;
 		}
 
 		// Don't call valueObtainer under a lock
@@ -163,6 +179,11 @@ public:
 		keysToTimeAndValue_.clear();
 	}
 
+	std::atomic<uint64_t> cacheHit;
+	std::atomic<uint64_t> cacheExpired;
+	std::atomic<uint64_t> cacheMiss;
+	std::atomic<uint64_t> maxTime_ms;
+
 private:
 	typedef std::tuple<Keys...> KeysTuple;
 	typedef std::pair<SteadyTimePoint, Value> TimeAndValue;
@@ -206,6 +227,7 @@ private:
 			}
 			auto& ts = std::get<0>(*oldestEntry);
 			if ((ts + maxTime_ < currentTs) || (timeToKeys_.size() > maxElements_)) {
+				++cacheExpired;
 				auto keyTuplePtr = std::get<1>(*oldestEntry);
 				timeToKeys_.erase(oldestEntry);
 				sassert(keysToTimeAndValue_.erase(*keyTuplePtr) == 1);
