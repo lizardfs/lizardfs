@@ -305,6 +305,7 @@ create_mfshdd_cfg_() {
 }
 
 create_mfschunkserver_cfg_() {
+	local this_module_cfg_variable="CHUNKSERVER_${chunkserver_id}_EXTRA_CONFIG"
 	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
@@ -314,6 +315,7 @@ create_mfschunkserver_cfg_() {
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
 	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
+	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 	create_magic_debug_log_entry_ "chunkserver_${chunkserver_id}"
 }
 
