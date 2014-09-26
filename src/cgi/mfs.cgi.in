@@ -285,7 +285,7 @@ if masterversion<(1,5,14):
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
-elif masterversion<(1,7,0):
+else:
 	sectiondef={
 		"IN":"Info",
 		"CS":"Servers",
@@ -298,20 +298,6 @@ elif masterversion<(1,7,0):
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
-else:
-	sectiondef={
-		"IN":"Info",
-		"CS":"Servers",
-		"HD":"Disks",
-		"EX":"Exports",
-		"MS":"Mounts",
-		"MO":"Operations",
-		"QU":"Quotas",
-		"MC":"Master Charts",
-		"CC":"Server Charts",
-		"HELP":"Help"
-	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
