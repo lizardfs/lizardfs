@@ -218,21 +218,34 @@ class PacketDissectionVariant(object):
 
 # Parse input
 dissectinfo = {}
+packet_regexp = re.compile(r'(LIZ_)?(AN|CS|CL|MA|ML)TO(AN|CS|CL|MA|ML)_[A-Z0-9_]+$')
 field_types = { 'type':Types.int_dec, 'length':Types.int_dec, 'version':Types.int_dec }
 int_field_bits = { 'type':32, 'length':32, 'version':32 }
 command = None
 for line in sys.stdin:
     try:
+        line = re.sub(r'(?<=[^/])//(?!/).*', '', line)   # Remove //-style comments
+        line = re.sub(r'^# *', '#', line)       # Remove indentation in preprocessor directives
         tokens = line.split()
-        assert len(tokens) > 1
-        keyword, *args = tokens
-        if keyword == 'Packet':
-            assert len(args) == 1
-            command = args[0]
+        if len(tokens) == 0:
+            # A blank line
+            continue
+        if len(tokens) > 2 and tokens[0] == '#define' and packet_regexp.match(tokens[1]):
+            # A line like: #define ANTOAN_SOME_MESSAGE (some value + some base)
+            # Begin of a packet dissection
+            command = tokens[1]
             dissectinfo[command] = []
             continue
-        assert keyword == 'DissectAs'
-        assert command is not None
+        if tokens[0] != "///":
+            # Unknown line -- ignore it
+            continue
+        # A line like: /// somefield:sometype somefield:sometype ...
+        # This is a packet variant, so let's analyse it
+        if command is None:
+            command = '(UNKNOWN)'
+            raise RuntimeError('No command name defined before the dissection info')
+        line = re.sub(r'\([^)]*\)', 'BYTES', line) # Replace 'field:(some info)' -> 'field:BYTES'
+        args = line.split()[1:]
         variant = PacketDissectionVariant(command)
         condition_added = False
         regex = r'([a-z_0-9]+)([!=<>/*%-+()][^:]*)?(?:(?::)(.*))?'
@@ -477,7 +490,7 @@ print('''};
     range_convert_str(&tcp_ports_lizardfs, "9419-9422",  65535);
     lizardfs_module = prefs_register_protocol(proto_lizardfs, proto_reg_handoff_lizardfs);
     prefs_register_range_preference(lizardfs_module, "tcp_ports",
-				 "LizardFS TCP Ports",
-				 "The TCP ports for the LizardFS Protocol",
-				 &tcp_ports_lizardfs, 65535);
+                 "LizardFS TCP Ports",
+                 "The TCP ports for the LizardFS Protocol",
+                 &tcp_ports_lizardfs, 65535);
 }''')
