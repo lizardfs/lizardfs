@@ -66,8 +66,8 @@
 
 #define MFS_INODE_REUSE_DELAY 86400
 
+/// field values: status
 #define STATUS_OK                      0    // OK
-
 #define ERROR_EPERM                    1    // Operation not permitted
 #define ERROR_ENOTDIR                  2    // Not a directory
 #define ERROR_ENOENT                   3    // No such file or directory
@@ -77,7 +77,6 @@
 #define ERROR_ENOTEMPTY                7    // Directory not empty
 #define ERROR_CHUNKLOST                8    // Chunk lost
 #define ERROR_OUTOFMEMORY              9    // Out of memory
-
 #define ERROR_INDEXTOOBIG             10    // Index too big
 #define ERROR_LOCKED                  11    // Chunk locked
 #define ERROR_NOCHUNKSERVERS          12    // No chunk servers
@@ -87,7 +86,6 @@
 #define ERROR_NOTDONE                 16    // None of chunk servers performed requested operation
 #define ERROR_NOTOPENED               17    // File not opened
 #define ERROR_NOTSTARTED              18    // Write not started
-
 #define ERROR_WRONGVERSION            19    // Wrong chunk version
 #define ERROR_CHUNKEXIST              20    // Chunk already exists
 #define ERROR_NOSPACE                 21    // No space left
@@ -101,28 +99,22 @@
 #define ERROR_CRC                     29    // CRC error
 #define ERROR_DELAYED                 30    // Operation delayed
 #define ERROR_CANTCREATEPATH          31    // Can't create path
-
 #define ERROR_MISMATCH                32    // Data mismatch
-
 #define ERROR_EROFS                   33    // Read-only file system
 #define ERROR_QUOTA                   34    // Quota exceeded
 #define ERROR_BADSESSIONID            35    // Bad session id
 #define ERROR_NOPASSWORD              36    // Password is needed
 #define ERROR_BADPASSWORD             37    // Incorrect password
-
 #define ERROR_ENOATTR                 38    // Attribute not found
 #define ERROR_ENOTSUP                 39    // Operation not supported
 #define ERROR_ERANGE                  40    // Result too large
 #define ERROR_TIMEOUT                 41    // Timeout
-
 #define ERROR_BADMETADATACHECKSUM     42    // Metadata checksum not matching
 #define ERROR_CHANGELOGINCONSISTENT   43    // Changelog inconsistent
 #define ERROR_PARSE                   44    // Parsing unsuccessful
 #define ERROR_METADATAVERSIONMISMATCH 45    // Metadata version mismatch
-
 #define ERROR_NOTLOCKED               46    // No such lock
 #define ERROR_WRONGLOCKID             47    // Wrong lock id
-
 #define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
 #define ERROR_RESERVED2               49
 #define ERROR_RESERVED3               50
@@ -185,7 +177,7 @@
 	"Unknown MFS error", \
 	"Unknown MFS error"
 
-/* type for readdir command */
+/// field values: nodetype
 #define TYPE_FILE             'f'
 #define TYPE_DIRECTORY        'd'
 #define TYPE_SYMLINK          'l'
@@ -193,6 +185,7 @@
 #define TYPE_BLOCKDEV         'b'
 #define TYPE_CHARDEV          'c'
 #define TYPE_SOCKET           's'
+
 // 't' and 'r' are only for internal master use - they are in readdir shown as 'f'
 #define TYPE_TRASH            't'
 #define TYPE_RESERVED         'r'
@@ -219,30 +212,31 @@
 #define DTYPE_RESERVED         2
 #define DTYPE_ISVALID(x)       (((uint32_t)(x))<=2)
 
-// smode:
+/// field values: smode
 #define SMODE_SET              0
 #define SMODE_INCREASE         1
 #define SMODE_DECREASE         2
 #define SMODE_RSET             4
 #define SMODE_RINCREASE        5
 #define SMODE_RDECREASE        6
+
 #define SMODE_TMASK            3
 #define SMODE_RMASK            4
 #define SMODE_ISVALID(x)       (((x)&SMODE_TMASK)!=3 && ((uint32_t)(x))<=7)
 
-// gmode:
+/// field values: gmode
 #define GMODE_NORMAL           0
 #define GMODE_RECURSIVE        1
+
 #define GMODE_ISVALID(x)       (((uint32_t)(x))<=1)
 
 // extraattr:
-
-#define EATTR_BITS             4
-
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
 #define EATTR_NOECACHE         0x04
 #define EATTR_NODATACACHE      0x08
+
+#define EATTR_BITS             4
 
 #define EATTR_STRINGS \
 	"noowner", \
@@ -295,8 +289,16 @@
 	NULL, \
 	NULL
 
-// sugicclearmode in fs_setattr
-#ifdef __cplusplus
+#ifdef LIZARDFS_WIRESHARK_PLUGIN
+/// field values: sugidclearmode
+#define SUGIDCLEAR_NEVER 0
+#define SUGIDCLEAR_ALWAYS 1
+#define SUGIDCLEAR_OSX 2
+#define SUGIDCLEAR_BSD 3
+#define SUGIDCLEAR_EXT 4
+#define SUGIDCLEAR_XFS 5
+// end of sugidclearmode values
+#else
 enum class SugidClearMode {
 	kNever = 0,
 	kAlways = 1,
@@ -323,12 +325,13 @@ enum class SugidClearMode {
 #define WANT_WRITE 2
 #define AFTER_CREATE 4
 
-
+/// field values: xattrsmode
 #define XATTR_SMODE_CREATE_OR_REPLACE 0
 #define XATTR_SMODE_CREATE_ONLY       1
 #define XATTR_SMODE_REPLACE_ONLY      2
 #define XATTR_SMODE_REMOVE            3
 
+/// field values: xattrgmode
 #define XATTR_GMODE_GET_DATA   0
 #define XATTR_GMODE_LENGTH_ONLY 1
 
@@ -337,17 +340,20 @@ enum class SugidClearMode {
 #define MFS_XATTR_SIZE_MAX 65536
 #define MFS_XATTR_LIST_MAX 65536
 
-// serverstatus in LIZ_MATOCL_METADATASERVER_STATUS
+/// field values: serverstatus
 #define LIZ_METADATASERVER_STATUS_MASTER 1
 #define LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED 2
 #define LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED 3
 
 // Metalogger specific messages.
-#define FORCE_LOG_ROTATE 0x55
+
+/// field values: filenum
 #define DOWNLOAD_METADATA_MFS 1
 #define DOWNLOAD_CHANGELOG_MFS 11
 #define DOWNLOAD_CHANGELOG_MFS_1 12
 #define DOWNLOAD_SESSIONS_MFS 2
+
+#define FORCE_LOG_ROTATE 0x55
 
 // ANY <-> ANY
 

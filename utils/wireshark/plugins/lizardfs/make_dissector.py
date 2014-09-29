@@ -9,7 +9,8 @@ oct_fields = ['mode', 'modemask', 'umask']
 hex_fields = ['vershex', 'rver', 'ip', 'crc']
 for pfx in chunk_prefixes:
     hex_fields += [pfx + 'chunkid', pfx + 'chunkversion']
-fields_with_dictionary = ['type', 'gmode', 'smode', 'status', 'serverstatus', 'nodetype', 'xattrgmode', 'xattrsmode', 'filenum']
+fields_with_external_dictionary = []
+fields_with_dictionary = fields_with_external_dictionary + ['type']
 
 class Types:
     int_dec = 1
@@ -218,22 +219,40 @@ class PacketDissectionVariant(object):
 
 # Parse input
 dissectinfo = {}
+dictionaries = { 'type':[] }
 packet_regexp = re.compile(r'(LIZ_)?(AN|CS|CL|MA|ML)TO(AN|CS|CL|MA|ML)_[A-Z0-9_]+$')
 field_types = { 'type':Types.int_dec, 'length':Types.int_dec, 'version':Types.int_dec }
 int_field_bits = { 'type':32, 'length':32, 'version':32 }
-command = None
+command = None    # if set, we are building list of possible dissections for this message
+dict_field = None # if set, we are building list of possible values for this field
 for line in sys.stdin:
     try:
-        line = re.sub(r'(?<=[^/])//(?!/).*', '', line)   # Remove //-style comments
+        line = re.sub(r'(^|[^/])//($|[^/]).*', r'\1', line) # Remove //-style comments
         line = re.sub(r'^# *', '#', line)       # Remove indentation in preprocessor directives
         tokens = line.split()
         if len(tokens) == 0:
             # A blank line
+            dict_field = None # Blank lines end dictionaries
+            continue
+        if dict_field:
+            # We are in progress of building a dictionary, let's add a new entry to it
+            if len(tokens) < 3 or tokens[0] != "#define":
+                raise RuntimeError('Cannot parse dictionary entry for field ' + dict_field)
+            dictionaries[dict_field].append(tokens[1])
+            continue
+        if " ".join(tokens[0:3]) == "/// field values:":
+            # A line like: /// field values: status
+            # Begin of a dictionary
+            command = None
+            dict_field = tokens[3]
+            dictionaries[dict_field] = []
+            fields_with_dictionary.append(dict_field)
             continue
         if len(tokens) > 2 and tokens[0] == '#define' and packet_regexp.match(tokens[1]):
             # A line like: #define ANTOAN_SOME_MESSAGE (some value + some base)
             # Begin of a packet dissection
             command = tokens[1]
+            dictionaries['type'].append(command)
             dissectinfo[command] = []
             continue
         if tokens[0] != "///":
@@ -331,8 +350,15 @@ for field in sorted(field_types):
 print()
 
 # Generate dictionaries
-print('#define LIZARDFS_CONST_TO_NAME_ENTRY(name) {name, #name}')
-for field in sorted(fields_with_dictionary):
+for field, values in sorted(dictionaries.items()):
+    print('static const value_string dictionary_{0}[] = {{'.format(field))
+    for value in values:
+        print('    {{{0}, "{0}"}},'.format(value))
+    print('    {0, NULL}')
+    print('};')
+
+# Include external dictionaries
+for field in sorted(fields_with_external_dictionary):
     print('''
 static const value_string dictionary_{0}[] = {{
 #   include "dict_{0}-inl.h"
