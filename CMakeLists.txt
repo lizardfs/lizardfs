@@ -195,6 +195,9 @@ function(add_tests TESTED_LIBRARY)
   set(TEST_LIBRARIES ${TMP} CACHE INTERNAL "" FORCE)
 endfunction(add_tests)
 
+if(ZLIB_FOUND)
+  include_directories(${ZLIB_INCLUDE_DIRS})
+endif()
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
 add_subdirectory(external)

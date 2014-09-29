@@ -43,7 +43,6 @@ endif()
 # Find standard libraries
 find_package(Socket)
 find_package(Threads)
-find_package(ZLIB REQUIRED)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
@@ -52,6 +51,18 @@ message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
 # Find extra binaries
 find_program(A2X_BINARY a2x)
 message(STATUS "a2x: ${A2X_BINARY}")
+
+# Find Zlib
+find_package(ZLIB)
+if(ZLIB_FOUND)
+  message(STATUS "Found Zlib ${ZLIB_VERSION_STRING}")
+  set(LIZARDFS_HAVE_ZLIB_H 1)
+else()
+  message(STATUS "Could not find Zlib")
+  message(STATUS "   This dependency is optional.")
+  message(STATUS "   If it's installed in a non-standard path, set ZLIB_ROOT variable")
+  message(STATUS "   to point this path (cmake -DZLIB_ROOT=...)")
+endif()
 
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
