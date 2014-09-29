@@ -567,16 +567,18 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		if (pfd[0].revents & POLLIN) {
 			lastMessageReceiveTimer.reset();
 			ssize_t ret = receiveBuffer.readFrom(fd);
-			if (ret == 0) {         // connection reset by peer
+			if (ret == 0 || (ret < 0 && errno != EAGAIN)) {
+				const char* msg = (ret == 0 ? "was reset by peer" : strerr(errno));
 				syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32
 						" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
-						") was reset by peer (unfinished writes: %" PRIu8
+						") %s (unfinished writes: %" PRIu8
 						"; try counter: %" PRIu32 ")",
 						inodeData_->inode, chunkIndex_,
 						chunkId_, chunkVersion_,
 						chunkserverChain.head().ip, chunkserverChain.head().port,
+						msg,
 						requestsWaitingForStatus_,
 						inodeData_->trycnt + 1);
 				status = EIO;
@@ -604,7 +606,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 		if (sendBuffer.hasDataToSend() && (pfd[0].revents & POLLOUT)) {
 			ssize_t ret = sendBuffer.writeTo(fd);
-			if (ret < 0) {
+			if (ret < 0 && errno != EAGAIN) {
 				syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32

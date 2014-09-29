@@ -373,10 +373,11 @@ int32_t tcptoread(int sock,void *buff,uint32_t leng,uint32_t msecto) {
 		}
 		if (pfd.revents & POLLIN) {
 			i = read(sock,((uint8_t*)buff)+rcvd,leng-rcvd);
-			if (i<=0) {
+			if (i == 0 || (i < 0 && errno != EAGAIN)) {
 				return i;
+			} else if (i > 0) {
+				rcvd+=i;
 			}
-			rcvd+=i;
 		} else {
 			errno = ETIMEDOUT;
 			return -1;
@@ -398,10 +399,11 @@ int32_t tcptowrite(int sock,const void *buff,uint32_t leng,uint32_t msecto) {
 		}
 		if (pfd.revents & POLLOUT) {
 			i = write(sock,((uint8_t*)buff)+sent,leng-sent);
-			if (i<=0) {
+			if (i == 0 || (i < 0 && errno != EAGAIN)) {
 				return i;
+			} else if (i > 0) {
+				sent+=i;
 			}
-			sent+=i;
 		} else {
 			errno = ETIMEDOUT;
 			return -1;
