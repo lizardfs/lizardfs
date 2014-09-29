@@ -296,6 +296,7 @@
 	NULL
 
 // sugicclearmode in fs_setattr
+#ifdef __cplusplus
 enum class SugidClearMode {
 	kNever = 0,
 	kAlways = 1,
@@ -304,6 +305,7 @@ enum class SugidClearMode {
 	kExt = 4,
 	kXfs = 5
 };
+#endif
 
 #define SUGID_CLEAR_MODE_OPTIONS 6
 
