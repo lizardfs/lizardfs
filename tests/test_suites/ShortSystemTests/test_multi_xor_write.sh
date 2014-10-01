@@ -5,9 +5,14 @@ for_chunkservers() {
 		mfschunkserver -c ${info[chunkserver${csid}_config]} "${operation}" &
 	done
 	wait
-	if [[ operation == start ]]; then
-		lizardfs_wait_for_ready_chunkservers $#
+	if [[ $operation == stop ]]; then
+		nr_of_running_chunkservers=$((nr_of_running_chunkservers - $#))
+	elif [[ $operation == start ]]; then
+		nr_of_running_chunkservers=$((nr_of_running_chunkservers + $#))
+	else
+		test_fail "Wrong branch"
 	fi
+	lizardfs_wait_for_ready_chunkservers $nr_of_running_chunkservers
 }
 
 timeout_set "1 minute"
@@ -17,6 +22,7 @@ CHUNKSERVERS=8 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
+nr_of_running_chunkservers=8
 cd ${info[mount0]}
 
 # Produce first version chunks
