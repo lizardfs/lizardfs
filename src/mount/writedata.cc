@@ -197,10 +197,16 @@ inodedata* write_get_inodedata(uint32_t inode) {
 		}
 	}
 
+#ifdef __CYGWIN__
+	// We don't use inodeData->waitingworker and inodeData->pipe on Cygwin because
+	// Cygwin's implementation of mixed socket & pipe polling is very inefficient.
+	pfd[0] = pfd[1] = -1;
+#else
 	if (pipe(pfd)<0) {
 		syslog(LOG_WARNING,"pipe error: %s",strerr(errno));
 		return NULL;
 	}
+#endif
 	id = (inodedata*) malloc(sizeof(inodedata));
 	id->inode = inode;
 	id->cacheblockcount = 0;
@@ -233,8 +239,11 @@ void write_free_inodedata(inodedata *fid) {
 			*idp = id->next;
 			pthread_cond_destroy(&(id->flushcond));
 			pthread_cond_destroy(&(id->writecond));
-			close(id->pipe[0]);
-			close(id->pipe[1]);
+			for (auto endpoint : id->pipe) {
+				if (endpoint >= 0) {
+					close(endpoint);
+				}
+			}
 			free(id);
 			return;
 		}
@@ -541,22 +550,30 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 
 		struct pollfd pfd[2];
+		int pfd_count = 1;
+
 		pfd[0].fd = fd;
 		pfd[0].events = POLLIN | (sendBuffer.hasDataToSend() ? POLLOUT : 0);
 		pfd[0].revents = 0;
-		pfd[1].fd = inodeData_->pipe[0];
-		pfd[1].events = POLLIN;
-		pfd[1].revents = 0;
-		if (poll(pfd, 2, 100) < 0) { /* correct timeout - in msec */
+
+		if (inodeData_->pipe[0] >= 0) {
+			pfd[1].fd = inodeData_->pipe[0];
+			pfd[1].events = POLLIN;
+			pfd[1].revents = 0;
+			pfd_count = 2;
+		}
+
+		if (poll(pfd, pfd_count, 100) < 0) { /* correct timeout - in msec */
 			syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
 			status = EIO;
 			break;
 		}
+
 		pthread_mutex_lock(&glock);     // make helgrind happy
 		inodeData_->waitingworker = 0;
 		pthread_mutex_unlock(&glock); // make helgrind happy
 
-		if (pfd[1].revents & POLLIN) {
+		if (pfd_count == 2  && pfd[1].revents & POLLIN) {
 			// used just to break poll - so just read all data from pipe to empty it
 			ssize_t ret = read(inodeData_->pipe[0], pipebuff, 1024);
 			if (ret < 0) { // mainly to make happy static code analyzers
@@ -857,8 +874,11 @@ void write_data_term(void) {
 			idn = id->next;
 			pthread_cond_destroy(&(id->flushcond));
 			pthread_cond_destroy(&(id->writecond));
-			close(id->pipe[0]);
-			close(id->pipe[1]);
+			for (auto endpoint : id->pipe) {
+				if (endpoint >= 0) {
+					close(endpoint);
+				}
+			}
 			free(id);
 		}
 	}
@@ -915,7 +935,7 @@ int write_block(inodedata *id,uint32_t chindx,uint16_t pos,uint32_t from,uint32_
 	}
 	id->datachaintail = cb;
 	if (id->inqueue) {
-		if (id->waitingworker) {
+		if (id->pipe[1] >= 0 && id->waitingworker) {
 			if (write(id->pipe[1]," ",1)!=1) {
 				syslog(LOG_ERR,"can't write to pipe !!!");
 			}
