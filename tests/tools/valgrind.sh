@@ -1,6 +1,9 @@
 # Not enabled yet.
 valgrind_enabled_=
 
+# A script which runs valgrind. Its file name will be generated in valgrind_enable
+valgrind_script_=
+
 valgrind_enabled() {
 	test -z $valgrind_enabled_ && return 1 || return 0
 }
@@ -23,19 +26,34 @@ valgrind_enable() {
 		fi
 
 		# Valgrind error messages will be written here.
-		valgrind_command+=" --log-file=${ERROR_DIR}/valgrind_%p.log"
+		valgrind_command+=" --log-file=${ERROR_DIR}/valgrind__\${1}_%p.log"
 
 		# Valgrind errors will generate suppresions:
 		valgrind_command+=" --gen-suppressions=all"
 
+		# Create a script which will run processes on valgrind. This to make it possible
+		# to modify this script to stop spawning new valgrind processes in valgrind_terminate.
+		valgrind_script_="$TEMP_DIR/$(unique_file)_valgrind.sh"
+		echo -e "#!/bin/bash\nexec $valgrind_command \"\$@\"" > "$valgrind_script_"
+		chmod +x "$valgrind_script_"
+		command_prefix="${valgrind_script_} ${command_prefix}"
+
 		echo " --- valgrind enabled in this test case ($(valgrind --version)) --- "
-		command_prefix="${valgrind_command} ${command_prefix}"
 		timeout_set_multiplier 10 # some tests need so big one
 	fi
 }
 
 # Terminate valgrind processes to get complete memcheck logs from them
 valgrind_terminate() {
+	# Disable starting new memcheck processes
+	local tmpfile="$TEMP_DIR/$(unique_file)_fake_valgrind.txt"
+	echo -e "#!/bin/bash\n\"\$@\"" > "$tmpfile"
+	chmod +x "$tmpfile"
+	mv "$tmpfile" "$valgrind_script_"
+	# Wait a bit if there are any valgrind processes which have just started. This is
+	# because of a bug in glibc/valgrind which results in SIGSEGV if we kill memcheck too soon.
+	wait_for "pgrep -u lizardfstest -d , memcheck `
+		`| xargs -r ps -o etimes= -p | awk '\$1 < 3 {exit 1}'" '5 seconds' || true
 	local pattern='memcheck|polonaise-'
 	if pgrep -u lizardfstest "$pattern" >/dev/null; then
 		echo " --- valgrind: Waiting for all processes to be terminated --- "

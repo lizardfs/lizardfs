@@ -84,9 +84,4 @@ cat "$input_file" \
 	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
 	> dict_filenum-inl.h
 
-cat "$input_file" \
-	| sed -r -e 's#(^|[^/])//([^/]|$).*#\1#' \
-	| awk '/^#define (LIZ_)?..TO.._[A-Z0-9_]+/{print "Packet",$2} /^\/\/\//{sub(/\/\/\//,"DissectAs",$0); print}' \
-	| sed -e 's/([^)]*)/BYTES/g' \
-	| python3 make_dissector.py \
-	> packet-lizardfs.c
+python3 make_dissector.py < "$input_file" > packet-lizardfs.c

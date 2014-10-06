@@ -285,7 +285,7 @@ if masterversion<(1,5,14):
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
-elif masterversion<(1,7,0):
+else:
 	sectiondef={
 		"IN":"Info",
 		"CS":"Servers",
@@ -298,20 +298,6 @@ elif masterversion<(1,7,0):
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
-else:
-	sectiondef={
-		"IN":"Info",
-		"CS":"Servers",
-		"HD":"Disks",
-		"EX":"Exports",
-		"MS":"Mounts",
-		"MO":"Operations",
-		"QU":"Quotas",
-		"MC":"Master Charts",
-		"CC":"Server Charts",
-		"HELP":"Help"
-	}
-	sectionorder=["IN","CS","HD","EX","MS","MO","QU","MC","CC","HELP"];
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -1318,7 +1304,7 @@ if "EX" in sectionset:
 
 	try:
 		out.append("""<table class="FR" cellspacing="0">""")
-		out.append("""	<tr><th colspan="%u">Exports</th></tr>""" % (19 if masterversion>=(1,7,0) else 18 if masterversion>=(1,6,26) else 14))
+		out.append("""	<tr><th colspan="%u">Exports</th></tr>""" % (19 if masterversion>=(2,5,0) else 18 if masterversion>=(1,6,26) else 14))
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
 		out.append("""		<th colspan="2">ip&nbsp;range</th>""")
@@ -1329,6 +1315,8 @@ if "EX" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ro/rw</a></th>""" % (createorderlink("EX",7)))
 		out.append("""		<th rowspan="2"><a href="%s">restricted&nbsp;ip</a></th>""" % (createorderlink("EX",8)))
 		out.append("""		<th rowspan="2"><a href="%s">ignore&nbsp;gid</a></th>""" % (createorderlink("EX",9)))
+		if masterversion>=(2,5,0):
+			out.append("""		<th rowspan="2"><a href="%s">quota&nbsp;admin</a></th>""" % (createorderlink("EX",10)))
 		out.append("""		<th colspan="2">map&nbsp;root</th>""")
 		out.append("""		<th colspan="2">map&nbsp;users</th>""")
 		if masterversion>=(1,6,26):
@@ -1474,7 +1462,7 @@ if "EX" in sectionset:
 				out.append("""		<td align="center">%s</td>""" % ("ro" if sesflags&1 else "rw"))
 				out.append("""		<td align="center">%s</td>""" % ("no" if sesflags&2 else "yes"))
 				out.append("""		<td align="center">%s</td>""" % ("-" if meta else "yes" if sesflags&4 else "no"))
-				if masterversion>=(1,7,0):
+				if masterversion>=(2,5,0):
 					out.append("""		<td align="center">%s</td>""" % ("-" if meta else "yes" if sesflags&8 else "no"))
 				if meta:
 					out.append("""		<td align="center">-</td>""")
@@ -1643,7 +1631,7 @@ if "MS" in sectionset:
 
 	try:
 		out.append("""<table class="FR" cellspacing="0">""")
-		out.append("""	<tr><th colspan="%u">Active mounts (parameters)</th></tr>""" % (19 if masterversion>=(1,7,0) else 18 if masterversion>=(1,6,26) else 14))
+		out.append("""	<tr><th colspan="%u">Active mounts (parameters)</th></tr>""" % (19 if masterversion>=(2,5,0) else 18 if masterversion>=(1,6,26) else 14))
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
 		out.append("""		<th rowspan="2"><a href="%s">session&nbsp;id</a></th>""" % (createorderlink("MS",1)))
@@ -1655,6 +1643,8 @@ if "MS" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ro/rw</a></th>""" % (createorderlink("MS",7)))
 		out.append("""		<th rowspan="2"><a href="%s">restricted&nbsp;ip</a></th>""" % (createorderlink("MS",8)))
 		out.append("""		<th rowspan="2"><a href="%s">ignore&nbsp;gid</a></th>""" % (createorderlink("MS",9)))
+		if masterversion>=(2,5,0):
+			out.append("""		<th rowspan="2"><a href="%s">quota&nbsp;admin</a></th>""" % (createorderlink("MS",10)))
 		out.append("""		<th colspan="2">map&nbsp;root</th>""")
 		out.append("""		<th colspan="2">map&nbsp;users</th>""")
 		if masterversion>=(1,6,26):
@@ -1827,7 +1817,7 @@ if "MS" in sectionset:
 					out.append("""		<td align="center">yes</td>""")
 				else:
 					out.append("""		<td align="center">no</td>""")
-				if masterversion>=(1,7,0):
+				if masterversion>=(2,5,0):
 					if meta:
 						out.append("""		<td align="center">-</td>""")
 					elif sesflags&8:

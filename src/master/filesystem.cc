@@ -470,6 +470,8 @@ void fs_stats(uint32_t stats[16]) {
 	stats_write=0;
 }
 
+static bool gSaveMetadataAtExit = true;
+
 #endif // ifndef METARESTORE
 
 // Number of changelog file versions
@@ -8165,7 +8167,8 @@ void fs_term(void) {
 		metadataDumper.waitUntilFinished();
 	}
 	for (;;) {
-		if (gMetadata == nullptr || fs_storeall(MetadataDumper::kForegroundDump)) {
+		if (gMetadata == nullptr || !gSaveMetadataAtExit ||
+				fs_storeall(MetadataDumper::kForegroundDump)) {
 			break;
 		}
 		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
@@ -8173,7 +8176,9 @@ void fs_term(void) {
 	}
 	chunk_unload();
 	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
-	fs_unlock();
+	if (gSaveMetadataAtExit) {
+		fs_unlock();
+	}
 }
 
 #else
@@ -8323,6 +8328,7 @@ static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 	gMagicAutoFileRepair = cfg_getint32("MAGIC_AUTO_FILE_REPAIR", 0) == 1;
+	gSaveMetadataAtExit = cfg_getint32("SAVE_METADATA_AT_EXIT", 1) != 0;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,

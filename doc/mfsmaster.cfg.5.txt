@@ -154,6 +154,9 @@ how fast should metadata be recalculated in background (default : 100 objects pe
 *DISABLE_METADATA_CHECKSUM_VERIFICATION*::
 should checksum verification be disabled while applying changelog
 
+*SAVE_METADATA_AT_EXIT*::
+enable dumping metadata when performed a 'stop' or 'restart' action (default is 1)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::
