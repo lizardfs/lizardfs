@@ -1,5 +1,6 @@
 etc/mfs/mfsexports.cfg.dist
 etc/mfs/mfstopology.cfg.dist
+etc/mfs/mfsgoals.cfg.dist
 etc/mfs/mfsmaster.cfg.dist
 usr/sbin/mfsmaster
 usr/sbin/mfsrestoremaster

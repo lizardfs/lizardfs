@@ -135,6 +135,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/mfsmetarestore.8*
 %{mfsconfdir}/mfsexports.cfg.dist
 %{mfsconfdir}/mfstopology.cfg.dist
+%{mfsconfdir}/mfsgoals.cfg.dist
 %{mfsconfdir}/mfsmaster.cfg.dist
 %{mfsconfdir}/globaliolimits.cfg.dist
 

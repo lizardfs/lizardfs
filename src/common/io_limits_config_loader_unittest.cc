@@ -4,6 +4,8 @@
 #include <sstream>
 #include <gtest/gtest.h>
 
+#include "common/exceptions.h"
+
 #define PAIR(a, b) (std::make_pair(a, b))
 
 #define LIMITS(...) (IoLimitsConfigLoader::LimitsMap({__VA_ARGS__}))
@@ -31,7 +33,7 @@ TEST(IoLimitsConfigLoaderTest, SubsystemNotSpecified1) {
 			"limit unclassified 4\n"
 			);
 	IoLimitsConfigLoader loader;
-	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitsConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), ParseException);
 }
 
 TEST(IoLimitsConfigLoaderTest, SubsystemNotSpecified2) {
@@ -41,7 +43,7 @@ TEST(IoLimitsConfigLoaderTest, SubsystemNotSpecified2) {
 			"limit c 3\n"
 			);
 	IoLimitsConfigLoader loader;
-	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitsConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), ParseException);
 }
 
 TEST(IoLimitsConfigLoaderTest, IncorrectLimit) {
@@ -52,7 +54,7 @@ TEST(IoLimitsConfigLoaderTest, IncorrectLimit) {
 			"limit c 3\n"
 			);
 	IoLimitsConfigLoader loader;
-	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitsConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), ParseException);
 }
 
 TEST(IoLimitsConfigLoaderTest, UnknownKeyword) {
@@ -64,7 +66,7 @@ TEST(IoLimitsConfigLoaderTest, UnknownKeyword) {
 			"limit c 3\n"
 			);
 	IoLimitsConfigLoader loader;
-	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitsConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), ParseException);
 }
 
 TEST(IoLimitsConfigLoaderTest, RepeatedGroup) {
@@ -75,7 +77,7 @@ TEST(IoLimitsConfigLoaderTest, RepeatedGroup) {
 			"limit a 3\n"
 			);
 	IoLimitsConfigLoader loader;
-	ASSERT_THROW(loader.load(std::istringstream(config)), IoLimitsConfigLoader::ParseException);
+	ASSERT_THROW(loader.load(std::istringstream(config)), ParseException);
 }
 
 TEST(IoLimitsConfigLoaderTest, Comment) {
