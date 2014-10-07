@@ -100,10 +100,16 @@ struct inodedata {
 			  minimumBlocksToWrite(1),
 			  next(nullptr),
 			  workerWaitingForData(false) {
+#ifdef __CYGWIN__
+		// We don't use inodeData->waitingworker and inodeData->pipe on Cygwin because
+		// Cygwin's implementation of mixed socket & pipe polling is very inefficient.
+		newDataInChainPipe[0] = newDataInChainPipe[1] = -1;
+#else
 		if (pipe(newDataInChainPipe) < 0) {
 			syslog(LOG_WARNING, "creating pipe error: %s", strerr(errno));
 			newDataInChainPipe[0] = -1;
 		}
+#endif
 	}
 
 	~inodedata() {
@@ -128,7 +134,8 @@ struct inodedata {
 		}
 	}
 
-	bool isDataChainPipeValid() {
+	/* glock: UNUSED */
+	bool isDataChainPipeValid() const {
 		return newDataInChainPipe[0] >= 0;
 	}
 
@@ -551,7 +558,9 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 					"Timeout after " + std::to_string(wholeOperationTimer.elapsed_ms()) + " ms",
 					ERROR_TIMEOUT);
 		}
-		writer.processOperations(50);
+
+		// Let's sleep a bit shorter if we can't be woken up by the pipe to reduce the latency
+		writer.processOperations(inodeData_->isDataChainPipeValid() ? 50 : 10);
 	}
 }
 
