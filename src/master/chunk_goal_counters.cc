@@ -6,7 +6,7 @@
 ChunkGoalCounters::ChunkGoalCounters() : fileCount_(0), goal_(0) {}
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
-	if (!isGoalValid(goal)) {
+	if (!goal::isGoalValid(goal)) {
 		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCount_ == 0) {
@@ -43,8 +43,9 @@ uint8_t ChunkGoalCounters::calculateGoal() {
 		// No files - no goal
 		return 0;
 	} else if (fileCounters_) {
-		for (uint8_t goal = kMaxGoal; goal >= kMinGoal; --goal) {
-			// Effective goal is the highest used one
+		// Effective goal is the goal with highest ID
+		// TODO(msulikowski) consider using different strategies
+		for (uint8_t goal = goal::kMaxGoal; goal >= goal::kMinGoal; --goal) {
 			if ((*fileCounters_)[goal] != 0) {
 				return goal;
 			}
@@ -61,8 +62,8 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 	}
 
 	uint8_t goalsUsed = 0;
-	for (uint8_t iGoal = kMaxGoal; iGoal >= kMinGoal; --iGoal) {
-		if ((*fileCounters_)[iGoal] > 0) {
+	for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
+		if ((*fileCounters_)[goal] > 0) {
 			++goalsUsed;
 		}
 	}
@@ -73,7 +74,7 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 }
 
 void ChunkGoalCounters::removeFileInternal(uint8_t goal) {
-	if (!isGoalValid(goal)) {
+	if (!goal::isGoalValid(goal)) {
 		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCounters_) {

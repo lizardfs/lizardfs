@@ -16,8 +16,8 @@ public:
 	GoalMap() : zero_(), goals_() {}
 
 	T& operator[](uint8_t goal) {
-		if (isGoalValid(goal)) {
-			return goals_[goal - kMinGoal];
+		if (goal::isGoalValid(goal)) {
+			return goals_[goal - goal::kMinGoal];
 		}
 		if (goal == 0) {
 			return zero_;
@@ -33,5 +33,5 @@ public:
 
 private:
 	T zero_;
-	T goals_[kMaxGoal - kMinGoal + 1];
+	T goals_[goal::kNumberOfGoals];
 };

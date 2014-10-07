@@ -6,10 +6,10 @@
 TEST(GoalTests, IsGoalValid) {
 	for (int goal = 0; goal <= std::numeric_limits<uint8_t>::max(); ++goal) {
 		SCOPED_TRACE("Testing goal " + std::to_string(goal));
-		if (goal >= 1 && goal <= 9) {
-			EXPECT_TRUE(isGoalValid(goal));
+		if (goal >= goal::kMinGoal && goal <= goal::kMaxGoal) {
+			EXPECT_TRUE(goal::isGoalValid(goal));
 		} else {
-			EXPECT_FALSE(isGoalValid(goal));
+			EXPECT_FALSE(goal::isGoalValid(goal));
 		}
 	}
 }
