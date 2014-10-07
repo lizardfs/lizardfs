@@ -3,10 +3,10 @@
 
 #include <gtest/gtest.h>
 
-static uint8_t xor2 = xorLevelToGoal(2);
-static uint8_t xor3 = xorLevelToGoal(3);
-static uint8_t xor5 = xorLevelToGoal(5);
-static uint8_t xor9 = xorLevelToGoal(9);
+static uint8_t xor2 = goal::xorLevelToGoal(2);
+static uint8_t xor3 = goal::xorLevelToGoal(3);
+static uint8_t xor5 = goal::xorLevelToGoal(5);
+static uint8_t xor9 = goal::xorLevelToGoal(9);
 typedef std::vector<uint8_t> Goals;
 typedef Goals ExpectedGoals;
 
@@ -187,7 +187,7 @@ TEST(ChunkGoalCounters, HasAdditionalMemoryAllocated2) {
 }
 
 TEST(ChunkGoalCounters, XorHasAdditionalMemoryAllocated) {
-	uint8_t xor2 = xorLevelToGoal(2);
+	uint8_t xor2 = goal::xorLevelToGoal(2);
 	ChunkGoalCounters counters;
 	EXPECT_FALSE(counters.hasAdditionalMemoryAllocated());
 	counters.addFile(1);

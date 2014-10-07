@@ -124,24 +124,24 @@ TEST(MatoclCommunicationTests, XorChunksHealth) {
 	ChunksAvailabilityState availIn, availOut;
 	ChunksReplicationState replIn, replOut;
 	std::vector<uint8_t> goals = {0};
-	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+	for (uint8_t i = goal::kMinOrdinaryGoal; i <= goal::kMaxOrdinaryGoal; ++i) {
 		goals.push_back(i);
 	}
-	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
-		goals.push_back(xorLevelToGoal(level));
+	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+		goals.push_back(goal::xorLevelToGoal(level));
 	}
 
 	availIn.addChunk(0, ChunksAvailabilityState::kSafe);
 	availIn.addChunk(1, ChunksAvailabilityState::kEndangered);
-	availIn.addChunk(xorLevelToGoal(2), ChunksAvailabilityState::kEndangered);
-	availIn.addChunk(xorLevelToGoal(3), ChunksAvailabilityState::kLost);
-	availIn.addChunk(xorLevelToGoal(4), ChunksAvailabilityState::kSafe);
+	availIn.addChunk(goal::xorLevelToGoal(2), ChunksAvailabilityState::kEndangered);
+	availIn.addChunk(goal::xorLevelToGoal(3), ChunksAvailabilityState::kLost);
+	availIn.addChunk(goal::xorLevelToGoal(4), ChunksAvailabilityState::kSafe);
 
 	replIn.addChunk(0, 0, 1);
 	replIn.addChunk(2, 1, 0);
-	replIn.addChunk(xorLevelToGoal(2), 2, 10);
-	replIn.addChunk(xorLevelToGoal(3), 15, 5);
-	replIn.addChunk(xorLevelToGoal(4), 12, 13);
+	replIn.addChunk(goal::xorLevelToGoal(2), 2, 10);
+	replIn.addChunk(goal::xorLevelToGoal(3), 15, 5);
+	replIn.addChunk(goal::xorLevelToGoal(4), 12, 13);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::xorChunksHealth::serialize(buffer, regularIn, availIn, replIn));

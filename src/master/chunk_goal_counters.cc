@@ -6,7 +6,7 @@
 ChunkGoalCounters::ChunkGoalCounters() : fileCount_(0), goal_(0) {}
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
-	if (!isGoalValid(goal)) {
+	if (!goal::isGoalValid(goal)) {
 		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCount_ == 0) {
@@ -51,19 +51,19 @@ uint8_t ChunkGoalCounters::calculateGoal() {
 		// No files - no goal
 		return 0;
 	} else if (fileCounters_) {
-		sassert(3 >= kMinOrdinaryGoal);
-		for (int goal = kMaxOrdinaryGoal; goal >= 3; --goal) {
+		sassert(3 >= goal::kMinOrdinaryGoal);
+		for (int goal = goal::kMaxOrdinaryGoal; goal >= 3; --goal) {
 			if ((*fileCounters_)[goal] != 0) {
 				return goal;
 			}
 		}
-		for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
-			if ((*fileCounters_)[xorLevelToGoal(level)] != 0) {
-				return xorLevelToGoal(level);
+		for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
+			if ((*fileCounters_)[goal::xorLevelToGoal(level)] != 0) {
+				return goal::xorLevelToGoal(level);
 			}
 		}
-		sassert(2 <= kMaxOrdinaryGoal);
-		for (int goal = 2; goal >= kMinOrdinaryGoal; --goal) {
+		sassert(2 <= goal::kMaxOrdinaryGoal);
+		for (int goal = 2; goal >= goal::kMinOrdinaryGoal; --goal) {
 			if ((*fileCounters_)[goal] != 0) {
 				return goal;
 			}
@@ -80,13 +80,13 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 	}
 
 	uint8_t goalsUsed = 0;
-	for (uint8_t iGoal = kMaxOrdinaryGoal; iGoal >= kMinOrdinaryGoal; --iGoal) {
+	for (uint8_t iGoal = goal::kMaxOrdinaryGoal; iGoal >= goal::kMinOrdinaryGoal; --iGoal) {
 		if ((*fileCounters_)[iGoal] > 0) {
 			++goalsUsed;
 		}
 	}
-	// if i were uint8_t, the condition "i <= kMaxXorGoal" could be always satisfied
-	for (int i = kMinXorGoal; i <= kMaxXorGoal; ++i) {
+	// if i were uint8_t, the condition "i <= goal::kMaxXorGoal" could be always satisfied
+	for (int i = goal::kMinXorGoal; i <= goal::kMaxXorGoal; ++i) {
 		if ((*fileCounters_)[i] > 0) {
 			++goalsUsed;
 		}
@@ -98,7 +98,7 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 }
 
 void ChunkGoalCounters::removeFileInternal(uint8_t goal) {
-	if (!isGoalValid(goal)) {
+	if (!goal::isGoalValid(goal)) {
 		throw InvalidOperation("Invalid goal " + std::to_string(goal));
 	}
 	if (fileCounters_) {

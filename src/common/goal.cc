@@ -5,7 +5,9 @@
 
 #include "common/massert.h"
 
-ChunkType::XorLevel goalToXorLevel(uint8_t goal) {
+namespace goal {
+
+ChunkType::XorLevel toXorLevel(uint8_t goal) {
 	sassert(isXorGoal(goal));
 	return ~goal + kMinXorLevel;
 }
@@ -27,3 +29,6 @@ uint8_t xorLevelToGoal(ChunkType::XorLevel xorLevel) {
 	sassert(xorLevel <= kMaxXorLevel);
 	return std::numeric_limits<uint8_t>::max() - xorLevel + kMinXorLevel;
 }
+
+}
+

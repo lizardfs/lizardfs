@@ -34,10 +34,10 @@
 #include "master/metadata_dumper.h"
 
 struct GoalStats {
-	uint32_t filesWithXorLevel[kMaxXorLevel + 1];
-	uint32_t filesWithGoal[kMaxOrdinaryGoal + 1];
-	uint32_t directoriesWithXorLevel[kMaxXorLevel + 1];
-	uint32_t directoriesWithGoal[kMaxOrdinaryGoal + 1];
+	uint32_t filesWithXorLevel[goal::kMaxXorLevel + 1];
+	uint32_t filesWithGoal[goal::kMaxOrdinaryGoal + 1];
+	uint32_t directoriesWithXorLevel[goal::kMaxXorLevel + 1];
+	uint32_t directoriesWithGoal[goal::kMaxOrdinaryGoal + 1];
 
 	GoalStats() {
 		memset(filesWithXorLevel, 0, sizeof(filesWithXorLevel));

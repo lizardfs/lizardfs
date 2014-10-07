@@ -751,10 +751,10 @@ int get_goal(const char *fname,uint8_t mode) {
 			free(buff);
 			return -1;
 		}
-		if (isOrdinaryGoal(goal)) {
+		if (goal::isOrdinaryGoal(goal)) {
 			printf("%s: %" PRIu8 "\n", fname, goal);
-		} else if (isXorGoal(goal)) {
-			printf("%s: xor%" PRIu8 "\n", fname, goalToXorLevel(goal));
+		} else if (goal::isXorGoal(goal)) {
+			printf("%s: xor%" PRIu8 "\n", fname, goal::toXorLevel(goal));
 		} else {
 			printf("%s : unknown goal (0x%02" PRIX8 ")\n", fname, goal);
 		}
@@ -765,10 +765,10 @@ int get_goal(const char *fname,uint8_t mode) {
 		for (i=0 ; i<fn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			if (isOrdinaryGoal(goal)) {
+			if (goal::isOrdinaryGoal(goal)) {
 				printf(" files with goal        %" PRIu8 " :", goal);
-			} else if (isXorGoal(goal)) {
-				printf(" files with goal     xor%" PRIu8 " :", goalToXorLevel(goal));
+			} else if (goal::isXorGoal(goal)) {
+				printf(" files with goal     xor%" PRIu8 " :", goal::toXorLevel(goal));
 			} else {
 				printf(" files with unknown goal (0x%02" PRIX8 ") :", goal);
 			}
@@ -777,10 +777,10 @@ int get_goal(const char *fname,uint8_t mode) {
 		for (i=0 ; i<dn ; i++) {
 			goal = get8bit(&rptr);
 			cnt = get32bit(&rptr);
-			if (isOrdinaryGoal(goal)) {
+			if (goal::isOrdinaryGoal(goal)) {
 				printf(" directories with goal  %" PRIu8 " :", goal);
-			} else if (isXorGoal(goal)) {
-				printf(" directories with goal xor%" PRIu8 " :", goalToXorLevel(goal));
+			} else if (goal::isXorGoal(goal)) {
+				printf(" directories with goal xor%" PRIu8 " :", goal::toXorLevel(goal));
 			} else {
 				printf(" directories with unknown goal (0x%02" PRIX8 ") :", goal);
 			}
@@ -1104,10 +1104,10 @@ int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
 	notpermitted = get32bit(&rptr);
 	if ((mode&SMODE_RMASK)==0) {
 		if (changed || mode==SMODE_SET) {
-			if (isOrdinaryGoal(goal)) {
+			if (goal::isOrdinaryGoal(goal)) {
 				printf("%s: %" PRIu8 "\n", fname, goal);
-			} else if (isXorGoal(goal)) {
-				printf("%s: xor%" PRIu8 "\n", fname, goalToXorLevel(goal));
+			} else if (goal::isXorGoal(goal)) {
+				printf("%s: xor%" PRIu8 "\n", fname, goal::toXorLevel(goal));
 			} else {
 				printf("%s: unknown goal (0x%02" PRIX8 ")\n", fname, goal);
 			}
@@ -1977,13 +1977,13 @@ void usage(int f) {
 			print_recursive_option();
 			fprintf(stderr, "<operation> is one of:\n");
 			fprintf(stderr, " GOAL+ - increase goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
 			fprintf(stderr, " GOAL- - decrease goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
 			fprintf(stderr, " GOAL - just set goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					kMinOrdinaryGoal, kMaxOrdinaryGoal);
+					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
 			fprintf(stderr, " xorN - just set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
-					kMinXorLevel, kMaxXorLevel);
+					goal::kMinXorLevel, goal::kMaxXorLevel);
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
@@ -2177,10 +2177,10 @@ bool parseSetXorGoalParameter(const std::string& param, uint8_t& goal) {
 	}
 	std::string levelString = param.substr(3);
 	int level = atoi(levelString.c_str());
-	if (std::to_string(level) != levelString || level < kMinXorLevel || level > kMaxXorLevel) {
+	if (std::to_string(level) != levelString || level < goal::kMinXorLevel || level > goal::kMaxXorLevel) {
 		return false;
 	}
-	goal = xorLevelToGoal(level);
+	goal = goal::xorLevelToGoal(level);
 	return true;
 }
 
@@ -2192,7 +2192,7 @@ bool parseSetOrdinaryGoalParameter(const std::string& param, uint8_t& goal, uint
 		operation.resize(operation.size() - 1);
 	}
 	goal = atoi(operation.c_str());
-	if (std::to_string(goal) != operation || goal < kMinOrdinaryGoal || goal > kMaxOrdinaryGoal) {
+	if (std::to_string(goal) != operation || goal < goal::kMinOrdinaryGoal || goal > goal::kMaxOrdinaryGoal) {
 		return false;
 	}
 	return true;

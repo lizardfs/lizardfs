@@ -153,20 +153,20 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) 
 	availablePartsUniq.erase(
 			std::unique(availablePartsUniq.begin(), availablePartsUniq.end()),
 			availablePartsUniq.end());
-	std::vector<uint32_t> partsForLevelAvailable(kMaxXorLevel + 1, 0);
+	std::vector<uint32_t> partsForLevelAvailable(goal::kMaxXorLevel + 1, 0);
 	for (const auto& part : availablePartsUniq) {
 		if (part.isXorChunkType()) {
 			partsForLevelAvailable[part.getXorLevel()]++;
 		}
 	}
 	ChunkType::XorLevel levelToRead = 0;
-	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
+	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
 		if (partsForLevelAvailable[level] == level) {
 			levelToRead = level;
 			break;
 		}
 	}
-	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
+	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
 		if (partsForLevelAvailable[level] == static_cast<uint32_t>(level + 1)) {
 			levelToRead = level;
 			break;

@@ -285,8 +285,8 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 	std::sort(partsToUse.begin(), partsToUse.end());
 	partsToUse.erase(std::unique(partsToUse.begin(), partsToUse.end()), partsToUse.end());
 
-	std::vector<bool> isParityForLevelAvailable(kMaxXorLevel + 1, false);
-	std::vector<int> partsForLevelAvailable(kMaxXorLevel + 1, 0);
+	std::vector<bool> isParityForLevelAvailable(goal::kMaxXorLevel + 1, false);
+	std::vector<int> partsForLevelAvailable(goal::kMaxXorLevel + 1, 0);
 
 	for (const ChunkType& chunkType : partsToUse) {
 		if (chunkType.isStandardChunkType()) {
@@ -302,14 +302,14 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 		}
 	}
 
-	for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
+	for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level) {
 			return setCurrentBuilderToXor(level, 0);
 		}
 	}
 
 	// 3. If there is a set of xor chunks with one missing and parity available, choose it
-	for (int level = kMaxXorLevel; level >= kMinXorLevel; --level) {
+	for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level - 1 && isParityForLevelAvailable[level]) {
 			// partsToUse contains our level's parts sorted in ascending order
 			// let's find out which one is missing
@@ -356,7 +356,7 @@ std::vector<ChunkType> StandardChunkReadPlanner::partsToUse() const {
 		break;
 		case BUILDER_XOR: {
 			auto builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
-			if (builder->level() < kMinXorLevel || builder->level() > kMaxXorLevel) {
+			if (builder->level() < goal::kMinXorLevel || builder->level() > goal::kMaxXorLevel) {
 				break;
 			}
 

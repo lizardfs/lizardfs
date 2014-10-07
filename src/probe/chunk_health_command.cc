@@ -69,11 +69,11 @@ void ChunksHealthCommand::run(const Options& options) const {
 
 std::vector<uint8_t> ChunksHealthCommand::collectGoals() {
 	std::vector<uint8_t> goals = {0};
-	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+	for (uint8_t i = goal::kMinOrdinaryGoal; i <= goal::kMaxOrdinaryGoal; ++i) {
 		goals.push_back(i);
 	}
-	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
-		goals.push_back(xorLevelToGoal(level));
+	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+		goals.push_back(goal::xorLevelToGoal(level));
 	}
 	return goals;
 }
@@ -81,11 +81,11 @@ std::vector<uint8_t> ChunksHealthCommand::collectGoals() {
 std::map<uint8_t, std::string> ChunksHealthCommand::createGoalNames() {
 	std::map<uint8_t, std::string> goalNames;
 	goalNames.insert({0, "0"});
-	for (uint8_t goal = kMinOrdinaryGoal; goal <= kMaxOrdinaryGoal; ++goal) {
+	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		goalNames.insert({goal, std::to_string(uint32_t(goal))});
 	}
-	for (ChunkType::XorLevel level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
-		uint8_t goal = xorLevelToGoal(level);
+	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+		uint8_t goal = goal::xorLevelToGoal(level);
 		goalNames.insert({goal, "xor" + std::to_string(level)});
 	}
 

@@ -8,14 +8,14 @@
 TEST(GoalMapTests, GoalMapUint8t) {
 	GoalMap<uint64_t> map;
 	for (int goal = 0; goal < 256; goal++) {
-		if (isGoalValid(goal) || goal == 0) {
+		if (goal::isGoalValid(goal) || goal == 0) {
 			map[goal] = hash(goal);
 		} else {
 			EXPECT_THROW(map[goal] = hash(goal), GoalMapInvalidGoalException);
 		}
 	}
 	for (int goal = 0; goal < 256; goal++) {
-		if (isGoalValid(goal) || goal == 0) {
+		if (goal::isGoalValid(goal) || goal == 0) {
 			EXPECT_EQ(hash(goal), map[goal]);
 		} else {
 			EXPECT_THROW(map[goal], GoalMapInvalidGoalException);
@@ -28,7 +28,7 @@ TEST(GoalMapTests, Serialization) {
 	{
 		GoalMap<uint64_t> map;
 		for (int goal = 0; goal < 256; goal++) {
-			if (isGoalValid(goal) || goal == 0) {
+			if (goal::isGoalValid(goal) || goal == 0) {
 				map[goal] = hash(goal);
 			}
 		}
@@ -39,7 +39,7 @@ TEST(GoalMapTests, Serialization) {
 		GoalMap<uint64_t> map;
 		deserialize(buffer, map);
 		for (int goal = 0; goal < 256; goal++) {
-			if (isGoalValid(goal) || goal == 0) {
+			if (goal::isGoalValid(goal) || goal == 0) {
 				EXPECT_EQ(hash(goal), map[goal]);
 			}
 		}

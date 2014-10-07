@@ -57,7 +57,7 @@ private:
 
 class ChunksReplicationState {
 public:
-	static constexpr uint32_t kMaxPartsCount = kMaxXorLevel + 1;
+	static constexpr uint32_t kMaxPartsCount = goal::kMaxXorLevel + 1;
 
 	uint64_t chunksToReplicate(uint8_t goal, uint32_t missingParts) const {
 		sassert(missingParts <= kMaxPartsCount);

@@ -382,7 +382,7 @@ private:
 		regularChunksReplicationState.removeChunk(goalInStats_,
 				regularMissingParts_, regularRedundantParts_);
 
-		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
+		if (goalInStats_ == 0 || goal::isOrdinaryGoal(goalInStats_)) {
 			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
 			uint8_t limitedAll = std::min<uint8_t>(10, allStandardCopies_);
 			uint8_t limitedRegular = std::min<uint8_t>(10, regularStandardCopies_);
@@ -404,7 +404,7 @@ private:
 		regularChunksReplicationState.addChunk(goalInStats_,
 				regularMissingParts_, regularRedundantParts_);
 
-		if (goalInStats_ == 0 || isOrdinaryGoal(goalInStats_)) {
+		if (goalInStats_ == 0 || goal::isOrdinaryGoal(goalInStats_)) {
 			uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
 			uint8_t limitedAll = std::min<uint8_t>(10, allStandardCopies_);
 			uint8_t limitedRegular = std::min<uint8_t>(10, regularStandardCopies_);
@@ -834,11 +834,11 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidco
 
 uint32_t chunk_get_missing_count(void) {
 	uint32_t res = 0;
-	for (int goal = kMinOrdinaryGoal; goal <= kMaxOrdinaryGoal; ++goal) {
+	for (int goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		res += chunk::allChunksAvailability.lostChunks(goal);
 	}
-	for (int level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
-		res += chunk::allChunksAvailability.lostChunks(xorLevelToGoal(level));
+	for (int level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+		res += chunk::allChunksAvailability.lostChunks(goal::xorLevelToGoal(level));
 	}
 	return res;
 }
@@ -2033,7 +2033,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			hasXorCopies = true;
 		}
 	}
-	if (isOrdinaryGoal(c->goal())
+	if (goal::isOrdinaryGoal(c->goal())
 			&& !hasXorCopies
 			&& vc + tdc >= serverCount
 			&& vc < c->goal()

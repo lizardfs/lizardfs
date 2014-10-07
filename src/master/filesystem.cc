@@ -1559,11 +1559,11 @@ static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
 // compute the "realsize" statistic for a file node
 static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t file_size) {
 	const uint8_t goal = node->goal;
-	if (isOrdinaryGoal(goal)) {
+	if (goal::isOrdinaryGoal(goal)) {
 		return file_size * goal;
 	}
-	if (isXorGoal(goal)) {
-		const ChunkType::XorLevel level = goalToXorLevel(goal);
+	if (goal::isXorGoal(goal)) {
+		const ChunkType::XorLevel level = goal::toXorLevel(goal);
 		const uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
 		uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
 		if (last_chunk_nonempty(node)) {
@@ -2641,10 +2641,10 @@ static inline void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalSt
 	fsedge *e;
 
 	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {
-		if (isOrdinaryGoal(node->goal)) {
+		if (goal::isOrdinaryGoal(node->goal)) {
 			goalStats.filesWithGoal[node->goal]++;
-		} else if (isXorGoal(node->goal)) {
-			goalStats.filesWithXorLevel[goalToXorLevel(node->goal)]++;
+		} else if (goal::isXorGoal(node->goal)) {
+			goalStats.filesWithXorLevel[goal::toXorLevel(node->goal)]++;
 		} else {
 			syslog(LOG_WARNING, "inode %" PRIu32 ": unknown goal!!! fixing", node->id);
 			sassert(node->parents);
@@ -2652,10 +2652,10 @@ static inline void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalSt
 			fsnodes_changefilegoal(node, node->parents->parent->goal);
 		}
 	} else if (node->type == TYPE_DIRECTORY) {
-		if (isOrdinaryGoal(node->goal)) {
+		if (goal::isOrdinaryGoal(node->goal)) {
 			goalStats.directoriesWithGoal[node->goal]++;
-		} else if (isXorGoal(node->goal)) {
-			goalStats.directoriesWithXorLevel[goalToXorLevel(node->goal)]++;
+		} else if (goal::isXorGoal(node->goal)) {
+			goalStats.directoriesWithXorLevel[goal::toXorLevel(node->goal)]++;
 		} else {
 			syslog(LOG_WARNING,"inode %" PRIu32 ": unknown goal!!! fixing", node->id);
 			if (node->id == 1) {
@@ -2768,12 +2768,12 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 				set = (node->goal != goal);
 				break;
 			case SMODE_INCREASE:
-				sassert(isOrdinaryGoal(goal));
-				set = (isOrdinaryGoal(node->goal) && node->goal < goal);
+				sassert(goal::isOrdinaryGoal(goal));
+				set = (goal::isOrdinaryGoal(node->goal) && node->goal < goal);
 				break;
 			case SMODE_DECREASE:
-				sassert(isOrdinaryGoal(goal));
-				set = (isOrdinaryGoal(node->goal) && node->goal > goal);
+				sassert(goal::isOrdinaryGoal(goal));
+				set = (goal::isOrdinaryGoal(node->goal) && node->goal > goal);
 				break;
 			}
 			if (set) {
@@ -5310,8 +5310,8 @@ uint8_t fs_setgoal(const FsContext& context,
 		uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
-	if (!SMODE_ISVALID(smode) || !isGoalValid(goal) ||
-			(smode & (SMODE_INCREASE | SMODE_DECREASE) && isXorGoal(goal))) {
+	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal) ||
+			(smode & (SMODE_INCREASE | SMODE_DECREASE) && goal::isXorGoal(goal))) {
 		return ERROR_EINVAL;
 	}
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
@@ -6166,7 +6166,7 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if ((isXorGoal(f->goal) && vc == 1) || (isOrdinaryGoal(f->goal) && vc < f->goal)) {
+						} else if ((goal::isXorGoal(f->goal) && vc == 1) || (goal::isOrdinaryGoal(f->goal) && vc < f->goal)) {
 							ugflag = 1;
 							ugchunks++;
 						}

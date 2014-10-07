@@ -32,7 +32,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorLevel_ < kMinXorLevel || xorLevel_ > kMaxXorLevel) {
+		if (xorLevel_ < goal::kMinXorLevel || xorLevel_ > goal::kMaxXorLevel) {
 			return ERROR_INVALID_FILENAME;
 		}
 		if (consume("_") != Parser::OK) {
@@ -72,7 +72,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorLevel_ < kMinXorLevel || xorLevel_ > kMaxXorLevel || xorPart_ > xorLevel_) {
+		if (xorLevel_ < goal::kMinXorLevel || xorLevel_ > goal::kMaxXorLevel || xorPart_ > xorLevel_) {
 			return ERROR_INVALID_FILENAME;
 		}
 		if (consume("_") != Parser::OK) {

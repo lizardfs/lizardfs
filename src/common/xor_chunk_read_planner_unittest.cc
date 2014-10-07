@@ -146,8 +146,8 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartWithoutParity) {
 	std::vector<ChunkType> plannedChunkTypes = {
 			xor_1_of_2, xor_2_of_2,
 			xor_1_of_3, xor_2_of_3, xor_3_of_3,
-			ChunkType::getXorChunkType(kMaxXorLevel, 1),
-			ChunkType::getXorChunkType(kMaxXorLevel, kMaxXorLevel),
+			ChunkType::getXorChunkType(goal::kMaxXorLevel, 1),
+			ChunkType::getXorChunkType(goal::kMaxXorLevel, goal::kMaxXorLevel),
 	};
 	std::vector<std::vector<ChunkType>> availablePartsSets = {
 			{standard},
@@ -165,8 +165,8 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartFromParity) {
 	std::vector<ChunkType> plannedChunkTypes = {
 			xor_1_of_2, xor_2_of_2,
 			xor_1_of_3, xor_2_of_3, xor_3_of_3,
-			ChunkType::getXorChunkType(kMaxXorLevel, 1),
-			ChunkType::getXorChunkType(kMaxXorLevel, kMaxXorLevel),
+			ChunkType::getXorChunkType(goal::kMaxXorLevel, 1),
+			ChunkType::getXorChunkType(goal::kMaxXorLevel, goal::kMaxXorLevel),
 	};
 	std::vector<std::vector<ChunkType>> availablePartsSets = {
 			{xor_1_of_2, xor_p_of_2},
@@ -183,7 +183,7 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartFromParity) {
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityWithoutParity) {
 	std::vector<ChunkType> plannedChunkTypes = {
 			xor_p_of_2, xor_p_of_3, xor_p_of_6,
-			ChunkType::getXorParityChunkType(kMaxXorLevel),
+			ChunkType::getXorParityChunkType(goal::kMaxXorLevel),
 	};
 	std::vector<std::vector<ChunkType>> availablePartsSets = {
 			{standard},
@@ -200,7 +200,7 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityWithoutParity) {
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityFromParity) {
 	std::vector<ChunkType> plannedChunkTypes = {
 			xor_p_of_2, xor_p_of_3, xor_p_of_6,
-			ChunkType::getXorParityChunkType(kMaxXorLevel),
+			ChunkType::getXorParityChunkType(goal::kMaxXorLevel),
 	};
 	std::vector<std::vector<ChunkType>> availablePartsSets = {
 			{xor_1_of_2, xor_p_of_2},

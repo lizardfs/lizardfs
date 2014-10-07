@@ -17,11 +17,11 @@ public:
 	GoalMap() : zero_(), ordinary_(), xor_() {}
 
 	T& operator[](uint8_t goal) {
-		if (isOrdinaryGoal(goal)) {
-			return ordinary_[goal - kMinOrdinaryGoal];
+		if (goal::isOrdinaryGoal(goal)) {
+			return ordinary_[goal - goal::kMinOrdinaryGoal];
 		}
-		if (isXorGoal(goal)) {
-			return xor_[goal - kMinXorGoal];
+		if (goal::isXorGoal(goal)) {
+			return xor_[goal - goal::kMinXorGoal];
 		}
 		if (goal == 0) {
 			return zero_;
@@ -37,6 +37,6 @@ public:
 
 private:
 	T zero_;
-	T ordinary_[kMaxOrdinaryGoal - kMinOrdinaryGoal + 1];
-	T xor_[kMaxXorGoal - kMinXorGoal + 1];
+	T ordinary_[goal::kMaxOrdinaryGoal - goal::kMinOrdinaryGoal + 1];
+	T xor_[goal::kMaxXorGoal - goal::kMinXorGoal + 1];
 };

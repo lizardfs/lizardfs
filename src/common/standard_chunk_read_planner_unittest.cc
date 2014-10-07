@@ -218,7 +218,7 @@ TEST_F(StandardReadPlannerTests, GetPlanForXorLevel3WithoutPart2) {
 }
 
 TEST_F(StandardReadPlannerTests, GetPlanForMaxXorLevel) {
-	ChunkType::XorLevel level = kMaxXorLevel;
+	ChunkType::XorLevel level = goal::kMaxXorLevel;
 	std::vector<ChunkType> parts;
 	for (ChunkType::XorPart part = 1; part <= level; ++part) {
 		parts.push_back(ChunkType::getXorChunkType(level, part));

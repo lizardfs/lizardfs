@@ -3087,27 +3087,27 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, const uint8_t *data, uint32_
 	uint8_t fn = 0;
 	uint8_t dn = 0;
 	MooseFSVector<std::pair<uint8_t, uint32_t>> goalData;
-	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+	for (uint8_t i = goal::kMinOrdinaryGoal; i <= goal::kMaxOrdinaryGoal; ++i) {
 		if (goalStats.filesWithGoal[i] > 0) {
 			goalData.push_back({i, goalStats.filesWithGoal[i]});
 			fn++;
 		}
 	}
-	for (uint8_t i = kMinXorLevel; i <= kMaxXorLevel; ++i) {
+	for (uint8_t i = goal::kMinXorLevel; i <= goal::kMaxXorLevel; ++i) {
 		if (goalStats.filesWithXorLevel[i] > 0) {
-			goalData.push_back({xorLevelToGoal(i), goalStats.filesWithXorLevel[i]});
+			goalData.push_back({goal::xorLevelToGoal(i), goalStats.filesWithXorLevel[i]});
 			fn++;
 		}
 	}
-	for (uint8_t i = kMinOrdinaryGoal; i <= kMaxOrdinaryGoal; ++i) {
+	for (uint8_t i = goal::kMinOrdinaryGoal; i <= goal::kMaxOrdinaryGoal; ++i) {
 		if (goalStats.directoriesWithGoal[i] > 0) {
 			goalData.push_back({i, goalStats.directoriesWithGoal[i]});
 			dn++;
 		}
 	}
-	for (uint8_t i = kMinXorLevel; i <= kMaxXorLevel; ++i) {
+	for (uint8_t i = goal::kMinXorLevel; i <= goal::kMaxXorLevel; ++i) {
 		if (goalStats.directoriesWithXorLevel[i]) {
-			goalData.push_back({xorLevelToGoal(i), goalStats.directoriesWithXorLevel[i]});
+			goalData.push_back({goal::xorLevelToGoal(i), goalStats.directoriesWithXorLevel[i]});
 			dn++;
 		}
 	}
@@ -3124,11 +3124,11 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, const uint8_t *data, uint32_
 	deserializeAllMooseFsPacketDataNoHeader(data, length, messageId, inode, uid, goal, smode);
 
 	uint8_t status = STATUS_OK;
-	if (!isGoalValid(goal)) {
+	if (!goal::isGoalValid(goal)) {
 		status = ERROR_EINVAL;
-	} else if (isOrdinaryGoal(goal) && (goal < eptr->sesdata->mingoal || goal > eptr->sesdata->maxgoal)) {
+	} else if (goal::isOrdinaryGoal(goal) && (goal < eptr->sesdata->mingoal || goal > eptr->sesdata->maxgoal)) {
 		status = ERROR_EPERM;
-	} else if (isXorGoal(goal) && (smode & SMODE_TMASK) != SMODE_SET) {
+	} else if (goal::isXorGoal(goal) && (smode & SMODE_TMASK) != SMODE_SET) {
 		status = ERROR_EINVAL;
 	}
 

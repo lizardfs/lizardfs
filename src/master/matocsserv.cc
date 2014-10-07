@@ -596,7 +596,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 
 	std::vector<rservsort> availableServers;
 	for (eptr = matocsservhead; eptr && availableServers.size() < 65536; eptr = eptr->next) {
-		if (isXorGoal(desiredGoal) && eptr->version < kFirstXorVersion) {
+		if (goal::isXorGoal(desiredGoal) && eptr->version < kFirstXorVersion) {
 			// can't store XOR chunks on chunkservers that don't support them
 			continue;
 		}
@@ -613,11 +613,11 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	// Check if it is possible to create requested chunk
 	uint32_t minServersDemanded;
 	uint32_t serversDemandedForSafe;
-	if (isXorGoal(desiredGoal)) {
-		minServersDemanded = goalToXorLevel(desiredGoal);
+	if (goal::isXorGoal(desiredGoal)) {
+		minServersDemanded = goal::toXorLevel(desiredGoal);
 		serversDemandedForSafe = minServersDemanded + 1;
 	} else {
-		sassert(isOrdinaryGoal(desiredGoal));
+		sassert(goal::isOrdinaryGoal(desiredGoal));
 		serversDemandedForSafe = desiredGoal;
 		minServersDemanded = 1;
 	}
@@ -651,10 +651,10 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	}
 
 	// Assign chunk types to chosen servers
-	if (isXorGoal(desiredGoal)) {
+	if (goal::isXorGoal(desiredGoal)) {
 		std::vector<uint8_t> parts;
 		ChunkType::XorLevel level;
-		level = goalToXorLevel(desiredGoal);
+		level = goal::toXorLevel(desiredGoal);
 		for (uint8_t i = 0; i <= level; ++i) {
 			parts.push_back(i);
 		}
@@ -668,7 +668,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 			}
 		}
 	} else {
-		sassert(isOrdinaryGoal(desiredGoal));
+		sassert(goal::isOrdinaryGoal(desiredGoal));
 		for (size_t i = 0; i < chunksToBeCreated; i++) {
 			ret.push_back(std::make_pair(chosenServers[i].ptr,
 					ChunkType::getStandardChunkType()));

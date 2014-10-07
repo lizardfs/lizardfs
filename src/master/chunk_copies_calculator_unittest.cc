@@ -12,8 +12,8 @@ static void checkPartsToRecover(
 		std::vector<ChunkType> available,
 		uint8_t goal,
 		std::vector<ChunkType> expectedPartsToRecover) {
-	SCOPED_TRACE("Testing goal " + (isXorGoal(goal)
-			? "xor" + std::to_string(goalToXorLevel(goal))
+	SCOPED_TRACE("Testing goal " + (goal::isXorGoal(goal)
+			? "xor" + std::to_string(goal::toXorLevel(goal))
 			: std::to_string(goal)));
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
 	ChunkCopiesCalculator calculator(goal);
@@ -39,8 +39,8 @@ static void checkPartsToRemove(
 		std::vector<ChunkType> available,
 		uint8_t goal,
 		std::vector<ChunkType> expectedPartsToRemove) {
-	SCOPED_TRACE("Testing goal " + (isXorGoal(goal)
-			? "xor" + std::to_string(goalToXorLevel(goal))
+	SCOPED_TRACE("Testing goal " + (goal::isXorGoal(goal)
+			? "xor" + std::to_string(goal::toXorLevel(goal))
 			: std::to_string(goal)));
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
 	ChunkCopiesCalculator calculator(goal);
@@ -66,11 +66,11 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 	checkPartsToRecover({standard}, 3, {standard, standard});
 	checkPartsToRecover({}, 3, {standard, standard, standard});
 
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_2}, xorLevelToGoal(2), {});
-	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, xorLevelToGoal(2), {xor_1_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_p_of_2}, xorLevelToGoal(2), {xor_2_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({}, xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {});
+	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {xor_1_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {xor_2_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
+	checkPartsToRecover({}, goal::xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
 
 	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 1, {standard});
 	checkPartsToRecover({xor_1_of_2, xor_p_of_2}, 1, {standard});
@@ -81,20 +81,20 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 3, {standard, standard, standard});
 
 	checkPartsToRecover({standard}, 1, {});
-	checkPartsToRecover({standard}, xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
-	checkPartsToRecover({standard}, xorLevelToGoal(3), {xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
+	checkPartsToRecover({standard}, goal::xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	checkPartsToRecover({standard}, goal::xorLevelToGoal(3), {xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
 
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, standard},   xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_3}, xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_2_of_2}, xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_1_of_2, xor_2_of_2}, xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3}, xorLevelToGoal(2),
+	checkPartsToRecover({xor_1_of_2, xor_2_of_2, standard},   goal::xorLevelToGoal(2), {xor_p_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_3}, goal::xorLevelToGoal(2), {xor_p_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
+	checkPartsToRecover({xor_1_of_2, xor_1_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
+	checkPartsToRecover({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3}, goal::xorLevelToGoal(2),
 			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
 
-	uint8_t goalXorMax = xorLevelToGoal(kMaxXorLevel);
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(kMaxXorLevel, part));
+	uint8_t goalXorMax = goal::xorLevelToGoal(goal::kMaxXorLevel);
+	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
+	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
+		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
 	}
 
 	checkPartsToRecover(chunkTypesMax, goalXorMax, {});
@@ -144,9 +144,9 @@ TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
 	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isRecoveryPossible());
 	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isRecoveryPossible());
 
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(kMaxXorLevel, part));
+	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
+	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
+		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
 	}
 
 	EXPECT_TRUE(calculator(chunkTypesMax).isRecoveryPossible());
@@ -177,46 +177,46 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRemove) {
 	checkPartsToRemove({standard, standard, standard}, 4, {});
 	checkPartsToRemove({standard, standard, standard, standard}, 4, {});
 	checkPartsToRemove({standard, standard, standard, standard, standard}, 4, {standard});
-	checkPartsToRemove({standard}, xorLevelToGoal(2), {standard});
+	checkPartsToRemove({standard}, goal::xorLevelToGoal(2), {standard});
 
 	checkPartsToRemove({xor_1_of_2}, 1, {xor_1_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_1_of_3}, xorLevelToGoal(2), {xor_1_of_3});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_1_of_3}, xorLevelToGoal(2), {xor_1_of_3});
+	checkPartsToRemove({xor_1_of_2, xor_1_of_3}, goal::xorLevelToGoal(2), {xor_1_of_3});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_1_of_3}, goal::xorLevelToGoal(2), {xor_1_of_3});
 	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
 			xor_1_of_2, xor_2_of_2, xor_p_of_2},
-			xorLevelToGoal(2),
+			goal::xorLevelToGoal(2),
 			{xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
 	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
 			xor_1_of_2, xor_2_of_2, xor_p_of_2},
-			xorLevelToGoal(3),
+			goal::xorLevelToGoal(3),
 			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, xor_1_of_3},
-			xorLevelToGoal(3),
+			goal::xorLevelToGoal(3),
 			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
 
 	checkPartsToRemove({xor_1_of_2, standard}, 1, {xor_1_of_2});
-	checkPartsToRemove({xor_1_of_2, standard}, xorLevelToGoal(2), {standard});
-	checkPartsToRemove({xor_1_of_2, standard}, xorLevelToGoal(3), {xor_1_of_2, standard});
+	checkPartsToRemove({xor_1_of_2, standard}, goal::xorLevelToGoal(2), {standard});
+	checkPartsToRemove({xor_1_of_2, standard}, goal::xorLevelToGoal(3), {xor_1_of_2, standard});
 	checkPartsToRemove({xor_1_of_2, standard, standard}, 1, {xor_1_of_2, standard});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, 1, {xor_1_of_2, xor_2_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, xorLevelToGoal(2), {standard});
+	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, goal::xorLevelToGoal(2), {standard});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
 			1,
 			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
-			xorLevelToGoal(2),
+			goal::xorLevelToGoal(2),
 			{standard});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
 			1,
 			{xor_1_of_2, xor_2_of_3, xor_p_of_7});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			xorLevelToGoal(2),
+			goal::xorLevelToGoal(2),
 			{xor_2_of_3, xor_p_of_7, standard});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			xorLevelToGoal(3),
+			goal::xorLevelToGoal(3),
 			{xor_1_of_2, xor_p_of_7, standard});
 	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			xorLevelToGoal(7),
+			goal::xorLevelToGoal(7),
 			{xor_1_of_2, xor_2_of_3, standard});
 }
 
@@ -257,9 +257,9 @@ TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
 	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isWritingPossible());
 	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isWritingPossible());
 
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(kMaxXorLevel, part));
+	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
+	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
+		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
 	}
 
 	EXPECT_TRUE(calculator(chunkTypesMax).isWritingPossible());
@@ -291,7 +291,7 @@ TEST(ChunkCopiesCalculatorTests, GetState) {
 	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
 			calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).getState());
 	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({}, xorLevelToGoal(2)).getState());
+			calculator({}, goal::xorLevelToGoal(2)).getState());
 	EXPECT_EQ(ChunksAvailabilityState::kLost,
 			calculator({}, 1).getState());
 	EXPECT_EQ(ChunksAvailabilityState::kLost,

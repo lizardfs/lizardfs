@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-static uint8_t xor2 = xorLevelToGoal(2);
-static uint8_t xor3 = xorLevelToGoal(3);
+static uint8_t xor2 = goal::xorLevelToGoal(2);
+static uint8_t xor3 = goal::xorLevelToGoal(3);
 
 TEST(ChunksAvailabilityStateTests, AddRemoveChunk) {
 	ChunksAvailabilityState s;
