@@ -16,7 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define MMAP_ALLOC 1
 #include "common/platform.h"
 #include "chunkserver/hddspacemgr.h"
 
@@ -48,10 +47,6 @@
 #include "common/moosefs_vector.h"
 #include "common/random.h"
 #include "common/slogger.h"
-
-#ifdef MMAP_ALLOC
-#  include <sys/mman.h>
-#endif
 
 #define PRESERVE_BLOCK 1
 
@@ -688,19 +683,11 @@ static inline void hdd_chunk_remove(chunk *c) {
 				close(cp->fd);
 			}
 			if (cp->crc!=NULL) {
-#ifdef MMAP_ALLOC
-				munmap((void*)(cp->crc),4096);
-#else
 				free(cp->crc);
-#endif
 			}
 #ifdef PRESERVE_BLOCK
 			if (cp->block!=NULL) {
-# ifdef MMAP_ALLOC
-				munmap((void*)(cp->block),MFSBLOCKSIZE);
-# else
 				free(cp->block);
-# endif
 			}
 #endif /* PRESERVE_BLOCK */
 			if (cp->filename!=NULL) {
@@ -849,19 +836,11 @@ static chunk* hdd_chunk_get(uint64_t chunkid,uint8_t cflag) {
 					close(c->fd);
 				}
 				if (c->crc!=NULL) {
-#ifdef MMAP_ALLOC
-					munmap((void*)(c->crc),4096);
-#else
 					free(c->crc);
-#endif
 				}
 #ifdef PRESERVE_BLOCK
 				if (c->block!=NULL) {
-# ifdef MMAP_ALLOC
-					munmap((void*)(c->crc),MFSBLOCKSIZE);
-# else
 					free(c->block);
-# endif
 				}
 #endif /* PRESERVE_BLOCK */
 				if (c->filename!=NULL) {
@@ -1127,19 +1106,11 @@ void hdd_senddata(folder *f,int rmflag) {
 							close(c->fd);
 						}
 						if (c->crc!=NULL) {
-#ifdef MMAP_ALLOC
-							munmap((void*)(c->crc),4096);
-#else
 							free(c->crc);
-#endif
 						}
 #ifdef PRESERVE_BLOCK
 						if (c->block!=NULL) {
-# ifdef MMAP_ALLOC
-							munmap((void*)(c->block),MFSBLOCKSIZE);
-# else
 							free(c->block);
-# endif
 						}
 #endif /* PRESERVE_BLOCK */
 						if (c->filename) {
@@ -1390,13 +1361,9 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 }
 
 static inline void chunk_emptycrc(chunk *c) {
-#ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-#else
 	c->crc = (uint8_t*)malloc(4096);
-#endif
-	memset(c->crc,0,4096);  // make valgrind happy
 	passert(c->crc);
+	memset(c->crc,0,4096);  // make valgrind happy
 }
 
 static inline int chunk_readcrc(chunk *c) {
@@ -1434,11 +1401,7 @@ static inline int chunk_readcrc(chunk *c) {
 		errno = 0;
 		return ERROR_IO;
 	}
-#ifdef MMAP_ALLOC
-	c->crc = (uint8_t*)mmap(NULL,4096,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-#else
 	c->crc = (uint8_t*)malloc(4096);
-#endif
 	passert(c->crc);
 #ifdef USE_PIO
 	ret = pread(c->fd,c->crc,4096,CHUNKHDRCRC);
@@ -1449,11 +1412,7 @@ static inline int chunk_readcrc(chunk *c) {
 	if (ret!=4096) {
 		int errmem = errno;
 		mfs_arg_errlog_silent(LOG_WARNING,"chunk_readcrc: file:%s - read error",c->filename);
-#ifdef MMAP_ALLOC
-		munmap((void*)(c->crc),4096);
-#else
 		free(c->crc);
-#endif
 		c->crc = NULL;
 		errno = errmem;
 		return ERROR_IO;
@@ -1464,11 +1423,7 @@ static inline int chunk_readcrc(chunk *c) {
 }
 
 static inline void chunk_freecrc(chunk *c) {
-#ifdef MMAP_ALLOC
-	munmap((void*)(c->crc),4096);
-#else
 	free(c->crc);
-#endif
 	c->crc = NULL;
 }
 
@@ -1610,11 +1565,7 @@ void hdd_delayed_ops() {
 				if (c->blocksteps>0) {
 					c->blocksteps--;
 				} else if (c->block!=NULL) {
-# ifdef MMAP_ALLOC
-					munmap((void*)(c->block),MFSBLOCKSIZE);
-# else
 					free(c->block);
-# endif
 					c->block = NULL;
 					c->blockno = 0xFFFF;
 				}
@@ -1711,11 +1662,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 		}
 #ifdef PRESERVE_BLOCK
 		if (c->block==NULL) {
-# ifdef MMAP_ALLOC
-			c->block = (uint8_t*)mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 			c->block = (uint8_t*)malloc(MFSBLOCKSIZE);
-# endif
 //                      syslog(LOG_WARNING,"chunk: %016" PRIX64 ", block:%p",c->chunkid,c->block);
 			passert(c->block);
 			c->blockno = 0xFFFF;
@@ -1842,11 +1789,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 	uint8_t *blockbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2003,11 +1946,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 	uint8_t *blockbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2389,11 +2328,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 	uint8_t *blockbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2470,11 +2405,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	uint8_t *blockbuffer,*hdrbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2743,11 +2674,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	uint8_t *blockbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2907,11 +2834,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	uint8_t *blockbuffer,*hdrbuffer;
 	blockbuffer = pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = mmap(NULL,MFSBLOCKSIZE,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
 		blockbuffer = malloc(MFSBLOCKSIZE);
-# endif
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -3784,14 +3707,6 @@ void* hdd_delayed_thread(void *arg) {
 	return arg;
 }
 
-#ifndef PRESERVE_BLOCK
-# ifdef MMAP_ALLOC
-void hdd_blockbuffer_free(void *addr) {
-	munmap(addr,MFSBLOCKSIZE);
-}
-# endif
-#endif
-
 void hdd_term(void) {
 	uint32_t i;
 	folder *f,*fn;
@@ -3850,19 +3765,11 @@ void hdd_term(void) {
 					close(c->fd);
 				}
 				if (c->crc!=NULL) {
-#ifdef MMAP_ALLOC
-					munmap((void*)(c->crc),4096);
-#else
 					free(c->crc);
-#endif
 				}
 #ifdef PRESERVE_BLOCK
 				if (c->block!=NULL) {
-# ifdef MMAP_ALLOC
-					munmap((void*)(c->block),MFSBLOCKSIZE);
-# else
 					free(c->block);
-# endif
 				}
 #endif /* PRESERVE_BLOCK */
 				if (c->filename) {
@@ -4372,11 +4279,7 @@ int hdd_init(void) {
 
 #ifndef PRESERVE_BLOCK
 	zassert(pthread_key_create(&hdrbufferkey,free));
-# ifdef MMAP_ALLOC
-	zassert(pthread_key_create(&blockbufferkey,hdd_blockbuffer_free));
-# else
 	zassert(pthread_key_create(&blockbufferkey,free));
-# endif
 #endif /* PRESERVE_BLOCK */
 
 	emptyblockcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE);
