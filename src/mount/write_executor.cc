@@ -92,7 +92,7 @@ void WriteExecutor::sendData() {
 	ssize_t bytesSent = bufferWriter_.writeTo(chainHeadFd_);
 	if (bytesSent == 0) {
 		throw ChunkserverConnectionException("Write error: connection closed by peer", server());
-	} else if (bytesSent < 0) {
+	} else if (bytesSent < 0 && errno != EAGAIN) {
 		throw ChunkserverConnectionException("Write error: " + std::string(strerr(errno)), server());
 	}
 	if (!bufferWriter_.hasDataToSend()) {
@@ -106,7 +106,7 @@ std::vector<WriteExecutor::Status> WriteExecutor::receiveData() {
 	if (bytesRecv == 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver: connection closed by peer", server());
-	} else if (bytesRecv < 0 && errno != EINTR) {
+	} else if (bytesRecv < 0 && errno != EAGAIN) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver: " + std::string(strerr(errno)), server());
 	}

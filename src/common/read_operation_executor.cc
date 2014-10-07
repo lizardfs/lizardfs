@@ -71,7 +71,7 @@ void ReadOperationExecutor::continueReading() {
 	if (readBytes == 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver error: connection reset by peer", server_);
-	} else if (readBytes < 0 && errno == EINTR) {
+	} else if (readBytes < 0 && errno == EAGAIN) {
 		return;
 	} else if (readBytes < 0) {
 		throw ChunkserverConnectionException(
