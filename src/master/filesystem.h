@@ -26,6 +26,8 @@
 #include "common/attributes.h"
 #include "common/acl_type.h"
 #include "common/exception.h"
+#include "common/goal.h"
+#include "common/goal_map.h"
 #include "common/quota.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
@@ -34,7 +36,7 @@
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
 /// Returns version of the loaded metadata.
-uint64_t fs_getversion(void);
+uint64_t fs_getversion();
 
 /// Returns checksum of the loaded metadata.
 uint64_t fs_checksum(ChecksumMode mode);
@@ -161,7 +163,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,Attributes& attr);
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]);
+uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab);
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
 void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
 uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t feattrtab[16],uint32_t deattrtab[16]);
@@ -198,6 +200,9 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 void fs_incversion(uint64_t chunkid);
 
 void fs_cs_disconnected(void);
+
+/// Return the current definitions of goals
+const GoalMap<Goal>& fs_get_goal_definitions();
 
 int fs_init(void);
 int fs_init(bool force);

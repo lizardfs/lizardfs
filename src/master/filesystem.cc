@@ -49,6 +49,7 @@
 #include "common/slogger.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
+#include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
 #include "master/quota_database.h"
@@ -473,10 +474,14 @@ void fs_stats(uint32_t stats[16]) {
 
 static bool gSaveMetadataAtExit = true;
 
+// Configuration of goals
+static GoalMap<Goal> gGoalDefinitions;
+
 #endif // ifndef METARESTORE
 
 // Number of changelog file versions
 uint32_t gStoredPreviousBackMetaCopies;
+
 // Checksum validation
 static bool gDisableChecksumVerification = false;
 
@@ -1499,6 +1504,16 @@ static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
 }
 
 // stats
+
+static inline uint64_t fsnodes_get_realsize_from_size(uint64_t size, uint8_t goal) {
+#ifdef METARESTORE
+	(void)goal;
+	return size; // Doesn't really matter. Metarestore doesn't need this value anyway.
+#else
+	return size * gGoalDefinitions[goal].getExpectedCopies();
+#endif
+}
+
 static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 	uint32_t i,lastchunk,lastchunksize;
 	switch (node->type) {
@@ -1533,7 +1548,7 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 				sr->chunks++;
 			}
 		}
-		sr->realsize = sr->size * node->goal;
+		sr->realsize = fsnodes_get_realsize_from_size(sr->size, node->goal);
 		break;
 	case TYPE_SYMLINK:
 		sr->inodes = 1;
@@ -2239,7 +2254,7 @@ static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
 
 	fsnodes_get_stats(obj,&psr);
 	nsr = psr;
-	nsr.realsize = goal * nsr.size;
+	nsr.realsize = fsnodes_get_realsize_from_size(nsr.size, goal);
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
@@ -2577,25 +2592,19 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 
 #ifndef METARESTORE
 
-static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab) {
 	fsedge *e;
 
 	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,9);
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,1);
+		if (!goal::isGoalValid(node->goal)) {
+			syslog(LOG_WARNING,"file inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
+			fsnodes_changefilegoal(node, DEFAULT_GOAL);
 		}
 		fgtab[node->goal]++;
 	} else if (node->type==TYPE_DIRECTORY) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			node->goal=9;
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			node->goal=1;
+		if (!goal::isGoalValid(node->goal)) {
+			syslog(LOG_WARNING,"directory inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
+			node->goal = DEFAULT_GOAL;
 		}
 		dgtab[node->goal]++;
 		if (gmode==GMODE_RECURSIVE) {
@@ -5089,11 +5098,9 @@ uint8_t fs_apply_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversi
 }
 
 #ifndef METARESTORE
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab) {
 	fsnode *p,*rn;
 	(void)sesflags;
-	memset(fgtab,0,10*sizeof(uint32_t));
-	memset(dgtab,0,10*sizeof(uint32_t));
 	if (!GMODE_ISVALID(gmode)) {
 		return ERROR_EINVAL;
 	}
@@ -6067,7 +6074,7 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if (vc<f->goal) {
+						} else if (vc < gGoalDefinitions[f->goal].getExpectedCopies()) {
 							ugflag = 1;
 							ugchunks++;
 						}
@@ -8205,6 +8212,10 @@ void fs_cs_disconnected(void) {
 	test_start_time = main_time()+600;
 }
 
+const GoalMap<Goal>& fs_get_goal_definitions() {
+	return gGoalDefinitions;
+}
+
 /*
  * Initialize subsystems required by Master personality of metadataserver.
  */
@@ -8241,10 +8252,28 @@ static void fs_read_config_file() {
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
+
+	std::string goalConfigFile =
+			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
+	GoalConfigLoader loader;
+	if (goalConfigFile.empty()) {
+		loader.load(std::stringstream("")); // empty file -- loader creates a default configuration
+	} else {
+		try {
+			loader.load(std::ifstream(goalConfigFile)); // may throw!
+		} catch (Exception& ex) {
+			throw ConfigurationException("reading " + goalConfigFile + ": " + ex.what());
+		}
+	}
+	gGoalDefinitions = loader.goals();
 }
 
 void fs_reload(void) {
-	fs_read_config_file();
+	try {
+		fs_read_config_file();
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
+	}
 	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
 	}

@@ -30,6 +30,11 @@ struct Goal {
 			  labels(std::move(labels)) {
 	}
 
+	/// Number of labels in this goal.
+	uint32_t getExpectedCopies() const {
+		return labels.size();
+	}
+
 	/// Verifies names of goals.
 	static bool isNameValid(const std::string& goalName) {
 		// Let's use exactly the same algorithm as for media labels

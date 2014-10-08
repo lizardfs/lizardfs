@@ -2746,7 +2746,7 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 void matoclserv_fuse_getgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint32_t msgid;
-	uint32_t fgtab[10],dgtab[10];
+	GoalMap<uint32_t> fgtab, dgtab;
 	uint8_t i,fn,dn,gmode;
 	uint8_t *ptr;
 	uint8_t status;

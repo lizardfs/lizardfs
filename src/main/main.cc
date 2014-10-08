@@ -420,7 +420,11 @@ void mainloop() {
 		if (t==0 && r) {
 			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
-				rlit->fun();
+				try {
+					rlit->fun();
+				} catch (Exception& ex) {
+					syslog(LOG_WARNING, "reload error: %s", ex.what());
+				}
 			}
 			r = 0;
 			DEBUG_LOG("main.reload");

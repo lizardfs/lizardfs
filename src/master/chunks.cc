@@ -182,6 +182,7 @@ public:
 	static uint64_t count;
 	static uint64_t allValidCopies[11][11], regularValidCopies[11][11];
 
+	/// ID of the chunk's goal.
 	uint8_t goal() const {
 		return goalCounters_.combinedGoal();
 	}
@@ -216,6 +217,11 @@ public:
 	}
 
 #ifndef METARESTORE
+	/// The expected number of chunk's copies.
+	uint8_t expectedCopies() const {
+		return fs_get_goal_definitions()[goal()].getExpectedCopies();
+	}
+
 	// This method should be called on a new chunk
 	void initStats() {
 		count++;
@@ -314,7 +320,7 @@ private:
 	}
 
 	void addToStats() {
-		goalInStats_ = goal();
+		goalInStats_ = expectedCopies();
 		uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
 		uint8_t limitedAvc = std::min<uint8_t>(10, allValidCopies_);
 		uint8_t limitedRvc = std::min<uint8_t>(10, regularValidCopies_);
@@ -1614,7 +1620,7 @@ static bool chunkPresentOnServer(chunk *c, void *server) {
 
 void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage) {
 	// step 0. Update chunk's statistics
-	// Just in case if somewhere is a bug and updateStats was not called
+	// Useful e.g. if definitions of goals did change.
 	c->updateStats();
 
 	// step 1. calculate number of valid and invalid copies
@@ -1713,8 +1719,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	/* GONE */
 
 	// step 7b. if chunk has too many copies then delete some of them
-	if (vc > c->goal()) {
-		const uint32_t overgoalCopies = vc - c->goal();
+	if (vc > c->expectedCopies()) {
+		const uint32_t overgoalCopies = vc - c->expectedCopies();
 		uint32_t toRemove = overgoalCopies;
 		if (serverCount_ == 0) {
 			serverCount_ = matocsserv_getservers_ordered(servers_,
@@ -1747,7 +1753,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
-	if (vc+tdc>=serverCount && vc<c->goal() && tdc>0 && vc+tdc>1) {
+	if (vc+tdc>=serverCount && vc<c->expectedCopies() && tdc>0 && vc+tdc>1) {
 		uint8_t prevdone;
 		prevdone = 0;
 		for (slist *s = c->slisthead; s && prevdone==0; s = s->next) {
@@ -1770,7 +1776,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	//step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	if (c->goal() > vc && vc+tdc > 0) {
+	if (c->expectedCopies() > vc && vc+tdc > 0) {
 		if (jobsnorepbefore<(uint32_t)main_time()) {
 			static void* rptrs[65536];
 			uint32_t rgvc,rgtdc;
@@ -1834,7 +1840,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->goal() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
+	if (c->expectedCopies() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(servers_,
 					AcceptableDifference / 2.0, &serverMin_, &serverMin_);
