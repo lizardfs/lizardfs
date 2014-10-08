@@ -438,6 +438,18 @@ enum class SugidClearMode {
 /// rver==51:8 chunks:(N * [chunkid:64 version:32])          // version 5 / CHUNKS
 /// rver==52:8 usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunks:32 // version 5 / END
 
+// 0x044C
+#define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
+/// ip:32 port:16 timeout:32 vershex:32
+
+// 0x044D
+#define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
+/// chunks:(N * [chunkid:64 chunkversion:32])
+
+// 0x044E
+#define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
+/// usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunkcount:32
+
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
 /// usedspace:64 totalspace:64

@@ -41,6 +41,7 @@
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/disk_info.h"
+#include "common/list.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
@@ -278,31 +279,21 @@ void hdd_report_damaged_chunk(uint64_t chunkid) {
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-uint32_t hdd_get_damaged_chunk_count(void) {
-	damagedchunk *dc;
-	uint32_t result;
-	zassert(pthread_mutex_lock(&dclock));
-	result = 0;
-	for (dc=damagedchunks ; dc ; dc=dc->next) {
-		result++;
-	}
-	return result;
-}
-
-void hdd_get_damaged_chunk_data(uint8_t *buff) {
+void hdd_get_damaged_chunks(std::vector<uint64_t>& buffer) {
 	damagedchunk *dc,*ndc;
 	uint64_t chunkid;
-	if (buff) {
-		dc = damagedchunks;
-		while (dc) {
-			ndc = dc;
-			dc = dc->next;
-			chunkid = ndc->chunkid;
-			put64bit(&buff,chunkid);
-			free(ndc);
-		}
-		damagedchunks = NULL;
+	sassert(buffer.empty());
+	zassert(pthread_mutex_lock(&dclock));
+	buffer.reserve(list_length(damagedchunks));
+	dc = damagedchunks;
+	while (dc) {
+		ndc = dc;
+		dc = dc->next;
+		chunkid = ndc->chunkid;
+		buffer.push_back(chunkid);
+		free(ndc);
 	}
+	damagedchunks = NULL;
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
@@ -322,44 +313,31 @@ void hdd_report_lost_chunk(uint64_t chunkid) {
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-uint32_t hdd_get_lost_chunk_count(uint32_t limit) {
-	lostchunk *lc;
-	uint32_t result;
-	zassert(pthread_mutex_lock(&dclock));
-	result = 0;
-	for (lc=lostchunks ; lc ; lc=lc->next) {
-		if (limit>lc->chunksinblock) {
-			limit -= lc->chunksinblock;
-			result += lc->chunksinblock;
-		}
-	}
-	return result;
-}
-
-void hdd_get_lost_chunk_data(uint8_t *buff,uint32_t limit) {
+void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit) {
 	lostchunk *lc,**lcptr;
 	uint64_t chunkid;
 	uint32_t i;
-	if (buff) {
-		lcptr = &lostchunks;
-		while ((lc=*lcptr)) {
-			if (limit>lc->chunksinblock) {
-				for (i=0 ; i<lc->chunksinblock ; i++) {
-					chunkid = lc->chunkidblock[i];
-					put64bit(&buff,chunkid);
-				}
-				limit -= lc->chunksinblock;
-				*lcptr = lc->next;
-				free(lc);
-			} else {
-				lcptr = &(lc->next);
+	sassert(chunks.empty());
+	chunks.reserve(limit);
+	zassert(pthread_mutex_lock(&dclock));
+	lcptr = &lostchunks;
+	while ((lc=*lcptr)) {
+		if (limit>lc->chunksinblock) {
+			for (i=0 ; i<lc->chunksinblock ; i++) {
+				chunkid = lc->chunkidblock[i];
+				chunks.push_back(chunkid);
 			}
+			limit -= lc->chunksinblock;
+			*lcptr = lc->next;
+			free(lc);
+		} else {
+			lcptr = &(lc->next);
 		}
 	}
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-void hdd_report_new_chunk(uint64_t chunkid,uint32_t version) {
+void hdd_report_new_chunk(uint64_t chunkid, uint32_t version) {
 	newchunk *nc;
 	zassert(pthread_mutex_lock(&dclock));
 	if (newchunks && newchunks->chunksinblock<NEWCHUNKSBLOCKSIZE) {
@@ -378,41 +356,27 @@ void hdd_report_new_chunk(uint64_t chunkid,uint32_t version) {
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-uint32_t hdd_get_new_chunk_count(uint32_t limit) {
-	newchunk *nc;
-	uint32_t result;
-	zassert(pthread_mutex_lock(&dclock));
-	result = 0;
-	for (nc=newchunks ; nc ; nc=nc->next) {
-		if (limit>nc->chunksinblock) {
-			limit -= nc->chunksinblock;
-			result += nc->chunksinblock;
-		}
-	}
-	return result;
-}
-
-void hdd_get_new_chunk_data(uint8_t *buff,uint32_t limit) {
+void hdd_get_new_chunks(std::vector<ChunkWithVersion>& chunks, uint32_t limit) {
 	newchunk *nc,**ncptr;
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t i;
-	if (buff) {
-		ncptr = &newchunks;
-		while ((nc=*ncptr)) {
-			if (limit>nc->chunksinblock) {
-				for (i=0 ; i<nc->chunksinblock ; i++) {
-					chunkid = nc->chunkidblock[i];
-					version = nc->versionblock[i];
-					put64bit(&buff,chunkid);
-					put32bit(&buff,version);
-				}
-				limit -= nc->chunksinblock;
-				*ncptr = nc->next;
-				free(nc);
-			} else {
-				ncptr = &(nc->next);
+	sassert(chunks.empty());
+	chunks.reserve(limit);
+	zassert(pthread_mutex_lock(&dclock));
+	ncptr = &newchunks;
+	while ((nc=*ncptr)) {
+		if (limit>nc->chunksinblock) {
+			for (i=0 ; i<nc->chunksinblock ; i++) {
+				chunkid = nc->chunkidblock[i];
+				version = nc->versionblock[i];
+				chunks.push_back(ChunkWithVersion{chunkid, version});
 			}
+			limit -= nc->chunksinblock;
+			*ncptr = nc->next;
+			free(nc);
+		} else {
+			ncptr = &(nc->next);
 		}
 	}
 	zassert(pthread_mutex_unlock(&dclock));
@@ -1294,7 +1258,7 @@ void hdd_get_chunks_end() {
 	zassert(pthread_mutex_unlock(&hashlock));
 }
 
-uint32_t hdd_get_chunks_next_list_count() {
+static uint32_t hdd_internal_get_chunks_next_list_count() {
 	uint32_t res = 0;
 	uint32_t i = 0;
 	chunk *c;
@@ -1307,18 +1271,19 @@ uint32_t hdd_get_chunks_next_list_count() {
 	return res;
 }
 
-void hdd_get_chunks_next_list_data(uint8_t *buff) {
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersion>& chunks) {
 	uint32_t res = 0;
 	uint32_t v;
 	chunk *c;
+	sassert(chunks.empty());
+	chunks.reserve(hdd_internal_get_chunks_next_list_count());
 	while (res<CHUNKS_CUT_COUNT && hdd_get_chunks_pos<HASHSIZE) {
 		for (c=hashtab[hdd_get_chunks_pos] ; c ; c=c->next) {
-			put64bit(&buff,c->chunkid);
 			v = c->version;
 			if (c->todel) {
 				v |= 0x80000000;
 			}
-			put32bit(&buff,v);
+			chunks.push_back(ChunkWithVersion{c->chunkid, v});
 			res++;
 		}
 		hdd_get_chunks_pos++;
