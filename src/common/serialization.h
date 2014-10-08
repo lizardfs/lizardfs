@@ -67,9 +67,17 @@ inline uint32_t serializedSize(const char& c) {
 	return serializedSize(reinterpret_cast<const uint8_t&>(c));
 }
 
+inline uint32_t serializedSize(const std::string& value) {
+	return serializedSize(uint32_t(value.size())) + value.size() + 1;
+}
+
 template <class T, int N>
 inline uint32_t serializedSize(const T (&array)[N]) {
-	return N * serializedSize(array[0]);
+	uint32_t ret = 0;
+	for (const auto& element : array) {
+		ret += serializedSize(element);
+	}
+	return ret;
 }
 
 template <class T, std::size_t N>
@@ -84,10 +92,6 @@ inline uint32_t serializedSize(const std::array<T, N>& array) {
 template<class T1, class T2>
 inline uint32_t serializedSize(const std::pair<T1, T2>& pair) {
 	return serializedSize(pair.first) + serializedSize(pair.second);
-}
-
-inline uint32_t serializedSize(const std::string& value) {
-	return serializedSize(uint32_t(value.size())) + value.size() + 1;
 }
 
 template<class T>
@@ -162,6 +166,14 @@ inline void serialize(uint8_t** destination, const char& value) {
 	serialize(destination, reinterpret_cast<const uint8_t&>(value));
 }
 
+// serialize a string
+inline void serialize(uint8_t** destination, const std::string& value) {
+	serialize(destination, uint32_t(value.length() + 1));
+	memcpy(*destination, value.data(), value.length());
+	*destination += value.length();
+	serialize(destination, char(0));
+}
+
 // serialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void serialize(uint8_t** destination, const T (&array)[N]) {
@@ -182,14 +194,6 @@ template<class T1, class T2>
 inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair) {
 	serialize(destination, pair.first);
 	serialize(destination, pair.second);
-}
-
-// serialize a string
-inline void serialize(uint8_t** destination, const std::string& value) {
-	serialize(destination, uint32_t(value.length() + 1));
-	memcpy(*destination, value.data(), value.length());
-	*destination += value.length();
-	serialize(destination, char(0));
 }
 
 // serialize a unique_ptr
@@ -297,6 +301,27 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, cha
 	deserialize(source, bytesLeftInBuffer, reinterpret_cast<uint8_t&>(value));
 }
 
+// deserialize a string
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::string& value) {
+	sassert(value.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	// size is length of the string + 1 -- the last byte is a null terminator
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy string size");
+	}
+	if (bytesLeftInBuffer < size) {
+		throw IncorrectDeserializationException("unexpected end of buffer");
+	}
+	if ((*source)[size - 1] != 0) {
+		throw IncorrectDeserializationException("deserialized string not null-terminated");
+	}
+	// create a string from the buffer, but without the last (null) character
+	value.assign(reinterpret_cast<const char*>(*source), size - 1);
+	bytesLeftInBuffer -= size;
+	*source += size;
+}
+
 // deserialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]) {
@@ -328,27 +353,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, con
 	}
 	bytesLeftInBuffer = 0;
 	value = *source;
-}
-
-// deserialize a string
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std::string& value) {
-	sassert(value.size() == 0);
-	uint32_t size;
-	deserialize(source, bytesLeftInBuffer, size);
-	// size is length of the string + 1 -- the last byte is a null terminator
-	if (size > kMaxDeserializedElementsCount) {
-		throw IncorrectDeserializationException("untrustworthy string size");
-	}
-	if (bytesLeftInBuffer < size) {
-		throw IncorrectDeserializationException("unexpected end of buffer");
-	}
-	if ((*source)[size - 1] != 0) {
-		throw IncorrectDeserializationException("deserialized string not null-terminated");
-	}
-	// create a string from the buffer, but without the last (null) character
-	value.assign(reinterpret_cast<const char*>(*source), size - 1);
-	bytesLeftInBuffer -= size;
-	*source += size;
 }
 
 // deserialize a unique_ptr

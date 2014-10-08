@@ -56,3 +56,16 @@ TEST(SerializationTests, SerializeEmptyUniquePtr) {
 	ASSERT_NO_THROW(deserialize(buffer, emptyPtrOut));
 	ASSERT_TRUE(!emptyPtrOut);
 }
+
+TEST(SerializationTests, SerializeStringArray) {
+	std::string arrayIn[3] = {"ala", "ma", "xxxxx"};
+	std::string arrayOut[3];
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(serialize(buffer, arrayIn));
+	ASSERT_NO_THROW(deserialize(buffer, arrayOut));
+
+	for (auto i = 0; i < 3; ++i) {
+		ASSERT_EQ(arrayIn[i], arrayOut[i]);
+	}
+}
