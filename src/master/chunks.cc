@@ -1995,6 +1995,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		if (serverCount_ == 0) {
 			serverCount_ = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
 		}
+		const uint32_t overgoalCopies = toRemove.size();
 		uint32_t copiesRemoved = 0;
 		for (uint32_t i = 0; i < serverCount_ && !toRemove.empty(); ++i) {
 			for (s = c->slisthead; s; s = s->next) {
@@ -2021,8 +2022,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		}
 		inforec_.done.del_overgoal += copiesRemoved;
 		deleteDone_ += copiesRemoved;
-		inforec_.notdone.del_overgoal += (toRemove.size() - copiesRemoved);
-		deleteNotDone_ += (toRemove.size() - copiesRemoved);
+		inforec_.notdone.del_overgoal += (overgoalCopies - copiesRemoved);
+		deleteNotDone_ += (overgoalCopies - copiesRemoved);
 		return;
 	}
 
