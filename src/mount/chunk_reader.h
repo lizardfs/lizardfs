@@ -36,16 +36,19 @@ public:
 			uint32_t connectTimeout_ms, uint32_t basicTimeout_ms,
 			const Timeout& communicationTimeout, bool prefetchXorStripes);
 
-	uint32_t inode() {
+	bool isChunkLocated() const {
+		return (bool)location_;
+	}
+	uint32_t inode() const {
 		return inode_;
 	}
-	uint32_t index() {
+	uint32_t index() const {
 		return index_;
 	}
-	uint64_t chunkId() {
+	uint64_t chunkId() const {
 		return location_->chunkId;
 	}
-	uint32_t version() {
+	uint32_t version() const {
 		return location_->version;
 	}
 

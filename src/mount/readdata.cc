@@ -235,6 +235,30 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	// forced sleep between retries caused by recoverable failures
 	uint32_t sleepTime_ms = 0;
 
+	auto printErrorMessage = [&rrec, &tryCounter] (const Exception& ex) {
+		if (rrec->reader.isChunkLocated()) {
+			syslog(LOG_WARNING,
+					"read file error, inode: %" PRIu32
+					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
+					"(try counter: %" PRIu32 ")",
+					rrec->reader.inode(),
+					rrec->reader.index(),
+					rrec->reader.chunkId(),
+					rrec->reader.version(),
+					ex.what(),
+					tryCounter);
+		} else {
+			syslog(LOG_WARNING,
+					"read file error, inode: %" PRIu32
+					", index: %" PRIu32 ", chunk: failed to locate - %s "
+					"(try counter: %" PRIu32 ")",
+					rrec->reader.inode(),
+					rrec->reader.index(),
+					ex.what(),
+					tryCounter);
+		}
+	};
+
 	while (bytesToReadLeft > 0) {
 		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
 		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
@@ -274,16 +298,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			}
 			tryCounter = 0;
 		} catch (NoValidCopiesReadException& ex) {
-			syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
-					"(try counter: %" PRIu32 ")",
-					rrec->reader.inode(),
-					rrec->reader.index(),
-					rrec->reader.chunkId(),
-					rrec->reader.version(),
-					ex.what(),
-					tryCounter);
+			printErrorMessage(ex);
 			forcePrepare = true;
 			if (tryCounter > maxRetries) {
 				return EIO;
@@ -295,27 +310,11 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				tryCounter++;
 			}
 		} catch (ChunkCrcException& ex) {
-			syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
-					"(try counter: %" PRIu32 ")",
-					rrec->reader.inode(),
-					rrec->reader.index(),
-					rrec->reader.chunkId(),
-					rrec->reader.version(),
-					ex.what(),
-					tryCounter);
+			printErrorMessage(ex);
 			forcePrepare = true;
 			tryCounter++;
 		} catch (UnrecoverableReadException& ex) {
-			syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s",
-					rrec->reader.inode(),
-					rrec->reader.index(),
-					rrec->reader.chunkId(),
-					rrec->reader.version(),
-					ex.what());
+			printErrorMessage(ex);
 			if (ex.status() == ERROR_ENOENT) {
 				return EBADF; // stale handle
 			} else {
@@ -323,18 +322,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			}
 		} catch (Exception& ex) {
 			if (tryCounter > 0) {
-				// report only repeated errors
-				syslog(LOG_WARNING,
-						"read file error, inode: %" PRIu32
-						", index: %" PRIu32 ", chunk: %" PRIu64
-						", version: %" PRIu32 " - %s "
-						"(try counter: %" PRIu32 ")",
-						rrec->reader.inode(),
-						rrec->reader.index(),
-						rrec->reader.chunkId(),
-						rrec->reader.version(),
-						ex.what(),
-						tryCounter);
+				printErrorMessage(ex);
 			}
 			forcePrepare = true;
 			if (tryCounter > maxRetries) {
