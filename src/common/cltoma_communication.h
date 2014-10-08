@@ -102,3 +102,19 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, metadataserverStatus, LIZ_CLTOMA_METADATASERVER_STATUS, 0,
 		uint32_t, messageId)
+
+// LIZ_CLTOMA_FUSE_GETGOAL
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseGetGoal, LIZ_CLTOMA_FUSE_GETGOAL, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint8_t, gmode)
+
+// LIZ_CLTOMA_FUSE_SETGOAL
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetGoal, LIZ_CLTOMA_FUSE_SETGOAL, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, uid,
+		std::string, goalName,
+		uint8_t, smode)

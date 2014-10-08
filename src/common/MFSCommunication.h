@@ -927,6 +927,15 @@ enum class SugidClearMode {
 /// msgid:32 status:8
 /// msgid:32 gdirs:8 gfiles:8 data:(gdirs * [goal:8 dirs:32] gfiles * [goal:8 files:32])
 
+// 0x05A6
+#define LIZ_CLTOMA_FUSE_GETGOAL (1000U + 446U)
+/// msgid:32 inode:32 gmode:8
+
+// 0x05A7
+#define LIZ_MATOCL_FUSE_GETGOAL (1000U + 447U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 data:(std::vector<FuseGetGoalStats>)
+
 // 0x01C0
 #define CLTOMA_FUSE_SETGOAL (PROTO_BASE+448)
 /// msgid:32 inode:32 uid:32 goal:8 smode:8
@@ -935,6 +944,15 @@ enum class SugidClearMode {
 #define MATOCL_FUSE_SETGOAL (PROTO_BASE+449)
 /// msgid:32 status:8
 /// msgid:32 changed:32 notchanged:32 notpermitted:32
+
+// 0x05A8
+#define LIZ_CLTOMA_FUSE_SETGOAL (1000U + 448U)
+/// msgid:32 inode:32 uid:32 goalname:STDSTRING smode:8
+
+// 0x05A9
+#define LIZ_MATOCL_FUSE_SETGOAL (1000U + 449U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 changed:32 notchanged:32 notpermitted:32
 
 // 0x01C2
 #define CLTOMA_FUSE_GETTRASH (PROTO_BASE+450)

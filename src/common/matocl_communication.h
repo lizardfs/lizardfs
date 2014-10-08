@@ -5,7 +5,7 @@
 #include "common/access_control_list.h"
 #include "common/attributes.h"
 #include "common/io_limits_database.h"
-#include "common/moosefs_string.h"
+#include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"
@@ -123,3 +123,38 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, messageId,
 		uint8_t, status,
 		uint64_t, metadataVersion)
+
+// LIZ_MATOCL_FUSE_GETGOAL
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetGoal, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetGoal, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetGoal, LIZ_MATOCL_FUSE_GETGOAL, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_SERIALIZABLE_CLASS(FuseGetGoalStats,
+		std::string, goalName,
+		uint32_t, directories,
+		uint32_t, files);
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetGoal, LIZ_MATOCL_FUSE_GETGOAL, kResponsePacketVersion,
+		uint32_t, messageId,
+		std::vector<FuseGetGoalStats>, goalsStats)
+
+// LIZ_MATOCL_FUSE_SETGOAL
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseSetGoal, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseSetGoal, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseSetGoal, LIZ_MATOCL_FUSE_SETGOAL, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseSetGoal, LIZ_MATOCL_FUSE_SETGOAL, kResponsePacketVersion,
+		uint32_t, messageId,
+		uint32_t, changed,
+		uint32_t, notChanged,
+		uint32_t, notPermitted)
