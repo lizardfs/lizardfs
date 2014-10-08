@@ -25,3 +25,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint64_t, tdUsedSpace,
 		uint64_t, toDeleteTotalSpace,
 		uint32_t, toDeleteChunksNumber)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, registerLabel, LIZ_CSTOMA_REGISTER_LABEL, 0,
+		std::string, label)

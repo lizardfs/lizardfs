@@ -450,6 +450,10 @@ enum class SugidClearMode {
 #define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
 /// usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunkcount:32
 
+// 0x044F
+#define LIZ_CSTOMA_REGISTER_LABEL (1000U + 103U)
+/// label:STDSTRING
+
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
 /// usedspace:64 totalspace:64

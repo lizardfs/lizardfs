@@ -31,14 +31,14 @@
 #include <time.h>
 #include <unistd.h>
 #include <algorithm>
-#include <set>
-
 #include <list>
+#include <set>
 #include <vector>
 
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -101,6 +101,7 @@ struct matocsserventry {
 	uint32_t servip;                // ip to coonnect to
 	uint16_t servport;              // port to connect to
 	uint32_t timeout;               // communication timeout
+	std::string label;              // server label, empty if not set
 	uint64_t usedspace;             // used hdd space in bytes
 	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
@@ -1337,6 +1338,22 @@ void matocsserv_liz_register_space(matocsserventry *eptr, const std::vector<uint
 	return register_space(eptr);
 }
 
+void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint8_t>& data)
+		throw (IncorrectDeserializationException) {
+	std::string label;
+	cstoma::registerLabel::deserialize(data, label);
+	if (isMediaLabelValid(label)) {
+		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16
+				") changed its label from '%s' to '%s'",
+				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
+		eptr->label = label;
+	} else {
+		syslog(LOG_NOTICE,"LIZ_CSTOMA_REGISTER_LABEL - wrong label '%s' of chunkserver "
+				"(ip: %s, port %" PRIu16 ")", label.c_str(), eptr->servstrip, eptr->servport);
+		eptr->mode=KILL;
+	}
+}
+
 void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t i;
@@ -1466,6 +1483,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				break;
 			case LIZ_CSTOMA_REGISTER_SPACE:
 				matocsserv_liz_register_space(eptr, data);
+				break;
+			case LIZ_CSTOMA_REGISTER_LABEL:
+				matocsserv_liz_register_label(eptr, data);
 				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message "
@@ -1622,6 +1642,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->servip = 0;
 			eptr->servport = 0;
 			eptr->timeout = 60000;
+			eptr->label = kMediaLabelWildcard;
 			eptr->usedspace = 0;
 			eptr->totalspace = 0;
 			eptr->chunkscount = 0;

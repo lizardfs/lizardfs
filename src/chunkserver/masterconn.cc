@@ -39,6 +39,7 @@
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
@@ -106,6 +107,7 @@ static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout_ms;
 static void* reconnect_hook;
+static std::string gLabel;
 
 static uint64_t stats_bytesout=0;
 static uint64_t stats_bytesin=0;
@@ -164,6 +166,14 @@ void masterconn_create_attached_moosefs_packet(masterconn *eptr,
 	masterconn_create_attached_packet(eptr, buffer);
 }
 
+void masterconn_sendregisterlabel(masterconn *eptr) {
+	if (eptr->mode == HEADER || eptr->mode == DATA) {
+		std::vector<uint8_t> serializedPacket;
+		cstoma::registerLabel::serialize(serializedPacket, gLabel);
+		masterconn_create_attached_packet(eptr, serializedPacket);
+	}
+}
+
 void masterconn_sendregister(masterconn *eptr) {
 	uint32_t myip;
 	uint16_t myport;
@@ -174,8 +184,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
 	std::vector<uint8_t> serializedPacket;
-	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms,
-			LIZARDFS_VERSHEX);
+	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms, LIZARDFS_VERSHEX);
 	masterconn_create_attached_packet(eptr, serializedPacket);
 	hdd_get_chunks_begin();
 	std::vector<ChunkWithVersion> chunks;
@@ -193,6 +202,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	cstoma::registerSpace::serialize(serializedPacket, usedspace, totalspace, chunkcount,
 			tdusedspace, tdtotalspace, tdchunkcount);
 	masterconn_create_attached_packet(eptr, serializedPacket);
+	masterconn_sendregisterlabel(eptr);
 }
 
 void masterconn_check_hdd_reports() {
@@ -892,6 +902,17 @@ static uint32_t get_cfg_timeout() {
 	return 1000 * cfg_get_minmaxvalue<double>("MASTER_TIMEOUT", 60, 0.01, 1000 * 1000);
 }
 
+/// Read the label from configuration file and return true if it's changed to a valid one
+bool masterconn_load_label() {
+	std::string oldLabel = gLabel;
+	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
+	if (!isMediaLabelValid(gLabel)) {
+		mfs_arg_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
+		return false;
+	}
+	return gLabel != oldLabel;
+}
+
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
@@ -935,6 +956,10 @@ void masterconn_reload(void) {
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 
+	if (masterconn_load_label()) {
+		masterconn_sendregisterlabel(eptr);
+	}
+
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
 
@@ -949,6 +974,9 @@ int masterconn_init(void) {
 	Timeout_ms = get_cfg_timeout();
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
+	if (!masterconn_load_label()) {
+		return -1;
+	}
 	eptr = masterconnsingleton = new masterconn;
 	passert(eptr);
 
