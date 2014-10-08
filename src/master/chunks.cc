@@ -1807,7 +1807,7 @@ static void* getServerForReplication(chunk *c, ChunkType chunkTypeToRecover) {
 	matocsserv_getservers_lessrepl(possibleDestinations, MaxWriteRepl);
 	uint32_t minServerVersion = 0;
 	if (!chunkTypeToRecover.isStandardChunkType()) {
-		minServerVersion = lizardfsVersion(1, 6, 28);
+		minServerVersion = kFirstXorVersion;
 	}
 	void *destination = nullptr;
 	for (void* server : possibleDestinations) {
@@ -1831,15 +1831,14 @@ static void* getServerForReplication(chunk *c, ChunkType chunkTypeToRecover) {
 }
 
 bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *destinationServer) {
-	// NOTE: we don't allow replicating xor chunks from pre-1.6.28 chunkservers
-	const uint32_t newServerVersion = lizardfsVersion(1, 6, 28);
+	// NOTE: we don't allow replicating xor chunks from pre-xor chunkservers
 	std::vector<void*> standardSources;
 	std::vector<void*> newServerSources;
 	ChunkCopiesCalculator newSourcesCalculator(c->goal());
 
 	for (slist *s = c->slisthead ; s ; s = s->next) {
 		if (s->is_valid() && !s->is_busy()) {
-			if (matocsserv_get_version(s->ptr) >= newServerVersion) {
+			if (matocsserv_get_version(s->ptr) >= kFirstXorVersion) {
 				newServerSources.push_back(s->ptr);
 				newSourcesCalculator.addPart(s->chunkType);
 			}
@@ -1850,7 +1849,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, void *d
 	}
 
 	if (newSourcesCalculator.isRecoveryPossible() &&
-			matocsserv_get_version(destinationServer) >= newServerVersion) {
+			matocsserv_get_version(destinationServer) >= kFirstXorVersion) {
 		// new replication possible - use it
 		matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
 				chunkTypeToRecover, newServerSources,
