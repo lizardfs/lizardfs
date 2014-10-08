@@ -1524,73 +1524,104 @@ void chunk_store_info(uint8_t *buff) {
 
 //jobs state: jobshpos
 
-void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
-	slist *s;
-	static void* ptrs[65535];
-	static uint16_t servcount;
-	static uint32_t min,max;
-	void* rptrs[65536];
-	uint16_t rservcount;
-	void *srcptr;
-	uint16_t i;
-	uint32_t vc,tdc,ivc,bc,tdb,dc;
-	static loop_info inforec;
-	static uint32_t delnotdone;
-	static uint32_t deldone;
-	static uint32_t prevtodeletecount;
-	static uint32_t delloopcnt;
+class ChunkWorker {
+public:
+	ChunkWorker();
+	void doEveryLoopTasks();
+	void doEverySecondTasks();
+	void doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage);
 
-	if (c==NULL) {
-		if (scount==JOBS_INIT) { // init tasks
-			delnotdone = 0;
-			deldone = 0;
-			prevtodeletecount = 0;
-			delloopcnt = 0;
-			memset(&inforec,0,sizeof(loop_info));
-		} else if (scount==JOBS_EVERYLOOP) { // every loop tasks
-			delloopcnt++;
-			if (delloopcnt>=16) {
-				uint32_t todeletecount = deldone+delnotdone;
-				delloopcnt=0;
-				if ((delnotdone > deldone) && (todeletecount > prevtodeletecount)) {
-					TmpMaxDelFrac *= 1.5;
-					if (TmpMaxDelFrac>MaxDelHardLimit) {
-						syslog(LOG_NOTICE,"DEL_LIMIT hard limit (%" PRIu32 " per server) reached",MaxDelHardLimit);
-						TmpMaxDelFrac=MaxDelHardLimit;
-					}
-					TmpMaxDel = TmpMaxDelFrac;
-					syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %" PRIu32 " per server",TmpMaxDel);
-				}
-				if ((todeletecount < prevtodeletecount) && (TmpMaxDelFrac > MaxDelSoftLimit)) {
-					TmpMaxDelFrac /= 1.5;
-					if (TmpMaxDelFrac<MaxDelSoftLimit) {
-						syslog(LOG_NOTICE,"DEL_LIMIT back to soft limit (%" PRIu32 " per server)",MaxDelSoftLimit);
-						TmpMaxDelFrac = MaxDelSoftLimit;
-					}
-					TmpMaxDel = TmpMaxDelFrac;
-					syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %" PRIu32 " per server",TmpMaxDel);
-				}
-				prevtodeletecount = todeletecount;
-				delnotdone = 0;
-				deldone = 0;
+private:
+	bool tryReplication(chunk *c, void *destinationServer);
+
+	/// Number of entries in servers_ or 0 if not filled
+	uint16_t serverCount_;
+
+	/// Indices in servers_; valid only if servers_ > 0.
+	/// servers_[0..serverMin_-1] have disk usage below the average - AcceptableDifference / 2
+	///    and are placed there in a random order
+	/// servers_[serverMax_..serverCount_-1] have disk usage over the
+	///    average + AcceptableDifference / 2 and are placed there in a random order
+	/// servers_[serverMin_..serverMax_-1] are sorted by disk usage
+	uint32_t serverMin_, serverMax_;
+
+	/// Servers ordered properly (roughly -- sorted by disk usage)
+	void* servers_[65536];
+
+	loop_info inforec_;
+	uint32_t deleteNotDone_;
+	uint32_t deleteDone_;
+	uint32_t prevToDeleteCount_;
+	uint32_t deleteLoopCount_;
+};
+
+ChunkWorker::ChunkWorker()
+		: serverCount_(0),
+		  serverMin_(0),
+		  serverMax_(0),
+		  deleteNotDone_(0),
+		  deleteDone_(0),
+		  prevToDeleteCount_(0),
+		  deleteLoopCount_(0) {
+	memset(&inforec_,0,sizeof(loop_info));
+}
+
+void ChunkWorker::doEveryLoopTasks() {
+	deleteLoopCount_++;
+	if (deleteLoopCount_ >= 16) {
+		uint32_t toDeleteCount = deleteDone_ + deleteNotDone_;
+		deleteLoopCount_ = 0;
+		if ((deleteNotDone_ > deleteDone_) && (toDeleteCount > prevToDeleteCount_)) {
+			TmpMaxDelFrac *= 1.5;
+			if (TmpMaxDelFrac>MaxDelHardLimit) {
+				syslog(LOG_NOTICE,"DEL_LIMIT hard limit (%" PRIu32 " per server) reached",MaxDelHardLimit);
+				TmpMaxDelFrac=MaxDelHardLimit;
 			}
-			chunksinfo = inforec;
-			memset(&inforec,0,sizeof(inforec));
-			chunksinfo_loopstart = chunksinfo_loopend;
-			chunksinfo_loopend = main_time();
-		} else if (scount==JOBS_EVERYSECOND) { // every second tasks
-			servcount=0;
+			TmpMaxDel = TmpMaxDelFrac;
+			syslog(LOG_NOTICE,"DEL_LIMIT temporary increased to: %" PRIu32 " per server",TmpMaxDel);
 		}
-		return;
+		if ((toDeleteCount < prevToDeleteCount_) && (TmpMaxDelFrac > MaxDelSoftLimit)) {
+			TmpMaxDelFrac /= 1.5;
+			if (TmpMaxDelFrac<MaxDelSoftLimit) {
+				syslog(LOG_NOTICE,"DEL_LIMIT back to soft limit (%" PRIu32 " per server)",MaxDelSoftLimit);
+				TmpMaxDelFrac = MaxDelSoftLimit;
+			}
+			TmpMaxDel = TmpMaxDelFrac;
+			syslog(LOG_NOTICE,"DEL_LIMIT decreased back to: %" PRIu32 " per server",TmpMaxDel);
+		}
+		prevToDeleteCount_ = toDeleteCount;
+		deleteNotDone_ = 0;
+		deleteDone_ = 0;
 	}
+	chunksinfo = inforec_;
+	memset(&inforec_,0,sizeof(inforec_));
+	chunksinfo_loopstart = chunksinfo_loopend;
+	chunksinfo_loopend = main_time();
+}
 
+void ChunkWorker::doEverySecondTasks() {
+	serverCount_ = 0;
+}
+
+static bool chunkPresentOnServer(chunk *c, void *server) {
+	for (slist *s = c->slisthead ; s ; s = s->next) {
+		if (s->ptr == server) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage) {
 	// step 0. Update chunk's statistics
 	// Just in case if somewhere is a bug and updateStats was not called
 	c->updateStats();
 
 	// step 1. calculate number of valid and invalid copies
-	vc=tdc=ivc=bc=tdb=dc=0;
-	for (s=c->slisthead ; s ; s=s->next) {
+	uint32_t vc, tdc, ivc, bc, tdb, dc;
+	vc = tdc = ivc = bc = tdb = dc = 0;
+
+	for (slist *s = c->slisthead; s; s = s->next) {
 		switch (s->valid) {
 		case INVALID:
 			ivc++;
@@ -1616,14 +1647,14 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	// step 2. check number of copies
 	if (tdc+vc+tdb+bc==0 && ivc>0 && c->fileCount() > 0) {
 		syslog(LOG_WARNING,"chunk %016" PRIX64 " has only invalid copies (%" PRIu32 ") - please repair it manually",c->chunkid,ivc);
-		for (s=c->slisthead ; s ; s=s->next) {
+		for (slist *s = c->slisthead; s; s = s->next) {
 			syslog(LOG_NOTICE,"chunk %016" PRIX64 "_%08" PRIX32 " - invalid copy on (%s - ver:%08" PRIX32 ")",c->chunkid,c->version,matocsserv_getstrip(s->ptr),s->version);
 		}
 		return ;
 	}
 
 	// step 3. delete invalid copies
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s = c->slisthead; s; s = s->next) {
 		if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 			if (!s->is_valid()) {
 				if (s->valid==DEL) {
@@ -1632,15 +1663,15 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				s->valid = DEL;
 				stats_deletions++;
 				matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-				inforec.done.del_invalid++;
-				deldone++;
+				inforec_.done.del_invalid++;
+				deleteDone_++;
 				dc++;
 				ivc--;
 			}
 		} else {
 			if (s->valid==INVALID) {
-				inforec.notdone.del_invalid++;
-				delnotdone++;
+				inforec_.notdone.del_invalid++;
+				deleteNotDone_++;
 			}
 		}
 	}
@@ -1658,20 +1689,20 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 	// step 6. delete unused chunk
 	if (c->fileCount() == 0) {
-		for (s=c->slisthead ; s ; s=s->next) {
+		for (slist *s = c->slisthead; s; s=s->next) {
 			if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 				if (s->is_valid() && !s->is_busy()) {
 					c->deleteCopy(s);
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,c->version);
-					inforec.done.del_unused++;
-					deldone++;
+					inforec_.done.del_unused++;
+					deleteDone_++;
 				}
 			} else {
 				if (s->valid==VALID || s->valid==TDVALID) {
-					inforec.notdone.del_unused++;
-					delnotdone++;
+					inforec_.notdone.del_unused++;
+					deleteNotDone_++;
 				}
 			}
 		}
@@ -1683,54 +1714,55 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 
 	// step 7b. if chunk has too many copies then delete some of them
 	if (vc > c->goal()) {
-		uint8_t prevdone;
-		// syslog(LOG_WARNING,"vc (%" PRIu32 ") > goal (%" PRIu32 ") - delete",vc,c->goal());
-		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
+		const uint32_t overgoalCopies = vc - c->goal();
+		uint32_t toRemove = overgoalCopies;
+		if (serverCount_ == 0) {
+			serverCount_ = matocsserv_getservers_ordered(servers_,
+					AcceptableDifference / 2.0, &serverMin_, &serverMax_);
 		}
-		inforec.notdone.del_overgoal+=(vc-(c->goal()));
-		delnotdone+=(vc-(c->goal()));
-		prevdone = 1;
-		for (i=0 ; i<servcount && vc>c->goal() && prevdone; i++) {
-			for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
-			if (s && s->valid==VALID) {
-				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
-					c->deleteCopy(s);
-					c->needverincrease=1;
-					stats_deletions++;
-					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-					inforec.done.del_overgoal++;
-					inforec.notdone.del_overgoal--;
-					deldone++;
-					delnotdone--;
-					vc--;
-					dc++;
-				} else {
-					prevdone=0;
+		uint32_t copiesRemoved = 0;
+		for (uint32_t i = 0; i < serverCount_ && toRemove > 0; ++i) {
+			for (slist *s = c->slisthead; s; s = s->next) {
+				if (s->ptr != servers_[serverCount_ - 1 - i] || s->valid != VALID) {
+					continue;
 				}
+				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
+					break;
+				}
+				c->deleteCopy(s);
+				c->needverincrease=1;
+				stats_deletions++;
+				matocsserv_send_deletechunk(s->ptr, c->chunkid, 0);
+				toRemove--;
+				copiesRemoved++;
+				vc--;
+				dc++;
 			}
 		}
+		inforec_.done.del_overgoal += copiesRemoved;
+		deleteDone_ += copiesRemoved;
+		inforec_.notdone.del_overgoal += (overgoalCopies - copiesRemoved);
+		deleteNotDone_ += (overgoalCopies - copiesRemoved);
 		return;
 	}
 
 	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
-	if (vc+tdc>=scount && vc<c->goal() && tdc>0 && vc+tdc>1) {
+	if (vc+tdc>=serverCount && vc<c->goal() && tdc>0 && vc+tdc>1) {
 		uint8_t prevdone;
-		// syslog(LOG_WARNING,"vc+tdc (%" PRIu32 ") >= scount (%" PRIu32 ") and vc (%" PRIu32 ") < goal (%" PRIu32 ") and tdc (%" PRIu32 ") > 0 and vc+tdc > 1 - delete",vc+tdc,scount,vc,c->goal(),tdc);
 		prevdone = 0;
-		for (s=c->slisthead ; s && prevdone==0 ; s=s->next) {
+		for (slist *s = c->slisthead; s && prevdone==0; s = s->next) {
 			if (s->valid==TDVALID) {
 				if (matocsserv_deletion_counter(s->ptr)<TmpMaxDel) {
 					c->deleteCopy(s);
 					c->needverincrease=1;
 					stats_deletions++;
 					matocsserv_send_deletechunk(s->ptr,c->chunkid,0);
-					inforec.done.del_diskclean++;
+					inforec_.done.del_diskclean++;
 					tdc--;
 					dc++;
 					prevdone = 1;
 				} else {
-					inforec.notdone.del_diskclean++;
+					inforec_.notdone.del_diskclean++;
 				}
 			}
 		}
@@ -1740,11 +1772,12 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	//step 8. if chunk has number of copies less than goal then make another copy of this chunk
 	if (c->goal() > vc && vc+tdc > 0) {
 		if (jobsnorepbefore<(uint32_t)main_time()) {
+			static void* rptrs[65536];
 			uint32_t rgvc,rgtdc;
-			rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
+			uint32_t rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
 			rgvc=0;
 			rgtdc=0;
-			for (s=c->slisthead ; s ; s=s->next) {
+			for (slist *s = c->slisthead; s; s = s->next) {
 				if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl) {
 					if (s->valid==VALID) {
 						rgvc++;
@@ -1754,14 +1787,16 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 				}
 			}
 			if (rgvc+rgtdc>0 && rservcount>0) { // have at least one server to read from and at least one to write to
-				for (i=0 ; i<rservcount ; i++) {
+				for (uint32_t i=0 ; i<rservcount ; i++) {
+					slist *s;
 					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
 					if (!s) {
 						uint32_t r;
+						void *srcptr;
 						if (rgvc>0) { // if there are VALID copies then make copy of one VALID chunk
 							r = 1+rndu32_ranged(rgvc);
 							srcptr = NULL;
-							for (s=c->slisthead ; s && r>0 ; s=s->next) {
+							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
 								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
 									r--;
 									srcptr = s->ptr;
@@ -1770,7 +1805,7 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 						} else { // if not then use TDVALID chunks.
 							r = 1+rndu32_ranged(rgtdc);
 							srcptr = NULL;
-							for (s=c->slisthead ; s && r>0 ; s=s->next) {
+							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
 								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
 									r--;
 									srcptr = s->ptr;
@@ -1781,14 +1816,14 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 							stats_replications++;
 							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
 							c->needverincrease=1;
-							inforec.done.copy_undergoal++;
+							inforec_.done.copy_undergoal++;
 							return;
 						}
 					}
 				}
 			}
 		}
-		inforec.notdone.copy_undergoal++;
+		inforec_.notdone.copy_undergoal++;
 	}
 
 	// step 8. if chunk has number of copies less than goal then make another copy of this chunk
@@ -1799,98 +1834,82 @@ void chunk_do_jobs(chunk *c,uint16_t scount,double minusage,double maxusage) {
 	}
 
 	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->goal() >= vc && vc+tdc>0 && (maxusage-minusage)>AcceptableDifference) {
-		if (servcount==0) {
-			servcount = matocsserv_getservers_ordered(ptrs,AcceptableDifference/2.0,&min,&max);
+	if (c->goal() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
+		if (serverCount_==0) {
+			serverCount_ = matocsserv_getservers_ordered(servers_,
+					AcceptableDifference / 2.0, &serverMin_, &serverMin_);
 		}
-		if (min>0 || max>0) {
+		if (serverMin_ > 0 || serverMin_ > 0) {
 			void *srcserv=NULL;
 			void *dstserv=NULL;
-			if (max>0) {
-				for (i=0 ; i<max && srcserv==NULL ; i++) {
-					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
-						if (s && (s->valid==VALID || s->valid==TDVALID)) {
-							srcserv=s->ptr;
-						}
-					}
-				}
-			} else {
-				for (i=0 ; i<(servcount-min) && srcserv==NULL ; i++) {
-					if (matocsserv_replication_read_counter(ptrs[servcount-1-i])<MaxReadRepl) {
-						for (s=c->slisthead ; s && s->ptr!=ptrs[servcount-1-i] ; s=s->next) {}
-						if (s && (s->valid==VALID || s->valid==TDVALID)) {
-							srcserv=s->ptr;
+			uint32_t loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
+			for (uint32_t i = 0; i < loopTo && srcserv == NULL; i++) {
+				void* server = servers_[serverCount_ - 1 - i];
+				if (matocsserv_replication_read_counter(server) < MaxReadRepl) {
+					for (slist *s = c->slisthead; s; s = s->next) {
+						if (s->ptr == server && (s->valid == VALID || s->valid==TDVALID)) {
+							srcserv = server;
 						}
 					}
 				}
 			}
-			if (srcserv!=NULL) {
-				if (min>0) {
-					for (i=0 ; i<min && dstserv==NULL ; i++) {
-						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next) {}
-							if (s==NULL) {
-								dstserv=ptrs[i];
-							}
-						}
-					}
-				} else {
-					for (i=0 ; i<servcount-max && dstserv==NULL ; i++) {
-						if (matocsserv_replication_write_counter(ptrs[i])<MaxWriteRepl) {
-							for (s=c->slisthead ; s && s->ptr!=ptrs[i] ; s=s->next) {}
-							if (s==NULL) {
-								dstserv=ptrs[i];
-							}
+			if (srcserv != NULL) {
+				loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
+				for (uint32_t i = 0; i < loopTo && dstserv == NULL ; i++) {
+					if (matocsserv_replication_write_counter(servers_[i]) < MaxWriteRepl) {
+						if (!chunkPresentOnServer(c, servers_[i])) {
+							dstserv = servers_[i];
 						}
 					}
 				}
-				if (dstserv!=NULL) {
-					stats_replications++;
-					matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
-					c->needverincrease=1;
-					inforec.copy_rebalance++;
-				}
+			}
+			if (srcserv != NULL && dstserv != NULL) {
+				stats_replications++;
+				matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
+				c->needverincrease=1;
+				inforec_.copy_rebalance++;
 			}
 		}
 	}
 }
 
+static std::unique_ptr<ChunkWorker> gChunkWorker;
+
 void chunk_jobs_main(void) {
 	uint32_t i,l,lc,r;
-	uint16_t uscount,tscount;
-	static uint16_t lasttscount=0;
-	static uint16_t maxtscount=0;
-	double minusage,maxusage;
+	uint16_t usableServerCount, totalServerCount;
+	static uint16_t lastTotalServerCount = 0;
+	static uint16_t maxTotalServerCount = 0;
+	double minUsage, maxUsage;
 	chunk *c,**cp;
 
-	if (starttime+ReplicationsDelayInit>main_time()) {
+	if (starttime + ReplicationsDelayInit > main_time()) {
 		return;
 	}
 
-	matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
+	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, &totalServerCount);
 
-	if (tscount<lasttscount) {              // servers disconnected
-		jobsnorepbefore = main_time()+ReplicationsDelayDisconnect;
-	} else if (tscount>lasttscount) {       // servers connected
-		if (tscount>=maxtscount) {
-			maxtscount = tscount;
+	if (totalServerCount < lastTotalServerCount) {          // servers disconnected
+		jobsnorepbefore = main_time() + ReplicationsDelayDisconnect;
+	} else if (totalServerCount > lastTotalServerCount) {   // servers connected
+		if (totalServerCount >= maxTotalServerCount) {
+			maxTotalServerCount = totalServerCount;
 			jobsnorepbefore = main_time();
 		}
-	} else if (tscount<maxtscount && (uint32_t)main_time()>jobsnorepbefore) {
-		maxtscount = tscount;
+	} else if (totalServerCount < maxTotalServerCount && (uint32_t)main_time() > jobsnorepbefore) {
+		maxTotalServerCount = totalServerCount;
 	}
-	lasttscount = tscount;
+	lastTotalServerCount = totalServerCount;
 
-	if (minusage>maxusage) {
+	if (minUsage > maxUsage) {
 		return;
 	}
 
-	chunk_do_jobs(NULL,JOBS_EVERYSECOND,0.0,0.0); // every second tasks
+	gChunkWorker->doEverySecondTasks();
 	lc = 0;
 	for (i=0 ; i<HashSteps && lc<HashCPS ; i++) {
 		if (jobshpos==0) {
-			chunk_do_jobs(NULL,JOBS_EVERYLOOP,0.0,0.0); // every loop tasks
+			gChunkWorker->doEveryLoopTasks();
 		}
 		// delete unused chunks from structures
 		l=0;
@@ -1912,13 +1931,13 @@ void chunk_jobs_main(void) {
 		// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
-					chunk_do_jobs(c,uscount,minusage,maxusage);
+					gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				}
 				l++;
 			}
 			l=0;
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; l<r && c ; c=c->next) {
-				chunk_do_jobs(c,uscount,minusage,maxusage);
+				gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
 				l++;
 			}
 		}
@@ -2052,7 +2071,7 @@ void chunk_newfs(void) {
 void chunk_become_master() {
 	starttime = main_time();
 	jobsnorepbefore = starttime+ReplicationsDelayInit;
-	chunk_do_jobs(NULL,JOBS_INIT,0.0,0.0); // clear chunk loop internal data
+	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
 	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
 	return;
 }
