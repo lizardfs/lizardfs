@@ -40,3 +40,13 @@ moosefs_master_daemon() {
 	return ${PIPESTATUS[0]}
 }
 
+# A generic function to run MooseFS commands. Usage examples:
+# mfs mfssetgoal 3 file
+# mfs mfsdirinfo file
+# mfs mfsmetalogger stop
+mfs() {
+	local command="$1"
+	shift
+	"$MOOSEFS_DIR/"*bin"/$command" "$@" | cat
+	return ${PIPESTATUS[0]}
+}

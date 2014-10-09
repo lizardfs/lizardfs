@@ -179,8 +179,6 @@ typedef struct matoclserventry {
 	struct matoclserventry *next;
 } matoclserventry;
 
-typedef std::vector<uint8_t> MessageBuffer;
-
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
 static int lsock;
@@ -525,8 +523,8 @@ int matoclserv_load_sessions() {
 				asesdata->mintrashtime = get32bit(&ptr);
 				asesdata->maxtrashtime = get32bit(&ptr);
 			} else { // set defaults (no limits)
-				asesdata->mingoal = 1;
-				asesdata->maxgoal = 9;
+				asesdata->mingoal = goal::kMinGoal;
+				asesdata->maxgoal = goal::kMaxGoal;
 				asesdata->mintrashtime = 0;
 				asesdata->maxtrashtime = UINT32_C(0xFFFFFFFF);
 			}
@@ -620,8 +618,8 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 		asesdata->info = NULL;
 		asesdata->peerip = 0;
 		asesdata->sesflags = 0;
-		asesdata->mingoal = 1;
-		asesdata->maxgoal = 9;
+		asesdata->mingoal = goal::kMinGoal;
+		asesdata->maxgoal = goal::kMaxGoal;
 		asesdata->mintrashtime = 0;
 		asesdata->maxtrashtime = UINT32_C(0xFFFFFFFF);
 		asesdata->rootuid = 0;
@@ -2079,23 +2077,22 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	}
 }
 
-void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
-		const uint8_t *data, uint32_t length) {
+void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t messageId, inode, uid, gid, rdev;
 	MooseFsString<uint8_t> name;
 	uint8_t type;
 	uint16_t mode, umask;
 
-	if (packetType == CLTOMA_FUSE_MKNOD) {
-		deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
-				inode, name, type, mode, uid, gid, rdev);
+	if (header.type == CLTOMA_FUSE_MKNOD) {
+		deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+				messageId, inode, name, type, mode, uid, gid, rdev);
 		umask = 0;
-	} else if (packetType == LIZ_CLTOMA_FUSE_MKNOD) {
-		cltoma::fuseMknod::deserialize(data, length, messageId,
-				inode, name, type, mode, umask, uid, gid, rdev);
+	} else if (header.type == LIZ_CLTOMA_FUSE_MKNOD) {
+		cltoma::fuseMknod::deserialize(data, header.length,
+				messageId, inode, name, type, mode, umask, uid, gid, rdev);
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown packet type for matoclserv_fuse_mknod: " + std::to_string(packetType));
+				"Unknown packet type for matoclserv_fuse_mknod: " + std::to_string(header.type));
 	}
 	uint32_t auid = uid;
 	uint32_t agid = gid;
@@ -2108,11 +2105,11 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
 
 	MessageBuffer reply;
-	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKNOD) {
+	if (status == STATUS_OK && header.type == CLTOMA_FUSE_MKNOD) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
-	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKNOD) {
+	} else if (status == STATUS_OK && header.type == LIZ_CLTOMA_FUSE_MKNOD) {
 		matocl::fuseMknod::serialize(reply, messageId, newinode, attr);
-	} else if (packetType == LIZ_CLTOMA_FUSE_MKNOD) {
+	} else if (header.type == LIZ_CLTOMA_FUSE_MKNOD) {
 		matocl::fuseMknod::serialize(reply, messageId, status);
 	} else {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, status);
@@ -2123,29 +2120,28 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader::Type packetType,
 	}
 }
 
-void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
-		const uint8_t *data, uint32_t length) {
+void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t messageId, inode, uid, gid;
 	MooseFsString<uint8_t> name;
 	bool copysgid;
 	uint16_t mode, umask;
 
-	if (packetType == CLTOMA_FUSE_MKDIR) {
+	if (header.type == CLTOMA_FUSE_MKDIR) {
 		if (eptr->version >= lizardfsVersion(1, 6, 25)) {
-			deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
-					inode, name, mode, uid, gid, copysgid);
+			deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+					messageId, inode, name, mode, uid, gid, copysgid);
 		} else {
-			deserializeAllMooseFsPacketDataNoHeader(data, length, messageId,
-					inode, name, mode, uid, gid);
+			deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+					messageId, inode, name, mode, uid, gid);
 			copysgid = false;
 		}
 		umask = 0;
-	} else if (packetType == LIZ_CLTOMA_FUSE_MKDIR) {
-		cltoma::fuseMkdir::deserialize(data, length, messageId,
+	} else if (header.type == LIZ_CLTOMA_FUSE_MKDIR) {
+		cltoma::fuseMkdir::deserialize(data, header.length, messageId,
 				inode, name, mode, umask, uid, gid, copysgid);
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown packet type for matoclserv_fuse_mkdir: " + std::to_string(packetType));
+				"Unknown packet type for matoclserv_fuse_mkdir: " + std::to_string(header.type));
 	}
 	uint32_t auid = uid;
 	uint32_t agid = gid;
@@ -2158,11 +2154,11 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader::Type packetType,
 			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
 
 	MessageBuffer reply;
-	if (status == STATUS_OK && packetType == CLTOMA_FUSE_MKDIR) {
+	if (status == STATUS_OK && header.type == CLTOMA_FUSE_MKDIR) {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
-	} else if (status == STATUS_OK && packetType == LIZ_CLTOMA_FUSE_MKDIR) {
+	} else if (status == STATUS_OK && header.type == LIZ_CLTOMA_FUSE_MKDIR) {
 		matocl::fuseMkdir::serialize(reply, messageId, newinode, attr);
-	} else if (packetType == LIZ_CLTOMA_FUSE_MKDIR) {
+	} else if (header.type == LIZ_CLTOMA_FUSE_MKDIR) {
 		matocl::fuseMkdir::serialize(reply, messageId, status);
 	} else {
 		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, status);
@@ -2743,108 +2739,122 @@ void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matoclserv_fuse_getgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
+void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t inode;
 	uint32_t msgid;
-	GoalMap<uint32_t> fgtab, dgtab;
-	uint8_t i,fn,dn,gmode;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETGOAL - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	gmode = get8bit(&data);
-	status = fs_getgoal(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,fgtab,dgtab);
-	fn=0;
-	dn=0;
-	if (status==STATUS_OK) {
-		for (i=1 ; i<10 ; i++) {
-			if (fgtab[i]) {
-				fn++;
-			}
-			if (dgtab[i]) {
-				dn++;
-			}
-		}
-	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETGOAL,(status!=STATUS_OK)?5:6+5*(fn+dn));
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
+	uint8_t gmode;
+
+	if (header.type == CLTOMA_FUSE_GETGOAL) {
+		deserializeAllMooseFsPacketDataNoHeader(data, header.length, msgid, inode, gmode);
+	} else if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
+		cltoma::fuseGetGoal::deserialize(data, header.length, msgid, inode, gmode);
 	} else {
-		put8bit(&ptr,fn);
-		put8bit(&ptr,dn);
-		for (i=1 ; i<10 ; i++) {
-			if (fgtab[i]) {
-				put8bit(&ptr,i);
-				put32bit(&ptr,fgtab[i]);
+		throw IncorrectDeserializationException(
+				"Unknown packet type for matoclserv_fuse_getgoal: " + std::to_string(header.type));
+	}
+
+	GoalMap<uint32_t> fgtab, dgtab;
+	uint8_t status = fs_getgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
+			inode, gmode, fgtab, dgtab);
+
+	MessageBuffer reply;
+	if (status == STATUS_OK) {
+		GoalMap<Goal> goalDefinitions = fs_get_goal_definitions();
+		std::vector<FuseGetGoalStats> lizReply;
+		MooseFSVector<std::pair<uint8_t, uint32_t>> mooseFsReplyFiles, mooseFsReplyDirectories;
+		for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; goal++) {
+			if (fgtab[goal] || dgtab[goal]) {
+				lizReply.emplace_back(goalDefinitions[goal].name(), fgtab[goal], dgtab[goal]);
+			}
+			if (fgtab[goal] > 0) {
+				mooseFsReplyFiles.emplace_back(goal, fgtab[goal]);
+			}
+			if (dgtab[goal] > 0) {
+				mooseFsReplyDirectories.emplace_back(goal, dgtab[goal]);
 			}
 		}
-		for (i=1 ; i<10 ; i++) {
-			if (dgtab[i]) {
-				put8bit(&ptr,i);
-				put32bit(&ptr,dgtab[i]);
-			}
+		if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
+			matocl::fuseGetGoal::serialize(reply, msgid, lizReply);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_GETGOAL,
+					msgid,
+					uint8_t(mooseFsReplyFiles.size()),
+					uint8_t(mooseFsReplyDirectories.size()),
+					mooseFsReplyFiles,
+					mooseFsReplyDirectories);
+		}
+	} else {
+		if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
+			matocl::fuseGetGoal::serialize(reply, msgid, status);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_GETGOAL, msgid, status);
 		}
 	}
+	matoclserv_createpacket(eptr, std::move(reply));
 }
 
-void matoclserv_fuse_setgoal(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid;
-	uint32_t msgid;
-	uint8_t goal,smode;
-	uint32_t changed,notchanged,notpermitted;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=14) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETGOAL - wrong size (%" PRIu32 "/14)",length);
-		eptr->mode = KILL;
-		return;
+void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
+	uint32_t inode, uid, msgid;
+	uint8_t goalId, smode;
+	uint8_t status = STATUS_OK;
+
+	if (header.type == CLTOMA_FUSE_SETGOAL) {
+		deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+				msgid, inode, uid, goalId, smode);
+	} else if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
+		std::string goalName;
+		cltoma::fuseSetGoal::deserialize(data, header.length,
+				msgid, inode, uid, goalName, smode);
+		// find a proper goalId,
+		GoalMap<Goal> goalDefinitions = fs_get_goal_definitions();
+		bool goalFound = false;
+		for (goalId = goal::kMinGoal; goalId <= goal::kMaxGoal; goalId++) {
+			if (goalDefinitions[goalId].name() == goalName) {
+				goalFound = true;
+				break;
+			}
+		}
+		if (!goalFound) {
+			status = ERROR_EINVAL;
+		}
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown packet type for matoclserv_fuse_getgoal: " + std::to_string(header.type));
 	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	uid = get32bit(&data);
-	goal = get8bit(&data);
-	smode = get8bit(&data);
-// limits check
-	status = STATUS_OK;
-	switch (smode&SMODE_TMASK) {
-	case SMODE_SET:
-		if (goal<eptr->sesdata->mingoal || goal>eptr->sesdata->maxgoal) {
-			status = ERROR_EPERM;
-		}
-		break;
-	case SMODE_INCREASE:
-		if (goal>eptr->sesdata->maxgoal) {
-			status = ERROR_EPERM;
-		}
-		break;
-	case SMODE_DECREASE:
-		if (goal<eptr->sesdata->mingoal) {
-			status = ERROR_EPERM;
-		}
-		break;
+
+	uint8_t smodeType = smode & SMODE_TMASK;
+	if (status == STATUS_OK && smodeType != SMODE_INCREASE && goalId < eptr->sesdata->mingoal) {
+		status = ERROR_EPERM;
 	}
-	if (goal<1 || goal>9) {
+	if (status == STATUS_OK && smodeType != SMODE_DECREASE && goalId > eptr->sesdata->maxgoal) {
+		status = ERROR_EPERM;
+	}
+	if (status == STATUS_OK && !goal::isGoalValid(goalId)) {
 		status = ERROR_EINVAL;
 	}
-	if (status==STATUS_OK) {
-		status = fs_setgoal(matoclserv_get_context(eptr, uid, 0), inode, goal, smode,
+
+	uint32_t changed,notchanged,notpermitted;
+	if (status == STATUS_OK) {
+		status = fs_setgoal(matoclserv_get_context(eptr, uid, 0), inode, goalId, smode,
 				&changed, &notchanged, &notpermitted);
 	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETGOAL,(status!=STATUS_OK)?5:16);
-	put32bit(&ptr,msgid);
-	if (status!=STATUS_OK) {
-		put8bit(&ptr,status);
+
+	MessageBuffer reply;
+	if (status == STATUS_OK) {
+		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
+			matocl::fuseSetGoal::serialize(reply, msgid, changed, notchanged, notpermitted);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL,
+					msgid, changed, notchanged, notpermitted);
+		}
 	} else {
-		put32bit(&ptr,changed);
-		put32bit(&ptr,notchanged);
-		put32bit(&ptr,notpermitted);
+		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
+			matocl::fuseSetGoal::serialize(reply, msgid, status);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL, msgid, status);
+		}
 	}
+	matoclserv_createpacket(eptr, std::move(reply));
 }
 
 void matoclserv_fuse_geteattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -3594,11 +3604,11 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_MKNOD:
 				case LIZ_CLTOMA_FUSE_MKNOD:
-					matoclserv_fuse_mknod(eptr,type,data,length);
+					matoclserv_fuse_mknod(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_MKDIR:
 				case LIZ_CLTOMA_FUSE_MKDIR:
-					matoclserv_fuse_mkdir(eptr,type,data,length);
+					matoclserv_fuse_mkdir(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_UNLINK:
 					matoclserv_fuse_unlink(eptr,data,length);
@@ -3664,10 +3674,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_settrashtime(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_GETGOAL:
-					matoclserv_fuse_getgoal(eptr,data,length);
+				case LIZ_CLTOMA_FUSE_GETGOAL:
+					matoclserv_fuse_getgoal(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_SETGOAL:
-					matoclserv_fuse_setgoal(eptr,data,length);
+				case LIZ_CLTOMA_FUSE_SETGOAL:
+					matoclserv_fuse_setgoal(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_APPEND:
 					matoclserv_fuse_append(eptr,data,length);
@@ -3777,10 +3789,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_settrashtime(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_GETGOAL:
-					matoclserv_fuse_getgoal(eptr,data,length);
+					matoclserv_fuse_getgoal(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_SETGOAL:
-					matoclserv_fuse_setgoal(eptr,data,length);
+					matoclserv_fuse_setgoal(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_APPEND:
 					matoclserv_fuse_append(eptr,data,length);

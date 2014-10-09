@@ -32,6 +32,7 @@
 
 #include "common/cfg.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/md5.h"
@@ -836,8 +837,8 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	arec->meta = 0;
 	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
-	arec->mingoal = 1;
-	arec->maxgoal = 9;
+	arec->mingoal = goal::kMinGoal;
+	arec->maxgoal = goal::kMaxGoal;
 	arec->mintrashtime = 0;
 	arec->maxtrashtime = UINT32_C(0xFFFFFFFF);
 	arec->rootuid = 999;

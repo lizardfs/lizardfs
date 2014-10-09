@@ -668,105 +668,54 @@ int check_file(const char* fname) {
 	return 0;
 }
 
-int get_goal(const char *fname,uint8_t mode) {
-	uint8_t reqbuff[17],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode;
-	uint8_t fn,dn,i;
-	uint8_t goal;
-	uint32_t cnt;
-	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,0);
-	if (fd<0) {
+int get_goal(const char *fname, uint8_t mode) {
+	uint32_t inode;
+	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
+	if (fd < 0) {
 		return -1;
 	}
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_GETGOAL);
-	put32bit(&wptr,9);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,17)!=17) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_GETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng%5!=2) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	} else if (mode==GMODE_NORMAL && leng!=7) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	if (mode==GMODE_NORMAL) {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		goal = get8bit(&rptr);
-		cnt = get32bit(&rptr);
-		if ((fn!=0 || dn!=1) && (fn!=1 || dn!=0)) {
-			printf("%s: master query: wrong answer (fn,dn)\n",fname);
-			free(buff);
+	try {
+		ServerConnection connection(fd);
+		uint32_t messageId = 0;
+		MessageBuffer request;
+		cltoma::fuseGetGoal::serialize(request, messageId, inode, mode);
+		MessageBuffer response = connection.sendAndReceive(request, LIZ_MATOCL_FUSE_GETGOAL);
+
+		PacketVersion version;
+		std::vector<FuseGetGoalStats> goalsStats;
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseGetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetGoal::deserialize(response, messageId, status);
+			printf("%s\n", mfsstrerr(status));
 			return -1;
 		}
-		if (cnt!=1) {
-			printf("%s: master query: wrong answer (cnt)\n",fname);
-			free(buff);
-			return -1;
+		matocl::fuseGetGoal::deserialize(response, messageId, goalsStats);
+
+		if (mode == GMODE_NORMAL) {
+			if (goalsStats.size() != 1) {
+				printf("%s: master query: wrong answer (goalsStats.size != 1)\n", fname);
+				return -1;
+			}
+			printf("%s: %s\n", fname, goalsStats[0].goalName.c_str());
+		} else {
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.files > 0) {
+					printf(" files with goal        %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.files, 1, 0, 1);
+				}
+			}
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.directories > 0) {
+					printf(" directories with goal  %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.directories, 1, 0, 1);
+				}
+			}
 		}
-		printf("%s: %" PRIu8 "\n",fname,goal);
-	} else {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		printf("%s:\n",fname);
-		for (i=0 ; i<fn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" files with goal        %" PRIu8 " :",goal);
-			print_number(" ","\n",cnt,1,0,1);
-		}
-		for (i=0 ; i<dn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" directories with goal  %" PRIu8 " :",goal);
-			print_number(" ","\n",cnt,1,0,1);
-		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s", e.what());
+		return -1;
 	}
-	free(buff);
 	return 0;
 }
 
@@ -1016,84 +965,52 @@ int get_eattr(const char *fname,uint8_t mode) {
 	return 0;
 }
 
-int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
-	uint8_t reqbuff[22],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode,uid;
-	uint32_t changed,notchanged,notpermitted;
+int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
+	uint32_t inode;
 	int fd;
+	uint32_t messageId = 0;
+	uint32_t uid = getuid();
+
 	fd = open_master_conn(fname,&inode,NULL,0,1);
 	if (fd<0) {
 		return -1;
 	}
-	uid = getuid();
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_SETGOAL);
-	put32bit(&wptr,14);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put32bit(&wptr,uid);
-	put8bit(&wptr,goal);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,22)!=22) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_SETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng!=12 && leng!=16) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	changed = get32bit(&rptr);
-	notchanged = get32bit(&rptr);
-	notpermitted = get32bit(&rptr);
-	if ((mode&SMODE_RMASK)==0) {
-		if (changed || mode==SMODE_SET) {
-			printf("%s: %" PRIu8 "\n",fname,goal);
-		} else {
-			printf("%s: goal not changed\n",fname);
+	try {
+		ServerConnection connection(fd);
+		std::vector<uint8_t> serialized;
+		cltoma::fuseSetGoal::serialize(serialized, messageId, inode, uid, goal, mode);
+		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+				LIZ_MATOCL_FUSE_SETGOAL);
+		uint32_t changed;
+		uint32_t notChanged;
+		uint32_t notPermitted;
+		PacketVersion version;
+
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseSetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseSetGoal::deserialize(response, messageId, status);
+			printf("%s\n", mfsstrerr(status));
+			return -1;
 		}
-	} else {
-		printf("%s:\n",fname);
-		print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
-		print_number(" inodes with goal not changed:  ","\n",notchanged,1,0,1);
-		print_number(" inodes with permission denied: ","\n",notpermitted,1,0,1);
+		matocl::fuseSetGoal::deserialize(response, messageId, changed, notChanged, notPermitted);
+
+		if ((mode&SMODE_RMASK)==0) {
+			if (changed || mode==SMODE_SET) {
+				printf("%s: %s\n", fname, goal.c_str());
+			} else {
+				printf("%s: goal not changed\n",fname);
+			}
+		} else {
+			printf("%s:\n",fname);
+			print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
+			print_number(" inodes with goal not changed:  ","\n",notChanged,1,0,1);
+			print_number(" inodes with permission denied: ","\n",notPermitted,1,0,1);
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s", e.what());
+		return -1;
 	}
-	free(buff);
 	return 0;
 }
 
@@ -1878,9 +1795,9 @@ void usage(int f) {
 			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
-			fprintf(stderr," GOAL+ - increase goal to given value\n");
-			fprintf(stderr," GOAL- - decrease goal to given value\n");
-			fprintf(stderr," GOAL - just set goal to given value\n");
+			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
+			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
+			fprintf(stderr," GOAL - just set goal to given goal name\n");
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
@@ -2074,7 +1991,8 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
-	uint8_t eattr=0,goal=1,smode=SMODE_SET;
+	uint8_t eattr=0,smode=SMODE_SET;
+	std::string goal;
 	uint32_t trashtime=86400;
 	char *appendfname=NULL;
 	char *hrformat;
@@ -2238,17 +2156,13 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		if (f==MFSSETGOAL) {
-			char *p = argv[0];
-			if (p[0]>'0' && p[0]<='9' && (p[1]=='\0' || ((p[1]=='-' || p[1]=='+') && p[2]=='\0'))) {
-				goal = p[0]-'0';
-				if (p[1]=='-') {
-					smode=SMODE_DECREASE;
-				} else if (p[1]=='+') {
-					smode=SMODE_INCREASE;
-				}
-			} else {
-				fprintf(stderr,"goal should be given as a digit between 1 and 9 optionally folowed by '-' or '+'\n");
-				usage(f);
+			goal = argv[0];
+			if (!goal.empty() && goal.back() == '-') {
+				smode = SMODE_DECREASE;
+				goal.erase(goal.size() - 1);
+			} else if (!goal.empty() && goal.back() == '+') {
+				smode = SMODE_INCREASE;
+				goal.erase(goal.size() - 1);
 			}
 			argc--;
 			argv++;
