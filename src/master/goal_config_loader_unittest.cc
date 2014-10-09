@@ -39,11 +39,11 @@ TEST(GoalConfigLoaderTests, CorrectFile) {
 	);
 	GoalConfigLoader loader;
 	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
-	EXPECT_GOAL(loader, 1,  "tmp",       LABELS({"ssd"}));
-	EXPECT_GOAL(loader, 10, "fast",      LABELS({ANY, "ssd"}));
-	EXPECT_GOAL(loader, 11, "safe",      LABELS({ANY, "local", "overseas"}));
-	EXPECT_GOAL(loader, 12, "fast_safe", LABELS({"local", "ssd", "overseas"}));
-	EXPECT_GOAL(loader, 19, "blahbah",   LABELS({ANY, ANY, "hdd"}));
+	EXPECT_GOAL(loader, 1,  "tmp",       LABELS("ssd"));
+	EXPECT_GOAL(loader, 10, "fast",      LABELS(ANY, "ssd"));
+	EXPECT_GOAL(loader, 11, "safe",      LABELS(ANY, "local", "overseas"));
+	EXPECT_GOAL(loader, 12, "fast_safe", LABELS("local", "ssd", "overseas"));
+	EXPECT_GOAL(loader, 19, "blahbah",   LABELS(ANY, ANY, "hdd"));
 
 	#undef ANY
 }
