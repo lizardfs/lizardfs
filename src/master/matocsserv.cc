@@ -30,6 +30,8 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <algorithm>
+#include <set>
 
 #include "common/cfg.h"
 #include "common/datapack.h"
@@ -87,6 +89,7 @@ typedef struct matocsserventry {
 	struct matocsserventry *next;
 } matocsserventry;
 
+static const double kCarryThreshold = 1.;
 static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
@@ -532,10 +535,14 @@ uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uin
 }
 
 struct rservsort {
-  double w;
-  double carry;
-  matocsserventry *ptr;
+	double selectionFrequency;
+	double carry;
+	matocsserventry *ptr;
+	bool operator<(const rservsort &r) const {
+		return carry < r.carry;
+	}
 };
+
 int matocsserv_carry_compare(const void *a,const void *b) {
  const rservsort *aa=(const rservsort*)a, *bb=(const rservsort*)b;
 	if (aa->carry > bb->carry) {
@@ -547,49 +554,58 @@ int matocsserv_carry_compare(const void *a,const void *b) {
 	return 0;
 }
 
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65536],uint16_t demand) {
-  rservsort servtab[65536];
+std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t desiredGoal) {
+	std::vector<matocsserventry*> ret;
 	matocsserventry *eptr;
-	double carry;
-	uint32_t i;
-	uint32_t allcnt;
-	uint32_t availcnt;
-	if (maxtotalspace==0) {
-		return 0;
+	if (maxtotalspace == 0) {
+		return ret;
 	}
-	allcnt=0;
-	availcnt=0;
-	for (eptr = matocsservhead ; eptr && allcnt<65536 ; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>MFSCHUNKSIZE) {
-			servtab[allcnt].w = (double)eptr->totalspace/(double)maxtotalspace;
-			servtab[allcnt].carry = eptr->carry;
-			servtab[allcnt].ptr = eptr;
-			allcnt++;
-			if (eptr->carry>=1.0) {
-				availcnt++;
-			}
+
+	std::vector<rservsort> availableServers;
+	for (eptr = matocsservhead; eptr && availableServers.size() < 65536; eptr = eptr->next) {
+		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
+				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
+			rservsort serv;
+			serv.selectionFrequency = (double)eptr->totalspace / (double)maxtotalspace;
+			serv.carry = eptr->carry;
+			serv.ptr = eptr;
+			availableServers.push_back(serv);
 		}
 	}
-	if (demand>allcnt) {
-		demand=allcnt;
+
+	// Check if it is possible to create requested chunk
+	if (availableServers.empty()) {
+		// Nothing can be done, chunk won't be created
+		return ret;
 	}
-	while (availcnt<demand) {
-		availcnt=0;
-		for (i=0 ; i<allcnt ; i++) {
-			carry = servtab[i].carry + servtab[i].w;
-			servtab[i].carry = carry;
-			servtab[i].ptr->carry = carry;
-			if (carry>=1.0) {
-				availcnt++;
+	uint32_t chunksToBeCreated = std::min<std::size_t>(availableServers.size(), desiredGoal);
+
+	// Choose servers to be used to store new chunks.
+	std::vector<rservsort> chosenServers;
+	std::set<size_t> chosenServersIds;
+	while (chosenServers.size() < chunksToBeCreated) {
+		for (size_t i = 0; i < availableServers.size(); i++) {
+			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
+			if ((chosenServersIds.count(i)) == 0 && (carry > kCarryThreshold)) {
+				chosenServers.push_back(availableServers[i]);
+				carry -= kCarryThreshold;
+				chosenServersIds.insert(i);
 			}
+			availableServers[i].carry = carry;
+			availableServers[i].ptr->carry = carry;
 		}
 	}
-	qsort(servtab,allcnt,sizeof(struct rservsort),matocsserv_carry_compare);
-	for (i=0 ; i<demand ; i++) {
-		ptrs[i] = servtab[i].ptr;
-		servtab[i].ptr->carry-=1.0;
+	std::sort(chosenServers.rbegin(), chosenServers.rend());
+	// After loops above more then chunksToBeCreated servers might have been found, let's
+	// correct carry values for those that won't be used
+	for (size_t i = chunksToBeCreated; i < chosenServers.size(); i++) {
+		chosenServers[i].ptr->carry += kCarryThreshold;
 	}
-	return demand;
+
+	for (size_t i = 0; i < chunksToBeCreated; i++) {
+		ret.push_back(chosenServers[i].ptr);
+	}
+	return ret;
 }
 
 uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit) {

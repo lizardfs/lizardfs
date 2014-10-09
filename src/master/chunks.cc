@@ -876,13 +876,11 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 		uint8_t *opflag, uint64_t *nchunkid) {
 	chunk *c = NULL;
 	if (ochunkid == 0) { // new chunk
-		uint16_t servcount = 0;
-		void* ptrs[65536];
 		if (quota_exceeded) {
 			return ERROR_QUOTA;
 		}
-		servcount = matocsserv_getservers_wrandom(ptrs,goal);
-		if (servcount==0) {
+		auto servers = matocsserv_getservers_for_new_chunk(goal);
+		if (servers.empty()) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
@@ -896,8 +894,8 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 		c->interrupted = 0;
 		c->operation = CREATE;
 		chunk_add_file_int(c,goal);
-		for (uint32_t i = 0; i < servcount; i++) {
-			slist *s = c->addCopyNoStatsUpdate(ptrs[i], BUSY, c->version);
+		for (uint32_t i = 0; i < servers.size(); i++) {
+			slist *s = c->addCopyNoStatsUpdate(servers[i], BUSY, c->version);
 			matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
 		}
 		c->updateStats();
