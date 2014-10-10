@@ -76,7 +76,7 @@ enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
 struct slist {
-	void *ptr;
+	matocsserventry *ptr;
 	uint8_t valid;
 	uint32_t version;
 	slist *next;
@@ -142,8 +142,8 @@ struct slist {
 };
 
 #ifndef METARESTORE
-static std::vector<void*> zombieServersHandledInThisLoop;
-static std::vector<void*> zombieServersToBeHandledInNextLoop;
+static std::vector<matocsserventry*> zombieServersHandledInThisLoop;
+static std::vector<matocsserventry*> zombieServersToBeHandledInNextLoop;
 #endif // METARESTORE
 
 #define SLIST_BUCKET_SIZE 5000
@@ -294,7 +294,7 @@ public:
 		updateStats();
 	}
 
-	slist* addCopyNoStatsUpdate(void *ptr, uint8_t valid, uint32_t version) {
+	slist* addCopyNoStatsUpdate(matocsserventry *ptr, uint8_t valid, uint32_t version) {
 		slist *s = slist_malloc();
 		s->ptr = ptr;
 		s->valid = valid;
@@ -304,7 +304,7 @@ public:
 		return s;
 	}
 
-	slist* addCopy(void *ptr, uint8_t valid, uint32_t version) {
+	slist* addCopy(matocsserventry *ptr, uint8_t valid, uint32_t version) {
 		slist *s = addCopyNoStatsUpdate(ptr, valid, version);
 		updateStats();
 		return s;
@@ -645,7 +645,7 @@ void chunk_emergency_increase_version(chunk *c) {
 	chunk_update_checksum(c);
 }
 
-bool chunk_server_is_disconnected(void* ptr) {
+bool chunk_server_is_disconnected(matocsserventry* ptr) {
 	for (auto zombies : {&zombieServersHandledInThisLoop, &zombieServersToBeHandledInNextLoop}) {
 		if (std::find(zombies->begin(), zombies->end(), ptr) != zombies->end()) {
 			return true;
@@ -1221,7 +1221,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	return STATUS_OK;
 }
 
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
+void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	slist *s;
 	const uint32_t new_version = version & 0x7FFFFFFF;
@@ -1282,7 +1282,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	s = c->addCopy(ptr, state, new_version);
 }
 
-void chunk_damaged(void *ptr,uint64_t chunkid) {
+void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
@@ -1304,7 +1304,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	c->needverincrease=1;
 }
 
-void chunk_lost(void *ptr,uint64_t chunkid) {
+void chunk_lost(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
 	slist **sptr,*s;
 	c = chunk_find(chunkid);
@@ -1322,7 +1322,7 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 	}
 }
 
-void chunk_server_disconnected(void *ptr) {
+void chunk_server_disconnected(matocsserventry *ptr) {
 	zombieServersToBeHandledInNextLoop.push_back(ptr);
 	if (zombieServersHandledInThisLoop.empty()) {
 		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
@@ -1368,7 +1368,7 @@ int chunk_canexit(void) {
 	return 1;
 }
 
-void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	slist *s,**st;
 	c = chunk_find(chunkid);
@@ -1392,7 +1392,7 @@ void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	}
 }
 
-void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
+void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
@@ -1417,7 +1417,7 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 }
 
 
-void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
+void chunk_operation_status(chunk *c,uint8_t status,matocsserventry *ptr) {
 	slist *s;
 	uint8_t valid_copies = 0;
 	bool any_copy_busy = false;
@@ -1451,7 +1451,7 @@ void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 	}
 }
 
-void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1460,7 +1460,7 @@ void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_create_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1469,7 +1469,7 @@ void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duplicate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1478,7 +1478,7 @@ void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_setversion_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1487,7 +1487,7 @@ void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_truncate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1496,7 +1496,7 @@ void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duptrunc_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1535,7 +1535,7 @@ public:
 	void doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage);
 
 private:
-	bool tryReplication(chunk *c, void *destinationServer);
+	bool tryReplication(chunk *c, matocsserventry *destinationServer);
 
 	/// Number of entries in servers_ or 0 if not filled
 	uint16_t serverCount_;
@@ -1549,7 +1549,7 @@ private:
 	uint32_t serverMin_, serverMax_;
 
 	/// Servers ordered properly (roughly -- sorted by disk usage)
-	void* servers_[65536];
+	matocsserventry* servers_[65536];
 
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
@@ -1606,7 +1606,7 @@ void ChunkWorker::doEverySecondTasks() {
 	serverCount_ = 0;
 }
 
-static bool chunkPresentOnServer(chunk *c, void *server) {
+static bool chunkPresentOnServer(chunk *c, matocsserventry *server) {
 	for (slist *s = c->slisthead ; s ; s = s->next) {
 		if (s->ptr == server) {
 			return true;
@@ -1775,7 +1775,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	//step 8. if chunk has number of copies less than goal then make another copy of this chunk
 	if (c->expectedCopies() > vc && vc+tdc > 0) {
 		if (jobsnorepbefore<(uint32_t)main_time()) {
-			static void* rptrs[65536];
+			static matocsserventry* rptrs[65536];
 			uint32_t rgvc,rgtdc;
 			uint32_t rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
 			rgvc=0;
@@ -1795,7 +1795,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
 					if (!s) {
 						uint32_t r;
-						void *srcptr;
+						matocsserventry *srcptr;
 						if (rgvc>0) { // if there are VALID copies then make copy of one VALID chunk
 							r = 1+rndu32_ranged(rgvc);
 							srcptr = NULL;
@@ -1843,11 +1843,11 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 					AcceptableDifference / 2.0, &serverMin_, &serverMin_);
 		}
 		if (serverMin_ > 0 || serverMin_ > 0) {
-			void *srcserv=NULL;
-			void *dstserv=NULL;
+			matocsserventry *srcserv=NULL;
+			matocsserventry *dstserv=NULL;
 			uint32_t loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
 			for (uint32_t i = 0; i < loopTo && srcserv == NULL; i++) {
-				void* server = servers_[serverCount_ - 1 - i];
+				matocsserventry* server = servers_[serverCount_ - 1 - i];
 				if (matocsserv_replication_read_counter(server) < MaxReadRepl) {
 					for (slist *s = c->slisthead; s; s = s->next) {
 						if (s->ptr == server && (s->valid == VALID || s->valid==TDVALID)) {

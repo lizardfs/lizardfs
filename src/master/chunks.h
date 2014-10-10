@@ -25,6 +25,8 @@
 
 #include "master/checksum.h"
 
+struct matocsserventry;
+
 int chunk_increase_version(uint64_t chunkid);
 int chunk_set_version(uint64_t chunkid,uint32_t version);
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
@@ -58,21 +60,21 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version);
-void chunk_damaged(void *ptr,uint64_t chunkid);
-void chunk_lost(void *ptr,uint64_t chunkid);
-void chunk_server_disconnected(void *ptr);
+void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version);
+void chunk_damaged(matocsserventry *ptr,uint64_t chunkid);
+void chunk_lost(matocsserventry *ptr,uint64_t chunkid);
+void chunk_server_disconnected(matocsserventry *ptr);
 
-void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint8_t status);
+void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status);
 
-void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
 
-void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_create_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_duplicate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_setversion_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_truncate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_duptrunc_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
 
 #endif
 
