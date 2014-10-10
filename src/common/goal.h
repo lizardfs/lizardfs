@@ -1,9 +1,10 @@
 #pragma once
 #include "common/platform.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <map>
 #include <string>
-#include <vector>
 
 #include "common/media_label.h"
 
@@ -20,19 +21,23 @@ inline bool isGoalValid(uint8_t goal) {
 } // namespace goal
 
 /// A class which represents a description of a goal.
-struct Goal {
+class Goal {
+public:
+	typedef std::map<MediaLabel, int> Labels;
 	/// A default constructor.
-	Goal() {}
+	Goal() : size_(0) {}
 
 	/// Constructor.
-	Goal(std::string name, std::vector<MediaLabel> labels)
-			: name(std::move(name)),
-			  labels(std::move(labels)) {
+	Goal(std::string name, Labels labels)
+			: name_(std::move(name)),
+			  labels_(std::move(labels)),
+			  size_(std::accumulate(labels_.begin(), labels_.end(), 0,
+				      [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
 	}
 
 	/// Number of labels in this goal.
 	uint32_t getExpectedCopies() const {
-		return labels.size();
+		return size_;
 	}
 
 	/// Verifies names of goals.
@@ -41,9 +46,21 @@ struct Goal {
 		return isMediaLabelValid(goalName);
 	}
 
+	/// Get labels of this goal object.
+	const Labels& labels() const {
+		return labels_;
+	}
+
+	/// Get name of this goal.
+	const std::string& name() const {
+		return name_;
+	}
+
+private:
 	/// Name of the goal.
-	std::string name;
+	std::string name_;
 
 	/// For each desired copy, a label of media, where it should be stored.
-	std::vector<MediaLabel> labels;
+	Labels labels_;
+	int size_;
 };

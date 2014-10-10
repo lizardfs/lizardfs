@@ -1412,8 +1412,7 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 			return;
 		}
 	}
-	const uint8_t state = (c->isLocked() || version != c->version) ?
-			INVALID : VALID;
+	const uint8_t state = (c->isLocked() || version != c->version) ? INVALID : VALID;
 	s = c->addCopy(ptr, state, version);
 }
 

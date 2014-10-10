@@ -9,8 +9,18 @@
 // Helper macros to test the loader
 #define LABELS(...) (std::vector<MediaLabel>({__VA_ARGS__}))
 #define EXPECT_GOAL(loader, expected_id, expected_name, expected_labels) \
-	EXPECT_EQ(expected_name, loader.goals()[expected_id].name); \
-	EXPECT_EQ(expected_labels, loader.goals()[expected_id].labels);
+	EXPECT_EQ(expected_name, loader.goals()[expected_id].name()); \
+	EXPECT_EQ(ExpectedLabels(expected_labels), loader.goals()[expected_id].labels()); \
+	EXPECT_EQ(expected_labels.size(), loader.goals()[expected_id].getExpectedCopies());
+
+
+Goal::Labels ExpectedLabels(const std::vector<MediaLabel>& tokens) {
+	Goal::Labels labels;
+	for (const auto& token : tokens) {
+		++labels[token];
+	}
+	return labels;
+}
 
 TEST(GoalConfigLoaderTests, Defaults) {
 	GoalConfigLoader loader;
