@@ -184,6 +184,9 @@ create_mfsmaster_master_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
+	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
+		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
+	fi
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
@@ -201,6 +204,9 @@ create_mfsmaster_shadow_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
+	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
+		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
+	fi
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
 	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
@@ -235,6 +241,10 @@ lizardfs_current_master_id() {
 prepare_common_metadata_server_files_() {
 	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
 	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
+	if [[ ${MASTER_CUSTOM_GOALS:-} ]]; then
+		echo "$MASTER_CUSTOM_GOALS" | tr '|' '\n' > "$etcdir/goals.cfg"
+		lizardfs_info_[master_custom_goals]="$etcdir/goals.cfg"
+	fi
 	get_next_port_number "lizardfs_info_[matoml]"
 	get_next_port_number "lizardfs_info_[matocl]"
 	get_next_port_number "lizardfs_info_[matocs]"

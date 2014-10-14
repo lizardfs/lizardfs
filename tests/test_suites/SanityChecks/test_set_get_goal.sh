@@ -1,11 +1,6 @@
-cat > "$TEMP_DIR/goalconf" <<END
- 8 X:  _ _ _ trash
-14 bettergoal: _ _ _ trash trash
-END
-
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MASTER_EXTRA_CONFIG="CUSTOM_GOALS_FILENAME=$TEMP_DIR/goalconf"
+	MASTER_CUSTOM_GOALS="8 X:  _ _ _ trash|14 bettergoal: _ _ _ trash trash" \
 	setup_local_empty_lizardfs info
 
 # Test set/get goal of a directory for all possible goals
