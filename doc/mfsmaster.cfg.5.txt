@@ -63,6 +63,9 @@ alternative name of *mfsexports.cfg* file
 *TOPOLOGY_FILENAME*::
 alternative name of *mfstopology.cfg* file
 
+*CUSTOM_GOALS_FILENAME*::
+alternative name of *mfsgoals.cfg* file
+
 *BACK_LOGS*::
 number of metadata change log files (default is 50)
 

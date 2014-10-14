@@ -126,6 +126,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,mfs,mfs) %{_localstatedir}/mfs
 %{_mandir}/man5/mfsexports.cfg.5*
 %{_mandir}/man5/mfstopology.cfg.5*
+%{_mandir}/man5/mfsgoals.cfg.5*
 %{_mandir}/man5/mfsmaster.cfg.5*
 %{_mandir}/man5/globaliolimits.cfg.5*
 %{_mandir}/man7/mfs.7*

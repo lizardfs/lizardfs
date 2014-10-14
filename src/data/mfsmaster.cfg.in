@@ -9,6 +9,8 @@
 
 # TOPOLOGY_FILENAME = @ETC_PATH@/mfs/mfstopology.cfg
 
+# CUSTOM_GOALS_FILENAME = @ETC_PATH@/mfs/mfsgoals.cfg
+
 # DATA_PATH = @DATA_PATH@
 # AUTO_RECOVERY = 0
 

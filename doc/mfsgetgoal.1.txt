@@ -14,18 +14,15 @@ mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
 *mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] N[*+*|*-*] 'OBJECT'...
+*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] GOAL_NAME[*+*|*-*] 'OBJECT'...
 
 [verse]
-*mfsrsetgoal* [*-n*|*-h*|*-H*] N[*+*|*-*] 'OBJECT'...
+*mfsrsetgoal* [*-n*|*-h*|*-H*] GOAL_NAME[*+*|*-*] 'OBJECT'...
 
 == DESCRIPTION
 
-*mfsgetgoal* and *mfssetgoal* operate on object's 'goal' value, i.e. the number of copies in which
-all file data are stored. It means that file should survive failure of one less chunkservers than
-its 'goal' value. 'Goal' must be set between 1 and 9 (note that 1 is strongly unadvised).
-*mfsgetgoal* prints current 'goal' value of given object(s). These tools can be used on any file,
-directory or deleted ('trash') file.
+*mfsgetgoal* and *mfssetgoal* operate on object's replication 'goals', see
+mfsgoals.cfg(5). These tools can be used on any file, directory or deleted ('trash') file.
 
 == OPTIONS
 
@@ -33,11 +30,12 @@ directory or deleted ('trash') file.
 This option enables recursive mode, which works as usual for every given file, but for every given
 directory additionally prints current value of all contained objects (files and directories).
 
-'N'\[*+*|*-*]::
-*mfssetgoal* changes current 'goal' value of given object(s). If new value is specified in 'N'*+*
-form, 'goal' value is increased to 'N' for objects with lower 'goal' value and unchanged for
-the rest. Similarly, if new value is specified as 'N'*-*, 'goal' value is decreased to 'N' for
-objects with higher 'goal' value and unchanged for the rest.
+'GOAL_NAME'[*+*|*-*]::
+*mfssetgoal* changes current 'goal' of given object(s). If new value is specified in 'GOAL_NAME'*+*
+form, 'goal' is changed to 'GOAL_NAME' for objects whose goals have lower 'goal id' than 'GOAL_NAME'
+and is unchanged for the rest.
+Similarly, if new value is specified as 'GOAL_NAME'*-*, 'goal' is changed to 'GOAL_NAME' for objects
+with higher goal id and unchanged for the rest.
 
 *-n*, *-h*, *-H*::
 These options are described in mfstools(1).

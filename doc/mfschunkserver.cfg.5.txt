@@ -26,6 +26,9 @@ where to store metadata files and daemon lock file
 *LOCK_FILE*::
 (deprecated) daemon lock/pid file
 
+*LABEL*::
+the label of this chunkserver (for tiering)
+
 *WORKING_USER*::
 user to run daemon as
 
