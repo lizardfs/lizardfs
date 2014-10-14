@@ -8236,6 +8236,36 @@ void fs_become_master() {
 	return;
 }
 
+static void fs_read_goals_from_stream(std::istream&& stream) {
+	GoalConfigLoader loader;
+	loader.load(std::move(stream));
+	gGoalDefinitions = loader.goals();
+}
+
+static void fs_read_goal_config_file() {
+	std::string goalConfigFile =
+			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
+	if (goalConfigFile.empty()) {
+		// file is not specified
+		const char *defaultGoalConfigFile = ETC_PATH "/mfs/mfsgoals.mfs";
+		if (access(defaultGoalConfigFile, F_OK) == 0) {
+			// the default file exists - use it
+			goalConfigFile = defaultGoalConfigFile;
+		} else {
+			mfs_syslog(LOG_INFO, "No custom goal configuration file specified and "
+					"the default file doesn't exist - using builtin defaults");
+			fs_read_goals_from_stream(std::stringstream()); // empty means defaults
+			return;
+		}
+	}
+	mfs_arg_syslog(LOG_INFO, "Using goal configuration from %s", goalConfigFile.c_str());
+	std::ifstream goalConfigStream(goalConfigFile);
+	if (!goalConfigStream.good()) {
+		throw ConfigurationException("failed to open " + goalConfigFile);
+	}
+	fs_read_goals_from_stream(std::move(goalConfigStream));
+}
+
 static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
@@ -8253,19 +8283,11 @@ static void fs_read_config_file() {
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
 
-	std::string goalConfigFile =
-			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
-	GoalConfigLoader loader;
-	if (goalConfigFile.empty()) {
-		loader.load(std::stringstream("")); // empty file -- loader creates a default configuration
-	} else {
-		try {
-			loader.load(std::ifstream(goalConfigFile)); // may throw!
-		} catch (Exception& ex) {
-			throw ConfigurationException("reading " + goalConfigFile + ": " + ex.what());
-		}
+	try {
+		fs_read_goal_config_file();
+	} catch (Exception& ex) {
+		throw ConfigurationException(std::string("reading goal config: ") + ex.what());
 	}
-	gGoalDefinitions = loader.goals();
 }
 
 void fs_reload(void) {

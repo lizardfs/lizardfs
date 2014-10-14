@@ -91,6 +91,10 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		result[goalId] = Goal(goalName, std::move(labels));
 	}
 
+	if (stream.bad()) {
+		throw ParseException("I/O error");
+	}
+
 	// Fill all other valid goals with default values
 	for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
 		if (result[goal].name().empty()) {
