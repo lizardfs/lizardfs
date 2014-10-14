@@ -1620,6 +1620,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
+	const Goal::Labels& excpectedCopies = fs_get_goal_definitions()[c->goal()].labels();
+	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
 		switch (s->valid) {
@@ -1630,6 +1632,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			tdc++;
 			break;
 		case VALID:
+			++validCopies[matocsserv_get_label(s->ptr)];
 			vc++;
 			break;
 		case TDBUSY:
@@ -1709,10 +1712,120 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return ;
 	}
 
-	// step 7a. if chunk has too many copies and some of them have status TODEL then delete them
-	/* GONE */
+	if (vc + tdc == 0) {
+		return;
+	}
 
-	// step 7b. if chunk has too many copies then delete some of them
+	// step 7. check if chunk needs any replication
+
+	// First, order labels assigned to the goal of the current chunk in a way that wildcard is
+	// the last one. This would prevent us from making a copy on a random servers (which is
+	// determined by wildcards) before making sure that we have enough copies on servers required
+	// by other labels in the goal.
+	bool triedToReplicate = false;
+	std::vector<std::reference_wrapper<const Goal::Labels::value_type>> labelsAndExpectedCopies(
+			excpectedCopies.begin(), excpectedCopies.end());
+	std::partition(labelsAndExpectedCopies.begin(), labelsAndExpectedCopies.end(),
+			[](const Goal::Labels::value_type& labelGoal) {
+				return labelGoal.first != kMediaLabelWildcard;
+			}
+	);
+
+	// Sometimes we will be temporary unable (due to replication limits) to make a copy on a server
+	// pointed by some label. We will count how many non-wildcard copies we have skipped because of
+	// this fact to determine how many wildcard copies we can create -- we don't want to create
+	// a copy on a random server because some required server was temporary overloaded.
+	uint32_t skippedReplications = 0;
+
+	// Now, analyze the goal label by label.
+	for (const auto& labelAndExpectedCopies : labelsAndExpectedCopies) {
+		const MediaLabel& label = labelAndExpectedCopies.get().first;
+		int expectedCopiesForLabel = labelAndExpectedCopies.get().second;
+
+		// First, determine if we need more copies for the current label.
+		// For each non-wildcard label we need the number of valid copies determined by the goal.
+		// For the wildcard label we will create copies on any servers until we have exactly
+		// 'c->expectedCopies()' valid copies.
+		int missingCopiesForLabel;
+		if (label == kMediaLabelWildcard) {
+			missingCopiesForLabel = c->expectedCopies() - (vc + skippedReplications);
+		} else {
+			missingCopiesForLabel = expectedCopiesForLabel - validCopies[label];
+		}
+		if (missingCopiesForLabel <= 0) {
+			// No replication is needed for the current label, go to the next one
+			continue;
+		}
+		triedToReplicate = true;
+
+		// After setting triedToReplicate we can verify this condition
+		if (jobsnorepbefore >= main_time()) {
+			break;
+		}
+
+		// Get a list of possible destination servers
+		static matocsserventry* servers[65536];
+		uint16_t totalMatching = 0;
+		uint16_t returnedMatching = 0;
+		uint32_t destinationCount = matocsserv_getservers_lessrepl(label, MaxWriteRepl,
+				servers, &totalMatching, &returnedMatching);
+		if (label != kMediaLabelWildcard && totalMatching > returnedMatching) {
+			// There is a server which matches the current label, but it has exceeded the
+			// replication limit. In this case we won't try to use servers with non-matching
+			// labels as our destination -- we will wait for that server to be ready.
+			destinationCount = returnedMatching;
+		}
+
+		// Find a destination server for replication -- the first one without a copy of 'c'
+		matocsserventry *destination = nullptr;
+		for (uint32_t i = 0; i < destinationCount; i++) {
+			if (!chunkPresentOnServer(c, servers[i])) {
+				destination = servers[i];
+				break;
+			}
+		}
+		if (destination == nullptr) {
+			// there is no server suitable for replication to be written to
+			skippedReplications += missingCopiesForLabel;
+			continue;
+		}
+
+		// Find a source server. Prefer VALID over TDVALID copies.
+		uint8_t typeOfSources = TDVALID;
+		uint16_t availableSources = 0;
+		for (slist *s = c->slisthead; s; s = s->next) {
+			if (matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+				continue;
+			}
+			if (s->valid == VALID && typeOfSources == TDVALID) {
+				// We have found a VALID source, so let's remove all TDVALID (if any) from servers
+				typeOfSources = VALID;
+				availableSources = 0;
+			}
+			if (s->valid == typeOfSources) {
+				servers[availableSources++] = s->ptr;
+			}
+		}
+		if (availableSources == 0) {
+			// There is no server suitable for replication to be read from
+			skippedReplications += missingCopiesForLabel;
+			break; // there's no need to analyze other labels if there's no free source server
+		}
+		matocsserventry *source = servers[rndu32_ranged(availableSources)];
+
+		// Initialize the replication
+		stats_replications++;
+		matocsserv_send_replicatechunk(destination, c->chunkid, c->version, source);
+		c->needverincrease = 1;
+		inforec_.done.copy_undergoal++;
+		return;
+	}
+	if (triedToReplicate) {
+		inforec_.notdone.copy_undergoal++;
+		return; // Don't go to the next step (= don't delete any copies) for undergoal chunks
+	}
+
+	// step 8. if chunk has too many copies then delete some of them
 	if (vc > c->expectedCopies()) {
 		const uint32_t overgoalCopies = vc - c->expectedCopies();
 		uint32_t toRemove = overgoalCopies;
@@ -1725,6 +1838,18 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			for (slist *s = c->slisthead; s; s = s->next) {
 				if (s->ptr != servers_[serverCount_ - 1 - i] || s->valid != VALID) {
 					continue;
+				}
+				const MediaLabel& csLabel = matocsserv_get_label(s->ptr);
+				/*
+				 * If current chunkserver has non-wildcard label
+				 * and this label is in this chunk goal
+				 * and this chunk does not have overgoal on this label
+				 * then skip processing this chunkserver.
+				 */
+				if (csLabel != kMediaLabelWildcard
+						&& excpectedCopies.count(csLabel)
+						&& validCopies[csLabel] <= excpectedCopies.at(csLabel)) {
+					break;
 				}
 				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
 					break;
@@ -1746,7 +1871,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
+	// step 9. if chunk has one copy on each server and some of them have status TODEL then delete one of it
 	if (vc+tdc>=serverCount && vc<c->expectedCopies() && tdc>0 && vc+tdc>1) {
 		uint8_t prevdone;
 		prevdone = 0;
@@ -1769,71 +1894,12 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-	//step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	if (c->expectedCopies() > vc && vc+tdc > 0) {
-		if (jobsnorepbefore<(uint32_t)main_time()) {
-			static matocsserventry* rptrs[65536];
-			uint32_t rgvc,rgtdc;
-			uint32_t rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
-			rgvc=0;
-			rgtdc=0;
-			for (slist *s = c->slisthead; s; s = s->next) {
-				if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl) {
-					if (s->valid==VALID) {
-						rgvc++;
-					} else if (s->valid==TDVALID) {
-						rgtdc++;
-					}
-				}
-			}
-			if (rgvc+rgtdc>0 && rservcount>0) { // have at least one server to read from and at least one to write to
-				for (uint32_t i=0 ; i<rservcount ; i++) {
-					slist *s;
-					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
-					if (!s) {
-						uint32_t r;
-						matocsserventry *srcptr;
-						if (rgvc>0) { // if there are VALID copies then make copy of one VALID chunk
-							r = 1+rndu32_ranged(rgvc);
-							srcptr = NULL;
-							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						} else { // if not then use TDVALID chunks.
-							r = 1+rndu32_ranged(rgtdc);
-							srcptr = NULL;
-							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						}
-						if (srcptr) {
-							stats_replications++;
-							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
-							c->needverincrease=1;
-							inforec_.done.copy_undergoal++;
-							return;
-						}
-					}
-				}
-			}
-		}
-		inforec_.notdone.copy_undergoal++;
-	}
-
-	// step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	/* GONE */
-
 	if (chunksinfo.notdone.copy_undergoal>0 && chunksinfo.done.copy_undergoal>0) {
 		return;
 	}
 
-	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
+	// step 10. if there is too big difference between chunkservers then make copy of chunk from
+	// server with biggest disk usage on server with lowest disk usage
 	if (c->expectedCopies() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(servers_,

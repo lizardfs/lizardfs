@@ -23,7 +23,34 @@
 #include <inttypes.h>
 #include <vector>
 
+#include "common/media_label.h"
+
+/// A struct representing a chunkserver.
 struct matocsserventry;
+
+/// A list of chunkservers.
+typedef std::vector<matocsserventry*> Chunkservers;
+
+/*! \brief Get list of chunkservers for replication with the given label.
+ *
+ * This function returns a list of chunkservers that currently don't exceed the given limit of
+ * chunks replicated into them. Servers with 99% disk usage are treated as non-existing, thus not
+ * returned. The returned servers are randomly shuffled, but if the \p label is not a
+ * \p kMediaLabelWildcard, then servers with this label would be placed in front of the returned
+ * list and \p returnedMatching would be set to the number of them.
+ *
+ * \param label - the requested label.
+ * \param replicationWriteLimit - return only chunkservers with fewer ongoing replicatons.
+ * \param servers[out] - list of chunkservers for replication.
+ * \param totalMatching[out] - number of existing chunkservers that matched the requested label.
+ * \param returnedMatching[out] - number of returned chunkservers that matched the requested label.
+ * \return Number of valid entries in \p servers.
+ */
+uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching);
+
+/*! \brief Get chunkserver's label. */
+const MediaLabel& matocsserv_get_label(matocsserventry* e);
 
 int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
 void matocsserv_remove_server(matocsserventry* ptr);
@@ -31,8 +58,7 @@ void matocsserv_usagedifference(double* minusage, double* maxusage,
 		uint16_t* usablescount, uint16_t* totalscount);
 uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],
 		double maxusagediff, uint32_t* min, uint32_t* max);
-std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
-uint16_t matocsserv_getservers_lessrepl(matocsserventry* ptrs[65535], uint16_t replimit);
+Chunkservers matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
 int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport);

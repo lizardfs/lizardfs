@@ -475,47 +475,46 @@ void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usab
 	}
 }
 
-uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],double maxusagediff,uint32_t *pmin,uint32_t *pmax) {
+uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],
+		double maxusagediff, uint32_t* pmin, uint32_t* pmax) {
 	static servsort servsorttab[65535],servtab[65536];
-	matocsserventry *eptr;
-	uint32_t i,j,k,min,mid,max;
-	double minspace=1.0,maxspace=0.0;
-	uint64_t tspace,uspace;
-	double space;
+	struct SpaceInfo {
+		double min;
+		double max;
+		uint64_t total;
+		uint64_t used;
+		SpaceInfo() : min{1.0}, max{0.0}, total{0}, used{0} {}
+	};
+	typedef std::map<MediaLabel, SpaceInfo> LabeledSpaceInfo;
+	LabeledSpaceInfo labeledSpaceInfo;
 
-//      syslog(LOG_NOTICE,"getservers start");
-	j = 0;
-	tspace = 0;
-	uspace = 0;
-	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace) {
-			uspace += eptr->usedspace;
-			tspace += eptr->totalspace;
-			space = (double)(eptr->usedspace) / (double)(eptr->totalspace);
-			if (j==0) {
-				minspace = maxspace = space;
-			} else if (space<minspace) {
-				minspace = space;
-			} else if (space>maxspace) {
-				maxspace = space;
-			}
-			servtab[j].ptr = eptr;
-			servtab[j].space = space;
-//                      syslog(LOG_NOTICE,"ptr: %p, space:%f",eptr,space);
-			j++;
+	uint32_t serverCount = 0;
+	for (matocsserventry* eptr = matocsservhead ; eptr && serverCount<65535; eptr=eptr->next) {
+		if (eptr->mode!=KILL
+				&& eptr->totalspace>0
+				&& eptr->usedspace<=eptr->totalspace) {
+			SpaceInfo& spaceInfo = labeledSpaceInfo[eptr->label];
+			spaceInfo.used += eptr->usedspace;
+			spaceInfo.total += eptr->totalspace;
+			double space = (double)(eptr->usedspace) / (double)(eptr->totalspace);
+			spaceInfo.min = std::min(spaceInfo.min, space);
+			spaceInfo.max = std::max(spaceInfo.max, space);
+			servtab[serverCount].ptr = eptr;
+			servtab[serverCount].space = space;
+			serverCount++;
 		}
 	}
-	if (j==0) {
-//              syslog(LOG_NOTICE,"getservers - noservers");
+	if (serverCount==0) {
 		return 0;
 	}
 
-	space = (double)(uspace)/(double)(tspace);
-//      syslog(LOG_NOTICE,"getservers - minspace: %f , maxspace: %f , diff: %f , maxusagediff: %f",minspace,maxspace,maxspace-minspace,maxusagediff);
-	min = 0;
-	max = j;
-	mid = 0;
-	for (i=0 ; i<j ; i++) {
+	uint32_t min = 0;
+	uint32_t mid = 0;
+	uint32_t max = serverCount;
+
+	for (uint32_t i = 0; i < serverCount; i++) {
+		SpaceInfo& spaceInfo = labeledSpaceInfo[servtab[i].ptr->label];
+		double space = (double)(spaceInfo.used)/(double)(spaceInfo.total);
 		if (servtab[i].space<space-maxusagediff) {
 			ptrs[min++]=servtab[i].ptr;
 		} else if (servtab[i].space>space+maxusagediff) {
@@ -526,40 +525,25 @@ uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],double maxus
 	}
 
 	// random <0-min)
-	for (i=0 ; i<min ; i++) {
-		k = i+rndu32_ranged(min-i);
-		if (i!=k) {
-			matocsserventry* p = ptrs[i];
-			ptrs[i] = ptrs[k];
-			ptrs[k] = p;
-		}
-	}
+	std::random_shuffle(ptrs, ptrs + min);
 
-	// random <max-j)
-	for (i=max ; i<j ; i++) {
-		k = i+rndu32_ranged(j-i);
-		if (i!=k) {
-			matocsserventry* p = ptrs[i];
-			ptrs[i] = ptrs[k];
-			ptrs[k] = p;
-		}
-	}
+	// random <max-serverCount)
+	std::random_shuffle(ptrs + max, ptrs + serverCount);
 
 	// sort <min-max)
 	if (mid>0) {
 		qsort(servsorttab,mid,sizeof(struct servsort),matocsserv_space_compare);
 	}
-	for (i=0 ; i<mid ; i++) {
+	for (uint32_t i = 0; i < mid; i++) {
 		ptrs[min+i]=servsorttab[i].ptr;
 	}
 	if (pmin!=NULL) {
 		*pmin=min;
 	}
 	if (pmax!=NULL) {
-		*pmax=j-max;
+		*pmax=serverCount-max;
 	}
-//              syslog(LOG_NOTICE,"getservers <0-%" PRIu32 ") random ; <%" PRIu32 "-%" PRIu32 ") sort ; <%" PRIu32 "-END) random",min,min,max,max);
-	return j;
+	return serverCount;
 }
 
 std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId) {
@@ -640,29 +624,44 @@ std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId
 	return result;
 }
 
-uint16_t matocsserv_getservers_lessrepl(matocsserventry* ptrs[65535],uint16_t replimit) {
-	matocsserventry *eptr;
-	uint32_t j,k,r;
-	matocsserventry *x;
-	j=0;
-	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace && (eptr->totalspace - eptr->usedspace)>(eptr->totalspace/100) && eptr->wrepcounter<replimit) {
-			ptrs[j] = eptr;
-			j++;
+uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching) {
+	uint32_t serverCount = 0;
+	*totalMatching = 0;
+	*returnedMatching = 0;
+	for (matocsserventry* eptr = matocsservhead; eptr && serverCount < 65535; eptr = eptr->next) {
+		if (eptr->mode == KILL
+				|| eptr->totalspace == 0
+				|| eptr->usedspace > eptr->totalspace
+				|| (eptr->totalspace - eptr->usedspace) <= (eptr->totalspace / 100)) {
+			// Skip full and disconnected chunkservers
+			continue;
+		}
+		bool matchesRequestedLabel = false;
+		if (label != kMediaLabelWildcard && eptr->label == label) {
+			++(*totalMatching);
+			matchesRequestedLabel = true;
+		}
+		if (eptr->wrepcounter < replicationWriteLimit) {
+			servers[serverCount] = eptr;
+			serverCount++;
+			if (matchesRequestedLabel) {
+				++(*returnedMatching);
+			}
 		}
 	}
-	if (j==0) {
-		return 0;
+	std::random_shuffle(servers, servers + serverCount);
+	if (*returnedMatching > 0) {
+		// Move servers matching the requested label to the front of the servers array
+		std::partition(servers, servers + serverCount, [&label](matocsserventry* cs) {
+			return cs->label == label;
+		});
 	}
-	for (k=0 ; k<j-1 ; k++) {
-		r = k + rndu32_ranged(j-k);
-		if (r!=k) {
-			x = ptrs[k];
-			ptrs[k] = ptrs[r];
-			ptrs[r] = x;
-		}
-	}
-	return j;
+	return serverCount;
+}
+
+const MediaLabel& matocsserv_get_label(matocsserventry* e) {
+	return e->label;
 }
 
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
