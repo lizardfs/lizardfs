@@ -20,8 +20,14 @@ assert_file_not_exists $TEMP_DIR/log
 
 cd "${info[mount1]}"/dir
 file-validate file
-assert_equals \
-	"$(grep ^chunkserver.hdd_prefetch_blocks "$TEMP_DIR"/log | sort)" \
-	"$(seq 3 | sed "s/\(.*\)/chunkserver.hdd_prefetch_blocks: `
-		`chunk:\1 status:0 firstBlock:0 nrOfBlocks:1/")"
 
+# Check if not to many blocks were prefetched (ideally we expect 3
+# of them to be prefetched, but in case of timeouts it can be more)
+assert_less_or_equal "$(grep ^chunkserver.hdd_prefetch_blocks "$TEMP_DIR"/log | wc -l)" "8"
+
+# Check if first blocks of all chunks were prefetched
+for i in {1..3}; do
+	assert_awk_finds \
+		"/^chunkserver.hdd_prefetch_blocks: chunk:$i status:0 firstBlock:0 nrOfBlocks:1$/" \
+		"$(cat "$TEMP_DIR"/log)"
+done
