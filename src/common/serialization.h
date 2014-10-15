@@ -106,8 +106,8 @@ inline uint32_t serializedSize(const std::unique_ptr<T>& ptr) {
 	}
 }
 
-template<class T>
-inline uint32_t serializedSize(const std::vector<T>& vector) {
+template<class T, class A>
+inline uint32_t serializedSize(const std::vector<T, A>& vector) {
 	uint32_t ret = 0;
 	ret += serializedSize(uint32_t(vector.size()));
 	for (const auto& t : vector) {
@@ -231,8 +231,8 @@ inline void serialize(uint8_t** destination, const std::unique_ptr<T>& ptr) {
 }
 
 // serialize a vector
-template<class T>
-inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
+template<class T, class A>
+inline void serialize(uint8_t** destination, const std::vector<T, A>& vector) {
 	serialize(destination, uint32_t(vector.size()));
 	for (const T& t : vector) {
 		serialize(destination, t);
@@ -407,9 +407,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	}
 }
 
-template<class T>
+template<class T, class A>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		std::vector<T>& vec) {
+		std::vector<T, A>& vec) {
 	sassert(vec.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);

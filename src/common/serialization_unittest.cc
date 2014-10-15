@@ -29,6 +29,16 @@ TEST(SerializationTests, SerializeStringVector) {
 			std::vector<std::string>{"jajeczniczka", "ze", "szczypiorkiem"});
 }
 
+struct MyStringAllocator : public std::allocator<std::string> {
+	template<class ... Args>
+	MyStringAllocator(Args... args) : std::allocator<std::string>(args...) {
+	}
+};
+TEST(SerializationTests, SerializeVectorWithCustomAllocator) {
+	serializeTest<std::vector<std::string, MyStringAllocator>>(
+			std::vector<std::string, MyStringAllocator>{"dwa", "jajka", "na", "kielbasie"});
+}
+
 TEST(SerializationTests, DeserializeStringNonEmptyVariable) {
 	LIZARDFS_DEFINE_INOUT_PAIR(std::string, stringVariable, "good!", "BAD!");
 
