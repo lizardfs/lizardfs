@@ -50,6 +50,7 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "master/chunks.h"
+#include "master/filesystem.h"
 #include "master/personality.h"
 
 #define MaxPacketSize 500000000
@@ -114,13 +115,10 @@ struct matocsserventry {
 	uint16_t delcounter;
 
 	uint8_t incsdb;
-	double carry;
 
 	matocsserventry *next;
 };
 
-static const double kCarryThreshold = 1.;
-static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
@@ -564,78 +562,82 @@ uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],double maxus
 	return j;
 }
 
-struct rservsort {
-	double selectionFrequency;
-	double carry;
-	matocsserventry *ptr;
-	bool operator<(const rservsort &r) const {
-		return carry < r.carry;
-	}
-};
+std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId) {
+	struct WeightedServer {
+		WeightedServer(matocsserventry* server, int64_t weight) : server(server), weight(weight) {}
+		matocsserventry* server;
+		int64_t weight;
+	};
+	const auto& goal = fs_get_goal_definitions()[goalId];
+	std::vector<matocsserventry*> result;
 
-int matocsserv_carry_compare(const void *a,const void *b) {
- const rservsort *aa=(const rservsort*)a, *bb=(const rservsort*)b;
-	if (aa->carry > bb->carry) {
-		return -1;
-	}
-	if (aa->carry < bb->carry) {
-		return 1;
-	}
-	return 0;
-}
+	// List of servers with weights and sum of weights. We will choose servers randomly with
+	// respect to these weights (which will be proportional to total space on each server).
+	std::vector<WeightedServer> servers;
+	int64_t sumOfAllWeights = 0;
+	std::map<MediaLabel, int64_t> sumOfWeightsForLabel;
 
-std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t desiredGoal) {
-	std::vector<matocsserventry*> ret;
-	matocsserventry *eptr;
-	if (maxtotalspace == 0) {
-		return ret;
-	}
-
-	std::vector<rservsort> availableServers;
-	for (eptr = matocsservhead; eptr && availableServers.size() < 65536; eptr = eptr->next) {
+	// Fill our servers table and count sums of weights
+	servers.reserve(32);
+	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
-			rservsort serv;
-			serv.selectionFrequency = (double)eptr->totalspace / (double)maxtotalspace;
-			serv.carry = eptr->carry;
-			serv.ptr = eptr;
-			availableServers.push_back(serv);
-		}
-	}
-
-	// Check if it is possible to create requested chunk
-	if (availableServers.empty()) {
-		// Nothing can be done, chunk won't be created
-		return ret;
-	}
-	uint32_t chunksToBeCreated = std::min<std::size_t>(availableServers.size(), desiredGoal);
-
-	// Choose servers to be used to store new chunks.
-	std::vector<rservsort> chosenServers;
-	std::set<size_t> chosenServersIds;
-	while (chosenServers.size() < chunksToBeCreated) {
-		for (size_t i = 0; i < availableServers.size(); i++) {
-			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
-			if ((chosenServersIds.count(i)) == 0 && (carry > kCarryThreshold)) {
-				chosenServers.push_back(availableServers[i]);
-				carry -= kCarryThreshold;
-				chosenServersIds.insert(i);
+			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
+			servers.emplace_back(eptr, weight);
+			sumOfAllWeights += weight;
+			if (eptr->label != kMediaLabelWildcard) {
+				sumOfWeightsForLabel[eptr->label] += weight;
 			}
-			availableServers[i].carry = carry;
-			availableServers[i].ptr->carry = carry;
 		}
 	}
-	std::sort(chosenServers.rbegin(), chosenServers.rend());
-	// After loops above more then chunksToBeCreated servers might have been found, let's
-	// correct carry values for those that won't be used
-	for (size_t i = chunksToBeCreated; i < chosenServers.size(); i++) {
-		chosenServers[i].ptr->carry += kCarryThreshold;
+
+	// Choose servers for non-wildcard labels
+	for (const auto& labelAndCount : goal.labels()) {
+		const auto& currentLabel = labelAndCount.first;
+		if (currentLabel == kMediaLabelWildcard) {
+			continue;
+		}
+		int32_t serversChosenForLabel = 0;
+		int64_t sumOfWeightsForCurrentLabel = sumOfWeightsForLabel[currentLabel];
+		// Choose one server as long as we need more servers and there are
+		// any (currentSumOfWeights > 0) with the current label
+		while (serversChosenForLabel < labelAndCount.second && sumOfWeightsForCurrentLabel > 0) {
+			int64_t weightsToSkip = rndu64_ranged(sumOfWeightsForCurrentLabel);
+			for (auto& server : servers) {
+				if (server.server->label != currentLabel) {
+					continue; // ignore servers with non-matching labels
+				}
+				weightsToSkip -= server.weight;
+				if (weightsToSkip < 0) {
+					// change weight of this server to 0, so we won't choose it more than one
+					sumOfWeightsForCurrentLabel -= server.weight;
+					sumOfAllWeights -= server.weight;
+					server.weight = 0;
+					// add the server to the result
+					result.push_back(server.server);
+					++serversChosenForLabel;
+					break;
+				}
+			}
+		}
 	}
 
-	for (size_t i = 0; i < chunksToBeCreated; i++) {
-		ret.push_back(chosenServers[i].ptr);
+	// Choose any servers to get desired number of copies. Like before, choose a server
+	// as long as we need more servers and there are any (sumOfAllWeights > 0)
+	while (result.size() < goal.getExpectedCopies() && sumOfAllWeights > 0) {
+		int64_t weightsToSkip = rndu64_ranged(sumOfAllWeights);
+		for (auto& server : servers) {
+			weightsToSkip -= server.weight;
+			if (weightsToSkip < 0) {
+				sumOfAllWeights -= server.weight;
+				server.weight = 0;
+				result.push_back(server.server);
+				break;
+			}
+		}
 	}
-	return ret;
+
+	return result;
 }
 
 uint16_t matocsserv_getservers_lessrepl(matocsserventry* ptrs[65535],uint16_t replimit) {
@@ -846,7 +848,6 @@ int matocsserv_send_replicatechunk(matocsserventry *eptr,uint64_t chunkid,uint32
 		put32bit(&data,srceptr->servip);
 		put16bit(&data,srceptr->servport);
 		matocsserv_replication_begin(chunkid,version,eptr,1,&srceptr);
-		eptr->carry = 0;
 	}
 	return 0;
 }
@@ -877,7 +878,6 @@ int matocsserv_send_replicatechunk_xor(matocsserventry *eptr,uint64_t chunkid,ui
 			put16bit(&data,srceptr->servport);
 		}
 		matocsserv_replication_begin(chunkid,version,eptr,cnt,src);
-		eptr->carry = 0;
 	}
 	return 0;
 }
@@ -1066,12 +1066,6 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 	}
 }
 
-static void update_maxtotalspace(uint64_t totalspace) {
-	if (totalspace > maxtotalspace) {
-		maxtotalspace = totalspace;
-	}
-}
-
 void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t servip,
 		uint16_t servport, uint32_t timeout) {
 	eptr->version  = version;
@@ -1114,7 +1108,6 @@ void register_space(matocsserventry* eptr) {
 	syslog(LOG_NOTICE, "chunkserver register end (packet version: 5) - ip: %s, port: %"
 			PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",
 			eptr->servstrip, eptr->servport, eptr->usedspace, us, eptr->totalspace, ts);
-	update_maxtotalspace(eptr->totalspace);
 }
 
 void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1271,7 +1264,6 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		update_maxtotalspace(eptr->totalspace);
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
@@ -1299,7 +1291,6 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
-	update_maxtotalspace(eptr->totalspace);
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
@@ -1654,8 +1645,6 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
 			eptr->incsdb = 0;
-
-			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
 		} else {
 			tcpclose(ns);
 		}
