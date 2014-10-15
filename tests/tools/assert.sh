@@ -155,7 +155,9 @@ assert_template_eventually_equals_() {
 	local command2=$2
 	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command1) == \$($command2) ]]" "$timeout"; then
-		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout"
+		diff="$(diff -u5 <(eval "$command1") <(eval "$command2") || true)"
+		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout`
+				`"$'\n'"$diff"
 	fi
 }
 
