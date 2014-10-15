@@ -2148,19 +2148,18 @@ static inline void fsnodes_getdirdata(uint32_t rootinode,uint32_t uid,uint32_t g
 	}
 }
 
-static inline void fsnodes_checkfile(fsnode *p,uint32_t chunkcount[11]) {
-	uint32_t i;
+static inline void fsnodes_checkfile(fsnode *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	uint64_t chunkid;
 	uint8_t count;
-	for (i=0 ; i<11 ; i++) {
+	for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 		chunkcount[i]=0;
 	}
-	for (i=0 ; i<p->data.fdata.chunks ; i++) {
-		chunkid = p->data.fdata.chunktab[i];
-		if (chunkid>0) {
-			chunk_get_validcopies(chunkid,&count);
-			if (count>10) {
-				count=10;
+	for (uint32_t index = 0; index < p->data.fdata.chunks; index++) {
+		chunkid = p->data.fdata.chunktab[index];
+		if (chunkid > 0) {
+			chunk_get_validcopies(chunkid, &count);
+			if (count > CHUNK_MATRIX_SIZE - 1) {
+				count = CHUNK_MATRIX_SIZE - 1;
 			}
 			chunkcount[count]++;
 		}
@@ -4626,7 +4625,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	stats_readdir++;
 }
 
-uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[11]) {
+uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	fsnode *p,*rn;
 	(void)sesflags;
 	if (rootinode==MFS_ROOT_ID || rootinode==0) {

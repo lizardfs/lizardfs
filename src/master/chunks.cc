@@ -171,7 +171,7 @@ private: // public/private sections are mixed here to make the struct as small a
 	ChunkGoalCounters goalCounters_;
 #ifndef METARESTORE
 	uint8_t allValidCopies_, regularValidCopies_;
-	uint8_t goalInStats_;
+	uint8_t copiesInStats_;
 #endif
 public:
 #ifndef METARESTORE
@@ -180,7 +180,8 @@ public:
 	uint8_t operation:4;
 #endif
 	static uint64_t count;
-	static uint64_t allValidCopies[11][11], regularValidCopies[11][11];
+	static uint64_t allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+	static uint64_t regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 
 	/// ID of the chunk's goal.
 	uint8_t goal() const {
@@ -226,7 +227,7 @@ public:
 	void initStats() {
 		count++;
 		allValidCopies_ = regularValidCopies_ = 0;
-		goalInStats_ = 0;
+		copiesInStats_ = 0;
 		addToStats();
 		updateStats();
 	}
@@ -312,28 +313,28 @@ public:
 
 private:
 	void removeFromStats() {
-		uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(10, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(10, regularValidCopies_);
-		allValidCopies[limitedGoal][limitedAvc]--;
-		regularValidCopies[limitedGoal][limitedRvc]--;
+		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
+		uint8_t limitedAvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAvc]--;
+		regularValidCopies[limitedCopies][limitedRvc]--;
 	}
 
 	void addToStats() {
-		goalInStats_ = expectedCopies();
-		uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(10, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(10, regularValidCopies_);
-		allValidCopies[limitedGoal][limitedAvc]++;
-		regularValidCopies[limitedGoal][limitedRvc]++;
+		copiesInStats_ = expectedCopies();
+		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
+		uint8_t limitedAvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAvc]++;
+		regularValidCopies[limitedCopies][limitedRvc]++;
 	}
 #endif
 };
 
 #ifndef METARESTORE
 uint64_t chunk::count;
-uint64_t chunk::allValidCopies[11][11];
-uint64_t chunk::regularValidCopies[11][11];
+uint64_t chunk::allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+uint64_t chunk::regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 #endif
 
 #define CHUNK_BUCKET_SIZE 20000
@@ -723,48 +724,44 @@ uint32_t chunk_count(void) {
 }
 
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidcopies) {
-	uint32_t i,j,ag,rg;
 	*allchunks = chunk::count;
 	*allcopies = 0;
 	*regularvalidcopies = 0;
-	for (i=1 ; i<=10 ; i++) {
-		ag=0;
-		rg=0;
-		for (j=0 ; j<=10 ; j++) {
-			ag += chunk::allValidCopies[j][i];
-			rg += chunk::regularValidCopies[j][i];
+	for (int actualCopies = 1; actualCopies < CHUNK_MATRIX_SIZE; actualCopies++) {
+		uint32_t ag = 0;
+		uint32_t rg = 0;
+		for (int expectedCopies = 0; expectedCopies < CHUNK_MATRIX_SIZE; expectedCopies++) {
+			ag += chunk::allValidCopies[expectedCopies][actualCopies];
+			rg += chunk::regularValidCopies[expectedCopies][actualCopies];
 		}
-		*allcopies += ag*i;
-		*regularvalidcopies += rg*i;
+		*allcopies += ag * actualCopies;
+		*regularvalidcopies += rg * actualCopies;
 	}
 }
 
 uint32_t chunk_get_missing_count(void) {
-	uint32_t res=0;
-	uint8_t i;
-
-	for (i=1 ; i<=10 ; i++) {
-		res += chunk::allValidCopies[i][0];
+	uint32_t res = 0;
+	for (int expectedCopies = 1; expectedCopies < CHUNK_MATRIX_SIZE; expectedCopies++) {
+		res += chunk::allValidCopies[expectedCopies][0];
 	}
 	return res;
 }
 
 void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
-	uint8_t i,j;
-	if (matrixid==0) {
-		for (i=0 ; i<=10 ; i++) {
-			for (j=0 ; j<=10 ; j++) {
+	if (matrixid == MATRIX_ALL_COPIES) {
+		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
+			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
 				put32bit(&buff, chunk::allValidCopies[i][j]);
 			}
 		}
-	} else if (matrixid==1) {
-		for (i=0 ; i<=10 ; i++) {
-			for (j=0 ; j<=10 ; j++) {
+	} else if (matrixid == MATRIX_REGULAR_COPIES) {
+		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
+			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
 				put32bit(&buff, chunk::regularValidCopies[i][j]);
 			}
 		}
 	} else {
-		memset(buff,0,11*11*4);
+		memset(buff, 0, CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * sizeof(uint32_t));
 	}
 }
 #endif
@@ -2182,8 +2179,8 @@ int chunk_strinit(void) {
 
 #ifndef METARESTORE
 	chunk::count = 0;
-	for (int i = 0; i < 11; ++i) {
-		for (int j = 0; j < 11; ++j) {
+	for (int i = 0; i < CHUNK_MATRIX_SIZE; ++i) {
+		for (int j = 0; j < CHUNK_MATRIX_SIZE; ++j) {
 			chunk::allValidCopies[i][j] = 0;
 			chunk::regularValidCopies[i][j] = 0;
 		}

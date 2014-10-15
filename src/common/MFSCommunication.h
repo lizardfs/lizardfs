@@ -230,6 +230,13 @@
 
 #define GMODE_ISVALID(x)       (((uint32_t)(x))<=1)
 
+/// field values: matrixid
+#define MATRIX_ALL_COPIES      0
+#define MATRIX_REGULAR_COPIES  1
+
+// size of the matrix of chunks in the CGI interface = 11 x 11
+#define CHUNK_MATRIX_SIZE      11
+
 // extraattr:
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
@@ -908,11 +915,11 @@ enum class SugidClearMode {
 
 // 0x01B9
 #define MATOCL_FUSE_CHECK (PROTO_BASE+441)
-// msgid:32 status:8
+/// msgid:32 status:8
 // up to version 1.6.22:
 //      msgid:32 N*[ copies:8 chunks:16 ]
 // since version 1.6.23:
-//      msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
+///     msgid:32 counters:(CHUNK_MATRIX_SIZE * [chunks:32]) // 0 copies, 1 copy, ..., 10+ copies
 
 // 0x01BA
 #define CLTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
@@ -1225,11 +1232,12 @@ enum class SugidClearMode {
 
 // 0x00204
 #define CLTOMA_CHUNKS_MATRIX (PROTO_BASE+516)
-// [matrix_id:8]
+/// matrixid:8
 
 // 0x00205
 #define MATOCL_CHUNKS_MATRIX (PROTO_BASE+517)
-// 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
+/// counters:(CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * [chunks:32])
+// 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
 
 // 0x00208
 #define CLTOMA_EXPORTS_INFO (PROTO_BASE+520)

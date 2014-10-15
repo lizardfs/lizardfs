@@ -1120,8 +1120,9 @@ void matoclserv_chunks_matrix(matoclserventry *eptr,const uint8_t *data,uint32_t
 	} else {
 		matrixid = 0;
 	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_CHUNKS_MATRIX,484);
-	chunk_store_chunkcounters(ptr,matrixid);
+	ptr = matoclserv_createpacket(eptr, MATOCL_CHUNKS_MATRIX,
+			CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * sizeof(uint32_t));
+	chunk_store_chunkcounters(ptr, matrixid);
 }
 
 void matoclserv_exports_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -2612,7 +2613,7 @@ void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t l
 
 void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
-	uint32_t i,chunkcount[11];
+	uint32_t chunkcount[CHUNK_MATRIX_SIZE];
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -2630,22 +2631,22 @@ void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t le
 		put8bit(&ptr,status);
 	} else {
 		if (eptr->version>=0x010617) {
-			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,48);
+			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,4 + CHUNK_MATRIX_SIZE * 4);
 			put32bit(&ptr,msgid);
-			for (i=0 ; i<11 ; i++) {
+			for (uint32_t i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 				put32bit(&ptr,chunkcount[i]);
 			}
 		} else {
 			uint8_t j;
 			j=0;
-			for (i=0 ; i<11 ; i++) {
+			for (uint32_t i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 				if (chunkcount[i]>0) {
 					j++;
 				}
 			}
 			ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_CHECK,4+3*j);
 			put32bit(&ptr,msgid);
-			for (i=0 ; i<11 ; i++) {
+			for (uint32_t i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 				if (chunkcount[i]>0) {
 					put8bit(&ptr,i);
 					if (chunkcount[i]<=65535) {
