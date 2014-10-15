@@ -69,3 +69,14 @@ TEST(SerializationTests, SerializeStringArray) {
 		ASSERT_EQ(arrayIn[i], arrayOut[i]);
 	}
 }
+
+TEST(SerializationTests, SerializeSet) {
+	serializeTest<std::set<std::string>>(
+			std::set<std::string>{"lubie", "dajmy", "na", "to", "-", "placuszki"});
+}
+
+TEST(SerializationTests, SerializeMap) {
+	serializeTest<std::map<std::string, std::string>>(
+			std::map<std::string, std::string>{
+					{"lubie", "dajmy"}, {"na", "to"}, {"-", "placuszki"}});
+}

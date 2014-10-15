@@ -4,10 +4,13 @@
 
 #include <array>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
+
 
 #include "common/datapack.h"
 #include "common/exception.h"
@@ -113,6 +116,26 @@ inline uint32_t serializedSize(const std::vector<T>& vector) {
 	return ret;
 }
 
+template <typename K, typename C, typename A>
+inline uint32_t serializedSize(const std::set<K, C, A>& set) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(set.size()));
+	for (const auto& t : set) {
+		ret += serializedSize(t);
+	}
+	return ret;
+}
+
+template <typename K, typename T, typename C, typename A>
+inline uint32_t serializedSize(const std::map<K, T, C, A>& map) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(map.size()));
+	for (const auto& t : map) {
+		ret += serializedSize(t);
+	}
+	return ret;
+}
+
 template<class T>
 inline uint32_t serializedSize(const T& t) {
 	return t.serializedSize();
@@ -212,6 +235,22 @@ template<class T>
 inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
 	serialize(destination, uint32_t(vector.size()));
 	for (const T& t : vector) {
+		serialize(destination, t);
+	}
+}
+
+template <typename K, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::set<K, C, A>& set) {
+	serialize(destination, uint32_t(set.size()));
+	for (const auto& t : set) {
+		serialize(destination, t);
+	}
+}
+
+template <typename K, typename T, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::map<K, T, C, A>& map) {
+	serialize(destination, uint32_t(map.size()));
+	for (const auto& t : map) {
 		serialize(destination, t);
 	}
 }
@@ -380,6 +419,38 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	vec.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, vec[i]);
+	}
+}
+
+template <typename K, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::set<K, C, A>& set) {
+	sassert(set.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy set size");
+	}
+	for (unsigned i = 0; i < size; ++i) {
+		K element;
+		deserialize(source, bytesLeftInBuffer, element);
+		set.insert(std::move(element));
+	}
+}
+
+template <typename K, typename T, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::map<K, T, C, A>& map) {
+	sassert(map.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy map size");
+	}
+	for (unsigned i = 0; i < size; ++i) {
+		std::pair<K, T> v;
+		deserialize(source, bytesLeftInBuffer, v);
+		map.insert(std::move(v));
 	}
 }
 
