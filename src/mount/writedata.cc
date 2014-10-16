@@ -457,7 +457,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	ChunkserverWriteChain chunkserverChain;
 	const uint8_t* cp = chunkserverData;
 	const uint8_t* cpe = chunkserverData + chunkserverDataSize;
-	while (cp < cpe && chunkserverChain.size() < 10) {
+	while (cp < cpe) {
 		uint32_t ip = get32bit(&cp);
 		uint16_t port = get16bit(&cp);
 		chunkserverChain.add(NetworkAddress(ip, port));
