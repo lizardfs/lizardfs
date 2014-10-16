@@ -639,11 +639,11 @@ void chunk_emergency_increase_version(chunk *c) {
 		c->interrupted = 0;
 		c->operation = SET_VERSION;
 		c->version++;
+		chunk_update_checksum(c);
 	} else {
 		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
 	}
 	fs_incversion(c->chunkid);
-	chunk_update_checksum(c);
 }
 
 bool chunk_server_is_disconnected(matocsserventry* ptr) {
