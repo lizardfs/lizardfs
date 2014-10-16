@@ -1837,12 +1837,12 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	if (c->expectedCopies() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
 		if (serverCount_==0) {
 			serverCount_ = matocsserv_getservers_ordered(servers_,
-					AcceptableDifference / 2.0, &serverMin_, &serverMin_);
+					AcceptableDifference / 2.0, &serverMin_, &serverMax_);
 		}
-		if (serverMin_ > 0 || serverMin_ > 0) {
+		if (serverMin_ > 0 || serverMax_ > 0) {
 			matocsserventry *srcserv=NULL;
 			matocsserventry *dstserv=NULL;
-			uint32_t loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
+			uint32_t loopTo = (serverMax_ > 0 ? serverMax_ : serverCount_ - serverMin_);
 			for (uint32_t i = 0; i < loopTo && srcserv == NULL; i++) {
 				matocsserventry* server = servers_[serverCount_ - 1 - i];
 				if (matocsserv_replication_read_counter(server) < MaxReadRepl) {
@@ -1854,7 +1854,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 				}
 			}
 			if (srcserv != NULL) {
-				loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
+				loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMax_);
 				for (uint32_t i = 0; i < loopTo && dstserv == NULL ; i++) {
 					if (matocsserv_replication_write_counter(servers_[i]) < MaxWriteRepl) {
 						if (!chunkPresentOnServer(c, servers_[i])) {
