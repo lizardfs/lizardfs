@@ -1333,15 +1333,17 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 		throw (IncorrectDeserializationException) {
 	std::string label;
 	cstoma::registerLabel::deserialize(data, label);
-	if (isMediaLabelValid(label)) {
-		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16
-				") changed its label from '%s' to '%s'",
-				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
-		eptr->label = label;
-	} else {
+	if (!isMediaLabelValid(label)) {
 		syslog(LOG_NOTICE,"LIZ_CSTOMA_REGISTER_LABEL - wrong label '%s' of chunkserver "
 				"(ip: %s, port %" PRIu16 ")", label.c_str(), eptr->servstrip, eptr->servport);
-		eptr->mode=KILL;
+		eptr->mode = KILL;
+		return;
+	}
+	if (label != eptr->label) {
+		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
+				"changed its label from '%s' to '%s'",
+				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
+		eptr->label = std::move(label);
 	}
 }
 
