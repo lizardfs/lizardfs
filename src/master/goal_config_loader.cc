@@ -75,6 +75,9 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		if (tokens.empty()) {
 			throw ParseException(currentPosition + ": missing labels");
 		}
+		if (tokens.size() > Goal::kMaxExpectedCopies) {
+			throw ParseException(currentPosition + ": too many labels");
+		}
 		Goal::Labels labels;
 		for (const auto& token : tokens) {
 			if (!isMediaLabelValid(token)) {

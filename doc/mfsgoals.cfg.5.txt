@@ -27,15 +27,18 @@ By default, goal 1 means one copy on any chunkserver, goal 2 means two
 copies on any two chunkservers and so on. The purpose of mfsgoals.cfg
 is to override this behavior, when desired. The file is a list of goal
 definitions, each consisting of 'id', 'name' and a list of 'labels'.
+The maximal length of this list is 30 labels.
 
 'id' indicates the goal id to be redefined. If some files are already
 assigned this goal id, their effective goal will change.
 
 'name' is a human readable name used by the user interface tools
-(mfssetgoal(1), mfsgetgoal(1)).
+(mfssetgoal(1), mfsgetgoal(1)). 'name' can consist of up to 32 alphanumeric
+characters: a-z, A-Z, 0-9, _.
 
 The list of 'labels' is a list of chunkserver labels as defined in
-mfschunkserver.cfg(5).
+mfschunkserver.cfg(5). 'label' can consist of up to 32 alphanumeric
+characters: a-z, A-Z, 0-9, _.
 
 For each file using this goal and for each label, the system will try to
 maintain a copy of the file on some chunkserver with this label.

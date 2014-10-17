@@ -24,6 +24,10 @@ inline bool isGoalValid(uint8_t goal) {
 class Goal {
 public:
 	typedef std::map<MediaLabel, int> Labels;
+
+	/// Maximum number of copies a goal can require.
+	static constexpr uint32_t kMaxExpectedCopies = 30;
+
 	/// A default constructor.
 	Goal() : size_(0) {}
 
