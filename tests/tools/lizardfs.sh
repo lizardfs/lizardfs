@@ -318,6 +318,14 @@ create_mfshdd_cfg_() {
 	fi
 }
 
+# Creates LABEL entry for chunkserver's config from CHUNKSERVER_LABELS variable which is in a form:
+# 0,1,2,3:hdd|4,5,6,7:ssd
+# Usage: create_chunkserver_label_entry_ <chunkserver_id>
+create_chunkserver_label_entry_() {
+	local csid=$1
+	tr '|' "\n" <<< "${CHUNKSERVER_LABELS-}" | awk -F: '$1~/(^|,)'$csid'(,|$)/ {print "LABEL = "$2}'
+}
+
 create_mfschunkserver_cfg_() {
 	local this_module_cfg_variable="CHUNKSERVER_${chunkserver_id}_EXTRA_CONFIG"
 	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
@@ -328,6 +336,7 @@ create_mfschunkserver_cfg_() {
 	echo "MASTER_HOST = $ip_address"
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
+	create_chunkserver_label_entry_ "${chunkserver_id}"
 	create_magic_debug_log_entry_ "chunkserver_${chunkserver_id}"
 	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'

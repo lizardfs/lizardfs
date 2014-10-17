@@ -3,11 +3,7 @@ timeout_set "1 minute"
 # Start an installation with 2 servers labeled 'de', 2 labeled 'us' and one labeled 'cn'
 USE_RAMDISK=YES \
 	CHUNKSERVERS=5 \
-	CHUNKSERVER_0_EXTRA_CONFIG="LABEL = de" \
-	CHUNKSERVER_1_EXTRA_CONFIG="LABEL = de" \
-	CHUNKSERVER_2_EXTRA_CONFIG="LABEL = us" \
-	CHUNKSERVER_3_EXTRA_CONFIG="LABEL = us" \
-	CHUNKSERVER_4_EXTRA_CONFIG="LABEL = cn" \
+	CHUNKSERVER_LABELS="0,1:de|2,3:us|4:cn" \
 	MASTER_CUSTOM_GOALS="11 11: de de|12 12: us us|13 13: us de|14 14: de de de|15 15: us us us`
 			`|16 16: us|17 17: us _|18 18: us _ _|19 19: _ us de|20 20: _ cn us de" \
 	setup_local_empty_lizardfs info
