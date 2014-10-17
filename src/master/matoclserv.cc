@@ -863,7 +863,7 @@ void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint3
 		return;
 	}
 	ip = get32bit(&data);
-	port = get32bit(&data);
+	port = get16bit(&data);
 	matocsserv_csdb_remove_server(ip,port);
 	matoclserv_createpacket(eptr,MATOCL_CSSERV_REMOVESERV,0);
 }

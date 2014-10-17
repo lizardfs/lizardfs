@@ -1257,11 +1257,11 @@ enum class SugidClearMode {
 
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
-// -
+/// ip:32 port:16
 
 // 0x0020D
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
-// N * [ version:32 ip:32 ]
+/// -
 
 // 0x05F8
 #define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)
