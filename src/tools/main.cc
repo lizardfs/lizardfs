@@ -675,27 +675,24 @@ int get_goal(const char *fname, uint8_t mode) {
 		return -1;
 	}
 	try {
-		ServerConnection connection(fd);
 		uint32_t messageId = 0;
 		MessageBuffer request;
 		cltoma::fuseGetGoal::serialize(request, messageId, inode, mode);
-		MessageBuffer response = connection.sendAndReceive(request, LIZ_MATOCL_FUSE_GETGOAL);
-
+		MessageBuffer response = ServerConnection::sendAndReceive(fd, request,
+				LIZ_MATOCL_FUSE_GETGOAL);
 		PacketVersion version;
 		std::vector<FuseGetGoalStats> goalsStats;
 		deserializePacketVersionNoHeader(response, version);
 		if (version == matocl::fuseGetGoal::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseGetGoal::deserialize(response, messageId, status);
-			printf("%s\n", mfsstrerr(status));
-			return -1;
+			throw Exception(std::string(fname) + ": failed", status);
 		}
 		matocl::fuseGetGoal::deserialize(response, messageId, goalsStats);
 
 		if (mode == GMODE_NORMAL) {
 			if (goalsStats.size() != 1) {
-				printf("%s: master query: wrong answer (goalsStats.size != 1)\n", fname);
-				return -1;
+				throw Exception(std::string(fname) + ": master query: wrong answer (goalsStats.size != 1)");
 			}
 			printf("%s: %s\n", fname, goalsStats[0].goalName.c_str());
 		} else {
@@ -713,9 +710,11 @@ int get_goal(const char *fname, uint8_t mode) {
 			}
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -970,16 +969,14 @@ int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
 	int fd;
 	uint32_t messageId = 0;
 	uint32_t uid = getuid();
-
 	fd = open_master_conn(fname,&inode,NULL,0,1);
 	if (fd<0) {
 		return -1;
 	}
 	try {
-		ServerConnection connection(fd);
 		std::vector<uint8_t> serialized;
 		cltoma::fuseSetGoal::serialize(serialized, messageId, inode, uid, goal, mode);
-		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
 				LIZ_MATOCL_FUSE_SETGOAL);
 		uint32_t changed;
 		uint32_t notChanged;
@@ -990,8 +987,7 @@ int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
 		if (version == matocl::fuseSetGoal::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseSetGoal::deserialize(response, messageId, status);
-			printf("%s\n", mfsstrerr(status));
-			return -1;
+			throw Exception(std::string(fname) + ": failed", status);
 		}
 		matocl::fuseSetGoal::deserialize(response, messageId, changed, notChanged, notPermitted);
 
@@ -1008,9 +1004,11 @@ int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
 			print_number(" inodes with permission denied: ","\n",notPermitted,1,0,1);
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -1904,10 +1902,9 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
-		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
 				LIZ_MATOCL_FUSE_GET_QUOTA);
 		std::vector<QuotaOwnerAndLimits> parsedResponse;
 		PacketVersion version;
@@ -1915,8 +1912,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseGetQuota::deserialize(response, messageId, status);
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 		matocl::fuseGetQuota::deserialize(response, messageId, parsedResponse);
 		puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
@@ -1941,9 +1937,11 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 			puts("");
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -1967,21 +1965,21 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		std::vector<uint8_t> response =
-			connection.sendAndReceive(request, LIZ_MATOCL_FUSE_SET_QUOTA);
+			ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
 		matocl::fuseSetQuota::deserialize(response, messageId, status);
 		if (status != STATUS_OK) {
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 

@@ -30,18 +30,25 @@ ServerConnection::~ServerConnection() {
 std::vector<uint8_t> ServerConnection::sendAndReceive(
 		const std::vector<uint8_t>& request,
 		PacketHeader::Type expectedType) {
+	return ServerConnection::sendAndReceive(fd_, request, expectedType);
+}
+
+std::vector<uint8_t> ServerConnection::sendAndReceive(
+		int fd,
+		const std::vector<uint8_t>& request,
+		PacketHeader::Type expectedType) {
 	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
 	// Send
 	MultiBufferWriter writer;
 	writer.addBufferToSend(request.data(), request.size());
 	while (writer.hasDataToSend()) {
-		int status = tcptopoll(fd_, POLLOUT, timeout.remaining_ms());
+		int status = tcptopoll(fd, POLLOUT, timeout.remaining_ms());
 		if (status == 0 || timeout.expired()) {
 			throw Exception("Can't write data to socket: timeout");
 		} else if (status < 0) {
 			throw Exception("Can't write data to socket: " + std::string(strerr(errno)));
 		}
-		ssize_t bytesWritten = writer.writeTo(fd_);
+		ssize_t bytesWritten = writer.writeTo(fd);
 		if (bytesWritten < 0) {
 			throw Exception("Can't write data to socket: " + std::string(strerr(errno)));
 		}
@@ -50,13 +57,13 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 	// Receive
 	MessageReceiveBuffer reader(4 * 1024 * 1024);
 	while (!reader.hasMessageData()) {
-		int status = tcptopoll(fd_, POLLIN, timeout.remaining_ms());
+		int status = tcptopoll(fd, POLLIN, timeout.remaining_ms());
 		if (status == 0 || timeout.expired()) {
 			throw Exception("Can't read data from socket: timeout");
 		} else if (status < 0) {
 			throw Exception("Can't read data from socket: " + std::string(strerr(errno)));
 		}
-		ssize_t bytesRead = reader.readFrom(fd_);
+		ssize_t bytesRead = reader.readFrom(fd);
 		if (bytesRead == 0) {
 			throw Exception("Can't read data from socket: connection reset by peer");
 		}

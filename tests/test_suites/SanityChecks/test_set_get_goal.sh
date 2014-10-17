@@ -18,6 +18,11 @@ for goal in 2 3 5 X; do
 	assert_equals "directory/file$goal: $goal" "$(mfsgetgoal directory/file$goal)"
 done
 
+
+# test mfssetgoal and mfsgetgoal for multiple arguments
+assert_success mfssetgoal 3 directory/file{2..3}
+expect_equals $'directory/file2: 3\ndirectory/file3: 3' "$(mfsgetgoal directory/file{2..3})"
+
 # ... and test mfssetgoal -r with different operations
 assert_success mfssetgoal -r 3+ directory
 expect_equals "directory/file2: 3" "$(mfsgetgoal directory/file2)"

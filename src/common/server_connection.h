@@ -18,6 +18,11 @@ public:
 	std::vector<uint8_t> sendAndReceive(
 			const std::vector<uint8_t>& request,
 			PacketHeader::Type expectedResponseType);
+
+	static std::vector<uint8_t> sendAndReceive(
+			int fd,
+			const std::vector<uint8_t>& request,
+			PacketHeader::Type expectedResponseType);
 private:
 	int fd_;
 
