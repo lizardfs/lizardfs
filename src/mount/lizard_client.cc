@@ -2329,7 +2329,13 @@ std::vector<uint8_t> read(Context ctx,
 			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
 		}
 		if (status != STATUS_OK) {
-			throw RequestException(status);
+			err = (status == ERROR_EPERM ? EPERM : EIO);
+			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+					(unsigned long int)ino,
+					(uint64_t)size,
+					(uint64_t)off,
+					strerr(err));
+			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
@@ -2467,12 +2473,18 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	}
 	try {
 		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
-		uint8_t status = gLocalIoLimiter().waitForRead(ctx.pid, size, deadline);
+		uint8_t status = gLocalIoLimiter().waitForWrite(ctx.pid, size, deadline);
 		if (status == STATUS_OK) {
-			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
+			status = gGlobalIoLimiter().waitForWrite(ctx.pid, size, deadline);
 		}
 		if (status != STATUS_OK) {
-			throw RequestException(status);
+			err = (status == ERROR_EPERM ? EPERM : EIO);
+			oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+							(unsigned long int)ino,
+							(uint64_t)size,
+							(uint64_t)off,
+							strerr(err));
+			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
