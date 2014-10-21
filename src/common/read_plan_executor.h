@@ -2,6 +2,7 @@
 
 #include "common/platform.h"
 
+#include <atomic>
 #include <map>
 
 #include "common/chunk_connector.h"
@@ -60,6 +61,15 @@ public:
 	const std::set<ChunkType>& partsOmitted() const {
 		return partsOmitted_;
 	}
+
+	/// Counter for the .lizardfds_tweaks file.
+	static std::atomic<uint64_t> executionsTotal;
+
+	/// Counter for the .lizardfds_tweaks file.
+	static std::atomic<uint64_t> executionsWithAdditionalOperations;
+
+	/// Counter for the .lizardfds_tweaks file.
+	static std::atomic<uint64_t> executionsFinishedByAdditionalOperations;
 
 private:
 	ChunkserverStats& chunkserverStats_;

@@ -24,6 +24,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 		// we didn't change chunk and aren't forced to prepare again
 		return;
 	}
+	++preparations;
 	inode_ = inode;
 	index_ = index;
 	locator_.invalidateCache(inode, index);
@@ -124,3 +125,5 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 	}
 	return availableSize;
 }
+
+std::atomic<uint64_t> ChunkReader::preparations;

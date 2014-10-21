@@ -53,6 +53,8 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 		ChunkConnector& connector,
 		const Timeouts& timeouts,
 		const Timeout& totalTimeout) {
+	++executionsTotal;
+
 	// Proxy used to update statistics in a RAII manner
 	ChunkserverStatsProxy statsProxy(chunkserverStats_);
 
@@ -189,6 +191,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 						lastConnectionFailure.toString());
 			}
 			additionalOperationsStarted = true;
+			++executionsWithAdditionalOperations;
 		}
 
 		// Prepare for poll
@@ -265,6 +268,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 
 		// Check if we are finished now
 		if (additionalOperationsStarted && plan_->isReadingFinished(unfinishedOperations)) {
+			++executionsFinishedByAdditionalOperations;
 			partsOmitted_ = networkingFailures;
 			for (const auto& fdAndExecutor : executors) {
 				partsOmitted_.insert(fdAndExecutor.second.chunkType());
@@ -290,3 +294,7 @@ void ReadPlanExecutor::executePostProcessing(
 		}
 	}
 }
+
+std::atomic<uint64_t> ReadPlanExecutor::executionsTotal;
+std::atomic<uint64_t> ReadPlanExecutor::executionsWithAdditionalOperations;
+std::atomic<uint64_t> ReadPlanExecutor::executionsFinishedByAdditionalOperations;

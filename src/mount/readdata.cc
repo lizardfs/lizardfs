@@ -37,6 +37,7 @@
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
+#include "common/read_plan_executor.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
@@ -78,9 +79,9 @@ static std::mutex gMutex;
 static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t delayedOpsThread;
-static uint32_t gChunkserverConnectTimeout_ms;
-static uint32_t gChunkserverBasicReadTimeout_ms;
-static uint32_t gChunkserverTotalReadTimeout_ms;
+static std::atomic<uint32_t> gChunkserverConnectTimeout_ms;
+static std::atomic<uint32_t> gChunkserverBasicReadTimeout_ms;
+static std::atomic<uint32_t> gChunkserverTotalReadTimeout_ms;
 static std::atomic<bool> gPrefetchXorStripes;
 static bool readDataTerminate;
 static std::atomic<uint32_t> maxRetries;
@@ -164,6 +165,13 @@ void read_data_init(uint32_t retries,
 	pthread_attr_destroy(&thattr);
 
 	gTweaks.registerVariable("ReadMaxRetries", maxRetries);
+	gTweaks.registerVariable("ReadConnectTimeout", gChunkserverConnectTimeout_ms);
+	gTweaks.registerVariable("ReadBasicTimeout", gChunkserverBasicReadTimeout_ms);
+	gTweaks.registerVariable("ReadTotalTimeout", gChunkserverTotalReadTimeout_ms);
+	gTweaks.registerVariable("ReadChunkPrepare", ChunkReader::preparations);
+	gTweaks.registerVariable("ReqExecutedTotal", ReadPlanExecutor::executionsTotal);
+	gTweaks.registerVariable("ReqExecutedUsingAll", ReadPlanExecutor::executionsWithAdditionalOperations);
+	gTweaks.registerVariable("ReqFinishedUsingAll", ReadPlanExecutor::executionsFinishedByAdditionalOperations);
 }
 
 void read_data_term(void) {
@@ -263,7 +271,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
 		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
 		// than short poll() followed by nonproductive usleep().
-		uint32_t timeout_ms = std::max(gChunkserverTotalReadTimeout_ms, sleepTime_ms);
+		uint32_t timeout_ms = std::max(gChunkserverTotalReadTimeout_ms.load(), sleepTime_ms);
 		Timeout communicationTimeout = Timeout(std::chrono::milliseconds(timeout_ms));
 		sleepTime_ms = 0;
 		try {

@@ -3,6 +3,7 @@
 #include "common/platform.h"
 
 #include <poll.h>
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -51,6 +52,9 @@ public:
 	uint32_t version() const {
 		return location_->version;
 	}
+
+	/// Counter for the .lizardfds_tweaks file.
+	static std::atomic<uint64_t> preparations;
 
 private:
 	ChunkConnector& connector_;
