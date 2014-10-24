@@ -458,6 +458,16 @@ find_all_chunks() {
 	done
 }
 
+# A useful shortcut for lizardfs-probe
+# Usage: lizardfs_probe_master <command> [option...]
+# Calls lizardfs-probe with the given command and and automatically adds address
+# of the master server
+lizardfs_probe_master() {
+	local command="$1"
+	shift
+	lizardfs-probe "$command" localhost "${lizardfs_info_[matocl]}" --porcelain "$@"
+}
+
 # lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
 lizardfs_wait_for_ready_chunkservers() {
 	local chunkservers=$1
@@ -484,6 +494,14 @@ lizardfs_shadow_synchronized() {
 	else
 		return 1
 	fi
+}
+
+# Prints number of chunks on each chunkserver in the following form:
+# <ip1>:<port1> <chunks1>
+# <ip2>:<port2> <chunks2>
+# ...
+lizardfs_rebalancing_status() {
+	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1,$3}'
 }
 
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))
