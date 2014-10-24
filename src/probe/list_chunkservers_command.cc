@@ -36,26 +36,34 @@ void ListChunkserversCommand::run(const Options& options) const {
 				<< std::endl;
 	}
 	for (const ChunkserverEntry& cs : chunkservers) {
-		if (options.isSet(kPorcelainMode)) {
-			std::cout << cs.address.toString()
-					<< ' ' << lizardfsVersionToString(cs.version)
-					<< ' ' << cs.chunks
-					<< ' ' << cs.usedSpace
-					<< ' ' << cs.totalSpace
-					<< ' ' << cs.tdChunks
-					<< ' ' << cs.tdUsedSpace
-					<< ' ' << cs.tdTotalSpace
-					<< ' ' << cs.errorCount << std::endl;
+		if (cs.version == kDisconnectedChunkserverVersion) {
+			if (options.isSet(kPorcelainMode)) {
+				std::cout << cs.address.toString() << " - 0 0 0 0 0 0 0" << std::endl;
+			} else {
+				std::cout << cs.address.toString() << "\t-\t-\t-\t-\t-\t-" << std::endl;
+			}
 		} else {
-			std::cout << cs.address.toString()
-					<< '\t' << lizardfsVersionToString(cs.version)
-					<< '\t' << convertToSi(cs.chunks)
-					<< '\t' << convertToIec(cs.usedSpace) << "B"
-					<< " / " << convertToIec(cs.totalSpace) << "B"
-					<< '\t' << convertToSi(cs.tdChunks)
-					<< '\t' << convertToIec(cs.tdUsedSpace) << "B"
-					<< " / " << convertToIec(cs.tdTotalSpace) << "B"
-					<< '\t' << convertToSi(cs.errorCount) << std::endl;
+			if (options.isSet(kPorcelainMode)) {
+				std::cout << cs.address.toString()
+						<< ' ' << lizardfsVersionToString(cs.version)
+						<< ' ' << cs.chunks
+						<< ' ' << cs.usedSpace
+						<< ' ' << cs.totalSpace
+						<< ' ' << cs.tdChunks
+						<< ' ' << cs.tdUsedSpace
+						<< ' ' << cs.tdTotalSpace
+						<< ' ' << cs.errorCount << std::endl;
+			} else {
+				std::cout << cs.address.toString()
+						<< '\t' << lizardfsVersionToString(cs.version)
+						<< '\t' << convertToSi(cs.chunks)
+						<< '\t' << convertToIec(cs.usedSpace) << "B"
+						<< " / " << convertToIec(cs.totalSpace) << "B"
+						<< '\t' << convertToSi(cs.tdChunks)
+						<< '\t' << convertToIec(cs.tdUsedSpace) << "B"
+						<< " / " << convertToIec(cs.tdTotalSpace) << "B"
+						<< '\t' << convertToSi(cs.errorCount) << std::endl;
+			}
 		}
 	}
 }

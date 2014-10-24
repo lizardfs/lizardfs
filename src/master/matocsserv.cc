@@ -44,6 +44,7 @@
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
+#include "common/lizardfs_version.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
@@ -208,7 +209,7 @@ void matocsserv_cservlist_data(uint8_t *ptr) {
 				put32bit(&ptr,eptr->todelchunkscount);
 				put32bit(&ptr,eptr->errorcounter);
 			} else {
-				put32bit(&ptr,0x01000000);
+				put32bit(&ptr,kDisconnectedChunkserverVersion);
 				put32bit(&ptr,csptr->ip);
 				put16bit(&ptr,csptr->port);
 				put64bit(&ptr,0);

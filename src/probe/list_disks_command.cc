@@ -5,6 +5,7 @@
 
 #include "common/disk_info.h"
 #include "common/human_readable_format.h"
+#include "common/lizardfs_version.h"
 #include "common/moosefs_vector.h"
 #include "common/server_connection.h"
 #include "probe/list_chunkservers_command.h"
@@ -181,6 +182,9 @@ void ListDisksCommand::run(const Options& options) const {
 	std::vector<ChunkserverEntry> chunkservers = ListChunkserversCommand::getChunkserversList(
 			options.argument(0), options.argument(1));
 	for (ChunkserverEntry cs : chunkservers) {
+		if (cs.version == kDisconnectedChunkserverVersion) {
+			continue; // skip disconnected chunkservers -- these surely won't respond
+		}
 		std::vector<uint8_t> request, response;
 		serializeMooseFsPacket(request, CLTOCS_HDD_LIST_V2);
 		ServerConnection connection(cs.address);
