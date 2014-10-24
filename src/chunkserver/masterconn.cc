@@ -463,6 +463,7 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
+	DEBUG_LOG("cs.matocs.replicate") << chunkid;
 	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
