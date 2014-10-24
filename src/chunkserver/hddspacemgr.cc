@@ -972,6 +972,7 @@ static inline void hdd_refresh_usage(folder *f) {
 		if (statvfs(f->path,&fsinfo)<0) {
 			f->avail = 0ULL;
 			f->total = 0ULL;
+			return;
 		}
 		f->avail = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_bavail);
 		f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
