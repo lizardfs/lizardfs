@@ -8215,6 +8215,10 @@ const GoalMap<Goal>& fs_get_goal_definitions() {
 	return gGoalDefinitions;
 }
 
+const Goal& fs_get_goal_definition(uint8_t goalId) {
+	return gGoalDefinitions[goalId];
+}
+
 /*
  * Initialize subsystems required by Master personality of metadataserver.
  */

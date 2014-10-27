@@ -52,6 +52,7 @@
 #include "common/time_utils.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
+#include "master/get_servers_for_new_chunk.h"
 #include "master/personality.h"
 
 #define MaxPacketSize 500000000
@@ -103,7 +104,7 @@ struct matocsserventry {
 	uint32_t servip;                // ip to coonnect to
 	uint16_t servport;              // port to connect to
 	uint32_t timeout;               // communication timeout
-	std::string label;              // server label, empty if not set
+	MediaLabel label;               // server label, empty if not set
 	uint64_t usedspace;             // used hdd space in bytes
 	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
@@ -493,81 +494,16 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 }
 
 std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId) {
-	struct WeightedServer {
-		WeightedServer(matocsserventry* server, int64_t weight) : server(server), weight(weight) {}
-		matocsserventry* server;
-		int64_t weight;
-	};
-	const auto& goal = fs_get_goal_definitions()[goalId];
-	std::vector<matocsserventry*> result;
-
-	// List of servers with weights and sum of weights. We will choose servers randomly with
-	// respect to these weights (which will be proportional to total space on each server).
-	std::vector<WeightedServer> servers;
-	int64_t sumOfAllWeights = 0;
-	std::map<MediaLabel, int64_t> sumOfWeightsForLabel;
-
-	// Fill our servers table and count sums of weights
-	servers.reserve(32);
+	GetServersForNewChunk getter;
+	// Add servers with weights which are proportional to total space on each server.
 	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
 			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
-			servers.emplace_back(eptr, weight);
-			sumOfAllWeights += weight;
-			if (eptr->label != kMediaLabelWildcard) {
-				sumOfWeightsForLabel[eptr->label] += weight;
-			}
+			getter.addServer(eptr, &eptr->label, weight);
 		}
 	}
-
-	// Choose servers for non-wildcard labels
-	for (const auto& labelAndCount : goal.labels()) {
-		const auto& currentLabel = labelAndCount.first;
-		if (currentLabel == kMediaLabelWildcard) {
-			continue;
-		}
-		int32_t serversChosenForLabel = 0;
-		int64_t sumOfWeightsForCurrentLabel = sumOfWeightsForLabel[currentLabel];
-		// Choose one server as long as we need more servers and there are
-		// any (currentSumOfWeights > 0) with the current label
-		while (serversChosenForLabel < labelAndCount.second && sumOfWeightsForCurrentLabel > 0) {
-			int64_t weightsToSkip = rndu64_ranged(sumOfWeightsForCurrentLabel);
-			for (auto& server : servers) {
-				if (server.server->label != currentLabel) {
-					continue; // ignore servers with non-matching labels
-				}
-				weightsToSkip -= server.weight;
-				if (weightsToSkip < 0) {
-					// change weight of this server to 0, so we won't choose it more than one
-					sumOfWeightsForCurrentLabel -= server.weight;
-					sumOfAllWeights -= server.weight;
-					server.weight = 0;
-					// add the server to the result
-					result.push_back(server.server);
-					++serversChosenForLabel;
-					break;
-				}
-			}
-		}
-	}
-
-	// Choose any servers to get desired number of copies. Like before, choose a server
-	// as long as we need more servers and there are any (sumOfAllWeights > 0)
-	while (result.size() < goal.getExpectedCopies() && sumOfAllWeights > 0) {
-		int64_t weightsToSkip = rndu64_ranged(sumOfAllWeights);
-		for (auto& server : servers) {
-			weightsToSkip -= server.weight;
-			if (weightsToSkip < 0) {
-				sumOfAllWeights -= server.weight;
-				server.weight = 0;
-				result.push_back(server.server);
-				break;
-			}
-		}
-	}
-
-	return result;
+	return getter.chooseServersForGoal(fs_get_goal_definition(goalId));
 }
 
 uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,

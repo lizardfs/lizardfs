@@ -201,8 +201,11 @@ void fs_incversion(uint64_t chunkid);
 
 void fs_cs_disconnected(void);
 
-/// Return the current definitions of goals
+/// Return the current definitions of all goals.
 const GoalMap<Goal>& fs_get_goal_definitions();
+
+/// Return the current definition of the given (by ID) goal.
+const Goal& fs_get_goal_definition(uint8_t goalId);
 
 int fs_init(void);
 int fs_init(bool force);
