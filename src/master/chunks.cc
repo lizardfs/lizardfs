@@ -418,6 +418,7 @@ static uint32_t TmpMaxDel;
 static uint32_t HashSteps;
 static uint32_t HashCPS;
 static double AcceptableDifference;
+static bool RebalancingBetweenLabels = false;
 
 static uint32_t jobshpos;
 static uint32_t jobsrebalancecount;
@@ -1529,37 +1530,28 @@ public:
 	ChunkWorker();
 	void doEveryLoopTasks();
 	void doEverySecondTasks();
-	void doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage);
+	void doChunkJobs(chunk *c, uint16_t serverCount);
 
 private:
+	typedef std::vector<ServerWithUsage> ServersWithUsage;
+
 	bool tryReplication(chunk *c, matocsserventry *destinationServer);
-
-	/// Number of entries in servers_ or 0 if not filled
-	uint16_t serverCount_;
-
-	/// Indices in servers_; valid only if servers_ > 0.
-	/// servers_[0..serverMin_-1] have disk usage below the average - AcceptableDifference / 2
-	///    and are placed there in a random order
-	/// servers_[serverMax_..serverCount_-1] have disk usage over the
-	///    average + AcceptableDifference / 2 and are placed there in a random order
-	/// servers_[serverMin_..serverMax_-1] are sorted by disk usage
-	uint32_t serverMin_, serverMax_;
-
-	/// Servers ordered properly (roughly -- sorted by disk usage)
-	matocsserventry* servers_[65536];
 
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
 	uint32_t deleteDone_;
 	uint32_t prevToDeleteCount_;
 	uint32_t deleteLoopCount_;
+
+	/// All chunkservers sorted by disk usage.
+	ServersWithUsage sortedServers_;
+
+	/// For each label, all servers with this label sorted by disk usage.
+	std::map<MediaLabel, ServersWithUsage> labeledSortedServers_;
 };
 
 ChunkWorker::ChunkWorker()
-		: serverCount_(0),
-		  serverMin_(0),
-		  serverMax_(0),
-		  deleteNotDone_(0),
+		: deleteNotDone_(0),
 		  deleteDone_(0),
 		  prevToDeleteCount_(0),
 		  deleteLoopCount_(0) {
@@ -1600,7 +1592,11 @@ void ChunkWorker::doEveryLoopTasks() {
 }
 
 void ChunkWorker::doEverySecondTasks() {
-	serverCount_ = 0;
+	sortedServers_ = matocsserv_getservers_sorted();
+	labeledSortedServers_.clear();
+	for (const ServerWithUsage& sw : sortedServers_) {
+		labeledSortedServers_[*(sw.label)].push_back(sw);
+	}
 }
 
 static bool chunkPresentOnServer(chunk *c, matocsserventry *server) {
@@ -1612,15 +1608,19 @@ static bool chunkPresentOnServer(chunk *c, matocsserventry *server) {
 	return false;
 }
 
-void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage) {
+void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	// step 0. Update chunk's statistics
 	// Useful e.g. if definitions of goals did change.
 	c->updateStats();
 
+	if (serverCount == 0) {
+		return;
+	}
+
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
-	const Goal::Labels& excpectedCopies = fs_get_goal_definitions()[c->goal()].labels();
+	const Goal::Labels& expectedCopies = fs_get_goal_definitions()[c->goal()].labels();
 	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
@@ -1724,7 +1724,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	// by other labels in the goal.
 	bool triedToReplicate = false;
 	std::vector<std::reference_wrapper<const Goal::Labels::value_type>> labelsAndExpectedCopies(
-			excpectedCopies.begin(), excpectedCopies.end());
+			expectedCopies.begin(), expectedCopies.end());
 	std::partition(labelsAndExpectedCopies.begin(), labelsAndExpectedCopies.end(),
 			[](const Goal::Labels::value_type& labelGoal) {
 				return labelGoal.first != kMediaLabelWildcard;
@@ -1829,14 +1829,11 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	if (vc > c->expectedCopies()) {
 		const uint32_t overgoalCopies = vc - c->expectedCopies();
 		uint32_t toRemove = overgoalCopies;
-		if (serverCount_ == 0) {
-			serverCount_ = matocsserv_getservers_ordered(servers_,
-					AcceptableDifference / 2.0, &serverMin_, &serverMax_);
-		}
 		uint32_t copiesRemoved = 0;
-		for (uint32_t i = 0; i < serverCount_ && toRemove > 0; ++i) {
+		for (uint32_t i = 0; i < sortedServers_.size() && toRemove > 0; ++i) {
 			for (slist *s = c->slisthead; s; s = s->next) {
-				if (s->ptr != servers_[serverCount_ - 1 - i] || s->valid != VALID) {
+				if (s->ptr != sortedServers_[sortedServers_.size() - 1 - i].server
+						|| s->valid != VALID) {
 					continue;
 				}
 				const MediaLabel& csLabel = matocsserv_get_label(s->ptr);
@@ -1847,8 +1844,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 				 * then skip processing this chunkserver.
 				 */
 				if (csLabel != kMediaLabelWildcard
-						&& excpectedCopies.count(csLabel)
-						&& validCopies[csLabel] <= excpectedCopies.at(csLabel)) {
+						&& expectedCopies.count(csLabel)
+						&& validCopies[csLabel] <= expectedCopies.at(csLabel)) {
 					break;
 				}
 				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
@@ -1899,41 +1896,46 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 	}
 
 	// step 10. if there is too big difference between chunkservers then make copy of chunk from
-	// server with biggest disk usage on server with lowest disk usage
-	if (c->expectedCopies() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
-		if (serverCount_==0) {
-			serverCount_ = matocsserv_getservers_ordered(servers_,
-					AcceptableDifference / 2.0, &serverMin_, &serverMax_);
-		}
-		if (serverMin_ > 0 || serverMax_ > 0) {
-			matocsserventry *srcserv=NULL;
-			matocsserventry *dstserv=NULL;
-			uint32_t loopTo = (serverMax_ > 0 ? serverMax_ : serverCount_ - serverMin_);
-			for (uint32_t i = 0; i < loopTo && srcserv == NULL; i++) {
-				matocsserventry* server = servers_[serverCount_ - 1 - i];
-				if (matocsserv_replication_read_counter(server) < MaxReadRepl) {
-					for (slist *s = c->slisthead; s; s = s->next) {
-						if (s->ptr == server && (s->valid == VALID || s->valid==TDVALID)) {
-							srcserv = server;
-						}
-					}
-				}
+	// a server with a high disk usage on a server with low disk usage
+	double minUsage = sortedServers_.front().diskUsage;
+	double maxUsage = sortedServers_.back().diskUsage;
+	if ((maxUsage - minUsage) > AcceptableDifference) {
+		// Consider each copy to be moved to a server with disk usage much less than actual.
+		// There are at least two servers with a disk usage difference grater than
+		// AcceptableDifference, so it's worth checking.
+		for (slist *s = c->slisthead; s != nullptr; s = s->next) {
+			if (!s->is_valid() || matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+				continue;
 			}
-			if (srcserv != NULL) {
-				loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMax_);
-				for (uint32_t i = 0; i < loopTo && dstserv == NULL ; i++) {
-					if (matocsserv_replication_write_counter(servers_[i]) < MaxWriteRepl) {
-						if (!chunkPresentOnServer(c, servers_[i])) {
-							dstserv = servers_[i];
-						}
-					}
+			const MediaLabel& currentCopyLabel = matocsserv_get_label(s->ptr);
+			double currentCopyDiskUsage = matocsserv_get_usage(s->ptr);
+			// Look for a server that has disk usage much less than currentCopyDiskUsage.
+			// If such a server exists consider creating a new copy of this chunk there.
+			// First, choose all possible candidates for the destination server: we consider only
+			// servers with the same label is rebalancing between labels if turned off or the goal
+			// requires our copy to exist on a server labeled 'currentCopyLabel'.
+			bool labelOnlyRebalance = !RebalancingBetweenLabels
+					|| (currentCopyLabel != kMediaLabelWildcard
+						&& expectedCopies.count(currentCopyLabel)
+						&& validCopies[currentCopyLabel] <= expectedCopies.at(currentCopyLabel));
+			const ServersWithUsage& sortedServers = labelOnlyRebalance
+					? labeledSortedServers_[currentCopyLabel] : sortedServers_;
+			for (uint32_t i = 0; i < sortedServers.size(); ++i) {
+				const ServerWithUsage& emptyServer = sortedServers[i];
+				if (emptyServer.diskUsage > currentCopyDiskUsage - AcceptableDifference) {
+					break; // No more suitable destination servers (next servers have higher usage)
 				}
-			}
-			if (srcserv != NULL && dstserv != NULL) {
+				if (chunkPresentOnServer(c, emptyServer.server)) {
+					continue; // A copy is already here
+				}
+				if (matocsserv_replication_write_counter(emptyServer.server) >= MaxWriteRepl) {
+					continue; // We can't create a new copy here
+				}
 				stats_replications++;
-				matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
+				matocsserv_send_replicatechunk(emptyServer.server, c->chunkid, c->version, s->ptr);
 				c->needverincrease=1;
 				inforec_.copy_rebalance++;
+				return;
 			}
 		}
 	}
@@ -1997,13 +1999,13 @@ void chunk_jobs_main(void) {
 		// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
-					gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+					gChunkWorker->doChunkJobs(c, usableServerCount);
 				}
 				l++;
 			}
 			l=0;
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; l<r && c ; c=c->next) {
-				gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+				gChunkWorker->doChunkJobs(c, usableServerCount);
 				l++;
 			}
 		}
@@ -2228,6 +2230,7 @@ void chunk_reload(void) {
 	}
 
 	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	if (AcceptableDifference<0.001) {
 		AcceptableDifference = 0.001;
 	}
@@ -2317,6 +2320,7 @@ int chunk_strinit(void) {
 		}
 	}
 	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	if (AcceptableDifference<0.001) {
 		AcceptableDifference = 0.001;
 	}

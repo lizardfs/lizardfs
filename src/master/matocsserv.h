@@ -31,6 +31,20 @@ struct matocsserventry;
 /// A list of chunkservers.
 typedef std::vector<matocsserventry*> Chunkservers;
 
+/// A struct used in matocsserv_getservers_sorted
+struct ServerWithUsage {
+	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel* label)
+			: server(server),
+			  diskUsage(diskUsage),
+			  label(label) {
+	}
+
+	matocsserventry* server;
+	double diskUsage;
+	const MediaLabel* label;
+};
+
+
 /*! \brief Get list of chunkservers for replication with the given label.
  *
  * This function returns a list of chunkservers that currently don't exceed the given limit of
@@ -52,12 +66,16 @@ uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replic
 /*! \brief Get chunkserver's label. */
 const MediaLabel& matocsserv_get_label(matocsserventry* e);
 
+/*! \brief Get chunkserver's disk usage. */
+double matocsserv_get_usage(matocsserventry* e);
+
+/*! \brief Get chunkservers ordered by disk usage. */
+std::vector<ServerWithUsage> matocsserv_getservers_sorted();
+
 int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
 void matocsserv_remove_server(matocsserventry* ptr);
 void matocsserv_usagedifference(double* minusage, double* maxusage,
 		uint16_t* usablescount, uint16_t* totalscount);
-uint16_t matocsserv_getservers_ordered(matocsserventry* ptrs[65535],
-		double maxusagediff, uint32_t* min, uint32_t* max);
 Chunkservers matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
