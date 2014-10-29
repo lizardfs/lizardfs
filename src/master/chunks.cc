@@ -1828,17 +1828,21 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	// step 8. if chunk has too many copies then delete some of them
 	if (vc > c->expectedCopies()) {
 		const uint32_t overgoalCopies = vc - c->expectedCopies();
-		uint32_t toRemove = overgoalCopies;
-		uint32_t copiesRemoved = 0;
-		for (uint32_t i = 0; i < sortedServers_.size() && toRemove > 0; ++i) {
-			for (slist *s = c->slisthead; s; s = s->next) {
-				if (s->ptr != sortedServers_[sortedServers_.size() - 1 - i].server
-						|| s->valid != VALID) {
+		typedef std::vector<slist*> Candidates;
+		Candidates candidates;
+		for (uint32_t i = 0; i < overgoalCopies; ++ i) {
+			slist* candidate = nullptr;
+			double maxUsage = 0.;
+			for (slist *s = c->slisthead; s != nullptr; s = s->next) {
+				if (s->valid != VALID) {
+					continue;
+				}
+				if (std::find(candidates.begin(), candidates.end(), s) != candidates.end()) {
 					continue;
 				}
 				const MediaLabel& csLabel = matocsserv_get_label(s->ptr);
 				/*
-				 * If current chunkserver has non-wildcard label
+				 * If copies' chunkserver has non-wildcard label
 				 * and this label is in this chunk goal
 				 * and this chunk does not have overgoal on this label
 				 * then skip processing this chunkserver.
@@ -1846,20 +1850,31 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 				if (csLabel != kMediaLabelWildcard
 						&& expectedCopies.count(csLabel)
 						&& validCopies[csLabel] <= expectedCopies.at(csLabel)) {
-					break;
+					continue;
 				}
-				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
-					break;
+				double usage = matocsserv_get_usage(s->ptr);
+				if (usage > maxUsage) {
+					candidate = s;
+					usage = maxUsage;
 				}
-				c->deleteCopy(s);
-				c->needverincrease=1;
-				stats_deletions++;
-				matocsserv_send_deletechunk(s->ptr, c->chunkid, 0);
-				toRemove--;
-				copiesRemoved++;
-				vc--;
-				dc++;
 			}
+			if (candidate != nullptr) {
+				--validCopies[matocsserv_get_label(candidate->ptr)];
+				candidates.push_back(candidate);
+			} else {
+				break;
+			}
+		}
+		uint32_t copiesRemoved = 0;
+		for (slist* s : candidates) {
+			if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
+				continue;
+			}
+			c->deleteCopy(s);
+			c->needverincrease=1;
+			stats_deletions++;
+			matocsserv_send_deletechunk(s->ptr, c->chunkid, 0);
+			copiesRemoved++;
 		}
 		inforec_.done.del_overgoal += copiesRemoved;
 		deleteDone_ += copiesRemoved;
