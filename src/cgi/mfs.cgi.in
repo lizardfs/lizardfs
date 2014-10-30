@@ -540,7 +540,7 @@ if "IN" in sectionset:
 				else:
 					out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
 				out.append("""	<tr>""")
-				out.append("""		<th rowspan="2" class="PERC4">goal</th>""")
+				out.append("""		<th rowspan="2" class="PERC4">needed<br/>copies</th>""")
 				out.append("""		<th colspan="12" class="PERC96">valid copies</th>""")
 				out.append("""	</tr>""")
 				out.append("""	<tr>""")
@@ -559,14 +559,14 @@ if "IN" in sectionset:
 				out.append("""	</tr>""")
 				classsum = 7*[0]
 				sumlist = 11*[0]
-				for goal in xrange(11):
+				for neededCopies in xrange(11):
 					out.append("""	<tr>""")
-					if goal==10:
+					if neededCopies==10:
 						out.append("""		<td align="center">10+</td>""")
 					else:
-						out.append("""		<td align="center">%u</td>""" % goal)
+						out.append("""		<td align="center">%u</td>""" % neededCopies)
 					for vc in xrange(11):
-						if goal==0:
+						if neededCopies==0:
 							if vc==0:
 								cl = "DELETEREADY"
 								clidx = 6
@@ -576,10 +576,10 @@ if "IN" in sectionset:
 						elif vc==0:
 							cl = "MISSING"
 							clidx = 0
-						elif vc>goal:
+						elif vc>neededCopies:
 							cl = "OVERGOAL"
 							clidx = 4
-						elif vc<goal:
+						elif vc<neededCopies:
 							if vc==1:
 								cl = "ENDANGERED"
 								clidx = 1
@@ -589,18 +589,18 @@ if "IN" in sectionset:
 						else:
 							cl = "NORMAL"
 							clidx = 3
-						if matrix[goal][vc]>0:
-							out.append("""		<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[goal][vc]))
-							classsum[clidx]+=matrix[goal][vc]
+						if matrix[neededCopies][vc]>0:
+							out.append("""		<td align="right"><span class="%s">%u</span></td>""" % (cl,matrix[neededCopies][vc]))
+							classsum[clidx]+=matrix[neededCopies][vc]
 						else:
 							out.append("""		<td align="center">-</td>""")
-					if goal==0:
-						out.append("""		<td align="right"><span class="IGNORE">%u</span></td>""" % sum(matrix[goal]))
+					if neededCopies==0:
+						out.append("""		<td align="right"><span class="IGNORE">%u</span></td>""" % sum(matrix[neededCopies]))
 					else:
-						out.append("""		<td align="right">%u</td>""" % sum(matrix[goal]))
+						out.append("""		<td align="right">%u</td>""" % sum(matrix[neededCopies]))
 					out.append("""	</tr>""")
-					if goal>0:
-						sumlist = [ a + b for (a,b) in zip(sumlist,matrix[goal])]
+					if neededCopies>0:
+						sumlist = [ a + b for (a,b) in zip(sumlist,matrix[neededCopies])]
 				out.append("""	<tr>""")
 				out.append("""		<td align="center">all 1+</td>""")
 				for vc in xrange(11):
