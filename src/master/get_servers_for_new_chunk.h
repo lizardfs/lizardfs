@@ -9,18 +9,44 @@
 
 struct matocsserventry;
 
+struct ChunkserverChunkCounter {
+	ChunkserverChunkCounter(matocsserventry* server, MediaLabel label, int64_t weight)
+			: server(server),
+			  label(std::move(label)),
+			  weight(weight),
+			  chunksCreatedSoFar(0) {
+	}
+
+	matocsserventry* server;
+	MediaLabel label;
+	int64_t weight;
+	int64_t chunksCreatedSoFar;
+};
+
+struct ChunkCreationHistory {
+	ChunkCreationHistory() {}
+	ChunkCreationHistory(Goal goal) : goal(std::move(goal)) {}
+
+	Goal goal;
+	std::vector<ChunkserverChunkCounter> servers;
+};
+
 class GetServersForNewChunk {
 public:
 	struct WeightedServer {
 		WeightedServer(matocsserventry* server, const MediaLabel* label, int64_t weight)
 				: server(server),
 				  label(label),
-				  weight(weight) {
+				  weight(weight),
+				  chunkCount(0) {
 		}
 
 		matocsserventry* server;
 		const MediaLabel* label;
 		int64_t weight;
+
+		// Used internally by chooseServersForGoal algorithm
+		int64_t chunkCount;
 	};
 
 	/// A constructor.
@@ -34,17 +60,9 @@ public:
 	}
 
 	/// Chooses servers to fulfill the given goal.
-	std::vector<matocsserventry*> chooseServersForGoal(const Goal& goal);
+	std::vector<matocsserventry*> chooseServersForGoal(
+			const Goal& goal, ChunkCreationHistory& history);
 
 private:
-	int64_t wildcardCopy(int64_t sumOfWeights, int64_t myWeight,
-			int64_t total, int64_t minimum, int64_t maximumWildcardCopiesToBeAssigned);
-
-	std::vector<matocsserventry*> chooseNServers(
-			std::vector<WeightedServer>& servers,
-			int64_t sumaricWeight, int64_t N);
-
-	/// List of servers with labels and weights.
-	/// We will choose servers randomly with respect to these weights.
 	std::vector<WeightedServer> servers_;
 };

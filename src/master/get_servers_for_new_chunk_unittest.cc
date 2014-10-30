@@ -51,10 +51,11 @@ constexpr int kTestAccuracy = 100;
 TEST_F(GetServersForNewChunkTests, ChooseServers1) {
 	// servers: A A B B C
 	//    goal: A _
+	ChunkCreationHistory history;
 	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
-		auto result = getter.chooseServersForGoal(goal);
+		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -65,10 +66,11 @@ TEST_F(GetServersForNewChunkTests, ChooseServers1) {
 TEST_F(GetServersForNewChunkTests, ChooseServers2) {
 	// servers: A A B B C
 	//    goal: A _ _
+	ChunkCreationHistory history;
 	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 2}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
-		auto result = getter.chooseServersForGoal(goal);
+		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -79,10 +81,11 @@ TEST_F(GetServersForNewChunkTests, ChooseServers2) {
 TEST_F(GetServersForNewChunkTests, ChooseServers3) {
 	// servers: A A B B C
 	//    goal: A C
+	ChunkCreationHistory history;
 	Goal goal("goal", {{"A", 1}, {"C", 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
-		auto result = getter.chooseServersForGoal(goal);
+		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -94,10 +97,11 @@ TEST_F(GetServersForNewChunkTests, ChooseServers3) {
 TEST_F(GetServersForNewChunkTests, ChooseServers4) {
 	// servers: A B B B C
 	//    goal: A _ C
+	ChunkCreationHistory history;
 	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 1}, {"C", 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
-		auto result = getter.chooseServersForGoal(goal);
+		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -110,10 +114,11 @@ TEST_F(GetServersForNewChunkTests, ChooseServers4) {
 TEST_F(GetServersForNewChunkTests, ChooseServers5) {
 	// servers: A B B B C
 	//    goal: A A A
+	ChunkCreationHistory history;
 	Goal goal("goal", {{"A", 3}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
-		auto result = getter.chooseServersForGoal(goal);
+		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);

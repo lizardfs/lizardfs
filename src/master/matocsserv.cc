@@ -494,6 +494,7 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 }
 
 std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId) {
+	static GoalMap<ChunkCreationHistory> history;
 	GetServersForNewChunk getter;
 	// Add servers with weights which are proportional to total space on each server.
 	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
@@ -503,7 +504,7 @@ std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId
 			getter.addServer(eptr, &eptr->label, weight);
 		}
 	}
-	return getter.chooseServersForGoal(fs_get_goal_definition(goalId));
+	return getter.chooseServersForGoal(fs_get_goal_definition(goalId), history[goalId]);
 }
 
 uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,

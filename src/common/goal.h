@@ -60,6 +60,11 @@ public:
 		return name_;
 	}
 
+	/// Oerator ==.
+	bool operator==(const Goal& other) {
+		return (name_ == other.name_ && labels_ == other.labels_);
+	}
+
 private:
 	/// Name of the goal.
 	std::string name_;
