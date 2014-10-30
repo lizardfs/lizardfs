@@ -1359,7 +1359,7 @@ if "EX" in sectionset:
 				if masterversion>=(1,6,26):
 					v1,v2,v3,exportflags,sesflags,rootuid,rootgid,mapalluid,mapallgid,mingoal,maxgoal,mintrashtime,maxtrashtime = struct.unpack(">HBBBBLLLLBBLL",data[pos:pos+32])
 					pos+=32
-					if mingoal<=1 and maxgoal>=9:
+					if mingoal<=1 and maxgoal>=20:
 						mingoal = None
 						maxgoal = None
 					if mintrashtime==0 and maxtrashtime==0xFFFFFFFF:
@@ -1697,7 +1697,7 @@ if "MS" in sectionset:
 				if masterversion>=(1,6,26):
 					sesflags,rootuid,rootgid,mapalluid,mapallgid,mingoal,maxgoal,mintrashtime,maxtrashtime = struct.unpack(">BLLLLBBLL",data[pos:pos+27])
 					pos+=27
-					if mingoal<=1 and maxgoal>=9:
+					if mingoal<=1 and maxgoal>=20:
 						mingoal = None
 						maxgoal = None
 					if mintrashtime==0 and maxtrashtime==0xFFFFFFFF:
