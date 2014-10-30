@@ -713,7 +713,27 @@ enum class SugidClearMode {
 
 // 0x0191
 #define MATOCL_FUSE_REGISTER (PROTO_BASE+401)
-// depends on blob - see blob descriptions above
+/// status:8
+// ----- old tools -----
+/// sessionid:32
+// ----- GETRANDOM -----
+/// data:BYTES[32]
+// ----- non-meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// since 1.6.01
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// older
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32
+// ----- meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8
+// older
+///            sessionid:32 sesflags:8
 
 // 0x0192
 #define CLTOMA_FUSE_STATFS (PROTO_BASE+402)
