@@ -8,6 +8,7 @@ import urllib
 import cgi
 import cgitb
 import sys
+import re
 
 PROTO_BASE = @PROTO_BASE@
 
@@ -33,6 +34,11 @@ CLTOMA_CSSERV_REMOVESERV = (PROTO_BASE+524)
 MATOCL_CSSERV_REMOVESERV = (PROTO_BASE+525)
 CLTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
 CSTOCL_HDD_LIST_V2 = (PROTO_BASE+601)
+LIZ_CLTOMA_LIST_GOALS = 1547
+LIZ_MATOCL_LIST_GOALS = 1548
+
+LIZARDFS_VERSION_WITH_QUOTAS = (2, 5, 0)
+LIZARDFS_VERSION_WITH_CUSTOM_GOALS = (2, 5, 3)
 
 cgitb.enable()
 
@@ -83,6 +89,23 @@ def myrecv(socket,leng):
 			raise RuntimeError, "socket connection broken"
 		msg = msg + chunk
 	return msg
+
+def send_and_receive(host, port, request, response_type):
+	global mysend, myrecv, socket, struct
+	s = socket.socket()
+	s.connect((host, port))
+	try:
+		mysend(s, request)
+		header = myrecv(s, 8)
+		cmd, length = struct.unpack(">LL", header)
+		if cmd != response_type:
+			raise RuntimeError, "received wrong response (%x instead of %x)" % (cmd, response_type)
+		data = myrecv(s, length)
+		s.close()
+		return data
+	except:
+		s.close()
+		raise
 
 def decimal_number(number,sep=' '):
 	parts = []
@@ -290,7 +313,7 @@ else:
 		"IN":"Info",
 		"CS":"Servers",
 		"HD":"Disks",
-		"EX":"Exports",
+		"EX":"Config",
 		"MS":"Mounts",
 		"MO":"Operations",
 		"MC":"Master Charts",
@@ -1304,7 +1327,7 @@ if "EX" in sectionset:
 
 	try:
 		out.append("""<table class="FR" cellspacing="0">""")
-		out.append("""	<tr><th colspan="%u">Exports</th></tr>""" % (19 if masterversion>=(2,5,0) else 18 if masterversion>=(1,6,26) else 14))
+		out.append("""	<tr><th colspan="%u">Exports</th></tr>""" % (19 if masterversion>=LIZARDFS_VERSION_WITH_QUOTAS else 18 if masterversion>=(1,6,26) else 14))
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
 		out.append("""		<th colspan="2">ip&nbsp;range</th>""")
@@ -1315,7 +1338,7 @@ if "EX" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ro/rw</a></th>""" % (createorderlink("EX",7)))
 		out.append("""		<th rowspan="2"><a href="%s">restricted&nbsp;ip</a></th>""" % (createorderlink("EX",8)))
 		out.append("""		<th rowspan="2"><a href="%s">ignore&nbsp;gid</a></th>""" % (createorderlink("EX",9)))
-		if masterversion>=(2,5,0):
+		if masterversion>=LIZARDFS_VERSION_WITH_QUOTAS:
 			out.append("""		<th rowspan="2"><a href="%s">quota&nbsp;admin</a></th>""" % (createorderlink("EX",10)))
 		out.append("""		<th colspan="2">map&nbsp;root</th>""")
 		out.append("""		<th colspan="2">map&nbsp;users</th>""")
@@ -1462,7 +1485,7 @@ if "EX" in sectionset:
 				out.append("""		<td align="center">%s</td>""" % ("ro" if sesflags&1 else "rw"))
 				out.append("""		<td align="center">%s</td>""" % ("no" if sesflags&2 else "yes"))
 				out.append("""		<td align="center">%s</td>""" % ("-" if meta else "yes" if sesflags&4 else "no"))
-				if masterversion>=(2,5,0):
+				if masterversion>=LIZARDFS_VERSION_WITH_QUOTAS:
 					out.append("""		<td align="center">%s</td>""" % ("-" if meta else "yes" if sesflags&8 else "no"))
 				if meta:
 					out.append("""		<td align="center">-</td>""")
@@ -1492,7 +1515,45 @@ if "EX" in sectionset:
 				out.append("""	</tr>""")
 				i+=1
 		out.append("""</table>""")
-		s.close()
+		out.append("""<br/>""")
+	except Exception:
+		print """<table class="FR" cellspacing="0">"""
+		print """<tr><td align="left"><pre>"""
+		traceback.print_exc(file=sys.stdout)
+		print """</pre></td></tr>"""
+		print """</table>"""
+
+	try:
+		if masterversion < LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
+                        # For old servers just print the default configuration
+			goals = [(i, str(i), str(i) + "*_") for i in xrange(1, 21)]
+		else:
+                        # For new servers, use LIZ_CLTOMA_LIST_GOALS to fetch the list of goal definitions
+			request = struct.pack(">LLLB", LIZ_CLTOMA_LIST_GOALS, 5, 0, 0)
+			response = send_and_receive(masterhost, masterport, request, LIZ_MATOCL_LIST_GOALS)
+                        # Format of the response is:
+                        # version:32 N:32 N*(id:16 namelen:32 name[namelen-1] '\0' desclen:32 desc[desclen-1] '\0')
+			version, vector_size = struct.unpack(">LL", response[0:8])
+			if version != 0:
+				raise RuntimeError, "Unknown version of response (%u instead of 0)" % version
+			goals = []
+			pos = 8
+			for i in xrange(vector_size):
+				name_length, = struct.unpack(">L", response[pos+2:pos+6])
+				definition_length, = struct.unpack(">L", response[pos+6+name_length:pos+6+name_length+4])
+				entry_length = 10 + name_length + definition_length
+				id, name, definition = struct.unpack(">Hxxxx{}sxxxxx{}sx".format(name_length - 1, definition_length - 1), response[pos:pos+entry_length])
+				goals.append((id, name, definition))
+				pos = pos + entry_length
+		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""	<tr><th colspan="3">Goal definitions</th></tr>""")
+		out.append("""	<tr><th class="PERC4">ID</th><th class="PERC8">name</th><th class="PERC88" align="left">definition</th></tr>""")
+		for (id, name, definition) in sorted(goals):
+			row_class = 1 + (id - 1) % 2
+                        # Convert ugly 1*_,2*label1,3*label2 to something more readable
+			definition = re.sub(r'([0-9]+)\*([A-Za-z0-9_]+)(,?)', r'\1 &times; <b>\2</b>\3 ', definition)
+			out.append("""	<tr class="C%u"><td>%d</td><td align="left">%s</td><td align="left">%s</td>""" % (row_class, id, name, definition))
+		out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
 		print """<table class="FR" cellspacing="0">"""
