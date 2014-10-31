@@ -6,6 +6,7 @@
 #include "common/human_readable_format.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
+#include "probe/chunk_health_command.h"
 #include "probe/info_command.h"
 #include "probe/io_limits_status_command.h"
 #include "probe/list_chunkservers_command.h"
@@ -18,6 +19,7 @@
 int main(int argc, const char** argv) {
 	strerr_init();
 	std::vector<const LizardFsProbeCommand*> allCommands = {
+			new ChunksHealthCommand(),
 			new InfoCommand(),
 			new IoLimitsStatusCommand(),
 			new ListChunkserversCommand(),

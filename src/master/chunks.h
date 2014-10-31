@@ -23,6 +23,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include "common/chunks_availability_state.h"
 #include "master/checksum.h"
 
 struct matocsserventry;
@@ -51,6 +52,8 @@ void chunk_store_info(uint8_t *buff);
 uint32_t chunk_get_missing_count(void);
 void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid);
 uint32_t chunk_count(void);
+const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly);
+const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly);
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 
 /// Checks if the given chunk has only invalid copies (ie. needs to be repaired).

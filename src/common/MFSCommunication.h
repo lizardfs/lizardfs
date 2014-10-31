@@ -1283,6 +1283,14 @@ enum class SugidClearMode {
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
 /// -
 
+// 0x05F6
+#define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
+/// regularonly:8
+
+// 0x05F7
+#define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
+/// regularonly:8 data:(ChunksAvailabilityState ChunksReplicationState)
+
 // 0x05F8
 #define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)
 /// cfgversion:32 period:32 subsystem:STDSTRING groups:(vector<STDSTRING>)

@@ -4,6 +4,7 @@
 
 #include "common/access_control_list.h"
 #include "common/attributes.h"
+#include "common/chunks_availability_state.h"
 #include "common/io_limits_database.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
@@ -160,6 +161,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, notChanged,
 		uint32_t, notPermitted)
 
+// LIZ_MATOCL_LIST_GOALS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, listGoals, LIZ_MATOCL_LIST_GOALS, 0,
 		std::vector<SerializedGoal>, serializedGoals)
+
+// LIZ_MATOCL_CHUNKS_HEALTH
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, chunksHealth, LIZ_MATOCL_CHUNKS_HEALTH, 0,
+		bool, regularChunksOnly,
+		ChunksAvailabilityState, availability,
+		ChunksReplicationState, replication)

@@ -928,6 +928,16 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
+void matoclserv_chunks_health(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	bool regularChunksOnly;
+	cltoma::chunksHealth::deserialize(data, length, regularChunksOnly);
+	std::vector<uint8_t> message;
+	matocl::chunksHealth::serialize(message, regularChunksOnly,
+			chunk_get_availability_state(regularChunksOnly),
+			chunk_get_replication_state(regularChunksOnly));
+	matoclserv_createpacket(eptr, std::move(message));
+}
+
 void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	matoclserventry *eaptr;
@@ -3590,6 +3600,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_LIST_GOALS:
 					matoclserv_list_goals(eptr);
+					break;
+				case LIZ_CLTOMA_CHUNKS_HEALTH:
+					matoclserv_chunks_health(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

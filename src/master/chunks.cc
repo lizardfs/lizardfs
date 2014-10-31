@@ -30,7 +30,9 @@
 #include <unistd.h>
 #include <algorithm>
 
+#include "common/chunks_availability_state.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -171,6 +173,9 @@ private: // public/private sections are mixed here to make the struct as small a
 	ChunkGoalCounters goalCounters_;
 #ifndef METARESTORE
 	uint8_t allValidCopies_, regularValidCopies_;
+	uint8_t allMissingCopies_, regularMissingCopies_;
+	uint8_t allRedundantCopies_, regularRedundantCopies_;
+	uint8_t goalInStats_;
 	uint8_t copiesInStats_;
 #endif
 public:
@@ -178,10 +183,12 @@ public:
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
-#endif
+	static ChunksAvailabilityState allChunksAvailability, regularChunksAvailability;
+	static ChunksReplicationState allChunksReplicationState, regularChunksReplicationState;
 	static uint64_t count;
 	static uint64_t allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 	static uint64_t regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+#endif
 
 	/// ID of the chunk's goal.
 	uint8_t goal() const {
@@ -227,7 +234,10 @@ public:
 	void initStats() {
 		count++;
 		allValidCopies_ = regularValidCopies_ = 0;
+		allRedundantCopies_ = regularRedundantCopies_ = 0;
+		allMissingCopies_ = regularMissingCopies_ = 0;
 		copiesInStats_ = 0;
+		goalInStats_ = 0;
 		addToStats();
 		updateStats();
 	}
@@ -241,6 +251,7 @@ public:
 	void updateStats() {
 		removeFromStats();
 		allValidCopies_ = regularValidCopies_ = 0;
+
 		for (slist* s = slisthead; s != nullptr; s = s->next) {
 			if (!s->is_valid()) {
 				continue;
@@ -250,7 +261,60 @@ public:
 				regularValidCopies_++;
 			}
 		}
+
+		uint32_t allMissingCopiesOfLabels = 0;
+		uint32_t regularMissingCopiesOfLabels = 0;
+		const Goal::Labels& labels = fs_get_goal_definition(goal()).labels();
+		for (const auto& labelAndCount : labels) {
+			const auto& label = labelAndCount.first;
+			if (label == kMediaLabelWildcard) {
+				continue;
+			}
+			uint32_t allCopiesOfLabel = 0;
+			uint32_t regularCopiesOfLabel = 0;
+			for (slist* s = slisthead; s != nullptr; s = s->next) {
+				if (!s->is_valid() || matocsserv_get_label(s->ptr) != label) {
+					continue;
+				}
+				allCopiesOfLabel++;
+				if (!s->is_todel()) {
+					regularCopiesOfLabel++;
+				}
+			}
+			uint32_t expectedCopiesOfLabel = labelAndCount.second;
+			if (allCopiesOfLabel < expectedCopiesOfLabel) {
+				allMissingCopiesOfLabels += expectedCopiesOfLabel - allCopiesOfLabel;
+			}
+			if (regularCopiesOfLabel < expectedCopiesOfLabel) {
+				regularMissingCopiesOfLabels += expectedCopiesOfLabel - regularCopiesOfLabel;
+			}
+		}
+
+		allMissingCopies_ = missingCopies(allValidCopies_, allMissingCopiesOfLabels);
+		regularMissingCopies_ = missingCopies(regularValidCopies_, regularMissingCopiesOfLabels);
+		allRedundantCopies_ = redundantCopies(allValidCopies_, allMissingCopies_);
+		regularRedundantCopies_ = redundantCopies(regularValidCopies_, regularMissingCopies_);
 		addToStats();
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies for non-wildcard labels return
+	 * overall number of missing copies
+	 */
+	uint32_t missingCopies(uint32_t validCopies, uint32_t missingCopiesOfLabels) {
+		uint32_t ret = std::max<uint32_t>(
+				expectedCopies() > validCopies ? expectedCopies() - validCopies : 0,
+				missingCopiesOfLabels);
+		return std::min<uint32_t>(200U, ret);
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies return number of redundant copies
+	 */
+	uint32_t redundantCopies(uint32_t validCopies, uint32_t missingCopies) {
+		uint32_t validAndMissing = validCopies + missingCopies;
+		uint32_t ret = expectedCopies() < validAndMissing ? validAndMissing - expectedCopies() : 0;
+		return std::min<uint32_t>(200U, ret);
 	}
 
 	bool isSafe() const {
@@ -312,26 +376,64 @@ public:
 	}
 
 private:
+	ChunksAvailabilityState::State allCopiesState() const {
+		if (allValidCopies_ >= 2) {
+			return ChunksAvailabilityState::kSafe;
+		} else if (allValidCopies_ == 1) {
+			return ChunksAvailabilityState::kEndangered;
+		} else {
+			return ChunksAvailabilityState::kLost;
+		}
+	}
+
+	ChunksAvailabilityState::State regularCopiesState() const {
+		if (regularValidCopies_ >= 2) {
+			return ChunksAvailabilityState::kSafe;
+		} else if (regularValidCopies_ == 1) {
+			return ChunksAvailabilityState::kEndangered;
+		} else {
+			return ChunksAvailabilityState::kLost;
+		}
+	}
+
 	void removeFromStats() {
+		allChunksAvailability.removeChunk(goalInStats_, allCopiesState());
+		allChunksReplicationState.removeChunk(goalInStats_, allMissingCopies_,
+				allRedundantCopies_);
+
+		regularChunksAvailability.removeChunk(goalInStats_, regularCopiesState());
+		regularChunksReplicationState.removeChunk(goalInStats_,
+				regularMissingCopies_, regularRedundantCopies_);
+
 		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
-		allValidCopies[limitedCopies][limitedAvc]--;
-		regularValidCopies[limitedCopies][limitedRvc]--;
+		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAll]--;
+		regularValidCopies[limitedCopies][limitedRegular]--;
 	}
 
 	void addToStats() {
 		copiesInStats_ = expectedCopies();
+		goalInStats_ = goal();
+		allChunksAvailability.addChunk(goalInStats_, allCopiesState());
+		allChunksReplicationState.addChunk(goalInStats_, allMissingCopies_, allRedundantCopies_);
+
+		regularChunksAvailability.addChunk(goalInStats_, regularCopiesState());
+		regularChunksReplicationState.addChunk(goalInStats_,
+				regularMissingCopies_, regularRedundantCopies_);
+
 		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
-		allValidCopies[limitedCopies][limitedAvc]++;
-		regularValidCopies[limitedCopies][limitedRvc]++;
+		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAll]++;
+		regularValidCopies[limitedCopies][limitedRegular]++;
 	}
 #endif
 };
 
 #ifndef METARESTORE
+ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
+ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
 uint64_t chunk::count;
 uint64_t chunk::allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 uint64_t chunk::regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
@@ -1163,6 +1265,18 @@ uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
 }
 
 #ifndef METARESTORE
+
+const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksReplicationState :
+			chunk::allChunksReplicationState;
+}
+
+const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksAvailability :
+			chunk::allChunksAvailability;
+}
 
 typedef struct locsort {
 	uint32_t ip;
