@@ -118,3 +118,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, uid,
 		std::string, goalName,
 		uint8_t, smode)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, listGoals, LIZ_CLTOMA_LIST_GOALS, 0,
+		bool, dummy)
+

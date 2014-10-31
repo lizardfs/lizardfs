@@ -9,6 +9,7 @@
 #include "common/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"
+#include "common/serialized_goal.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
@@ -158,3 +159,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, changed,
 		uint32_t, notChanged,
 		uint32_t, notPermitted)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, listGoals, LIZ_MATOCL_LIST_GOALS, 0,
+		std::vector<SerializedGoal>, serializedGoals)

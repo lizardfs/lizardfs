@@ -49,6 +49,7 @@
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
 #include "common/random.h"
+#include "common/serialized_goal.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "master/changelog.h"
@@ -891,17 +892,39 @@ void matoclserv_metadataserver_status(matoclserventry* eptr, const uint8_t* data
 	try {
 		metadataVersion = fs_getversion();
 	} catch (NoMetadataException&) {}
-	uint8_t status = metadataserver::isMaster() ?
-			LIZ_METADATASERVER_STATUS_MASTER :
-			(masterconn_is_connected() ?
-				LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED :
-				LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED);
+	uint8_t status = metadataserver::isMaster()
+		? LIZ_METADATASERVER_STATUS_MASTER
+		: (masterconn_is_connected()
+			 ? LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED
+			 : LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED);
 
 	MessageBuffer buffer;
 	matocl::metadataserverStatus::serialize(buffer,
 			messageId,
 			status,
 			metadataVersion);
+	matoclserv_createpacket(eptr, std::move(buffer));
+}
+
+void matoclserv_list_goals(matoclserventry* eptr) {
+	std::vector<SerializedGoal> serializedGoals;
+	const GoalMap<Goal>& goalMap = fs_get_goal_definitions();
+	for (unsigned i = goal::kMinGoal; i <= goal::kMaxGoal; ++i) {
+		const Goal& goal = goalMap[i];
+		std::stringstream ss;
+		bool first = true;
+		for (const Goal::Labels::value_type& labelCount : goal.labels()) {
+			if (first) {
+				first = false;
+			} else {
+				ss << ',';
+			}
+			ss << labelCount.second << "*" << labelCount.first;
+		}
+		serializedGoals.emplace_back(i, goal.name(), ss.str());
+	}
+	MessageBuffer buffer;
+	matocl::listGoals::serialize(buffer, serializedGoals);
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
@@ -3564,6 +3587,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_METADATASERVER_STATUS:
 					matoclserv_metadataserver_status(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_LIST_GOALS:
+					matoclserv_list_goals(eptr);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

@@ -1363,6 +1363,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
 /// msgid:32 serverstatus:8 metadataversion:64
 
+// 0x060b
+#define LIZ_CLTOMA_LIST_GOALS (1000U + 547U)
+/// dummy:8
+
+// 0x060c
+#define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
+/// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
+
 // CHUNKSERVER STATS
 
 // 0x00258
