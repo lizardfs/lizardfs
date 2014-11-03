@@ -1379,6 +1379,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
 /// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
 
+// 0x060d
+#define LIZ_CLTOMA_CSERV_LIST (1000U + 549U)
+/// dummy:8
+
+// 0x060e
+#define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
+/// chunkservers:(vector<ChunkserverListEntry>)
+
 // CHUNKSERVER STATS
 
 // 0x00258

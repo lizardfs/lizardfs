@@ -5,6 +5,7 @@
 #include "common/access_control_list.h"
 #include "common/attributes.h"
 #include "common/chunks_availability_state.h"
+#include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
@@ -172,3 +173,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		bool, regularChunksOnly,
 		ChunksAvailabilityState, availability,
 		ChunksReplicationState, replication)
+
+// LIZ_MATOCL_CSERV_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, cservList, LIZ_MATOCL_CSERV_LIST, 0,
+		std::vector<ChunkserverListEntry>, cservList)

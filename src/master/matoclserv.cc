@@ -843,16 +843,32 @@ static inline FsContext matoclserv_get_context(matoclserventry *eptr, uint32_t u
 			eptr->sesdata->rootinode, eptr->sesdata->sesflags, uid, gid, auid, agid);
 }
 
-void matoclserv_cserv_list(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint8_t *ptr;
-	(void)data;
+void matoclserv_cserv_list(matoclserventry *eptr, const uint8_t */*data*/, uint32_t length) {
 	if (length!=0) {
 		syslog(LOG_NOTICE,"CLTOMA_CSERV_LIST - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_CSERV_LIST,matocsserv_cservlist_size());
-	matocsserv_cservlist_data(ptr);
+	auto listOfChunkservers = matocsserv_cservlist();
+	uint8_t *ptr = matoclserv_createpacket(eptr, MATOCL_CSERV_LIST, 54 * listOfChunkservers.size());
+	for (const auto& server : listOfChunkservers) {
+		put32bit(&ptr, server.version);
+		put32bit(&ptr, server.servip);
+		put16bit(&ptr, server.servport);
+		put64bit(&ptr, server.usedspace);
+		put64bit(&ptr, server.totalspace);
+		put32bit(&ptr, server.chunkscount);
+		put64bit(&ptr, server.todelusedspace);
+		put64bit(&ptr, server.todeltotalspace);
+		put32bit(&ptr, server.todelchunkscount);
+		put32bit(&ptr, server.errorcounter);
+	}
+}
+
+void matoclserv_liz_cserv_list(matoclserventry *eptr) {
+	MessageBuffer buffer;
+	matocl::cservList::serialize(buffer, matocsserv_cservlist());
+	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
 void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -3561,6 +3577,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_CSERV_LIST:
 					matoclserv_cserv_list(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_CSERV_LIST:
+					matoclserv_liz_cserv_list(eptr);
 					break;
 				case CLTOMA_SESSION_LIST:
 					matoclserv_session_list(eptr,data,length);

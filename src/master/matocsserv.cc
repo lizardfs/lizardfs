@@ -178,51 +178,22 @@ void matocsserv_csdb_lost_connection(uint32_t ip,uint16_t port) {
 	}
 }
 
-uint32_t matocsserv_cservlist_size(void) {
-	uint32_t hash;
-	csdbentry *csptr;
-	uint32_t i;
-	i=0;
-	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
-		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-			i++;
-		}
-	}
-	return i*(4+4+2+8+8+4+8+8+4+4);
-}
-
-void matocsserv_cservlist_data(uint8_t *ptr) {
-	uint32_t hash;
-	csdbentry *csptr;
-	matocsserventry *eptr;
-	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
-		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-			eptr = csptr->eptr;
-			if (eptr) {
-				put32bit(&ptr,(eptr->version)&0xFFFFFF);
-				put32bit(&ptr,eptr->servip);
-				put16bit(&ptr,eptr->servport);
-				put64bit(&ptr,eptr->usedspace);
-				put64bit(&ptr,eptr->totalspace);
-				put32bit(&ptr,eptr->chunkscount);
-				put64bit(&ptr,eptr->todelusedspace);
-				put64bit(&ptr,eptr->todeltotalspace);
-				put32bit(&ptr,eptr->todelchunkscount);
-				put32bit(&ptr,eptr->errorcounter);
+std::vector<ChunkserverListEntry> matocsserv_cservlist() {
+	std::vector<ChunkserverListEntry> result;
+	for (uint32_t hash = 0; hash < CSDBHASHSIZE; hash++) {
+		for (csdbentry *csptr = csdbhash[hash]; csptr; csptr = csptr->next) {
+			if (csptr->eptr != nullptr) {
+				result.emplace_back(*csptr->eptr);
 			} else {
-				put32bit(&ptr,kDisconnectedChunkserverVersion);
-				put32bit(&ptr,csptr->ip);
-				put16bit(&ptr,csptr->port);
-				put64bit(&ptr,0);
-				put64bit(&ptr,0);
-				put32bit(&ptr,0);
-				put64bit(&ptr,0);
-				put64bit(&ptr,0);
-				put32bit(&ptr,0);
-				put32bit(&ptr,0);
+				result.emplace_back(
+						kDisconnectedChunkserverVersion,
+						csptr->ip, csptr->port,
+						0, 0, 0, 0, 0, 0, 0,
+						kMediaLabelWildcard);
 			}
 		}
 	}
+	return result;
 }
 
 int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port) {

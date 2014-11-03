@@ -36,6 +36,8 @@ CLTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
 CSTOCL_HDD_LIST_V2 = (PROTO_BASE+601)
 LIZ_CLTOMA_LIST_GOALS = 1547
 LIZ_MATOCL_LIST_GOALS = 1548
+LIZ_CLTOMA_CSERV_LIST = 1549
+LIZ_MATOCL_CSERV_LIST = 1550
 
 LIZARDFS_VERSION_WITH_QUOTAS = (2, 5, 0)
 LIZARDFS_VERSION_WITH_CUSTOM_GOALS = (2, 5, 3)
@@ -767,6 +769,7 @@ if "CS" in sectionset:
 		CSrev = 0
 
 	try:
+		column_count = 13
 		out.append("""<table class="FR" cellspacing="0">""")
 		out.append("""	<tr><th colspan="14">Chunk Servers</th></tr>""")
 		out.append("""	<tr>""")
@@ -775,6 +778,9 @@ if "CS" in sectionset:
 		out.append("""		<th rowspan="2"><a href="%s">ip</a></th>""" % (createorderlink("CS",2)))
 		out.append("""		<th rowspan="2"><a href="%s">port</a></th>""" % (createorderlink("CS",3)))
 		out.append("""		<th rowspan="2"><a href="%s">version</a></th>""" % (createorderlink("CS",4)))
+		if masterversion>=LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
+			out.append("""		<th rowspan="2"><a href="%s">label</a></th>""" % (createorderlink("CS",24)))
+			column_count += 1
 		out.append("""		<th colspan="4">'regular' hdd space</th>""")
 		if masterversion>=(1,6,10):
 			out.append("""		<th colspan="4">'marked for removal' hdd space</th>""")
@@ -794,126 +800,81 @@ if "CS" in sectionset:
 
 		s = socket.socket()
 		s.connect((masterhost,masterport))
-		mysend(s,struct.pack(">LL",CLTOMA_CSERV_LIST,0))
+		if masterversion>=LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
+			mysend(s,struct.pack(">LLLB",LIZ_CLTOMA_CSERV_LIST,5,0,0))
+		else:
+			mysend(s,struct.pack(">LL",CLTOMA_CSERV_LIST,0))
 		header = myrecv(s,8)
-		cmd,length = struct.unpack(">LL",header)
-		if cmd==MATOCL_CSERV_LIST and masterversion>=(1,5,13) and (length%54)==0:
-			data = myrecv(s,length)
-			n = length/54
-			servers = []
-			for i in xrange(n):
-				d = data[i*54:(i+1)*54]
-				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBBBBBHQQLQQLL",d)
-				strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
-				try:
-					host = (socket.gethostbyaddr(strip))[0]
-				except Exception:
-					host = "(unresolved)"
-				if CSorder==1:
-					sf = host
-				elif CSorder==2 or CSorder==0:
-					sf = (ip1,ip2,ip3,ip4)
-				elif CSorder==3:
-					sf = port
-				elif CSorder==4:
-					sf = (v1,v2,v3)
-				elif CSorder==10:
-					sf = chunks
-				elif CSorder==11:
-					sf = used
-				elif CSorder==12:
-					sf = total
-				elif CSorder==13:
-					if total>0:
-						sf = (1.0*used)/total
-					else:
-						sf = 0
-				elif CSorder==20:
-					sf = tdchunks
-				elif CSorder==21:
-					sf = tdused
-				elif CSorder==22:
-					sf = tdtotal
-				elif CSorder==23:
-					if tdtotal>0:
-						sf = (1.0*tdused)/tdtotal
-					else:
-						sf = 0
+		cmd, length = struct.unpack(">LL",header)
+		data = myrecv(s, length)
+		servers = []
+		if cmd==LIZ_MATOCL_CSERV_LIST:
+			version, vector_size = struct.unpack(">LL", data[0:8])
+			pos = 8
+		else:
+			vector_size = length / 54
+			pos = 0
+		for i in xrange(vector_size):
+			if cmd==LIZ_MATOCL_CSERV_LIST:
+				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt,label_length = struct.unpack(">BBBBBBBBHQQLQQLLL",data[pos:pos + 58])
+				label = data[pos+58:pos+58+label_length-1]
+				pos = pos + 58 + label_length
+			else:
+				disconnected,v1,v2,v3,ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBBBBBHQQLQQLL",data[pos:pos + 54])
+				label = "_"
+				pos = pos + 54
+			strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
+			try:
+				host = (socket.gethostbyaddr(strip))[0]
+			except Exception:
+				host = "(unresolved)"
+			if CSorder==1:
+				sf = host
+			elif CSorder==2 or CSorder==0:
+				sf = (ip1,ip2,ip3,ip4)
+			elif CSorder==3:
+				sf = port
+			elif CSorder==4:
+				sf = (v1,v2,v3)
+			elif CSorder==10:
+				sf = chunks
+			elif CSorder==11:
+				sf = used
+			elif CSorder==12:
+				sf = total
+			elif CSorder==13:
+				if total>0:
+					sf = (1.0*used)/total
 				else:
 					sf = 0
-				servers.append((sf,disconnected,host,strip,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
+			elif CSorder==20:
+				sf = tdchunks
+			elif CSorder==21:
+				sf = tdused
+			elif CSorder==22:
+				sf = tdtotal
+			elif CSorder==23:
+				if tdtotal>0:
+					sf = (1.0*tdused)/tdtotal
+				else:
+					sf = 0
+			elif CSorder==24:
+				sf = label
+			else:
+				sf = 0
+			servers.append((sf,disconnected,host,strip,label,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
 			servers.sort()
 			if CSrev:
 				servers.reverse()
-			i = 1
-			for sf,disconnected,host,strip,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
-				out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-				if disconnected==1:
-					out.append("""		<td align="right"><span class="DISCONNECTED">%u</span></td><td align="left"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%u</span></td><td align="center"><span class="DISCONNECTED">disconnected !!!</span></td><td align="right" colspan="8"><a href="%s">click to remove</a></td>""" % (i,host,strip,port,createlink({"CSremove":("%s:%u" % (strip,port))})))
-				else:
-					out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">%u.%u.%u</td>""" % (i,host,strip,port,v1,v2,v3))
-					out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
-					if (total>0):
-						out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
-					else:
-						out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
-					out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (tdchunks,decimal_number(tdused),humanize_number(tdused,"&nbsp;"),decimal_number(tdtotal),humanize_number(tdtotal,"&nbsp;")))
-					if (tdtotal>0):
-						out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((tdused*200.0)/tdtotal),(tdused*100.0)/tdtotal))
-					else:
-						out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
-				out.append("""	</tr>""")
-				i+=1
-		elif cmd==MATOCL_CSERV_LIST and masterversion<(1,5,13) and (length%50)==0:
-			data = myrecv(s,length)
-			n = length/50
-			servers = []
-			for i in xrange(n):
-				d = data[i*50:(i+1)*50]
-				ip1,ip2,ip3,ip4,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt = struct.unpack(">BBBBHQQLQQLL",d)
-				strip = "%u.%u.%u.%u" % (ip1,ip2,ip3,ip4)
-				try:
-					host = (socket.gethostbyaddr(strip))[0]
-				except Exception:
-					host = "(unresolved)"
-				if CSorder==1:
-					sf = host
-				elif CSorder==2 or CSorder==0:
-					sf = (ip1,ip2,ip3,ip4)
-				elif CSorder==3:
-					sf = port
-				elif CSorder==4:
-					sf = 0
-				elif CSorder==10:
-					sf = chunks
-				elif CSorder==11:
-					sf = used
-				elif CSorder==12:
-					sf = total
-				elif CSorder==13:
-					if total>0:
-						sf = (1.0*used)/total
-					else:
-						sf = 0
-				elif CSorder==20:
-					sf = tdchunks
-				elif CSorder==21:
-					sf = tdused
-				elif CSorder==22:
-					sf = tdtotal
-				elif CSorder==23:
-					if tdtotal>0:
-						sf = (1.0*tdused)/tdtotal
-					else:
-						sf = 0
-				else:
-					sf = 0
-				servers.append((sf,host,strip,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt))
-			servers.sort()
-			i = 1
-			for sf,host,strip,port,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
-				out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
-				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">???</td>""" % (i,host,strip,port))
+		i = 1
+		for sf,disconnected,host,strip,label,port,v1,v2,v3,used,total,chunks,tdused,tdtotal,tdchunks,errcnt in servers:
+			out.append("""	<tr class="C%u">""" % (((i-1)%2)+1))
+			if disconnected==1:
+				out.append("""		<td align="right"><span class="DISCONNECTED">%u</span></td><td align="left"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%s</span></td><td align="center"><span class="DISCONNECTED">%u</span></td><td align="center"><span class="DISCONNECTED">disconnected !!!</span></td><td align="right" colspan="%d"><a href="%s">click to remove</a></td>""" % (i,host,strip,port,column_count-5,createlink({"CSremove":("%s:%u" % (strip,port))})))
+			else:
+				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">%u.%u.%u</td>""" % (i,host,strip,port,v1,v2,v3))
+				if masterversion>=LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
+					out.append("""		<td align="left">%s</td>""" % label)
 				out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
 				if (total>0):
 					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
@@ -924,8 +885,9 @@ if "CS" in sectionset:
 					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((tdused*200.0)/tdtotal),(tdused*100.0)/tdtotal))
 				else:
 					out.append("""		<td><div class="box"><div class="progress" style="width:0px;"></div><div class="value">-</div></div></td>""")
-				out.append("""	</tr>""")
-				i+=1
+			out.append("""	</tr>""")
+			i+=1
+
 		out.append("""</table>""")
 		s.close()
 		print "\n".join(out)

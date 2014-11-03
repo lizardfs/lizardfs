@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "common/media_label.h"
+#include "common/chunkserver_list_entry.h"
 
 /// A struct representing a chunkserver.
 struct matocsserventry;
@@ -72,6 +73,14 @@ double matocsserv_get_usage(matocsserventry* e);
 /*! \brief Get chunkservers ordered by disk usage. */
 std::vector<ServerWithUsage> matocsserv_getservers_sorted();
 
+/*! \brief Get information about all chunkservers.
+ *
+ * This list includes disconnected chunkservers.
+ * Disconnected chunkservers have the following fields set to non-zero:
+ * \p version (set to \p kDisconnectedChunkserverVersion), \p servip, \p servport.
+ */
+std::vector<ChunkserverListEntry> matocsserv_cservlist();
+
 int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
 void matocsserv_remove_server(matocsserventry* ptr);
 void matocsserv_usagedifference(double* minusage, double* maxusage,
@@ -83,8 +92,6 @@ int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servp
 uint16_t matocsserv_replication_read_counter(matocsserventry* e);
 uint16_t matocsserv_replication_write_counter(matocsserventry* e);
 uint16_t matocsserv_deletion_counter(matocsserventry* e);
-uint32_t matocsserv_cservlist_size(void);
-void matocsserv_cservlist_data(uint8_t* ptr);
 int matocsserv_send_replicatechunk(matocsserventry* e,
 		uint64_t chunkid, uint32_t version, matocsserventry* src);
 int matocsserv_send_replicatechunk_xor(matocsserventry* e,
