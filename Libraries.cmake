@@ -42,7 +42,7 @@ endif()
 
 # Find standard libraries
 find_package(Socket)
-find_package(Threads)
+find_package(Threads REQUIRED)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
