@@ -21,12 +21,20 @@ TEST(SerializationTests, SerializeString) {
 }
 
 TEST(SerializationTests, SerializeUint32Vector) {
-	serializeTest<std::vector<uint32_t>>(std::vector<uint32_t>{1, 2, 3, 4});
+	serializeTest(std::vector<uint32_t>{1, 2, 3, 4});
 }
 
 TEST(SerializationTests, SerializeStringVector) {
-	serializeTest<std::vector<std::string>>(
-			std::vector<std::string>{"jajeczniczka", "ze", "szczypiorkiem"});
+	serializeTest(std::vector<std::string>{"jajeczniczka", "ze", "szczypiorkiem"});
+}
+
+TEST(SerializationTests, SerializeMapOfMapsOfSets) {
+	std::map<uint32_t, std::map<int, std::set<uint32_t>>> mapOfMapsOfSets;
+	mapOfMapsOfSets[3][4] = {5, 6, 7};
+	mapOfMapsOfSets[3][5] = {9, 6};
+	mapOfMapsOfSets[1][4] = {};
+	mapOfMapsOfSets[2];
+	serializeTest(mapOfMapsOfSets);
 }
 
 struct MyStringAllocator : public std::allocator<std::string> {
