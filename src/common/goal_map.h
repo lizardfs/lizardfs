@@ -2,6 +2,7 @@
 
 #include "common/platform.h"
 
+#include <array>
 #include <cstdint>
 #include <map>
 
@@ -30,6 +31,10 @@ public:
 		return const_cast<GoalMap&>(*this)[goal];
 	}
 
+	friend bool operator==(const GoalMap<T>& eins, const GoalMap<T>& zwei) {
+		return eins.zero_ == zwei.zero_ && eins.goals_ == zwei.goals_;
+	}
+
 	uint32_t serializedSize() const {
 		auto map = goalsAsMap();
 		return ::serializedSize(zero_, map);
@@ -50,7 +55,6 @@ public:
 			this->operator[](i) = map[i];
 		}
 	}
-
 private:
 	std::map<uint8_t, T> goalsAsMap() const {
 		std::map<uint8_t, T> trueMap;
@@ -64,5 +68,5 @@ private:
 	}
 
 	T zero_;
-	T goals_[goal::kNumberOfGoals];
+	std::array<T, goal::kNumberOfGoals> goals_;
 };
