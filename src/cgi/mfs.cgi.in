@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim: noexpandtab shiftwidth=4 softtabstop=4 tabstop=4
 
 import socket
 import struct
@@ -1487,14 +1488,14 @@ if "EX" in sectionset:
 
 	try:
 		if masterversion < LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
-                        # For old servers just print the default configuration
+			# For old servers just print the default configuration
 			goals = [(i, str(i), str(i) + "*_") for i in xrange(1, 21)]
 		else:
-                        # For new servers, use LIZ_CLTOMA_LIST_GOALS to fetch the list of goal definitions
+			# For new servers, use LIZ_CLTOMA_LIST_GOALS to fetch the list of goal definitions
 			request = struct.pack(">LLLB", LIZ_CLTOMA_LIST_GOALS, 5, 0, 0)
 			response = send_and_receive(masterhost, masterport, request, LIZ_MATOCL_LIST_GOALS)
-                        # Format of the response is:
-                        # version:32 N:32 N*(id:16 namelen:32 name[namelen-1] '\0' desclen:32 desc[desclen-1] '\0')
+			# Format of the response is:
+			# version:32 N:32 N*(id:16 namelen:32 name[namelen-1] '\0' desclen:32 desc[desclen-1] '\0')
 			version, vector_size = struct.unpack(">LL", response[0:8])
 			if version != 0:
 				raise RuntimeError, "Unknown version of response (%u instead of 0)" % version
@@ -1512,7 +1513,7 @@ if "EX" in sectionset:
 		out.append("""	<tr><th class="PERC4">ID</th><th class="PERC8">name</th><th class="PERC88" align="left">definition</th></tr>""")
 		for (id, name, definition) in sorted(goals):
 			row_class = 1 + (id - 1) % 2
-                        # Convert ugly 1*_,2*label1,3*label2 to something more readable
+			# Convert ugly 1*_,2*label1,3*label2 to something more readable
 			definition = re.sub(r'([0-9]+)\*([A-Za-z0-9_]+)(,?)', r'\1 &times; <b>\2</b>\3 ', definition)
 			out.append("""	<tr class="C%u"><td>%d</td><td align="left">%s</td><td align="left">%s</td>""" % (row_class, id, name, definition))
 		out.append("""</table>""")
@@ -2447,10 +2448,10 @@ def print_file(name):
 		print line
 
 if "HELP" in sectionset:
-#FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
-#	print_file("@CGI_PATH@/help.html")
-        print """please contact with help@lizardfs.org"""
-        print """<br/>"""
+	# FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
+	#print_file("@CGI_PATH@/help.html")
+	print """please contact with help@lizardfs.org"""
+	print """<br/>"""
 
 
 
