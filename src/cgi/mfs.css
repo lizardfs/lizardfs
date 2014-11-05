@@ -121,9 +121,12 @@ table.FR th {background-color: #C0C0C0;}
 table.FR th.SMPROGBAR {width: 102px;}
 table.FR th.PROGBAR {width: 202px;}
 table.FR th.PERC4 {width: 4%;}
-table.FR th.PERC96 {width: 96%;}
-table.FR th.PERC88 {width: 88%;}
 table.FR th.PERC8 {width: 8%;}
+table.FR th.PERC12 {width: 12%;}
+table.FR th.PERC20 {width: 20%;}
+table.FR th.PERC88 {width: 88%;}
+table.FR th.PERC96 {width: 96%;}
+table.FR .LEFT {text-align: left; padding-left: 7px}
 table.FR td.REL {background-color: #D0D0F0;}
 table.FR td.PR {background-color: #7878B8;}
 

@@ -35,6 +35,8 @@ CLTOMA_CSSERV_REMOVESERV = (PROTO_BASE+524)
 MATOCL_CSSERV_REMOVESERV = (PROTO_BASE+525)
 CLTOCS_HDD_LIST_V2 = (PROTO_BASE+600)
 CSTOCL_HDD_LIST_V2 = (PROTO_BASE+601)
+LIZ_CLTOMA_CHUNKS_HEALTH = 1526
+LIZ_MATOCL_CHUNKS_HEALTH = 1527
 LIZ_CLTOMA_LIST_GOALS = 1547
 LIZ_MATOCL_LIST_GOALS = 1548
 LIZ_CLTOMA_CSERV_LIST = 1549
@@ -82,6 +84,7 @@ CHARTS_CSV_CHARTID_BASE = @CHARTS_CSV_CHARTID_BASE@
 # Tuple("LQBB") -- a tuple consising of uint32_t, uint64_t, uint8_t, uint8_t
 # List(Tuple(3 * "L")) -- a list of 3-tuples of uint32_t
 # List(Tuple("LLL") + String) -- a list of (3-tuple of uint32_t, string)
+# Dict(Primitive("Q", List(String)) -- a dict uint64_t -> list of strings
 def Primitive(format):
 	return ("primitive", format)
 def Tuple(format):
@@ -89,6 +92,8 @@ def Tuple(format):
 String = ("string",)
 def List(element_tree):
 	return ("list", element_tree)
+def Dict(key_tree, value_tree):
+	return ("dict", key_tree, value_tree)
 
 def deserialize(buffer, tree, return_tuple=False):
 	""" Deserialize (and remove) data from a buffer described by a tree
@@ -106,6 +111,9 @@ def deserialize(buffer, tree, return_tuple=False):
 		head_len = 1
 	elif tree[0] == "list":
 		head = deserialize_list(buffer, tree[1])
+	elif tree[0] == "dict":
+		head = deserialize_dict(buffer, tree[1], tree[2])
+		head_len = 3
 	else:
 		raise RuntimeError, "Unknown tree to deserialize: {}".format(tree)
 	if (len(tree) > head_len):
@@ -142,6 +150,16 @@ def deserialize_list(buffer, element_tree):
 	length = deserialize_primitive(buffer, "L")
 	return [deserialize(buffer, element_tree) for i in xrange(length)]
 
+def deserialize_dict(buffer, key_tree, value_tree):
+	""" Deserialize a dict and remove it from buffer """
+	length = deserialize_primitive(buffer, "L")
+	ret = {}
+	for i in xrange(length):
+		key = deserialize(buffer, key_tree)
+		val = deserialize(buffer, value_tree)
+		ret[key] = val
+	return ret
+
 ##########################
 # Serialization framework
 
@@ -165,8 +183,32 @@ def cltoma_list_goals():
 			raise RuntimeError, "malformed LIZ_MATOCL_LIST_GOALS response (too long by {} bytes)".format(len(response))
 		return sorted(goals)
 
+def cltoma_chunks_health(only_regular):
+	goals = cltoma_list_goals()
+	request = make_liz_message(LIZ_CLTOMA_CHUNKS_HEALTH, 0, struct.pack(">B", only_regular))
+	response = send_and_receive(masterhost, masterport, request, LIZ_MATOCL_CHUNKS_HEALTH, 0)
+	regular_only = deserialize(response, Primitive("B"))
+	safe, endangered, lost = deserialize(response, 3 * Dict(Primitive("B"), Primitive("Q")))
+	raw_replication, raw_deletion = deserialize(response, 2 * Dict(Primitive("B"), Tuple(11 * "Q")))
+	if response:
+		raise RuntimeError, "malformed LIZ_MATOCL_CHUNKS_HEALTH response (too long by {} bytes)".format(len(response))
+	availability, replication, deletion = [], [], []
+	for (id, name, _) in goals:
+		availability.append((name, safe.setdefault(id, 0), endangered.setdefault(id, 0), lost.setdefault(id, 0)))
+		replication.append((name,) + raw_replication.setdefault(id, 11 * (0,)))
+		deletion.append((name,) + raw_deletion.setdefault(id, 11 * (0,)))
+	return (availability, replication, deletion)
+
 ###############
 # Other things
+
+def make_table_row(cell_begin, cell_end, cell_contents):
+	""" Returns a string representation of a html table row
+	cell_begin - tag which opens each cell
+	cell_end   - tag which ends each cell
+	cell_contents - collection of values for the row
+	"""
+	return "	<tr>" + "".join([cell_begin + str(i) + cell_end for i in cell_contents]) + "</tr>"
 
 def htmlentities(str):
 	return str.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace("'",'&apos;').replace('"','&quot;')
@@ -259,7 +301,6 @@ def timeduration_to_fullstr(timeduration):
 	hours,hourseconds = divmod(dayseconds,3600)
 	minutes,seconds = divmod(hourseconds,60)
 	return "%u second%s (%s%u:%02u:%02u)" % (timeduration,("" if timeduration==1 else "s"),daysstr,hours,minutes,seconds)
-
 
 # check version
 masterversion = (0,0,0)
@@ -411,7 +452,7 @@ if masterversion<(1,5,14):
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","ML","MC","CC","HELP"];
-else:
+elif masterversion<LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
 	sectiondef={
 		"IN":"Info",
 		"CS":"Servers",
@@ -424,6 +465,21 @@ else:
 		"HELP":"Help"
 	}
 	sectionorder=["IN","CS","HD","EX","MS","MO","MC","CC","HELP"];
+else:
+	sectiondef={
+		"IN":"Info",
+		"CH":"Chunks",
+		"CS":"Servers",
+		"HD":"Disks",
+		"EX":"Config",
+		"MS":"Mounts",
+		"MO":"Operations",
+		"MC":"Master Charts",
+		"CC":"Server Charts",
+		"HELP":"Help"
+	}
+	sectionorder=["IN","CH","CS","HD","EX","MS","MO","MC","CC","HELP"];
+
 
 print "Content-Type: text/html; charset=UTF-8"
 print
@@ -857,6 +913,91 @@ if "IN" in sectionset:
 
 	print """<br/>"""
 
+if "CH" in sectionset:
+	try:
+		CHregular = int(fields.getvalue("CHregular"))
+	except Exception:
+		CHregular = 0
+	try:
+		# Get data for our tables
+		availability, replication, deletion = cltoma_chunks_health(CHregular)
+		switch = """(counts {} hdd space: <a class="VISIBLELINK" href="{}">switch to '{}'</a>)""".format(
+				"only 'regular'" if CHregular == 0 else "'regular' hdd space and 'marked for removal'",
+				createlink({"CHregular" : "1" if CHregular == 0 else "0"}),
+				"all" if CHregular == 0 else "regular")
+
+		def make_cell(value, css_class=None):
+			""" Convers int to a string which should be placed in a cell """
+			if value == 0:
+				return "-"
+			elif css_class is None:
+				return str(value)
+			else:
+				return """<span class="{}">{}</span>""".format(css_class, value)
+
+		out = []
+
+		# Chunks availability table
+		headers = ["goal", "all<br/>chunks", "safe<br/>chunks", "endangered<br/>chunks", "missing<br/>chunks"]
+		out.append("""<table class="FR" cellspacing="0" style="width:650px">""")
+		out.append("""	<tr><th colspan="5">Statistics of chunks {}</th></tr>""".format(switch))
+		out.append(make_table_row('<th class="PERC20">', '</th>', headers))
+		sums = 3 * [0]
+		i = 0
+		for goal, safe, endangered, lost in filter(lambda row: sum(row[1:]) > 0, availability):
+			out.append("""	<tr class="{}">""".format("C1" if i % 2 == 0 else "C2"))
+			i += 1
+			out.append(("""		<th class="LEFT">{}</th>""" + 4 * """<td>{}</td>""").format(
+					goal,
+					safe + endangered + lost,
+					make_cell(safe, "NORMAL"),
+					make_cell(endangered, "ENDANGERED"),
+					make_cell(lost, "MISSING")))
+			out.append("""	</tr>""")
+			sums = map(sum, zip(sums, [safe, endangered, lost])) # add row to the summary
+		# Add summary and end the table
+		out.append("""	<tr>""")
+		out.append(("""		<th>{}</th>""" + 4 * """<th>{}</th>""").format("all", sum(sums), *sums))
+		out.append("""	</tr>""")
+		out.append("""</table>""")
+
+		def add_repl_del_state(out, title, table):
+			""" Appends a table (replication state or deletion state) to out """
+			out.append("""<table class="FR">""")
+			out.append("""	<tr><th colspan="12">Chunk whichs need {}ion of copies {}</th></tr>""".format(
+					title, switch))
+			cell_format = """<th class="PERC8">{}<br/>to """ + title + """e</th>"""
+			out.append(("""	<tr><th>{}</th>""" + 11 * cell_format + """</tr>""").format(
+				"goal", "0 copies", "1 copy", "2 copies", "3 copies", "4 copies",
+				"5 copies", "6 copies", "7 copies", "8 copies", "9 copies", "10+ copies"))
+			i = 0
+			sums = 11 * [0]
+			for row in filter(lambda row: sum(row[1:]) > 0, table):
+				out.append("""	<tr class="{}">""".format("C1" if i % 2 == 0 else "C2"))
+				i += 1
+				out.append(("""		<th class="LEFT">{}</th>""" + 11 * """<td>{}</td>""").format(
+						row[0],	make_cell(row[1], "NORMAL"), *map(make_cell, row[2:])))
+				out.append("""	</tr>""")
+				sums = map(sum, zip(sums, row[1:])) # add row to the summary
+			# Add summary and end the table
+			out.append("""	<tr>""")
+			out.append(("""		<th>{}</th>""" + 11 * """<th>{}</th>""").format("all", *map(make_cell, sums)))
+			out.append("""	</tr>""")
+			out.append("""</table>""")
+
+		out.append("""<br/>""")
+		add_repl_del_state(out, "replicat", replication)
+		out.append("""<br/>""")
+		add_repl_del_state(out, "delet", deletion)
+		print "\n".join(out)
+	except Exception:
+		print """<table class="FR" cellspacing="0">"""
+		print """<tr><td align="left"><pre>"""
+		traceback.print_exc(file=sys.stdout)
+		print """</pre></td></tr>"""
+		print """</table>"""
+	print """<br/>"""
+
 if "CS" in sectionset:
 	out = []
 
@@ -975,7 +1116,7 @@ if "CS" in sectionset:
 			else:
 				out.append("""		<td align="right">%u</td><td align="left">%s</td><td align="center">%s</td><td align="center">%u</td><td align="center">%u.%u.%u</td>""" % (i,host,strip,port,v1,v2,v3))
 				if masterversion>=LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
-					out.append("""		<td align="left">%s</td>""" % label)
+					out.append("""		<td class="LEFT">%s</td>""" % label)
 				out.append("""		<td align="right">%u</td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td><td align="right"><a style="cursor:default" title="%s B">%sB</a></td>""" % (chunks,decimal_number(used),humanize_number(used,"&nbsp;"),decimal_number(total),humanize_number(total,"&nbsp;")))
 				if (total>0):
 					out.append("""		<td><div class="box"><div class="progress" style="width:%upx;"></div><div class="value">%.2f</div></div></td>""" % (int((used*200.0)/total),(used*100.0)/total))
