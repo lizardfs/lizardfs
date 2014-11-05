@@ -964,7 +964,7 @@ if "CH" in sectionset:
 		def add_repl_del_state(out, title, table):
 			""" Appends a table (replication state or deletion state) to out """
 			out.append("""<table class="FR">""")
-			out.append("""	<tr><th colspan="12">Chunk whichs need {}ion of copies {}</th></tr>""".format(
+			out.append("""	<tr><th colspan="12">Chunks which need {}ion {}</th></tr>""".format(
 					title, switch))
 			cell_format = """<th class="PERC8">{}<br/>to """ + title + """e</th>"""
 			out.append(("""	<tr><th>{}</th>""" + 11 * cell_format + """</tr>""").format(
