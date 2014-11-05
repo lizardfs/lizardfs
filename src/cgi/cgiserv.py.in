@@ -385,7 +385,7 @@ def mylock(filename):
 		except ValueError:
 			posix.close(fd)
 			return -1
-	posix.write(fd,"%u" % posix.getpid())
+	posix.write(fd,"%u          " % posix.getpid())
 	return 0
 
 def wdlock(fname,runmode,timeout):
