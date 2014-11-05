@@ -6,7 +6,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        2.5.3
+Version:        2.5.4
 Release:        1%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -244,8 +244,21 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.3
-- (none) None
+* Fri Nov 07 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.4
+- (all) Boost is no longer required to build the source code of LizardFS
+  or use the binary version
+- (all) Added tiering (aka 'custom goal') feature, which allows
+  users to label chunkservers and to request chunks to be stored
+  on specific groups of servers
+- (cgi) "Exports" tabs renamed to "Config", now it also shows goal
+  definitions
+- (cgi) Added new tab "Chunks"
+- (probe) New command "chunks-health" makes it possible to get number of
+  missing or endangered chunks
+- (master) Fixed reporting memory usage in CGI
+- (mount) Fixed caching contents of open directories
+- (mount) Add a .lizardfs_tweaks file
+- (all) Other minor fixes and improvements
 
 * Mon Sep 15 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.2
 - (master, shadow) Metadata checksum mechanism, allowing to
@@ -261,7 +274,7 @@ rm -rf $RPM_BUILD_ROOT
   Windows)
 - (all) Minor fixes and improvements
 
-* Wed Jul 15 2014 Marcin Sulikowski <sulik@lizardfs.org> - 2.5.0
+* Tue Jul 15 2014 Marcin Sulikowski <sulik@lizardfs.org> - 2.5.0
 - (master) High availability provided by shadow master servers
 - (mount, chunkserver) CRC algorithm replaced with a 3 times faster
   implementation
