@@ -34,6 +34,7 @@
 #include <limits>
 #include <vector>
 
+#include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/human_readable_format.h"
@@ -1178,104 +1179,110 @@ int ip_port_cmp(const void*a,const void*b) {
 	return memcmp(a,b,6);
 }
 
-int file_info(const char *fname) {
-	uint8_t reqbuff[20],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t indx,cmd,leng,inode,version;
-	uint8_t ip1,ip2,ip3,ip4;
-	uint16_t port;
-	uint64_t fleng,chunkid;
+int file_info(const char *fileName) {
+	std::vector<uint8_t> buffer;
+	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
+	uint64_t fileLength, chunkId;
 	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,0);
-	if (fd<0) {
+	fd = open_master_conn(fileName, &inode, NULL, 0, 0);
+	if (fd < 0) {
 		return -1;
 	}
-	indx=0;
-	do {
-		wptr = reqbuff;
-		put32bit(&wptr,CLTOMA_FUSE_READ_CHUNK);
-		put32bit(&wptr,12);
-		put32bit(&wptr,0);
-		put32bit(&wptr,inode);
-		put32bit(&wptr,indx);
-		if (tcpwrite(fd,reqbuff,20)!=20) {
-			printf("%s [%" PRIu32 "]: master query: send error\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		if (tcpread(fd,reqbuff,8)!=8) {
-			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		rptr = reqbuff;
-		cmd = get32bit(&rptr);
-		leng = get32bit(&rptr);
-		if (cmd!=MATOCL_FUSE_READ_CHUNK) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		buff = (uint8_t*) malloc(leng);
-		if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		rptr = buff;
-		cmd = get32bit(&rptr);  // queryid
-		if (cmd!=0) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		leng-=4;
-		if (leng==1) {
-			printf("%s [%" PRIu32 "]: %s\n",fname,indx,mfsstrerr(*rptr));
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		} else if (leng<20 || ((leng-20)%6)!=0) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (leng)\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		if (indx==0) {
-			printf("%s:\n",fname);
-		}
-		fleng = get64bit(&rptr);
-		chunkid = get64bit(&rptr);
-		version = get32bit(&rptr);
-		if (fleng>0) {
-			if (chunkid==0 && version==0) {
-				printf("\tchunk %" PRIu32 ": empty\n",indx);
-			} else {
-				printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 " / (id:%" PRIu64 " ver:%" PRIu32 ")\n",indx,chunkid,version,chunkid,version);
-				leng-=20;
-				leng/=6;
-				if (leng>0) {
-					wptr = (uint8_t*)rptr;
-					qsort(wptr,leng,6,ip_port_cmp);
-					for (cmd=0 ; cmd<leng ; cmd++) {
-						ip1 = rptr[0];
-						ip2 = rptr[1];
-						ip3 = rptr[2];
-						ip4 = rptr[3];
-						rptr+=4;
-						port = get16bit(&rptr);
-						printf("\t\tcopy %" PRIu32 ": %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "\n",cmd+1,ip1,ip2,ip3,ip4,port);
-					}
+	chunkIndex = 0;
+	try {
+		do {
+			buffer.clear();
+			cltoma::chunkInfo::serialize(buffer, 0, inode, chunkIndex);
+			if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
+				printf("%s [%" PRIu32 "]: master query: send error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			buffer.resize(PacketHeader::kSize);
+			if (tcpread(fd, buffer.data(), PacketHeader::kSize) != (int)PacketHeader::kSize) {
+				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			PacketHeader header;
+			deserializePacketHeader(buffer, header);
+
+			if (header.type != LIZ_MATOCL_CHUNK_INFO) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			buffer.resize(header.length);
+
+			if (tcpread(fd, buffer.data(), header.length) != (int)header.length) {
+				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			PacketVersion version;
+			deserialize(buffer, version, messageId);
+
+			if (messageId != 0) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			uint8_t status = STATUS_OK;
+			if (version == matocl::chunkInfo::kStatusPacketVersion) {
+				matocl::chunkInfo::deserialize(buffer, messageId, status);
+			} else if (version != matocl::chunkInfo::kResponsePacketVersion) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+			if (status != STATUS_OK) {
+				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
+				close_master_conn(1);
+				return -1;
+			}
+
+			std::vector<ChunkWithAddressAndLabel> copies;
+			matocl::chunkInfo::deserialize(buffer, messageId, fileLength, chunkId, chunkVersion, copies);
+
+			if (chunkIndex == 0) {
+				printf("%s:\n", fileName);
+			}
+
+			if (fileLength > 0) {
+				if (chunkId == 0 && chunkVersion == 0) {
+					printf("\tchunk %" PRIu32 ": empty\n", chunkIndex);
 				} else {
-					printf("\t\tno valid copies !!!\n");
+					printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 ""
+							" / (id:%" PRIu64 " ver:%" PRIu32 ")\n",
+							chunkIndex, chunkId, chunkVersion, chunkId, chunkVersion);
+					if (copies.size() > 0) {
+						std::sort(copies.begin(), copies.end());
+						for (size_t i = 0; i < copies.size(); i++) {
+							printf("\t\tcopy %lu: %s:%s\n", i + 1,
+									copies[i].address.toString().c_str(),
+									copies[i].label.c_str());
+						}
+					} else {
+						printf("\t\tno valid copies !!!\n");
+					}
 				}
 			}
-		}
-		free(buff);
-		indx++;
-	} while (indx<((fleng+MFSCHUNKMASK)>>MFSCHUNKBITS));
+			chunkIndex++;
+		} while (chunkIndex < ((fileLength + MFSCHUNKMASK) >> MFSCHUNKBITS));
+	} catch (IncorrectDeserializationException& e) {
+		printf("%s [%" PRIu32 "]: master query: wrong answer (%s)\n",
+				fileName, chunkIndex, e.what());
+		close_master_conn(1);
+		return -1;
+	}
 	close_master_conn(0);
 	return 0;
 }

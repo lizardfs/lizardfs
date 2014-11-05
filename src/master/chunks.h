@@ -23,6 +23,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "master/checksum.h"
 
@@ -63,6 +64,8 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList);
 void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version);
 void chunk_damaged(matocsserventry *ptr,uint64_t chunkid);
 void chunk_lost(matocsserventry *ptr,uint64_t chunkid);

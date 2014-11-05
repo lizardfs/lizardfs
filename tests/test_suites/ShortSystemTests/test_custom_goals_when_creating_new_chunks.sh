@@ -34,9 +34,9 @@ expected_labels[20]="cn,de,us,us|cn,de,de,us"
 # For a given file, prints lables of chunkservers where the file's chunks are placed, eg. de,us,us
 get_file_labels() {
 	local fileinfo_to_labels="`
-			`/copy .*:(${info[chunkserver0_port]}|${info[chunkserver1_port]})\$/ {print \"de\"} `
-			`/copy .*:(${info[chunkserver2_port]}|${info[chunkserver3_port]})\$/ {print \"us\"} `
-			`/copy .*:(${info[chunkserver4_port]})\$/ {print \"cn\"}"
+			`/copy .*:(${info[chunkserver0_port]}|${info[chunkserver1_port]}):.*\$/ {print \"de\"} `
+			`/copy .*:(${info[chunkserver2_port]}|${info[chunkserver3_port]}):.*\$/ {print \"us\"} `
+			`/copy .*:(${info[chunkserver4_port]}):.*\$/ {print \"cn\"}"
 	mfsfileinfo "$1" | awk "$fileinfo_to_labels" | sort | tr '\n' ' ' | trim | tr ' ' ','
 }
 

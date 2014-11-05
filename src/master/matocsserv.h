@@ -88,7 +88,8 @@ void matocsserv_usagedifference(double* minusage, double* maxusage,
 Chunkservers matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
-int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport);
+int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport,
+		MediaLabel** label);
 uint16_t matocsserv_replication_read_counter(matocsserventry* e);
 uint16_t matocsserv_replication_write_counter(matocsserventry* e);
 uint16_t matocsserv_deletion_counter(matocsserventry* e);

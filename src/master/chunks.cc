@@ -1300,6 +1300,64 @@ int chunk_locsort_cmp(const void *aa,const void *bb) {
 	return 0;
 }
 
+struct ChunkLocation {
+	ChunkLocation() : distance(0), random(0) {
+	}
+	NetworkAddress address;
+	uint32_t distance;
+	uint32_t random;
+	MediaLabel* label;
+	bool operator<(const ChunkLocation& other) const {
+		if (distance < other.distance) {
+			return true;
+		} else if (distance > other.distance) {
+			return false;
+		} else {
+			return random < other.random;
+		}
+	}
+};
+
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList) {
+	chunk *c;
+	slist *s;
+	uint8_t cnt;
+
+	sassert(serversList.empty());
+	c = chunk_find(chunkid);
+
+	if (c == NULL) {
+		return ERROR_NOCHUNK;
+	}
+	version = c->version;
+	cnt = 0;
+	std::vector<ChunkLocation> chunkLocation;
+	ChunkLocation chunkserverLocation;
+	for (s = c->slisthead; s; s = s->next) {
+		if (s->is_valid()) {
+			if (cnt < maxNumberOfChunkCopies && matocsserv_getlocation(s->ptr,
+					&(chunkserverLocation.address.ip),
+					&(chunkserverLocation.address.port),
+					&(chunkserverLocation.label)) == 0) {
+				chunkserverLocation.distance =
+						topology_distance(chunkserverLocation.address.ip, currentIp);
+						// in the future prepare more sophisticated distance function
+				chunkserverLocation.random = rndu32();
+				chunkLocation.push_back(chunkserverLocation);
+				cnt++;
+			}
+		}
+	}
+	std::sort(chunkLocation.begin(), chunkLocation.end());
+	for (uint i = 0; i < chunkLocation.size(); ++i) {
+		const ChunkLocation& loc = chunkLocation[i];
+		uint8_t reserved = 0;
+		serversList.emplace_back(loc.address, *loc.label, reserved);
+	}
+	return STATUS_OK;
+}
+
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[100*6]) {
 	chunk *c;
 	slist *s;
@@ -1316,7 +1374,9 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	cnt=0;
 	for (s=c->slisthead ;s ; s=s->next) {
 		if (s->is_valid()) {
-			if (cnt<100 && matocsserv_getlocation(s->ptr,&(lstab[cnt].ip),&(lstab[cnt].port))==0) {
+			MediaLabel* dummy = nullptr;
+			if (cnt < 100 && matocsserv_getlocation(
+					s->ptr, &(lstab[cnt].ip), &(lstab[cnt].port), &dummy) == 0) {
 				lstab[cnt].dist = topology_distance(lstab[cnt].ip,cuip); // in the future prepare more sofisticated distance function
 				lstab[cnt].rnd = rndu32();
 				cnt++;

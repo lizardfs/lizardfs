@@ -38,6 +38,7 @@
 
 #include "common/cfg.h"
 #include "common/charts.h"
+#include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/io_limits_config_loader.h"
@@ -71,6 +72,8 @@ enum {KILL,HEADER,DATA};
 enum {FUSE_WRITE,FUSE_TRUNCATE};
 
 #define SESSION_STATS 16
+
+const uint32_t kMaxNumberOfChunkCopies = 100U;
 
 /* CACHENOTIFY
 // hash size should be at least 1.5 * 10000 * # of connected mounts
@@ -2544,6 +2547,44 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr,const uint8_t *data,uint32
 	}
 }
 
+void matoclserv_chunk_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint8_t status;
+	uint64_t chunkid;
+	uint64_t fleng;
+	uint32_t version;
+	uint32_t messageId;
+	uint32_t inode;
+	uint32_t index;
+	std::vector<uint8_t> outMessage;
+
+	cltoma::chunkInfo::deserialize(data, length, messageId, inode, index);
+
+	status = fs_readchunk(inode, index, &chunkid, &fleng);
+	std::vector<ChunkWithAddressAndLabel> allChunkCopies;
+	if (status == STATUS_OK) {
+		if (chunkid > 0) {
+			status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
+					kMaxNumberOfChunkCopies, allChunkCopies);
+		} else {
+			version = 0;
+		}
+	}
+
+	if (status != STATUS_OK) {
+		matocl::chunkInfo::serialize(outMessage, messageId, status);
+		matoclserv_createpacket(eptr, outMessage);
+		return;
+	}
+
+	dcm_access(inode, eptr->sesdata->sessionid);
+	matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, allChunkCopies);
+	matoclserv_createpacket(eptr, outMessage);
+
+	if (eptr->sesdata) {
+		eptr->sesdata->currentopstats[14]++;
+	}
+}
+
 void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t status;
@@ -3694,6 +3735,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_READ_CHUNK:
 					matoclserv_fuse_read_chunk(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_CHUNK_INFO:
+					matoclserv_chunk_info(eptr, data, length);
 					break;
 				case CLTOMA_FUSE_WRITE_CHUNK:
 					matoclserv_fuse_write_chunk(eptr,data,length);

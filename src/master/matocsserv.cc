@@ -549,10 +549,12 @@ const char* matocsserv_getstrip(matocsserventry *eptr) {
 	return empty;
 }
 
-int matocsserv_getlocation(matocsserventry *eptr,uint32_t *servip,uint16_t *servport) {
+int matocsserv_getlocation(matocsserventry *eptr,uint32_t *servip,uint16_t *servport,
+		MediaLabel** label) {
 	if (eptr->mode!=KILL) {
 		*servip = eptr->servip;
 		*servport = eptr->servport;
+		*label = &(eptr->label);
 		return 0;
 	}
 	return -1;
