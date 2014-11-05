@@ -13,11 +13,9 @@ Group:          System Environment/Daemons
 URL:            http://www.lizardfs.org/
 Source:         https://github.com/lizardfs/lizardfs
 BuildRequires:  fuse-devel
-BuildRequires:  boost-devel
 BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
-Requires:       boost-filesystem
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %define         _localstatedir  /var/lib

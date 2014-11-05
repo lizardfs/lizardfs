@@ -33,7 +33,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <boost/filesystem.hpp>
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
@@ -8183,13 +8182,12 @@ int fs_loadall(void) {
 	fs_strinit();
 	chunk_strinit();
 	changelogsMigrateFrom_1_6_29("changelog");
-	namespace fs = boost::filesystem;
 	if (fs::exists(kMetadataTmpFilename)) {
 		throw MetadataFsConsistencyException(
 				"temporary metadata file exists, metadata directory is in dirty state");
 	}
 	if ((metadataserver::isMaster()) && !fs::exists(kMetadataFilename)) {
-		std::string currentPath(fs::current_path().string());
+		std::string currentPath(fs::getCurrentWorkingDirectory());
 		fprintf(stderr, "Can't open metadata file: If this is new instalation "
 			"then rename %s/%s.empty as %s/%s\n",
 			currentPath.c_str(), kMetadataFilename,
@@ -8384,7 +8382,6 @@ int fs_load_changelogs() {
 		kChangelogFilename
 	};
 	restore_setverblevel(gVerbosity);
-	namespace fs = boost::filesystem;
 	bool oldExists = false;
 	try {
 		for (const std::string& s : changelogs) {
@@ -8415,7 +8412,7 @@ int fs_load_changelogs() {
 				mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 			}
 		}
-	} catch (fs::filesystem_error& ex) {
+	} catch (const FilesystemException& ex) {
 		throw FilesystemException("Error loading changelogs" + std::string(ex.what()));
 	}
 	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
@@ -8480,9 +8477,7 @@ int fs_init() {
 #else
 int fs_init(const char *fname,int ignoreflag, bool noLock) {
 	if (!noLock) {
-		boost::filesystem::path path(fname);
-		gMetadataLockfile.reset(new Lockfile(
-					(path.parent_path() / (kMetadataFilename + std::string(".lock"))).string()));
+		gMetadataLockfile.reset(new Lockfile(fs::dirname(fname) + "/" + kMetadataFilename + ".lock"));
 		gMetadataLockfile->lock(Lockfile::StaleLock::kSwallow);
 	}
 	fs_strinit();

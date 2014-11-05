@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
+#include <libgen.h>
 
+#include "common/exceptions.h"
 #include "common/massert.h"
 
 FileDescriptor::FileDescriptor()
@@ -50,3 +52,44 @@ std::string errorString(int errNo) {
 	return strerror(errNo);
 }
 
+namespace fs {
+
+bool exists(const std::string& path) {
+	int err = access(path.c_str(), F_OK);
+	if (err != 0 && errno != ENOENT) {
+		throw FilesystemException(errorString(errno));
+	}
+	return err == 0;
+}
+
+void rename(const std::string& currentPath, const std::string& newPath) {
+	int err = ::rename(currentPath.c_str(), newPath.c_str());
+	if (err != 0) {
+		throw FilesystemException(errorString(errno));
+	}
+}
+
+void remove(const std::string& path) {
+	int err = ::remove(path.c_str());
+	if (err != 0) {
+		throw FilesystemException(errorString(errno));
+	}
+}
+
+typedef std::unique_ptr<char[], decltype(&free)> cstr;
+
+std::string dirname(const std::string& path) {
+	cstr copy = cstr(strdup(path.c_str()), &free);
+	std::string dirName = ::dirname(copy.get());
+	return dirName;
+}
+
+std::string getCurrentWorkingDirectory() {
+	cstr value = cstr(get_current_dir_name(), &free);
+	if (value == nullptr) {
+		throw FilesystemException("get_current_dir_name failed");
+	}
+	return std::string(value.get());
+}
+
+}
