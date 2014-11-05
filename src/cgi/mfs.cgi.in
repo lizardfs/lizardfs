@@ -1731,14 +1731,14 @@ if "EX" in sectionset:
 		goals = cltoma_list_goals()
 		out.append("""<table class="FR" cellspacing="0">""")
 		out.append("""	<tr><th colspan="3">Goal definitions</th></tr>""")
-		out.append("""	<tr><th class="PERC4">ID</th><th class="PERC8">name</th><th class="PERC88" align="left">definition</th></tr>""")
+		out.append("""	<tr><th class="PERC4">ID</th><th class="PERC8 LEFT">name</th><th class="PERC88 LEFT">definition</th></tr>""")
 		i = 0;
 		for (id, name, definition) in goals:
 			row_class = 1 + i % 2
 			i += 1
 			# Convert ugly 1*_,2*label1,3*label2 to something more readable
 			definition = re.sub(r'([0-9]+)\*([A-Za-z0-9_]+)(,?)', r'\1 &times; <b>\2</b>\3 ', definition)
-			out.append("""	<tr class="C%u"><td>%d</td><td align="left">%s</td><td align="left">%s</td>""" % (row_class, id, name, definition))
+			out.append("""	<tr class="C%u"><td>%d</td><td class="LEFT">%s</td><td class="LEFT">%s</td>""" % (row_class, id, name, definition))
 		out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
