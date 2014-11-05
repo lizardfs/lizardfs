@@ -297,7 +297,7 @@ class HTTP(ClientHandler):
 		sys.stdout = cStringIO.StringIO()
 		# run the script
 		try:
-			execfile(self.file_name)
+			execfile(self.file_name, {})
 		except SystemExit:
 			pass
 		except:
