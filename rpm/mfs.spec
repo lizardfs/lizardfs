@@ -6,7 +6,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        2.5.4
+Version:        2.5.5
 Release:        1%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -244,6 +244,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Thu Nov 07 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.5
+- (none) None
+
 * Fri Nov 07 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.4
 - (all) Boost is no longer required to build the source code of LizardFS
   or use the binary version
