@@ -4,6 +4,7 @@
 
 #include "common/access_control_list.h"
 #include "common/attributes.h"
+#include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
@@ -178,3 +179,20 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, cservList, LIZ_MATOCL_CSERV_LIST, 0,
 		std::vector<ChunkserverListEntry>, cservList)
+
+// LIZ_MATOCL_CHUNK_INFO
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kResponsePacketVersion,
+		uint32_t, messageId,
+		uint64_t, fileLength,
+		uint64_t, chunkId,
+		uint32_t, chunkVersion,
+		std::vector<ChunkWithAddressAndLabel>, chunks)

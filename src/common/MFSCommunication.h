@@ -1137,6 +1137,15 @@ enum class SugidClearMode {
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 /// msgid:32 status:8
 
+//0x01E2
+#define LIZ_CLTOMA_CHUNK_INFO (1000U + 482U)
+/// msgid:32 inode:32 chunkindex:32
+
+//0x01E3
+#define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel reserved:8])
+
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
 // 0x01EA
