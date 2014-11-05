@@ -922,9 +922,9 @@ if "CH" in sectionset:
 		# Get data for our tables
 		availability, replication, deletion = cltoma_chunks_health(CHregular)
 		switch = """(counts {} hdd space: <a class="VISIBLELINK" href="{}">switch to '{}'</a>)""".format(
-				"only 'regular'" if CHregular == 0 else "'regular' hdd space and 'marked for removal'",
-				createlink({"CHregular" : "1" if CHregular == 0 else "0"}),
-				"all" if CHregular == 0 else "regular")
+				"only 'regular'" if CHregular == 1 else "'regular' hdd space and 'marked for removal'",
+				createlink({"CHregular" : "0" if CHregular == 1 else "1"}),
+				"all" if CHregular == 1 else "regular")
 
 		def make_cell(value, css_class=None):
 			""" Convers int to a string which should be placed in a cell """
