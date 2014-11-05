@@ -36,33 +36,41 @@ public:
 	}
 
 	uint32_t serializedSize() const {
-		auto map = goalsAsMap();
-		return ::serializedSize(zero_, map);
+		return ::serializedSize(goalsAsMap());
 	}
 	void serialize(uint8_t** destination) const {
-		auto map = goalsAsMap();
-		::serialize(destination, zero_, map);
+		::serialize(destination, goalsAsMap());
 	}
 	void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
+		// verify if the map is empty
 		T defaultValue = T();
-		sassert(zero_ == defaultValue);
+		sassert(this->operator[](0) == defaultValue);
+		for (unsigned goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
+			sassert(this->operator[](goal) == defaultValue);
+		}
 
+		// deserialize the map
 		std::map<uint8_t, T> map;
-		::deserialize(source, bytesLeftInBuffer, zero_, map);
-
-		for (unsigned i = goal::kMinGoal; i <= goal::kMaxGoal; ++i) {
-			sassert(this->operator[](i) == defaultValue);
-			this->operator[](i) = map[i];
+		::deserialize(source, bytesLeftInBuffer, map);
+		for (auto& goalAndValue : map) {
+			uint8_t goal = goalAndValue.first;
+			if (goal::isGoalValid(goal) || goal == 0) {
+				this->operator[](goal) = std::move(goalAndValue.second);
+			}
 		}
 	}
 private:
 	std::map<uint8_t, T> goalsAsMap() const {
 		std::map<uint8_t, T> trueMap;
 		T defaultValue = T();
+
 		for (unsigned i = goal::kMinGoal; i <= goal::kMaxGoal; ++i) {
 			if (this->operator[](i) != defaultValue) { // Packet size optimization!
 				trueMap[i] = this->operator[](i);
 			}
+		}
+		if (zero_ != defaultValue) {
+			trueMap[0] = zero_;
 		}
 		return trueMap;
 	}
