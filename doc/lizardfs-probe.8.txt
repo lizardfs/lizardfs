@@ -11,6 +11,20 @@ lizardfs-probe - LizardFS monitoring tool
 
 == Available COMMANDs
 
+*chunks-health* __<master ip> <master port>__::
+  Returns chunks health reports in the installation.
+  By default (if no report is specified) all reports will be shown.
+  In replication and deletion states, the column means the number of chunks
+  with number of copies specified in the label to replicate/delete. +
+  Possible command-line options: +
+  --availability +
+    Print report about availability of chunks. +
+  --replication +
+    Print report about about number of chunks that need replication. +
+  --deletion +
+    Print report about about number of chunks that need deletion. +
+
+
 *info* __<master ip> <master port>__::
   Prints statistics concerning the LizardFS installation.
 
@@ -25,6 +39,13 @@ lizardfs-probe - LizardFS monitoring tool
   Possible command-line options: +
   --verbose +
     Be a little more verbose and show operations statistics.
+
+*list-goals* __<master ip> <master port>__::
+  List goal definitions. +
+  Possible command-line options: +
+  --pretty +
+    Print nice table
+
 
 *list-mounts* __<master ip> <master port>__::
   Prints information about all connected mounts. +
