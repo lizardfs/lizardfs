@@ -92,10 +92,10 @@ static void printPorcelainStats(const HddStatistics& stats) {
 			<< ' ' << stats.fsyncops;
 }
 
-static void printPorcelainMode(const ChunkserverEntry& cs, const MooseFSVector<DiskInfo>& disks,
+static void printPorcelainMode(const ChunkserverListEntry& cs, const MooseFSVector<DiskInfo>& disks,
 		bool verbose) {
 	for (const DiskInfo& disk : disks) {
-		std::cout << cs.address.toString()
+		std::cout << NetworkAddress(cs.servip, cs.servport).toString()
 				<< ' ' << disk.path
 				<< ' ' << (disk.flags & DiskInfo::kToDeleteFlagMask ? "yes" : "no")
 				<< ' ' << (disk.flags & DiskInfo::kDamagedFlagMask ? "yes" : "no")
@@ -117,7 +117,7 @@ static void printPorcelainMode(const ChunkserverEntry& cs, const MooseFSVector<D
 	}
 }
 
-static void printNormalMode(const ChunkserverEntry& cs, const MooseFSVector<DiskInfo>& disks,
+static void printNormalMode(const ChunkserverListEntry& cs, const MooseFSVector<DiskInfo>& disks,
 		bool verbose) {
 	for (const DiskInfo& disk : disks) {
 		std::string lastError;
@@ -129,7 +129,7 @@ static void printNormalMode(const ChunkserverEntry& cs, const MooseFSVector<Disk
 					<< " (" << timeToString(disk.errorTimeStamp) << ')';
 			lastError = ss.str();
 		}
-		std::cout << cs.address.toString() << ":" << disk.path << '\n'
+		std::cout << NetworkAddress(cs.servip, cs.servport).toString() << ":" << disk.path << '\n'
 				<< "\tto delete: "
 				<< boolToYesNoString(disk.flags & DiskInfo::kToDeleteFlagMask) << '\n'
 				<< "\tdamaged: "
@@ -179,15 +179,15 @@ void ListDisksCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
-	std::vector<ChunkserverEntry> chunkservers = ListChunkserversCommand::getChunkserversList(
+	auto chunkservers = ListChunkserversCommand::getChunkserversList(
 			options.argument(0), options.argument(1));
-	for (ChunkserverEntry cs : chunkservers) {
+	for (const auto& cs : chunkservers) {
 		if (cs.version == kDisconnectedChunkserverVersion) {
 			continue; // skip disconnected chunkservers -- these surely won't respond
 		}
 		std::vector<uint8_t> request, response;
 		serializeMooseFsPacket(request, CLTOCS_HDD_LIST_V2);
-		ServerConnection connection(cs.address);
+		ServerConnection connection(NetworkAddress(cs.servip, cs.servport));
 		response = connection.sendAndReceive(request, CSTOCL_HDD_LIST_V2);
 		MooseFSVector<DiskInfo> disks;
 		deserializeAllMooseFsPacketDataNoHeader(response, disks);

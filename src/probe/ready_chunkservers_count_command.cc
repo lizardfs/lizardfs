@@ -20,10 +20,10 @@ void ReadyChunkserversCountCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected exactly two arguments for " + name());
 	}
 	uint32_t readyChunkservers = 0;
-	std::vector<ChunkserverEntry> chunkservers = ListChunkserversCommand::getChunkserversList(
+	auto chunkservers = ListChunkserversCommand::getChunkserversList(
 			options.argument(0), options.argument(1));
-	for (const ChunkserverEntry& cs : chunkservers) {
-		if (cs.totalSpace > 0) {
+	for (const auto& cs : chunkservers) {
+		if (cs.totalspace > 0) {
 			++readyChunkservers;
 		}
 	}

@@ -4,8 +4,10 @@
 #include <iostream>
 #include <vector>
 
+#include "common/cltoma_communication.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
+#include "common/matocl_communication.h"
 #include "common/server_connection.h"
 
 std::string ListChunkserversCommand::name() const {
@@ -27,58 +29,52 @@ void ListChunkserversCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
-
-	std::vector<ChunkserverEntry> chunkservers =
-			getChunkserversList(options.argument(0), options.argument(1));
-
-	if (!options.isSet(kPorcelainMode)) {
-		std::cout << "address\tversion\tchunks\tspace\tchunks to del\tto delete\terrors"
-				<< std::endl;
-	}
-	for (const ChunkserverEntry& cs : chunkservers) {
+	for (const auto& cs : getChunkserversList(options.argument(0), options.argument(1))) {
+		auto address = NetworkAddress(cs.servip, cs.servport);
 		if (cs.version == kDisconnectedChunkserverVersion) {
 			if (options.isSet(kPorcelainMode)) {
-				std::cout << cs.address.toString() << " - 0 0 0 0 0 0 0" << std::endl;
+				std::cout << address.toString() << " - 0 0 0 0 0 0 0 -" << std::endl;
 			} else {
-				std::cout << cs.address.toString() << "\t-\t-\t-\t-\t-\t-" << std::endl;
+				std::cout << "Server " << address.toString() << ": disconnected" << std::endl;
 			}
 		} else {
 			if (options.isSet(kPorcelainMode)) {
-				std::cout << cs.address.toString()
+				std::cout << address.toString()
 						<< ' ' << lizardfsVersionToString(cs.version)
-						<< ' ' << cs.chunks
-						<< ' ' << cs.usedSpace
-						<< ' ' << cs.totalSpace
-						<< ' ' << cs.tdChunks
-						<< ' ' << cs.tdUsedSpace
-						<< ' ' << cs.tdTotalSpace
-						<< ' ' << cs.errorCount << std::endl;
+						<< ' ' << cs.chunkscount
+						<< ' ' << cs.usedspace
+						<< ' ' << cs.totalspace
+						<< ' ' << cs.todelchunkscount
+						<< ' ' << cs.todelusedspace
+						<< ' ' << cs.todeltotalspace
+						<< ' ' << cs.errorcounter
+						<< ' ' << cs.label
+						<< std::endl;
 			} else {
-				std::cout << cs.address.toString()
-						<< '\t' << lizardfsVersionToString(cs.version)
-						<< '\t' << convertToSi(cs.chunks)
-						<< '\t' << convertToIec(cs.usedSpace) << "B"
-						<< " / " << convertToIec(cs.totalSpace) << "B"
-						<< '\t' << convertToSi(cs.tdChunks)
-						<< '\t' << convertToIec(cs.tdUsedSpace) << "B"
-						<< " / " << convertToIec(cs.tdTotalSpace) << "B"
-						<< '\t' << convertToSi(cs.errorCount) << std::endl;
+				std::cout << "Server " << address.toString() << ":"
+						<< "\n\tversion: " << lizardfsVersionToString(cs.version)
+						<< "\n\tlabel: " << cs.label
+						<< "\n\tchunks: " << convertToSi(cs.chunkscount)
+						<< "\n\tused space: " << convertToIec(cs.usedspace) << "B"
+						<< " / " << convertToIec(cs.totalspace) << "B"
+						<< "\n\tchunks marked for removal: " << convertToSi(cs.todelchunkscount)
+						<< "\n\tused space marked for removal: "
+						<< convertToIec(cs.todelusedspace) << "B"
+						<< " / " << convertToIec(cs.todeltotalspace) << "B"
+						<< "\n\terrors: " << convertToSi(cs.errorcounter)
+						<< std::endl;
 			}
 		}
 	}
 }
 
-std::vector<ChunkserverEntry> ListChunkserversCommand::getChunkserversList (
+std::vector<ChunkserverListEntry> ListChunkserversCommand::getChunkserversList (
 		const std::string& masterHost, const std::string& masterPort) {
 	ServerConnection connection(masterHost, masterPort);
 	std::vector<uint8_t> request, response;
-	serializeMooseFsPacket(request, CLTOMA_CSERV_LIST);
-	response = connection.sendAndReceive(request, MATOCL_CSERV_LIST);
-	std::vector<ChunkserverEntry> result;
-	while (!response.empty()) {
-		result.push_back(ChunkserverEntry());
-		deserialize(response, result.back());
-		response.erase(response.begin(), response.begin() + serializedSize(result.back()));
-	}
+	cltoma::cservList::serialize(request, true);
+	response = connection.sendAndReceive(request, LIZ_MATOCL_CSERV_LIST);
+	std::vector<ChunkserverListEntry> result;
+	matocl::cservList::deserialize(response, result);
 	return result;
 }

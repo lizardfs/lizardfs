@@ -6,7 +6,7 @@ touch "$replication_log"
 
 # Prints the current human-readable status of chunkservers (disk usage, number of chunks, etc)
 status() {
-	lizardfs-probe list-chunkservers localhost ${info[matocl]} | awk 'NR>1' | sort
+	lizardfs-probe list-chunkservers localhost "${info[matocl]}"
 }
 
 # Set up an installation with 6 chunkservers on loop disks, with 4 different labels.
