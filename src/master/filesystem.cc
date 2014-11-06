@@ -402,6 +402,7 @@ static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
 static bool gMagicAutoFileRepair = false;
+static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -955,31 +956,6 @@ uint64_t fs_checksum(ChecksumMode mode) {
 void fs_start_checksum_recalculation() {
 	if (gChecksumBackgroundUpdater.start()) {
 		main_make_next_poll_nonblocking();
-	}
-}
-
-static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
-
-void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
-	metadataDumper.pollDesc(pdesc, ndesc);
-}
-void metadataPollServe(struct pollfd* pdesc) {
-	bool metadataDumpInProgress = metadataDumper.inProgress();
-	metadataDumper.pollServe(pdesc);
-	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
-		if (metadataDumper.dumpSucceeded()) {
-			rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
-			matomlserv_broadcast_filesystem(STATUS_OK);
-			DEBUG_LOG("master.fs.stored");
-		} else {
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			if (metadataDumper.useMetarestore()) {
-				// master should recalculate its checksum
-				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
-				fs_start_checksum_recalculation();
-			}
-			unlink(kMetadataTmpFilename);
-		}
 	}
 }
 #endif
@@ -7996,6 +7972,72 @@ void fs_unlock() {
 }
 
 #ifndef METARESTORE
+
+/*!
+ * Commits successful metadata dump by renaming files.
+ *
+ * \return true iff up to date metadata.mfs file was created
+ */
+static bool fs_commit_metadata_dump() {
+	try {
+		rotateFiles(kMetadataFilename, gStoredPreviousBackMetaCopies);
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_WARNING, "Rotating backup metadata files failed: %s", ex.what());
+		// ignore this error and continue renaming
+	}
+
+	try {
+		fs::rename(kMetadataTmpFilename, kMetadataFilename);
+		DEBUG_LOG("master.fs.stored");
+		return true;
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+				kMetadataTmpFilename, kMetadataFilename, ex.what());
+	}
+
+	// The previous step didn't return, so let's try to save us in other way
+	std::string alternativeName = kMetadataFilename + std::to_string(main_time());
+	try {
+		fs::rename(kMetadataTmpFilename, alternativeName);
+		mfs_arg_syslog(LOG_ERR, "Emergency metadata file created as %s", alternativeName.c_str());
+		return false;
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+				kMetadataTmpFilename, alternativeName.c_str(), ex.what());
+	}
+
+	// Nothing can be done...
+	mfs_syslog(LOG_ERR, "Trying to create emergency metadata file in foreground...");
+	fs_emergency_saves();
+	return false;
+}
+
+static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
+	metadataDumper.pollDesc(pdesc, ndesc);
+}
+
+static void metadataPollServe(struct pollfd* pdesc) {
+	bool metadataDumpInProgress = metadataDumper.inProgress();
+	metadataDumper.pollServe(pdesc);
+	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
+		if (metadataDumper.dumpSucceeded()) {
+			if (fs_commit_metadata_dump()) {
+				matomlserv_broadcast_filesystem(STATUS_OK);
+			} else {
+				matomlserv_broadcast_filesystem(ERROR_IO);
+			}
+		} else {
+			matomlserv_broadcast_filesystem(ERROR_IO);
+			if (metadataDumper.useMetarestore()) {
+				// master should recalculate its checksum
+				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
+				fs_start_checksum_recalculation();
+			}
+			unlink(kMetadataTmpFilename);
+		}
+	}
+}
+
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (gMetadata == nullptr) {
@@ -8044,14 +8086,11 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 				mfs_errlog(LOG_ERR, "metadata fflush failed");
 			} else if (fsync(fileno(fd.get())) == -1) {
 				mfs_errlog(LOG_ERR, "metadata fsync failed");
-			} else {
-				succeeded = true;
 			}
 			fd.reset();
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
-				rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
-				DEBUG_LOG("master.fs.stored");
+				succeeded = fs_commit_metadata_dump();
 			}
 		}
 		if (child) {

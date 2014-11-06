@@ -42,7 +42,11 @@ void changelog_rotate() {
 		fd=NULL;
 	}
 	if (BackLogsNumber>0) {
-		rotateFiles(kChangelogFilename, BackLogsNumber);
+		try {
+			rotateFiles(kChangelogFilename, BackLogsNumber);
+		} catch (FilesystemException& ex) {
+			syslog(LOG_ERR, "Rotating changelog files failed: %s", ex.what());
+		}
 	} else {
 		unlink(kChangelogFilename);
 	}

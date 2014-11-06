@@ -38,9 +38,3 @@ void rotateFiles(const std::string& file, int storedPreviousCopies, int byNumber
 		rotateFile(true, file, file + "." + std::to_string(byNumber));
 	}
 }
-
-void rotateFiles(const std::string& from, const std::string& to, int storedPreviousCopies) {
-	rotateFiles(to, storedPreviousCopies);
-	rotateFile(false, from, to);
-}
-
