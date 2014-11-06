@@ -100,10 +100,10 @@ IP address to listen on for chunkserver connections (*** means any)
 *MATOCS_LISTEN_PORT*::
 Port to listen on for chunkserver connections (default is 9420)
 
-*MATOCU_LISTEN_HOST*::
+*MATOCL_LISTEN_HOST*::
 IP address to listen on for client (mount) connections (*** means any)
 
-*MATOCU_LISTEN_PORT*::
+*MATOCL_LISTEN_PORT*::
 Port to listen on for client (mount) connections (default is 9421)
 
 *CHUNKS_LOOP_MIN_TIME*::
