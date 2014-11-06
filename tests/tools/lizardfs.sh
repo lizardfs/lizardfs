@@ -76,8 +76,12 @@ setup_local_empty_lizardfs() {
 		assert_eventually 'lizardfs_shadow_synchronized auto'
 	fi
 
-	# Wait for chunkservers
-	lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- MooseFS doesn't support it)
+	if [[ ! $use_moosefs ]]; then
+		lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+	else
+		sleep 3 # A reasonable fallback
+	fi
 
 	# Return array containing information about the installation
 	local out_var=$1
