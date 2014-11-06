@@ -7979,13 +7979,7 @@ void fs_unlock() {
  * \return true iff up to date metadata.mfs file was created
  */
 static bool fs_commit_metadata_dump() {
-	try {
-		rotateFiles(kMetadataFilename, gStoredPreviousBackMetaCopies);
-	} catch (Exception& ex) {
-		mfs_arg_syslog(LOG_WARNING, "Rotating backup metadata files failed: %s", ex.what());
-		// ignore this error and continue renaming
-	}
-
+	rotateFiles(kMetadataFilename, gStoredPreviousBackMetaCopies);
 	try {
 		fs::rename(kMetadataTmpFilename, kMetadataFilename);
 		DEBUG_LOG("master.fs.stored");

@@ -12,19 +12,19 @@
 namespace {
 
 void rotateFile(bool ifExistsOnly, const std::string& from, const std::string& to) {
-	if (ifExistsOnly) {
-		if (!fs::exists(from)) {
-			return;
-		}
-	}
 	try {
+		if (ifExistsOnly) {
+			if (!fs::exists(from)) {
+				return;
+			}
+		}
 		fs::rename(from, to);
 	} catch (const FilesystemException& e) {
 		mfs_arg_errlog(LOG_ERR, "rename backup file %s to %s failed (%s)", from.c_str(), to.c_str(), e.what());
 	}
 }
 
-}
+} // anonymous namespace
 
 void rotateFiles(const std::string& file, int storedPreviousCopies, int byNumber) {
 	sassert(byNumber > 0);
