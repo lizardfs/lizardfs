@@ -129,11 +129,11 @@ def deserialize_primitive(buffer, format):
 	ret, = deserialize_tuple(buffer, format)
 	return ret
 
-def deserialize_tuple(buffer, format):
+def deserialize_tuple(bytebuffer, format):
 	""" Deserialize a tuple described in format string and remove it from buffer """
 	size = struct.calcsize(">" + format)
-	ret = struct.unpack_from(">" + format, buffer)
-	del buffer[0:size]
+	ret = struct.unpack_from(">" + format, buffer(bytebuffer))
+	del bytebuffer[0:size]
 	return ret
 
 def deserialize_string(buffer):
