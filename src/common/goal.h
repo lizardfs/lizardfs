@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <map>
+#include <numeric>
 #include <string>
 
 #include "common/media_label.h"

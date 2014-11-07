@@ -85,9 +85,9 @@ std::string dirname(const std::string& path) {
 }
 
 std::string getCurrentWorkingDirectory() {
-	cstr value = cstr(get_current_dir_name(), &free);
+	cstr value = cstr(getcwd(nullptr, 0), &free);
 	if (value == nullptr) {
-		throw FilesystemException("get_current_dir_name failed");
+		throw FilesystemException("getcwd failed");
 	}
 	return std::string(value.get());
 }
