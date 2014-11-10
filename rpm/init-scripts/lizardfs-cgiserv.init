@@ -1,13 +1,17 @@
 #!/bin/bash
 #
-# Init file for the MooseFS master service
-#
-# chkconfig: - 92 84
-#
-# description: MooseFS master
-#
-# processname: mfsmaster
-# config: @sysconfdir@/mfsmaster.cfg
+### BEGIN INIT INFO
+# Provides: lizardfs-cgiserv
+# Required-Start: $local_fs $network $syslog
+# Required-Stop: $local_fs $syslog
+# Should-Start: $syslog
+# Should-Stop: $network $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start up the lizardfs-cgiserv server daemon
+# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                    This service starts up the LizardFS cgiserv server daemon.
+### END INIT INFO
 
 # Source function library.
 . @initddir@/functions
@@ -15,19 +19,21 @@
 # Source networking configuration.
 . /etc/sysconfig/network
 
+MFSCGISERV_USER=mfs
+
 # Source initialization configuration.
-[ -r "/etc/sysconfig/mfsmaster" ] && . /etc/sysconfig/mfsmaster
+[ -r "/etc/sysconfig/mfscgiserv" ] && . /etc/sysconfig/mfscgiserv
 
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
-[ -x "@sbindir@/mfsmaster" ] || exit 1
+[ -x "@sbindir@/mfscgiserv" ] || exit 1
 
 RETVAL=0
-prog="mfsmaster"
+prog="mfscgiserv"
 
 start () {
     echo -n $"Starting $prog: "
-    daemon $prog
+    daemon --user $MFSCGISERV_USER $prog
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$prog
@@ -36,7 +42,7 @@ start () {
 
 stop () {
     echo -n $"Stopping $prog: "
-    $prog stop || killproc $prog
+    $prog stop >/dev/null 2>&1 || killproc $prog >/dev/null 2>&1
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$prog
@@ -48,13 +54,6 @@ restart () {
     start
 }
 
-reload () {
-    echo -n $"Reloading $prog: "
-    $prog reload
-    RETVAL=$?
-    return $RETVAL
-}
-
 case "$1" in
   start)
     start
@@ -62,11 +61,8 @@ case "$1" in
   stop)
     stop
     ;;
-  restart)
+  restart|reload)
     restart
-    ;;
-  reload)
-    reload
     ;;
   condrestart)
     [ -e /var/lock/subsys/$prog ] && restart

@@ -1,13 +1,17 @@
 #!/bin/bash
 #
-# Init file for the MooseFS metalogger service
-#
-# chkconfig: - 92 84
-#
-# description: MooseFS metalogger
-#
-# processname: mfsmetalogger
-# config: @sysconfdir@/mfsmetalogger.cfg
+### BEGIN INIT INFO
+# Provides: lizardfs-master
+# Required-Start: $local_fs $network $syslog
+# Required-Stop: $local_fs $syslog
+# Should-Start: $syslog
+# Should-Stop: $network $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start up the lizardfs-master server daemon
+# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                    This service starts up the LizardFS master server daemon.
+### END INIT INFO
 
 # Source function library.
 . @initddir@/functions
@@ -16,14 +20,14 @@
 . /etc/sysconfig/network
 
 # Source initialization configuration.
-[ -r "/etc/sysconfig/mfsmetalogger" ] && . /etc/sysconfig/mfsmetalogger
+[ -r "/etc/sysconfig/mfsmaster" ] && . /etc/sysconfig/mfsmaster
 
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
-[ -x "@sbindir@/mfsmetalogger" ] || exit 1
+[ -x "@sbindir@/mfsmaster" ] || exit 1
 
 RETVAL=0
-prog="mfsmetalogger"
+prog="mfsmaster"
 
 start () {
     echo -n $"Starting $prog: "
@@ -48,6 +52,13 @@ restart () {
     start
 }
 
+reload () {
+    echo -n $"Reloading $prog: "
+    $prog reload
+    RETVAL=$?
+    return $RETVAL
+}
+
 case "$1" in
   start)
     start
@@ -55,8 +66,11 @@ case "$1" in
   stop)
     stop
     ;;
-  restart|reload)
+  restart)
     restart
+    ;;
+  reload)
+    reload
     ;;
   condrestart)
     [ -e /var/lock/subsys/$prog ] && restart

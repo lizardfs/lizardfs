@@ -905,7 +905,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		fprintf(stderr,"lockfile created and locked\n");
 	} else if (runmode==RunMode::kStop || runmode==RunMode::kKill) {
 		fprintf(stderr,"can't find process to terminate\n");
-		return LockStatus::kFail;
+		return LockStatus::kSuccess;
 	} else if (runmode==RunMode::kReload) {
 		fprintf(stderr,"can't find process to send reload signal\n");
 		return LockStatus::kFail;
