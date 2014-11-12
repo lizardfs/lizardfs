@@ -115,7 +115,7 @@ def deserialize(buffer, tree, return_tuple=False):
 		head = deserialize_dict(buffer, tree[1], tree[2])
 		head_len = 3
 	else:
-		raise RuntimeError, "Unknown tree to deserialize: {}".format(tree)
+		raise RuntimeError, "Unknown tree to deserialize: {0}".format(tree)
 	if (len(tree) > head_len):
 		tail = deserialize(buffer, tree[head_len:], True)
 		return (head,) + tail
@@ -180,7 +180,7 @@ def cltoma_list_goals():
 		response = send_and_receive(masterhost, masterport, request, LIZ_MATOCL_LIST_GOALS, 0)
 		goals = deserialize(response, List(Primitive("H") + 2 * String))
 		if response:
-			raise RuntimeError, "malformed LIZ_MATOCL_LIST_GOALS response (too long by {} bytes)".format(len(response))
+			raise RuntimeError, "malformed LIZ_MATOCL_LIST_GOALS response (too long by {0} bytes)".format(len(response))
 		return sorted(goals)
 
 def cltoma_chunks_health(only_regular):
@@ -191,7 +191,7 @@ def cltoma_chunks_health(only_regular):
 	safe, endangered, lost = deserialize(response, 3 * Dict(Primitive("B"), Primitive("Q")))
 	raw_replication, raw_deletion = deserialize(response, 2 * Dict(Primitive("B"), Tuple(11 * "Q")))
 	if response:
-		raise RuntimeError, "malformed LIZ_MATOCL_CHUNKS_HEALTH response (too long by {} bytes)".format(len(response))
+		raise RuntimeError, "malformed LIZ_MATOCL_CHUNKS_HEALTH response (too long by {0} bytes)".format(len(response))
 	availability, replication, deletion = [], [], []
 	for (id, name, _) in goals:
 		availability.append((name, safe.setdefault(id, 0), endangered.setdefault(id, 0), lost.setdefault(id, 0)))
@@ -921,67 +921,72 @@ if "CH" in sectionset:
 	try:
 		# Get data for our tables
 		availability, replication, deletion = cltoma_chunks_health(CHregular)
-		switch = """(counts {} hdd space: <a class="VISIBLELINK" href="{}">switch to '{}'</a>)""".format(
+		switch = """(counts %s hdd space: <a class="VISIBLELINK" href="%s">switch to '%s'</a>)""" % (
 				"only 'regular'" if CHregular == 1 else "'regular' hdd space and 'marked for removal'",
 				createlink({"CHregular" : "0" if CHregular == 1 else "1"}),
-				"all" if CHregular == 1 else "regular")
+				"all" if CHregular == 1 else "regular"
+		)
 
 		def make_cell(value, css_class=None):
-			""" Convers int to a string which should be placed in a cell """
+			""" Converts value to a string which should be placed in a cell """
 			if value == 0:
 				return "-"
 			elif css_class is None:
 				return str(value)
 			else:
-				return """<span class="{}">{}</span>""".format(css_class, value)
+				return """<span class="%s">%s</span>""" % (css_class, str(value))
 
 		out = []
 
 		# Chunks availability table
 		headers = ["goal", "all<br/>chunks", "safe<br/>chunks", "endangered<br/>chunks", "missing<br/>chunks"]
 		out.append("""<table class="FR" cellspacing="0" style="width:650px">""")
-		out.append("""	<tr><th colspan="5">Statistics of chunks {}</th></tr>""".format(switch))
+		out.append("""	<tr><th colspan="5">Statistics of chunks %s</th></tr>""" % switch)
 		out.append(make_table_row('<th class="PERC20">', '</th>', headers))
 		sums = 3 * [0]
 		i = 0
 		for goal, safe, endangered, lost in filter(lambda row: sum(row[1:]) > 0, availability):
-			out.append("""	<tr class="{}">""".format("C1" if i % 2 == 0 else "C2"))
+			out.append("""	<tr class="%s">""" % ("C1" if i % 2 == 0 else "C2"))
 			i += 1
-			out.append(("""		<th class="LEFT">{}</th>""" + 4 * """<td>{}</td>""").format(
-					goal,
-					safe + endangered + lost,
+			out.append(("""		<th class="LEFT">%s</th>""" + 4 * """<td>%s</td>""") %
+					(goal,
+					make_cell(safe + endangered + lost),
 					make_cell(safe, "NORMAL"),
 					make_cell(endangered, "ENDANGERED"),
-					make_cell(lost, "MISSING")))
+					make_cell(lost, "MISSING"))
+			)
 			out.append("""	</tr>""")
 			sums = map(sum, zip(sums, [safe, endangered, lost])) # add row to the summary
 		# Add summary and end the table
 		out.append("""	<tr>""")
-		out.append(("""		<th>{}</th>""" + 4 * """<th>{}</th>""").format("all", sum(sums), *sums))
+		out.append(("""		<th>all</th>""" + 4 * """<th>%s</th>""") %
+				((str(sum(sums)),) + tuple(map(make_cell, sums)))
+		)
 		out.append("""	</tr>""")
 		out.append("""</table>""")
 
 		def add_repl_del_state(out, title, table):
 			""" Appends a table (replication state or deletion state) to out """
 			out.append("""<table class="FR">""")
-			out.append("""	<tr><th colspan="12">Chunks which need {}ion {}</th></tr>""".format(
-					title, switch))
-			cell_format = """<th class="PERC8">{}<br/>to """ + title + """e</th>"""
-			out.append(("""	<tr><th>{}</th>""" + 11 * cell_format + """</tr>""").format(
-				"goal", "0 copies", "1 copy", "2 copies", "3 copies", "4 copies",
-				"5 copies", "6 copies", "7 copies", "8 copies", "9 copies", "10+ copies"))
+			out.append("""	<tr><th colspan="12">Chunks which need %sion %s</th></tr>""" % (title, switch))
+			cell_format = """<th class="PERC8">%s<br/>to """ + title + """e</th>"""
+			out.append(("""	<tr><th>goal</th>""" + 11 * cell_format + """</tr>""") %
+				("0 copies", "1 copy", "2 copies", "3 copies", "4 copies",
+				"5 copies", "6 copies", "7 copies", "8 copies", "9 copies", "10+ copies")
+			)
 			i = 0
 			sums = 11 * [0]
 			for row in filter(lambda row: sum(row[1:]) > 0, table):
-				out.append("""	<tr class="{}">""".format("C1" if i % 2 == 0 else "C2"))
+				out.append("""	<tr class="%s">""" % ("C1" if i % 2 == 0 else "C2"))
 				i += 1
-				out.append(("""		<th class="LEFT">{}</th>""" + 11 * """<td>{}</td>""").format(
-						row[0],	make_cell(row[1], "NORMAL"), *map(make_cell, row[2:])))
+				out.append(("""		<th class="LEFT">%s</th>""" + 11 * """<td>%s</td>""") %
+						((row[0], make_cell(row[1], "NORMAL")) + tuple(map(make_cell, row[2:])))
+				)
 				out.append("""	</tr>""")
 				sums = map(sum, zip(sums, row[1:])) # add row to the summary
 			# Add summary and end the table
 			out.append("""	<tr>""")
-			out.append(("""		<th>{}</th>""" + 11 * """<th>{}</th>""").format("all", *map(make_cell, sums)))
+			out.append(("""		<th>all</th>""" + 11 * """<th>%s</th>""") % tuple(map(make_cell, sums)))
 			out.append("""	</tr>""")
 			out.append("""</table>""")
 
