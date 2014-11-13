@@ -496,10 +496,10 @@ print """<body>"""
 
 #MENUBAR
 print """<div id="header">"""
-print """<table class="HDR" cellpadding="0" cellspacing="0" border="0">"""
+print """<table class="HDR" cellpadding="0" cellspacing="0" border="0" summary="Page header">"""
 print """<tr>"""
 print """<td class="LOGO"><a href="http://www.lizardfs.org"><img src="/logomini.png" alt="logo" style="border:0;width:123px;height:47px" /></a></td>"""
-print """<td class="MENU"><table class="MENU" cellspacing="0">"""
+print """<td class="MENU"><table class="MENU" cellspacing="0" summary="Header menu">"""
 print """<tr>"""
 last="U"
 for k in sectionorder:
@@ -544,7 +544,7 @@ if "IN" in sectionset:
 		if cmd==MATOCL_INFO and length==52:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,chunks,tdcopies = struct.unpack(">QQQLQLLLL",data)
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Info table">""")
 			out.append("""	<tr><th colspan="9">Info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>total space</th>""")
@@ -572,7 +572,7 @@ if "IN" in sectionset:
 		elif cmd==MATOCL_INFO and length==60:
 			data = myrecv(s,length)
 			total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,tdcopies = struct.unpack(">QQQLQLLLLLL",data)
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Info table">""")
 			out.append("""	<tr><th colspan="11">Info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>total space</th>""")
@@ -604,7 +604,7 @@ if "IN" in sectionset:
 		elif cmd==MATOCL_INFO and length==68:
 			data = myrecv(s,length)
 			v1,v2,v3,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQLQLLLLLLL",data)
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Info table">""")
 			out.append("""	<tr><th colspan="13">Info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>version</th>""")
@@ -644,7 +644,7 @@ if "IN" in sectionset:
 		elif cmd==MATOCL_INFO and length==76:
 			data = myrecv(s,length)
 			v1,v2,v3,memusage,total,avail,trspace,trfiles,respace,refiles,nodes,dirs,files,chunks,allcopies,tdcopies = struct.unpack(">HBBQQQQLQLLLLLLL",data)
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Info table">""")
 			out.append("""	<tr><th colspan="14">Info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>version</th>""")
@@ -689,7 +689,7 @@ if "IN" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -713,7 +713,7 @@ if "IN" in sectionset:
 				for i in xrange(11):
 					data = myrecv(s,44)
 					matrix.append(list(struct.unpack(">LLLLLLLLLLL",data)))
-				out.append("""<table class="FR" cellspacing="0">""")
+				out.append("""<table class="FR" cellspacing="0" summary="Chunks state matrix">""")
 				if masterversion>=(1,6,10):
 					if INmatrix==0:
 						out.append("""	<tr><th colspan="13">All chunks state matrix (counts 'regular' hdd space and 'marked for removal' hdd space : <a href="%s" class="VISIBLELINK">switch to 'regular'</a>)</th></tr>""" % (createlink({"INmatrix":"1"})))
@@ -789,12 +789,12 @@ if "IN" in sectionset:
 					out.append("""		<td align="right">%u</td>""" % sumlist[vc])
 				out.append("""		<td align="right">%u</td>""" % sum(sumlist))
 				out.append("""	</tr>""")
-				out.append("""	<tr><td colspan="13">""" + " / ".join(["""<span class="%sBOX"></span>&nbsp;-&nbsp;%s (<span class="%s">%u</span>)""" % (cl,desc,cl,classsum[clidx]) for clidx,cl,desc in [(0,"MISSING","missing"),(1,"ENDANGERED","endangered"),(2,"UNDERGOAL","undergoal"),(3,"NORMAL","stable"),(4,"OVERGOAL","overgoal"),(5,"DELETEPENDING","pending&nbsp;deletion"),(6,"DELETEREADY","ready&nbsp;to&nbsp;be&nbsp;removed")]]) + """</td></tr>""")
+				out.append("""	<tr><td colspan="13">""" + " / ".join(["""<span class="%sBOX"><!-- --></span>&nbsp;-&nbsp;%s (<span class="%s">%u</span>)""" % (cl,desc,cl,classsum[clidx]) for clidx,cl,desc in [(0,"MISSING","missing"),(1,"ENDANGERED","endangered"),(2,"UNDERGOAL","undergoal"),(3,"NORMAL","stable"),(4,"OVERGOAL","overgoal"),(5,"DELETEPENDING","pending&nbsp;deletion"),(6,"DELETEREADY","ready&nbsp;to&nbsp;be&nbsp;removed")]]) + """</td></tr>""")
 				out.append("""</table>""")
 			s.close()
 			print "\n".join(out)
 		except Exception:
-			print """<table class="FR" cellspacing="0">"""
+			print """<table class="FR" cellspacing="0" summary="Exception">"""
 			print """<tr><td align="left"><pre>"""
 			traceback.print_exc(file=sys.stdout)
 			print """</pre></td></tr>"""
@@ -812,7 +812,7 @@ if "IN" in sectionset:
 		if cmd==MATOCL_CHUNKSTEST_INFO and length==52:
 			data = myrecv(s,length)
 			loopstart,loopend,del_invalid,ndel_invalid,del_unused,ndel_unused,del_dclean,ndel_dclean,del_ogoal,ndel_ogoal,rep_ugoal,nrep_ugoal,rebalnce = struct.unpack(">LLLLLLLLLLLLL",data[:52])
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Chunk operations info">""")
 			out.append("""	<tr><th colspan="8">Chunk operations info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th colspan="2">loop time</th>""")
@@ -848,7 +848,7 @@ if "IN" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -866,7 +866,7 @@ if "IN" in sectionset:
 		if cmd==MATOCL_FSTEST_INFO and length>=36:
 			data = myrecv(s,length)
 			loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,msgbuffleng = struct.unpack(">LLLLLLLLL",data[:36])
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Filesystem check info">""")
 			out.append("""	<tr><th colspan="8">Filesystem check info</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>check loop start time</th>""")
@@ -905,7 +905,7 @@ if "IN" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -940,7 +940,7 @@ if "CH" in sectionset:
 
 		# Chunks availability table
 		headers = ["goal", "all<br/>chunks", "safe<br/>chunks", "endangered<br/>chunks", "missing<br/>chunks"]
-		out.append("""<table class="FR" cellspacing="0" style="width:650px">""")
+		out.append("""<table class="FR" cellspacing="0" style="width:650px" summary="Statistics of chunks">""")
 		out.append("""	<tr><th colspan="5">Statistics of chunks %s</th></tr>""" % switch)
 		out.append(make_table_row('<th class="PERC20">', '</th>', headers))
 		sums = 3 * [0]
@@ -967,7 +967,7 @@ if "CH" in sectionset:
 
 		def add_repl_del_state(out, title, table):
 			""" Appends a table (replication state or deletion state) to out """
-			out.append("""<table class="FR">""")
+			out.append("""<table class="FR" summary="Chunks which need replication/deletion">""")
 			out.append("""	<tr><th colspan="12">Chunks which need %sion %s</th></tr>""" % (title, switch))
 			cell_format = """<th class="PERC8">%s<br/>to """ + title + """e</th>"""
 			out.append(("""	<tr><th>goal</th>""" + 11 * cell_format + """</tr>""") %
@@ -996,7 +996,7 @@ if "CH" in sectionset:
 		add_repl_del_state(out, "delet", deletion)
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1017,7 +1017,7 @@ if "CS" in sectionset:
 
 	try:
 		column_count = 13
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Chunk Servers">""")
 		out.append("""	<tr><th colspan="14">Chunk Servers</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -1139,7 +1139,7 @@ if "CS" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1160,7 +1160,7 @@ if "CS" in sectionset:
 			MBrev = 0
 
 		try:
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Metadata Backup loggers">""")
 			out.append("""	<tr><th colspan="4">Metadata Backup Loggers</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th>#</th>""")
@@ -1206,7 +1206,7 @@ if "CS" in sectionset:
 			s.close()
 			print "\n".join(out)
 		except Exception:
-			print """<table class="FR" cellspacing="0">"""
+			print """<table class="FR" cellspacing="0" summary="Exception">"""
 			print """<tr><td align="left"><pre>"""
 			traceback.print_exc(file=sys.stdout)
 			print """</pre></td></tr>"""
@@ -1417,7 +1417,7 @@ if "HD" in sectionset:
 					s.close()
 
 		if len(hdd)>0:
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Disks">""")
 			out.append("""	<tr><th colspan="16">Disks</th></tr>""")
 			out.append("""	<tr>""")
 			out.append("""		<th rowspan="3">#</th>""")
@@ -1514,7 +1514,7 @@ if "HD" in sectionset:
 
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1535,7 +1535,7 @@ if "EX" in sectionset:
 		EXrev = 0
 
 	try:
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Exports">""")
 		out.append("""	<tr><th colspan="%u">Exports</th></tr>""" % (19 if masterversion>=LIZARDFS_VERSION_WITH_QUOTAS else 18 if masterversion>=(1,6,26) else 14))
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -1666,7 +1666,7 @@ if "EX" in sectionset:
 					if meta or (sesflags&16)==0:
 						sf = None
 					else:
-						sf = mapalguid
+						sf = mapalluid
 				elif EXorder==15:
 					sf = mingoal
 				elif EXorder==16:
@@ -1726,7 +1726,7 @@ if "EX" in sectionset:
 		out.append("""</table>""")
 		out.append("""<br/>""")
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1734,7 +1734,7 @@ if "EX" in sectionset:
 
 	try:
 		goals = cltoma_list_goals()
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Goal definitions">""")
 		out.append("""	<tr><th colspan="3">Goal definitions</th></tr>""")
 		out.append("""	<tr><th class="PERC4">ID</th><th class="PERC8 LEFT">name</th><th class="PERC88 LEFT">definition</th></tr>""")
 		i = 0;
@@ -1747,7 +1747,7 @@ if "EX" in sectionset:
 		out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1768,7 +1768,7 @@ if "ML" in sectionset:
 		MLrev = 0
 
 	try:
-		out.append("""<table class="CR" cellspacing="0">""")
+		out.append("""<table class="CR" cellspacing="0" summary="Active mounts">""")
 		out.append("""	<tr><th colspan="20">Active mounts</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -1861,7 +1861,7 @@ if "ML" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -1882,7 +1882,7 @@ if "MS" in sectionset:
 		MSrev = 0
 
 	try:
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Active mounts">""")
 		out.append("""	<tr><th colspan="%u">Active mounts (parameters)</th></tr>""" % (19 if masterversion>=(2,5,0) else 18 if masterversion>=(1,6,26) else 14))
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -2107,7 +2107,7 @@ if "MS" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -2128,7 +2128,7 @@ if "MO" in sectionset:
 		MOrev = 0
 
 	try:
-		out.append("""<table class="CR" cellspacing="0">""")
+		out.append("""<table class="CR" cellspacing="0" summary="Active mounts">""")
 		out.append("""	<tr><th colspan="21">Active mounts (operations)</th></tr>""")
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
@@ -2242,7 +2242,7 @@ if "MO" in sectionset:
 		s.close()
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -2350,7 +2350,7 @@ if "MC" in sectionset:
 		out.append("""//--><!]]>""")
 		out.append("""</script>""")
 		out.append("""<div >""")
-		out.append("""<table id="ma_stats_table" class="FR" cellspacing="0">""")
+		out.append("""<table id="ma_stats_table" class="FR" cellspacing="0" summary="Master Stats">""")
 		out.append("""	<tr>""")
 		out.append("""		<th><a href="javascript:ma_change_links(0);">short range</a></th>""")
 		out.append("""		<th><a href="javascript:ma_change_links(1);">medium range</a></th>""")
@@ -2368,7 +2368,7 @@ if "MC" in sectionset:
 		out.append("""</div>""")
 		out.append("""<br/>""")
 
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Master stats">""")
 		out.append("""	<tr>""")
 		out.append("""		<th><a href="javascript:ma_change_range(0);">short range</a></th>""")
 		out.append("""		<th><a href="javascript:ma_change_range(1);">medium range</a></th>""")
@@ -2376,13 +2376,13 @@ if "MC" in sectionset:
 		out.append("""		<th><a href="javascript:ma_change_range(3);">very long range</a></th>""")
 		out.append("""	</tr>""")
 		out.append("""</table>""")
-		out.append("""<table class="FR" cellspacing="0">""")
+		out.append("""<table class="FR" cellspacing="0" summary="Master charts view">""")
 		for i in xrange(2):
 			out.append("""	<tr>""")
 			out.append("""		<td align="center" colspan="4">""")
 			out.append("""			<div id="ma_desc%u">%s</div>""" % (i,charts[0][2]))
 			out.append("""			<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_chart%u" alt="chart" />""" % (urlescape(masterhost),masterport,10*charts[0][0],i))
-			out.append("""			<table class="BOTMENU" cellspacing="0">""")
+			out.append("""			<table class="BOTMENU" cellspacing="0" summary="Master charts menu">""")
 			out.append("""				<tr>""")
 			no=0
 			cl="PR"
@@ -2397,7 +2397,7 @@ if "MC" in sectionset:
 		out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -2463,7 +2463,7 @@ if "CC" in sectionset:
 
 		if len(hostlist)>0:
 			hostlist.sort()
-			out.append("""<form action=""><table class="FR" cellspacing="0"><tr><th>Select: <select name="server" size="1" onchange="document.location.href='%s&amp;CCdata='+this.options[this.selectedIndex].value">""" % createlink({"CCdata":""}))
+			out.append("""<form action=""><table class="FR" cellspacing="0" summary="Server charts selection"><tr><th>Select: <select name="server" size="1" onchange="document.location.href='%s&amp;CCdata='+this.options[this.selectedIndex].value">""" % createlink({"CCdata":""}))
 			entrystr = []
 			entrydesc = {}
 			for id,oname,desc in charts:
@@ -2563,7 +2563,7 @@ if "CC" in sectionset:
 			out.append("""//--><!]]>""")
 			out.append("""</script>""")
 			out.append("""<div >""")
-			out.append("""<table id="cs_stats_table" class="FR" cellspacing="0">""")
+			out.append("""<table id="cs_stats_table" class="FR" cellspacing="0" summary="Server stats">""")
 			out.append("""	<tr>""")
 			out.append("""		<th><a href="javascript:cs_change_links(0);">short range</a></th>""")
 			out.append("""		<th><a href="javascript:cs_change_links(1);">medium range</a></th>""")
@@ -2581,7 +2581,7 @@ if "CC" in sectionset:
 			out.append("""</div>""")
 			out.append("""<br/>""")
 
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Server stats">""")
 			out.append("""	<tr>""")
 			out.append("""		<th><a href="javascript:cs_change_range(0);">short range</a></th>""")
 			out.append("""		<th><a href="javascript:cs_change_range(1);">medium range</a></th>""")
@@ -2589,13 +2589,13 @@ if "CC" in sectionset:
 			out.append("""		<th><a href="javascript:cs_change_range(3);">very long range</a></th>""")
 			out.append("""	</tr>""")
 			out.append("""</table>""")
-			out.append("""<table class="FR" cellspacing="0">""")
+			out.append("""<table class="FR" cellspacing="0" summary="Server charts view">""")
 			for i in xrange(2):
 				out.append("""	<tr>""")
 				out.append("""		<td align="center" colspan="4">""")
 				out.append("""			<div id="cs_desc%u">%s</div>""" % (i,charts[0][2]))
 				out.append("""			<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_chart%u" alt="chart" />""" % (cshost,csport,10*charts[0][0],i))
-				out.append("""			<table class="BOTMENU" cellspacing="0">""")
+				out.append("""			<table class="BOTMENU" cellspacing="0" summary="Server stats menu">""")
 				out.append("""				<tr>""")
 				no=0
 				cl="PR"
@@ -2645,7 +2645,7 @@ if "CC" in sectionset:
 				out.append("""	}""")
 				out.append("""//--><!]]>""")
 				out.append("""</script>""")
-				out.append("""<table class="FR" cellspacing="0">""")
+				out.append("""<table class="FR" cellspacing="0" summary="Server stats">""")
 				out.append("""	<tr>""")
 				out.append("""		<th><a href="javascript:cs_change(0);">short range</a></th>""")
 				out.append("""		<th><a href="javascript:cs_change(1);">medium range</a></th>""")
@@ -2662,7 +2662,7 @@ if "CC" in sectionset:
 				out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
-		print """<table class="FR" cellspacing="0">"""
+		print """<table class="FR" cellspacing="0" summary="Exception">"""
 		print """<tr><td align="left"><pre>"""
 		traceback.print_exc(file=sys.stdout)
 		print """</pre></td></tr>"""
@@ -2678,7 +2678,7 @@ def print_file(name):
 if "HELP" in sectionset:
 	# FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
 	#print_file("@CGI_PATH@/help.html")
-	print """please contact with help@lizardfs.org"""
+	print """please contact with help@lizardfs.com"""
 	print """<br/>"""
 
 

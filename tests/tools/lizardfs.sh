@@ -11,6 +11,7 @@ setup_local_empty_lizardfs() {
 	local number_of_mounts=${MOUNTS:-1}
 	local disks_per_chunkserver=${DISK_PER_CHUNKSERVER:-1}
 	local auto_shadow_master=${AUTO_SHADOW_MASTER:-YES}
+	local cgi_server=${CGI_SERVER:-NO}
 	local ip_address=$(get_ip_addr)
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
@@ -74,6 +75,10 @@ setup_local_empty_lizardfs() {
 		add_metadata_server_ auto "shadow"
 		lizardfs_master_n auto start
 		assert_eventually 'lizardfs_shadow_synchronized auto'
+	fi
+
+	if [[ $cgi_server == YES ]]; then
+		add_cgi_server_
 	fi
 
 	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- MooseFS doesn't support it)
@@ -407,6 +412,16 @@ add_mount_() {
 	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
 	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
+}
+
+add_cgi_server_() {
+	local cgi_server_port
+	local cgi_server_path=$vardir/cgi
+	mkdir $cgi_server_path
+	get_next_port_number cgi_server_port
+	mfscgiserv -D "$cgi_server_path" -P "$cgi_server_port"
+	lizardfs_info_[cgi_port]=$cgi_server_port
+	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/mfs.cgi?masterport=${lizardfs_info_[matocl]}"
 }
 
 # Some helper functions for tests to manipulate the existing installation

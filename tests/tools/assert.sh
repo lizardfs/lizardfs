@@ -135,7 +135,11 @@ assert_template_eventually_() {
 # (assert|assertlocal|expect)_empty <string>
 assert_template_empty_() {
 	if [[ -n $1 ]]; then
-		$FAIL_FUNCTION "Expected empty string, got '$1'"
+		if [[ $(wc -l <<< "$1") == 1 ]]; then
+			$FAIL_FUNCTION "Expected empty string, got '$1'"
+		else
+			$FAIL_FUNCTION $'Expected empty string, got:\n'"$1"
+		fi
 	fi
 }
 

@@ -433,18 +433,20 @@ if __name__=="__main__":
 	rootpath="@CGI_PATH@"
 	datapath="@DATA_PATH@"
 
-	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:t:fv")
+	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:D:t:fv")
 	for opt,val in opts:
 		if opt=='-h':
-			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-t locktimeout] [-f [-v]] [start|stop|restart|test]\n" % sys.argv[0]
-			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: @CGIDIR@)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr"
-			os._exit(0)
+			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-D datapath] [-t locktimeout] [-f [-v]] [start|stop|restart|test]\n" % sys.argv[0]
+			print "-H bind_host : local address to listen on (default: any)\n-P bind_port : port to listen on (default: 9425)\n-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)\n-D datapath : local path to store data eg. lockfile (default: @DATA_PATH@)\n-t locktimeout : how long to wait for lockfile (default: 60s)\n-f : run in foreground\n-v : log requests on stderr"
+			sys.exit(0)
 		elif opt=='-H':
 			host = val
 		elif opt=='-P':
 			port = int(val)
 		elif opt=='-R':
 			rootpath = val
+		elif opt=='-D':
+			datapath = val
 		elif opt=='t':
 			locktimeout = int(val)
 		elif opt=='-f':
@@ -452,6 +454,8 @@ if __name__=="__main__":
 		elif opt=='-v':
 			verbose = 1
 
+	datapath = os.path.realpath(datapath)
+	rootpath = os.path.realpath(rootpath)
 	lockfname = datapath + os.path.sep + '.mfscgiserv.lock'
 
 	try:
@@ -466,8 +470,6 @@ if __name__=="__main__":
 			mode = 0
 	except:
 		mode = 0
-
-	rootpath = os.path.realpath(rootpath)
 
 	pipefd = posix.pipe()
 
