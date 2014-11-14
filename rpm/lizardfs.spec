@@ -1,3 +1,5 @@
+%define distro @DISTRO@
+
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
 Version:        2.5.5
@@ -5,7 +7,7 @@ Release:        1%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
 URL:            http://www.lizardfs.org/
-Source:         https://github.com/lizardfs/lizardfs
+Source:         lizardfs-%{version}.tar.gz
 BuildRequires:  fuse-devel
 BuildRequires:  cmake
 BuildRequires:  pkgconfig
@@ -254,17 +256,7 @@ fi
 ############################################################
 
 %prep
-umask 0077
-if [ -f "${RPM_SOURCE_DIR}/%{name}-%{version}.tar.gz" ] ; then
-%setup -T -c
-else
-	cd -
-	/bin/rm -rf "${RPM_BUILD_DIR}/%{name}-%{version}"
-	mkdir "${RPM_BUILD_DIR}/%{name}-%{version}"
-	tar cf - --exclude build . | tar -x -C "${RPM_BUILD_DIR}/%{name}-%{version}"
-	cd -
-fi
-cd "%{name}-%{version}"
+%setup
 
 %build
 %configure
