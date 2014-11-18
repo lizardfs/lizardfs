@@ -225,5 +225,3 @@ endif()
 if(ENABLE_DOCS)
   add_subdirectory(doc)
 endif()
-
-include(Packages.cmake)
