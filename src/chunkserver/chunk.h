@@ -6,13 +6,16 @@
 #include <cstdlib>
 #include <string>
 
+#include "chunkserver/chunk_format.h"
 #include "common/chunk_type.h"
 #include "common/disk_info.h"
 #include "common/MFSCommunication.h"
 
 #define STATSHISTORY (24*60)
 #define LASTERRSIZE 30
-constexpr int kHddBlockSize = MFSBLOCKSIZE + 4;
+
+// Block data and crc summaric size.
+constexpr uint32_t kHddBlockSize = MFSBLOCKSIZE + 4;
 
 enum ChunkState {
 	CH_AVAIL,
@@ -71,27 +74,21 @@ struct folder {
 
 class Chunk {
 public:
-	static const size_t kMaxSignatureBlockSize = 1024;
-	static const size_t kMaxCrcBlockSize = MFSBLOCKSINCHUNK * sizeof(uint32_t);
-	static const size_t kMaxPaddingBlockSize = 4096;
-	static const size_t kMaxHeaderSize =
-			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
 	static const uint32_t kNumberOfSubfolders = 256;
 
-	Chunk(uint64_t chunkId, ChunkType type, ChunkState state);
+	Chunk(uint64_t chunkId, ChunkType type, ChunkState state, ChunkFormat format);
+	virtual ~Chunk() {};
 	const std::string& filename() const { return filename_; };
-	off_t getDataBlockOffset(uint16_t blockNumber) const;
-	off_t getCrcAndDataBlockOffset(uint16_t blockNumber) const;
-	off_t getFileSizeFromBlockCount(uint32_t blockCount) const;
-	void readaheadHeader() const;
-	off_t getSignatureOffset() const;
-	bool isFileSizeValid(off_t fileSize) const;
+	virtual off_t getBlockOffset(uint16_t blockNumber) const = 0;
+	virtual off_t getFileSizeFromBlockCount(uint32_t blockCount) const = 0;
+	virtual bool isFileSizeValid(off_t fileSize) const = 0;
 	uint32_t maxBlocksInFile() const;
 	std::string generateFilenameForVersion(uint32_t version) const;
 	int renameChunkFile(const std::string& newFilename);
-	void setBlockCountFromFizeSize(off_t fileSize);
+	virtual void setBlockCountFromFizeSize(off_t fileSize) = 0;
 	void setFilename(const std::string& filename) { filename_ = filename; }
 	ChunkType type() const { return type_; }
+	ChunkFormat chunkFormat() const { return chunkFormat_; };
 	static uint32_t getSubfolderNumber(uint64_t chunkId);
 	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber);
 	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId);
@@ -109,10 +106,59 @@ public:
 	uint16_t blockExpectedToBeReadNext;
 	uint8_t validattr;
 	uint8_t todel;
-	Chunk *testnext,**testprev;
+	Chunk *testnext, **testprev;
 	Chunk *next;
 
-private:
+protected:
 	ChunkType type_;
 	std::string filename_;
+
+private:
+	ChunkFormat chunkFormat_;
+
 };
+
+class MooseFSChunk : public Chunk {
+public:
+	static const size_t kMaxSignatureBlockSize = 1024;
+	static const size_t kMaxCrcBlockSize = MFSBLOCKSINCHUNK * sizeof(uint32_t);
+	static const size_t kMaxPaddingBlockSize = 4096;
+	static const size_t kMaxHeaderSize =
+			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
+	static const size_t kDiskBlockSize = 4096; // 4kB
+
+	MooseFSChunk(uint64_t chunkId, ChunkType type, ChunkState state);
+	off_t getBlockOffset(uint16_t blockNumber) const override;
+	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
+	bool isFileSizeValid(off_t fileSize) const override;
+	void setBlockCountFromFizeSize(off_t fileSize) override;
+	off_t getSignatureOffset() const;
+	void readaheadHeader() const;
+	size_t getHeaderSize() const;
+	int writeHeader() const;
+	off_t getCrcOffset() const;
+	size_t getCrcBlockSize() const;
+	uint8_t* getCrcBuffer(uint16_t blockNumber);
+	const uint8_t* getCrcBuffer(uint16_t blockNumber) const;
+	uint32_t getCrc(uint16_t blockNumber) const;
+	void clearCrc();
+	void initEmptyCrc();
+
+	std::unique_ptr<std::array<uint8_t, kMaxCrcBlockSize>> crc;
+	uint8_t crcsteps;
+};
+
+class InterleavedChunk : public Chunk {
+public:
+	InterleavedChunk(uint64_t chunkId, ChunkType type, ChunkState state);
+	off_t getBlockOffset(uint16_t blockNumber) const override;
+	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
+	bool isFileSizeValid(off_t fileSize) const override;
+	void setBlockCountFromFizeSize(off_t fileSize) override;
+};
+
+#define IF_MOOSEFS_CHUNK(mc, chunk) \
+	if (MooseFSChunk *mc = dynamic_cast<MooseFSChunk *>(chunk))
+
+#define IF_INTERLEAVED_CHUNK(lc, chunk) \
+	if (InterleavedChunk *lc = dynamic_cast<InterleavedChunk *>(chunk))

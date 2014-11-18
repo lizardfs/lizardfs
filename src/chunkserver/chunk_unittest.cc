@@ -16,9 +16,9 @@ public:
 	}
 
 protected:
-	Chunk standardChunk;
-	Chunk chunk_1_of_2, chunk_2_of_2, chunk_p_of_2;
-	Chunk chunk_1_of_3, chunk_3_of_3, chunk_p_of_3;
+	MooseFSChunk standardChunk;
+	MooseFSChunk chunk_1_of_2, chunk_2_of_2, chunk_p_of_2;
+	InterleavedChunk chunk_1_of_3, chunk_3_of_3, chunk_p_of_3;
 };
 
 TEST_F(ChunkTests, MaxBlocksInFile) {
@@ -38,7 +38,7 @@ TEST_F(ChunkTests, GetFileName) {
 
 	standardChunk.chunkid = 0x123456;
 	standardChunk.owner = &f;
-	EXPECT_EQ("/mnt/chunks12/chunk_0000000000123456_0000ABCD.liz",
+	EXPECT_EQ("/mnt/chunks12/chunk_0000000000123456_0000ABCD.mfs",
 			standardChunk.generateFilenameForVersion(0xabcd));
 
 	chunk_1_of_3.chunkid = 0x8765430d;

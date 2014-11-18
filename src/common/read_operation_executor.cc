@@ -218,7 +218,6 @@ void ReadOperationExecutor::processDataBlockReceived() {
 	sassert(bytesLeft_ == 0);
 
 #ifdef ENABLE_CRC
-	recompute_crc_if_block_empty(destination_ - MFSBLOCKSIZE, currentlyReadBlockCrc_);
 	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
 		gWrongCrcNotifier.reportBadCrc(server_, chunkId_, chunkVersion_, chunkType_);
 		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);

@@ -41,29 +41,29 @@ file-overwrite file
 # Stop all chunkservers
 for_chunkservers stop {0..7}
 
-cs_list=($(find_first_chunkserver_with_chunks_matching "chunk_????????????????_????????.liz"))
+cs_list=($(find_first_chunkserver_with_chunks_matching "chunk_????????????????_????????.???"))
 for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating goal 1 chunk" expect_success file-validate file
 for_chunkservers stop ${cs_list[@]}
 
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_1_of_2*.liz")
-cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_2_of_2*.liz")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_1_of_2*.???")
+cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_2_of_2*.???")
 for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating xor2 parts of chunk" file-validate file
 
 for_chunkservers stop ${cs_list[0]}
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_parity_of_2*.liz")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_parity_of_2*.???")
 for_chunkservers start ${cs_list[0]}
 MESSAGE="Validating xor2 parity of chunk" file-validate file
 for_chunkservers stop ${cs_list[@]}
 
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_1_of_3*.liz")
-cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_2_of_3*.liz")
-cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_3_of_3*.liz")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_1_of_3*.???")
+cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_2_of_3*.???")
+cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_3_of_3*.???")
 for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating xor3 parts of chunk" file-validate file
 
 for_chunkservers stop ${cs_list[2]}
-cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_parity_of_3*.liz")
+cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_xor_parity_of_3*.???")
 for_chunkservers start ${cs_list[2]}
 MESSAGE="Validating xor3 parity of chunk" file-validate file

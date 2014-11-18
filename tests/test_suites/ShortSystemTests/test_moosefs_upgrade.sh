@@ -1,12 +1,11 @@
 timeout_set 4 minutes
 
-test_end # Test disabled until backward compability for chunks is added
-
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
 	USE_MOOSEFS=YES \
 	AUTO_SHADOW_MASTER=NO \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	CHUNKSERVER_1_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
@@ -49,6 +48,16 @@ assert_eventually \
 moosefs_chunkserver_daemon 0 stop
 # Check if LizardFS CS can serve newly replicated chunks to MooseFS client:
 assert_success file-validate file1
+
+# Check if sparse files written using 'interleaved' format can be read with MooseFS mount:
+echo 1 > sparse_file
+assert_success mfs mfssetgoal 1 sparse_file
+truncate -s 30M sparse_file
+echo 1 >> sparse_file
+truncate -s 100M sparse_file
+echo 1 >> sparse_file
+assert_success cat sparse_file > /dev/null
+rm sparse_file
 
 # Check if replication from LizardFS CS to MooseFS CS works:
 assert_success generate_file file2

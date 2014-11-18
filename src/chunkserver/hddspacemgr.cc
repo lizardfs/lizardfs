@@ -68,15 +68,13 @@
 #include "devtools/TracePrinter.h"
 #include "devtools/request_log.h"
 
-#if defined(LIZARDFS_HAVE_PREAD) && defined(LIZARDFS_HAVE_PWRITE)
-#  define USE_PIO 1
-#endif
-
 /* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */
 #define DELAYEDSTEP 2
 
 #define OPENDELAY 5
+#define CRCDELAY 100
 #define OPENSTEPS (OPENDELAY/DELAYEDSTEP)+1
+#define CRCSTEPS (CRCDELAY/DELAYEDSTEP)+1
 
 #define LOSTCHUNKSBLOCKSIZE 1024
 #define NEWCHUNKSBLOCKSIZE 4096 // TODO consider sending more chunks in one packet
@@ -115,6 +113,7 @@ typedef struct dopchunk {
 } dopchunk;
 
 static uint32_t HDDTestFreq = 10;
+static std::atomic<bool> MooseFSChunkFormat;
 static uint64_t LeaveFree;
 static std::atomic<bool> PerformFsync;
 
@@ -644,7 +643,11 @@ static Chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 
 static void hdd_chunk_delete(Chunk *c);
 
-static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag) {
+static Chunk* hdd_chunk_get(
+		uint64_t chunkid,
+		ChunkType chunkType,
+		uint8_t cflag,
+		ChunkFormat format) {
 	TRACETHIS2(chunkid, (unsigned)cflag);
 	uint32_t hashpos = HASHPOS(chunkid);
 	Chunk *c;
@@ -659,12 +662,16 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 	}
 	if (c==NULL) {
 		if (cflag!=CH_NEW_NONE) {
-			c = new Chunk(chunkid, chunkType, CH_LOCKED);
+			if (format == ChunkFormat::MOOSEFS) {
+				c = new MooseFSChunk(chunkid, chunkType, CH_LOCKED);
+			} else {
+				sassert(format == ChunkFormat::INTERLEAVED);
+				c = new InterleavedChunk(chunkid, chunkType, CH_LOCKED);
+			}
 			passert(c);
 			c->next = hashtab[hashpos];
 			hashtab[hashpos] = c;
 		}
-//              syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 		zassert(pthread_mutex_unlock(&hashlock));
 		return c;
 	}
@@ -694,6 +701,9 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 				if (c->fd>=0) {
 					close(c->fd);
 				}
+				IF_MOOSEFS_CHUNK(mc, c) {
+					mc->clearCrc();
+				}
 				zassert(pthread_mutex_lock(&testlock));
 				if (c->testnext) {
 					c->testnext->testprev = c->testprev;
@@ -708,6 +718,7 @@ static Chunk* hdd_chunk_get(uint64_t chunkid, ChunkType chunkType, uint8_t cflag
 				c->owner = NULL;
 				c->blocks = 0;
 				c->refcount = 0;
+				c->wasChanged = false;
 				c->opensteps = 0;
 				c->fd = -1;
 				c->validattr = 0;
@@ -770,11 +781,21 @@ static void hdd_chunk_delete(Chunk *c) {
 	zassert(pthread_mutex_unlock(&folderlock));
 }
 
-static Chunk* hdd_chunk_create(folder *f, uint64_t chunkid, ChunkType chunkType, uint32_t version) {
+static Chunk* hdd_chunk_create(
+		folder *f,
+		uint64_t chunkid,
+		ChunkType chunkType,
+		uint32_t version,
+		ChunkFormat chunkFormat) {
 	TRACETHIS();
 	Chunk *c;
 
-	c = hdd_chunk_get(chunkid, chunkType, CH_NEW_EXCLUSIVE);
+	if (chunkFormat == ChunkFormat::IMPROPER) {
+		chunkFormat = MooseFSChunkFormat ?
+				ChunkFormat::MOOSEFS :
+				ChunkFormat::INTERLEAVED;
+	}
+	c = hdd_chunk_get(chunkid, chunkType, CH_NEW_EXCLUSIVE, chunkFormat);
 	if (c==NULL) {
 		return NULL;
 	}
@@ -794,7 +815,7 @@ static Chunk* hdd_chunk_create(folder *f, uint64_t chunkid, ChunkType chunkType,
 
 static inline Chunk* hdd_chunk_find(uint64_t chunkId, ChunkType chunkType) {
 	LOG_AVG_TILL_END_OF_SCOPE0("chunk_find");
-	return hdd_chunk_get(chunkId, chunkType, CH_NEW_NONE);
+	return hdd_chunk_get(chunkId, chunkType, CH_NEW_NONE, ChunkFormat::IMPROPER);
 }
 
 static void hdd_chunk_testmove(Chunk *c) {
@@ -948,6 +969,9 @@ void hdd_senddata(folder *f,int rmflag) {
 						*cptr = c->next;
 						if (c->fd>=0) {
 							close(c->fd);
+						}
+						IF_MOOSEFS_CHUNK(mc, c) {
+							mc->clearCrc();
 						}
 						if (c->testnext) {
 							c->testnext->testprev = c->testprev;
@@ -1202,6 +1226,76 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 	*tdchunkcount = tdchunks;
 }
 
+static inline int hdd_int_chunk_readcrc(MooseFSChunk *c) {
+	TRACETHIS();
+	ChunkSignature chunkSignature;
+	if (!chunkSignature.readFromDescriptor(c->fd, c->getSignatureOffset())) {
+		int errmem = errno;
+		lzfs_silent_errlog(LOG_WARNING,
+				"chunk_readcrc: file:%s - read error", c->filename().c_str());
+		errno = errmem;
+		return ERROR_IO;
+	}
+	if (!chunkSignature.hasValidSignatureId()) {
+		syslog(LOG_WARNING,
+				"chunk_readcrc: file:%s - wrong header", c->filename().c_str());
+		errno = 0;
+		return ERROR_IO;
+	}
+	if (c->chunkid != chunkSignature.chunkId()
+			|| c->version != chunkSignature.chunkVersion()
+			|| c->type().chunkTypeId() != chunkSignature.chunkType().chunkTypeId()) {
+		syslog(LOG_WARNING,
+				"chunk_readcrc: file:%s - wrong id/version/type in header "
+				"(%016" PRIX64 "_%08" PRIX32 ", typeId %" PRIu8 ")",
+				c->filename().c_str(),
+				chunkSignature.chunkId(),
+				chunkSignature.chunkVersion(),
+				chunkSignature.chunkType().chunkTypeId());
+		errno = 0;
+		return ERROR_IO;
+	}
+
+	c->initEmptyCrc();
+#ifndef ENABLE_CRC /* if NOT defined */
+	uint8_t* crcArrayPtr = c->crc;
+	for (int i = 0; i < MFSBLOCKSINCHUNK; ++i) {
+		put32bit(&crcArrayPtr, mycrc32_zeroblock(0, 0));
+	}
+#else /* if ENABLE_CRC defined */
+	int ret;
+	ret = pread(c->fd, c->crc->data(), c->getCrcBlockSize(), c->getCrcOffset());
+	if ((size_t)ret != c->getCrcBlockSize()) {
+		int errmem = errno;
+		lzfs_silent_errlog(LOG_WARNING,
+				"chunk_readcrc: file:%s - read error", c->filename().c_str());
+		c->crc.reset();
+		errno = errmem;
+		return ERROR_IO;
+	}
+#endif /* ENABLE_CRC */
+	hdd_stats_read(c->getCrcBlockSize());
+	errno = 0;
+	return STATUS_OK;
+}
+
+static inline int chunk_writecrc(MooseFSChunk *c) {
+	TRACETHIS();
+	zassert(pthread_mutex_lock(&folderlock));
+	c->owner->needrefresh = 1;
+	zassert(pthread_mutex_unlock(&folderlock));
+	ssize_t ret = pwrite(c->fd, c->crc->data(), c->getCrcBlockSize(), c->getCrcOffset());
+	if (ret != static_cast<ssize_t>(c->getCrcBlockSize())) {
+		int errmem = errno;
+		lzfs_silent_errlog(LOG_WARNING,
+				"chunk_writecrc: file:%s - write error", c->filename().c_str());
+		errno = errmem;
+		return ERROR_IO;
+	}
+	hdd_stats_write(c->getCrcBlockSize());
+	return STATUS_OK;
+}
+
 void hdd_delayed_ops() {
 	TRACETHIS();
 	dopchunk **ccp,*cc,*tcc;
@@ -1255,7 +1349,16 @@ void hdd_delayed_ops() {
 					}
 					c->fd = -1;
 				}
-				if (c->fd<0) {
+				bool crcEmpty = true;
+				IF_MOOSEFS_CHUNK(mc, c) {
+					if (mc->crcsteps > 0) {
+						mc->crcsteps--;
+					} else {
+						mc->clearCrc();
+					}
+					crcEmpty = mc->crc->empty();
+				}
+				if (c->fd < 0 && crcEmpty) {
 					*ccp = cc->next;
 					free(cc);
 				} else {
@@ -1279,10 +1382,16 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_io_begin");
 	TRACETHIS();
 	dopchunk *cc;
+	int status;
 
 //      syslog(LOG_NOTICE,"chunk: %" PRIu64 " - before io",c->chunkid);
 	hdd_chunk_testmove(c);
 	if (c->refcount==0) {
+		bool add = (c->fd < 0);
+		IF_MOOSEFS_CHUNK(mc, c) {
+			add = add && (mc->crc == nullptr);
+		}
+
 		if (c->fd<0) {
 			if (newflag) {
 				c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
@@ -1299,6 +1408,31 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 				errno = errmem;
 				return ERROR_IO;
 			}
+		}
+
+		IF_MOOSEFS_CHUNK(mc, c) {
+			if (mc->crc == nullptr) {
+				if (newflag) {
+					mc->initEmptyCrc();
+				} else {
+					mc->readaheadHeader();
+					status = hdd_int_chunk_readcrc(mc);
+					if (status != STATUS_OK) {
+						int errmem = errno;
+						if (add) {
+							close(c->fd);
+							c->fd = -1;
+						}
+						lzfs_silent_errlog(LOG_WARNING,
+								"hdd_io_begin: file:%s - read error", c->filename().c_str());
+						errno = errmem;
+						return status;
+					}
+				}
+			}
+		}
+
+		if (add) {
 			cc = (dopchunk*) malloc(sizeof(dopchunk));
 			passert(cc);
 			cc->chunkid = c->chunkid;
@@ -1319,6 +1453,17 @@ static int hdd_io_end(Chunk *c) {
 
 	if (c->wasChanged) {
 		c->wasChanged = false;
+		IF_MOOSEFS_CHUNK(mc, c) {
+			int status = chunk_writecrc(mc);
+			PRINTTHIS(status);
+			if (status != STATUS_OK) {
+				int errmem = errno;
+				lzfs_silent_errlog(LOG_WARNING, "hdd_io_end: file:%s - write error",
+						c->filename().c_str());
+				errno = errmem;
+				return status;
+			}
+		}
 		if (PerformFsync) {
 			ts = get_usectime();
 #ifdef F_FULLFSYNC
@@ -1356,6 +1501,9 @@ static int hdd_io_end(Chunk *c) {
 			c->fd = -1;
 		} else {
 			c->opensteps = OPENSTEPS;
+		}
+		IF_MOOSEFS_CHUNK(mc, c) {
+			mc->crcsteps = CRCSTEPS;
 		}
 	}
 	errno = 0;
@@ -1420,10 +1568,20 @@ uint8_t* hdd_get_block_buffer() {
 	return blockbuffer;
 }
 
+uint8_t* hdd_get_header_buffer() {
+	uint8_t* hdrbuffer = (uint8_t*)pthread_getspecific(hdrbufferkey);
+	if (hdrbuffer==NULL) {
+		hdrbuffer = (uint8_t*)malloc(MooseFSChunk::kMaxHeaderSize);
+		passert(hdrbuffer);
+		zassert(pthread_setspecific(hdrbufferkey,hdrbuffer));
+	}
+	return hdrbuffer;
+}
+
 int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read_block");
 	TRACETHIS2(c->chunkid, blocknum);
-	int ret;
+	int bytesRead = 0;
 	uint64_t ts, te;
 
 	if (blocknum >= MFSBLOCKSINCHUNK) {
@@ -1431,25 +1589,67 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
 	}
 
 	if (blocknum >= c->blocks) {
-		static const std::vector<uint8_t> zeros_block(kHddBlockSize, 0);
-		ret = outputBuffer->copyIntoBuffer(zeros_block);
+		uint8_t crcBuff[sizeof(uint32_t)];
+		uint8_t* tmp = crcBuff;
+		put32bit(&tmp, emptyblockcrc);
+		bytesRead = outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+		static const std::vector<uint8_t> zeros_block(MFSBLOCKSIZE, 0);
+		bytesRead += outputBuffer->copyIntoBuffer(zeros_block);
+		if (static_cast<uint32_t>(bytesRead) != kHddBlockSize) {
+			return ERROR_IO;
+		}
 	} else {
+		int32_t toBeRead = c->chunkFormat() == ChunkFormat::INTERLEAVED
+				? kHddBlockSize : MFSBLOCKSIZE;
 		ts = get_usectime();
-		off_t off = c->getCrcAndDataBlockOffset(blocknum);
-		ret = outputBuffer->copyIntoBuffer(c->fd, kHddBlockSize, &off);
-		te = get_usectime();
-		hdd_stats_dataread(c->owner, kHddBlockSize, te-ts);
+		off_t off = c->getBlockOffset(blocknum);
 
-		if (ret != kHddBlockSize) {
+		IF_MOOSEFS_CHUNK(mc, c) {
+			sassert(c->chunkFormat() == ChunkFormat::MOOSEFS);
+			uint8_t crcBuff[sizeof(uint32_t)];
+			memcpy(crcBuff, mc->crc->data() + blocknum * sizeof(uint32_t), sizeof(uint32_t));
+			outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+			bytesRead = outputBuffer->copyIntoBuffer(c->fd, MFSBLOCKSIZE, &off);
+		} else do {
+			sassert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
+			uint8_t* crcBuff = hdd_get_block_buffer();
+			uint8_t* data = crcBuff + 4;
+			auto containsZerosOnly = [](uint8_t* buffer, uint32_t size) {
+				return buffer[0] == 0 && !memcmp(buffer, buffer + 1, size - 1);
+			};
+			bytesRead = pread(c->fd, crcBuff, 4, off);
+			if (bytesRead != 4) {
+				break;
+			}
+			if (containsZerosOnly(crcBuff, 4)) {
+				// It looks like this is a sparse file with an empty block. Let's check it
+				// and if that's the case let's recompute the CRC
+
+				bytesRead = pread(c->fd, data, MFSBLOCKSIZE, off + 4);
+				if (bytesRead != MFSBLOCKSIZE) {
+					break;
+				}
+				if (containsZerosOnly(data, MFSBLOCKSIZE)) {
+					// It's indeed a sparse block, recompute the CRC in order to provide
+					// backward compatibility
+					put32bit(&crcBuff, emptyblockcrc);
+				}
+				bytesRead = outputBuffer->copyIntoBuffer(hdd_get_block_buffer(), kHddBlockSize);
+			} else {
+				bytesRead = outputBuffer->copyIntoBuffer(c->fd, kHddBlockSize, &off);
+			}
+		} while (false);
+
+		te = get_usectime();
+		hdd_stats_dataread(c->owner, toBeRead, te-ts);
+
+		if (bytesRead != toBeRead) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"read_block_from_chunk: file:%s - read error", c->filename().c_str());
 			hdd_report_damaged_chunk(c->chunkid);
+			return ERROR_IO;
 		}
-	}
-
-	if (ret != kHddBlockSize) {
-		return ERROR_IO;
 	}
 
 	return STATUS_OK;
@@ -1504,8 +1704,10 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlo
 
 static void hdd_prefetch(Chunk& chunk, uint16_t firstBlock, uint32_t numberOfBlocks) {
 	if (numberOfBlocks > 0) {
-		posix_fadvise(chunk.fd, chunk.getCrcAndDataBlockOffset(firstBlock),
-				uint32_t(numberOfBlocks) * kHddBlockSize, POSIX_FADV_WILLNEED);
+		auto blockSize = chunk.chunkFormat() == ChunkFormat::MOOSEFS ?
+				MFSBLOCKSIZE : kHddBlockSize;
+		posix_fadvise(chunk.fd, chunk.getBlockOffset(firstBlock),
+				uint32_t(numberOfBlocks) * blockSize, POSIX_FADV_WILLNEED);
 	}
 }
 
@@ -1564,9 +1766,9 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		SimpleOutputBuffer tmp(kHddBlockSize);
 		status = hdd_read_crc_and_block(c, block, &tmp);
 		uint8_t* crcBuffPointer = crcBuff;
-		put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + 4 + offsetWithinBlock, size));
+		put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size));
 		outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
-		outputBuffer->copyIntoBuffer(tmp.data() + offsetWithinBlock, size);
+		outputBuffer->copyIntoBuffer(tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size);
 	}
 
 	PRINTTHIS(status);
@@ -1578,7 +1780,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
  * A way of handling sparse files. If block is filled with zeros and crcBuffer is filled with
  * zeros as well, rewrite the crcBuffer so that it stores proper CRC.
  */
-void hdd_recompute_crc_if_block_empty(uint8_t* block, uint8_t* crcBuffer) {
+void hdd_int_recompute_crc_if_block_empty(uint8_t* block, uint8_t* crcBuffer) {
 	const uint8_t* tmpPtr = crcBuffer;
 	uint32_t crc = get32bit(&tmpPtr);
 
@@ -1587,12 +1789,102 @@ void hdd_recompute_crc_if_block_empty(uint8_t* block, uint8_t* crcBuffer) {
 	put32bit(&tmpPtr2, crc);
 }
 
+/**
+ * Returns number of read bytes on success, -1 on failure.
+ * Assumes blockBuffer can fit both data and CRC.
+ */
+int hdd_int_read_block_and_crc(Chunk* c, uint8_t* blockBuffer, uint8_t* crcBuffer,
+		uint16_t blocknum, const char* errorMsg) {
+	IF_MOOSEFS_CHUNK(mc, c) {
+		sassert(c->chunkFormat() == ChunkFormat::MOOSEFS);
+		memcpy(crcBuffer, mc->getCrcBuffer(blocknum), serializedSize(uint32_t()));
+		if (pread(c->fd, blockBuffer, MFSBLOCKSIZE, c->getBlockOffset(blocknum))
+				!= MFSBLOCKSIZE) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"%s: file:%s - read error", errorMsg, c->filename().c_str());
+			hdd_report_damaged_chunk(c->chunkid);
+			return -1;
+		}
+		return MFSBLOCKSIZE;
+	} else {
+		sassert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
+		if (pread(c->fd, blockBuffer, kHddBlockSize, c->getBlockOffset(blocknum))
+				!= kHddBlockSize) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"%s: file:%s - read error", errorMsg, c->filename().c_str());
+			hdd_report_damaged_chunk(c->chunkid);
+			return -1;
+		}
+		memcpy(crcBuffer, blockBuffer, 4);
+		memmove(blockBuffer, blockBuffer + 4, MFSBLOCKSIZE);
+		hdd_int_recompute_crc_if_block_empty(blockBuffer, crcBuffer);
+		return kHddBlockSize;
+	}
+}
+
+/**
+ * Returns number of written bytes on success, -1 on failure.
+ */
+bool hdd_int_write_partial_block_and_crc(
+		Chunk* c,
+		const uint8_t* buffer,
+		uint32_t offset,
+		uint32_t size,
+		const uint8_t* crcBuff,
+		uint16_t blockNum,
+		const char* errorMsg) {
+	const int crcSize = serializedSize(uint32_t());
+	IF_MOOSEFS_CHUNK(mc, c) {
+		sassert(c->chunkFormat() == ChunkFormat::MOOSEFS);
+		auto ret = pwrite(c->fd, buffer, size, c->getBlockOffset(blockNum) + offset);
+		if (ret != size) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"%s: file:%s - write error", errorMsg, c->filename().c_str());
+			hdd_report_damaged_chunk(c->chunkid);
+			return -1;
+		}
+		memcpy(mc->getCrcBuffer(blockNum), crcBuff, crcSize);
+		return size;
+	} else {
+		sassert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
+		auto ret = pwrite(c->fd, crcBuff, crcSize, c->getBlockOffset(blockNum));
+		if (ret != crcSize) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"%s: file:%s - crc write error", errorMsg, c->filename().c_str());
+			hdd_report_damaged_chunk(c->chunkid);
+			return -1;
+		}
+		ret = pwrite(c->fd, buffer, size, c->getBlockOffset(blockNum) + offset + crcSize);
+		if (ret != size) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"%s: file:%s - write error", errorMsg, c->filename().c_str());
+			hdd_report_damaged_chunk(c->chunkid);
+			return -1;
+		}
+		return crcSize + size;
+	}
+}
+
+bool hdd_int_write_block_and_crc(
+		Chunk* c,
+		const uint8_t* buffer,
+		const uint8_t* crcBuff,
+		uint16_t blockNum,
+		const char* errorMsg) {
+	return hdd_int_write_partial_block_and_crc(
+			c, buffer, 0, MFSBLOCKSIZE, crcBuff, blockNum, errorMsg);
+}
+
 int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_write");
 	TRACETHIS3(chunkid, offset, size);
 	Chunk *c;
-	int ret;
 	uint32_t precrc, postcrc, combinedcrc, chcrc;
 	uint64_t ts,te;
 	uint8_t *blockbuffer;
@@ -1625,49 +1917,40 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 	c->wasChanged = true;
 	if (offset==0 && size==MFSBLOCKSIZE) {
 		if (blocknum>=c->blocks) {
-			c->blocks = blocknum+1;
+			uint16_t prevBlocks = c->blocks;
+			c->blocks = blocknum + 1;
+			IF_MOOSEFS_CHUNK(mc, c) {
+				for (uint16_t i = prevBlocks; i < blocknum; i++) {
+					uint8_t *wcrcptr = mc->getCrcBuffer(i);
+					put32bit(&wcrcptr, emptyblockcrc);
+				}
+			}
 		}
 		ts = get_usectime();
-#ifdef USE_PIO
 		uint8_t* crcBuffPointer = crcBuff;
 		put32bit(&crcBuffPointer, crc);
 		memcpy(blockbuffer, crcBuff, 4);
 		memcpy(blockbuffer + 4, buffer, MFSBLOCKSIZE);
-		ret = pwrite(c->fd, blockbuffer, kHddBlockSize, c->getCrcAndDataBlockOffset(blocknum));
-#else /* USE_PIO */
-		static_assert(false, "USE_PIO");
-#endif /* USE_PIO */
-		te = get_usectime();
-		hdd_stats_datawrite(c->owner,kHddBlockSize,te-ts);
-		if (ret!=kHddBlockSize) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,
-					"write_block_to_chunk: file:%s - write error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
+
+		auto written = hdd_int_write_block_and_crc(
+				c, buffer, crcBuff, blocknum, "write_block_to_chunk");
+		if (written < 0) {
 			hdd_chunk_release(c);
 			return ERROR_IO;
 		}
+		te = get_usectime();
+		hdd_stats_datawrite(c->owner, written, te - ts);
 	} else {
 		if (blocknum<c->blocks) {
 			ts = get_usectime();
-#ifdef USE_PIO
-			if (pread(c->fd, blockbuffer, kHddBlockSize, c->getCrcAndDataBlockOffset(blocknum))
-					!= kHddBlockSize) {
-				hdd_error_occured(c);   // uses and preserves errno !!!
-				lzfs_silent_errlog(LOG_WARNING,
-						"write_block_to_chunk: file:%s - read error", c->filename().c_str());
-				hdd_report_damaged_chunk(chunkid);
+			auto readBytes = hdd_int_read_block_and_crc(
+					c, blockbuffer, crcBuff, blocknum, "write_block_to_chunk");
+			if (readBytes < 0) {
 				hdd_chunk_release(c);
 				return ERROR_IO;
 			}
-			memcpy(crcBuff, blockbuffer, 4);
-			memmove(blockbuffer, blockbuffer + 4, MFSBLOCKSIZE);
-			hdd_recompute_crc_if_block_empty(blockbuffer, crcBuff);
-#else /* USE_PIO */
-			mabort("USE_PIO");
-#endif /* USE_PIO */
 			te = get_usectime();
-			hdd_stats_dataread(c->owner,kHddBlockSize,te-ts);
+			hdd_stats_dataread(c->owner,readBytes,te-ts);
 			precrc = mycrc32(0,blockbuffer,offset);
 			chcrc = mycrc32(0,blockbuffer+offset,size);
 			postcrc = mycrc32(0,blockbuffer+offset+size,MFSBLOCKSIZE-(offset+size));
@@ -1699,12 +1982,17 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 				hdd_chunk_release(c);
 				return ERROR_IO;
 			}
-			c->blocks = blocknum+1;
-			memset(blockbuffer,0,MFSBLOCKSIZE);
+			uint16_t prevBlocks = c->blocks;
+			c->blocks = blocknum + 1;
+			IF_MOOSEFS_CHUNK(mc, c) {
+				for (uint16_t i = prevBlocks; i < blocknum; i++) {
+					uint8_t *wcrcptr = mc->getCrcBuffer(i);
+					put32bit(&wcrcptr, emptyblockcrc);
+				}
+			}
 			precrc = mycrc32_zeroblock(0,offset);
 			postcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE-(offset+size));
 		}
-		memcpy(blockbuffer+offset,buffer,size);
 		ts = get_usectime();
 		if (offset==0) {
 			combinedcrc = mycrc32_combine(crc,postcrc,MFSBLOCKSIZE-(offset+size));
@@ -1714,31 +2002,16 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 				combinedcrc = mycrc32_combine(combinedcrc,postcrc,MFSBLOCKSIZE-(offset+size));
 			}
 		}
-#ifdef USE_PIO
 		uint8_t* crcBuffPointer = crcBuff;
 		put32bit(&crcBuffPointer, combinedcrc);
-		if (pwrite(c->fd, crcBuff, 4, c->getCrcAndDataBlockOffset(blocknum)) != 4) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,
-					"write_block_to_chunk: file:%s - write crc error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
+		auto written = hdd_int_write_partial_block_and_crc(
+				c, buffer, offset, size, crcBuff, blocknum, "write_block_to_chunk");
+		if (written < 0) {
 			hdd_chunk_release(c);
 			return ERROR_IO;
 		}
-		ret = pwrite(c->fd,blockbuffer+offset, size, c->getDataBlockOffset(blocknum) + offset);
-#else /* USE_PIO */
-		mabort("use pio");
-#endif /* USE_PIO */
 		te = get_usectime();
-		hdd_stats_datawrite(c->owner,size,te-ts);
-		if (ret!=(int)size) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,
-					"write_block_to_chunk: file:%s - write error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_IO;
-		}
+		hdd_stats_datawrite(c->owner,written,te-ts);
 	}
 	hdd_chunk_release(c);
 	return STATUS_OK;
@@ -1781,6 +2054,22 @@ int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint
 	return STATUS_OK;
 }
 
+/* chunk operations */
+static int hdd_chunk_overwrite_version(Chunk* c, uint32_t newVersion) {
+	IF_MOOSEFS_CHUNK(mc, c) {
+		(void)mc;
+		std::vector<uint8_t> buffer;
+		serialize(buffer, newVersion);
+		if (pwrite(c->fd, buffer.data(), buffer.size(), ChunkSignature::kVersionOffset)
+				!= static_cast<ssize_t>(buffer.size())) {
+			return ERROR_IO;
+		}
+		hdd_stats_write(buffer.size());
+	}
+	c->version = newVersion;
+	return STATUS_OK;
+}
+
 static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	TRACETHIS2(chunkid, version);
 	folder *f;
@@ -1793,7 +2082,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 		zassert(pthread_mutex_unlock(&folderlock));
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f, chunkid, chunkType, version);
+	c = hdd_chunk_create(f, chunkid, chunkType, version, ChunkFormat::IMPROPER);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		return ERROR_CHUNKEXIST;
@@ -1805,6 +2094,22 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		return ERROR_IO;
+	}
+
+	IF_MOOSEFS_CHUNK(mc, c) {
+		memset(hdd_get_header_buffer(), 0, mc->getHeaderSize());
+		uint8_t *ptr = hdd_get_header_buffer();
+		serialize(&ptr, ChunkSignature(chunkid, version, chunkType));
+		if (write(c->fd, hdd_get_header_buffer(), mc->getHeaderSize()) != static_cast<ssize_t>(mc->getHeaderSize())) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"create_newchunk: file:%s - write error", c->filename().c_str());
+			hdd_io_end(c);
+			unlink(c->filename().c_str());
+			hdd_chunk_delete(c);
+			return ERROR_IO;
+		}
+		hdd_stats_write(mc->getHeaderSize());
 	}
 	status = hdd_io_end(c);
 	PRINTTHIS(status);
@@ -1842,19 +2147,12 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 	}
 	uint8_t crcBuff[sizeof(uint32_t)];
 	for (block=0 ; block<c->blocks ; block++) {
-		if (pread(c->fd, blockbuffer, kHddBlockSize, c->getCrcAndDataBlockOffset(block))
-				!= kHddBlockSize) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,
-					"test_chunk: file:%s - read error", c->filename().c_str());
-			hdd_report_damaged_chunk(chunkid);
+		auto readBytes = hdd_int_read_block_and_crc(c, blockbuffer, crcBuff, block, "test_chunk");
+		if (readBytes < 0) {
 			hdd_chunk_release(c);
 			return ERROR_IO;
 		}
-		memcpy(crcBuff, blockbuffer, 4);
-		memmove(blockbuffer, blockbuffer + 4, MFSBLOCKSIZE);
-		hdd_recompute_crc_if_block_empty(blockbuffer, crcBuff);
-		hdd_stats_read(MFSBLOCKSIZE);
+		hdd_stats_read(readBytes);
 		const uint8_t* crcBuffPointer = crcBuff;
 		if (get32bit(&crcBuffPointer) != mycrc32(0, blockbuffer, MFSBLOCKSIZE)) {
 			errno = 0;      // set anything to errno
@@ -1904,7 +2202,8 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion);
+	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion, oc->chunkFormat());
+	sassert(c->chunkFormat() == oc->chunkFormat());
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
@@ -1927,7 +2226,16 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 			hdd_chunk_release(oc);
 			return status;  //can't change file version
 		}
-		oc->version = chunkNewVersion;
+		status = hdd_chunk_overwrite_version(oc, chunkNewVersion);
+		if (status != STATUS_OK) {
+			hdd_error_occured(oc);  // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"duplicate_chunk: file:%s - write error", c->filename().c_str());
+			hdd_chunk_delete(c);
+			hdd_io_end(oc);
+			hdd_chunk_release(oc);
+			return ERROR_IO;
+		}
 	} else {
 		status = hdd_io_begin(oc,0);
 		if (status!=STATUS_OK) {
@@ -1946,10 +2254,32 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		hdd_chunk_release(oc);
 		return status;
 	}
-	lseek(oc->fd, c->getCrcAndDataBlockOffset(0), SEEK_SET);
+	int32_t blockSize = c->chunkFormat() == ChunkFormat::MOOSEFS ? MFSBLOCKSIZE : kHddBlockSize;
+	IF_MOOSEFS_CHUNK(mc, c) {
+		MooseFSChunk* moc = dynamic_cast<MooseFSChunk*>(oc);
+		sassert(moc != nullptr);
+		memset(hdd_get_header_buffer(), 0, mc->getHeaderSize());
+		uint8_t *ptr = hdd_get_header_buffer();
+		serialize(&ptr, ChunkSignature(copyChunkId, copyChunkVersion, chunkType));
+		memcpy(mc->crc->data(), moc->crc->data(), mc->getCrcBlockSize());
+		memcpy(hdd_get_header_buffer() + mc->getCrcOffset(), moc->crc->data(), mc->getCrcBlockSize());
+		if (write(mc->fd, hdd_get_header_buffer(), mc->getHeaderSize()) != static_cast<ssize_t>(mc->getHeaderSize())) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"duplicate_chunk: file:%s - hdr write error", c->filename().c_str());
+			hdd_io_end(c);
+			unlink(c->filename().c_str());
+			hdd_chunk_delete(c);
+			hdd_io_end(oc);
+			hdd_chunk_release(oc);
+			return ERROR_IO;
+		}
+		hdd_stats_write(mc->getHeaderSize());
+	}
+	lseek(oc->fd, c->getBlockOffset(0), SEEK_SET);
 	for (block=0 ; block<oc->blocks ; block++) {
-		retsize = read(oc->fd,blockbuffer,kHddBlockSize);
-		if (retsize!=kHddBlockSize) {
+		retsize = read(oc->fd,blockbuffer,blockSize);
+		if (retsize!=blockSize) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"duplicate_chunk: file:%s - data read error", c->filename().c_str());
@@ -1961,9 +2291,9 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 			hdd_chunk_release(oc);
 			return ERROR_IO;
 		}
-		hdd_stats_read(kHddBlockSize);
-		retsize = write(c->fd,blockbuffer,kHddBlockSize);
-		if (retsize!=kHddBlockSize) {
+		hdd_stats_read(blockSize);
+		retsize = write(c->fd,blockbuffer,blockSize);
+		if (retsize!=blockSize) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"duplicate_chunk: file:%s - data write error", c->filename().c_str());
@@ -1974,7 +2304,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 			hdd_chunk_release(oc);
 			return ERROR_IO;        //write error
 		}
-		hdd_stats_write(kHddBlockSize);
+		hdd_stats_write(blockSize);
 	}
 	status = hdd_io_end(oc);
 	if (status!=STATUS_OK) {
@@ -2031,7 +2361,15 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 		hdd_chunk_release(c);
 		return status;
 	}
-	c->version = newversion;
+	status = hdd_chunk_overwrite_version(c, newversion);
+	if (status != STATUS_OK) {
+		hdd_error_occured(c);   // uses and preserves errno !!!
+		lzfs_silent_errlog(LOG_WARNING,
+				"set_chunk_version: file:%s - write error", c->filename().c_str());
+		hdd_io_end(c);
+		hdd_chunk_release(c);
+		return ERROR_IO;
+	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
@@ -2075,12 +2413,28 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 		hdd_chunk_release(c);
 		return status;  //can't change file version
 	}
-	c->version = newVersion;
+	status = hdd_chunk_overwrite_version(c, newVersion);
+	if (status != STATUS_OK) {
+		hdd_error_occured(c);   // uses and preserves errno !!!
+		lzfs_silent_errlog(LOG_WARNING,
+				"truncate_chunk: file:%s - write error", c->filename().c_str());
+		hdd_io_end(c);
+		hdd_chunk_release(c);
+		return ERROR_IO;
+	}
 	c->wasChanged = true;
 
 	// step 2. truncate
 	blocks = ((length + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE);
 	if (blocks>c->blocks) {
+		IF_MOOSEFS_CHUNK(mc, c) {
+			uint8_t crcBuff[4];
+			auto* ptr = crcBuff;
+			put32bit(&ptr, emptyblockcrc);
+			for (auto block = c->blocks; block < blocks; block++) {
+				memcpy(mc->crc->data() + block * 4, crcBuff, 4);
+			}
+		}
 		if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocks)) < 0) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
@@ -2093,8 +2447,11 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 		uint32_t fullBlocks = length / MFSBLOCKSIZE;
 		uint32_t lastPartialBlockSize = length - fullBlocks * MFSBLOCKSIZE;
 		if (lastPartialBlockSize > 0) {
-			if (ftruncate(c->fd,
-					c->getFileSizeFromBlockCount(fullBlocks) + 4 + lastPartialBlockSize) < 0) {
+			auto len = c->getFileSizeFromBlockCount(fullBlocks) + lastPartialBlockSize;
+			if (c->chunkFormat() == ChunkFormat::INTERLEAVED) {
+				len += 4;
+			}
+			if (ftruncate(c->fd, len) < 0) {
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 						"truncate_chunk: file:%s - ftruncate error", c->filename().c_str());
@@ -2112,7 +2469,11 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 			return ERROR_IO;
 		}
 		if (lastPartialBlockSize>0) {
-			if (pread(c->fd, blockbuffer, lastPartialBlockSize, c->getDataBlockOffset(fullBlocks))
+			auto offset = c->getBlockOffset(fullBlocks);
+			if (c->chunkFormat() == ChunkFormat::INTERLEAVED) {
+				offset += 4;
+			}
+			if (pread(c->fd, blockbuffer, lastPartialBlockSize, offset)
 					!= static_cast<ssize_t>(lastPartialBlockSize)) {
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
@@ -2126,15 +2487,26 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 			uint8_t crcBuff[sizeof(uint32_t)];
 			uint8_t* crcBuffPointer = crcBuff;
 			put32bit(&crcBuffPointer, i);
-			if (pwrite(c->fd, crcBuff, 4, c->getCrcAndDataBlockOffset(fullBlocks)) != 4) {
-				hdd_error_occured(c);   // uses and preserves errno !!!
-				lzfs_silent_errlog(LOG_WARNING,
-						"truncate_chunk: file:%s - write crc error", c->filename().c_str());
-				hdd_report_damaged_chunk(chunkId);
-				hdd_chunk_release(c);
-				return ERROR_IO;
+			IF_MOOSEFS_CHUNK(mc, c) {
+				sassert(c->chunkFormat() == ChunkFormat::MOOSEFS);
+				memcpy(mc->crc->data() + fullBlocks * 4, crcBuff, 4);
+				uint8_t crcBuff[4];
+				auto* ptr = crcBuff;
+				put32bit(&ptr, emptyblockcrc);
+				for (auto block = fullBlocks + 1; block < c->blocks; block++) {
+					memcpy(mc->crc->data() + block * 4, crcBuff, 4);
+				}
+			} else {
+				sassert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
+				if (pwrite(c->fd, crcBuff, 4, c->getBlockOffset(fullBlocks)) != 4) {
+					hdd_error_occured(c);   // uses and preserves errno !!!
+					lzfs_silent_errlog(LOG_WARNING,
+							"truncate_chunk: file:%s - write crc error", c->filename().c_str());
+					hdd_report_damaged_chunk(chunkId);
+					hdd_chunk_release(c);
+					return ERROR_IO;
+				}
 			}
-
 		}
 	}
 	if (c->blocks != blocks) {
@@ -2162,8 +2534,9 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 	uint32_t crc;
 	int status;
 	Chunk *c,*oc;
-	uint8_t *blockbuffer;
+	uint8_t *blockbuffer,*hdrbuffer;
 	blockbuffer = hdd_get_block_buffer();
+	hdrbuffer = hdd_get_header_buffer();
 
 	if (copyChunkLength>MFSCHUNKSIZE) {
 		return ERROR_WRONGSIZE;
@@ -2186,7 +2559,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 		hdd_chunk_release(oc);
 		return ERROR_NOSPACE;
 	}
-	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion);
+	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion, oc->chunkFormat());
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
@@ -2209,7 +2582,16 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 			hdd_chunk_release(oc);
 			return status;  //can't change file version
 		}
-		oc->version = chunkNewVersion;
+		status = hdd_chunk_overwrite_version(oc, chunkNewVersion);
+		if (status != STATUS_OK) {
+			hdd_error_occured(oc);  // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"duptrunc_chunk: file:%s - write error", c->filename().c_str());
+			hdd_chunk_delete(c);
+			hdd_io_end(oc);
+			hdd_chunk_release(oc);
+			return ERROR_IO;
+		}
 	} else {
 		status = hdd_io_begin(oc,0);
 		if (status!=STATUS_OK) {
@@ -2228,13 +2610,23 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 		hdd_chunk_release(oc);
 		return status;
 	}
+	MooseFSChunk* mc = dynamic_cast<MooseFSChunk*>(c);
+	MooseFSChunk* moc = dynamic_cast<MooseFSChunk*>(oc);
+	sassert((mc == nullptr && moc == nullptr) || (mc != nullptr && moc != nullptr));
 	blocks = (copyChunkLength + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
-	lseek(c->fd, c->getCrcAndDataBlockOffset(0), SEEK_SET);
-	lseek(oc->fd, c->getCrcAndDataBlockOffset(0), SEEK_SET);
+	int32_t blockSize = c->chunkFormat() == ChunkFormat::MOOSEFS ? MFSBLOCKSIZE : kHddBlockSize;
+	if (mc) {
+		memset(hdrbuffer, 0, mc->getHeaderSize());
+		uint8_t *ptr = hdrbuffer;
+		serialize(&ptr, ChunkSignature(copyChunkId, copyChunkVersion, chunkType));
+		memcpy(hdrbuffer + mc->getCrcOffset(), moc->crc->data(), mc->getCrcBlockSize());
+	}
+	lseek(c->fd, c->getBlockOffset(0), SEEK_SET);
+	lseek(oc->fd, c->getBlockOffset(0), SEEK_SET);
 	if (blocks>oc->blocks) { // expanding
 		for (block=0 ; block<oc->blocks ; block++) {
-			retsize = read(oc->fd,blockbuffer,kHddBlockSize);
-			if (retsize!=kHddBlockSize) {
+			retsize = read(oc->fd,blockbuffer,blockSize);
+			if (retsize!=blockSize) {
 				hdd_error_occured(oc);  // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
@@ -2246,9 +2638,9 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
-			hdd_stats_read(kHddBlockSize);
-			retsize = write(c->fd,blockbuffer,kHddBlockSize);
-			if (retsize!=kHddBlockSize) {
+			hdd_stats_read(blockSize);
+			retsize = write(c->fd,blockbuffer,blockSize);
+			if (retsize!=blockSize) {
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
@@ -2259,7 +2651,13 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
-			hdd_stats_write(kHddBlockSize);
+			hdd_stats_write(blockSize);
+		}
+		if (mc) {
+			for (block = oc->blocks; block < blocks; block++) {
+				auto* ptr = hdrbuffer + mc->getCrcOffset() + 4 * block;
+				put32bit(&ptr, emptyblockcrc);
+			}
 		}
 		if (ftruncate(c->fd, c->getFileSizeFromBlockCount(blocks))<0) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
@@ -2273,11 +2671,11 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 			return ERROR_IO;        //write error
 		}
 	} else { // shrinking
-		uint32_t blocksize = copyChunkLength - (copyChunkLength / MFSBLOCKSIZE) * MFSBLOCKSIZE;
-		if (blocksize==0) { // aligned shrink
+		uint32_t lastBlockSize = copyChunkLength - (copyChunkLength / MFSBLOCKSIZE) * MFSBLOCKSIZE;
+		if (lastBlockSize==0) { // aligned shrink
 			for (block=0 ; block<blocks ; block++) {
-				retsize = read(oc->fd,blockbuffer,kHddBlockSize);
-				if (retsize!=kHddBlockSize) {
+				retsize = read(oc->fd,blockbuffer,blockSize);
+				if (retsize!=blockSize) {
 					hdd_error_occured(oc);  // uses and preserves errno !!!
 					lzfs_silent_errlog(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
@@ -2289,9 +2687,9 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					hdd_chunk_release(oc);
 					return ERROR_IO;
 				}
-				hdd_stats_read(kHddBlockSize);
-				retsize = write(c->fd,blockbuffer,kHddBlockSize);
-				if (retsize!=kHddBlockSize) {
+				hdd_stats_read(blockSize);
+				retsize = write(c->fd,blockbuffer,blockSize);
+				if (retsize!=blockSize) {
 					hdd_error_occured(c);   // uses and preserves errno !!!
 					lzfs_silent_errlog(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
@@ -2302,12 +2700,12 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					hdd_chunk_release(oc);
 					return ERROR_IO;
 				}
-				hdd_stats_write(kHddBlockSize);
+				hdd_stats_write(blockSize);
 			}
 		} else { // misaligned shrink
 			for (block=0 ; block<blocks-1 ; block++) {
-				retsize = read(oc->fd,blockbuffer,kHddBlockSize);
-				if (retsize!=kHddBlockSize) {
+				retsize = read(oc->fd,blockbuffer,blockSize);
+				if (retsize!=blockSize) {
 					hdd_error_occured(oc);  // uses and preserves errno !!!
 					lzfs_silent_errlog(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
@@ -2319,9 +2717,9 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					hdd_chunk_release(oc);
 					return ERROR_IO;
 				}
-				hdd_stats_read(kHddBlockSize);
-				retsize = write(c->fd,blockbuffer,kHddBlockSize);
-				if (retsize!=kHddBlockSize) {
+				hdd_stats_read(blockSize);
+				retsize = write(c->fd,blockbuffer,blockSize);
+				if (retsize!=blockSize) {
 					hdd_error_occured(c);   // uses and preserves errno !!!
 					lzfs_silent_errlog(LOG_WARNING,
 							"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
@@ -2332,11 +2730,12 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					hdd_chunk_release(oc);
 					return ERROR_IO;        //write error
 				}
-				hdd_stats_write(kHddBlockSize);
+				hdd_stats_write(blockSize);
 			}
 			block = blocks-1;
-			retsize = read(oc->fd,blockbuffer,blocksize + 4);
-			if (retsize!=(signed)(blocksize + 4)) {
+			auto toBeRead = c->chunkFormat() == ChunkFormat::MOOSEFS ? lastBlockSize : lastBlockSize + 4;
+			retsize = read(oc->fd, blockbuffer, toBeRead);
+			if (retsize!=(signed)toBeRead) {
 				hdd_error_occured(oc);  // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 					"duptrunc_chunk: file:%s - data read error", oc->filename().c_str());
@@ -2348,13 +2747,19 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
-			hdd_stats_read(blocksize + 4);
-			crc = mycrc32_zeroexpanded(0,blockbuffer + 4,blocksize,MFSBLOCKSIZE-blocksize);
-			uint8_t* crcBuffPointer = blockbuffer;
-			put32bit(&crcBuffPointer, crc);
-			memset(blockbuffer+blocksize + 4,0,MFSBLOCKSIZE-blocksize);
-			retsize = write(c->fd,blockbuffer,kHddBlockSize);
-			if (retsize!=kHddBlockSize) {
+			hdd_stats_read(toBeRead);
+			if (c->chunkFormat() == ChunkFormat::INTERLEAVED) {
+				crc = mycrc32_zeroexpanded(0, blockbuffer + 4, lastBlockSize, MFSBLOCKSIZE - lastBlockSize);
+				uint8_t* crcBuffPointer = blockbuffer;
+				put32bit(&crcBuffPointer, crc);
+			} else {
+				auto* ptr = hdrbuffer + mc->getCrcOffset() + 4 * block;
+				auto crc = mycrc32_zeroexpanded(0, blockbuffer, lastBlockSize, MFSBLOCKSIZE - lastBlockSize);
+				put32bit(&ptr,crc);
+			}
+			memset(blockbuffer + toBeRead, 0, MFSBLOCKSIZE - lastBlockSize);
+			retsize = write(c->fd, blockbuffer, blockSize);
+			if (retsize!=blockSize) {
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 						"duptrunc_chunk: file:%s - data write error", c->filename().c_str());
@@ -2365,8 +2770,24 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				hdd_chunk_release(oc);
 				return ERROR_IO;
 			}
-			hdd_stats_write(kHddBlockSize);
+			hdd_stats_write(blockSize);
 		}
+	}
+	if (mc) {
+		memcpy(mc->crc->data(), hdrbuffer + mc->getCrcOffset(), mc->getCrcBlockSize());
+		lseek(mc->fd,0,SEEK_SET);
+		if (write(mc->fd, hdrbuffer, mc->getHeaderSize()) != static_cast<ssize_t>(mc->getHeaderSize())) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,
+					"duptrunc_chunk: file:%s - hdr write error", c->filename().c_str());
+			hdd_io_end(c);
+			unlink(c->filename().c_str());
+			hdd_chunk_delete(c);
+			hdd_io_end(oc);
+			hdd_chunk_release(oc);
+			return ERROR_IO;
+		}
+		hdd_stats_write(mc->getHeaderSize());
 	}
 	status = hdd_io_end(oc);
 	if (status!=STATUS_OK) {
@@ -2652,6 +3073,7 @@ void hdd_testshuffle(folder *f) {
 static inline void hdd_add_chunk(folder *f,
 		const std::string& fullname,
 		uint64_t chunkId,
+		ChunkFormat chunkFormat,
 		uint32_t version,
 		ChunkType chunkType,
 		uint8_t todel) {
@@ -2660,7 +3082,7 @@ static inline void hdd_add_chunk(folder *f,
 	Chunk *c;
 
 	prevf = NULL;
-	c = hdd_chunk_get(chunkId, chunkType, CH_NEW_AUTO);
+	c = hdd_chunk_get(chunkId, chunkType, CH_NEW_AUTO, chunkFormat);
 	if (!c->filename().empty()) {
 		// already have this chunk
 		if (version <= c->version) {
@@ -2835,6 +3257,7 @@ void* hdd_folder_scan(void *arg) {
 				hdd_add_chunk(f,
 						subfolderPath + de->d_name,
 						filenameParser.chunkId(),
+						filenameParser.chunkFormat(),
 						filenameParser.chunkVersion(),
 						filenameParser.chunkType(),
 						todel);
@@ -2962,6 +3385,14 @@ void hdd_term(void) {
 		for (c=hashtab[i] ; c ; c=cn) {
 			cn = c->next;
 			if (c->state==CH_AVAIL) {
+				MooseFSChunk* mc = dynamic_cast<MooseFSChunk*>(c);
+				if (c->wasChanged && mc) {
+					syslog(LOG_WARNING,"hdd_term: CRC not flushed - writing now");
+					if (chunk_writecrc(mc)!=STATUS_OK) {
+						lzfs_silent_errlog(LOG_WARNING,
+								"hdd_term: file:%s - write error", c->filename().c_str());
+					}
+				}
 				if (c->fd>=0) {
 					close(c->fd);
 				}
@@ -3410,6 +3841,27 @@ static void hdd_folders_reinit(void) {
 	}
 }
 
+void hdd_int_set_chunk_format() {
+	ChunkFormat defaultChunkFormat = MooseFSChunkFormat ?
+			ChunkFormat::MOOSEFS :
+			ChunkFormat::INTERLEAVED;
+	ChunkFormat newFormat =
+			(cfg_getint32("CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT", 1) != 0)
+			? ChunkFormat::MOOSEFS
+			: ChunkFormat::INTERLEAVED;
+	if (newFormat == ChunkFormat::MOOSEFS) {
+		if (defaultChunkFormat != ChunkFormat::MOOSEFS) {
+			MooseFSChunkFormat = true;
+			syslog(LOG_INFO,"new chunks format set to 'MOOSEFS' format");
+		}
+	} else {
+		if (defaultChunkFormat != ChunkFormat::INTERLEAVED) {
+			MooseFSChunkFormat = false;
+			syslog(LOG_INFO,"new chunks format set to 'INTERLEAVED' format");
+		}
+	}
+}
+
 void hdd_reload(void) {
 	TRACETHIS();
 	char *LeaveFreeStr;
@@ -3420,7 +3872,10 @@ void hdd_reload(void) {
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
 
+	hdd_int_set_chunk_format();
+
 	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
+
 	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - left unchanged");
 	}
@@ -3513,6 +3968,8 @@ int hdd_init(void) {
 
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 
+	MooseFSChunkFormat = true;
+	hdd_int_set_chunk_format();
 	main_reloadregister(hdd_reload);
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
 	main_destructregister(hdd_term);

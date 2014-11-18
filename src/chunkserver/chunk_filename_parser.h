@@ -4,6 +4,7 @@
 
 #include <string>
 
+#include "chunkserver/chunk_format.h"
 #include "common/chunk_type.h"
 #include "common/parser.h"
 
@@ -16,6 +17,7 @@ public:
 
 	ChunkFilenameParser(const std::string& filename);
 	Status parse();
+	ChunkFormat chunkFormat() const;
 	ChunkType chunkType() const;
 	uint32_t chunkVersion() const;
 	uint64_t chunkId() const;
@@ -26,6 +28,7 @@ private:
 	static const size_t kChunkVersionStringSize = 8;
 	static const size_t kChunkIdStringSize = 16;
 
+	ChunkFormat chunkFormat_;
 	std::string chunkName_;
 	ChunkType chunkType_;
 	uint32_t chunkVersion_;

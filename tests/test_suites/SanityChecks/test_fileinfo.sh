@@ -30,6 +30,7 @@ awkscript='
 
 CHUNKSERVERS=4 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	CHUNKSERVER_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT=0" \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 

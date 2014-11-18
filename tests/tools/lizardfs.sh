@@ -351,6 +351,16 @@ create_mfschunkserver_cfg_() {
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
+# Run every second chunkserver with each chunk format
+chunkserver_chunk_format_cfg_() {
+	local chunkserver_id=$1
+	if [[ "$(($chunkserver_id % 2))" == 0 ]]; then
+		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0"
+	else
+		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 1"
+	fi
+}
+
 add_chunkserver_() {
 	local chunkserver_id=$1
 	local csserv_port
@@ -361,6 +371,9 @@ add_chunkserver_() {
 	get_next_port_number csserv_port
 	create_mfshdd_cfg_ > "$hdd_cfg"
 	create_mfschunkserver_cfg_ > "$chunkserver_cfg"
+	# If the chunk format wasn't yet chosen set it:
+	grep CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT "$chunkserver_cfg" || \
+		chunkserver_chunk_format_cfg_ $chunkserver_id >> "$chunkserver_cfg"
 	mkdir -p "$chunkserver_data_path"
 	mfschunkserver -c "$chunkserver_cfg" start
 
@@ -442,7 +455,7 @@ find_first_chunkserver_with_chunks_matching() {
 	local chunkserver
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
 		local hdds=$(cat "${lizardfs_info_[chunkserver${chunkserver}_hdd]}")
-		if [[ $(find $hdds -name "$pattern") ]]; then
+		if [[ $(find $hdds -type f -name "$pattern") ]]; then
 			echo $chunkserver
 			return 0
 		fi
@@ -457,9 +470,9 @@ find_chunkserver_chunks() {
 	local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
 			"${lizardfs_info_[chunkserver${chunkserver_number}_hdd]}")
 	if (( $# > 0 )); then
-		find $hdds -name "chunk*.liz" -a "(" "$@" ")"
+		find $hdds "(" -name 'chunk*.liz' -o -name 'chunk*.mfs' ")" -a "(" "$@" ")"
 	else
-		find $hdds -name "chunk*.liz"
+		find $hdds "(" -name 'chunk*.liz' -o -name 'chunk*.mfs' ")"
 	fi
 }
 

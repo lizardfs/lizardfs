@@ -103,6 +103,11 @@ offset of some read operation is greater than the offset where the previos opera
 *USE_SPLICE*::
 whether to use splice syscall when doing disk operations on data blocks (default is 1, i.e. enabled)
 
+*CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT*::
+whether to create new chunks in the MooseFS format (signature + <checksum>* + <data block>*) or in
+the newer interleaved format ([<checksum> <data block>]*). (Default is 1, i.e. new chunks are created
+in MooseFS format)
+
 *PERFORM_FSYNC*::
 call fsync() after a chunk is modified (default is 1, i.e. enabled)
 

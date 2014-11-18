@@ -101,7 +101,7 @@ FILE_SIZE=200B file-generate to_be_destroyed
 mfsfilerepair to_be_destroyed
 check metarestore OK
 
-csid=$(find_first_chunkserver_with_chunks_matching '*.liz')
+csid=$(find_first_chunkserver_with_chunks_matching '*')
 mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 2
 mfsfilerepair to_be_destroyed

@@ -7,8 +7,8 @@ timeout_set '5 minutes'
 # '6 xor5' -- 6 xor5 chunks (each is different)
 chunks_state() {
 	{
-		find_all_chunks | grep -o chunk_.*liz | grep -o chunk_00000 | sed -e 's/.*/standard/'
-		find_all_chunks | grep -o chunk_.*liz | sort -u | grep -o '_of_[2-9]' | sed -e 's/_of_/xor/'
+		find_all_chunks | grep -o chunk_.* | grep -o chunk_00000 | sed -e 's/.*/standard/'
+		find_all_chunks | grep -o chunk_.* | sort -u | grep -o '_of_[2-9]' | sed -e 's/_of_/xor/'
 	} | sort | uniq -c | tr '\n' ' ' | trim_hard
 }
 

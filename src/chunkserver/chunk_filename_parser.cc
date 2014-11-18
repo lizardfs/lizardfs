@@ -1,6 +1,7 @@
 #include "common/platform.h"
 #include "chunkserver/chunk_filename_parser.h"
 
+#include "chunkserver/chunk_format.h"
 #include "common/chunk_type.h"
 #include "common/goal.h"
 #include "common/parser.h"
@@ -87,6 +88,8 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 }
 
 ChunkFilenameParser::Status ChunkFilenameParser::parse() {
+	chunkFormat_ = ChunkFormat::INTERLEAVED;
+
 	if (consume("chunk_") != Parser::OK) {
 		return ERROR_INVALID_FILENAME;
 	}
@@ -118,7 +121,11 @@ ChunkFilenameParser::Status ChunkFilenameParser::parse() {
 	}
 
 	if (consume(".liz") != Parser::OK) {
-		return ERROR_INVALID_FILENAME;
+		if (consume(".mfs") == Parser::OK) {
+			chunkFormat_ = ChunkFormat::MOOSEFS;
+		} else {
+			return ERROR_INVALID_FILENAME;
+		}
 	}
 
 	if (consume(1) == Parser::OK) {
@@ -127,6 +134,10 @@ ChunkFilenameParser::Status ChunkFilenameParser::parse() {
 	}
 
 	return OK;
+}
+
+ChunkFormat ChunkFilenameParser::chunkFormat() const {
+	return chunkFormat_;
 }
 
 ChunkType ChunkFilenameParser::chunkType() const {

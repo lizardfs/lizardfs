@@ -21,7 +21,7 @@ assert_equals 1 $(find_chunkserver_chunks 0 | wc -l)
 assert_equals 1 $(find_chunkserver_chunks 1 | wc -l)
 
 # Remove chunk from chunkserver 0
-chunk=$(find_chunkserver_chunks 0 -name "chunk_0000000000000001_00000001.liz")
+chunk=$(find_chunkserver_chunks 0 -name "chunk_0000000000000001_00000001.???")
 assert_success rm "$chunk"
 
 # Truncate file (this will generate INCVERSION change) and remember the metadata
