@@ -1,8 +1,9 @@
-lizardfs (2.5.3) unstable; urgency=low
+lizardfs (2.9.0) stable; urgency=medium
 
-  * (none) None
+  * (all) xor format
+  * (all) performance improvements
 
- -- Alek Lewandowski <contact@lizardfs.org>  Mon, 15 Sep 2014 14:00:00 +0200
+ -- Marcin Sulikowski <contact@lizardfs.org>  Thu, 20 Nov 2014 14:00:00 +0200
 
 lizardfs (2.5.2) stable; urgency=low
 
