@@ -79,11 +79,6 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
-	if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
-		if [ ! -e "$DATA_PATH"/metadata.mfs.lock ]; then
-			echo "MFSM NEW" > "$DATA_PATH"/metadata.mfs
-		fi
-	fi
 
 	if [ ! -d "$RUN_PATH" ]; then
 		mkdir -p "$RUN_PATH"
