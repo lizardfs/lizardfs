@@ -7,8 +7,8 @@
 #include <string.h>
 #include <syslog.h>
 
-#include "common/slogger.h"
 #include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #include "metarestore/restore.h"
 
 #define BSIZE 200000
@@ -137,7 +137,7 @@ uint8_t merger_loop(void) {
 	hentry h;
 
 	while (heapsize) {
-//              lzfs_pretty_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s\n",heap[0].nextid,heap[0].ptr);
+//              lzfs_pretty_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename, heap[0].nextid, heap[0].ptr,
 				RestoreRigor::kIgnoreParseErrors)) != STATUS_OK) {
 			while (heapsize) {

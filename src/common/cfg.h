@@ -30,6 +30,9 @@ int cfg_load (const char *fname,int logundefined);
 int cfg_reload (void);
 void cfg_term (void);
 
+/// Returns the name of the currently loaded config file.
+std::string cfg_filename();
+
 int cfg_isdefined(const char *name);
 
 _CONFIG_MAKE_PROTOTYPE(str,char*);

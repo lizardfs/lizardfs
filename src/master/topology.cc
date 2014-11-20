@@ -325,14 +325,12 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	}
 	if (*p==0 || *p=='\r' || *p=='\n') {
 		lzfs_pretty_syslog(LOG_WARNING,"mfstopology: incomplete definition in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incomplete definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
 	if (topology_parsenet(net,fip,tip)<0) {
 		lzfs_pretty_syslog(LOG_WARNING,"mfstopology: incorrect ip/network definition in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect ip/network definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -342,7 +340,6 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 
 	if (*p<'0' || *p>'9') {
 		lzfs_pretty_syslog(LOG_WARNING,"mfstopology: incorrect rack id in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect rack id in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -354,7 +351,6 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 
 	if (*p && *p!='\r' && *p!='\n' && *p!='#') {
 		lzfs_pretty_syslog(LOG_WARNING,"mfstopology: garbage found at the end of line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: garbage found at the end of line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	return 0;
@@ -370,17 +366,29 @@ void topology_load(void) {
 	fd = fopen(TopologyFileName,"r");
 	if (fd==NULL) {
 		if (errno==ENOENT) {
+
 			if (racktree) {
-				syslog(LOG_WARNING,"mfstopology configuration file (%s) not found - network topology not changed",TopologyFileName);
+				lzfs_pretty_syslog(LOG_WARNING,
+						"topology file %s not found - network topology not changed; "
+						"if you don't want to define network topology create an empty file %s "
+						"to disable this warning.",
+						TopologyFileName, TopologyFileName);
 			} else {
-				syslog(LOG_WARNING,"mfstopology configuration file (%s) not found - network topology not defined",TopologyFileName);
+				lzfs_pretty_syslog(LOG_WARNING,
+						"topology file %s not found - network topology feature will be disabled; "
+						"if you don't want to define network topology create an empty file %s "
+						"to disable this warning.",
+						TopologyFileName, TopologyFileName);
 			}
-			fprintf(stderr,"mfstopology configuration file (%s) not found - using defaults\n",TopologyFileName);
 		} else {
 			if (racktree) {
-				lzfs_pretty_errlog(LOG_WARNING,"can't open mfstopology configuration file (%s) - network topology not changed, error",TopologyFileName);
+				lzfs_pretty_syslog(LOG_WARNING,
+						"can't open topology file %s: %s - network topology not changed",
+						TopologyFileName, strerr(errno));
 			} else {
-				lzfs_pretty_errlog(LOG_WARNING,"can't open mfstopology configuration file (%s) - network topology not defined, error",TopologyFileName);
+				lzfs_pretty_syslog(LOG_WARNING,
+						"can't open topology file %s: %s - network topology feature will be disabled",
+						TopologyFileName, strerr(errno));
 			}
 		}
 		return;
@@ -397,12 +405,15 @@ void topology_load(void) {
 	if (ferror(fd)) {
 		fclose(fd);
 		if (racktree) {
-			syslog(LOG_WARNING,"error reading mfstopology file - network topology not changed");
+			lzfs_pretty_syslog(LOG_WARNING,
+					"error reading topology file %s - network topology not changed",
+					TopologyFileName);
 		} else {
-			syslog(LOG_WARNING,"error reading mfstopology file - network topology not defined");
+			lzfs_pretty_syslog(LOG_WARNING,
+					"error reading topology file %s - network topology feature will be disabled",
+					TopologyFileName);
 		}
 		itree_freeall(newtree);
-		fprintf(stderr,"error reading mfstopology file - network topology not defined (using defaults)\n");
 		return;
 	}
 	fclose(fd);
@@ -411,7 +422,7 @@ void topology_load(void) {
 	if (racktree) {
 		racktree = itree_rebalance(racktree);
 	}
-	lzfs_pretty_syslog(LOG_NOTICE,"topology file has been loaded");
+	lzfs_pretty_syslog(LOG_INFO, "initialized topology from file %s", TopologyFileName);
 }
 
 void topology_reload(void) {
@@ -427,6 +438,9 @@ void topology_reload(void) {
 			TopologyFileName = strdup(ETC_PATH "/mfstopology.cfg");
 			if ((fd = open(TopologyFileName,O_RDONLY))>=0) {
 				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+			} else {
+				free(TopologyFileName);
+				TopologyFileName = strdup(ETC_PATH "/mfs/mfstopology.cfg");
 			}
 		}
 		if (fd>=0) {

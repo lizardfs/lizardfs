@@ -12,7 +12,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	std::string line;
 	uint32_t lineNum = 0;
 	while (std::getline(stream, line)) {
-		std::string currentPosition = "Line " + std::to_string(++lineNum);
+		std::string currentPosition = "line " + std::to_string(++lineNum);
 
 		// Remove comments
 		auto it = line.find('#');

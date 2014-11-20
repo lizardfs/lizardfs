@@ -32,6 +32,7 @@
 
 #include "common/chunks_availability_state.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/main.h"
@@ -2451,38 +2452,44 @@ int chunk_strinit(void) {
 		MaxDelHardLimit = cfg_getuint32("CHUNKS_HARD_DEL_LIMIT",25);
 		if (MaxDelHardLimit<MaxDelSoftLimit) {
 			MaxDelSoftLimit = MaxDelHardLimit;
-			fprintf(stderr,"CHUNKS_SOFT_DEL_LIMIT is greater than CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both\n");
+			lzfs_pretty_syslog(LOG_WARNING, "%s: CHUNKS_SOFT_DEL_LIMIT is greater than "
+					"CHUNKS_HARD_DEL_LIMIT - using CHUNKS_HARD_DEL_LIMIT for both",
+					cfg_filename().c_str());
 		}
 	} else {
 		MaxDelHardLimit = 3 * MaxDelSoftLimit;
 	}
 	if (MaxDelSoftLimit==0) {
-		fprintf(stderr,"delete limit is zero !!!\n");
-		return -1;
+		throw InitializeException(cfg_filename() + ": CHUNKS_SOFT_DEL_LIMIT is zero");
 	}
 	TmpMaxDelFrac = MaxDelSoftLimit;
 	TmpMaxDel = MaxDelSoftLimit;
 	MaxWriteRepl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",2);
 	MaxReadRepl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",10);
 	if (MaxReadRepl==0) {
-		fprintf(stderr,"read replication limit is zero !!!\n");
-		return -1;
+		throw InitializeException(cfg_filename() + ": CHUNKS_READ_REP_LIMIT is zero");
 	}
 	if (MaxWriteRepl==0) {
-		fprintf(stderr,"write replication limit is zero !!!\n");
-		return -1;
+		throw InitializeException(cfg_filename() + ": CHUNKS_WRITE_REP_LIMIT is zero");
 	}
 
 	uint32_t looptime;
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
-		fprintf(stderr,"Defining loop time by CHUNKS_LOOP_TIME option is deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME\n");
+		lzfs_pretty_syslog(LOG_WARNING,
+				"%s: defining loop time by CHUNKS_LOOP_TIME option is "
+				"deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME",
+				cfg_filename().c_str());
 		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u\n",looptime,MINLOOPTIME);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u",
+					cfg_filename().c_str(), looptime, MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u\n",looptime,MAXLOOPTIME);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u",
+					cfg_filename().c_str(), looptime, MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
@@ -2490,21 +2497,29 @@ int chunk_strinit(void) {
 	} else {
 		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
 		if (looptime < MINLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u\n",looptime,MINLOOPTIME);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u",
+					cfg_filename().c_str(), looptime, MINLOOPTIME);
 			looptime = MINLOOPTIME;
 		}
 		if (looptime > MAXLOOPTIME) {
-			fprintf(stderr,"CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u\n",looptime,MAXLOOPTIME);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u",
+					cfg_filename().c_str(), looptime, MAXLOOPTIME);
 			looptime = MAXLOOPTIME;
 		}
 		HashSteps = 1+((HASHSIZE)/looptime);
 		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
 		if (HashCPS < MINCPS) {
-			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u\n",HashCPS,MINCPS);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u",
+					cfg_filename().c_str(), HashCPS, MINCPS);
 			HashCPS = MINCPS;
 		}
 		if (HashCPS > MAXCPS) {
-			fprintf(stderr,"CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u\n",HashCPS,MAXCPS);
+			lzfs_pretty_syslog(LOG_WARNING,
+					"%s: CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u",
+					cfg_filename().c_str(), HashCPS, MAXCPS);
 			HashCPS = MAXCPS;
 		}
 	}

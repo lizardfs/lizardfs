@@ -31,7 +31,9 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -949,20 +951,15 @@ void exports_loadexports(void) {
 	fd = fopen(ExportsFileName,"r");
 	if (fd==NULL) {
 		if (errno==ENOENT) {
-			if (exports_records) {
-				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - exports not changed",ExportsFileName);
-			} else {
-				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - no exports !!!",ExportsFileName);
-			}
-			fprintf(stderr,"mfsexports configuration file (%s) not found - please create one (you can copy %s.dist to get a base configuration)\n",ExportsFileName,ExportsFileName);
+			throw InitializeException(
+					std::string("exports configuration file (") + ExportsFileName + ") not found"
+					" - please create one (you can copy " ETC_PATH "/mfs/mfsexports.cfg.dist"
+					" to get a base configuration)");
 		} else {
-			if (exports_records) {
-				lzfs_pretty_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - exports not changed, error",ExportsFileName);
-			} else {
-				lzfs_pretty_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - no exports !!!, error",ExportsFileName);
-			}
+			throw InitializeException(
+					std::string("can't open exports configuration file (") + ExportsFileName + "):"
+					+ errorString(errno));
 		}
-		return;
 	}
 	newexports = NULL;
 	netail = &newexports;
@@ -991,18 +988,17 @@ void exports_loadexports(void) {
 	free(arec);
 	if (ferror(fd)) {
 		fclose(fd);
-		syslog(LOG_WARNING,"error reading mfsexports file - exports not changed");
 		exports_freelist(newexports);
-		fprintf(stderr,"error reading mfsexports file - using defaults\n");
-		return;
+		throw InitializeException(
+				std::string("can't read exports configuration file (") + ExportsFileName + ")");
 	}
 	fclose(fd);
 	exports_freelist(exports_records);
 	exports_records = newexports;
-	lzfs_pretty_syslog(LOG_NOTICE,"exports file has been loaded");
+	lzfs_pretty_syslog(LOG_INFO,"initialized exports from file %s", ExportsFileName);
 }
 
-void exports_reload(void) {
+void exports_load(void) {
 	int fd;
 	if (ExportsFileName) {
 		free(ExportsFileName);
@@ -1015,6 +1011,9 @@ void exports_reload(void) {
 			ExportsFileName = strdup(ETC_PATH "/mfsexports.cfg");
 			if ((fd = open(ExportsFileName,O_RDONLY))>=0) {
 				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+			} else {
+				free(ExportsFileName);
+				ExportsFileName = strdup(ETC_PATH "/mfs/mfsexports.cfg");
 			}
 		}
 		if (fd>=0) {
@@ -1024,6 +1023,14 @@ void exports_reload(void) {
 		ExportsFileName = cfg_getstr("EXPORTS_FILENAME", ETC_PATH "/mfs/mfsexports.cfg");
 	}
 	exports_loadexports();
+}
+
+void exports_reload(void) {
+	try {
+		exports_load();
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "exports not changed because %s", ex.what());
+	}
 }
 
 void exports_term(void) {
@@ -1036,10 +1043,10 @@ void exports_term(void) {
 int exports_init(void) {
 	exports_records = NULL;
 	ExportsFileName = NULL;
-	exports_reload();
-	if (exports_records==NULL) {
-		fprintf(stderr,"no exports defined !!!\n");
-		return -1;
+	exports_load();
+	if (exports_records == NULL) {
+		// File was empty
+		throw InitializeException(std::string("no exports defined in ") + ExportsFileName);
 	}
 	main_reloadregister(exports_reload);
 	main_destructregister(exports_term);

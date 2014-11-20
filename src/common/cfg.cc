@@ -54,7 +54,7 @@ static int cfg_do_load (void) {
 
 	fd = fopen(cfgfname,"r");
 	if (fd==NULL) {
-		lzfs_pretty_syslog(LOG_ERR,"cannot load config file: %s",cfgfname);
+		lzfs_silent_syslog(LOG_ERR,"can't load config file: %s",cfgfname);
 		return 0;
 	}
 	while (fgets(linebuff,999,fd)!=NULL) {
@@ -123,6 +123,14 @@ int cfg_load (const char *configfname,int _lu) {
 	cfgfname = strdup(configfname);
 
 	return cfg_do_load();
+}
+
+std::string cfg_filename() {
+	if (cfgfname != nullptr) {
+		return cfgfname;
+	} else {
+		return "";
+	}
 }
 
 int cfg_isdefined(const char *name) {

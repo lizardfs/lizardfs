@@ -4234,22 +4234,23 @@ void matoclserv_start_cond_check(void) {
 }
 
 int matoclserv_sessionsinit(void) {
-	fprintf(stderr,"loading sessions ... ");
-	fflush(stderr);
 	sessionshead = NULL;
+
 	switch (matoclserv_load_sessions()) {
 		case 0: // no file
-			fprintf(stderr,"file not found\n");
-			fprintf(stderr,"if it is not fresh installation then you have to restart all active mounts !!!\n");
+			lzfs_pretty_syslog(LOG_WARNING,"sessions file %s/%s not found;"
+					" if it is not a fresh installation you have to restart all active mounts",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			matoclserv_store_sessions();
 			break;
 		case 1: // file loaded
-			fprintf(stderr,"ok\n");
-			fprintf(stderr,"sessions file has been loaded\n");
+			lzfs_pretty_syslog(LOG_INFO,"initialized sessions from file %s/%s",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			break;
 		default:
-			fprintf(stderr,"error\n");
-			fprintf(stderr,"due to missing sessions you have to restart all active mounts !!!\n");
+			lzfs_pretty_syslog(LOG_ERR,"due to missing sessions (%s/%s)"
+					" you have to restart all active mounts",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			break;
 	}
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
@@ -4276,7 +4277,7 @@ int matoclserv_iolimits_reload() {
 			gIoLimitsDatabase.setLimits(
 					SteadyClock::now(), configLoader.limits(), gIoLimitsAccumulate_ms);
 		} catch (Exception& ex) {
-			lzfs_pretty_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
+			lzfs_pretty_syslog(LOG_ERR, "failed to process global I/O limits configuration "
 					"file (%s): %s", configFile.c_str(), ex.message().c_str());
 			return -1;
 		}
@@ -4380,7 +4381,8 @@ int matoclserv_networkinit(void) {
 		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
 		ListenPort = cfg_getstr("MATOCL_LISTEN_PORT","9421");
 	} else {
-		fprintf(stderr,"change MATOCU_LISTEN_* option names to MATOCL_LISTEN_* !!!\n");
+		lzfs_pretty_syslog(LOG_WARNING, "options MATOCU_LISTEN_* are deprecated -- use "
+				"MATOCL_LISTEN_* instead");
 		ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}

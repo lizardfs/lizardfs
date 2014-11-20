@@ -111,7 +111,7 @@
 				} \
 			} \
 			if ((path)==NULL) { \
-				lzfs_pretty_syslog(LOG_ERR, "out of memory !!!"); \
+				lzfs_pretty_syslog(LOG_ERR, "out of memory"); \
 				exit(1); \
 			} \
 		} \
@@ -129,7 +129,7 @@
 			} \
 		} \
 		if ((path)==NULL) { \
-			lzfs_pretty_syslog(LOG_ERR, "out of memory !!!"); \
+			lzfs_pretty_syslog(LOG_ERR, "out of memory"); \
 			exit(1); \
 		} \
 	} \
@@ -174,7 +174,7 @@
 				} \
 			} \
 			if ((buff)==NULL) { \
-				lzfs_pretty_syslog(LOG_ERR, "out of memory !!!"); \
+				lzfs_pretty_syslog(LOG_ERR, "out of memory"); \
 				exit(1); \
 			} \
 		} \

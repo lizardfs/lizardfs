@@ -748,7 +748,7 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 				break;
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - cannot deserialize: %s", type, ex.what());
+		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
 		eptr->mode = KILL;
 	}
 }
@@ -851,11 +851,11 @@ int masterconn_initconnect(masterconn *eptr) {
 		return -1;
 	}
 	if (status==0) {
-		syslog(LOG_NOTICE,"connected to Master immediately");
+		lzfs_pretty_syslog(LOG_NOTICE,"connected to Master immediately");
 		masterconn_connected(eptr);
 	} else {
 		eptr->mode = CONNECTING;
-		syslog(LOG_NOTICE,"connecting ...");
+		lzfs_pretty_syslog_attempt(LOG_NOTICE,"connecting to Master");
 	}
 	return 0;
 }

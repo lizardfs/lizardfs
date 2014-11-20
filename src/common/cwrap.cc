@@ -92,4 +92,15 @@ std::string getCurrentWorkingDirectory() {
 	return std::string(value.get());
 }
 
+std::string getCurrentWorkingDirectoryNoThrow() {
+	std::string currentPath;
+	try {
+		currentPath = fs::getCurrentWorkingDirectory();
+	} catch (const FilesystemException& ex) {
+		syslog(LOG_WARNING, "unable to get current working directory %s", ex.what());
+		currentPath = "???";
+	}
+	return currentPath;
+}
+
 }

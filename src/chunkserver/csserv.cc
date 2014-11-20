@@ -33,8 +33,10 @@
 #include "chunkserver/bgjobs.h"
 #include "chunkserver/hddspacemgr.h"
 #include "common/cfg.h"
+#include "common/cwrap.h"
 #include "common/charts.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
@@ -1654,8 +1656,8 @@ int csserv_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		lzfs_pretty_errlog(LOG_ERR,"main server module: can't create socket");
-		return -1;
+		throw InitializeException("main server module: can't create socket :" +
+				errorString(errno));
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
@@ -1665,8 +1667,8 @@ int csserv_init(void) {
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		lzfs_pretty_errlog(LOG_ERR,"main server module: can't listen on socket");
-		return -1;
+		throw InitializeException("main server module: can't listen on socket" +
+				errorString(errno));
 	}
 	lzfs_pretty_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
 

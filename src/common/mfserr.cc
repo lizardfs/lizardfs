@@ -492,7 +492,7 @@ static errent errtab[] = {
 	{ETIME,"ETIME (Timer expired)"},
 #endif
 #ifdef ETOOMANYREFS
-	{ETOOMANYREFS,"ETOOMANYREFS (Too many references: cannot splice)"},
+	{ETOOMANYREFS,"ETOOMANYREFS (Too many references: can't splice)"},
 #endif
 #ifdef ETXTBSY
 	{ETXTBSY,"ETXTBSY (Text file busy)"},

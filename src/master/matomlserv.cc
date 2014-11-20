@@ -618,7 +618,7 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 				eptr->mode=KILL;
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - cannot deserialize: %s", type, ex.what());
+		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
 		eptr->mode = KILL;
 	}
 }
@@ -782,7 +782,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			lzfs_silent_errlog(LOG_NOTICE,"Master<->ML socket: accept error");
+			lzfs_silent_errlog(LOG_NOTICE,"master<->ML socket: accept error");
 		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -950,6 +950,7 @@ int matomlserv_init(void) {
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
 		lzfs_silent_errlog(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
 	}
+
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
 		lzfs_pretty_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;

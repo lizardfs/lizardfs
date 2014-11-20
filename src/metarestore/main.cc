@@ -236,12 +236,13 @@ int main(int argc,char **argv) {
 			}
 		}
 		if (bestmetadata.empty()) {
-			lzfs_pretty_syslog(LOG_ERR, "error: can't find backed up metadata file !!!");
+			lzfs_pretty_syslog(LOG_ERR, "can't find backed up metadata file");
 			return 1;
 		}
 		metadata = bestmetadata;
 		metaout =  datapath + "/" + kMetadataFilename;
-		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
+		lzfs_pretty_syslog(LOG_INFO, "file %s will be used to restore the most recent metadata",
+				metadata.c_str());
 	}
 	try {
 		if (fs_init(metadata.c_str(), ignoreflag, noLock) != 0) {

@@ -38,9 +38,11 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
+#include "common/cwrap.h"
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/disk_info.h"
+#include "common/exceptions.h"
 #include "common/list.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -3629,7 +3631,7 @@ void* hdd_folder_scan(void *arg) {
 	}
 	free(fullname);
 	free(destorage);
-//      fprintf(stderr,"hdd space manager: %s: %" PRIu32 " chunks found\n",f->path,f->chunkcount);
+//      lzfs_pretty_syslog(LOG_INFO, "%s: %" PRIu32 " chunks found",f->path,f->chunkcount);
 
 	hdd_testshuffle(f);
 
@@ -3880,7 +3882,6 @@ int hdd_parseline(char *hddcfgline) {
 	uint32_t l,p;
 	int lfd,td;
 	char *pptr;
-	char *lockfname;
 	struct stat sb;
 	folder *f;
 	uint8_t lockneeded;
@@ -3957,7 +3958,7 @@ int hdd_parseline(char *hddcfgline) {
 			} else {
 				uint64_t size = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
 				if (limit > size) {
-					lzfs_pretty_syslog(LOG_WARNING,"hdd space manager: space to be left free on '%s' (%" PRIu64 ") is greater than real volume size (%" PRIu64 ") !!!",pptr,limit,size);
+					lzfs_pretty_syslog(LOG_WARNING,"hdd space manager: space to be left free on '%s' (%" PRIu64 ") is greater than real volume size (%" PRIu64 ")",pptr,limit,size);
 				}
 			}
 		}
@@ -3981,48 +3982,46 @@ int hdd_parseline(char *hddcfgline) {
 		}
 	}
 
-	lockfname = (char*)malloc(l+6);
-	passert(lockfname);
-	memcpy(lockfname,pptr,l);
-	memcpy(lockfname+l,".lock",6);
-	lfd = open(lockfname,O_RDWR|O_CREAT|O_TRUNC,0640);
+	std::string dataDir(pptr, l);
+	std::string lockfname = dataDir + ".lock";
+	lfd = open(lockfname.c_str(),O_RDWR|O_CREAT|O_TRUNC,0640);
 	if (lfd<0 && errno==EROFS && td) {
-		free(lockfname);
 		td = 2;
 	} else {
 		if (lfd<0) {
-			lzfs_pretty_errlog(LOG_ERR,"hdd space manager: can't create lock file '%s'",lockfname);
-			free(lockfname);
-			return -1;
+			throw ParseException("can't create lock file " + lockfname + " : " +
+					errorString(errno));
 		}
 		if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
-			if (errno==EAGAIN) {
-				lzfs_pretty_syslog(LOG_ERR,"hdd space manager: data folder '%s' already locked (used by another process)",pptr);
-			} else {
-				lzfs_pretty_errlog(LOG_NOTICE,"hdd space manager: lockf '%s' error",lockfname);
-			}
-			free(lockfname);
+			int err = errno;
 			close(lfd);
-			return -1;
+			if (errno==EAGAIN) {
+				throw InitializeException(
+						"data folder " + dataDir + " already locked by another process");
+			} else {
+				throw InitializeException("lockf(" + lockfname + ") failed: " + errorString(err));
+			}
 		}
 		if (fstat(lfd,&sb)<0) {
-			lzfs_pretty_errlog(LOG_NOTICE,"hdd space manager: fstat '%s' error",lockfname);
-			free(lockfname);
+			int err = errno;
 			close(lfd);
-			return -1;
+			throw InitializeException("fstat(" + lockfname + ") failed: " + errorString(err));
 		}
-		free(lockfname);
 		if (lockneeded) {
 			zassert(pthread_mutex_lock(&folderlock));
 			for (f=folderhead ; f ; f=f->next) {
 				if (f->devid==sb.st_dev) {
 					if (f->lockinode==sb.st_ino) {
-						lzfs_pretty_syslog(LOG_ERR,"hdd space manager: data folders '%s' and '%s have the same lockfile !!!",pptr,f->path);
+						std::string fPath = f->path;
 						zassert(pthread_mutex_unlock(&folderlock));
 						close(lfd);
-						return -1;
+						throw InitializeException("data folders '" + dataDir + "' and "
+								"'" + fPath + "' have the same lockfile");
 					} else {
-						lzfs_pretty_syslog(LOG_WARNING,"hdd space manager: data folders '%s' and '%s' are on the same physical device (could lead to unexpected behaviours)",pptr,f->path);
+						lzfs_pretty_syslog(LOG_WARNING,
+								"data folders '%s' and '%s' are on the same "
+								"physical device (could lead to unexpected behaviours)",
+								dataDir.c_str(), f->path);
 					}
 				}
 			}
@@ -4123,36 +4122,34 @@ int hdd_parseline(char *hddcfgline) {
 	return 2;
 }
 
-int hdd_folders_reinit(void) {
+static void hdd_folders_reinit(void) {
 	folder *f;
-	FILE *fd;
-	char buff[1000];
-	char *hddfname;
-	int ret,datadef;
+	cstream_t fd;
+	std::string hddfname;
 
 	if (!cfg_isdefined("HDD_CONF_FILENAME")) {
-		hddfname = strdup(ETC_PATH "/mfs/mfshdd.cfg");
-		passert(hddfname);
-		fd = fopen(hddfname,"r");
+		hddfname = ETC_PATH "/mfs/mfshdd.cfg";
+		fd.reset(fopen(hddfname.c_str(),"r"));
 		if (!fd) {
-			free(hddfname);
-			hddfname = strdup(ETC_PATH "/mfshdd.cfg");
-			fd = fopen(hddfname,"r");
+			hddfname = ETC_PATH "/mfshdd.cfg";
+			fd.reset(fopen(hddfname.c_str(),"r"));
 			if (fd) {
 				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfshdd.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+			} else {
+				hddfname = ETC_PATH "/mfs/mfshdd.cfg";
 			}
 		}
 	} else {
-		hddfname = cfg_getstr("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
-		fd = fopen(hddfname,"r");
+		hddfname = cfg_get("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
+		fd.reset(fopen(hddfname.c_str(),"r"));
 	}
 
 	if (!fd) {
-		free(hddfname);
-		return -1;
+		throw InitializeException("can't open hdd config file " + hddfname +": " +
+				strerr(errno) + " - new file can be created using " +
+				ETC_PATH "/mfs/mfshdd.cfg.dist");
 	}
-
-	ret = 0;
+	lzfs_pretty_syslog(LOG_INFO, "hdd configuration file %s opened", hddfname.c_str());
 
 	zassert(pthread_mutex_lock(&folderlock));
 	folderactions = 0; // stop folder actions
@@ -4161,20 +4158,18 @@ int hdd_folders_reinit(void) {
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
 
-	while (fgets(buff,999,fd)) {
+	char buff[1000];
+	while (fgets(buff,999,fd.get())) {
 		buff[999] = 0;
-		if (hdd_parseline(buff)<0) {
-			ret = -1;
-		}
-
+		hdd_parseline(buff);
 	}
-	fclose(fd);
+	fd.reset();
 
 	zassert(pthread_mutex_lock(&folderlock));
-	datadef = 0;
+	bool anyDiskAvailable = false;
 	for (f=folderhead ; f ; f=f->next) {
 		if (f->toremove==0) {
-			datadef = 1;
+			anyDiskAvailable = true;
 			if (f->scanstate==SCST_SCANNEEDED) {
 				syslog(LOG_NOTICE,"hdd space manager: folder %s will be scanned",f->path);
 			} else if (f->scanstate==SCST_SENDNEEDED) {
@@ -4189,14 +4184,9 @@ int hdd_folders_reinit(void) {
 	folderactions = 1; // continue folder actions
 	zassert(pthread_mutex_unlock(&folderlock));
 
-	if (datadef==0) {
-		lzfs_pretty_syslog(LOG_ERR,"hdd space manager: no hdd space defined in %s file",hddfname);
-		ret = -1;
+	if (!anyDiskAvailable) {
+		throw InitializeException("no data paths defined in the " + hddfname + " file");
 	}
-
-	free(hddfname);
-
-	return ret;
 }
 
 void hdd_reload(void) {
@@ -4216,7 +4206,11 @@ void hdd_reload(void) {
 	}
 
 	syslog(LOG_NOTICE,"reloading hdd data ...");
-	hdd_folders_reinit();
+	try {
+		hdd_folders_reinit();
+	} catch (const Exception& ex) {
+		lzfs_pretty_syslog(LOG_ERR, "%s", ex.what());
+	}
 }
 
 int hdd_late_init(void) {
@@ -4252,17 +4246,21 @@ int hdd_init(void) {
 
 	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
 	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
-		fprintf(stderr,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - using default (256MiB)\n");
+		lzfs_pretty_syslog(LOG_WARNING,
+				"%s: HDD_LEAVE_SPACE_DEFAULT parse error - using default (256MiB)",
+				cfg_filename().c_str());
 		LeaveFree = 0x10000000;
 	}
 	free(LeaveFreeStr);
 	if (LeaveFree<0x4000000) {
-		fprintf(stderr,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT < chunk size - leaving so small space on hdd is not recommended\n");
+		lzfs_pretty_syslog(LOG_WARNING,
+				"%s: HDD_LEAVE_SPACE_DEFAULT < chunk size - "
+				"leaving so small space on hdd is not recommended",
+				cfg_filename().c_str());
 	}
 
-	if (hdd_folders_reinit()<0) {
-		return -1;
-	}
+	/* this can throw exception*/
+	hdd_folders_reinit();
 
 	zassert(pthread_attr_init(&thattr));
 	zassert(pthread_attr_setstacksize(&thattr,0x100000));
@@ -4270,10 +4268,11 @@ int hdd_init(void) {
 
 	zassert(pthread_mutex_lock(&folderlock));
 	for (f=folderhead ; f ; f=f->next) {
-		fprintf(stderr,"hdd space manager: path to scan: %s\n",f->path);
+		lzfs_pretty_syslog(LOG_INFO, "hdd space manager: path to scan: %s",f->path);
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
-	fprintf(stderr,"hdd space manager: start background hdd scanning (searching for available chunks)\n");
+	lzfs_pretty_syslog(LOG_INFO, "hdd space manager: start background hdd scanning "
+				"(searching for available chunks)");
 
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 

@@ -19,7 +19,7 @@ void Lockfile::lock(StaleLock staleLock) {
 	sassert(!isLocked()); // TODO what to do instead?
 	bool existed = fs::exists(name_);
 	if (existed && (staleLock == StaleLock::kReject)) {
-		throw LockfileException("Stale lockfile exists.", LockfileException::Reason::kStaleLock);
+		throw LockfileException("stale lockfile exists", LockfileException::Reason::kStaleLock);
 	}
 	fd_.reset(::open(name_.c_str(), O_CREAT | O_RDWR | (existed ? 0 : O_EXCL), 0644));
 	if (!fd_.isOpened()) {

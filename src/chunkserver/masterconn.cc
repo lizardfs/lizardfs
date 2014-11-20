@@ -684,11 +684,11 @@ int masterconn_initconnect(masterconn *eptr) {
 		return -1;
 	}
 	if (status==0) {
-		syslog(LOG_NOTICE,"connected to Master immediately");
+		lzfs_pretty_syslog(LOG_NOTICE,"connected to Master immediately");
 		masterconn_connected(eptr);
 	} else {
 		eptr->mode = CONNECTING;
-		syslog(LOG_NOTICE,"connecting ...");
+		lzfs_pretty_syslog_attempt(LOG_NOTICE,"connecting to Master");
 	}
 	return 0;
 }
@@ -893,7 +893,7 @@ bool masterconn_load_label() {
 	std::string oldLabel = gLabel;
 	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
 	if (!isMediaLabelValid(gLabel)) {
-		lzfs_pretty_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
+		lzfs_pretty_syslog(LOG_WARNING,"invalid label '%s'", gLabel.c_str());
 		return false;
 	}
 	return gLabel != oldLabel;

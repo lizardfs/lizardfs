@@ -949,7 +949,7 @@ void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t 
 	}
 	eptr->servstrip = matocsserv_makestrip(eptr->servip);
 	if (((eptr->servip)&0xFF000000) == 0x7F000000) {
-		syslog(LOG_NOTICE, "chunkserver connected using localhost (IP: %s) - you cannot use"
+		syslog(LOG_NOTICE, "chunkserver connected using localhost (IP: %s) - you can't use"
 				" localhost for communication between chunkserver and master", eptr->servstrip);
 		eptr->mode=KILL;
 		return;
@@ -1123,7 +1123,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 		eptr->servstrip = matocsserv_makestrip(eptr->servip);
 		if (((eptr->servip)&0xFF000000) == 0x7F000000) {
-			syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you cannot use localhost for communication between chunkserver and master", eptr->servstrip);
+			syslog(LOG_NOTICE,"chunkserver connected using localhost (IP: %s) - you can't use localhost for communication between chunkserver and master", eptr->servstrip);
 			eptr->mode=KILL;
 			return;
 		}
@@ -1478,7 +1478,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			lzfs_silent_errlog(LOG_NOTICE,"Master<->CS socket: accept error");
+			lzfs_silent_errlog(LOG_NOTICE,"master<->CS socket: accept error");
 		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
