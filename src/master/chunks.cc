@@ -57,7 +57,7 @@
 #define MINLOOPTIME 1
 #define MAXLOOPTIME 7200
 #define MAXCPS 10000000
-#define MINCPS 10000
+#define MINCPS 500
 
 #define HASHSIZE 0x100000
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
