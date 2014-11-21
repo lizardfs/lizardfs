@@ -80,6 +80,12 @@ connection with master is done in background - with this option mount can be run
 *-o mfsacl*::
 enable ACL support (disabled by default)
 
+*-o mfsaclcacheto=*'SEC'::
+set ACL cache timeout in seconds (default: 1.0)
+
+*-o mfsaclcachesize=*'N'::
+define ACL cache size in number of entries (0: no cache; default: 1000)
+
 *-o mfsrwlock=*'0|1'::
 when set to 1, parallel reads from the same descriptor are performed (default: 1)
 
@@ -122,6 +128,19 @@ set timeout for whole communication with a chunkserver during read operation in 
 
 *-o mfschunkserverwriteto=*'MSEC'::
 set chunkserver response timeout during write operation in milliseconds (default: 5000)
+
+*-o mfschunkserverrtt=*'MSEC'::
+set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver
+(default: 200)
+
+*-o mfschunkserverconnectreadto=*'MSEC'::
+set timeout for connecting with chunkservers during read operation in milliseconds (default: 2000)
+
+*-o mfschunkserverbasicreadto=*'MSEC'::
+set timeout for executing the basic variant of a read operation in milliseconds (default: 2000)
+
+*-o mfschunkservertotalreadto=*'MSEC'::
+set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: 2000)
 
 *-o mfsrlimitnofile=*'N'::
 try to change limit of simultaneously opened file descriptors on startup

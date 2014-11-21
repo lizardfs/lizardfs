@@ -97,10 +97,10 @@ IP address to listen on for chunkserver connections (*** means any)
 *MATOCS_LISTEN_PORT*::
 port to listen on for chunkserver connections (default is 9420)
 
-*MATOCU_LISTEN_HOST*::
+*MATOCL_LISTEN_HOST*::
 IP address to listen on for client (mount) connections (*** means any)
 
-*MATOCU_LISTEN_PORT*::
+*MATOCL_LISTEN_PORT*::
 port to listen on for client (mount) connections (default is 9421)
 
 *CHUNKS_LOOP_MIN_TIME*::
@@ -120,6 +120,10 @@ Maximum number of chunks to replicate to one chunkserver (default is 2)
 
 *CHUNKS_READ_REP_LIMIT*::
 Maximum number of chunks to replicate from one chunkserver (default is 10)
+
+*ACCEPTABLE_DIFFERENCE*::
+A maximum difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
+(default is 0.1, i.e. 10%).
 
 *EMPTY_TRASH_PERIOD*::
 Interval of removing files from trash in seconds (default is 300)

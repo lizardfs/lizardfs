@@ -23,9 +23,6 @@ Configuration options:
 *DATA_PATH*::
 where to store metadata files and daemon lock file
 
-*LOCK_FILE*::
-(deprecated) daemon lock/pid file
-
 *WORKING_USER*::
 user to run daemon as
 
@@ -49,13 +46,14 @@ address of LizardFS master host to connect with (default is mfsmaster)
 number of LizardFS master port to connect with (default is 9419)
 
 *MASTER_RECONNECTION_DELAY*::
-delay in seconds before trying to reconnect to master after disconnection (default is 5)
+delay in seconds before trying to reconnect to the master server after disconnection (default is 5)
 
 *MASTER_TIMEOUT*::
-timeout (in seconds) for master connections (default is 60, minimum is 0.01)
+timeout (in seconds) for the master server connection (default is 60, minimum is 0.01)
 
 *BIND_HOST*::
-local address to use for connecting with master (default is ***, i.e. default local address)
+local address to use for connecting with the master server (default is ***,
+i.e. default local address)
 
 *CSSERV_LISTEN_HOST*::
 IP address to listen on for client (mount) connections (*** means any)
@@ -69,12 +67,41 @@ timeout (in seconds) for client (mount) connections (default is 5)
 *HDD_TEST_FREQ*::
 chunk test period in seconds (default is 10)
 
+*HDD_LEAVE_SPACE_DEFAULT*::
+how much of free disk space on each drive to keep in case the drive gets full; this number
+is always added to the used disk space reported by chunkserver (default is "256MiB")
+
 *HDD_CONF_FILENAME*::
 alternative name of *mfshdd.cfg* file
 
 *REPLICATION_BANDWIDTH_LIMIT_KBPS*::
 limit how many kilobytes can be replicated from other chunkservers to this chunkserver in every
-second
+second (by default undefined, i.e. no limits)
+
+*NR_OF_NETWORK_WORKERS*::
+number of threads which handle (in a round-robin manner) connections with clients (default is 1);
+these threads are responsible for reading from sockets and coping data from internal buffers to
+sockets
+
+*NR_OF_HDD_WORKERS_PER_NETWORK_WORKER*::
+number of threads that each network worker may use to do disk operations like opening chunks,
+reading or writing them (default is 20)
+
+*READ_AHEAD_KB*::
+additional number of kilobytes which should be passed to posix_fadvise(POSIX_FADV_WILLNEED)
+before reading data from a chunk (default is 0, i.e. use posix_fadvise only with the amount
+of data that is really needed; the value is aligned down to 64 KiB)
+
+*MAX_READ_BEHIND_KB*::
+try to fix out-of-order read requests; the value tells how much of skipped data to read if an
+offset of some read operation is greater than the offset where the previos operation finished
+(default is 0, i.e. don't read any skipped data; the value is aligned down to 64 KiB)
+
+*USE_SPLICE*::
+whether to use splice syscall when doing disk operations on data blocks (default is 1, i.e. enabled)
+
+*PERFORM_FSYNC*::
+call fsync() after a chunk is modified (default is 1, i.e. enabled)
 
 == COPYRIGHT
 
