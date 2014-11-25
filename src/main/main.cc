@@ -821,7 +821,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 				mfs_errlog(LOG_WARNING,"can't send reload signal to lock owner");
 				return LockStatus::kFail;
 			}
-			fprintf(stderr,"reload signal has beed sent\n");
+			fprintf(stderr,"Reload signal has been sent\n");
 			return LockStatus::kSuccess;
 		}
 		if (runmode==RunMode::kKill) {
