@@ -420,7 +420,11 @@ void mainloop() {
 		if (t==0 && r) {
 			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
-				rlit->fun();
+				try {
+					rlit->fun();
+				} catch (Exception& ex) {
+					syslog(LOG_WARNING, "reload error: %s", ex.what());
+				}
 			}
 			r = 0;
 			DEBUG_LOG("main.reload");
@@ -901,7 +905,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		fprintf(stderr,"lockfile created and locked\n");
 	} else if (runmode==RunMode::kStop || runmode==RunMode::kKill) {
 		fprintf(stderr,"can't find process to terminate\n");
-		return LockStatus::kFail;
+		return LockStatus::kSuccess;
 	} else if (runmode==RunMode::kReload) {
 		fprintf(stderr,"can't find process to send reload signal\n");
 		return LockStatus::kFail;

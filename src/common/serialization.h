@@ -4,10 +4,13 @@
 
 #include <array>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
+
 
 #include "common/datapack.h"
 #include "common/exception.h"
@@ -72,6 +75,23 @@ inline uint32_t serializedSize(const std::string& value) {
 }
 
 template <class T, int N>
+inline uint32_t serializedSize(const T (&array)[N]);
+template <class T, std::size_t N>
+inline uint32_t serializedSize(const std::array<T, N>& array);
+template<class T>
+inline uint32_t serializedSize(const std::unique_ptr<T>& ptr);
+template<class T, class A>
+inline uint32_t serializedSize(const std::vector<T, A>& vector);
+template <typename K, typename C, typename A>
+inline uint32_t serializedSize(const std::set<K, C, A>& set);
+template<class T1, class T2>
+inline uint32_t serializedSize(const std::pair<T1, T2>& pair);
+template <typename K, typename T, typename C, typename A>
+inline uint32_t serializedSize(const std::map<K, T, C, A>& map);
+template<class T, class ... Args>
+inline uint32_t serializedSize(const T& t, const Args& ... args);
+
+template <class T, int N>
 inline uint32_t serializedSize(const T (&array)[N]) {
 	uint32_t ret = 0;
 	for (const auto& element : array) {
@@ -103,11 +123,31 @@ inline uint32_t serializedSize(const std::unique_ptr<T>& ptr) {
 	}
 }
 
-template<class T>
-inline uint32_t serializedSize(const std::vector<T>& vector) {
+template<class T, class A>
+inline uint32_t serializedSize(const std::vector<T, A>& vector) {
 	uint32_t ret = 0;
 	ret += serializedSize(uint32_t(vector.size()));
 	for (const auto& t : vector) {
+		ret += serializedSize(t);
+	}
+	return ret;
+}
+
+template <typename K, typename C, typename A>
+inline uint32_t serializedSize(const std::set<K, C, A>& set) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(set.size()));
+	for (const auto& t : set) {
+		ret += serializedSize(t);
+	}
+	return ret;
+}
+
+template <typename K, typename T, typename C, typename A>
+inline uint32_t serializedSize(const std::map<K, T, C, A>& map) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(map.size()));
+	for (const auto& t : map) {
 		ret += serializedSize(t);
 	}
 	return ret;
@@ -174,6 +214,23 @@ inline void serialize(uint8_t** destination, const std::string& value) {
 	serialize(destination, char(0));
 }
 
+template <class T, int N>
+inline void serialize(uint8_t** destination, const T (&array)[N]);
+template <class T, std::size_t N>
+inline void serialize(uint8_t** destination, const std::array<T, N>& array);
+template<class T1, class T2>
+inline void serialize(uint8_t** destination, const std::pair<T1, T2>& pair);
+template<class T>
+inline void serialize(uint8_t** destination, const std::unique_ptr<T>& ptr);
+template<class T, class A>
+inline void serialize(uint8_t** destination, const std::vector<T, A>& vector);
+template <typename K, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::set<K, C, A>& set);
+template <typename K, typename T, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::map<K, T, C, A>& map);
+template<class T, class... Args>
+inline void serialize(uint8_t** destination, const T& t, const Args&... args);
+
 // serialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void serialize(uint8_t** destination, const T (&array)[N]) {
@@ -208,10 +265,26 @@ inline void serialize(uint8_t** destination, const std::unique_ptr<T>& ptr) {
 }
 
 // serialize a vector
-template<class T>
-inline void serialize(uint8_t** destination, const std::vector<T>& vector) {
+template<class T, class A>
+inline void serialize(uint8_t** destination, const std::vector<T, A>& vector) {
 	serialize(destination, uint32_t(vector.size()));
 	for (const T& t : vector) {
+		serialize(destination, t);
+	}
+}
+
+template <typename K, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::set<K, C, A>& set) {
+	serialize(destination, uint32_t(set.size()));
+	for (const auto& t : set) {
+		serialize(destination, t);
+	}
+}
+
+template <typename K, typename T, typename C, typename A>
+inline void serialize(uint8_t** destination, const std::map<K, T, C, A>& map) {
+	serialize(destination, uint32_t(map.size()));
+	for (const auto& t : map) {
 		serialize(destination, t);
 	}
 }
@@ -322,6 +395,30 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, std
 	*source += size;
 }
 
+template <class T, int N>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]);
+template <class T, std::size_t N>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::array<T, N>& array);
+template<class T1, class T2>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::pair<T1, T2>& pair);
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, const uint8_t*& value);
+template<class T>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::unique_ptr<T>& ptr);
+template<class T, class A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::vector<T, A>& vec);
+template <typename K, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::set<K, C, A>& set);
+template <typename K, typename T, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::map<K, T, C, A>& map);
+template<class T, class... Args>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& t, Args&... args);
+
 // deserialize fixed size array ("type name[number];")
 template <class T, int N>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T (&array)[N]) {
@@ -368,9 +465,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	}
 }
 
-template<class T>
+template<class T, class A>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		std::vector<T>& vec) {
+		std::vector<T, A>& vec) {
 	sassert(vec.size() == 0);
 	uint32_t size;
 	deserialize(source, bytesLeftInBuffer, size);
@@ -380,6 +477,38 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 	vec.resize(size);
 	for (unsigned i = 0; i < size; ++i) {
 		deserialize(source, bytesLeftInBuffer, vec[i]);
+	}
+}
+
+template <typename K, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::set<K, C, A>& set) {
+	sassert(set.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy set size");
+	}
+	for (unsigned i = 0; i < size; ++i) {
+		K element;
+		deserialize(source, bytesLeftInBuffer, element);
+		set.insert(std::move(element));
+	}
+}
+
+template <typename K, typename T, typename C, typename A>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		std::map<K, T, C, A>& map) {
+	sassert(map.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy map size");
+	}
+	for (unsigned i = 0; i < size; ++i) {
+		std::pair<K, T> v;
+		deserialize(source, bytesLeftInBuffer, v);
+		map.insert(std::move(v));
 	}
 }
 

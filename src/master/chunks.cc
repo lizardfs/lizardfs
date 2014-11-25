@@ -30,7 +30,9 @@
 #include <unistd.h>
 #include <algorithm>
 
+#include "common/chunks_availability_state.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -76,7 +78,7 @@ enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
 enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 
 struct slist {
-	void *ptr;
+	matocsserventry *ptr;
 	uint8_t valid;
 	uint32_t version;
 	slist *next;
@@ -142,8 +144,8 @@ struct slist {
 };
 
 #ifndef METARESTORE
-static std::vector<void*> zombieServersHandledInThisLoop;
-static std::vector<void*> zombieServersToBeHandledInNextLoop;
+static std::vector<matocsserventry*> zombieServersHandledInThisLoop;
+static std::vector<matocsserventry*> zombieServersToBeHandledInNextLoop;
 #endif // METARESTORE
 
 #define SLIST_BUCKET_SIZE 5000
@@ -171,17 +173,24 @@ private: // public/private sections are mixed here to make the struct as small a
 	ChunkGoalCounters goalCounters_;
 #ifndef METARESTORE
 	uint8_t allValidCopies_, regularValidCopies_;
+	uint8_t allMissingCopies_, regularMissingCopies_;
+	uint8_t allRedundantCopies_, regularRedundantCopies_;
 	uint8_t goalInStats_;
+	uint8_t copiesInStats_;
 #endif
 public:
 #ifndef METARESTORE
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
-#endif
+	static ChunksAvailabilityState allChunksAvailability, regularChunksAvailability;
+	static ChunksReplicationState allChunksReplicationState, regularChunksReplicationState;
 	static uint64_t count;
-	static uint64_t allValidCopies[11][11], regularValidCopies[11][11];
+	static uint64_t allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+	static uint64_t regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+#endif
 
+	/// ID of the chunk's goal.
 	uint8_t goal() const {
 		return goalCounters_.combinedGoal();
 	}
@@ -216,10 +225,18 @@ public:
 	}
 
 #ifndef METARESTORE
+	/// The expected number of chunk's copies.
+	uint8_t expectedCopies() const {
+		return fs_get_goal_definition(goal()).getExpectedCopies();
+	}
+
 	// This method should be called on a new chunk
 	void initStats() {
 		count++;
 		allValidCopies_ = regularValidCopies_ = 0;
+		allRedundantCopies_ = regularRedundantCopies_ = 0;
+		allMissingCopies_ = regularMissingCopies_ = 0;
+		copiesInStats_ = 0;
 		goalInStats_ = 0;
 		addToStats();
 		updateStats();
@@ -234,6 +251,7 @@ public:
 	void updateStats() {
 		removeFromStats();
 		allValidCopies_ = regularValidCopies_ = 0;
+
 		for (slist* s = slisthead; s != nullptr; s = s->next) {
 			if (!s->is_valid()) {
 				continue;
@@ -243,7 +261,60 @@ public:
 				regularValidCopies_++;
 			}
 		}
+
+		uint32_t allMissingCopiesOfLabels = 0;
+		uint32_t regularMissingCopiesOfLabels = 0;
+		const Goal::Labels& labels = fs_get_goal_definition(goal()).labels();
+		for (const auto& labelAndCount : labels) {
+			const auto& label = labelAndCount.first;
+			if (label == kMediaLabelWildcard) {
+				continue;
+			}
+			uint32_t allCopiesOfLabel = 0;
+			uint32_t regularCopiesOfLabel = 0;
+			for (slist* s = slisthead; s != nullptr; s = s->next) {
+				if (!s->is_valid() || matocsserv_get_label(s->ptr) != label) {
+					continue;
+				}
+				allCopiesOfLabel++;
+				if (!s->is_todel()) {
+					regularCopiesOfLabel++;
+				}
+			}
+			uint32_t expectedCopiesOfLabel = labelAndCount.second;
+			if (allCopiesOfLabel < expectedCopiesOfLabel) {
+				allMissingCopiesOfLabels += expectedCopiesOfLabel - allCopiesOfLabel;
+			}
+			if (regularCopiesOfLabel < expectedCopiesOfLabel) {
+				regularMissingCopiesOfLabels += expectedCopiesOfLabel - regularCopiesOfLabel;
+			}
+		}
+
+		allMissingCopies_ = missingCopies(allValidCopies_, allMissingCopiesOfLabels);
+		regularMissingCopies_ = missingCopies(regularValidCopies_, regularMissingCopiesOfLabels);
+		allRedundantCopies_ = redundantCopies(allValidCopies_, allMissingCopies_);
+		regularRedundantCopies_ = redundantCopies(regularValidCopies_, regularMissingCopies_);
 		addToStats();
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies for non-wildcard labels return
+	 * overall number of missing copies
+	 */
+	uint32_t missingCopies(uint32_t validCopies, uint32_t missingCopiesOfLabels) {
+		uint32_t ret = std::max<uint32_t>(
+				expectedCopies() > validCopies ? expectedCopies() - validCopies : 0,
+				missingCopiesOfLabels);
+		return std::min<uint32_t>(200U, ret);
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies return number of redundant copies
+	 */
+	uint32_t redundantCopies(uint32_t validCopies, uint32_t missingCopies) {
+		uint32_t validAndMissing = validCopies + missingCopies;
+		uint32_t ret = expectedCopies() < validAndMissing ? validAndMissing - expectedCopies() : 0;
+		return std::min<uint32_t>(200U, ret);
 	}
 
 	bool isSafe() const {
@@ -288,7 +359,7 @@ public:
 		updateStats();
 	}
 
-	slist* addCopyNoStatsUpdate(void *ptr, uint8_t valid, uint32_t version) {
+	slist* addCopyNoStatsUpdate(matocsserventry *ptr, uint8_t valid, uint32_t version) {
 		slist *s = slist_malloc();
 		s->ptr = ptr;
 		s->valid = valid;
@@ -298,36 +369,74 @@ public:
 		return s;
 	}
 
-	slist* addCopy(void *ptr, uint8_t valid, uint32_t version) {
+	slist* addCopy(matocsserventry *ptr, uint8_t valid, uint32_t version) {
 		slist *s = addCopyNoStatsUpdate(ptr, valid, version);
 		updateStats();
 		return s;
 	}
 
 private:
+	ChunksAvailabilityState::State allCopiesState() const {
+		if (allValidCopies_ >= 2) {
+			return ChunksAvailabilityState::kSafe;
+		} else if (allValidCopies_ == 1) {
+			return ChunksAvailabilityState::kEndangered;
+		} else {
+			return ChunksAvailabilityState::kLost;
+		}
+	}
+
+	ChunksAvailabilityState::State regularCopiesState() const {
+		if (regularValidCopies_ >= 2) {
+			return ChunksAvailabilityState::kSafe;
+		} else if (regularValidCopies_ == 1) {
+			return ChunksAvailabilityState::kEndangered;
+		} else {
+			return ChunksAvailabilityState::kLost;
+		}
+	}
+
 	void removeFromStats() {
-		uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(10, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(10, regularValidCopies_);
-		allValidCopies[limitedGoal][limitedAvc]--;
-		regularValidCopies[limitedGoal][limitedRvc]--;
+		allChunksAvailability.removeChunk(goalInStats_, allCopiesState());
+		allChunksReplicationState.removeChunk(goalInStats_, allMissingCopies_,
+				allRedundantCopies_);
+
+		regularChunksAvailability.removeChunk(goalInStats_, regularCopiesState());
+		regularChunksReplicationState.removeChunk(goalInStats_,
+				regularMissingCopies_, regularRedundantCopies_);
+
+		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
+		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAll]--;
+		regularValidCopies[limitedCopies][limitedRegular]--;
 	}
 
 	void addToStats() {
+		copiesInStats_ = expectedCopies();
 		goalInStats_ = goal();
-		uint8_t limitedGoal = std::min<uint8_t>(10, goalInStats_);
-		uint8_t limitedAvc = std::min<uint8_t>(10, allValidCopies_);
-		uint8_t limitedRvc = std::min<uint8_t>(10, regularValidCopies_);
-		allValidCopies[limitedGoal][limitedAvc]++;
-		regularValidCopies[limitedGoal][limitedRvc]++;
+		allChunksAvailability.addChunk(goalInStats_, allCopiesState());
+		allChunksReplicationState.addChunk(goalInStats_, allMissingCopies_, allRedundantCopies_);
+
+		regularChunksAvailability.addChunk(goalInStats_, regularCopiesState());
+		regularChunksReplicationState.addChunk(goalInStats_,
+				regularMissingCopies_, regularRedundantCopies_);
+
+		uint8_t limitedCopies = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
+		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allValidCopies_);
+		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularValidCopies_);
+		allValidCopies[limitedCopies][limitedAll]++;
+		regularValidCopies[limitedCopies][limitedRegular]++;
 	}
 #endif
 };
 
 #ifndef METARESTORE
+ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
+ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
 uint64_t chunk::count;
-uint64_t chunk::allValidCopies[11][11];
-uint64_t chunk::regularValidCopies[11][11];
+uint64_t chunk::allValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+uint64_t chunk::regularValidCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 #endif
 
 #define CHUNK_BUCKET_SIZE 20000
@@ -411,6 +520,7 @@ static uint32_t TmpMaxDel;
 static uint32_t HashSteps;
 static uint32_t HashCPS;
 static double AcceptableDifference;
+static bool RebalancingBetweenLabels = false;
 
 static uint32_t jobshpos;
 static uint32_t jobsrebalancecount;
@@ -632,14 +742,14 @@ void chunk_emergency_increase_version(chunk *c) {
 		c->interrupted = 0;
 		c->operation = SET_VERSION;
 		c->version++;
+		chunk_update_checksum(c);
 	} else {
 		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
 	}
 	fs_incversion(c->chunkid);
-	chunk_update_checksum(c);
 }
 
-bool chunk_server_is_disconnected(void* ptr) {
+bool chunk_server_is_disconnected(matocsserventry* ptr) {
 	for (auto zombies : {&zombieServersHandledInThisLoop, &zombieServersToBeHandledInNextLoop}) {
 		if (std::find(zombies->begin(), zombies->end(), ptr) != zombies->end()) {
 			return true;
@@ -717,48 +827,44 @@ uint32_t chunk_count(void) {
 }
 
 void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidcopies) {
-	uint32_t i,j,ag,rg;
 	*allchunks = chunk::count;
 	*allcopies = 0;
 	*regularvalidcopies = 0;
-	for (i=1 ; i<=10 ; i++) {
-		ag=0;
-		rg=0;
-		for (j=0 ; j<=10 ; j++) {
-			ag += chunk::allValidCopies[j][i];
-			rg += chunk::regularValidCopies[j][i];
+	for (int actualCopies = 1; actualCopies < CHUNK_MATRIX_SIZE; actualCopies++) {
+		uint32_t ag = 0;
+		uint32_t rg = 0;
+		for (int expectedCopies = 0; expectedCopies < CHUNK_MATRIX_SIZE; expectedCopies++) {
+			ag += chunk::allValidCopies[expectedCopies][actualCopies];
+			rg += chunk::regularValidCopies[expectedCopies][actualCopies];
 		}
-		*allcopies += ag*i;
-		*regularvalidcopies += rg*i;
+		*allcopies += ag * actualCopies;
+		*regularvalidcopies += rg * actualCopies;
 	}
 }
 
 uint32_t chunk_get_missing_count(void) {
-	uint32_t res=0;
-	uint8_t i;
-
-	for (i=1 ; i<=10 ; i++) {
-		res += chunk::allValidCopies[i][0];
+	uint32_t res = 0;
+	for (int expectedCopies = 1; expectedCopies < CHUNK_MATRIX_SIZE; expectedCopies++) {
+		res += chunk::allValidCopies[expectedCopies][0];
 	}
 	return res;
 }
 
 void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
-	uint8_t i,j;
-	if (matrixid==0) {
-		for (i=0 ; i<=10 ; i++) {
-			for (j=0 ; j<=10 ; j++) {
+	if (matrixid == MATRIX_ALL_COPIES) {
+		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
+			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
 				put32bit(&buff, chunk::allValidCopies[i][j]);
 			}
 		}
-	} else if (matrixid==1) {
-		for (i=0 ; i<=10 ; i++) {
-			for (j=0 ; j<=10 ; j++) {
+	} else if (matrixid == MATRIX_REGULAR_COPIES) {
+		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
+			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
 				put32bit(&buff, chunk::regularValidCopies[i][j]);
 			}
 		}
 	} else {
-		memset(buff,0,11*11*4);
+		memset(buff, 0, CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * sizeof(uint32_t));
 	}
 }
 #endif
@@ -870,13 +976,11 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 		uint8_t *opflag, uint64_t *nchunkid) {
 	chunk *c = NULL;
 	if (ochunkid == 0) { // new chunk
-		uint16_t servcount = 0;
-		void* ptrs[65536];
 		if (quota_exceeded) {
 			return ERROR_QUOTA;
 		}
-		servcount = matocsserv_getservers_wrandom(ptrs,goal);
-		if (servcount==0) {
+		auto servers = matocsserv_getservers_for_new_chunk(goal);
+		if (servers.empty()) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
@@ -890,8 +994,8 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 		c->interrupted = 0;
 		c->operation = CREATE;
 		chunk_add_file_int(c,goal);
-		for (uint32_t i = 0; i < servcount; i++) {
-			slist *s = c->addCopyNoStatsUpdate(ptrs[i], BUSY, c->version);
+		for (uint32_t i = 0; i < servers.size(); i++) {
+			slist *s = c->addCopyNoStatsUpdate(servers[i], BUSY, c->version);
 			matocsserv_send_createchunk(s->ptr,c->chunkid,c->version);
 		}
 		c->updateStats();
@@ -1162,6 +1266,18 @@ uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
 
 #ifndef METARESTORE
 
+const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksReplicationState :
+			chunk::allChunksReplicationState;
+}
+
+const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly) {
+	return regularChunksOnly ?
+			chunk::regularChunksAvailability :
+			chunk::allChunksAvailability;
+}
+
 typedef struct locsort {
 	uint32_t ip;
 	uint16_t port;
@@ -1184,6 +1300,64 @@ int chunk_locsort_cmp(const void *aa,const void *bb) {
 	return 0;
 }
 
+struct ChunkLocation {
+	ChunkLocation() : distance(0), random(0) {
+	}
+	NetworkAddress address;
+	uint32_t distance;
+	uint32_t random;
+	MediaLabel* label;
+	bool operator<(const ChunkLocation& other) const {
+		if (distance < other.distance) {
+			return true;
+		} else if (distance > other.distance) {
+			return false;
+		} else {
+			return random < other.random;
+		}
+	}
+};
+
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList) {
+	chunk *c;
+	slist *s;
+	uint8_t cnt;
+
+	sassert(serversList.empty());
+	c = chunk_find(chunkid);
+
+	if (c == NULL) {
+		return ERROR_NOCHUNK;
+	}
+	version = c->version;
+	cnt = 0;
+	std::vector<ChunkLocation> chunkLocation;
+	ChunkLocation chunkserverLocation;
+	for (s = c->slisthead; s; s = s->next) {
+		if (s->is_valid()) {
+			if (cnt < maxNumberOfChunkCopies && matocsserv_getlocation(s->ptr,
+					&(chunkserverLocation.address.ip),
+					&(chunkserverLocation.address.port),
+					&(chunkserverLocation.label)) == 0) {
+				chunkserverLocation.distance =
+						topology_distance(chunkserverLocation.address.ip, currentIp);
+						// in the future prepare more sophisticated distance function
+				chunkserverLocation.random = rndu32();
+				chunkLocation.push_back(chunkserverLocation);
+				cnt++;
+			}
+		}
+	}
+	std::sort(chunkLocation.begin(), chunkLocation.end());
+	for (uint i = 0; i < chunkLocation.size(); ++i) {
+		const ChunkLocation& loc = chunkLocation[i];
+		uint8_t reserved = 0;
+		serversList.emplace_back(loc.address, *loc.label, reserved);
+	}
+	return STATUS_OK;
+}
+
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[100*6]) {
 	chunk *c;
 	slist *s;
@@ -1200,7 +1374,9 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	cnt=0;
 	for (s=c->slisthead ;s ; s=s->next) {
 		if (s->is_valid()) {
-			if (cnt<100 && matocsserv_getlocation(s->ptr,&(lstab[cnt].ip),&(lstab[cnt].port))==0) {
+			MediaLabel* dummy = nullptr;
+			if (cnt < 100 && matocsserv_getlocation(
+					s->ptr, &(lstab[cnt].ip), &(lstab[cnt].port), &dummy) == 0) {
 				lstab[cnt].dist = topology_distance(lstab[cnt].ip,cuip); // in the future prepare more sofisticated distance function
 				lstab[cnt].rnd = rndu32();
 				cnt++;
@@ -1217,7 +1393,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 	return STATUS_OK;
 }
 
-void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
+void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	slist *s;
 	const uint32_t new_version = version & 0x7FFFFFFF;
@@ -1278,7 +1454,7 @@ void chunk_server_has_chunk(void *ptr,uint64_t chunkid,uint32_t version) {
 	s = c->addCopy(ptr, state, new_version);
 }
 
-void chunk_damaged(void *ptr,uint64_t chunkid) {
+void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
@@ -1300,7 +1476,7 @@ void chunk_damaged(void *ptr,uint64_t chunkid) {
 	c->needverincrease=1;
 }
 
-void chunk_lost(void *ptr,uint64_t chunkid) {
+void chunk_lost(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
 	slist **sptr,*s;
 	c = chunk_find(chunkid);
@@ -1318,7 +1494,7 @@ void chunk_lost(void *ptr,uint64_t chunkid) {
 	}
 }
 
-void chunk_server_disconnected(void *ptr) {
+void chunk_server_disconnected(matocsserventry *ptr) {
 	zombieServersToBeHandledInNextLoop.push_back(ptr);
 	if (zombieServersHandledInThisLoop.empty()) {
 		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
@@ -1364,7 +1540,7 @@ int chunk_canexit(void) {
 	return 1;
 }
 
-void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	slist *s,**st;
 	c = chunk_find(chunkid);
@@ -1388,7 +1564,7 @@ void chunk_got_delete_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	}
 }
 
-void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
+void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
 	chunk *c;
 	slist *s;
 	c = chunk_find(chunkid);
@@ -1408,13 +1584,12 @@ void chunk_got_replicate_status(void *ptr,uint64_t chunkid,uint32_t version,uint
 			return;
 		}
 	}
-	const uint8_t state = (c->isLocked() || version != c->version) ?
-			INVALID : VALID;
+	const uint8_t state = (c->isLocked() || version != c->version) ? INVALID : VALID;
 	s = c->addCopy(ptr, state, version);
 }
 
 
-void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
+void chunk_operation_status(chunk *c,uint8_t status,matocsserventry *ptr) {
 	slist *s;
 	uint8_t valid_copies = 0;
 	bool any_copy_busy = false;
@@ -1448,7 +1623,7 @@ void chunk_operation_status(chunk *c,uint8_t status,void *ptr) {
 	}
 }
 
-void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1457,7 +1632,7 @@ void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_create_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1466,7 +1641,7 @@ void chunk_got_create_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duplicate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1475,7 +1650,7 @@ void chunk_got_duplicate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_setversion_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1484,7 +1659,7 @@ void chunk_got_setversion_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_truncate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1493,7 +1668,7 @@ void chunk_got_truncate_status(void *ptr,uint64_t chunkid,uint8_t status) {
 	chunk_operation_status(c,status,ptr);
 }
 
-void chunk_got_duptrunc_status(void *ptr,uint64_t chunkid,uint8_t status) {
+void chunk_got_duptrunc_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
@@ -1529,37 +1704,28 @@ public:
 	ChunkWorker();
 	void doEveryLoopTasks();
 	void doEverySecondTasks();
-	void doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage);
+	void doChunkJobs(chunk *c, uint16_t serverCount);
 
 private:
-	bool tryReplication(chunk *c, void *destinationServer);
+	typedef std::vector<ServerWithUsage> ServersWithUsage;
 
-	/// Number of entries in servers_ or 0 if not filled
-	uint16_t serverCount_;
-
-	/// Indices in servers_; valid only if servers_ > 0.
-	/// servers_[0..serverMin_-1] have disk usage below the average - AcceptableDifference / 2
-	///    and are placed there in a random order
-	/// servers_[serverMax_..serverCount_-1] have disk usage over the
-	///    average + AcceptableDifference / 2 and are placed there in a random order
-	/// servers_[serverMin_..serverMax_-1] are sorted by disk usage
-	uint32_t serverMin_, serverMax_;
-
-	/// Servers ordered properly (roughly -- sorted by disk usage)
-	void* servers_[65536];
+	bool tryReplication(chunk *c, matocsserventry *destinationServer);
 
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
 	uint32_t deleteDone_;
 	uint32_t prevToDeleteCount_;
 	uint32_t deleteLoopCount_;
+
+	/// All chunkservers sorted by disk usage.
+	ServersWithUsage sortedServers_;
+
+	/// For each label, all servers with this label sorted by disk usage.
+	std::map<MediaLabel, ServersWithUsage> labeledSortedServers_;
 };
 
 ChunkWorker::ChunkWorker()
-		: serverCount_(0),
-		  serverMin_(0),
-		  serverMax_(0),
-		  deleteNotDone_(0),
+		: deleteNotDone_(0),
 		  deleteDone_(0),
 		  prevToDeleteCount_(0),
 		  deleteLoopCount_(0) {
@@ -1600,10 +1766,14 @@ void ChunkWorker::doEveryLoopTasks() {
 }
 
 void ChunkWorker::doEverySecondTasks() {
-	serverCount_ = 0;
+	sortedServers_ = matocsserv_getservers_sorted();
+	labeledSortedServers_.clear();
+	for (const ServerWithUsage& sw : sortedServers_) {
+		labeledSortedServers_[*(sw.label)].push_back(sw);
+	}
 }
 
-static bool chunkPresentOnServer(chunk *c, void *server) {
+static bool chunkPresentOnServer(chunk *c, matocsserventry *server) {
 	for (slist *s = c->slisthead ; s ; s = s->next) {
 		if (s->ptr == server) {
 			return true;
@@ -1612,14 +1782,20 @@ static bool chunkPresentOnServer(chunk *c, void *server) {
 	return false;
 }
 
-void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, double maxUsage) {
+void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	// step 0. Update chunk's statistics
-	// Just in case if somewhere is a bug and updateStats was not called
+	// Useful e.g. if definitions of goals did change.
 	c->updateStats();
+
+	if (serverCount == 0) {
+		return;
+	}
 
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
+	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).labels();
+	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
 		switch (s->valid) {
@@ -1630,6 +1806,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 			tdc++;
 			break;
 		case VALID:
+			++validCopies[matocsserv_get_label(s->ptr)];
 			vc++;
 			break;
 		case TDBUSY:
@@ -1709,35 +1886,169 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return ;
 	}
 
-	// step 7a. if chunk has too many copies and some of them have status TODEL then delete them
-	/* GONE */
+	if (vc + tdc == 0) {
+		return;
+	}
 
-	// step 7b. if chunk has too many copies then delete some of them
-	if (vc > c->goal()) {
-		const uint32_t overgoalCopies = vc - c->goal();
-		uint32_t toRemove = overgoalCopies;
-		if (serverCount_ == 0) {
-			serverCount_ = matocsserv_getservers_ordered(servers_,
-					AcceptableDifference / 2.0, &serverMin_, &serverMax_);
+	// step 7. check if chunk needs any replication
+
+	// First, order labels assigned to the goal of the current chunk in a way that wildcard is
+	// the last one. This would prevent us from making a copy on a random servers (which is
+	// determined by wildcards) before making sure that we have enough copies on servers required
+	// by other labels in the goal.
+	bool triedToReplicate = false;
+	std::vector<std::reference_wrapper<const Goal::Labels::value_type>> labelsAndExpectedCopies(
+			expectedCopies.begin(), expectedCopies.end());
+	std::partition(labelsAndExpectedCopies.begin(), labelsAndExpectedCopies.end(),
+			[](const Goal::Labels::value_type& labelGoal) {
+				return labelGoal.first != kMediaLabelWildcard;
+			}
+	);
+
+	// Sometimes we will be temporary unable (due to replication limits) to make a copy on a server
+	// pointed by some label. We will count how many non-wildcard copies we have skipped because of
+	// this fact to determine how many wildcard copies we can create -- we don't want to create
+	// a copy on a random server because some required server was temporary overloaded.
+	uint32_t skippedReplications = 0;
+
+	// Now, analyze the goal label by label.
+	for (const auto& labelAndExpectedCopies : labelsAndExpectedCopies) {
+		const MediaLabel& label = labelAndExpectedCopies.get().first;
+		int expectedCopiesForLabel = labelAndExpectedCopies.get().second;
+
+		// First, determine if we need more copies for the current label.
+		// For each non-wildcard label we need the number of valid copies determined by the goal.
+		// For the wildcard label we will create copies on any servers until we have exactly
+		// 'c->expectedCopies()' valid copies.
+		int missingCopiesForLabel;
+		if (label == kMediaLabelWildcard) {
+			missingCopiesForLabel = c->expectedCopies() - (vc + skippedReplications);
+		} else {
+			missingCopiesForLabel = expectedCopiesForLabel - validCopies[label];
 		}
-		uint32_t copiesRemoved = 0;
-		for (uint32_t i = 0; i < serverCount_ && toRemove > 0; ++i) {
-			for (slist *s = c->slisthead; s; s = s->next) {
-				if (s->ptr != servers_[serverCount_ - 1 - i] || s->valid != VALID) {
+		if (missingCopiesForLabel <= 0) {
+			// No replication is needed for the current label, go to the next one
+			continue;
+		}
+		triedToReplicate = true;
+
+		// After setting triedToReplicate we can verify this condition
+		if (jobsnorepbefore >= main_time()) {
+			break;
+		}
+
+		// Get a list of possible destination servers
+		static matocsserventry* servers[65536];
+		uint16_t totalMatching = 0;
+		uint16_t returnedMatching = 0;
+		uint32_t destinationCount = matocsserv_getservers_lessrepl(label, MaxWriteRepl,
+				servers, &totalMatching, &returnedMatching);
+		if (label != kMediaLabelWildcard && totalMatching > returnedMatching) {
+			// There is a server which matches the current label, but it has exceeded the
+			// replication limit. In this case we won't try to use servers with non-matching
+			// labels as our destination -- we will wait for that server to be ready.
+			destinationCount = returnedMatching;
+		}
+
+		// Find a destination server for replication -- the first one without a copy of 'c'
+		matocsserventry *destination = nullptr;
+		for (uint32_t i = 0; i < destinationCount; i++) {
+			if (!chunkPresentOnServer(c, servers[i])) {
+				destination = servers[i];
+				break;
+			}
+		}
+		if (destination == nullptr) {
+			// there is no server suitable for replication to be written to
+			skippedReplications += missingCopiesForLabel;
+			continue;
+		}
+
+		// Find a source server. Prefer VALID over TDVALID copies.
+		uint8_t typeOfSources = TDVALID;
+		uint16_t availableSources = 0;
+		for (slist *s = c->slisthead; s; s = s->next) {
+			if (matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+				continue;
+			}
+			if (s->valid == VALID && typeOfSources == TDVALID) {
+				// We have found a VALID source, so let's remove all TDVALID (if any) from servers
+				typeOfSources = VALID;
+				availableSources = 0;
+			}
+			if (s->valid == typeOfSources) {
+				servers[availableSources++] = s->ptr;
+			}
+		}
+		if (availableSources == 0) {
+			// There is no server suitable for replication to be read from
+			skippedReplications += missingCopiesForLabel;
+			break; // there's no need to analyze other labels if there's no free source server
+		}
+		matocsserventry *source = servers[rndu32_ranged(availableSources)];
+
+		// Initialize the replication
+		stats_replications++;
+		matocsserv_send_replicatechunk(destination, c->chunkid, c->version, source);
+		c->needverincrease = 1;
+		inforec_.done.copy_undergoal++;
+		return;
+	}
+	if (triedToReplicate) {
+		inforec_.notdone.copy_undergoal++;
+		return; // Don't go to the next step (= don't delete any copies) for undergoal chunks
+	}
+
+	// step 8. if chunk has too many copies then delete some of them
+	if (vc > c->expectedCopies()) {
+		const uint32_t overgoalCopies = vc - c->expectedCopies();
+		typedef std::vector<slist*> Candidates;
+		Candidates candidates;
+		for (uint32_t i = 0; i < overgoalCopies; ++ i) {
+			slist* candidate = nullptr;
+			double maxUsage = 0.;
+			for (slist *s = c->slisthead; s != nullptr; s = s->next) {
+				if (s->valid != VALID) {
 					continue;
 				}
-				if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
-					break;
+				if (std::find(candidates.begin(), candidates.end(), s) != candidates.end()) {
+					continue;
 				}
-				c->deleteCopy(s);
-				c->needverincrease=1;
-				stats_deletions++;
-				matocsserv_send_deletechunk(s->ptr, c->chunkid, 0);
-				toRemove--;
-				copiesRemoved++;
-				vc--;
-				dc++;
+				const MediaLabel& csLabel = matocsserv_get_label(s->ptr);
+				/*
+				 * If copies' chunkserver has non-wildcard label
+				 * and this label is in this chunk goal
+				 * and this chunk does not have overgoal on this label
+				 * then skip processing this chunkserver.
+				 */
+				if (csLabel != kMediaLabelWildcard
+						&& expectedCopies.count(csLabel)
+						&& validCopies[csLabel] <= expectedCopies.at(csLabel)) {
+					continue;
+				}
+				double usage = matocsserv_get_usage(s->ptr);
+				if (usage > maxUsage) {
+					candidate = s;
+					usage = maxUsage;
+				}
 			}
+			if (candidate != nullptr) {
+				--validCopies[matocsserv_get_label(candidate->ptr)];
+				candidates.push_back(candidate);
+			} else {
+				break;
+			}
+		}
+		uint32_t copiesRemoved = 0;
+		for (slist* s : candidates) {
+			if (matocsserv_deletion_counter(s->ptr) >= TmpMaxDel) {
+				continue;
+			}
+			c->deleteCopy(s);
+			c->needverincrease=1;
+			stats_deletions++;
+			matocsserv_send_deletechunk(s->ptr, c->chunkid, 0);
+			copiesRemoved++;
 		}
 		inforec_.done.del_overgoal += copiesRemoved;
 		deleteDone_ += copiesRemoved;
@@ -1746,8 +2057,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-	// step 7c. if chunk has one copy on each server and some of them have status TODEL then delete one of it
-	if (vc+tdc>=serverCount && vc<c->goal() && tdc>0 && vc+tdc>1) {
+	// step 9. if chunk has one copy on each server and some of them have status TODEL then delete one of it
+	if (vc+tdc>=serverCount && vc<c->expectedCopies() && tdc>0 && vc+tdc>1) {
 		uint8_t prevdone;
 		prevdone = 0;
 		for (slist *s = c->slisthead; s && prevdone==0; s = s->next) {
@@ -1769,105 +2080,51 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount, double minUsage, d
 		return;
 	}
 
-	//step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	if (c->goal() > vc && vc+tdc > 0) {
-		if (jobsnorepbefore<(uint32_t)main_time()) {
-			static void* rptrs[65536];
-			uint32_t rgvc,rgtdc;
-			uint32_t rservcount = matocsserv_getservers_lessrepl(rptrs,MaxWriteRepl);
-			rgvc=0;
-			rgtdc=0;
-			for (slist *s = c->slisthead; s; s = s->next) {
-				if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl) {
-					if (s->valid==VALID) {
-						rgvc++;
-					} else if (s->valid==TDVALID) {
-						rgtdc++;
-					}
-				}
-			}
-			if (rgvc+rgtdc>0 && rservcount>0) { // have at least one server to read from and at least one to write to
-				for (uint32_t i=0 ; i<rservcount ; i++) {
-					slist *s;
-					for (s=c->slisthead ; s && s->ptr!=rptrs[i] ; s=s->next) {}
-					if (!s) {
-						uint32_t r;
-						void *srcptr;
-						if (rgvc>0) { // if there are VALID copies then make copy of one VALID chunk
-							r = 1+rndu32_ranged(rgvc);
-							srcptr = NULL;
-							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==VALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						} else { // if not then use TDVALID chunks.
-							r = 1+rndu32_ranged(rgtdc);
-							srcptr = NULL;
-							for (slist *s = c->slisthead; s && r > 0; s = s->next) {
-								if (matocsserv_replication_read_counter(s->ptr)<MaxReadRepl && s->valid==TDVALID) {
-									r--;
-									srcptr = s->ptr;
-								}
-							}
-						}
-						if (srcptr) {
-							stats_replications++;
-							matocsserv_send_replicatechunk(rptrs[i],c->chunkid,c->version,srcptr);
-							c->needverincrease=1;
-							inforec_.done.copy_undergoal++;
-							return;
-						}
-					}
-				}
-			}
-		}
-		inforec_.notdone.copy_undergoal++;
-	}
-
-	// step 8. if chunk has number of copies less than goal then make another copy of this chunk
-	/* GONE */
-
 	if (chunksinfo.notdone.copy_undergoal>0 && chunksinfo.done.copy_undergoal>0) {
 		return;
 	}
 
-	// step 9. if there is too big difference between chunkservers then make copy of chunk from server with biggest disk usage on server with lowest disk usage
-	if (c->goal() >= vc && vc + tdc > 0 && (maxUsage - minUsage) > AcceptableDifference) {
-		if (serverCount_==0) {
-			serverCount_ = matocsserv_getservers_ordered(servers_,
-					AcceptableDifference / 2.0, &serverMin_, &serverMin_);
-		}
-		if (serverMin_ > 0 || serverMin_ > 0) {
-			void *srcserv=NULL;
-			void *dstserv=NULL;
-			uint32_t loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
-			for (uint32_t i = 0; i < loopTo && srcserv == NULL; i++) {
-				void* server = servers_[serverCount_ - 1 - i];
-				if (matocsserv_replication_read_counter(server) < MaxReadRepl) {
-					for (slist *s = c->slisthead; s; s = s->next) {
-						if (s->ptr == server && (s->valid == VALID || s->valid==TDVALID)) {
-							srcserv = server;
-						}
-					}
-				}
+	// step 10. if there is too big difference between chunkservers then make copy of chunk from
+	// a server with a high disk usage on a server with low disk usage
+	double minUsage = sortedServers_.front().diskUsage;
+	double maxUsage = sortedServers_.back().diskUsage;
+	if ((maxUsage - minUsage) > AcceptableDifference) {
+		// Consider each copy to be moved to a server with disk usage much less than actual.
+		// There are at least two servers with a disk usage difference grater than
+		// AcceptableDifference, so it's worth checking.
+		for (slist *s = c->slisthead; s != nullptr; s = s->next) {
+			if (!s->is_valid() || matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+				continue;
 			}
-			if (srcserv != NULL) {
-				loopTo = (serverMin_ > 0 ? serverMin_ : serverCount_ - serverMin_);
-				for (uint32_t i = 0; i < loopTo && dstserv == NULL ; i++) {
-					if (matocsserv_replication_write_counter(servers_[i]) < MaxWriteRepl) {
-						if (!chunkPresentOnServer(c, servers_[i])) {
-							dstserv = servers_[i];
-						}
-					}
+			const MediaLabel& currentCopyLabel = matocsserv_get_label(s->ptr);
+			double currentCopyDiskUsage = matocsserv_get_usage(s->ptr);
+			// Look for a server that has disk usage much less than currentCopyDiskUsage.
+			// If such a server exists consider creating a new copy of this chunk there.
+			// First, choose all possible candidates for the destination server: we consider only
+			// servers with the same label is rebalancing between labels if turned off or the goal
+			// requires our copy to exist on a server labeled 'currentCopyLabel'.
+			bool labelOnlyRebalance = !RebalancingBetweenLabels
+					|| (currentCopyLabel != kMediaLabelWildcard
+						&& expectedCopies.count(currentCopyLabel)
+						&& validCopies[currentCopyLabel] <= expectedCopies.at(currentCopyLabel));
+			const ServersWithUsage& sortedServers = labelOnlyRebalance
+					? labeledSortedServers_[currentCopyLabel] : sortedServers_;
+			for (uint32_t i = 0; i < sortedServers.size(); ++i) {
+				const ServerWithUsage& emptyServer = sortedServers[i];
+				if (emptyServer.diskUsage > currentCopyDiskUsage - AcceptableDifference) {
+					break; // No more suitable destination servers (next servers have higher usage)
 				}
-			}
-			if (srcserv != NULL && dstserv != NULL) {
+				if (chunkPresentOnServer(c, emptyServer.server)) {
+					continue; // A copy is already here
+				}
+				if (matocsserv_replication_write_counter(emptyServer.server) >= MaxWriteRepl) {
+					continue; // We can't create a new copy here
+				}
 				stats_replications++;
-				matocsserv_send_replicatechunk(dstserv,c->chunkid,c->version,srcserv);
+				matocsserv_send_replicatechunk(emptyServer.server, c->chunkid, c->version, s->ptr);
 				c->needverincrease=1;
 				inforec_.copy_rebalance++;
+				return;
 			}
 		}
 	}
@@ -1931,13 +2188,13 @@ void chunk_jobs_main(void) {
 		// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
-					gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+					gChunkWorker->doChunkJobs(c, usableServerCount);
 				}
 				l++;
 			}
 			l=0;
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; l<r && c ; c=c->next) {
-				gChunkWorker->doChunkJobs(c, usableServerCount, minUsage, maxUsage);
+				gChunkWorker->doChunkJobs(c, usableServerCount);
 				l++;
 			}
 		}
@@ -2162,6 +2419,7 @@ void chunk_reload(void) {
 	}
 
 	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	if (AcceptableDifference<0.001) {
 		AcceptableDifference = 0.001;
 	}
@@ -2179,8 +2437,8 @@ int chunk_strinit(void) {
 
 #ifndef METARESTORE
 	chunk::count = 0;
-	for (int i = 0; i < 11; ++i) {
-		for (int j = 0; j < 11; ++j) {
+	for (int i = 0; i < CHUNK_MATRIX_SIZE; ++i) {
+		for (int j = 0; j < CHUNK_MATRIX_SIZE; ++j) {
 			chunk::allValidCopies[i][j] = 0;
 			chunk::regularValidCopies[i][j] = 0;
 		}
@@ -2251,6 +2509,7 @@ int chunk_strinit(void) {
 		}
 	}
 	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	if (AcceptableDifference<0.001) {
 		AcceptableDifference = 0.001;
 	}

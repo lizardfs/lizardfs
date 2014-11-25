@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 
+#include "common/goal.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
 #include "common/moosefs_string.h"
@@ -77,8 +78,7 @@ void ListMountsCommand::run(const Options& options) const {
 		bool ignoregid = mount.flags & SESFLAG_IGNOREGID;
 		bool allCanChangeQuota = mount.flags & SESFLAG_ALLCANCHANGEQUOTA;
 		bool mapAll = mount.flags & SESFLAG_MAPALL;
-		bool shouldPrintGoal = (mount.minGoal >=1 && mount.minGoal <=9)
-				&& (mount.maxGoal >= 1 && mount.maxGoal <= 9);
+		bool shouldPrintGoal = goal::isGoalValid(mount.minGoal) && goal::isGoalValid(mount.maxGoal);
 		bool shouldPrintTrashTime = mount.minTrashTime < mount.maxTrashTime
 				&& (mount.minTrashTime != 0 || mount.maxTrashTime != 0xFFFFFFFF);
 

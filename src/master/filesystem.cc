@@ -33,7 +33,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <boost/filesystem.hpp>
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
@@ -49,6 +48,7 @@
 #include "common/slogger.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
+#include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
 #include "master/quota_database.h"
@@ -402,6 +402,7 @@ static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
 static bool gMagicAutoFileRepair = false;
+static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -473,10 +474,14 @@ void fs_stats(uint32_t stats[16]) {
 
 static bool gSaveMetadataAtExit = true;
 
+// Configuration of goals
+static GoalMap<Goal> gGoalDefinitions;
+
 #endif // ifndef METARESTORE
 
 // Number of changelog file versions
 uint32_t gStoredPreviousBackMetaCopies;
+
 // Checksum validation
 static bool gDisableChecksumVerification = false;
 
@@ -951,31 +956,6 @@ uint64_t fs_checksum(ChecksumMode mode) {
 void fs_start_checksum_recalculation() {
 	if (gChecksumBackgroundUpdater.start()) {
 		main_make_next_poll_nonblocking();
-	}
-}
-
-static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
-
-void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
-	metadataDumper.pollDesc(pdesc, ndesc);
-}
-void metadataPollServe(struct pollfd* pdesc) {
-	bool metadataDumpInProgress = metadataDumper.inProgress();
-	metadataDumper.pollServe(pdesc);
-	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
-		if (metadataDumper.dumpSucceeded()) {
-			rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
-			matomlserv_broadcast_filesystem(STATUS_OK);
-			DEBUG_LOG("master.fs.stored");
-		} else {
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			if (metadataDumper.useMetarestore()) {
-				// master should recalculate its checksum
-				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
-				fs_start_checksum_recalculation();
-			}
-			unlink(kMetadataTmpFilename);
-		}
 	}
 }
 #endif
@@ -1499,6 +1479,16 @@ static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
 }
 
 // stats
+
+static inline uint64_t fsnodes_get_realsize_from_size(uint64_t size, uint8_t goal) {
+#ifdef METARESTORE
+	(void)goal;
+	return size; // Doesn't really matter. Metarestore doesn't need this value anyway.
+#else
+	return size * gGoalDefinitions[goal].getExpectedCopies();
+#endif
+}
+
 static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 	uint32_t i,lastchunk,lastchunksize;
 	switch (node->type) {
@@ -1533,7 +1523,7 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 				sr->chunks++;
 			}
 		}
-		sr->realsize = sr->size * node->goal;
+		sr->realsize = fsnodes_get_realsize_from_size(sr->size, node->goal);
 		break;
 	case TYPE_SYMLINK:
 		sr->inodes = 1;
@@ -2133,19 +2123,18 @@ static inline void fsnodes_getdirdata(uint32_t rootinode,uint32_t uid,uint32_t g
 	}
 }
 
-static inline void fsnodes_checkfile(fsnode *p,uint32_t chunkcount[11]) {
-	uint32_t i;
+static inline void fsnodes_checkfile(fsnode *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	uint64_t chunkid;
 	uint8_t count;
-	for (i=0 ; i<11 ; i++) {
+	for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 		chunkcount[i]=0;
 	}
-	for (i=0 ; i<p->data.fdata.chunks ; i++) {
-		chunkid = p->data.fdata.chunktab[i];
-		if (chunkid>0) {
-			chunk_get_validcopies(chunkid,&count);
-			if (count>10) {
-				count=10;
+	for (uint32_t index = 0; index < p->data.fdata.chunks; index++) {
+		chunkid = p->data.fdata.chunktab[index];
+		if (chunkid > 0) {
+			chunk_get_validcopies(chunkid, &count);
+			if (count > CHUNK_MATRIX_SIZE - 1) {
+				count = CHUNK_MATRIX_SIZE - 1;
 			}
 			chunkcount[count]++;
 		}
@@ -2239,7 +2228,7 @@ static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
 
 	fsnodes_get_stats(obj,&psr);
 	nsr = psr;
-	nsr.realsize = goal * nsr.size;
+	nsr.realsize = fsnodes_get_realsize_from_size(nsr.size, goal);
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
@@ -2577,25 +2566,19 @@ static inline uint8_t fsnodes_undel(uint32_t ts,fsnode *node) {
 
 #ifndef METARESTORE
 
-static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab) {
 	fsedge *e;
 
 	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,9);
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			fsnodes_changefilegoal(node,1);
+		if (!goal::isGoalValid(node->goal)) {
+			syslog(LOG_WARNING,"file inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
+			fsnodes_changefilegoal(node, DEFAULT_GOAL);
 		}
 		fgtab[node->goal]++;
 	} else if (node->type==TYPE_DIRECTORY) {
-		if (node->goal>9) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal>9 !!! - fixing",node->id);
-			node->goal=9;
-		} else if (node->goal<1) {
-			syslog(LOG_WARNING,"inode %" PRIu32 ": goal<1 !!! - fixing",node->id);
-			node->goal=1;
+		if (!goal::isGoalValid(node->goal)) {
+			syslog(LOG_WARNING,"directory inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
+			node->goal = DEFAULT_GOAL;
 		}
 		dgtab[node->goal]++;
 		if (gmode==GMODE_RECURSIVE) {
@@ -4617,7 +4600,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	stats_readdir++;
 }
 
-uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[11]) {
+uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	fsnode *p,*rn;
 	(void)sesflags;
 	if (rootinode==MFS_ROOT_ID || rootinode==0) {
@@ -5089,11 +5072,9 @@ uint8_t fs_apply_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversi
 }
 
 #ifndef METARESTORE
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t fgtab[10],uint32_t dgtab[10]) {
+uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab) {
 	fsnode *p,*rn;
 	(void)sesflags;
-	memset(fgtab,0,10*sizeof(uint32_t));
-	memset(dgtab,0,10*sizeof(uint32_t));
 	if (!GMODE_ISVALID(gmode)) {
 		return ERROR_EINVAL;
 	}
@@ -5231,7 +5212,7 @@ uint8_t fs_setgoal(const FsContext& context,
 		uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
-	if (!SMODE_ISVALID(smode) || goal > 9 || goal < 1) {
+	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal)) {
 		return ERROR_EINVAL;
 	}
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
@@ -6067,7 +6048,7 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if (vc<f->goal) {
+						} else if (vc < gGoalDefinitions[f->goal].getExpectedCopies()) {
 							ugflag = 1;
 							ugchunks++;
 						}
@@ -7991,6 +7972,66 @@ void fs_unlock() {
 }
 
 #ifndef METARESTORE
+
+/*!
+ * Commits successful metadata dump by renaming files.
+ *
+ * \return true iff up to date metadata.mfs file was created
+ */
+static bool fs_commit_metadata_dump() {
+	rotateFiles(kMetadataFilename, gStoredPreviousBackMetaCopies);
+	try {
+		fs::rename(kMetadataTmpFilename, kMetadataFilename);
+		DEBUG_LOG("master.fs.stored");
+		return true;
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+				kMetadataTmpFilename, kMetadataFilename, ex.what());
+	}
+
+	// The previous step didn't return, so let's try to save us in other way
+	std::string alternativeName = kMetadataFilename + std::to_string(main_time());
+	try {
+		fs::rename(kMetadataTmpFilename, alternativeName);
+		mfs_arg_syslog(LOG_ERR, "Emergency metadata file created as %s", alternativeName.c_str());
+		return false;
+	} catch (Exception& ex) {
+		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+				kMetadataTmpFilename, alternativeName.c_str(), ex.what());
+	}
+
+	// Nothing can be done...
+	mfs_syslog(LOG_ERR, "Trying to create emergency metadata file in foreground...");
+	fs_emergency_saves();
+	return false;
+}
+
+static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
+	metadataDumper.pollDesc(pdesc, ndesc);
+}
+
+static void metadataPollServe(struct pollfd* pdesc) {
+	bool metadataDumpInProgress = metadataDumper.inProgress();
+	metadataDumper.pollServe(pdesc);
+	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
+		if (metadataDumper.dumpSucceeded()) {
+			if (fs_commit_metadata_dump()) {
+				matomlserv_broadcast_filesystem(STATUS_OK);
+			} else {
+				matomlserv_broadcast_filesystem(ERROR_IO);
+			}
+		} else {
+			matomlserv_broadcast_filesystem(ERROR_IO);
+			if (metadataDumper.useMetarestore()) {
+				// master should recalculate its checksum
+				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
+				fs_start_checksum_recalculation();
+			}
+			unlink(kMetadataTmpFilename);
+		}
+	}
+}
+
 // returns false in case of an error
 bool fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (gMetadata == nullptr) {
@@ -8039,14 +8080,11 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 				mfs_errlog(LOG_ERR, "metadata fflush failed");
 			} else if (fsync(fileno(fd.get())) == -1) {
 				mfs_errlog(LOG_ERR, "metadata fsync failed");
-			} else {
-				succeeded = true;
 			}
 			fd.reset();
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
-				rotateFiles(kMetadataTmpFilename, kMetadataFilename, gStoredPreviousBackMetaCopies);
-				DEBUG_LOG("master.fs.stored");
+				succeeded = fs_commit_metadata_dump();
 			}
 		}
 		if (child) {
@@ -8177,13 +8215,12 @@ int fs_loadall(void) {
 	fs_strinit();
 	chunk_strinit();
 	changelogsMigrateFrom_1_6_29("changelog");
-	namespace fs = boost::filesystem;
 	if (fs::exists(kMetadataTmpFilename)) {
 		throw MetadataFsConsistencyException(
 				"temporary metadata file exists, metadata directory is in dirty state");
 	}
 	if ((metadataserver::isMaster()) && !fs::exists(kMetadataFilename)) {
-		std::string currentPath(fs::current_path().string());
+		std::string currentPath(fs::getCurrentWorkingDirectory());
 		fprintf(stderr, "Can't open metadata file: If this is new instalation "
 			"then rename %s/%s.empty as %s/%s\n",
 			currentPath.c_str(), kMetadataFilename,
@@ -8203,6 +8240,14 @@ int fs_loadall(void) {
 
 void fs_cs_disconnected(void) {
 	test_start_time = main_time()+600;
+}
+
+const GoalMap<Goal>& fs_get_goal_definitions() {
+	return gGoalDefinitions;
+}
+
+const Goal& fs_get_goal_definition(uint8_t goalId) {
+	return gGoalDefinitions[goalId];
 }
 
 /*
@@ -8225,6 +8270,36 @@ void fs_become_master() {
 	return;
 }
 
+static void fs_read_goals_from_stream(std::istream&& stream) {
+	GoalConfigLoader loader;
+	loader.load(std::move(stream));
+	gGoalDefinitions = loader.goals();
+}
+
+static void fs_read_goal_config_file() {
+	std::string goalConfigFile =
+			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
+	if (goalConfigFile.empty()) {
+		// file is not specified
+		const char *defaultGoalConfigFile = ETC_PATH "/mfs/mfsgoals.cfg";
+		if (access(defaultGoalConfigFile, F_OK) == 0) {
+			// the default file exists - use it
+			goalConfigFile = defaultGoalConfigFile;
+		} else {
+			mfs_syslog(LOG_INFO, "No custom goal configuration file specified and "
+					"the default file doesn't exist - using builtin defaults");
+			fs_read_goals_from_stream(std::stringstream()); // empty means defaults
+			return;
+		}
+	}
+	mfs_arg_syslog(LOG_INFO, "Using goal configuration from %s", goalConfigFile.c_str());
+	std::ifstream goalConfigStream(goalConfigFile);
+	if (!goalConfigStream.good()) {
+		throw ConfigurationException("failed to open " + goalConfigFile);
+	}
+	fs_read_goals_from_stream(std::move(goalConfigStream));
+}
+
 static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
@@ -8241,10 +8316,20 @@ static void fs_read_config_file() {
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
+
+	try {
+		fs_read_goal_config_file();
+	} catch (Exception& ex) {
+		throw ConfigurationException(std::string("reading goal config: ") + ex.what());
+	}
 }
 
 void fs_reload(void) {
-	fs_read_config_file();
+	try {
+		fs_read_config_file();
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
+	}
 	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
 		fs_storeall(MetadataDumper::kBackgroundDump);
 	}
@@ -8330,7 +8415,6 @@ int fs_load_changelogs() {
 		kChangelogFilename
 	};
 	restore_setverblevel(gVerbosity);
-	namespace fs = boost::filesystem;
 	bool oldExists = false;
 	try {
 		for (const std::string& s : changelogs) {
@@ -8361,7 +8445,7 @@ int fs_load_changelogs() {
 				mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 			}
 		}
-	} catch (fs::filesystem_error& ex) {
+	} catch (const FilesystemException& ex) {
 		throw FilesystemException("Error loading changelogs" + std::string(ex.what()));
 	}
 	fs_storeall(MetadataDumper::DumpType::kForegroundDump);
@@ -8426,9 +8510,7 @@ int fs_init() {
 #else
 int fs_init(const char *fname,int ignoreflag, bool noLock) {
 	if (!noLock) {
-		boost::filesystem::path path(fname);
-		gMetadataLockfile.reset(new Lockfile(
-					(path.parent_path() / (kMetadataFilename + std::string(".lock"))).string()));
+		gMetadataLockfile.reset(new Lockfile(fs::dirname(fname) + "/" + kMetadataFilename + ".lock"));
 		gMetadataLockfile->lock(Lockfile::StaleLock::kSwallow);
 	}
 	fs_strinit();

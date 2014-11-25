@@ -118,3 +118,25 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, uid,
 		std::string, goalName,
 		uint8_t, smode)
+
+// LIZ_CLTOMA_LIST_GOALS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, listGoals, LIZ_CLTOMA_LIST_GOALS, 0,
+		bool, dummy)
+
+// LIZ_CLTOMA_CHUNKS_HEALTH
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, chunksHealth, LIZ_CLTOMA_CHUNKS_HEALTH, 0,
+		bool, regularChunksOnly)
+
+// LIZ_CLTOMA_CSERV_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, cservList, LIZ_CLTOMA_CSERV_LIST, 0,
+		bool, dummy)
+
+// LIZ_CLTOMA_CHUNK_INFO
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, chunkInfo, LIZ_CLTOMA_CHUNK_INFO, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, chunkIndex)

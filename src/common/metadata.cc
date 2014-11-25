@@ -8,7 +8,6 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <cstring>
-#include <boost/filesystem.hpp>
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
@@ -160,7 +159,6 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 	std::string name_new, name_old;
-	namespace fs = boost::filesystem;
 	for (uint32_t i = 0; i < 99; i++) {
 	// 99 is the maximum number of changelog file in versions up to 1.6.29.
 		name_old = fname + "." + std::to_string(i) + ".mfs";
@@ -177,7 +175,7 @@ void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 							name_old.c_str(), name_new.c_str());
 				}
 			}
-		} catch (fs::filesystem_error& ex) {
+		} catch (const FilesystemException& ex) {
 			throw FilesystemException(
 					"Error when migrating changelogs from version 1.6.29" + std::string(ex.what()));
 		}

@@ -12,7 +12,8 @@
 # define DEBUG_LOGF(TAG, format, ...) debugLogf(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__, \
 		format, __VA_ARGS__)
 #else
-# define DEBUG_LOG(TAG) if (false) *static_cast<std::ofstream*>(nullptr)
+// define DEBUG_LOG in the way that it generates no code nor any compiler errors/warnings
+# define DEBUG_LOG(TAG) if (false) *static_cast<std::ofstream*>(nullptr) << 0
 # define DEBUG_LOGF(TAG, format, ...) /**/
 #endif
 

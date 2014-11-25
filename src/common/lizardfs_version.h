@@ -16,3 +16,6 @@ inline std::string lizardfsVersionToString(uint32_t version) {
 	ss << version / 0x010000 << '.' << (version % 0x010000) / 0x0100 << '.' << version % 0x0100;
 	return ss.str();
 }
+
+// A special version reported for disconnected chunkservers in MATOCL_CSSERV_LIST
+constexpr uint32_t kDisconnectedChunkserverVersion = lizardfsVersion(256, 0, 0);

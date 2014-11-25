@@ -4,8 +4,7 @@ add_definitions(-DAPPNAME=mfsmaster)
 collect_sources(MASTER)
 
 add_library(master ${MASTER_SOURCES})
-target_link_libraries(master mfscommon
-    ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
+target_link_libraries(master mfscommon)
 add_tests(master ${MASTER_TESTS})
 
 set(RESTORE_SRC ${CMAKE_SOURCE_DIR}/src/metarestore/restore.cc)

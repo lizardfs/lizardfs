@@ -4,6 +4,10 @@
 const MediaLabel kMediaLabelWildcard = "_";
 
 bool isMediaLabelValid(const MediaLabel& mediaLabel) {
+	const uint32_t maxLength = 32;
+	if (mediaLabel.empty() || mediaLabel.size() > maxLength) {
+		return false;
+	}
 	for (char c : mediaLabel) {
 		if (!(c == '_'
 				|| (c >= 'a' && c <= 'z')
@@ -12,5 +16,5 @@ bool isMediaLabelValid(const MediaLabel& mediaLabel) {
 			return false;
 		}
 	}
-	return !mediaLabel.empty();
+	return true;
 }

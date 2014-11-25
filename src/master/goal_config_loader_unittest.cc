@@ -9,8 +9,18 @@
 // Helper macros to test the loader
 #define LABELS(...) (std::vector<MediaLabel>({__VA_ARGS__}))
 #define EXPECT_GOAL(loader, expected_id, expected_name, expected_labels) \
-	EXPECT_EQ(expected_name, loader.goals()[expected_id].name); \
-	EXPECT_EQ(expected_labels, loader.goals()[expected_id].labels);
+	EXPECT_EQ(expected_name, loader.goals()[expected_id].name()); \
+	EXPECT_EQ(ExpectedLabels(expected_labels), loader.goals()[expected_id].labels()); \
+	EXPECT_EQ(expected_labels.size(), loader.goals()[expected_id].getExpectedCopies());
+
+
+Goal::Labels ExpectedLabels(const std::vector<MediaLabel>& tokens) {
+	Goal::Labels labels;
+	for (const auto& token : tokens) {
+		++labels[token];
+	}
+	return labels;
+}
 
 TEST(GoalConfigLoaderTests, Defaults) {
 	GoalConfigLoader loader;
@@ -39,11 +49,11 @@ TEST(GoalConfigLoaderTests, CorrectFile) {
 	);
 	GoalConfigLoader loader;
 	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
-	EXPECT_GOAL(loader, 1,  "tmp",       LABELS({"ssd"}));
-	EXPECT_GOAL(loader, 10, "fast",      LABELS({ANY, "ssd"}));
-	EXPECT_GOAL(loader, 11, "safe",      LABELS({ANY, "local", "overseas"}));
-	EXPECT_GOAL(loader, 12, "fast_safe", LABELS({"local", "ssd", "overseas"}));
-	EXPECT_GOAL(loader, 19, "blahbah",   LABELS({ANY, ANY, "hdd"}));
+	EXPECT_GOAL(loader, 1,  "tmp",       LABELS("ssd"));
+	EXPECT_GOAL(loader, 10, "fast",      LABELS(ANY, "ssd"));
+	EXPECT_GOAL(loader, 11, "safe",      LABELS(ANY, "local", "overseas"));
+	EXPECT_GOAL(loader, 12, "fast_safe", LABELS("local", "ssd", "overseas"));
+	EXPECT_GOAL(loader, 19, "blahbah",   LABELS(ANY, ANY, "hdd"));
 
 	#undef ANY
 }

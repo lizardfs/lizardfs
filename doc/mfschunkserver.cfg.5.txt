@@ -26,6 +26,9 @@ where to store metadata files and daemon lock file
 *LOCK_FILE*::
 (deprecated) daemon lock/pid file
 
+*LABEL*::
+the label of this chunkserver (for tiering)
+
 *WORKING_USER*::
 user to run daemon as
 
@@ -52,7 +55,7 @@ number of LizardFS master port to connect with (default is 9419)
 delay in seconds before trying to reconnect to master after disconnection (default is 5)
 
 *MASTER_TIMEOUT*::
-timeout (in seconds) for master connections (default is 60)
+timeout (in seconds) for master connections (default is 60, minimum is 0.01)
 
 *BIND_HOST*::
 local address to use for connecting with master (default is ***, i.e. default local address)

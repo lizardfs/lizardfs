@@ -3,8 +3,8 @@
 #include "common/platform.h"
 
 #include <string>
-#include <boost/interprocess/sync/file_lock.hpp>
 
+#include "common/cwrap.h"
 #include "common/exceptions.h"
 
 /*! \brief Create and manage lock files.
@@ -50,8 +50,7 @@ public:
 
 private:
 	std::string name_;
-	boost::interprocess::file_lock lock_;
-	bool locked_;
+	FileDescriptor fd_;
 };
 
 /*! \brief Lockfile related exception.

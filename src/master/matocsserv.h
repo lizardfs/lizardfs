@@ -21,28 +21,95 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
+#include <vector>
 
-int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port);
-void matocsserv_remove_server(void *ptr);
-void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount);
-uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *min,uint32_t *max);
-uint16_t matocsserv_getservers_wrandom(void* ptrs[65535],uint16_t demand);
-uint16_t matocsserv_getservers_lessrepl(void* ptrs[65535],uint16_t replimit);
-void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace);
-const char* matocsserv_getstrip(void *e);
-int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport);
-uint16_t matocsserv_replication_read_counter(void *e);
-uint16_t matocsserv_replication_write_counter(void *e);
-uint16_t matocsserv_deletion_counter(void *e);
-uint32_t matocsserv_cservlist_size(void);
-void matocsserv_cservlist_data(uint8_t *ptr);
-int matocsserv_send_replicatechunk(void *e,uint64_t chunkid,uint32_t version,void *src);
-int matocsserv_send_replicatechunk_xor(void *e,uint64_t chunkid,uint32_t version,uint8_t cnt,void **src,uint64_t *srcchunkid,uint32_t *srcversion);
-int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng);
-int matocsserv_send_deletechunk(void *e,uint64_t chunkid,uint32_t version);
-int matocsserv_send_createchunk(void *e,uint64_t chunkid,uint32_t version);
-int matocsserv_send_setchunkversion(void *e,uint64_t chunkid,uint32_t version,uint32_t oldversion);
-int matocsserv_send_duplicatechunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion);
-int matocsserv_send_truncatechunk(void *e,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion);
-int matocsserv_send_duptruncchunk(void *e,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length);
+#include "common/media_label.h"
+#include "common/chunkserver_list_entry.h"
+
+/// A struct representing a chunkserver.
+struct matocsserventry;
+
+/// A list of chunkservers.
+typedef std::vector<matocsserventry*> Chunkservers;
+
+/// A struct used in matocsserv_getservers_sorted
+struct ServerWithUsage {
+	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel* label)
+			: server(server),
+			  diskUsage(diskUsage),
+			  label(label) {
+	}
+
+	matocsserventry* server;
+	double diskUsage;
+	const MediaLabel* label;
+};
+
+
+/*! \brief Get list of chunkservers for replication with the given label.
+ *
+ * This function returns a list of chunkservers that currently don't exceed the given limit of
+ * chunks replicated into them. Servers with 99% disk usage are treated as non-existing, thus not
+ * returned. The returned servers are randomly shuffled, but if the \p label is not a
+ * \p kMediaLabelWildcard, then servers with this label would be placed in front of the returned
+ * list and \p returnedMatching would be set to the number of them.
+ *
+ * \param label - the requested label.
+ * \param replicationWriteLimit - return only chunkservers with fewer ongoing replicatons.
+ * \param servers[out] - list of chunkservers for replication.
+ * \param totalMatching[out] - number of existing chunkservers that matched the requested label.
+ * \param returnedMatching[out] - number of returned chunkservers that matched the requested label.
+ * \return Number of valid entries in \p servers.
+ */
+uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching);
+
+/*! \brief Get chunkserver's label. */
+const MediaLabel& matocsserv_get_label(matocsserventry* e);
+
+/*! \brief Get chunkserver's disk usage. */
+double matocsserv_get_usage(matocsserventry* e);
+
+/*! \brief Get chunkservers ordered by disk usage. */
+std::vector<ServerWithUsage> matocsserv_getservers_sorted();
+
+/*! \brief Get information about all chunkservers.
+ *
+ * This list includes disconnected chunkservers.
+ * Disconnected chunkservers have the following fields set to non-zero:
+ * \p version (set to \p kDisconnectedChunkserverVersion), \p servip, \p servport.
+ */
+std::vector<ChunkserverListEntry> matocsserv_cservlist();
+
+int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
+void matocsserv_remove_server(matocsserventry* ptr);
+void matocsserv_usagedifference(double* minusage, double* maxusage,
+		uint16_t* usablescount, uint16_t* totalscount);
+Chunkservers matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
+void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
+const char* matocsserv_getstrip(matocsserventry* e);
+int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport,
+		MediaLabel** label);
+uint16_t matocsserv_replication_read_counter(matocsserventry* e);
+uint16_t matocsserv_replication_write_counter(matocsserventry* e);
+uint16_t matocsserv_deletion_counter(matocsserventry* e);
+int matocsserv_send_replicatechunk(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, matocsserventry* src);
+int matocsserv_send_replicatechunk_xor(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, uint8_t cnt,
+		void* *src, uint64_t* srcchunkid, uint32_t* srcversion);
+int matocsserv_send_chunkop(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, uint32_t newversion,
+		uint64_t copychunkid, uint32_t copyversion, uint32_t leng);
+int matocsserv_send_deletechunk(matocsserventry* e, uint64_t chunkid, uint32_t version);
+int matocsserv_send_createchunk(matocsserventry* e, uint64_t chunkid, uint32_t version);
+int matocsserv_send_setchunkversion(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, uint32_t oldversion);
+int matocsserv_send_duplicatechunk(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, uint64_t oldchunkid, uint32_t oldversion);
+int matocsserv_send_truncatechunk(matocsserventry* e,
+		uint64_t chunkid, uint32_t length, uint32_t version, uint32_t oldversion);
+int matocsserv_send_duptruncchunk(matocsserventry* e,
+		uint64_t chunkid, uint32_t version,
+		uint64_t oldchunkid, uint32_t oldversion, uint32_t length);
 int matocsserv_init(void);

@@ -34,6 +34,7 @@
 #include <limits>
 #include <vector>
 
+#include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/human_readable_format.h"
@@ -668,105 +669,53 @@ int check_file(const char* fname) {
 	return 0;
 }
 
-int get_goal(const char *fname,uint8_t mode) {
-	uint8_t reqbuff[17],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode;
-	uint8_t fn,dn,i;
-	uint8_t goal;
-	uint32_t cnt;
-	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,0);
-	if (fd<0) {
+int get_goal(const char *fname, uint8_t mode) {
+	uint32_t inode;
+	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
+	if (fd < 0) {
 		return -1;
 	}
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_GETGOAL);
-	put32bit(&wptr,9);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,17)!=17) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_GETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
+	try {
+		uint32_t messageId = 0;
+		MessageBuffer request;
+		cltoma::fuseGetGoal::serialize(request, messageId, inode, mode);
+		MessageBuffer response = ServerConnection::sendAndReceive(fd, request,
+				LIZ_MATOCL_FUSE_GETGOAL);
+		PacketVersion version;
+		std::vector<FuseGetGoalStats> goalsStats;
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseGetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetGoal::deserialize(response, messageId, status);
+			throw Exception(std::string(fname) + ": failed", status);
+		}
+		matocl::fuseGetGoal::deserialize(response, messageId, goalsStats);
+
+		if (mode == GMODE_NORMAL) {
+			if (goalsStats.size() != 1) {
+				throw Exception(std::string(fname) + ": master query: wrong answer (goalsStats.size != 1)");
+			}
+			printf("%s: %s\n", fname, goalsStats[0].goalName.c_str());
+		} else {
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.files > 0) {
+					printf(" files with goal        %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.files, 1, 0, 1);
+				}
+			}
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.directories > 0) {
+					printf(" directories with goal  %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.directories, 1, 0, 1);
+				}
+			}
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
 	}
 	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng%5!=2) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	} else if (mode==GMODE_NORMAL && leng!=7) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	if (mode==GMODE_NORMAL) {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		goal = get8bit(&rptr);
-		cnt = get32bit(&rptr);
-		if ((fn!=0 || dn!=1) && (fn!=1 || dn!=0)) {
-			printf("%s: master query: wrong answer (fn,dn)\n",fname);
-			free(buff);
-			return -1;
-		}
-		if (cnt!=1) {
-			printf("%s: master query: wrong answer (cnt)\n",fname);
-			free(buff);
-			return -1;
-		}
-		printf("%s: %" PRIu8 "\n",fname,goal);
-	} else {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		printf("%s:\n",fname);
-		for (i=0 ; i<fn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" files with goal        %" PRIu8 " :",goal);
-			print_number(" ","\n",cnt,1,0,1);
-		}
-		for (i=0 ; i<dn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			printf(" directories with goal  %" PRIu8 " :",goal);
-			print_number(" ","\n",cnt,1,0,1);
-		}
-	}
-	free(buff);
 	return 0;
 }
 
@@ -1016,84 +965,51 @@ int get_eattr(const char *fname,uint8_t mode) {
 	return 0;
 }
 
-int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
-	uint8_t reqbuff[22],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode,uid;
-	uint32_t changed,notchanged,notpermitted;
+int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
+	uint32_t inode;
 	int fd;
+	uint32_t messageId = 0;
+	uint32_t uid = getuid();
 	fd = open_master_conn(fname,&inode,NULL,0,1);
 	if (fd<0) {
 		return -1;
 	}
-	uid = getuid();
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_SETGOAL);
-	put32bit(&wptr,14);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put32bit(&wptr,uid);
-	put8bit(&wptr,goal);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,22)!=22) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_SETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
+	try {
+		std::vector<uint8_t> serialized;
+		cltoma::fuseSetGoal::serialize(serialized, messageId, inode, uid, goal, mode);
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
+				LIZ_MATOCL_FUSE_SETGOAL);
+		uint32_t changed;
+		uint32_t notChanged;
+		uint32_t notPermitted;
+		PacketVersion version;
+
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseSetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseSetGoal::deserialize(response, messageId, status);
+			throw Exception(std::string(fname) + ": failed", status);
+		}
+		matocl::fuseSetGoal::deserialize(response, messageId, changed, notChanged, notPermitted);
+
+		if ((mode&SMODE_RMASK)==0) {
+			if (changed || mode==SMODE_SET) {
+				printf("%s: %s\n", fname, goal.c_str());
+			} else {
+				printf("%s: goal not changed\n",fname);
+			}
+		} else {
+			printf("%s:\n",fname);
+			print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
+			print_number(" inodes with goal not changed:  ","\n",notChanged,1,0,1);
+			print_number(" inodes with permission denied: ","\n",notPermitted,1,0,1);
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
 	}
 	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng!=12 && leng!=16) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	changed = get32bit(&rptr);
-	notchanged = get32bit(&rptr);
-	notpermitted = get32bit(&rptr);
-	if ((mode&SMODE_RMASK)==0) {
-		if (changed || mode==SMODE_SET) {
-			printf("%s: %" PRIu8 "\n",fname,goal);
-		} else {
-			printf("%s: goal not changed\n",fname);
-		}
-	} else {
-		printf("%s:\n",fname);
-		print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
-		print_number(" inodes with goal not changed:  ","\n",notchanged,1,0,1);
-		print_number(" inodes with permission denied: ","\n",notpermitted,1,0,1);
-	}
-	free(buff);
 	return 0;
 }
 
@@ -1263,104 +1179,110 @@ int ip_port_cmp(const void*a,const void*b) {
 	return memcmp(a,b,6);
 }
 
-int file_info(const char *fname) {
-	uint8_t reqbuff[20],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t indx,cmd,leng,inode,version;
-	uint8_t ip1,ip2,ip3,ip4;
-	uint16_t port;
-	uint64_t fleng,chunkid;
+int file_info(const char *fileName) {
+	std::vector<uint8_t> buffer;
+	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
+	uint64_t fileLength, chunkId;
 	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,0);
-	if (fd<0) {
+	fd = open_master_conn(fileName, &inode, NULL, 0, 0);
+	if (fd < 0) {
 		return -1;
 	}
-	indx=0;
-	do {
-		wptr = reqbuff;
-		put32bit(&wptr,CLTOMA_FUSE_READ_CHUNK);
-		put32bit(&wptr,12);
-		put32bit(&wptr,0);
-		put32bit(&wptr,inode);
-		put32bit(&wptr,indx);
-		if (tcpwrite(fd,reqbuff,20)!=20) {
-			printf("%s [%" PRIu32 "]: master query: send error\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		if (tcpread(fd,reqbuff,8)!=8) {
-			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		rptr = reqbuff;
-		cmd = get32bit(&rptr);
-		leng = get32bit(&rptr);
-		if (cmd!=MATOCL_FUSE_READ_CHUNK) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",fname,indx);
-			close_master_conn(1);
-			return -1;
-		}
-		buff = (uint8_t*) malloc(leng);
-		if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-			printf("%s [%" PRIu32 "]: master query: receive error\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		rptr = buff;
-		cmd = get32bit(&rptr);  // queryid
-		if (cmd!=0) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		leng-=4;
-		if (leng==1) {
-			printf("%s [%" PRIu32 "]: %s\n",fname,indx,mfsstrerr(*rptr));
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		} else if (leng<20 || ((leng-20)%6)!=0) {
-			printf("%s [%" PRIu32 "]: master query: wrong answer (leng)\n",fname,indx);
-			free(buff);
-			close_master_conn(1);
-			return -1;
-		}
-		if (indx==0) {
-			printf("%s:\n",fname);
-		}
-		fleng = get64bit(&rptr);
-		chunkid = get64bit(&rptr);
-		version = get32bit(&rptr);
-		if (fleng>0) {
-			if (chunkid==0 && version==0) {
-				printf("\tchunk %" PRIu32 ": empty\n",indx);
-			} else {
-				printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 " / (id:%" PRIu64 " ver:%" PRIu32 ")\n",indx,chunkid,version,chunkid,version);
-				leng-=20;
-				leng/=6;
-				if (leng>0) {
-					wptr = (uint8_t*)rptr;
-					qsort(wptr,leng,6,ip_port_cmp);
-					for (cmd=0 ; cmd<leng ; cmd++) {
-						ip1 = rptr[0];
-						ip2 = rptr[1];
-						ip3 = rptr[2];
-						ip4 = rptr[3];
-						rptr+=4;
-						port = get16bit(&rptr);
-						printf("\t\tcopy %" PRIu32 ": %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "\n",cmd+1,ip1,ip2,ip3,ip4,port);
-					}
+	chunkIndex = 0;
+	try {
+		do {
+			buffer.clear();
+			cltoma::chunkInfo::serialize(buffer, 0, inode, chunkIndex);
+			if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
+				printf("%s [%" PRIu32 "]: master query: send error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			buffer.resize(PacketHeader::kSize);
+			if (tcpread(fd, buffer.data(), PacketHeader::kSize) != (int)PacketHeader::kSize) {
+				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			PacketHeader header;
+			deserializePacketHeader(buffer, header);
+
+			if (header.type != LIZ_MATOCL_CHUNK_INFO) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			buffer.resize(header.length);
+
+			if (tcpread(fd, buffer.data(), header.length) != (int)header.length) {
+				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			PacketVersion version;
+			deserialize(buffer, version, messageId);
+
+			if (messageId != 0) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+
+			uint8_t status = STATUS_OK;
+			if (version == matocl::chunkInfo::kStatusPacketVersion) {
+				matocl::chunkInfo::deserialize(buffer, messageId, status);
+			} else if (version != matocl::chunkInfo::kResponsePacketVersion) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
+			}
+			if (status != STATUS_OK) {
+				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
+				close_master_conn(1);
+				return -1;
+			}
+
+			std::vector<ChunkWithAddressAndLabel> copies;
+			matocl::chunkInfo::deserialize(buffer, messageId, fileLength, chunkId, chunkVersion, copies);
+
+			if (chunkIndex == 0) {
+				printf("%s:\n", fileName);
+			}
+
+			if (fileLength > 0) {
+				if (chunkId == 0 && chunkVersion == 0) {
+					printf("\tchunk %" PRIu32 ": empty\n", chunkIndex);
 				} else {
-					printf("\t\tno valid copies !!!\n");
+					printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 ""
+							" / (id:%" PRIu64 " ver:%" PRIu32 ")\n",
+							chunkIndex, chunkId, chunkVersion, chunkId, chunkVersion);
+					if (copies.size() > 0) {
+						std::sort(copies.begin(), copies.end());
+						for (size_t i = 0; i < copies.size(); i++) {
+							printf("\t\tcopy %lu: %s:%s\n", i + 1,
+									copies[i].address.toString().c_str(),
+									copies[i].label.c_str());
+						}
+					} else {
+						printf("\t\tno valid copies !!!\n");
+					}
 				}
 			}
-		}
-		free(buff);
-		indx++;
-	} while (indx<((fleng+MFSCHUNKMASK)>>MFSCHUNKBITS));
+			chunkIndex++;
+		} while (chunkIndex < ((fileLength + MFSCHUNKMASK) >> MFSCHUNKBITS));
+	} catch (IncorrectDeserializationException& e) {
+		printf("%s [%" PRIu32 "]: master query: wrong answer (%s)\n",
+				fileName, chunkIndex, e.what());
+		close_master_conn(1);
+		return -1;
+	}
 	close_master_conn(0);
 	return 0;
 }
@@ -1878,9 +1800,9 @@ void usage(int f) {
 			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
-			fprintf(stderr," GOAL+ - increase goal to given value\n");
-			fprintf(stderr," GOAL- - decrease goal to given value\n");
-			fprintf(stderr," GOAL - just set goal to given value\n");
+			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
+			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
+			fprintf(stderr," GOAL - just set goal to given goal name\n");
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
@@ -1987,10 +1909,9 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
-		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
 				LIZ_MATOCL_FUSE_GET_QUOTA);
 		std::vector<QuotaOwnerAndLimits> parsedResponse;
 		PacketVersion version;
@@ -1998,8 +1919,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseGetQuota::deserialize(response, messageId, status);
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 		matocl::fuseGetQuota::deserialize(response, messageId, parsedResponse);
 		puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
@@ -2024,9 +1944,11 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 			puts("");
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -2050,21 +1972,21 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		std::vector<uint8_t> response =
-			connection.sendAndReceive(request, LIZ_MATOCL_FUSE_SET_QUOTA);
+			ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
 		matocl::fuseSetQuota::deserialize(response, messageId, status);
 		if (status != STATUS_OK) {
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -2074,7 +1996,8 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
-	uint8_t eattr=0,goal=1,smode=SMODE_SET;
+	uint8_t eattr=0,smode=SMODE_SET;
+	std::string goal;
 	uint32_t trashtime=86400;
 	char *appendfname=NULL;
 	char *hrformat;
@@ -2238,17 +2161,13 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		if (f==MFSSETGOAL) {
-			char *p = argv[0];
-			if (p[0]>'0' && p[0]<='9' && (p[1]=='\0' || ((p[1]=='-' || p[1]=='+') && p[2]=='\0'))) {
-				goal = p[0]-'0';
-				if (p[1]=='-') {
-					smode=SMODE_DECREASE;
-				} else if (p[1]=='+') {
-					smode=SMODE_INCREASE;
-				}
-			} else {
-				fprintf(stderr,"goal should be given as a digit between 1 and 9 optionally folowed by '-' or '+'\n");
-				usage(f);
+			goal = argv[0];
+			if (!goal.empty() && goal.back() == '-') {
+				smode = SMODE_DECREASE;
+				goal.erase(goal.size() - 1);
+			} else if (!goal.empty() && goal.back() == '+') {
+				smode = SMODE_INCREASE;
+				goal.erase(goal.size() - 1);
 			}
 			argc--;
 			argv++;

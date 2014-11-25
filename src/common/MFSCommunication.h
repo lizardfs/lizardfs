@@ -230,6 +230,13 @@
 
 #define GMODE_ISVALID(x)       (((uint32_t)(x))<=1)
 
+/// field values: matrixid
+#define MATRIX_ALL_COPIES      0
+#define MATRIX_REGULAR_COPIES  1
+
+// size of the matrix of chunks in the CGI interface = 11 x 11
+#define CHUNK_MATRIX_SIZE      11
+
 // extraattr:
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
@@ -437,6 +444,22 @@ enum class SugidClearMode {
 /// rver==50:8 version:32 myip:32 myport:16 tcptimeout:16   // version 5 / BEGIN
 /// rver==51:8 chunks:(N * [chunkid:64 version:32])          // version 5 / CHUNKS
 /// rver==52:8 usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunks:32 // version 5 / END
+
+// 0x044C
+#define LIZ_CSTOMA_REGISTER_HOST (1000U + 100U)
+/// ip:32 port:16 timeout:32 vershex:32
+
+// 0x044D
+#define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
+/// chunks:(N * [chunkid:64 chunkversion:32])
+
+// 0x044E
+#define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
+/// usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunkcount:32
+
+// 0x044F
+#define LIZ_CSTOMA_REGISTER_LABEL (1000U + 103U)
+/// label:STDSTRING
 
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
@@ -690,7 +713,27 @@ enum class SugidClearMode {
 
 // 0x0191
 #define MATOCL_FUSE_REGISTER (PROTO_BASE+401)
-// depends on blob - see blob descriptions above
+/// status:8
+// ----- old tools -----
+/// sessionid:32
+// ----- GETRANDOM -----
+/// data:BYTES[32]
+// ----- non-meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// since 1.6.01
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// older
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32
+// ----- meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8
+// older
+///            sessionid:32 sesflags:8
 
 // 0x0192
 #define CLTOMA_FUSE_STATFS (PROTO_BASE+402)
@@ -892,11 +935,11 @@ enum class SugidClearMode {
 
 // 0x01B9
 #define MATOCL_FUSE_CHECK (PROTO_BASE+441)
-// msgid:32 status:8
+/// msgid:32 status:8
 // up to version 1.6.22:
 //      msgid:32 N*[ copies:8 chunks:16 ]
 // since version 1.6.23:
-//      msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
+///     msgid:32 counters:(CHUNK_MATRIX_SIZE * [chunks:32]) // 0 copies, 1 copy, ..., 10+ copies
 
 // 0x01BA
 #define CLTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
@@ -1094,6 +1137,15 @@ enum class SugidClearMode {
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 /// msgid:32 status:8
 
+//0x01E2
+#define LIZ_CLTOMA_CHUNK_INFO (1000U + 482U)
+/// msgid:32 inode:32 chunkindex:32
+
+//0x01E3
+#define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel reserved:8])
+
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
 // 0x01EA
@@ -1209,11 +1261,12 @@ enum class SugidClearMode {
 
 // 0x00204
 #define CLTOMA_CHUNKS_MATRIX (PROTO_BASE+516)
-// [matrix_id:8]
+/// matrixid:8
 
 // 0x00205
 #define MATOCL_CHUNKS_MATRIX (PROTO_BASE+517)
-// 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
+/// counters:(CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * [chunks:32])
+// 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
 
 // 0x00208
 #define CLTOMA_EXPORTS_INFO (PROTO_BASE+520)
@@ -1233,11 +1286,19 @@ enum class SugidClearMode {
 
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
-// -
+/// ip:32 port:16
 
 // 0x0020D
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
-// N * [ version:32 ip:32 ]
+/// -
+
+// 0x05F6
+#define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
+/// regularonly:8
+
+// 0x05F7
+#define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
+/// regularonly:8 data:(ChunksAvailabilityState ChunksReplicationState)
 
 // 0x05F8
 #define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)
@@ -1318,6 +1379,22 @@ enum class SugidClearMode {
 // 0x060a
 #define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
 /// msgid:32 serverstatus:8 metadataversion:64
+
+// 0x060b
+#define LIZ_CLTOMA_LIST_GOALS (1000U + 547U)
+/// dummy:8
+
+// 0x060c
+#define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
+/// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
+
+// 0x060d
+#define LIZ_CLTOMA_CSERV_LIST (1000U + 549U)
+/// dummy:8
+
+// 0x060e
+#define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
+/// chunkservers:(vector<ChunkserverListEntry>)
 
 // CHUNKSERVER STATS
 

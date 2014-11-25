@@ -171,6 +171,14 @@ metadata_generate_chunks() {
 	echo 'zZzZ' >>chunk_z
 }
 
+metdata_generate_chunks_with_goals() {
+	for i in {1..20}; do
+		mkdir chunks_with_goals_$i
+		mfssetgoal $i chunks_with_goals_$i
+		echo a | tee chunks_with_goals_$i/{1..3} >/dev/null
+	done
+}
+
 metadata_generate_snapshot() {
 	# Create a complicated directory tree and make a snapshot of this tree
 	mkdir dir_snapshot
@@ -276,6 +284,7 @@ metadata_get_all_generators() {
 	echo metadata_generate_settrashtime
 	echo metadata_generate_seteattr
 	echo metadata_generate_chunks
+	echo metdata_generate_chunks_with_goals
 	echo metadata_generate_snapshot
 	echo metadata_generate_xattrs
 	echo metadata_generate_acls

@@ -66,6 +66,11 @@ public:
 typedef uint32_t PacketVersion;
 
 /*
+ * Type of a variable which stores a packet's data
+ */
+typedef std::vector<uint8_t> MessageBuffer;
+
+/*
  * Extension of serialization framework to handle PacketHeader
  */
 inline uint32_t serializedSize(const PacketHeader& ph) {

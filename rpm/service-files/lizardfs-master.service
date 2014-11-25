@@ -1,0 +1,14 @@
+[Unit]
+Description=LizardFS master server daemon
+After=syslog.target network.target
+
+[Service]
+Type=forking
+TimeoutSec=0
+ExecStart=/usr/sbin/mfsmaster start
+ExecStop=/usr/sbin/mfsmaster stop
+ExecReload=/usr/sbin/mfsmaster reload
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

@@ -46,7 +46,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		if (goalId < goal::kMinGoal || goalId > goal::kMaxGoal) {
 			throw ParseException(currentPosition + ": goal ID out of range");
 		}
-		if (!result[goalId].name.empty()) {
+		if (!result[goalId].name().empty()) {
 			throw ParseException(currentPosition + ": repeated goal ID " + tokens.front());
 		}
 		tokens.erase(tokens.begin());
@@ -75,10 +75,15 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		if (tokens.empty()) {
 			throw ParseException(currentPosition + ": missing labels");
 		}
+		if (tokens.size() > Goal::kMaxExpectedCopies) {
+			throw ParseException(currentPosition + ": too many labels");
+		}
+		Goal::Labels labels;
 		for (const auto& token : tokens) {
 			if (!isMediaLabelValid(token)) {
 				throw ParseException(currentPosition + ": invalid label " + token);
 			}
+			++labels[token];
 		}
 
 		// Let's also verify name of the goal
@@ -86,14 +91,17 @@ void GoalConfigLoader::load(std::istream&& stream) {
 			throw ParseException(currentPosition + ": invalid name of goal " + goalName);
 		}
 
-		result[goalId] = Goal(goalName, std::move(tokens));
+		result[goalId] = Goal(goalName, std::move(labels));
+	}
+
+	if (stream.bad()) {
+		throw ParseException("I/O error");
 	}
 
 	// Fill all other valid goals with default values
 	for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
-		if (result[goal].name.empty()) {
-			result[goal].name = std::to_string(goal);
-			result[goal].labels = std::vector<MediaLabel>(goal, kMediaLabelWildcard);
+		if (result[goal].name().empty()) {
+			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}});
 		}
 	}
 	goals_ = std::move(result);

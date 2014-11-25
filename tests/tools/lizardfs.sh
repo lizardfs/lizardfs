@@ -11,6 +11,7 @@ setup_local_empty_lizardfs() {
 	local number_of_mounts=${MOUNTS:-1}
 	local disks_per_chunkserver=${DISK_PER_CHUNKSERVER:-1}
 	local auto_shadow_master=${AUTO_SHADOW_MASTER:-YES}
+	local cgi_server=${CGI_SERVER:-NO}
 	local ip_address=$(get_ip_addr)
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
@@ -76,8 +77,16 @@ setup_local_empty_lizardfs() {
 		assert_eventually 'lizardfs_shadow_synchronized auto'
 	fi
 
-	# Wait for chunkservers
-	lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+	if [[ $cgi_server == YES ]]; then
+		add_cgi_server_
+	fi
+
+	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- MooseFS doesn't support it)
+	if [[ ! $use_moosefs ]]; then
+		lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+	else
+		sleep 3 # A reasonable fallback
+	fi
 
 	# Return array containing information about the installation
 	local out_var=$1
@@ -184,6 +193,9 @@ create_mfsmaster_master_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
+	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
+		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
+	fi
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
@@ -201,6 +213,9 @@ create_mfsmaster_shadow_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
+	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
+		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
+	fi
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
 	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
@@ -235,6 +250,10 @@ lizardfs_current_master_id() {
 prepare_common_metadata_server_files_() {
 	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
 	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
+	if [[ ${MASTER_CUSTOM_GOALS:-} ]]; then
+		echo "$MASTER_CUSTOM_GOALS" | tr '|' '\n' > "$etcdir/goals.cfg"
+		lizardfs_info_[master_custom_goals]="$etcdir/goals.cfg"
+	fi
 	get_next_port_number "lizardfs_info_[matoml]"
 	get_next_port_number "lizardfs_info_[matocl]"
 	get_next_port_number "lizardfs_info_[matocs]"
@@ -308,6 +327,14 @@ create_mfshdd_cfg_() {
 	fi
 }
 
+# Creates LABEL entry for chunkserver's config from CHUNKSERVER_LABELS variable which is in a form:
+# 0,1,2,3:hdd|4,5,6,7:ssd
+# Usage: create_chunkserver_label_entry_ <chunkserver_id>
+create_chunkserver_label_entry_() {
+	local csid=$1
+	tr '|' "\n" <<< "${CHUNKSERVER_LABELS-}" | awk -F: '$1~/(^|,)'$csid'(,|$)/ {print "LABEL = "$2}'
+}
+
 create_mfschunkserver_cfg_() {
 	local this_module_cfg_variable="CHUNKSERVER_${chunkserver_id}_EXTRA_CONFIG"
 	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
@@ -318,6 +345,7 @@ create_mfschunkserver_cfg_() {
 	echo "MASTER_HOST = $ip_address"
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
+	create_chunkserver_label_entry_ "${chunkserver_id}"
 	create_magic_debug_log_entry_ "chunkserver_${chunkserver_id}"
 	echo "${CHUNKSERVER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
@@ -386,6 +414,16 @@ add_mount_() {
 	do_mount_ ${mount_id}
 }
 
+add_cgi_server_() {
+	local cgi_server_port
+	local cgi_server_path=$vardir/cgi
+	mkdir $cgi_server_path
+	get_next_port_number cgi_server_port
+	mfscgiserv -D "$cgi_server_path" -P "$cgi_server_port"
+	lizardfs_info_[cgi_port]=$cgi_server_port
+	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/mfs.cgi?masterport=${lizardfs_info_[matocl]}"
+}
+
 # Some helper functions for tests to manipulate the existing installation
 
 mfs_dir_info() {
@@ -439,6 +477,16 @@ find_all_chunks() {
 	done
 }
 
+# A useful shortcut for lizardfs-probe
+# Usage: lizardfs_probe_master <command> [option...]
+# Calls lizardfs-probe with the given command and and automatically adds address
+# of the master server
+lizardfs_probe_master() {
+	local command="$1"
+	shift
+	lizardfs-probe "$command" localhost "${lizardfs_info_[matocl]}" --porcelain "$@"
+}
+
 # lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
 lizardfs_wait_for_ready_chunkservers() {
 	local chunkservers=$1
@@ -465,6 +513,14 @@ lizardfs_shadow_synchronized() {
 	else
 		return 1
 	fi
+}
+
+# Prints number of chunks on each chunkserver in the following form:
+# <ip1>:<port1> <chunks1>
+# <ip2>:<port2> <chunks2>
+# ...
+lizardfs_rebalancing_status() {
+	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1,$3}'
 }
 
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))

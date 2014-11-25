@@ -30,7 +30,7 @@ if ! git rev-parse; then
 	test_end
 fi
 git ls-tree -r --name-only HEAD \
-		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in)$' \
+		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in|cfg)$' \
 		| grep -v 'mfs[.]cgi[.]in' \
 		| grep -v '^external/' \
 		| while read file; do verify_file "$file"; done
