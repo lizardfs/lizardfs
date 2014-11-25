@@ -3,9 +3,9 @@ MOUNTS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="EMPTY_TRASH_PERIOD = 1" \
-	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
+	LFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
+	MOUNT_1_EXTRA_CONFIG="lfsmeta" \
 	setup_local_empty_lizardfs info
 
 stat_basic_info() {
@@ -26,8 +26,8 @@ ln -s source symlink
 ln source link
 
 mkdir dir dir2
-mfssetgoal 1 dir
-mfssettrashtime 10000 dir dir2
+lfssetgoal 1 dir
+lfssettrashtime 10000 dir dir2
 cd dir
 FILE_SIZE=1M file-generate file file2
 
@@ -46,7 +46,7 @@ assert_equals "$stat_before_rm" "$stat_after_recovery"
 
 # 3. Empty trash after trashtime
 trash_time=11
-mfssettrashtime $trash_time file
+lfssettrashtime $trash_time file
 begin_ts=$(timestamp)
 rm file
 assert_success stat "$file_in_trash" >/dev/null

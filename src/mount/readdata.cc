@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,8 +32,8 @@
 #include <unistd.h>
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/sockets.h"
 #include "mount/cscomm.h"
 #include "mount/csdb.h"
@@ -251,7 +251,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 	status = fs_readchunk(rrec->inode,rrec->indx,&(rrec->fleng),&(rrec->chunkid),&(rrec->version),&csdata,&csdatasize);
 	if (status!=0) {
-		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,mfsstrerr(status));
+		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,lfsstrerr(status));
 		if (status==ERROR_ENOENT) {
 			return EBADF;   // stale handle
 		}
@@ -403,7 +403,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 	curroff = offset;
 	currsize = *size;
 	while (currsize>0) {
-		indx = (curroff>>MFSCHUNKBITS);
+		indx = (curroff>>LFSCHUNKBITS);
 		if (rrec->fd<0 || rrec->indx != indx) {
 			rrec->indx = indx;
 			while (cnt<maxretries) {
@@ -449,9 +449,9 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		if (curroff+currsize>rrec->fleng) {
 			currsize = rrec->fleng-curroff;
 		}
-		chunkoffset = (curroff&MFSCHUNKMASK);
-		if (chunkoffset+currsize>MFSCHUNKSIZE) {
-			chunksize = MFSCHUNKSIZE-chunkoffset;
+		chunkoffset = (curroff&LFSCHUNKMASK);
+		if (chunkoffset+currsize>LFSCHUNKSIZE) {
+			chunksize = LFSCHUNKSIZE-chunkoffset;
 		} else {
 			chunksize = currsize;
 		}

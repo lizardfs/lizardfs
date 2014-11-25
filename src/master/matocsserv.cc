@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,8 +42,8 @@
 #include "common/hashfn.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/lizardfs_version.h"
 #include "common/packet.h"
 #include "common/random.h"
@@ -470,7 +470,7 @@ std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId
 	// Add servers with weights which are proportional to total space on each server.
 	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
-				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
+				&& (eptr->totalspace - eptr->usedspace) >= LFSCHUNKSIZE) {
 			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
 			getter.addServer(eptr, &eptr->label, weight);
 		}
@@ -632,7 +632,7 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	version = get32bit(&data);
 	if (length==8+4+1) {
 		status = get8bit(&data);
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	} else {
 		checksum = get32bit(&data);
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum: %08" PRIX32,eptr->servstrip,eptr->servport,chunkid,checksum);
@@ -664,7 +664,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data
 	status = get8bit(&data);
 	chunk_got_create_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -694,7 +694,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data
 	eptr->delcounter--;
 	chunk_got_delete_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -761,7 +761,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	status = get8bit(&data);
 	chunk_got_replicate_status(eptr,chunkid,version,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -790,7 +790,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *
 	status = get8bit(&data);
 	chunk_got_setversion_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -821,7 +821,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *d
 	status = get8bit(&data);
 	chunk_got_duplicate_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -851,7 +851,7 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 	status = get8bit(&data);
 	chunk_got_truncate_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -882,7 +882,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,const uint8_t *da
 	status = get8bit(&data);
 	chunk_got_duptrunc_status(eptr,chunkid,status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication with truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication with truncate status: %s",eptr->servstrip,eptr->servport,chunkid,lfsstrerr(status));
 	}
 }
 
@@ -925,7 +925,7 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 		chunk_got_chunkop_status(eptr,copychunkid,status);
 	}
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,lfsstrerr(status));
 	}
 }
 
@@ -1389,7 +1389,7 @@ void matocsserv_read(matocsserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"read from CS(%s) error",eptr->servstrip);
+				lfs_arg_errlog_silent(LOG_NOTICE,"read from CS(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -1438,7 +1438,7 @@ void matocsserv_write(matocsserventry *eptr) {
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"write to CS(%s) error",eptr->servstrip);
+				lfs_arg_errlog_silent(LOG_NOTICE,"write to CS(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -1478,7 +1478,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
+			lfs_errlog_silent(LOG_NOTICE,"Master<->CS socket: accept error");
 		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -1578,13 +1578,13 @@ void matocsserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"master <-> chunkservers module: socket address has changed, but can't create new socket");
+		lfs_errlog(LOG_WARNING,"master <-> chunkservers module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1595,10 +1595,10 @@ void matocsserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"master <-> chunkservers module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"master <-> chunkservers module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1606,7 +1606,7 @@ void matocsserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -1619,20 +1619,20 @@ int matocsserv_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"master <-> chunkservers module: can't create socket");
+		lfs_errlog(LOG_ERR,"master <-> chunkservers module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"master <-> chunkservers module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"master <-> chunkservers module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on %s:%s",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"master <-> chunkservers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
 	matocsserv_csdb_init();

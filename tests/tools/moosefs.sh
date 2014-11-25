@@ -1,52 +1,52 @@
-build_moosefs_or_use_cache() {
-	local patch_path="${SOURCE_DIR}"/tests/tools/moosefs_valgrind.patch
+build_lizardfs_or_use_cache() {
+	local patch_path="${SOURCE_DIR}"/tests/tools/lizardfs_valgrind.patch
 
-	# Exit if MooseFS was already configured and installed,
+	# Exit if LizardFS was already configured and installed,
 	# assume it was configured properly
-	(cd "$MOOSEFS_DIR/src/mfs-1.6.27" && make install) && return || true
+	(cd "$LIZARDFS_DIR/src/lfs-1.6.27" && make install) && return || true
 
-	rm -rf "$MOOSEFS_DIR"
-	mkdir -p "$MOOSEFS_DIR"
-	pushd "$MOOSEFS_DIR"
+	rm -rf "$LIZARDFS_DIR"
+	mkdir -p "$LIZARDFS_DIR"
+	pushd "$LIZARDFS_DIR"
 	mkdir src
 	cd src
-	wget http://moosefs.org/tl_files/mfscode/mfs-1.6.27-5.tar.gz
-	tar xzf mfs-1.6.27-5.tar.gz
-	cd mfs-1.6.27
+	wget http://lizardfs.org/tl_files/lfscode/lfs-1.6.27-5.tar.gz
+	tar xzf lfs-1.6.27-5.tar.gz
+	cd lfs-1.6.27
 	patch -p1 < $patch_path
-	./configure --prefix="$MOOSEFS_DIR"
+	./configure --prefix="$LIZARDFS_DIR"
 	make install
 	popd
 }
 
-test_moosefs() {
-	test -x "$MOOSEFS_DIR/bin/mfsmount"
-	test -x "$MOOSEFS_DIR/sbin/mfschunkserver"
-	test -x "$MOOSEFS_DIR/sbin/mfsmaster"
+test_lizardfs() {
+	test -x "$LIZARDFS_DIR/bin/lfsmount"
+	test -x "$LIZARDFS_DIR/sbin/lfschunkserver"
+	test -x "$LIZARDFS_DIR/sbin/lfsmaster"
 }
 
-build_moosefs() {
-	build_moosefs_or_use_cache
-	test_moosefs
+build_lizardfs() {
+	build_lizardfs_or_use_cache
+	test_lizardfs
 }
 
-moosefs_chunkserver_daemon() {
-	"$MOOSEFS_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_config]}" "$2" | cat
+lizardfs_chunkserver_daemon() {
+	"$LIZARDFS_DIR/sbin/lfschunkserver" -c "${lizardfs_info_[chunkserver$1_config]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 
-moosefs_master_daemon() {
-	"$MOOSEFS_DIR/sbin/mfsmaster" -c "${lizardfs_info_[master_cfg]}" "$1" | cat
+lizardfs_master_daemon() {
+	"$LIZARDFS_DIR/sbin/lfsmaster" -c "${lizardfs_info_[master_cfg]}" "$1" | cat
 	return ${PIPESTATUS[0]}
 }
 
-# A generic function to run MooseFS commands. Usage examples:
-# mfs mfssetgoal 3 file
-# mfs mfsdirinfo file
-# mfs mfsmetalogger stop
-mfs() {
+# A generic function to run LizardFS commands. Usage examples:
+# lfs lfssetgoal 3 file
+# lfs lfsdirinfo file
+# lfs lfsmetalogger stop
+lfs() {
 	local command="$1"
 	shift
-	"$MOOSEFS_DIR/"*bin"/$command" "$@" | cat
+	"$LIZARDFS_DIR/"*bin"/$command" "$@" | cat
 	return ${PIPESTATUS[0]}
 }

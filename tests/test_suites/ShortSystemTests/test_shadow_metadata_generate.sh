@@ -8,18 +8,18 @@ CHUNKSERVERS=3 \
 	MASTERSERVERS=2 \
 	MOUNTS=2 \
 	USE_RAMDISK="YES" \
-	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsreportreservedperiod=1" \
-	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
-	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
+	MOUNT_0_EXTRA_CONFIG="lfsacl,lfscachemode=NEVER,lfsreportreservedperiod=1" \
+	MOUNT_1_EXTRA_CONFIG="lfsmeta" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	LFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 
-# Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators
-export MFS_META_MOUNT_PATH=${info[mount1]}
+# Save path of meta-mount in LFS_META_MOUNT_PATH for metadata generators
+export LFS_META_MOUNT_PATH=${info[mount1]}
 
-# Save path of changelog.mfs in CHANGELOG to make it possible to verify generated changes
-export CHANGELOG="${info[master_data_path]}"/changelog.mfs
+# Save path of changelog.lfs in CHANGELOG to make it possible to verify generated changes
+export CHANGELOG="${info[master_data_path]}"/changelog.lfs
 
 lizardfs_master_n 1 start
 

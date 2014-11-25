@@ -71,7 +71,7 @@ chunkservers.
 
 To avoid overloading the master under heavy traffic, mounts try to predict their
 future usage and reserve at once all the bandwidth they will for the next
-renegotiation period (see mfsmaster.cfg(5)).
+renegotiation period (see lfsmaster.cfg(5)).
 
 Such reservation are wasted if the traffic at given mount instance suddenly
 drops.
@@ -103,4 +103,4 @@ You should have received a copy of the GNU General Public License along with Liz
 
 == SEE ALSO
 
-mfsmaster.cfg(5)
+lfsmaster.cfg(5)

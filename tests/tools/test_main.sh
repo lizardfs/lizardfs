@@ -5,7 +5,7 @@ unalias -a
 shopt -s expand_aliases extdebug
 
 command_prefix=
-for i in mfsmaster mfschunkserver mfsmount mfsmetarestore mfsmetalogger \
+for i in lfsmaster lfschunkserver lfsmount lfsmetarestore lfsmetalogger \
 		lizardfs-polonaise-server; do
 	alias $i="\${command_prefix} $i"
 done
@@ -14,7 +14,7 @@ done
 . $(which set_lizardfs_constants.sh)
 . tools/stack_trace.sh
 . tools/assert.sh
-. tools/moosefs.sh
+. tools/lizardfs.sh
 . tools/lizardfs.sh
 . tools/network.sh
 . tools/random.sh

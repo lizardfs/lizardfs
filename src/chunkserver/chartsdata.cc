@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@
 #include "common/charts.h"
 #include "common/main.h"
 
-#define CHARTS_FILENAME "csstats.mfs"
+#define CHARTS_FILENAME "csstats.lfs"
 
 #define CHARTS_UCPU 0
 #define CHARTS_SCPU 1

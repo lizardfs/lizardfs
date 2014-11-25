@@ -1,0 +1,67 @@
+lfsgettrashtime(1)
+==================
+
+== NAME
+
+lfsgettrashtime, lfssettrashtime, lfsrgettrashtime, lfsrsettrashtime - get or set trash time
+
+== SYNOPSIS
+
+[verse]
+*lfsgettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfsrgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] SECONDS[*+*|*-*] 'OBJECT'...
+
+[verse]
+*lfsrsettrashtime* [*-n*|*-h*|*-H*] SECONDS[*+*|*-*] 'OBJECT'...
+
+
+== DESCRIPTION
+
+*lfsgettrashtime* and *lfssettrashtime* operate on object's 'trashtime' value, i.e. the number of
+seconds the file is preserved in special 'trash' directory before it's finally removed from
+filesystem. 'Trashtime' must be non-negative integer value. *lfsgettrashtime* prints current
+'trashtime' value of given object(s).
+
+== OPTIONS
+
+*-r*::
+This option enables recursive mode, which works as usual for every given file, but for every given
+directory additionally prints current 'trashtime' value of all contained objects (files and
+directories).
+
+'N'\[*+*|*-*]::
+If new value is specified in 'N'*+* form, 'trashtime' value is increased to 'N' for objects with
+lower 'trashtime' value and unchanged for the rest. Similarly, if new value is specified as 'N'*-*,
+'trashtime' value is decreased to 'N' for objects with higher 'trashtime' value and unchanged for
+the rest. These tools can be used on any file, directory or deleted ('trash') file.
+
+*-n*, *-h*, *-H*::
+These options are described in lfstools(1).
+
+== NOTE
+
+*lfsrgettrashtime* and *lfsrsettrashtime* are deprecated aliases for
+*lfsgettrashtime -r* and *lfssettrashtime -r* respectively.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfstools(1)

@@ -17,10 +17,10 @@ CHUNKSERVERS=6 \
 # Create 30 chunks on eu servers and expect that three us servers are empty
 cd "${info[mount0]}"
 mkdir eu_files
-mfssetgoal eu_eu eu_files
+lfssetgoal eu_eu eu_files
 FILE_SIZE=1M file-generate "${info[mount0]}"/eu_files/{1..15}
 assert_equals 3 $(lizardfs_rebalancing_status | awk '$2 == 0' | wc -l)
 
 # Change goal of all our files from eu_eu to 2. Expect chunks to be spread evenly across servers
-mfssetgoal -r 2 eu_files
+lfssetgoal -r 2 eu_files
 assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 4 || \$2 > 6'"

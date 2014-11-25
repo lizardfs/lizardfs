@@ -4,8 +4,8 @@ metaservers_nr=5
 MASTERSERVERS=$metaservers_nr \
 	USE_RAMDISK="YES" \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
+	MOUNT_EXTRA_CONFIG="lfsacl,lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 # Start shadow masters

@@ -5,9 +5,9 @@ After=syslog.target network.target
 [Service]
 Type=forking
 TimeoutSec=0
-ExecStart=/usr/sbin/mfsmaster start
-ExecStop=/usr/sbin/mfsmaster stop
-ExecReload=/usr/sbin/mfsmaster reload
+ExecStart=/usr/sbin/lfsmaster start
+ExecStop=/usr/sbin/lfsmaster stop
+ExecReload=/usr/sbin/lfsmaster reload
 Restart=no
 
 [Install]

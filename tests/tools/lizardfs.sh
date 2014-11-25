@@ -3,7 +3,7 @@
 # If out_var provided an associative array with name $out_var
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
-	local use_moosefs=${USE_MOOSEFS:-}
+	local use_lizardfs=${USE_LIZARDFS:-}
 	local use_ramdisk=${USE_RAMDISK:-}
 	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_masterservers=${MASTERSERVERS:-1}
@@ -13,8 +13,8 @@ setup_local_empty_lizardfs() {
 	local auto_shadow_master=${AUTO_SHADOW_MASTER:-YES}
 	local cgi_server=${CGI_SERVER:-NO}
 	local ip_address=$(get_ip_addr)
-	local etcdir=$TEMP_DIR/mfs/etc
-	local vardir=$TEMP_DIR/mfs/var
+	local etcdir=$TEMP_DIR/lfs/etc
+	local vardir=$TEMP_DIR/lfs/var
 	local mntdir=$TEMP_DIR/mnt
 	declare -gA lizardfs_info_
 	lizardfs_info_[chunkserver_count]=$number_of_chunkservers
@@ -23,9 +23,9 @@ setup_local_empty_lizardfs() {
 	mkdir -p "$etcdir" "$vardir"
 
 	local oldpath="$PATH"
-	if [[ $use_moosefs ]]; then
-		export PATH="$MOOSEFS_DIR/bin:$MOOSEFS_DIR/sbin:$PATH"
-		build_moosefs
+	if [[ $use_lizardfs ]]; then
+		export PATH="$LIZARDFS_DIR/bin:$LIZARDFS_DIR/sbin:$PATH"
+		build_lizardfs
 	fi
 
 	# Prepare configuration for metadata servers
@@ -81,8 +81,8 @@ setup_local_empty_lizardfs() {
 		add_cgi_server_
 	fi
 
-	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- MooseFS doesn't support it)
-	if [[ ! $use_moosefs ]]; then
+	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- LizardFS doesn't support it)
+	if [[ ! $use_lizardfs ]]; then
 		lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
 	else
 		sleep 3 # A reasonable fallback
@@ -99,24 +99,24 @@ setup_local_empty_lizardfs() {
 
 # lizardfs_chunkserver_daemon <id> start|stop|restart|kill|tests|isalive|...
 lizardfs_chunkserver_daemon() {
-	mfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$2" | cat
+	lfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 
 lizardfs_master_daemon() {
-	mfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$1" | cat
+	lfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$1" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_master_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_master_n() {
-	mfsmaster -c "${lizardfs_info_[master${1}_cfg]}" "$2" | cat
+	lfsmaster -c "${lizardfs_info_[master${1}_cfg]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_metalogger_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_metalogger_daemon() {
-	mfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$1" | cat
+	lfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$1" | cat
 	return ${PIPESTATUS[0]}
 }
 
@@ -134,11 +134,11 @@ lizardfs_mount_start() {
 
 # A bunch of private function of this module
 
-create_mfsexports_cfg_() {
+create_lfsexports_cfg_() {
 	local base="* / rw,alldirs,maproot=0"
 	local meta_base="* . rw"
-	local additional=${MFSEXPORTS_EXTRA_OPTIONS-}
-	local meta_additional=${MFSEXPORTS_META_EXTRA_OPTIONS-}
+	local additional=${LFSEXPORTS_EXTRA_OPTIONS-}
+	local meta_additional=${LFSEXPORTS_META_EXTRA_OPTIONS-}
 	if [[ $additional ]]; then
 		additional=",$additional"
 	fi
@@ -186,7 +186,7 @@ create_magic_debug_log_entry_() {
 	fi | sed -e 's/,$//'
 }
 
-create_mfsmaster_master_cfg_() {
+create_lfsmaster_master_cfg_() {
 	local this_module_cfg_variable="MASTER_${masterserver_id}_EXTRA_CONFIG"
 	echo "PERSONALITY = master"
 	echo "SYSLOG_IDENT = master_${masterserver_id}"
@@ -206,7 +206,7 @@ create_mfsmaster_master_cfg_() {
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
-create_mfsmaster_shadow_cfg_() {
+create_lfsmaster_shadow_cfg_() {
 	local this_module_cfg_variable="MASTER_${masterserver_id}_EXTRA_CONFIG"
 	echo "PERSONALITY = shadow"
 	echo "SYSLOG_IDENT = shadow_${masterserver_id}"
@@ -248,8 +248,8 @@ lizardfs_current_master_id() {
 }
 
 prepare_common_metadata_server_files_() {
-	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
-	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
+	create_lfsexports_cfg_ > "$etcdir/lfsexports.cfg"
+	lizardfs_info_[master_exports]="$etcdir/lfsexports.cfg"
 	if [[ ${MASTER_CUSTOM_GOALS:-} ]]; then
 		echo "$MASTER_CUSTOM_GOALS" | tr '|' '\n' > "$etcdir/goals.cfg"
 		lizardfs_info_[master_custom_goals]="$etcdir/goals.cfg"
@@ -267,20 +267,20 @@ add_metadata_server_() {
 	local masterserver_matocl_port
 	local masterserver_matocs_port
 	local masterserver_data_path=$vardir/master${masterserver_id}
-	local masterserver_master_cfg=$etcdir/mfsmaster${masterserver_id}_master.cfg
-	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
-	local masterserver_cfg=$etcdir/mfsmaster${masterserver_id}.cfg
+	local masterserver_master_cfg=$etcdir/lfsmaster${masterserver_id}_master.cfg
+	local masterserver_shadow_cfg=$etcdir/lfsmaster${masterserver_id}_shadow.cfg
+	local masterserver_cfg=$etcdir/lfsmaster${masterserver_id}.cfg
 
 	get_next_port_number masterserver_matoml_port
 	get_next_port_number masterserver_matocl_port
 	get_next_port_number masterserver_matocs_port
 	mkdir "$masterserver_data_path"
-	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
-	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
+	create_lfsmaster_master_cfg_ > "$masterserver_master_cfg"
+	create_lfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
 
 	if [[ "$personality" == "master" ]]; then
 		cp "$masterserver_master_cfg" "$masterserver_cfg"
-		echo -n 'MFSM NEW' > "$masterserver_data_path/metadata.mfs"
+		echo -n 'LFSM NEW' > "$masterserver_data_path/metadata.lfs"
 	elif [[ "$personality" == "shadow" ]]; then
 		cp "$masterserver_shadow_cfg" "$masterserver_cfg"
 	else
@@ -296,22 +296,22 @@ add_metadata_server_() {
 	lizardfs_info_[master${masterserver_id}_matocs]=$masterserver_matocs_port
 }
 
-create_mfsmetalogger_cfg_() {
+create_lfsmetalogger_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "DATA_PATH = ${lizardfs_info_[master_data_path]}"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
-	create_magic_debug_log_entry_ "mfsmetalogger"
+	create_magic_debug_log_entry_ "lfsmetalogger"
 	echo "${METALOGGER_EXTRA_CONFIG-}" | tr '|' '\n'
 }
 
 prepare_metalogger_() {
-	create_mfsmetalogger_cfg_ > "$etcdir/mfsmetalogger.cfg"
-	lizardfs_info_[metalogger_cfg]="$etcdir/mfsmetalogger.cfg"
+	create_lfsmetalogger_cfg_ > "$etcdir/lfsmetalogger.cfg"
+	lizardfs_info_[metalogger_cfg]="$etcdir/lfsmetalogger.cfg"
 }
 
-create_mfshdd_cfg_() {
+create_lfshdd_cfg_() {
 	local n=$disks_per_chunkserver
 	if [[ $use_ramdisk ]]; then
 		local disk_number
@@ -335,7 +335,7 @@ create_chunkserver_label_entry_() {
 	tr '|' "\n" <<< "${CHUNKSERVER_LABELS-}" | awk -F: '$1~/(^|,)'$csid'(,|$)/ {print "LABEL = "$2}'
 }
 
-create_mfschunkserver_cfg_() {
+create_lfschunkserver_cfg_() {
 	local this_module_cfg_variable="CHUNKSERVER_${chunkserver_id}_EXTRA_CONFIG"
 	echo "SYSLOG_IDENT = chunkserver_${chunkserver_id}"
 	echo "WORKING_USER = $(id -nu)"
@@ -355,28 +355,28 @@ add_chunkserver_() {
 	local chunkserver_id=$1
 	local csserv_port
 	local chunkserver_data_path=$vardir/chunkserver_$chunkserver_id
-	local hdd_cfg=$etcdir/mfshdd_$chunkserver_id.cfg
-	local chunkserver_cfg=$etcdir/mfschunkserver_$chunkserver_id.cfg
+	local hdd_cfg=$etcdir/lfshdd_$chunkserver_id.cfg
+	local chunkserver_cfg=$etcdir/lfschunkserver_$chunkserver_id.cfg
 
 	get_next_port_number csserv_port
-	create_mfshdd_cfg_ > "$hdd_cfg"
-	create_mfschunkserver_cfg_ > "$chunkserver_cfg"
+	create_lfshdd_cfg_ > "$hdd_cfg"
+	create_lfschunkserver_cfg_ > "$chunkserver_cfg"
 	mkdir -p "$chunkserver_data_path"
-	mfschunkserver -c "$chunkserver_cfg" start
+	lfschunkserver -c "$chunkserver_cfg" start
 
 	lizardfs_info_[chunkserver${chunkserver_id}_port]=$csserv_port
 	lizardfs_info_[chunkserver${chunkserver_id}_config]=$chunkserver_cfg
 	lizardfs_info_[chunkserver${chunkserver_id}_hdd]=$hdd_cfg
 }
 
-create_mfsmount_cfg_() {
+create_lfsmount_cfg_() {
 	local this_mount_cfg_variable="MOUNT_${1}_EXTRA_CONFIG"
 	local this_mount_exports_variable="MOUNT_${1}_EXTRA_EXPORTS"
-	echo "mfsmaster=$ip_address"
-	echo "mfsport=${lizardfs_info_[matocl]}"
+	echo "lfsmaster=$ip_address"
+	echo "lfsport=${lizardfs_info_[matocl]}"
 	if [[ ${!this_mount_exports_variable-} ]]; then
 		# we want custom exports options, so we need to identify with a password
-		echo "mfspassword=${1}"
+		echo "lfspassword=${1}"
 	fi
 	echo "${MOUNT_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_mount_cfg_variable-}" | tr '|' '\n'
@@ -395,9 +395,9 @@ do_mount_() {
 
 add_mount_() {
 	local mount_id=$1
-	local mount_dir=$mntdir/mfs${mount_id}
-	local mount_cfg=$etcdir/mfsmount${mount_id}.cfg
-	create_mfsmount_cfg_ ${mount_id} > "$mount_cfg"
+	local mount_dir=$mntdir/lfs${mount_id}
+	local mount_cfg=$etcdir/lfsmount${mount_id}.cfg
+	create_lfsmount_cfg_ ${mount_id} > "$mount_cfg"
 	mkdir -p "$mount_dir"
 	lizardfs_info_[mount${mount_id}]="$mount_dir"
 	lizardfs_info_[mount${mount_id}_config]="$mount_cfg"
@@ -405,11 +405,11 @@ add_mount_() {
 	fuse_options=""
 	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do
 		fuse_option_name=$(echo $fuse_option | cut -f1 -d'=')
-		mfsmount --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
+		lfsmount --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	local call="${command_prefix} lfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
 	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
 }
@@ -419,21 +419,21 @@ add_cgi_server_() {
 	local cgi_server_path=$vardir/cgi
 	mkdir $cgi_server_path
 	get_next_port_number cgi_server_port
-	mfscgiserv -D "$cgi_server_path" -P "$cgi_server_port"
+	lfscgiserv -D "$cgi_server_path" -P "$cgi_server_port"
 	lizardfs_info_[cgi_port]=$cgi_server_port
-	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/mfs.cgi?masterport=${lizardfs_info_[matocl]}"
+	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/lfs.cgi?masterport=${lizardfs_info_[matocl]}"
 }
 
 # Some helper functions for tests to manipulate the existing installation
 
-mfs_dir_info() {
+lfs_dir_info() {
 	if (( $# != 2 )); then
-		echo "Incorrect usage of mfs_dir_info with args $*";
+		echo "Incorrect usage of lfs_dir_info with args $*";
 		exit 2;
 	fi;
 	field=$1
 	file=$2
-	mfsdirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
+	lfsdirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
 }
 
 find_first_chunkserver_with_chunks_matching() {
@@ -457,9 +457,9 @@ find_chunkserver_chunks() {
 	local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' \
 			"${lizardfs_info_[chunkserver${chunkserver_number}_hdd]}")
 	if (( $# > 0 )); then
-		find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+		find $hdds -name "chunk*.lfs" -a "(" "$@" ")"
 	else
-		find $hdds -name "chunk*.mfs"
+		find $hdds -name "chunk*.lfs"
 	fi
 }
 
@@ -470,9 +470,9 @@ find_all_chunks() {
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
 		local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' "${lizardfs_info_[chunkserver${chunkserver}_hdd]}")
 		if (( $# > 0 )); then
-			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+			find $hdds -name "chunk*.lfs" -a "(" "$@" ")"
 		else
-			find $hdds -name "chunk*.mfs"
+			find $hdds -name "chunk*.lfs"
 		fi
 	done
 }

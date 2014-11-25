@@ -16,47 +16,47 @@ Package: lizardfs-common
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          adduser
-Conflicts: mfs-common
-Replaces: mfs-common
-Provides: mfs-common
+Conflicts: lfs-common
+Replaces: lfs-common
+Provides: lfs-common
 Description: LizardFS common files
  Files and services common for all LizardFS daemons.
 
 Package: lizardfs-master
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-master
-Replaces: mfs-master
-Provides: mfs-master
+Conflicts: lfs-master
+Replaces: lfs-master
+Provides: lfs-master
 Description: LizardFS master server
  LizardFS master (metadata) server.
 
 Package: lizardfs-metalogger
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-metalogger
-Replaces: mfs-metalogger
-Provides: mfs-metalogger
+Conflicts: lfs-metalogger
+Replaces: lfs-metalogger
+Provides: lfs-metalogger
 Description: LizardFS metalogger server
  LizardFS metalogger (metadata replication) server.
 
 Package: lizardfs-chunkserver
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-chunkserver
-Replaces: mfs-chunkserver
-Provides: mfs-chunkserver
+Conflicts: lfs-chunkserver
+Replaces: lfs-chunkserver
+Provides: lfs-chunkserver
 Description: LizardFS data server
  LizardFS data server.
 
 Package: lizardfs-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Conflicts: mfs-client
-Replaces: mfs-client
-Provides: mfs-client
+Conflicts: lfs-client
+Replaces: lfs-client
+Provides: lfs-client
 Description: LizardFS client
- LizardFS clients: mfsmount and mfstools.
+ LizardFS clients: lfsmount and lfstools.
 
 Package: lizardfs-adm
 Architecture: any
@@ -68,9 +68,9 @@ Package: lizardfs-cgi
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          python
-Conflicts: mfs-cgi
-Replaces: mfs-cgi
-Provides: mfs-cgi
+Conflicts: lfs-cgi
+Replaces: lfs-cgi
+Provides: lfs-cgi
 Description: LizardFS CGI Monitor
  LizardFS CGI Monitor.
 
@@ -78,8 +78,8 @@ Package: lizardfs-cgiserv
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-cgi,
          python
-Conflicts: mfs-cgiserv
-Replaces: mfs-cgiserv
-Provides: mfs-cgiserv
+Conflicts: lfs-cgiserv
+Replaces: lfs-cgiserv
+Provides: lfs-cgiserv
 Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
  Simple CGI-capable HTTP server to run LizardFS CGI Monitor.

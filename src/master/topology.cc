@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -324,15 +324,15 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 		p++;
 	}
 	if (*p==0 || *p=='\r' || *p=='\n') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incomplete definition in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incomplete definition in line: %" PRIu32 "\n",lineno);
+		lfs_arg_syslog(LOG_WARNING,"lfstopology: incomplete definition in line: %" PRIu32,lineno);
+		fprintf(stderr,"lfstopology: incomplete definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
 	if (topology_parsenet(net,fip,tip)<0) {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect ip/network definition in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect ip/network definition in line: %" PRIu32 "\n",lineno);
+		lfs_arg_syslog(LOG_WARNING,"lfstopology: incorrect ip/network definition in line: %" PRIu32,lineno);
+		fprintf(stderr,"lfstopology: incorrect ip/network definition in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -341,8 +341,8 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	}
 
 	if (*p<'0' || *p>'9') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: incorrect rack id in line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: incorrect rack id in line: %" PRIu32 "\n",lineno);
+		lfs_arg_syslog(LOG_WARNING,"lfstopology: incorrect rack id in line: %" PRIu32,lineno);
+		fprintf(stderr,"lfstopology: incorrect rack id in line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 
@@ -353,8 +353,8 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	}
 
 	if (*p && *p!='\r' && *p!='\n' && *p!='#') {
-		mfs_arg_syslog(LOG_WARNING,"mfstopology: garbage found at the end of line: %" PRIu32,lineno);
-		fprintf(stderr,"mfstopology: garbage found at the end of line: %" PRIu32 "\n",lineno);
+		lfs_arg_syslog(LOG_WARNING,"lfstopology: garbage found at the end of line: %" PRIu32,lineno);
+		fprintf(stderr,"lfstopology: garbage found at the end of line: %" PRIu32 "\n",lineno);
 		return -1;
 	}
 	return 0;
@@ -371,16 +371,16 @@ void topology_load(void) {
 	if (fd==NULL) {
 		if (errno==ENOENT) {
 			if (racktree) {
-				syslog(LOG_WARNING,"mfstopology configuration file (%s) not found - network topology not changed",TopologyFileName);
+				syslog(LOG_WARNING,"lfstopology configuration file (%s) not found - network topology not changed",TopologyFileName);
 			} else {
-				syslog(LOG_WARNING,"mfstopology configuration file (%s) not found - network topology not defined",TopologyFileName);
+				syslog(LOG_WARNING,"lfstopology configuration file (%s) not found - network topology not defined",TopologyFileName);
 			}
-			fprintf(stderr,"mfstopology configuration file (%s) not found - using defaults\n",TopologyFileName);
+			fprintf(stderr,"lfstopology configuration file (%s) not found - using defaults\n",TopologyFileName);
 		} else {
 			if (racktree) {
-				mfs_arg_errlog(LOG_WARNING,"can't open mfstopology configuration file (%s) - network topology not changed, error",TopologyFileName);
+				lfs_arg_errlog(LOG_WARNING,"can't open lfstopology configuration file (%s) - network topology not changed, error",TopologyFileName);
 			} else {
-				mfs_arg_errlog(LOG_WARNING,"can't open mfstopology configuration file (%s) - network topology not defined, error",TopologyFileName);
+				lfs_arg_errlog(LOG_WARNING,"can't open lfstopology configuration file (%s) - network topology not defined, error",TopologyFileName);
 			}
 		}
 		return;
@@ -397,12 +397,12 @@ void topology_load(void) {
 	if (ferror(fd)) {
 		fclose(fd);
 		if (racktree) {
-			syslog(LOG_WARNING,"error reading mfstopology file - network topology not changed");
+			syslog(LOG_WARNING,"error reading lfstopology file - network topology not changed");
 		} else {
-			syslog(LOG_WARNING,"error reading mfstopology file - network topology not defined");
+			syslog(LOG_WARNING,"error reading lfstopology file - network topology not defined");
 		}
 		itree_freeall(newtree);
-		fprintf(stderr,"error reading mfstopology file - network topology not defined (using defaults)\n");
+		fprintf(stderr,"error reading lfstopology file - network topology not defined (using defaults)\n");
 		return;
 	}
 	fclose(fd);
@@ -411,7 +411,7 @@ void topology_load(void) {
 	if (racktree) {
 		racktree = itree_rebalance(racktree);
 	}
-	mfs_syslog(LOG_NOTICE,"topology file has been loaded");
+	lfs_syslog(LOG_NOTICE,"topology file has been loaded");
 }
 
 void topology_reload(void) {
@@ -420,20 +420,20 @@ void topology_reload(void) {
 		free(TopologyFileName);
 	}
 	if (!cfg_isdefined("TOPOLOGY_FILENAME")) {
-		TopologyFileName = strdup(ETC_PATH "/mfs/mfstopology.cfg");
+		TopologyFileName = strdup(ETC_PATH "/lfs/lfstopology.cfg");
 		passert(TopologyFileName);
 		if ((fd = open(TopologyFileName,O_RDONLY))<0 && errno==ENOENT) {
 			free(TopologyFileName);
-			TopologyFileName = strdup(ETC_PATH "/mfstopology.cfg");
+			TopologyFileName = strdup(ETC_PATH "/lfstopology.cfg");
 			if ((fd = open(TopologyFileName,O_RDONLY))>=0) {
-				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+				lfs_syslog(LOG_WARNING,"default sysconf path has changed - please move lfstopology.cfg from " ETC_PATH "/ to " ETC_PATH "/lfs/");
 			}
 		}
 		if (fd>=0) {
 			close(fd);
 		}
 	} else {
-		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
+		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/lfs/lfstopology.cfg");
 	}
 	topology_load();
 }

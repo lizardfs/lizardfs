@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,8 +45,8 @@
 #include "common/acl_type.h"
 #include "common/datapack.h"
 #include "common/lru_cache.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/time_utils.h"
 #include "mount/acl_cache.h"
@@ -64,7 +64,7 @@
 
 namespace LizardClient {
 
-#define MAX_FILE_SIZE (int64_t)(MFS_MAX_FILE_SIZE)
+#define MAX_FILE_SIZE (int64_t)(LFS_MAX_FILE_SIZE)
 
 #define PKGVERSION \
 		((LIZARDFS_PACKAGE_VERSION_MAJOR)*1000000 + \
@@ -234,7 +234,7 @@ static uint64_t *statsptr[STATNODES];
 
 /// prints "status: string-representation" if status is non zero and debug_mode is true
 inline int errorconv_dbg(uint8_t status) {
-	auto ret = mfs_errorconv(status);
+	auto ret = lfs_errorconv(status);
 	if (debug_mode && ret != 0) {
 		fprintf(stderr, "status: %s\n", strerr(ret));
 	}
@@ -344,7 +344,7 @@ void attr_to_stat(uint32_t inode,const uint8_t attr[35], struct stat *stbuf) {
 	memset(stbuf, 0, sizeof(*stbuf));
 	stbuf->st_ino = inode;
 #ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
-	stbuf->st_blksize = MFSBLOCKSIZE;
+	stbuf->st_blksize = LFSBLOCKSIZE;
 #endif
 	switch (attrtype) {
 	case TYPE_DIRECTORY:
@@ -509,7 +509,7 @@ struct statvfs statfs(Context ctx, Inode ino) {
 	bsize = 0x10000;
 #endif
 
-	stfsbuf.f_namemax = MFS_NAME_MAX;
+	stfsbuf.f_namemax = LFS_NAME_MAX;
 	stfsbuf.f_frsize = bsize;
 	stfsbuf.f_bsize = bsize;
 #if defined(__APPLE__)
@@ -601,7 +601,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		stats_inc(OP_LOOKUP);
 		oplog_printf(ctx, "lookup (%lu,%s): %s",
 				(unsigned long int)parent,
@@ -609,7 +609,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (nleng==2 && name[0]=='.' && name[1]=='.') {
 			nleng=1;
 		}
@@ -1132,7 +1132,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 				(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
 				(unsigned long int)parent,
 				name,
@@ -1163,7 +1163,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 		throw RequestException(EPERM);
 	}
 
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
 					(unsigned long int)parent,
@@ -1219,7 +1219,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 				name);
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "unlink (%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1230,7 +1230,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 	}
 
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "unlink (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
@@ -1279,7 +1279,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 				modestr+1,
 				(unsigned int)mode);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
 					(unsigned long int)parent,
@@ -1291,7 +1291,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
 				(unsigned long int)parent,
 				name,
@@ -1342,7 +1342,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 				name);
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "rmdir (%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1352,7 +1352,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "rmdir (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
@@ -1395,7 +1395,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 				name);
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
 					path,
@@ -1406,7 +1406,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
 				path,
 				(unsigned long int)parent,
@@ -1496,7 +1496,7 @@ void rename(Context ctx, Inode parent, const char *name,
 				(unsigned long int)newparent,
 				newname);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1507,7 +1507,7 @@ void rename(Context ctx, Inode parent, const char *name,
 			throw RequestException(EACCES);
 		}
 	}
-	if (newparent==MFS_ROOT_ID) {
+	if (newparent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
 			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1519,7 +1519,7 @@ void rename(Context ctx, Inode parent, const char *name,
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
@@ -1529,7 +1529,7 @@ void rename(Context ctx, Inode parent, const char *name,
 		throw RequestException(ENAMETOOLONG);
 	}
 	newnleng = strlen(newname);
-	if (newnleng>MFS_NAME_MAX) {
+	if (newnleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
@@ -1590,7 +1590,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
-	if (newparent==MFS_ROOT_ID) {
+	if (newparent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(newname)) {
 			oplog_printf(ctx, "link (%lu,%lu,%s): %s",
 					(unsigned long int)ino,
@@ -1601,7 +1601,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 		}
 	}
 	newnleng = strlen(newname);
-	if (newnleng>MFS_NAME_MAX) {
+	if (newnleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
 				(unsigned long int)ino,
 				(unsigned long int)newparent,
@@ -1678,7 +1678,7 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi) {
 	int status;
 	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
-	char name[MFS_NAME_MAX+1];
+	char name[LFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
 	uint8_t nleng;
 	uint32_t inode;
@@ -1909,7 +1909,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,modestr+1,
 				(unsigned int)mode);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==LFS_ROOT_ID) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
 					(unsigned long int)parent,
@@ -1921,7 +1921,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 		}
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_NAME_MAX) {
+	if (nleng>LFS_NAME_MAX) {
 		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
 				(unsigned long int)parent,
 				name,
@@ -2804,7 +2804,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
-	if (size>MFS_XATTR_SIZE_MAX) {
+	if (size>LFS_XATTR_SIZE_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns E2BIG here
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
@@ -2825,7 +2825,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 #endif
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_XATTR_NAME_MAX) {
+	if (nleng>LFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
@@ -2922,7 +2922,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 		throw RequestException(ENODATA);
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_XATTR_NAME_MAX) {
+	if (nleng>LFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
@@ -3075,7 +3075,7 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		throw RequestException(EPERM);
 	}
 	nleng = strlen(name);
-	if (nleng>MFS_XATTR_NAME_MAX) {
+	if (nleng>LFS_XATTR_NAME_MAX) {
 #if defined(__APPLE__)
 		// Mac OS X returns EPERM here
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",

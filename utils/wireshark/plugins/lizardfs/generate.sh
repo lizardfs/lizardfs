@@ -2,7 +2,7 @@
 set -eu
 
 if (( $# != 1 )); then
-	echo "Usage: $0 path/to/MFSCommunication.h"
+	echo "Usage: $0 path/to/LFSCommunication.h"
 	exit 1
 fi
 
@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
 {
 	echo "#define PROTO_BASE 0"
 	echo "#define LIZARDFS_WIRESHARK_PLUGIN 1"
-	echo "#include \"$input_file\"" # MFSCommunication.h
+	echo "#include \"$input_file\"" # LFSCommunication.h
 } > includes.h
 
 # Generate the packet-lizardfs.c file

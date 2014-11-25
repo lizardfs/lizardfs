@@ -8,7 +8,7 @@
 #include "common/chunks_availability_state.h"
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
-#include "common/moosefs_vector.h"
+#include "common/lizardfs_vector.h"
 #include "common/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"

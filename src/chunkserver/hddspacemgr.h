@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "common/chunk_with_version.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test);
@@ -65,8 +65,8 @@ int hdd_get_checksum_tab(uint64_t chunkid, uint32_t version, uint8_t *checksum_t
 /* all chunk operations in one call */
 // newversion>0 && length==0xFFFFFFFF && copychunkid==0    -> change version
 // newversion>0 && length==0xFFFFFFFF && copycnunkid>0     -> duplicate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid==0     -> truncate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid>0      -> duplicate and truncate
+// newversion>0 && length<=LFSCHUNKSIZE && copychunkid==0     -> truncate
+// newversion>0 && length<=LFSCHUNKSIZE && copychunkid>0      -> duplicate and truncate
 // newversion==0 && length==0                              -> delete
 // newversion==0 && length==1                              -> create
 // newversion==0 && length==2                              -> test

@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@
 #include "common/matoml_communication.h"
 #include "common/metadata.h"
 #include "common/mltoma_communication.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "master/filesystem.h"
@@ -432,7 +432,7 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 	}
 	uint8_t filenum = get8bit(&data);
 
-	if ((filenum == DOWNLOAD_METADATA_MFS) || (filenum == DOWNLOAD_SESSIONS_MFS)) {
+	if ((filenum == DOWNLOAD_METADATA_LFS) || (filenum == DOWNLOAD_SESSIONS_LFS)) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 			eptr->metafd=-1;
@@ -446,19 +446,19 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 			eptr->chain2fd=-1;
 		}
 	}
-	if (filenum == DOWNLOAD_METADATA_MFS) {
+	if (filenum == DOWNLOAD_METADATA_LFS) {
 		eptr->metafd = open(kMetadataFilename, O_RDONLY);
 		eptr->chain1fd = open(kChangelogFilename, O_RDONLY);
 		eptr->chain2fd = open((std::string(kChangelogFilename) + ".1").c_str(), O_RDONLY);
-	} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
+	} else if (filenum == DOWNLOAD_SESSIONS_LFS) {
 		eptr->metafd = open(kSessionsFilename, O_RDONLY);
-	} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
+	} else if (filenum == DOWNLOAD_CHANGELOG_LFS) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
 		eptr->metafd = eptr->chain1fd;
 		eptr->chain1fd = -1;
-	} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
+	} else if (filenum == DOWNLOAD_CHANGELOG_LFS_1) {
 		if (eptr->metafd>=0) {
 			close(eptr->metafd);
 		}
@@ -514,7 +514,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ret = read(eptr->metafd,ptr+4,leng);
 #endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
-		mfs_errlog_silent(LOG_NOTICE,"error reading metafile");
+		lfs_errlog_silent(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;
 		return;
 	}
@@ -540,7 +540,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
 	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
 	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - dumping metadata",
-			mfsstrerr(recvStatus));
+			lfsstrerr(recvStatus));
 	gShadowQueue.addRequest(eptr);
 	fs_storeall(MetadataDumper::kBackgroundDump);
 	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
@@ -675,7 +675,7 @@ void matomlserv_read(matomlserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"read from ML(%s) error",eptr->servstrip);
+				lfs_arg_errlog_silent(LOG_NOTICE,"read from ML(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -737,7 +737,7 @@ void matomlserv_write(matomlserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"write to ML(%s) error",eptr->servstrip);
+				lfs_arg_errlog_silent(LOG_NOTICE,"write to ML(%s) error",eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
@@ -788,7 +788,7 @@ void matomlserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"Master<->ML socket: accept error");
+			lfs_errlog_silent(LOG_NOTICE,"Master<->ML socket: accept error");
 		} else if (metadataserver::isMaster()) {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -897,13 +897,13 @@ void matomlserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"master <-> metaloggers module: socket address has changed, but can't create new socket");
+		lfs_errlog(LOG_WARNING,"master <-> metaloggers module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -914,10 +914,10 @@ void matomlserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -925,7 +925,7 @@ void matomlserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -947,20 +947,20 @@ int matomlserv_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"master <-> metaloggers module: can't create socket");
+		lfs_errlog(LOG_ERR,"master <-> metaloggers module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"master <-> metaloggers module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on %s:%s",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"master <-> metaloggers module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"master <-> metaloggers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matomlservhead = NULL;
 	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);

@@ -1,11 +1,11 @@
 # /etc/default/lizardfs-cgiserv
 
-# Start mfscgiserv from init.d script on boot.
+# Start lfscgiserv from init.d script on boot.
 #   Only allowed values are "true" and "false".
 #   Undefined values default to "false".
 LIZARDFSCGISERV_ENABLE=false
 
-# user and group used to run mfscgiserv
+# user and group used to run lfscgiserv
 LIZARDFSCGISERV_USER=nobody
 LIZARDFSCGISERV_GROUP=nogroup
 

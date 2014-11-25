@@ -1,0 +1,91 @@
+lfsgoals.cfg(5)
+===============
+
+== NAME
+
+lfsgoals.cfg - replication goals configuration file
+
+== DESCRIPTION
+
+The file *lfsgoals.cfg* contains definitions of the replication goals.
+
+== SYNTAX
+
+Syntax is:
+
+'id' 'name' : 'label' ...
+
+The *#* character starts comments.
+
+== DETAILS
+
+There are 20 replication goals, with 'ids' between 1 and 20, inclusive.
+Each file stored on the filesystem refers to some goal id and is
+replicated according to the goal currently associated with this id.
+
+By default, goal 1 means one copy on any chunkserver, goal 2 means two
+copies on any two chunkservers and so on. The purpose of lfsgoals.cfg
+is to override this behavior, when desired. The file is a list of goal
+definitions, each consisting of 'id', 'name' and a list of 'labels'.
+The maximal length of this list is 30 labels.
+
+'id' indicates the goal id to be redefined. If some files are already
+assigned this goal id, their effective goal will change.
+
+'name' is a human readable name used by the user interface tools
+(lfssetgoal(1), lfsgetgoal(1)). 'name' can consist of up to 32 alphanumeric
+characters: a-z, A-Z, 0-9, _.
+
+The list of 'labels' is a list of chunkserver labels as defined in
+lfschunkserver.cfg(5). 'label' can consist of up to 32 alphanumeric
+characters: a-z, A-Z, 0-9, _.
+
+For each file using this goal and for each label, the system will try to
+maintain a copy of the file on some chunkserver with this label.
+One label may occur multiple times - in such case the system will create
+one copy per each occurence.
+The special label _ means "a copy on any chunkserver".
+
+Note that changing the definition of a goal in lfsgoals.cfg affects all
+files which currently use given goal id.
+
+== EXAMPLES
+
+Some example goal definitions:
+
+3 3 : _ _ _   # one of the default goals (three copies anywhere)
+
+8 not_important_file : _   # only one copy
+
+11 important_file : _ _
+
+12 local_copy_on_mars : mars _ # at least one copy in the Martian datacenter
+
+13 cached_on_ssd : ssd _
+
+14 very_important_file : _ _ _ _
+
+== SNAPSHOT FILES
+
+Snapshot shares data with the original file until the file receives
+modification and diverges from the snapshotted version.
+If some snapshot has different goal than its original file, any shared
+data are stored according to the goal with higher 'id' of the two.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmaster.cfg(5)

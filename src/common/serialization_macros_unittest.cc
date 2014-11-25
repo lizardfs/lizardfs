@@ -4,7 +4,7 @@
 #include <tuple>
 #include <gtest/gtest.h>
 
-#include "common/moosefs_string.h"
+#include "common/lizardfs_string.h"
 #include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 
@@ -63,7 +63,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		somebodyToSomebodyElse, communicate, LIZ_CLTOMA_FUSE_MKNOD, kSomeVersion,
 		uint32_t, messageId,
 		uint32_t, inode,
-		MooseFsString<uint8_t>, name,
+		LizardFsString<uint8_t>, name,
 		uint8_t, nodeType,
 		uint16_t, mode,
 		uint16_t, umask,
@@ -75,7 +75,7 @@ TEST(PacketSerializationTests, SerializeAndDeserialize) {
 	ASSERT_EQ(3210U, somebodyToSomebodyElse::communicate::kSomeVersion);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 65432, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 36, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(MooseFsString<uint8_t>, name, "kobyla ma maly bok", "");
+	LIZARDFS_DEFINE_INOUT_PAIR(LizardFsString<uint8_t>, name, "kobyla ma maly bok", "");
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, nodeType, 0xF1, 0x00);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint16_t, mode, 0725, 0000);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint16_t, umask, 0351, 0000);

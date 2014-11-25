@@ -1,4 +1,4 @@
-master_cfg="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
+master_cfg="LFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
 master_cfg+="|DUMP_METADATA_ON_RELOAD = 1"
 master_cfg+="|PREFER_BACKGROUND_DUMP = 1"
 master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
@@ -9,7 +9,7 @@ CHUNKSERVERS=1 \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 
-# Instead of real mfsmetarestore, provide a program which hangs forever to slow down metadata dumps
+# Instead of real lfsmetarestore, provide a program which hangs forever to slow down metadata dumps
 cat > "$TEMP_DIR/metarestore.sh" << END
 #!/bin/bash
 touch "$TEMP_DIR/dump_started"

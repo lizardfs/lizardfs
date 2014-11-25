@@ -7,43 +7,43 @@ endif()
 set(MANPAGES
     lizardfs.7          # not a source
     lizardfs-probe.8
-    mfsappendchunks.1
-    mfscheckfile.1
-    mfsdirinfo.1
-    mfsfileinfo.1
-    mfsfilerepair.1
-    mfsgeteattr.1
-    mfsseteattr.1       # not a source
-    mfsdeleattr.1       # not a source
-    mfsgetgoal.1
-    mfssetgoal.1        # not a source
-    mfsrgetgoal.1       # not a source
-    mfsrsetgoal.1       # not a source
-    mfsgettrashtime.1
-    mfssettrashtime.1   # not a source
-    mfsrgettrashtime.1  # not a source
-    mfsrsettrashtime.1  # not a source
-    mfsmakesnapshot.1
-    mfsmount.1
-    mfsrepquota.1
-    mfssetquota.1       # not a source
-    mfstools.1
+    lfsappendchunks.1
+    lfscheckfile.1
+    lfsdirinfo.1
+    lfsfileinfo.1
+    lfsfilerepair.1
+    lfsgeteattr.1
+    lfsseteattr.1       # not a source
+    lfsdeleattr.1       # not a source
+    lfsgetgoal.1
+    lfssetgoal.1        # not a source
+    lfsrgetgoal.1       # not a source
+    lfsrsetgoal.1       # not a source
+    lfsgettrashtime.1
+    lfssettrashtime.1   # not a source
+    lfsrgettrashtime.1  # not a source
+    lfsrsettrashtime.1  # not a source
+    lfsmakesnapshot.1
+    lfsmount.1
+    lfsrepquota.1
+    lfssetquota.1       # not a source
+    lfstools.1
     globaliolimits.cfg.5
     iolimits.cfg.5
-    mfschunkserver.cfg.5
-    mfsexports.cfg.5
-    mfsgoals.cfg.5
-    mfshdd.cfg.5
-    mfsmaster.cfg.5
-    mfsmetalogger.cfg.5
-    mfstopology.cfg.5
-    moosefs.7
-    mfs.7               # not a source
-    mfscgiserv.8
-    mfschunkserver.8
-    mfsmaster.8
-    mfsmetalogger.8
-    mfsmetarestore.8
+    lfschunkserver.cfg.5
+    lfsexports.cfg.5
+    lfsgoals.cfg.5
+    lfshdd.cfg.5
+    lfsmaster.cfg.5
+    lfsmetalogger.cfg.5
+    lfstopology.cfg.5
+    lizardfs.7
+    lfs.7               # not a source
+    lfscgiserv.8
+    lfschunkserver.8
+    lfsmaster.8
+    lfsmetalogger.8
+    lfsmetarestore.8
 )
 
 set(INSTALLED_MANPAGES)

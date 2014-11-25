@@ -6,7 +6,7 @@ case "${1}" in
 	purge)
 		if [ -x /usr/sbin/deluser ]
 		then
-			deluser --quiet mfs > /dev/null || true
+			deluser --quiet lfs > /dev/null || true
 		fi
 		;;
 

@@ -2,7 +2,7 @@ timeout_set 60 seconds
 
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}

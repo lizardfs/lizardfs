@@ -1,14 +1,14 @@
 CHUNKSERVERS=4 \
 	DISK_PER_CHUNKSERVER=3 \
 	MASTER_EXTRA_CONFIG="REPLICATIONS_DELAY_INIT = 100000" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
 for goal in 4 3; do
 	mkdir dir_$goal
-	mfssetgoal $goal dir_$goal
+	lfssetgoal $goal dir_$goal
 	FILE_SIZE=60M file-generate dir_$goal/file
 done
 

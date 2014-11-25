@@ -1,6 +1,6 @@
 USE_RAMDISK=YES \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
@@ -8,7 +8,7 @@ cd "${info[mount0]}"
 gid1=$(id -g lizardfstest_1)
 gid2=$(id -g lizardfstest)
 
-mfssetquota -g $gid1 0 0 3 8 .
+lfssetquota -g $gid1 0 0 3 8 .
 
 # exceed quota by creating 1 directory and some files (8 inodes in total):
 sudo -nu lizardfstest_1 mkdir dir_$gid1
@@ -28,7 +28,7 @@ verify_quota "Group $gid1 -+ 0 0 0 7 3 8" lizardfstest_1
 
 # snapshots are allowed, if none of the uid/gid of files residing
 # in a directory reached its limit:
-sudo -nu lizardfstest_1 $(which mfsmakesnapshot) dir_$gid1 snapshot
+sudo -nu lizardfstest_1 $(which lfsmakesnapshot) dir_$gid1 snapshot
 # sudo does not necessarily pass '$PATH', even if -E is used, that's
 # why a workaround with 'which' was used above
 verify_quota "Group $gid1 -+ 0 0 0 14 3 8" lizardfstest_1
@@ -37,7 +37,7 @@ verify_quota "Group $gid1 -+ 0 0 0 14 3 8" lizardfstest_1
 expect_failure sudo -nu lizardfstest_1 touch dir_$gid1/file
 expect_failure sudo -nu lizardfstest_1 mkdir dir2_$gid1
 expect_failure sudo -nu lizardfstest_1 ln -s dir_$gid1/4 dir_$gid1/soft2
-expect_failure sudo -nu lizardfstest_1 $(which mfsmakesnapshot) dir_$gid1 snapshot2
+expect_failure sudo -nu lizardfstest_1 $(which lfsmakesnapshot) dir_$gid1 snapshot2
 verify_quota "Group $gid1 -+ 0 0 0 14 3 8" lizardfstest_1
 
 # hard links don't affect usage and are not checked against limits:

@@ -1,7 +1,7 @@
 timeout_set 1 hour
 
 CHUNKSERVERS=2 \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}
@@ -20,7 +20,7 @@ test_worker() {
 			if ! file-validate "$file"; then
 				test_add_failure "Invalid data: block $block_size, size $file_size"
 			fi
-			mfssettrashtime 0 "$file" &>/dev/null
+			lfssettrashtime 0 "$file" &>/dev/null
 			rm -f "$file"
 		else
 			test_add_failure "file-validate failed: block $block_size, size $file_size"

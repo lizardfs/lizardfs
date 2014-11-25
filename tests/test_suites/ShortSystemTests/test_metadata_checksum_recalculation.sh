@@ -8,7 +8,7 @@ master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum:$TEMP_DIR/log,master.fs.check
 
 CHUNKSERVERS=1 \
 	USE_RAMDISK="YES" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	DEBUG_LOG_FAIL_ON="master.fs.checksum.mismatch" \
 	setup_local_empty_lizardfs info
@@ -29,7 +29,7 @@ truncate -s 0 "$TEMP_DIR/log"
 		assert_success attr -qs name -V $i dir_$k
 		assert_success attr -qs name -V $i dir_$((k+1))
 		for k in {1..20}; do
-			assert_success mfssetgoal $((1 + i % 7)) chunk_$(((i * k) % 500))
+			assert_success lfssetgoal $((1 + i % 7)) chunk_$(((i * k) % 500))
 		done
 		: $((++i))
 	done &>/dev/null &

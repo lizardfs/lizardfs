@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/packet.h"
 #include "common/sockets.h"
 #include "mount/mastercomm.h"
@@ -70,7 +70,7 @@ static void* masterproxy_server(void *args) {
 			}
 
 			buffer.clear();
-			serializeMooseFsPacket(buffer, MATOCL_FUSE_REGISTER, uint8_t(STATUS_OK));
+			serializeLizardFsPacket(buffer, MATOCL_FUSE_REGISTER, uint8_t(STATUS_OK));
 
 		} else {
 			if (fs_custom(buffer) != STATUS_OK) {
@@ -125,16 +125,16 @@ int masterproxy_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		//mfs_errlog(LOG_ERR,"main master server module: can't create socket");
+		//lfs_errlog(LOG_ERR,"main master server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		// mfs_errlog_silent(LOG_NOTICE,"master proxy: can't set accept filter");
+		// lfs_errlog_silent(LOG_NOTICE,"master proxy: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,"127.0.0.1",0,100)<0) {
-		// mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
+		// lfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
 		tcpclose(lsock);
 		lsock = -1;
 		return -1;

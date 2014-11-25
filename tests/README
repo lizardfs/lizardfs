@@ -29,7 +29,7 @@ arguments. It will print a short description of all the changes it is going to m
 
 The tests need to know which binaries should be tested. The default location is
 /var/lib/lizardfstest/local and this means eg. that the master server will run code
-from the /var/lib/lizardfstest/local/sbin/mfsmaster file. You can change this
+from the /var/lib/lizardfstest/local/sbin/lfsmaster file. You can change this
 default directory by adding an entry like this to /etc/lizardfs_tests.conf file:
 
     : ${LIZARDFS_ROOT:=/home/you/local}

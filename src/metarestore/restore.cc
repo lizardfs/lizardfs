@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/slogger.h"
 #include "master/filesystem.h"
 
@@ -34,7 +34,7 @@
 
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
-		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
+		lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
 		return -1; \
 	} \
 	(clptr)++; \
@@ -54,7 +54,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -62,7 +62,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -86,7 +86,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -94,7 +94,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -111,7 +111,7 @@
 				} \
 			} \
 			if ((path)==NULL) { \
-				mfs_syslog(LOG_ERR, "out of memory !!!"); \
+				lfs_syslog(LOG_ERR, "out of memory !!!"); \
 				exit(1); \
 			} \
 		} \
@@ -129,7 +129,7 @@
 			} \
 		} \
 		if ((path)==NULL) { \
-			mfs_syslog(LOG_ERR, "out of memory !!!"); \
+			lfs_syslog(LOG_ERR, "out of memory !!!"); \
 			exit(1); \
 		} \
 	} \
@@ -149,7 +149,7 @@
 			} else if (_tmp_h1>='A' && _tmp_h1<='F') { \
 				_tmp_h1-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			if (_tmp_h2>='0' && _tmp_h2<='9') { \
@@ -157,7 +157,7 @@
 			} else if (_tmp_h2>='A' && _tmp_h2<='F') { \
 				_tmp_h2-=('A'-10); \
 			} else { \
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": hex expected", (fn), (vno)); \
 				return -1; \
 			} \
 			_tmp_c = _tmp_h1*16+_tmp_h2; \
@@ -174,7 +174,7 @@
 				} \
 			} \
 			if ((buff)==NULL) { \
-				mfs_syslog(LOG_ERR, "out of memory !!!"); \
+				lfs_syslog(LOG_ERR, "out of memory !!!"); \
 				exit(1); \
 			} \
 		} \
@@ -506,7 +506,7 @@ int do_deleteacl(const char *filename, uint64_t lv, uint32_t ts, const char *ptr
 	} else if (aclTypeRaw == 'a') {
 		aclType = AclType::kAccess;
 	} else {
-		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": corrupted ACL type", filename, lv);
+		lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": corrupted ACL type", filename, lv);
 		return -1;
 	}
 	return fs_deleteacl(FsContext::getForRestore(ts), inode, aclType);
@@ -797,13 +797,13 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 		DEBUG_LOG("master.mismatch")
 				<< "File " << filename << ", " << lv << line << " -- unknown entry ";
 #endif
-		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
+		lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
 	} else if (status != STATUS_OK) {
 #ifndef METARESTORE
 		DEBUG_LOG("master.mismatch")
-				<< "File " << filename << ", " << lv << line << " -- " << mfsstrerr(status);
+				<< "File " << filename << ", " << lv << line << " -- " << lfsstrerr(status);
 #endif
-		mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
+		lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
 	}
 	return status;
 }
@@ -839,12 +839,12 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 		lastfn = "(no file)";
 	}
 	if (verbosity > 1) {
-		mfs_arg_syslog(LOG_NOTICE, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %"
+		lfs_arg_syslog(LOG_NOTICE, "filename: %s ; current meta version: %" PRIu64 " ; previous changeid: %"
 				PRIu64 " ; current changeid: %" PRIu64 " ; change data%s",
 				filename, nextFsVersion, currentFsVersion, newLogVersion, ptr);
 	}
 	if (newLogVersion < currentFsVersion) {
-		mfs_arg_syslog(LOG_ERR,
+		lfs_arg_syslog(LOG_ERR,
 				"merge error - possibly corrupted input file - ignore entry"
 				" (filename: %s, versions: %" PRIu64 ", %" PRIu64 ")",
 				filename, newLogVersion, currentFsVersion);
@@ -852,16 +852,16 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 	} else if (newLogVersion >= nextFsVersion) {
 		if (newLogVersion == currentFsVersion) {
 			if (verbosity > 1) {
-				mfs_arg_syslog(LOG_WARNING, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)",
+				lfs_arg_syslog(LOG_WARNING, "duplicated entry: %" PRIu64 " (previous file: %s, current file: %s)",
 						newLogVersion, lastfn, filename);
 			}
 		} else if (newLogVersion > currentFsVersion + 1) {
-			mfs_arg_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
+			lfs_arg_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
 					" are missing) - add more files", lastfn, currentFsVersion + 1, filename, newLogVersion - 1);
 			return ERROR_CHANGELOGINCONSISTENT;
 		} else {
 			if (verbosity > 0) {
-				mfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
+				lfs_arg_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
 			int status = restore_line(filename,newLogVersion,ptr);
 			if (status<0) { // parse error - stop processing if requested
@@ -875,7 +875,7 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 				/*
 				 * restore_line() should bump nextFsVersion by exactly 1, but it didn't.
 				 */
-				mfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, newLogVersion, nextFsVersion);
+				lfs_arg_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, newLogVersion, nextFsVersion);
 				return ERROR_METADATAVERSIONMISMATCH;
 			}
 		}

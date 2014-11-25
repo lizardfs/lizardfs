@@ -4,9 +4,9 @@ After=syslog.target network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/sbin/mfschunkserver start
-ExecStop=/usr/sbin/mfschunkserver stop
-ExecReload=/usr/sbin/mfschunkserver reload
+ExecStart=/usr/sbin/lfschunkserver start
+ExecStop=/usr/sbin/lfschunkserver stop
+ExecReload=/usr/sbin/lfschunkserver reload
 Restart=on-abort
 
 [Install]

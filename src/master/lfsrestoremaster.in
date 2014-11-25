@@ -1,0 +1,158 @@
+#!/bin/bash
+set -e
+set -u
+
+if [ $# -lt 1 -o $# -gt 2 ]; then
+	cat <<EOF
+
+USAGE: $0 <net-interface> [<etc-lfs-dir>]
+
+	<net-interface> - network interface to reconfigure
+	<etc-lfs-dir> - lfs configuration directory to use
+			default: @ETC_PATH@/lfs
+
+
+This scripts automates starting spare master server on a metalogger machine.
+It performs the following steps:
+
+* verify basic sanity of configuration files
+* update metadata image with data from metalogger changelogs
+* set master's IP address on given network interface
+* start the master server
+
+EOF
+	exit 1
+fi
+
+notice() {
+	echo "+ $1"
+}
+
+panic() {
+	echo "- $1"
+	echo "- Aborting, the master server hasn't been started"
+	exit 1
+}
+
+if [ $UID -ne 0 ]; then
+	panic "This script requires root privileges to reconfigure network"
+fi
+
+net_interface="$1"
+etc_directory="${2:-@ETC_PATH@/lfs}"
+
+get_config_option() {
+	local file="$1"
+	local option="$2"
+	local default="${3:-}"
+
+	awk "
+		BEGIN {
+			result = \"$default\"
+		}
+		/^[ \t]*$option[ \t]*=/ {
+			sub(\"[^=]*=[ \t]*\", \"\")
+			result = \$0
+		}
+		END {
+			print result
+		}" < "$file"
+}
+
+if_equal() {
+	local result="$1"
+	shift
+
+	while [ -n "$*" ]; do
+		if [ "$1" != "$result" ]; then
+			return
+		fi
+		shift
+	done
+
+	echo "$result"
+}
+
+is_tcp_port_open() {
+	local host="$1"
+	local port="$2"
+	python <<EOF
+import socket
+
+try:
+	socket.create_connection(("$host", $port), 1)
+except:
+	exit(1)
+EOF
+}
+
+notice "Using configuration directory: $etc_directory"
+
+notice "Checking configuration files..."
+
+ml_config="$etc_directory/lfsmetalogger.cfg"
+ma_config="$etc_directory/lfsmaster.cfg"
+
+if [ ! -r "$ml_config" ]; then
+	panic "Can't read metalogger configuration: $ml_config"
+fi
+if [ ! -r "$ma_config" ]; then
+	panic "Can't read master configuration: $ma_config"
+fi
+
+ml_master_host=$(get_config_option "$ml_config" MASTER_HOST)
+ma_matoml_host=$(get_config_option "$ma_config" MATOML_LISTEN_HOST "*")
+ma_matocs_host=$(get_config_option "$ma_config" MATOCS_LISTEN_HOST "*")
+ma_matocl_host=$(get_config_option "$ma_config" MATOCL_LISTEN_HOST "*")
+master_host=$(if_equal "$ma_matoml_host" "$ma_matocs_host" "$ma_matoml_host")
+
+if [ -z "$master_host" ]; then
+	panic "Not sure what to do with multiple master listening addresses"
+fi
+
+if [ "$master_host" = "*" -o "$master_host" = "0.0.0.0" ]; then
+	master_host="$ml_master_host"
+else
+	if [ "$master_host" != "$ml_master_host" ]; then
+		panic "BUG: metalogger's MASTER_HOST doesn't match master's MATOML_LISTEN_HOST"
+	fi
+fi
+
+notice "Using master server address: $master_host"
+
+master_port=$(get_config_option "$ml_config" MASTER_PORT 9419)
+
+if ping -c1 -w1 "$master_host" &>/dev/null ; then
+	panic "Some other machine already uses IP address $master_host"
+fi
+
+if is_tcp_port_open "$master_host" "$master_port" ; then
+	panic "Some other server is already responding at $master_host:$master_port"
+fi
+
+ml_data_path=$(get_config_option "$ml_config" DATA_PATH "@DATA_PATH@")
+ma_data_path=$(get_config_option "$ma_config" DATA_PATH "@DATA_PATH@")
+
+ma_meta_file="$ma_data_path/metadata.lfs"
+ml_meta_file="$ml_data_path/metadata_ml.lfs.back"
+
+if [ ! -r "$ml_meta_file" ]; then
+	panic "Can't find metadata backup at $ml_meta_file"
+fi
+
+notice "Reading metadata from: $ml_meta_file"
+notice "Restoring metadata to: $ma_meta_file"
+
+if ! lfsmetarestore -o "$ma_meta_file" -m "$ml_meta_file" "$ml_data_path"/changelog_ml.* >/dev/null ; then
+	panic "Metadata restoration failed"
+fi
+
+notice "Changing IP address of $net_interface to $master_host"
+if ! ifconfig $net_interface $master_host ; then
+	panic "Failed to set IP address"
+fi
+
+notice "Starting the master server"
+if ! lfsmaster -c "$ma_config" start ; then
+	panic "Master server failed to start"
+fi

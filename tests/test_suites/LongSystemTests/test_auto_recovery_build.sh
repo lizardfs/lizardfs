@@ -6,7 +6,7 @@ CHUNKSERVERS=2 \
 	MOUNTS=1 \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
 	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1 | SAVE_METADATA_AT_EXIT = 0"\
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
 
@@ -24,7 +24,7 @@ master_kill_loop() {
 
 cd "${info[mount0]}"
 assert_success git clone https://github.com/lizardfs/lizardfs.git
-mfssetgoal -r 2 lizardfs
+lfssetgoal -r 2 lizardfs
 mkdir lizardfs/build
 cd lizardfs/build
 assert_success cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install

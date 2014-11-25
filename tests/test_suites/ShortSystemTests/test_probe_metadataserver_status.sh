@@ -9,7 +9,7 @@ assert_eventually_prints $'master\trunning' \
 
 version=$(lizardfs-probe metadataserver-status --porcelain localhost ${info[matocl]} | cut -f3)
 # Version of last changelog entry.
-changelog_version=$(tail -1 "${info[master_data_path]}"/changelog.mfs | grep -o '^[0-9]*')
+changelog_version=$(tail -1 "${info[master_data_path]}"/changelog.lfs | grep -o '^[0-9]*')
 
 # Make sure probe returned correct metadata version.
 assert_equals $version "$((changelog_version + 1))"

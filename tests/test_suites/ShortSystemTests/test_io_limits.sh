@@ -6,7 +6,7 @@ echo "limit unclassified 1024" > "$iolimits"
 
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsiolimits=$iolimits" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER|lfsiolimits=$iolimits" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"

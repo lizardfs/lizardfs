@@ -10,7 +10,7 @@
 
 static bool createPipe(int pipefds[2]) {
 	if (pipe(pipefds) != 0) {
-		mfs_errlog(LOG_ERR, "pipe failed");
+		lfs_errlog(LOG_ERR, "pipe failed");
 		return false;
 	}
 	return true;
@@ -63,13 +63,13 @@ void MetadataDumper::setUseMetarestore(bool useMetarestore) {
  *    dump when last metarestore failed or when we don't want to use metarestore for dumping
  *    at all.
  *    Master tries to fork and its child, (without execing) dumps metadata.
- *    If everything went well, the child prints "OK" (mocking mfsmetarestore's behaviour),
+ *    If everything went well, the child prints "OK" (mocking lfsmetarestore's behaviour),
  *    so that master tries to run metarestore the next time (or he won't - useMetarestore_
  *    isn't changed).
  *    execMetarestore() modifies dumpType to kForegroundDump for the child.
  * 3) dumpType == kBackgroundDump && metarestoreSucceeded_ && useMetarestore_: background dump
  *    when we want to use metarestore and it didn't fail last time.
- *    Master forks and executes mfsmetarestore, which checks checksums and prints "OK" or "ERR".
+ *    Master forks and executes lfsmetarestore, which checks checksums and prints "OK" or "ERR".
  *    In case of a syscall error, last metarestore is assumed to have failed
  *    (metarestoreSucceeded_ = false), so that the master dumps its metadata itself.
  *    execMetarestore() modifies dumpType to kForegroundDump for the child.
@@ -92,7 +92,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 		if (errno == ENOENT || errno == EACCES) {
 			syslog(LOG_ERR, "no current changelog, dump by master");
 		} else {
-			mfs_errlog(LOG_ERR, "access error, dump by master");
+			lfs_errlog(LOG_ERR, "access error, dump by master");
 		}
 		dumpingSucceeded_ = false;
 	}
@@ -109,7 +109,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 	switch (fork()) {
 		case -1:
 			// on fork error store metadata in foreground
-			mfs_errlog(LOG_ERR, "fork failed");
+			lfs_errlog(LOG_ERR, "fork failed");
 			dumpType = kForegroundDump;
 			close(pipeFd[0]); // ignore close errors
 			close(pipeFd[1]);
@@ -118,11 +118,11 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 			close(pipeFd[0]); // ignore close error
 			if (dup2(pipeFd[1], 1)  == -1) {
 				// can't give the response
-				mfs_errlog(LOG_ERR, "dup2 failed, dump by master");
+				lfs_errlog(LOG_ERR, "dup2 failed, dump by master");
 				dumpingSucceeded_ = false;
 			}
 			if (useMetarestore_ && dumpingSucceeded_) {
-				// exec mfsmetarestore
+				// exec lfsmetarestore
 				std::string checksumStringified = std::to_string(checksum);
 				std::string storedMetaCopies = std::to_string(gStoredPreviousBackMetaCopies);
 				char* metarestoreArgs[] = {
@@ -140,7 +140,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 					NULL};
 				// the default value of the commandline nice
 				if (nice(10) == -1) {
-					mfs_errlog(LOG_WARNING, "dumping metadata: nice failed");
+					lfs_errlog(LOG_WARNING, "dumping metadata: nice failed");
 				}
 				execv(metarestorePath_.c_str(), metarestoreArgs);
 				syslog(LOG_WARNING, "exec %s failed: %s", metarestorePath_.c_str(), strerr(errno));
@@ -180,7 +180,7 @@ void MetadataDumper::pollServe(struct pollfd *pdesc) {
 		int ret = read(dumpingProcessFd_, buffer, sizeof(buffer) - 1);
 		buffer[ret] = '\0';
 		if (ret == -1) {
-			mfs_errlog(LOG_WARNING, "read from the process dumping metadata failed");
+			lfs_errlog(LOG_WARNING, "read from the process dumping metadata failed");
 			dumpingFinished();
 		} else if (ret == 0) {
 			dumpingFinished();
@@ -202,7 +202,7 @@ void MetadataDumper::pollServe(struct pollfd *pdesc) {
 
 void MetadataDumper::dumpingFinished() {
 	if (close(dumpingProcessFd_) == -1) {
-		mfs_errlog(LOG_ERR, "pipe close failed");
+		lfs_errlog(LOG_ERR, "pipe close failed");
 	}
 	dumpingProcessFd_ = -1;
 	dumpingProcessPollFdsPos_ = -1;
@@ -222,7 +222,7 @@ void MetadataDumper::waitUntilFinished(SteadyDuration timeout) {
 		sassert(n <= 1);
 		// on 0 `poll' returns immediately and that's fine
 		if (poll(pfd, n, stopwatch.remaining_ms()) == -1) {
-			mfs_errlog(LOG_ERR, "poll error during waiting for dumping to finish");
+			lfs_errlog(LOG_ERR, "poll error during waiting for dumping to finish");
 			break;
 		}
 		pollServe(pfd);

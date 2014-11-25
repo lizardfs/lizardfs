@@ -30,10 +30,10 @@ void InfoCommand::run(const Options& options) const {
 
 	ServerConnection connection(options.argument(0), options.argument(1));
 	std::vector<uint8_t> request, response;
-	serializeMooseFsPacket(request, CLTOMA_INFO);
+	serializeLizardFsPacket(request, CLTOMA_INFO);
 	response = connection.sendAndReceive(request, MATOCL_INFO);
 	LizardFsStatistics info;
-	deserializeAllMooseFsPacketDataNoHeader(response, info);
+	deserializeAllLizardFsPacketDataNoHeader(response, info);
 	if (options.isSet(kPorcelainMode)) {
 		std::cout << lizardfsVersionToString(info.version)
 				<< ' ' << info.memoryUsage

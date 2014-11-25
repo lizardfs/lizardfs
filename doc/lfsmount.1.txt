@@ -1,0 +1,210 @@
+lfsmount(1)
+===========
+
+== NAME
+
+lfsmount - mount Lizard File System
+
+== SYNOPSIS
+
+[verse]
+*lfsmount* 'mountpoint' [*-d*] [*-f*] [*-s*] [*-m*] [*-n*] [*-p*]
+         [*-H* 'HOST'] [*-P* 'PORT'] [*-S* 'PATH'] [*-o* 'opt'[,'opt']...]
+
+[verse]
+*lfsmount* *-h*|*--help*
+
+[verse]
+*lfsmount* *-V*|*--version*
+
+== DESCRIPTION
+
+Mount Lizard File System.
+
+General options:
+
+*-h*, *--help*::
+display help and exit
+
+*-V*::
+display version information and exit
+
+FUSE options:
+
+*-d*, *-o debug*::
+enable debug mode (implies *-f*)
+
+*-f*::
+foreground operation
+
+*-s*::
+disable multi-threaded operation
+
+LizardFS options:
+
+*-c* 'CFGFILE', *-o lfscfgfile=*'CFGFILE'::
+loads file with additional mount options
+
+*-m*, *--meta*, *-o lfsmeta*::
+mount LFSMETA companion filesystem instead of primary LizardFS
+
+*-n*::
+omit default mount options (*-o allow_other,default_permissions*)
+
+*-p*::
+prompt for password (interactive version of *-o lfspassword=*'PASS')
+
+*-H* 'HOST', *-o lfsmaster=*'HOST'::
+connect with LizardFS master on 'HOST' (default is lfsmaster)
+
+*-P* 'PORT', *-o lfsport=*'PORT'::
+connect with LizardFS master on 'PORT' (default is 9421)
+
+*-B* 'HOST', *-o lfsbind=*'HOST'::
+local address to use for connecting with master instead of default one
+
+*-S* 'PATH', *-o lfssubfolder=*'PATH'::
+mount specified LizardFS directory (default is /, i.e. whole filesystem)
+
+*-o lfspassword=*'PASSWORD'::
+authenticate to LizardFS master with 'PASSWORD'
+
+*-o lfsmd5pass=*'MD5'::
+authenticate to LizardFS master using directly given 'MD5' (only if *lfspassword* option is not
+specified)
+
+*-o lfsdelayedinit*::
+connection with master is done in background - with this option mount can be run without network
+(good for being run from fstab / init scripts etc.)
+
+*-o lfsacl*::
+enable ACL support (disabled by default)
+
+*-o lfsmkdircopysgid=*'N'::
+sgid bit should be copied during mkdir operation (on linux default: 1, otherwise: 0)
+
+*-o lfssugidclearmode=*'SMODE'::
+set sugid clear mode (see below)
+
+*-o lfsdebug*::
+print some LizardFS-specific debugging information
+
+*-o lfscachemode=*'CACHEMODE'::
+set cache mode (see *DATA CACHE MODES*; default is AUTO)
+
+*-o lfscachefiles*::
+(deprecated) preserve file data in cache (equivalent to *-o lfscachemode=*'YES')
+
+*-o lfsattrcacheto=*'SEC'::
+set attributes cache timeout in seconds (default: 1.0)
+
+*-o lfsentrycacheto=*'SEC'::
+set file entry cache timeout in seconds (default: 0.0, i.e. no cache)
+
+*-o lfsdirentrycacheto=*'SEC'::
+set directory entry cache timeout in seconds (default: 1.0)
+
+*-o lfswritecachesize=*'N'::
+specify write cache size in MiB (in range: 16..2048 - default: 128)
+
+*-o lfsrlimitnofile=*'N'::
+try to change limit of simultaneously opened file descriptors on startup
+(default: 100000)
+
+*-o lfsnice=*'LEVEL'::
+try to change nice level to specified value on startup (default: -19)
+
+*-o lfsmemlock*::
+try to lock memory (must be enabled at build time)
+
+*-o lfsdonotrememberpassword*::
+do not remember password in memory - more secure, but when session is lost then new session is
+created without password
+
+*-o lfsioretries=*'N'::
+specify number of retries before I/O error is returned (default: 30)
+
+*-o lfsreportreservedperiod=*'N'::
+specify interval of reporting reserved inodes in seconds (default: 60)
+
+*-o lfsiolimits=*'PATH'::
+specify local I/O limiting configuration file (default: no I/O limiting)
+
+General mount options (see *mount*(8) manual):
+
+*-o rw*|*-o ro*::
+Mount file-system in read-write (default) or read-only mode respectively.
+
+*-o suid*|*-o nosuid*::
+Enable or disable suid/sgid attributes to work.
+
+*-o dev*|*-o nodev*::
+Enable or disable character or block special device files interpretation.
+
+*-o exec*|*-o noexec*::
+Allow or disallow execution of binaries.
+
+== DATA CACHE MODES
+
+There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shuldn't
+change it unless you really know what you are doing. In *AUTO* mode data cache is managed
+automatically by lfsmaster.
+
+*NO*,*NONE* or *NEVER*::
+never allow files data to be kept in cache (safest but can reduce efficiency)
+
+*YES* or *ALWAYS*::
+always allow files data to be kept in cache (dangerous)
+
+*AUTO*::
+file cache is managed by lfsmaster automatically (should be very safe and efficient)
+
+== SUGID CLEAR MODE
+
+SMODE can be set to:
+
+ - *NEVER* - LFS will not change suid and sgid bit on chown
+
+ - *ALWAYS* - clear suid and sgid on every chown - safest operation
+
+ - *OSX* - standard behavior in OS X and Solaris (chown made by unprivileged user clear suid
+ and sgid)
+
+ - *BSD* - standard behavior in BSD systems (like in OSX, but only when something is really
+  changed)
+
+ - *EXT* - standard behavior in most file systems on Linux (directories not changed,
+  others: suid cleared always, sgid only when group exec bit is set)
+
+ - *XFS* - standard behavior in XFS on Linux (like EXT but directories are changed
+  by unprivileged users)
+
+SMODE extra info:
+
+btrfs,ext2,ext3,ext4,hfs[+],jfs,ntfs and reiserfs on Linux work as 'EXT'.
+
+Only xfs on Linux works a little different. Beware that there is a strange
+operation - chown(-1,-1) which is usually converted by a kernel into something
+like 'chmod ug-s', and therefore can't be controlled by LFS as 'chown'
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmaster(8), lfstools(1), lizardfs(7), mount(8)

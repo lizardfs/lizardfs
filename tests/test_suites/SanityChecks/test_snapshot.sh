@@ -1,20 +1,20 @@
 CHUNKSERVERS=4 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 # Create a small file of goal 2
 cd "${info[mount0]}"
 touch file
-mfssetgoal 2 file
+lfssetgoal 2 file
 FILE_SIZE=1M file-generate file
 assert_success file-validate file
 assert_equals 2 $(find_all_chunks | wc -l)
 
 # Create some snapshots of this file
-mfsmakesnapshot file file_snapshot1
-mfsmakesnapshot file file_snapshot2
-mfsmakesnapshot file file_snapshot3
+lfsmakesnapshot file file_snapshot1
+lfsmakesnapshot file file_snapshot2
+lfsmakesnapshot file file_snapshot3
 assert_success file-validate file*
 assert_equals 2 $(find_all_chunks | wc -l)
 

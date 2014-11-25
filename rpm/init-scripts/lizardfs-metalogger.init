@@ -20,14 +20,14 @@
 . /etc/sysconfig/network
 
 # Source initialization configuration.
-[ -r "/etc/sysconfig/mfsmetalogger" ] && . /etc/sysconfig/mfsmetalogger
+[ -r "/etc/sysconfig/lfsmetalogger" ] && . /etc/sysconfig/lfsmetalogger
 
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
-[ -x "@sbindir@/mfsmetalogger" ] || exit 1
+[ -x "@sbindir@/lfsmetalogger" ] || exit 1
 
 RETVAL=0
-prog="mfsmetalogger"
+prog="lfsmetalogger"
 
 start () {
     echo -n $"Starting $prog: "

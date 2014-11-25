@@ -400,7 +400,7 @@ def wdlock(fname,runmode,timeout):
 					print "can't find process to terminate"
 					return -1
 			if runmode==3:
-				print "mfscgiserv is not running"
+				print "lfscgiserv is not running"
 				return 0
 			print "lockfile created and locked"
 			return 1
@@ -409,7 +409,7 @@ def wdlock(fname,runmode,timeout):
 			return -1
 		else:
 			if runmode==3:
-				print "mfscgiserv pid:%u" % l
+				print "lfscgiserv pid:%u" % l
 				return 0
 			if runmode==1:
 				print "can't start: lockfile is already locked by another process"
@@ -456,7 +456,7 @@ if __name__=="__main__":
 
 	datapath = os.path.realpath(datapath)
 	rootpath = os.path.realpath(rootpath)
-	lockfname = datapath + os.path.sep + '.mfscgiserv.lock'
+	lockfname = datapath + os.path.sep + '.lfscgiserv.lock'
 
 	try:
 		mode = args[0]

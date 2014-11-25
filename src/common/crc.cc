@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <generic_crc.h>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 
 /*
  * CRC implementation from crcutil supports only little endian machines.

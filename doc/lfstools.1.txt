@@ -1,0 +1,127 @@
+lfstools(1)
+===========
+
+== NAME
+
+lfstools - perform LizardFS-specific operations
+
+== SYNOPSIS
+
+[verse]
+*lfsgetgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfssetgoal* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+
+[verse]
+*lfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+
+[verse]
+*lfssetquota* (*-u* 'UID' | *-g* 'GID') 'SOFT-LIMIT-SIZE' 'HARD-LIMIT-SIZE'
+              'SOFT-LIMIT-INODES' 'HARD-LIMIT-INODES' 'MOUNTPOINT-ROOT-PATH'
+
+[verse]
+*lfsrepquota* [*-nhH*] (*-u* 'UID' | *-g* 'GID')+ 'MOUNTPOINT-ROOT-PATH'
+*lfsrepquota* [*-nhH*] -a 'MOUNTPOINT-ROOT-PATH'
+
+[verse]
+*lfsgettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfsrgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+
+[verse]
+*lfsrsettrashtime* [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+
+[verse]
+*lfsgeteattr* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfsseteattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+[verse]
+*lfsdeleattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+
+[verse]
+*lfscheckfile* 'FILE'...
+
+[verse]
+*lfsfileinfo* 'FILE'...
+
+[verse]
+*lfsdirinfo* [*-n*|*-h*|*-H*] 'OBJECT'...
+
+[verse]
+*lfsfilerepair* [*-n*|*-h*|*-H*] 'FILE'...
+
+[verse]
+*lfsappendchunks* 'SNAPSHOT_FILE' 'OBJECT'...
+
+[verse]
+*lfsmakesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
+
+== DESCRIPTION
+
+See respective documents.
+
+== GENERAL OPTIONS
+
+Most of *lfstools* use following options to select format of printed numbers:
+
+*-n*::
+Print exact numbers (e.g. 1024).
+
+*-h*::
+Print numbers with binary prefixes (Ki, Mi, Gi as `2^10`, `2^20` etc.).
+
+*-H*::
+Print numbers with SI prefixes (k, M, G as `10^3`, `10^6` etc.).
+
+The same can be achieved by setting *LFSHRFORMAT* environment variable to: *0* (exact numbers),
+*1* or *h* (binary prefixes), *2* or *H* (SI prefixes), *3* or *h+* (exact numbers and binary
+prefixes), *4* or *H+* (exact numbers and SI prefixes). The default is to print just exact numbers.
+
+Other options:
+
+*-r*::
+This option enables recursive mode.
+
+== INHERITANCE
+
+When new object is created in LizardFS, attributes such as goal, trashtime and extra attributes are
+inherited from parent directory. So if you set i.e. "noowner" attribute and goal to 3 in a directory
+then every new object created in this directory will have goal set to 3 and "noowner" flag set. A
+newly created object inherits always the current set of its parent's attributes. Changing a
+directory attribute does not affect its already created children. To change an attribute for a
+directory and all of its children use `'-r'` option.
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmount(1), lfsappendchunks(1), lfscheckfile(1), lfsdeleattr(1), lfsdirinfo(1), lfsfileinfo(1),
+lfsfilerepair(1), lfsgeteattr(1), lfsgetgoal(1), lfsgettrashtime(1), lfsmakesnapshot(1),
+lfsrgetgoal(1), lfsrgettrashtime(1), lfsrsetgoal(1), lfsrsettrashtime(1), lfsseteattr(1),
+lfssetgoal(1), lfssettrashtime(1), lfsrepquota(1), lfssetquota(1), lizardfs(7)

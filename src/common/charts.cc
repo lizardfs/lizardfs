@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -489,7 +489,7 @@ void charts_store (void) {
 
 	fd = open(statsfilename,O_WRONLY | O_TRUNC | O_CREAT,0666);
 	if (fd<0) {
-		mfs_errlog(LOG_WARNING,"error creating charts data file");
+		lfs_errlog(LOG_WARNING,"error creating charts data file");
 		return;
 	}
 #ifdef USE_NET_ORDER
@@ -499,7 +499,7 @@ void charts_store (void) {
 	put32bit(&ptr,statdefscount);
 	put32bit(&ptr,timepoint[SHORTRANGE]);
 	if (write(fd,(void*)hdr,16)!=16) {
-		mfs_errlog(LOG_WARNING,"error writing charts data file");
+		lfs_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
 	}
@@ -509,7 +509,7 @@ void charts_store (void) {
 	hdr[2]=statdefscount;
 	hdr[3]=timepoint[SHORTRANGE];
 	if (write(fd,(void*)hdr,sizeof(uint32_t)*4)!=sizeof(uint32_t)*4) {
-		mfs_errlog(LOG_WARNING,"error writing charts data file");
+		lfs_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
 	}
@@ -519,7 +519,7 @@ void charts_store (void) {
 		memset(namehdr,0,100);
 		memcpy(namehdr,statdefs[i].name,(s>100)?100:s);
 		if (write(fd,(void*)namehdr,100)!=100) {
-			mfs_errlog(LOG_WARNING,"error writing charts data file");
+			lfs_errlog(LOG_WARNING,"error writing charts data file");
 			close(fd);
 			return;
 		}
@@ -532,20 +532,20 @@ void charts_store (void) {
 				put64bit(&ptr,tab[(p+s)%LENG]);
 			}
 			if (write(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-				mfs_errlog(LOG_WARNING,"error writing charts data file");
+				lfs_errlog(LOG_WARNING,"error writing charts data file");
 				close(fd);
 				return;
 			}
 #else
 			if (p<LENG) {
 				if (write(fd,(void*)(tab+p),sizeof(uint64_t)*(LENG-p))!=(ssize_t)(sizeof(uint64_t)*(LENG-p))) {
-					mfs_errlog(LOG_WARNING,"error writing charts data file");
+					lfs_errlog(LOG_WARNING,"error writing charts data file");
 					close(fd);
 					return;
 				}
 			}
 			if (write(fd,(void*)tab,sizeof(uint64_t)*p)!=(ssize_t)(sizeof(uint64_t)*p)) {
-				mfs_errlog(LOG_WARNING,"error writing charts data file");
+				lfs_errlog(LOG_WARNING,"error writing charts data file");
 				close(fd);
 				return;
 			}
@@ -697,15 +697,15 @@ void charts_load(void) {
 	fd = open(statsfilename,O_RDONLY);
 	if (fd<0) {
 		if (errno!=ENOENT) {
-			mfs_errlog(LOG_WARNING,"error reading charts data file");
+			lfs_errlog(LOG_WARNING,"error reading charts data file");
 		} else {
-			mfs_syslog(LOG_NOTICE,"no charts data file - initializing empty charts");
+			lfs_syslog(LOG_NOTICE,"no charts data file - initializing empty charts");
 		}
 		return;
 	}
 #ifdef USE_NET_ORDER
 	if (read(fd,(void*)hdr,16)!=16) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
+		lfs_errlog(LOG_WARNING,"error reading charts data file");
 		close(fd);
 		return;
 	}
@@ -716,14 +716,14 @@ void charts_load(void) {
 		memcpy((void*)&j,hdr,4);        // get first 4 bytes of hdr as a 32-bit number in "natural" order
 		if (j==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
+				lfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
 			}
 		} else if (j==3) {
 			if (charts_import_from_old_3ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
+				lfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
 			}
 		} else {
-			mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
+			lfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
 		}
 		close(fd);
 		return;
@@ -734,27 +734,27 @@ void charts_load(void) {
 	timepoint[SHORTRANGE]=i;
 #else
 	if (read(fd,(void*)hdr,sizeof(uint32_t))!=sizeof(uint32_t)) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
+		lfs_errlog(LOG_WARNING,"error reading charts data file");
 		close(fd);
 		return;
 	}
 	if (hdr[0]!=CHARTS_FILE_VERSION) {
 		if (hdr[0]==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
+				lfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
 			}
 		} else if (hdr[0]==3) {
 			if (charts_import_from_old_3ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
+				lfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
 			}
 		} else {
-			mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
+			lfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
 		}
 		close(fd);
 		return;
 	}
 	if (read(fd,(void*)hdr,sizeof(uint32_t)*3)!=sizeof(uint32_t)*3) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
+		lfs_errlog(LOG_WARNING,"error reading charts data file");
 		close(fd);
 		return;
 	}
@@ -768,7 +768,7 @@ void charts_load(void) {
 	pointers[VERYLONGRANGE]=LENG-1;
 	for (i=0 ; i<fcharts ; i++) {
 		if (read(fd,namehdr,100)!=100) {
-			mfs_errlog(LOG_WARNING,"error reading charts data file");
+			lfs_errlog(LOG_WARNING,"error reading charts data file");
 			close(fd);
 			return;
 		}
@@ -786,7 +786,7 @@ void charts_load(void) {
 #ifdef USE_NET_ORDER
 				if (fleng<LENG) {
 					if (read(fd,(void*)data,8*fleng)!=(ssize_t)(8*fleng)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
@@ -796,7 +796,7 @@ void charts_load(void) {
 					}
 				} else {
 					if (read(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
@@ -808,13 +808,13 @@ void charts_load(void) {
 #else
 				if (fleng<LENG) {
 					if (read(fd,(void*)(tab+(LENG-fleng)),sizeof(uint64_t)*fleng)!=(ssize_t)(sizeof(uint64_t)*fleng)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
 				} else {
 					if (read(fd,(void*)tab,sizeof(uint64_t)*LENG)!=(ssize_t)(sizeof(uint64_t)*LENG)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lfs_errlog(LOG_WARNING,"error reading charts data file");
 						close(fd);
 						return;
 					}
@@ -824,7 +824,7 @@ void charts_load(void) {
 		}
 	}
 	close(fd);
-	mfs_syslog(LOG_NOTICE,"stats file has been loaded");
+	lfs_syslog(LOG_NOTICE,"stats file has been loaded");
 	return;
 }
 

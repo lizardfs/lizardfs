@@ -5,8 +5,8 @@
 #include <exception>
 #include <string>
 
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 
 class Exception : public std::exception {
 public:
@@ -15,7 +15,7 @@ public:
 
 	Exception(const std::string& message, uint8_t status) : message_(message), status_(status) {
 		if (status != STATUS_OK) {
-			message_ += " (" + std::string(mfsstrerr(status)) + ")";
+			message_ += " (" + std::string(lfsstrerr(status)) + ")";
 		}
 	}
 

@@ -11,15 +11,15 @@
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/sbin/mfsmaster
-NAME=mfsmaster
+DAEMON=/usr/sbin/lfsmaster
+NAME=lfsmaster
 DESC=lizardfs-master
-DEFAULT_WORKING_USER=mfs
-DEFAULT_WORKING_GROUP=mfs
-DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_RUN_PATH=/var/run/mfs
-DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
-COMPAT_CFG=/etc/mfsmaster.cfg
+DEFAULT_WORKING_USER=lfs
+DEFAULT_WORKING_GROUP=lfs
+DEFAULT_DATA_PATH=/var/lib/lfs
+DEFAULT_RUN_PATH=/var/run/lfs
+DEFAULT_CFG=/etc/lfs/lfsmaster.cfg
+COMPAT_CFG=/etc/lfsmaster.cfg
 
 test -e $DAEMON || exit 0
 

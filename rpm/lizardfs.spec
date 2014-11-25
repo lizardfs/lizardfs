@@ -17,7 +17,7 @@ BuildRequires:  systemd
 %endif
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%define         liz_project        mfs
+%define         liz_project        lfs
 %define         liz_group          %{liz_project}
 %define         liz_user           %{liz_project}
 %define         liz_datadir        %{_localstatedir}/lib/%{liz_project}
@@ -26,7 +26,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %description
 LizardFS is an Open Source, easy to deploy and maintain, distributed,
 fault tolerant file system for POSIX compliant OSes.
-LizardFS is a fork of MooseFS. For more information please visit
+LizardFS is a fork of LizardFS. For more information please visit
 http://lizardfs.com
 
 # Packages
@@ -75,7 +75,7 @@ Requires:       fuse
 Requires:       fuse-libs
 
 %description client
-LizardFS client: mfsmount and mfstools.
+LizardFS client: lfsmount and lfstools.
 
 %package cgi
 Summary:        LizardFS CGI Monitor
@@ -286,27 +286,27 @@ rm -rf $RPM_BUILD_ROOT
 %files master
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_sbindir}/mfsmaster
-%attr(755,root,root) %{_sbindir}/mfsrestoremaster
-%attr(755,root,root) %{_sbindir}/mfsmetadump
-%attr(755,root,root) %{_sbindir}/mfsmetarestore
+%attr(755,root,root) %{_sbindir}/lfsmaster
+%attr(755,root,root) %{_sbindir}/lfsrestoremaster
+%attr(755,root,root) %{_sbindir}/lfsmetadump
+%attr(755,root,root) %{_sbindir}/lfsmetarestore
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
-%{_mandir}/man5/mfsexports.cfg.5*
-%{_mandir}/man5/mfstopology.cfg.5*
-%{_mandir}/man5/mfsgoals.cfg.5*
-%{_mandir}/man5/mfsmaster.cfg.5*
+%{_mandir}/man5/lfsexports.cfg.5*
+%{_mandir}/man5/lfstopology.cfg.5*
+%{_mandir}/man5/lfsgoals.cfg.5*
+%{_mandir}/man5/lfsmaster.cfg.5*
 %{_mandir}/man5/globaliolimits.cfg.5*
-%{_mandir}/man7/mfs.7*
-%{_mandir}/man7/moosefs.7*
+%{_mandir}/man7/lfs.7*
 %{_mandir}/man7/lizardfs.7*
-%{_mandir}/man8/mfsmaster.8*
-%{_mandir}/man8/mfsmetarestore.8*
-%{liz_confdir}/mfsexports.cfg.dist
-%{liz_confdir}/mfstopology.cfg.dist
-%{liz_confdir}/mfsgoals.cfg.dist
-%{liz_confdir}/mfsmaster.cfg.dist
+%{_mandir}/man7/lizardfs.7*
+%{_mandir}/man8/lfsmaster.8*
+%{_mandir}/man8/lfsmetarestore.8*
+%{liz_confdir}/lfsexports.cfg.dist
+%{liz_confdir}/lfstopology.cfg.dist
+%{liz_confdir}/lfsgoals.cfg.dist
+%{liz_confdir}/lfsmaster.cfg.dist
 %{liz_confdir}/globaliolimits.cfg.dist
-%attr(644,root,root) %{liz_datadir}/metadata.mfs.empty
+%attr(644,root,root) %{liz_datadir}/metadata.lfs.empty
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-master
 %endif
@@ -317,11 +317,11 @@ rm -rf $RPM_BUILD_ROOT
 %files metalogger
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_sbindir}/mfsmetalogger
+%attr(755,root,root) %{_sbindir}/lfsmetalogger
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
-%{_mandir}/man5/mfsmetalogger.cfg.5*
-%{_mandir}/man8/mfsmetalogger.8*
-%{liz_confdir}/mfsmetalogger.cfg.dist
+%{_mandir}/man5/lfsmetalogger.cfg.5*
+%{_mandir}/man8/lfsmetalogger.8*
+%{liz_confdir}/lfsmetalogger.cfg.dist
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-metalogger
 %endif
@@ -332,13 +332,13 @@ rm -rf $RPM_BUILD_ROOT
 %files chunkserver
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_sbindir}/mfschunkserver
+%attr(755,root,root) %{_sbindir}/lfschunkserver
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
-%{_mandir}/man5/mfschunkserver.cfg.5*
-%{_mandir}/man5/mfshdd.cfg.5*
-%{_mandir}/man8/mfschunkserver.8*
-%{liz_confdir}/mfschunkserver.cfg.dist
-%{liz_confdir}/mfshdd.cfg.dist
+%{_mandir}/man5/lfschunkserver.cfg.5*
+%{_mandir}/man5/lfshdd.cfg.5*
+%{_mandir}/man8/lfschunkserver.8*
+%{liz_confdir}/lfschunkserver.cfg.dist
+%{liz_confdir}/lfshdd.cfg.dist
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-chunkserver
 %endif
@@ -349,71 +349,71 @@ rm -rf $RPM_BUILD_ROOT
 %files client
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_bindir}/mfstools
-%attr(755,root,root) %{_bindir}/mfsmount
-%attr(755,root,root) %{_bindir}/mfssnapshot
-%{_bindir}/mfsappendchunks
-%{_bindir}/mfscheckfile
-%{_bindir}/mfsdeleattr
-%{_bindir}/mfsdirinfo
-%{_bindir}/mfsfileinfo
-%{_bindir}/mfsfilerepair
-%{_bindir}/mfsgeteattr
-%{_bindir}/mfsgetgoal
-%{_bindir}/mfsgettrashtime
-%{_bindir}/mfsmakesnapshot
-%{_bindir}/mfsrepquota
-%{_bindir}/mfsrgetgoal
-%{_bindir}/mfsrgettrashtime
-%{_bindir}/mfsrsetgoal
-%{_bindir}/mfsrsettrashtime
-%{_bindir}/mfsseteattr
-%{_bindir}/mfssetgoal
-%{_bindir}/mfssetquota
-%{_bindir}/mfssettrashtime
-%{_mandir}/man1/mfsappendchunks.1*
-%{_mandir}/man1/mfscheckfile.1*
-%{_mandir}/man1/mfsdeleattr.1*
-%{_mandir}/man1/mfsdirinfo.1*
-%{_mandir}/man1/mfsfileinfo.1*
-%{_mandir}/man1/mfsfilerepair.1*
-%{_mandir}/man1/mfsgeteattr.1*
-%{_mandir}/man1/mfsgetgoal.1*
-%{_mandir}/man1/mfsgettrashtime.1*
-%{_mandir}/man1/mfsmakesnapshot.1*
-%{_mandir}/man1/mfsrepquota.1*
-%{_mandir}/man1/mfsrgetgoal.1*
-%{_mandir}/man1/mfsrgettrashtime.1*
-%{_mandir}/man1/mfsrsetgoal.1*
-%{_mandir}/man1/mfsrsettrashtime.1*
-%{_mandir}/man1/mfsseteattr.1*
-%{_mandir}/man1/mfssetgoal.1*
-%{_mandir}/man1/mfssetquota.1*
-%{_mandir}/man1/mfssettrashtime.1*
-%{_mandir}/man1/mfstools.1*
+%attr(755,root,root) %{_bindir}/lfstools
+%attr(755,root,root) %{_bindir}/lfsmount
+%attr(755,root,root) %{_bindir}/lfssnapshot
+%{_bindir}/lfsappendchunks
+%{_bindir}/lfscheckfile
+%{_bindir}/lfsdeleattr
+%{_bindir}/lfsdirinfo
+%{_bindir}/lfsfileinfo
+%{_bindir}/lfsfilerepair
+%{_bindir}/lfsgeteattr
+%{_bindir}/lfsgetgoal
+%{_bindir}/lfsgettrashtime
+%{_bindir}/lfsmakesnapshot
+%{_bindir}/lfsrepquota
+%{_bindir}/lfsrgetgoal
+%{_bindir}/lfsrgettrashtime
+%{_bindir}/lfsrsetgoal
+%{_bindir}/lfsrsettrashtime
+%{_bindir}/lfsseteattr
+%{_bindir}/lfssetgoal
+%{_bindir}/lfssetquota
+%{_bindir}/lfssettrashtime
+%{_mandir}/man1/lfsappendchunks.1*
+%{_mandir}/man1/lfscheckfile.1*
+%{_mandir}/man1/lfsdeleattr.1*
+%{_mandir}/man1/lfsdirinfo.1*
+%{_mandir}/man1/lfsfileinfo.1*
+%{_mandir}/man1/lfsfilerepair.1*
+%{_mandir}/man1/lfsgeteattr.1*
+%{_mandir}/man1/lfsgetgoal.1*
+%{_mandir}/man1/lfsgettrashtime.1*
+%{_mandir}/man1/lfsmakesnapshot.1*
+%{_mandir}/man1/lfsrepquota.1*
+%{_mandir}/man1/lfsrgetgoal.1*
+%{_mandir}/man1/lfsrgettrashtime.1*
+%{_mandir}/man1/lfsrsetgoal.1*
+%{_mandir}/man1/lfsrsettrashtime.1*
+%{_mandir}/man1/lfsseteattr.1*
+%{_mandir}/man1/lfssetgoal.1*
+%{_mandir}/man1/lfssetquota.1*
+%{_mandir}/man1/lfssettrashtime.1*
+%{_mandir}/man1/lfstools.1*
 %{_mandir}/man5/iolimits.cfg.5*
-%{_mandir}/man7/mfs.7*
-%{_mandir}/man7/moosefs.7*
-%{_mandir}/man1/mfsmount.1*
-%{liz_confdir}/mfsmount.cfg.dist
+%{_mandir}/man7/lfs.7*
+%{_mandir}/man7/lizardfs.7*
+%{_mandir}/man1/lfsmount.1*
+%{liz_confdir}/lfsmount.cfg.dist
 %{liz_confdir}/iolimits.cfg.dist
 
 %files cgi
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%dir %{_datadir}/mfscgi
-%{_datadir}/mfscgi/err.gif
-%{_datadir}/mfscgi/favicon.ico
-%{_datadir}/mfscgi/index.html
-%{_datadir}/mfscgi/logomini.png
-%{_datadir}/mfscgi/mfs.css
-%attr(755,root,root) %{_datadir}/mfscgi/mfs.cgi
-%attr(755,root,root) %{_datadir}/mfscgi/chart.cgi
+%dir %{_datadir}/lfscgi
+%{_datadir}/lfscgi/err.gif
+%{_datadir}/lfscgi/favicon.ico
+%{_datadir}/lfscgi/index.html
+%{_datadir}/lfscgi/logomini.png
+%{_datadir}/lfscgi/lfs.css
+%attr(755,root,root) %{_datadir}/lfscgi/lfs.cgi
+%attr(755,root,root) %{_datadir}/lfscgi/chart.cgi
 
 %files cgiserv
 %defattr(644,root,root,755)
-%attr(755,root,root) %{_sbindir}/mfscgiserv
-%{_mandir}/man8/mfscgiserv.8*
+%attr(755,root,root) %{_sbindir}/lfscgiserv
+%{_mandir}/man8/lfscgiserv.8*
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-cgiserv
 %endif
@@ -485,23 +485,23 @@ rm -rf $RPM_BUILD_ROOT
 - (all) fix build on Mac OS X
 - (cgi) introducing LizardFS logo
 
-* Thu Feb 16 2012 Jakub Bogusz <contact@moosefs.com> - 1.6.27-1
-- adjusted to keep configuration files in /etc/mfs
-- require just mfsexports.cfg (master) and mfshdd.cfg (chunkserver) in RH-like
+* Thu Feb 16 2012 Jakub Bogusz <contact@lizardfs.com> - 1.6.27-1
+- adjusted to keep configuration files in /etc/lfs
+- require just lfsexports.cfg (master) and lfshdd.cfg (chunkserver) in RH-like
   init scripts; for other files defaults are just fine to run services
-- moved mfscgiserv to -cgiserv subpackage (-cgi alone can be used with any
-  external CGI-capable HTTP server), added mfscgiserv init script
+- moved lfscgiserv to -cgiserv subpackage (-cgi alone can be used with any
+  external CGI-capable HTTP server), added lfscgiserv init script
 
-* Fri Nov 19 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.19-1
-- separated mfs-metalogger subpackage (following Debian packaging)
+* Fri Nov 19 2010 Jakub Bogusz <contact@lizardfs.com> - 1.6.19-1
+- separated lfs-metalogger subpackage (following Debian packaging)
 
-* Fri Oct  8 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.17-1
+* Fri Oct  8 2010 Jakub Bogusz <contact@lizardfs.com> - 1.6.17-1
 - added init scripts based on work of Steve Huff (Dag Apt Repository)
   (included in RPMs when building with --define "distro rh")
 
-* Mon Jul 19 2010 Jakub Kruszona-Zawadzki <contact@moosefs.com> - 1.6.16-1
-- added mfscgiserv man page
+* Mon Jul 19 2010 Jakub Kruszona-Zawadzki <contact@lizardfs.com> - 1.6.16-1
+- added lfscgiserv man page
 
-* Fri Jun 11 2010 Jakub Bogusz <contact@moosefs.com> - 1.6.15-1
+* Fri Jun 11 2010 Jakub Bogusz <contact@lizardfs.com> - 1.6.15-1
 - initial spec file, based on Debian packaging;
   partially inspired by spec file by Kirby Zhou

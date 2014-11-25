@@ -1,17 +1,17 @@
-diff -upr mfs-1.6.27-old/mfsmount/main.c mfs-1.6.27/mfsmount/main.c
---- mfs-1.6.27-old/mfsmount/main.c	2012-08-06 07:21:33.000000000 +0200
-+++ mfs-1.6.27/mfsmount/main.c	2014-06-02 17:10:23.111561088 +0200
+diff -upr lfs-1.6.27-old/lfsmount/main.c lfs-1.6.27/lfsmount/main.c
+--- lfs-1.6.27-old/lfsmount/main.c	2012-08-06 07:21:33.000000000 +0200
++++ lfs-1.6.27/lfsmount/main.c	2014-06-02 17:10:23.111561088 +0200
 @@ -1012,15 +1012,17 @@ int main(int argc, char *argv[]) {
  
  	res = mainloop(&args,mountpoint,mt,fg);
  	fuse_opt_free_args(&args);
 +	fuse_opt_free_args(&defaultargs);
- 	free(mfsopts.masterhost);
- 	free(mfsopts.masterport);
- 	if (mfsopts.bindhost) {
- 		free(mfsopts.bindhost);
+ 	free(lfsopts.masterhost);
+ 	free(lfsopts.masterport);
+ 	if (lfsopts.bindhost) {
+ 		free(lfsopts.bindhost);
  	}
- 	free(mfsopts.subfolder);
+ 	free(lfsopts.subfolder);
 -	if (defaultmountpoint) {
 +	if (defaultmountpoint && defaultmountpoint != mountpoint) {
  		free(defaultmountpoint);

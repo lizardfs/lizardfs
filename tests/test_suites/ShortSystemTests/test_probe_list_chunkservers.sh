@@ -1,7 +1,7 @@
 CHUNKSERVERS=4 \
 	CHUNKSERVER_LABELS="0:cs0|1:cs1|2:cs2|3:cs3" \
 	MASTER_EXTRA_CONFIG="REPLICATIONS_DELAY_INIT = 100000" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
@@ -9,7 +9,7 @@ cd "${info[mount0]}"
 goals="3 4"
 for goal in $goals; do
 	mkdir dir_$goal
-	mfssetgoal $goal dir_$goal
+	lfssetgoal $goal dir_$goal
 	echo a > dir_$goal/file
 done
 
@@ -30,7 +30,7 @@ expect_equals "cs0 cs1 cs2 cs3" "$(awk '{print $10}' <<< "$cslist" | sort | xarg
 
 # Turn off one chunkserver and see what lizardfs-probe prints now
 export MESSAGE="Veryfing chunkservers list with one chunkserver down"
-mfschunkserver -c "${info[chunkserver0_config]}" stop
+lfschunkserver -c "${info[chunkserver0_config]}" stop
 lizardfs_wait_for_ready_chunkservers 3
 cslist=$(list_chunkservers)
 expect_awk_finds_no 'NF != 10' "$cslist"

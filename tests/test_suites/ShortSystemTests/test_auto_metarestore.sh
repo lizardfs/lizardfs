@@ -8,7 +8,7 @@ lizardfs_metalogger_daemon start
 for i in {1..5}; do
 	touch "${info[mount0]}/file_$i."{1..20}
 	lizardfs_master_daemon stop
-	cp "${info[master_data_path]}/metadata.mfs" "$TEMP_DIR/metadata.$i"
+	cp "${info[master_data_path]}/metadata.lfs" "$TEMP_DIR/metadata.$i"
 	if (( $i == 2 )); then
 		lizardfs_metalogger_daemon stop
 		rm "${info[master_data_path]}"/*changelog*
@@ -21,7 +21,7 @@ lizardfs_metalogger_daemon kill
 
 # Function takes three metadata files as arguments and tries to recover the filesystem
 verify_recovery() {
-	declare -A files=([metadata.mfs]="$1" [metadata.mfs.1]="$2" [metadata_ml.mfs]="$3")
+	declare -A files=([metadata.lfs]="$1" [metadata.lfs.1]="$2" [metadata_ml.lfs]="$3")
 	rm -f "${info[master_data_path]}"/metadata*
 	local filelist=""
 	for file in "${!files[@]}"; do
@@ -33,7 +33,7 @@ verify_recovery() {
 	(
 		export MESSAGE="$MESSAGE (from$filelist)"
 		echo "$MESSAGE"
-		assertlocal_success mfsmetarestore -d "${info[master_data_path]}" -a
+		assertlocal_success lfsmetarestore -d "${info[master_data_path]}" -a
 		assertlocal_success lizardfs_master_daemon start
 		expect_equals 100 $(ls "${info[mount0]}" | wc -l)
 		expect_success lizardfs_master_daemon kill
@@ -63,7 +63,7 @@ verify_recovery "" "$TEMP_DIR/metadata.1" "$TEMP_DIR/metadata.5"
 verify_recovery "$TEMP_DIR/metadata.1" "" "$TEMP_DIR/metadata.4"
 verify_recovery "$TEMP_DIR/metadata.1" "" "$TEMP_DIR/metadata.5"
 
-MESSAGE="Veryfing recovery when metadata.mfs is older than a backup"
+MESSAGE="Veryfing recovery when metadata.lfs is older than a backup"
 verify_recovery "$TEMP_DIR/metadata.1" "$TEMP_DIR/metadata.4" ""
 verify_recovery "$TEMP_DIR/metadata.1" "$TEMP_DIR/metadata.5" ""
 

@@ -1,0 +1,83 @@
+lfsmetalogger.cfg(5)
+====================
+
+== NAME
+
+lfsmetalogger.cfg - configuration file for lfsmetalogger
+
+== DESCRIPTION
+
+The file *lfsmetalogger.cfg* contains configuration of LizardFS metalogger process.
+
+== SYNTAX
+
+Syntax is:
+'OPTION' *=* 'VALUE'
+
+Lines starting with *#* character are ignored.
+
+== OPTIONS
+
+Configuration options:
+
+*DATA_PATH*::
+where to store metadata files
+
+*LOCK_FILE*::
+(deprecated)
+daemon lock/pid file
+
+*WORKING_USER*::
+user to run daemon as
+
+*WORKING_GROUP*::
+group to run daemon as (optional - if empty then default user group will be used)
+
+*SYSLOG_IDENT*::
+name of process to place in syslog messages (default is lfsmetalogger)
+
+*LOCK_MEMORY*::
+whether to perform mlockall() to avoid swapping out lfsmetalogger process (default is 0, i.e. no)
+
+*NICE_LEVEL*::
+nice level to run daemon with (default is -19 if possible; note: process must be started as root to
+increase priority)
+
+*BACK_LOGS*::
+number of metadata change log files (default is 50)
+
+*BACK_META_KEEP_PREVIOUS*::
+number of previous metadata files to be kept (default is 3)
+
+*META_DOWNLOAD_FREQ*::
+metadata download frequency in hours (default is 24, at most *BACK_LOGS*/2)
+
+*MASTER_HOST*::
+address of LizardFS master host to connect with (default is lfsmaster)
+
+*MASTER_PORT*::
+number of LizardFS master port to connect with (default is 9420)
+
+*MASTER_RECONNECTION_DELAY*::
+delay in seconds before trying to reconnect to master after disconnection (default is 30)
+
+*MASTER_TIMEOUT*::
+timeout (in seconds) for master connections (default is 60)
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmetalogger(8)

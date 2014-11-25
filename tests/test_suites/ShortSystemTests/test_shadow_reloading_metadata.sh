@@ -3,7 +3,7 @@ timeout_set '1 minute'
 CHUNKSERVERS=1 \
 	MASTERSERVERS=2 \
 	USE_RAMDISK="YES" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1" \
 	setup_local_empty_lizardfs info
 

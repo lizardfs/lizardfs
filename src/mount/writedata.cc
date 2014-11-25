@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,8 +37,8 @@
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"
 #include "common/sockets.h"
@@ -66,7 +66,7 @@
 #define IDHASH(inode) (((inode)*0xB239FB71)%IDHASHSIZE)
 
 typedef struct cblock_s {
-	uint8_t data[MFSBLOCKSIZE];     // modified only when writeid==0
+	uint8_t data[LFSBLOCKSIZE];     // modified only when writeid==0
 	uint32_t chindx;        // chunk number
 	uint16_t pos;           // block in chunk (0...1023) - never modified
 	uint32_t writeid;       // 0 = not sent, >0 = block was sent (modified and accessed only when wchunk is locked)
@@ -412,7 +412,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
 				" - fs_writechunk returns status: %s",
-				inodeData_->inode, chunkIndex_, mfsstrerr(writeChunkStatus));
+				inodeData_->inode, chunkIndex_, lfsstrerr(writeChunkStatus));
 		if (writeChunkStatus != ERROR_LOCKED) {
 			if (writeChunkStatus == ERROR_ENOENT) {
 				write_job_end(inodeData_, EBADF, 0);
@@ -674,7 +674,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 /*
  * Check if there is any data worth sending to the chunkserver.
- * We will avoid sending blocks of size different than MFSBLOCKSIZE.
+ * We will avoid sending blocks of size different than LFSBLOCKSIZE.
  * These can be taken only if we are close to run out of tasks to do.
  */
 bool InodeChunkWriter::tryGetNewBlockToWrite() {
@@ -682,7 +682,7 @@ bool InodeChunkWriter::tryGetNewBlockToWrite() {
 		if (inodeData_->datachainhead) {
 			uint32_t writeSize = inodeData_->datachainhead->to -
 					inodeData_->datachainhead->from;
-			if (writeSize == MFSBLOCKSIZE || requestsWaitingForStatus_ <= 1) {
+			if (writeSize == LFSBLOCKSIZE || requestsWaitingForStatus_ <= 1) {
 				currentBlock_ = inodeData_->datachainhead;
 				return true;
 			}
@@ -690,7 +690,7 @@ bool InodeChunkWriter::tryGetNewBlockToWrite() {
 	} else {
 		if (currentBlock_->next) {
 			if (currentBlock_->next->chindx == chunkIndex_) {
-				if (currentBlock_->next->to - currentBlock_->next->from == MFSBLOCKSIZE
+				if (currentBlock_->next->to - currentBlock_->next->from == LFSBLOCKSIZE
 						|| requestsWaitingForStatus_ <= 1) {
 					currentBlock_ = currentBlock_->next;
 					return true;
@@ -732,8 +732,8 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 	}
 
 	if (receivedStatus != STATUS_OK) {
-		syslog(LOG_WARNING, "writeworker: write error: %s", mfsstrerr(receivedStatus));
-		// convert MFS status to OS errno
+		syslog(LOG_WARNING, "writeworker: write error: %s", lfsstrerr(receivedStatus));
+		// convert LFS status to OS errno
 		if (receivedStatus == ERROR_NOSPACE) {
 			return ENOSPC;
 		} else {
@@ -780,8 +780,8 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 		}
 
 		// Update file size if changed
-		uint64_t writtenOffset = static_cast<uint64_t>(chunkIndex_) * MFSCHUNKSIZE;
-		writtenOffset += static_cast<uint64_t>(acknowledgedBlock->pos) * MFSBLOCKSIZE;
+		uint64_t writtenOffset = static_cast<uint64_t>(chunkIndex_) * LFSCHUNKSIZE;
+		writtenOffset += static_cast<uint64_t>(acknowledgedBlock->pos) * LFSBLOCKSIZE;
 		writtenOffset += acknowledgedBlock->to;
 		if (writtenOffset > fileLength_) {
 			fileLength_ = writtenOffset;
@@ -813,7 +813,7 @@ void* write_worker(void*) {
 
 /* API | glock: INITIALIZED,UNLOCKED */
 void write_data_init (uint32_t cachesize,uint32_t retries) {
-	uint32_t cacheblockcount = (cachesize/MFSBLOCKSIZE);
+	uint32_t cacheblockcount = (cachesize/LFSBLOCKSIZE);
 	uint32_t i;
 	pthread_attr_t thattr;
 
@@ -979,16 +979,16 @@ int write_data(void *vid,uint64_t offset,uint32_t size,const uint8_t *data) {
 		return status;
 	}
 
-	chindx = offset>>MFSCHUNKBITS;
-	pos = (offset&MFSCHUNKMASK)>>MFSBLOCKBITS;
-	from = offset&MFSBLOCKMASK;
+	chindx = offset>>LFSCHUNKBITS;
+	pos = (offset&LFSCHUNKMASK)>>LFSBLOCKBITS;
+	from = offset&LFSBLOCKMASK;
 	while (size>0) {
-		if (size>MFSBLOCKSIZE-from) {
-			if (write_block(id,chindx,pos,from,MFSBLOCKSIZE,data)<0) {
+		if (size>LFSBLOCKSIZE-from) {
+			if (write_block(id,chindx,pos,from,LFSBLOCKSIZE,data)<0) {
 				return EIO;
 			}
-			size -= (MFSBLOCKSIZE-from);
-			data += (MFSBLOCKSIZE-from);
+			size -= (LFSBLOCKSIZE-from);
+			data += (LFSBLOCKSIZE-from);
 			from = 0;
 			pos++;
 			if (pos==1024) {

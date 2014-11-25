@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 
 struct Setup {
 	std::string master_host;

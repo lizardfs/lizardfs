@@ -10,14 +10,14 @@ master_cfg+="|DISABLE_METADATA_CHECKSUM_VERIFICATION = 1"
 CHUNKSERVERS=1 \
 	MOUNTS=1 \
 	USE_RAMDISK="YES" \
-	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsattrcacheto=0,mfsreportreservedperiod=1" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
+	MOUNT_0_EXTRA_CONFIG="lfsacl,lfscachemode=NEVER,lfsattrcacheto=0,lfsreportreservedperiod=1" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	AUTO_SHADOW_MASTER="NO" \
 	setup_local_empty_lizardfs info
 
-changelog_file="${info[master_data_path]}/changelog.mfs"
-metadata_file="${info[master_data_path]}/metadata.mfs"
+changelog_file="${info[master_data_path]}/changelog.lfs"
+metadata_file="${info[master_data_path]}/metadata.lfs"
 
 # Remember version of the metadata file. We expect it not to change when generating data.
 metadata_version=$(metadata_get_version "$metadata_file")
@@ -26,7 +26,7 @@ metadata_version=$(metadata_get_version "$metadata_file")
 cd ${info[mount0]}
 touch file{00..99}
 assert_eventually '[[ $(grep RELEASE "$changelog_file" | wc -l) == 100 ]]'
-mfssettrashtime 0 file*
+lfssettrashtime 0 file*
 rm file{10..80}
 cd
 

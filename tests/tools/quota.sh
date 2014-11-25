@@ -5,5 +5,5 @@ function verify_quota {
 	local group=$2
 	local gid=$(id -g $group)
 	assert_equals "$expected_limits" \
-		"$(mfsrepquota -g $gid . | trim_hard | grep "Group $gid")" > /dev/null
+		"$(lfsrepquota -g $gid . | trim_hard | grep "Group $gid")" > /dev/null
 }

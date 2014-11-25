@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,8 +39,8 @@
 #include "common/datapack.h"
 #include "common/human_readable_format.h"
 #include "common/matocl_communication.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"
 
@@ -360,7 +360,7 @@ int master_register_old(int rfd) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n",mfsstrerr(*rptr));
+		printf("register to master: %s\n",lfsstrerr(*rptr));
 		return -1;
 	}
 	return 0;
@@ -401,7 +401,7 @@ int master_register(int rfd,uint32_t cuid) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n",mfsstrerr(*rptr));
+		printf("register to master: %s\n",lfsstrerr(*rptr));
 		return -1;
 	}
 	return 0;
@@ -469,7 +469,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
 						if (stb.st_ino==0x7FFFFFFE) {   // meta master
 							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
+								printf("%s: only files in 'trash' and 'reserved' are usable in lfsmeta\n",name);
 								return -1;
 							}
 							(*inode)&=INODE_VALUE_MASK;
@@ -533,12 +533,12 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
 						if (stb.st_ino==0x7FFFFFFE) {   // meta master
 							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
+								printf("%s: only files in 'trash' and 'reserved' are usable in lfsmeta\n",name);
 								return -1;
 							}
 							(*inode)&=INODE_VALUE_MASK;
 						}
-						fprintf(stderr,"old version of mfsmount detected - using old and deprecated version of protocol - please upgrade your mfsmount\n");
+						fprintf(stderr,"old version of lfsmount detected - using old and deprecated version of protocol - please upgrade your lfsmount\n");
 						sd = open(rpath,O_RDWR);
 						if (master_register_old(sd)<0) {
 							printf("%s: can't register to master (.master / old protocol)\n",name);
@@ -548,7 +548,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 						return sd;
 					}
 				}
-				printf("%s: not MFS object\n",name);
+				printf("%s: not LFS object\n",name);
 				return -1;
 			} else {
 				printf("%s: path too long\n",name);
@@ -556,7 +556,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 			}
 		}
 		if (rpath[0]!='/' || rpath[1]=='\0') {
-			printf("%s: not MFS object\n",name);
+			printf("%s: not LFS object\n",name);
 			return -1;
 		}
 		dirname_inplace(rpath);
@@ -630,7 +630,7 @@ int check_file(const char* fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng%3!=0 && leng!=44) {
@@ -772,7 +772,7 @@ int get_trashtime(const char *fname,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng<8 || leng%8!=0) {
@@ -876,7 +876,7 @@ int get_eattr(const char *fname,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng%5!=2) {
@@ -1067,7 +1067,7 @@ int set_trashtime(const char *fname,uint32_t trashtime,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng!=12) {
@@ -1148,7 +1148,7 @@ int set_eattr(const char *fname,uint8_t eattr,uint8_t mode) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng!=12) {
@@ -1244,7 +1244,7 @@ int file_info(const char *fileName) {
 				return -1;
 			}
 			if (status != STATUS_OK) {
-				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
+				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, lfsstrerr(status));
 				close_master_conn(1);
 				return -1;
 			}
@@ -1276,7 +1276,7 @@ int file_info(const char *fileName) {
 				}
 			}
 			chunkIndex++;
-		} while (chunkIndex < ((fileLength + MFSCHUNKMASK) >> MFSCHUNKBITS));
+		} while (chunkIndex < ((fileLength + LFSCHUNKMASK) >> LFSCHUNKBITS));
 	} catch (IncorrectDeserializationException& e) {
 		printf("%s [%" PRIu32 "]: master query: wrong answer (%s)\n",
 				fileName, chunkIndex, e.what());
@@ -1358,7 +1358,7 @@ int append_file(const char *fname,const char *afname) {
 		free(buff);
 		return -1;
 	} else if (*rptr!=STATUS_OK) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	}
@@ -1417,7 +1417,7 @@ int dir_info(const char *fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -1505,7 +1505,7 @@ int file_repair(const char *fname) {
 	}
 	leng-=4;
 	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
+		printf("%s: %s\n",fname,lfsstrerr(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;
@@ -1598,7 +1598,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 	}
 	close_master_conn(0);
 	if (*rptr!=0) {
-		printf("%s->%s/%s: %s\n",srcname,dstdir,dstbase,mfsstrerr(*rptr));
+		printf("%s->%s/%s: %s\n",srcname,dstdir,dstbase,lfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	}
@@ -1752,21 +1752,21 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 	}
 
 enum {
-	MFSGETGOAL=1,
-	MFSSETGOAL,
-	MFSGETTRASHTIME,
-	MFSSETTRASHTIME,
-	MFSCHECKFILE,
-	MFSFILEINFO,
-	MFSAPPENDCHUNKS,
-	MFSDIRINFO,
-	MFSFILEREPAIR,
-	MFSMAKESNAPSHOT,
-	MFSGETEATTR,
-	MFSSETEATTR,
-	MFSDELEATTR,
-	MFSSETQUOTA,
-	MFSREPQUOTA
+	LFSGETGOAL=1,
+	LFSSETGOAL,
+	LFSGETTRASHTIME,
+	LFSSETTRASHTIME,
+	LFSCHECKFILE,
+	LFSFILEINFO,
+	LFSAPPENDCHUNKS,
+	LFSDIRINFO,
+	LFSFILEREPAIR,
+	LFSMAKESNAPSHOT,
+	LFSGETEATTR,
+	LFSSETEATTR,
+	LFSDELEATTR,
+	LFSSETQUOTA,
+	LFSREPQUOTA
 };
 
 static inline void print_numberformat_options() {
@@ -1791,82 +1791,82 @@ static inline void print_extra_attributes() {
 
 void usage(int f) {
 	switch (f) {
-		case MFSGETGOAL:
-			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name ...]\n");
+		case LFSGETGOAL:
+			fprintf(stderr,"get objects goal (desired number of copies)\n\nusage: lfsgetgoal [-nhHr] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			break;
-		case MFSSETGOAL:
-			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
+		case LFSSETGOAL:
+			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: lfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
 			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
 			fprintf(stderr," GOAL - just set goal to given goal name\n");
 			break;
-		case MFSGETTRASHTIME:
-			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");
+		case LFSGETTRASHTIME:
+			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: lfsgettrashtime [-nhHr] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			break;
-		case MFSSETTRASHTIME:
-			fprintf(stderr,"set objects trashtime (how many seconds file should be left in trash)\n\nusage: mfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
+		case LFSSETTRASHTIME:
+			fprintf(stderr,"set objects trashtime (how many seconds file should be left in trash)\n\nusage: lfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr," SECONDS+ - increase trashtime to given value\n");
 			fprintf(stderr," SECONDS- - decrease trashtime to given value\n");
 			fprintf(stderr," SECONDS - just set trashtime to given value\n");
 			break;
-		case MFSCHECKFILE:
-			fprintf(stderr,"check files\n\nusage: mfscheckfile [-nhH] name [name ...]\n");
+		case LFSCHECKFILE:
+			fprintf(stderr,"check files\n\nusage: lfscheckfile [-nhH] name [name ...]\n");
 			break;
-		case MFSFILEINFO:
-			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name [name ...]\n");
+		case LFSFILEINFO:
+			fprintf(stderr,"show files info (shows detailed info of each file chunk)\n\nusage: lfsfileinfo name [name ...]\n");
 			break;
-		case MFSAPPENDCHUNKS:
-			fprintf(stderr,"append file chunks to another file. If destination file doesn't exist then it's created as empty file and then chunks are appended\n\nusage: mfsappendchunks dstfile name [name ...]\n");
+		case LFSAPPENDCHUNKS:
+			fprintf(stderr,"append file chunks to another file. If destination file doesn't exist then it's created as empty file and then chunks are appended\n\nusage: lfsappendchunks dstfile name [name ...]\n");
 			break;
-		case MFSDIRINFO:
-			fprintf(stderr,"show directories stats\n\nusage: mfsdirinfo [-nhH] name [name ...]\n");
+		case LFSDIRINFO:
+			fprintf(stderr,"show directories stats\n\nusage: lfsdirinfo [-nhH] name [name ...]\n");
 			print_numberformat_options();
 			fprintf(stderr,"\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n 'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage (usually size multiplied by current goal)\n");
 			break;
-		case MFSFILEREPAIR:
-			fprintf(stderr,"repair given file. Use it with caution. It forces file to be readable, so it could erase (fill with zeros) file when chunkservers are not currently connected.\n\nusage: mfsfilerepair [-nhH] name [name ...]\n");
+		case LFSFILEREPAIR:
+			fprintf(stderr,"repair given file. Use it with caution. It forces file to be readable, so it could erase (fill with zeros) file when chunkservers are not currently connected.\n\nusage: lfsfilerepair [-nhH] name [name ...]\n");
 			print_numberformat_options();
 			break;
-		case MFSMAKESNAPSHOT:
-			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-o] src [src ...] dst\n");
+		case LFSMAKESNAPSHOT:
+			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: lfsmakesnapshot [-o] src [src ...] dst\n");
 			fprintf(stderr,"-o - allow to overwrite existing objects\n");
 			break;
-		case MFSGETEATTR:
-			fprintf(stderr,"get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
+		case LFSGETEATTR:
+			fprintf(stderr,"get objects extra attributes\n\nusage: lfsgeteattr [-nhHr] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			break;
-		case MFSSETEATTR:
-			fprintf(stderr,"set objects extra attributes\n\nusage: mfsseteattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
+		case LFSSETEATTR:
+			fprintf(stderr,"set objects extra attributes\n\nusage: lfsseteattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr," -f attrname - specify attribute to set\n");
 			print_extra_attributes();
 			break;
-		case MFSDELEATTR:
-			fprintf(stderr,"delete objects extra attributes\n\nusage: mfsdeleattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
+		case LFSDELEATTR:
+			fprintf(stderr,"delete objects extra attributes\n\nusage: lfsdeleattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr," -f attrname - specify attribute to delete\n");
 			print_extra_attributes();
 			break;
-		case MFSREPQUOTA:
+		case LFSREPQUOTA:
 			fprintf(stderr, "summarize quotas for a user/group or all users and groups\n\n"
-					"usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
-					"       mfsrepquota [-nhH] -a <mountpoint-root-path>\n");
+					"usage: lfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
+					"       lfsrepquota [-nhH] -a <mountpoint-root-path>\n");
 			print_numberformat_options();
 			break;
-		case MFSSETQUOTA:
+		case LFSSETQUOTA:
 			fprintf(stderr, "set quotas\n\n"
-					"usage: mfssetquota (-u <uid>|-g <gid>) "
+					"usage: lfssetquota (-u <uid>|-g <gid>) "
 					"<soft-limit-size> <hard-limit-size> "
 					"<soft-limit-inodes> <hard-limit-inodes> <mountpoint-root-path>\n"
 				    " 0 deletes the limit\n");
@@ -1909,7 +1909,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	if (fd < 0) {
 		return -1;
 	}
-	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
+	check_usage(LFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
 				LIZ_MATOCL_FUSE_GET_QUOTA);
@@ -1972,7 +1972,7 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 	if (fd < 0) {
 		return -1;
 	}
-	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
+	check_usage(LFSSETQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		std::vector<uint8_t> response =
 			ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
@@ -2005,100 +2005,100 @@ int main(int argc,char **argv) {
 
 	l = strlen(argv[0]);
 #define CHECKNAME(name) ((l==(int)(sizeof(name)-1) && strcmp(argv[0],name)==0) || (l>(int)(sizeof(name)-1) && strcmp((argv[0])+(l-sizeof(name)),"/" name)==0))
-	if (CHECKNAME("mfstools")) {
+	if (CHECKNAME("lfstools")) {
 		if (argc==2 && strcmp(argv[1],"create")==0) {
 			fprintf(stderr,"create symlinks\n");
 #define SYMLINK(name)   if (symlink(argv[0],name)<0) { \
 				perror("error creating symlink '" name "'"); \
 			}
-			SYMLINK("mfsgetgoal")
-			SYMLINK("mfssetgoal")
-			SYMLINK("mfsgettrashtime")
-			SYMLINK("mfssettrashtime")
-			SYMLINK("mfscheckfile")
-			SYMLINK("mfsfileinfo")
-			SYMLINK("mfsappendchunks")
-			SYMLINK("mfsdirinfo")
-			SYMLINK("mfsfilerepair")
-			SYMLINK("mfsmakesnapshot")
-			SYMLINK("mfsgeteattr")
-			SYMLINK("mfsseteattr")
-			SYMLINK("mfsdeleattr")
-			SYMLINK("mfsrepquota")
-			SYMLINK("mfssetquota")
+			SYMLINK("lfsgetgoal")
+			SYMLINK("lfssetgoal")
+			SYMLINK("lfsgettrashtime")
+			SYMLINK("lfssettrashtime")
+			SYMLINK("lfscheckfile")
+			SYMLINK("lfsfileinfo")
+			SYMLINK("lfsappendchunks")
+			SYMLINK("lfsdirinfo")
+			SYMLINK("lfsfilerepair")
+			SYMLINK("lfsmakesnapshot")
+			SYMLINK("lfsgeteattr")
+			SYMLINK("lfsseteattr")
+			SYMLINK("lfsdeleattr")
+			SYMLINK("lfsrepquota")
+			SYMLINK("lfssetquota")
 			// deprecated tools:
-			SYMLINK("mfsrgetgoal")
-			SYMLINK("mfsrsetgoal")
-			SYMLINK("mfsrgettrashtime")
-			SYMLINK("mfsrsettrashtime")
+			SYMLINK("lfsrgetgoal")
+			SYMLINK("lfsrsetgoal")
+			SYMLINK("lfsrgettrashtime")
+			SYMLINK("lfsrsettrashtime")
 			return 0;
 		} else {
-			fprintf(stderr,"mfs multi tool\n\nusage:\n\tmfstools create - create symlinks (mfs<toolname> -> %s)\n",argv[0]);
+			fprintf(stderr,"lfs multi tool\n\nusage:\n\tlfstools create - create symlinks (lfs<toolname> -> %s)\n",argv[0]);
 			fprintf(stderr,"\ntools:\n");
-			fprintf(stderr,"\tmfsgetgoal\n\tmfssetgoal\n\tmfsgettrashtime\n\tmfssettrashtime\n");
-			fprintf(stderr,"\tmfssetquota\n\tmfsrepquota\n");
-			fprintf(stderr,"\tmfscheckfile\n\tmfsfileinfo\n\tmfsappendchunks\n\tmfsdirinfo\n\tmfsfilerepair\n");
-			fprintf(stderr,"\tmfsmakesnapshot\n");
-			fprintf(stderr,"\tmfsgeteattr\n\tmfsseteattr\n\tmfsdeleattr\n");
+			fprintf(stderr,"\tlfsgetgoal\n\tlfssetgoal\n\tlfsgettrashtime\n\tlfssettrashtime\n");
+			fprintf(stderr,"\tlfssetquota\n\tlfsrepquota\n");
+			fprintf(stderr,"\tlfscheckfile\n\tlfsfileinfo\n\tlfsappendchunks\n\tlfsdirinfo\n\tlfsfilerepair\n");
+			fprintf(stderr,"\tlfsmakesnapshot\n");
+			fprintf(stderr,"\tlfsgeteattr\n\tlfsseteattr\n\tlfsdeleattr\n");
 			fprintf(stderr,"\ndeprecated tools:\n");
-			fprintf(stderr,"\tmfsrgetgoal = mfsgetgoal -r\n");
-			fprintf(stderr,"\tmfsrsetgoal = mfssetgoal -r\n");
-			fprintf(stderr,"\tmfsrgettrashtime = mfsgettreshtime -r\n");
-			fprintf(stderr,"\tmfsrsettrashtime = mfssettreshtime -r\n");
+			fprintf(stderr,"\tlfsrgetgoal = lfsgetgoal -r\n");
+			fprintf(stderr,"\tlfsrsetgoal = lfssetgoal -r\n");
+			fprintf(stderr,"\tlfsrgettrashtime = lfsgettreshtime -r\n");
+			fprintf(stderr,"\tlfsrsettrashtime = lfssettreshtime -r\n");
 			return 1;
 		}
-	} else if (CHECKNAME("mfsgetgoal")) {
-		f=MFSGETGOAL;
-	} else if (CHECKNAME("mfsrgetgoal")) {
-		f=MFSGETGOAL;
+	} else if (CHECKNAME("lfsgetgoal")) {
+		f=LFSGETGOAL;
+	} else if (CHECKNAME("lfsrgetgoal")) {
+		f=LFSGETGOAL;
 		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfsgetgoal -r\"\n");
-	} else if (CHECKNAME("mfssetgoal")) {
-		f=MFSSETGOAL;
-	} else if (CHECKNAME("mfsrsetgoal")) {
-		f=MFSSETGOAL;
+		fprintf(stderr,"deprecated tool - use \"lfsgetgoal -r\"\n");
+	} else if (CHECKNAME("lfssetgoal")) {
+		f=LFSSETGOAL;
+	} else if (CHECKNAME("lfsrsetgoal")) {
+		f=LFSSETGOAL;
 		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfssetgoal -r\"\n");
-	} else if (CHECKNAME("mfsgettrashtime")) {
-		f=MFSGETTRASHTIME;
-	} else if (CHECKNAME("mfsrgettrashtime")) {
-		f=MFSGETTRASHTIME;
+		fprintf(stderr,"deprecated tool - use \"lfssetgoal -r\"\n");
+	} else if (CHECKNAME("lfsgettrashtime")) {
+		f=LFSGETTRASHTIME;
+	} else if (CHECKNAME("lfsrgettrashtime")) {
+		f=LFSGETTRASHTIME;
 		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfsgettrashtime -r\"\n");
-	} else if (CHECKNAME("mfssettrashtime")) {
-		f=MFSSETTRASHTIME;
-	} else if (CHECKNAME("mfsrsettrashtime")) {
-		f=MFSSETTRASHTIME;
+		fprintf(stderr,"deprecated tool - use \"lfsgettrashtime -r\"\n");
+	} else if (CHECKNAME("lfssettrashtime")) {
+		f=LFSSETTRASHTIME;
+	} else if (CHECKNAME("lfsrsettrashtime")) {
+		f=LFSSETTRASHTIME;
 		rflag=1;
-		fprintf(stderr,"deprecated tool - use \"mfssettrashtime -r\"\n");
-	} else if (CHECKNAME("mfscheckfile")) {
-		f=MFSCHECKFILE;
-	} else if (CHECKNAME("mfsfileinfo")) {
-		f=MFSFILEINFO;
-	} else if (CHECKNAME("mfsappendchunks")) {
-		f=MFSAPPENDCHUNKS;
-	} else if (CHECKNAME("mfsdirinfo")) {
-		f=MFSDIRINFO;
-	} else if (CHECKNAME("mfsgeteattr")) {
-		f=MFSGETEATTR;
-	} else if (CHECKNAME("mfsseteattr")) {
-		f=MFSSETEATTR;
-	} else if (CHECKNAME("mfsdeleattr")) {
-		f=MFSDELEATTR;
-	} else if (CHECKNAME("mfsfilerepair")) {
-		f=MFSFILEREPAIR;
-	} else if (CHECKNAME("mfsmakesnapshot")) {
-		f=MFSMAKESNAPSHOT;
-	} else if (CHECKNAME("mfsrepquota")) {
-		f = MFSREPQUOTA;
-	} else if (CHECKNAME("mfssetquota")) {
-		f = MFSSETQUOTA;
+		fprintf(stderr,"deprecated tool - use \"lfssettrashtime -r\"\n");
+	} else if (CHECKNAME("lfscheckfile")) {
+		f=LFSCHECKFILE;
+	} else if (CHECKNAME("lfsfileinfo")) {
+		f=LFSFILEINFO;
+	} else if (CHECKNAME("lfsappendchunks")) {
+		f=LFSAPPENDCHUNKS;
+	} else if (CHECKNAME("lfsdirinfo")) {
+		f=LFSDIRINFO;
+	} else if (CHECKNAME("lfsgeteattr")) {
+		f=LFSGETEATTR;
+	} else if (CHECKNAME("lfsseteattr")) {
+		f=LFSSETEATTR;
+	} else if (CHECKNAME("lfsdeleattr")) {
+		f=LFSDELEATTR;
+	} else if (CHECKNAME("lfsfilerepair")) {
+		f=LFSFILEREPAIR;
+	} else if (CHECKNAME("lfsmakesnapshot")) {
+		f=LFSMAKESNAPSHOT;
+	} else if (CHECKNAME("lfsrepquota")) {
+		f = LFSREPQUOTA;
+	} else if (CHECKNAME("lfssetquota")) {
+		f = LFSSETQUOTA;
 	} else {
 		fprintf(stderr,"unknown binary name\n");
 		return 1;
 	}
 
-	hrformat = getenv("MFSHRFORMAT");
+	hrformat = getenv("LFSHRFORMAT");
 	if (hrformat) {
 		if (hrformat[0]>='0' && hrformat[0]<='4') {
 			humode=hrformat[0]-'0';
@@ -2121,7 +2121,7 @@ int main(int argc,char **argv) {
 
 	// parse options
 	switch (f) {
-	case MFSMAKESNAPSHOT:
+	case LFSMAKESNAPSHOT:
 		while ((ch=getopt(argc,argv,"o"))!=-1) {
 			switch(ch) {
 			case 'o':
@@ -2135,10 +2135,10 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		return snapshot(argv[argc-1],argv,argc-1,oflag);
-	case MFSGETGOAL:
-	case MFSSETGOAL:
-	case MFSGETTRASHTIME:
-	case MFSSETTRASHTIME:
+	case LFSGETGOAL:
+	case LFSSETGOAL:
+	case LFSGETTRASHTIME:
+	case LFSSETTRASHTIME:
 		while ((ch=getopt(argc,argv,"rnhH"))!=-1) {
 			switch(ch) {
 			case 'n':
@@ -2157,10 +2157,10 @@ int main(int argc,char **argv) {
 		}
 		argc -= optind;
 		argv += optind;
-		if ((f==MFSSETGOAL || f==MFSSETTRASHTIME) && argc==0) {
+		if ((f==LFSSETGOAL || f==LFSSETTRASHTIME) && argc==0) {
 			usage(f);
 		}
-		if (f==MFSSETGOAL) {
+		if (f==LFSSETGOAL) {
 			goal = argv[0];
 			if (!goal.empty() && goal.back() == '-') {
 				smode = SMODE_DECREASE;
@@ -2172,7 +2172,7 @@ int main(int argc,char **argv) {
 			argc--;
 			argv++;
 		}
-		if (f==MFSSETTRASHTIME) {
+		if (f==LFSSETTRASHTIME) {
 			char *p = argv[0];
 			trashtime = 0;
 			while (p[0]>='0' && p[0]<='9') {
@@ -2194,7 +2194,7 @@ int main(int argc,char **argv) {
 			argv++;
 		}
 		break;
-	case MFSGETEATTR:
+	case LFSGETEATTR:
 		while ((ch=getopt(argc,argv,"rnhH"))!=-1) {
 			switch(ch) {
 			case 'n':
@@ -2214,8 +2214,8 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		break;
-	case MFSSETEATTR:
-	case MFSDELEATTR:
+	case LFSSETEATTR:
+	case LFSDELEATTR:
 		while ((ch=getopt(argc,argv,"rnhHf:"))!=-1) {
 			switch(ch) {
 			case 'n':
@@ -2248,7 +2248,7 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		if (eattr==0 && argc>=1) {
-			if (f==MFSSETEATTR) {
+			if (f==LFSSETEATTR) {
 				fprintf(stderr,"no attribute(s) to set\n");
 			} else {
 				fprintf(stderr,"no attribute(s) to delete\n");
@@ -2256,9 +2256,9 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		break;
-	case MFSFILEREPAIR:
-	case MFSDIRINFO:
-	case MFSCHECKFILE:
+	case LFSFILEREPAIR:
+	case LFSDIRINFO:
+	case LFSCHECKFILE:
 		while ((ch=getopt(argc,argv,"nhH"))!=-1) {
 			switch(ch) {
 			case 'n':
@@ -2275,14 +2275,14 @@ int main(int argc,char **argv) {
 		argc -= optind;
 		argv += optind;
 		break;
-	case MFSREPQUOTA:
-	case MFSSETQUOTA: {
+	case LFSREPQUOTA:
+	case LFSSETQUOTA: {
 		std::vector<int> uid;
 		std::vector<int> gid;
 		bool reportAll = false;
 		char* endptr = nullptr;
 		std::string mountPath;
-		const char* options = (f == MFSREPQUOTA) ? "nhHu:g:a" : "u:g:";
+		const char* options = (f == LFSREPQUOTA) ? "nhHu:g:a" : "u:g:";
 		while ((ch = getopt(argc, argv, options)) != -1) {
 			switch (ch) {
 				case 'n':
@@ -2312,13 +2312,13 @@ int main(int argc,char **argv) {
 		}
 		check_usage(f, !((uid.size() + gid.size() != 0) ^ reportAll),
 				"provide either -a flag or uid/gid\n");
-		check_usage(f, f == MFSSETQUOTA && uid.size() + gid.size() != 1,
+		check_usage(f, f == LFSSETQUOTA && uid.size() + gid.size() != 1,
 				"provide a single user/group id\n");
 
 		argc -= optind;
 		argv += optind;
 
-		if (f == MFSSETQUOTA) {
+		if (f == LFSSETQUOTA) {
 			check_usage(f, argc != 5, "expected parameters: <hard-limit-size> <soft-limit-size> "
 					"<hard-limit-inodes> <soft-limit-inodes> <mountpoint-root-path>\n");
 			uint64_t quotaSoftInodes = 0, quotaHardInodes = 0, quotaSoftSize = 0,
@@ -2352,7 +2352,7 @@ int main(int argc,char **argv) {
 		argv += optind;
 	}
 
-	if (f==MFSAPPENDCHUNKS) {
+	if (f==LFSAPPENDCHUNKS) {
 		if (argc<=1) {
 			usage(f);
 		}
@@ -2373,62 +2373,62 @@ int main(int argc,char **argv) {
 	status=0;
 	while (argc>0) {
 		switch (f) {
-		case MFSGETGOAL:
+		case LFSGETGOAL:
 			if (get_goal(*argv,(rflag)?GMODE_RECURSIVE:GMODE_NORMAL)<0) {
 				status=1;
 			}
 			break;
-		case MFSSETGOAL:
+		case LFSSETGOAL:
 			if (set_goal(*argv,goal,(rflag)?(smode | SMODE_RMASK):smode)<0) {
 				status=1;
 			}
 			break;
-		case MFSGETTRASHTIME:
+		case LFSGETTRASHTIME:
 			if (get_trashtime(*argv,(rflag)?GMODE_RECURSIVE:GMODE_NORMAL)<0) {
 				status=1;
 			}
 			break;
-		case MFSSETTRASHTIME:
+		case LFSSETTRASHTIME:
 			if (set_trashtime(*argv,trashtime,(rflag)?(smode | SMODE_RMASK):smode)<0) {
 				status=1;
 			}
 			break;
-		case MFSCHECKFILE:
+		case LFSCHECKFILE:
 			if (check_file(*argv)<0) {
 				status=1;
 			}
 			break;
-		case MFSFILEINFO:
+		case LFSFILEINFO:
 			if (file_info(*argv)<0) {
 				status=1;
 			}
 			break;
-		case MFSAPPENDCHUNKS:
+		case LFSAPPENDCHUNKS:
 			if (append_file(appendfname,*argv)<0) {
 				status=1;
 			}
 			break;
-		case MFSDIRINFO:
+		case LFSDIRINFO:
 			if (dir_info(*argv)<0) {
 				status=1;
 			}
 			break;
-		case MFSFILEREPAIR:
+		case LFSFILEREPAIR:
 			if (file_repair(*argv)<0) {
 				status=1;
 			}
 			break;
-		case MFSGETEATTR:
+		case LFSGETEATTR:
 			if (get_eattr(*argv,(rflag)?GMODE_RECURSIVE:GMODE_NORMAL)<0) {
 				status=1;
 			}
 			break;
-		case MFSSETEATTR:
+		case LFSSETEATTR:
 			if (set_eattr(*argv,eattr,(rflag)?(SMODE_RMASK | SMODE_INCREASE):SMODE_INCREASE)<0) {
 				status=1;
 			}
 			break;
-		case MFSDELEATTR:
+		case LFSDELEATTR:
 			if (set_eattr(*argv,eattr,(rflag)?(SMODE_RMASK | SMODE_DECREASE):SMODE_DECREASE)<0) {
 				status=1;
 			}

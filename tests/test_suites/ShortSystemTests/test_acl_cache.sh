@@ -21,9 +21,9 @@ function get_facl() {
 
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
+	LFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
 	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = master.cltoma_fuse_getacl:$TEMP_DIR/aclcache.log" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl|mfsaclcachesize=2|mfsaclcacheto=5.0" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER|lfsacl|lfsaclcachesize=2|lfsaclcacheto=5.0" \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}

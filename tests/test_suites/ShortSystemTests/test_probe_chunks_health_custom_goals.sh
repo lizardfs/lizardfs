@@ -1,7 +1,7 @@
 CHUNKSERVERS=2 \
 	CHUNKSERVER_LABELS="0:A" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	MASTER_CUSTOM_GOALS="5 AA: A A|6 A_: A _|7 A__: A _ _|8 BB: B B|`
 			`9 B_: B _|10 BB_: B B _|11 AB: A B|12 AB_: A B _|`
 			`13 AA_: A A _|14 B__: B _ _" \
@@ -13,7 +13,7 @@ goals="2 3 4"
 cd "${info[mount0]}"
 for goal in $goals; do
 	touch file_$goal
-	mfssetgoal $goal file_$goal
+	lfssetgoal $goal file_$goal
 	echo a > file_$goal
 done
 
@@ -43,11 +43,11 @@ output+=([B__]="AVA B__ 3|REP B__ 0 3|DEL B__ 3")
 # files goal back and forth
 for new_goal in "${!output[@]}"; do
 	MESSAGE="Testing goal ${new_goal}"
-	mfssetgoal ${new_goal} file_*
+	lfssetgoal ${new_goal} file_*
 	expect_equals "${output[$new_goal]}" "$(chunks-health-trimmed)"
 	chunks-health-trimmed
 	for old_goal in $goals; do
-		mfssetgoal ${old_goal} file_${old_goal}
+		lfssetgoal ${old_goal} file_${old_goal}
 	done
 	expect_equals "$first_output" "$(chunks-health-trimmed)"
 done

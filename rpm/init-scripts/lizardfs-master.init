@@ -20,14 +20,14 @@
 . /etc/sysconfig/network
 
 # Source initialization configuration.
-[ -r "/etc/sysconfig/mfsmaster" ] && . /etc/sysconfig/mfsmaster
+[ -r "/etc/sysconfig/lfsmaster" ] && . /etc/sysconfig/lfsmaster
 
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
-[ -x "@sbindir@/mfsmaster" ] || exit 1
+[ -x "@sbindir@/lfsmaster" ] || exit 1
 
 RETVAL=0
-prog="mfsmaster"
+prog="lfsmaster"
 
 start () {
     echo -n $"Starting $prog: "

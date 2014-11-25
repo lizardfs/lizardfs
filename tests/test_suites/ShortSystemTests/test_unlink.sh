@@ -1,7 +1,7 @@
 timeout_set 4 minutes
 
 CHUNKSERVERS=3 \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
@@ -9,9 +9,9 @@ CHUNKSERVERS=3 \
 # Create a file consising of a couple of chunks and remove it
 file="${info[mount0]}/file"
 touch "$file"
-mfssetgoal 3 "$file"
+lfssetgoal 3 "$file"
 dd if=/dev/zero of="$file" bs=1MiB count=130
-mfssettrashtime 0 "$file"
+lfssettrashtime 0 "$file"
 rm -f "$file"
 
 # Wait for removing all the chunks

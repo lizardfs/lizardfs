@@ -42,7 +42,7 @@ test_end() {
 		set +x
 	fi
 	test_freeze_result
-	# some tests may leave pwd at mfs mount point, causing a lockup when we stop mfs
+	# some tests may leave pwd at lfs mount point, causing a lockup when we stop lfs
 	cd
 	if valgrind_enabled; then
 		valgrind_terminate
@@ -50,7 +50,7 @@ test_end() {
 	# terminate all LizardFS daemons if requested (eg. to collect some code coverage data)
 	if [[ ${GENTLY_KILL:-} ]]; then
 		for i in {1..50}; do
-			local pattern='mfs|lizardfs-polo|polonaise-'
+			local pattern='lfs|lizardfs-polo|polonaise-'
 			pkill -USR1 -u lizardfstest "$pattern" || true
 			if ! pgrep -u lizardfstest "$pattern" >/dev/null; then
 				echo "All LizardFS processes terminated"
@@ -115,13 +115,13 @@ mass_chmod_777() {
 # Do not use directly
 # This removes all temporary files and unmounts filesystems
 test_cleanup() {
-	# Unmount all mfsmounts
+	# Unmount all lfsmounts
 	retries=0
-	pkill -KILL mfsmount || true
+	pkill -KILL lfsmount || true
 	pkill -KILL memcheck || true
-	# 'grep mfs' below is important. In tests we mount some filesystem by hand
+	# 'grep lfs' below is important. In tests we mount some filesystem by hand
 	# assuming that they will be found with this pattern and unmounted.
-	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
+	while list_of_mounts=$(cat /proc/mounts | grep lfs | grep fuse); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
 		if ((++retries == 30)); then

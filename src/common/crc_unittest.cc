@@ -4,7 +4,7 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 
 TEST(CrcTests, MyCrc32) {
 	std::vector<std::pair<std::string, uint32_t>> data {
@@ -22,24 +22,24 @@ TEST(CrcTests, MyCrc32) {
 	}
 }
 
-TEST(CrcTests, MfsCrcEmpty) {
-	std::vector<uint8_t>data(MFSBLOCKSIZE);
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32(0, data.data(), MFSBLOCKSIZE));
+TEST(CrcTests, LfsCrcEmpty) {
+	std::vector<uint8_t>data(LFSBLOCKSIZE);
+	EXPECT_EQ(LFSCRCEMPTY, mycrc32(0, data.data(), LFSBLOCKSIZE));
 }
 
-TEST(CrcTests, MfsCrc32Zeroblock) {
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32_zeroblock(0, MFSBLOCKSIZE));
+TEST(CrcTests, LfsCrc32Zeroblock) {
+	EXPECT_EQ(LFSCRCEMPTY, mycrc32_zeroblock(0, LFSBLOCKSIZE));
 }
 
 TEST(CrcTests, MyCrc32Combine) {
-	std::vector<uint8_t> data(MFSBLOCKSIZE);
+	std::vector<uint8_t> data(LFSBLOCKSIZE);
 	for (size_t i = 0; i < data.size(); ++i) {
 		data[i] = i;
 	}
 	uint32_t crc = mycrc32(0, data.data(), data.size());
-	for (size_t length = 2; length < MFSBLOCKSIZE; length *= 2) {
+	for (size_t length = 2; length < LFSBLOCKSIZE; length *= 2) {
 		for (int8_t offset : {-1, 0, 1}) { // (1, 2, 3), (3, 4, 5), (7, 8, 9), (15, 16, 17)...
-			SCOPED_TRACE("MFSBLOCKSIZE = " + std::to_string(MFSBLOCKSIZE) + ". Testing combine for length=" + std::to_string(length + offset));
+			SCOPED_TRACE("LFSBLOCKSIZE = " + std::to_string(LFSBLOCKSIZE) + ". Testing combine for length=" + std::to_string(length + offset));
 			uint32_t crc1 = mycrc32(0, data.data(), data.size() - (length + offset));
 			uint32_t crc2 = mycrc32(0, data.data() + data.size() - (length + offset), (length + offset));
 			uint32_t combined = mycrc32_combine(crc1, crc2, (length + offset));
