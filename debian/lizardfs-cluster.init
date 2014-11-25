@@ -99,7 +99,8 @@ check_status()
 		LFS_PERSONALITY=master
 		echo "Current personality is $LFS_PERSONALITY"
 		exit 0;
-	else
+	elif grep -q "PERSONALITY = shadow" "/etc/mfs/mfsmaster.cfg"
+	then
 		LFS_PERSONALITY=shadow
 		echo "Current personality is $LFS_PERSONALITY"
 		exit 1;
@@ -108,57 +109,40 @@ check_status()
 
 become_master()
 {
-	if grep -q "PERSONALITY = shadow" "/etc/mfs/mfsmaster.cfg"
-	then
-		# promote to master, making a backup of the config
-		sed -i.bak '1s/shadow/master/' /etc/mfs/mfsmaster.cfg
-		# fsync
-		sync
-		# sleep for 1 second
-		sleep 1
-		# reload the master service
-		service lizardfs-master reload
-		# force corosync to move the failover-ip to this host
-		crm resource migrate failover-ip $HOSTNAME
-		# remove the constraint that corosync just created
-		crm resource unmigrate failover-ip
-		exit 0;
-	else
-		# something failed or you're not currently a shadow
-		echo "You are already in master mode, or something went wrong."
-		exit 1;
-	fi
+	# promote to master, making a backup of the config
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.master.cfg /etc/mfs/mfsmaster.cfg
+	# sleep 1 to please the master
+	sleep 1 
+	# reload the master service
+	mfsmaster -c mfsmaster.cfg test && service lizardfs-master reload || echo FAIL
+	# force corosync to move the failover-ip to this host
+	crm resource migrate failover-ip $HOSTNAME
+	# remove the constraint that corosync just created
+	crm resource unmigrate failover-ip
+	exit 0;
 }
 
 become_shadow()
 {
-	# validate current personality
-	if grep -q "PERSONALITY = master" "/etc/mfs/mfsmaster.cfg"
-	then
-		# demote to shadow, making a backup of the config
-		sed -i.bak '1s/master/shadow/' /etc/mfs/mfsmaster.cfg
-		# fsync
-		sync
-		# sleep for 1 second
-		sleep 1
-		# reload the master service
-		service lizardfs-master reload
-		exit 0;
-	else
-		# something failed or you're not currently the master
-		echo "You are already in shadow mode, or something went wrong."
-		exit 1;
-	fi
+	# demote to shadow, making a backup of the config
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.shadow.cfg /etc/mfs/mfsmaster.cfg
+	# sleep 1 to please the master
+	sleep 1
+	# test the new config and reload the master service
+	mfsmaster -c mfsmaster.cfg test && service lizardfs-master reload || echo FAIL
+	exit 0;
 }
 
 case "$1" in
-	start)
+	start|master)
 		check_dirs
 		echo "Starting $DESC:"
 		become_master
 		;;
 
-	stop)
+	stop|slave|shadow)
 		echo "Stopping $DESC:"
 		become_shadow
 		;;
