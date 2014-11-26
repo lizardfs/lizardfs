@@ -1,3 +1,9 @@
+lizardfs (2.5.2-2) stable; urgency=low
+
+  * (all) New lizardfs-dbg package
+
+ -- Marcin Sulikowski <contact@lizardfs.org>  Thu, 27 Nov 2014 11:17:49 +0100
+
 lizardfs (2.5.2) stable; urgency=low
 
   * (master, shadow) Metadata checksum mechanism, allowing to find and
