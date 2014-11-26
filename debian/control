@@ -12,6 +12,14 @@ Build-Depends: asciidoc (>= 8.6.6),
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
+Package: lizardfs-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: ${misc:Depends}
+Description: Debugging symbols for LizardFS
+ Debugging symbols for all LizardFS binaries
+
 Package: lizardfs-common
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
