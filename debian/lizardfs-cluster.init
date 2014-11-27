@@ -113,12 +113,11 @@ become_master()
 	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
 	cp /etc/mfs/mfsmaster.master.cfg /etc/mfs/mfsmaster.cfg
 
-	# test then reload the master service
-	mfsmaster -c $DEFAULT_CFG test
+	# reload the master service
 	service lizardfs-master reload
 
 	# force corosync to move the failover-ip to this host
-	crm resource migrate failover-ip $HOSTNAME
+	crm resource migrate failover-ip $(hostname)
 
 	# remove the constraint that corosync just created
 	crm resource unmigrate failover-ip
@@ -132,8 +131,7 @@ become_shadow()
 	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
 	cp /etc/mfs/mfsmaster.shadow.cfg /etc/mfs/mfsmaster.cfg
 
-	# test the new config and reload the master service
-	mfsmaster -c $DEFAULT_CFG test
+	# reload the master service
 	service lizardfs-master reload
 
 	exit 0;
