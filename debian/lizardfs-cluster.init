@@ -112,14 +112,16 @@ become_master()
 	# promote to master, making a backup of the config
 	cp /etc/lfs/lfsmaster.cfg /etc/lfs/lfsmaster.cfg.bak
 	cp /etc/lfs/lfsmaster.master.cfg /etc/lfs/lfsmaster.cfg
-	# sleep 1 to please the master
-	sleep 1 
+
 	# reload the master service
-	lfsmaster -c lfsmaster.cfg test && service lizardfs-master reload || echo FAIL
+	lfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
+
 	# force corosync to move the failover-ip to this host
 	crm resource migrate failover-ip $HOSTNAME
+
 	# remove the constraint that corosync just created
 	crm resource unmigrate failover-ip
+
 	exit 0;
 }
 
@@ -128,10 +130,10 @@ become_shadow()
 	# demote to shadow, making a backup of the config
 	cp /etc/lfs/lfsmaster.cfg /etc/lfs/lfsmaster.cfg.bak
 	cp /etc/lfs/lfsmaster.shadow.cfg /etc/lfs/lfsmaster.cfg
-	# sleep 1 to please the master
-	sleep 1
+
 	# test the new config and reload the master service
-	lfsmaster -c lfsmaster.cfg test && service lizardfs-master reload || echo FAIL
+	lfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
+
 	exit 0;
 }
 
