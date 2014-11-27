@@ -13,12 +13,12 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 NAME=lfscluster
 DESC=lizardfs-cluster
-DEFAULT_WORKING_USER=lfs
-DEFAULT_WORKING_GROUP=lfs
-DEFAULT_DATA_PATH=/var/lib/lfs
-DEFAULT_RUN_PATH=/var/run/lfs
-DEFAULT_CFG=/etc/lfs/lfsmaster.cfg
-COMPAT_CFG=/etc/lfsmaster.cfg
+DEFAULT_WORKING_USER=mfs
+DEFAULT_WORKING_GROUP=mfs
+DEFAULT_DATA_PATH=/var/lib/mfs
+DEFAULT_RUN_PATH=/var/run/mfs
+DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
+COMPAT_CFG=/etc/mfsmaster.cfg
 
 test -e $DAEMON || exit 0
 
@@ -78,9 +78,9 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
-	if [ ! -e "$DATA_PATH"/metadata.lfs ]; then
-		if [ ! -e "$DATA_PATH"/metadata.lfs.back ]; then
-			echo "LFSM NEW" > "$DATA_PATH"/metadata.lfs
+	if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
+		if [ ! -e "$DATA_PATH"/metadata.mfs.back ]; then
+			echo "LFSM NEW" > "$DATA_PATH"/metadata.mfs
 		fi
 	fi
 
@@ -94,12 +94,12 @@ check_dirs()
 check_status()
 {
 	# check current personality
-	if grep -q "PERSONALITY = master" "/etc/lfs/lfsmaster.cfg"
+	if grep -q "PERSONALITY = master" "/etc/mfs/mfsmaster.cfg"
 	then
 		LFS_PERSONALITY=master
 		echo "Current personality is $LFS_PERSONALITY"
 		exit 0;
-	elif grep -q "PERSONALITY = shadow" "/etc/lfs/lfsmaster.cfg"
+	elif grep -q "PERSONALITY = shadow" "/etc/mfs/mfsmaster.cfg"
 	then
 		LFS_PERSONALITY=shadow
 		echo "Current personality is $LFS_PERSONALITY"
@@ -110,11 +110,11 @@ check_status()
 become_master()
 {
 	# promote to master, making a backup of the config
-	cp /etc/lfs/lfsmaster.cfg /etc/lfs/lfsmaster.cfg.bak
-	cp /etc/lfs/lfsmaster.master.cfg /etc/lfs/lfsmaster.cfg
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.master.cfg /etc/mfs/mfsmaster.cfg
 
 	# reload the master service
-	lfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
+	mfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
 
 	# force corosync to move the failover-ip to this host
 	crm resource migrate failover-ip $HOSTNAME
@@ -128,11 +128,11 @@ become_master()
 become_shadow()
 {
 	# demote to shadow, making a backup of the config
-	cp /etc/lfs/lfsmaster.cfg /etc/lfs/lfsmaster.cfg.bak
-	cp /etc/lfs/lfsmaster.shadow.cfg /etc/lfs/lfsmaster.cfg
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.shadow.cfg /etc/mfs/mfsmaster.cfg
 
 	# test the new config and reload the master service
-	lfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
+	mfsmaster -c $DEFAULT_CFG test && service lizardfs-master reload || echo FAIL
 
 	exit 0;
 }
