@@ -9,7 +9,7 @@ mfscgiserv - start HTTP/CGI server for Lizard File System monitoring
 
 [verse]
 *mfscgiserv* [*-H* 'BIND-HOST'] [*-P* 'BIND-PORT'] [*-R* 'ROOT-PATH']
-             [*-t* 'LOCKTIMEOUT'] [*-f* [*-v*]] ['ACTION']
+             [*-D* 'DATA-PATH'] [*-t* 'LOCKTIMEOUT'] [*-f* [*-v*]] ['ACTION']
 
 [verse]
 *mfscgiserv* *-h*
@@ -32,6 +32,9 @@ port to listen on (default: 9425)
 
 *-R* 'ROOT_PATH'::
 local path to use as HTTP document root (default is CGIDIR set up at configure time)
+
+*-D* 'DATA_PATH'::
+local path to store data, e.g. a lockfile (default is DATA_PATH set up at configure time)
 
 *-f*::
 run in foreground, don't daemonize

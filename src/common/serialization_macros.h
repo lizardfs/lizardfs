@@ -35,6 +35,7 @@
 #define REFERENCE(T, t) T& t
 #define INITIALIZE(t) PARAMETER(t) (t)
 #define DEFAULT_INITIALIZE(t) PARAMETER(t) ()
+#define OBJECT_INITIALIZE(t) PARAMETER(t) (magic1.t)
 
 // A workaround to pass a semicolon and a comma as a [semi-]recursive macro parameter:
 #define MAKE_SEMICOLON() ;
@@ -53,6 +54,11 @@
 // Default constructor:
 #define DEFAULT_CONSTRUCTOR(ClassName, ...) \
 		ClassName() : APPLY1_B(DEFAULT_INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) {};
+
+//Template constructor:
+#define TEMPLATE_CONSTRUCTOR(ClassName, ...)\
+		template <class TTT> ClassName(const TTT& magic1) \
+				: APPLY1_B(OBJECT_INITIALIZE, MAKE_COMMA, VARS_COMMAS(__VA_ARGS__)) {}
 
 // Methods used for serialization:
 #define SERIALIZE_METHODS(ClassName, ...) \
@@ -79,6 +85,7 @@
 #define SERIALIZABLE_CLASS_BODY(ClassName, ...) \
 		TUPLE_LIKE_CONSTRUCTOR(ClassName, __VA_ARGS__) \
 		DEFAULT_CONSTRUCTOR(ClassName, __VA_ARGS__) \
+		TEMPLATE_CONSTRUCTOR(ClassName, __VA_ARGS__) \
 		DECLARE_VARIABLES(ClassName, __VA_ARGS__) \
 		SERIALIZE_METHODS(ClassName, __VA_ARGS__)
 

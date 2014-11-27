@@ -23,6 +23,9 @@ Configuration options:
 *DATA_PATH*::
 where to store metadata files and daemon lock file
 
+*LABEL*::
+the label of this chunkserver (for tiering)
+
 *WORKING_USER*::
 user to run daemon as
 

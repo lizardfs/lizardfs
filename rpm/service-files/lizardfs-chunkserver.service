@@ -1,0 +1,13 @@
+[Unit]
+Description=LizardFS chunkserver daemon
+After=syslog.target network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/mfschunkserver start
+ExecStop=/usr/sbin/mfschunkserver stop
+ExecReload=/usr/sbin/mfschunkserver reload
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

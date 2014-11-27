@@ -32,6 +32,7 @@ set(MANPAGES
     iolimits.cfg.5
     mfschunkserver.cfg.5
     mfsexports.cfg.5
+    mfsgoals.cfg.5
     mfshdd.cfg.5
     mfsmaster.cfg.5
     mfsmetalogger.cfg.5

@@ -5,12 +5,11 @@
 
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
-#include "probe/server_connection.h"
+#include "common/server_connection.h"
 
-const std::vector<uint8_t> ChunksHealthCommand::kGoals =
-		ChunksHealthCommand::collectGoals();
-const std::map<uint8_t, std::string> ChunksHealthCommand::kGoalNames =
-		ChunksHealthCommand::createGoalNames();
+std::vector<uint8_t> ChunksHealthCommand::goals;
+std::map<uint8_t, std::string> ChunksHealthCommand::goalNames;
+
 const std::string ChunksHealthCommand::kOptionAvailability = "--availability";
 const std::string ChunksHealthCommand::kOptionReplication = "--replication";
 const std::string ChunksHealthCommand::kOptionDeletion = "--deletion";
@@ -36,6 +35,23 @@ void ChunksHealthCommand::usage() const {
 	std::cerr << "    with number of copies specified in the label to replicate/delete.\n";
 }
 
+void ChunksHealthCommand::initializeGoals(ServerConnection& connection) {
+	if (!goals.empty()) {
+		return;
+	}
+
+	std::vector<SerializedGoal> serializedGoals;
+	std::vector<uint8_t> request, response;
+	cltoma::listGoals::serialize(request, true);
+	response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
+	matocl::listGoals::deserialize(response, serializedGoals);
+
+	for (const SerializedGoal& goal : serializedGoals) {
+		goals.push_back(goal.id);
+		goalNames[goal.id] = goal.name;
+	}
+}
+
 void ChunksHealthCommand::run(const Options& options) const {
 	if (options.arguments().size() != 2) {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name() + '\n');
@@ -44,14 +60,16 @@ void ChunksHealthCommand::run(const Options& options) const {
 	ServerConnection connection(options.argument(0), options.argument(1));
 	std::vector<uint8_t> request, response;
 	bool regularOnly = false;
-	cltoma::xorChunksHealth::serialize(request, regularOnly);
+	cltoma::chunksHealth::serialize(request, regularOnly);
 	response = connection.sendAndReceive(request, LIZ_MATOCL_CHUNKS_HEALTH);
 	ChunksAvailabilityState availability;
 	ChunksReplicationState replication;
-	matocl::xorChunksHealth::deserialize(response, regularOnly, availability, replication);
+	matocl::chunksHealth::deserialize(response, regularOnly, availability, replication);
 	if (regularOnly) {
 		throw Exception("Incorrect response type received");
 	}
+
+	initializeGoals(connection);
 
 	bool showAllReports = !options.isSet(kOptionAvailability)
 			&& !options.isSet(kOptionReplication)
@@ -65,38 +83,14 @@ void ChunksHealthCommand::run(const Options& options) const {
 	if (showAllReports || options.isSet(kOptionDeletion)) {
 		printState(false, replication, options.isSet(kPorcelainMode));
 	}
-}
 
-std::vector<uint8_t> ChunksHealthCommand::collectGoals() {
-	std::vector<uint8_t> goals = {0};
-	for (uint8_t i = goal::kMinOrdinaryGoal; i <= goal::kMaxOrdinaryGoal; ++i) {
-		goals.push_back(i);
-	}
-	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
-		goals.push_back(goal::xorLevelToGoal(level));
-	}
-	return goals;
-}
-
-std::map<uint8_t, std::string> ChunksHealthCommand::createGoalNames() {
-	std::map<uint8_t, std::string> goalNames;
-	goalNames.insert({0, "0"});
-	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
-		goalNames.insert({goal, std::to_string(uint32_t(goal))});
-	}
-	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
-		uint8_t goal = goal::xorLevelToGoal(level);
-		goalNames.insert({goal, "xor" + std::to_string(level)});
-	}
-
-	return goalNames;
 }
 
 void ChunksHealthCommand::printState(const ChunksAvailabilityState& state, bool isPorcelain) const {
 	if (isPorcelain) {
-		for (uint8_t goal : kGoals) {
+		for (uint8_t goal : goals) {
 			std::cout << "AVA"
-					<< ' ' << kGoalNames.at(goal)
+					<< ' ' << goalNames.at(goal)
 					<< ' ' << state.safeChunks(goal)
 					<< ' ' << state.endangeredChunks(goal)
 					<< ' ' << state.lostChunks(goal) << std::endl;
@@ -104,12 +98,12 @@ void ChunksHealthCommand::printState(const ChunksAvailabilityState& state, bool 
 	} else {
 		std::cout << "Chunks availability state:" << std::endl;
 		std::cout << "\tGoal\tSafe\tUnsafe\tLost" << std::endl;
-		for (uint8_t goal : kGoals) {
+		for (uint8_t goal : goals) {
 			if (state.safeChunks(goal) + state.endangeredChunks(goal)
 					+ state.lostChunks(goal) == 0) {
 				continue;
 			}
-			std::cout << '\t' << kGoalNames.at(goal)
+			std::cout << '\t' << goalNames.at(goal)
 					<< '\t' << print(state.safeChunks(goal))
 					<< '\t' << print(state.endangeredChunks(goal))
 					<< '\t' << print(state.lostChunks(goal)) << std::endl;
@@ -121,8 +115,8 @@ void ChunksHealthCommand::printState(const ChunksAvailabilityState& state, bool 
 void ChunksHealthCommand::printState(bool isReplication, const ChunksReplicationState& state,
 		bool isPorcelain) const {
 	if (isPorcelain) {
-		for (uint8_t goal : kGoals) {
-			std::cout << (isReplication ? "REP" : "DEL") << ' ' << kGoalNames.at(goal);
+		for (uint8_t goal : goals) {
+			std::cout << (isReplication ? "REP" : "DEL") << ' ' << goalNames.at(goal);
 			for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
 				isReplication
 						? std::cout << ' ' << state.chunksToReplicate(goal, part)
@@ -140,8 +134,8 @@ void ChunksHealthCommand::printState(bool isReplication, const ChunksReplication
 		}
 		std::cout << '+' << std::endl;
 
-		for (uint8_t goal : kGoals) {
-			std::string line = '\t' + kGoalNames.at(goal);
+		for (uint8_t goal : goals) {
+			std::string line = '\t' + goalNames.at(goal);
 			uint64_t sum = 0;
 			for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
 				uint64_t chunksCount = isReplication ? state.chunksToReplicate(goal, part)

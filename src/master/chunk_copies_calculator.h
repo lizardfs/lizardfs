@@ -4,11 +4,15 @@
 
 #include "common/chunk_type.h"
 #include "common/chunks_availability_state.h"
+#include "common/goal.h"
+#include "common/media_label.h"
 
 class ChunkCopiesCalculator {
 public:
-	ChunkCopiesCalculator(uint8_t goal);
-	void addPart(ChunkType chunkType);
+	typedef std::pair<ChunkType, const MediaLabel*> Part;
+
+	ChunkCopiesCalculator(const Goal* goal);
+	void addPart(ChunkType chunkType, const MediaLabel* label);
 
 	std::vector<ChunkType> getPartsToRecover() const;
 	std::vector<ChunkType> getPartsToRemove() const;
@@ -17,12 +21,16 @@ public:
 	bool isRecoveryPossible() const;
 	bool isWritingPossible() const;
 	ChunksAvailabilityState::State getState() const;
-	const std::vector<ChunkType>& availableParts() const { return availableParts_; }
-	uint8_t goal() const { return goal_; }
 
 private:
-	std::vector<ChunkType> availableParts_;
-	uint8_t goal_;
+	std::vector<Part> availableParts_;
+	const Goal* goal_;
+
+	/*
+	 * Assuming that goal_ is not XOR goal calculate how many parts are
+	 * missing and redundant
+	 */
+	std::pair<uint32_t, uint32_t> ordinaryPartsToRecoverAndRemove() const;
 
 	/*
 	 * Returns then number of copies to recover.

@@ -70,3 +70,4 @@ TEST(GoalTests, XorGoalConstants) {
 		EXPECT_LE(goal, goal::kMaxXorGoal);
 	}
 }
+

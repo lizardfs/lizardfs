@@ -104,6 +104,44 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, metadataserverStatus, LIZ_CLTOMA_METADATASERVER_STATUS, 0,
 		uint32_t, messageId)
 
+// LIZ_CLTOMA_FUSE_GETGOAL
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseGetGoal, LIZ_CLTOMA_FUSE_GETGOAL, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint8_t, gmode)
+
+// LIZ_CLTOMA_FUSE_SETGOAL
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetGoal, LIZ_CLTOMA_FUSE_SETGOAL, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, uid,
+		std::string, goalName,
+		uint8_t, smode)
+
+// LIZ_CLTOMA_LIST_GOALS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, listGoals, LIZ_CLTOMA_LIST_GOALS, 0,
+		bool, dummy)
+
+// LIZ_CLTOMA_CHUNKS_HEALTH
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, chunksHealth, LIZ_CLTOMA_CHUNKS_HEALTH, 0,
+		bool, regularChunksOnly)
+
+// LIZ_CLTOMA_CSERV_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, cservList, LIZ_CLTOMA_CSERV_LIST, 0,
+		bool, dummy)
+
+// LIZ_CLTOMA_CHUNK_INFO
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, chunkInfo, LIZ_CLTOMA_CHUNK_INFO, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, chunkIndex)
+
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, fuseTruncate, LIZ_CLTOMA_FUSE_TRUNCATE, 0,
 		uint32_t, messageId,
@@ -174,18 +212,5 @@ inline void deserialize(const std::vector<uint8_t>& source,
 }
 
 } // namespace fuseWriteChunkEnd
-
-namespace xorChunksHealth {
-
-inline void serialize(std::vector<uint8_t>& destination, bool regularChunksOnly) {
-	serializePacket(destination, LIZ_CLTOMA_CHUNKS_HEALTH, 0, regularChunksOnly);
-}
-
-inline void deserialize(const std::vector<uint8_t>& source, bool& regularChunksOnly) {
-	verifyPacketVersionNoHeader(source, 0);
-	deserializeAllPacketDataNoHeader(source, regularChunksOnly);
-}
-
-} // xorChunksHealth
 
 } // namespace cltoma

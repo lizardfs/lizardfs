@@ -36,6 +36,7 @@
 #include <sstream>
 #include <vector>
 
+#include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
 #include "common/goal.h"
@@ -671,123 +672,53 @@ int check_file(const char* fname) {
 	return 0;
 }
 
-int get_goal(const char *fname,uint8_t mode) {
-	uint8_t reqbuff[17],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode;
-	uint8_t fn,dn,i;
-	uint8_t goal;
-	uint32_t cnt;
-	int fd;
-	fd = open_master_conn(fname,&inode,NULL,0,0);
-	if (fd<0) {
+int get_goal(const char *fname, uint8_t mode) {
+	uint32_t inode;
+	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
+	if (fd < 0) {
 		return -1;
 	}
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_GETGOAL);
-	put32bit(&wptr,9);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,17)!=17) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_GETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
+	try {
+		uint32_t messageId = 0;
+		MessageBuffer request;
+		cltoma::fuseGetGoal::serialize(request, messageId, inode, mode);
+		MessageBuffer response = ServerConnection::sendAndReceive(fd, request,
+				LIZ_MATOCL_FUSE_GETGOAL);
+		PacketVersion version;
+		std::vector<FuseGetGoalStats> goalsStats;
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseGetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseGetGoal::deserialize(response, messageId, status);
+			throw Exception(std::string(fname) + ": failed", status);
+		}
+		matocl::fuseGetGoal::deserialize(response, messageId, goalsStats);
+
+		if (mode == GMODE_NORMAL) {
+			if (goalsStats.size() != 1) {
+				throw Exception(std::string(fname) + ": master query: wrong answer (goalsStats.size != 1)");
+			}
+			printf("%s: %s\n", fname, goalsStats[0].goalName.c_str());
+		} else {
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.files > 0) {
+					printf(" files with goal        %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.files, 1, 0, 1);
+				}
+			}
+			for (FuseGetGoalStats goalStats : goalsStats) {
+				if (goalStats.directories > 0) {
+					printf(" directories with goal  %s :", goalStats.goalName.c_str());
+					print_number(" ", "\n", goalStats.directories, 1, 0, 1);
+				}
+			}
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
 	}
 	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng%5!=2) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	} else if (mode==GMODE_NORMAL && leng!=7) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	if (mode==GMODE_NORMAL) {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		goal = get8bit(&rptr);
-		cnt = get32bit(&rptr);
-		if ((fn!=0 || dn!=1) && (fn!=1 || dn!=0)) {
-			printf("%s: master query: wrong answer (fn,dn)\n",fname);
-			free(buff);
-			return -1;
-		}
-		if (cnt!=1) {
-			printf("%s: master query: wrong answer (cnt)\n",fname);
-			free(buff);
-			return -1;
-		}
-		if (goal::isOrdinaryGoal(goal)) {
-			printf("%s: %" PRIu8 "\n", fname, goal);
-		} else if (goal::isXorGoal(goal)) {
-			printf("%s: xor%" PRIu8 "\n", fname, goal::toXorLevel(goal));
-		} else {
-			printf("%s : unknown goal (0x%02" PRIX8 ")\n", fname, goal);
-		}
-	} else {
-		fn = get8bit(&rptr);
-		dn = get8bit(&rptr);
-		printf("%s:\n",fname);
-		for (i=0 ; i<fn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			if (goal::isOrdinaryGoal(goal)) {
-				printf(" files with goal        %" PRIu8 " :", goal);
-			} else if (goal::isXorGoal(goal)) {
-				printf(" files with goal     xor%" PRIu8 " :", goal::toXorLevel(goal));
-			} else {
-				printf(" files with unknown goal (0x%02" PRIX8 ") :", goal);
-			}
-			print_number(" ","\n",cnt,1,0,1);
-		}
-		for (i=0 ; i<dn ; i++) {
-			goal = get8bit(&rptr);
-			cnt = get32bit(&rptr);
-			if (goal::isOrdinaryGoal(goal)) {
-				printf(" directories with goal  %" PRIu8 " :", goal);
-			} else if (goal::isXorGoal(goal)) {
-				printf(" directories with goal xor%" PRIu8 " :", goal::toXorLevel(goal));
-			} else {
-				printf(" directories with unknown goal (0x%02" PRIX8 ") :", goal);
-			}
-			print_number(" ","\n",cnt,1,0,1);
-		}
-	}
-	free(buff);
 	return 0;
 }
 
@@ -1037,90 +968,51 @@ int get_eattr(const char *fname,uint8_t mode) {
 	return 0;
 }
 
-int set_goal(const char *fname,uint8_t goal,uint8_t mode) {
-	uint8_t reqbuff[22],*wptr,*buff;
-	const uint8_t *rptr;
-	uint32_t cmd,leng,inode,uid;
-	uint32_t changed,notchanged,notpermitted;
+int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
+	uint32_t inode;
 	int fd;
+	uint32_t messageId = 0;
+	uint32_t uid = getuid();
 	fd = open_master_conn(fname,&inode,NULL,0,1);
 	if (fd<0) {
 		return -1;
 	}
-	uid = getuid();
-	wptr = reqbuff;
-	put32bit(&wptr,CLTOMA_FUSE_SETGOAL);
-	put32bit(&wptr,14);
-	put32bit(&wptr,0);
-	put32bit(&wptr,inode);
-	put32bit(&wptr,uid);
-	put8bit(&wptr,goal);
-	put8bit(&wptr,mode);
-	if (tcpwrite(fd,reqbuff,22)!=22) {
-		printf("%s: master query: send error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	if (tcpread(fd,reqbuff,8)!=8) {
-		printf("%s: master query: receive error\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd!=MATOCL_FUSE_SETGOAL) {
-		printf("%s: master query: wrong answer (type)\n",fname);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
-		printf("%s: master query: receive error\n",fname);
-		free(buff);
+	try {
+		std::vector<uint8_t> serialized;
+		cltoma::fuseSetGoal::serialize(serialized, messageId, inode, uid, goal, mode);
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
+				LIZ_MATOCL_FUSE_SETGOAL);
+		uint32_t changed;
+		uint32_t notChanged;
+		uint32_t notPermitted;
+		PacketVersion version;
+
+		deserializePacketVersionNoHeader(response, version);
+		if (version == matocl::fuseSetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseSetGoal::deserialize(response, messageId, status);
+			throw Exception(std::string(fname) + ": failed", status);
+		}
+		matocl::fuseSetGoal::deserialize(response, messageId, changed, notChanged, notPermitted);
+
+		if ((mode&SMODE_RMASK)==0) {
+			if (changed || mode==SMODE_SET) {
+				printf("%s: %s\n", fname, goal.c_str());
+			} else {
+				printf("%s: goal not changed\n",fname);
+			}
+		} else {
+			printf("%s:\n",fname);
+			print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
+			print_number(" inodes with goal not changed:  ","\n",notChanged,1,0,1);
+			print_number(" inodes with permission denied: ","\n",notPermitted,1,0,1);
+		}
+	} catch (Exception& e) {
+		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
 	}
 	close_master_conn(0);
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd!=0) {
-		printf("%s: master query: wrong answer (queryid)\n",fname);
-		free(buff);
-		return -1;
-	}
-	leng-=4;
-	if (leng==1) {
-		printf("%s: %s\n",fname,mfsstrerr(*rptr));
-		free(buff);
-		return -1;
-	} else if (leng!=12 && leng!=16) {
-		printf("%s: master query: wrong answer (leng)\n",fname);
-		free(buff);
-		return -1;
-	}
-	changed = get32bit(&rptr);
-	notchanged = get32bit(&rptr);
-	notpermitted = get32bit(&rptr);
-	if ((mode&SMODE_RMASK)==0) {
-		if (changed || mode==SMODE_SET) {
-			if (goal::isOrdinaryGoal(goal)) {
-				printf("%s: %" PRIu8 "\n", fname, goal);
-			} else if (goal::isXorGoal(goal)) {
-				printf("%s: xor%" PRIu8 "\n", fname, goal::toXorLevel(goal));
-			} else {
-				printf("%s: unknown goal (0x%02" PRIX8 ")\n", fname, goal);
-			}
-		} else {
-			printf("%s: goal not changed\n", fname);
-		}
-	} else {
-		printf("%s:\n",fname);
-		print_number(" inodes with goal changed:      ","\n",changed,1,0,1);
-		print_number(" inodes with goal not changed:  ","\n",notchanged,1,0,1);
-		print_number(" inodes with permission denied: ","\n",notpermitted,1,0,1);
-	}
-	free(buff);
 	return 0;
 }
 
@@ -1303,12 +1195,6 @@ std::string chunkTypeToString(ChunkType type) {
 	return "";
 }
 
-#ifdef USE_LEGACY_READ_MESSAGES
-const bool useLegacyReadMessages = true;
-#else
-const bool useLegacyReadMessages = false;
-#endif
-
 int file_info(const char *fileName) {
 	std::vector<uint8_t> buffer;
 	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
@@ -1322,12 +1208,7 @@ int file_info(const char *fileName) {
 	try {
 		do {
 			buffer.clear();
-			if (useLegacyReadMessages) {
-				serializeMooseFsPacket(buffer, CLTOMA_FUSE_READ_CHUNK,
-						uint32_t(0), inode, chunkIndex);
-			} else {
-				cltoma::fuseReadChunk::serialize(buffer, 0, inode, chunkIndex);
-			}
+			cltoma::chunkInfo::serialize(buffer, 0, inode, chunkIndex);
 			if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
 				printf("%s [%" PRIu32 "]: master query: send error\n", fileName, chunkIndex);
 				close_master_conn(1);
@@ -1344,8 +1225,7 @@ int file_info(const char *fileName) {
 			PacketHeader header;
 			deserializePacketHeader(buffer, header);
 
-			if ((useLegacyReadMessages && header.type != MATOCL_FUSE_READ_CHUNK) ||
-				(!useLegacyReadMessages && header.type != LIZ_MATOCL_FUSE_READ_CHUNK)) {
+			if (header.type != LIZ_MATOCL_CHUNK_INFO) {
 				printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n",
 						fileName, chunkIndex);
 				close_master_conn(1);
@@ -1361,11 +1241,7 @@ int file_info(const char *fileName) {
 			}
 
 			PacketVersion version;
-			if (useLegacyReadMessages) {
-				deserialize(buffer, messageId);
-			} else {
-				deserialize(buffer, version, messageId);
-			}
+			deserialize(buffer, version, messageId);
 
 			if (messageId != 0) {
 				printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n",
@@ -1375,24 +1251,13 @@ int file_info(const char *fileName) {
 			}
 
 			uint8_t status = STATUS_OK;
-			if (useLegacyReadMessages) {
-				uint32_t leng = header.length - 4;
-				if (leng == 1) {
-					deserialize(buffer, messageId, status);
-				} else if (leng < 20 || ((leng - 20) % 6) != 0) {
-					printf("%s [%" PRIu32 "]: master query: wrong answer (leng)\n",fileName,chunkIndex);
-					close_master_conn(1);
-					return -1;
-				}
-			} else {
-				if (version == matocl::fuseReadChunk::kStatusPacketVersion) {
-					matocl::fuseReadChunk::deserialize(buffer, status);
-				} else if (version != matocl::fuseReadChunk::kResponsePacketVersion) {
-					printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
-							fileName, chunkIndex);
-					close_master_conn(1);
-					return -1;
-				}
+			if (version == matocl::chunkInfo::kStatusPacketVersion) {
+				matocl::chunkInfo::deserialize(buffer, messageId, status);
+			} else if (version != matocl::chunkInfo::kResponsePacketVersion) {
+				printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
+						fileName, chunkIndex);
+				close_master_conn(1);
+				return -1;
 			}
 			if (status != STATUS_OK) {
 				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
@@ -1400,32 +1265,8 @@ int file_info(const char *fileName) {
 				return -1;
 			}
 
-			std::vector<ChunkTypeWithAddress> copies;
-
-			if (useLegacyReadMessages) {
-				const uint8_t *rptr = buffer.data();
-				messageId = get32bit(&rptr);
-				fileLength = get64bit(&rptr);
-				chunkId = get64bit(&rptr);
-				chunkVersion = get32bit(&rptr);
-				if (fileLength > 0 && chunkId != 0 && chunkVersion != 0) {
-					const uint32_t count = (header.length - 24) / 6;
-					if (count > 0) {
-						qsort((void*) rptr, count, 6, ip_port_cmp);
-					}
-					for (uint32_t i = 0; i < count; i++) {
-						const uint32_t ip = get32bit(&rptr);
-						const uint16_t port = get16bit(&rptr);
-						NetworkAddress address(ip, port);
-						ChunkTypeWithAddress ctwa;
-						ctwa.address = address;
-						copies.push_back(ctwa);
-					}
-				}
-			} else {
-				matocl::fuseReadChunk::deserialize(buffer,
-					fileLength, chunkId, chunkVersion, copies);
-			}
+			std::vector<ChunkWithAddressAndLabel> copies;
+			matocl::chunkInfo::deserialize(buffer, messageId, fileLength, chunkId, chunkVersion, copies);
 
 			if (chunkIndex == 0) {
 				printf("%s:\n", fileName);
@@ -1441,8 +1282,9 @@ int file_info(const char *fileName) {
 					if (copies.size() > 0) {
 						std::sort(copies.begin(), copies.end());
 						for (size_t i = 0; i < copies.size(); i++) {
-							printf("\t\tcopy %lu: %s%s\n", i + 1,
+							printf("\t\tcopy %lu: %s:%s%s\n", i + 1,
 									copies[i].address.toString().c_str(),
+									copies[i].label.c_str(),
 									chunkTypeToString(copies[i].chunkType).c_str());
 						}
 					} else {
@@ -1976,12 +1818,9 @@ void usage(int f) {
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr, "<operation> is one of:\n");
-			fprintf(stderr, " GOAL+ - increase goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
-			fprintf(stderr, " GOAL- - decrease goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
-			fprintf(stderr, " GOAL - just set goal to given value, GOAL = %" PRIu8 "..%" PRIu8 "\n",
-					goal::kMinOrdinaryGoal, goal::kMaxOrdinaryGoal);
+			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
+			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
+			fprintf(stderr," GOAL - just set goal to given goal name\n");
 			fprintf(stderr, " xorN - just set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
 					goal::kMinXorLevel, goal::kMaxXorLevel);
 			break;
@@ -2090,10 +1929,9 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
-		std::vector<uint8_t> response = connection.sendAndReceive(serialized,
+		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
 				LIZ_MATOCL_FUSE_GET_QUOTA);
 		std::vector<QuotaOwnerAndLimits> parsedResponse;
 		PacketVersion version;
@@ -2101,8 +1939,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseGetQuota::deserialize(response, messageId, status);
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 		matocl::fuseGetQuota::deserialize(response, messageId, parsedResponse);
 		puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
@@ -2127,9 +1964,11 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 			puts("");
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
 }
 
@@ -2153,60 +1992,22 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 	if (fd < 0) {
 		return -1;
 	}
-	ServerConnection connection(fd);
 	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		std::vector<uint8_t> response =
-			connection.sendAndReceive(request, LIZ_MATOCL_FUSE_SET_QUOTA);
+			ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
 		matocl::fuseSetQuota::deserialize(response, messageId, status);
 		if (status != STATUS_OK) {
-			printf("%s\n", mfsstrerr(status));
-			return status;
+			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 	} catch (Exception& e) {
-		fprintf(stderr, "%s", e.what());
+		fprintf(stderr, "%s\n", e.what());
+		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	return 0;
-}
-
-bool parseSetXorGoalParameter(const std::string& param, uint8_t& goal) {
-	if (param.length() < 4 || param.substr(0, 3) != "xor") {
-		return false;
-	}
-	std::string levelString = param.substr(3);
-	int level = atoi(levelString.c_str());
-	if (std::to_string(level) != levelString || level < goal::kMinXorLevel || level > goal::kMaxXorLevel) {
-		return false;
-	}
-	goal = goal::xorLevelToGoal(level);
-	return true;
-}
-
-bool parseSetOrdinaryGoalParameter(const std::string& param, uint8_t& goal, uint8_t& setMode) {
-	std::string operation = param;
-	setMode = SMODE_SET;
-	if (operation.back() == '+' || operation.back() == '-') {
-		setMode = (operation.back() == '+' ? SMODE_INCREASE : SMODE_DECREASE);
-		operation.resize(operation.size() - 1);
-	}
-	goal = atoi(operation.c_str());
-	if (std::to_string(goal) != operation || goal < goal::kMinOrdinaryGoal || goal > goal::kMaxOrdinaryGoal) {
-		return false;
-	}
-	return true;
-}
-
-bool parseSetGoalParameter(const std::string& param, uint8_t& goal, uint8_t& setMode) {
-	if (parseSetOrdinaryGoalParameter(param, goal, setMode)) {
-		return true;
-	}
-	if (parseSetXorGoalParameter(param, goal)) {
-		setMode = SMODE_SET;
-		return true;
-	}
-	return false;
 }
 
 int main(int argc,char **argv) {
@@ -2215,7 +2016,8 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
-	uint8_t eattr=0,goal=1,smode=SMODE_SET;
+	uint8_t eattr=0,smode=SMODE_SET;
+	std::string goal;
 	uint32_t trashtime=86400;
 	char *appendfname=NULL;
 	char *hrformat;
@@ -2379,9 +2181,13 @@ int main(int argc,char **argv) {
 			usage(f);
 		}
 		if (f==MFSSETGOAL) {
-			if (!parseSetGoalParameter(argv[0], goal, smode)) {
-				fprintf(stderr, "Wrong setgoal operation '%s'\n", argv[1]);
-				usage(f);
+			goal = argv[0];
+			if (!goal.empty() && goal.back() == '-') {
+				smode = SMODE_DECREASE;
+				goal.erase(goal.size() - 1);
+			} else if (!goal.empty() && goal.back() == '+') {
+				smode = SMODE_INCREASE;
+				goal.erase(goal.size() - 1);
 			}
 			argc--;
 			argv++;

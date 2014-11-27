@@ -16,7 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define MMAP_ALLOC 1
 #include "common/platform.h"
 #include "chunkserver/hddspacemgr.h"
 
@@ -66,10 +65,6 @@
 #include "common/wrong_crc_notifier.h"
 #include "devtools/TracePrinter.h"
 #include "devtools/request_log.h"
-
-#ifdef MMAP_ALLOC
-#  include <sys/mman.h>
-#endif
 
 #if defined(LIZARDFS_HAVE_PREAD) && defined(LIZARDFS_HAVE_PWRITE)
 #  define USE_PIO 1
@@ -852,6 +847,7 @@ static inline void hdd_refresh_usage(folder *f) {
 		if (statvfs(f->path,&fsinfo)<0) {
 			f->avail = 0ULL;
 			f->total = 0ULL;
+			return;
 		}
 		f->avail = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_bavail);
 		f->total = (uint64_t)(fsinfo.f_frsize)*(uint64_t)(fsinfo.f_blocks-(fsinfo.f_bfree-fsinfo.f_bavail));
@@ -1417,11 +1413,7 @@ int hdd_close(uint64_t chunkid, ChunkType chunkType) {
 uint8_t* hdd_get_block_buffer() {
 	auto blockbuffer = (uint8_t*)pthread_getspecific(blockbufferkey);
 	if (blockbuffer==NULL) {
-# ifdef MMAP_ALLOC
-		blockbuffer = (uint8_t*)mmap(NULL,kHddBlockSize,PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE,-1,0);
-# else
-		blockbuffer = malloc(kHddBlockSize);
-# endif
+		blockbuffer = (uint8_t*)malloc(kHddBlockSize);
 		passert(blockbuffer);
 		zassert(pthread_setspecific(blockbufferkey,blockbuffer));
 	}
@@ -2917,13 +2909,6 @@ void* hdd_delayed_thread(void *arg) {
 	return arg;
 }
 
-# ifdef MMAP_ALLOC
-void hdd_blockbuffer_free(void *addr) {
-	TRACETHIS();
-	munmap(addr,MFSBLOCKSIZE);
-}
-# endif
-
 void hdd_term(void) {
 	TRACETHIS();
 	uint32_t i;
@@ -3498,11 +3483,7 @@ int hdd_init(void) {
 	}
 
 	zassert(pthread_key_create(&hdrbufferkey,free));
-# ifdef MMAP_ALLOC
-	zassert(pthread_key_create(&blockbufferkey,hdd_blockbuffer_free));
-# else
 	zassert(pthread_key_create(&blockbufferkey,free));
-# endif
 
 	emptyblockcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE);
 

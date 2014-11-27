@@ -71,11 +71,11 @@ TEST(CltomaCommunicationTests, XorChunksHealth) {
 	LIZARDFS_DEFINE_INOUT_PAIR(bool, regular, true, false);
 
 	std::vector<uint8_t> buffer;
-	ASSERT_NO_THROW(cltoma::xorChunksHealth::serialize(buffer, regularIn));
+	ASSERT_NO_THROW(cltoma::chunksHealth::serialize(buffer, regularIn));
 
 	verifyHeader(buffer, LIZ_CLTOMA_CHUNKS_HEALTH);
 	removeHeaderInPlace(buffer);
-	ASSERT_NO_THROW(cltoma::xorChunksHealth::deserialize(buffer, regularOut));
+	ASSERT_NO_THROW(cltoma::chunksHealth::deserialize(buffer, regularOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(regular);
 }

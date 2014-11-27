@@ -135,7 +135,11 @@ assert_template_eventually_() {
 # (assert|assertlocal|expect)_empty <string>
 assert_template_empty_() {
 	if [[ -n $1 ]]; then
-		$FAIL_FUNCTION "Expected empty string, got '$1'"
+		if [[ $(wc -l <<< "$1") == 1 ]]; then
+			$FAIL_FUNCTION "Expected empty string, got '$1'"
+		else
+			$FAIL_FUNCTION $'Expected empty string, got:\n'"$1"
+		fi
 	fi
 }
 
@@ -156,7 +160,9 @@ assert_template_eventually_equals_() {
 	local command2=$2
 	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command1) == \$($command2) ]]" "$timeout"; then
-		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout"
+		diff="$(diff -u5 <(eval "$command1") <(eval "$command2") || true)"
+		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout`
+				`"$'\n'"$diff"
 	fi
 }
 

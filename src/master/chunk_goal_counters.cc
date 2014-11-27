@@ -80,14 +80,8 @@ void ChunkGoalCounters::tryDeleteFileCounters() {
 	}
 
 	uint8_t goalsUsed = 0;
-	for (uint8_t iGoal = goal::kMaxOrdinaryGoal; iGoal >= goal::kMinOrdinaryGoal; --iGoal) {
-		if ((*fileCounters_)[iGoal] > 0) {
-			++goalsUsed;
-		}
-	}
-	// if i were uint8_t, the condition "i <= goal::kMaxXorGoal" could be always satisfied
-	for (int i = goal::kMinXorGoal; i <= goal::kMaxXorGoal; ++i) {
-		if ((*fileCounters_)[i] > 0) {
+	for (auto goal : goal::allGoals()) {
+		if ((*fileCounters_)[goal] > 0) {
 			++goalsUsed;
 		}
 	}

@@ -30,5 +30,20 @@ uint8_t xorLevelToGoal(ChunkType::XorLevel xorLevel) {
 	return std::numeric_limits<uint8_t>::max() - xorLevel + kMinXorLevel;
 }
 
+const std::vector<uint8_t>& allGoals() {
+	auto f = []() {
+		std::vector<uint8_t> ret;
+		for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; goal++) {
+			ret.push_back(goal);
+		}
+		for (unsigned level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
+			ret.push_back(goal::xorLevelToGoal(level));
+		}
+		return ret;
+	};
+	static std::vector<uint8_t> ret = f();
+	return ret;
+}
+
 }
 

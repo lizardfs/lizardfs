@@ -43,6 +43,7 @@
 #include "common/datapack.h"
 #include "common/exception.h"
 #include "common/exit_status.h"
+#include "common/goal.h"
 #include "common/lizardfs_version.h"
 #include "common/matocl_communication.h"
 #include "common/md5.h"
@@ -660,7 +661,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	if (!cargs->meta) {
 		rootuid = get32bit(&rptr);
 		rootgid = get32bit(&rptr);
-		if (i==21) {
+		if (i==21 || i==25 || i==35) {
 			mapalluid = get32bit(&rptr);
 			mapallgid = get32bit(&rptr);
 		} else {
@@ -747,7 +748,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			}
 		}
 		if (mingoal>0 && maxgoal>0) {
-			if (mingoal>1 || maxgoal<9) {
+			if (mingoal>goal::kMinOrdinaryGoal || maxgoal<goal::kMaxOrdinaryGoal) {
 				fprintf(stderr," ; setgoal limited to (%u:%u)",mingoal,maxgoal);
 			}
 			if (mintrashtime>0 || maxtrashtime<UINT32_C(0xFFFFFFFF)) {

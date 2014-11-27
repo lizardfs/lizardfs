@@ -27,7 +27,6 @@
 #include "chunkserver/output_buffers.h"
 #include "common/chunk_type.h"
 #include "common/chunk_with_version_and_type.h"
-#include "common/chunk_with_version.h"
 #include "common/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);

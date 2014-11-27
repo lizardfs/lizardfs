@@ -29,8 +29,6 @@
 #include "common/chunk_type_with_address.h"
 #include "common/packet.h"
 
-typedef std::vector<uint8_t> MessageBuffer;
-
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
 

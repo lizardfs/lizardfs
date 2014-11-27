@@ -33,7 +33,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <string>
-#include <boost/filesystem.hpp>
 
 #include "common/cfg.h"
 #include "common/crc.h"

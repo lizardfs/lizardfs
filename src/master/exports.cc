@@ -32,6 +32,7 @@
 
 #include "common/cfg.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/md5.h"
@@ -407,10 +408,20 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 }
 
 int exports_parsegoal(char *goalstr,uint8_t *goal) {
-	if (*goalstr<'1' || *goalstr>'9' || *(goalstr+1)) {
+	if (*goalstr < '1' || *goalstr > '9') {
+		// the string does not begin with a number or is empty
 		return -1;
 	}
-	*goal = *goalstr-'0';
+	char *end = nullptr;
+	auto value = strtol(goalstr, &end, 10);
+	if (*end != '\0') {
+		// not the whole string was used by strtol
+		return -1;
+	}
+	if (value > UINT8_MAX || !goal::isGoalValid(value)) {
+		return -1;
+	}
+	*goal = value;
 	return 0;
 }
 
@@ -836,8 +847,8 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	arec->meta = 0;
 	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
-	arec->mingoal = 1;
-	arec->maxgoal = 9;
+	arec->mingoal = goal::kMinOrdinaryGoal;
+	arec->maxgoal = goal::kMaxOrdinaryGoal;
 	arec->mintrashtime = 0;
 	arec->maxtrashtime = UINT32_C(0xFFFFFFFF);
 	arec->rootuid = 999;

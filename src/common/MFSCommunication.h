@@ -86,8 +86,8 @@
 
 #define MFS_INODE_REUSE_DELAY 86400
 
+/// field values: status
 #define STATUS_OK                      0    // OK
-
 #define ERROR_EPERM                    1    // Operation not permitted
 #define ERROR_ENOTDIR                  2    // Not a directory
 #define ERROR_ENOENT                   3    // No such file or directory
@@ -97,7 +97,6 @@
 #define ERROR_ENOTEMPTY                7    // Directory not empty
 #define ERROR_CHUNKLOST                8    // Chunk lost
 #define ERROR_OUTOFMEMORY              9    // Out of memory
-
 #define ERROR_INDEXTOOBIG             10    // Index too big
 #define ERROR_LOCKED                  11    // Chunk locked
 #define ERROR_NOCHUNKSERVERS          12    // No chunk servers
@@ -107,7 +106,6 @@
 #define ERROR_NOTDONE                 16    // None of chunk servers performed requested operation
 #define ERROR_NOTOPENED               17    // File not opened
 #define ERROR_NOTSTARTED              18    // Write not started
-
 #define ERROR_WRONGVERSION            19    // Wrong chunk version
 #define ERROR_CHUNKEXIST              20    // Chunk already exists
 #define ERROR_NOSPACE                 21    // No space left
@@ -121,28 +119,22 @@
 #define ERROR_CRC                     29    // CRC error
 #define ERROR_DELAYED                 30    // Operation delayed
 #define ERROR_CANTCREATEPATH          31    // Can't create path
-
 #define ERROR_MISMATCH                32    // Data mismatch
-
 #define ERROR_EROFS                   33    // Read-only file system
 #define ERROR_QUOTA                   34    // Quota exceeded
 #define ERROR_BADSESSIONID            35    // Bad session id
 #define ERROR_NOPASSWORD              36    // Password is needed
 #define ERROR_BADPASSWORD             37    // Incorrect password
-
 #define ERROR_ENOATTR                 38    // Attribute not found
 #define ERROR_ENOTSUP                 39    // Operation not supported
 #define ERROR_ERANGE                  40    // Result too large
 #define ERROR_TIMEOUT                 41    // Timeout
-
 #define ERROR_BADMETADATACHECKSUM     42    // Metadata checksum not matching
 #define ERROR_CHANGELOGINCONSISTENT   43    // Changelog inconsistent
 #define ERROR_PARSE                   44    // Parsing unsuccessful
 #define ERROR_METADATAVERSIONMISMATCH 45    // Metadata version mismatch
-
 #define ERROR_NOTLOCKED               46    // No such lock
 #define ERROR_WRONGLOCKID             47    // Wrong lock id
-
 #define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
 #define ERROR_RESERVED2               49
 #define ERROR_RESERVED3               50
@@ -205,7 +197,7 @@
 	"Unknown MFS error", \
 	"Unknown MFS error"
 
-/* type for readdir command */
+/// field values: nodetype
 #define TYPE_FILE             'f'
 #define TYPE_DIRECTORY        'd'
 #define TYPE_SYMLINK          'l'
@@ -213,6 +205,7 @@
 #define TYPE_BLOCKDEV         'b'
 #define TYPE_CHARDEV          'c'
 #define TYPE_SOCKET           's'
+
 // 't' and 'r' are only for internal master use - they are in readdir shown as 'f'
 #define TYPE_TRASH            't'
 #define TYPE_RESERVED         'r'
@@ -239,30 +232,38 @@
 #define DTYPE_RESERVED         2
 #define DTYPE_ISVALID(x)       (((uint32_t)(x))<=2)
 
-// smode:
+/// field values: smode
 #define SMODE_SET              0
 #define SMODE_INCREASE         1
 #define SMODE_DECREASE         2
 #define SMODE_RSET             4
 #define SMODE_RINCREASE        5
 #define SMODE_RDECREASE        6
+
 #define SMODE_TMASK            3
 #define SMODE_RMASK            4
 #define SMODE_ISVALID(x)       (((x)&SMODE_TMASK)!=3 && ((uint32_t)(x))<=7)
 
-// gmode:
+/// field values: gmode
 #define GMODE_NORMAL           0
 #define GMODE_RECURSIVE        1
+
 #define GMODE_ISVALID(x)       (((uint32_t)(x))<=1)
 
+/// field values: matrixid
+#define MATRIX_ALL_COPIES      0
+#define MATRIX_REGULAR_COPIES  1
+
+// size of the matrix of chunks in the CGI interface = 11 x 11
+#define CHUNK_MATRIX_SIZE      11
+
 // extraattr:
-
-#define EATTR_BITS             4
-
 #define EATTR_NOOWNER          0x01
 #define EATTR_NOACACHE         0x02
 #define EATTR_NOECACHE         0x04
 #define EATTR_NODATACACHE      0x08
+
+#define EATTR_BITS             4
 
 #define EATTR_STRINGS \
 	"noowner", \
@@ -315,8 +316,16 @@
 	NULL, \
 	NULL
 
-// sugicclearmode in fs_setattr
-#ifdef __cplusplus
+#ifdef LIZARDFS_WIRESHARK_PLUGIN
+/// field values: sugidclearmode
+#define SUGIDCLEAR_NEVER 0
+#define SUGIDCLEAR_ALWAYS 1
+#define SUGIDCLEAR_OSX 2
+#define SUGIDCLEAR_BSD 3
+#define SUGIDCLEAR_EXT 4
+#define SUGIDCLEAR_XFS 5
+// end of sugidclearmode values
+#else
 enum class SugidClearMode {
 	kNever = 0,
 	kAlways = 1,
@@ -343,12 +352,13 @@ enum class SugidClearMode {
 #define WANT_WRITE 2
 #define AFTER_CREATE 4
 
-
+/// field values: xattrsmode
 #define XATTR_SMODE_CREATE_OR_REPLACE 0
 #define XATTR_SMODE_CREATE_ONLY       1
 #define XATTR_SMODE_REPLACE_ONLY      2
 #define XATTR_SMODE_REMOVE            3
 
+/// field values: xattrgmode
 #define XATTR_GMODE_GET_DATA   0
 #define XATTR_GMODE_LENGTH_ONLY 1
 
@@ -357,17 +367,20 @@ enum class SugidClearMode {
 #define MFS_XATTR_SIZE_MAX 65536
 #define MFS_XATTR_LIST_MAX 65536
 
-// serverstatus in LIZ_MATOCL_METADATASERVER_STATUS
+/// field values: serverstatus
 #define LIZ_METADATASERVER_STATUS_MASTER 1
 #define LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED 2
 #define LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED 3
 
 // Metalogger specific messages.
-#define FORCE_LOG_ROTATE 0x55
+
+/// field values: filenum
 #define DOWNLOAD_METADATA_MFS 1
 #define DOWNLOAD_CHANGELOG_MFS 11
 #define DOWNLOAD_CHANGELOG_MFS_1 12
 #define DOWNLOAD_SESSIONS_MFS 2
+
+#define FORCE_LOG_ROTATE 0x55
 
 // ANY <-> ANY
 
@@ -464,11 +477,16 @@ enum class SugidClearMode {
 
 // 0x044D
 #define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
-/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+/// version==0 chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+/// version==1 chunks:(N * [chunkid:64 chunkversion:32])
 
 // 0x044E
 #define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
 /// usedspace:64 totalspace:64 chunkcount:32 tdusedspace:64 tdtotalspace:64 tdchunkcount:32
+
+// 0x044F
+#define LIZ_CSTOMA_REGISTER_LABEL (1000U + 103U)
+/// label:STDSTRING
 
 // 0x0453
 #define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
@@ -826,7 +844,27 @@ enum class SugidClearMode {
 
 // 0x0191
 #define MATOCL_FUSE_REGISTER (PROTO_BASE+401)
-// depends on blob - see blob descriptions above
+/// status:8
+// ----- old tools -----
+/// sessionid:32
+// ----- GETRANDOM -----
+/// data:BYTES[32]
+// ----- non-meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// since 1.6.01
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+// older
+///            sessionid:32 sesflags:8 rootuid:32 rootgid:32
+// ----- meta -----
+// since 1.6.26
+/// vershex:32 sessionid:32 sesflags:8 mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32
+// since 1.6.21
+/// vershex:32 sessionid:32 sesflags:8
+// older
+///            sessionid:32 sesflags:8
 
 // 0x0192
 #define CLTOMA_FUSE_STATFS (PROTO_BASE+402)
@@ -1054,11 +1092,11 @@ enum class SugidClearMode {
 
 // 0x01B9
 #define MATOCL_FUSE_CHECK (PROTO_BASE+441)
-// msgid:32 status:8
+/// msgid:32 status:8
 // up to version 1.6.22:
 //      msgid:32 N*[ copies:8 chunks:16 ]
 // since version 1.6.23:
-//      msgid:32 11*[ chunks:32 ] - 0 copies, 1 copy, 2 copies, ..., 10+ copies
+///     msgid:32 counters:(CHUNK_MATRIX_SIZE * [chunks:32]) // 0 copies, 1 copy, ..., 10+ copies
 
 // 0x01BA
 #define CLTOMA_FUSE_GETTRASHTIME (PROTO_BASE+442)
@@ -1089,6 +1127,15 @@ enum class SugidClearMode {
 /// msgid:32 status:8
 /// msgid:32 gdirs:8 gfiles:8 data:(gdirs * [goal:8 dirs:32] gfiles * [goal:8 files:32])
 
+// 0x05A6
+#define LIZ_CLTOMA_FUSE_GETGOAL (1000U + 446U)
+/// msgid:32 inode:32 gmode:8
+
+// 0x05A7
+#define LIZ_MATOCL_FUSE_GETGOAL (1000U + 447U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 data:(std::vector<FuseGetGoalStats>)
+
 // 0x01C0
 #define CLTOMA_FUSE_SETGOAL (PROTO_BASE+448)
 /// msgid:32 inode:32 uid:32 goal:8 smode:8
@@ -1097,6 +1144,15 @@ enum class SugidClearMode {
 #define MATOCL_FUSE_SETGOAL (PROTO_BASE+449)
 /// msgid:32 status:8
 /// msgid:32 changed:32 notchanged:32 notpermitted:32
+
+// 0x05A8
+#define LIZ_CLTOMA_FUSE_SETGOAL (1000U + 448U)
+/// msgid:32 inode:32 uid:32 goalname:STDSTRING smode:8
+
+// 0x05A9
+#define LIZ_MATOCL_FUSE_SETGOAL (1000U + 449U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 changed:32 notchanged:32 notpermitted:32
 
 // 0x01C2
 #define CLTOMA_FUSE_GETTRASH (PROTO_BASE+450)
@@ -1249,6 +1305,15 @@ enum class SugidClearMode {
 #define MATOCL_FUSE_SETXATTR (PROTO_BASE+481)
 /// msgid:32 status:8
 
+//0x01E2
+#define LIZ_CLTOMA_CHUNK_INFO (1000U + 482U)
+/// msgid:32 inode:32 chunkindex:32
+
+//0x01E3
+#define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel chunktype:8])
+
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
 // 0x01EA
@@ -1380,11 +1445,12 @@ enum class SugidClearMode {
 
 // 0x00204
 #define CLTOMA_CHUNKS_MATRIX (PROTO_BASE+516)
-// [matrix_id:8]
+/// matrixid:8
 
 // 0x00205
 #define MATOCL_CHUNKS_MATRIX (PROTO_BASE+517)
-// 11*[11* count:32] - 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
+/// counters:(CHUNK_MATRIX_SIZE * CHUNK_MATRIX_SIZE * [chunks:32])
+// 11x11 matrix of chunks counters (goal x validcopies), 10 means 10 or more
 
 // 0x00208
 #define CLTOMA_EXPORTS_INFO (PROTO_BASE+520)
@@ -1404,11 +1470,19 @@ enum class SugidClearMode {
 
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
-// -
+/// ip:32 port:16
 
 // 0x0020D
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
-// N * [ version:32 ip:32 ]
+/// -
+
+// 0x05F6
+#define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
+/// regularonly:8
+
+// 0x05F7
+#define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
+/// regularonly:8 data:(ChunksAvailabilityState ChunksReplicationState)
 
 // 0x05F6
 #define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
@@ -1499,6 +1573,22 @@ enum class SugidClearMode {
 // 0x060a
 #define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
 /// msgid:32 serverstatus:8 metadataversion:64
+
+// 0x060b
+#define LIZ_CLTOMA_LIST_GOALS (1000U + 547U)
+/// dummy:8
+
+// 0x060c
+#define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
+/// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
+
+// 0x060d
+#define LIZ_CLTOMA_CSERV_LIST (1000U + 549U)
+/// dummy:8
+
+// 0x060e
+#define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
+/// chunkservers:(vector<ChunkserverListEntry>)
 
 // CHUNKSERVER STATS
 

@@ -8,6 +8,16 @@
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
 
+// TODO(alek) test mixing xor goals and labels
+
+static const Goal* getDefaultGoal(uint8_t goalId) {
+	static std::map<uint8_t, Goal> defaultGoals;
+	if (defaultGoals.count(goalId) == 0) {
+		defaultGoals[goalId] = Goal::getDefaultGoal(goalId);
+	}
+	return &defaultGoals[goalId];
+}
+
 static void checkPartsToRecover(
 		std::vector<ChunkType> available,
 		uint8_t goal,
@@ -16,9 +26,9 @@ static void checkPartsToRecover(
 			? "xor" + std::to_string(goal::toXorLevel(goal))
 			: std::to_string(goal)));
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(goal);
+	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
 	for (auto part : available) {
-		calculator.addPart(part);
+		calculator.addPart(part, &kMediaLabelWildcard);
 	}
 	std::vector<ChunkType> actualPartsToRecover = calculator.getPartsToRecover();
 	std::sort(expectedPartsToRecover.begin(), expectedPartsToRecover.end());
@@ -28,9 +38,9 @@ static void checkPartsToRecover(
 }
 
 static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 2) {
-	ChunkCopiesCalculator calculator(goal);
+	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
 	for (auto part : parts) {
-		calculator.addPart(part);
+		calculator.addPart(part, &kMediaLabelWildcard);
 	}
 	return calculator;
 }
@@ -43,9 +53,9 @@ static void checkPartsToRemove(
 			? "xor" + std::to_string(goal::toXorLevel(goal))
 			: std::to_string(goal)));
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(goal);
+	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
 	for (auto part : available) {
-		calculator.addPart(part);
+		calculator.addPart(part, &kMediaLabelWildcard);
 	}
 	std::vector<ChunkType> actualPartsToRemove = calculator.getPartsToRemove();
 	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());

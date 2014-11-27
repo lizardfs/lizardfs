@@ -1,0 +1,13 @@
+[Unit]
+Description=LizardFS metalogger server daemon
+After=syslog.target network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/mfsmetalogger start
+ExecStop=/usr/sbin/mfsmetalogger stop
+ExecReload=/usr/sbin/mfsmetalogger reload
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

@@ -3,6 +3,7 @@
 
 #include <limits>
 
+#include "common/exceptions.h"
 #include "common/io_limit_group.h"
 
 inline static bool streamReadFailed(const std::istream& stream) {

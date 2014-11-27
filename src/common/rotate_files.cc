@@ -3,28 +3,28 @@
 
 #include <syslog.h>
 #include <string>
-#include <boost/filesystem.hpp>
 
+#include "common/cwrap.h"
+#include "common/exceptions.h"
 #include "common/massert.h"
 #include "common/slogger.h"
 
 namespace {
 
 void rotateFile(bool ifExistsOnly, const std::string& from, const std::string& to) {
-	namespace fs = boost::filesystem;
-	if (ifExistsOnly) {
-		if (!fs::exists(from)) {
-			return;
-		}
-	}
 	try {
+		if (ifExistsOnly) {
+			if (!fs::exists(from)) {
+				return;
+			}
+		}
 		fs::rename(from, to);
-	} catch (const std::exception& e) {
+	} catch (const FilesystemException& e) {
 		mfs_arg_errlog(LOG_ERR, "rename backup file %s to %s failed (%s)", from.c_str(), to.c_str(), e.what());
 	}
 }
 
-}
+} // anonymous namespace
 
 void rotateFiles(const std::string& file, int storedPreviousCopies, int byNumber) {
 	sassert(byNumber > 0);
@@ -38,9 +38,3 @@ void rotateFiles(const std::string& file, int storedPreviousCopies, int byNumber
 		rotateFile(true, file, file + "." + std::to_string(byNumber));
 	}
 }
-
-void rotateFiles(const std::string& from, const std::string& to, int storedPreviousCopies) {
-	rotateFiles(to, storedPreviousCopies);
-	rotateFile(false, from, to);
-}
-

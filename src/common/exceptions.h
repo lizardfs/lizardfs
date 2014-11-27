@@ -9,6 +9,7 @@
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(ConfigurationException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
+LIZARDFS_CREATE_EXCEPTION_CLASS(ParseException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(RecoverableReadException, ReadException);
 LIZARDFS_CREATE_EXCEPTION_CLASS(UnrecoverableReadException, ReadException);

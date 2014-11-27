@@ -1,5 +1,4 @@
 #!/bin/bash
-set -o pipefail
 set -eu
 
 if (( $# != 1 )); then
@@ -10,78 +9,14 @@ fi
 input_file=$(readlink -m "$1")
 cd "$(dirname "$0")"
 
-echo "#define PROTO_BASE 0" > includes.h
-echo "#define MFSBLOCKSINCHUNK 1024" >> includes.h
-echo "#define MFSBLOCKSIZE 65536" >> includes.h
-echo "#include \"$input_file\"" >> includes.h
+# Generate the includes.h file which properly includes all the definitions of LizardFS constants
+{
+	echo "#define PROTO_BASE 0"
+	echo "#define MFSBLOCKSINCHUNK 1024"
+	echo "#define MFSBLOCKSIZE 65536"
+	echo "#define LIZARDFS_WIRESHARK_PLUGIN 1"
+	echo "#include \"$input_file\"" # MFSCommunication.h
+} > includes.h
 
-cat "$input_file" \
-	| egrep -o '^#define (LIZ_)?(AN|CS|CL|MA|ML)TO(AN|CS|CL|MA|ML)_[A-Z0-9_]+' \
-	| cut -d' ' -f2 \
-	| grep -v CLTOMA_FUSE_DIR_REMOVED \
-	| grep -v MATOCL_FUSE_NOTIFY \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_type-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define (ERROR_[A-Z0-9_]+|STATUS_OK)' \
-	| cut -d' ' -f2 \
-	| grep -v ERROR_STRINGS \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_status-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define LIZ_METADATASERVER_STATUS_.*' \
-	| cut -d' ' -f2 \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_serverstatus-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define TYPE_[A-Z]+' \
-	| cut -d' ' -f2 \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_nodetype-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define GMODE_[A-Z]+' \
-	| cut -d' ' -f2 \
-	| grep -v GMODE_ISVALID \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_gmode-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define SMODE_[A-Z]+' \
-	| cut -d' ' -f2 \
-	| grep -v SMODE_ISVALID \
-	| grep -v SMODE_.MASK \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_smode-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define XATTR_SMODE_.*' \
-	| cut -d' ' -f2 \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_xattrsmode-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define XATTR_GMODE_.*' \
-	| cut -d' ' -f2 \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_xattrgmode-inl.h
-
-cat "$input_file" \
-	| egrep -o '^#define DOWNLOAD_.*' \
-	| cut -d' ' -f2 \
-	| sort -u \
-	| sed -e 's/^/LIZARDFS_CONST_TO_NAME_ENTRY(/' -e 's/$/),/' \
-	> dict_filenum-inl.h
-
+# Generate the packet-lizardfs.c file
 python3 make_dissector.py < "$input_file" > packet-lizardfs.c

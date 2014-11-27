@@ -2,7 +2,6 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
 #include "common/goal.h"
 #include "common/goal_map.h"
 #include "common/serialization.h"
@@ -31,12 +30,9 @@ public:
 		getMapForState(state)[goal]--;
 	}
 
-private:
-	// count of safe/endangered/lost chunks for each goal
-	GoalMap<uint64_t> safeChunks_;
-	GoalMap<uint64_t> endangeredChunks_;
-	GoalMap<uint64_t> lostChunks_;
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(safeChunks_, endangeredChunks_, lostChunks_);
 
+private:
 	GoalMap<uint64_t>& getMapForState(State state) {
 		switch (state) {
 		case kSafe:
@@ -50,14 +46,15 @@ private:
 		}
 	}
 
-	friend uint32_t serializedSize(const ChunksAvailabilityState&);
-	friend void serialize(uint8_t**, const ChunksAvailabilityState&);
-	friend void deserialize(const uint8_t**, uint32_t&, ChunksAvailabilityState&);
+	// count of safe/endangered/lost chunks for each goal
+	GoalMap<uint64_t> safeChunks_;
+	GoalMap<uint64_t> endangeredChunks_;
+	GoalMap<uint64_t> lostChunks_;
 };
 
 class ChunksReplicationState {
 public:
-	static constexpr uint32_t kMaxPartsCount = goal::kMaxXorLevel + 1;
+	static constexpr uint32_t kMaxPartsCount = 10U;
 
 	uint64_t chunksToReplicate(uint8_t goal, uint32_t missingParts) const {
 		sassert(missingParts <= kMaxPartsCount);
@@ -79,47 +76,11 @@ public:
 		chunksToReplicate_[goal][missingParts]--;
 		chunksToDelete_[goal][redundantParts]--;
 	}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(chunksToReplicate_, chunksToDelete_);
+
 private:
 	// count of chunks that need replication/deletion for each goal and number of missing parts
-	GoalMap<uint64_t[kMaxPartsCount + 1]> chunksToReplicate_;
-	GoalMap<uint64_t[kMaxPartsCount + 1]> chunksToDelete_;
-
-	friend uint32_t serializedSize(const ChunksReplicationState&);
-	friend void serialize(uint8_t**, const ChunksReplicationState&);
-	friend void deserialize(const uint8_t**, uint32_t&, ChunksReplicationState&);
+	GoalMap<std::array<uint64_t, kMaxPartsCount + 1>> chunksToReplicate_;
+	GoalMap<std::array<uint64_t, kMaxPartsCount + 1>> chunksToDelete_;
 };
-
-inline uint32_t serializedSize(const ChunksAvailabilityState& state) {
-	return serializedSize(state.safeChunks_)
-		+ serializedSize(state.endangeredChunks_)
-		+ serializedSize(state.lostChunks_);
-}
-
-inline void serialize(uint8_t** destination, const ChunksAvailabilityState& state) {
-	serialize(destination, state.safeChunks_);
-	serialize(destination, state.endangeredChunks_);
-	serialize(destination, state.lostChunks_);
-}
-
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		ChunksAvailabilityState& state) {
-	deserialize(source, bytesLeftInBuffer, state.safeChunks_);
-	deserialize(source, bytesLeftInBuffer, state.endangeredChunks_);
-	deserialize(source, bytesLeftInBuffer, state.lostChunks_);
-}
-
-inline uint32_t serializedSize(const ChunksReplicationState& state) {
-	return serializedSize(state.chunksToReplicate_)
-		+ serializedSize(state.chunksToDelete_);
-}
-
-inline void serialize(uint8_t** destination, const ChunksReplicationState& state) {
-	serialize(destination, state.chunksToReplicate_);
-	serialize(destination, state.chunksToDelete_);
-}
-
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		ChunksReplicationState& state) {
-	deserialize(source, bytesLeftInBuffer, state.chunksToReplicate_);
-	deserialize(source, bytesLeftInBuffer, state.chunksToDelete_);
-}

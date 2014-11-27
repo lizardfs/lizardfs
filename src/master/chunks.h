@@ -25,9 +25,12 @@
 
 #include "common/chunk_type.h"
 #include "common/chunk_type_with_address.h"
+#include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/cltoma_communication.h"
 #include "master/checksum.h"
+
+struct matocsserventry;
 
 int chunk_increase_version(uint64_t chunkid);
 int chunk_set_version(uint64_t chunkid,uint32_t version);
@@ -65,22 +68,24 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
 		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList);
-void chunk_server_has_chunk(void *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType);
-void chunk_damaged(void *ptr,uint64_t chunkid);
-void chunk_lost(void *ptr,uint64_t chunkid);
-void chunk_server_disconnected(void *ptr);
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList);
+void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType);
+void chunk_damaged(matocsserventry *ptr,uint64_t chunkid);
+void chunk_lost(matocsserventry *ptr,uint64_t chunkid);
+void chunk_server_disconnected(matocsserventry *ptr);
 
-void chunk_got_delete_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
-void chunk_got_replicate_status(void *ptr, uint64_t chunkId, uint32_t chunkVersion,
+void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_replicate_status(matocsserventry *ptr, uint64_t chunkId, uint32_t chunkVersion,
 		ChunkType chunkType, uint8_t status);
 
-void chunk_got_chunkop_status(void *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
 
-void chunk_got_create_status(void *ptr, uint64_t chunkid, ChunkType chunkType, uint8_t status);
-void chunk_got_duplicate_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
-void chunk_got_setversion_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
-void chunk_got_truncate_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
-void chunk_got_duptrunc_status(void *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_create_status(matocsserventry *ptr, uint64_t chunkid, ChunkType chunkType, uint8_t status);
+void chunk_got_duplicate_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_setversion_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_truncate_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_duptrunc_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
 
 int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 

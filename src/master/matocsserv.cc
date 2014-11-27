@@ -38,6 +38,7 @@
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/main.h"
@@ -45,12 +46,15 @@
 #include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
+#include "common/lizardfs_version.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "master/chunks.h"
+#include "master/filesystem.h"
+#include "master/get_servers_for_new_chunk.h"
 #include "master/personality.h"
 
 #define MaxPacketSize 500000000
@@ -97,12 +101,12 @@ struct matocsserventry {
 	Timer lastread,lastwrite;
 	InputPacket inputPacket;
 	std::list<OutputPacket> outputPackets;
-
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;                // ip to coonnect to
 	uint16_t servport;              // port to connect to
 	uint32_t timeout;               // communication timeout
+	MediaLabel label;               // server label, empty if not set
 	uint64_t usedspace;             // used hdd space in bytes
 	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
@@ -115,13 +119,10 @@ struct matocsserventry {
 	uint16_t delcounter;
 
 	uint8_t incsdb;
-	double carry;
 
 	matocsserventry *next;
 };
 
-static const double kCarryThreshold = 1.;
-static uint64_t maxtotalspace;
 static matocsserventry *matocsservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
@@ -179,51 +180,22 @@ void matocsserv_csdb_lost_connection(uint32_t ip,uint16_t port) {
 	}
 }
 
-uint32_t matocsserv_cservlist_size(void) {
-	uint32_t hash;
-	csdbentry *csptr;
-	uint32_t i;
-	i=0;
-	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
-		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-			i++;
-		}
-	}
-	return i*(4+4+2+8+8+4+8+8+4+4);
-}
-
-void matocsserv_cservlist_data(uint8_t *ptr) {
-	uint32_t hash;
-	csdbentry *csptr;
-	matocsserventry *eptr;
-	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
-		for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-			eptr = csptr->eptr;
-			if (eptr) {
-				put32bit(&ptr,(eptr->version)&0xFFFFFF);
-				put32bit(&ptr,eptr->servip);
-				put16bit(&ptr,eptr->servport);
-				put64bit(&ptr,eptr->usedspace);
-				put64bit(&ptr,eptr->totalspace);
-				put32bit(&ptr,eptr->chunkscount);
-				put64bit(&ptr,eptr->todelusedspace);
-				put64bit(&ptr,eptr->todeltotalspace);
-				put32bit(&ptr,eptr->todelchunkscount);
-				put32bit(&ptr,eptr->errorcounter);
+std::vector<ChunkserverListEntry> matocsserv_cservlist() {
+	std::vector<ChunkserverListEntry> result;
+	for (uint32_t hash = 0; hash < CSDBHASHSIZE; hash++) {
+		for (csdbentry *csptr = csdbhash[hash]; csptr; csptr = csptr->next) {
+			if (csptr->eptr != nullptr) {
+				result.emplace_back(*csptr->eptr);
 			} else {
-				put32bit(&ptr,0x01000000);
-				put32bit(&ptr,csptr->ip);
-				put16bit(&ptr,csptr->port);
-				put64bit(&ptr,0);
-				put64bit(&ptr,0);
-				put32bit(&ptr,0);
-				put64bit(&ptr,0);
-				put64bit(&ptr,0);
-				put32bit(&ptr,0);
-				put32bit(&ptr,0);
+				result.emplace_back(
+						kDisconnectedChunkserverVersion,
+						csptr->ip, csptr->port,
+						0, 0, 0, 0, 0, 0, 0,
+						kMediaLabelWildcard);
 			}
 		}
 	}
+	return result;
 }
 
 int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port) {
@@ -260,7 +232,7 @@ void matocsserv_csdb_init(void) {
 #define REPHASHFN(chid,ver) (((chid)^(ver)^((chid)>>8))%(REPHASHSIZE))
 
 struct repsrc {
-	void *src;
+	matocsserventry *src;
 	repsrc *next;
 };
 
@@ -268,7 +240,7 @@ struct repdst {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
 	ChunkType chunkType;
-	void *destinationCs;
+	matocsserventry *destinationCs;
 	repsrc *repsrcHead;
 	repdst *next;
 };
@@ -321,7 +293,7 @@ void matocsserv_replication_init(void) {
 }
 
 int matocsserv_replication_find(uint64_t chunkId, uint32_t chunkVersion,
-		ChunkType chunkType, void *dst) {
+		ChunkType chunkType, matocsserventry *dst) {
 	uint32_t hash = REPHASHFN(chunkId, chunkVersion);
 	for (repdst *replica = rephash[hash]; replica; replica = replica->next) {
 		if (replica->chunkId == chunkId
@@ -335,7 +307,7 @@ int matocsserv_replication_find(uint64_t chunkId, uint32_t chunkVersion,
 }
 
 void matocsserv_replication_begin(uint64_t chunkId, uint32_t chunkVersion,
-		ChunkType chunkType, void *dst, uint8_t srccnt, void *const*src) {
+		ChunkType chunkType, matocsserventry *dst, uint8_t srccnt, matocsserventry* const *src) {
 	if (srccnt == 0) {
 		return;
 	}
@@ -363,7 +335,7 @@ void matocsserv_replication_begin(uint64_t chunkId, uint32_t chunkVersion,
 }
 
 void matocsserv_replication_end(uint64_t chunkId, uint32_t chunkVersion,
-		ChunkType chunkType, void *destination) {
+		ChunkType chunkType, matocsserventry *destination) {
 	uint32_t hash = REPHASHFN(chunkId, chunkVersion);
 	repdst *replica, **replicaPointer;
 	repsrc *replicaSource, *replicaSourceToDelete;
@@ -390,7 +362,7 @@ void matocsserv_replication_end(uint64_t chunkId, uint32_t chunkVersion,
 	}
 }
 
-void matocsserv_replication_disconnected(void *srv) {
+void matocsserv_replication_disconnected(matocsserventry *srv) {
 	uint32_t hash;
 	repdst *r, **rp;
 	repsrc *rs, *rsdel, **rsp;
@@ -403,17 +375,17 @@ void matocsserv_replication_disconnected(void *srv) {
 				while (rs) {
 					rsdel = rs;
 					rs = rs->next;
-					((matocsserventry *)(rsdel->src))->rrepcounter--;
+					rsdel->src->rrepcounter--;
 					matocsserv_repsrc_free(rsdel);
 				}
-				((matocsserventry *)(srv))->wrepcounter--;
+				srv->wrepcounter--;
 				*rp = r->next;
 				matocsserv_repdst_free(r);
 			} else {
 				rsp = &(r->repsrcHead);
 				while ((rs = *rsp) != NULL) {
 					if (rs->src == srv) {
-						((matocsserventry *)(srv))->rrepcounter--;
+						srv->rrepcounter--;
 						*rsp = rs->next;
 						matocsserv_repsrc_free(rs);
 					} else {
@@ -430,7 +402,7 @@ void matocsserv_replication_disconnected(void *srv) {
 
 struct servsort {
   double space;
-  void *ptr;
+  matocsserventry *ptr;
 };
 int matocsserv_space_compare(const void *a,const void *b) {
   const servsort *aa=(const servsort*)a,*bb=(const servsort*)b;
@@ -489,205 +461,113 @@ void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usab
 	}
 }
 
-uint16_t matocsserv_getservers_ordered(void* ptrs[65535],double maxusagediff,uint32_t *pmin,uint32_t *pmax) {
-	static servsort servsorttab[65535],servtab[65536];
-	matocsserventry *eptr;
-	uint32_t i,j,k,min,mid,max;
-	double minspace=1.0,maxspace=0.0;
-	uint64_t tspace,uspace;
-	double space;
-
-//      syslog(LOG_NOTICE,"getservers start");
-	j = 0;
-	tspace = 0;
-	uspace = 0;
-	for (eptr = matocsservhead ; eptr && j<65535; eptr=eptr->next) {
-		if (eptr->mode!=KILL && eptr->totalspace>0 && eptr->usedspace<=eptr->totalspace) {
-			uspace += eptr->usedspace;
-			tspace += eptr->totalspace;
-			space = (double)(eptr->usedspace) / (double)(eptr->totalspace);
-			if (j==0) {
-				minspace = maxspace = space;
-			} else if (space<minspace) {
-				minspace = space;
-			} else if (space>maxspace) {
-				maxspace = space;
-			}
-			servtab[j].ptr = eptr;
-			servtab[j].space = space;
-//                      syslog(LOG_NOTICE,"ptr: %p, space:%f",eptr,space);
-			j++;
+std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
+	std::vector<ServerWithUsage> result;
+	for (matocsserventry* eptr = matocsservhead; eptr != nullptr; eptr=eptr->next) {
+		if (eptr->mode != KILL
+				&& eptr->totalspace > 0
+				&& eptr->usedspace <= eptr->totalspace) {
+			double usage = double(eptr->usedspace) / double(eptr->totalspace);
+			result.emplace_back(eptr, usage, &eptr->label);
 		}
 	}
-	if (j==0) {
-//              syslog(LOG_NOTICE,"getservers - noservers");
-		return 0;
-	}
-
-	space = (double)(uspace)/(double)(tspace);
-//      syslog(LOG_NOTICE,"getservers - minspace: %f , maxspace: %f , diff: %f , maxusagediff: %f",minspace,maxspace,maxspace-minspace,maxusagediff);
-	min = 0;
-	max = j;
-	mid = 0;
-	for (i=0 ; i<j ; i++) {
-		if (servtab[i].space<space-maxusagediff) {
-			ptrs[min++]=servtab[i].ptr;
-		} else if (servtab[i].space>space+maxusagediff) {
-			ptrs[--max]=servtab[i].ptr;
-		} else {
-			servsorttab[mid++]=servtab[i];
-		}
-	}
-
-	// random <0-min)
-	for (i=0 ; i<min ; i++) {
-		k = i+rndu32_ranged(min-i);
-		if (i!=k) {
-			void* p = ptrs[i];
-			ptrs[i] = ptrs[k];
-			ptrs[k] = p;
-		}
-	}
-
-	// random <max-j)
-	for (i=max ; i<j ; i++) {
-		k = i+rndu32_ranged(j-i);
-		if (i!=k) {
-			void* p = ptrs[i];
-			ptrs[i] = ptrs[k];
-			ptrs[k] = p;
-		}
-	}
-
-	// sort <min-max)
-	if (mid>0) {
-		qsort(servsorttab,mid,sizeof(struct servsort),matocsserv_space_compare);
-	}
-	for (i=0 ; i<mid ; i++) {
-		ptrs[min+i]=servsorttab[i].ptr;
-	}
-	if (pmin!=NULL) {
-		*pmin=min;
-	}
-	if (pmax!=NULL) {
-		*pmax=j-max;
-	}
-//              syslog(LOG_NOTICE,"getservers <0-%" PRIu32 ") random ; <%" PRIu32 "-%" PRIu32 ") sort ; <%" PRIu32 "-END) random",min,min,max,max);
-	return j;
+	std::sort(result.begin(), result.end(), [](const ServerWithUsage& a, const ServerWithUsage& b) {
+		return a.diskUsage < b.diskUsage;
+	});
+	return result;
 }
 
-struct rservsort {
-	double selectionFrequency;
-	double carry;
-	matocsserventry *ptr;
-	bool operator<(const rservsort &r) const {
-		return carry < r.carry;
-	}
-};
-
 std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_new_chunk(
-		uint8_t desiredGoal) {
-	std::vector<std::pair<matocsserventry*, ChunkType>> ret;
-
-	matocsserventry *eptr;
-	if (maxtotalspace == 0) {
-		return ret;
-	}
-
-	std::vector<rservsort> availableServers;
-	for (eptr = matocsservhead; eptr && availableServers.size() < 65536; eptr = eptr->next) {
-		if (goal::isXorGoal(desiredGoal) && eptr->version < kFirstXorVersion) {
+			uint8_t goalId) {
+	static GoalMap<ChunkCreationHistory> history;
+	GetServersForNewChunk getter;
+	bool isXorGoal = goal::isXorGoal(goalId);
+	// Add servers with weights which are proportional to total space on each server.
+	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
+		if (isXorGoal && eptr->version < kFirstXorVersion) {
 			// can't store XOR chunks on chunkservers that don't support them
 			continue;
 		}
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
-			rservsort serv;
-			serv.selectionFrequency = (double)eptr->totalspace / (double)maxtotalspace;
-			serv.carry = eptr->carry;
-			serv.ptr = eptr;
-			availableServers.push_back(serv);
+			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
+			getter.addServer(eptr, &eptr->label, weight);
 		}
 	}
+	std::vector<std::pair<matocsserventry*, ChunkType>> ret;
+	std::vector<ChunkType> chunkTypes;
+	auto servers = getter.chooseServersForGoal(
+			fs_get_goal_definition(goalId), history[goalId]);
 
-	// Check if it is possible to create requested chunk
-	uint32_t minServersDemanded;
-	uint32_t serversDemandedForSafe;
-	if (goal::isXorGoal(desiredGoal)) {
-		minServersDemanded = goal::toXorLevel(desiredGoal);
-		serversDemandedForSafe = minServersDemanded + 1;
-	} else {
-		sassert(goal::isOrdinaryGoal(desiredGoal));
-		serversDemandedForSafe = desiredGoal;
-		minServersDemanded = 1;
-	}
-
-	if (minServersDemanded > availableServers.size()) {
-		// Nothing can be done, chunk won't be created
-		return ret;
-	}
-	uint32_t chunksToBeCreated = std::min((uint32_t)availableServers.size(), serversDemandedForSafe);
-
-	// Choose servers to be used to store new chunks.
-	std::vector<rservsort> chosenServers;
-	std::set<size_t> chosenServersIds;
-	while (chosenServers.size() < chunksToBeCreated) {
-		for (size_t i = 0; i < availableServers.size(); i++) {
-			double carry = availableServers[i].carry + availableServers[i].selectionFrequency;
-			if ((chosenServersIds.count(i)) == 0 && (carry > kCarryThreshold)) {
-				chosenServers.push_back(availableServers[i]);
-				carry -= kCarryThreshold;
-				chosenServersIds.insert(i);
-			}
-			availableServers[i].carry = carry;
-			availableServers[i].ptr->carry = carry;
+	if (isXorGoal) {
+		ChunkType::XorLevel level = goal::toXorLevel(goalId);
+		if (servers.size() < level) {
+			return ret; // do not create any parts if servers are missing
 		}
-	}
-	std::sort(chosenServers.rbegin(), chosenServers.rend());
-	// After loops above more then chunksToBeCreated servers might have been found, let's
-	// correct carry values for those that won't be used
-	for (size_t i = chunksToBeCreated; i < chosenServers.size(); i++) {
-		chosenServers[i].ptr->carry += kCarryThreshold;
-	}
-
-	// Assign chunk types to chosen servers
-	if (goal::isXorGoal(desiredGoal)) {
-		std::vector<uint8_t> parts;
-		ChunkType::XorLevel level;
-		level = goal::toXorLevel(desiredGoal);
-		for (uint8_t i = 0; i <= level; ++i) {
-			parts.push_back(i);
+		chunkTypes.reserve(level + 1);
+		chunkTypes.push_back(ChunkType::getXorParityChunkType(level));
+		for (int part = 1; part <= level; ++part) {
+			chunkTypes.push_back(ChunkType::getXorChunkType(level, part));
 		}
-		std::random_shuffle(parts.begin(), parts.end());
-		for (size_t i = 0; i < chunksToBeCreated; i++) {
-			uint8_t part = parts[i];
-			if (part == 0) {
-				ret.push_back({chosenServers[i].ptr, ChunkType::getXorParityChunkType(level)});
-			} else {
-				ret.push_back({chosenServers[i].ptr, ChunkType::getXorChunkType(level, part)});
-			}
+		std::random_shuffle(chunkTypes.begin(), chunkTypes.end());
+		if (servers.size() == level) {
+			chunkTypes.pop_back();
 		}
 	} else {
-		sassert(goal::isOrdinaryGoal(desiredGoal));
-		for (size_t i = 0; i < chunksToBeCreated; i++) {
-			ret.push_back(std::make_pair(chosenServers[i].ptr,
-					ChunkType::getStandardChunkType()));
-		}
+		chunkTypes.assign(servers.size(), ChunkType::getStandardChunkType());
+	}
+	for (uint32_t i = 0; i < servers.size(); ++i) {
+		ret.emplace_back(servers[i], chunkTypes[i]);
 	}
 	return ret;
 }
 
-void matocsserv_getservers_lessrepl(std::vector<void*>& ptrs, uint16_t replimit) {
-	matocsserventry *eptr;
-	sassert(ptrs.empty());
-	for (eptr = matocsservhead; eptr && ptrs.size() < 65535; eptr = eptr->next) {
-		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace &&
-				(eptr->totalspace - eptr->usedspace) > (eptr->totalspace / 100) &&
-				eptr->wrepcounter < replimit) {
-			ptrs.push_back(static_cast<void*>(eptr));
+uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching) {
+	uint32_t serverCount = 0;
+	*totalMatching = 0;
+	*returnedMatching = 0;
+	for (matocsserventry* eptr = matocsservhead; eptr && serverCount < 65535; eptr = eptr->next) {
+		if (eptr->mode == KILL
+				|| eptr->totalspace == 0
+				|| eptr->usedspace > eptr->totalspace
+				|| (eptr->totalspace - eptr->usedspace) <= (eptr->totalspace / 100)) {
+			// Skip full and disconnected chunkservers
+			continue;
+		}
+		bool matchesRequestedLabel = false;
+		if (label != kMediaLabelWildcard && eptr->label == label) {
+			++(*totalMatching);
+			matchesRequestedLabel = true;
+		}
+		if (eptr->wrepcounter < replicationWriteLimit) {
+			servers[serverCount] = eptr;
+			serverCount++;
+			if (matchesRequestedLabel) {
+				++(*returnedMatching);
+			}
 		}
 	}
-	std::random_shuffle(ptrs.begin(), ptrs.end());
+	std::random_shuffle(servers, servers + serverCount);
+	if (*returnedMatching > 0) {
+		// Move servers matching the requested label to the front of the servers array
+		std::partition(servers, servers + serverCount, [&label](matocsserventry* cs) {
+			return cs->label == label;
+		});
+	}
+	return serverCount;
+}
+
+const MediaLabel& matocsserv_get_label(matocsserventry* e) {
+	return e->label;
+}
+
+double matocsserv_get_usage(matocsserventry* eptr) {
+	if (eptr->usedspace > eptr->totalspace) {
+		return 1.0;
+	} else {
+		return double(eptr->usedspace) / double(eptr->totalspace);
+	}
 }
 
 void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
@@ -705,8 +585,7 @@ void matocsserv_getspace(uint64_t *totalspace,uint64_t *availspace) {
 	*availspace = tspace-uspace;
 }
 
-const char* matocsserv_getstrip(void *e) {
-	matocsserventry *eptr = (matocsserventry *)e;
+const char* matocsserv_getstrip(matocsserventry *eptr) {
 	static const char *empty = "???";
 	if (eptr->mode!=KILL && eptr->servstrip) {
 		return eptr->servstrip;
@@ -714,29 +593,27 @@ const char* matocsserv_getstrip(void *e) {
 	return empty;
 }
 
-int matocsserv_getlocation(void *e,uint32_t *servip,uint16_t *servport) {
-	matocsserventry *eptr = (matocsserventry *)e;
+int matocsserv_getlocation(matocsserventry *eptr,uint32_t *servip,uint16_t *servport,
+		MediaLabel** label) {
 	if (eptr->mode!=KILL) {
 		*servip = eptr->servip;
 		*servport = eptr->servport;
+		*label = &(eptr->label);
 		return 0;
 	}
 	return -1;
 }
 
 
-uint16_t matocsserv_replication_write_counter(void *e) {
-	matocsserventry *eptr = (matocsserventry *)e;
+uint16_t matocsserv_replication_write_counter(matocsserventry *eptr) {
 	return eptr->wrepcounter;
 }
 
-uint16_t matocsserv_replication_read_counter(void *e) {
-	matocsserventry *eptr = (matocsserventry *)e;
+uint16_t matocsserv_replication_read_counter(matocsserventry *eptr) {
 	return eptr->rrepcounter;
 }
 
-uint16_t matocsserv_deletion_counter(void *e) {
-	matocsserventry *eptr = (matocsserventry *)e;
+uint16_t matocsserv_deletion_counter(matocsserventry *eptr) {
 	return eptr->delcounter;
 }
 
@@ -775,8 +652,7 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 }
 
 /* for future use */
-int matocsserv_send_chunk_checksum(void *e,uint64_t chunkid,uint32_t version) {
-	matocsserventry *eptr = (matocsserventry *)e;
+int matocsserv_send_chunk_checksum(matocsserventry *eptr,uint64_t chunkid,uint32_t version) {
 	uint8_t *data;
 
 	if (eptr->mode!=KILL) {
@@ -809,9 +685,8 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	(void)version;
 }
 
-int matocsserv_send_createchunk(void *e, uint64_t chunkId, ChunkType chunkType,
+int matocsserv_send_createchunk(matocsserventry *eptr, uint64_t chunkId, ChunkType chunkType,
 		uint32_t chunkVersion) {
-	matocsserventry *eptr = (matocsserventry *)e;
 	if (eptr->mode != KILL) {
 		eptr->outputPackets.push_back(OutputPacket());
 		if (eptr->version < kFirstXorVersion) {
@@ -845,9 +720,8 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr, const std::vector<
 	}
 }
 
-int matocsserv_send_deletechunk(void *e, uint64_t chunkId, uint32_t chunkVersion,
+int matocsserv_send_deletechunk(matocsserventry *eptr, uint64_t chunkId, uint32_t chunkVersion,
 		ChunkType chunkType) {
-	matocsserventry *eptr = (matocsserventry *)e;
 	if (eptr->mode != KILL) {
 		eptr->outputPackets.push_back(OutputPacket());
 		if (eptr->version < kFirstXorVersion) {
@@ -884,9 +758,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr, const std::vector<
 	}
 }
 
-int matocsserv_send_replicatechunk(void *e, uint64_t chunkid, uint32_t version, void *src) {
-	matocsserventry *eptr = (matocsserventry *)e;
-	matocsserventry *srceptr = (matocsserventry *)src;
+int matocsserv_send_replicatechunk(matocsserventry *eptr, uint64_t chunkid, uint32_t version, matocsserventry *srceptr) {
 	uint8_t *data;
 
 	if (matocsserv_replication_find(chunkid, version, ChunkType::getStandardChunkType(), eptr)) {
@@ -899,15 +771,13 @@ int matocsserv_send_replicatechunk(void *e, uint64_t chunkid, uint32_t version, 
 		put32bit(&data, srceptr->servip);
 		put16bit(&data, srceptr->servport);
 		matocsserv_replication_begin(chunkid, version, ChunkType::getStandardChunkType(), eptr, 1,
-				&src);
-		eptr->carry = 0;
+				&srceptr);
 	}
 	return 0;
 }
 
-int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t version, ChunkType type,
-		const std::vector<void*> &sourcePointers, const std::vector<ChunkType> &sourceTypes) {
-	matocsserventry *eptr = static_cast<matocsserventry *>(e);
+int matocsserv_send_liz_replicatechunk(matocsserventry *eptr, uint64_t chunkid, uint32_t version, ChunkType type,
+		const std::vector<matocsserventry*> &sourcePointers, const std::vector<ChunkType> &sourceTypes) {
 	if (matocsserv_replication_find(chunkid, version, type, eptr)) {
 		return -1;
 	}
@@ -920,14 +790,14 @@ int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t versi
 	if (eptr->mode == KILL) {
 		return 0;
 	}
-	for (void *source : sourcePointers) {
-		if (static_cast<matocsserventry *>(source)->mode == KILL) {
+	for (auto source : sourcePointers) {
+		if (source->mode == KILL) {
 			return 0;
 		}
 	}
 	std::vector<ChunkTypeWithAddress> sources;
 	for (size_t i = 0; i < sourcePointers.size(); ++i) {
-		matocsserventry *src = static_cast<matocsserventry *>(sourcePointers[i]);
+		matocsserventry *src = sourcePointers[i];
 		sources.push_back(ChunkTypeWithAddress(
 				NetworkAddress(src->servip, src->servport), sourceTypes[i]));
 	}
@@ -936,7 +806,6 @@ int matocsserv_send_liz_replicatechunk(void *e, uint64_t chunkid, uint32_t versi
 			chunkid, version, type, sources);
 	matocsserv_replication_begin(chunkid, version, type,
 			eptr, sourcePointers.size(), sourcePointers.data());
-	eptr->carry = 0;
 	return 0;
 }
 
@@ -962,9 +831,8 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 	}
 }
 
-int matocsserv_send_setchunkversion(void *e, uint64_t chunkId, uint32_t newVersion,
+int matocsserv_send_setchunkversion(matocsserventry *eptr, uint64_t chunkId, uint32_t newVersion,
 		uint32_t chunkVersion, ChunkType chunkType) {
-	matocsserventry *eptr = (matocsserventry *)e;
 	if (eptr->mode != KILL) {
 		eptr->outputPackets.push_back(OutputPacket());
 		if (eptr->version < kFirstXorVersion) {
@@ -1000,9 +868,8 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,
 	}
 }
 
-int matocsserv_send_duplicatechunk(void* e, uint64_t newChunkId, uint32_t newChunkVersion,
+int matocsserv_send_duplicatechunk(matocsserventry* eptr, uint64_t newChunkId, uint32_t newChunkVersion,
 		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion) {
-	matocsserventry* eptr = (matocsserventry*)e;
 	if (eptr->mode == KILL) {
 		return 0;
 	}
@@ -1038,9 +905,8 @@ void matocsserv_got_duplicatechunk_status(matocsserventry* eptr, const std::vect
 	}
 }
 
-void matocsserv_send_truncatechunk(void *e, uint64_t chunkid, ChunkType chunkType, uint32_t length,
+void matocsserv_send_truncatechunk(matocsserventry* eptr, uint64_t chunkid, ChunkType chunkType, uint32_t length,
 		uint32_t newVersion,uint32_t oldVersion) {
-	matocsserventry *eptr = (matocsserventry *)e;
 	uint8_t *data;
 
 	if (eptr->mode == KILL) {
@@ -1093,9 +959,8 @@ void matocsserv_got_liz_truncatechunk_status(matocsserventry *eptr,
 	}
 }
 
-int matocsserv_send_duptruncchunk(void* e, uint64_t newChunkId, uint32_t newChunkVersion,
+int matocsserv_send_duptruncchunk(matocsserventry* eptr, uint64_t newChunkId, uint32_t newChunkVersion,
 		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t newChunkLength) {
-	matocsserventry* eptr = (matocsserventry*)e;
 	if (eptr->mode == KILL) {
 		return 0;
 	}
@@ -1131,8 +996,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry* eptr, const std::vecto
 	}
 }
 
-int matocsserv_send_chunkop(void *e,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng) {
-	matocsserventry *eptr = (matocsserventry *)e;
+int matocsserv_send_chunkop(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng) {
 	uint8_t *data;
 
 	if (eptr->mode!=KILL) {
@@ -1172,11 +1036,6 @@ void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uin
 	}
 	if (status!=0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
-	}
-}
-static void update_maxtotalspace(uint64_t totalspace) {
-	if (totalspace > maxtotalspace) {
-		maxtotalspace = totalspace;
 	}
 }
 
@@ -1222,7 +1081,6 @@ void register_space(matocsserventry* eptr) {
 	syslog(LOG_NOTICE, "chunkserver register end (packet version: 5) - ip: %s, port: %"
 			PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",
 			eptr->servstrip, eptr->servport, eptr->usedspace, us, eptr->totalspace, ts);
-	update_maxtotalspace(eptr->totalspace);
 }
 
 void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1380,7 +1238,6 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		update_maxtotalspace(eptr->totalspace);
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
@@ -1408,7 +1265,6 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	passert(data);
 	eptr->usedspace = get64bit(&data);
 	eptr->totalspace = get64bit(&data);
-	update_maxtotalspace(eptr->totalspace);
 	if (length==40) {
 		eptr->chunkscount = get32bit(&data);
 	}
@@ -1427,27 +1283,52 @@ void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8
 	uint32_t servip;
 	uint16_t servport;
 	uint32_t timeout;
-	verifyPacketVersionNoHeader(data, 0);
 	cstoma::registerHost::deserialize(data, servip, servport, timeout, version);
 	return matocsserv_register_host(eptr, version, servip, servport, timeout);
 }
 
 void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uint8_t>& data)
 		throw (IncorrectDeserializationException) {
-	std::vector<ChunkWithVersionAndType> chunks;
-	verifyPacketVersionNoHeader(data, 0);
-	cstoma::registerChunks::deserialize(data, chunks);
-	for (auto& chunk : chunks) {
-		chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::registerChunks::kStandardAndXorChunks) {
+		std::vector<ChunkWithVersionAndType> chunks;
+		cstoma::registerChunks::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+		}
+	} else {
+		std::vector<ChunkWithVersion> chunks;
+		cstoma::registerChunks::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, ChunkType::getStandardChunkType());
+		}
 	}
 }
 
 void matocsserv_liz_register_space(matocsserventry *eptr, const std::vector<uint8_t>& data)
 		throw (IncorrectDeserializationException) {
-	verifyPacketVersionNoHeader(data, 0);
 	cstoma::registerSpace::deserialize(data, eptr->usedspace, eptr->totalspace, eptr->chunkscount,
 			eptr->todelusedspace, eptr->todeltotalspace, eptr->todelchunkscount);
 	return register_space(eptr);
+}
+
+void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint8_t>& data)
+		throw (IncorrectDeserializationException) {
+	std::string label;
+	cstoma::registerLabel::deserialize(data, label);
+	if (!isMediaLabelValid(label)) {
+		syslog(LOG_NOTICE,"LIZ_CSTOMA_REGISTER_LABEL - wrong label '%s' of chunkserver "
+				"(ip: %s, port %" PRIu16 ")", label.c_str(), eptr->servstrip, eptr->servport);
+		eptr->mode = KILL;
+		return;
+	}
+	if (label != eptr->label) {
+		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
+				"changed its label from '%s' to '%s'",
+				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
+		eptr->label = std::move(label);
+	}
 }
 
 void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1600,6 +1481,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 			case LIZ_CSTOMA_REGISTER_SPACE:
 				matocsserv_liz_register_space(eptr, data);
 				break;
+			case LIZ_CSTOMA_REGISTER_LABEL:
+				matocsserv_liz_register_label(eptr, data);
+				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message "
 						"(type:%" PRIu32 ")", type);
@@ -1748,12 +1632,14 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->mode = HEADER;
 			eptr->lastread.reset();
 			eptr->lastwrite.reset();
+
 			tcpgetpeer(eptr->sock,&peerip,NULL);
 			eptr->servstrip = matocsserv_makestrip(peerip);
 			eptr->version = 0;
 			eptr->servip = 0;
 			eptr->servport = 0;
 			eptr->timeout = 60000;
+			eptr->label = kMediaLabelWildcard;
 			eptr->usedspace = 0;
 			eptr->totalspace = 0;
 			eptr->chunkscount = 0;
@@ -1765,8 +1651,6 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
 			eptr->incsdb = 0;
-
-			eptr->carry=(double)(rndu32())/(double)(0xFFFFFFFFU);
 		} else {
 			tcpclose(ns);
 		}
@@ -1820,8 +1704,8 @@ void matocsserv_serve(struct pollfd *pdesc) {
 	}
 }
 
-void matocsserv_remove_server(void *ptr) {
-	delete (matocsserventry*)ptr;
+void matocsserv_remove_server(matocsserventry *ptr) {
+	delete ptr;
 }
 
 void matocsserv_reload(void) {
@@ -1870,8 +1754,8 @@ void matocsserv_reload(void) {
 	lsock = newlsock;
 }
 
-uint32_t matocsserv_get_version(void *e) {
-	return static_cast<matocsserventry *>(e)->version;
+uint32_t matocsserv_get_version(matocsserventry *e) {
+	return e->version;
 }
 
 int matocsserv_init(void) {

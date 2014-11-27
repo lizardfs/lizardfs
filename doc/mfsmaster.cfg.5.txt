@@ -63,6 +63,9 @@ alternative name of *mfsexports.cfg* file
 *TOPOLOGY_FILENAME*::
 alternative name of *mfstopology.cfg* file
 
+*CUSTOM_GOALS_FILENAME*::
+alternative name of *mfsgoals.cfg* file
+
 *BACK_LOGS*::
 number of metadata change log files (default is 50)
 
@@ -124,6 +127,10 @@ Maximum number of chunks to replicate from one chunkserver (default is 10)
 *ACCEPTABLE_DIFFERENCE*::
 A maximum difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
 (default is 0.1, i.e. 10%).
+
+*CHUNKS_REBALANCING_BETWEEN_LABELS*::
+When balancing disk usage, allow moving chunks between servers with different labels
+(default is 0, i.e. chunks will be moved only between servers with the same label).
 
 *EMPTY_TRASH_PERIOD*::
 Interval of removing files from trash in seconds (default is 300)

@@ -12,7 +12,7 @@ CHUNKSERVERS=2 \
 
 cd "${info[mount0]}"
 mkdir dir
-mfssetgoal 2 dir
+assert_success mfs mfssetgoal 2 dir
 cd dir
 
 # Start the test with master, two chunkservers and mount running MooseFS code
@@ -30,6 +30,14 @@ lizardfs_master_daemon restart
 lizardfs_wait_for_all_ready_chunkservers
 # Check if files can still be read:
 assert_success file-validate file0
+# Check if mfssetgoal/mfsgetgoal still work:
+assert_success mkdir dir
+for goal in {1..9}; do
+	assert_equals "dir: $goal" "$(mfs mfssetgoal "$goal" dir || echo FAILED)"
+	expect_equals "dir: $goal" "$(mfs mfsgetgoal dir || echo FAILED)"
+	expected=$'dir:\n'" directories with goal  $goal :          1"
+	expect_equals "$expected" "$(mfs mfsgetgoal -r dir || echo FAILED)"
+done
 
 # Check if replication from MooseFS CS (chunkserver) to LizardFS CS works:
 moosefs_chunkserver_daemon 1 stop

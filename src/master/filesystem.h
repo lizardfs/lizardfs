@@ -28,29 +28,16 @@
 #include "common/acl_type.h"
 #include "common/exception.h"
 #include "common/goal.h"
+#include "common/goal_map.h"
 #include "common/quota.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
 #include "master/metadata_dumper.h"
 
-struct GoalStats {
-	uint32_t filesWithXorLevel[goal::kMaxXorLevel + 1];
-	uint32_t filesWithGoal[goal::kMaxOrdinaryGoal + 1];
-	uint32_t directoriesWithXorLevel[goal::kMaxXorLevel + 1];
-	uint32_t directoriesWithGoal[goal::kMaxOrdinaryGoal + 1];
-
-	GoalStats() {
-		memset(filesWithXorLevel, 0, sizeof(filesWithXorLevel));
-		memset(filesWithGoal, 0, sizeof(filesWithGoal));
-		memset(directoriesWithXorLevel, 0, sizeof(directoriesWithXorLevel));
-		memset(directoriesWithGoal, 0, sizeof(directoriesWithGoal));
-	}
-};
-
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
 /// Returns version of the loaded metadata.
-uint64_t fs_getversion(void);
+uint64_t fs_getversion();
 
 /// Returns checksum of the loaded metadata.
 uint64_t fs_checksum(ChecksumMode mode);
@@ -176,12 +163,11 @@ uint8_t fs_repair(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 uint8_t fs_rmdir(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid);
 uint8_t fs_readdir_size(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,void **dnode,uint32_t *dbuffsize);
 void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,void *dnode,uint8_t *dbuff);
-uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[11]);
+uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,Attributes& attr);
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid);
-uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
-		GoalStats& goalStats);
+uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab);
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
 void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
 uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t feattrtab[16],uint32_t deattrtab[16]);
@@ -220,6 +206,12 @@ uint8_t fs_get_chunkid(const FsContext& context,
 void fs_incversion(uint64_t chunkid);
 
 void fs_cs_disconnected(void);
+
+/// Return the current definitions of all goals.
+const GoalMap<Goal>& fs_get_goal_definitions();
+
+/// Return the current definition of the given (by ID) goal.
+const Goal& fs_get_goal_definition(uint8_t goalId);
 
 int fs_init(void);
 int fs_init(bool force);

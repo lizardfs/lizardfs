@@ -33,12 +33,15 @@
 #include <algorithm>
 #include <list>
 
+#include <list>
+
 #include "chunkserver/bgjobs.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/network_main_thread.h"
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocs_communication.h"
@@ -106,6 +109,7 @@ static char *MasterPort;
 static char *BindHost;
 static uint32_t Timeout_ms;
 static void* reconnect_hook;
+static std::string gLabel;
 
 static uint64_t stats_bytesout=0;
 static uint64_t stats_bytesin=0;
@@ -164,6 +168,14 @@ void masterconn_create_attached_moosefs_packet(masterconn *eptr,
 	masterconn_create_attached_packet(eptr, buffer);
 }
 
+void masterconn_sendregisterlabel(masterconn *eptr) {
+	if (eptr->mode == HEADER || eptr->mode == DATA) {
+		std::vector<uint8_t> serializedPacket;
+		cstoma::registerLabel::serialize(serializedPacket, gLabel);
+		masterconn_create_attached_packet(eptr, serializedPacket);
+	}
+}
+
 void masterconn_sendregister(masterconn *eptr) {
 	uint32_t myip;
 	uint16_t myport;
@@ -193,6 +205,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	cstoma::registerSpace::serialize(serializedPacket, usedspace, totalspace, chunkcount,
 			tdusedspace, tdtotalspace, tdchunkcount);
 	masterconn_create_attached_packet(eptr, serializedPacket);
+	masterconn_sendregisterlabel(eptr);
 }
 
 void masterconn_check_hdd_reports() {
@@ -213,11 +226,13 @@ void masterconn_check_hdd_reports() {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_ERROR_OCCURRED);
 			errorcounter--;
 		}
+
 		MooseFSVector<uint64_t> chunks;
 		hdd_get_damaged_chunks(chunks);
 		if (!chunks.empty()) {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
 		}
+
 		chunks.clear();
 		// FIXME use chunkIdWithType instead of chunkId for reporting lost chunks
 		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
@@ -419,6 +434,7 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::replicateChunk::serialize(outputPacket->packet,
 			chunkId, chunkType, STATUS_OK, chunkVersion);
+	DEBUG_LOG("cs.matocs.replicate") << chunkId;
 	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
 			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
 }
@@ -438,6 +454,7 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
+	DEBUG_LOG("cs.matocs.replicate") << chunkid;
 	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
@@ -864,6 +881,17 @@ static uint32_t get_cfg_timeout() {
 	return 1000 * cfg_get_minmaxvalue<double>("MASTER_TIMEOUT", 60, 0.01, 1000 * 1000);
 }
 
+/// Read the label from configuration file and return true if it's changed to a valid one
+bool masterconn_load_label() {
+	std::string oldLabel = gLabel;
+	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
+	if (!isMediaLabelValid(gLabel)) {
+		mfs_arg_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
+		return false;
+	}
+	return gLabel != oldLabel;
+}
+
 void masterconn_reload(void) {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
@@ -907,6 +935,10 @@ void masterconn_reload(void) {
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
 
+	if (masterconn_load_label()) {
+		masterconn_sendregisterlabel(eptr);
+	}
+
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
 
@@ -921,6 +953,9 @@ int masterconn_init(void) {
 	Timeout_ms = get_cfg_timeout();
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
+	if (!masterconn_load_label()) {
+		return -1;
+	}
 	eptr = masterconnsingleton = new masterconn;
 	passert(eptr);
 

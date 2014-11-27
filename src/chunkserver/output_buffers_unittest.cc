@@ -4,9 +4,6 @@
 #include <fcntl.h>
 #include <cstdlib>
 #include <string>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/scoped_array.hpp>
 #include <gtest/gtest.h>
 
 #include "unittests/TemporaryDirectory.h"

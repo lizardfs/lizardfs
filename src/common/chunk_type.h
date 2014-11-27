@@ -17,6 +17,9 @@ public:
 	static ChunkType getXorChunkType(XorLevel level, XorPart part);
 	static ChunkType getXorParityChunkType(XorLevel level);
 
+	// TODO Consider removing this constructor..
+	ChunkType() : chunkTypeId_(kStandardChunkTypeId) {
+	}
 	bool isStandardChunkType() const;
 	bool isXorChunkType() const;
 	bool isXorParity() const;

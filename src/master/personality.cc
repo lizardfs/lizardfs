@@ -1,7 +1,7 @@
 #include "common/platform.h"
 #include "personality.h"
 
-#include <boost/algorithm/string.hpp>
+#include <algorithm>
 
 #include "common/cfg.h"
 #include "common/exceptions.h"
@@ -25,7 +25,7 @@ Personality loadPersonality() {
 	const std::string kMaster = "master";
 	const std::string kShadow = "shadow";
 	std::string p = cfg_get("PERSONALITY", kMaster);
-	boost::to_lower(p);
+	std::transform(p.begin(), p.end(), p.begin(), tolower);
 	Personality personality = Personality::kMaster;
 	if (p == kMaster) {
 		personality = Personality::kMaster;
@@ -55,7 +55,7 @@ void personality_reload(void) {
 				mfs_syslog(LOG_ERR, "trying to preform forbidden personality change from Master to Shadow");
 			}
 		}
-	} catch (const std::exception& e) {
+	} catch (const ConfigurationException& e) {
 		/* reload shall not break instance */
 		mfs_arg_syslog(LOG_ERR, "bad configuration: `%s'", e.what());
 	}

@@ -142,7 +142,11 @@ if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
 		loops+=(/mnt/lizardfstest_loop_$i)
 		(( ++i ))
 	done
-	echo ": \${LIZARDFS_LOOP_DISKS:=\"${loops[*]}\"}" >> /etc/lizardfs_tests.conf
+	if (( i > 0 )) ; then
+		echo ': ${LIZARDFS_LOOP_DISKS:="'"${loops[*]}"'"}'
+	else
+		echo ': ${LIZARDFS_LOOP_DISKS:=}'
+	fi >> /etc/lizardfs_tests.conf
 fi
 
 set +x
