@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 #include <inttypes.h>
 
-/* MFS data pack */
+/* LFS data pack */
 
 static inline void put64bit(uint8_t **ptr,uint64_t val) {
 	(*ptr)[0]=((val)>>56)&0xFF;

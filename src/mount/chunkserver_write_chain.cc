@@ -2,7 +2,7 @@
 #include "mount/chunkserver_write_chain.h"
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "mount/csdb.h"
 #include "mount/mastercomm.h"
 

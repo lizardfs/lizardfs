@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "common/crc.h"
-#include "common/mfserr.h"
+#include "common/lfserr.h"
 #include "common/random.h"
 
 int main(int argc, char **argv) {

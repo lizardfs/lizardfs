@@ -48,7 +48,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname);
 
 /**
  * Rename changelog files from old to new version
- * from <name>.X.mfs to <name>.mfs.X
+ * from <name>.X.lfs to <name>.lfs.X
  * Used only once - after upgrade from version before 1.6.29
  * \param name -- changelog name before first dot
  */

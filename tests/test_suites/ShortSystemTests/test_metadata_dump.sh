@@ -1,21 +1,21 @@
 timeout_set 90 seconds
 
-master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
+master_extra_config="LFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
 master_extra_config+="|DUMP_METADATA_ON_RELOAD = 1"
 master_extra_config+="|PREFER_BACKGROUND_DUMP = 1"
 master_extra_config+="|BACK_META_KEEP_PREVIOUS = 5"
 
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER|lfsacl" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MASTER_EXTRA_CONFIG=$master_extra_config \
 	setup_local_empty_lizardfs info
 
 # 'metaout_tmp' is used to ensure 'metaout' is complete when "created"
 cat > $TEMP_DIR/metarestore_ok.sh << END
 #!/bin/bash
-mfsmetarestore "\$@" | tee $TEMP_DIR/metaout_tmp
+lfsmetarestore "\$@" | tee $TEMP_DIR/metaout_tmp
 ret="\${PIPESTATUS[0]}"
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit "\$ret"
@@ -23,7 +23,7 @@ END
 
 cat > $TEMP_DIR/metarestore_wrong_checksum.sh << END
 #!/bin/bash
-mfsmetarestore "\$@" -k 0 | tee $TEMP_DIR/metaout_tmp
+lfsmetarestore "\$@" -k 0 | tee $TEMP_DIR/metaout_tmp
 ret="\${PIPESTATUS[0]}"
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit "\$ret"
@@ -48,10 +48,10 @@ chmod a+x $TEMP_DIR/metarestore.sh
 
 backup_copies=1
 function check_backup_copies() {
-	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.mfs.? | wc -l)
-	expect_file_exists "${info[master_data_path]}/metadata.mfs"
+	expect_equals $backup_copies $(ls "${info[master_data_path]}"/metadata.lfs.? | wc -l)
+	expect_file_exists "${info[master_data_path]}/metadata.lfs"
 	for (( i = 1 ; i <= backup_copies ; ++i )); do
-		expect_file_exists "${info[master_data_path]}/metadata.mfs.$i"
+		expect_file_exists "${info[master_data_path]}/metadata.lfs.$i"
 	done
 }
 
@@ -60,15 +60,15 @@ function check_backup_copies() {
 function check() {
 	cd "${info[master_data_path]}"
 	rm -f "$TEMP_DIR/metaout"
-	assert_file_exists "changelog.mfs"
-	assert_file_exists "metadata.mfs"
+	assert_file_exists "changelog.lfs"
+	assert_file_exists "metadata.lfs"
 
-	prev_metadata_inode=$(stat --format=%i metadata.mfs)
+	prev_metadata_inode=$(stat --format=%i metadata.lfs)
 	lizardfs_master_daemon reload
 	if [[ $2 == OK ]]; then
 		# wait for dump to be finished
-		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.1) == $prev_metadata_inode ]]'
-		files_are_renamed='[[ -e metadata.mfs && ! -e metadata.mfs.tmp ]]'
+		metadata_is_dumped='[[ $(stat --format=%i metadata.lfs.1) == $prev_metadata_inode ]]'
+		files_are_renamed='[[ -e metadata.lfs && ! -e metadata.lfs.tmp ]]'
 		assert_eventually "$metadata_is_dumped"
 		assert_eventually "$files_are_renamed"
 	fi
@@ -83,10 +83,10 @@ function check() {
 	if [[ $2 == OK ]]; then
 		# check if the dumped metadata is up to date,
 		# ie. if its version is equal to (1 + last entry in changelog.1)
-		assert_file_exists changelog.mfs.1
-		last_change=$(tail -1 changelog.mfs.1 | cut -d : -f 1)
+		assert_file_exists changelog.lfs.1
+		last_change=$(tail -1 changelog.lfs.1 | cut -d : -f 1)
 		assert_success test -n "$last_change"
-		assert_equals $((last_change+1)) "$(mfsmetadump metadata.mfs | awk 'NR==2{print $6}')"
+		assert_equals $((last_change+1)) "$(lfsmetadump metadata.lfs | awk 'NR==2{print $6}')"
 		if ((backup_copies < 5)); then
 			backup_copies=$((backup_copies + 1))
 		fi
@@ -98,13 +98,13 @@ function check() {
 cd "${info[mount0]}"
 
 FILE_SIZE=200B file-generate to_be_destroyed
-mfsfilerepair to_be_destroyed
+lfsfilerepair to_be_destroyed
 check metarestore OK
 
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk*')
-mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lfschunkserver -c "${info[chunkserver${csid}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 2
-mfsfilerepair to_be_destroyed
+lfsfilerepair to_be_destroyed
 check metarestore OK
 
 while read command; do
@@ -127,28 +127,28 @@ ln -s file symlink
 mv file file2
 ln -fs file2 symlink
 echo 'abc' > symlink
-mfssetquota -u $(id -u) 10GB 30GB 0 0 .
-mfssetquota -g $(id -g) 0 0 10k 20k .
+lfssetquota -u $(id -u) 10GB 30GB 0 0 .
+lfssetquota -g $(id -g) 0 0 10k 20k .
 touch file{00..99}
-mfssettrashtime 0 file1{0..4}
+lfssettrashtime 0 file1{0..4}
 rm file1?
 mv file99 file999
-mfssetgoal 3 file999
-mfssetgoal 9 file03
+lfssetgoal 3 file999
+lfssetgoal 9 file03
 head -c 1M < /dev/urandom > random_file
-mfssettrashtime 3 random_file
+lfssettrashtime 3 random_file
 truncate -s 100M random_file
 head -c 1M < /dev/urandom > random_file2
 truncate -s 100 random_file2
 truncate -s 1T sparse
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse
 head -c 1M /dev/urandom >> sparse
-mfsmakesnapshot sparse sparse2
+lfsmakesnapshot sparse sparse2
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse2
 truncate -s 1000M sparse2
 truncate -s 100 sparse2
 truncate -s 0 sparse2
-mfsmakesnapshot -o random_file random_file2
+lfsmakesnapshot -o random_file random_file2
 head -c 2M /dev/urandom | dd seek=1 bs=1M conv=notrunc of=random_file
 truncate -s 1000M sparse
 truncate -s 100 sparse

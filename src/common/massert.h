@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include <syslog.h>
 
 #include "common/debug_log.h"
-#include "common/mfserr.h"
+#include "common/lfserr.h"
 
 #ifdef THROW_INSTEAD_OF_ABORT
 #  include <stdexcept>
@@ -59,18 +59,18 @@
 		} } while (false)
 
 #define eassert(e) do { if (!(e)) { \
-			const char *_mfs_errorstring = strerr(errno); \
-			syslog(LOG_ERR, "failed assertion '%s', error: %s", #e, _mfs_errorstring); \
-			fprintf(stderr, "failed assertion '%s', error: %s\n", #e, _mfs_errorstring); \
-			DEBUG_LOG("fatal.assert") << "failed assertion '" << #e << "': " << _mfs_errorstring; \
+			const char *_lfs_errorstring = strerr(errno); \
+			syslog(LOG_ERR, "failed assertion '%s', error: %s", #e, _lfs_errorstring); \
+			fprintf(stderr, "failed assertion '%s', error: %s\n", #e, _lfs_errorstring); \
+			DEBUG_LOG("fatal.assert") << "failed assertion '" << #e << "': " << _lfs_errorstring; \
 			ABORT_OR_THROW(); \
 		} } while(false)
 
 #define zassert(e) do { if ((e) != 0) { \
-			const char *_mfs_errorstring = strerr(errno); \
-			syslog(LOG_ERR, "unexpected status, '%s' returned: %s", #e, _mfs_errorstring); \
-			fprintf(stderr, "unexpected status, '%s' returned: %s\n", #e, _mfs_errorstring); \
-			DEBUG_LOG("fatal.assert") << "unexpected status, " << #e << ": " << _mfs_errorstring; \
+			const char *_lfs_errorstring = strerr(errno); \
+			syslog(LOG_ERR, "unexpected status, '%s' returned: %s", #e, _lfs_errorstring); \
+			fprintf(stderr, "unexpected status, '%s' returned: %s\n", #e, _lfs_errorstring); \
+			DEBUG_LOG("fatal.assert") << "unexpected status, " << #e << ": " << _lfs_errorstring; \
 			ABORT_OR_THROW(); \
 		} } while(false)
 

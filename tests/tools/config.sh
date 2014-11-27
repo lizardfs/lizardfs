@@ -8,7 +8,7 @@ fi
 : ${LIZARDFS_DISKS:=}
 : ${LIZARDFS_LOOP_DISKS:=}
 : ${TEMP_DIR:=/tmp/LizardFS-autotests}
-: ${MOOSEFS_DIR:=/tmp/LizardFS-autotests-mfs}
+: ${LIZARDFS_DIR:=/tmp/LizardFS-autotests-lfs}
 : ${LIZARDFS_ROOT:=$HOME/local}
 : ${FIRST_PORT_TO_USE:=25000}
 : ${ERROR_FILE:=}
@@ -38,8 +38,8 @@ fi
 # This function shold be called just after test_fail is able to work
 check_configuration() {
 	for prog in \
-			$LIZARDFS_ROOT/sbin/{mfsmaster,mfschunkserver} \
-			$LIZARDFS_ROOT/bin/{mfsmount,mfstools,mfscheckfile,mfssetgoal,mfssetquota,mfsrepquota} \
+			$LIZARDFS_ROOT/sbin/{lfsmaster,lfschunkserver} \
+			$LIZARDFS_ROOT/bin/{lfsmount,lfstools,lfscheckfile,lfssetgoal,lfssetquota,lfsrepquota} \
 			$LIZARDFS_ROOT/bin/file-generate \
 			$LIZARDFS_ROOT/bin/file-validate
 	do
@@ -48,7 +48,7 @@ check_configuration() {
 		fi
 	done
 
-	if ! df -T "$RAMDISK_DIR" | grep "tmpfs\|ramfs" >/dev/null; then
+	if ! df -T "$RAMDISK_DIR" | grep "tmpfs\|ralfs" >/dev/null; then
 		test_fail "Configuration error, ramdisk ($RAMDISK_DIR) is missing"
 	fi
 

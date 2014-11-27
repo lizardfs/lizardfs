@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@
 #include "common/massert.h"
 #include "common/matocl_communication.h"
 #include "common/metadata.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/random.h"
 #include "common/serialized_goal.h"
 #include "common/slogger.h"
@@ -78,7 +78,7 @@ const uint32_t kMaxNumberOfChunkCopies = 100U;
 /* CACHENOTIFY
 // hash size should be at least 1.5 * 10000 * # of connected mounts
 // it also should be the prime number
-// const 10000 is defined in mfsmount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
+// const 10000 is defined in lfsmount/dircache.c file as DIRS_REMOVE_THRESHOLD_MAX
 // current const is calculated as nextprime(1.5 * 10000 * 500) and is enough for up to about 500 mounts
 #define DIRINODE_HASH_SIZE 7500013
 */
@@ -156,7 +156,7 @@ typedef struct matoclserventry {
 	 *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))
 	 *       This is referred to as "mounts and new tools" or "standard, registered clients".
 	 *  100: FUSE_REGISTER_BLOB_TOOLS_NOACL or (FUSE_REGISTER_BLOB_ACL and REGISTER_TOOLS)
-	 *       This is referred to as "old mfstools".
+	 *       This is referred to as "old lfstools".
 	 */
 	uint8_t registered;
 	uint8_t mode;                           //0 - not active, 1 - read header, 2 - read packet
@@ -312,7 +312,7 @@ session* matoclserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	asesdata->mapalluid = 0;
 	asesdata->mapallgid = 0;
 	asesdata->newsession = newsession;
-	asesdata->rootinode = MFS_ROOT_ID;
+	asesdata->rootinode = LFS_ROOT_ID;
 	asesdata->openedfiles = NULL;
 	asesdata->disconnected = 0;
 	asesdata->nsocks = 1;
@@ -370,10 +370,10 @@ void matoclserv_store_sessions() {
 
 	fd = fopen(kSessionsTmpFilename, "w");
 	if (fd==NULL) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
+		lfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
 		return;
 	}
-	memcpy(fsesrecord,MFSSIGNATURE "S \001\006\004",8);
+	memcpy(fsesrecord,LFSSIGNATURE "S \001\006\004",8);
 	ptr = fsesrecord+8;
 	put16bit(&ptr,SESSION_STATS);
 	if (fwrite(fsesrecord,10,1,fd)!=1) {
@@ -423,11 +423,11 @@ void matoclserv_store_sessions() {
 		}
 	}
 	if (fclose(fd)!=0) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, fclose error");
+		lfs_errlog_silent(LOG_WARNING,"can't store sessions, fclose error");
 		return;
 	}
 	if (rename(kSessionsTmpFilename, kSessionsFilename) < 0) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, rename error");
+		lfs_errlog_silent(LOG_WARNING,"can't store sessions, rename error");
 	}
 }
 
@@ -445,7 +445,7 @@ int matoclserv_load_sessions() {
 
 	fd = fopen(kSessionsFilename, "r");
 	if (fd==NULL) {
-		mfs_errlog_silent(LOG_WARNING,"can't load sessions, fopen error");
+		lfs_errlog_silent(LOG_WARNING,"can't load sessions, fopen error");
 		if (errno==ENOENT) {    // it's ok if file does not exist
 			return 0;
 		} else {
@@ -457,19 +457,19 @@ int matoclserv_load_sessions() {
 		fclose(fd);
 		return -1;
 	}
-	if (memcmp(hdr,MFSSIGNATURE "S 1.5",8)==0) {
+	if (memcmp(hdr,LFSSIGNATURE "S 1.5",8)==0) {
 		mapalldata = 0;
 		goaltrashdata = 0;
 		statsinfile = 16;
-	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\001",8)==0) {
+	} else if (memcmp(hdr,LFSSIGNATURE "S \001\006\001",8)==0) {
 		mapalldata = 1;
 		goaltrashdata = 0;
 		statsinfile = 16;
-	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\002",8)==0) {
+	} else if (memcmp(hdr,LFSSIGNATURE "S \001\006\002",8)==0) {
 		mapalldata = 1;
 		goaltrashdata = 0;
 		statsinfile = 21;
-	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\003",8)==0) {
+	} else if (memcmp(hdr,LFSSIGNATURE "S \001\006\003",8)==0) {
 		mapalldata = 1;
 		goaltrashdata = 0;
 		if (fread(hdr,2,1,fd)!=1) {
@@ -479,7 +479,7 @@ int matoclserv_load_sessions() {
 		}
 		ptr = hdr;
 		statsinfile = get16bit(&ptr);
-	} else if (memcmp(hdr,MFSSIGNATURE "S \001\006\004",8)==0) {
+	} else if (memcmp(hdr,LFSSIGNATURE "S \001\006\004",8)==0) {
 		mapalldata = 1;
 		goaltrashdata = 1;
 		if (fread(hdr,2,1,fd)!=1) {
@@ -631,7 +631,7 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 		asesdata->mapalluid = 0;
 		asesdata->mapallgid = 0;
 		asesdata->newsession = 0;
-		asesdata->rootinode = MFS_ROOT_ID;
+		asesdata->rootinode = LFS_ROOT_ID;
 		asesdata->openedfiles = NULL;
 		asesdata->disconnected = main_time();
 		asesdata->nsocks = 0;
@@ -1246,7 +1246,7 @@ void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,LFS_ROOT_ID);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1281,7 +1281,7 @@ void matoclserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *nam
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,LFS_ROOT_ID);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1307,7 +1307,7 @@ void matoclserv_notify_remove(uint32_t dirinode) {
 			stats_notify++;
 			put32bit(&ptr,0);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,LFS_ROOT_ID);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1332,7 +1332,7 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 			put32bit(&ptr,0);
 			put32bit(&ptr,dirinode);
 			if (parent==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,LFS_ROOT_ID);
 			} else {
 				put32bit(&ptr,parent);
 			}
@@ -1422,7 +1422,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->sesdata->rootinode = MFS_ROOT_ID;
+				eptr->sesdata->rootinode = LFS_ROOT_ID;
 				eptr->sesdata->sesflags = 0;
 				eptr->sesdata->peerip = eptr->peerip;
 		} else { // reconnect or tools
@@ -1434,7 +1434,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->sesdata->rootinode = MFS_ROOT_ID;
+				eptr->sesdata->rootinode = LFS_ROOT_ID;
 				eptr->sesdata->sesflags = 0;
 				eptr->sesdata->peerip = eptr->peerip;
 				status = STATUS_OK;
@@ -2132,12 +2132,12 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 
 void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t messageId, inode, uid, gid, rdev;
-	MooseFsString<uint8_t> name;
+	LizardFsString<uint8_t> name;
 	uint8_t type;
 	uint16_t mode, umask;
 
 	if (header.type == CLTOMA_FUSE_MKNOD) {
-		deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+		deserializeAllLizardFsPacketDataNoHeader(data, header.length,
 				messageId, inode, name, type, mode, uid, gid, rdev);
 		umask = 0;
 	} else if (header.type == LIZ_CLTOMA_FUSE_MKNOD) {
@@ -2159,13 +2159,13 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader header, const uin
 
 	MessageBuffer reply;
 	if (status == STATUS_OK && header.type == CLTOMA_FUSE_MKNOD) {
-		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
+		serializeLizardFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, newinode, attr);
 	} else if (status == STATUS_OK && header.type == LIZ_CLTOMA_FUSE_MKNOD) {
 		matocl::fuseMknod::serialize(reply, messageId, newinode, attr);
 	} else if (header.type == LIZ_CLTOMA_FUSE_MKNOD) {
 		matocl::fuseMknod::serialize(reply, messageId, status);
 	} else {
-		serializeMooseFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, status);
+		serializeLizardFsPacket(reply, MATOCL_FUSE_MKNOD, messageId, status);
 	}
 	matoclserv_createpacket(eptr, std::move(reply));
 	if (eptr->sesdata) {
@@ -2175,16 +2175,16 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader header, const uin
 
 void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t messageId, inode, uid, gid;
-	MooseFsString<uint8_t> name;
+	LizardFsString<uint8_t> name;
 	bool copysgid;
 	uint16_t mode, umask;
 
 	if (header.type == CLTOMA_FUSE_MKDIR) {
 		if (eptr->version >= lizardfsVersion(1, 6, 25)) {
-			deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+			deserializeAllLizardFsPacketDataNoHeader(data, header.length,
 					messageId, inode, name, mode, uid, gid, copysgid);
 		} else {
-			deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+			deserializeAllLizardFsPacketDataNoHeader(data, header.length,
 					messageId, inode, name, mode, uid, gid);
 			copysgid = false;
 		}
@@ -2208,13 +2208,13 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader header, const uin
 
 	MessageBuffer reply;
 	if (status == STATUS_OK && header.type == CLTOMA_FUSE_MKDIR) {
-		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
+		serializeLizardFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, newinode, attr);
 	} else if (status == STATUS_OK && header.type == LIZ_CLTOMA_FUSE_MKDIR) {
 		matocl::fuseMkdir::serialize(reply, messageId, newinode, attr);
 	} else if (header.type == LIZ_CLTOMA_FUSE_MKDIR) {
 		matocl::fuseMkdir::serialize(reply, messageId, status);
 	} else {
-		serializeMooseFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, status);
+		serializeLizardFsPacket(reply, MATOCL_FUSE_MKDIR, messageId, status);
 	}
 	matoclserv_createpacket(eptr, std::move(reply));
 	if (eptr->sesdata) {
@@ -2419,7 +2419,7 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		fs_readdir_data(eptr->sesdata->rootinode,eptr->sesdata->sesflags,uid,gid,auid,agid,flags,custom,ptr);
 /* CACHENOTIFY
 		if (flags&GETDIR_FLAG_ADDTOCACHE) {
-			if (inode==MFS_ROOT_ID) {
+			if (inode==LFS_ROOT_ID) {
 				matoclserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
 			} else {
 				matoclserv_notify_add_dir(eptr,inode);
@@ -2449,7 +2449,7 @@ void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint3
 	while (length) {
 		inode = get32bit(&data);
 		length-=4;
-		if (inode==MFS_ROOT_ID) {
+		if (inode==LFS_ROOT_ID) {
 			matoclserv_notify_remove_dir(eptr,eptr->sesdata->rootinode);
 		} else {
 			matoclserv_notify_remove_dir(eptr,inode);
@@ -2836,7 +2836,7 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const u
 	uint8_t gmode;
 
 	if (header.type == CLTOMA_FUSE_GETGOAL) {
-		deserializeAllMooseFsPacketDataNoHeader(data, header.length, msgid, inode, gmode);
+		deserializeAllLizardFsPacketDataNoHeader(data, header.length, msgid, inode, gmode);
 	} else if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
 		cltoma::fuseGetGoal::deserialize(data, header.length, msgid, inode, gmode);
 	} else {
@@ -2852,33 +2852,33 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const u
 	if (status == STATUS_OK) {
 		GoalMap<Goal> goalDefinitions = fs_get_goal_definitions();
 		std::vector<FuseGetGoalStats> lizReply;
-		MooseFSVector<std::pair<uint8_t, uint32_t>> mooseFsReplyFiles, mooseFsReplyDirectories;
+		LizardFSVector<std::pair<uint8_t, uint32_t>> lizardFsReplyFiles, lizardFsReplyDirectories;
 		for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; goal++) {
 			if (fgtab[goal] || dgtab[goal]) {
 				lizReply.emplace_back(goalDefinitions[goal].name(), fgtab[goal], dgtab[goal]);
 			}
 			if (fgtab[goal] > 0) {
-				mooseFsReplyFiles.emplace_back(goal, fgtab[goal]);
+				lizardFsReplyFiles.emplace_back(goal, fgtab[goal]);
 			}
 			if (dgtab[goal] > 0) {
-				mooseFsReplyDirectories.emplace_back(goal, dgtab[goal]);
+				lizardFsReplyDirectories.emplace_back(goal, dgtab[goal]);
 			}
 		}
 		if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
 			matocl::fuseGetGoal::serialize(reply, msgid, lizReply);
 		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_GETGOAL,
+			serializeLizardFsPacket(reply, MATOCL_FUSE_GETGOAL,
 					msgid,
-					uint8_t(mooseFsReplyFiles.size()),
-					uint8_t(mooseFsReplyDirectories.size()),
-					mooseFsReplyFiles,
-					mooseFsReplyDirectories);
+					uint8_t(lizardFsReplyFiles.size()),
+					uint8_t(lizardFsReplyDirectories.size()),
+					lizardFsReplyFiles,
+					lizardFsReplyDirectories);
 		}
 	} else {
 		if (header.type == LIZ_CLTOMA_FUSE_GETGOAL) {
 			matocl::fuseGetGoal::serialize(reply, msgid, status);
 		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_GETGOAL, msgid, status);
+			serializeLizardFsPacket(reply, MATOCL_FUSE_GETGOAL, msgid, status);
 		}
 	}
 	matoclserv_createpacket(eptr, std::move(reply));
@@ -2890,7 +2890,7 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 	uint8_t status = STATUS_OK;
 
 	if (header.type == CLTOMA_FUSE_SETGOAL) {
-		deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+		deserializeAllLizardFsPacketDataNoHeader(data, header.length,
 				msgid, inode, uid, goalId, smode);
 	} else if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
 		std::string goalName;
@@ -2935,14 +2935,14 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
 			matocl::fuseSetGoal::serialize(reply, msgid, changed, notchanged, notpermitted);
 		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL,
+			serializeLizardFsPacket(reply, MATOCL_FUSE_SETGOAL,
 					msgid, changed, notchanged, notpermitted);
 		}
 	} else {
 		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
 			matocl::fuseSetGoal::serialize(reply, msgid, status);
 		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL, msgid, status);
+			serializeLizardFsPacket(reply, MATOCL_FUSE_SETGOAL, msgid, status);
 		}
 	}
 	matoclserv_createpacket(eptr, std::move(reply));
@@ -3865,10 +3865,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_iolimit(eptr,data,length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
+					syslog(LOG_NOTICE,"main master server module: got unknown message from lfsmount (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
-		} else {        // old mfstools
+		} else {        // old lfstools
 			if (eptr->sesdata==NULL) {
 				syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 				eptr->mode=KILL;
@@ -3879,7 +3879,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_FUSE_REGISTER:
 					matoclserv_fuse_register(eptr,data,length);
 					break;
-				case CLTOMA_FUSE_READ_CHUNK:    // used in mfsfileinfo
+				case CLTOMA_FUSE_READ_CHUNK:    // used in lfsfileinfo
 					matoclserv_fuse_read_chunk(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_CHECK:
@@ -3919,7 +3919,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_seteattr(eptr,data,length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);
+					syslog(LOG_NOTICE,"main master server module: got unknown message from lfstools (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
 		}
@@ -3981,7 +3981,7 @@ void matoclserv_read(matoclserventry *eptr) {
 #ifdef ECONNRESET
 				if (errno!=ECONNRESET || eptr->registered<100) {
 #endif
-					mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+					lfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
 				}
 #endif
@@ -4048,7 +4048,7 @@ void matoclserv_write(matoclserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+				lfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 				eptr->mode = KILL;
 			}
 			return;
@@ -4123,7 +4123,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			lfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -4258,11 +4258,11 @@ int matoclserv_sessionsinit(void) {
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
 	if (SessionSustainTime>7*86400) {
 		SessionSustainTime=7*86400;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+		lfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
 	}
 	if (SessionSustainTime<60) {
 		SessionSustainTime=60;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+		lfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
 	}
 	return 0;
 }
@@ -4279,7 +4279,7 @@ int matoclserv_iolimits_reload() {
 			gIoLimitsDatabase.setLimits(
 					SteadyClock::now(), configLoader.limits(), gIoLimitsAccumulate_ms);
 		} catch (Exception& ex) {
-			mfs_arg_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
+			lfs_arg_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
 					"file (%s): %s", configFile.c_str(), ex.message().c_str());
 			return -1;
 		}
@@ -4319,11 +4319,11 @@ void matoclserv_reload(void) {
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
 	if (SessionSustainTime>7*86400) {
 		SessionSustainTime=7*86400;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+		lfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
 	}
 	if (SessionSustainTime<60) {
 		SessionSustainTime=60;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+		lfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
 	}
 
 	matoclserv_iolimits_reload();
@@ -4340,13 +4340,13 @@ void matoclserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_syslog(LOG_NOTICE,"main master server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
+		lfs_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -4357,10 +4357,10 @@ void matoclserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main master server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"main master server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -4368,7 +4368,7 @@ void matoclserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -4396,20 +4396,20 @@ int matoclserv_networkinit(void) {
 	exiting = 0;
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
+		lfs_errlog(LOG_ERR,"main master server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main master server module: can't listen on %s:%s",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"main master server module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
 
 	matoclservhead = NULL;
 /* CACHENOTIFY

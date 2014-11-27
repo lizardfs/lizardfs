@@ -2,7 +2,7 @@ timeout_set '1 minute'
 CHUNKSERVERS=3 \
 	MOUNTS=1 \
 	USE_RAMDISK="YES" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	setup_local_empty_lizardfs info
 
 # Start Polonaise
@@ -10,13 +10,13 @@ lizardfs-polonaise-server --master-host=localhost \
 	--master-port=${info[matocl]} \
 	--bind-port=9090 &> /dev/null &
 sleep 3
-mnt="$TEMP_DIR/mfspolon"
+mnt="$TEMP_DIR/lfspolon"
 mkdir -p "$mnt"
 
 # fsname below is important. When the test is ended framework unmounts all the filesystems
 # that match a given regex.
-polonaise-fuse-client "$mnt" -o big_writes,allow_other,fsname=mfspolon &
-MESSAGE="Client is not available" assert_eventually 'mfsdirinfo "$mnt"'
+polonaise-fuse-client "$mnt" -o big_writes,allow_other,fsname=lfspolon &
+MESSAGE="Client is not available" assert_eventually 'lfsdirinfo "$mnt"'
 
 cd "$mnt"
 for generator in $(metadata_get_all_generators | egrep -v "acl|xattr|trash"); do

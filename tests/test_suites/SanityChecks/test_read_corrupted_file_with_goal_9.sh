@@ -1,13 +1,13 @@
 goal=9
 CHUNKSERVERS=9 \
-		MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+		MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 		CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
 		USE_RAMDISK=YES \
 		setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
 touch file
-mfssetgoal $goal file
+lfssetgoal $goal file
 FILE_SIZE=1234567 file-generate file
 
 hdds=()
@@ -15,7 +15,7 @@ for i in 0 $(seq 2 $((goal-1))); do
 	hdds+=("$(cat "${info[chunkserver${i}_hdd]}")")
 done
 
-find "${hdds[@]}" -name 'chunk_*.mfs' | xargs -d'\n' -P10 -IXX \
+find "${hdds[@]}" -name 'chunk_*.lfs' | xargs -d'\n' -P10 -IXX \
 		dd if=/dev/zero of=XX bs=1 count=4 seek=6k conv=notrunc
 
 for i in $(seq 20); do

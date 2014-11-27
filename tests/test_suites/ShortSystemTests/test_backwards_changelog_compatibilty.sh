@@ -4,15 +4,15 @@ USE_RAMDISK=YES \
 lizardfs_metalogger_daemon start
 
 # Prints md5 hashes of all master's and metalogger's changelog files.
-# changelog_ml.mfs.1 and changelog_ml.mfs.2 are omitted, because metalogger
+# changelog_ml.lfs.1 and changelog_ml.lfs.2 are omitted, because metalogger
 # overwrites these two when starting and we don't want a race in:
 #   lizardfs_metalogger_daemon start
 #   assert_no_diff "$expected_changelogs" "$(changelog_checksums)"
 changelog_checksums() {
-	md5sum changelog*.mfs* | grep -v '_ml[.]mfs[.][12]' | sort
+	md5sum changelog*.lfs* | grep -v '_ml[.]lfs[.][12]' | sort
 }
 
-metadata_file="${info[master_data_path]}/metadata.mfs"
+metadata_file="${info[master_data_path]}/metadata.lfs"
 cd "${info[mount0]}"
 # Generate some changelog files in master and metalogger
 for n in {1..10}; do
@@ -20,27 +20,27 @@ for n in {1..10}; do
 	prev_version=$(metadata_get_version "$metadata_file")
 	lizardfs_master_daemon reload
 	assert_eventually '(( $(metadata_get_version "$metadata_file") > prev_version ))'
-	assert_eventually "test -f '${info[master_data_path]}/changelog.mfs.$n'"
+	assert_eventually "test -f '${info[master_data_path]}/changelog.lfs.$n'"
 done
 
 cd ${info[master_data_path]}
 lizardfs_master_daemon stop
 lizardfs_metalogger_daemon stop
-echo 111 > changelog.mfs
-echo kazik > changelog_ml.mfs
+echo 111 > changelog.lfs
+echo kazik > changelog_ml.lfs
 expected_changelogs=$(changelog_checksums)
 
 # Rename changelog files so they simulate old version
 for i in {1..99}; do
-	if [[ -e changelog.mfs.$i ]]; then
-		mv changelog.mfs.$i changelog.${i}.mfs
+	if [[ -e changelog.lfs.$i ]]; then
+		mv changelog.lfs.$i changelog.${i}.lfs
 	fi
-	if [[ -e changelog_ml.mfs.$i ]]; then
-		mv changelog_ml.mfs.$i changelog_ml.${i}.mfs
+	if [[ -e changelog_ml.lfs.$i ]]; then
+		mv changelog_ml.lfs.$i changelog_ml.${i}.lfs
 	fi
 done
-mv changelog.mfs changelog.0.mfs
-mv changelog_ml.mfs changelog_ml.0.mfs
+mv changelog.lfs changelog.0.lfs
+mv changelog_ml.lfs changelog_ml.0.lfs
 assert_not_equal "$expected_changelogs" "$(changelog_checksums)"
 
 # Start master and metalogger, and make sure they properly rename changelog files

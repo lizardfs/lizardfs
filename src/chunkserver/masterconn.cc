@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,8 +42,8 @@
 #include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
-#include "common/moosefs_vector.h"
+#include "common/LFSCommunication.h"
+#include "common/lizardfs_vector.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
@@ -159,10 +159,10 @@ void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t>& s
 }
 
 template<class... Data>
-void masterconn_create_attached_moosefs_packet(masterconn *eptr,
+void masterconn_create_attached_lizardfs_packet(masterconn *eptr,
 		PacketHeader::Type type, const Data&... data) {
 	std::vector<uint8_t> buffer;
-	serializeMooseFsPacket(buffer, type, data...);
+	serializeLizardFsPacket(buffer, type, data...);
 	masterconn_create_attached_packet(eptr, buffer);
 }
 
@@ -214,32 +214,32 @@ void masterconn_check_hdd_reports() {
 			uint32_t chunkcount,tdchunkcount;
 			hdd_get_space(&usedspace, &totalspace, &chunkcount, &tdusedspace, &tdtotalspace,
 					&tdchunkcount);
-			masterconn_create_attached_moosefs_packet(
+			masterconn_create_attached_lizardfs_packet(
 					eptr, CSTOMA_SPACE,
 					usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);
 		}
 		errorcounter = hdd_errorcounter();
 		while (errorcounter) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_ERROR_OCCURRED);
+			masterconn_create_attached_lizardfs_packet(eptr, CSTOMA_ERROR_OCCURRED);
 			errorcounter--;
 		}
 
-		MooseFSVector<uint64_t> chunks;
+		LizardFSVector<uint64_t> chunks;
 		hdd_get_damaged_chunks(chunks);
 		if (!chunks.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
+			masterconn_create_attached_lizardfs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
 		}
 
 		chunks.clear();
 		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
 		if (!chunks.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
+			masterconn_create_attached_lizardfs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
 		}
 
-		MooseFSVector<ChunkWithVersion> chunksWithVersions;
+		LizardFSVector<ChunkWithVersion> chunksWithVersions;
 		hdd_get_new_chunks(chunksWithVersions, NEWCHUNKLIMIT);
 		if (!chunksWithVersions.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_NEW,
+			masterconn_create_attached_lizardfs_packet(eptr, CSTOMA_CHUNK_NEW,
 					chunksWithVersions);
 		}
 	}
@@ -497,7 +497,7 @@ void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t leng
 	}
 
 	if (logfd==NULL) {
-		logfd = fopen("changelog_csback.0.mfs","a");
+		logfd = fopen("changelog_csback.0.lfs","a");
 	}
 
 	if (data[0]==0xFF) {    // new version
@@ -507,7 +507,7 @@ void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t leng
 		if (logfd) {
 			fprintf(logfd,"%" PRIu64 ": %s\n",version,data);
 		} else {
-			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
+			syslog(LOG_NOTICE,"lost LFS change %" PRIu64 ": %s",version,data);
 		}
 	} else {        // old version
 		uint32_t version;
@@ -515,7 +515,7 @@ void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t leng
 		if (logfd) {
 			fprintf(logfd,"%" PRIu32 ": %s\n",version,data);
 		} else {
-			syslog(LOG_NOTICE,"lost MFS change %" PRIu32 ": %s",version,data);
+			syslog(LOG_NOTICE,"lost LFS change %" PRIu32 ": %s",version,data);
 		}
 	}
 
@@ -536,12 +536,12 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 	}
 	if (BackLogsNumber>0) {
 		for (i=BackLogsNumber ; i>0 ; i--) {
-			snprintf(logname1,100,"changelog_csback.%" PRIu32 ".mfs",i);
-			snprintf(logname2,100,"changelog_csback.%" PRIu32 ".mfs",i-1);
+			snprintf(logname1,100,"changelog_csback.%" PRIu32 ".lfs",i);
+			snprintf(logname2,100,"changelog_csback.%" PRIu32 ".lfs",i-1);
 			rename(logname2,logname1);
 		}
 	} else {
-		unlink("changelog_csback.0.mfs");
+		unlink("changelog_csback.0.lfs");
 	}
 }
 */
@@ -561,10 +561,10 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	version = get32bit(&data);
 	status = hdd_get_checksum(chunkid,version,&checksum);
 	if (status!=STATUS_OK) {
-		masterconn_create_attached_moosefs_packet(
+		masterconn_create_attached_lizardfs_packet(
 				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, status);
 	} else {
-		masterconn_create_attached_moosefs_packet(
+		masterconn_create_attached_lizardfs_packet(
 				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, checksum);
 	}
 }
@@ -663,28 +663,28 @@ int masterconn_initconnect(masterconn *eptr) {
 				eptr->masterport = mport;
 				eptr->masteraddrvalid = 1;
 			} else {
-				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
+				lfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
 				return -1;
 			}
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			lfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 			return -1;
 		}
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: create socket error");
+		lfs_errlog(LOG_WARNING,"master connection module: create socket error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: set nonblock error");
+		lfs_errlog(LOG_WARNING,"master connection module: set nonblock error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			mfs_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
+			lfs_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock = -1;
 			return -1;
@@ -692,7 +692,7 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: connect failed");
+		lfs_errlog(LOG_WARNING,"master connection module: connect failed");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->masteraddrvalid = 0;
@@ -713,7 +713,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->mode = FREE;
@@ -738,7 +738,7 @@ void masterconn_read(masterconn *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
+				lfs_errlog_silent(LOG_NOTICE,"read from Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -791,7 +791,7 @@ void masterconn_write(masterconn *eptr) {
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
+				lfs_errlog_silent(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -873,7 +873,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 				eptr->mode = KILL;
 			}
 			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite.elapsed_ms() > (Timeout_ms/3) && eptr->outputPackets.empty()) {
-				masterconn_create_attached_moosefs_packet(eptr, ANTOAN_NOP);
+				masterconn_create_attached_lizardfs_packet(eptr, ANTOAN_NOP);
 			}
 		}
 	}
@@ -908,7 +908,7 @@ bool masterconn_load_label() {
 	std::string oldLabel = gLabel;
 	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
 	if (!isMediaLabelValid(gLabel)) {
-		mfs_arg_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
+		lfs_arg_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
 		return false;
 	}
 	return gLabel != oldLabel;
@@ -922,7 +922,7 @@ void masterconn_reload(void) {
 	free(MasterPort);
 	free(BindHost);
 
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterHost = cfg_getstr("MASTER_HOST","lfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
 
@@ -944,10 +944,10 @@ void masterconn_reload(void) {
 					eptr->mode = KILL;
 				}
 			} else {
-				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
+				lfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
 			}
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			lfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 		}
 	} else {
 		eptr->masteraddrvalid=0;
@@ -969,7 +969,7 @@ int masterconn_init(void) {
 	masterconn *eptr;
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
-	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
+	MasterHost = cfg_getstr("MASTER_HOST","lfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout_ms = get_cfg_timeout();

@@ -11,31 +11,31 @@
 
 #include "common/cwrap.h"
 #include "common/datapack.h"
-#include "common/mfserr.h"
+#include "common/lfserr.h"
 #include "common/slogger.h"
 
-#define METADATA_FILENAME_TEMPL "metadata.mfs"
+#define METADATA_FILENAME_TEMPL "metadata.lfs"
 const char kMetadataFilename[] = METADATA_FILENAME_TEMPL;
 const char kMetadataTmpFilename[] = METADATA_FILENAME_TEMPL ".tmp";
 const char kMetadataEmergencyFilename[] = METADATA_FILENAME_TEMPL ".emergency";
 #undef METADATA_FILENAME_TEMPL
-#define METADATA_ML_FILENAME_TEMPL "metadata_ml.mfs"
+#define METADATA_ML_FILENAME_TEMPL "metadata_ml.lfs"
 const char kMetadataMlFilename[] = METADATA_ML_FILENAME_TEMPL;
 const char kMetadataMlTmpFilename[] = METADATA_ML_FILENAME_TEMPL ".tmp";
 #undef METADATA_ML_FILENAME_TEMPL
-#define CHANGELOG_FILENAME "changelog.mfs"
+#define CHANGELOG_FILENAME "changelog.lfs"
 const char kChangelogFilename[] = CHANGELOG_FILENAME;
 const char kChangelogTmpFilename[] = CHANGELOG_FILENAME ".tmp";
 #undef CHANGELOG_FILENAME
-#define CHANGELOG_ML_FILENAME "changelog_ml.mfs"
+#define CHANGELOG_ML_FILENAME "changelog_ml.lfs"
 const char kChangelogMlFilename[] = CHANGELOG_ML_FILENAME;
 const char kChangelogMlTmpFilename[] = CHANGELOG_ML_FILENAME ".tmp";
 #undef CHANGELOG_ML_FILENAME
-#define SESSIONS_ML_FILENAME "sessions_ml.mfs"
+#define SESSIONS_ML_FILENAME "sessions_ml.lfs"
 const char kSessionsMlFilename[] = SESSIONS_ML_FILENAME;
 const char kSessionsMlTmpFilename[] = SESSIONS_ML_FILENAME ".tmp";
 #undef SESSIONS_ML_FILENAME
-#define SESSIONS_FILENAME "sessions.mfs"
+#define SESSIONS_FILENAME "sessions.lfs"
 const char kSessionsFilename[] = SESSIONS_FILENAME;
 const char kSessionsTmpFilename[] = SESSIONS_FILENAME ".tmp";
 #undef SESSIONS_FILENAME
@@ -55,14 +55,14 @@ uint64_t metadataGetVersion(const std::string& file) {
 		close(fd);
 		throw MetadataCheckException("Can't read the metadata file");
 	}
-	if (memcmp(chkbuff,"MFSM NEW",8)==0) {
+	if (memcmp(chkbuff,"LFSM NEW",8)==0) {
 		close(fd);
 		return 0;
 	}
-	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0 || memcmp(chkbuff,MFSSIGNATURE "M 1.6",8)==0) {
+	if (memcmp(chkbuff,LFSSIGNATURE "M 1.5",8)==0 || memcmp(chkbuff,LFSSIGNATURE "M 1.6",8)==0) {
 		memset(eofmark,0,16);
-	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8)==0) {
-		memcpy(eofmark,"[MFS EOF MARKER]",16);
+	} else if (memcmp(chkbuff,LFSSIGNATURE "M 2.0",8)==0) {
+		memcpy(eofmark,"[LFS EOF MARKER]",16);
 	} else {
 		close(fd);
 		throw MetadataCheckException("Bad format of the metadata file");
@@ -115,7 +115,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	FileDescriptor fd(open(fname.c_str(), O_RDONLY));
 	if (fd.get() < 0) {
-		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
+		lfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
 		return 0;
 	}
 	fstat(fd.get(), &st);
@@ -127,13 +127,13 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd.get(), 0);
 	if (fileContent == MAP_FAILED) {
-		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
+		lfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
 		return 0; // 0 counterintuitively means failure
 	}
 	uint64_t lastLogVersion = 0;
 	// first LF is (should be) the last byte of the file
 	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
+		lfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
 				fname.c_str());
 	} else {
 		size_t pos = fileSize - 1;
@@ -146,13 +146,13 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 		char *endPtr = NULL;
 		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
 		if (*endPtr != ':') {
-			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
+			lfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
 					fname.c_str());
 			lastLogVersion = 0;
 		}
 	}
 	if (munmap((void*) fileContent, fileSize)) {
-		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
+		lfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
 	}
 	return lastLogVersion;
 }
@@ -161,8 +161,8 @@ void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 	std::string name_new, name_old;
 	for (uint32_t i = 0; i < 99; i++) {
 	// 99 is the maximum number of changelog file in versions up to 1.6.29.
-		name_old = fname + "." + std::to_string(i) + ".mfs";
-		name_new = fname + ".mfs";
+		name_old = fname + "." + std::to_string(i) + ".lfs";
+		name_new = fname + ".lfs";
 		if (i != 0) {
 			name_new += "." + std::to_string(i);
 		}

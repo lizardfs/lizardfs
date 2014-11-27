@@ -29,7 +29,7 @@ uint64_t MasterLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
 	cltoma::iolimit::serialize(buffer, 0, configVersion_, groupId, size);
 	uint8_t status = fs_raw_sendandreceive(buffer, LIZ_MATOCL_IOLIMIT);
 	if (status != STATUS_OK) {
-		syslog(LOG_NOTICE, "Sending IOLIMIT returned status %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Sending IOLIMIT returned status %s", lfsstrerr(status));
 		return 0;
 	}
 	uint32_t receivedMsgid, receivedConfigVersion;

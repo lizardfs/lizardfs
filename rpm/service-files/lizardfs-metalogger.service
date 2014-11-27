@@ -4,9 +4,9 @@ After=syslog.target network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/sbin/mfsmetalogger start
-ExecStop=/usr/sbin/mfsmetalogger stop
-ExecReload=/usr/sbin/mfsmetalogger reload
+ExecStart=/usr/sbin/lfsmetalogger start
+ExecStop=/usr/sbin/lfsmetalogger stop
+ExecReload=/usr/sbin/lfsmetalogger reload
 Restart=on-abort
 
 [Install]

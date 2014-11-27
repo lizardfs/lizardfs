@@ -9,8 +9,8 @@
 #include "common/goal.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/moosefs_string.h"
-#include "common/moosefs_vector.h"
+#include "common/lizardfs_string.h"
+#include "common/lizardfs_vector.h"
 #include "common/packet.h"
 #include "common/serialization.h"
 #include "common/serialization_macros.h"
@@ -23,8 +23,8 @@ SERIALIZABLE_CLASS_BODY(MountEntry,
 		uint32_t, sessionId,
 		uint32_t, peerIp,
 		uint32_t, version,
-		MooseFsString<uint32_t>, info,
-		MooseFsString<uint32_t>, path,
+		LizardFsString<uint32_t>, info,
+		LizardFsString<uint32_t>, path,
 		uint8_t, flags,
 		uint32_t, rootuid,
 		uint32_t, rootgid,
@@ -60,13 +60,13 @@ void ListMountsCommand::run(const Options& options) const {
 	}
 
 	ServerConnection connection(options.argument(0), options.argument(1));
-	MooseFSVector<MountEntry> mounts;
+	LizardFSVector<MountEntry> mounts;
 	std::vector<uint8_t> request, response;
-	serializeMooseFsPacket(request, CLTOMA_SESSION_LIST, true);
+	serializeLizardFsPacket(request, CLTOMA_SESSION_LIST, true);
 	response = connection.sendAndReceive(request, MATOCL_SESSION_LIST);
 	// There is uint16_t SESSION_STATS = 16 at the beginning of response
 	uint16_t dummy;
-	deserializeAllMooseFsPacketDataNoHeader(response, dummy, mounts);
+	deserializeAllLizardFsPacketDataNoHeader(response, dummy, mounts);
 
 	std::sort(mounts.begin(), mounts.end(),
 			[](const MountEntry& a, const MountEntry& b) -> bool

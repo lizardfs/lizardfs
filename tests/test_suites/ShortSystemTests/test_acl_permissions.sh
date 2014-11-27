@@ -40,9 +40,9 @@ END_OF_SCRIPT
 
 CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
+	LFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
 	FUSE_EXTRA_CONFIG="acl" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER|lfsacl" \
 	setup_local_empty_lizardfs info
 
 lizdir="${info[mount0]}/subdir"

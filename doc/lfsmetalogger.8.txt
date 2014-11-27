@@ -1,0 +1,95 @@
+lfsmetalogger(8)
+================
+
+== NAME
+
+lfsmetalogger - start, restart or stop Lizard File System metalogger process
+
+== SYNOPSIS
+
+[verse]
+*lfsmetalogger* [*-f*] [*-c* 'CFGFILE'] [*-u*] [*-d*] [*-t* 'LOCKTIMEOUT'] ['ACTION']
+
+[verse]
+*lfsmetalogger -s* [*-c* 'CFGFILE']
+
+[verse]
+*lfsmetalogger -v*
+
+[verse]
+*lfsmetalogger -h*
+
+== DESCRIPTION
+
+*lfsmetalogger* is the metadata replication server of Lizard File System. Depending on parameters it
+can start, restart or stop LizardFS metalogger process. Without any options it starts LizardFS
+metalogger, killing previously run process if lock file exists.
+
+SIGHUP (or 'reload' 'ACTION') forces *lfsmetalogger* to reload all configuration files.
+
+*-v*::
+print version information and exit
+
+*-h*::
+print usage information and exit
+
+*-c* 'CFGFILE'::
+specify alternative path of configuration file (default is *lfsmetalogger.cfg* in system
+configuration directory)
+
+*-u*::
+log undefined configuration values (when default is assumed)
+
+*-d*::
+run in foreground, don't daemonize
+
+*-t* 'LOCKTIMEOUT'::
+how long to wait for lockfile (default is 60 seconds)
+
+'ACTION'
+is the one of *start*, *stop*, *restart*, *reload*, *test*, *isalive* or *kill*. Default action is
+*restart*.
+
+== FILES
+
+*lfsmetalogger.cfg*::
+configuration file for LizardFS metalogger process; refer to *lfsmetalogger.cfg*(5) manual for
+defails
+
+*lfsmetalogger.lock*::
+PID file of running LizardFS metalogger process
+
+*.lfsmetalogger.lock*::
+lock file of running LizardFS metalogger process
+(created in data directory)
+
+*changelog_ml.***.lfs*::
+LizardFS filesystem metadata change logs (backup of master change log files)
+
+*metadata.ml.lfs.back*::
+Latest copy of complete metadata.lfs.back file from LizardFS master.
+
+*sessions.ml.lfs*::
+Latest copy of sessions.lfs file from LizardFS master.
+
+== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmaster(8), lfsmetalogger.cfg(5), lizardfs(7)

@@ -20,13 +20,13 @@ test_worker() {
 
 CHUNKSERVERS=3 \
 	MOUNTS=1 \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
 for goal in 1 2 3; do
 	mkdir "goal_$goal"
-	mfssetgoal "$goal" "goal_$goal"
+	lfssetgoal "$goal" "goal_$goal"
 	test_worker "goal_$goal" &
 done
 wait

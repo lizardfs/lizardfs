@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ static int cfg_do_load (void) {
 
 	fd = fopen(cfgfname,"r");
 	if (fd==NULL) {
-		mfs_arg_syslog(LOG_ERR,"cannot load config file: %s",cfgfname);
+		lfs_arg_syslog(LOG_ERR,"cannot load config file: %s",cfgfname);
 		return 0;
 	}
 	while (fgets(linebuff,999,fd)!=NULL) {
@@ -72,7 +72,7 @@ static int cfg_do_load (void) {
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
 		if (linebuff[i]!='=' || npe==nps) {
 			if (linebuff[i]>32) {
-				mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
+				lfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
 			}
 			continue;
 		}
@@ -89,7 +89,7 @@ static int cfg_do_load (void) {
 		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
 		if ((linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n' && linebuff[i]!='#')
 				|| vps==vpe) {
-			mfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
+			lfs_arg_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
 			continue;
 		}
 		linebuff[npe]=0;
@@ -190,7 +190,7 @@ type cfg_get##fname(const char *name, const type def) { \
 		} \
 	} \
 	if (logundefined) { \
-		mfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'", \
+		lfs_arg_syslog(LOG_NOTICE,"config: using default value for option '%s' - '" format "'", \
 				name,TOPRINTF_##convname(def)); \
 	} \
 	COPY_##convname(def) \

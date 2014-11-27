@@ -11,15 +11,15 @@
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/sbin/mfsmetalogger
-NAME=mfsmetalogger
+DAEMON=/usr/sbin/lfsmetalogger
+NAME=lfsmetalogger
 DESC=lizardfs-metalogger
-DEFAULT_WORKING_USER=mfs
-DEFAULT_WORKING_GROUP=mfs
-DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_RUN_PATH=/var/lib/mfs
-DEFAULT_CFG=/etc/mfs/mfsmetalogger.cfg
-COMPAT_CFG=/etc/mfsmetalogger.cfg
+DEFAULT_WORKING_USER=lfs
+DEFAULT_WORKING_GROUP=lfs
+DEFAULT_DATA_PATH=/var/lib/lfs
+DEFAULT_RUN_PATH=/var/lib/lfs
+DEFAULT_CFG=/etc/lfs/lfsmetalogger.cfg
+COMPAT_CFG=/etc/lfsmetalogger.cfg
 
 test -e $DAEMON || exit 0
 

@@ -1,7 +1,7 @@
 MOUNTS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsacl" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER,lfsacl" \
 	MOUNT_1_EXTRA_EXPORTS="allcanchangequota,mapall=lizardfstest_6:lizardfstest_4" \
 	setup_local_empty_lizardfs info
 
@@ -31,7 +31,7 @@ done
 # check UIDs and GIDs
 cd "$normal"
 find -mindepth 1 | while read i; do
-	if mfsgeteattr "$i" |grep -q noowner; then
+	if lfsgeteattr "$i" |grep -q noowner; then
 		expect_equals 'lizardfstest:lizardfstest' $(stat_ug "$i")
 	else
 		expect_equals 'lizardfstest_6:lizardfstest_4' $(stat_ug "$i")

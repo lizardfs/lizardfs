@@ -1,6 +1,6 @@
 USE_RAMDISK=YES \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
@@ -11,13 +11,13 @@ gid=$(id -g lizardfstest)
 sudo -nu lizardfstest_3 bash -c 'head -c 1024 /dev/zero > file_kb'
 sudo -nu lizardfstest_3 bash -c 'head -c $((64*1024*1024)) /dev/zero > file_chunk'
 
-one_kb_file_size=$(mfs_dir_info size file_kb)
-one_chunk_file_size=$(mfs_dir_info size file_chunk)
+one_kb_file_size=$(lfs_dir_info size file_kb)
+one_chunk_file_size=$(lfs_dir_info size file_chunk)
 soft=$((2*one_kb_file_size))
 hard=$((3*one_kb_file_size))
 
-mfssetquota -g $gid1 $soft $hard 0 0 .
-mfssetquota -g $gid $soft $hard 0 0 .
+lfssetquota -g $gid1 $soft $hard 0 0 .
+lfssetquota -g $gid $soft $hard 0 0 .
 
 verify_quota "Group $gid1 -- 0 $soft $hard 0 0 0" lizardfstest_1
 verify_quota "Group $gid -- 0 $soft $hard 0 0 0" lizardfstest
@@ -53,18 +53,18 @@ verify_quota "Group $gid1 +- $((one_kb_file_size + one_chunk_file_size)) $soft $
 verify_quota "Group $gid -- $one_kb_file_size $soft $hard 1 0 0" lizardfstest
 
 # check if snapshots are properly handled:
-mfsmakesnapshot file_2 snapshot_1
+lfsmakesnapshot file_2 snapshot_1
 verify_quota "Group $gid -- $soft $soft $hard 2 0 0" lizardfstest
-mfssetquota -g $gid $((soft-1)) $hard 0 0 .
+lfssetquota -g $gid $((soft-1)) $hard 0 0 .
 
 # BTW, check if '+' for soft limit is properly printed ..
 verify_quota "Group $gid +- $soft $((soft-1)) $hard 2 0 0" lizardfstest
-mfssetquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
+lfssetquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
 
 # snapshots continued..
-mfsmakesnapshot file_2 snapshot_2
+lfsmakesnapshot file_2 snapshot_2
 verify_quota "Group $gid +- $hard $soft $hard 3 0 0" lizardfstest
-expect_failure mfsmakesnapshot file_2 snapshot_3
+expect_failure lfsmakesnapshot file_2 snapshot_3
 
 # hard links don't occupy any new space, therefore are always permitted
 sudo -nu lizardfstest_1 ln file_2 hard_link

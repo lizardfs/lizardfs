@@ -6,7 +6,7 @@
 #include "common/disk_info.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/moosefs_vector.h"
+#include "common/lizardfs_vector.h"
 #include "common/server_connection.h"
 #include "probe/list_chunkservers_command.h"
 
@@ -92,7 +92,7 @@ static void printPorcelainStats(const HddStatistics& stats) {
 			<< ' ' << stats.fsyncops;
 }
 
-static void printPorcelainMode(const ChunkserverListEntry& cs, const MooseFSVector<DiskInfo>& disks,
+static void printPorcelainMode(const ChunkserverListEntry& cs, const LizardFSVector<DiskInfo>& disks,
 		bool verbose) {
 	for (const DiskInfo& disk : disks) {
 		std::cout << NetworkAddress(cs.servip, cs.servport).toString()
@@ -117,7 +117,7 @@ static void printPorcelainMode(const ChunkserverListEntry& cs, const MooseFSVect
 	}
 }
 
-static void printNormalMode(const ChunkserverListEntry& cs, const MooseFSVector<DiskInfo>& disks,
+static void printNormalMode(const ChunkserverListEntry& cs, const LizardFSVector<DiskInfo>& disks,
 		bool verbose) {
 	for (const DiskInfo& disk : disks) {
 		std::string lastError;
@@ -186,11 +186,11 @@ void ListDisksCommand::run(const Options& options) const {
 			continue; // skip disconnected chunkservers -- these surely won't respond
 		}
 		std::vector<uint8_t> request, response;
-		serializeMooseFsPacket(request, CLTOCS_HDD_LIST_V2);
+		serializeLizardFsPacket(request, CLTOCS_HDD_LIST_V2);
 		ServerConnection connection(NetworkAddress(cs.servip, cs.servport));
 		response = connection.sendAndReceive(request, CSTOCL_HDD_LIST_V2);
-		MooseFSVector<DiskInfo> disks;
-		deserializeAllMooseFsPacketDataNoHeader(response, disks);
+		LizardFSVector<DiskInfo> disks;
+		deserializeAllLizardFsPacketDataNoHeader(response, disks);
 		if (options.isSet(kPorcelainMode)) {
 			printPorcelainMode(cs, disks, options.isSet(kVerboseMode));
 		} else {

@@ -3,7 +3,7 @@ This file contains some important notes on upgrade process.
 * Upgrading to LizardFS 2.5.4:
 
     Direct upgrade is possible from:
-    - MooseFS  1.6.27 -- 1.6.27-5
+    - LizardFS  1.6.27 -- 1.6.27-5
     - LizardFS 1.6.28 -- 2.5.2
 
     When upgrading from LizardFS 2.5.0 or 2.5.2:
@@ -23,7 +23,7 @@ This file contains some important notes on upgrade process.
 * Upgrading to LizardFS 2.5.2:
 
     Direct upgrade is possible from:
-    - MooseFS  1.6.27 -- 1.6.27-5
+    - LizardFS  1.6.27 -- 1.6.27-5
     - LizardFS 1.6.28 -- 2.5.0
 
     When upgrading from LizardFS 2.5.0:
@@ -41,7 +41,7 @@ This file contains some important notes on upgrade process.
 * Upgrading to LizardFS 2.5.0:
 
     Direct upgrade is possible from:
-    - MooseFS  1.6.27 -- 1.6.27-5
+    - LizardFS  1.6.27 -- 1.6.27-5
     - LizardFS 1.6.28
 
     Master server has to be upgraded before any client.
@@ -51,6 +51,6 @@ This file contains some important notes on upgrade process.
 * Upgrading to LizardFS 1.6.28:
 
     Direct upgrade is possible from:
-    - MooseFS 1.6.27 -- 1.6.27-5.
+    - LizardFS 1.6.27 -- 1.6.27-5.
 
     All the servers and clients are compatible and can be upgraded in any order.

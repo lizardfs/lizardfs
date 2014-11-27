@@ -4,8 +4,8 @@ metaservers_nr=2
 MASTERSERVERS=$metaservers_nr \
 	CHUNKSERVERS=2 \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
+	MOUNT_EXTRA_CONFIG="lfsacl,lfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="MAGIC_AUTO_FILE_REPAIR = 1 | SAVE_METADATA_AT_EXIT = 0" \
 	setup_local_empty_lizardfs info
 
@@ -52,7 +52,7 @@ master_kill_loop &
 
 cd "${info[mount0]}"
 assert_success git clone https://github.com/lizardfs/lizardfs.git
-mfssetgoal -r 2 lizardfs
+lfssetgoal -r 2 lizardfs
 mkdir lizardfs/build
 cd lizardfs/build
 assert_success cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install

@@ -11,15 +11,15 @@
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/sbin/mfschunkserver
-NAME=mfschunkserver
+DAEMON=/usr/sbin/lfschunkserver
+NAME=lfschunkserver
 DESC=lizardfs-chunkserver
-DEFAULT_WORKING_USER=mfs
-DEFAULT_WORKING_GROUP=mfs
-DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_RUN_PATH=/var/run/mfs
-DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
-COMPAT_CFG=/etc/mfschunkserver.cfg
+DEFAULT_WORKING_USER=lfs
+DEFAULT_WORKING_GROUP=lfs
+DEFAULT_DATA_PATH=/var/lib/lfs
+DEFAULT_RUN_PATH=/var/run/lfs
+DEFAULT_CFG=/etc/lfs/lfschunkserver.cfg
+COMPAT_CFG=/etc/lfschunkserver.cfg
 
 test -e $DAEMON || exit 0
 

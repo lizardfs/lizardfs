@@ -3,7 +3,7 @@ rebalancing_timeout=90
 
 CHUNKSERVERS=4 \
 	USE_LOOP_DISKS=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0|HDD_LEAVE_SPACE_DEFAULT = 0MiB" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
 			`|CHUNKS_WRITE_REP_LIMIT = 1`
@@ -19,7 +19,7 @@ lizardfs_chunkserver_daemon 1 stop
 lizardfs_wait_for_ready_chunkservers 2
 cd "${info[mount0]}"
 mkdir dir
-mfssetgoal 2 dir
+lfssetgoal 2 dir
 for i in {1..20}; do
 	( FILE_SIZE=1M expect_success file-generate "dir/file_$i" ) &
 done

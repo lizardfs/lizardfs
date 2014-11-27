@@ -49,15 +49,15 @@ void personality_reload(void) {
 		Personality personality = loadPersonality();
 		if (personality != gPersonality) {
 			if (personality == Personality::kMaster) {
-				mfs_syslog(LOG_INFO, "changing metadataserver personality from Shadow to Master");
+				lfs_syslog(LOG_INFO, "changing metadataserver personality from Shadow to Master");
 				setPersonality(personality);
 			} else {
-				mfs_syslog(LOG_ERR, "trying to preform forbidden personality change from Master to Shadow");
+				lfs_syslog(LOG_ERR, "trying to preform forbidden personality change from Master to Shadow");
 			}
 		}
 	} catch (const ConfigurationException& e) {
 		/* reload shall not break instance */
-		mfs_arg_syslog(LOG_ERR, "bad configuration: `%s'", e.what());
+		lfs_arg_syslog(LOG_ERR, "bad configuration: `%s'", e.what());
 	}
 }
 

@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,8 +36,8 @@
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 
@@ -45,7 +45,7 @@
 #define SENDMSECTO 5000
 #define RECVMSECTO 5000
 
-#define MAX_RECV_PACKET_SIZE (20+MFSBLOCKSIZE)
+#define MAX_RECV_PACKET_SIZE (20+LFSBLOCKSIZE)
 
 typedef enum {IDLE,CONNECTING,HEADER,DATA} modetype;
 
@@ -149,7 +149,7 @@ static int rep_read(repsrc *rs) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: read error");
+				lfs_errlog_silent(LOG_NOTICE,"replicator: read error");
 				return -1;
 			}
 			return 0;
@@ -218,7 +218,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -270,7 +270,7 @@ static int rep_write(repsrc *rs) {
 	}
 	if (i<0) {
 		if (errno!=EAGAIN) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: write error");
+			lfs_errlog_silent(LOG_NOTICE,"replicator: write error");
 			return -1;
 		}
 		return 0;
@@ -312,7 +312,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -363,7 +363,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -375,7 +375,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 			}
 			if (r->fds[i].revents & POLLOUT) {
 				if (tcpgetstatus(r->repsources[i].sock)<0) {
-					mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
+					lfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
 					return -1;
 				}
 				r->repsources[i].mode=IDLE;
@@ -442,7 +442,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	r.repsources = (repsrc*) malloc(sizeof(repsrc)*srccnt);
 	passert(r.repsources);
 	if (srccnt>1) {
-		r.xorbuff = (uint8_t*) malloc(MFSBLOCKSIZE+4);
+		r.xorbuff = (uint8_t*) malloc(LFSBLOCKSIZE+4);
 		passert(r.xorbuff);
 	} else {
 		r.xorbuff = NULL;
@@ -450,7 +450,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // create chunk
 	status = hdd_create(chunkid,0);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",lfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -469,20 +469,20 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	for (i=0 ; i<srccnt ; i++) {
 		s = tcpsocket();
 		if (s<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: socket error");
+			lfs_errlog_silent(LOG_NOTICE,"replicator: socket error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		r.repsources[i].sock = s;
 		r.fds[i].fd = s;
 		if (tcpnonblock(s)<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: nonblock error");
+			lfs_errlog_silent(LOG_NOTICE,"replicator: nonblock error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		s = tcpnumconnect(s,r.repsources[i].ip,r.repsources[i].port);
 		if (s<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
+			lfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
@@ -499,7 +499,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // open chunk
 	status = hdd_open(chunkid);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",lfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -562,7 +562,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			return ERROR_WRONGVERSION;
 		}
 		if (pstatus!=STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",lfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return pstatus;
 		}
@@ -581,7 +581,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 				rep_cleanup(&r);
 				return ERROR_OUTOFMEMORY;
 			}
-			leng = r.repsources[i].blocks*MFSBLOCKSIZE;
+			leng = r.repsources[i].blocks*LFSBLOCKSIZE;
 			put64bit(&wptr,r.repsources[i].chunkid);
 			put32bit(&wptr,r.repsources[i].version);
 			put32bit(&wptr,0);
@@ -644,10 +644,10 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 						rep_cleanup(&r);
 						return ERROR_DISCONNECTED;
 					}
-					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",lfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 					rep_cleanup(&r);
 					return pstatus;
-				} else if (type==CSTOCL_READ_DATA && size==20+MFSBLOCKSIZE) {
+				} else if (type==CSTOCL_READ_DATA && size==20+LFSBLOCKSIZE) {
 					pchid = get64bit(&rptr);
 					pblocknum = get16bit(&rptr);
 					poffset = get16bit(&rptr);
@@ -667,7 +667,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 						rep_cleanup(&r);
 						return ERROR_WRONGOFFSET;
 					}
-					if (psize!=MFSBLOCKSIZE) {
+					if (psize!=LFSBLOCKSIZE) {
 						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%" PRIu32 ") from (%08" PRIX32 ":%04" PRIX16 ")",psize,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_WRONGSIZE;
@@ -689,9 +689,9 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
-					status = hdd_write(chunkid,0,b,rptr+20,0,MFSBLOCKSIZE,rptr+16);
+					status = hdd_write(chunkid,0,b,rptr+20,0,LFSBLOCKSIZE,rptr+16);
 					if (status!=STATUS_OK) {
-						syslog(LOG_WARNING,"replicator: write status: %s",mfsstrerr(status));
+						syslog(LOG_WARNING,"replicator: write status: %s",lfsstrerr(status));
 						rep_cleanup(&r);
 						return status;
 					}
@@ -702,20 +702,20 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			if (vbuffs&1) {
 				xcrc = 0;
 			} else {
-				xcrc = MFSCRCEMPTY;
+				xcrc = LFSCRCEMPTY;
 			}
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
 					rptr+=16;       // skip chunkid,blockno,offset and size
 					if (first) {
-						memcpy(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
+						memcpy(r.xorbuff+4,rptr+4,LFSBLOCKSIZE);
 						first=0;
 					} else {
-						xordata(r.xorbuff+4,rptr+4,MFSBLOCKSIZE);
+						xordata(r.xorbuff+4,rptr+4,LFSBLOCKSIZE);
 					}
 					crc = get32bit(&rptr);
-					if (crc!=mycrc32(0,rptr,MFSBLOCKSIZE)) {
+					if (crc!=mycrc32(0,rptr,LFSBLOCKSIZE)) {
 						syslog(LOG_WARNING,"replicator: received data with wrong checksum from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return ERROR_CRC;
@@ -725,9 +725,9 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 			}
 			wptr = r.xorbuff;
 			put32bit(&wptr,xcrc);
-			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,MFSBLOCKSIZE,r.xorbuff);
+			status = hdd_write(chunkid,0,b,r.xorbuff+4,0,LFSBLOCKSIZE,r.xorbuff);
 			if (status!=STATUS_OK) {
-				syslog(LOG_WARNING,"replicator: xor write status: %s",mfsstrerr(status));
+				syslog(LOG_WARNING,"replicator: xor write status: %s",lfsstrerr(status));
 				rep_cleanup(&r);
 				return status;
 			}
@@ -770,7 +770,7 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 				return ERROR_WRONGCHUNKID;
 			}
 			if (pstatus!=STATUS_OK) {
-				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",lfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return pstatus;
 			}
@@ -779,14 +779,14 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 // close chunk and change version
 	status = hdd_close(chunkid);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",lfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
 	r.opened = 0;
 	status = hdd_version(chunkid,0,version);
 	if (status!=STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",lfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}

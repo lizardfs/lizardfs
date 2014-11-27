@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "master/personality.h"
 
 /**
@@ -221,7 +221,7 @@ private:
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(false),
-			  rootinode_(MFS_ROOT_ID),
+			  rootinode_(LFS_ROOT_ID),
 			  sesflags_(0),
 			  hasUidGidData_(false),
 			  uid_(0),
@@ -238,7 +238,7 @@ private:
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(false),
-			  rootinode_(MFS_ROOT_ID),
+			  rootinode_(LFS_ROOT_ID),
 			  sesflags_(0),
 			  hasUidGidData_(true),
 			  uid_(uid),

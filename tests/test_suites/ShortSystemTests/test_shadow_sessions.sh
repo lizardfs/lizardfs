@@ -5,14 +5,14 @@ MOUNTS=2 \
 	MASTERSERVERS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsacl" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER,lfsacl" \
 	MOUNT_0_EXTRA_EXPORTS="ro,allcanchangequota" \
 	MOUNT_1_EXTRA_EXPORTS="rw,alldirs,allcanchangequota,maxtrashtime=1234567,mapall=lizardfstest_6:lizardfstest_4" \
 	setup_local_empty_lizardfs info
 
 mkdir "${info[mount1]}/subdir"
 
-echo 'mfssubfolder=/subdir' >>"${info[mount1_config]}"
+echo 'lfssubfolder=/subdir' >>"${info[mount1_config]}"
 lizardfs_mount_unmount 1
 lizardfs_mount_start 1
 
@@ -26,7 +26,7 @@ metadata_validate_files
 
 # Check if using removed files works as expected:
 echo "ala ma kota" > removed_file
-mfssettrashtime 0 removed_file
+lfssettrashtime 0 removed_file
 exec 11<> removed_file
 rm removed_file
 echo -n "u huhu" >&11
@@ -49,7 +49,7 @@ cd "${info[mount1]}"
 assert_no_diff "$mount1meta" "$(metadata_print)"
 assert_success touch newfile
 touch nowaythiswilleverwork
-assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
+assert_failure lfssettrashtime 12345678 nowaythiswilleverwork
 
 # Check if using removed files works as expected after promotion:
 echo -n " prrrrrr" >&11

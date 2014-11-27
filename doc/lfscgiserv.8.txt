@@ -1,0 +1,67 @@
+lfscgiserv(8)
+=============
+
+== NAME
+
+lfscgiserv - start HTTP/CGI server for Lizard File System monitoring
+
+== SYNOPSIS
+
+[verse]
+*lfscgiserv* [*-H* 'BIND-HOST'] [*-P* 'BIND-PORT'] [*-R* 'ROOT-PATH']
+             [*-D* 'DATA-PATH'] [*-t* 'LOCKTIMEOUT'] [*-f* [*-v*]] ['ACTION']
+
+[verse]
+*lfscgiserv* *-h*
+
+== DESCRIPTION
+
+*lfscgiserv* is a very simple HTTP server capable of running CGI scripts for Lizard File System
+monitoring.
+
+== OPTIONS
+
+*-h*::
+print usage information and exit
+
+*-H* 'BIND_HOST'::
+local address to listen on (default: any)
+
+*-P* 'BIND_PORT'::
+port to listen on (default: 9425)
+
+*-R* 'ROOT_PATH'::
+local path to use as HTTP document root (default is CGIDIR set up at configure time)
+
+*-D* 'DATA_PATH'::
+local path to store data, e.g. a lockfile (default is DATA_PATH set up at configure time)
+
+*-f*::
+run in foreground, don't daemonize
+
+*-v*::
+log requests on stderr
+
+*-t* 'LOCKTIMEOUT'::
+how long to wait for lockfile (default is 60 seconds)
+
+'ACTION'
+is the one of *start*, *stop*, *restart* or *test*. Default action is *restart*.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lizardfs(7)

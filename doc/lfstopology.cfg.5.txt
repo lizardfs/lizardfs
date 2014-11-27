@@ -1,0 +1,64 @@
+lfstopology.cfg(5)
+==================
+
+== NAME
+
+lfstopology.cfg - LizardFS network topology definitions
+
+== DESCRIPTION
+
+The file *lfstopology.cfg* contains assignments of IP addresses into network locations (usually
+switch numbers). This file is optional. If your network has one switch or decreasing traffic between
+switches is not necessary then leave this file empty.
+
+== SYNTAX
+
+Syntax is:
+
+'ADDRESS' 'SWITCH-NUMBER'
+
+Lines starting with *#* character are ignored.
+
+'ADDRESS' can be specified in several forms:
+
+- *** all addresses
+
+- *n.n.n.n* single IP address
+
+- *n.n.n.n/b* IP class specified by network address and bits number
+
+- *n.n.n.n/m.m.m.m* IP class specified by network address and mask
+
+- *f.f.f.f-t.t.t.t* IP range specified by from-to addresses (inclusive)
+
+
+'SWITCH-NUMBER' can be specified as any positive 32-bit numer.
+
+== NOTES
+
+If one IP belongs to more than one definition then last definition is used.
+
+As for now distance between switches is constant. So distance between machines is calculated as: *0*
+when IP numbers are the same, *1* when IP numbers are different, but switch numbers are the same and
+*2* when switch numbers are different
+
+Distances are used only to sort chunkservers during read and write operations. New chunks are still
+created randomly. Also rebalance routines do not take distances into account.
+
+== COPYRIGHT
+
+Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+lfsmaster(8), lfsmaster.cfg(5)

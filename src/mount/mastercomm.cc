@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,8 +47,8 @@
 #include "common/lizardfs_version.h"
 #include "common/matocl_communication.h"
 #include "common/md5.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/packet.h"
 #include "common/sockets.h"
 #include "mount/exports.h"
@@ -178,7 +178,7 @@ void master_stats_add(uint8_t id,uint64_t s) {
 
 const char* errtab[]={ERROR_STRINGS};
 
-static inline const char* mfs_strerror(uint8_t status) {
+static inline const char* lfs_strerror(uint8_t status) {
 	if (status>ERROR_MAX) {
 		status=ERROR_MAX;
 	}
@@ -342,14 +342,14 @@ static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type ex
 }
 
 const uint8_t* fs_sendandreceive(threc *rec, uint32_t expected_cmd, uint32_t *answer_leng) {
-	// this function is only for compatibility with MooseFS code
+	// this function is only for compatibility with LizardFS code
 	sassert(expected_cmd <= PacketHeader::kMaxOldPacketType);
 	if (fs_threc_send_receive(rec, true, expected_cmd)) {
 		const uint8_t *answer;
 		answer = rec->inputBuffer.data();
 		*answer_leng = rec->inputBuffer.size();
 
-		// MooseFS code doesn't expect message id, skip it
+		// LizardFS code doesn't expect message id, skip it
 		answer += 4;
 		*answer_leng -= 4;
 
@@ -470,9 +470,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
 		if (oninit) {
-			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")\n",masterstrip,masterport);
+			fprintf(stderr,"can't connect to lfsmaster (\"%s\":\"%" PRIu16 "\")\n",masterstrip,masterport);
 		} else {
-			syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
+			syslog(LOG_WARNING,"can't connect to lfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -488,9 +488,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		put8bit(&wptr,REGISTER_GETRANDOM);
 		if (tcptowrite(fd,regbuff,8+65,1000)!=8+65) {
 			if (oninit) {
-				fprintf(stderr,"error sending data to mfsmaster\n");
+				fprintf(stderr,"error sending data to lfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error sending data to mfsmaster");
+				syslog(LOG_WARNING,"error sending data to lfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -499,9 +499,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		}
 		if (tcptoread(fd,regbuff,8,1000)!=8) {
 			if (oninit) {
-				fprintf(stderr,"error receiving data from mfsmaster\n");
+				fprintf(stderr,"error receiving data from lfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+				syslog(LOG_WARNING,"error receiving data from lfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -512,9 +512,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		i = get32bit(&rptr);
 		if (i!=MATOCL_FUSE_REGISTER) {
 			if (oninit) {
-				fprintf(stderr,"got incorrect answer from mfsmaster\n");
+				fprintf(stderr,"got incorrect answer from lfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+				syslog(LOG_WARNING,"got incorrect answer from lfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -524,9 +524,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		i = get32bit(&rptr);
 		if (i!=32) {
 			if (oninit) {
-				fprintf(stderr,"got incorrect answer from mfsmaster\n");
+				fprintf(stderr,"got incorrect answer from lfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+				syslog(LOG_WARNING,"got incorrect answer from lfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -535,9 +535,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		}
 		if (tcptoread(fd,regbuff,32,1000)!=32) {
 			if (oninit) {
-				fprintf(stderr,"error receiving data from mfsmaster\n");
+				fprintf(stderr,"error receiving data from lfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+				syslog(LOG_WARNING,"error receiving data from lfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -583,9 +583,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptowrite(fd,regbuff,8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0))) {
 		if (oninit) {
-			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error sending data to lfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(errno));
+			syslog(LOG_WARNING,"error sending data to lfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -594,9 +594,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
 		if (oninit) {
-			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error receiving data from lfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			syslog(LOG_WARNING,"error receiving data from lfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -607,9 +607,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	i = get32bit(&rptr);
 	if (i!=MATOCL_FUSE_REGISTER) {
 		if (oninit) {
-			fprintf(stderr,"got incorrect answer from mfsmaster\n");
+			fprintf(stderr,"got incorrect answer from lfsmaster\n");
 		} else {
-			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			syslog(LOG_WARNING,"got incorrect answer from lfsmaster");
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -619,9 +619,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	i = get32bit(&rptr);
 	if (!(i==1 || (cargs->meta && (i==5 || i==9 || i==19)) || (cargs->meta==0 && (i==13 || i==21 || i==25 || i==35)))) {
 		if (oninit) {
-			fprintf(stderr,"got incorrect answer from mfsmaster\n");
+			fprintf(stderr,"got incorrect answer from lfsmaster\n");
 		} else {
-			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			syslog(LOG_WARNING,"got incorrect answer from lfsmaster");
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -630,9 +630,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
 		if (oninit) {
-			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error receiving data from lfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			syslog(LOG_WARNING,"error receiving data from lfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -642,9 +642,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	rptr = regbuff;
 	if (i==1) {
 		if (oninit) {
-			fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
+			fprintf(stderr,"lfsmaster register error: %s\n",lfs_strerror(rptr[0]));
 		} else {
-			syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
+			syslog(LOG_WARNING,"lfsmaster register error: %s",lfs_strerror(rptr[0]));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -696,7 +696,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		cargs->passworddigest = NULL;
 	}
 	if (oninit==1) {
-		fprintf(stderr,"mfsmaster accepted connection with parameters: ");
+		fprintf(stderr,"lfsmaster accepted connection with parameters: ");
 		j=0;
 		for (i=0 ; i<8 ; i++) {
 			if (sesflags&(1<<i)) {
@@ -891,7 +891,7 @@ void fs_reconnect() {
 	rptr = regbuff;
 	if (rptr[0]!=0) {
 		sessionlost=1;
-		syslog(LOG_WARNING,"master: register status: %s",mfs_strerror(rptr[0]));
+		syslog(LOG_WARNING,"master: register status: %s",lfs_strerror(rptr[0]));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -1547,7 +1547,7 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 	threc* rec = fs_get_my_threc();
 	std::vector<uint8_t> message;
 	cltoma::fuseMknod::serialize(message, rec->packetId,
-			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
+			parent, LizardFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			type, mode, umask, uid, gid, rdev);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
@@ -1589,7 +1589,7 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 	threc* rec = fs_get_my_threc();
 	std::vector<uint8_t> message;
 	cltoma::fuseMkdir::serialize(message, rec->packetId,
-			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
+			parent, LizardFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			mode, umask, uid, gid, copysgid);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;

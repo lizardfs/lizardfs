@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include <string.h>
 #include <limits>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "mount/stats.h"
 
 #define HASH_FUNCTIONS 4
@@ -141,7 +141,7 @@ int symlink_cache_search(uint32_t inode,const uint8_t **path) {
 		hb = symlinkhash + ((inode*primes[h])%HASH_BUCKETS);
 		for (i=0 ; i<HASH_BUCKET_SIZE ; i++) {
 			if (hb->inode[i]==inode) {
-				if (hb->time[i]+MFS_INODE_REUSE_DELAY<now) {
+				if (hb->time[i]+LFS_INODE_REUSE_DELAY<now) {
 					if (hb->path[i]) {
 						free(hb->path[i]);
 						hb->path[i]=NULL;

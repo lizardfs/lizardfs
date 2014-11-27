@@ -19,7 +19,7 @@ FILE_SIZE=1K file-generate file{1..40}
 # Stop one chunkserver labeled "us" and wait for data to be replicated from spare copies.
 lizardfs_chunkserver_daemon 0 stop
 lizardfs_wait_for_ready_chunkservers 7
-assert_eventually_prints 40 "mfscheckfile file* | grep 'with [2-5] copies: *1' | wc -l"
+assert_eventually_prints 40 "lfscheckfile file* | grep 'with [2-5] copies: *1' | wc -l"
 
 # As soon as each chunk has at least 2 copies disconnect all "eu" servers.
 for csid in {3..7}; do
@@ -29,6 +29,6 @@ wait
 lizardfs_wait_for_ready_chunkservers 2
 
 # Expect at least one copy for each file to survive and eventually replicate.
-assert_equals 0 $(mfscheckfile file* | grep -i 'with 0 copies' | wc -l)
-assert_eventually_prints 40 "mfscheckfile file* | grep 'with 2 copies: *1' | wc -l"
+assert_equals 0 $(lfscheckfile file* | grep -i 'with 0 copies' | wc -l)
+assert_eventually_prints 40 "lfscheckfile file* | grep 'with 2 copies: *1' | wc -l"
 assert_success file-validate file*

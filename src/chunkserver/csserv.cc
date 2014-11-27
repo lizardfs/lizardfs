@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@
 #include "common/datapack.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 
@@ -223,18 +223,18 @@ int csserv_initconnect(csserventry *eptr) {
 	int status;
 	eptr->fwdsock=tcpsocket();
 	if (eptr->fwdsock<0) {
-		mfs_errlog(LOG_WARNING,"create socket, error");
+		lfs_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->fwdsock)<0) {
-		mfs_errlog(LOG_WARNING,"set nonblock, error");
+		lfs_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
 	}
 	status = tcpnumconnect(eptr->fwdsock,eptr->fwdip,eptr->fwdport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"connect failed, error");
+		lfs_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
@@ -367,12 +367,12 @@ void csserv_read_continue(csserventry *eptr) {
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;     // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
 	} else {
-		blocknum = (eptr->offset)>>MFSBLOCKBITS;
-		blockoffset = (eptr->offset)&MFSBLOCKMASK;
-		if (((eptr->offset+eptr->size-1)>>MFSBLOCKBITS) == blocknum) {  // last block
+		blocknum = (eptr->offset)>>LFSBLOCKBITS;
+		blockoffset = (eptr->offset)&LFSBLOCKMASK;
+		if (((eptr->offset+eptr->size-1)>>LFSBLOCKBITS) == blocknum) {  // last block
 			size = eptr->size;
 		} else {
-			size = MFSBLOCKSIZE-blockoffset;
+			size = LFSBLOCKSIZE-blockoffset;
 		}
 		eptr->rpacket = csserv_create_detached_packet(CSTOCL_READ_DATA,8+2+2+4+4+size);
 		ptr = csserv_get_packet_data(eptr->rpacket);
@@ -417,13 +417,13 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		put8bit(&ptr,STATUS_OK);        // no bytes to read - just return STATUS_OK
 		return;
 	}
-	if (eptr->size>MFSCHUNKSIZE) {
+	if (eptr->size>LFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGSIZE);
 		return;
 	}
-	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
+	if (eptr->offset>=LFSCHUNKSIZE || eptr->offset+eptr->size>LFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,ERROR_WRONGOFFSET);
@@ -1012,7 +1012,7 @@ void csserv_fwdconnected(csserventry *eptr) {
 	int status;
 	status = tcpgetstatus(eptr->fwdsock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		csserv_fwderror(eptr);
 		return;
 	}
@@ -1033,7 +1033,7 @@ void csserv_fwdread(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+				lfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1069,7 +1069,7 @@ void csserv_fwdread(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+					lfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
 					csserv_fwderror(eptr);
 				}
 				return;
@@ -1109,7 +1109,7 @@ void csserv_fwdwrite(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdwrite) write error");
+				lfs_errlog_silent(LOG_NOTICE,"(fwdwrite) write error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1143,7 +1143,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error");
+				lfs_errlog_silent(LOG_NOTICE,"(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1179,7 +1179,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error: %s");
+				lfs_errlog_silent(LOG_NOTICE,"(forward) read error: %s");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1198,7 +1198,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) write error: %s");
+				lfs_errlog_silent(LOG_NOTICE,"(forward) write error: %s");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1239,7 +1239,7 @@ void csserv_read(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+				lfs_errlog_silent(LOG_NOTICE,"(read) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1278,7 +1278,7 @@ void csserv_read(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+					lfs_errlog_silent(LOG_NOTICE,"(read) read error");
 					eptr->state = CLOSE;
 				}
 				return;
@@ -1326,7 +1326,7 @@ void csserv_write(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(write) write error");
+				lfs_errlog_silent(LOG_NOTICE,"(write) write error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1437,7 +1437,7 @@ void csserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"accept error");
+			lfs_errlog_silent(LOG_NOTICE,"accept error");
 		} else {
 			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
 				syslog(LOG_WARNING,"jobs queue is full !!!");
@@ -1609,13 +1609,13 @@ void csserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
+		lfs_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1626,10 +1626,10 @@ void csserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lfs_arg_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1637,7 +1637,7 @@ void csserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -1650,21 +1650,21 @@ int csserv_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't create socket");
+		lfs_errlog(LOG_ERR,"main server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+		lfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't listen on socket");
+		lfs_errlog(LOG_ERR,"main server module: can't listen on socket");
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
+	lfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
 
 	csservhead = NULL;
 	main_reloadregister(csserv_reload);

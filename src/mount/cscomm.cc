@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,8 +29,8 @@
 
 #include "common/crc.h"
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/LFSCommunication.h"
+#include "common/lfserr.h"
 #include "common/sockets.h"
 
 #define CSMSECTIMEOUT 5000
@@ -74,7 +74,7 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 			rptr = ibuff;
 			t64 = get64bit(&rptr);
 			if (*rptr!=0) {
-				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %s",mfsstrerr(*rptr));
+				syslog(LOG_NOTICE,"readblock; READ_STATUS status: %s",lfsstrerr(*rptr));
 				return -1;
 			}
 			if (t64!=chunkid) {
@@ -113,15 +113,15 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				syslog(LOG_NOTICE,"readblock; READ_DATA empty block");
 				return -1;
 			}
-			if (blockno!=(offset>>MFSBLOCKBITS)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%" PRIu16 " expected:%" PRIu32 ")",blockno,(offset>>MFSBLOCKBITS));
+			if (blockno!=(offset>>LFSBLOCKBITS)) {
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block number (got:%" PRIu16 " expected:%" PRIu32 ")",blockno,(offset>>LFSBLOCKBITS));
 				return -1;
 			}
-			if (blockoffset!=(offset&MFSBLOCKMASK)) {
-				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%" PRIu16 " expected:%" PRIu32 ")",blockoffset,(offset&MFSBLOCKMASK));
+			if (blockoffset!=(offset&LFSBLOCKMASK)) {
+				syslog(LOG_NOTICE,"readblock; READ_DATA incorrect block offset (got:%" PRIu16 " expected:%" PRIu32 ")",blockoffset,(offset&LFSBLOCKMASK));
 				return -1;
 			}
-			breq = MFSBLOCKSIZE - (uint32_t)blockoffset;
+			breq = LFSBLOCKSIZE - (uint32_t)blockoffset;
 			if (size<breq) {
 				breq=size;
 			}

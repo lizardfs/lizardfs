@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "lfssnapshot is deprecated, use lfsappendchunks instead or consider using lfsmakesnapshot"
+lfsappendchunks "$@"

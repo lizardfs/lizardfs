@@ -1,35 +1,35 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../common)
-set(MFSTOOL_LINKS
-  mfsgetgoal
-  mfssetgoal
-  mfsgettrashtime
-  mfssettrashtime
-  mfscheckfile
-  mfsfileinfo
-  mfsappendchunks
-  mfsdirinfo
-  mfsfilerepair
-  mfsmakesnapshot
-  mfsgeteattr
-  mfsseteattr
-  mfsdeleattr
-  mfsrgetgoal
-  mfsrsetgoal
-  mfsrgettrashtime
-  mfsrsettrashtime
-  mfssetquota
-  mfsrepquota)
+set(LFSTOOL_LINKS
+  lfsgetgoal
+  lfssetgoal
+  lfsgettrashtime
+  lfssettrashtime
+  lfscheckfile
+  lfsfileinfo
+  lfsappendchunks
+  lfsdirinfo
+  lfsfilerepair
+  lfsmakesnapshot
+  lfsgeteattr
+  lfsseteattr
+  lfsdeleattr
+  lfsrgetgoal
+  lfsrsetgoal
+  lfsrgettrashtime
+  lfsrsettrashtime
+  lfssetquota
+  lfsrepquota)
 
 collect_sources(TOOLS)
 
-add_executable(mfstools ${TOOLS_MAIN})
-target_link_libraries(mfstools mfscommon)
-install(TARGETS mfstools DESTINATION ${BIN_SUBDIR})
+add_executable(lfstools ${TOOLS_MAIN})
+target_link_libraries(lfstools lfscommon)
+install(TARGETS lfstools DESTINATION ${BIN_SUBDIR})
 
-foreach(LINK ${MFSTOOL_LINKS})
+foreach(LINK ${LFSTOOL_LINKS})
   add_custom_target(${LINK} ALL
-      COMMAND ln -sf mfstools ${LINK}
+      COMMAND ln -sf lfstools ${LINK}
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS mfstools)
+      DEPENDS lfstools)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${LINK} DESTINATION ${BIN_SUBDIR})
 endforeach()

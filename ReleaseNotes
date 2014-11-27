@@ -22,8 +22,8 @@ combined with replication of file data allows LizardFS to remain fully
 operational after crash of any particular machine in the cluster.
 
 Shadow master obtains metadata updates from the master server using the
-old MooseFS/LizardFS metalogger protocol. This facilitates no-downtime
-upgrades from older version of LizardFS and from MooseFS 1.6.27.
+old LizardFS/LizardFS metalogger protocol. This facilitates no-downtime
+upgrades from older version of LizardFS and from LizardFS 1.6.27.
 
 
 Quotas
@@ -32,7 +32,7 @@ LizardFS 2.5.0 provides a quota mechanism similar to these found in
 common UNIX filesystems. Filesystem administrator can define limits on
 the number of files or amount of disk space owned by users and groups.
 
-Quotas are controlled by special tools 'mfssetquota' and 'mfsrepquota',
+Quotas are controlled by special tools 'lfssetquota' and 'lfsrepquota',
 which work analogously to the generic 'setquota' and 'repquota' tools.
 
 

@@ -2,7 +2,7 @@ timeout_set 3 hours
 
 CHUNKSERVERS=3 \
 	MOUNTS=2 \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="lfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
 size=40G

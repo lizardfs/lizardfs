@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,8 +19,8 @@
 #include "common/platform.h"
 #include "init.h"
 
-#ifndef MFSMAXFILES
-#define MFSMAXFILES 5000
+#ifndef LFSMAXFILES
+#define LFSMAXFILES 5000
 #endif
 
 #include <errno.h>
@@ -50,7 +50,7 @@
 #include "common/exit_status.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/mfserr.h"
+#include "common/lfserr.h"
 #include "common/setup.h"
 #include "common/slogger.h"
 
@@ -62,7 +62,7 @@
 #    include <sys/resource.h>
 #  endif
 #  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
-#    define MFS_USE_MEMLOCK 1
+#    define LFS_USE_MEMLOCK 1
 #  endif
 #endif
 
@@ -322,7 +322,7 @@ void mainloop() {
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
-	struct pollfd pdesc[MFSMAXFILES];
+	struct pollfd pdesc[LFSMAXFILES];
 	uint32_t ndesc;
 	int i;
 	int t,r;
@@ -457,11 +457,11 @@ int initialize(void) {
 		now = time(NULL);
 		try {
 			if (RunTab[i].fn() < 0) {
-				mfs_arg_syslog(LOG_ERR, "init: %s failed !!!", RunTab[i].name);
+				lfs_arg_syslog(LOG_ERR, "init: %s failed !!!", RunTab[i].name);
 				ok=0;
 			}
 		} catch (const std::exception& e) {
-			mfs_arg_syslog(LOG_ERR, "init: %s failed: %s !!!", RunTab[i].name, e.what());
+			lfs_arg_syslog(LOG_ERR, "init: %s failed: %s !!!", RunTab[i].name, e.what());
 			ok = 0;
 		}
 	}
@@ -475,7 +475,7 @@ int initialize_late(void) {
 	for (i=0 ; (long int)(LateRunTab[i].fn)!=0 && ok ; i++) {
 		now = time(NULL);
 		if (LateRunTab[i].fn()<0) {
-			mfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
+			lfs_arg_syslog(LOG_ERR,"init: %s failed !!!",RunTab[i].name);
 			ok=0;
 		}
 	}
@@ -661,7 +661,7 @@ void changeugid(void) {
 		} else if (wgroup[0]) {
 			getgrnam_r(wgroup,&grp,pwdgrpbuff,16384,&gr);
 			if (gr==NULL) {
-				mfs_arg_syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
+				lfs_arg_syslog(LOG_WARNING,"%s: no such group !!!",wgroup);
 				exit(LIZARDFS_EXIT_STATUS_ERROR);
 			} else {
 				wrk_gid = gr->gr_gid;
@@ -674,7 +674,7 @@ void changeugid(void) {
 			if (gidok==0) {
 				getpwuid_r(wrk_uid,&pwd,pwdgrpbuff,16384,&pw);
 				if (pw==NULL) {
-					mfs_arg_syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
+					lfs_arg_syslog(LOG_ERR,"%s: no such user id - can't obtain group id",wuser+1);
 					exit(LIZARDFS_EXIT_STATUS_ERROR);
 				}
 				wrk_gid = pw->pw_gid;
@@ -682,7 +682,7 @@ void changeugid(void) {
 		} else {
 			getpwnam_r(wuser,&pwd,pwdgrpbuff,16384,&pw);
 			if (pw==NULL) {
-				mfs_arg_syslog(LOG_ERR,"%s: no such user !!!",wuser);
+				lfs_arg_syslog(LOG_ERR,"%s: no such user !!!",wuser);
 				exit(LIZARDFS_EXIT_STATUS_ERROR);
 			}
 			wrk_uid = pw->pw_uid;
@@ -694,13 +694,13 @@ void changeugid(void) {
 		free(wgroup);
 
 		if (setgid(wrk_gid)<0) {
-			mfs_arg_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
+			lfs_arg_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else {
 			syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
 		}
 		if (setuid(wrk_uid)<0) {
-			mfs_arg_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
+			lfs_arg_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else {
 			syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
@@ -798,7 +798,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 	createLockFile();
 	pid_t ownerpid(mylock());
 	if (ownerpid<0) {
-		mfs_errlog(LOG_ERR,"fcntl error");
+		lfs_errlog(LOG_ERR,"fcntl error");
 		return LockStatus::kFail;
 	}
 	if (ownerpid>0) {
@@ -818,10 +818,10 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			 * FIXME: buissiness logic should not be in file locking function.
 			 */
 			if (kill(ownerpid,SIGHUP)<0) {
-				mfs_errlog(LOG_WARNING,"can't send reload signal to lock owner");
+				lfs_errlog(LOG_WARNING,"can't send reload signal to lock owner");
 				return LockStatus::kFail;
 			}
-			fprintf(stderr,"reload signal has beed sent\n");
+			fprintf(stderr,"Reload signal has been sent\n");
 			return LockStatus::kSuccess;
 		}
 		if (runmode==RunMode::kKill) {
@@ -834,7 +834,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 #else
 			if (kill(ownerpid,SIGKILL)<0) {
 #endif
-				mfs_errlog(LOG_WARNING,"can't kill lock owner");
+				lfs_errlog(LOG_WARNING,"can't kill lock owner");
 				return LockStatus::kFail;
 			}
 		} else {
@@ -844,7 +844,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			 * FIXME: buissiness logic should not be in file locking function.
 			 */
 			if (kill(ownerpid,SIGTERM)<0) {
-				mfs_errlog(LOG_WARNING,"can't kill lock owner");
+				lfs_errlog(LOG_WARNING,"can't kill lock owner");
 				return LockStatus::kFail;
 			}
 		}
@@ -856,7 +856,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		do {
 			newownerpid = mylock();
 			if (newownerpid<0) {
-				mfs_errlog(LOG_ERR,"fcntl error");
+				lfs_errlog(LOG_ERR,"fcntl error");
 				return LockStatus::kFail;
 			}
 			if (newownerpid>0) {
@@ -881,7 +881,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 						fprintf(stderr,"sending SIGKILL to lock owner (pid:%ld) ... ",(long int)newownerpid);
 						fflush(stderr);
 						if (kill(newownerpid,SIGKILL)<0) {
-							mfs_errlog(LOG_WARNING,"can't kill lock owner");
+							lfs_errlog(LOG_WARNING,"can't kill lock owner");
 							return LockStatus::kFail;
 						}
 					} else {
@@ -889,7 +889,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 						fprintf(stderr,"sending SIGTERM to lock owner (pid:%ld) ... ",(long int)newownerpid);
 						fflush(stderr);
 						if (kill(newownerpid,SIGTERM)<0) {
-							mfs_errlog(LOG_WARNING,"can't kill lock owner");
+							lfs_errlog(LOG_WARNING,"can't kill lock owner");
 							return LockStatus::kFail;
 						}
 					}
@@ -1005,10 +1005,10 @@ void createpath(const char *filename) {
 			*dst='\0';
 			if (mkdir(pathbuff,(mode_t)0777)<0) {
 				if (errno!=EEXIST) {
-					mfs_arg_errlog(LOG_NOTICE,"creating directory %s",pathbuff);
+					lfs_arg_errlog(LOG_NOTICE,"creating directory %s",pathbuff);
 				}
 			} else {
-				mfs_arg_syslog(LOG_NOTICE,"directory %s has been created",pathbuff);
+				lfs_arg_syslog(LOG_NOTICE,"directory %s has been created",pathbuff);
 			}
 			*dst++=*src++;
 		}
@@ -1046,7 +1046,7 @@ int main(int argc,char **argv) {
 	mycrc32_init();
 
 	movewarning = 0;
-	cfgfile=strdup(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
+	cfgfile=strdup(ETC_PATH "/lfs/" STR(APPNAME) ".cfg");
 	passert(cfgfile);
 	if ((fd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
 		free(cfgfile);
@@ -1120,7 +1120,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (movewarning) {
-		mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+		lfs_syslog(LOG_WARNING,"default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/lfs/");
 	}
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
@@ -1139,14 +1139,14 @@ int main(int argc,char **argv) {
 	const std::string& logappname = set_syslog_ident();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-		rls.rlim_cur = MFSMAXFILES;
-		rls.rlim_max = MFSMAXFILES;
+		rls.rlim_cur = LFSMAXFILES;
+		rls.rlim_max = LFSMAXFILES;
 		if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
-			syslog(LOG_NOTICE,"can't change open files limit to %u",MFSMAXFILES);
+			syslog(LOG_NOTICE,"can't change open files limit to %u",LFSMAXFILES);
 		}
 
 		lockmemory = cfg_getnum("LOCK_MEMORY",0);
-#ifdef MFS_USE_MEMLOCK
+#ifdef LFS_USE_MEMLOCK
 		if (lockmemory) {
 			rls.rlim_cur = RLIM_INFINITY;
 			rls.rlim_max = RLIM_INFINITY;
@@ -1165,7 +1165,7 @@ int main(int argc,char **argv) {
 	}
 
 	if (chdir(wrkdir)<0) {
-		mfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
+		lfs_arg_syslog(LOG_ERR,"can't set working directory to %s",wrkdir);
 		if (gRunAsDaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
@@ -1185,7 +1185,7 @@ int main(int argc,char **argv) {
 		fl.reset(new FileLock(runmode, locktimeout));
 	} catch (const FilesystemException& e) {
 		if (e.what()[0]) {
-			mfs_errlog(LOG_ERR, e.what());
+			lfs_errlog(LOG_ERR, e.what());
 		}
 		if (gRunAsDaemon) {
 			fputc(0,stderr);
@@ -1212,35 +1212,35 @@ int main(int argc,char **argv) {
 		}
 	}
 
-#ifdef MFS_USE_MEMLOCK
+#ifdef LFS_USE_MEMLOCK
 	if (lockmemory) {
 		if (getrlimit(RLIMIT_MEMLOCK,&rls)<0) {
-			mfs_errlog(LOG_WARNING,"error getting memory lock limits");
+			lfs_errlog(LOG_WARNING,"error getting memory lock limits");
 		} else {
 			if (rls.rlim_cur!=RLIM_INFINITY && rls.rlim_max==RLIM_INFINITY) {
 				rls.rlim_cur = RLIM_INFINITY;
 				rls.rlim_max = RLIM_INFINITY;
 				if (setrlimit(RLIMIT_MEMLOCK,&rls)<0) {
-					mfs_errlog(LOG_WARNING,"error setting memory lock limit to unlimited");
+					lfs_errlog(LOG_WARNING,"error setting memory lock limit to unlimited");
 				}
 			}
 			if (getrlimit(RLIMIT_MEMLOCK,&rls)<0) {
-				mfs_errlog(LOG_WARNING,"error getting memory lock limits");
+				lfs_errlog(LOG_WARNING,"error getting memory lock limits");
 			} else {
 				if (rls.rlim_cur!=RLIM_INFINITY) {
-					mfs_errlog(LOG_WARNING,"can't set memory lock limit to unlimited");
+					lfs_errlog(LOG_WARNING,"can't set memory lock limit to unlimited");
 				} else {
 					if (mlockall(MCL_CURRENT|MCL_FUTURE)<0) {
-						mfs_errlog(LOG_WARNING,"memory lock error");
+						lfs_errlog(LOG_WARNING,"memory lock error");
 					} else {
-						mfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+						lfs_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
 					}
 			}       }
 		}
 	}
 #else
 	if (lockmemory) {
-		mfs_syslog(LOG_WARNING,"memory lock not supported !!!");
+		lfs_syslog(LOG_WARNING,"memory lock not supported !!!");
 	}
 #endif
 	fprintf(stderr, "initializing %s modules ...\n", logappname.c_str());

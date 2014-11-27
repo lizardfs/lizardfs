@@ -109,7 +109,7 @@ public:
 		groupId_(groupId), reserve_(0), lastRequestSuccessful_(true), dead_(false), clock_(clock) {}
 	virtual ~Group() {}
 
-	// wait until we are allowed to transfer size bytes, return MFS status
+	// wait until we are allowed to transfer size bytes, return LFS status
 	uint8_t wait(uint64_t size, const SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock);
 	// notify all waitees that the group has been removed
 	void die();
@@ -170,7 +170,7 @@ public:
 	}
 
 	// Try to acquire an assignment of 'size' bytes. This method pauses a callee until a request
-	// is satisfied or a deadline is exceeded. Return when returns MFS status
+	// is satisfied or a deadline is exceeded. Return when returns LFS status
 	uint8_t waitForRead(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);
 	// Works the same as waitForRead
 	uint8_t waitForWrite(const pid_t pid, const uint64_t size, SteadyTimePoint deadline);

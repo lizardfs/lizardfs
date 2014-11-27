@@ -1,7 +1,7 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file was part of LizardFS and is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@
 #include "common/massert.h"
 #include "common/matoml_communication.h"
 #include "common/metadata.h"
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/mltoma_communication.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
@@ -369,7 +369,7 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 	if (responseVersion == matoml::registerShadow::kStatusPacketVersion) {
 		uint8_t status;
 		matoml::registerShadow::deserialize(data, length, status);
-		syslog(LOG_NOTICE, "Cannot register to master: %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Cannot register to master: %s", lfsstrerr(status));
 		eptr->mode = KILL;
 	} else if (responseVersion == matoml::registerShadow::kResponsePacketVersion) {
 		uint32_t masterVersion;
@@ -436,7 +436,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		if ((status = restore(network, version, buf.c_str(),
 				RestoreRigor::kDontIgnoreAnyErrors)) != STATUS_OK) {
 			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
-					mfsstrerr(status));
+					lfsstrerr(status));
 			masterconn_handle_changelog_apply_error(eptr, status);
 			return;
 		}
@@ -447,7 +447,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		fprintf(eptr->logfd.get(), "%" PRIu64 ": %s\n", version, data);
 		lastlogversion = version;
 	} else {
-		syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
+		syslog(LOG_NOTICE,"lost LFS change %" PRIu64 ": %s",version,data);
 	}
 }
 
@@ -463,7 +463,7 @@ int masterconn_download_end(masterconn *eptr) {
 	masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
 	if (eptr->metafd>=0) {
 		if (close(eptr->metafd)<0) {
-			mfs_errlog_silent(LOG_NOTICE,"error closing metafile");
+			lfs_errlog_silent(LOG_NOTICE,"error closing metafile");
 			eptr->metafd=-1;
 			return -1;
 		}
@@ -480,18 +480,18 @@ void masterconn_download_init(masterconn *eptr,uint8_t filenum) {
 		ptr = masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_START,1);
 		put8bit(&ptr,filenum);
 		eptr->downloading=filenum;
-		if (filenum == DOWNLOAD_METADATA_MFS) {
+		if (filenum == DOWNLOAD_METADATA_LFS) {
 			masterconnsingleton->state = MasterConnectionState::kDownloading;
 		}
 	}
 }
 
 void masterconn_metadownloadinit() {
-	masterconn_download_init(masterconnsingleton, DOWNLOAD_METADATA_MFS);
+	masterconn_download_init(masterconnsingleton, DOWNLOAD_METADATA_LFS);
 }
 
 void masterconn_sessionsdownloadinit(void) {
-	masterconn_download_init(masterconnsingleton, DOWNLOAD_SESSIONS_MFS);
+	masterconn_download_init(masterconnsingleton, DOWNLOAD_SESSIONS_LFS);
 }
 
 int masterconn_metadata_check(const std::string& name) {
@@ -520,13 +520,13 @@ void masterconn_download_next(masterconn *eptr) {
 		std::string changelogFilename_1 = changelogFilename + ".1";
 		std::string changelogFilename_2 = changelogFilename + ".2";
 		syslog(LOG_NOTICE, "%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",
-				(filenum == DOWNLOAD_METADATA_MFS) ? "metadata" :
-				(filenum == DOWNLOAD_SESSIONS_MFS) ? "sessions" :
-				(filenum == DOWNLOAD_CHANGELOG_MFS) ? changelogFilename_1.c_str() :
-				(filenum == DOWNLOAD_CHANGELOG_MFS_1) ? changelogFilename_2.c_str() : "???",
+				(filenum == DOWNLOAD_METADATA_LFS) ? "metadata" :
+				(filenum == DOWNLOAD_SESSIONS_LFS) ? "sessions" :
+				(filenum == DOWNLOAD_CHANGELOG_LFS) ? changelogFilename_1.c_str() :
+				(filenum == DOWNLOAD_CHANGELOG_LFS_1) ? changelogFilename_2.c_str() : "???",
 				eptr->filesize, dltime/1000000, (uint32_t)(dltime%1000000),
 				(double)(eptr->filesize) / (double)(dltime));
-		if (filenum == DOWNLOAD_METADATA_MFS) {
+		if (filenum == DOWNLOAD_METADATA_LFS) {
 			if (masterconn_metadata_check(metadataTmpFilename) == 0) {
 				if (BackMetaCopies>0) {
 					rotateFiles(metadataFilename, BackMetaCopies, 2);
@@ -535,18 +535,18 @@ void masterconn_download_next(masterconn *eptr) {
 					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
-			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS);
-		} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
+			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_LFS);
+		} else if (filenum == DOWNLOAD_CHANGELOG_LFS) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_1.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
-			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS_1);
-		} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
+			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_LFS_1);
+		} else if (filenum == DOWNLOAD_CHANGELOG_LFS_1) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_2.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
-			masterconn_download_init(eptr, DOWNLOAD_SESSIONS_MFS);
-		} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
+			masterconn_download_init(eptr, DOWNLOAD_SESSIONS_LFS);
+		} else if (filenum == DOWNLOAD_SESSIONS_LFS) {
 			if (rename(sessionsTmpFilename.c_str(), sessionsFilename.c_str()) < 0) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
@@ -557,7 +557,7 @@ void masterconn_download_next(masterconn *eptr) {
 					try {
 						fs_loadall();
 						lastlogversion = fs_getversion() - 1;
-						mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
+						lfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
 						eptr->state = MasterConnectionState::kSynchronized;
 					} catch (Exception& ex) {
 						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
@@ -601,12 +601,12 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	eptr->dloffset = 0;
 	eptr->downloadretrycnt = 0;
 	eptr->dlstartuts = main_utime();
-	if (eptr->downloading == DOWNLOAD_METADATA_MFS) {
+	if (eptr->downloading == DOWNLOAD_METADATA_LFS) {
 		eptr->metafd = open(metadataTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
-	} else if (eptr->downloading == DOWNLOAD_SESSIONS_MFS) {
+	} else if (eptr->downloading == DOWNLOAD_SESSIONS_LFS) {
 		eptr->metafd = open(sessionsTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
-	} else if ((eptr->downloading == DOWNLOAD_CHANGELOG_MFS)
-			|| (eptr->downloading == DOWNLOAD_CHANGELOG_MFS_1)) {
+	} else if ((eptr->downloading == DOWNLOAD_CHANGELOG_LFS)
+			|| (eptr->downloading == DOWNLOAD_CHANGELOG_LFS_1)) {
 		eptr->metafd = open(changelogTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else {
 		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
@@ -614,7 +614,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		return;
 	}
 	if (eptr->metafd<0) {
-		mfs_errlog_silent(LOG_NOTICE,"error opening metafile");
+		lfs_errlog_silent(LOG_NOTICE,"error opening metafile");
 		masterconn_download_end(eptr);
 		return;
 	}
@@ -662,7 +662,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	ret = write(eptr->metafd,data,leng);
 #endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
-		mfs_errlog_silent(LOG_NOTICE,"error writing metafile");
+		lfs_errlog_silent(LOG_NOTICE,"error writing metafile");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -682,7 +682,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (fsync(eptr->metafd)<0) {
-		mfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
+		lfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -704,7 +704,7 @@ void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uin
 		masterconn_force_metadata_download(eptr);
 	} else {
 		eptr->state = MasterConnectionState::kLimbo;
-		syslog(LOG_NOTICE, "Master failed to produce new metadata: %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Master failed to produce new metadata: %s", lfsstrerr(status));
 	}
 }
 
@@ -820,7 +820,7 @@ int masterconn_initconnect(masterconn *eptr) {
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
 		} else {
-			mfs_arg_syslog(LOG_WARNING,
+			lfs_arg_syslog(LOG_WARNING,
 					"can't resolve master host/port (%s:%s)",
 					MasterHost.c_str(), MasterPort.c_str());
 			return -1;
@@ -828,18 +828,18 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		mfs_errlog(LOG_WARNING,"create socket, error");
+		lfs_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		mfs_errlog(LOG_WARNING,"set nonblock, error");
+		lfs_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			mfs_errlog(LOG_WARNING,"can't bind socket to given ip");
+			lfs_errlog(LOG_WARNING,"can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock = -1;
 			return -1;
@@ -847,7 +847,7 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"connect failed, error");
+		lfs_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->masteraddrvalid = 0;
@@ -868,7 +868,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lfs_errlog_silent(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->mode = FREE;
@@ -892,7 +892,7 @@ void masterconn_read(masterconn *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
+				lfs_errlog_silent(LOG_NOTICE,"read from Master error");
 				masterconn_kill_session(eptr);
 			}
 			return;
@@ -955,7 +955,7 @@ void masterconn_write(masterconn *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
+				lfs_errlog_silent(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -1096,7 +1096,7 @@ void masterconn_reload(void) {
 	uint32_t ReconnectionDelay;
 	uint32_t MetaDLFreq;
 
-	std::string newMasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	std::string newMasterHost = cfg_getstring("MASTER_HOST","lfsmaster");
 	std::string newMasterPort = cfg_getstring("MASTER_PORT","9419");
 	std::string newBindHost = cfg_getstring("BIND_HOST","*");
 
@@ -1159,7 +1159,7 @@ int masterconn_init(void) {
 	masterconn *eptr;
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY", 1);
-	MasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
+	MasterHost = cfg_getstring("MASTER_HOST","lfsmaster");
 	MasterPort = cfg_getstring("MASTER_PORT","9419");
 	BindHost = cfg_getstring("BIND_HOST","*");
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);

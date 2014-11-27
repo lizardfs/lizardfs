@@ -3,8 +3,8 @@ timeout_set 3 minutes
 CHUNKSERVERS=1 \
 	MOUNTS=2 \
 	USE_RAMDISK="YES" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
-	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
+	MOUNT_EXTRA_CONFIG="lfsacl,lfscachemode=NEVER" \
+	LFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1|AUTO_RECOVERY = 1" \
 	setup_local_empty_lizardfs info
 
@@ -12,11 +12,11 @@ CHUNKSERVERS=1 \
 mkdir -p "${info[mount0]}/some/subfolder"
 chmod 1777 "${info[mount0]}/some/subfolder"
 lizardfs_mount_unmount 1
-echo "mfssubfolder=some/subfolder" >> "${info[mount1_config]}"
+echo "lfssubfolder=some/subfolder" >> "${info[mount1_config]}"
 lizardfs_mount_start 1
 
 # Remember version of the metadata file. We expect it not to change when generating data.
-metadata_file="${info[master_data_path]}/metadata.mfs"
+metadata_file="${info[master_data_path]}/metadata.lfs"
 metadata_version=$(metadata_get_version "$metadata_file")
 
 # Generate metadata in /some/subfolder

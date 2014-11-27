@@ -62,7 +62,7 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 		desc.add_options()
 			("help", "print help message")
 			("master-host,H",
-				po::value<std::string>(&setup.master_host)->default_value("mfsmaster"),
+				po::value<std::string>(&setup.master_host)->default_value("lfsmaster"),
 				"master host name")
 			("master-port,P",
 				po::value<std::string>(&setup.master_port)->default_value("9421"),

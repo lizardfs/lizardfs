@@ -6,13 +6,13 @@
 # Required-Stop:	$remote_fs
 # Default-Start:	2 3 4 5
 # Default-Stop:		0 1 6
-# Short-Description:	Start mfscgiserv at boot time
-# Description:		mfscgiserv provides HTTP server for LizardFS CGI monitor.
+# Short-Description:	Start lfscgiserv at boot time
+# Description:		lfscgiserv provides HTTP server for LizardFS CGI monitor.
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/sbin/mfscgiserv
-NAME=mfscgiserv
+DAEMON=/usr/sbin/lfscgiserv
+NAME=lfscgiserv
 DESC=lizardfs-cgiserv
 LIZARDFSCGISERV_USER=nobody
 LIZARDFSCGISERV_GROUP=nogroup

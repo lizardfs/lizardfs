@@ -6,10 +6,10 @@
 #include <memory>
 #include <string>
 
-#include "common/MFSCommunication.h"
+#include "common/LFSCommunication.h"
 #include "common/serialization.h"
 
-// Legacy MooseFS packet format:
+// Legacy LizardFS packet format:
 //
 // type
 // length of data
@@ -109,10 +109,10 @@ inline void serializePacketPrefix(std::vector<uint8_t>& destination, uint32_t ex
 }
 
 /*
- * Assembles a whole MooseFS packet (packet without version)
+ * Assembles a whole LizardFS packet (packet without version)
  */
 template<class T, class... Data>
-inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+inline void serializeLizardFsPacket(std::vector<uint8_t>& buffer,
 		const PacketHeader::Type& type,
 		const T& t,
 		const Data &...args) {
@@ -121,7 +121,7 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 	serialize(buffer, type, length, t, args...);
 }
 
-inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
+inline void serializeLizardFsPacket(std::vector<uint8_t>& buffer,
 		const PacketHeader::Type& type) {
 	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = 0;
@@ -129,11 +129,11 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 }
 
 /*
- * Assembles initial segment of a MooseFS packet (without version),
+ * Assembles initial segment of a LizardFS packet (without version),
  * sets bigger length in the header to accommodate data appended later.
  */
 template<class... Args>
-inline void serializeMooseFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t extraLength,
+inline void serializeLizardFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t extraLength,
 		const PacketHeader::Type& type, const Args &...args) {
 	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = serializedSize(args...) + extraLength;
@@ -147,7 +147,7 @@ inline void serializeMooseFsPacketPrefix(std::vector<uint8_t>& buffer, uint32_t 
  *
  * Some procedures have two versions:
  *   NoHeader   - version for headerless packet fragments
- *   SkipHeader - version for packets with full MooseFS header
+ *   SkipHeader - version for packets with full LizardFS header
  *
  * If the function name contains All infix, it means that the function will throw
  * IncorrectDeserializationException when the buffer is too long
@@ -224,7 +224,7 @@ inline void deserializePacketDataSkipHeader(const std::vector<uint8_t>& source, 
 }
 
 template<class... Data>
-inline void deserializeAllMooseFsPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+inline void deserializeAllLizardFsPacketDataNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
 		Data &...args) {
 	uint32_t bytesNotUsed = deserialize(source, bytesInBuffer, args...);
 	if (bytesNotUsed > 0) {
@@ -233,9 +233,9 @@ inline void deserializeAllMooseFsPacketDataNoHeader(const uint8_t* source, uint3
 }
 
 template<class... Data>
-inline void deserializeAllMooseFsPacketDataNoHeader(const std::vector<uint8_t>& source,
+inline void deserializeAllLizardFsPacketDataNoHeader(const std::vector<uint8_t>& source,
 		Data &...args) {
-	deserializeAllMooseFsPacketDataNoHeader(source.data(), source.size(), args...);
+	deserializeAllLizardFsPacketDataNoHeader(source.data(), source.size(), args...);
 }
 
 // check whether a LizardFS packet has expected version
