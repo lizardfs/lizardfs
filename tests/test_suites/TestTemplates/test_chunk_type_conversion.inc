@@ -25,7 +25,7 @@ verify_file_goal() {
 	elif [[ $goal =~ ([1-9]) ]]; then
 		level=${BASH_REMATCH[1]}
 
-		copies=$(mfsfileinfo "$file" | grep 'copy.*:_$' | sort | uniq | wc -l)
+		copies=$(mfsfileinfo "$file" | egrep 'copy.*:[a-zA-Z0-9_]+$' | sort | uniq | wc -l)
 		if (( $level > $copies )); then
 			echo "$file: expected $level copies, have $copies"
 			mfsfileinfo "$file"
