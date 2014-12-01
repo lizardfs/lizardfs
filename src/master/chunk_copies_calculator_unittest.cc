@@ -8,27 +8,56 @@
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
 
-// TODO(alek) test mixing xor goals and labels
-
-static const Goal* getDefaultGoal(uint8_t goalId) {
+static const Goal& getDefaultGoal(uint8_t goalId) {
 	static std::map<uint8_t, Goal> defaultGoals;
 	if (defaultGoals.count(goalId) == 0) {
 		defaultGoals[goalId] = Goal::getDefaultGoal(goalId);
 	}
-	return &defaultGoals[goalId];
+	return defaultGoals[goalId];
 }
 
-static void checkPartsToRecover(
-		std::vector<ChunkType> available,
-		uint8_t goal,
+// Some custom goals for these tests
+static Goal us_us("us_us", {
+		{"us", 2},
+});
+static Goal eu_eu("eu_eu", {
+		{"eu", 2},
+});
+static Goal us_eu("us_eu", {
+		{"us", 1},
+		{"eu", 1},
+});
+static Goal us_eu_any("us_eu_any", {
+		{"us", 1},
+		{"eu", 1},
+		{"_", 1},
+});
+static Goal us_us_any("us_us_any", {
+		{"us", 2},
+		{"_", 1},
+});
+static Goal us_any_any("us_any_any", {
+		{"us", 1},
+		{"_", 2},
+});
+static Goal us_eu_any_any("us_eu_any_any", {
+		{"us", 1},
+		{"eu", 1},
+		{"_", 2},
+});
+static Goal any_any("any_any", {
+		{"_", 2},
+});
+
+static void checkPartsToRecoverWithLabels(
+		std::vector<std::pair<ChunkType, MediaLabel>> available,
+		Goal goal,
 		std::vector<ChunkType> expectedPartsToRecover) {
-	SCOPED_TRACE("Testing goal " + (goal::isXorGoal(goal)
-			? "xor" + std::to_string(goal::toXorLevel(goal))
-			: std::to_string(goal)));
+	SCOPED_TRACE("Testing goal " + goal.name());
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
-	for (auto part : available) {
-		calculator.addPart(part, &kMediaLabelWildcard);
+	ChunkCopiesCalculator calculator(&goal);
+	for (const auto& part : available) {
+		calculator.addPart(part.first, &part.second);
 	}
 	std::vector<ChunkType> actualPartsToRecover = calculator.getPartsToRecover();
 	std::sort(expectedPartsToRecover.begin(), expectedPartsToRecover.end());
@@ -37,31 +66,55 @@ static void checkPartsToRecover(
 	EXPECT_EQ(expectedPartsToRecover.size(), calculator.countPartsToRecover());
 }
 
+static void checkPartsToRecover(
+		std::vector<ChunkType> available,
+		uint8_t goalId,
+		std::vector<ChunkType> expectedPartsToRemove) {
+	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
+	for (const auto& part : available) {
+		availablePartsWithLabel.emplace_back(part, kMediaLabelWildcard);
+	}
+	checkPartsToRecoverWithLabels(availablePartsWithLabel,
+			getDefaultGoal(goalId),
+			expectedPartsToRemove);
+}
+
 static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 2) {
-	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
-	for (auto part : parts) {
+	ChunkCopiesCalculator calculator(&getDefaultGoal(goal));
+	for (const auto& part : parts) {
 		calculator.addPart(part, &kMediaLabelWildcard);
 	}
 	return calculator;
 }
 
-static void checkPartsToRemove(
-		std::vector<ChunkType> available,
-		uint8_t goal,
+static void checkPartsToRemoveWithLabels(
+		std::vector<std::pair<ChunkType, MediaLabel>> available,
+		Goal goal,
 		std::vector<ChunkType> expectedPartsToRemove) {
-	SCOPED_TRACE("Testing goal " + (goal::isXorGoal(goal)
-			? "xor" + std::to_string(goal::toXorLevel(goal))
-			: std::to_string(goal)));
+	SCOPED_TRACE("Testing goal " + goal.name());
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(getDefaultGoal(goal));
-	for (auto part : available) {
-		calculator.addPart(part, &kMediaLabelWildcard);
+	ChunkCopiesCalculator calculator(&goal);
+	for (const auto& part : available) {
+		calculator.addPart(part.first, &part.second);
 	}
 	std::vector<ChunkType> actualPartsToRemove = calculator.getPartsToRemove();
 	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());
 	std::sort(actualPartsToRemove.begin(), actualPartsToRemove.end());
 	EXPECT_EQ(expectedPartsToRemove, actualPartsToRemove);
 	EXPECT_EQ(expectedPartsToRemove.size(), calculator.countPartsToRemove());
+}
+
+static void checkPartsToRemove(
+		std::vector<ChunkType> available,
+		uint8_t goalId,
+		std::vector<ChunkType> expectedPartsToRemove) {
+	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
+	for (const auto& part : available) {
+		availablePartsWithLabel.emplace_back(part, kMediaLabelWildcard);
+	}
+	checkPartsToRemoveWithLabels(availablePartsWithLabel,
+			getDefaultGoal(goalId),
+			expectedPartsToRemove);
 }
 
 TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
@@ -116,6 +169,84 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 		available.erase(available.begin() + i);
 		checkPartsToRecover(available, goalXorMax, expected);
 	}
+}
+
+TEST(ChunkCopiesCalculatorTests, GetPartsToRecoverWithcustomGoals) {
+#define check checkPartsToRecoverWithLabels
+	check({{standard, "us"}}, us_us, {standard});
+	check({{standard, "us"}}, us_eu, {standard});
+	check({{standard, "us"}}, eu_eu, {standard, standard});
+	check({{standard, "us"}}, us_eu_any, {standard, standard});
+	check({{standard, "eu"}}, us_eu_any, {standard, standard});
+	check({{standard, "cn"}}, us_eu_any, {standard, standard});
+	check({{standard, "us"}}, any_any, {standard});
+
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_us, {standard});
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_eu, {standard});
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, eu_eu, {standard, standard});
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
+	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
+	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, any_any, {standard});
+
+	check({{standard, "us"}, {standard, "us"}}, us_us, {});
+	check({{standard, "us"}, {standard, "us"}}, any_any, {});
+	check({{standard, "us"}, {standard, "us"}}, us_eu, {standard});
+	check({{standard, "us"}, {standard, "us"}}, eu_eu, {standard, standard});
+	check({{standard, "us"}, {standard, "us"}}, us_eu_any, {standard});
+	check({{standard, "us"}, {standard, "us"}}, us_eu_any_any, {standard, standard});
+
+	check({{standard, "cn"}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard, standard});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard, standard});
+
+	check({{standard, "cn"}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, "cn"}, {xor_1_of_2, "us"}, {xor_2_of_2, "us"}}, us_eu_any_any, {standard, standard, standard});
+#undef check
+}
+
+TEST(ChunkCopiesCalculatorTests, GetPartsToRemoveWithcustomGoals) {
+#define check checkPartsToRemoveWithLabels
+	check({{standard, "eu"}}, us_us, {standard});
+	check({{standard, "eu"}}, us_eu, {});
+	check({{standard, "eu"}}, eu_eu, {});
+	check({{standard, "us"}}, eu_eu, {standard});
+
+	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_us, {standard, xor_1_of_2});
+	check({{standard, "eu"}, {xor_1_of_2, "cn"}}, us_us, {standard, xor_1_of_2});
+	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_eu, {xor_1_of_2});
+	check({{standard, "eu"}, {xor_1_of_2, "us"}}, eu_eu, {xor_1_of_2});
+	check({{standard, "us"}, {xor_1_of_2, "us"}}, eu_eu, {standard, xor_1_of_2});
+	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any, {xor_1_of_2});
+
+	check({{standard, "cn"}}, us_eu_any, {});
+	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any, {standard});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any, {standard, standard});
+	check({{xor_1_of_2, "us"}, {xor_2_of_2, "eu"}, {xor_p_of_2, "cn"}},
+			us_eu_any, {xor_1_of_2, xor_2_of_2, xor_p_of_2});
+
+	check({{standard, "eu"}, {standard, "us"}}, us_eu, {});
+	check({{standard, "eu"}, {standard, "cn"}}, us_eu, {standard});
+	check({{standard, "eu"}, {standard, "cn"}}, us_eu_any, {});
+	check({{standard, "eu"}, {standard, "cn"}}, us_eu_any_any, {});
+	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "us"}}, us_eu_any_any, {});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}, {standard, "cn"}},
+			us_eu_any_any, {standard, standard});
+
+	check({{standard, "eu"}, {standard, "us"}, {xor_1_of_2, "eu"}}, us_eu, {xor_1_of_2});
+	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu, {standard, xor_1_of_2});
+	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any, {xor_1_of_2});
+	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any_any, {xor_1_of_2});
+	check({{standard, "cn"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any_any, {xor_1_of_2});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "us"}, {xor_1_of_2, "eu"}},
+			us_eu_any_any, {xor_1_of_2});
+	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}, {xor_1_of_2, "eu"}},
+			us_eu_any_any, {standard, xor_1_of_2});
+
+#undef check
 }
 
 TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
