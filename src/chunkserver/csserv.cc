@@ -223,18 +223,18 @@ int csserv_initconnect(csserventry *eptr) {
 	int status;
 	eptr->fwdsock=tcpsocket();
 	if (eptr->fwdsock<0) {
-		mfs_errlog(LOG_WARNING,"create socket, error");
+		lzfs_pretty_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->fwdsock)<0) {
-		mfs_errlog(LOG_WARNING,"set nonblock, error");
+		lzfs_pretty_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
 	}
 	status = tcpnumconnect(eptr->fwdsock,eptr->fwdip,eptr->fwdport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"connect failed, error");
+		lzfs_pretty_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock=-1;
 		return -1;
@@ -1016,7 +1016,7 @@ void csserv_fwdconnected(csserventry *eptr) {
 	int status;
 	status = tcpgetstatus(eptr->fwdsock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lzfs_silent_errlog(LOG_WARNING,"connection failed, error");
 		csserv_fwderror(eptr);
 		return;
 	}
@@ -1037,7 +1037,7 @@ void csserv_fwdread(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+				lzfs_silent_errlog(LOG_NOTICE,"(fwdread) read error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1073,7 +1073,7 @@ void csserv_fwdread(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(fwdread) read error");
+					lzfs_silent_errlog(LOG_NOTICE,"(fwdread) read error");
 					csserv_fwderror(eptr);
 				}
 				return;
@@ -1113,7 +1113,7 @@ void csserv_fwdwrite(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(fwdwrite) write error");
+				lzfs_silent_errlog(LOG_NOTICE,"(fwdwrite) write error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1147,7 +1147,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error");
+				lzfs_silent_errlog(LOG_NOTICE,"(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1183,7 +1183,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) read error: %s");
+				lzfs_silent_errlog(LOG_NOTICE,"(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1202,7 +1202,7 @@ void csserv_forward(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(forward) write error: %s");
+				lzfs_silent_errlog(LOG_NOTICE,"(forward) write error");
 				csserv_fwderror(eptr);
 			}
 			return;
@@ -1243,7 +1243,7 @@ void csserv_read(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+				lzfs_silent_errlog(LOG_NOTICE,"(read) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1282,7 +1282,7 @@ void csserv_read(csserventry *eptr) {
 			}
 			if (i<0) {
 				if (errno!=EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE,"(read) read error");
+					lzfs_silent_errlog(LOG_NOTICE,"(read) read error");
 					eptr->state = CLOSE;
 				}
 				return;
@@ -1330,7 +1330,7 @@ void csserv_write(csserventry *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"(write) write error");
+				lzfs_silent_errlog(LOG_NOTICE,"(write) write error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1441,7 +1441,7 @@ void csserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"accept error");
+			lzfs_silent_errlog(LOG_NOTICE,"accept error");
 		} else {
 			if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
 				syslog(LOG_WARNING,"jobs queue is full !!!");
@@ -1613,13 +1613,13 @@ void csserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lzfs_pretty_syslog(LOG_NOTICE,"main server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
+		lzfs_pretty_errlog(LOG_WARNING,"main server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1630,10 +1630,10 @@ void csserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE,"main server module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lzfs_pretty_errlog(LOG_ERR,"main server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -1641,7 +1641,7 @@ void csserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE,"main server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -1654,21 +1654,21 @@ int csserv_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't create socket");
+		lzfs_pretty_errlog(LOG_ERR,"main server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE,"main server module: can't set accept filter");
 	}
 	tcpresolve(ListenHost,ListenPort,&mylistenip,&mylistenport,1);
 	if (tcpnumlisten(lsock,mylistenip,mylistenport,100)<0) {
-		mfs_errlog(LOG_ERR,"main server module: can't listen on socket");
+		lzfs_pretty_errlog(LOG_ERR,"main server module: can't listen on socket");
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE,"main server module: listen on %s:%s",ListenHost,ListenPort);
 
 	csservhead = NULL;
 	main_reloadregister(csserv_reload);

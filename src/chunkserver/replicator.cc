@@ -149,7 +149,7 @@ static int rep_read(repsrc *rs) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: read error");
+				lzfs_silent_errlog(LOG_NOTICE,"replicator: read error");
 				return -1;
 			}
 			return 0;
@@ -218,7 +218,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lzfs_silent_errlog(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -270,7 +270,7 @@ static int rep_write(repsrc *rs) {
 	}
 	if (i<0) {
 		if (errno!=EAGAIN) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: write error");
+			lzfs_silent_errlog(LOG_NOTICE,"replicator: write error");
 			return -1;
 		}
 		return 0;
@@ -312,7 +312,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lzfs_silent_errlog(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -363,7 +363,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
 			if (errno!=EINTR && errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"replicator: poll error");
+				lzfs_silent_errlog(LOG_NOTICE,"replicator: poll error");
 				return -1;
 			}
 			continue;
@@ -375,7 +375,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 			}
 			if (r->fds[i].revents & POLLOUT) {
 				if (tcpgetstatus(r->repsources[i].sock)<0) {
-					mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
+					lzfs_silent_errlog(LOG_NOTICE,"replicator: connect error");
 					return -1;
 				}
 				r->repsources[i].mode=IDLE;
@@ -469,20 +469,20 @@ uint8_t replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t
 	for (i=0 ; i<srccnt ; i++) {
 		s = tcpsocket();
 		if (s<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: socket error");
+			lzfs_silent_errlog(LOG_NOTICE,"replicator: socket error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		r.repsources[i].sock = s;
 		r.fds[i].fd = s;
 		if (tcpnonblock(s)<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: nonblock error");
+			lzfs_silent_errlog(LOG_NOTICE,"replicator: nonblock error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}
 		s = tcpnumconnect(s,r.repsources[i].ip,r.repsources[i].port);
 		if (s<0) {
-			mfs_errlog_silent(LOG_NOTICE,"replicator: connect error");
+			lzfs_silent_errlog(LOG_NOTICE,"replicator: connect error");
 			rep_cleanup(&r);
 			return ERROR_CANTCONNECT;
 		}

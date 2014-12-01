@@ -6486,7 +6486,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 			}
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading xattr: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading xattr: read error");
 			return -1;
 		}
 		ptr = hdrbuff;
@@ -6501,7 +6501,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_syslog(LOG_ERR,"loading xattr: empty name");
+			lzfs_pretty_syslog(LOG_ERR,"loading xattr: empty name");
 			if (ignoreflag) {
 				fseek(fd,anleng+avleng,SEEK_CUR);
 				continue;
@@ -6514,7 +6514,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_syslog(LOG_ERR,"loading xattr: value oversized");
+			lzfs_pretty_syslog(LOG_ERR,"loading xattr: value oversized");
 			if (ignoreflag) {
 				fseek(fd,anleng+avleng,SEEK_CUR);
 				continue;
@@ -6531,7 +6531,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_syslog(LOG_ERR,"loading xattr: name list too long");
+			lzfs_pretty_syslog(LOG_ERR,"loading xattr: name list too long");
 			if (ignoreflag) {
 				fseek(fd,anleng+avleng,SEEK_CUR);
 				continue;
@@ -6551,7 +6551,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 			}
 			delete xa;
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading xattr: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading xattr: read error");
 			return -1;
 		}
 		xa->anleng = anleng;
@@ -6565,7 +6565,7 @@ int xattr_load(FILE *fd,int ignoreflag) {
 				}
 				delete xa;
 				errno = err;
-				mfs_errlog(LOG_ERR,"loading xattr: read error");
+				lzfs_pretty_errlog(LOG_ERR,"loading xattr: read error");
 				return -1;
 			}
 		} else {
@@ -6712,7 +6712,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 			fputc('\n', stderr);
 			putLfBeforeError = false;
 		}
-		mfs_arg_syslog(LOG_ERR, "loading acl: %s", ex.what());
+		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
 		if (!ignoreflag || ex.status() != STATUS_OK) {
 			return -1;
 		} else {
@@ -6775,7 +6775,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			nl=0;
 		}
 		errno = err;
-		mfs_errlog(LOG_ERR,"loading edge: read error");
+		lzfs_pretty_errlog(LOG_ERR,"loading edge: read error");
 		return -1;
 	}
 	ptr = uedgebuff;
@@ -6791,7 +6791,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			fputc('\n',stderr);
 			nl=0;
 		}
-		mfs_arg_syslog(LOG_ERR,"loading edge: %" PRIu32 "->%" PRIu32 " error: empty name",parent_id,child_id);
+		lzfs_pretty_syslog(LOG_ERR,"loading edge: %" PRIu32 "->%" PRIu32 " error: empty name",parent_id,child_id);
 		delete e;
 		return -1;
 	}
@@ -6804,7 +6804,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			nl=0;
 		}
 		errno = err;
-		mfs_errlog(LOG_ERR,"loading edge: read error");
+		lzfs_pretty_errlog(LOG_ERR,"loading edge: read error");
 		delete e;
 		return -1;
 	}
@@ -6814,7 +6814,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 			fputc('\n',stderr);
 			nl=0;
 		}
-		mfs_arg_syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
+		lzfs_pretty_syslog(LOG_ERR,"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: child not found",parent_id,fsnodes_escape_name(e->nleng,e->name),child_id);
 		delete e;
 		if (ignoreflag) {
 			return 0;
@@ -6851,7 +6851,7 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_arg_syslog(LOG_ERR,
+			lzfs_pretty_syslog(LOG_ERR,
 					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad child type (%c)\n",
 					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id, e->child->type);
 			delete e;
@@ -6864,24 +6864,24 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_arg_syslog(LOG_ERR,
+			lzfs_pretty_syslog(LOG_ERR,
 					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: parent not found",
 					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-					mfs_arg_syslog(LOG_ERR,
+					lzfs_pretty_syslog(LOG_ERR,
 							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
 							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 					delete e;
 					return -1;
 				}
-				mfs_arg_syslog(LOG_ERR,
+				lzfs_pretty_syslog(LOG_ERR,
 						"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",
 						parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 				parent_id = MFS_ROOT_ID;
 			} else {
-				mfs_syslog(LOG_ERR,
+				lzfs_pretty_syslog(LOG_ERR,
 						"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				delete e;
 				return -1;
@@ -6892,24 +6892,24 @@ int fs_loadedge(FILE *fd,int ignoreflag) {
 				fputc('\n',stderr);
 				nl=0;
 			}
-			mfs_arg_syslog(LOG_ERR,
+			lzfs_pretty_syslog(LOG_ERR,
 					"loading edge: %" PRIu32 ",%s->%" PRIu32 " error: bad parent type (%c)",
 					parent_id, fsnodes_escape_name(e->nleng, e->name), child_id, e->parent->type);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
 				if (e->parent==NULL || e->parent->type!=TYPE_DIRECTORY) {
-					mfs_arg_syslog(LOG_ERR,
+					lzfs_pretty_syslog(LOG_ERR,
 							"loading edge: %" PRIu32 ",%s->%" PRIu32 " root dir not found !!!",
 							parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 					delete e;
 					return -1;
 				}
-				mfs_arg_syslog(LOG_ERR,
+				lzfs_pretty_syslog(LOG_ERR,
 						"loading edge: %" PRIu32 ",%s->%" PRIu32 " attaching node to root dir",
 						parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
 				parent_id = MFS_ROOT_ID;
 			} else {
-				mfs_syslog(LOG_ERR,
+				lzfs_pretty_syslog(LOG_ERR,
 						"use mfsmetarestore (option -i) to attach this node to root dir\n");
 				delete e;
 				return -1;
@@ -7113,7 +7113,7 @@ int fs_loadnode(FILE *fd) {
 				nl=0;
 			}
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading node: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 			delete p;
 			return -1;
 		}
@@ -7128,7 +7128,7 @@ int fs_loadnode(FILE *fd) {
 				nl=0;
 			}
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading node: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 			delete p;
 			return -1;
 		}
@@ -7143,7 +7143,7 @@ int fs_loadnode(FILE *fd) {
 				nl=0;
 			}
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading node: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 			delete p;
 			return -1;
 		}
@@ -7153,7 +7153,7 @@ int fs_loadnode(FILE *fd) {
 			fputc('\n',stderr);
 			nl=0;
 		}
-		mfs_arg_syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
+		lzfs_pretty_syslog(LOG_ERR,"loading node: unrecognized node type: %c",type);
 		delete p;
 		return -1;
 	}
@@ -7197,7 +7197,7 @@ int fs_loadnode(FILE *fd) {
 					nl=0;
 				}
 				errno = err;
-				mfs_errlog(LOG_ERR,"loading node: read error");
+				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 				free(p->data.sdata.path);
 				delete p;
 				return -1;
@@ -7229,7 +7229,7 @@ int fs_loadnode(FILE *fd) {
 					nl=0;
 				}
 				errno = err;
-				mfs_errlog(LOG_ERR,"loading node: read error");
+				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 				if (p->data.fdata.chunktab) {
 					free(p->data.fdata.chunktab);
 				}
@@ -7249,7 +7249,7 @@ int fs_loadnode(FILE *fd) {
 				nl=0;
 			}
 			errno = err;
-			mfs_errlog(LOG_ERR,"loading node: read error");
+			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
 			if (p->data.fdata.chunktab) {
 				free(p->data.fdata.chunktab);
 			}
@@ -7372,13 +7372,13 @@ int fs_checknodes(int ignoreflag) {
 					fputc('\n',stderr);
 					nl=0;
 				}
-				mfs_arg_syslog(LOG_ERR, "found orphaned inode: %" PRIu32, p->id);
+				lzfs_pretty_syslog(LOG_ERR, "found orphaned inode: %" PRIu32, p->id);
 				if (ignoreflag) {
 					if (fs_lostnode(p)<0) {
 						return -1;
 					}
 				} else {
-					mfs_syslog(LOG_ERR,
+					lzfs_pretty_syslog(LOG_ERR,
 							"use mfsmetarestore (option -i) to attach this node to root dir\n");
 					return -1;
 				}
@@ -7433,7 +7433,7 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 					entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId, entry.limit);
 		}
 	} catch (Exception& ex) {
-		mfs_arg_syslog(LOG_ERR, "loading quotas: %s", ex.what());
+		lzfs_pretty_syslog(LOG_ERR, "loading quotas: %s", ex.what());
 		if (!ignoreflag || ex.status() != STATUS_OK) {
 			return -1;
 		}
@@ -7492,7 +7492,7 @@ int fs_loadfree(FILE *fd) {
 			// nl=0;
 		}
 		errno = err;
-		mfs_errlog(LOG_ERR,"loading free nodes: read error");
+		lzfs_pretty_errlog(LOG_ERR,"loading free nodes: read error");
 		return -1;
 	}
 	ptr=rbuff;
@@ -7510,7 +7510,7 @@ int fs_loadfree(FILE *fd) {
 						// nl=0;
 					}
 					errno = err;
-					mfs_errlog(LOG_ERR,"loading free nodes: read error");
+					lzfs_pretty_errlog(LOG_ERR,"loading free nodes: read error");
 					return -1;
 				}
 				l=1024;
@@ -7521,7 +7521,7 @@ int fs_loadfree(FILE *fd) {
 						fputc('\n',stderr);
 					}
 					errno = err;
-					mfs_errlog(LOG_ERR,"loading free nodes: read error");
+					lzfs_pretty_errlog(LOG_ERR,"loading free nodes: read error");
 					return -1;
 				}
 				l=t;
@@ -7701,7 +7701,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	uint64_t sleng;
 
 	if (fread(hdr,1,16,fd)!=16) {
-		mfs_syslog(LOG_ERR, "error loading header\n");
+		lzfs_pretty_syslog(LOG_ERR, "error loading header\n");
 		return -1;
 	}
 	ptr = hdr;
@@ -7856,7 +7856,7 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 	fflush(stderr);
 	gMetadata->root = fsnodes_id_to_node(MFS_ROOT_ID);
 	if (gMetadata->root==NULL) {
-		mfs_syslog(LOG_ERR, "error reading metadata (root node not found !!!)");
+		lzfs_pretty_syslog(LOG_ERR, "error reading metadata (root node not found !!!)");
 		return -1;
 	}
 	if (fs_checknodes(ignoreflag)<0) {
@@ -7985,7 +7985,7 @@ static bool fs_commit_metadata_dump() {
 		DEBUG_LOG("master.fs.stored");
 		return true;
 	} catch (Exception& ex) {
-		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+		lzfs_pretty_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
 				kMetadataTmpFilename, kMetadataFilename, ex.what());
 	}
 
@@ -7993,15 +7993,15 @@ static bool fs_commit_metadata_dump() {
 	std::string alternativeName = kMetadataFilename + std::to_string(main_time());
 	try {
 		fs::rename(kMetadataTmpFilename, alternativeName);
-		mfs_arg_syslog(LOG_ERR, "Emergency metadata file created as %s", alternativeName.c_str());
+		lzfs_pretty_syslog(LOG_ERR, "Emergency metadata file created as %s", alternativeName.c_str());
 		return false;
 	} catch (Exception& ex) {
-		mfs_arg_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
+		lzfs_pretty_syslog(LOG_ERR, "Renaming %s to %s failed: %s",
 				kMetadataTmpFilename, alternativeName.c_str(), ex.what());
 	}
 
 	// Nothing can be done...
-	mfs_syslog(LOG_ERR, "Trying to create emergency metadata file in foreground...");
+	lzfs_pretty_syslog(LOG_ERR, "Trying to create emergency metadata file in foreground...");
 	fs_emergency_saves();
 	return false;
 }
@@ -8077,9 +8077,9 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			return false;
 		} else {
 			if (fflush(fd.get()) == EOF) {
-				mfs_errlog(LOG_ERR, "metadata fflush failed");
+				lzfs_pretty_errlog(LOG_ERR, "metadata fflush failed");
 			} else if (fsync(fileno(fd.get())) == -1) {
-				mfs_errlog(LOG_ERR, "metadata fsync failed");
+				lzfs_pretty_errlog(LOG_ERR, "metadata fsync failed");
 			}
 			fd.reset();
 			if (!child) {
@@ -8125,17 +8125,17 @@ void fs_storeall(const char *fname) {
 	FILE *fd;
 	fd = fopen(fname,"w");
 	if (fd==NULL) {
-		mfs_syslog(LOG_ERR, "can't open metadata file");
+		lzfs_pretty_syslog(LOG_ERR, "can't open metadata file");
 		return;
 	}
 	fs_store_fd(fd);
 
 	if (ferror(fd)!=0) {
-		mfs_syslog(LOG_ERR, "can't write metadata\n");
+		lzfs_pretty_syslog(LOG_ERR, "can't write metadata\n");
 	} else if (fflush(fd) == EOF) {
-		mfs_syslog(LOG_ERR, "can't fflush metadata\n");
+		lzfs_pretty_syslog(LOG_ERR, "can't fflush metadata\n");
 	} else if (fsync(fileno(fd)) == -1) {
-		mfs_syslog(LOG_ERR, "can't fsync metadata\n");
+		lzfs_pretty_syslog(LOG_ERR, "can't fsync metadata\n");
 	}
 	fclose(fd);
 }
@@ -8165,7 +8165,7 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 #ifndef METARESTORE
 	if (metadataserver::isMaster()) {
 		if (memcmp(hdr, "MFSM NEW", 8) == 0) {    // special case - create new file system
-			mfs_syslog(LOG_NOTICE, "create new empty filesystem");
+			lzfs_pretty_syslog(LOG_NOTICE, "create new empty filesystem");
 			fs_new();
 			// after creating new filesystem always create "back" file for using in metarestore
 			fs_storeall(MetadataDumper::kForegroundDump);
@@ -8286,13 +8286,13 @@ static void fs_read_goal_config_file() {
 			// the default file exists - use it
 			goalConfigFile = defaultGoalConfigFile;
 		} else {
-			mfs_syslog(LOG_INFO, "No custom goal configuration file specified and "
+			lzfs_pretty_syslog(LOG_INFO, "No custom goal configuration file specified and "
 					"the default file doesn't exist - using builtin defaults");
 			fs_read_goals_from_stream(std::stringstream()); // empty means defaults
 			return;
 		}
 	}
-	mfs_arg_syslog(LOG_INFO, "Using goal configuration from %s", goalConfigFile.c_str());
+	lzfs_pretty_syslog(LOG_INFO, "Using goal configuration from %s", goalConfigFile.c_str());
 	std::ifstream goalConfigStream(goalConfigFile);
 	if (!goalConfigStream.good()) {
 		throw ConfigurationException("failed to open " + goalConfigFile);
@@ -8379,13 +8379,13 @@ void fs_load_changelog(const std::string& path) {
 		}
 	}
 	if (id >= first) {
-		mfs_arg_syslog(LOG_NOTICE, "applied changes from %" PRIu64 " to %" PRIu64 " from %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "applied changes from %" PRIu64 " to %" PRIu64 " from %s",
 				first, id, path.c_str());
 	} else {
-		mfs_arg_syslog(LOG_NOTICE, "no changes applied from %s", path.c_str());
+		lzfs_pretty_syslog(LOG_NOTICE, "no changes applied from %s", path.c_str());
 	}
 	if (skippedEntries > 0) {
-		mfs_arg_syslog(LOG_NOTICE, "skipped %" PRIu32 " entries from changelog %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "skipped %" PRIu32 " entries from changelog %s",
 				skippedEntries, path.c_str());
 	}
 }
@@ -8420,7 +8420,7 @@ int fs_load_changelogs() {
 		for (const std::string& s : changelogs) {
 			if (fs::exists(s)) {
 				oldExists = true;
-				mfs_arg_syslog(LOG_NOTICE, "Changelog file found and %s, trying to apply %s.",
+				lzfs_pretty_syslog(LOG_NOTICE, "Changelog file found and %s, trying to apply %s.",
 						(metadataserver::isMaster() ? "auto recovery enabled" : "running as Shadow"),
 						s.c_str());
 				uint64_t first = changelogGetFirstLogVersion(s);
@@ -8428,21 +8428,21 @@ int fs_load_changelogs() {
 				if (last >= first) {
 					if (last >= fs_getversion()) {
 						fs_load_changelog(s);
-						mfs_arg_syslog(LOG_NOTICE, "Changelog file %s applied successfully.", s.c_str());
+						lzfs_pretty_syslog(LOG_NOTICE, "Changelog file %s applied successfully.", s.c_str());
 					} else {
-						mfs_arg_syslog(LOG_WARNING,
+						lzfs_pretty_syslog(LOG_WARNING,
 								"Skipping changelog file: %s [%" PRIu64 "-%" PRIu64 "]",
 								s.c_str(), fs_getversion(), last);
 					}
 				} else {
-					mfs_arg_syslog(LOG_ERR,
+					lzfs_pretty_syslog(LOG_ERR,
 							"Changelog inconsistent, run meterestore,"
 							" current version = %" PRIu64 ", new version = %" PRIu64 ".",
 							fs_getversion(), first);
 					return -1;
 				}
 			} else if (oldExists) {
-				mfs_arg_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
+				lzfs_pretty_syslog(LOG_WARNING, "missing changelog file `%s'", s.c_str());
 			}
 		}
 	} catch (const FilesystemException& ex) {
@@ -8454,7 +8454,7 @@ int fs_load_changelogs() {
 }
 
 void fs_unload() {
-	mfs_arg_syslog(LOG_WARNING, "unloading filesystem at %" PRIu64, fs_getversion());
+	lzfs_pretty_syslog(LOG_WARNING, "unloading filesystem at %" PRIu64, fs_getversion());
 	restore_reset();
 	matoclserv_session_unload();
 	chunk_unload();

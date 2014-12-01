@@ -460,7 +460,7 @@ int masterconn_download_end(masterconn *eptr) {
 	masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
 	if (eptr->metafd>=0) {
 		if (close(eptr->metafd)<0) {
-			mfs_errlog_silent(LOG_NOTICE,"error closing metafile");
+			lzfs_silent_errlog(LOG_NOTICE,"error closing metafile");
 			eptr->metafd=-1;
 			return -1;
 		}
@@ -554,7 +554,7 @@ void masterconn_download_next(masterconn *eptr) {
 					try {
 						fs_loadall();
 						lastlogversion = fs_getversion() - 1;
-						mfs_arg_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
+						lzfs_pretty_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
 						eptr->state = MasterConnectionState::kSynchronized;
 					} catch (Exception& ex) {
 						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
@@ -611,7 +611,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		return;
 	}
 	if (eptr->metafd<0) {
-		mfs_errlog_silent(LOG_NOTICE,"error opening metafile");
+		lzfs_silent_errlog(LOG_NOTICE,"error opening metafile");
 		masterconn_download_end(eptr);
 		return;
 	}
@@ -659,7 +659,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	ret = write(eptr->metafd,data,leng);
 #endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
-		mfs_errlog_silent(LOG_NOTICE,"error writing metafile");
+		lzfs_silent_errlog(LOG_NOTICE,"error writing metafile");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -679,7 +679,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (fsync(eptr->metafd)<0) {
-		mfs_errlog_silent(LOG_NOTICE,"error syncing metafile");
+		lzfs_silent_errlog(LOG_NOTICE,"error syncing metafile");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -817,7 +817,7 @@ int masterconn_initconnect(masterconn *eptr) {
 			eptr->masterport = mport;
 			eptr->masteraddrvalid = 1;
 		} else {
-			mfs_arg_syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"can't resolve master host/port (%s:%s)",
 					MasterHost.c_str(), MasterPort.c_str());
 			return -1;
@@ -825,18 +825,18 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		mfs_errlog(LOG_WARNING,"create socket, error");
+		lzfs_pretty_errlog(LOG_WARNING,"create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		mfs_errlog(LOG_WARNING,"set nonblock, error");
+		lzfs_pretty_errlog(LOG_WARNING,"set nonblock, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			mfs_errlog(LOG_WARNING,"can't bind socket to given ip");
+			lzfs_pretty_errlog(LOG_WARNING,"can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock = -1;
 			return -1;
@@ -844,7 +844,7 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"connect failed, error");
+		lzfs_pretty_errlog(LOG_WARNING,"connect failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->masteraddrvalid = 0;
@@ -865,7 +865,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lzfs_silent_errlog(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->mode = FREE;
@@ -889,7 +889,7 @@ void masterconn_read(masterconn *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
+				lzfs_silent_errlog(LOG_NOTICE,"read from Master error");
 				masterconn_kill_session(eptr);
 			}
 			return;
@@ -952,7 +952,7 @@ void masterconn_write(masterconn *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
+				lzfs_silent_errlog(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;

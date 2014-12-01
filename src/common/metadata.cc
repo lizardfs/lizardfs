@@ -115,7 +115,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	FileDescriptor fd(open(fname.c_str(), O_RDONLY));
 	if (fd.get() < 0) {
-		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
+		lzfs_pretty_syslog(LOG_ERR, "open failed: %s", strerr(errno));
 		return 0;
 	}
 	fstat(fd.get(), &st);
@@ -127,13 +127,13 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd.get(), 0);
 	if (fileContent == MAP_FAILED) {
-		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
+		lzfs_pretty_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
 		return 0; // 0 counterintuitively means failure
 	}
 	uint64_t lastLogVersion = 0;
 	// first LF is (should be) the last byte of the file
 	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
+		lzfs_pretty_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
 				fname.c_str());
 	} else {
 		size_t pos = fileSize - 1;
@@ -146,13 +146,13 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 		char *endPtr = NULL;
 		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
 		if (*endPtr != ':') {
-			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
+			lzfs_pretty_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
 					fname.c_str());
 			lastLogVersion = 0;
 		}
 	}
 	if (munmap((void*) fileContent, fileSize)) {
-		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
+		lzfs_pretty_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
 	}
 	return lastLogVersion;
 }

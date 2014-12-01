@@ -2,47 +2,35 @@
 
 #include "common/platform.h"
 
-#include <errno.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <syslog.h>
+/// Returns true iff lzfs_*log functions print messages to stderr.
+bool lzfs_is_printf_enabled();
 
-#include "common/mfserr.h"
-#include "common/debug_log.h"
+/// Enables printing into stderr in lzfs_*log functions.
+void lzfs_disable_printf();
 
-#define mfs_syslog(priority,msg) do { \
-	syslog((priority),"%s",(msg)); \
-	fprintf(stderr,"%s\n",(msg)); \
-	DEBUG_LOG("SYS" #priority) << msg; \
-} while (false)
+/// Disables printing into stderr in lzfs_*log functions.
+void lzfs_enable_printf();
 
-#define mfs_arg_syslog(priority,format, ...) do { \
-	syslog((priority),(format), __VA_ARGS__); \
-	fprintf(stderr,format "\n", __VA_ARGS__); \
-	DEBUG_LOGF("SYS" #priority, format, __VA_ARGS__); \
-} while (false)
+/*
+ * function names may contain following words:
+ *   "pretty" -> write pretty prefix to stderr
+ *   "silent" -> do not write anything to stderr
+ *   "errlog" -> append strerr(errno) to printed message
+ *   "attempt" -> instead of pretty prefix based on priority, write prefix suggesting
+ *      that something is starting
+ */
 
-#define mfs_errlog(priority,msg) do { \
-	const char *_mfs_errstring = strerr(errno); \
-	syslog((priority),"%s: %s", (msg) , _mfs_errstring); \
-	fprintf(stderr,"%s: %s\n", (msg), _mfs_errstring); \
-	DEBUG_LOG("SYS" #priority) << msg << " " << _mfs_errstring; \
-} while (false)
+void lzfs_pretty_syslog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
 
-#define mfs_arg_errlog(priority,format, ...) do { \
-	const char *_mfs_errstring = strerr(errno); \
-	syslog((priority),format ": %s", __VA_ARGS__ , _mfs_errstring); \
-	fprintf(stderr,format ": %s\n", __VA_ARGS__ , _mfs_errstring); \
-	DEBUG_LOGF("SYS" #priority, format ": %s", __VA_ARGS__, _mfs_errstring); \
-} while (false)
+void lzfs_pretty_syslog_attempt(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
 
-#define mfs_errlog_silent(priority,msg) do { \
-	syslog((priority),"%s: %s", msg, strerr(errno)); \
-	DEBUG_LOG("SYS" #priority) << msg; \
-} while (false)
+void lzfs_pretty_errlog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
 
-#define mfs_arg_errlog_silent(priority,format, ...) do { \
-	syslog((priority),format ": %s", __VA_ARGS__, strerr(errno)); \
-	DEBUG_LOGF("SYS" #priority, format ": %s", __VA_ARGS__, strerr(errno)); \
-} while (false)
+void lzfs_silent_syslog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
 
+void lzfs_silent_errlog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));

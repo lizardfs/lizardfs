@@ -11,10 +11,13 @@
 # define DEBUG_LOG(TAG) debugLog(TAG, __FILE__, __func__, __LINE__)
 # define DEBUG_LOGF(TAG, format, ...) debugLogf(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__, \
 		format, __VA_ARGS__)
+# define DEBUG_LOGFV(TAG, format, ap) debugLogfv(TAG, __FILE__, __PRETTY_FUNCTION__, __LINE__, \
+		format, ap)
 #else
 // define DEBUG_LOG in the way that it generates no code nor any compiler errors/warnings
 # define DEBUG_LOG(TAG) if (false) *static_cast<std::ofstream*>(nullptr) << 0
 # define DEBUG_LOGF(TAG, format, ...) /**/
+# define DEBUG_LOGFV(TAG, format, ...) /**/
 #endif
 
 /*! \brief Provide means for logging to multiple files at once.
@@ -127,3 +130,5 @@ DebugLog debugLog(const std::string& tag, const char* originFile,
  */
 void debugLogf(const std::string& tag, const char* originFile,
 		const char* originFunction, int originLine, const char* format, ...);
+void debugLogfv(const std::string& tag, const char* originFile,
+		const char* originFunction, int originLine, const char* format, va_list ap);

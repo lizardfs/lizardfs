@@ -1,9 +1,11 @@
 #include "common/platform.h"
 #include "common/debug_log.h"
 
+#include <syslog.h>
 #include <cstdarg>
 #include <cstring>
 
+#include "common/mfserr.h"
 #include "common/slogger.h"
 
 namespace {
@@ -82,6 +84,19 @@ void debugLogf(const std::string& tag, const char* originFile,
 	va_start(va, format);
 	int len = vsnprintf(buffer, maxMsgSize - 1, format, va);
 	va_end(va);
+	buffer[len] = 0;
+	debugLog(tag, originFile, originFunction, originLine) << buffer;
+}
+
+void debugLogfv(const std::string& tag, const char* originFile,
+		const char* originFunction, int originLine, const char* format, va_list ap) {
+	static const int maxMsgSize = 512;
+	char buffer[maxMsgSize];
+	va_list ap2;
+
+	va_copy(ap2, ap);
+	int len = vsnprintf(buffer, maxMsgSize - 1, format, ap2);
+	va_end(ap2);
 	buffer[len] = 0;
 	debugLog(tag, originFile, originFunction, originLine) << buffer;
 }
