@@ -671,7 +671,11 @@ void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t leng
 	ptr = csserv_create_attached_packet(eptr,CSTOCS_GET_CHUNK_BLOCKS_STATUS,8+4+2+1);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	put16bit(&ptr,blocks);
+	if (status == STATUS_OK) { // make valgrind happy -- don't send uninitialized bytes
+		put16bit(&ptr,blocks);
+	} else {
+		put16bit(&ptr,0);
+	}
 	put8bit(&ptr,status);
 }
 
