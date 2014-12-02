@@ -137,6 +137,13 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 	serialize(buffer, type, length);
 }
 
+template<class... Data>
+inline std::vector<uint8_t> buildMooseFsPacket(const Data&... args) {
+	std::vector<uint8_t> ret;
+	serializeMooseFsPacket(ret, args...);
+	return ret;
+}
+
 /*
  * Assembles initial segment of a MooseFS packet (without version),
  * sets bigger length in the header to accommodate data appended later.
