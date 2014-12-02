@@ -71,9 +71,8 @@ void ListChunkserversCommand::run(const Options& options) const {
 std::vector<ChunkserverListEntry> ListChunkserversCommand::getChunkserversList (
 		const std::string& masterHost, const std::string& masterPort) {
 	ServerConnection connection(masterHost, masterPort);
-	std::vector<uint8_t> request, response;
-	cltoma::cservList::serialize(request, true);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_CSERV_LIST);
+	auto request = cltoma::cservList::build(true);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_CSERV_LIST);
 	std::vector<ChunkserverListEntry> result;
 	matocl::cservList::deserialize(response, result);
 	return result;

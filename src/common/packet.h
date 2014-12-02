@@ -96,6 +96,15 @@ inline void serializePacket(std::vector<uint8_t>& destination,
 	serialize(destination, PacketHeader(type, length), version, data...);
 }
 
+template <class... Data>
+inline std::vector<uint8_t> buildPacket(PacketHeader::Type type, PacketVersion version, const Data&... data) {
+	sassert(type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType);
+	uint32_t length = serializedSize(version, data...);
+	std::vector<uint8_t> buffer;
+	serialize(buffer, PacketHeader(type, length), version, data...);
+	return buffer;
+}
+
 /*
  * Assembles initial segment of a packet, sets bigger length in the header to accommodate
  * data appended later.

@@ -942,16 +942,13 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 		}
 		serializedGoals.emplace_back(i, goal.name(), ss.str());
 	}
-	MessageBuffer buffer;
-	matocl::listGoals::serialize(buffer, serializedGoals);
-	matoclserv_createpacket(eptr, std::move(buffer));
+	matoclserv_createpacket(eptr, matocl::listGoals::build(serializedGoals));
 }
 
 void matoclserv_chunks_health(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	bool regularChunksOnly;
 	cltoma::chunksHealth::deserialize(data, length, regularChunksOnly);
-	std::vector<uint8_t> message;
-	matocl::chunksHealth::serialize(message, regularChunksOnly,
+	auto message = matocl::chunksHealth::build(regularChunksOnly,
 			chunk_get_availability_state(regularChunksOnly),
 			chunk_get_replication_state(regularChunksOnly));
 	matoclserv_createpacket(eptr, std::move(message));

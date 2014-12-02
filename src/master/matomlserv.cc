@@ -132,9 +132,7 @@ public:
 	 */
 	void handleRequests(uint8_t status) {
 		for (matomlserventry* eptr : shadowRequests_) {
-			std::vector<uint8_t> reply;
-			matoml::changelogApplyError::serialize(reply, status);
-			matomlserv_createpacket(eptr, std::move(reply));
+			matomlserv_createpacket(eptr, matoml::changelogApplyError::build(status));
 		}
 		shadowRequests_.clear();
 	}
@@ -399,9 +397,7 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 		syslog(LOG_NOTICE,
 				"MLTOMA_REGISTER_SHADOW - rejected old client (v%s) from %s",
 				lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
-		std::vector<uint8_t> reply;
-		matoml::registerShadow::serialize(reply, uint8_t(ERROR_REGISTER));
-		matomlserv_createpacket(eptr, std::move(reply));
+		matomlserv_createpacket(eptr, matoml::registerShadow::build(uint8_t(ERROR_REGISTER)));
 		return;
 	}
 
@@ -418,9 +414,7 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 		replyVersion = myMedatataVersion;
 	}
 
-	std::vector<uint8_t> reply;
-	matoml::registerShadow::serialize(reply, LIZARDFS_VERSHEX, replyVersion);
-	matomlserv_createpacket(eptr, std::move(reply));
+	matomlserv_createpacket(eptr, matoml::registerShadow::build(LIZARDFS_VERSHEX, replyVersion));
 	matomlserv_send_old_changes(eptr, replyVersion - 1); // this function expects lastlogversion
 }
 

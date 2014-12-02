@@ -41,9 +41,8 @@ void ChunksHealthCommand::initializeGoals(ServerConnection& connection) {
 	}
 
 	std::vector<SerializedGoal> serializedGoals;
-	std::vector<uint8_t> request, response;
-	cltoma::listGoals::serialize(request, true);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
+	auto request = cltoma::listGoals::build(true);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
 	matocl::listGoals::deserialize(response, serializedGoals);
 
 	for (const SerializedGoal& goal : serializedGoals) {
@@ -58,10 +57,9 @@ void ChunksHealthCommand::run(const Options& options) const {
 	}
 
 	ServerConnection connection(options.argument(0), options.argument(1));
-	std::vector<uint8_t> request, response;
 	bool regularOnly = false;
-	cltoma::chunksHealth::serialize(request, regularOnly);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_CHUNKS_HEALTH);
+	auto request = cltoma::chunksHealth::build(regularOnly);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_CHUNKS_HEALTH);
 	ChunksAvailabilityState availability;
 	ChunksReplicationState replication;
 	matocl::chunksHealth::deserialize(response, regularOnly, availability, replication);

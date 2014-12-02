@@ -285,8 +285,7 @@ void masterconn_sendregister(masterconn *eptr) {
 	if (eptr->state == MasterConnectionState::kSynchronized) {
 		metadataVersion = fs_getversion();
 	}
-	std::vector<uint8_t> request;
-	mltoma::registerShadow::serialize(request, LIZARDFS_VERSHEX, Timeout * 1000, metadataVersion);
+	auto request = mltoma::registerShadow::build(LIZARDFS_VERSHEX, Timeout * 1000, metadataVersion);
 	masterconn_createpacket(eptr, std::move(request));
 	return;
 #endif
@@ -344,9 +343,7 @@ void masterconn_force_metadata_download(masterconn* eptr) {
 }
 
 void masterconn_request_metadata_dump(masterconn* eptr) {
-	std::vector<uint8_t> buffer;
-	mltoma::changelogApplyError::serialize(buffer, eptr->error_status);
-	masterconn_createpacket(eptr, std::move(buffer));
+	masterconn_createpacket(eptr, mltoma::changelogApplyError::build(eptr->error_status));
 	eptr->state = MasterConnectionState::kDumpRequestPending;
 	eptr->changelog_apply_error_packet_time.reset();
 }

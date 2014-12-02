@@ -27,9 +27,8 @@ void MetadataserverStatusCommand::run(const Options& options) const {
 	}
 
 	ServerConnection connection(options.argument(0), options.argument(1));
-	std::vector<uint8_t> request, response;
-	cltoma::metadataserverStatus::serialize(request, 1);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_METADATASERVER_STATUS);
+	auto request = cltoma::metadataserverStatus::build(1);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_METADATASERVER_STATUS);
 
 	uint32_t messageId;
 	uint8_t status;

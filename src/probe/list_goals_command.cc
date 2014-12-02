@@ -35,9 +35,8 @@ void ListGoalsCommand::run(const Options& options) const {
 
 	ServerConnection connection(options.argument(0), options.argument(1));
 	std::vector<SerializedGoal> serializedGoals;
-	std::vector<uint8_t> request, response;
-	cltoma::listGoals::serialize(request, true);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
+	auto request = cltoma::listGoals::build(true);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
 	matocl::listGoals::deserialize(response, serializedGoals);
 
 	if (options.isSet(kPorcelainMode)) {

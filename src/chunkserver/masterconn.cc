@@ -75,10 +75,6 @@ struct OutputPacket {
 
 	OutputPacket() : bytesSent(0) {
 	};
-	void swap(OutputPacket& other) {
-		std::swap(packet, other.packet);
-		std::swap(bytesSent, other.bytesSent);
-	}
 };
 
 struct masterconn {
@@ -145,17 +141,13 @@ void masterconn_delete_packet(void *packet) {
 
 void masterconn_attach_packet(masterconn *eptr, void* packet) {
 	OutputPacket* outputPacket = (OutputPacket*) packet;
-	eptr->outputPackets.push_back(OutputPacket());
-	std::swap(eptr->outputPackets.back(), *outputPacket);
+	eptr->outputPackets.emplace_back(std::move(*outputPacket));
 	delete outputPacket;
 }
 
-void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t>& serializedPacket) {
-	OutputPacket outputPacket;
-	outputPacket.packet.swap(serializedPacket);
-
-	eptr->outputPackets.push_back(OutputPacket());
-	std::swap(eptr->outputPackets.back(), outputPacket);
+void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t> serializedPacket) {
+	eptr->outputPackets.emplace_back();
+	eptr->outputPackets.back().packet = std::move(serializedPacket);
 }
 
 template<class... Data>
@@ -163,14 +155,12 @@ void masterconn_create_attached_moosefs_packet(masterconn *eptr,
 		PacketHeader::Type type, const Data&... data) {
 	std::vector<uint8_t> buffer;
 	serializeMooseFsPacket(buffer, type, data...);
-	masterconn_create_attached_packet(eptr, buffer);
+	masterconn_create_attached_packet(eptr, std::move(buffer));
 }
 
 void masterconn_sendregisterlabel(masterconn *eptr) {
 	if (eptr->mode == HEADER || eptr->mode == DATA) {
-		std::vector<uint8_t> serializedPacket;
-		cstoma::registerLabel::serialize(serializedPacket, gLabel);
-		masterconn_create_attached_packet(eptr, serializedPacket);
+		masterconn_create_attached_packet(eptr, cstoma::registerLabel::build(gLabel));
 	}
 }
 
@@ -183,25 +173,20 @@ void masterconn_sendregister(masterconn *eptr) {
 
 	myip = csserv_getlistenip();
 	myport = csserv_getlistenport();
-	std::vector<uint8_t> serializedPacket;
-	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms, LIZARDFS_VERSHEX);
-	masterconn_create_attached_packet(eptr, serializedPacket);
+	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
 	hdd_get_chunks_begin();
 	std::vector<ChunkWithVersion> chunks;
 	hdd_get_chunks_next_list_data(chunks);
 	while (!chunks.empty()) {
-		serializedPacket.resize(0);
-		cstoma::registerChunks::serialize(serializedPacket, chunks);
-		masterconn_create_attached_packet(eptr, serializedPacket);
+		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
 		chunks.resize(0);
 		hdd_get_chunks_next_list_data(chunks);
 	}
 	hdd_get_chunks_end();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-	serializedPacket.clear();
-	cstoma::registerSpace::serialize(serializedPacket, usedspace, totalspace, chunkcount,
-			tdusedspace, tdtotalspace, tdchunkcount);
-	masterconn_create_attached_packet(eptr, serializedPacket);
+	auto registerSpace = cstoma::registerSpace::build(
+			usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);
+	masterconn_create_attached_packet(eptr, std::move(registerSpace));
 	masterconn_sendregisterlabel(eptr);
 }
 
