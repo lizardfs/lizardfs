@@ -1319,6 +1319,7 @@ static int hdd_io_end(Chunk *c) {
 	uint64_t ts,te;
 
 	if (c->wasChanged) {
+		c->wasChanged = false;
 		if (PerformFsync) {
 			ts = get_usectime();
 #ifdef F_FULLFSYNC
