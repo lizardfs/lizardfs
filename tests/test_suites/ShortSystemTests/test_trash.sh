@@ -66,6 +66,7 @@ assert_equals 1 $(ls "$trash" | grep -v undel | wc -l) # Links and directories d
 
 # 5. Recover file to a different location
 echo a/b/c > "$(only_file_in_trash)"
+assert_eventually 'test -e "$trash"/*"a|b|c"' # rename in trash is asynchronous!
 mv "$(only_file_in_trash)" "$trash/undel"
 assert_success file-validate a/b/c
 stat_after_recovery=$(stat_basic_info a/b/c)

@@ -90,6 +90,7 @@ metadata_generate_trash_ops() {
 		exec 150>&-
 		# Generate SETPATH, UNDEL, and PURGE changes
 		echo "untrashed_dir/untrashed_file" > "$MFS_META_MOUNT_PATH"/trash/*trashed_file_3
+		assert_eventually 'test -e "$MFS_META_MOUNT_PATH"/trash/*untrashed_file' # wait for rename
 		mv "$MFS_META_MOUNT_PATH"/trash/*untrashed_file "$MFS_META_MOUNT_PATH"/trash/undel
 		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
 		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
