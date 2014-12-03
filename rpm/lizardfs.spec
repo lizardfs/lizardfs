@@ -12,6 +12,7 @@ BuildRequires:  fuse-devel
 BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
+BuildRequires:  asciidoc
 %if "%{distro}" == "el7"
 BuildRequires:  systemd
 %endif
