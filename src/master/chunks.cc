@@ -1396,7 +1396,6 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 
 void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version) {
 	chunk *c;
-	slist *s;
 	const uint32_t new_version = version & 0x7FFFFFFF;
 	const bool todel = version & 0x80000000;
 	c = chunk_find(chunkid);
@@ -1409,7 +1408,7 @@ void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t versi
 		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
 		chunk_update_checksum(c);
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
 			// This server already notified us about its copy.
 			// We normally don't get repeated notifications about the same copy, but
@@ -1452,12 +1451,11 @@ void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t versi
 	}
 	const uint8_t state = (new_version == c->version) ?
 			(todel ? TDVALID : VALID) : INVALID;
-	s = c->addCopy(ptr, state, new_version);
+	c->addCopy(ptr, state, new_version);
 }
 
 void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
-	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
@@ -1466,14 +1464,14 @@ void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 		}
 		c = chunk_new(chunkid, 0);
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
 			c->invalidateCopy(s);
 			c->needverincrease=1;
 			return;
 		}
 	}
-	s = c->addCopyNoStatsUpdate(ptr, INVALID, 0);
+	c->addCopyNoStatsUpdate(ptr, INVALID, 0);
 	c->needverincrease=1;
 }
 
@@ -1567,7 +1565,6 @@ void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t statu
 
 void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status) {
 	chunk *c;
-	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		return ;
@@ -1575,7 +1572,7 @@ void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t v
 	if (status!=0) {
 		return ;
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr) {
 			syslog(LOG_WARNING,"got replication status from server which had had that chunk before (chunk:%016" PRIX64 "_%08" PRIX32 ")",chunkid,version);
 			if (s->valid==VALID && version!=c->version) {
@@ -1586,7 +1583,7 @@ void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t v
 		}
 	}
 	const uint8_t state = (c->isLocked() || version != c->version) ? INVALID : VALID;
-	s = c->addCopy(ptr, state, version);
+	c->addCopy(ptr, state, version);
 }
 
 
@@ -1983,8 +1980,9 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		}
 		if (availableSources == 0) {
 			// There is no server suitable for replication to be read from
-			skippedReplications += missingCopiesForLabel;
-			break; // there's no need to analyze other labels if there's no free source server
+			// there's no need to analyze other labels if there's no free source server
+			// We break the whole loop here, so there is no need to update 'skippedReplications'.
+			break;
 		}
 		matocsserventry *source = servers[rndu32_ranged(availableSources)];
 
@@ -2030,7 +2028,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 				double usage = matocsserv_get_usage(s->ptr);
 				if (usage > maxUsage) {
 					candidate = s;
-					usage = maxUsage;
+					maxUsage = usage;
 				}
 			}
 			if (candidate != nullptr) {

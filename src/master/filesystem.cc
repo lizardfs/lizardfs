@@ -4882,6 +4882,9 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	if (context.isPersonalityMaster()) {
 #ifndef METARESTORE
 		status = chunk_multi_modify(ochunkid, p->goal, quota_exceeded, opflag, &nchunkid);
+#else
+		// This will NEVER happen (metarestore doesn't call this in master context)
+		mabort("bad code path: fs_writechunk");
 #endif
 	} else {
 		bool increaseVersion = (*opflag != 0);
@@ -7100,7 +7103,6 @@ int fs_loadnode(FILE *fd) {
 			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
 				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-				free(p->data.sdata.path);
 				delete p;
 				return -1;
 			}
@@ -7126,9 +7128,6 @@ int fs_loadnode(FILE *fd) {
 			chptr = ptr;
 			if (fread((uint8_t*)ptr,1,8*65536,fd)!=8*65536) {
 				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-				if (p->data.fdata.chunktab) {
-					free(p->data.fdata.chunktab);
-				}
 				delete p;
 				return -1;
 			}
@@ -7140,9 +7139,6 @@ int fs_loadnode(FILE *fd) {
 		}
 		if (fread((uint8_t*)ptr,1,8*ch+4*sessionids,fd)!=8*ch+4*sessionids) {
 			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-			if (p->data.fdata.chunktab) {
-				free(p->data.fdata.chunktab);
-			}
 			delete p;
 			return -1;
 		}

@@ -23,7 +23,7 @@ void Lockfile::lock(StaleLock staleLock) {
 	}
 	fd_.reset(::open(name_.c_str(), O_CREAT | O_RDWR | (existed ? 0 : O_EXCL), 0644));
 	if (!fd_.isOpened()) {
-		FilesystemException("Cannot open " + name_ + ": " + strerr(errno));
+		throw FilesystemException("Cannot open " + name_ + ": " + strerr(errno));
 	}
 	int ret = flock(fd_.get(), LOCK_EX | LOCK_NB);
 	if (ret == 0) {

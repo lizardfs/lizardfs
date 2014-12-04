@@ -938,6 +938,11 @@ void masterconn_read(masterconn *eptr) {
 			}
 			eptr->inputpacket.packet=NULL;
 		}
+
+		if (eptr->mode==KILL) {
+			// masterconn_gotpacket killed us
+			return;
+		}
 	}
 }
 
@@ -1091,7 +1096,6 @@ void masterconn_reload(void) {
 	}
 	masterconn *eptr = masterconnsingleton;
 	uint32_t ReconnectionDelay;
-	uint32_t MetaDLFreq;
 
 	std::string newMasterHost = cfg_getstring("MASTER_HOST","mfsmaster");
 	std::string newMasterPort = cfg_getstring("MASTER_PORT","9419");
@@ -1110,9 +1114,7 @@ void masterconn_reload(void) {
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
-
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
-	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -1126,16 +1128,21 @@ void masterconn_reload(void) {
 	if (BackLogsNumber>10000) {
 		BackLogsNumber=10000;
 	}
-	if (MetaDLFreq>(BackLogsNumber/2)) {
-		MetaDLFreq=BackLogsNumber/2;
-	}
 	if (BackMetaCopies>99) {
 		BackMetaCopies=99;
 	}
 
+#ifdef METALOGGER
+	uint32_t metadataDownloadFreq;
+	metadataDownloadFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
+	if (metadataDownloadFreq>(BackLogsNumber/2)) {
+		metadataDownloadFreq=BackLogsNumber/2;
+	}
+#endif /* #ifdef METALOGGER */
+
 	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 #ifdef METALOGGER
-	main_timechange(download_hook,TIMEMODE_RUN_LATE,MetaDLFreq*3600,630);
+	main_timechange(download_hook,TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630);
 #endif /* #ifndef METALOGGER */
 
 #ifndef METALOGGER
@@ -1147,7 +1154,6 @@ void masterconn_reload(void) {
 
 int masterconn_init(void) {
 	uint32_t ReconnectionDelay;
-	uint32_t MetaDLFreq;
 #ifndef METALOGGER
 	if (metadataserver::getPersonality() != metadataserver::Personality::kShadow) {
 		return 0;
@@ -1162,7 +1168,6 @@ int masterconn_init(void) {
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
-	MetaDLFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
 
 	if (Timeout>65536) {
 		Timeout=65535;
@@ -1176,9 +1181,15 @@ int masterconn_init(void) {
 	if (BackLogsNumber>10000) {
 		BackLogsNumber=10000;
 	}
-	if (MetaDLFreq>(BackLogsNumber/2)) {
-		MetaDLFreq=BackLogsNumber/2;
+
+#ifdef METALOGGER
+	uint32_t metadataDownloadFreq;
+	metadataDownloadFreq = cfg_getuint32("META_DOWNLOAD_FREQ",24);
+	if (metadataDownloadFreq>(BackLogsNumber/2)) {
+		metadataDownloadFreq=BackLogsNumber/2;
 	}
+#endif /* #ifdef METALOGGER */
+
 	eptr = masterconnsingleton = new masterconn();
 	passert(eptr);
 
@@ -1196,7 +1207,7 @@ int masterconn_init(void) {
 	}
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
 #ifdef METALOGGER
-	download_hook = main_timeregister(TIMEMODE_RUN_LATE,MetaDLFreq*3600,630,masterconn_metadownloadinit);
+	download_hook = main_timeregister(TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630,masterconn_metadownloadinit);
 #endif /* #ifdef METALOGGER */
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
