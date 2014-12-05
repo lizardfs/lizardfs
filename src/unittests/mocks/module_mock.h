@@ -56,6 +56,11 @@ public:
 	uint16_t port() const;
 
 	/*
+	 * Address which has to be used to connect to this mock
+	 */
+	NetworkAddress address() const;
+
+	/*
 	 * Main loop of the thread which manages the network communication with this mock
 	 */
 	void operator()();

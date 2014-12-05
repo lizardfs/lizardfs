@@ -73,4 +73,8 @@ std::string dirname(const std::string& path);
  */
 std::string getCurrentWorkingDirectory();
 
+/*! \brief Get current working directory. No throw guarantee.
+ */
+std::string getCurrentWorkingDirectoryNoThrow();
+
 }

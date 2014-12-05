@@ -27,6 +27,7 @@
 
 #include "common/debug_log.h"
 #include "common/mfserr.h"
+#include "common/slogger.h"
 
 #ifdef THROW_INSTEAD_OF_ABORT
 #  include <stdexcept>
@@ -38,45 +39,39 @@
 #endif
 
 #define massert(e, msg) do { if (!(e)) { \
-				fprintf(stderr, "failed assertion '%s' : %s\n", #e, (msg)); \
-				syslog(LOG_ERR, "failed assertion '%s' : %s", #e, (msg)); \
+				lzfs_pretty_syslog(LOG_ERR, "failed assertion '%s' : %s", #e, (msg)); \
 				DEBUG_LOG("fatal.assert") << "failed assertion '" << #e << "': " << msg; \
 				ABORT_OR_THROW(); \
 		} } while (false)
 
 #define passert(ptr) do { if ((ptr) == NULL) { \
-				fprintf(stderr, "out of memory: %s is NULL\n", #ptr); \
-				syslog(LOG_ERR, "out of memory: %s is NULL", #ptr); \
+				lzfs_pretty_syslog(LOG_ERR, "out of memory: %s is NULL", #ptr); \
 				DEBUG_LOG("fatal.assert") << "out of memory, '" << #ptr << "' is NULL"; \
 				ABORT_OR_THROW(); \
 		} } while (false)
 
 #define sassert(e) do { if (!(e)) { \
-				fprintf(stderr, "failed assertion '%s'\n", #e); \
-				syslog(LOG_ERR, "failed assertion '%s'", #e); \
+				lzfs_pretty_syslog(LOG_ERR, "failed assertion '%s'", #e); \
 				DEBUG_LOG("fatal.assert") << "failed assertion '" << #e << "'"; \
 				ABORT_OR_THROW(); \
 		} } while (false)
 
 #define eassert(e) do { if (!(e)) { \
 			const char *_mfs_errorstring = strerr(errno); \
-			syslog(LOG_ERR, "failed assertion '%s', error: %s", #e, _mfs_errorstring); \
-			fprintf(stderr, "failed assertion '%s', error: %s\n", #e, _mfs_errorstring); \
+			lzfs_pretty_syslog(LOG_ERR, "failed assertion '%s', error: %s", #e, _mfs_errorstring); \
 			DEBUG_LOG("fatal.assert") << "failed assertion '" << #e << "': " << _mfs_errorstring; \
 			ABORT_OR_THROW(); \
 		} } while(false)
 
 #define zassert(e) do { if ((e) != 0) { \
 			const char *_mfs_errorstring = strerr(errno); \
-			syslog(LOG_ERR, "unexpected status, '%s' returned: %s", #e, _mfs_errorstring); \
-			fprintf(stderr, "unexpected status, '%s' returned: %s\n", #e, _mfs_errorstring); \
+			lzfs_pretty_syslog(LOG_ERR, "unexpected status, '%s' returned: %s", #e, _mfs_errorstring); \
 			DEBUG_LOG("fatal.assert") << "unexpected status, " << #e << ": " << _mfs_errorstring; \
 			ABORT_OR_THROW(); \
 		} } while(false)
 
 #define mabort(msg) do { \
-			fprintf(stderr, "abort '%s'\n", msg); \
-			syslog(LOG_ERR, "abort '%s'", msg); \
+			lzfs_pretty_syslog(LOG_ERR, "abort '%s'", msg); \
 			DEBUG_LOG("fatal.abort") << msg; \
 			ABORT_OR_THROW(); \
 		} while (false)

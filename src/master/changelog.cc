@@ -26,9 +26,10 @@
 
 #include "common/cfg.h"
 #include "common/main.h"
+#include "master/matomlserv.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
-#include "master/matomlserv.h"
+#include "common/slogger.h"
 
 #define MAXLOGLINESIZE 200000U
 #define MAXLOGNUMBER 1000U
@@ -83,7 +84,7 @@ void changelog(uint64_t version,const char *format,...) {
 void changelog_reload(void) {
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	if (BackLogsNumber>MAXLOGNUMBER) {
-		syslog(LOG_WARNING,"BACK_LOGS value too big !!!");
+		syslog(LOG_WARNING,"BACK_LOGS value in config too big, maximum allowed is %d", MAXLOGNUMBER);
 		BackLogsNumber = MAXLOGLINESIZE;
 	}
 }
@@ -91,8 +92,8 @@ void changelog_reload(void) {
 int changelog_init(void) {
 	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	if (BackLogsNumber>MAXLOGNUMBER) {
-		fprintf(stderr,"BACK_LOGS value too big !!!");
-		return -1;
+		throw InitializeException(cfg_filename() + ": BACK_LOGS value too big, "
+				"maximum allowed is " + std::to_string(MAXLOGNUMBER));
 	}
 	main_reloadregister(changelog_reload);
 	fd = NULL;

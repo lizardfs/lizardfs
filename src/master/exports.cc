@@ -31,7 +31,9 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -590,7 +592,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 		if (*eptr!=0) { // not only digits - treat it as a groupname
 			getgrnam_r(gptr+1,&grp,pwgrbuff,16384,&grrec);
 			if (grrec==NULL) {
-				mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %" PRIu32,gptr+1,lineno);
+				lzfs_pretty_syslog(LOG_WARNING,"mfsexports/maproot: can't find group named '%s' defined in line: %" PRIu32,gptr+1,lineno);
 				return -1;
 			}
 			gid = grrec->gr_gid;
@@ -612,7 +614,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 	if (*eptr!=0) { // not only digits - treat it as a username
 		getpwnam_r(uptr,&pwd,pwgrbuff,16384,&pwrec);
 		if (pwrec==NULL) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %" PRIu32,uptr,lineno);
+			lzfs_pretty_syslog(LOG_WARNING,"mfsexports/maproot: can't find user named '%s' defined in line: %" PRIu32,uptr,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -629,7 +631,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 	} else {
 		getpwuid_r(uid,&pwd,pwgrbuff,16384,&pwrec);
 		if (pwrec==NULL) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %" PRIu32 " defined in line: %" PRIu32,uid,lineno);
+			lzfs_pretty_syslog(LOG_WARNING,"mfsexports/maproot: can't determine gid, because can't find user with uid %" PRIu32 " defined in line: %" PRIu32,uid,lineno);
 			return -1;
 		}
 		*ruid = pwrec->pw_uid;
@@ -666,7 +668,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 		case 'i':
 			if (strcmp(p,"ignoregid")==0) {
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->sesflags |= SESFLAG_IGNOREGID;
 				}
@@ -676,14 +678,14 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 		case 'a':
 			if (strcmp(p,"allcanchangequota")==0) {
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->sesflags |= SESFLAG_ALLCANCHANGEQUOTA;
 				}
 				o=1;
 			} else if (strcmp(p,"alldirs")==0) {
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->alldirs = 1;
 				}
@@ -699,7 +701,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 		case 'n':
 			if (strcmp(p,"nomasterpermcheck")==0) {
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					arec->sesflags |= SESFLAG_NOMASTERPERMCHECK;
 				}
@@ -708,7 +710,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 				if (arec->meta) {
 					arec->sesflags |= SESFLAG_NONROOTMETA;
 				} else {
-					mfs_arg_syslog(LOG_WARNING,"non-meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"non-meta option ignored: %s",p);
 				}
 				o=1;
 			}
@@ -717,7 +719,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			if (strncmp(p,"maproot=",8)==0) {
 				o=1;
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					if (exports_parseuidgid(p+8,lineno,&arec->rootuid,&arec->rootgid)<0) {
 						return -1;
@@ -727,7 +729,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			} else if (strncmp(p,"mapall=",7)==0) {
 				o=1;
 				if (arec->meta) {
-					mfs_arg_syslog(LOG_WARNING,"meta option ignored: %s",p);
+					lzfs_pretty_syslog(LOG_WARNING,"meta option ignored: %s",p);
 				} else {
 					if (exports_parseuidgid(p+7,lineno,&arec->mapalluid,&arec->mapallgid)<0) {
 						return -1;
@@ -764,53 +766,53 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 					}
 					arec->needpassword=1;
 				} else {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect md5pass definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"minversion=",11)==0) {
 				o=1;
 				if (exports_parseversion(p+11,&arec->minversion)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect minversion definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"mingoal=",8)==0) {
 				o=1;
 				if (exports_parsegoal(p+8,&arec->mingoal)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mingoal definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect mingoal definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mingoal>arec->maxgoal) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: mingoal>maxgoal in definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: mingoal>maxgoal in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"maxgoal=",8)==0) {
 				o=1;
 				if (exports_parsegoal(p+8,&arec->maxgoal)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxgoal definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect maxgoal definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mingoal>arec->maxgoal) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxgoal<mingoal in definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: maxgoal<mingoal in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"mintrashtime=",13)==0) {
 				o=1;
 				if (exports_parsetime(p+13,&arec->mintrashtime)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect mintrashtime definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect mintrashtime definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mintrashtime>arec->maxtrashtime) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: mintrashtime>maxtrashtime in definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: mintrashtime>maxtrashtime in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			} else if (strncmp(p,"maxtrashtime=",13)==0) {
 				o=1;
 				if (exports_parsetime(p+13,&arec->maxtrashtime)<0) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect maxtrashtime definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect maxtrashtime definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 				if (arec->mintrashtime>arec->maxtrashtime) {
-					mfs_arg_syslog(LOG_WARNING,"mfsexports: maxtrashtime<mintrashtime in definition (%s) in line: %" PRIu32,p,lineno);
+					lzfs_pretty_syslog(LOG_WARNING,"mfsexports: maxtrashtime<mintrashtime in definition (%s) in line: %" PRIu32,p,lineno);
 					return -1;
 				}
 			}
@@ -826,7 +828,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 			break;
 		}
 		if (o==0) {
-			mfs_arg_syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %" PRIu32 " (ignored)",p,lineno);
+			lzfs_pretty_syslog(LOG_WARNING,"mfsexports: unknown option '%s' in line: %" PRIu32 " (ignored)",p,lineno);
 		}
 	}
 	return 0;
@@ -866,13 +868,13 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 		p++;
 	}
 	if (*p==0) {
-		mfs_arg_syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %" PRIu32,lineno);
+		lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incomplete definition in line: %" PRIu32,lineno);
 		return -1;
 	}
 	*p=0;
 	p++;
 	if (exports_parsenet(net,&arec->fromip,&arec->toip)<0) {
-		mfs_arg_syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %" PRIu32,lineno);
+		lzfs_pretty_syslog(LOG_WARNING,"mfsexports: incorrect ip/network definition in line: %" PRIu32,lineno);
 		return -1;
 	}
 
@@ -949,20 +951,15 @@ void exports_loadexports(void) {
 	fd = fopen(ExportsFileName,"r");
 	if (fd==NULL) {
 		if (errno==ENOENT) {
-			if (exports_records) {
-				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - exports not changed",ExportsFileName);
-			} else {
-				syslog(LOG_WARNING,"mfsexports configuration file (%s) not found - no exports !!!",ExportsFileName);
-			}
-			fprintf(stderr,"mfsexports configuration file (%s) not found - please create one (you can copy %s.dist to get a base configuration)\n",ExportsFileName,ExportsFileName);
+			throw InitializeException(
+					std::string("exports configuration file (") + ExportsFileName + ") not found"
+					" - please create one (you can copy " ETC_PATH "/mfs/mfsexports.cfg.dist"
+					" to get a base configuration)");
 		} else {
-			if (exports_records) {
-				mfs_arg_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - exports not changed, error",ExportsFileName);
-			} else {
-				mfs_arg_errlog(LOG_WARNING,"can't open mfsexports configuration file (%s) - no exports !!!, error",ExportsFileName);
-			}
+			throw InitializeException(
+					std::string("can't open exports configuration file (") + ExportsFileName + "):"
+					+ errorString(errno));
 		}
-		return;
 	}
 	newexports = NULL;
 	netail = &newexports;
@@ -991,18 +988,17 @@ void exports_loadexports(void) {
 	free(arec);
 	if (ferror(fd)) {
 		fclose(fd);
-		syslog(LOG_WARNING,"error reading mfsexports file - exports not changed");
 		exports_freelist(newexports);
-		fprintf(stderr,"error reading mfsexports file - using defaults\n");
-		return;
+		throw InitializeException(
+				std::string("can't read exports configuration file (") + ExportsFileName + ")");
 	}
 	fclose(fd);
 	exports_freelist(exports_records);
 	exports_records = newexports;
-	mfs_syslog(LOG_NOTICE,"exports file has been loaded");
+	lzfs_pretty_syslog(LOG_INFO,"initialized exports from file %s", ExportsFileName);
 }
 
-void exports_reload(void) {
+void exports_load(void) {
 	int fd;
 	if (ExportsFileName) {
 		free(ExportsFileName);
@@ -1014,7 +1010,10 @@ void exports_reload(void) {
 			free(ExportsFileName);
 			ExportsFileName = strdup(ETC_PATH "/mfsexports.cfg");
 			if ((fd = open(ExportsFileName,O_RDONLY))>=0) {
-				mfs_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfsexports.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
+			} else {
+				free(ExportsFileName);
+				ExportsFileName = strdup(ETC_PATH "/mfs/mfsexports.cfg");
 			}
 		}
 		if (fd>=0) {
@@ -1024,6 +1023,14 @@ void exports_reload(void) {
 		ExportsFileName = cfg_getstr("EXPORTS_FILENAME", ETC_PATH "/mfs/mfsexports.cfg");
 	}
 	exports_loadexports();
+}
+
+void exports_reload(void) {
+	try {
+		exports_load();
+	} catch (Exception& ex) {
+		syslog(LOG_WARNING, "exports not changed because %s", ex.what());
+	}
 }
 
 void exports_term(void) {
@@ -1036,10 +1043,10 @@ void exports_term(void) {
 int exports_init(void) {
 	exports_records = NULL;
 	ExportsFileName = NULL;
-	exports_reload();
-	if (exports_records==NULL) {
-		fprintf(stderr,"no exports defined !!!\n");
-		return -1;
+	exports_load();
+	if (exports_records == NULL) {
+		// File was empty
+		throw InitializeException(std::string("no exports defined in ") + ExportsFileName);
 	}
 	main_reloadregister(exports_reload);
 	main_destructregister(exports_term);

@@ -95,7 +95,7 @@ int changelog_checkname(const char *fname) {
 }
 
 void usage(const char* appname) {
-	mfs_syslog(LOG_ERR, "invalid/missing arguments");
+	lzfs_pretty_syslog(LOG_ERR, "invalid/missing arguments");
 	fprintf(stderr, "restore metadata:\n"
 			"\t%s [-c] [-k <checksum>] [-z] [-f] [-b] [-i] [-x [-x]] [-B n] -m <meta data file> -o "
 			"<restored meta data file> [ <change log file> [ <change log file> [ .... ]]\n"
@@ -177,7 +177,7 @@ int main(int argc,char **argv) {
 				char* endPtr;
 				*expectedChecksum = strtoull(optarg, &endPtr, 10);
 				if (*endPtr != '\0') {
-					mfs_arg_syslog(LOG_ERR, "invalid checksum: %s", optarg);
+					lzfs_pretty_syslog(LOG_ERR, "invalid checksum: %s", optarg);
 					return 1;
 				}
 				break;
@@ -232,39 +232,40 @@ int main(int argc,char **argv) {
 					bestmetadata = metadata_candidate;
 				}
 			} catch (MetadataCheckException& ex) {
-				mfs_arg_syslog(LOG_NOTICE, "skipping malformed metadata file %s: %s", candidate.c_str(), ex.what());
+				lzfs_pretty_syslog(LOG_NOTICE, "skipping malformed metadata file %s: %s", candidate.c_str(), ex.what());
 			}
 		}
 		if (bestmetadata.empty()) {
-			mfs_syslog(LOG_ERR, "error: can't find backed up metadata file !!!");
+			lzfs_pretty_syslog(LOG_ERR, "can't find backed up metadata file");
 			return 1;
 		}
 		metadata = bestmetadata;
 		metaout =  datapath + "/" + kMetadataFilename;
-		fprintf(stderr, "file %s will be used to restore the most recent metadata\n", metadata.c_str());
+		lzfs_pretty_syslog(LOG_INFO, "file %s will be used to restore the most recent metadata",
+				metadata.c_str());
 	}
 	try {
 		if (fs_init(metadata.c_str(), ignoreflag, noLock) != 0) {
-			mfs_arg_syslog(LOG_NOTICE, "error: can't read metadata from file: %s", metadata.c_str());
+			lzfs_pretty_syslog(LOG_NOTICE, "error: can't read metadata from file: %s", metadata.c_str());
 			return 1;
 		}
 	} catch (const std::exception& e) {
-		mfs_arg_syslog(LOG_ERR, "error: can't read metadata from file: %s, %s", metadata.c_str(), e.what());
+		lzfs_pretty_syslog(LOG_ERR, "error: can't read metadata from file: %s, %s", metadata.c_str(), e.what());
 		return 1;
 	}
 	if (fs_getversion() == 0) {
-		mfs_syslog(LOG_ERR, "invalid metadata version (0)");
+		lzfs_pretty_syslog(LOG_ERR, "invalid metadata version (0)");
 		return 1;
 	}
 	if (vl > 0) {
-		mfs_arg_syslog(LOG_NOTICE, "loaded metadata with version %" PRIu64 "", fs_getversion());
+		lzfs_pretty_syslog(LOG_NOTICE, "loaded metadata with version %" PRIu64 "", fs_getversion());
 	}
 
 	if (autorestore) {
 		std::vector<std::string> filenames;
 		DIR *dd = opendir(datapath.c_str());
 		if (!dd) {
-			mfs_syslog(LOG_ERR, "can't open data directory");
+			lzfs_pretty_syslog(LOG_ERR, "can't open data directory");
 			return 1;
 		}
 		rewinddir(dd);
@@ -295,7 +296,7 @@ int main(int argc,char **argv) {
 						oss << "???";
 					}
 					oss << ")";
-					mfs_arg_syslog(LOG_NOTICE, "%s", oss.str().c_str());
+					lzfs_pretty_syslog(LOG_NOTICE, "%s", oss.str().c_str());
 				}
 				if (skip) {
 					filenames.pop_back();
@@ -304,7 +305,7 @@ int main(int argc,char **argv) {
 		}
 		closedir(dd);
 		if (filenames.empty() && metadata == metaout) {
-			mfs_syslog(LOG_NOTICE, "nothing to do, exiting without changing anything");
+			lzfs_pretty_syslog(LOG_NOTICE, "nothing to do, exiting without changing anything");
 			if (!noLock) {
 				fs_unlock();
 			}
@@ -339,7 +340,7 @@ int main(int argc,char **argv) {
 					oss << "???";
 				}
 				oss << ")";
-				mfs_arg_syslog(LOG_NOTICE, "%s", oss.str().c_str());
+				lzfs_pretty_syslog(LOG_NOTICE, "%s", oss.str().c_str());
 			}
 			if (skip==0) {
 				filenames.push_back(argv[pos]);
@@ -367,7 +368,7 @@ int main(int argc,char **argv) {
 		fs_dump();
 		chunk_dump();
 	} else {
-		mfs_arg_syslog(LOG_NOTICE, "store metadata into file: %s", metaout.c_str());
+		lzfs_pretty_syslog(LOG_NOTICE, "store metadata into file: %s", metaout.c_str());
 		if (metaout == metadata) {
 			rotateFiles(metaout, storedPreviousBackMetaCopies);
 		}

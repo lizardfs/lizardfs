@@ -37,6 +37,7 @@
 #include <string>
 
 #include "common/crc.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/slogger.h"
@@ -44,8 +45,6 @@
 #ifdef LIZARDFS_HAVE_ZLIB_H
 #  include <zlib.h>
 #endif
-
-#define USE_NET_ORDER 1
 
 #define LENG 950
 #define DATA 100
@@ -478,78 +477,47 @@ void charts_store (void) {
 	int fd;
 	uint32_t s,i,j,p;
 	uint64_t *tab;
-#ifdef USE_NET_ORDER
 	uint8_t *ptr;
 	uint8_t hdr[16];
 	uint8_t data[8*LENG];
-#else
-	uint32_t hdr[4];
-#endif
 	char namehdr[100];
 
 	fd = open(statsfilename,O_WRONLY | O_TRUNC | O_CREAT,0666);
 	if (fd<0) {
-		mfs_errlog(LOG_WARNING,"error creating charts data file");
+		lzfs_pretty_errlog(LOG_WARNING,"error creating charts data file");
 		return;
 	}
-#ifdef USE_NET_ORDER
 	ptr = hdr;
 	put32bit(&ptr,CHARTS_FILE_VERSION);
 	put32bit(&ptr,LENG);
 	put32bit(&ptr,statdefscount);
 	put32bit(&ptr,timepoint[SHORTRANGE]);
 	if (write(fd,(void*)hdr,16)!=16) {
-		mfs_errlog(LOG_WARNING,"error writing charts data file");
+		lzfs_pretty_errlog(LOG_WARNING,"error writing charts data file");
 		close(fd);
 		return;
 	}
-#else
-	hdr[0]=CHARTS_FILE_VERSION;
-	hdr[1]=LENG;
-	hdr[2]=statdefscount;
-	hdr[3]=timepoint[SHORTRANGE];
-	if (write(fd,(void*)hdr,sizeof(uint32_t)*4)!=sizeof(uint32_t)*4) {
-		mfs_errlog(LOG_WARNING,"error writing charts data file");
-		close(fd);
-		return;
-	}
-#endif
 	for (i=0 ; i<statdefscount ; i++) {
 		s = strlen(statdefs[i].name);
 		memset(namehdr,0,100);
 		memcpy(namehdr,statdefs[i].name,(s>100)?100:s);
 		if (write(fd,(void*)namehdr,100)!=100) {
-			mfs_errlog(LOG_WARNING,"error writing charts data file");
+			lzfs_pretty_errlog(LOG_WARNING,"error writing charts data file");
 			close(fd);
 			return;
 		}
 		for (j=0 ; j<RANGES ; j++) {
 			tab = series[i][j];
 			p = pointers[j]+1;
-#ifdef USE_NET_ORDER
 			ptr = data;
 			for (s=0 ; s<LENG ; s++) {
 				put64bit(&ptr,tab[(p+s)%LENG]);
 			}
 			if (write(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-				mfs_errlog(LOG_WARNING,"error writing charts data file");
+				lzfs_pretty_errlog(LOG_WARNING,"error writing charts data file");
 				close(fd);
 				return;
 			}
-#else
-			if (p<LENG) {
-				if (write(fd,(void*)(tab+p),sizeof(uint64_t)*(LENG-p))!=(ssize_t)(sizeof(uint64_t)*(LENG-p))) {
-					mfs_errlog(LOG_WARNING,"error writing charts data file");
-					close(fd);
-					return;
-				}
-			}
-			if (write(fd,(void*)tab,sizeof(uint64_t)*p)!=(ssize_t)(sizeof(uint64_t)*p)) {
-				mfs_errlog(LOG_WARNING,"error writing charts data file");
-				close(fd);
-				return;
-			}
-#endif
 		}
 	}
 	close(fd);
@@ -684,28 +652,28 @@ void charts_load(void) {
 	int fd;
 	uint32_t i,j,k,fleng,fcharts;
 	uint64_t *tab;
-#ifdef USE_NET_ORDER
 	uint32_t l;
 	const uint8_t *ptr;
 	uint8_t hdr[16];
 	uint8_t data[8*LENG];
-#else
-	uint32_t hdr[3];
-#endif
 	char namehdr[101];
+	std::string fullFileName = fs::getCurrentWorkingDirectoryNoThrow() + "/" + statsfilename;
 
 	fd = open(statsfilename,O_RDONLY);
 	if (fd<0) {
 		if (errno!=ENOENT) {
-			mfs_errlog(LOG_WARNING,"error reading charts data file");
+			lzfs_pretty_errlog(LOG_WARNING,
+					"error reading charts data file %s - initializing empty charts instead",
+					fullFileName.c_str());
 		} else {
-			mfs_syslog(LOG_NOTICE,"no charts data file - initializing empty charts");
+			lzfs_pretty_syslog(LOG_WARNING,
+					"no charts data file %s - initializing empty charts",
+					fullFileName.c_str());
 		}
 		return;
 	}
-#ifdef USE_NET_ORDER
 	if (read(fd,(void*)hdr,16)!=16) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
+		lzfs_pretty_errlog(LOG_WARNING,"error reading charts data file %s", fullFileName.c_str());
 		close(fd);
 		return;
 	}
@@ -716,14 +684,14 @@ void charts_load(void) {
 		memcpy((void*)&j,hdr,4);        // get first 4 bytes of hdr as a 32-bit number in "natural" order
 		if (j==4) {
 			if (charts_import_from_old_4ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
+				lzfs_pretty_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
 			}
 		} else if (j==3) {
 			if (charts_import_from_old_3ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
+				lzfs_pretty_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
 			}
 		} else {
-			mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
+			lzfs_pretty_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
 		}
 		close(fd);
 		return;
@@ -732,43 +700,14 @@ void charts_load(void) {
 	fcharts = get32bit(&ptr);
 	i = get32bit(&ptr);
 	timepoint[SHORTRANGE]=i;
-#else
-	if (read(fd,(void*)hdr,sizeof(uint32_t))!=sizeof(uint32_t)) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
-		close(fd);
-		return;
-	}
-	if (hdr[0]!=CHARTS_FILE_VERSION) {
-		if (hdr[0]==4) {
-			if (charts_import_from_old_4ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 4-ranges format");
-			}
-		} else if (hdr[0]==3) {
-			if (charts_import_from_old_3ranges_format(fd)<0) {
-				mfs_syslog(LOG_WARNING,"error importing charts data from 3-ranges format");
-			}
-		} else {
-			mfs_syslog(LOG_WARNING,"unrecognized charts data file format - initializing empty charts");
-		}
-		close(fd);
-		return;
-	}
-	if (read(fd,(void*)hdr,sizeof(uint32_t)*3)!=sizeof(uint32_t)*3) {
-		mfs_errlog(LOG_WARNING,"error reading charts data file");
-		close(fd);
-		return;
-	}
-	fleng = hdr[0];
-	fcharts = hdr[1];
-	timepoint[SHORTRANGE]=hdr[2];
-#endif
 	pointers[SHORTRANGE]=LENG-1;
 	pointers[MEDIUMRANGE]=LENG-1;
 	pointers[LONGRANGE]=LENG-1;
 	pointers[VERYLONGRANGE]=LENG-1;
 	for (i=0 ; i<fcharts ; i++) {
 		if (read(fd,namehdr,100)!=100) {
-			mfs_errlog(LOG_WARNING,"error reading charts data file");
+			lzfs_pretty_errlog(LOG_WARNING,"error reading charts data file %s",
+					fullFileName.c_str());
 			close(fd);
 			return;
 		}
@@ -783,10 +722,10 @@ void charts_load(void) {
 				if (fleng>LENG) {
 					lseek(fd,(fleng-LENG)*sizeof(uint64_t),SEEK_CUR);
 				}
-#ifdef USE_NET_ORDER
 				if (fleng<LENG) {
 					if (read(fd,(void*)data,8*fleng)!=(ssize_t)(8*fleng)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lzfs_pretty_errlog(LOG_WARNING,"error reading charts data file %s",
+								fullFileName.c_str());
 						close(fd);
 						return;
 					}
@@ -796,7 +735,8 @@ void charts_load(void) {
 					}
 				} else {
 					if (read(fd,(void*)data,8*LENG)!=(ssize_t)(8*LENG)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
+						lzfs_pretty_errlog(LOG_WARNING,"error reading charts data file %s",
+								fullFileName.c_str());
 						close(fd);
 						return;
 					}
@@ -805,26 +745,11 @@ void charts_load(void) {
 						tab[l] = get64bit(&ptr);
 					}
 				}
-#else
-				if (fleng<LENG) {
-					if (read(fd,(void*)(tab+(LENG-fleng)),sizeof(uint64_t)*fleng)!=(ssize_t)(sizeof(uint64_t)*fleng)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
-						close(fd);
-						return;
-					}
-				} else {
-					if (read(fd,(void*)tab,sizeof(uint64_t)*LENG)!=(ssize_t)(sizeof(uint64_t)*LENG)) {
-						mfs_errlog(LOG_WARNING,"error reading charts data file");
-						close(fd);
-						return;
-					}
-				}
-#endif
 			}
 		}
 	}
 	close(fd);
-	mfs_syslog(LOG_NOTICE,"stats file has been loaded");
+	lzfs_pretty_syslog(LOG_INFO,"loaded charts data file from %s", fullFileName.c_str());
 	return;
 }
 

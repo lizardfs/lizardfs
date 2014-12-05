@@ -77,10 +77,6 @@ struct OutputPacket {
 
 	OutputPacket() : bytesSent(0) {
 	};
-	void swap(OutputPacket& other) {
-		std::swap(packet, other.packet);
-		std::swap(bytesSent, other.bytesSent);
-	}
 };
 
 struct masterconn {
@@ -147,17 +143,13 @@ void masterconn_delete_packet(void *packet) {
 
 void masterconn_attach_packet(masterconn *eptr, void* packet) {
 	OutputPacket* outputPacket = (OutputPacket*) packet;
-	eptr->outputPackets.push_back(OutputPacket());
-	std::swap(eptr->outputPackets.back(), *outputPacket);
+	eptr->outputPackets.emplace_back(std::move(*outputPacket));
 	delete outputPacket;
 }
 
-void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t>& serializedPacket) {
-	OutputPacket outputPacket;
-	outputPacket.packet.swap(serializedPacket);
-
-	eptr->outputPackets.push_back(OutputPacket());
-	std::swap(eptr->outputPackets.back(), outputPacket);
+void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t> serializedPacket) {
+	eptr->outputPackets.emplace_back();
+	eptr->outputPackets.back().packet = std::move(serializedPacket);
 }
 
 template<class... Data>
@@ -165,14 +157,12 @@ void masterconn_create_attached_moosefs_packet(masterconn *eptr,
 		PacketHeader::Type type, const Data&... data) {
 	std::vector<uint8_t> buffer;
 	serializeMooseFsPacket(buffer, type, data...);
-	masterconn_create_attached_packet(eptr, buffer);
+	masterconn_create_attached_packet(eptr, std::move(buffer));
 }
 
 void masterconn_sendregisterlabel(masterconn *eptr) {
 	if (eptr->mode == HEADER || eptr->mode == DATA) {
-		std::vector<uint8_t> serializedPacket;
-		cstoma::registerLabel::serialize(serializedPacket, gLabel);
-		masterconn_create_attached_packet(eptr, serializedPacket);
+		masterconn_create_attached_packet(eptr, cstoma::registerLabel::build(gLabel));
 	}
 }
 
@@ -185,26 +175,20 @@ void masterconn_sendregister(masterconn *eptr) {
 
 	myip = mainNetworkThreadGetListenIp();
 	myport = mainNetworkThreadGetListenPort();
-	std::vector<uint8_t> serializedPacket;
-	cstoma::registerHost::serialize(serializedPacket, myip, myport, Timeout_ms,
-			LIZARDFS_VERSHEX);
-	masterconn_create_attached_packet(eptr, serializedPacket);
+	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
 	hdd_get_chunks_begin();
 	std::vector<ChunkWithVersionAndType> chunks;
 	hdd_get_chunks_next_list_data(chunks);
 	while (!chunks.empty()) {
-		serializedPacket.resize(0);
-		cstoma::registerChunks::serialize(serializedPacket, chunks);
-		masterconn_create_attached_packet(eptr, serializedPacket);
+		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
 		chunks.resize(0);
 		hdd_get_chunks_next_list_data(chunks);
 	}
 	hdd_get_chunks_end();
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
-	serializedPacket.clear();
-	cstoma::registerSpace::serialize(serializedPacket, usedspace, totalspace, chunkcount,
-			tdusedspace, tdtotalspace, tdchunkcount);
-	masterconn_create_attached_packet(eptr, serializedPacket);
+	auto registerSpace = cstoma::registerSpace::build(
+			usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);
+	masterconn_create_attached_packet(eptr, std::move(registerSpace));
 	masterconn_sendregisterlabel(eptr);
 }
 
@@ -639,28 +623,28 @@ int masterconn_initconnect(masterconn *eptr) {
 				eptr->masterport = mport;
 				eptr->masteraddrvalid = 1;
 			} else {
-				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
+				lzfs_pretty_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
 				return -1;
 			}
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			lzfs_pretty_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 			return -1;
 		}
 	}
 	eptr->sock=tcpsocket();
 	if (eptr->sock<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: create socket error");
+		lzfs_pretty_errlog(LOG_WARNING,"master connection module: create socket error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->sock)<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: set nonblock error");
+		lzfs_pretty_errlog(LOG_WARNING,"master connection module: set nonblock error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		return -1;
 	}
 	if (eptr->bindip>0) {
 		if (tcpnumbind(eptr->sock,eptr->bindip,0)<0) {
-			mfs_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
+			lzfs_pretty_errlog(LOG_WARNING,"master connection module: can't bind socket to given ip");
 			tcpclose(eptr->sock);
 			eptr->sock = -1;
 			return -1;
@@ -668,18 +652,18 @@ int masterconn_initconnect(masterconn *eptr) {
 	}
 	status = tcpnumconnect(eptr->sock,eptr->masterip,eptr->masterport);
 	if (status<0) {
-		mfs_errlog(LOG_WARNING,"master connection module: connect failed");
+		lzfs_pretty_errlog(LOG_WARNING,"master connection module: connect failed");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->masteraddrvalid = 0;
 		return -1;
 	}
 	if (status==0) {
-		syslog(LOG_NOTICE,"connected to Master immediately");
+		lzfs_pretty_syslog(LOG_NOTICE,"connected to Master immediately");
 		masterconn_connected(eptr);
 	} else {
 		eptr->mode = CONNECTING;
-		syslog(LOG_NOTICE,"connecting ...");
+		lzfs_pretty_syslog_attempt(LOG_NOTICE,"connecting to Master");
 	}
 	return 0;
 }
@@ -689,7 +673,7 @@ void masterconn_connecttest(masterconn *eptr) {
 
 	status = tcpgetstatus(eptr->sock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING,"connection failed, error");
+		lzfs_silent_errlog(LOG_WARNING,"connection failed, error");
 		tcpclose(eptr->sock);
 		eptr->sock = -1;
 		eptr->mode = FREE;
@@ -714,7 +698,7 @@ void masterconn_read(masterconn *eptr) {
 		}
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"read from Master error");
+				lzfs_silent_errlog(LOG_NOTICE,"read from Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -767,7 +751,7 @@ void masterconn_write(masterconn *eptr) {
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE,"write to Master error");
+				lzfs_silent_errlog(LOG_NOTICE,"write to Master error");
 				eptr->mode = KILL;
 			}
 			return;
@@ -886,7 +870,7 @@ bool masterconn_load_label() {
 	std::string oldLabel = gLabel;
 	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
 	if (!isMediaLabelValid(gLabel)) {
-		mfs_arg_syslog(LOG_WARNING,"invalid label '%s' !!!", gLabel.c_str());
+		lzfs_pretty_syslog(LOG_WARNING,"invalid label '%s'", gLabel.c_str());
 		return false;
 	}
 	return gLabel != oldLabel;
@@ -922,10 +906,10 @@ void masterconn_reload(void) {
 					eptr->mode = KILL;
 				}
 			} else {
-				mfs_arg_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
+				lzfs_pretty_syslog(LOG_WARNING,"master connection module: localhost (%u.%u.%u.%u) can't be used for connecting with master (use ip address of network controller)",(mip>>24)&0xFF,(mip>>16)&0xFF,(mip>>8)&0xFF,mip&0xFF);
 			}
 		} else {
-			mfs_arg_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
+			lzfs_pretty_syslog(LOG_WARNING,"master connection module: can't resolve master host/port (%s:%s)",MasterHost,MasterPort);
 		}
 	} else {
 		eptr->masteraddrvalid=0;

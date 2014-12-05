@@ -139,6 +139,9 @@ namespace NAMESPACE1 { \
 				APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) { \
 			serializePacket(destination, ID, VERSION, VARS_COMMAS(__VA_ARGS__)); \
 		} \
+		inline std::vector<uint8_t> build(APPLY2(CONST_REF, MAKE_COMMA, __VA_ARGS__)) { \
+			return buildPacket(ID, VERSION, VARS_COMMAS(__VA_ARGS__)); \
+		} \
 		inline void deserialize(const uint8_t* source, uint32_t sourceSize, \
 				APPLY2(REFERENCE, MAKE_COMMA, __VA_ARGS__)) { \
 			verifyPacketVersionNoHeader(source, sourceSize, VERSION); \

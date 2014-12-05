@@ -96,6 +96,15 @@ inline void serializePacket(std::vector<uint8_t>& destination,
 	serialize(destination, PacketHeader(type, length), version, data...);
 }
 
+template <class... Data>
+inline std::vector<uint8_t> buildPacket(PacketHeader::Type type, PacketVersion version, const Data&... data) {
+	sassert(type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType);
+	uint32_t length = serializedSize(version, data...);
+	std::vector<uint8_t> buffer;
+	serialize(buffer, PacketHeader(type, length), version, data...);
+	return buffer;
+}
+
 /*
  * Assembles initial segment of a packet, sets bigger length in the header to accommodate
  * data appended later.
@@ -126,6 +135,13 @@ inline void serializeMooseFsPacket(std::vector<uint8_t>& buffer,
 	sassert(type <= PacketHeader::kMaxOldPacketType);
 	uint32_t length = 0;
 	serialize(buffer, type, length);
+}
+
+template<class... Data>
+inline std::vector<uint8_t> buildMooseFsPacket(const Data&... args) {
+	std::vector<uint8_t> ret;
+	serializeMooseFsPacket(ret, args...);
+	return ret;
 }
 
 /*

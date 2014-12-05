@@ -978,10 +978,8 @@ int set_goal(const char *fname, const std::string& goal, uint8_t mode) {
 		return -1;
 	}
 	try {
-		std::vector<uint8_t> serialized;
-		cltoma::fuseSetGoal::serialize(serialized, messageId, inode, uid, goal, mode);
-		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
-				LIZ_MATOCL_FUSE_SETGOAL);
+		auto request = cltoma::fuseSetGoal::build(messageId, inode, uid, goal, mode);
+		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SETGOAL);
 		uint32_t changed;
 		uint32_t notChanged;
 		uint32_t notPermitted;
@@ -1907,13 +1905,13 @@ void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard
 
 int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		std::vector<int> requestedGid, bool reportAll) {
-	std::vector<uint8_t> serialized;
+	std::vector<uint8_t> request;
 	uint32_t uid = getuid();
 	uint32_t gid = getgid();
 	uint32_t messageId = 0;
 	sassert((requestedUids.size() + requestedGid.size() > 0) ^ reportAll);
 	if (reportAll) {
-		cltoma::fuseGetQuota::serialize(serialized, messageId, uid, gid);
+		request = cltoma::fuseGetQuota::build(messageId, uid, gid);
 	} else {
 		std::vector<QuotaOwner> requestedEntities;
 		for (auto uid : requestedUids) {
@@ -1922,7 +1920,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		for (auto gid : requestedGid) {
 			requestedEntities.emplace_back(QuotaOwnerType::kGroup, gid);
 		}
-		cltoma::fuseGetQuota::serialize(serialized, messageId, uid, gid, requestedEntities);
+		request = cltoma::fuseGetQuota::build(messageId, uid, gid, requestedEntities);
 	}
 	uint32_t inode;
 	int fd = open_master_conn(mountPath.c_str(), &inode, nullptr, 0, 0);
@@ -1931,8 +1929,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	}
 	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
-		std::vector<uint8_t> response = ServerConnection::sendAndReceive(fd, serialized,
-				LIZ_MATOCL_FUSE_GET_QUOTA);
+		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_GET_QUOTA);
 		std::vector<QuotaOwnerAndLimits> parsedResponse;
 		PacketVersion version;
 		deserializePacketVersionNoHeader(response, version);
@@ -1985,8 +1982,7 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 		{QuotaEntryKey(quotaOwner, QuotaRigor::kHard, QuotaResource::kSize),   quotaHardSize},
 	};
 	uint32_t messageId = 0;
-	std::vector<uint8_t> request;
-	cltoma::fuseSetQuota::serialize(request, messageId, uid, gid, quotaEntries);
+	auto request = cltoma::fuseSetQuota::build(messageId, uid, gid, quotaEntries);
 	uint32_t inode;
 	int fd = open_master_conn(mountPath.c_str(), &inode, nullptr, 0, 1);
 	if (fd < 0) {
@@ -1994,8 +1990,7 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 	}
 	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
 	try {
-		std::vector<uint8_t> response =
-			ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
+		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
 		matocl::fuseSetQuota::deserialize(response, messageId, status);
 		if (status != STATUS_OK) {

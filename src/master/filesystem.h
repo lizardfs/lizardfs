@@ -46,7 +46,7 @@ uint64_t fs_checksum(ChecksumMode mode);
 void fs_start_checksum_recalculation();
 
 /// Load and apply changelogs.
-int fs_load_changelogs();
+void fs_load_changelogs();
 
 /// Load whole filesystem information.
 int fs_loadall();

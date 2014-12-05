@@ -233,18 +233,18 @@ int worker_initconnect(csserventry *eptr) {
 	// to get a connection from it
 	eptr->fwdsock = tcpsocket();
 	if (eptr->fwdsock < 0) {
-		mfs_errlog(LOG_WARNING, "create socket, error");
+		lzfs_pretty_errlog(LOG_WARNING, "create socket, error");
 		return -1;
 	}
 	if (tcpnonblock(eptr->fwdsock) < 0) {
-		mfs_errlog(LOG_WARNING, "set nonblock, error");
+		lzfs_pretty_errlog(LOG_WARNING, "set nonblock, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock = -1;
 		return -1;
 	}
 	status = tcpnumconnect(eptr->fwdsock, eptr->fwdServer.ip, eptr->fwdServer.port);
 	if (status < 0) {
-		mfs_errlog(LOG_WARNING, "connect failed, error");
+		lzfs_pretty_errlog(LOG_WARNING, "connect failed, error");
 		tcpclose(eptr->fwdsock);
 		eptr->fwdsock = -1;
 		return -1;
@@ -1050,7 +1050,7 @@ void worker_fwdconnected(csserventry *eptr) {
 	int status;
 	status = tcpgetstatus(eptr->fwdsock);
 	if (status) {
-		mfs_errlog_silent(LOG_WARNING, "connection failed, error");
+		lzfs_silent_errlog(LOG_WARNING, "connection failed, error");
 		worker_fwderror(eptr);
 		return;
 	}
@@ -1073,7 +1073,7 @@ void worker_fwdread(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(fwdread) read error");
+				lzfs_silent_errlog(LOG_NOTICE, "(fwdread) read error");
 				worker_fwderror(eptr);
 			}
 			return;
@@ -1110,7 +1110,7 @@ void worker_fwdread(csserventry *eptr) {
 			}
 			if (i < 0) {
 				if (errno != EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE, "(fwdread) read error");
+					lzfs_silent_errlog(LOG_NOTICE, "(fwdread) read error");
 					worker_fwderror(eptr);
 				}
 				return;
@@ -1151,7 +1151,7 @@ void worker_fwdwrite(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(fwdwrite) write error");
+				lzfs_silent_errlog(LOG_NOTICE, "(fwdwrite) write error");
 				worker_fwderror(eptr);
 			}
 			return;
@@ -1182,7 +1182,7 @@ void worker_forward(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(forward) read error");
+				lzfs_silent_errlog(LOG_NOTICE, "(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1232,7 +1232,7 @@ void worker_forward(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(forward) read error: %s");
+				lzfs_silent_errlog(LOG_NOTICE, "(forward) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1253,7 +1253,7 @@ void worker_forward(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(forward) write error: %s");
+				lzfs_silent_errlog(LOG_NOTICE, "(forward) write error");
 				worker_fwderror(eptr);
 			}
 			return;
@@ -1302,7 +1302,7 @@ void worker_read(csserventry *eptr) {
 		}
 		if (i < 0) {
 			if (errno != EAGAIN) {
-				mfs_errlog_silent(LOG_NOTICE, "(read) read error");
+				lzfs_silent_errlog(LOG_NOTICE, "(read) read error");
 				eptr->state = CLOSE;
 			}
 			return;
@@ -1345,7 +1345,7 @@ void worker_read(csserventry *eptr) {
 			}
 			if (i < 0) {
 				if (errno != EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE, "(read) read error");
+					lzfs_silent_errlog(LOG_NOTICE, "(read) read error");
 					eptr->state = CLOSE;
 				}
 				return;
@@ -1394,7 +1394,7 @@ void worker_write(csserventry *eptr) {
 					"New bytes in pack->outputBuffer after sending some data");
 			stats_bytesout += (bytesInBufferBefore - bytesInBufferAfter);
 			if (ret == OutputBuffer::WRITE_ERROR) {
-				mfs_errlog_silent(LOG_NOTICE, "(write) write error");
+				lzfs_silent_errlog(LOG_NOTICE, "(write) write error");
 				eptr->state = CLOSE;
 				return;
 			} else if (ret == OutputBuffer::WRITE_AGAIN) {
@@ -1409,7 +1409,7 @@ void worker_write(csserventry *eptr) {
 			}
 			if (i < 0) {
 				if (errno != EAGAIN) {
-					mfs_errlog_silent(LOG_NOTICE, "(write) write error");
+					lzfs_silent_errlog(LOG_NOTICE, "(write) write error");
 					eptr->state = CLOSE;
 				}
 				return;

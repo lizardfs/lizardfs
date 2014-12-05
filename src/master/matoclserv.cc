@@ -616,7 +616,7 @@ void matoclserv_store_sessions() {
 
 	fd = fopen(kSessionsTmpFilename, "w");
 	if (fd==NULL) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, open error");
+		lzfs_silent_errlog(LOG_WARNING,"can't store sessions, open error");
 		return;
 	}
 	memcpy(fsesrecord,MFSSIGNATURE "S \001\006\004",8);
@@ -669,11 +669,11 @@ void matoclserv_store_sessions() {
 		}
 	}
 	if (fclose(fd)!=0) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, fclose error");
+		lzfs_silent_errlog(LOG_WARNING,"can't store sessions, fclose error");
 		return;
 	}
 	if (rename(kSessionsTmpFilename, kSessionsFilename) < 0) {
-		mfs_errlog_silent(LOG_WARNING,"can't store sessions, rename error");
+		lzfs_silent_errlog(LOG_WARNING,"can't store sessions, rename error");
 	}
 }
 
@@ -691,7 +691,7 @@ int matoclserv_load_sessions() {
 
 	fd = fopen(kSessionsFilename, "r");
 	if (fd==NULL) {
-		mfs_errlog_silent(LOG_WARNING,"can't load sessions, fopen error");
+		lzfs_silent_errlog(LOG_WARNING,"can't load sessions, fopen error");
 		if (errno==ENOENT) {    // it's ok if file does not exist
 			return 0;
 		} else {
@@ -1237,16 +1237,13 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 		}
 		serializedGoals.emplace_back(i, goal.name(), std::move(definition));
 	}
-	MessageBuffer buffer;
-	matocl::listGoals::serialize(buffer, serializedGoals);
-	matoclserv_createpacket(eptr, std::move(buffer));
+	matoclserv_createpacket(eptr, matocl::listGoals::build(serializedGoals));
 }
 
 void matoclserv_chunks_health(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	bool regularChunksOnly;
 	cltoma::chunksHealth::deserialize(data, length, regularChunksOnly);
-	std::vector<uint8_t> message;
-	matocl::chunksHealth::serialize(message, regularChunksOnly,
+	auto message = matocl::chunksHealth::build(regularChunksOnly,
 			chunk_get_availability_state(regularChunksOnly),
 			chunk_get_replication_state(regularChunksOnly));
 	matoclserv_createpacket(eptr, std::move(message));
@@ -4321,7 +4318,7 @@ void matoclserv_read(matoclserventry *eptr) {
 #ifdef ECONNRESET
 				if (errno!=ECONNRESET || eptr->registered<100) {
 #endif
-					mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+					lzfs_silent_errlog(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
 				}
 #endif
@@ -4389,7 +4386,7 @@ void matoclserv_write(matoclserventry *eptr) {
 		i=write(eptr->sock,pack->startptr,pack->bytesleft);
 		if (i<0) {
 			if (errno!=EAGAIN) {
-				mfs_arg_errlog_silent(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+				lzfs_silent_errlog(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) write error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 				eptr->mode = KILL;
 			}
 			return;
@@ -4464,7 +4461,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 	if (lsockpdescpos>=0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		ns=tcpaccept(lsock);
 		if (ns<0) {
-			mfs_errlog_silent(LOG_NOTICE,"main master server module: accept error");
+			lzfs_silent_errlog(LOG_NOTICE,"main master server module: accept error");
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
@@ -4578,32 +4575,33 @@ void matoclserv_start_cond_check(void) {
 }
 
 int matoclserv_sessionsinit(void) {
-	fprintf(stderr,"loading sessions ... ");
-	fflush(stderr);
 	sessionshead = NULL;
+
 	switch (matoclserv_load_sessions()) {
 		case 0: // no file
-			fprintf(stderr,"file not found\n");
-			fprintf(stderr,"if it is not fresh installation then you have to restart all active mounts !!!\n");
+			lzfs_pretty_syslog(LOG_WARNING,"sessions file %s/%s not found;"
+					" if it is not a fresh installation you have to restart all active mounts",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			matoclserv_store_sessions();
 			break;
 		case 1: // file loaded
-			fprintf(stderr,"ok\n");
-			fprintf(stderr,"sessions file has been loaded\n");
+			lzfs_pretty_syslog(LOG_INFO,"initialized sessions from file %s/%s",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			break;
 		default:
-			fprintf(stderr,"error\n");
-			fprintf(stderr,"due to missing sessions you have to restart all active mounts !!!\n");
+			lzfs_pretty_syslog(LOG_ERR,"due to missing sessions (%s/%s)"
+					" you have to restart all active mounts",
+					fs::getCurrentWorkingDirectoryNoThrow().c_str(), kSessionsFilename);
 			break;
 	}
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
 	if (SessionSustainTime>7*86400) {
 		SessionSustainTime=7*86400;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+		lzfs_pretty_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
 	}
 	if (SessionSustainTime<60) {
 		SessionSustainTime=60;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+		lzfs_pretty_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
 	}
 	return 0;
 }
@@ -4620,7 +4618,7 @@ int matoclserv_iolimits_reload() {
 			gIoLimitsDatabase.setLimits(
 					SteadyClock::now(), configLoader.limits(), gIoLimitsAccumulate_ms);
 		} catch (Exception& ex) {
-			mfs_arg_syslog(LOG_ERR, "Failed to process global I/O limits configuration "
+			lzfs_pretty_syslog(LOG_ERR, "failed to process global I/O limits configuration "
 					"file (%s): %s", configFile.c_str(), ex.message().c_str());
 			return -1;
 		}
@@ -4660,11 +4658,11 @@ void matoclserv_reload(void) {
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
 	if (SessionSustainTime>7*86400) {
 		SessionSustainTime=7*86400;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
+		lzfs_pretty_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too big (more than week) - setting this value to one week");
 	}
 	if (SessionSustainTime<60) {
 		SessionSustainTime=60;
-		mfs_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
+		lzfs_pretty_syslog(LOG_WARNING,"SESSION_SUSTAIN_TIME too low (less than minute) - setting this value to one minute");
 	}
 
 	matoclserv_iolimits_reload();
@@ -4681,13 +4679,13 @@ void matoclserv_reload(void) {
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
+		lzfs_pretty_syslog(LOG_NOTICE,"main master server module: socket address hasn't changed (%s:%s)",ListenHost,ListenPort);
 		return;
 	}
 
 	newlsock = tcpsocket();
 	if (newlsock<0) {
-		mfs_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
+		lzfs_pretty_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -4698,10 +4696,10 @@ void matoclserv_reload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main master server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
+		lzfs_pretty_errlog(LOG_ERR,"main master server module: socket address has changed, but can't listen on socket (%s:%s)",ListenHost,ListenPort);
 		free(ListenHost);
 		free(ListenPort);
 		ListenHost = oldListenHost;
@@ -4709,7 +4707,7 @@ void matoclserv_reload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE,"main master server module: socket address has changed, now listen on %s:%s",ListenHost,ListenPort);
 	free(oldListenHost);
 	free(oldListenPort);
 	tcpclose(lsock);
@@ -4724,7 +4722,8 @@ int matoclserv_networkinit(void) {
 		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
 		ListenPort = cfg_getstr("MATOCL_LISTEN_PORT","9421");
 	} else {
-		fprintf(stderr,"change MATOCU_LISTEN_* option names to MATOCL_LISTEN_* !!!\n");
+		lzfs_pretty_syslog(LOG_WARNING, "options MATOCU_LISTEN_* are deprecated -- use "
+				"MATOCL_LISTEN_* instead");
 		ListenHost = cfg_getstr("MATOCU_LISTEN_HOST","*");
 		ListenPort = cfg_getstr("MATOCU_LISTEN_PORT","9421");
 	}
@@ -4737,20 +4736,20 @@ int matoclserv_networkinit(void) {
 	exiting = 0;
 	lsock = tcpsocket();
 	if (lsock<0) {
-		mfs_errlog(LOG_ERR,"main master server module: can't create socket");
+		lzfs_pretty_errlog(LOG_ERR,"main master server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE,"main master server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE,"main master server module: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,ListenHost,ListenPort,100)<0) {
-		mfs_arg_errlog(LOG_ERR,"main master server module: can't listen on %s:%s",ListenHost,ListenPort);
+		lzfs_pretty_errlog(LOG_ERR,"main master server module: can't listen on %s:%s",ListenHost,ListenPort);
 		return -1;
 	}
-	mfs_arg_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE,"main master server module: listen on %s:%s",ListenHost,ListenPort);
 
 	matoclservhead = NULL;
 /* CACHENOTIFY

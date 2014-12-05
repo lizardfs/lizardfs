@@ -115,8 +115,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	FileDescriptor fd(open(fname.c_str(), O_RDONLY));
 	if (fd.get() < 0) {
-		mfs_arg_syslog(LOG_ERR, "open failed: %s", strerr(errno));
-		return 0;
+		throw FilesystemException("open " + fname + " failed: " + errorString(errno));
 	}
 	fstat(fd.get(), &st);
 
@@ -127,14 +126,13 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 
 	const char* fileContent = (const char*) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd.get(), 0);
 	if (fileContent == MAP_FAILED) {
-		mfs_arg_syslog(LOG_ERR, "mmap failed: %s", strerr(errno));
-		return 0; // 0 counterintuitively means failure
+		throw FilesystemException("mmap(" + fname + ") failed: " + errorString(errno));
 	}
 	uint64_t lastLogVersion = 0;
 	// first LF is (should be) the last byte of the file
 	if (fileSize == 0 || fileContent[fileSize - 1] != '\n') {
-		mfs_arg_syslog(LOG_ERR, "truncated changelog (%s) (no LF at the end of the last line)",
-				fname.c_str());
+		throw ParseException("truncated changelog " + fname +
+				" (no LF at the end of the last line)");
 	} else {
 		size_t pos = fileSize - 1;
 		while (pos > 0) {
@@ -146,13 +144,12 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 		char *endPtr = NULL;
 		lastLogVersion = strtoull(fileContent + pos, &endPtr, 10);
 		if (*endPtr != ':') {
-			mfs_arg_syslog(LOG_ERR, "malformed changelog (%s) (expected colon after change number)",
-					fname.c_str());
-			lastLogVersion = 0;
+			throw ParseException("malformed changelog " + fname +
+					" (expected colon after change number)");
 		}
 	}
 	if (munmap((void*) fileContent, fileSize)) {
-		mfs_arg_syslog(LOG_ERR, "munmap failed: %s", strerr(errno));
+		lzfs_pretty_errlog(LOG_WARNING, "munmap(%s) failed", fname.c_str());
 	}
 	return lastLogVersion;
 }
@@ -160,7 +157,7 @@ uint64_t changelogGetLastLogVersion(const std::string& fname) {
 void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 	std::string name_new, name_old;
 	for (uint32_t i = 0; i < 99; i++) {
-	// 99 is the maximum number of changelog file in versions up to 1.6.29.
+		// 99 is the maximum number of changelog file in versions up to 1.6.29.
 		name_old = fname + "." + std::to_string(i) + ".mfs";
 		name_new = fname + ".mfs";
 		if (i != 0) {
@@ -171,13 +168,17 @@ void changelogsMigrateFrom_1_6_29(const std::string& fname) {
 				if (!fs::exists(name_new)) {
 					fs::rename(name_old, name_new);
 				} else {
-					syslog(LOG_WARNING, "both old and new changelog files exist - %s and %s",
+					lzfs_pretty_syslog(LOG_WARNING,
+							"migrating changelogs from version 1.6.29: "
+							"both old and new changelog files exist (%s and %s); "
+							"old changelog won't be renamed automatically, "
+							"fix this manually to remove this warning",
 							name_old.c_str(), name_new.c_str());
 				}
 			}
 		} catch (const FilesystemException& ex) {
 			throw FilesystemException(
-					"Error when migrating changelogs from version 1.6.29" + std::string(ex.what()));
+					"error when migrating changelogs from version 1.6.29: " + ex.message());
 		}
 	}
 }

@@ -149,5 +149,35 @@ if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
 	fi >> /etc/lizardfs_tests.conf
 fi
 
+echo ; echo Install necessary programs
+# lsb_release is required by both build scripts and this script -- install it first
+if ! command -v lsb_release; then
+	if command -v yum; then
+		yum install redhat-lsb-core
+	elif command -v apt-get; then
+		apt-get install lsb-release
+	fi
+fi
+# determine which OS we are running and choose the right set of packages to be installed
+release="$(lsb_release -si)/$(lsb_release -sr)"
+case "$release" in
+	LinuxMint/*|Ubuntu/*|Debian/*)
+		apt-get install asciidoc build-essential cmake debhelper git libfuse-dev pkg-config zlib1g-dev
+		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
+		;;
+	CentOS/6)
+		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		yum install acl attr nc rsync tidy wget
+		;;
+	CentOS/7)
+		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		yum install acl attr dbench nc pylint rsync socat tidy wget
+		;;
+	*)
+		set +x
+		echo "Installation of required packages SKIPPED, '$release' isn't supported by this script"
+		;;
+esac
+
 set +x
 echo Machine configured successfully

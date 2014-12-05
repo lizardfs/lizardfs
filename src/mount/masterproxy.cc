@@ -125,16 +125,16 @@ int masterproxy_init(void) {
 
 	lsock = tcpsocket();
 	if (lsock<0) {
-		//mfs_errlog(LOG_ERR,"main master server module: can't create socket");
+		//lzfs_pretty_errlog(LOG_ERR,"main master server module: can't create socket");
 		return -1;
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
-		// mfs_errlog_silent(LOG_NOTICE,"master proxy: can't set accept filter");
+		// lzfs_silent_errlog(LOG_NOTICE,"master proxy: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,"127.0.0.1",0,100)<0) {
-		// mfs_errlog(LOG_ERR,"main master server module: can't listen on socket");
+		// lzfs_pretty_errlog(LOG_ERR,"main master server module: can't listen on socket");
 		tcpclose(lsock);
 		lsock = -1;
 		return -1;

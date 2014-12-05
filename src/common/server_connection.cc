@@ -29,14 +29,16 @@ ServerConnection::~ServerConnection() {
 
 std::vector<uint8_t> ServerConnection::sendAndReceive(
 		const std::vector<uint8_t>& request,
-		PacketHeader::Type expectedType) {
-	return ServerConnection::sendAndReceive(fd_, request, expectedType);
+		PacketHeader::Type expectedType,
+		ReceiveMode receiveMode) {
+	return ServerConnection::sendAndReceive(fd_, request, expectedType, receiveMode);
 }
 
 std::vector<uint8_t> ServerConnection::sendAndReceive(
 		int fd,
 		const std::vector<uint8_t>& request,
-		PacketHeader::Type expectedType) {
+		PacketHeader::Type expectedType,
+		ReceiveMode receiveMode) {
 	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
 	// Send
 	MultiBufferWriter writer;
@@ -72,6 +74,12 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 		}
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
+		}
+		if (reader.hasMessageData()
+				&& receiveMode == ReceiveMode::kReceiveFirstNonNopMessage
+				&& reader.getMessageHeader().type == ANTOAN_NOP) {
+			// We have received a NOP message and were instructed to ignore it
+			reader.removeMessage();
 		}
 	}
 

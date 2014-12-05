@@ -29,7 +29,9 @@
 #include "common/cltocs_communication.h"
 #include "common/cstocl_communication.h"
 #include "common/cstocs_communication.h"
+#include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/MFSCommunication.h"
@@ -77,7 +79,7 @@ void mainNetworkThreadReload(void) {
 	try {
 		replicationBandwidthLimitReload();
 	} catch (std::exception& ex) {
-		mfs_arg_errlog(LOG_ERR,
+		lzfs_pretty_errlog(LOG_ERR,
 				"main server module: can't reload REPLICATION_BANDWIDTH_LIMIT_KBPS: %s",
 				ex.what());
 	}
@@ -96,7 +98,7 @@ void mainNetworkThreadReload(void) {
 	if (strcmp(oldListenHost, ListenHost) == 0 && strcmp(oldListenPort, ListenPort) == 0) {
 		free(oldListenHost);
 		free(oldListenPort);
-		mfs_arg_syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"main server module: socket address hasn't changed (%s:%s)",
 				ListenHost, ListenPort);
 		return;
@@ -104,7 +106,7 @@ void mainNetworkThreadReload(void) {
 
 	newlsock = tcpsocket();
 	if (newlsock < 0) {
-		mfs_errlog(LOG_WARNING,
+		lzfs_pretty_errlog(LOG_WARNING,
 				"main server module: socket address has changed, but can't create new socket");
 		free(ListenHost);
 		free(ListenPort);
@@ -116,10 +118,10 @@ void mainNetworkThreadReload(void) {
 	tcpnodelay(newlsock);
 	tcpreuseaddr(newlsock);
 	if (tcpsetacceptfilter(newlsock) < 0 && errno != ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE, "main server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE, "main server module: can't set accept filter");
 	}
 	if (tcpstrlisten(newlsock, ListenHost, ListenPort, 100) < 0) {
-		mfs_arg_errlog(LOG_ERR,
+		lzfs_pretty_errlog(LOG_ERR,
 				"main server module: socket address has changed, but can't listen on socket (%s:%s)",
 				ListenHost, ListenPort);
 		free(ListenHost);
@@ -129,7 +131,7 @@ void mainNetworkThreadReload(void) {
 		tcpclose(newlsock);
 		return;
 	}
-	mfs_arg_syslog(LOG_NOTICE,
+	lzfs_pretty_syslog(LOG_NOTICE,
 			"main server module: socket address has changed, now listen on %s:%s",
 			ListenHost, ListenPort);
 	free(oldListenHost);
@@ -171,7 +173,7 @@ void mainNetworkThreadServe(struct pollfd *pdesc) {
 	if (lsockpdescpos >= 0 && (pdesc[lsockpdescpos].revents & POLLIN)) {
 		newSocketFD = tcpaccept(lsock);
 		if (newSocketFD < 0) {
-			mfs_errlog_silent(LOG_NOTICE, "accept error");
+			lzfs_silent_errlog(LOG_NOTICE, "accept error");
 		} else {
 			if (nextNetworkThread == networkThreadObjects.end()) {
 				nextNetworkThread = networkThreadObjects.begin();
@@ -207,21 +209,21 @@ int mainNetworkThreadInit(void) {
 
 	lsock = tcpsocket();
 	if (lsock < 0) {
-		mfs_errlog(LOG_ERR, "main server module: can't create socket");
-		return -1;
+		throw InitializeException("main server module: can't create socket :" +
+				errorString(errno));
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
 	tcpreuseaddr(lsock);
 	if (tcpsetacceptfilter(lsock) < 0 && errno != ENOTSUP) {
-		mfs_errlog_silent(LOG_NOTICE, "main server module: can't set accept filter");
+		lzfs_silent_errlog(LOG_NOTICE, "main server module: can't set accept filter");
 	}
 	tcpresolve(ListenHost, ListenPort, &mylistenip, &mylistenport, 1);
 	if (tcpnumlisten(lsock, mylistenip, mylistenport, 100) < 0) {
-		mfs_errlog(LOG_ERR, "main server module: can't listen on socket");
-		return -1;
+		throw InitializeException("main server module: can't listen on socket" +
+				errorString(errno));
 	}
-	mfs_arg_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost, ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost, ListenPort);
 
 	main_reloadregister(mainNetworkThreadReload);
 	main_destructregister(mainNetworkThreadTerm);
@@ -229,10 +231,8 @@ int mainNetworkThreadInit(void) {
 
 	try {
 		replicationBandwidthLimitReload();
-	} catch (std::exception& e) {
-		mfs_arg_errlog(LOG_ERR,
-				"main server module: can't initialize replication bandwidth limiter: %s", e.what());
-		return -1;
+	} catch (Exception& e) {
+		throw InitializeException("can't initialize replication bandwidth limiter: " + e.message());
 	}
 
 	return 0;

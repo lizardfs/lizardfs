@@ -26,9 +26,8 @@ void IoLimitsStatusCommand::run(const Options& options) const {
 	}
 
 	ServerConnection connection(options.argument(0), options.argument(1));
-	std::vector<uint8_t> request, response;
-	cltoma::iolimitsStatus::serialize(request, 1);
-	response = connection.sendAndReceive(request, LIZ_MATOCL_IOLIMITS_STATUS);
+	auto request = cltoma::iolimitsStatus::build(1);
+	auto response = connection.sendAndReceive(request, LIZ_MATOCL_IOLIMITS_STATUS);
 
 	uint32_t messageId, configId, period_us, accumulate_ms;
 	std::string subsystem;

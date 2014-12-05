@@ -1592,9 +1592,8 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 		uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid, uint32_t rdev,
 		uint32_t &inode, Attributes& attr) {
 	threc* rec = fs_get_my_threc();
-	std::vector<uint8_t> message;
-	cltoma::fuseMknod::serialize(message, rec->packetId,
-			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
+	auto message = cltoma::fuseMknod::build(rec->packetId, parent,
+			MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			type, mode, umask, uid, gid, rdev);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
@@ -1634,9 +1633,8 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 		uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
 		uint8_t copysgid,uint32_t &inode, Attributes& attr) {
 	threc* rec = fs_get_my_threc();
-	std::vector<uint8_t> message;
-	cltoma::fuseMkdir::serialize(message, rec->packetId,
-			parent, MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
+	auto message = cltoma::fuseMkdir::build(rec->packetId, parent,
+			MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			mode, umask, uid, gid, copysgid);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
@@ -2453,8 +2451,7 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 
 uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	threc* rec = fs_get_my_threc();
-	std::vector<uint8_t> message;
-	cltoma::fuseDeleteAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	auto message = cltoma::fuseDeleteAcl::build(rec->packetId, inode, uid, gid, type);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
@@ -2474,8 +2471,7 @@ uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 
 uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl) {
 	threc* rec = fs_get_my_threc();
-	std::vector<uint8_t> message;
-	cltoma::fuseGetAcl::serialize(message, rec->packetId, inode, uid, gid, type);
+	auto message = cltoma::fuseGetAcl::build(rec->packetId, inode, uid, gid, type);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}
@@ -2513,8 +2509,7 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 
 uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, const AccessControlList& acl) {
 	threc* rec = fs_get_my_threc();
-	std::vector<uint8_t> message;
-	cltoma::fuseSetAcl::serialize(message, rec->packetId, inode, uid, gid, type, acl);
+	auto message = cltoma::fuseSetAcl::build(rec->packetId, inode, uid, gid, type, acl);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return ERROR_IO;
 	}

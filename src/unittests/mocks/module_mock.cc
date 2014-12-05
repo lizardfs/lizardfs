@@ -56,6 +56,10 @@ uint16_t ModuleMock::port() const {
 	return p;
 }
 
+NetworkAddress ModuleMock::address() const {
+	return NetworkAddress(0x7f000001, port());
+}
+
 void ModuleMock::operator()() {
 	while (!terminate_) {
 		std::vector<pollfd> pfd;
