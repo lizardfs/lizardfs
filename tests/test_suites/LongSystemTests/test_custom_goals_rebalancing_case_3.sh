@@ -19,7 +19,8 @@ cd "${info[mount0]}"
 mkdir eu_files
 mfssetgoal eu_eu eu_files
 FILE_SIZE=1M file-generate "${info[mount0]}"/eu_files/{1..15}
-assert_equals 3 $(lizardfs_rebalancing_status | awk '$2 == 0' | wc -l)
+assert_eventually_prints 3 "lizardfs_rebalancing_status | awk '/eu/ && \$2 > 0' | wc -l"
+assert_equals 3 $(lizardfs_rebalancing_status | awk '/us/ && $2 == 0' | wc -l)
 
 # Change goal of all our files from eu_eu to 2. Expect chunks to be spread evenly across servers
 mfssetgoal -r 2 eu_files

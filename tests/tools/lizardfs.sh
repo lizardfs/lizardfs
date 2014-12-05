@@ -516,11 +516,11 @@ lizardfs_shadow_synchronized() {
 }
 
 # Prints number of chunks on each chunkserver in the following form:
-# <ip1>:<port1> <chunks1>
-# <ip2>:<port2> <chunks2>
+# <ip1>:<port1>:<label> <chunks1>
+# <ip2>:<port2>:<label> <chunks2>
 # ...
 lizardfs_rebalancing_status() {
-	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1,$3}'
+	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1":"$10,$3}'
 }
 
 LIZARDFS_BLOCK_SIZE=$((64 * 1024))
