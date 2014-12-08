@@ -3882,6 +3882,7 @@ int hdd_parseline(char *hddcfgline) {
 	uint32_t l,p;
 	int lfd,td;
 	char *pptr;
++	char *labelfname;
 	struct stat sb;
 	folder *f;
 	uint8_t lockneeded;
@@ -3938,6 +3939,17 @@ int hdd_parseline(char *hddcfgline) {
 		td = 0;
 		pptr = hddcfgline;
 	}
+
+	labelfname = (char*) malloc(strlen(pptr) + 16);
+	passert(labelfname);
+	strcpy(labelfname, pptr);
+	strcat(labelfname, "lizardfs.volume");
+	if (access(labelfname, F_OK) != 0) {
+		free(labelfname);
+		syslog(LOG_WARNING,"hdd space manager: skipping %s (no volume mark found, use 'touch %slizardfs.volume' to enable.",pptr,pptr);
+		return 0;
+	}
+
 	zassert(pthread_mutex_lock(&folderlock));
 	lockneeded = 1;
 	for (f=folderhead ; f && lockneeded ; f=f->next) {
