@@ -7958,17 +7958,20 @@ void fs_term(void) {
 	if (metadataDumper.inProgress()) {
 		metadataDumper.waitUntilFinished();
 	}
-	for (;;) {
-		if (gMetadata == nullptr || !gSaveMetadataAtExit ||
-				fs_storeall(MetadataDumper::kForegroundDump)) {
-			break;
+	bool metadataStored = false;
+	if (gMetadata != nullptr && gSaveMetadataAtExit) {
+		for (;;) {
+			metadataStored = fs_storeall(MetadataDumper::kForegroundDump);
+			if (metadataStored) {
+				break;
+			}
+			syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
+			sleep(10);
 		}
-		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
-		sleep(10);
 	}
 	chunk_unload();
 	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
-	if (gSaveMetadataAtExit) {
+	if (metadataStored) {
 		fs_unlock();
 	}
 }
