@@ -1,13 +1,16 @@
 [Unit]
 Description=LizardFS CGI server daemon
-Documentation=man:mfscgiserv
+Documentation=man:lizardfs-cgiserver
 After=network.target
 
 [Service]
-Type=simple
-ExecStart=/usr/sbin/lizardfs-cgiserver
+Environment=BIND_HOST=0.0.0.0
+Environment=BIND_PORT=9425
+Environment=ROOT_PATH=/usr/share/mfscgi
+EnvironmentFile=-/etc/default/%p
+ExecStart=/usr/sbin/lizardfs-cgiserver -H ${BIND_HOST} -P ${BIND_PORT} -R ${ROOT_PATH}
+Restart=on-abort
 User=nobody
-Group=nobody
 
 [Install]
 WantedBy=multi-user.target
