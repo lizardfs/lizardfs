@@ -1,5 +1,6 @@
 [Unit]
 Description=LizardFS CGI server daemon
+Documentation=man:mfscgiserv
 After=network.target
 
 [Service]
