@@ -796,16 +796,18 @@ void FileLock::createLockFile() {
 	bool notExisted((::access(name_.c_str(), F_OK) != 0) && (errno == ENOENT));
 	fd_.reset(open(name_.c_str(), O_WRONLY | O_CREAT, 0666));
 	if (!fd_.isOpened()) {
-		throw FilesystemException("can't create lockfile " + name_ + " in working directory ");
+		throw FilesystemException("can't create lockfile "
+				+ fs::getCurrentWorkingDirectoryNoThrow() + "/" + name_);
 	}
 	thisProcessCreatedLockFile_ = notExisted;
 }
 
 FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
+	std::string lockPath = fs::getCurrentWorkingDirectoryNoThrow() + "/" + name_;
 	createLockFile();
 	pid_t ownerpid(mylock());
 	if (ownerpid<0) {
-		lzfs_pretty_errlog(LOG_ERR,"fcntl error while creating lockfile %s in working directory", name_.c_str());
+		lzfs_pretty_errlog(LOG_ERR, "fcntl error while creating lockfile %s", lockPath.c_str());
 		return LockStatus::kFail;
 	}
 	if (ownerpid>0) {
@@ -817,7 +819,9 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			return LockStatus::kFail;
 		}
 		if (runmode==RunMode::kStart) {
-			lzfs_pretty_syslog(LOG_ERR,"can't start: lockfile %s in working directory is already locked by another process", name_.c_str());
+			lzfs_pretty_syslog(LOG_ERR,
+					"can't start: lockfile %s is already locked by another process",
+					lockPath.c_str());
 			return LockStatus::kFail;
 		}
 		if (runmode==RunMode::kReload) {
@@ -825,10 +829,12 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			 * FIXME: buissiness logic should not be in file locking function.
 			 */
 			if (kill(ownerpid,SIGHUP)<0) {
-				lzfs_pretty_errlog(LOG_ERR,"can't send reload signal to lock owner of %s in working directory", name_.c_str());
+				lzfs_pretty_errlog(LOG_ERR,
+						"can't send reload signal to the lock owner of %s",
+						lockPath.c_str());
 				return LockStatus::kFail;
 			}
-			lzfs_pretty_syslog(LOG_INFO,"reload signal has been sent; lockfile %s created in working directory and locked", name_.c_str());
+			lzfs_pretty_syslog(LOG_INFO, "reload signal has been sent");
 			return LockStatus::kSuccess;
 		}
 		if (runmode==RunMode::kKill) {
@@ -840,7 +846,9 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 #else
 			if (kill(ownerpid,SIGKILL)<0) {
 #endif
-				lzfs_pretty_errlog(LOG_ERR,"can't kill (SIGKILL) lock owner (pid:%ld) of %s in working directory",(long int)ownerpid, name_.c_str());
+				lzfs_pretty_errlog(LOG_ERR,
+						"can't kill (SIGKILL) the lock owner (pid:%ld) of %s",
+						(long int)ownerpid, lockPath.c_str());
 				return LockStatus::kFail;
 			}
 		} else {
@@ -849,7 +857,9 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 			 * FIXME: buissiness logic should not be in file locking function.
 			 */
 			if (kill(ownerpid,SIGTERM)<0) {
-				lzfs_pretty_errlog(LOG_ERR,"can't kill (SIGTERM) lock owner (pid:%ld)  of %s in working directory",(long int)ownerpid, name_.c_str());
+				lzfs_pretty_errlog(LOG_ERR,
+						"can't kill (SIGTERM) the lock owner (pid:%ld) of %s",
+						(long int)ownerpid, lockPath.c_str());
 				return LockStatus::kFail;
 			}
 		}
@@ -860,35 +870,41 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		do {
 			newownerpid = mylock();
 			if (newownerpid<0) {
-				lzfs_pretty_errlog(LOG_ERR,"fcntl error while creating lockfile %s in working directory", name_.c_str());
+				lzfs_pretty_errlog(LOG_ERR,
+						"fcntl error while creating lockfile %s",
+						lockPath.c_str());
 				return LockStatus::kFail;
 			}
 			if (newownerpid>0) {
 				l++;
 				uint32_t secondsElapsed = l / checksPerSecond;
 				if (secondsElapsed >= timeout) {
-					lzfs_pretty_syslog(LOG_ERR, "about %" PRIu32 " seconds passed and lock %s still "
-							"exists in working directory - giving up",
-							secondsElapsed, name_.c_str());
+					lzfs_pretty_syslog(LOG_ERR,
+							"about %" PRIu32 " seconds passed and the lock %s still exists - giving up",
+							secondsElapsed, lockPath.c_str());
 					return LockStatus::kFail;
 				}
 				if (l % (10 * checksPerSecond) == 0) {
-					lzfs_pretty_syslog(LOG_WARNING, "about %" PRIu32 " seconds passed and lock %s "
-							"still exists in working directory...",
-							secondsElapsed, name_.c_str());
+					lzfs_pretty_syslog(LOG_WARNING,
+							"about %" PRIu32 " seconds passed and the lock %s still exists...",
+							secondsElapsed, lockPath.c_str());
 					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
-					lzfs_silent_syslog(LOG_INFO,"new lock owner detected");
+					lzfs_silent_syslog(LOG_INFO, "new lock owner of %s detected", lockPath.c_str());
 					if (runmode==RunMode::kKill) {
 						if (kill(newownerpid,SIGKILL)<0) {
-							lzfs_pretty_errlog(LOG_ERR,"can't kill (SIGKILL) lock owner (pid:%ld)",(long int)newownerpid);
+							lzfs_pretty_errlog(LOG_ERR,
+									"can't kill (SIGKILL) the lock owner (pid:%ld) of %s",
+									(long int)newownerpid, lockPath.c_str());
 							return LockStatus::kFail;
 						}
 					} else {
 						sassert((runmode == RunMode::kStop) || (runmode == RunMode::kRestart));
 						if (kill(newownerpid,SIGTERM)<0) {
-							lzfs_pretty_errlog(LOG_ERR,"can't kill (SIGTERM) lock owner (pid:%ld)",(long int)newownerpid);
+							lzfs_pretty_errlog(LOG_ERR,
+									"can't kill (SIGTERM) lock owner (pid:%ld) of %s",
+									(long int)newownerpid, lockPath.c_str());
 							return LockStatus::kFail;
 						}
 					}
@@ -900,7 +916,7 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 		return (runmode == RunMode::kRestart) ? LockStatus::kAgain : LockStatus::kSuccess;
 	}
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-		lzfs_pretty_syslog(LOG_INFO,"lockfile created and locked");
+		lzfs_pretty_syslog(LOG_INFO,"lockfile %s created and locked", lockPath.c_str());
 	} else if (runmode==RunMode::kStop || runmode==RunMode::kKill) {
 		lzfs_pretty_syslog(LOG_WARNING,"can't find process to terminate");
 		return LockStatus::kSuccess;
