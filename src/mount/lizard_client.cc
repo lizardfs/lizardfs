@@ -2354,7 +2354,7 @@ std::vector<uint8_t> read(Context ctx,
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
 			if (debug_mode) {
-				fprintf(stderr,"IO error occured while writting inode %lu\n",
+				fprintf(stderr,"IO error occured while writing inode %lu\n",
 						(unsigned long int)ino);
 			}
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2509,7 +2509,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
+			fprintf(stderr,"IO error occured while writing inode %lu\n",(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
