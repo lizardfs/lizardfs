@@ -1,6 +1,7 @@
 [Unit]
 Description=LizardFS metalogger server daemon
-After=syslog.target network.target
+Documentation=man:mfsmetalogger
+After=network.target
 
 [Service]
 Type=forking

@@ -1,6 +1,7 @@
 [Unit]
 Description=LizardFS master server daemon
-After=syslog.target network.target
+Documentation=man:mfsmaster
+After=network.target
 
 [Service]
 Type=forking
