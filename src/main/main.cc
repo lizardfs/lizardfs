@@ -868,14 +868,14 @@ FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 				uint32_t secondsElapsed = l / checksPerSecond;
 				if (secondsElapsed >= timeout) {
 					lzfs_pretty_syslog(LOG_ERR, "about %" PRIu32 " seconds passed and lock %s still "
-								"exists in working directory - giving up",
-								secondsElapsed, name_.c_str());
+							"exists in working directory - giving up",
+							secondsElapsed, name_.c_str());
 					return LockStatus::kFail;
 				}
 				if (l % (10 * checksPerSecond) == 0) {
 					lzfs_pretty_syslog(LOG_WARNING, "about %" PRIu32 " seconds passed and lock %s "
-								"still exists in working directory - giving up",
-								secondsElapsed, name_.c_str());
+							"still exists in working directory...",
+							secondsElapsed, name_.c_str());
 					fflush(stderr);
 				}
 				if (newownerpid!=ownerpid) {
