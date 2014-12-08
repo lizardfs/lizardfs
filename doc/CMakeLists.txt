@@ -37,6 +37,8 @@ set(MANPAGES
     mfsmaster.cfg.5
     mfsmetalogger.cfg.5
     mfstopology.cfg.5
+    mfsmetadump.8
+    mfsrestoremaster.8
     moosefs.7
     mfs.7               # not a source
     mfscgiserv.8
