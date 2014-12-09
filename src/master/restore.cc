@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "metarestore/restore.h"
+#include "master/restore.h"
 
 #include <inttypes.h>
 #include <stdio.h>

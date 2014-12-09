@@ -21,9 +21,34 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
+#include <string>
 
-void changelog_rotate(void);
-void changelog(uint64_t version,const char *format,...);
-int changelog_init(void);
-void changelog_disable_flush(void);
-void changelog_enable_flush(void);
+
+constexpr uint32_t kMaxLogLineSize = 200000;
+
+/// Initializes changelog module.
+/// \param changelogFilename - base name of changelog files, e.g. "changelog_ml.mfs"
+/// \param minBackLogsNumber - minimum allowed value of BACK_LOGS config entry
+/// \param maxBackLogsNumber - maximum allowed value of BACK_LOGS config entry
+/// \throws InitializeException
+void changelog_init(std::string changelogFilename,
+		uint32_t minBackLogsNumber, uint32_t maxBackLogsNumber);
+
+/// Return the value of \p BACK_LOGS config entry
+uint32_t changelog_get_back_logs_config_value();
+
+/// Rotates all the changelogs
+void changelog_rotate();
+
+/// Stores a new change
+/// Format of the entry: <ts>|<COMMAND>(arg1,arg2,...)
+void changelog(uint64_t version, const char* entry);
+
+/// Flushes (fflush) the current changelog
+void changelog_flush();
+
+/// Disables flushing the current changelog after each \p changelog call
+void changelog_disable_flush();
+
+/// Enables flushing the current changelog after each \p changelog call
+void changelog_enable_flush();

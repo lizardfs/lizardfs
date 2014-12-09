@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -51,8 +52,8 @@
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
+#include "master/restore.h"
 #include "master/quota_database.h"
-#include "metarestore/restore.h"
 
 #ifdef LIZARDFS_HAVE_PWD_H
 #  include <pwd.h>
@@ -486,12 +487,39 @@ uint32_t gStoredPreviousBackMetaCopies;
 static bool gDisableChecksumVerification = false;
 
 // Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
-// proper timestamp to changelog entry
-template <typename... Args>
-void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
-	std::string tmp = "%" PRIu32 "|";
-	tmp += format;
-	changelog(gMetadata->metaversion++, tmp.c_str(), ts, args...);
+// proper timestamp to changelog entry and broadcasts it to metaloggers and shadow masters
+void fs_changelog(uint32_t ts, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+void fs_changelog(uint32_t ts, const char* format, ...) {
+#ifdef METARESTORE
+	(void)ts;
+	(void)format;
+#else
+	const uint32_t kMaxTimestampSize = 20;
+	const uint32_t kMaxEntrySize = kMaxLogLineSize - kMaxTimestampSize;
+	static char entry[kMaxLogLineSize];
+
+	// First, put "<timestamp>|" in the buffer
+	int tsLength = snprintf(entry, kMaxTimestampSize, "%" PRIu32 "|", ts);
+
+	// Then append the entry to the buffer
+	va_list ap;
+	uint32_t entryLength;
+	va_start(ap, format);
+	entryLength = vsnprintf(entry + tsLength, kMaxEntrySize, format, ap);
+	va_end(ap);
+
+	if (entryLength >= kMaxEntrySize) {
+		entry[tsLength + kMaxEntrySize - 1] = '\0';
+		entryLength = kMaxEntrySize;
+	} else {
+		entryLength++;
+	}
+
+	uint64_t version = gMetadata->metaversion++;
+	changelog(version, entry);
+	matomlserv_broadcast_logstring(version, (uint8_t*)entry, tsLength + entryLength);
+#endif
 }
 
 static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
@@ -7897,6 +7925,7 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 		return false;
 	}
 	changelog_rotate();
+	matomlserv_broadcast_logrotate();
 	// child == true says that we forked
 	// bg may be changed to dump in foreground in case of a fork error
 	bool child = metadataDumper.start(dumpType, fs_checksum(ChecksumMode::kGetCurrent));
@@ -8346,6 +8375,8 @@ int fs_init(bool doLoad) {
 			throw;
 		}
 	}
+	changelog_init(kChangelogFilename, 0, 50);
+
 	if (doLoad || (metadataserver::isMaster())) {
 		fs_loadall();
 	}

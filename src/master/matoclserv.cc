@@ -59,10 +59,10 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
+#include "master/masterconn.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
-#include "metalogger/masterconn.h"
 
 #define MaxPacketSize 1000000
 

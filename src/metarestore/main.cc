@@ -40,8 +40,8 @@
 #include "common/slogger.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
+#include "master/restore.h"
 #include "metarestore/merger.h"
-#include "metarestore/restore.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

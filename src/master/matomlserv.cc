@@ -648,6 +648,7 @@ void matomlserv_term(void) {
 		}
 		eaptr = eptr;
 		eptr = eptr->next;
+		gShadowQueue.removeRequest(eaptr);
 		free(eaptr);
 	}
 	matomlservhead=NULL;
