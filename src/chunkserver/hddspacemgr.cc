@@ -3989,8 +3989,10 @@ int hdd_parseline(char *hddcfgline) {
 		td = 2;
 	} else {
 		if (lfd<0) {
-			throw ParseException("can't create lock file " + lockfname + " : " +
-					errorString(errno));
+			lzfs_pretty_syslog(LOG_WARNING,
+					"can't create lock file %s, skipping: %s",
+					lockfname.c_str(),errorString(errno).c_str());
+			return 0;
 		}
 		if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
 			int err = errno;
