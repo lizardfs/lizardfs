@@ -391,6 +391,10 @@ enum class SugidClearMode {
 /// rver==0xFF:8 logversion:64 logdata:STRING
 /// rver==0x55:8 // LOG_ROTATE
 
+// 0x041C
+#define LIZ_MATOML_END_SESSION (1000U + 52)
+/// -
+
 // 0x003C
 #define MLTOMA_DOWNLOAD_START (PROTO_BASE+60)
 /// filenum:8

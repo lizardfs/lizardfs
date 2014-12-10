@@ -424,6 +424,10 @@ void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_
 		eptr->mode=KILL;
 		return;
 	}
+	if (gExiting) {
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - ignoring in the exit phase");
+		return;
+	}
 	uint8_t filenum = get8bit(&data);
 
 	if ((filenum == DOWNLOAD_METADATA_MFS) || (filenum == DOWNLOAD_SESSIONS_MFS)) {
@@ -491,6 +495,10 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode=KILL;
 		return;
 	}
+	if (gExiting) {
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - ignoring in the exit phase");
+		return;
+	}
 	if (eptr->metafd<0) {
 		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - file not opened");
 		eptr->mode=KILL;
@@ -533,6 +541,10 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	uint8_t recvStatus;
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
 	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
+	if (gExiting) {
+		syslog(LOG_NOTICE,"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR - ignoring in the exit phase");
+		return;
+	}
 	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - dumping metadata",
 			mfsstrerr(recvStatus));
 	gShadowQueue.addRequest(eptr);
@@ -831,7 +843,9 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now
+				&& eptr->outputhead==NULL
+				&& !gExiting) {
 			matomlserv_createpacket(eptr,ANTOAN_NOP,0);
 		}
 	}
@@ -865,15 +879,16 @@ void matomlserv_serve(struct pollfd *pdesc) {
 
 void matomlserv_wantexit(void) {
 	gExiting = true;
+	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
+		matomlserv_createpacket(eptr, matoml::endSession::build());
+	}
+	// Now we won't create any new packets, but we will wait for all existing packets to be
+	// transmitted to shadow masters and metaloggers
 }
 
 int matomlserv_canexit(void) {
-	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
-		if (eptr->outputhead != nullptr) {
-			return 0;
-		}
-	}
-	return 1;
+	// Exit when all connections are closed
+	return (matomlservhead == nullptr);
 }
 
 void matomlserv_become_master() {

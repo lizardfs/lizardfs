@@ -433,6 +433,12 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	lastlogversion = version;
 }
 
+void masterconn_end_session(masterconn *eptr, const uint8_t* data, uint32_t length) {
+	matoml::endSession::deserialize(data, length); // verify the empty packet
+	syslog(LOG_NOTICE, "Master server is terminating; closing the connection...");
+	masterconn_kill_session(eptr);
+}
+
 int masterconn_download_end(masterconn *eptr) {
 	eptr->downloading=0;
 	masterconn_createpacket(eptr,MLTOMA_DOWNLOAD_END,0);
@@ -715,6 +721,9 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 #endif
 			case MATOML_METACHANGES_LOG:
 				masterconn_metachanges_log(eptr,data,length);
+				break;
+			case LIZ_MATOML_END_SESSION:
+				masterconn_end_session(eptr,data,length);
 				break;
 			case MATOML_DOWNLOAD_START:
 				masterconn_download_start(eptr,data,length);
