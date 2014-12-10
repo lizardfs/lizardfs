@@ -8,6 +8,17 @@
 #include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 
+#define LIZ_STATIC_ASSERT(cond) static_assert(cond, #cond)
+
+LIZ_STATIC_ASSERT(MORE_THEN_ONE_ARG(0, 1, "ala")                 == 0);
+LIZ_STATIC_ASSERT(MORE_THEN_ONE_ARG(0, 1, "ala", "ma")           == 1);
+LIZ_STATIC_ASSERT(MORE_THEN_ONE_ARG(0, 1, "ala", "ma", "costam") == 1);
+
+LIZ_STATIC_ASSERT(COUNT_ARGS(a, b, c) == 3);
+LIZ_STATIC_ASSERT(COUNT_ARGS(a, b)    == 2);
+LIZ_STATIC_ASSERT(COUNT_ARGS(a)       == 1);
+// This doesn't work :(
+// LIZ_STATIC_ASSERT(COUNT_ARGS()        == 0);
 
 class Base {};
 SERIALIZABLE_CLASS_BEGIN(SomeClass : public Base)
@@ -58,9 +69,10 @@ TEST(SerializableClassTests, Serialize) {
 	LIZARDFS_VERIFY_INOUT_PAIR(c);
 }
 
-LIZARDFS_DEFINE_PACKET_VERSION(somebodyToSomebodyElse, communicate, kSomeVersion, 3210)
+LIZARDFS_DEFINE_PACKET_VERSION(somebodyToSomebodyElse, communicate, kNonEmptyVersion, 3210)
+LIZARDFS_DEFINE_PACKET_VERSION(somebodyToSomebodyElse, communicate, kEmptyVersion, 3211)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		somebodyToSomebodyElse, communicate, LIZ_CLTOMA_FUSE_MKNOD, kSomeVersion,
+		somebodyToSomebodyElse, communicate, LIZ_CLTOMA_FUSE_MKNOD, kNonEmptyVersion,
 		uint32_t, messageId,
 		uint32_t, inode,
 		MooseFsString<uint8_t>, name,
@@ -70,9 +82,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, uid,
 		uint32_t, gid,
 		uint32_t, rdev)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		somebodyToSomebodyElse, communicate, LIZ_CLTOMA_FUSE_MKNOD, kEmptyVersion)
 
 TEST(PacketSerializationTests, SerializeAndDeserialize) {
-	ASSERT_EQ(3210U, somebodyToSomebodyElse::communicate::kSomeVersion);
+	ASSERT_EQ(3210U, somebodyToSomebodyElse::communicate::kNonEmptyVersion);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 65432, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, inode, 36, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(MooseFsString<uint8_t>, name, "kobyla ma maly bok", "");
@@ -102,6 +116,14 @@ TEST(PacketSerializationTests, SerializeAndDeserialize) {
 	LIZARDFS_VERIFY_INOUT_PAIR(uid);
 	LIZARDFS_VERIFY_INOUT_PAIR(gid);
 	LIZARDFS_VERIFY_INOUT_PAIR(rdev);
+}
+
+TEST(PacketSerializationTests, EmptyPacket) {
+	std::vector<uint8_t> buffer;
+	somebodyToSomebodyElse::communicate::serialize(buffer);
+	verifyHeader(buffer, LIZ_CLTOMA_FUSE_MKNOD);
+	removeHeaderInPlace(buffer);
+	somebodyToSomebodyElse::communicate::deserialize(buffer);
 }
 
 LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(TestEnum, value0, value1, value2)

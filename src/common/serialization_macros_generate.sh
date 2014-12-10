@@ -13,7 +13,7 @@ fi
 cat << END
 #pragma once
 
-#include "config.h"
+#include "common/platform.h"
 
 // DO NOT MODIFY THIS FILE BY HAND!
 //
@@ -66,14 +66,22 @@ for i in $(seq 1 $MAX); do
 	echo $line;
 done
 echo
-line="#define COUNT_ARGS(...) COUNT_ARGS_(, ##__VA_ARGS__"
-for i in $(seq $((MAX * 2)) -1 0); do
+line="#define COUNT_ARGS(...) PICK_NTH_(__VA_ARGS__"
+for i in $(seq $((MAX * 2 + 1)) -1 0); do
 	line="${line}, $i"
 done
 line="${line})"
 echo $line
 echo
-line="#define COUNT_ARGS_("
+echo "// E - value returned when __VA_ARGS__ has 1 element, N - value returned otherwise."
+line="#define MORE_THEN_ONE_ARG(E, N, ...) PICK_NTH_(__VA_ARGS__"
+for i in $(seq 1 $((MAX * 2))); do
+	line="${line}, N"
+done
+line="${line}, E, dummy)"
+echo $line
+echo
+line="#define PICK_NTH_("
 for i in $(seq 0 $((MAX * 2))); do
 	line="${line}a$i, "
 done

@@ -130,8 +130,17 @@
 			::deserialize(source, bytesLeftInBuffer, __VA_ARGS__); \
 		}
 
-// One macro which creates serialize and deserialize functions for network communicates
-#define LIZARDFS_DEFINE_PACKET_SERIALIZATION(NAMESPACE1, NAMESPACE2, ID, VERSION, \
+// One macro which creates serialize and deserialize functions for network communicates.
+// Internally it calls LIZARDFS_DEFINE_PACKET_SERIALIZATION_<NONEMPTY|EMPTY>, depending on whether
+// additional arguments were passed.
+// Usage:
+//   LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+//       <NAMESPACE1>, <NAMESPACE2>, <ID>, <VERSION>[, <TYPE>, <PARAMETER>]*)
+#define LIZARDFS_DEFINE_PACKET_SERIALIZATION(NAMESPACE1, NAMESPACE2, ID, /*VERSION, */...) \
+		PASTE_B(LIZARDFS_DEFINE_PACKET_SERIALIZATION_, MORE_THEN_ONE_ARG(EMPTY, NONEMPTY, __VA_ARGS__)) \
+				(NAMESPACE1, NAMESPACE2, ID, /*VERSION, */__VA_ARGS__)
+// with arguments:
+#define LIZARDFS_DEFINE_PACKET_SERIALIZATION_NONEMPTY(NAMESPACE1, NAMESPACE2, ID, VERSION, \
 		... /* [class, parameter]* */) \
 namespace NAMESPACE1 { \
 	namespace NAMESPACE2 { \
@@ -151,6 +160,24 @@ namespace NAMESPACE1 { \
 				APPLY2(REFERENCE, MAKE_COMMA, __VA_ARGS__)) { \
 			verifyPacketVersionNoHeader(source, VERSION); \
 			deserializeAllPacketDataNoHeader(source, VARS_COMMAS(__VA_ARGS__)); \
+		} \
+	} \
+}
+// without arguments:
+#define LIZARDFS_DEFINE_PACKET_SERIALIZATION_EMPTY(NAMESPACE1, NAMESPACE2, ID, VERSION) \
+namespace NAMESPACE1 { \
+	namespace NAMESPACE2 { \
+		inline void serialize(std::vector<uint8_t>& destination) { \
+			serializePacket(destination, ID, VERSION); \
+		} \
+		inline std::vector<uint8_t> build() { \
+			return buildPacket(ID, VERSION); \
+		} \
+		inline void deserialize(const uint8_t* source, uint32_t sourceSize) { \
+			verifyPacketVersionNoHeader(source, sourceSize, VERSION); \
+		} \
+		inline void deserialize(const std::vector<uint8_t>& source) { \
+			verifyPacketVersionNoHeader(source, VERSION); \
 		} \
 	} \
 }
