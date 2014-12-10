@@ -466,7 +466,9 @@ void masterconn_metadownloadinit() {
 }
 
 void masterconn_sessionsdownloadinit(void) {
-	masterconn_download_init(masterconnsingleton, DOWNLOAD_SESSIONS_MFS);
+	if (masterconnsingleton->state == MasterConnectionState::kSynchronized) {
+		masterconn_download_init(masterconnsingleton, DOWNLOAD_SESSIONS_MFS);
+	}
 }
 
 int masterconn_metadata_check(const std::string& name) {
@@ -526,8 +528,11 @@ void masterconn_download_next(masterconn *eptr) {
 				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
-				if (eptr->state != MasterConnectionState::kSynchronized) {
-					sassert(eptr->state == MasterConnectionState::kDownloading);
+				/*
+				 * We can have other state if we are synchronized or we got changelog apply error
+				 * during independent sessions download session.
+				 */
+				if (eptr->state == MasterConnectionState::kDownloading) {
 					try {
 						fs_loadall();
 						lastlogversion = fs_getversion() - 1;
@@ -545,7 +550,9 @@ void masterconn_download_next(masterconn *eptr) {
 						masterconn_handle_changelog_apply_error(eptr, status);
 					}
 				}
-#endif /* #ifndef METALOGGER */
+#else /* #ifndef METALOGGER */
+				eptr->state = MasterConnectionState::kSynchronized;
+#endif /* #else #ifndef METALOGGER */
 			}
 		}
 	} else {        // send request for next data packet
