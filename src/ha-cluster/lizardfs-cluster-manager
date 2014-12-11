@@ -30,16 +30,16 @@ print_help() {
 usage: lizardfs-cluster-manager [OPTIONS...] COMMAND [ARGS...]
 
 where COMMAND is one of the following:
-  init                 Create cluster configuration package
+  create-new-cluster   Configure a new cluster
   add-metadata-node    Add this machine as node with metadata server
                        to existing cluster
   add-elector-node     Add this machine as node with elector role
                        to existing cluster
-  remove-this-node     Remove node where this command is executed from cluster
+  remove-this-node     Remove the node where this command is executed from the cluster
   status               Get status information about: nodes, IP, master, shadows
   reload-this-node     Reload metadata server configuration on this machine
-  turn-off             Stop metadata server on given node
-  turn-on              Start metadata server on given node
+  stop-node            Stop metadata server on the given node
+  start-node           Start metadata server on the given node
   migrate-master-server
                        Move master metadata server role to a different node
   download-configuration
