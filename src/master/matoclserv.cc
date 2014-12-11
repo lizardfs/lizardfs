@@ -1203,6 +1203,12 @@ void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	matomlserv_mloglist_data(ptr);
 }
 
+void matoclserv_metadataservers_list(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::metadataserversList::deserialize(data, length);
+	matoclserv_createpacket(eptr, matocl::metadataserversList::build(LIZARDFS_VERSHEX,
+			matomlserv_shadows()));
+}
+
 /* CACHENOTIFY
 void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const Attributes& attr) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
@@ -3518,6 +3524,15 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
+void matoclserv_hostname(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::hostname::deserialize(data, length);
+	char hostname[257];
+	memset(hostname, 0, 257);
+	// Use 1 byte less then the array has in order to ensure that the name is null terminated:
+	gethostname(hostname, 256);
+	matoclserv_createpacket(eptr, matocl::hostname::build(std::string(hostname)));
+}
+
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
@@ -3652,6 +3667,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_IOLIMITS_STATUS:
 					matoclserv_iolimits_status(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_METADATASERVERS_LIST:
+					matoclserv_metadataservers_list(eptr, data, length);
+					break;
 				case LIZ_CLTOMA_METADATASERVER_STATUS:
 					matoclserv_metadataserver_status(eptr, data, length);
 					break;
@@ -3660,6 +3678,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_CHUNKS_HEALTH:
 					matoclserv_chunks_health(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_HOSTNAME:
+					matoclserv_hostname(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

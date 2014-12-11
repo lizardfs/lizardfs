@@ -6,7 +6,6 @@
 
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
-#include "common/server_connection.h"
 
 std::string MetadataserverStatusCommand::name() const {
 	return "metadataserver-status";
@@ -27,12 +26,27 @@ void MetadataserverStatusCommand::run(const Options& options) const {
 	}
 
 	ServerConnection connection(options.argument(0), options.argument(1));
-	auto request = cltoma::metadataserverStatus::build(1);
+	MetadataserverStatus s = MetadataserverStatusCommand::getStatus(connection);
+
+	if (options.isSet(kPorcelainMode)) {
+		std::cout << s.personality << "\t" << s.serverStatus << "\t"
+				<< s.metadataVersion << std::endl;
+	} else {
+		std::cout << "     personality: " << s.personality << std::endl;
+		std::cout << "   server status: " << s.serverStatus << std::endl;
+		std::cout << "metadata version: " << s.metadataVersion << std::endl;
+	}
+}
+
+MetadataserverStatus MetadataserverStatusCommand::getStatus(ServerConnection& connection) {
+	std::vector<uint8_t> request;
+	request = cltoma::metadataserverStatus::build(1);
 	auto response = connection.sendAndReceive(request, LIZ_MATOCL_METADATASERVER_STATUS);
 
 	uint32_t messageId;
 	uint8_t status;
 	uint64_t metadataVersion;
+	std::string hostname;
 	matocl::metadataserverStatus::deserialize(response, messageId, status, metadataVersion);
 
 	std::string personality, serverStatus;
@@ -53,11 +67,5 @@ void MetadataserverStatusCommand::run(const Options& options) const {
 		personality = "<unknown>";
 		serverStatus = "<unknown>";
 	}
-	if (options.isSet(kPorcelainMode)) {
-		std::cout << personality << "\t" << serverStatus << "\t" << metadataVersion << std::endl;
-	} else {
-		std::cout << "     personality: " << personality << std::endl;
-		std::cout << "   server status: " << serverStatus << std::endl;
-		std::cout << "metadata version: " << metadataVersion << std::endl;
-	}
+	return MetadataserverStatus{personality, serverStatus, metadataVersion};
 }

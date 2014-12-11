@@ -22,8 +22,15 @@
 
 #include <inttypes.h>
 
+#include "common/metadataserver_list_entry.h"
+
 uint32_t matomlserv_mloglist_size(void);
 void matomlserv_mloglist_data(uint8_t *ptr);
+
+/**
+ * Returns list of shadow masters
+ */
+std::vector<MetadataserverListEntry> matomlserv_shadows();
 
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 void matomlserv_broadcast_logrotate();

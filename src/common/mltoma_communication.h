@@ -2,6 +2,9 @@
 
 #include "common/platform.h"
 
+#include <map>
+#include <string>
+
 #include "common/serialization_macros.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
@@ -13,3 +16,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		mltoma, changelogApplyError, LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, 0,
 		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		mltoma, matoclport, LIZ_MLTOMA_CLTOMA_PORT, 0,
+		uint16_t, port)

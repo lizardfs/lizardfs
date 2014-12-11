@@ -1,3 +1,4 @@
+
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
@@ -75,6 +76,7 @@ typedef struct matomlserventry {
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;
+	uint16_t servport;
 	bool shadow;
 
 	int metafd,chain1fd,chain2fd;
@@ -212,7 +214,7 @@ uint32_t matomlserv_mloglist_size(void) {
 	uint32_t i;
 	i=0;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->mode!=KILL) {
+		if (!eptr->shadow && eptr->mode!=KILL) {
 			i++;
 		}
 	}
@@ -222,11 +224,21 @@ uint32_t matomlserv_mloglist_size(void) {
 void matomlserv_mloglist_data(uint8_t *ptr) {
 	matomlserventry *eptr;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->mode!=KILL) {
+		if (!eptr->shadow && eptr->mode!=KILL) {
 			put32bit(&ptr,eptr->version);
 			put32bit(&ptr,eptr->servip);
 		}
 	}
+}
+
+std::vector<MetadataserverListEntry> matomlserv_shadows() {
+	std::vector<MetadataserverListEntry> ret;
+	for (matomlserventry* eptr = matomlservhead; eptr; eptr=eptr->next) {
+		if (eptr->shadow) {
+			ret.emplace_back(eptr->servip, eptr->servport, eptr->version);
+		}
+	}
+	return ret;
 }
 
 void matomlserv_status(void) {
@@ -416,6 +428,10 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 
 	matomlserv_createpacket(eptr, matoml::registerShadow::build(LIZARDFS_VERSHEX, replyVersion));
 	matomlserv_send_old_changes(eptr, replyVersion - 1); // this function expects lastlogversion
+}
+
+void matomlserv_matoclport(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
+	mltoma::matoclport::deserialize(data, length, eptr->servport);
 }
 
 void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -625,6 +641,9 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 			case LIZ_MLTOMA_CHANGELOG_APPLY_ERROR:
 				matomlserv_changelog_apply_error(eptr, data, length);
 				break;
+			case LIZ_MLTOMA_CLTOMA_PORT:
+				matomlserv_matoclport(eptr, data, length);
+				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
 				eptr->mode=KILL;
@@ -815,6 +834,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->outputhead = NULL;
 			eptr->outputtail = &(eptr->outputhead);
 			eptr->timeout = 10;
+			eptr->servport = 0;// For shadow masters this will be changed to their MATOCL_SERV_PORT
+			eptr->shadow = false;
 
 			tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
 			eptr->servstrip = matomlserv_makestrip(eptr->servip);

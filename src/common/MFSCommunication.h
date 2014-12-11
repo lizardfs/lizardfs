@@ -433,6 +433,10 @@ enum class SugidClearMode {
 #define LIZ_MATOML_CHANGELOG_APPLY_ERROR (1000U + 68)
 /// status:8
 
+// 0x42D
+#define LIZ_MLTOMA_CLTOMA_PORT (1000U + 69)
+/// port:16
+
 // CHUNKSERVER <-> MASTER
 
 // 0x0064
@@ -1288,6 +1292,14 @@ enum class SugidClearMode {
 #define MATOCL_MLOG_LIST (PROTO_BASE+523)
 // N * [ version:32 ip:32 ]
 
+// 0x05F2
+#define LIZ_CLTOMA_METADATASERVERS_LIST (1000U + 522U)
+/// -
+
+// 0x05F3
+#define LIZ_MATOCL_METADATASERVERS_LIST (1000U + 523U)
+// masterversion:32 data:(N * [ ip:32 hostname:STDSTRING version:32])
+
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
 /// ip:32 port:16
@@ -1399,6 +1411,14 @@ enum class SugidClearMode {
 // 0x060e
 #define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
 /// chunkservers:(vector<ChunkserverListEntry>)
+
+// 0x060f
+#define LIZ_CLTOMA_HOSTNAME (1000U + 551U)
+/// -
+
+// 0x0610
+#define LIZ_MATOCL_HOSTNAME (1000U + 552U)
+/// hostname:STDSTRING
 
 // CHUNKSERVER STATS
 

@@ -8,6 +8,7 @@
 #include "common/chunks_availability_state.h"
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
+#include "common/metadataserver_list_entry.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/quota.h"
@@ -122,6 +123,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		std::string, subsystem,
 		std::vector<IoGroupAndLimit>, groupsAndLimits)
 
+// LIZ_MATOCL_METADATASERVER_STATUS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, metadataserverStatus, LIZ_MATOCL_METADATASERVER_STATUS, 0,
 		uint32_t, messageId,
@@ -180,6 +182,12 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, cservList, LIZ_MATOCL_CSERV_LIST, 0,
 		std::vector<ChunkserverListEntry>, cservList)
 
+// LIZ_MATOCL_METADATASERVERS_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, metadataserversList, LIZ_MATOCL_METADATASERVERS_LIST, 0,
+		uint32_t, masterVersion,
+		std::vector<MetadataserverListEntry>, shadowList)
+
 // LIZ_MATOCL_CHUNK_INFO
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kResponsePacketVersion, 1)
@@ -196,3 +204,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint64_t, chunkId,
 		uint32_t, chunkVersion,
 		std::vector<ChunkWithAddressAndLabel>, chunks)
+
+// LIZ_MATOCL_HOSTNAME
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, hostname, LIZ_MATOCL_HOSTNAME, 0,
+		std::string, hostname)

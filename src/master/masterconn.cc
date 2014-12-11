@@ -357,6 +357,23 @@ void masterconn_handle_changelog_apply_error(masterconn* eptr, uint8_t status) {
 }
 
 #ifndef METALOGGER
+void masterconn_int_send_matoclport(masterconn* eptr) {
+	static std::string previousPort = "";
+	if (eptr->version < LIZARDFS_VERSION(2, 5, 5)) {
+		return;
+	}
+	std::string portStr = cfg_getstring("MATOCL_LISTEN_PORT", "9421");
+	static uint16_t port = 0;
+	if (portStr != previousPort) {
+		if (tcpresolve(nullptr, portStr.c_str(), nullptr, &port, false) < 0) {
+			syslog(LOG_WARNING, "Cannot resolve MATOCL_LISTEN_PORT: %s", portStr.c_str());
+			return;
+		}
+		previousPort = portStr;
+	}
+	masterconn_createpacket(eptr, mltoma::matoclport::build(port));
+}
+
 void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t length) {
 	PacketVersion responseVersion;
 	deserializePacketVersionNoHeader(data, length, responseVersion);
@@ -370,6 +387,7 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 		uint64_t masterMetadataVersion;
 		matoml::registerShadow::deserialize(data, length, masterVersion, masterMetadataVersion);
 		eptr->version = masterVersion;
+		masterconn_int_send_matoclport(eptr);
 		if ((eptr->state == MasterConnectionState::kSynchronized) && (fs_getversion() != masterMetadataVersion)) {
 			masterconn_force_metadata_download(eptr);
 		}
@@ -1133,6 +1151,8 @@ void masterconn_reload(void) {
 #ifndef METALOGGER
 	if (metadataserver::isDuringPersonalityChange()) {
 		masterconn_become_master();
+	} else {
+		masterconn_int_send_matoclport(masterconnsingleton);
 	}
 #endif /* #ifndef METALOGGER */
 }
