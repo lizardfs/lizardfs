@@ -274,7 +274,12 @@ int main(int argc,char **argv) {
 			if (changelog_checkname(dp->d_name)) {
 				filenames.push_back(datapath + "/" + dp->d_name);
 				firstlv = changelogGetFirstLogVersion(filenames.back());
-				lastlv = changelogGetLastLogVersion(filenames.back());
+				try {
+					lastlv = changelogGetLastLogVersion(filenames.back());
+				} catch (const Exception& ex) {
+					lzfs_pretty_syslog(LOG_WARNING, "%s", ex.what());
+					lastlv = 0;
+				}
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					std::ostringstream oss;
@@ -318,7 +323,12 @@ int main(int argc,char **argv) {
 
 		for (pos=0 ; (int32_t)pos<argc ; pos++) {
 			firstlv = changelogGetFirstLogVersion(argv[pos]);
-			lastlv = changelogGetLastLogVersion(argv[pos]);
+			try {
+				lastlv = changelogGetLastLogVersion(argv[pos]);
+			} catch (const Exception& ex) {
+				lzfs_pretty_syslog(LOG_WARNING, "%s", ex.what());
+				lastlv = 0;
+			}
 			skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 			if (vl>0) {
 				std::ostringstream oss;
