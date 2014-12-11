@@ -1,0 +1,136 @@
+#!/bin/bash
+NAME="lizardfs-cluster-manager"
+verbose=0
+
+bailout() {
+	echo "[FAIL] $*" >&2
+	exit 1
+}
+
+attempt() {
+	if [[ $verbose ]] ; then
+		echo "[....] $*..." >&2
+	fi
+}
+
+ok() {
+	if [[ $verbose ]] ; then
+		echo "[ OK ] $*" >&2
+	fi
+}
+
+warning() {
+	if [[ $verbose ]] ; then
+		echo "[WARN] $*" >&2
+	fi
+}
+
+print_help() {
+	cat << EOH
+usage: lizardfs-cluster-manager [OPTIONS...] COMMAND [ARGS...]
+
+where COMMAND is one of the following:
+  init                 Create cluster configuration package
+  add-metadata-node    Add this machine as node with metadata server
+                       to existing cluster
+  add-elector-node     Add this machine as node with elector role
+                       to existing cluster
+  remove-this-node     Remove node where this command is executed from cluster
+  status               Get status information about: nodes, IP, master, shadows
+  reload-this-node     Reload metadata server configuration on this machine
+  turn-off             Stop metadata server on given node
+  turn-on              Start metadata server on given node
+  migrate-master-server
+                       Move master metadata server role to a different node
+  download-configuration
+                       Download configuration from given node
+  upload-configuration Upload confiuguration to all nodes in cluster
+
+where OPTIONS is any combination of the following:
+  --help               Print help and exit
+  --verbose            Increase program verbosity
+EOH
+}
+
+create_new_cluster() {
+	attempt "Creating a new cluster"
+}
+
+add_metadata_node() {
+	attempt "Adding metadata server node to the cluster"
+}
+
+add_elector_node() {
+	attempt "Adding an elector node to the cluster"
+}
+
+remove_this_node() {
+	attempt "Removing this node from the cluster"
+}
+
+status() {
+	attempt "Obtaining status of the cluster"
+}
+
+reload_this_node() {
+	attempt "Reloading metadata server configuration on this node"
+}
+
+stop_node() {
+	attempt "Stopping metadata server"
+}
+
+start_node() {
+	attempt "Starting metadata server"
+}
+
+migrate_master_server() {
+	attempt "Migrating metadata server master role to another node"
+}
+
+download_configuration() {
+	attempt "Downloading metadata server configuration from another node"
+}
+
+upload_configuration() {
+	attempt "Uploading metadata server configuration to another node"
+}
+
+# Proces command line options using getopt
+temp=$(getopt -o hv --long help,verbose -n ${NAME} -- "$@")
+if [[ $? != 0 ]] ; then
+	bailout "wrong usage";
+fi
+eval set -- "$temp"
+unset temp
+
+# Parse options
+while true ; do
+	case "$1" in
+		-h|--help) print_help; exit 0;;
+		-v|--verbose) verbose=1; shift ;;
+		--) shift ; break ;;
+		*) echo "Internal error!" ; exit 1 ;;
+	esac
+done
+
+if [[ $# -ne 1 ]]; then
+	bailout "Expected exactly one command, got ${#} commands: \`${@}'"
+fi
+
+case "${1}" in
+	create-new-cluster)     create_new_cluster ;;
+	add-metadata-node)      add_metadata_node ;;
+	add-elector-node)       add_elector_node ;;
+	remove-this-node)       remove_this_node ;;
+	status)                 status ;;
+	reload-this-node)       reload_this_node ;;
+	stop-node)              stop_node ;;
+	start-node)             start_node ;;
+	migrate-master-server)  migrate_master_server ;;
+	download-configuration) download_configuration ;;
+	upload-configuration)   upload_configuration ;;
+	help)                   print_help ;;
+	*)                      bailout "Unknown command \`${1}'" ;;
+esac
+
