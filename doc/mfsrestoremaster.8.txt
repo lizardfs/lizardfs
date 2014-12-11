@@ -1,0 +1,30 @@
+mfsrestoremaster(8)
+===================
+
+== NAME
+
+mfsrestoremaster - a networking, distributed, highly available file system
+
+== SYNOPSIS
+
+[verse]
+*mfsrestoremaster* '<net-interface>' '[<etc-mfs-dir>]'
+
+*<net-interface>* - network interface to reconfigure.
+*<etc-mfs-dir>* - mfs configuration directory to use (default: //etc/lizardfs).
+
+== DESCRIPTION
+
+*mfsmetadump*
+This scripts automates starting spare master server on a metalogger machine.
+It performs the following steps:
+
+ * verify basic sanity of configuration files
+ * update metadata image with data from metalogger changelogs
+ * set master's IP address on given network interface
+ * start the master server
+
+== SEE ALSO
+
+mfstools(1)
+
