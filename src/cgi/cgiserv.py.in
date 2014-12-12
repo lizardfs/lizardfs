@@ -367,63 +367,6 @@ class HTTP(ClientHandler):
 			sys.stderr.write('%s - - %s "%s" %s\n' %(self.host,date_str,self.requestline,code))
 
 
-def mylock(filename):
-	try:
-		fd = posix.open(filename,posix.O_RDWR|posix.O_CREAT,0666)
-	except IOError:
-		return -1
-	try:
-		fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-	except IOError,ex:
-		if ex.errno != errno.EAGAIN:
-			posix.close(fd)
-			return -1
-		try:
-			pid = int(posix.read(fd,100).strip())
-			posix.close(fd)
-			return pid
-		except ValueError:
-			posix.close(fd)
-			return -1
-	posix.write(fd,"%u          " % posix.getpid())
-	return 0
-
-def wdlock(fname,runmode,timeout):
-	killed = 0
-	for i in xrange(timeout):
-		l = mylock(fname)
-		if l==0:
-			if runmode==2:
-				if killed:
-					return 0
-				else:
-					print "can't find process to terminate"
-					return -1
-			if runmode==3:
-				print "mfscgiserv is not running"
-				return 0
-			print "lockfile created and locked"
-			return 1
-		elif l<0:
-			print "lockfile error"
-			return -1
-		else:
-			if runmode==3:
-				print "mfscgiserv pid:%u" % l
-				return 0
-			if runmode==1:
-				print "can't start: lockfile is already locked by another process"
-				return -1
-			if killed!=l:
-				print "sending SIGTERM to lock owner (pid:%u)" % l
-				posix.kill(l,signal.SIGTERM)
-				killed = l
-			if (i%10)==0 and i>0:
-				print "about %u seconds passed and lock still exists" % i
-			time.sleep(1)
-	print "about %u seconds passed and lockfile is still locked - giving up" % timeout
-	return -1
-
 if __name__=="__main__":
 	locktimeout = 60
 	daemonize = 1
@@ -491,35 +434,33 @@ if __name__=="__main__":
 		if pid>0:
 			os._exit(0)
 
-	if wdlock(lockfname,mode,locktimeout)==1:
+	print "starting simple cgi server (host: %s , port: %u , rootpath: %s)" % (host,port,rootpath)
 
-		print "starting simple cgi server (host: %s , port: %u , rootpath: %s)" % (host,port,rootpath)
+	if daemonize:
+		os.close(0)
+		os.close(1)
+		os.close(2)
+		if os.open("/dev/null",os.O_RDWR)!=0:
+			raise Exception, "can't open /dev/null as 0 descriptor"
+		os.dup2(0,1)
+		os.dup2(0,2)
 
-		if daemonize:
-			os.close(0)
-			os.close(1)
-			os.close(2)
-			if os.open("/dev/null",os.O_RDWR)!=0:
-				raise Exception, "can't open /dev/null as 0 descriptor"
-			os.dup2(0,1)
-			os.dup2(0,2)
+		posix.write(pipefd[1],'0')
 
-			posix.write(pipefd[1],'0')
+	posix.close(pipefd[0])
+	posix.close(pipefd[1])
 
-		posix.close(pipefd[0])
-		posix.close(pipefd[1])
-
-		server = Server(host, port)
+	server = Server(host, port)
 
 # launch the server on the specified port
-		if not daemonize:
-			if host!='any':
-				print "Asynchronous HTTP server running on %s:%s" % (host,port)
-			else:
-				print "Asynchronous HTTP server running on port %s" % port
-		if not daemonize and verbose:
-			HTTP.logging = True
+	if not daemonize:
+		if host!='any':
+			print "Asynchronous HTTP server running on %s:%s" % (host,port)
 		else:
-			HTTP.logging = False
-		HTTP.root = rootpath
-		loop(server,HTTP)
+			print "Asynchronous HTTP server running on port %s" % port
+	if not daemonize and verbose:
+		HTTP.logging = True
+	else:
+		HTTP.logging = False
+	HTTP.root = rootpath
+	loop(server,HTTP)
