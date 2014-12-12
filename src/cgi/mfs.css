@@ -138,6 +138,10 @@ table.CR tr.C4 td {background-color: #D8D8D8;}
 table.CR tr:first-child th {background-color: #A0A0A0;}
 table.CR th {background-color: #C0C0C0;}
 
+table.CR > tbody > tr:nth-child(even):hover > td,
+table.CR > tbody > tr:nth-child(even):hover + tr > td,
+table.FR > tbody > tr:hover > td { background-color: #FFF; }
+
 table.BOTMENU {width: 1000px; margin-left:auto; margin-right:auto;}
 
 .smbox {position:relative; border:1px solid #000; width:100px; background:#fff; height:14px;}
