@@ -101,6 +101,7 @@
 #cmakedefine LIZARDFS_HAVE_DUP2
 #cmakedefine LIZARDFS_HAVE_MLOCKALL
 #cmakedefine LIZARDFS_HAVE_GETCWD
+#cmakedefine HAVE_POSIX_FADVISE
 
 /* [CMake] Other */
 #cmakedefine WORDS_BIGENDIAN
