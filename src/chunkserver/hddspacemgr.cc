@@ -1546,6 +1546,9 @@ void hdd_delayed_ops() {
 				if (c->opensteps>0) {   // decrease counter
 					c->opensteps--;
 				} else if (c->fd>=0) {  // close descriptor
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+					posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+#endif /* LIZARDFS_HAVE_POSIX_FADVISE */
 					if (close(c->fd)<0) {
 						hdd_error_occured(c);   // uses and preserves errno !!!
 						lzfs_silent_errlog(LOG_WARNING,"hdd_delayed_ops: file:%s - close error",c->filename);

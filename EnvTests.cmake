@@ -56,7 +56,7 @@ set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
 set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer)
+  setitimer posix_fadvise)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")
