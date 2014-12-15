@@ -66,7 +66,7 @@ assert_template_equals_() {
 # (assert|assertlocal|expect)_matches <regex> <string>
 assert_template_matches_() {
 	if [[ ! "$2" =~ $1 ]]; then
-		$FAIL_FUNCTION "Expected: $2 to match regex $1"
+		$FAIL_FUNCTION "Expected: '$2' to match regex '$1'"
 	fi
 }
 
@@ -150,6 +150,17 @@ assert_template_eventually_prints_() {
 	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout. "`
+				`"It prints now: '$(eval "$command" || true)'"
+	fi
+}
+
+# (assert|assertlocal|expect)_eventually_matches <regex> <command> [<timeout>]
+assert_template_eventually_matches_() {
+	local regex="$1"
+	local command="$2"
+	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
+	if ! wait_for "[[ \$($command) =~ \$regex ]]" "$timeout"; then
+		$FAIL_FUNCTION "'$command' didn't print output matching '$regex' within $timeout. "`
 				`"It prints now: '$(eval "$command" || true)'"
 	fi
 }
