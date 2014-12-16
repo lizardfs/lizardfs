@@ -84,4 +84,4 @@ You should have received a copy of the GNU General Public License along with Liz
 
 == SEE ALSO
 
-mfschunkserver(8), mfsmaster(8), mfsmetalogger(8), mfsmount(1), mfstools(1), lizardfs-probe(8)
+mfschunkserver(8), mfsmaster(8), mfsmetalogger(8), mfsmount(1), mfstools(1), lizardfs-admin(8)

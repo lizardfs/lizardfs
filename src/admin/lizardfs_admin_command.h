@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "common/exception.h"
-#include "probe/options.h"
+#include "admin/options.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(WrongUsageException, Exception);
 

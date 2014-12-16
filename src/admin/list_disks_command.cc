@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/list_disks_command.h"
+#include "admin/list_disks_command.h"
 
 #include <iostream>
 
@@ -8,7 +8,7 @@
 #include "common/lizardfs_version.h"
 #include "common/moosefs_vector.h"
 #include "common/server_connection.h"
-#include "probe/list_chunkservers_command.h"
+#include "admin/list_chunkservers_command.h"
 
 static std::string boolToYesNoString(bool value) {
 	return (value ? "yes" : "no");

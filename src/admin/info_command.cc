@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/info_command.h"
+#include "admin/info_command.h"
 
 #include <iostream>
 

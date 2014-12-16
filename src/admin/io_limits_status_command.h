@@ -3,10 +3,10 @@
 #include "common/platform.h"
 
 #include "common/matocl_communication.h"
-#include "probe/lizardfs_probe_command.h"
+#include "admin/lizardfs_admin_command.h"
 
 /**
- * A command for lizardfs-probe that checks the global I/O limiting status
+ * A command for lizardfs-admin that checks the global I/O limiting status
  */
 class IoLimitsStatusCommand : public LizardFsProbeCommand {
 public:

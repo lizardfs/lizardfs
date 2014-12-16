@@ -2,11 +2,12 @@
 
 #include "common/platform.h"
 
-#include "probe/lizardfs_probe_command.h"
+#include "admin/lizardfs_admin_command.h"
 
-class ReadyChunkserversCountCommand : public LizardFsProbeCommand {
+class InfoCommand : public LizardFsProbeCommand {
 public:
 	virtual std::string name() const;
+	virtual SupportedOptions supportedOptions() const;
 	virtual void usage() const;
 	virtual void run(const Options& options) const;
 };

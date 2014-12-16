@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/list_metadataservers_command.h"
+#include "admin/list_metadataservers_command.h"
 
 #include <iomanip>
 #include <iostream>
@@ -10,7 +10,7 @@
 #include "common/matocl_communication.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"
-#include "probe/metadataserver_status_command.h"
+#include "admin/metadataserver_status_command.h"
 
 std::string ListMetadataserversCommand::name() const {
 	return "list-metadataservers";

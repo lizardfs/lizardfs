@@ -70,7 +70,7 @@ Package: lizardfs-adm
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: LizardFS administration tools
- LizardFS administration tools: lizardfs-probe
+ LizardFS administration tools: lizardfs-admin
 
 Package: lizardfs-cgi
 Architecture: any

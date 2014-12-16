@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/options.h"
+#include "admin/options.h"
 
 Options::Options(const std::vector<std::string>& expectedOptions,
 		const std::vector<std::string>& argv) {

@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/io_limits_status_command.h"
+#include "admin/io_limits_status_command.h"
 
 #include <iomanip>
 #include <iostream>

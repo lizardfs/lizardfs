@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/lizardfs_probe_command.h"
+#include "admin/lizardfs_admin_command.h"
 
 const std::string LizardFsProbeCommand::kPorcelainMode = "--porcelain";
 const std::string LizardFsProbeCommand::kPorcelainModeDescription =

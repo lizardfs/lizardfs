@@ -6,7 +6,7 @@
 
 #include "common/chunks_availability_state.h"
 #include "common/server_connection.h"
-#include "probe/lizardfs_probe_command.h"
+#include "admin/lizardfs_admin_command.h"
 
 class ChunksHealthCommand : public LizardFsProbeCommand {
 public:

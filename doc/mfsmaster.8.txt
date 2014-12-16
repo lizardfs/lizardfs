@@ -34,7 +34,7 @@ If metadata server works with 'master' personality it acts as main metadata serv
 govering all file system metadata modifications.
 If metadata server works with 'shadow' personality it acts as backup metadata server
 ready for immediate deployment as new 'master' in case of current 'master' failure.
-Shadow only accepts connections from lizardfs-probe, i.e. mfschunkserver, mfsmetalogger
+Shadow only accepts connections from lizardfs-admin, i.e. mfschunkserver, mfsmetalogger
 and mfsmount (the client) are not allowed to connect to 'shadow' instance.
 
 Current metadata server personality is defined in metadata server configuration file

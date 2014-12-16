@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/chunk_health_command.h"
+#include "admin/chunk_health_command.h"
 
 #include <iostream>
 

@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/list_goals_command.h"
+#include "admin/list_goals_command.h"
 
 #include <iomanip>
 #include <iostream>

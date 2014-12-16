@@ -1,10 +1,10 @@
 #include "common/platform.h"
-#include "probe/ready_chunkservers_count_command.h"
+#include "admin/ready_chunkservers_count_command.h"
 
 #include <iostream>
 #include <vector>
 
-#include "probe/list_chunkservers_command.h"
+#include "admin/list_chunkservers_command.h"
 
 std::string ReadyChunkserversCountCommand::name() const {
 	return "ready-chunkservers-count";

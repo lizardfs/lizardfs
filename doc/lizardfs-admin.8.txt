@@ -1,13 +1,13 @@
-lizardfs-probe(8)
+lizardfs-admin(8)
 =================
 
 == NAME
 
-lizardfs-probe - LizardFS monitoring tool
+lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
 
 == SYNOPSIS
 
-**lizardfs-probe** __COMMAND__ [OPTIONS...] [ARGUMENTS...]
+**lizardfs-admin** __COMMAND__ [OPTIONS...] [ARGUMENTS...]
 
 == Available COMMANDs
 

@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/metadataserver_status_command.h"
+#include "admin/metadataserver_status_command.h"
 
 #include <iomanip>
 #include <iostream>

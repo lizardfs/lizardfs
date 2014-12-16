@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/list_mounts_command.h"
+#include "admin/list_mounts_command.h"
 
 #include <algorithm>
 #include <array>

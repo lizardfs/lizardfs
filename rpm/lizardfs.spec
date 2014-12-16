@@ -425,7 +425,9 @@ rm -rf $RPM_BUILD_ROOT
 %files adm
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_bindir}/lizardfs-probe
+%attr(755,root,root) %{_bindir}/lizardfs-admin
+%{_mandir}/man8/lizardfs-admin.8*
+%{_bindir}/lizardfs-probe
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog

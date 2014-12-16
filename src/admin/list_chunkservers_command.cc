@@ -1,5 +1,5 @@
 #include "common/platform.h"
-#include "probe/list_chunkservers_command.h"
+#include "admin/list_chunkservers_command.h"
 
 #include <iostream>
 #include <vector>
