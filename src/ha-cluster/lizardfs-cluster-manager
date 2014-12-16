@@ -7,9 +7,15 @@
 NAME="lizardfs-cluster-manager"
 LIZARDFS_CONF_DIR="/etc/mfs"
 LIZARDFS_DATA_DIR="/var/lib/mfs"
-LIZARDFS_MASTER_CONF="mfsmaster.cfg"
-LIZARDFS_MASTER_EXPORTS="mfsexports.cfg"
+LIZARDFS_MASTER_CFG="mfsmaster.cfg"
+LIZARDFS_EXPORTS_CFG="mfsexports.cfg"
 LIZARDFS_MASTER_BINARY="mfsmaster"
+LIZARDFS_METADATA_FILE="metadata.mfs"
+LIZARDFS_DIST_MASTER_CFG="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CFG}.dist"
+LIZARDFS_DIST_EXPORTS_CFG="${LIZARDFS_CONF_DIR}/${LIZARDFS_EXPORTS_CFG}.dist"
+LIZARDFS_DEFAULT_MASTER_CFG="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CFG}"
+LIZARDFS_DEFAULT_EXPORTS_CFG="${LIZARDFS_CONF_DIR}/${LIZARDFS_EXPORTS_CFG}"
+LIZARDFS_DEFAULT_METADATA_FILE="${LIZARDFS_DATA_DIR}/${LIZARDFS_METADATA_FILE}"
 IP_REGEX='^([0-9]{1,3}[.]){3}[0-9]{1,3}$'
 BACKUP_STAMP="$(date +'%F_%T')"
 
@@ -185,9 +191,9 @@ validate_installation() {
 	if [[ ! -d "${LIZARDFS_CONF_DIR}" ]] ; then
 		bailout "Missing LizardFS configuration directory (${LIZARDFS_CONF_DIR})"
 	fi
-	if [[ ! -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist" ]] ; then
+	if [[ ! -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CFG}.dist" ]] ; then
 		bailout "Missing lizardfs metadata server main configuration file `
-				`(${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist)"
+				`(${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CFG}.dist)"
 	fi
 	if [[ ! -d "/etc/corosync" ]] ; then
 		bailout "Missing \`corosync' configuration directory (/etc/corosync)"
@@ -226,113 +232,75 @@ create_new_cluster() {
 		bailout "Cluster configuration output file already exists (${out_file})"
 	fi
 
-	# Choose a configuration file
-	local master_cfg=
-	if [[ -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}" ]] ; then
-		master_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}"
-	elif [[ -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist" ]] ; then
-		master_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist"
-	fi
-	reply=
-	while [[ ! -f "${reply}" ]] ; do
-		read -e -p "Which LizardFS master server configuration should be imported? " -i "${master_cfg}" reply
-	done
-	master_cfg=${reply}
+	# BEGIN OF THE INTERACTIVE PART
 
-	local data_path=$(read_cfg_var "${master_cfg}" DATA_PATH = "${LIZARDFS_DATA_DIR}")
-	reply=
-	while [[ ! -d ${reply} ]] ; do
-		read -e -p "Where LizardFS metadata should be stored? " -i "${data_path}" reply
-		if [[ "${reply}" && ! -d "${reply}" ]] ; then
-			if ask Y "The \`${reply}' directory does not exist, should it be created?" ; then
-				invoke mkdir "${reply}"
-				invoke chown mfs:mfs "${reply}"
-				invoke chmod 755 "${reply}"
-			fi
+	local create_default_installation=
+	if [[ ! -f "${LIZARDFS_DEFAULT_METADATA_FILE}" \
+			&& ! -f "${LIZARDFS_DEFAULT_EXPORTS_CFG}" \
+			&& ! -f "${LIZARDFS_DEFAULT_MASTER_CFG}" ]] ; then
+		# TODO(msulikowski) What about other files like mfsgoals.cfg and mfstopology.cfg?
+		echo "Files ${LIZARDFS_DEFAULT_MASTER_CFG}, ${LIZARDFS_DEFAULT_EXPORTS_CFG}, `
+				`${LIZARDFS_DEFAULT_METADATA_FILE} not present. It looks like a clean installation."
+		if ask Y "Should a new empty LizardFS filesystem which uses these files be created?" ; then
+			echo "New installation will be configured after choosing `
+					`the rest of configuration of the cluster."
+			create_default_installation=yes
 		fi
-	done
-	data_path=${reply}
-	info "LizardFS will store its metadata files in: \`${data_path}'"
+		echo
+	fi
 
-	local reply=
-	while [[ ! "${reply}" =~ $IP_REGEX ]]; do
-		echo "What IP address should LizardFS use as floating failover-ip"
-		read -e -p "where metadata server will be visible? " reply
-	done
-	master_host="${reply}"
+	# Choose a configuration file
+	if [[ ! ${create_default_installation} ]] ; then
+		local master_cfg=
+		if [[ -f "${LIZARDFS_DEFAULT_MASTER_CFG}" ]] ; then
+			master_cfg="${LIZARDFS_DEFAULT_MASTER_CFG}"
+		fi
+		reply=
+		while [[ "${reply}" == "${LIZARDFS_DIST_MASTER_CFG}" || ! -f "${reply}" ]] ; do
+			echo "To be able to continue, you have to provide a path to a valid configuration file"
+			echo "of existing LizardFS master server. It will be modified to act as a configuration"
+			echo "file of the master server in the HA cluster."
+			read -e -p "Which existing LizardFS master server configuration file should be imported? " -i "${master_cfg}" reply
+			echo
+		done
+		master_cfg=${reply}
+		local data_path=$(read_cfg_var "${master_cfg}" DATA_PATH = "${LIZARDFS_DATA_DIR}")
+		local exports_cfg=$(read_cfg_var ${master_cfg} EXPORTS_FILENAME = "${LIZARDFS_DEFAULT_EXPORTS_CFG}")
 
-	local metadata_file="$data_path/metadata.mfs"
-	if [[ ! -f "$metadata_file" ]] ; then
-		if ask Y "Metadata file \`$metadata_file' doesn't exists, but is required. `
-				`Should an empty filesystem be created?" ; then
-			# Safely create a metadata file with empty metadata
-			attempt "Creating ${metadata_file}"
-			local temp_metadata="$metadata_file.new.cluster"
-			invoke tee "$temp_metadata" >/dev/null <<<"MFSM NEW"
-			invoke chown mfs:mfs "$temp_metadata"
-			invoke chmod 444 "$temp_metadata"
-			invoke ln "$temp_metadata" "$metadata_file"
-			invoke rm -f "$temp_metadata"
-		else
-			bailout "Can't proceed without metadata."
+		# Some sanity checks
+		if [[ ! -f "${data_path}/metadata.mfs" ]] ; then
+			bailout "According to ${master_cfg}, the metadata file `
+					`\`${data_path}/${LIZARDFS_METADATA_FILE}' should exist, but doesn't exist"
+		fi
+		if [[ ! -f "${exports_cfg}" ]] ; then
+			bailout "According to ${master_cfg}, the exports configuration file `
+					`\`${exports_cfg}' should exist, but doesn't exist"
 		fi
 	else
-		if ! ask Y "Metadata file \`$metadata_file' exists. Should it be used?" ; then
-			bailout "Can't proceed without metadata."
-		fi
+		local master_cfg=${LIZARDFS_DEFAULT_MASTER_CFG}
+		local exports_cfg=${LIZARDFS_DEFAULT_EXPORTS_CFG}
 	fi
 
-	local exports_filename=$(read_cfg_var ${master_cfg} \
-		EXPORTS_FILENAME = "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}")
-	if [[ ! -f ${exports_filename} ]] ; then
-		if [[ ! -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist" ]] ; then
-			bailout "Specified exports configuration file (${exports_filename})" \
-				"does not exist and no template file" \
-				"(${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist)" \
-				"could be found, your installation is broken."
-		fi
-		if ask Y "The configured exports file \`${exports_filename}' does not exists," \
-				"should a template file be installed?" ; then
-			invoke cp "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist" "${exports_filename}"
-		else
-			bailout "Cannot continue without a valid exports configuration file"
-		fi
-	fi
-
-	# Create the configuration file of the cluster
-	local new_mfsmaster_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}"
-	reply=
-	while [[ ! "${reply}" ]] ; do
-		read -e -p "Where LizardFS master server configuration file for the cluster should be created? " -i "${new_mfsmaster_cfg}" reply
+	local reply=
+	while [[ ! "${reply}" =~ $IP_REGEX ]] ; do
+		echo "LizardFS master servers need a floating IP address for failover. "
+		echo "It should be used by all chunkservers and clients when connecting the master server. "
+		echo "Cluster manager software will always assign this IP address to a single node which "
+		echo "will act as the master server."
+		read -e -p "Which IP address should be used? " reply
+		echo
 	done
-	new_mfsmaster_cfg=${reply}
-
-	if [[ -f "${new_mfsmaster_cfg}" ]]; then
-		if ask Y "\`${new_mfsmaster_cfg}' file exists, should it be backed up `
-				`as ${new_mfsmaster_cfg}.back and recreated?" ; then
-			invoke cp "${new_mfsmaster_cfg}" "${new_mfsmaster_cfg}".back
-		fi
-	fi
-	attempt "Creating ${new_mfsmaster_cfg}"
-	local temp_config=$(mktemp "${LIZARDFS_MASTER_CONF}.XXXXXXXXXX")
-	invoke cp "${master_cfg}" "${temp_config}"
-	{
-		echo "PERSONALITY = auto"
-		echo "DATA_PATH = ${data_path}"
-		echo "MASTER_HOST = ${master_host}"
-		egrep -v 'PERSONALITY|DATA_PATH|MASTER_HOST' "${temp_config}"
-	} | invoke tee "${new_mfsmaster_cfg}" >/dev/null
-	invoke rm -f "${temp_config}"
-	invoke chown root:root "${new_mfsmaster_cfg}"
-	invoke chmod 644 "${new_mfsmaster_cfg}"
+	master_host="${reply}"
 
 	# Check if we need to create a new authkey
 	local do_create_authkey=
 	corosync_authkey="/etc/corosync/authkey"
 	if [[ -f "${corosync_authkey}" ]] ; then
-		if ask N "Cluster authkey already exists, do you want to create new one?" ; then
+		echo "TODO(msulikowski) doc"
+		if ask N "Cluster authkey already exists, do you want to overwrite it with a new one?" ; then
 			local do_create_authkey=1
 		fi
+		echo
 	else
 		local do_create_authkey=1
 	fi
@@ -342,22 +310,72 @@ create_new_cluster() {
 	local mcastaddr=$(read_cfg_var ${corosync_conf} mcastaddr :)
 	local reply=
 	while [[ ! "${reply}" =~ $IP_REGEX ]]; do
+		echo "Corosync service uses multicast to discover all members of its cluster."
+		echo "You have to choose a multicast address that will work in your network."
 		read -e -p "What Multicast address corosync service shall use? " -i "${mcastaddr}" reply
+		echo
 	done
 	mcastaddr="${reply}"
 
-	# Choose bind address for corosync
+	# Choose a bind address for corosync
 	local bindnetaddr=$(read_cfg_var ${corosync_conf} bindnetaddr :)
-	LOCAL_IP_RE='\<127[.]0[.]0[.]1\>'
-	if [[ "${bindnetaddr}" =~ $LOCAL_IP_RE ]] ; then
+	if [[ "${bindnetaddr}" =~ ^127[.] ]] ; then
 		bindnetaddr=$(echo ${master_host} | sed -e 's/\(.*[.].*[.].*\)[.].*/\1.0/')
 	fi
 	reply=
 	while [[ ! "${reply}" =~ $IP_REGEX || "${reply}" == 127.* ]] ; do
+		echo "TODO(msulikowski) doc"
 		read -e -p "Which network address shall corosync service bind to? " -i "${bindnetaddr}" reply
+		echo
 	done
 	bindnetaddr="${reply}"
 
+	# END OF THE INTERACTIVE PART
+
+	# Configure the master server
+	if [[ ${create_default_installation} ]] ; then
+		attempt "Configuring a new empty LizardFS installation"
+
+		# Copy mfsexports.cfg
+		invoke cp "${LIZARDFS_DIST_EXPORTS_CFG}" "${LIZARDFS_DEFAULT_EXPORTS_CFG}"
+		invoke chown root:root "${LIZARDFS_DEFAULT_EXPORTS_CFG}"
+		invoke chmod 644 "${LIZARDFS_DEFAULT_EXPORTS_CFG}"
+
+		# Create metadata.mfs (use ln not to overwrite any file)
+		local temp_metadata="${LIZARDFS_DEFAULT_METADATA_FILE}.new.cluster"
+		invoke tee "${temp_metadata}" >/dev/null <<<"MFSM NEW"
+		invoke chown mfs:mfs "${temp_metadata}"
+		invoke chmod 444 "${temp_metadata}"
+		invoke ln "${temp_metadata}" "${LIZARDFS_DEFAULT_METADATA_FILE}"
+		invoke rm -f "${temp_metadata}"
+
+		# Create mfsmaster.cfg
+		invoke tee "${LIZARDFS_DEFAULT_MASTER_CFG}" >/dev/null < <(
+			echo "PERSONALITY = auto"
+			echo "MASTER_HOST = ${master_host}"
+			egrep -v 'PERSONALITY|MASTER_HOST' "${LIZARDFS_DIST_MASTER_CFG}"
+		)
+		invoke chown root:root "${LIZARDFS_DEFAULT_MASTER_CFG}"
+		invoke chmod 644 "${LIZARDFS_DEFAULT_MASTER_CFG}"
+	else
+		# Modify chosen mfsmaster.cfg to work in the cluster
+		attempt "Modyfying ${master_cfg} to make it work in the cluster. `
+			`It will be backed up as ${mfsmaster_cfg_backup}"
+		local mfsmaster_cfg_backup="${master_cfg}.${BACKUP_STAMP}"
+		invoke cp "${master_cfg}" "${mfsmaster_cfg_backup}"
+		invoke chown root:root "${mfsmaster_cfg_backup}"
+		invoke chmod 400 "${mfsmaster_cfg_backup}"
+		invoke tee "${master_cfg}" >/dev/null < <(
+			echo "PERSONALITY = auto"
+			echo "MASTER_HOST = ${master_host}"
+			egrep -v 'PERSONALITY|MASTER_HOST' "${mfsmaster_cfg_backup}"
+		)
+		invoke chown root:root "${master_cfg}"
+		invoke chmod 644 "${master_cfg}"
+	fi
+
+	# Configure corosync
+	attempt "Modyfying ${corosync_conf} to make it work in the cluster."
 	local temp_config=$(mktemp "${corosync_conf}.XXXXXXXXXX")
 	invoke sed -e "s/mcastaddr:.*/mcastaddr: ${mcastaddr}/" \
 		-e "s/bindnetaddr:.*/bindnetaddr: ${bindnetaddr}/" "${corosync_conf}" > "${temp_config}"
@@ -365,32 +383,34 @@ create_new_cluster() {
 	invoke mv -f "${temp_config}" "${corosync_conf}"
 	invoke chown root:root "${corosync_conf}"
 	invoke chmod 644 "${corosync_conf}"
-
-	# Configure the cluster!
+	invoke sed -i -e 's/^START=no$/START=yes/' /etc/default/corosync
 
 	if [[ ${do_create_authkey} ]] ; then
 		attempt "Creating a new authkey for cluster"
 		invoke /usr/sbin/corosync-keygen -l
 	fi
 
-	attempt "Starting cluster instance"
-	invoke sed -i -e 's/^START=no$/START=yes/' /etc/default/corosync
+	attempt "Starting the cluster"
 	restart_ha_services
 	invoke crm configure property stonith-enabled=false
-	invoke crm configure primitive Failover-IP ocf:heartbeat:IPaddr2 params ip=${master_host} cidr_netmask=24 op monitor interval=1s
+	# TODO(msulikowski) Can cidr_netmask=24 be harcoded?
+	invoke crm configure primitive Failover-IP ocf:heartbeat:IPaddr2 \
+			params ip=${master_host} cidr_netmask=24 \
+			op monitor interval=1s
 	invoke crm configure primitive lizardfs-master ocf:lizardfs:metadataserver \
-		params master_ip=${master_host} op monitor role="Master" interval="10s" \
-		op monitor role="Slave" interval="20s"
-# TODO: Check if adding `clone-max="N"' with proper N is necessary.
+			params master_ip=${master_host} \
+			op monitor role="Master" interval="10s" \
+			op monitor role="Slave" interval="20s"
+	# TODO(amok) Check if adding `clone-max="N"' with proper N is necessary.
 	invoke crm configure ms lizardfs-ms lizardfs-master \
 		meta master-max="1" master-node-max="1" clone-node-max="1" \
 		notify="true" target-role="Master"
 	invoke crm configure colocation ip-with-master inf: Failover-IP lizardfs-ms:Master
 	invoke crm configure order ip-after-master inf: lizardfs-ms:promote Failover-IP:start
 
-# TODO: Do not forget to add other lizardfs-master config files
-#       to cluster configuration bundle i.e.: mfsgoals.cfg.
-	invoke tar czPf "${out_file}" "${corosync_conf}" "${corosync_authkey}" "${new_mfsmaster_cfg}" "${exports_filename}"
+	# TODO(amok) Do not forget to add other lizardfs-master config files
+	# to cluster configuration bundle i.e.: mfsgoals.cfg.
+	invoke tar -czPf "${out_file}" "${corosync_conf}" "${corosync_authkey}" "${master_cfg}" "${exports_cfg}"
 }
 
 add_metadata_node() {
@@ -502,9 +522,9 @@ while true ; do
 	esac
 done
 
-if [[ $# -eq 0 ]]; then
+if [[ $# -eq 0 ]] ; then
 	bailout "wrong usage: no command"
-elif [[ $# -ne 1 ]]; then
+elif [[ $# -ne 1 ]] ; then
 	bailout "wrong usage: expected exactly one command, got ${#} commands: \`${@}'"
 fi
 command=${1}
