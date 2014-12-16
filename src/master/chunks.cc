@@ -2425,9 +2425,6 @@ void chunk_reload(void) {
 	if (AcceptableDifference>10.0) {
 		AcceptableDifference = 10.0;
 	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		chunk_become_master();
-	}
 }
 #endif
 
@@ -2532,6 +2529,7 @@ int chunk_strinit(void) {
 	jobshpos = 0;
 	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
+	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
 	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {

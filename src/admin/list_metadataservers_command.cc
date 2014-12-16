@@ -18,7 +18,7 @@ std::string ListMetadataserversCommand::name() const {
 
 void ListMetadataserversCommand::usage() const {
 	std::cerr << name() << " <master ip> <master port>" << std::endl;
-	std::cerr << "    Prints status of the metadata servers" << std::endl;
+	std::cerr << "    Prints status of active metadata servers" << std::endl;
 }
 
 LizardFsProbeCommand::SupportedOptions ListMetadataserversCommand::supportedOptions() const {

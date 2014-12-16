@@ -8148,6 +8148,10 @@ const Goal& fs_get_goal_definition(uint8_t goalId) {
  * Initialize subsystems required by Master personality of metadataserver.
  */
 void fs_become_master() {
+	if (!gMetadata) {
+		syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
+		exit(1);
+	}
 	dcm_clear();
 	test_start_time = main_time() + 900;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
@@ -8235,13 +8239,7 @@ void fs_reload(void) {
 	if (cfg_getuint32("RECALCULATE_CHECKSUM_ON_RELOAD", 0) == 1) {
 		fs_start_checksum_recalculation();
 	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		if (!gMetadata) {
-			syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
-			exit(1);
-		}
-		fs_become_master();
-	} else if (metadataserver::isMaster()) {
+	if (metadataserver::isMaster()) {
 		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 		main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
@@ -8381,6 +8379,7 @@ int fs_init(bool doLoad) {
 		fs_loadall();
 	}
 	main_reloadregister(fs_reload);
+	metadataserver::registerFunctionCalledOnPromotion(fs_become_master);
 	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
 		// Secret option disabling periodic metadata dumps
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);

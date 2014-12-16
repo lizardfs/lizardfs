@@ -222,3 +222,15 @@ void md5_final (uint8_t digest[16],md5ctx *ctx) {
 	md5_encode(digest,ctx->state,4);
 	memset((char*)ctx,0,sizeof(md5ctx));
 }
+
+std::array<uint8_t, 16> md5_challenge_response(const std::array<uint8_t, 32>& challenge,
+		std::string data) {
+	md5ctx ctx;
+	md5_init(&ctx);
+	md5_update(&ctx, challenge.data(), 16);
+	md5_update(&ctx, (uint8_t*)(data.c_str()), data.size());
+	md5_update(&ctx, challenge.data() + 16, 16);
+	std::array<uint8_t, 16> digest;
+	md5_final(digest.data(), &ctx);
+	return digest;
+}

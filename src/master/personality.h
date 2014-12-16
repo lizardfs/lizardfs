@@ -6,7 +6,7 @@ namespace metadataserver {
 
 enum class Personality {
 	kMaster,
-	kShadow
+	kShadow,
 };
 
 /*! \brief Get current personality.
@@ -32,19 +32,23 @@ int personality_init();
  *
  * \return Current (newly loaded) metadata server personality.
  */
-Personality loadPersonality();
-
-/*! \brief Tell if metadata server is in transition from Shadow to Master peronality.
- *
- * \return True iff metadata server is in transition from Shadow to Master peronality.
- */
-bool isDuringPersonalityChange();
+Personality loadNonHaClusterPersonality();
 
 /*! \brief Tell if current metadata server peronality is Master.
  *
  * \return True iff current metadata server peronality is Master.
  */
 bool isMaster();
+
+/*! \brief Register functions that will be called on metadata server promotion
+ */
+void registerFunctionCalledOnPromotion(void(*)(void));
+
+/*! \brief Changes personality from AUTO to MASTER.
+ *
+ * \return True if successfully changed personality from AUTO to MASTER
+ */
+bool promoteAutoToMaster();
 
 }
 

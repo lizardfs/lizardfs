@@ -967,9 +967,6 @@ void matomlserv_reload(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		matomlserv_become_master();
-	}
 }
 
 int matomlserv_init(void) {
@@ -1003,6 +1000,7 @@ int matomlserv_init(void) {
 	main_wantexitregister(matomlserv_wantexit);
 	main_canexitregister(matomlserv_canexit);
 	main_reloadregister(matomlserv_reload);
+	metadataserver::registerFunctionCalledOnPromotion(matomlserv_become_master);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
 	if (metadataserver::isMaster()) {

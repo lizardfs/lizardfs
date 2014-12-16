@@ -47,6 +47,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocl_communication.h"
+#include "common/md5.h"
 #include "common/metadata.h"
 #include "common/MFSCommunication.h"
 #include "common/random.h"
@@ -147,18 +148,26 @@ typedef struct packetstruct {
 	uint8_t *packet;
 } packetstruct;
 
+/** This looks to be the client type. This is set in matoclserv_serve and matoclserv_fuse_register, and there are 3 possible values:
+ *
+ *    0: new client (default, just after TCP accept)
+ *       This is referred to as "unregistered clients".
+ *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))
+ *       This is referred to as "mounts and new tools" or "standard, registered clients".
+ *  100: FUSE_REGISTER_BLOB_TOOLS_NOACL or (FUSE_REGISTER_BLOB_ACL and REGISTER_TOOLS)
+ *       This is referred to as "old mfstools".
+ *  665: lizardfs-admin after successful authentication
+ */
+enum class ClientState {
+	kUnregistered = 0,
+	kRegistered = 1,
+	kOldTools = 100,
+	kAdmin = 665
+};
+
 /** Client entry in the server. */
-typedef struct matoclserventry {
-	/** This looks to be the client type. This is set in matoclserv_serve and matoclserv_fuse_register, and there are 3 possible values:
-	 *
-	 *    0: new client (default, just after TCP accept)
-	 *       This is referred to as "unregistered clients".
-	 *    1: FUSE_REGISTER_BLOB_NOACL       or (FUSE_REGISTER_BLOB_ACL and (REGISTER_NEWSESSION or REGISTER_NEWMETASESSION or REGISTER_RECONNECT))
-	 *       This is referred to as "mounts and new tools" or "standard, registered clients".
-	 *  100: FUSE_REGISTER_BLOB_TOOLS_NOACL or (FUSE_REGISTER_BLOB_ACL and REGISTER_TOOLS)
-	 *       This is referred to as "old mfstools".
-	 */
-	uint8_t registered;
+struct matoclserventry {
+	ClientState registered;
 	uint8_t mode;                           //0 - not active, 1 - read header, 2 - read packet
 	bool iolimits;
 /* CACHENOTIFY
@@ -175,13 +184,14 @@ typedef struct matoclserventry {
 
 	uint8_t passwordrnd[32];
 	session *sesdata;
+	std::unique_ptr<LizMatoclAdminRegisterChallangeData> adminChallenge;
 	chunklist *chunkdelayedops;
 /* CACHENOTIFY
 	dirincache *cacheddirs;
 */
 
 	struct matoclserventry *next;
-} matoclserventry;
+};
 
 static session *sessionshead=NULL;
 static matoclserventry *matoclservhead=NULL;
@@ -972,7 +982,7 @@ void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	}
 	size = 2;
 	for (eaptr = matoclservhead ; eaptr ; eaptr=eaptr->next) {
-		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
+		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered == ClientState::kRegistered) {
 			size += 37+SESSION_STATS*8+(vmode?10:0);
 			if (eaptr->sesdata->info) {
 				size += strlen(eaptr->sesdata->info);
@@ -987,7 +997,7 @@ void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	ptr = matoclserv_createpacket(eptr,MATOCL_SESSION_LIST,size);
 	put16bit(&ptr,SESSION_STATS);
 	for (eaptr = matoclservhead ; eaptr ; eaptr=eaptr->next) {
-		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered>0 && eaptr->registered<100) {
+		if (eaptr->mode!=KILL && eaptr->sesdata && eaptr->registered == ClientState::kRegistered) {
 			put32bit(&ptr,eaptr->sesdata->sessionid);
 			put32bit(&ptr,eaptr->peerip);
 			put32bit(&ptr,eaptr->version);
@@ -1381,7 +1391,8 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		return;
 	}
 	tools = (memcmp(data,FUSE_REGISTER_BLOB_TOOLS_NOACL,64)==0)?1:0;
-	if (eptr->registered==0 && (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
+	if (eptr->registered == ClientState::kUnregistered
+			&& (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
 			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
 			eptr->mode = KILL;
@@ -1465,7 +1476,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			sessionid = eptr->sesdata->sessionid;
 			put32bit(&wptr,sessionid);
 		}
-		eptr->registered = (tools)?100:1;
+		eptr->registered = (tools) ? ClientState::kOldTools : ClientState::kRegistered;
 		return;
 	} else if (memcmp(data,FUSE_REGISTER_BLOB_ACL,64)==0) {
 		uint32_t rootinode;
@@ -1488,7 +1499,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		rptr = data+64;
 		rcode = get8bit(&rptr);
 
-		if ((eptr->registered==0 && rcode==REGISTER_CLOSESESSION) || (eptr->registered && rcode!=REGISTER_CLOSESESSION)) {
+		if ((eptr->registered == ClientState::kUnregistered && rcode==REGISTER_CLOSESESSION)
+				|| (eptr->registered != ClientState::kUnregistered
+						&& rcode!=REGISTER_CLOSESESSION)) {
 			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)",rcode,eptr->registered);
 			eptr->mode = KILL;
 			return;
@@ -1608,7 +1621,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				eptr->iolimits = true;
 				matoclserv_send_iolimits_cfg(eptr);
 			}
-			eptr->registered = 1;
+			eptr->registered = ClientState::kRegistered;
 			return;
 		case REGISTER_NEWMETASESSION:
 			if (length<73) {
@@ -1680,7 +1693,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 				put32bit(&wptr,mintrashtime);
 				put32bit(&wptr,maxtrashtime);
 			}
-			eptr->registered = 1;
+			eptr->registered = ClientState::kRegistered;
 			return;
 		case REGISTER_RECONNECT:
 		case REGISTER_TOOLS:
@@ -1711,9 +1724,9 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 					eptr->iolimits = true;
 					matoclserv_send_iolimits_cfg(eptr);
 				}
-				eptr->registered = 1;
+				eptr->registered = ClientState::kRegistered;
 			} else {
-				eptr->registered = 100;
+				eptr->registered = ClientState::kOldTools;
 			}
 			return;
 		case REGISTER_CLOSESESSION:
@@ -3533,6 +3546,62 @@ void matoclserv_hostname(matoclserventry* eptr, const uint8_t* data, uint32_t le
 	matoclserv_createpacket(eptr, matocl::hostname::build(std::string(hostname)));
 }
 
+void matoclserv_admin_register(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::adminRegister::deserialize(data, length);
+	if (!eptr->adminChallenge) {
+		eptr->adminChallenge.reset(new LizMatoclAdminRegisterChallangeData());
+		auto& array = *eptr->adminChallenge;
+		for (uint32_t i = 0; i < array.size(); ++i) {
+			array[i] = rndu8();
+		}
+		matoclserv_createpacket(eptr, matocl::adminRegisterChallange::build(array));
+	} else {
+		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE: retry not allowed");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_admin_register_response(matoclserventry* eptr, const uint8_t* data,
+		uint32_t length) {
+	LizCltomaAdminRegisterResponseData receivedDigest;
+	cltoma::adminRegisterResponse::deserialize(data, length, receivedDigest);
+	if (eptr->adminChallenge) {
+		std::string password = cfg_getstring("ADMIN_PASSWORD", "");
+		if (password == "") {
+			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(ERROR_EPERM));
+			syslog(LOG_WARNING, "admin access disabled");
+			return;
+		}
+		std::array<uint8_t, 16> digest = md5_challenge_response(*eptr->adminChallenge,
+				password);
+		if (receivedDigest == digest) {
+			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(STATUS_OK));
+			eptr->registered = ClientState::kAdmin;
+		} else {
+			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(ERROR_EPERM));
+			syslog(LOG_WARNING, "admin authentication error");
+		}
+		eptr->adminChallenge.reset();
+	} else {
+		syslog(LOG_NOTICE,
+				"LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE: response without previous challenge");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_admin_become_master(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::adminBecomeMaster::deserialize(data, length);
+	if (eptr->registered == ClientState::kAdmin) {
+		bool succ = metadataserver::promoteAutoToMaster();
+		uint8_t status = succ ? STATUS_OK : ERROR_NOTPOSSIBLE;
+		matoclserv_createpacket(eptr, matocl::adminBecomeMaster::build(status));
+	} else {
+		syslog(LOG_NOTICE,
+				"LIZ_CLTOMA_ADMIN_BECOME_MASTER: available only for registered admins");
+		eptr->mode = KILL;
+	}
+}
+
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
@@ -3619,11 +3688,21 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_METADATASERVER_STATUS:
 					matoclserv_metadataserver_status(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE:
+					matoclserv_admin_register(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE:
+					matoclserv_admin_register_response(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_BECOME_MASTER:
+					matoclserv_admin_become_master(eptr, data, length);
+					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
 					eptr->mode = KILL;
 			}
-		} else if (eptr->registered==0) {      // unregistered clients - beware that in this context sesdata is NULL
+		} else if (eptr->registered == ClientState::kUnregistered
+				|| eptr->registered == ClientState::kAdmin) { // beware that in this context sesdata is NULL
 			switch (type) {
 				case CLTOMA_FUSE_REGISTER:
 					matoclserv_fuse_register(eptr,data,length);
@@ -3682,11 +3761,17 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_HOSTNAME:
 					matoclserv_hostname(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE:
+					matoclserv_admin_register(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE:
+					matoclserv_admin_register_response(eptr, data, length);
+					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
-		} else if (eptr->registered<100) {      // mounts and new tools
+		} else if (eptr->registered == ClientState::kRegistered) {      // mounts and new tools
 			if (eptr->sesdata==NULL) {
 				syslog(LOG_ERR,"registered connection without sesdata !!!");
 				eptr->mode=KILL;
@@ -3886,7 +3971,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
-		} else {        // old mfstools
+		} else if (eptr->registered == ClientState::kOldTools) {        // old mfstools
 			if (eptr->sesdata==NULL) {
 				syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 				eptr->mode=KILL;
@@ -3973,7 +4058,7 @@ void matoclserv_term(void) {
 			cln = cl->next;
 			free(cl);
 		}
-		free(eptr);
+		delete eptr;
 	}
 	matoclserv_session_unload();
 
@@ -3988,7 +4073,7 @@ void matoclserv_read(matoclserventry *eptr) {
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			if (eptr->registered>0 && eptr->registered<100) {       // show this message only for standard, registered clients
+			if (eptr->registered == ClientState::kRegistered) {       // show this message only for standard, registered clients
 				syslog(LOG_NOTICE,"connection with client(ip:%u.%u.%u.%u) has been closed by peer",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 			}
 			eptr->mode = KILL;
@@ -3997,7 +4082,7 @@ void matoclserv_read(matoclserventry *eptr) {
 		if (i<0) {
 			if (errno!=EAGAIN) {
 #ifdef ECONNRESET
-				if (errno!=ECONNRESET || eptr->registered<100) {
+				if (errno!=ECONNRESET) {
 #endif
 					lzfs_silent_errlog(LOG_NOTICE,"main master server module: (ip:%u.%u.%u.%u) read error",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 #ifdef ECONNRESET
@@ -4145,14 +4230,13 @@ void matoclserv_serve(struct pollfd *pdesc) {
 		} else {
 			tcpnonblock(ns);
 			tcpnodelay(ns);
-			eptr = (matoclserventry*) malloc(sizeof(matoclserventry));
-			passert(eptr);
+			eptr = new matoclserventry;
 			eptr->next = matoclservhead;
 			matoclservhead = eptr;
 			eptr->sock = ns;
 			eptr->pdescpos = -1;
 			tcpgetpeer(ns,&(eptr->peerip),NULL);
-			eptr->registered = 0;
+			eptr->registered = ClientState::kUnregistered;
 			eptr->iolimits = false;
 /* CACHENOTIFY
 			eptr->notifications = 0;
@@ -4192,7 +4276,8 @@ void matoclserv_serve(struct pollfd *pdesc) {
 
 // write
 	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->lastwrite+2<now && eptr->registered<100 && eptr->outputhead==NULL) {
+		if (eptr->lastwrite+2<now && eptr->registered != ClientState::kOldTools
+				&& eptr->outputhead==NULL) {
 			uint8_t *ptr = matoclserv_createpacket(eptr,ANTOAN_NOP,4);      // 4 byte length because of 'msgid'
 			*((uint32_t*)ptr) = 0;
 		}
@@ -4235,7 +4320,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 				free(paptr);
 			}
 			*kptr = eptr->next;
-			free(eptr);
+			delete eptr;
 		} else {
 			kptr = &(eptr->next);
 		}
@@ -4392,9 +4477,6 @@ void matoclserv_reload(void) {
 	free(oldListenPort);
 	tcpclose(lsock);
 	lsock = newlsock;
-	if (metadataserver::isDuringPersonalityChange()) {
-		matoclserv_become_master();
-	}
 }
 
 int matoclserv_networkinit(void) {
@@ -4440,6 +4522,7 @@ int matoclserv_networkinit(void) {
 		matoclserv_become_master();
 	}
 	main_reloadregister(matoclserv_reload);
+	metadataserver::registerFunctionCalledOnPromotion(matoclserv_become_master);
 	main_destructregister(matoclserv_term);
 	main_pollregister(matoclserv_desc,matoclserv_serve);
 	main_wantexitregister(matoclserv_wantexit);

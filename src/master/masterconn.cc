@@ -1149,11 +1149,7 @@ void masterconn_reload(void) {
 #endif /* #ifndef METALOGGER */
 
 #ifndef METALOGGER
-	if (metadataserver::isDuringPersonalityChange()) {
-		masterconn_become_master();
-	} else {
-		masterconn_int_send_matoclport(masterconnsingleton);
-	}
+	masterconn_int_send_matoclport(masterconnsingleton);
 #endif /* #ifndef METALOGGER */
 }
 
@@ -1212,6 +1208,9 @@ int masterconn_init(void) {
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
+#ifndef METALOGGER
+	metadataserver::registerFunctionCalledOnPromotion(masterconn_become_master);
+#endif
 	eptr->sessionsdownloadinit_handle = main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
 	eptr->metachanges_flush_handle = main_timeregister(TIMEMODE_RUN_LATE,1,0,changelog_flush);
 	return 0;

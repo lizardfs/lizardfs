@@ -24,7 +24,6 @@ lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
   --deletion +
     Print report about about number of chunks that need deletion. +
 
-
 *info* __<master ip> <master port>__::
   Prints statistics concerning the LizardFS installation.
 
@@ -46,7 +45,6 @@ lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
   --pretty +
     Print nice table
 
-
 *list-mounts* __<master ip> <master port>__::
   Prints information about all connected mounts. +
   Possible command-line options +
@@ -56,8 +54,14 @@ lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
 *metadataserver-status* __<master ip> <master port>__::
   Prints status of a master or shadow master server
 
+*list-metadataservers* __<master ip> <master port>__::
+  Prints status of active metadata servers.
+
 *ready-chunkservers-count* __<master ip> <master port>__::
   Prints number of chunkservers ready to be written to.
+
+*promote-shadow* __<shadow ip> <shadow port>__::
+  Promotes metadata server from shadow to master. Authentication needed.
 
 == COMMON COMMAND OPTIONS
 
@@ -77,4 +81,3 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with LizardFS. If not, see
 <http://www.gnu.org/licenses/>.
-

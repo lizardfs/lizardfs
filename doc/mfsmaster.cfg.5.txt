@@ -22,9 +22,10 @@ Lines starting with *#* character are ignored.
 Configuration options:
 
 *PERSONALITY*::
-Current 'personality' of this instance of metadata server.
-Valid values are 'master' and 'shadow'. Only one metadata server in LizardFS shall have 'master'
-personality. +
+Current 'personality' of this instance of metadata server. Valid values are 'master', 'shadow'
+and 'ha-cluster-managed'. If installation is managed by an HA cluster the only valid value is
+'ha-cluster-managed', otherwise the only valid values are 'master' and 'shadow', in which case
+only one metadata server in LizardFS shall have 'master' personality. +
 PERSONALITY = 'master' +
 means that this instance of metadata server acts as main metadata server
 govering all file system metadata modifications. +
@@ -32,7 +33,9 @@ PERSONALITY = 'shadow' +
 means that this instance of metadata server acts as backup metadata server
 ready for immediate deployment as new 'master' in case of current 'master' failure. +
 Metadata server personality can be changed at any moment as long as one changes personality from
-'shadow' to 'master', changing personality the other way around is forbidden.
+'shadow' to 'master', changing personality the other way around is forbidden. +
+PERSONALITY = 'ha-cluster-managed' +
+means that this instance is managed by HA cluster, server runs in 'shadow' mode as long as its not remotly promoted to 'master'.
 
 *DATA_PATH*::
 where to store metadata files and lock file

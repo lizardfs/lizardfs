@@ -21,36 +21,49 @@ void setPersonality(Personality personality) {
 	gPersonality = personality;
 }
 
-Personality loadPersonality() {
+bool personalityInConfigIsAuto() {
+	const std::string kAuto = "ha-cluster-managed";
+	std::string p = cfg_get("PERSONALITY", "not ha-cluster-managed");
+	std::transform(p.begin(), p.end(), p.begin(), tolower);
+	return p == kAuto;
+}
+
+Personality loadNonHaClusterPersonality() {
 	const std::string kMaster = "master";
 	const std::string kShadow = "shadow";
 	std::string p = cfg_get("PERSONALITY", kMaster);
 	std::transform(p.begin(), p.end(), p.begin(), tolower);
-	Personality personality = Personality::kMaster;
 	if (p == kMaster) {
-		personality = Personality::kMaster;
+		return Personality::kMaster;
 	} else if (p == kShadow) {
-		personality = Personality::kShadow;
+		return Personality::kShadow;
+	} else if (personalityInConfigIsAuto()) {
+		return gPersonality;
 	} else {
 		throw ConfigurationException("bad personality");
 	}
-	return personality;
 }
 
-bool isDuringPersonalityChange() {
-	metadataserver::Personality personality = metadataserver::getPersonality();
-	metadataserver::Personality newPersonality = metadataserver::loadPersonality();
-	sassert((newPersonality == personality) || (newPersonality == Personality::kMaster));
-	return (newPersonality != personality) && (personality == Personality::kShadow);
+static std::vector<void(*)(void)> changePersonalityReloadFunctions;
+
+void registerFunctionCalledOnPromotion(void(*f)(void)) {
+	changePersonalityReloadFunctions.push_back(f);
+}
+
+void promoteToMaster() {
+	lzfs_pretty_syslog(LOG_INFO, "changing metadataserver personality from Shadow to Master");
+	for (auto& f : changePersonalityReloadFunctions) {
+		f();
+	}
+	setPersonality(Personality::kMaster);
 }
 
 void personality_reload(void) {
 	try {
-		Personality personality = loadPersonality();
+		Personality personality = loadNonHaClusterPersonality();
 		if (personality != gPersonality) {
 			if (personality == Personality::kMaster) {
-				lzfs_pretty_syslog(LOG_INFO, "changing metadataserver personality from Shadow to Master");
-				setPersonality(personality);
+				promoteToMaster();
 			} else {
 				lzfs_pretty_syslog(LOG_ERR, "trying to preform forbidden personality change from Master to Shadow");
 			}
@@ -61,10 +74,36 @@ void personality_reload(void) {
 	}
 }
 
+bool promoteAutoToMaster() {
+	if (!personalityInConfigIsAuto()) {
+		return false;
+	}
+	if (gPersonality != Personality::kShadow) {
+		return false;
+	}
+	promoteToMaster();
+	return true;
+}
+
 int personality_init() {
 	int ret = 0;
 	try {
-		setPersonality(loadPersonality());
+		if (personalityInConfigIsAuto()) {
+			for (auto option : main_get_extra_arguments()) {
+				std::transform(option.begin(), option.end(), option.begin(), tolower);
+				if (option == "ha-cluster-personality=master") {
+					setPersonality(Personality::kMaster);
+					return 0;
+				} else if (option == "ha-cluster-personality=shadow") {
+					setPersonality(Personality::kShadow);
+					return 0;
+				}
+			}
+			throw ConfigurationException(
+					"Personality 'ha-cluster-managed' should only be used by HA cluster");
+		} else {
+			setPersonality(loadNonHaClusterPersonality());
+		}
 	} catch (const ConfigurationException& e) {
 		ret = -1;
 	}

@@ -2,6 +2,8 @@
 
 #include "common/platform.h"
 
+#include <array>
+
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/moosefs_string.h"
@@ -149,3 +151,17 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 // LIZ_CLTOMA_HOSTNAME
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, hostname, LIZ_CLTOMA_HOSTNAME, 0)
+
+// LIZ_CLTOMA_ADMIN_REGISTER
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, adminRegister, LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE, 0)
+
+// LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE
+typedef std::array<uint8_t, 16> LizCltomaAdminRegisterResponseData;
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, adminRegisterResponse, LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE, 0,
+		LizCltomaAdminRegisterResponseData, data)
+
+// LIZ_CLTOMA_ADMIN_BECOME_MASTER
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, adminBecomeMaster, LIZ_CLTOMA_ADMIN_BECOME_MASTER, 0)

@@ -15,6 +15,7 @@
 #include "admin/list_metadataservers_command.h"
 #include "admin/list_mounts_command.h"
 #include "admin/metadataserver_status_command.h"
+#include "admin/promote_shadow_command.h"
 #include "admin/ready_chunkservers_count_command.h"
 
 int main(int argc, const char** argv) {
@@ -30,6 +31,7 @@ int main(int argc, const char** argv) {
 			new ListMetadataserversCommand(),
 			new MetadataserverStatusCommand(),
 			new ReadyChunkserversCountCommand(),
+			new PromoteShadowCommand(),
 	};
 
 	try {
