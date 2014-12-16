@@ -27,7 +27,7 @@ do
 	esac
 done
 
-RESOURCE_AGENT=${1:-${PWD}/mfsmaster}
+RESOURCE_AGENT=${1:-${PWD}/metadataserver}
 
 test_action() {
 	action=$1
@@ -43,14 +43,8 @@ setup_environment() {
 	echo "setup_environment $dirname $host"
 
 	export OCF_RESOURCE_INSTANCE=mfsmaster_test
-	export OCF_RESKEY_config_dir=/tmp/$dirname/etc
-	export OCF_RESKEY_data_dir=/tmp/$dirname/var
+	export OCF_RESKEY_master_cfg=/tmp/$dirname/etc/mfs/mfsmaster.cfg
 	export OCF_RESKEY_run_dir=/tmp/$dirname/run
-	export OCF_RESKEY_user=$USER
-	export OCF_RESKEY_group=$GROUP
-	export OCF_RESKEY_matoml_host="$host"
-	export OCF_RESKEY_matocs_host="$host"
-	export OCF_RESKEY_matocu_host="$host"
 }
 
 setup_tests() {
@@ -59,16 +53,21 @@ setup_tests() {
 	host=${2:-"*"}
 
 	setup_environment "$dirname" "$host"
+	mkdir -p /tmp/$dirname/var/lib/mfs
+	mkdir -p /tmp/$dirname/etc/mfs
+	mkdir -p /tmp/$dirname/run
+	chown $USER:$GROUP /tmp/$dirname/var/lib/mfs
+	chown $USER:$GROUP /tmp/$dirname/etc/mfs
+	chown $USER:$GROUP /tmp/$dirname/run
 
-	mkdir -p $OCF_RESKEY_config_dir
-	mkdir -p $OCF_RESKEY_data_dir
-	mkdir -p $OCF_RESKEY_run_dir
-	chown $USER:$GROUP $OCF_RESKEY_config_dir
-	chown $USER:$GROUP $OCF_RESKEY_data_dir
-	chown $USER:$GROUP $OCF_RESKEY_run_dir
-
-	touch $OCF_RESKEY_config_dir/mfsmaster.cfg
-	cat >$OCF_RESKEY_config_dir/mfsexports.cfg <<EOF
+	cat >/tmp/$dirname/etc/mfs/mfsmaster.cfg  <<EOF
+MATOML_LISTEN_HOST = $host
+MATOCL_LISTEN_HOST = $host
+MATOCS_LISTEN_HOST = $host
+DATA_PATH = /tmp/$dirname/var/lib/mfs
+EXPORTS_FILENAME = /tmp/$dirname/etc/mfs/mfsexports.cfg
+EOF
+	cat >/tmp/$dirname/etc/mfs/mfsexports.cfg  <<EOF
 # Allow everything but "meta"
 * / rw,alldirs,maproot=0
 # Allow "meta"
@@ -120,11 +119,8 @@ ocf_test() {
 		setup_tests
 		/usr/sbin/ocf-tester -v                    \
 			-n mfsmaster-test                      \
-			-o config_dir=$OCF_RESKEY_config_dir   \
-			-o data_dir=$OCF_RESKEY_data_dir       \
+			-o master_cfg=$OCF_RESKEY_master_cfg   \
 			-o run_dir=$OCF_RESKEY_run_dir         \
-			-o user=$OCF_RESKEY_user               \
-			-o group=$OCF_RESKEY_group             \
 			${RESOURCE_AGENT} || die "failed ocf-tester suite"
 		cleanup_tests
 	)
@@ -245,4 +241,6 @@ multi_test() {
 
 test_basic_functionality || exit 1
 ocf_test || exit 1
-multi_test || exit 1
+
+# TODO(msulikowski) Is it possible to run the multi_test on a single machine? Can we restore it?
+# multi_test || exit 1

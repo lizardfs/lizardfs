@@ -45,49 +45,43 @@
 : ${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Usage: read_cfg_var <config_file> <VARNAME> <sep> <DEFAULT_VALUE>
+read_cfg_var() {
+	local cfg_file=${1}
+	local var=${2}
+	local sep=${3:-=}
+	local default_value=${4}
+	{
+	echo "${default_value}"
+	sed -e 's/[[:blank:]]*#.*$//' -n \
+			-e 's/^[[:blank:]]*'"${var}"'[[:blank:]]*'"${sep}"'[[:blank:]]*\(.*\)$/\1/p' "$cfg_file"
+	} | tail -n 1
+}
 
 # Parameters for this resource agent, with default values
 
-OCF_RESKEY_data_dir_default=/var/lib/mfs
-OCF_RESKEY_config_dir_default=/etc/mfs
 OCF_RESKEY_run_dir_default=${HA_VARRUN}/mfs
-OCF_RESKEY_user_default=mfs
-OCF_RESKEY_group_default=mfs
-OCF_RESKEY_matoml_host_default=*
-OCF_RESKEY_matoml_port_default=9419
-OCF_RESKEY_matocs_host_default=*
-OCF_RESKEY_matocs_port_default=9420
-OCF_RESKEY_matocl_host_default=*
-OCF_RESKEY_matocl_port_default=9421
+OCF_RESKEY_master_cfg_default=/etc/mfs/mfsmaster.cfg
 
-: ${OCF_RESKEY_data_dir:=$OCF_RESKEY_data_dir_default}
-: ${OCF_RESKEY_config_dir:=$OCF_RESKEY_config_dir_default}
 : ${OCF_RESKEY_run_dir:=$OCF_RESKEY_run_dir_default}
-: ${OCF_RESKEY_user:=$OCF_RESKEY_user_default}
-: ${OCF_RESKEY_group:=$OCF_RESKEY_group_default}
-: ${OCF_RESKEY_matoml_host:=$OCF_RESKEY_matoml_host_default}
-: ${OCF_RESKEY_matoml_port:=$OCF_RESKEY_matoml_port_default}
-: ${OCF_RESKEY_matocs_host:=$OCF_RESKEY_matocs_host_default}
-: ${OCF_RESKEY_matocs_port:=$OCF_RESKEY_matocs_port_default}
-: ${OCF_RESKEY_matocl_host:=$OCF_RESKEY_matocl_host_default}
-: ${OCF_RESKEY_matocl_port:=$OCF_RESKEY_matocl_port_default}
-
-OCF_RESKEY_master_cfg_default=${OCF_RESKEY_config_dir}/mfsmaster.cfg
-OCF_RESKEY_exports_cfg_default=${OCF_RESKEY_config_dir}/mfsexports.cfg
-OCF_RESKEY_topology_cfg_default=${OCF_RESKEY_config_dir}/mfstopology.cfg
-
 : ${OCF_RESKEY_master_cfg:=$OCF_RESKEY_master_cfg_default}
-: ${OCF_RESKEY_exports_cfg:=$OCF_RESKEY_exports_cfg_default}
-: ${OCF_RESKEY_topology_cfg:=$OCF_RESKEY_topology_cfg_default}
 
 # Convenience variables
 
 run_cfg_dir=${OCF_RESKEY_run_dir}/${OCF_RESOURCE_INSTANCE}
-lock_timeout=10  # seconds
 master_run_cfg=${run_cfg_dir}/mfsmaster.cfg
-master_metadata=${OCF_RESKEY_data_dir}/metadata.mfs
-master_lock=${OCF_RESKEY_data_dir}/metadata.mfs.lock
-master_backup_logs=${OCF_RESKEY_data_dir}/changelog.mfs.*
+lock_timeout=10  # seconds
+
+data_dir=$(read_cfg_var ${OCF_RESKEY_master_cfg} DATA_PATH = /var/lib/mfs)
+matocl_host=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_HOST = '*')
+matocl_port=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_PORT = 9421)
+lizardfs_user=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_USER = mfs)
+lizardfs_group=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = mfs)
+exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = /etc/mfs/mfsexports.cfg)
+
+master_metadata=${data_dir}/metadata.mfs
+master_lock=${data_dir}/metadata.mfs.lock
+master_backup_logs=${data_dir}/changelog.mfs.*
 
 
 # About
@@ -139,26 +133,6 @@ IP address (floating failover IP) of master server.
       </shortdesc>
       <content type="string" />
     </parameter>
-    <parameter name="data_dir" unique="0" required="0">
-      <longdesc lang="en">
-Directorty that LizardFS will will store persistent data in; master
-metadata, shadow metadata, and logs.
-      </longdesc>
-      <shortdesc lang="en">
-        Persistent data directory
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_data_dir_default"/>
-    </parameter>
-    <parameter name="config_dir" unique="0" required="0">
-      <longdesc lang="en">
-Directory that LizardFS will find master config files in, if paths to
-individual config file have not been configured.
-      </longdesc>
-      <shortdesc lang="en">
-        Config file directory
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_config_dir_default"/>
-    </parameter>
     <parameter name="run_dir" unique="0" required="0">
       <longdesc lang="en">
 Directory that mfsmaster resource agent will store temporary config
@@ -177,98 +151,6 @@ Config file for mfs-master; will find in config_dir if not specified.
         Config file for mfs-master
       </shortdesc>
       <content type="string" default="$OCF_RESKEY_master_cfg_default"/>
-    </parameter>
-    <parameter name="exports_cfg" unique="0" required="0">
-      <longdesc lang="en">
-Config file describing access controls for exported filesyste; will find in
-config_dir if not specified.
-      </longdesc>
-      <shortdesc lang="en">
-        Exports config file for mfs-master
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_master_cfg_default"/>
-    </parameter>
-    <parameter name="topology_cfg" unique="0" required="0">
-      <longdesc lang="en">
-Config file describing topology of server layout; will find in config_dir if
-not specified.
-      </longdesc>
-      <shortdesc lang="en">
-        Topology config file for mfs-master
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_master_cfg_default"/>
-    </parameter>
-    <parameter name="user" unique="0" required="0">
-      <longdesc lang="en">
-User to run mfs-master as.
-      </longdesc>
-      <shortdesc lang="en">
-        User to run mfs-master as
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_user_default"/>
-    </parameter>
-    <parameter name="group" unique="0" required="0">
-      <longdesc lang="en">
-Group to run mfs-master as.
-      </longdesc>
-      <shortdesc lang="en">
-        Group to run mfs-master as
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_group_default"/>
-    </parameter>
-    <parameter name="matoml_host" unique="0" required="0">
-      <longdesc lang="en">
-Host (IP) to listen for metalogger and shadow master connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Host to listen for metalogger and shadow master
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matoml_host_default"/>
-    </parameter>
-    <parameter name="matoml_port" unique="0" required="0">
-      <longdesc lang="en">
-Port to listen for metalogger and shadow master connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Port to listen for metalogger and shadow master
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matoml_port_default"/>
-    </parameter>
-    <parameter name="matocs_host" unique="0" required="0">
-      <longdesc lang="en">
-Host (IP) to listen for chunk server connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Host to listen for chunk servers
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matocs_host_default"/>
-    </parameter>
-    <parameter name="matocs_port" unique="0" required="0">
-      <longdesc lang="en">
-Port to listen for for chunk server connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Port to listen for chunk servers
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matocs_port_default"/>
-    </parameter>
-    <parameter name="matocl_host" unique="0" required="0">
-      <longdesc lang="en">
-Host (IP) to listen for client connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Host to listen for clients
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matocl_host_default"/>
-    </parameter>
-    <parameter name="matocl_port" unique="0" required="0">
-      <longdesc lang="en">
-Port to listen for client connections on.
-      </longdesc>
-      <shortdesc lang="en">
-        Port to listen for clients
-      </shortdesc>
-      <content type="string" default="$OCF_RESKEY_matocl_port_default"/>
     </parameter>
   </parameters>
   <actions>
@@ -308,19 +190,9 @@ replace_cfg_var () {
 	# And add our replacement configuration
 	echo "$var = $val" >> "$tmp_cfg" \
 		|| return $OCF_ERR_GENERIC
-	chown "$OCF_RESKEY_user":"$OCF_RESKEY_group" "$tmp_cfg" \
+	chown "$lizardfs_user":"$lizardfs_group" "$tmp_cfg" \
 		|| return $OCF_ERR_GENERIC
 	mv "$tmp_cfg" "$cfg_file" || return $OCF_ERR_GENERIC
-}
-
-read_cfg_var() {
-	# Usage: read_cfg_var <config_file> <VARNAME>
-
-	local cfg_file=$1
-	local var=$2
-	echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e \
-			's/^[[:blank:]]*'$var'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' \
-			$cfg_file)
 }
 
 create_runtime_cfg() {
@@ -341,43 +213,9 @@ create_runtime_cfg() {
 		then
 			cp "$OCF_RESKEY_master_cfg" "$master_run_cfg" \
 				|| return $OCF_ERR_GENERIC
-			chown "$OCF_RESKEY_user":"$OCF_RESKEY_group" "$master_run_cfg" \
+			chown "$lizardfs_user":"$lizardfs_group" "$master_run_cfg" \
 				|| return $OCF_ERR_GENERIC
 		fi
-
-		replace_cfg_var "$master_run_cfg" WORKING_USER "$OCF_RESKEY_user" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" WORKING_GROUP "$OCF_RESKEY_group" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" DATA_PATH "$OCF_RESKEY_data_dir" \
-			|| return $?
-				ocf_log debug "Setting master host to '$OCF_RESKEY_master_ip'"
-				replace_cfg_var "$master_run_cfg" MASTER_HOST "$OCF_RESKEY_master_ip" \
-						|| return $OCF_ERR_GENERIC
-		replace_cfg_var "$master_run_cfg" \
-			EXPORTS_FILENAME "$OCF_RESKEY_exports_cfg" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			TOPOLOGY_FILENAME "$OCF_RESKEY_topology_cfg" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOML_LISTEN_HOST "$OCF_RESKEY_matoml_host" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOML_LISTEN_PORT "$OCF_RESKEY_matoml_port" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOCS_LISTEN_HOST "$OCF_RESKEY_matocs_host" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOCS_LISTEN_PORT "$OCF_RESKEY_matocs_port" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOCU_LISTEN_HOST "$OCF_RESKEY_matocl_host" \
-			|| return $?
-		replace_cfg_var "$master_run_cfg" \
-			MATOCU_LISTEN_PORT "$OCF_RESKEY_matocl_port" \
-			|| return $?
 
 		if [ $# -gt 1 ]
 		then
@@ -604,14 +442,14 @@ mfs_master_demote() {
 lizardfs_probe() {
 	# Probe this server and return the metadataserver-status information
 	local host
-	if [ "$OCF_RESKEY_matocl_host" = "*" ]
+	if [ "$matocl_host" = "*" ]
 	then
 		host=localhost
 	else
-		host=$OCF_RESKEY_matocl_host
+		host=$matocl_host
 	fi
 	lizardfs-probe metadataserver-status \
-		--porcelain "$host" "$OCF_RESKEY_matocl_port"
+		--porcelain "$host" "$matocl_port"
 }
 
 update_master_score() {
@@ -736,20 +574,20 @@ ensure_run_dir()
 
 	mkdir -p "$OCF_RESKEY_run_dir" || return $OCF_ERR_PERM
 	chmod 0755 "$OCF_RESKEY_run_dir" || return $OCF_ERR_PERM
-	chown -R $OCF_RESKEY_user:$OCF_RESKEY_group "$OCF_RESKEY_run_dir" \
+	chown -R $lizardfs_user:$lizardfs_group "$OCF_RESKEY_run_dir" \
 		|| return $OCF_ERR_PERM
 }
 
 ensure_dirs()
 {
 	# ensure that the metadata dir exists
-	mkdir -p "$OCF_RESKEY_data_dir" || return $OCF_ERR_PERM
-	chmod 0755 "$OCF_RESKEY_data_dir" || return $OCF_ERR_PERM
-	chown -R $OCF_RESKEY_user:$OCF_RESKEY_group "$OCF_RESKEY_data_dir" \
+	mkdir -p "$data_dir" || return $OCF_ERR_PERM
+	chmod 0755 "$data_dir" || return $OCF_ERR_PERM
+	chown -R $lizardfs_user:$lizardfs_group "$data_dir" \
 		|| return $OCF_ERR_PERM
-	if [ ! -e "$OCF_RESKEY_data_dir"/metadata.mfs ]; then
-		if [ ! -e "$OCF_RESKEY_data_dir"/metadata.mfs.back ]; then
-			echo "MFSM NEW" > "$OCF_RESKEY_data_dir"/metadata.mfs \
+	if [ ! -e "$data_dir"/metadata.mfs ]; then
+		if [ ! -e "$data_dir"/metadata.mfs.back ]; then
+			echo "MFSM NEW" > "$data_dir"/metadata.mfs \
 				|| return $OCF_ERR_PERM
 		fi
 	fi
@@ -767,9 +605,9 @@ mfs_master_validate() {
 		ocf_log err "mfsmaster.cfg not found at $OCF_RESKEY_master_cfg"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if ! [ -e "$OCF_RESKEY_exports_cfg" ]
+	if ! [ -e "$exports_cfg" ]
 	then
-		ocf_log err "mfsexports.cfg not found at $OCF_RESKEY_exports_cfg"
+		ocf_log err "mfsexports.cfg not found at $exports_cfg"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
