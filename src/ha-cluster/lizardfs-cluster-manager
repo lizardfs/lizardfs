@@ -1,6 +1,21 @@
 #!/bin/bash
+
+# TODO: Verify each command exit status.
+# TODO: Be careful while generating corosynf.conf,
+#       there may be more than one interface{} instance.
+
 NAME="lizardfs-cluster-manager"
-verbose=0
+LIZARDFS_CONF_DIR="/etc/mfs"
+LIZARDFS_DATA_DIR="/var/lib/mfs"
+LIZARDFS_MASTER_CONF="mfsmaster.cfg"
+LIZARDFS_MASTER_EXPORTS="mfsexports.cfg"
+LIZARDFS_MASTER_BINARY="mfsmaster"
+IP_REGEX='^([0-9]{1,3}[.]){3}[0-9]{1,3}$'
+BACKUP_STAMP="$(date +'%F_%T')"
+
+verbose=
+dry_run=
+options=()
 
 bailout() {
 	echo "[FAIL] $*" >&2
@@ -8,21 +23,130 @@ bailout() {
 }
 
 attempt() {
-	if [[ $verbose ]] ; then
+	if [[ ${verbose} ]] ; then
 		echo "[....] $*..." >&2
 	fi
 }
 
+info() {
+	if [[ ${verbose} ]] ; then
+		echo ">> $@" >&2
+	fi
+}
+
 ok() {
-	if [[ $verbose ]] ; then
+	if [[ ${verbose} ]] ; then
 		echo "[ OK ] $*" >&2
 	fi
 }
 
 warning() {
-	if [[ $verbose ]] ; then
+	if [[ ${verbose} ]] ; then
 		echo "[WARN] $*" >&2
 	fi
+}
+
+invoke() {
+	if [[ ${verbose} || ${dry_run} ]] ; then
+		echo "$@" >&2
+	fi
+	if [[ ! ${dry_run} ]] ; then
+		"$@"
+		if [[ $? != 0 ]] ; then
+			bailout "execution of \`$@' finished with erroneous exit status"
+		fi
+	fi
+}
+
+invoke_continue() {
+	if [[ ${verbose} || ${dry_run} ]] ; then
+		echo "$@" >&2
+	fi
+	if [[ ! ${dry_run} ]] ; then
+		"$@"
+	fi
+}
+
+# Usage: read_cfg_var <config_file> <VARNAME> <sep> <DEFAULT_VALUE>
+read_cfg_var() {
+	local cfg_file=${1}
+	local var=${2}
+	local sep=${3:-=}
+	local default_value=${4}
+	{
+	echo "${default_value}"
+	sed -e 's/[[:blank:]]*#.*$//' -n \
+			-e 's/^[[:blank:]]*'"${var}"'[[:blank:]]*'"${sep}"'[[:blank:]]*\(.*\)$/\1/p' "$cfg_file"
+	} | tail -n 1
+}
+
+# Usage: ask <default:Y|N> <question>
+# Asks a question and read answer.
+# Returns 0 status if answered "yes"
+ask() {
+	local default=$1
+	shift
+	local question="$*"
+	local reply
+	if [[ ${default} == Y ]] ; then
+		read -e -p "${question} (Y/n): " reply
+		[[ ! ${reply} =~ [nN]([oO])?$ ]]
+	elif [[ ${default} == N ]] ; then
+		read -e -p "${question} (y/N): " reply
+		[[ ${reply} =~ [yY]([eE][sS])?$ ]]
+	else
+		bailout "Wrong \`ask' usage: ask $*"
+	fi
+}
+
+restart_ha_services() {
+	invoke service corosync restart
+	max_tries=300
+	i=0
+	until service corosync status ; do
+		echo -n "."
+		i=$((i + 1))
+		if [[ ${i} -gt ${max_tries} ]] ; then
+			bailout "Failed to bring up cluster instance (corosync)"
+		fi
+		sleep .5
+	done
+	echo ""
+	invoke service pacemaker restart
+	i=0
+	until [[ $(crm_mon -1 -Q -s) =~ online ]] > /dev/null ; do
+		echo -n "."
+		i=$((i + 1))
+		if [[ ${i} -gt ${max_tries} ]] ; then
+			bailout "Failed to bring up cluster instance (pacemaker)"
+		fi
+		sleep .5
+	done
+	echo ""
+}
+
+stop_ha_services() {
+	max_tries=300
+	invoke_continue service pacemaker stop
+	i=0
+	while service pacemaker status > /dev/null ; do
+		echo -n "."
+		i=$((i + 1))
+		if [[ ${i} -gt ${max_tries} ]] ; then
+			bailout "Failed to stop cluster node (pacemaker)"
+		fi
+		sleep .5
+	done
+	invoke_continue service corosync stop
+	i=0
+	while service corosync status > /dev/null ; do
+		echo -n "."
+		i=$((i + 1))
+		if [[ ${i} -gt ${max_tries} ]] ; then
+			bailout "Failed to stop cluster node (corosync)"
+		fi
+		sleep .5
+	done
 }
 
 print_help() {
@@ -49,15 +173,254 @@ where COMMAND is one of the following:
 where OPTIONS is any combination of the following:
   --help               Print help and exit
   --verbose            Increase program verbosity
+  --dry-run --no-act   Do not execute any commands, only show what would happen
 EOH
+}
+
+validate_installation() {
+	if [[ ! -e "/usr/sbin/${LIZARDFS_MASTER_BINARY}" ]] ; then
+		bailout "Missing metadata server executable binary (/usr/sbin/${LIZARDFS_MASTER_BINARY}), `
+				`your LizardFS installation is broken"
+	fi
+	if [[ ! -d "${LIZARDFS_CONF_DIR}" ]] ; then
+		bailout "Missing LizardFS configuration directory (${LIZARDFS_CONF_DIR})"
+	fi
+	if [[ ! -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist" ]] ; then
+		bailout "Missing lizardfs metadata server main configuration file `
+				`(${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist)"
+	fi
+	if [[ ! -d "/etc/corosync" ]] ; then
+		bailout "Missing \`corosync' configuration directory (/etc/corosync)"
+	fi
+	if [[ ! -f "/etc/corosync/corosync.conf" ]] ; then
+		bailout "Missing main \`corosync' configuration file (/etc/corosync/corosync.conf)"
+	fi
+	if [[ ! -e "/usr/sbin/crm" ]] ; then
+		bailout "Missing \`corosync' executable binary (/usr/sbin/crm), `
+				`your corosync installation is broken"
+	fi
+	if [[ ! -f "/etc/default/corosync" ]] ; then
+		bailout "Missing \`corosync' startup configuration file (/etc/default/corosync), `
+				`your corosync installation is broken"
+	fi
 }
 
 create_new_cluster() {
 	attempt "Creating a new cluster"
+	local temp=$(getopt -o o: --long out-file: -n "${NAME} create-new-cluster" -- "${options[@]}")
+	if [[ $? != 0 ]] ; then
+		bailout "wrong usage of create-new-cluster"
+	fi
+	eval set -- "$temp"
+	unset temp
+	while true ; do
+		case "$1" in
+			-o|--out-file) shift ; local out_file=$1 ; shift ;;
+			--) shift ; break ;;
+		esac
+	done
+	if [[ ${out_file} == "" ]] ; then
+		bailout "You have to specify output file with \`--out-file=...' argument"
+	fi
+	if [[ -f "${out_file}" ]] ; then
+		bailout "Cluster configuration output file already exists (${out_file})"
+	fi
+
+	# Choose a configuration file
+	local master_cfg=
+	if [[ -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}" ]] ; then
+		master_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}"
+	elif [[ -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist" ]] ; then
+		master_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}.dist"
+	fi
+	reply=
+	while [[ ! -f "${reply}" ]] ; do
+		read -e -p "Which LizardFS master server configuration should be imported? " -i "${master_cfg}" reply
+	done
+	master_cfg=${reply}
+
+	local data_path=$(read_cfg_var "${master_cfg}" DATA_PATH = "${LIZARDFS_DATA_DIR}")
+	reply=
+	while [[ ! -d ${reply} ]] ; do
+		read -e -p "Where LizardFS metadata should be stored? " -i "${data_path}" reply
+		if [[ "${reply}" && ! -d "${reply}" ]] ; then
+			if ask Y "The \`${reply}' directory does not exist, should it be created?" ; then
+				invoke mkdir "${reply}"
+				invoke chown mfs:mfs "${reply}"
+				invoke chmod 755 "${reply}"
+			fi
+		fi
+	done
+	data_path=${reply}
+	info "LizardFS will store its metadata files in: \`${data_path}'"
+
+	local reply=
+	while [[ ! "${reply}" =~ $IP_REGEX ]]; do
+		echo "What IP address should LizardFS use as floating failover-ip"
+		read -e -p "where metadata server will be visible? " reply
+	done
+	master_host="${reply}"
+
+	local metadata_file="$data_path/metadata.mfs"
+	if [[ ! -f "$metadata_file" ]] ; then
+		if ask Y "Metadata file \`$metadata_file' doesn't exists, but is required. `
+				`Should an empty filesystem be created?" ; then
+			# Safely create a metadata file with empty metadata
+			attempt "Creating ${metadata_file}"
+			local temp_metadata="$metadata_file.new.cluster"
+			invoke tee "$temp_metadata" >/dev/null <<<"MFSM NEW"
+			invoke chown mfs:mfs "$temp_metadata"
+			invoke chmod 444 "$temp_metadata"
+			invoke ln "$temp_metadata" "$metadata_file"
+			invoke rm -f "$temp_metadata"
+		else
+			bailout "Can't proceed without metadata."
+		fi
+	else
+		if ! ask Y "Metadata file \`$metadata_file' exists. Should it be used?" ; then
+			bailout "Can't proceed without metadata."
+		fi
+	fi
+
+	local exports_filename=$(read_cfg_var ${master_cfg} \
+		EXPORTS_FILENAME = "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}")
+	if [[ ! -f ${exports_filename} ]] ; then
+		if [[ ! -f "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist" ]] ; then
+			bailout "Specified exports configuration file (${exports_filename})" \
+				"does not exist and no template file" \
+				"(${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist)" \
+				"could be found, your installation is broken."
+		fi
+		if ask Y "The configured exports file \`${exports_filename}' does not exists," \
+				"should a template file be installed?" ; then
+			invoke cp "${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_EXPORTS}.dist" "${exports_filename}"
+		else
+			bailout "Cannot continue without a valid exports configuration file"
+		fi
+	fi
+
+	# Create the configuration file of the cluster
+	local new_mfsmaster_cfg="${LIZARDFS_CONF_DIR}/${LIZARDFS_MASTER_CONF}"
+	reply=
+	while [[ ! "${reply}" ]] ; do
+		read -e -p "Where LizardFS master server configuration file for the cluster should be created? " -i "${new_mfsmaster_cfg}" reply
+	done
+	new_mfsmaster_cfg=${reply}
+
+	if [[ -f "${new_mfsmaster_cfg}" ]]; then
+		if ask Y "\`${new_mfsmaster_cfg}' file exists, should it be backed up `
+				`as ${new_mfsmaster_cfg}.back and recreated?" ; then
+			invoke cp "${new_mfsmaster_cfg}" "${new_mfsmaster_cfg}".back
+		fi
+	fi
+	attempt "Creating ${new_mfsmaster_cfg}"
+	local temp_config=$(mktemp "${LIZARDFS_MASTER_CONF}.XXXXXXXXXX")
+	invoke cp "${master_cfg}" "${temp_config}"
+	{
+		echo "PERSONALITY = auto"
+		echo "DATA_PATH = ${data_path}"
+		echo "MASTER_HOST = ${master_host}"
+		egrep -v 'PERSONALITY|DATA_PATH|MASTER_HOST' "${temp_config}"
+	} | invoke tee "${new_mfsmaster_cfg}" >/dev/null
+	invoke rm -f "${temp_config}"
+	invoke chown root:root "${new_mfsmaster_cfg}"
+	invoke chmod 644 "${new_mfsmaster_cfg}"
+
+	# Check if we need to create a new authkey
+	local do_create_authkey=
+	corosync_authkey="/etc/corosync/authkey"
+	if [[ -f "${corosync_authkey}" ]] ; then
+		if ask N "Cluster authkey already exists, do you want to create new one?" ; then
+			local do_create_authkey=1
+		fi
+	else
+		local do_create_authkey=1
+	fi
+
+	# Choose a multicast address for corosync
+	local corosync_conf="/etc/corosync/corosync.conf"
+	local mcastaddr=$(read_cfg_var ${corosync_conf} mcastaddr :)
+	local reply=
+	while [[ ! "${reply}" =~ $IP_REGEX ]]; do
+		read -e -p "What Multicast address corosync service shall use? " -i "${mcastaddr}" reply
+	done
+	mcastaddr="${reply}"
+
+	# Choose bind address for corosync
+	local bindnetaddr=$(read_cfg_var ${corosync_conf} bindnetaddr :)
+	LOCAL_IP_RE='\<127[.]0[.]0[.]1\>'
+	if [[ "${bindnetaddr}" =~ $LOCAL_IP_RE ]] ; then
+		bindnetaddr=$(echo ${master_host} | sed -e 's/\(.*[.].*[.].*\)[.].*/\1.0/')
+	fi
+	reply=
+	while [[ ! "${reply}" =~ $IP_REGEX || "${reply}" == 127.* ]] ; do
+		read -e -p "Which network address shall corosync service bind to? " -i "${bindnetaddr}" reply
+	done
+	bindnetaddr="${reply}"
+
+	local temp_config=$(mktemp "${corosync_conf}.XXXXXXXXXX")
+	invoke sed -e "s/mcastaddr:.*/mcastaddr: ${mcastaddr}/" \
+		-e "s/bindnetaddr:.*/bindnetaddr: ${bindnetaddr}/" "${corosync_conf}" > "${temp_config}"
+	invoke mv -f "${corosync_conf}" "${corosync_conf}.${BACKUP_STAMP}"
+	invoke mv -f "${temp_config}" "${corosync_conf}"
+	invoke chown root:root "${corosync_conf}"
+	invoke chmod 644 "${corosync_conf}"
+
+	# Configure the cluster!
+
+	if [[ ${do_create_authkey} ]] ; then
+		attempt "Creating a new authkey for cluster"
+		invoke /usr/sbin/corosync-keygen -l
+	fi
+
+	attempt "Starting cluster instance"
+	invoke sed -i -e 's/^START=no$/START=yes/' /etc/default/corosync
+	restart_ha_services
+	invoke crm configure property stonith-enabled=false
+	invoke crm configure primitive Failover-IP ocf:heartbeat:IPaddr2 params ip=${master_host} cidr_netmask=24 op monitor interval=1s
+	invoke crm configure primitive lizardfs-master ocf:lizardfs:metadataserver \
+		params master_ip=${master_host} op monitor role="Master" interval="10s" \
+		op monitor role="Slave" interval="20s"
+# TODO: Check if adding `clone-max="N"' with proper N is necessary.
+	invoke crm configure ms lizardfs-ms lizardfs-master \
+		meta master-max="1" master-node-max="1" clone-node-max="1" \
+		notify="true" target-role="Master"
+	invoke crm configure colocation ip-with-master inf: Failover-IP lizardfs-ms:Master
+	invoke crm configure order ip-after-master inf: lizardfs-ms:promote Failover-IP:start
+
+# TODO: Do not forget to add other lizardfs-master config files
+#       to cluster configuration bundle i.e.: mfsgoals.cfg.
+	invoke tar czPf "${out_file}" "${corosync_conf}" "${corosync_authkey}" "${new_mfsmaster_cfg}" "${exports_filename}"
 }
 
 add_metadata_node() {
 	attempt "Adding metadata server node to the cluster"
+	temp=$(getopt -o i: --long in-file: -n "${NAME} add-metadata-node" -- "${options[@]}")
+	if [[ $? != 0 ]] ; then
+		bailout "wrong usage of add-metadata-node"
+	fi
+	eval set -- "$temp"
+	unset temp
+	while true ; do
+		case "$1" in
+			-i|--in-file) shift ; local in_file=$1 ; shift ;;
+			--) shift ; break ;;
+		esac
+	done
+	if [[ ${in_file} == "" ]] ; then
+		bailout "You have to specify input file with \`--in-file=...' argument"
+	fi
+	if [[ ! -f "${in_file}" ]] ; then
+		bailout "Cluster configuration input file does not exist (${in_file})"
+	fi
+	invoke tar ztpPf ${in_file} | while read file ; do
+		if [[ -f "${file}" ]] ; then
+			invoke mv "${file}" "${file}.${BACKUP_STAMP}"
+		fi
+	done
+	invoke tar zxpPf ${in_file}
+	invoke sed -i -e 's/^START=no$/START=yes/' /etc/default/corosync
+	restart_ha_services
 }
 
 add_elector_node() {
@@ -66,6 +429,8 @@ add_elector_node() {
 
 remove_this_node() {
 	attempt "Removing this node from the cluster"
+	stop_ha_services
+	invoke sed -i -e 's/^START=yes$/START=no/' /etc/default/corosync
 }
 
 status() {
@@ -96,8 +461,12 @@ upload_configuration() {
 	attempt "Uploading metadata server configuration to another node"
 }
 
+# First, validate installation
+validate_installation
+
 # Proces command line options using getopt
-temp=$(getopt -o hv --long help,verbose -n ${NAME} -- "$@")
+argv=("$@")
+temp=$(getopt -o hvno:i: --long help,verbose,dry-run,no-act,out-file:,in-file: -n ${NAME} -- "${argv[@]}")
 if [[ $? != 0 ]] ; then
 	bailout "wrong usage";
 fi
@@ -107,18 +476,40 @@ unset temp
 # Parse options
 while true ; do
 	case "$1" in
-		-h|--help) print_help; exit 0;;
-		-v|--verbose) verbose=1; shift ;;
-		--) shift ; break ;;
-		*) echo "Internal error!" ; exit 1 ;;
+		-h|--help)
+			print_help
+			exit 0
+			;;
+		-v|--verbose)
+			verbose=1
+			shift
+			;;
+		-n|--dry-run|--no-act)
+			dry_run=1
+			shift
+			;;
+		-i|-o|--in-file|--out-file)
+			options+=("$1" "$2")
+			shift 2
+			;;
+		--)
+			shift
+			break
+			;;
+		*)
+			bailout "Internal error!"
+			;;
 	esac
 done
 
-if [[ $# -ne 1 ]]; then
-	bailout "Expected exactly one command, got ${#} commands: \`${@}'"
+if [[ $# -eq 0 ]]; then
+	bailout "wrong usage: no command"
+elif [[ $# -ne 1 ]]; then
+	bailout "wrong usage: expected exactly one command, got ${#} commands: \`${@}'"
 fi
+command=${1}
 
-case "${1}" in
+case "${command}" in
 	create-new-cluster)     create_new_cluster ;;
 	add-metadata-node)      add_metadata_node ;;
 	add-elector-node)       add_elector_node ;;
@@ -131,6 +522,6 @@ case "${1}" in
 	download-configuration) download_configuration ;;
 	upload-configuration)   upload_configuration ;;
 	help)                   print_help ;;
-	*)                      bailout "Unknown command \`${1}'" ;;
+	*)                      bailout "Unknown command \`${command}'" ;;
 esac
 
