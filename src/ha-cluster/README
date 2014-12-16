@@ -21,7 +21,7 @@ crmsh, which I've found works best on Ubuntu, though the syntax for pcs will
 be fairly similar:
 
 $ crm configure primitive lizardfs-master ocf:lizardfs:mfsmaster \
-    param master_ip=Failover-IP data_dir=/var/lib/mfs-ha config_dir=/etc/mfs-ha \
+    params master_ip=Failover-IP data_dir=/var/lib/mfs config_dir=/etc/mfs \
     op monitor role="Master" interval="10s" \
     op monitor role="Slave" interval="20s"
 
@@ -51,7 +51,7 @@ the master around.  We want it to always be on the server that the master is on,
 and come up after the master has come up.  We can achieve that with:
 
 $ crm configure colocation ip-with-master inf: ClusterIP lizardfs-ms:Master
-$ crm configure order ip-after-master inf: lizardfs-clone:promote ClusterIP:start
+$ crm configure order ip-after-master inf: lizardfs-ms:promote ClusterIP:start
 
 You can now play around; bring them all down to slave states with the
 following:
