@@ -260,7 +260,7 @@ fi
 %setup
 
 %build
-%configure
+./configure --with-doc --without-ha
 make %{?_smp_mflags}
 
 %install
@@ -301,7 +301,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man7/lizardfs.7*
 %{_mandir}/man8/mfsmaster.8*
+%{_mandir}/man8/mfsmetadump.8*
 %{_mandir}/man8/mfsmetarestore.8*
+%{_mandir}/man8/mfsrestoremaster.8*
 %{liz_confdir}/mfsexports.cfg.dist
 %{liz_confdir}/mfstopology.cfg.dist
 %{liz_confdir}/mfsgoals.cfg.dist
