@@ -21,7 +21,6 @@ crmsh, which I've found works best on Ubuntu, though the syntax for pcs will
 be fairly similar:
 
 $ crm configure primitive lizardfs-master ocf:lizardfs:mfsmaster \
-    params master_ip=Failover-IP data_dir=/var/lib/mfs config_dir=/etc/mfs \
     op monitor role="Master" interval="10s" \
     op monitor role="Slave" interval="20s"
 

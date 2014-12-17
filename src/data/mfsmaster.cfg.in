@@ -7,6 +7,9 @@
 ## Only one metadata server in LizardFS shall have 'master' personality.
 # PERSONALITY = master
 
+## Password for administrative connections and commands.
+# ADMIN_PASSWORD =
+
 ## User to run daemon as.
 # WORKING_USER = @DEFAULT_USER@
 

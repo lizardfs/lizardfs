@@ -104,3 +104,14 @@ Description: OCF-compliant resource agents for LizardFS
  .
  This package offers OCF-compliant resource agents for integrating LizardFS with
  OCF compliant resource managers such as Pacemaker.
+
+Package: lizardfs-cluster-manager
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         lizardfs-cluster-agents,
+Description: Corosync+Pacemaker based LizardFS cluster manager
+ LizardFS is a distributed filesystem.
+ .
+ This package offers means for simplified LizardFS deployment
+ on cluster infrastructure.
