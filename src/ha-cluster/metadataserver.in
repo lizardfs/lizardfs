@@ -61,7 +61,7 @@ read_cfg_var() {
 # Parameters for this resource agent, with default values
 
 OCF_RESKEY_run_dir_default=${HA_VARRUN}/mfs
-OCF_RESKEY_master_cfg_default=/etc/mfs/mfsmaster.cfg
+OCF_RESKEY_master_cfg_default=@ETC_PATH@/mfs/mfsmaster.cfg
 
 : ${OCF_RESKEY_run_dir:=$OCF_RESKEY_run_dir_default}
 : ${OCF_RESKEY_master_cfg:=$OCF_RESKEY_master_cfg_default}
@@ -72,12 +72,12 @@ run_cfg_dir=${OCF_RESKEY_run_dir}/${OCF_RESOURCE_INSTANCE}
 master_run_cfg=${run_cfg_dir}/mfsmaster.cfg
 lock_timeout=10  # seconds
 
-data_dir=$(read_cfg_var ${OCF_RESKEY_master_cfg} DATA_PATH = /var/lib/mfs)
+data_dir=$(read_cfg_var ${OCF_RESKEY_master_cfg} DATA_PATH = @DATA_PATH@)
 matocl_host=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_HOST = '*')
 matocl_port=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_PORT = 9421)
 lizardfs_user=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_USER = mfs)
 lizardfs_group=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = mfs)
-exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = /etc/mfs/mfsexports.cfg)
+exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @ETC_PATH@/mfs/mfsexports.cfg)
 
 master_metadata=${data_dir}/metadata.mfs
 master_lock=${data_dir}/metadata.mfs.lock

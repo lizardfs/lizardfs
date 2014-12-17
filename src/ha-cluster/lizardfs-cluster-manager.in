@@ -5,8 +5,8 @@
 #       there may be more than one interface{} instance.
 
 NAME="lizardfs-cluster-manager"
-LIZARDFS_CONF_DIR="/etc/mfs"
-LIZARDFS_DATA_DIR="/var/lib/mfs"
+LIZARDFS_CONF_DIR="@ETC_PATH@/mfs"
+LIZARDFS_DATA_DIR="@DATA_PATH@"
 LIZARDFS_MASTER_CFG="mfsmaster.cfg"
 LIZARDFS_EXPORTS_CFG="mfsexports.cfg"
 LIZARDFS_MASTER_BINARY="mfsmaster"
@@ -184,8 +184,8 @@ EOH
 }
 
 validate_installation() {
-	if [[ ! -e "/usr/sbin/${LIZARDFS_MASTER_BINARY}" ]] ; then
-		bailout "Missing metadata server executable binary (/usr/sbin/${LIZARDFS_MASTER_BINARY}), `
+	if [[ ! -e "@SBIN_PATH@/${LIZARDFS_MASTER_BINARY}" ]] ; then
+		bailout "Missing metadata server executable binary (@SBIN_PATH@/${LIZARDFS_MASTER_BINARY}), `
 				`your LizardFS installation is broken"
 	fi
 	if [[ ! -d "${LIZARDFS_CONF_DIR}" ]] ; then
