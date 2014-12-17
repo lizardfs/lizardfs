@@ -22,9 +22,17 @@
 
 #include <inttypes.h>
 #include <poll.h>
+#include <string>
+#include <vector>
 
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1
+
+/*! \brief Returns additional command line arguments.
+ *
+ * Additional command line arguments can be passed using '-o extra_option' syntax.
+ */
+const std::vector<std::string>& main_get_extra_arguments();
 
 void main_destructregister (void (*fun)(void));
 void main_canexitregister (int (*fun)(void));
@@ -33,12 +41,14 @@ void main_reloadregister (void (*fun)(void));
 void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *));
 void main_eachloopregister (void (*fun)(void));
 void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
+
 /*! \brief Make the next poll nonblocking
  */
 void main_make_next_poll_nonblocking();
+
 /*! \brief Unregister previously registered timed event handler.
  *
- * \param hadle - handle to currently registered timed event.
+ * \param handle - handle to currently registered timed event.
  */
 void main_timeunregister (void* handle);
 int main_timechange(void *x,int mode,uint32_t seconds,uint32_t offset);

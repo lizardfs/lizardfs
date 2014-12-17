@@ -150,10 +150,15 @@ TimeEntries gTimeEntries;
 static uint32_t now;
 static uint64_t usecnow;
 static bool gRunAsDaemon = true;
+static std::vector<std::string> gExtraArguments;
 
 static int signalpipe[2];
 
 /* interface */
+
+const std::vector<std::string>& main_get_extra_arguments() {
+	return gExtraArguments;
+}
 
 void main_make_next_poll_nonblocking() {
 	nextPollNonblocking = true;
@@ -1038,6 +1043,7 @@ void usage(const char *appname) {
 "-u : log undefined config variables\n"
 "-t locktimeout : how long wait for lockfile\n"
 "-c cfgfile : use given config file\n"
+"-o extra_option : module specific extra option\n"
 	,appname);
 	exit(LIZARDFS_EXIT_STATUS_ERROR);
 }
@@ -1065,7 +1071,7 @@ int main(int argc,char **argv) {
 	lockmemory = 0;
 	appname = argv[0];
 
-	while ((ch = getopt(argc, argv, "c:dht:uvx?")) != -1) {
+	while ((ch = getopt(argc, argv, "o:c:dht:uvx?")) != -1) {
 		switch(ch) {
 			case 'v':
 				printf("version: %s\n",LIZARDFS_PACKAGE_VERSION);
@@ -1075,6 +1081,9 @@ int main(int argc,char **argv) {
 				break;
 			case 't':
 				locktimeout=strtoul(optarg,NULL,10);
+				break;
+			case 'o':
+				gExtraArguments.emplace_back(optarg);
 				break;
 			case 'c':
 				cfgfile = strdup(optarg);
