@@ -82,7 +82,7 @@ typedef struct packetstruct {
 struct masterconn {
 	int mode;
 	int sock;
-	uint32_t version;
+	uint32_t version; // version of the master server; known by shadow masters after registration
 	int32_t pdescpos;
 	uint32_t lastread,lastwrite;
 	uint8_t hdrbuff[8];
@@ -880,6 +880,7 @@ void masterconn_connecttest(masterconn *eptr) {
 		eptr->sock = -1;
 		eptr->mode = FREE;
 		eptr->masteraddrvalid = 0;
+		eptr->version = 0;
 	} else {
 		syslog(LOG_NOTICE,"connected to Master");
 		masterconn_connected(eptr);
@@ -1071,6 +1072,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 			free(paptr);
 		}
 		eptr->mode = FREE;
+		eptr->version = 0;
 	}
 }
 
@@ -1193,6 +1195,7 @@ int masterconn_init(void) {
 	eptr->mode = FREE;
 	eptr->pdescpos = -1;
 	eptr->metafd = -1;
+	eptr->version = 0;
 	eptr->state = MasterConnectionState::kNone;
 #ifdef METALOGGER
 	changelogsMigrateFrom_1_6_29("changelog_ml");
@@ -1217,5 +1220,9 @@ int masterconn_init(void) {
 }
 
 bool masterconn_is_connected() {
-	return (masterconnsingleton && masterconnsingleton->sock != -1);
+	masterconn *eptr = masterconnsingleton;
+	return (eptr != nullptr
+			&& (eptr->mode == HEADER || eptr->mode == DATA) // socket is connected
+			&& eptr->version > 0 // registration was successful
+	);
 }
