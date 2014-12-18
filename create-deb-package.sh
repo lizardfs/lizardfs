@@ -17,11 +17,11 @@ cd "$working_dir/lizardfs"
 if [[ ${BUILD_NUMBER:-} && ${OFFICIAL_RELEASE:-} == "false" ]] ; then
 	# Jenkins has called us. Add build number to the package version
 	# and add information about commit to changelog.
-	version=$(dpkg-parsechangelog | awk '/^Version:/{print $2}')
-	dch -D "unstable" -v "${version}-0skytechnology${BUILD_NUMBER}" \
-			"Automatic jenkins build ${BUILD_URL:-}" \
-			"commit: ${GIT_COMMIT:-}" \
-			"refspec: ${GERRIT_REFSPEC:-}"
+	lizard_version=$(dpkg-parsechangelog | awk '/^Version:/{print $2}')
+	version="${lizard_version}-0skytechnology${BUILD_NUMBER}"
+	dch -D "unstable" -v "$version" "Automatic jenkins build ${BUILD_URL:-}"
+	dch -D "unstable" -a "commit: ${GIT_COMMIT:-}"
+	dch -D "unstable" -a "refspec: ${GERRIT_REFSPEC:-}"
 fi
 dpkg-buildpackage -uc -us -F
 
