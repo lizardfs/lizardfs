@@ -60,4 +60,6 @@ run_tab RunTab[]={
 	{(runfn)0,"****"}
 },LateRunTab[]={
 	{(runfn)0,"****"}
+},EarlyRunTab[]={
+	{(runfn)0,"****"}
 };

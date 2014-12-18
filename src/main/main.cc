@@ -454,34 +454,15 @@ void mainloop() {
 	}
 }
 
-int initialize(void) {
+int initialize(run_tab* tab) {
 	uint32_t i;
 	int ok;
 	ok = 1;
-	for (i=0 ; (long int)(RunTab[i].fn)!=0 && ok ; i++) {
+	for (i=0 ; (long int)(tab[i].fn)!=0 && ok ; i++) {
 		now = time(NULL);
 		try {
-			if (RunTab[i].fn() < 0) {
-				lzfs_pretty_syslog(LOG_ERR, "init: %s failed", RunTab[i].name);
-				ok=0;
-			}
-		} catch (const std::exception& e) {
-			lzfs_pretty_syslog(LOG_ERR, "%s", e.what());
-			ok = 0;
-		}
-	}
-	return ok;
-}
-
-int initialize_late(void) {
-	uint32_t i;
-	int ok;
-	ok = 1;
-	for (i=0 ; (long int)(LateRunTab[i].fn)!=0 && ok ; i++) {
-		now = time(NULL);
-		try {
-			if (LateRunTab[i].fn()<0) {
-				lzfs_pretty_syslog(LOG_ERR,"init: %s failed",RunTab[i].name);
+			if (tab[i].fn()<0) {
+				lzfs_pretty_syslog(LOG_ERR,"init: %s failed",tab[i].name);
 				ok=0;
 			}
 		} catch (const std::exception& e) {
@@ -491,6 +472,18 @@ int initialize_late(void) {
 	}
 	now = time(NULL);
 	return ok;
+}
+
+int initialize_early(void) {
+	return initialize(EarlyRunTab);
+}
+
+int initialize(void) {
+	return initialize(RunTab);
+}
+
+int initialize_late(void) {
+	return initialize(LateRunTab);
 }
 
 const std::string& set_syslog_ident() {
@@ -1202,6 +1195,15 @@ int main(int argc,char **argv) {
 	free(wrkdir);
 
 	umask(cfg_getuint32("FILE_UMASK",027)&077);
+
+	if (!initialize_early()) {
+		if (gRunAsDaemon) {
+			fputc(0, stderr);
+			close_msg_channel();
+		}
+		closelog();
+		return LIZARDFS_EXIT_STATUS_ERROR;
+	}
 
 	std::unique_ptr<FileLock> fl;
 	try {
