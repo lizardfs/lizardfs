@@ -211,10 +211,10 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		std::string, hostname)
 
 // LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE
-typedef std::array<uint8_t, 32> LizMatoclAdminRegisterChallangeData;
+typedef std::array<uint8_t, 32> LizMatoclAdminRegisterChallengeData;
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, adminRegisterChallange, LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE, 0,
-		LizMatoclAdminRegisterChallangeData, data)
+		matocl, adminRegisterChallenge, LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE, 0,
+		LizMatoclAdminRegisterChallengeData, data)
 
 // LIZ_MATOCL_ADMIN_REGISTER_RESPONSE
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
@@ -225,3 +225,9 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, adminBecomeMaster, LIZ_MATOCL_ADMIN_BECOME_MASTER, 0,
 		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminStopWithoutMetadataDump, LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP, 0,
+		uint8_t, status)
+

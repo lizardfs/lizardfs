@@ -6,7 +6,7 @@ MASTERSERVERS=$metaservers_nr \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
 	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
-	MASTER_EXTRA_CONFIG="MAGIC_AUTO_FILE_REPAIR = 1 | SAVE_METADATA_AT_EXIT = 0" \
+	MASTER_EXTRA_CONFIG="MAGIC_AUTO_FILE_REPAIR = 1" \
 	setup_local_empty_lizardfs info
 
 assert_program_installed git
@@ -31,7 +31,7 @@ master_kill_loop() {
 
 		# Kill the previous master
 		assert_eventually "lizardfs_shadow_synchronized $new_master_id"
-		lizardfs_master_daemon stop
+		lizardfs_admin_stop
 		lizardfs_make_conf_for_shadow $prev_master_id
 
 		# Promote a next master

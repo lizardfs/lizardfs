@@ -241,6 +241,16 @@ std::vector<MetadataserverListEntry> matomlserv_shadows() {
 	return ret;
 }
 
+uint32_t matomlserv_shadows_count() {
+	uint32_t count = 0;
+	for (matomlserventry* eptr = matomlservhead; eptr; eptr=eptr->next) {
+		if (eptr->shadow) {
+			count++;
+		}
+	}
+	return count;
+}
+
 void matomlserv_status(void) {
 	matomlserventry *eptr;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {

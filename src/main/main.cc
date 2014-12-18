@@ -52,6 +52,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
+#include "common/MFSCommunication.h"
 #include "common/setup.h"
 #include "common/slogger.h"
 
@@ -78,6 +79,13 @@ enum class RunMode {
 	kTest = 4,
 	kKill = 5,
 	kIsAlive = 6
+};
+
+enum class ExitingStatus {
+	kRunning = 0,
+	kWantExit = 1,
+	kCanExit = 2,
+	kDoExit = 3,
 };
 
 static bool nextPollNonblocking = false;
@@ -152,6 +160,7 @@ static uint32_t now;
 static uint64_t usecnow;
 static bool gRunAsDaemon = true;
 static std::vector<std::string> gExtraArguments;
+static ExitingStatus gExitingStatus = ExitingStatus::kRunning;
 
 static int signalpipe[2];
 
@@ -328,6 +337,17 @@ uint64_t main_utime() {
 	return usecnow;
 }
 
+uint8_t main_want_to_terminate() {
+	if (gExitingStatus == ExitingStatus::kRunning) {
+		gExitingStatus = ExitingStatus::kWantExit;
+		syslog(LOG_INFO, "Exiting on internal request.");
+		return STATUS_OK;
+	} else {
+		syslog(LOG_ERR, "Unable to exit on internal request.");
+		return ERROR_NOTPOSSIBLE;
+	}
+}
+
 void destruct() {
 	deentry *deit;
 	for (deit = dehead ; deit!=NULL ; deit=deit->next) {
@@ -346,11 +366,10 @@ void mainloop() {
 	struct pollfd pdesc[MFSMAXFILES];
 	uint32_t ndesc;
 	int i;
-	int t,r;
+	int r;
 
-	t = 0;
 	r = 0;
-	while (t!=3) {
+	while (gExitingStatus != ExitingStatus::kDoExit) {
 		ndesc=1;
 		pdesc[0].fd = signalpipe[0];
 		pdesc[0].events = POLLIN;
@@ -379,9 +398,9 @@ void mainloop() {
 			if ((pdesc[0].revents)&POLLIN) {
 				uint8_t sigid;
 				if (read(signalpipe[0],&sigid,1)==1) {
-					if (sigid=='\001' && t==0) {
+					if (sigid == '\001' && gExitingStatus == ExitingStatus::kRunning) {
 						syslog(LOG_NOTICE,"terminate signal received");
-						t = 1;
+						gExitingStatus = ExitingStatus::kWantExit;
 					} else if (sigid=='\002') {
 						syslog(LOG_NOTICE,"reloading config files");
 						r = 1;
@@ -438,7 +457,7 @@ void mainloop() {
 			}
 		}
 		prevtime = now;
-		if (t==0 && r) {
+		if (gExitingStatus == ExitingStatus::kRunning && r) {
 			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
 				try {
@@ -450,13 +469,13 @@ void mainloop() {
 			r = 0;
 			DEBUG_LOG("main.reload");
 		}
-		if (t==1) {
+		if (gExitingStatus == ExitingStatus::kWantExit) {
 			for (weit = wehead ; weit!=NULL ; weit=weit->next) {
 				weit->fun();
 			}
-			t = 2;
+			gExitingStatus = ExitingStatus::kCanExit;
 		}
-		if (t==2) {
+		if (gExitingStatus == ExitingStatus::kCanExit) {
 			i = 1;
 			for (ceit = cehead ; ceit!=NULL && i ; ceit=ceit->next) {
 				if (ceit->fun()==0) {
@@ -464,7 +483,7 @@ void mainloop() {
 				}
 			}
 			if (i) {
-				t = 3;
+				gExitingStatus = ExitingStatus::kDoExit;
 			}
 		}
 	}

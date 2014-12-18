@@ -40,3 +40,11 @@ void matomlserv_broadcast_logrotate();
  */
 void matomlserv_broadcast_filesystem(uint8_t status);
 int matomlserv_init(void);
+/*
+ * Returns 1 if all connections to metaloggers were closed, 0 otherwise
+ */
+int matomlserv_canexit(void);
+/*
+ * Returns number of connected shadow masters
+ */
+uint32_t matomlserv_shadows_count();

@@ -181,10 +181,11 @@ struct matoclserventry {
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
+	bool requestingTermination;       // Is this client requesting termination of the master server
 
 	uint8_t passwordrnd[32];
 	session *sesdata;
-	std::unique_ptr<LizMatoclAdminRegisterChallangeData> adminChallenge;
+	std::unique_ptr<LizMatoclAdminRegisterChallengeData> adminChallenge;
 	chunklist *chunkdelayedops;
 /* CACHENOTIFY
 	dirincache *cacheddirs;
@@ -3549,12 +3550,12 @@ void matoclserv_hostname(matoclserventry* eptr, const uint8_t* data, uint32_t le
 void matoclserv_admin_register(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
 	cltoma::adminRegister::deserialize(data, length);
 	if (!eptr->adminChallenge) {
-		eptr->adminChallenge.reset(new LizMatoclAdminRegisterChallangeData());
+		eptr->adminChallenge.reset(new LizMatoclAdminRegisterChallengeData());
 		auto& array = *eptr->adminChallenge;
 		for (uint32_t i = 0; i < array.size(); ++i) {
 			array[i] = rndu8();
 		}
-		matoclserv_createpacket(eptr, matocl::adminRegisterChallange::build(array));
+		matoclserv_createpacket(eptr, matocl::adminRegisterChallenge::build(array));
 	} else {
 		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE: retry not allowed");
 		eptr->mode = KILL;
@@ -3598,6 +3599,39 @@ void matoclserv_admin_become_master(matoclserventry* eptr, const uint8_t* data, 
 	} else {
 		syslog(LOG_NOTICE,
 				"LIZ_CLTOMA_ADMIN_BECOME_MASTER: available only for registered admins");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_admin_stop_without_metadata_dump(
+			matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::adminStopWithoutMetadataDump::deserialize(data, length);
+	if (eptr->registered == ClientState::kAdmin) {
+		if (metadataserver::isMaster()) {
+			if (matomlserv_shadows_count() == 0){
+				syslog(LOG_WARNING, "LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP: Trying to stop"
+						" master server with disabled metadata dump when no shadow servers are "
+						"connected.");
+				matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(EPERM));
+			} else {
+				fs_disable_metadata_dump_on_exit();
+				uint8_t status = main_want_to_terminate();
+				if (status == STATUS_OK) {
+					eptr->requestingTermination = true;
+				} else {
+					matoclserv_createpacket(
+							eptr, matocl::adminStopWithoutMetadataDump::build(status));
+				}
+			}
+		} else { // not Master
+			fs_disable_metadata_dump_on_exit();
+			uint8_t status = main_want_to_terminate();
+			matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(status));
+		}
+	} else {
+		syslog(LOG_NOTICE,
+						"LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:"
+						" available only for registered admins");
 		eptr->mode = KILL;
 	}
 }
@@ -3697,6 +3731,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_ADMIN_BECOME_MASTER:
 					matoclserv_admin_become_master(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:
+					matoclserv_admin_stop_without_metadata_dump(eptr, data, length);
+					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
 					eptr->mode = KILL;
@@ -3766,6 +3803,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE:
 					matoclserv_admin_register_response(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:
+					matoclserv_admin_stop_without_metadata_dump(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
@@ -4178,11 +4218,33 @@ void matoclserv_wantexit(void) {
 
 int matoclserv_canexit(void) {
 	matoclserventry *eptr;
+	matoclserventry *adminTerminator = NULL;
+	static bool terminatorPacketSent = false;
 	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
 		if (eptr->outputhead!=NULL) {
 			return 0;
 		}
 		if (eptr->chunkdelayedops!=NULL) {
+			return 0;
+		}
+		if (eptr->requestingTermination){
+			adminTerminator = eptr;
+		}
+	}
+	if (adminTerminator != NULL && !terminatorPacketSent) {
+	// Are we replying to termination request?
+		if (!matomlserv_canexit()){  // make sure there are no ml connected
+			syslog(LOG_INFO, "Waiting for ml connections to close...");
+			return 0;
+		} else {  // Reply to admin
+			matoclserv_createpacket(adminTerminator,
+					matocl::adminStopWithoutMetadataDump::build(STATUS_OK));
+			terminatorPacketSent = true;
+		}
+	}
+	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
+		if (eptr->requestingTermination){
+		// Wait for the terminating admin to disconnect - this ensures that he receives data
 			return 0;
 		}
 	}
@@ -4249,6 +4311,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 			eptr->inputpacket.packet = NULL;
+			eptr->requestingTermination = false;
 			eptr->outputhead = NULL;
 			eptr->outputtail = &(eptr->outputhead);
 

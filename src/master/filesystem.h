@@ -207,6 +207,9 @@ const GoalMap<Goal>& fs_get_goal_definitions();
 /// Return the current definition of the given (by ID) goal.
 const Goal& fs_get_goal_definition(uint8_t goalId);
 
+// Disable saving metadata on exit
+void fs_disable_metadata_dump_on_exit();
+
 int fs_init(void);
 int fs_init(bool force);
 #endif

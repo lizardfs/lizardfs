@@ -8005,6 +8005,10 @@ void fs_term(void) {
 	}
 }
 
+void fs_disable_metadata_dump_on_exit() {
+	gSaveMetadataAtExit = false;
+}
+
 #else
 void fs_storeall(const char *fname) {
 	FILE *fd;
@@ -8211,7 +8215,6 @@ static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 	gMagicAutoFileRepair = cfg_getint32("MAGIC_AUTO_FILE_REPAIR", 0) == 1;
-	gSaveMetadataAtExit = cfg_getint32("SAVE_METADATA_AT_EXIT", 1) != 0;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
