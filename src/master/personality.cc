@@ -11,6 +11,10 @@
 
 namespace metadataserver {
 
+static const std::string kMasterCmdOption = "initial-personality=master";
+static const std::string kShadowCmdOption = "initial-personality=shadow";
+static const std::string kClusterManagedCmdOption = "ha-cluster-managed";
+
 static Personality gPersonality = Personality::kMaster;
 
 Personality getPersonality() {
@@ -22,8 +26,8 @@ void setPersonality(Personality personality) {
 }
 
 bool personalityInConfigIsAuto() {
-	const std::string kAuto = "ha-cluster-managed";
-	std::string p = cfg_get("PERSONALITY", "not ha-cluster-managed");
+	const std::string kAuto = kClusterManagedCmdOption;
+	std::string p = cfg_get("PERSONALITY", "not " + kClusterManagedCmdOption);
 	std::transform(p.begin(), p.end(), p.begin(), tolower);
 	return p == kAuto;
 }
@@ -85,32 +89,51 @@ bool promoteAutoToMaster() {
 	return true;
 }
 
-int personality_init() {
-	int ret = 0;
-	try {
-		if (personalityInConfigIsAuto()) {
-			for (auto option : main_get_extra_arguments()) {
-				std::transform(option.begin(), option.end(), option.begin(), tolower);
-				if (option == "ha-cluster-personality=master") {
-					setPersonality(Personality::kMaster);
-					return 0;
-				} else if (option == "ha-cluster-personality=shadow") {
-					setPersonality(Personality::kShadow);
-					return 0;
-				}
-			}
-			throw ConfigurationException(
-					"Personality 'ha-cluster-managed' should only be used by HA cluster");
-		} else {
-			setPersonality(loadNonHaClusterPersonality());
+int personality_validate() {
+	static std::string haAdvise = "This installation is managed by HA cluster,"
+			" one should manipulate metadata servers only using lizardfs-cluster-manager.";
+	static std::string nonHaAdvise = "Metadata server configuration states that this installation"
+			" is NOT managed by HA cluster. In case if it is supposed to be managed by a cluster "
+			" change the configuration (change the personality defined in " + cfg_filename() +
+			" to " + kClusterManagedCmdOption + "), otherwise stop using "
+			+ kClusterManagedCmdOption + " command line option.";
+	for (auto option : main_get_extra_arguments()) {
+		std::transform(option.begin(), option.end(), option.begin(), tolower);
+		if (personalityInConfigIsAuto() && option == kClusterManagedCmdOption) {
+			return 0;
 		}
-	} catch (const ConfigurationException& e) {
-		ret = -1;
+		if (!personalityInConfigIsAuto() && option == kClusterManagedCmdOption) {
+			throw ConfigurationException(nonHaAdvise);
+		}
+	}
+	if (personalityInConfigIsAuto()) {
+		throw ConfigurationException(haAdvise);
+	} else {
+		return 0;
+	}
+}
+
+int personality_init() {
+	if (personalityInConfigIsAuto()) {
+		for (auto option : main_get_extra_arguments()) {
+			std::transform(option.begin(), option.end(), option.begin(), tolower);
+			if (option == kMasterCmdOption) {
+				setPersonality(Personality::kMaster);
+				return 0;
+			} else if (option == kShadowCmdOption) {
+				setPersonality(Personality::kShadow);
+				return 0;
+			}
+		}
+		throw ConfigurationException(
+				"Missing " + kMasterCmdOption + " or " + kShadowCmdOption + " command line option");
+	} else {
+		setPersonality(loadNonHaClusterPersonality());
 	}
 #ifndef METARESTORE
 	main_reloadregister(personality_reload);
 #endif /* #ifndef METARESTORE */
-	return ret;
+	return 0;
 }
 
 bool isMaster() {

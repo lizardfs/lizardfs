@@ -61,5 +61,6 @@ run_tab RunTab[]={
 },LateRunTab[]={
 	{(runfn)0,"****"}
 },EarlyRunTab[]={
+	{metadataserver::personality_validate, "validate personality"},
 	{(runfn)0,"****"}
 };

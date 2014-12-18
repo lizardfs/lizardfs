@@ -24,6 +24,12 @@ Personality getPersonality();
  */
 void setPersonality(Personality personality);
 
+/*! \brief Validate if personality from config and command line match each other
+ *
+ * \return 0 if config is valid, throws otherwise
+ */
+int personality_validate();
+
 /*! \brief Initialize personality subsystem.
  */
 int personality_init();
