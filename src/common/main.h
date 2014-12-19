@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "common/case_sensitivity.h"
+
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1
 
@@ -33,6 +35,12 @@
  * Additional command line arguments can be passed using '-o extra_option' syntax.
  */
 const std::vector<std::string>& main_get_extra_arguments();
+
+/*! \brief Returns true if additional command line argument is present.
+ *
+ * Additional command line arguments can be passed using '-o extra_option' syntax.
+ */
+bool main_has_extra_argument(std::string name, CaseSensitivity mode = CaseSensitivity::kSensitive);
 
 void main_destructregister (void (*fun)(void));
 void main_canexitregister (int (*fun)(void));

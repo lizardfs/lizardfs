@@ -34,12 +34,6 @@ int personality_validate();
  */
 int personality_init();
 
-/*! \brief Load personality settings from config file.
- *
- * \return Current (newly loaded) metadata server personality.
- */
-Personality loadNonHaClusterPersonality();
-
 /*! \brief Tell if current metadata server peronality is Master.
  *
  * \return True iff current metadata server peronality is Master.
