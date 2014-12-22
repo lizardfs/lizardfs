@@ -133,7 +133,7 @@ struct fsedge {
 };
 void free(fsedge*); // disable freeing using free at link time :)
 
-typedef struct _statsrecord {
+struct statsrecord {
 	uint32_t inodes;
 	uint32_t dirs;
 	uint32_t files;
@@ -141,7 +141,7 @@ typedef struct _statsrecord {
 	uint64_t length;
 	uint64_t size;
 	uint64_t realsize;
-} statsrecord;
+};
 
 #ifdef METARESTORE
 void changelog(int, char const*, ...) {
@@ -403,6 +403,7 @@ static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
 static bool gMagicAutoFileRepair = false;
+static bool gAtimeDisabled = false;
 static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #define MSGBUFFSIZE 1000000
@@ -3958,6 +3959,17 @@ uint8_t fs_apply_length(uint32_t ts,uint32_t inode,uint64_t length) {
 }
 
 #ifndef METARESTORE
+
+/// Update atime of the given node and generate a changelog entry.
+/// Doesn't do anything if NO_ATIME=1 is set in the config file.
+static inline void fs_update_atime(fsnode* p, uint32_t ts) {
+	if (!gAtimeDisabled && p->atime != ts) {
+		p->atime = ts;
+		fsnodes_update_checksum(p);
+		fs_changelog(ts, "ACCESS(%" PRIu32 ")", p->id);
+	}
+}
+
 uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *pleng,uint8_t **path) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
@@ -3994,11 +4006,7 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 	}
 	*pleng = p->data.sdata.pleng;
 	*path = p->data.sdata.path;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
-	}
+	fs_update_atime(p, ts);
 	stats_readlink++;
 	return STATUS_OK;
 }
@@ -4617,14 +4625,8 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *p = (fsnode*)dnode;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",p->id);
-		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
-	} else {
-		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
-	}
+	fs_update_atime(p, ts);
+	fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
 	stats_readdir++;
 }
 
@@ -4840,11 +4842,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 		*chunkid = p->data.fdata.chunktab[indx];
 	}
 	*length = p->data.fdata.length;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
-	}
+	fs_update_atime(p, ts);
 	stats_read++;
 	return STATUS_OK;
 }
@@ -8215,6 +8213,7 @@ static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 	gMagicAutoFileRepair = cfg_getint32("MAGIC_AUTO_FILE_REPAIR", 0) == 1;
+	gAtimeDisabled = cfg_getint32("NO_ATIME", 0) == 1;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,

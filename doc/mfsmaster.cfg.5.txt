@@ -168,6 +168,10 @@ how fast should metadata be recalculated in background (default : 100 objects pe
 *DISABLE_METADATA_CHECKSUM_VERIFICATION*::
 should checksum verification be disabled while applying changelog
 
+*NO_ATIME*::
+when this option is set to 1 inode access time is not updated on every access, otherwise
+(when set to 0) it is updated (default is 0)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::

@@ -132,6 +132,11 @@
 ## (Default: 60)
 # FREE_INODES_PERIOD = 60
 
+## Whether to update inode access time on every access,
+## boolean value (0 or 1)
+## (Default: 0)
+# NO_ATIME = 0
+
 # SESSION_SUSTAIN_TIME = 86400
 
 ## Reject mfsmounts older than 1.6.0 (Boolean, 0 or 1).
