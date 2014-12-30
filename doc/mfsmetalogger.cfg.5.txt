@@ -56,7 +56,7 @@ metadata download frequency in hours (default is 24, at most *BACK_LOGS*/2)
 address of LizardFS master host to connect with (default is mfsmaster)
 
 *MASTER_PORT*::
-number of LizardFS master port to connect with (default is 9420)
+number of LizardFS master port to connect with (default is 9419)
 
 *MASTER_RECONNECTION_DELAY*::
 delay in seconds before trying to reconnect to master after disconnection (default is 30)

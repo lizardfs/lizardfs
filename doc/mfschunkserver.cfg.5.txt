@@ -49,7 +49,7 @@ increase priority)
 address of LizardFS master host to connect with (default is mfsmaster)
 
 *MASTER_PORT*::
-number of LizardFS master port to connect with (default is 9419)
+number of LizardFS master port to connect with (default is 9420)
 
 *MASTER_RECONNECTION_DELAY*::
 delay in seconds before trying to reconnect to master after disconnection (default is 5)
