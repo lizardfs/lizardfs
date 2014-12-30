@@ -1,28 +1,67 @@
+## The label of this chunkserver (for tiering)
 # LABEL = _
+
+## User to run daemon as.
 # WORKING_USER = @DEFAULT_USER@
+
+## Group to run daemon as (if empty then default user group will be used).
 # WORKING_GROUP = @DEFAULT_GROUP@
+
+## Name of process to place in syslog messages (default is mfschunkserver)
 # SYSLOG_IDENT = mfschunkserver
+
+## Whether to perform mlockall() to avoid swapping out mfschunkserver.
+## process, boolean (0 means "no").
+## (Default: 0)
 # LOCK_MEMORY = 0
+
+## Nice level to run daemon with (default is -19 if possible).
 # NICE_LEVEL = -19
 
+## Where to store data files and daemon lock file:
 # DATA_PATH = @DATA_PATH@
 
+## Delay in seconds before reconnection attempt to master after
+## disconnection.
+## (Default: 5)
 # MASTER_RECONNECTION_DELAY = 5
 
+## Local address to use for connecting with master.
 # BIND_HOST = *
+
+## LizardFS master host to connect to.
+## (Default: mfsmaster)
 # MASTER_HOST = mfsmaster
+
+## Master port to connect to (Default: 9420):
 # MASTER_PORT = 9420
 
+## Timeout (in seconds) for master connection (minimum is 0.01).
+## (Default: 60)
 # MASTER_TIMEOUT = 60
 
+## IP address to listen on for client (mfsmount) connections:
 # CSSERV_LISTEN_HOST = *
+
+## Port to listen for client (mfsmount) connections.
+## (Default: 9422)
 # CSSERV_LISTEN_PORT = 9422
 
+## Name of volume configuration file.
+## (Default: /etc/mfs/mfshdd.cfg)
 # HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
+
+## Free space threshold to set volume as 100% utilized when there is less
+## than given amount of free space left.
+## (Default: "256MiB")
 # HDD_LEAVE_SPACE_DEFAULT = 256MiB
+
+## Chunk test period in seconds.
+## (Default: 10)
 # HDD_TEST_FREQ = 10
 
-# deprecated, to be removed in MooseFS 1.7
+
+## deprecated, to be removed.
 # LOCK_FILE = @RUN_PATH@/mfschunkserver.lock
 # BACK_LOGS = 50
 # CSSERV_TIMEOUT = 5
