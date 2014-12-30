@@ -21,7 +21,7 @@ Lines starting with *#* character are ignored.
 Configuration options:
 
 *DATA_PATH*::
-where to store metadata files and daemon lock file
+where to store files with usage statistics and daemon lock file
 
 *LOCK_FILE*::
 (deprecated) daemon lock/pid file
