@@ -178,7 +178,7 @@ port number where LizardFS metadata server currently running as 'master' listens
 from 'shadow's and metaloggers (default is 9420)
 
 *MASTER_RECONNECTION_DELAY*::
-delay in seconds before trying to reconnect to metadata server after disconnection (default is 30)
+delay in seconds before trying to reconnect to metadata server after disconnection (default is 1)
 
 *MASTER_TIMEOUT*::
 timeout (in seconds) for metadata server connections (default is 60)
