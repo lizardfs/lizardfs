@@ -19,6 +19,7 @@
 # CSSERV_LISTEN_PORT = 9422
 
 # HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
+# HDD_LEAVE_SPACE_DEFAULT = 256MiB
 # HDD_TEST_FREQ = 10
 
 # deprecated, to be removed in MooseFS 1.7
