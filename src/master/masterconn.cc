@@ -1125,7 +1125,7 @@ void masterconn_reload(void) {
 
 	Timeout = cfg_getuint32("MASTER_TIMEOUT",60);
 	BackMetaCopies = cfg_getuint32("BACK_META_KEEP_PREVIOUS",3);
-	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",1);
 
 	if (Timeout>65536) {
 		Timeout=65535;
