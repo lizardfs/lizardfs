@@ -12,7 +12,7 @@ CHUNKSERVERS=2 \
 
 master_kill_loop() {
 	while true; do
-		lizardfs_admin_stop
+		lizardfs_stop_master_without_saving_metadata
 		lizardfs_master_daemon start
 		lizardfs_wait_for_all_ready_chunkservers
 		sleep 5

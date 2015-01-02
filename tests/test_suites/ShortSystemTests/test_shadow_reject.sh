@@ -3,7 +3,6 @@ assert_program_installed nc
 
 MASTERSERVERS=2 \
 	USE_RAMDISK=YES \
-	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG=main.reload:${TEMP_DIR}/reloads" \
 	setup_local_empty_lizardfs info
 
 lizardfs_master_n 1 start
@@ -45,9 +44,7 @@ run_my_client assert_success 0 1 matoml
 rm ${TEMP_DIR}/mato{ml,cs}_exit_status
 lizardfs_master_daemon stop
 lizardfs_make_conf_for_master 1
-truncate -s 0 ${TEMP_DIR}/reloads
-lizardfs_master_daemon reload
-assert_eventually 'grep -q main.reload ${TEMP_DIR}/reloads'
+lizardfs_admin_shadow 1 reload-config
 
 run_my_client assert_failure 1 0 matocl
 run_my_client assert_failure 1 0 matocs

@@ -491,10 +491,32 @@ lizardfs_probe_master() {
 	lizardfs-probe "$command" localhost "${lizardfs_info_[matocl]}" --porcelain "$@"
 }
 
-#command for stoping master server without dumping metadata
-lizardfs_admin_stop() {
-	assert_success lizardfs-admin stop-master-without-saving-metadata \
-			localhost "${lizardfs_info_[matocl]}" <<< "${lizardfs_info_[admin_password]}"
+# A useful shortcut for lizardfs-admin commands which require authentication
+# Usage: lizardfs_admin_master <command> [option...]
+# Calls lizardfs-admin with the given command and and automatically adds address
+# of the master server and authenticates
+lizardfs_admin_master() {
+	local command="$1"
+	shift
+	local port=${lizardfs_info_[matocl]}
+	lizardfs-admin "$command" localhost "$port" "$@" <<< "${lizardfs_info_[admin_password]}"
+}
+
+# A useful shortcut for lizardfs-admin commands which require authentication
+# Usage: lizardfs_admin_shadow <n> <command> [option...]
+# Calls lizardfs-admin with the given command and and automatically adds address
+# of the n'th shadow master server and authenticates
+lizardfs_admin_shadow() {
+	local id="$1"
+	local command="$2"
+	shift 2
+	local port=${lizardfs_info_[master${id}_matocl]}
+	lizardfs-admin "$command" localhost "$port" "$@" <<< "${lizardfs_info_[admin_password]}"
+}
+
+# Stops the active master server without dumping metadata
+lizardfs_stop_master_without_saving_metadata() {
+	lizardfs_admin_master stop-master-without-saving-metadata
 	assert_eventually "! mfsmaster -c ${lizardfs_info_[master_cfg]} isalive"
 }
 

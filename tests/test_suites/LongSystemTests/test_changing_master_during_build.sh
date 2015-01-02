@@ -31,7 +31,7 @@ master_kill_loop() {
 
 		# Kill the previous master
 		assert_eventually "lizardfs_shadow_synchronized $new_master_id"
-		lizardfs_admin_stop
+		lizardfs_stop_master_without_saving_metadata
 		lizardfs_make_conf_for_shadow $prev_master_id
 
 		# Promote a next master
