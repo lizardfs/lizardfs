@@ -1,5 +1,4 @@
 master_cfg="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_cfg+="|DUMP_METADATA_ON_RELOAD = 1"
 master_cfg+="|PREFER_BACKGROUND_DUMP = 1"
 master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
 
@@ -27,7 +26,7 @@ touch file_before_shadow_start_{1..20}
 lizardfs_master_n 1 start                              # Connect shadow master
 assert_eventually "lizardfs_shadow_synchronized 1"
 touch file_after_shadow_connects_{1..20}
-lizardfs_master_n 1 reload                             # Start dumping metadata in shadow master
+lizardfs_admin_shadow 1 save-metadata --async          # Start dumping metadata in shadow master
 wait_for 'test -e $TEMP_DIR/dump_started' '15 seconds'
 touch file_after_shadow_reload_{1..20}
 metadata=$(metadata_print)
@@ -39,10 +38,6 @@ assert_eventually "lizardfs_shadow_synchronized 1"
 # Promote shadow master to master
 lizardfs_master_daemon kill
 lizardfs_make_conf_for_master 1
-
-# Disable metadata dumping in shadow master
-sed -ie 's/DUMP_METADATA_ON_RELOAD = 1/DUMP_METADATA_ON_RELOAD = 0/' "${info[master1_cfg]}"
-
 lizardfs_master_daemon reload
 lizardfs_wait_for_all_ready_chunkservers
 assert_file_not_exists "$TEMP_DIR/dump_finished"

@@ -3,9 +3,6 @@
 #include <algorithm>
 #include <iostream>
 
-#include "common/human_readable_format.h"
-#include "common/MFSCommunication.h"
-#include "common/mfserr.h"
 #include "admin/chunk_health_command.h"
 #include "admin/info_command.h"
 #include "admin/io_limits_status_command.h"
@@ -14,11 +11,16 @@
 #include "admin/list_goals_command.h"
 #include "admin/list_metadataservers_command.h"
 #include "admin/list_mounts_command.h"
+#include "admin/magic_recalculate_metadata_checksum_command.h"
 #include "admin/metadataserver_status_command.h"
 #include "admin/promote_shadow_command.h"
 #include "admin/ready_chunkservers_count_command.h"
 #include "admin/reload_config_command.h"
+#include "admin/save_metadata_command.h"
 #include "admin/stop_master_without_saving_metadata.h"
+#include "common/human_readable_format.h"
+#include "common/MFSCommunication.h"
+#include "common/mfserr.h"
 
 int main(int argc, const char** argv) {
 	strerr_init();
@@ -36,6 +38,8 @@ int main(int argc, const char** argv) {
 			new PromoteShadowCommand(),
 			new MetadataserverStopWithoutSavingMetadataCommand(),
 			new ReloadConfigCommand(),
+			new SaveMetadataCommand(),
+			new MagicRecalculateMetadataChecksumCommand(),
 	};
 
 	try {
@@ -67,6 +71,10 @@ int main(int argc, const char** argv) {
 		std::cerr << "    " << argv[0] << " COMMAND [OPTIONS...] [ARGUMENTS...]\n\n";
 		std::cerr << "Available COMMANDs:\n\n";
 		for (auto command : allCommands) {
+			if (command->name().substr(0, 6) == "magic-") {
+				// Treat magic-* commands as undocumented
+				continue;
+			}
 			command->usage();
 			if (!command->supportedOptions().empty()) {
 				std::cerr << "    Possible command-line options:\n";

@@ -116,7 +116,7 @@
 #define ERROR_NOTLOCKED               46    // No such lock
 #define ERROR_WRONGLOCKID             47    // Wrong lock id
 #define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
-#define ERROR_RESERVED2               49
+#define ERROR_TEMP_NOTPOSSIBLE        49    // Operation temporarily not possible
 #define ERROR_RESERVED3               50
 #define ERROR_RESERVED4               51
 
@@ -172,7 +172,7 @@
 	"No such lock", \
 	"Wrong lock id", \
 	"Operation not possible", \
-	"Unknown MFS error", \
+	"Operation temporarily not possible", \
 	"Unknown MFS error", \
 	"Unknown MFS error", \
 	"Unknown MFS error"
@@ -1458,6 +1458,22 @@ enum class SugidClearMode {
 
 // 0x061A
 #define LIZ_MATOCL_ADMIN_RELOAD (1000U + 562U)
+/// status:8
+
+// 0x061B
+#define LIZ_CLTOMA_ADMIN_SAVE_METADATA (1000U + 563U)
+/// asynchronous:8
+
+// 0x061C
+#define LIZ_MATOCL_ADMIN_SAVE_METADATA (1000U + 564U)
+/// status:8
+
+// 0x061D
+#define LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 565U)
+/// asynchronous:8
+
+// 0x621E
+#define LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 566U)
 /// status:8
 
 // CHUNKSERVER STATS

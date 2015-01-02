@@ -172,6 +172,8 @@ enum class AdminTask {
 	kNone,
 	kTerminate,  ///< Admin successfully requested termination of the server
 	kReload,  ///< Admin successfully requested reloading the configuration
+	kSaveMetadata,  ///< Admin successfully requested saving metadata
+	kRecalculateChecksums,  ///< Admin successfully requested recalculation of metadata checksum
 };
 
 /** Client entry in the server. */
@@ -3657,6 +3659,70 @@ void matoclserv_admin_reload(matoclserventry* eptr, const uint8_t* data, uint32_
 	}
 }
 
+void matoclserv_admin_save_metadata(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	bool asynchronous;
+	cltoma::adminSaveMetadata::deserialize(data, length, asynchronous);
+	if (eptr->registered == ClientState::kAdmin) {
+		syslog(LOG_NOTICE, "saving metadata image requested using lizardfs-admin by %s",
+				ipToString(eptr->peerip).c_str());
+		uint8_t status = fs_storeall(MetadataDumper::DumpType::kBackgroundDump);
+		if (status != STATUS_OK || asynchronous) {
+			matoclserv_createpacket(eptr, matocl::adminSaveMetadata::build(status));
+		} else {
+			// Mark the client; we will reply after metadata save process is finished
+			eptr->adminTask = AdminTask::kSaveMetadata;
+		}
+	} else {
+		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_SAVE_METADATA: available only for registered admins");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_broadcast_metadata_saved(uint8_t status) {
+	if (exiting) {
+		return;
+	}
+	for (matoclserventry* eptr = matoclservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->adminTask == AdminTask::kSaveMetadata) {
+			matoclserv_createpacket(eptr, matocl::adminSaveMetadata::build(status));
+			eptr->adminTask = AdminTask::kNone;
+		}
+	}
+}
+
+void matoclserv_admin_recalculate_metadata_checksum(matoclserventry* eptr,
+		const uint8_t* data, uint32_t length) {
+	bool asynchronous;
+	cltoma::adminRecalculateMetadataChecksum::deserialize(data, length, asynchronous);
+	if (eptr->registered == ClientState::kAdmin) {
+		syslog(LOG_NOTICE, "metadata checksum recalculation requested using lizardfs-admin by %s",
+					ipToString(eptr->peerip).c_str());
+		uint8_t status = fs_start_checksum_recalculation();
+		if (status != STATUS_OK || asynchronous) {
+			matoclserv_createpacket(eptr, matocl::adminRecalculateMetadataChecksum::build(status));
+		} else {
+			// Mark the client; we will reply after checksum of metadata is recalculated
+			eptr->adminTask = AdminTask::kRecalculateChecksums;
+		}
+	} else {
+		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM: "
+				"available only for registered admins");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_broadcast_metadata_checksum_recalculated(uint8_t status) {
+	if (exiting) {
+		return;
+	}
+	for (matoclserventry* eptr = matoclservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->adminTask == AdminTask::kRecalculateChecksums) {
+			matoclserv_createpacket(eptr, matocl::adminRecalculateMetadataChecksum::build(status));
+			eptr->adminTask = AdminTask::kNone;
+		}
+	}
+}
+
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
@@ -3758,6 +3824,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_ADMIN_RELOAD:
 					matoclserv_admin_reload(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_ADMIN_SAVE_METADATA:
+					matoclserv_admin_save_metadata(eptr, data, length);
+					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
 					eptr->mode = KILL;
@@ -3833,6 +3902,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_ADMIN_RELOAD:
 					matoclserv_admin_reload(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_SAVE_METADATA:
+					matoclserv_admin_save_metadata(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM:
+					matoclserv_admin_recalculate_metadata_checksum(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

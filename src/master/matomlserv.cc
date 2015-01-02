@@ -147,7 +147,7 @@ private:
  *
  * \param status - status to be forwarded.
  */
-void matomlserv_broadcast_filesystem(uint8_t status) {
+void matomlserv_broadcast_metadata_saved(uint8_t status) {
 	gShadowQueue.handleRequests(status);
 }
 

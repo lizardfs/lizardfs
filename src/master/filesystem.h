@@ -42,7 +42,8 @@ uint64_t fs_getversion();
 uint64_t fs_checksum(ChecksumMode mode);
 
 /// Starts recalculating metadata checksum in background.
-void fs_start_checksum_recalculation();
+/// \return STATUS_OK iff dump started successfully, otherwise cause of the failure.
+uint8_t fs_start_checksum_recalculation();
 
 /// Load and apply changelogs.
 void fs_load_changelogs();
@@ -53,9 +54,9 @@ int fs_loadall();
 /*! \brief Dump current state of file system metadata.
  *
  * \param dumpType - choose between foreground and background dumping.
- * \return True iff dump completed succefully.
+ * \return STATUS_OK iff dump started/completed successfully, otherwise cause of the failure.
  */
-bool fs_storeall(MetadataDumper::DumpType dumpType);
+uint8_t fs_storeall(MetadataDumper::DumpType dumpType);
 
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)

@@ -74,6 +74,16 @@ lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
   This is synchronous (waits for reload to finish).
   Authentication with the admin password is required.
 
+*save-metadata* __<metadataserver ip> <metadataserver port>__::
+    Requests saving the current state of metadata into the metadata.mfs file.
+    With --async fail if the process cannot be started, e.g. because the process
+    is already in progress. Without --async, fails if either the process cannot be
+    started or if it finishes with an error (i.e., no metadata file is created).
+    Authentication with the admin password is required. +
+    Possible command-line options: +
+    --async +
+      Don't wait for the task to finish.
+
 == COMMON COMMAND OPTIONS
 
 *--porcelain*::

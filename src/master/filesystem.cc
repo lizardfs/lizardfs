@@ -574,6 +574,7 @@ public:
 
 	// start recalculating, true if succeeds
 	bool start() {
+		DEBUG_LOG("master.fs.checksum.updater_start");
 		if (step_ == ChecksumRecalculatingStep::kNone) {
 			++step_;
 			return true;
@@ -982,9 +983,12 @@ uint64_t fs_checksum(ChecksumMode mode) {
 }
 
 #ifndef METARESTORE
-void fs_start_checksum_recalculation() {
+uint8_t fs_start_checksum_recalculation() {
 	if (gChecksumBackgroundUpdater.start()) {
 		main_make_next_poll_nonblocking();
+		return STATUS_OK;
+	} else {
+		return ERROR_TEMP_NOTPOSSIBLE;
 	}
 }
 #endif
@@ -5933,6 +5937,7 @@ static void fs_background_checksum_recalculation_a_bit() {
 			break;
 		case ChecksumRecalculatingStep::kDone:
 			gChecksumBackgroundUpdater.end();
+			matoclserv_broadcast_metadata_checksum_recalculated(STATUS_OK);
 			return;
 	}
 	main_make_next_poll_nonblocking();
@@ -7885,6 +7890,13 @@ static bool fs_commit_metadata_dump() {
 	return false;
 }
 
+// Broadcasts information about status of the freshly finished
+// metadata save process to interested modules.
+static void fs_broadcast_metadata_saved(uint8_t status) {
+	matomlserv_broadcast_metadata_saved(status);
+	matoclserv_broadcast_metadata_saved(status);
+}
+
 static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
 	metadataDumper.pollDesc(pdesc, ndesc);
 }
@@ -7895,12 +7907,12 @@ static void metadataPollServe(struct pollfd* pdesc) {
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
 		if (metadataDumper.dumpSucceeded()) {
 			if (fs_commit_metadata_dump()) {
-				matomlserv_broadcast_filesystem(STATUS_OK);
+				fs_broadcast_metadata_saved(STATUS_OK);
 			} else {
-				matomlserv_broadcast_filesystem(ERROR_IO);
+				fs_broadcast_metadata_saved(ERROR_IO);
 			}
 		} else {
-			matomlserv_broadcast_filesystem(ERROR_IO);
+			fs_broadcast_metadata_saved(ERROR_IO);
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
 				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
@@ -7912,22 +7924,22 @@ static void metadataPollServe(struct pollfd* pdesc) {
 }
 
 // returns false in case of an error
-bool fs_storeall(MetadataDumper::DumpType dumpType) {
+uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (gMetadata == nullptr) {
-		// Periodic dump in shadow master or a reload with DUMP_METADATA_ON_RELOAD
+		// Periodic dump in shadow master or a request from lizardfs-admin
 		syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
-		return false;
+		return ERROR_NOTPOSSIBLE;
 	}
 	if (metadataDumper.inProgress()) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
-		return false;
+		return ERROR_TEMP_NOTPOSSIBLE;
 	}
 	changelog_rotate();
 	matomlserv_broadcast_logrotate();
 	// child == true says that we forked
 	// bg may be changed to dump in foreground in case of a fork error
 	bool child = metadataDumper.start(dumpType, fs_checksum(ChecksumMode::kGetCurrent));
-	bool succeeded = false;
+	uint8_t status = STATUS_OK;
 
 	if (dumpType == MetadataDumper::kForegroundDump) {
 		cstream_t fd(fopen(kMetadataTmpFilename, "w"));
@@ -7938,8 +7950,8 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			return false;
+			fs_broadcast_metadata_saved(ERROR_IO);
+			return ERROR_IO;
 		}
 
 		fs_store_fd(fd.get());
@@ -7953,8 +7965,8 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			return false;
+			fs_broadcast_metadata_saved(ERROR_IO);
+			return ERROR_IO;
 		} else {
 			if (fflush(fd.get()) == EOF) {
 				lzfs_pretty_errlog(LOG_ERR, "metadata fflush failed");
@@ -7964,17 +7976,17 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			fd.reset();
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
-				succeeded = fs_commit_metadata_dump();
+				status = fs_commit_metadata_dump() ? STATUS_OK : ERROR_IO;
 			}
 		}
 		if (child) {
 			printf("OK\n"); // give mfsmetarestore another chance
 			exit(0);
 		}
-		matomlserv_broadcast_filesystem(succeeded ? STATUS_OK : ERROR_IO);
+		fs_broadcast_metadata_saved(status);
 	}
 	sassert(!child);
-	return succeeded;
+	return status;
 }
 
 void fs_periodic_storeall() {
@@ -7988,7 +8000,7 @@ void fs_term(void) {
 	bool metadataStored = false;
 	if (gMetadata != nullptr && gSaveMetadataAtExit) {
 		for (;;) {
-			metadataStored = fs_storeall(MetadataDumper::kForegroundDump);
+			metadataStored = (fs_storeall(MetadataDumper::kForegroundDump) == STATUS_OK);
 			if (metadataStored) {
 				break;
 			}
@@ -8234,12 +8246,6 @@ void fs_reload(void) {
 		fs_read_config_file();
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
-	}
-	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
-		fs_storeall(MetadataDumper::kBackgroundDump);
-	}
-	if (cfg_getuint32("RECALCULATE_CHECKSUM_ON_RELOAD", 0) == 1) {
-		fs_start_checksum_recalculation();
 	}
 	if (metadataserver::isMaster()) {
 		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,

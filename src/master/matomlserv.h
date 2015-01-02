@@ -38,7 +38,7 @@ void matomlserv_broadcast_logrotate();
  *
  * \param status - status to broadcast.
  */
-void matomlserv_broadcast_filesystem(uint8_t status);
+void matomlserv_broadcast_metadata_saved(uint8_t status);
 int matomlserv_init(void);
 /*
  * Returns 1 if all connections to metaloggers were closed, 0 otherwise

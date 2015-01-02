@@ -2,9 +2,8 @@ timeout_set 1 minute
 assert_program_installed attr
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
-master_cfg+="|RECALCULATE_CHECKSUM_ON_RELOAD = 1"
 master_cfg+="|METADATA_CHECKSUM_RECALCULATION_SPEED = 1"
-master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum:$TEMP_DIR/log,master.fs.checksum.updater_end:$TEMP_DIR/ends"
+master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum:$TEMP_DIR/log"
 
 CHUNKSERVERS=1 \
 	USE_RAMDISK="YES" \
@@ -38,9 +37,7 @@ truncate -s 0 "$TEMP_DIR/log"
 # Recalculate metadata checksum in tight loop in background
 (
 	while ! test_frozen; do
-		truncate -s 0 "$TEMP_DIR/ends"
-		lizardfs_master_daemon reload;
-		assert_eventually 'grep -q updater_end $TEMP_DIR/ends'
+		assert_success lizardfs_admin_master magic-recalculate-metadata-checksum
 	done &>/dev/null &
 )
 
