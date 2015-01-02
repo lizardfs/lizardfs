@@ -15,7 +15,7 @@ void PromoteShadowCommand::usage() const {
 	std::cerr << name() << " <shadow ip> <shadow port>" << std::endl;
 	std::cerr << "    Promotes metadata server. Works only if personality 'ha-cluster-managed'"
 			"is used." << std::endl;
-	std::cerr << "    Authentication needed." << std::endl;
+	std::cerr << "    Authentication with the admin password is required." << std::endl;
 }
 
 void PromoteShadowCommand::run(const Options& options) const {

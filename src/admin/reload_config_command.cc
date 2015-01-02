@@ -17,7 +17,7 @@ void ReloadConfigCommand::usage() const {
 	std::cerr << name() << " <master ip> <master port>" << std::endl;
 	std::cerr << "    Requests reloading configuration from the config file." << std::endl;
 	std::cerr << "    This is synchronous (waits for reload to finish)." << std::endl;
-	std::cerr << "    Authentication with admin password required." << std::endl;
+	std::cerr << "    Authentication with the admin password is required." << std::endl;
 }
 
 void ReloadConfigCommand::run(const Options& options) const {

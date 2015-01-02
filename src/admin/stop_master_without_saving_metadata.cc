@@ -13,10 +13,11 @@ std::string MetadataserverStopWithoutSavingMetadataCommand::name() const {
 
 void MetadataserverStopWithoutSavingMetadataCommand::usage() const {
 	std::cerr << name() << " <master ip> <master port>" << std::endl;
-	std::cerr << "    Stop master server without dumping metadata." << std::endl;
-	std::cerr << "    Used to quickly migrate master server. Works" << std::endl;
-	std::cerr << "    only if personality 'auto' is used." << std::endl;
-	std::cerr << "    Authentication needed." << std::endl;
+	std::cerr << "    Stop the master server without saving metadata in the metadata.mfs file."
+			<< std::endl;
+	std::cerr << "    Used to quickly migrate a metadata server (works for all personalities)."
+			<< std::endl;
+	std::cerr << "    Authentication with the admin password is required." << std::endl;
 }
 
 void MetadataserverStopWithoutSavingMetadataCommand::run(const Options& options) const {
