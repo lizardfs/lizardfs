@@ -1,6 +1,7 @@
 #include "common/platform.h"
 #include "common/server_connection.h"
 
+#include "common/exceptions.h"
 #include "common/message_receive_buffer.h"
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
@@ -20,6 +21,10 @@ ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
 }
 
 ServerConnection::ServerConnection(int fd) : fd_(fd) { }
+
+ServerConnection::ServerConnection(ServerConnection&& connection) : fd_(connection.fd_) {
+	connection.fd_ = -1;
+}
 
 ServerConnection::~ServerConnection() {
 	if (fd_ != -1) {
@@ -46,13 +51,13 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 	while (writer.hasDataToSend()) {
 		int status = tcptopoll(fd, POLLOUT, timeout.remaining_ms());
 		if (status == 0 || timeout.expired()) {
-			throw Exception("Can't write data to socket: timeout");
+			throw ConnectionException("Can't write data to socket: timeout");
 		} else if (status < 0) {
-			throw Exception("Can't write data to socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't write data to socket: " + std::string(strerr(errno)));
 		}
 		ssize_t bytesWritten = writer.writeTo(fd);
 		if (bytesWritten < 0) {
-			throw Exception("Can't write data to socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't write data to socket: " + std::string(strerr(errno)));
 		}
 	}
 
@@ -61,16 +66,16 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 	while (!reader.hasMessageData()) {
 		int status = tcptopoll(fd, POLLIN, timeout.remaining_ms());
 		if (status == 0 || timeout.expired()) {
-			throw Exception("Can't read data from socket: timeout");
+			throw ConnectionException("Can't read data from socket: timeout");
 		} else if (status < 0) {
-			throw Exception("Can't read data from socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't read data from socket: " + std::string(strerr(errno)));
 		}
 		ssize_t bytesRead = reader.readFrom(fd);
 		if (bytesRead == 0) {
-			throw Exception("Can't read data from socket: connection reset by peer");
+			throw ConnectionException("Can't read data from socket: connection reset by peer");
 		}
 		if (bytesRead < 0) {
-			throw Exception("Can't read data from socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't read data from socket: " + std::string(strerr(errno)));
 		}
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
@@ -95,12 +100,12 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 void ServerConnection::connect(const NetworkAddress& server) {
 	fd_ = tcpsocket();
 	if (fd_ < 0) {
-		throw Exception("Can't create socket: " + std::string(strerr(errno)));
+		throw ConnectionException("Can't create socket: " + std::string(strerr(errno)));
 	}
 	tcpnonblock(fd_);
 	if (tcpnumtoconnect(fd_, server.ip, server.port, kTimeout_ms) != 0) {
 		tcpclose(fd_);
 		fd_ = -1;
-		throw Exception("Can't connect to " + server.toString() + ": " + strerr(errno));
+		throw ConnectionException("Can't connect to " + server.toString() + ": " + strerr(errno));
 	}
 }

@@ -18,6 +18,7 @@ public:
 	ServerConnection(const std::string& host, const std::string& port);
 	ServerConnection(const NetworkAddress& server);
 	ServerConnection(int fd);
+	ServerConnection(ServerConnection&& connection);
 	~ServerConnection();
 
 	std::vector<uint8_t> sendAndReceive(
