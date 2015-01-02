@@ -18,7 +18,7 @@ setup_local_empty_lizardfs() {
 	local mntdir=$TEMP_DIR/mnt
 	declare -gA lizardfs_info_
 	lizardfs_info_[chunkserver_count]=$number_of_chunkservers
-	lizardfs_info_[password]="password"
+	lizardfs_info_[admin_password]=${ADMIN_PASSWORD:-password}
 
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
@@ -202,7 +202,7 @@ create_mfsmaster_master_cfg_() {
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
-	echo "ADMIN_PASSWORD = ${lizardfs_info_[password]}"
+	echo "ADMIN_PASSWORD = ${lizardfs_info_[admin_password]}"
 	create_magic_debug_log_entry_ "master_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
@@ -225,7 +225,7 @@ create_mfsmaster_shadow_cfg_() {
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
-	echo "ADMIN_PASSWORD = ${lizardfs_info_[password]}"
+	echo "ADMIN_PASSWORD = ${lizardfs_info_[admin_password]}"
 	create_magic_debug_log_entry_ "shadow_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
@@ -494,7 +494,7 @@ lizardfs_probe_master() {
 #command for stoping master server without dumping metadata
 lizardfs_admin_stop() {
 	assert_success lizardfs-admin stop-master-without-saving-metadata \
-			localhost "${lizardfs_info_[matocl]}" <<< "${lizardfs_info_[password]}"
+			localhost "${lizardfs_info_[matocl]}" <<< "${lizardfs_info_[admin_password]}"
 	assert_eventually "! mfsmaster -c ${lizardfs_info_[master_cfg]} isalive"
 }
 

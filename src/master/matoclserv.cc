@@ -41,6 +41,7 @@
 #include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
+#include "common/human_readable_format.h"
 #include "common/io_limits_config_loader.h"
 #include "common/io_limits_database.h"
 #include "common/lizardfs_version.h"
@@ -165,6 +166,14 @@ enum class ClientState {
 	kAdmin = 665
 };
 
+/// Values for matoclserventry.adminTask
+/// Lists of tasks that admins can request.
+enum class AdminTask {
+	kNone,
+	kTerminate,  ///< Admin successfully requested termination of the server
+	kReload,  ///< Admin successfully requested reloading the configuration
+};
+
 /** Client entry in the server. */
 struct matoclserventry {
 	ClientState registered;
@@ -181,11 +190,11 @@ struct matoclserventry {
 	uint8_t hdrbuff[8];
 	packetstruct inputpacket;
 	packetstruct *outputhead,**outputtail;
-	bool requestingTermination;       // Is this client requesting termination of the master server
 
 	uint8_t passwordrnd[32];
 	session *sesdata;
 	std::unique_ptr<LizMatoclAdminRegisterChallengeData> adminChallenge;
+	AdminTask adminTask;                   // admin task requested by this client
 	chunklist *chunkdelayedops;
 /* CACHENOTIFY
 	dirincache *cacheddirs;
@@ -3616,7 +3625,7 @@ void matoclserv_admin_stop_without_metadata_dump(
 				fs_disable_metadata_dump_on_exit();
 				uint8_t status = main_want_to_terminate();
 				if (status == STATUS_OK) {
-					eptr->requestingTermination = true;
+					eptr->adminTask = AdminTask::kTerminate;
 				} else {
 					matoclserv_createpacket(
 							eptr, matocl::adminStopWithoutMetadataDump::build(status));
@@ -3629,8 +3638,21 @@ void matoclserv_admin_stop_without_metadata_dump(
 		}
 	} else {
 		syslog(LOG_NOTICE,
-						"LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:"
-						" available only for registered admins");
+				"LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:"
+				" available only for registered admins");
+		eptr->mode = KILL;
+	}
+}
+
+void matoclserv_admin_reload(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::adminReload::deserialize(data, length);
+	if (eptr->registered == ClientState::kAdmin) {
+		eptr->adminTask = AdminTask::kReload; // mark, that this admin waits for response
+		main_want_to_reload();
+		syslog(LOG_NOTICE, "reload of the config file requested using lizardfs-admin by %s",
+				ipToString(eptr->peerip).c_str());
+	} else {
+		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RELOAD: available only for registered admins");
 		eptr->mode = KILL;
 	}
 }
@@ -3733,6 +3755,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:
 					matoclserv_admin_stop_without_metadata_dump(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_ADMIN_RELOAD:
+					matoclserv_admin_reload(eptr, data, length);
+					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
 					eptr->mode = KILL;
@@ -3805,6 +3830,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:
 					matoclserv_admin_stop_without_metadata_dump(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_ADMIN_RELOAD:
+					matoclserv_admin_reload(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
@@ -4216,22 +4244,21 @@ void matoclserv_wantexit(void) {
 }
 
 int matoclserv_canexit(void) {
-	matoclserventry *eptr;
 	matoclserventry *adminTerminator = NULL;
 	static bool terminatorPacketSent = false;
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
+	for (matoclserventry* eptr = matoclservhead; eptr != nullptr; eptr = eptr->next) {
 		if (eptr->outputhead!=NULL) {
 			return 0;
 		}
 		if (eptr->chunkdelayedops!=NULL) {
 			return 0;
 		}
-		if (eptr->requestingTermination){
+		if (eptr->adminTask == AdminTask::kTerminate) {
 			adminTerminator = eptr;
 		}
 	}
 	if (adminTerminator != NULL && !terminatorPacketSent) {
-	// Are we replying to termination request?
+		// Are we replying to termination request?
 		if (!matomlserv_canexit()){  // make sure there are no ml connected
 			syslog(LOG_INFO, "Waiting for ml connections to close...");
 			return 0;
@@ -4241,9 +4268,10 @@ int matoclserv_canexit(void) {
 			terminatorPacketSent = true;
 		}
 	}
-	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->requestingTermination){
-		// Wait for the terminating admin to disconnect - this ensures that he receives data
+	// Wait for the admin which requested termination (if exists) to disconnect.
+	// This ensures that he received the response (or died and is no longer interested).
+	for (matoclserventry* eptr = matoclservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->adminTask == AdminTask::kTerminate) {
 			return 0;
 		}
 	}
@@ -4310,7 +4338,7 @@ void matoclserv_serve(struct pollfd *pdesc) {
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
 			eptr->inputpacket.packet = NULL;
-			eptr->requestingTermination = false;
+			eptr->adminTask = AdminTask::kNone;
 			eptr->outputhead = NULL;
 			eptr->outputtail = &(eptr->outputhead);
 
@@ -4478,8 +4506,13 @@ void  matoclserv_become_master() {
 }
 
 void matoclserv_reload(void) {
-	char *oldListenHost,*oldListenPort;
-	int newlsock;
+	// Notify admins that reload was performed - put responses in their packet queues
+	for (matoclserventry* eptr = matoclservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->adminTask == AdminTask::kReload) {
+			matoclserv_createpacket(eptr, matocl::adminReload::build(STATUS_OK));
+			eptr->adminTask = AdminTask::kNone;
+		}
+	}
 
 	RejectOld = cfg_getuint32("REJECT_OLD_CLIENTS",0);
 	SessionSustainTime = cfg_getuint32("SESSION_SUSTAIN_TIME",86400);
@@ -4494,8 +4527,8 @@ void matoclserv_reload(void) {
 
 	matoclserv_iolimits_reload();
 
-	oldListenHost = ListenHost;
-	oldListenPort = ListenPort;
+	char *oldListenHost = ListenHost;
+	char *oldListenPort = ListenPort;
 	if (cfg_isdefined("MATOCL_LISTEN_HOST") || cfg_isdefined("MATOCL_LISTEN_PORT") || !(cfg_isdefined("MATOCU_LISTEN_HOST") || cfg_isdefined("MATOCU_LISTEN_HOST"))) {
 		ListenHost = cfg_getstr("MATOCL_LISTEN_HOST","*");
 		ListenPort = cfg_getstr("MATOCL_LISTEN_PORT","9421");
@@ -4510,7 +4543,7 @@ void matoclserv_reload(void) {
 		return;
 	}
 
-	newlsock = tcpsocket();
+	int newlsock = tcpsocket();
 	if (newlsock<0) {
 		lzfs_pretty_errlog(LOG_WARNING,"main master server module: socket address has changed, but can't create new socket");
 		free(ListenHost);

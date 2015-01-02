@@ -7,11 +7,11 @@ MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1" \
 lizardfs_master_n 1 stop
 # Make sure admin stop will fail without connected shadow server
 assert_failure lizardfs-admin stop-master-without-saving-metadata \
-		localhost "${info[matocl]}" <<< "${info[password]}"
+		localhost "${info[matocl]}" <<< "${info[admin_password]}"
 lizardfs_master_n 1 start
 # Make sure admin stop will succeed with connected shadow server
 assert_success lizardfs-admin stop-master-without-saving-metadata \
-		localhost "${info[matocl]}" <<< "${info[password]}"
+		localhost "${info[matocl]}" <<< "${info[admin_password]}"
 # Wait for master server to actually shut down
 assert_eventually "! mfsmaster -c ${info[master_cfg]} isalive"
 lizardfs_master_n 0 start

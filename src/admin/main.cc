@@ -17,6 +17,7 @@
 #include "admin/metadataserver_status_command.h"
 #include "admin/promote_shadow_command.h"
 #include "admin/ready_chunkservers_count_command.h"
+#include "admin/reload_config_command.h"
 #include "admin/stop_master_without_saving_metadata.h"
 
 int main(int argc, const char** argv) {
@@ -34,6 +35,7 @@ int main(int argc, const char** argv) {
 			new ReadyChunkserversCountCommand(),
 			new PromoteShadowCommand(),
 			new MetadataserverStopWithoutSavingMetadataCommand(),
+			new ReloadConfigCommand(),
 	};
 
 	try {

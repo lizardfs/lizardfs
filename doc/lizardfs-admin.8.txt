@@ -61,7 +61,18 @@ lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
   Prints number of chunkservers ready to be written to.
 
 *promote-shadow* __<shadow ip> <shadow port>__::
-  Promotes metadata server from shadow to master. Authentication needed.
+  Promotes metadata server from shadow to master.
+  Authentication with admin password required.
+
+*stop-master-without-saving-metadata* __<master ip> <master port>__::
+  Stops the master server without dumping metadata.
+  Used to quickly migrate master server. Works only if personality 'auto' is used.
+  Authentication with admin password required.
+
+*reload-config* __<master ip> <master port>__::
+  Requests reloading configuration from the config file.
+  This is synchronous (waits for reload to finish).
+  Authentication with admin password required.
 
 == COMMON COMMAND OPTIONS
 

@@ -1392,27 +1392,27 @@ enum class SugidClearMode {
 #define LIZ_CLTOMA_METADATASERVER_STATUS (1000U + 545U)
 /// msgid:32
 
-// 0x060a
+// 0x060A
 #define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
 /// msgid:32 serverstatus:8 metadataversion:64
 
-// 0x060b
+// 0x060D
 #define LIZ_CLTOMA_LIST_GOALS (1000U + 547U)
 /// dummy:8
 
-// 0x060c
+// 0x060C
 #define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
 /// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
 
-// 0x060d
+// 0x060D
 #define LIZ_CLTOMA_CSERV_LIST (1000U + 549U)
 /// dummy:8
 
-// 0x060e
+// 0x060E
 #define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
 /// chunkservers:(vector<ChunkserverListEntry>)
 
-// 0x060f
+// 0x060F
 #define LIZ_CLTOMA_HOSTNAME (1000U + 551U)
 /// -
 
@@ -1450,6 +1450,14 @@ enum class SugidClearMode {
 
 // 0x0618
 #define LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP (1000U + 560U)
+/// status:8
+
+// 0x0619
+#define LIZ_CLTOMA_ADMIN_RELOAD (1000U + 561U)
+/// -
+
+// 0x061A
+#define LIZ_MATOCL_ADMIN_RELOAD (1000U + 562U)
 /// status:8
 
 // CHUNKSERVER STATS

@@ -162,6 +162,9 @@ static bool gRunAsDaemon = true;
 static std::vector<std::string> gExtraArguments;
 static ExitingStatus gExitingStatus = ExitingStatus::kRunning;
 
+/// When set to true, config will be reloaded after the current loop
+static bool gReloadRequested = false;
+
 static int signalpipe[2];
 
 /* interface */
@@ -348,6 +351,10 @@ uint8_t main_want_to_terminate() {
 	}
 }
 
+void main_want_to_reload() {
+	gReloadRequested = true;
+}
+
 void destruct() {
 	deentry *deit;
 	for (deit = dehead ; deit!=NULL ; deit=deit->next) {
@@ -366,9 +373,7 @@ void mainloop() {
 	struct pollfd pdesc[MFSMAXFILES];
 	uint32_t ndesc;
 	int i;
-	int r;
 
-	r = 0;
 	while (gExitingStatus != ExitingStatus::kDoExit) {
 		ndesc=1;
 		pdesc[0].fd = signalpipe[0];
@@ -403,7 +408,7 @@ void mainloop() {
 						gExitingStatus = ExitingStatus::kWantExit;
 					} else if (sigid=='\002') {
 						syslog(LOG_NOTICE,"reloading config files");
-						r = 1;
+						gReloadRequested = true;
 					} else if (sigid=='\003') {
 						syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
 						exit(LIZARDFS_EXIT_STATUS_GENTLY_KILL);
@@ -457,7 +462,7 @@ void mainloop() {
 			}
 		}
 		prevtime = now;
-		if (gExitingStatus == ExitingStatus::kRunning && r) {
+		if (gExitingStatus == ExitingStatus::kRunning && gReloadRequested) {
 			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
 				try {
@@ -466,7 +471,7 @@ void mainloop() {
 					syslog(LOG_WARNING, "reload error: %s", ex.what());
 				}
 			}
-			r = 0;
+			gReloadRequested = false;
 			DEBUG_LOG("main.reload");
 		}
 		if (gExitingStatus == ExitingStatus::kWantExit) {

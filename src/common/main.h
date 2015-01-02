@@ -69,3 +69,10 @@ uint64_t main_utime(void);
  *         ERROR_NOTPOSSIBLE if it was already initialized.
  */
 uint8_t main_want_to_terminate(void);
+
+/*! \brief Request reloading the configuration.
+ *
+ * Reload will be performed after the current loop, so this function returns
+ * before thereload actually happens.
+ */
+void main_want_to_reload(void);
