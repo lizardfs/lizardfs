@@ -196,7 +196,12 @@ typedef struct folder {
 } folder;
 
 static uint32_t HDDTestFreq = 10;
-static uint64_t LeaveFree;
+
+/// Number of bytes which should be addded to each disk's used space
+static uint64_t gLeaveFree;
+
+/// Default value for HDD_LEAVE_SPACE_DEFAULT
+static const char gLeaveSpaceDefaultDefaultStrValue[] = "4GiB";
 
 /* folders data */
 static folder *folderhead = NULL;
@@ -4041,7 +4046,7 @@ int hdd_parseline(char *hddcfgline) {
 				if (lmode==1) {
 					f->leavefree = limit;
 				} else {
-					f->leavefree = LeaveFree;
+					f->leavefree = gLeaveFree;
 				}
 				if (lmode==2) {
 					f->sizelimit = limit;
@@ -4087,7 +4092,7 @@ int hdd_parseline(char *hddcfgline) {
 	if (lmode==1) {
 		f->leavefree = limit;
 	} else {
-		f->leavefree = LeaveFree;
+		f->leavefree = gLeaveFree;
 	}
 	if (lmode==2) {
 		f->sizelimit = limit;
@@ -4196,12 +4201,12 @@ void hdd_reload(void) {
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
 
-	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
-	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
+	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - left unchanged");
 	}
 	free(LeaveFreeStr);
-	if (LeaveFree<0x4000000) {
+	if (gLeaveFree<0x4000000) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT < chunk size - leaving so small space on hdd is not recommended");
 	}
 
@@ -4244,15 +4249,18 @@ int hdd_init(void) {
 
 	emptyblockcrc = mycrc32_zeroblock(0,MFSBLOCKSIZE);
 
-	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
-	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+	uint64_t leaveSpaceDefaultDefaultValue = 0;
+	sassert(hdd_size_parse(gLeaveSpaceDefaultDefaultStrValue, &leaveSpaceDefaultDefaultValue) >= 0);
+	sassert(leaveSpaceDefaultDefaultValue > 0);
+	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
+	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
 		lzfs_pretty_syslog(LOG_WARNING,
-				"%s: HDD_LEAVE_SPACE_DEFAULT parse error - using default (256MiB)",
-				cfg_filename().c_str());
-		LeaveFree = 0x10000000;
+				"%s: HDD_LEAVE_SPACE_DEFAULT parse error - using default (%s)",
+				cfg_filename().c_str(), gLeaveSpaceDefaultDefaultStrValue);
+		gLeaveFree = leaveSpaceDefaultDefaultValue;
 	}
 	free(LeaveFreeStr);
-	if (LeaveFree<0x4000000) {
+	if (gLeaveFree<0x4000000) {
 		lzfs_pretty_syslog(LOG_WARNING,
 				"%s: HDD_LEAVE_SPACE_DEFAULT < chunk size - "
 				"leaving so small space on hdd is not recommended",

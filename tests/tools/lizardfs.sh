@@ -345,6 +345,7 @@ create_mfschunkserver_cfg_() {
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "DATA_PATH = $chunkserver_data_path"
 	echo "HDD_CONF_FILENAME = $hdd_cfg"
+	echo "HDD_LEAVE_SPACE_DEFAULT = 128MiB"
 	echo "MASTER_HOST = $ip_address"
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"

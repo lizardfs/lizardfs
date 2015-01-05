@@ -51,10 +51,10 @@
 ## (Default: /etc/mfs/mfshdd.cfg)
 # HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
 
-## Free space threshold to set volume as 100% utilized when there is less
-## than given amount of free space left.
-## (Default: "256MiB")
-# HDD_LEAVE_SPACE_DEFAULT = 256MiB
+## Free space threshold to set volume as 100% utilized when there is less than given amount of free
+## space left. This number is always added to the used disk space reported by chunkserver.
+## (Default: 4GiB)
+# HDD_LEAVE_SPACE_DEFAULT = 4GiB
 
 ## Chunk test period in seconds.
 ## (Default: 10)
