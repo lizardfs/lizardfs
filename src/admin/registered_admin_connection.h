@@ -7,7 +7,7 @@
 #include "common/server_connection.h"
 
 /// An authenticated (using an admin password) version of cl<->ma connection.
-class RegisteredAdminConnection : public ServerConnection {
+class RegisteredAdminConnection : public KeptAliveServerConnection {
 public:
 	/// Creates a new registered admin connection.
 	/// Asks for a password and authenticates using an challenge-response mechanism.
@@ -19,6 +19,6 @@ public:
 private:
 	/// Private constructor for ::create.
 	RegisteredAdminConnection(const std::string host, const std::string& port)
-		: ServerConnection(host, port) {
+		: KeptAliveServerConnection(host, port) {
 	}
 };

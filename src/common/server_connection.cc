@@ -1,51 +1,22 @@
 #include "common/platform.h"
 #include "common/server_connection.h"
 
+#include "common/cwrap.h"
 #include "common/exceptions.h"
 #include "common/message_receive_buffer.h"
+#include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
+#include "common/packet.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 
 static const uint32_t kTimeout_ms = 5000;
 
-ServerConnection::ServerConnection(const std::string& host, const std::string& port) : fd_(-1) {
-	NetworkAddress server;
-	tcpresolve(host.c_str(), port.c_str(), &server.ip, &server.port, false);
-	connect(server);
-}
+namespace {
 
-ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
-	connect(server);
-}
-
-ServerConnection::ServerConnection(int fd) : fd_(fd) { }
-
-ServerConnection::ServerConnection(ServerConnection&& connection) : fd_(connection.fd_) {
-	connection.fd_ = -1;
-}
-
-ServerConnection::~ServerConnection() {
-	if (fd_ != -1) {
-		tcpclose(fd_);
-	}
-}
-
-std::vector<uint8_t> ServerConnection::sendAndReceive(
-		const std::vector<uint8_t>& request,
-		PacketHeader::Type expectedType,
-		ReceiveMode receiveMode) {
-	return ServerConnection::sendAndReceive(fd_, request, expectedType, receiveMode);
-}
-
-std::vector<uint8_t> ServerConnection::sendAndReceive(
-		int fd,
-		const std::vector<uint8_t>& request,
-		PacketHeader::Type expectedType,
-		ReceiveMode receiveMode) {
-	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
-	// Send
+/// Writes the \p request to the \p fd_ socket
+void sendRequestGeneric(int fd, const MessageBuffer& request, const Timeout& timeout) {
 	MultiBufferWriter writer;
 	writer.addBufferToSend(request.data(), request.size());
 	while (writer.hasDataToSend()) {
@@ -53,35 +24,43 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 		if (status == 0 || timeout.expired()) {
 			throw ConnectionException("Can't write data to socket: timeout");
 		} else if (status < 0) {
-			throw ConnectionException("Can't write data to socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't write data to socket: " + errorString(errno));
 		}
 		ssize_t bytesWritten = writer.writeTo(fd);
 		if (bytesWritten < 0) {
-			throw ConnectionException("Can't write data to socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't write data to socket: " + errorString(errno));
 		}
 	}
+}
 
-	// Receive
+/// Reads a message from the \p socket
+/// Throws if its type is different than \p expectedType.
+/// Ignores NOP messages if \p receiveMode is ReceiveMode::kReceiveFirstNonNopMessage.
+MessageBuffer receiveRequestGeneric(
+		int fd,
+		PacketHeader::Type expectedType,
+		ServerConnection::ReceiveMode receiveMode,
+		const Timeout& timeout) {
 	MessageReceiveBuffer reader(4 * 1024 * 1024);
 	while (!reader.hasMessageData()) {
 		int status = tcptopoll(fd, POLLIN, timeout.remaining_ms());
 		if (status == 0 || timeout.expired()) {
 			throw ConnectionException("Can't read data from socket: timeout");
 		} else if (status < 0) {
-			throw ConnectionException("Can't read data from socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't read data from socket: " + errorString(errno));
 		}
 		ssize_t bytesRead = reader.readFrom(fd);
 		if (bytesRead == 0) {
 			throw ConnectionException("Can't read data from socket: connection reset by peer");
 		}
 		if (bytesRead < 0) {
-			throw ConnectionException("Can't read data from socket: " + std::string(strerr(errno)));
+			throw ConnectionException("Can't read data from socket: " + errorString(errno));
 		}
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
 		}
 		while (reader.hasMessageData()
-				&& receiveMode == ReceiveMode::kReceiveFirstNonNopMessage
+				&& receiveMode == ServerConnection::ReceiveMode::kReceiveFirstNonNopMessage
 				&& reader.getMessageHeader().type == ANTOAN_NOP) {
 			// We have received a NOP message and were instructed to ignore it
 			reader.removeMessage();
@@ -94,7 +73,42 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 	}
 
 	uint32_t length = reader.getMessageHeader().length;
-	return std::vector<uint8_t>(reader.getMessageData(), reader.getMessageData() + length);
+	return MessageBuffer(reader.getMessageData(), reader.getMessageData() + length);
+}
+
+} // anonymous namespace
+
+ServerConnection::ServerConnection(const std::string& host, const std::string& port) : fd_(-1) {
+	NetworkAddress server;
+	tcpresolve(host.c_str(), port.c_str(), &server.ip, &server.port, false);
+	connect(server);
+}
+
+ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
+	connect(server);
+}
+
+ServerConnection::~ServerConnection() {
+	if (fd_ != -1) {
+		tcpclose(fd_);
+	}
+}
+
+MessageBuffer ServerConnection::sendAndReceive(
+		const MessageBuffer& request,
+		PacketHeader::Type expectedType,
+		ReceiveMode receiveMode) {
+	return ServerConnection::sendAndReceive(fd_, request, expectedType, receiveMode);
+}
+
+MessageBuffer ServerConnection::sendAndReceive(
+		int fd,
+		const MessageBuffer& request,
+		PacketHeader::Type expectedType,
+		ReceiveMode receiveMode) {
+	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+	sendRequestGeneric(fd, request, timeout);
+	return receiveRequestGeneric(fd, expectedType, receiveMode, timeout);
 }
 
 void ServerConnection::connect(const NetworkAddress& server) {
@@ -108,4 +122,37 @@ void ServerConnection::connect(const NetworkAddress& server) {
 		fd_ = -1;
 		throw ConnectionException("Can't connect to " + server.toString() + ": " + strerr(errno));
 	}
+}
+
+KeptAliveServerConnection::~KeptAliveServerConnection() {
+	threadCanRun_ = false;
+	cond_.notify_all();
+	nopThread_.join();
+}
+
+MessageBuffer KeptAliveServerConnection::sendAndReceive(
+		const MessageBuffer& request,
+		PacketHeader::Type expectedResponseType,
+		ReceiveMode receiveMode) {
+	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+	/* synchronized with nopThread_ */ {
+		std::unique_lock<std::mutex> lock(mutex_);
+		sendRequestGeneric(fd_, request, timeout);
+	}
+	return receiveRequestGeneric(fd_, expectedResponseType, receiveMode, timeout);
+}
+
+void KeptAliveServerConnection::startNopThread() {
+	auto threadCode = [this]() {
+		std::unique_lock<std::mutex> lock(mutex_);
+		while (threadCanRun_) {
+			cond_.wait_for(lock, std::chrono::seconds(1));
+			if (threadCanRun_) {
+				// We have the lock, we can send something
+				Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+				sendRequestGeneric(fd_, buildMooseFsPacket(ANTOAN_NOP), timeout);
+			}
+		}
+	};
+	nopThread_ = std::thread(threadCode);
 }

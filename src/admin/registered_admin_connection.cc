@@ -27,10 +27,6 @@ std::string getPassword() {
 std::unique_ptr<RegisteredAdminConnection> RegisteredAdminConnection::create(
 		const std::string& host,
 		const std::string& port) {
-	// Read a password from stdin
-	// TODO(msulikowski) ask for the password after getting a challenge
-	auto password = getPassword();
-
 	// Connect the master server
 	auto connection = std::unique_ptr<RegisteredAdminConnection>(
 			new RegisteredAdminConnection(host, port));
@@ -41,7 +37,8 @@ std::unique_ptr<RegisteredAdminConnection> RegisteredAdminConnection::create(
 	LizMatoclAdminRegisterChallengeData challenge;
 	matocl::adminRegisterChallenge::deserialize(challengeMessage, challenge);
 
-	// Prepare and send the response
+	// Read a password from stdin and send the response
+	auto password = getPassword();
 	auto response = md5_challenge_response(challenge, password);
 	std::fill(password.begin(), password.end(), char(0)); // shred the password
 	auto registerResponse = connection->sendAndReceive(
