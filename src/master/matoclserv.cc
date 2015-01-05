@@ -3573,13 +3573,12 @@ void matoclserv_admin_register_response(matoclserventry* eptr, const uint8_t* da
 			syslog(LOG_WARNING, "admin access disabled");
 			return;
 		}
-		std::array<uint8_t, 16> digest = md5_challenge_response(*eptr->adminChallenge,
-				password);
+		auto digest = md5_challenge_response(*eptr->adminChallenge, password);
 		if (receivedDigest == digest) {
 			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(STATUS_OK));
 			eptr->registered = ClientState::kAdmin;
 		} else {
-			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(ERROR_EPERM));
+			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(ERROR_BADPASSWORD));
 			syslog(LOG_WARNING, "admin authentication error");
 		}
 		eptr->adminChallenge.reset();
