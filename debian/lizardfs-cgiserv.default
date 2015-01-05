@@ -1,12 +1,20 @@
-# /etc/default/lizardfs-cgiserv
+# Defaults for lizardfs-cgiserv
+# lizardfs-cgiserver(8)
+#
+# This is a POSIX shell fragment
+#
 
-# Start mfscgiserv from init.d script on boot.
-#   Only allowed values are "true" and "false".
-#   Undefined values default to "false".
-LIZARDFSCGISERV_ENABLE=false
+## user to run daemon as (default: nobody)
+# LIZARDFSCGISERV_USER=nobody
 
-# user and group used to run mfscgiserv
-LIZARDFSCGISERV_USER=nobody
-LIZARDFSCGISERV_GROUP=nogroup
+## group to run daemon as (default: nogroup)
+# LIZARDFSCGISERV_GROUP=nogroup
 
-DAEMON_OPTS=""
+## local address to listen on (default: any)
+# BIND_HOST=localhost
+
+## port to listen on (default: 9425)
+# BIND_PORT=9425
+
+## local path to use as HTTP document root (default: /usr/share/mfscgi)
+# ROOT_PATH=/usr/share/mfscgi

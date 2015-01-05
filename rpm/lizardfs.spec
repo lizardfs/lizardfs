@@ -415,7 +415,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %files cgiserv
 %defattr(644,root,root,755)
+%attr(755,root,root) %{_sbindir}/lizardfs-cgiserver
 %attr(755,root,root) %{_sbindir}/mfscgiserv
+%{_mandir}/man8/lizardfs-cgiserver.8*
 %{_mandir}/man8/mfscgiserv.8*
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-cgiserv

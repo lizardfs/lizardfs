@@ -3,11 +3,10 @@ Description=LizardFS CGI server daemon
 After=network.target
 
 [Service]
-Type=forking
-ExecStart=/usr/sbin/mfscgiserv start
-ExecStop=/usr/sbin/mfscgiserv stop
-ExecReload=/usr/sbin/mfscgiserv restart
-Restart=on-abort
+Type=simple
+ExecStart=/usr/sbin/lizardfs-cgiserver
+User=nobody
+Group=nobody
 
 [Install]
 WantedBy=multi-user.target

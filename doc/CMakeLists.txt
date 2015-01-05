@@ -7,6 +7,7 @@ endif()
 set(MANPAGES
     lizardfs.7          # not a source
     lizardfs-admin.8
+    lizardfs-cgiserver.8
     lizardfs-probe.8    # not a source
     mfsappendchunks.1
     mfscheckfile.1
