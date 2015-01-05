@@ -8,12 +8,14 @@
 
 namespace {
 
-// A mock which responds with a ANTOAN_NOP followed by
+// A mock which responds with a series of ANTOAN_NOP followed by
 // a message with type increased by one and some random body
 class NopResponder : public ModuleMock {
 public:
 	void onIncomingMessage(PacketHeader::Type type, const std::vector<uint8_t>&) override {
-		respondToCurrentClient(buildMooseFsPacket(ANTOAN_NOP));
+		for (int i = 0; i < 20; ++i) {
+			respondToCurrentClient(buildMooseFsPacket(ANTOAN_NOP));
+		}
 		respondToCurrentClient(buildMooseFsPacket(type + 1, uint32_t(123)));
 	}
 };

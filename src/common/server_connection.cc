@@ -80,7 +80,7 @@ std::vector<uint8_t> ServerConnection::sendAndReceive(
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
 		}
-		if (reader.hasMessageData()
+		while (reader.hasMessageData()
 				&& receiveMode == ReceiveMode::kReceiveFirstNonNopMessage
 				&& reader.getMessageHeader().type == ANTOAN_NOP) {
 			// We have received a NOP message and were instructed to ignore it
