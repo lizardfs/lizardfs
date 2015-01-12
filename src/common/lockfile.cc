@@ -1,9 +1,9 @@
 #include "common/platform.h"
 #include "common/lockfile.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/file.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 
 #include "common/cwrap.h"
@@ -27,16 +27,24 @@ void Lockfile::lock(StaleLock staleLock) {
 	if (!fd_.isOpened()) {
 		throw FilesystemException("Cannot open " + name_ + ": " + strerr(errno));
 	}
-	int ret = flock(fd_.get(), LOCK_EX | LOCK_NB);
+
+	struct flock fl;
+	fl.l_start = 0;
+	fl.l_len = 0;
+	fl.l_pid = 0;
+	fl.l_type = F_WRLCK;
+	fl.l_whence = SEEK_SET;
+	int ret = fcntl(fd_.get(), F_SETLK, &fl);
+	int err = errno; // save errno, we are going to call close()!
 	if (ret == 0) {
 		return;
 	} else {
 		fd_.close(); // Lockfile::isLocked <=> fd_.isOpened()
 	}
-	if (errno == EWOULDBLOCK) {
+	if (err == EACCES || err == EAGAIN) {
 		throw LockfileException(name_ + " is already locked!", LockfileException::Reason::kAlreadyLocked);
 	} else {
-		throw FilesystemException("Locking: " + name_ + ": " + strerr(errno));
+		throw FilesystemException("Locking: " + name_ + ": " + strerr(err));
 	}
 }
 
