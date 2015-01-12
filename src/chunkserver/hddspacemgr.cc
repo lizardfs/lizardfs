@@ -3884,7 +3884,7 @@ int hdd_size_parse(const char *str,uint64_t *ret) {
 
 int hdd_parseline(char *hddcfgline) {
 	uint32_t l,p;
-	int lfd,td;
+	int damaged,lfd,td;
 	char *pptr;
 	struct stat sb;
 	folder *f;
@@ -3892,6 +3892,7 @@ int hdd_parseline(char *hddcfgline) {
 	uint64_t limit;
 	uint8_t lmode;
 
+	damaged = 0;
 	if (hddcfgline[0]=='#') {
 		return 0;
 	}
@@ -3991,46 +3992,46 @@ int hdd_parseline(char *hddcfgline) {
 	lfd = open(lockfname.c_str(),O_RDWR|O_CREAT|O_TRUNC,0640);
 	if (lfd<0 && errno==EROFS && td) {
 		td = 2;
-	} else {
-		if (lfd<0) {
-			throw ParseException("can't create lock file " + lockfname + " : " +
-					errorString(errno));
+	} else if (lfd<0) {
+		lzfs_pretty_errlog(LOG_WARNING, "can't create lock file %s, marking hdd as damaged",
+				lockfname.c_str());
+		damaged = 1;
+	} else if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
+		int err = errno;
+		close(lfd);
+		if (err==EAGAIN) {
+			throw InitializeException(
+					"data folder " + dataDir + " already locked by another process");
+		} else {
+			lzfs_pretty_syslog(LOG_WARNING, "lockf(%s) failed, marking hdd as damaged: %s",
+					lockfname.c_str(), strerr(err));
+			damaged = 1;
 		}
-		if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
-			int err = errno;
-			close(lfd);
-			if (errno==EAGAIN) {
-				throw InitializeException(
-						"data folder " + dataDir + " already locked by another process");
-			} else {
-				throw InitializeException("lockf(" + lockfname + ") failed: " + errorString(err));
-			}
-		}
-		if (fstat(lfd,&sb)<0) {
-			int err = errno;
-			close(lfd);
-			throw InitializeException("fstat(" + lockfname + ") failed: " + errorString(err));
-		}
-		if (lockneeded) {
-			zassert(pthread_mutex_lock(&folderlock));
-			for (f=folderhead ; f ; f=f->next) {
-				if (f->devid==sb.st_dev) {
-					if (f->lockinode==sb.st_ino) {
-						std::string fPath = f->path;
-						zassert(pthread_mutex_unlock(&folderlock));
-						close(lfd);
-						throw InitializeException("data folders '" + dataDir + "' and "
-								"'" + fPath + "' have the same lockfile");
-					} else {
-						lzfs_pretty_syslog(LOG_WARNING,
-								"data folders '%s' and '%s' are on the same "
-								"physical device (could lead to unexpected behaviours)",
-								dataDir.c_str(), f->path);
-					}
+	} else if (fstat(lfd,&sb)<0) {
+		int err = errno;
+		close(lfd);
+		lzfs_pretty_syslog(LOG_WARNING, "fstat(%s) failed, marking hdd as damaged: %s",
+				lockfname.c_str(), strerr(err));
+		damaged = 1;
+	} else if (lockneeded) {
+		zassert(pthread_mutex_lock(&folderlock));
+		for (f=folderhead ; f ; f=f->next) {
+			if (f->devid==sb.st_dev) {
+				if (f->lockinode==sb.st_ino) {
+					std::string fPath = f->path;
+					zassert(pthread_mutex_unlock(&folderlock));
+					close(lfd);
+					throw InitializeException("data folders '" + dataDir + "' and "
+							"'" + fPath + "' have the same lockfile");
+				} else {
+					lzfs_pretty_syslog(LOG_WARNING,
+							"data folders '%s' and '%s' are on the same "
+							"physical device (could lead to unexpected behaviours)",
+							dataDir.c_str(), f->path);
 				}
 			}
-			zassert(pthread_mutex_unlock(&folderlock));
 		}
+		zassert(pthread_mutex_unlock(&folderlock));
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	for (f=folderhead ; f ; f=f->next) {
@@ -4039,7 +4040,7 @@ int hdd_parseline(char *hddcfgline) {
 			if (f->damaged) {
 				f->scanstate = SCST_SCANNEEDED;
 				f->scanprogress = 0;
-				f->damaged = 0;
+				f->damaged = damaged;
 				f->avail = 0ULL;
 				f->total = 0ULL;
 				if (lmode==1) {
@@ -4082,7 +4083,7 @@ int hdd_parseline(char *hddcfgline) {
 	f = (folder*)malloc(sizeof(folder));
 	passert(f);
 	f->todel = td;
-	f->damaged = 0;
+	f->damaged = damaged;
 	f->scanstate = SCST_SCANNEEDED;
 	f->scanprogress = 0;
 	f->path = strdup(pptr);
