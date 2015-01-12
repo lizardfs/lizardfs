@@ -30,43 +30,43 @@ public:
 
 // serializedSize
 
-inline uint32_t serializedSize(const bool&) {
+inline uint32_t serializedSize(bool) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const char&) {
+inline uint32_t serializedSize(char) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const signed char&) {
+inline uint32_t serializedSize(signed char) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const unsigned char&) {
+inline uint32_t serializedSize(unsigned char) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const uint16_t&) {
+inline uint32_t serializedSize(uint16_t) {
 	return 2;
 }
 
-inline uint32_t serializedSize(const uint32_t&) {
+inline uint32_t serializedSize(uint32_t) {
 	return 4;
 }
 
-inline uint32_t serializedSize(const uint64_t&) {
+inline uint32_t serializedSize(uint64_t) {
 	return 8;
 }
 
-inline uint32_t serializedSize(const int16_t&) {
+inline uint32_t serializedSize(int16_t) {
 	return 2;
 }
 
-inline uint32_t serializedSize(const int32_t&) {
+inline uint32_t serializedSize(int32_t) {
 	return 4;
 }
 
-inline uint32_t serializedSize(const int64_t&) {
+inline uint32_t serializedSize(int64_t) {
 	return 8;
 }
 
@@ -166,43 +166,43 @@ inline uint32_t serializedSize(const T& t, const Args& ... args) {
 // serialize for simple types
 
 // serialize bool
-inline void serialize(uint8_t** destination, const bool& value) {
+inline void serialize(uint8_t** destination, bool value) {
 	put8bit(destination, static_cast<uint8_t>(value ? 1 : 0));
 }
 
-inline void serialize(uint8_t** destination, const char& value) {
+inline void serialize(uint8_t** destination, char value) {
 	put8bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const signed char& value) {
+inline void serialize(uint8_t** destination, signed char value) {
 	put8bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const unsigned char& value) {
+inline void serialize(uint8_t** destination, unsigned char value) {
 	put8bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const uint16_t& value) {
+inline void serialize(uint8_t** destination, uint16_t value) {
 	put16bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const uint32_t& value) {
+inline void serialize(uint8_t** destination, uint32_t value) {
 	put32bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const uint64_t& value) {
+inline void serialize(uint8_t** destination, uint64_t value) {
 	put64bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int16_t& value) {
+inline void serialize(uint8_t** destination, int16_t value) {
 	put16bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int32_t& value) {
+inline void serialize(uint8_t** destination, int32_t value) {
 	put32bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int64_t& value) {
+inline void serialize(uint8_t** destination, int64_t value) {
 	put64bit(destination, value);
 }
 

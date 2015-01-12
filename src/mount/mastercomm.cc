@@ -1098,7 +1098,7 @@ void* fs_receive_thread(void *) {
 
 		PacketHeader packetHeader;
 		PacketVersion packetVersion;
-		uint32_t messageId;
+		uint32_t messageId = 0;
 		uint32_t remainingBytes = serializedSize(packetHeader);
 		if (!fs_deserialize_from_master(remainingBytes, packetHeader)) {
 			continue;

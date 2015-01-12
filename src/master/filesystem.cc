@@ -6685,7 +6685,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 
 	try {
 		// Read size of the entry
-		uint32_t size;
+		uint32_t size = 0;
 		buffer.resize(serializedSize(size));
 		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
 			throw Exception(std::string("read error: ") + strerr(errno), ERROR_IO);
