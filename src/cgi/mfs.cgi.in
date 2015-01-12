@@ -2458,6 +2458,7 @@ if "CC" in sectionset:
 			(20,'repl','number of chunk replications per minute'),
 			(21,'create','number of chunk creations per minute'),
 			(22,'delete','number of chunk deletions per minute'),
+			(27,'tests','number of chunk tests per minute'),
 		)
 		servers = []
 

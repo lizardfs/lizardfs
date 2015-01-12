@@ -3328,6 +3328,9 @@ void* hdd_tester_thread(void* arg) {
 		zassert(pthread_mutex_unlock(&hashlock));
 		zassert(pthread_mutex_unlock(&folderlock));
 		if (path) {
+			zassert(pthread_mutex_lock(&statslock));
+			stats_test++;
+			zassert(pthread_mutex_unlock(&statslock));
 			if (hdd_int_test(chunkid,version)!=STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid);
 			}
