@@ -99,14 +99,12 @@ class ClientHandler:
 		self.response is a list of strings or file objects
 		"""
 		if self.outgoing=='' and self.response:
-			# pylint: disable=no-member
 			if isinstance(self.response[0],str):
 				self.outgoing = self.response.pop(0)
 			else:
-				self.outgoing = self.response[0].read(self.blocksize)
+				self.outgoing = self.response[0].read(self.blocksize)  # pylint: disable=E1101
 				if not self.outgoing:
 					self.response.pop(0)
-			# pylint: enable=no-member
 		if self.outgoing:
 			try:
 				sent = self.client_socket.send(self.outgoing)
