@@ -420,8 +420,10 @@ add_mount_() {
 
 add_cgi_server_() {
 	local cgi_server_port
+	local pidfile="$vardir/lizardfs-cgiserver.pid"
 	get_next_port_number cgi_server_port
-	( lizardfs-cgiserver -P "$cgi_server_port" & ) # daemonize it
+	lizardfs-cgiserver -P "$cgi_server_port" -p "$pidfile"
+	lizardfs_info_[cgi_pidfile]=$pidfile
 	lizardfs_info_[cgi_port]=$cgi_server_port
 	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/mfs.cgi?masterport=${lizardfs_info_[matocl]}"
 }
