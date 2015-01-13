@@ -16,6 +16,13 @@ mfscgiserv - start HTTP/CGI server for Lizard File System monitoring
 
 == DESCRIPTION
 
+ ######################## ! DEPRECATION WARNING ! #########################
+ #                                                                        #
+ # mfscgiserv service is deprecated, please use lizardfs-cgiserv instead. #
+ # See manual entry lizardfs-cgiserver(8) for details.                    #
+ #                                                                        #
+ ######################## ! DEPRECATION WARNING ! #########################
+
 *mfscgiserv* is a very simple HTTP server capable of running CGI scripts for Lizard File System
 monitoring.
 
