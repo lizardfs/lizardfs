@@ -64,4 +64,3 @@ set(OPTIONAL_FUNCTIONS2 dup2 mlockall getcwd)
 check_functions("${OPTIONAL_FUNCTIONS2}" false)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
-check_cxx_compiler_flag(-Wno-gnu   CXX_HAS_WNOGNU)
