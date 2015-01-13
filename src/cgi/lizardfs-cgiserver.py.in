@@ -8,6 +8,7 @@ import time
 import signal
 import os
 import sys
+import time
 import getopt
 import traceback
 import datetime
@@ -17,6 +18,8 @@ import urllib
 import cStringIO
 import socket
 import select
+import pwd
+
 
 """Http server based on recipes 511453,511454 from code.activestate.com by Pierre Quentel"""
 """Added support for indexes, access tests, proper handle of SystemExit exception, fixed couple of errors and vulnerbilities, getopt, lockfiles, daemonize etc. by Jakub Kruszona-Zawadzki"""
@@ -370,13 +373,76 @@ class HTTP(ClientHandler):
 			sys.stderr.write('%s - - %s "%s" %s\n' %(self.host,date_str,self.requestline,code))
 
 
+# =======================================================================
+# exit_err function. Exits with error code.
+# =======================================================================
+def exit_err(msg):
+	sys.stderr.write(msg)
+	exit(1)
+
+
+# =======================================================================
+# fork function. Calls fork and exits from parent process.
+# =======================================================================
+def fork():
+	try:
+		pid = os.fork()
+		if pid > 0:
+			sys.exit(0)
+	except OSError as e:
+		exit_err("fork failed: %d (%s)" % (e.errno, e.strerror))
+
+
+# =======================================================================
+# daemonize function. Sends current process to background and manages pidfile.
+# =======================================================================
+def daemonize(pidfile, user=None):
+	# open pidfile descriptor
+	try:
+		pidf = open(pidfile, 'w+')
+	except IOError as e:
+		exit_err("could not open pidfile for writing: %s" % pidfile)
+
+	#change user from root to custom
+	if user:
+		_, _, uid, gid, _, _, _ = pwd.getpwnam(user)
+		os.setgid(gid)
+		os.setuid(uid)
+
+	# do first fork
+	fork()
+
+	# decouple from parent environment
+	os.chdir("/")
+	os.setsid()
+	os.umask(0)
+
+	# do second fork
+	fork()
+
+	# redirect standard file descriptors
+	sys.stdout.flush()
+	sys.stderr.flush()
+	nullin = open('/dev/null', 'r')
+	nullout = open('/dev/null', 'a+')
+	os.dup2(nullin.fileno(), sys.stdin.fileno())
+	os.dup2(nullout.fileno(), sys.stdout.fileno())
+	os.dup2(nullout.fileno(), sys.stderr.fileno())
+
+	# write pidfile
+	pidf.write("%d\n" % os.getpid())
+	pidf.close()
+
+
 if __name__=="__main__":
 	verbose = False
 	host = 'any'
 	port = 9425
 	rootpath="@CGI_PATH@"
+	pidfile = None
+	user = None
 
-	opts,args = getopt.getopt(sys.argv[1:],"vhH:P:R:")
+	opts,args = getopt.getopt(sys.argv[1:],"vhH:P:R:p:u:")
 	for opt, val in opts:
 		if opt == '-h':
 			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0]
@@ -384,6 +450,8 @@ if __name__=="__main__":
 			print "-P bind_port : port to listen on (default: 9425)"
 			print "-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)"
 			print "-v : log requests on stderr"
+			print "-p : pidfile path, setting it triggers manual daemonization"
+			print "-u : username of server owner, used in manual daemonization"
 			sys.exit(0)
 		elif opt == '-H':
 			host = val
@@ -393,6 +461,10 @@ if __name__=="__main__":
 			rootpath = os.path.realpath(val)
 		elif opt == '-v':
 			verbose = True
+		elif opt == '-p':
+			pidfile = val
+		elif opt == '-u':
+			user = val
 
 	# launch the server on the specified port
 	server = Server(host, port)
@@ -405,4 +477,6 @@ if __name__=="__main__":
 	else:
 		HTTP.logging = False
 	HTTP.root = rootpath
+	if pidfile:
+		daemonize(pidfile, user)
 	loop(server, HTTP)
