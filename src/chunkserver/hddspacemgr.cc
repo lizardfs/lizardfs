@@ -4019,7 +4019,7 @@ int hdd_parseline(char *hddcfgline) {
 	} else if (lockneeded) {
 		zassert(pthread_mutex_lock(&folderlock));
 		for (f=folderhead ; f ; f=f->next) {
-			if (f->devid==sb.st_dev) {
+			if (f->lfd>=0 && f->devid==sb.st_dev) {
 				if (f->lockinode==sb.st_ino) {
 					std::string fPath = f->path;
 					zassert(pthread_mutex_unlock(&folderlock));
@@ -4117,9 +4117,13 @@ int hdd_parseline(char *hddcfgline) {
 	f->lasterrindx = 0;
 	f->lastrefresh = 0;
 	f->needrefresh = 1;
-	f->devid = sb.st_dev;
-	f->lockinode = sb.st_ino;
-	f->lfd = lfd;
+	if (damaged) {
+		f->lfd = -1;
+	} else {
+		f->lfd = lfd;
+		f->devid = sb.st_dev;
+		f->lockinode = sb.st_ino;
+	}
 	f->testhead = NULL;
 	f->testtail = &(f->testhead);
 	f->carry = (double)(random()&0x7FFFFFFF)/(double)(0x7FFFFFFF);

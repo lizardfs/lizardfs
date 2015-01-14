@@ -8,6 +8,7 @@ USE_RAMDISK=YES \
 assert_success lizardfs_chunkserver_daemon 0 stop
 assert_success chmod 000 "$(sort ${info[chunkserver0_hdd]} | head -n 1)"
 assert_success lizardfs_chunkserver_daemon 0 start
+lizardfs_wait_for_all_ready_chunkservers
 
 # Ensure that disk 1 is damaged and other disks work
 list=$(lizardfs_probe_master list-disks | sort)
