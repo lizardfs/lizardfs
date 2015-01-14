@@ -318,8 +318,14 @@ create_mfshdd_cfg_() {
 	local n=$disks_per_chunkserver
 	if [[ $use_ramdisk ]]; then
 		local disk_number
-		for disk_number in $(seq 1 $n); do
-			local disk_dir=$RAMDISK_DIR/hdd_${chunkserver_id}_${disk_number}
+		for (( disk_number=0; disk_number<n; disk_number++ )); do
+			# Use path provided in env variable, if present generate some pathname otherwise.
+			local this_disk_variable="CHUNKSERVER_${chunkserver_id}_DISK_${disk_number}"
+			if [[ ${!this_disk_variable-} ]]; then
+				local disk_dir=${!this_disk_variable}
+			else
+				local disk_dir=$RAMDISK_DIR/hdd_${chunkserver_id}_${disk_number}
+			fi
 			mkdir -pm 777 $disk_dir
 			echo $disk_dir
 		done
