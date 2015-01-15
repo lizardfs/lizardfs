@@ -403,11 +403,15 @@ def daemonize(pidfile, user=None):
 	except IOError as e:
 		exit_err("could not open pidfile for writing: %s" % pidfile)
 
-	#change user from root to custom
+	# change user from root to custom
 	if user:
 		_, _, uid, gid, _, _, _ = pwd.getpwnam(user)
 		os.setgid(gid)
 		os.setuid(uid)
+
+	# flush output buffers before forking to avoid printing something twice
+	sys.stdout.flush()
+	sys.stderr.flush()
 
 	# do first fork
 	fork()
@@ -421,8 +425,6 @@ def daemonize(pidfile, user=None):
 	fork()
 
 	# redirect standard file descriptors
-	sys.stdout.flush()
-	sys.stderr.flush()
 	nullin = open('/dev/null', 'r')
 	nullout = open('/dev/null', 'a+')
 	os.dup2(nullin.fileno(), sys.stdin.fileno())
