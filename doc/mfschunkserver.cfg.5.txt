@@ -23,9 +23,6 @@ Configuration options:
 *DATA_PATH*::
 where to store files with usage statistics and daemon lock file
 
-*LOCK_FILE*::
-(deprecated) daemon lock/pid file
-
 *LABEL*::
 the label of this chunkserver (for tiering)
 

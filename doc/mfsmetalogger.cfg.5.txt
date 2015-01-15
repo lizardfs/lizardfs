@@ -23,10 +23,6 @@ Configuration options:
 *DATA_PATH*::
 where to store metadata files
 
-*LOCK_FILE*::
-(deprecated)
-daemon lock/pid file
-
 *WORKING_USER*::
 user to run daemon as
 

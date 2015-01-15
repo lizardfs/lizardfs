@@ -48,7 +48,3 @@
 ## Timeout (in seconds) for master connections.
 ## (Default: 60)
 # MASTER_TIMEOUT = 60
-
-
-# Deprecated, to be removed.
-# LOCK_FILE = @RUN_PATH@/mfsmetalogger.lock

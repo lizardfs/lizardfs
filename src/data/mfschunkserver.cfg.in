@@ -60,8 +60,6 @@
 ## (Default: 10)
 # HDD_TEST_FREQ = 10
 
-
 ## deprecated, to be removed.
-# LOCK_FILE = @RUN_PATH@/mfschunkserver.lock
 # BACK_LOGS = 50
 # CSSERV_TIMEOUT = 5

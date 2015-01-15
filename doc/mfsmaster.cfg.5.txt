@@ -40,10 +40,6 @@ means that this instance is managed by HA cluster, server runs in 'shadow' mode 
 *DATA_PATH*::
 where to store metadata files and lock file
 
-*LOCK_FILE*::
-(deprecated)
-daemon lock/pid file
-
 *WORKING_USER*::
 user to run daemon as
 

@@ -15,7 +15,6 @@
 
 #define DATA_PATH "@DATA_PATH@"
 #define ETC_PATH "@ETC_PATH@"
-#define RUN_PATH "@RUN_PATH@"
 #define SBIN_PATH "@SBIN_PATH@"
 
 #define DEFAULT_USER "@DEFAULT_USER@"
