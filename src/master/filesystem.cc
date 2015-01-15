@@ -8054,11 +8054,16 @@ char const MetadataStructureReadErrorMsg[] = "error reading metadata (structure)
 
 void fs_loadall(const std::string& fname,int ignoreflag) {
 	cstream_t fd(fopen(fname.c_str(), "r"));
+	std::string fnameWithPath;
+	if (fname.front() == '/') {
+		fnameWithPath = fname;
+	} else {
+		fnameWithPath = fs::getCurrentWorkingDirectoryNoThrow() + "/" + fname;
+	}
 	if (fd == nullptr) {
 		throw FilesystemException("can't open metadata file: " + errorString(errno));
 	}
-	lzfs_pretty_syslog(LOG_INFO,"opened metadata file %s/%s",
-				fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str());
+	lzfs_pretty_syslog(LOG_INFO,"opened metadata file %s", fnameWithPath.c_str());
 	uint8_t hdr[8];
 	if (fread(hdr,1,8,fd.get())!=8) {
 		throw MetadataConsistencyException("can't read metadata header");
@@ -8098,16 +8103,15 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 	fs_checksum(ChecksumMode::kForceRecalculate);
 #ifndef METARESTORE
 	lzfs_pretty_syslog(LOG_INFO,
-			"metadata file %s/%s read ("
+			"metadata file %s read ("
 			"%" PRIu32 " inodes including "
 			"%" PRIu32 " directory inodes and "
 			"%" PRIu32 " file inodes, "
 			"%" PRIu32 " chunks)",
-			fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str(),
+			fnameWithPath.c_str(),
 			gMetadata->nodes, gMetadata->dirnodes, gMetadata->filenodes, chunk_count());
 #else
-	lzfs_pretty_syslog(LOG_INFO, "metadata file %s/%s read",
-			fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str());
+	lzfs_pretty_syslog(LOG_INFO, "metadata file %s read", fnameWithPath.c_str());
 #endif
 	return;
 }

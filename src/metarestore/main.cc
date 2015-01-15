@@ -150,6 +150,11 @@ int main(int argc,char **argv) {
 				break;
 			case 'd':
 				datapath = optarg;
+				if (datapath.length() > 1) { // datapath is not empty nor '/'
+					if (datapath.back() == '/') { // datapath ends with '/'
+						datapath.resize(datapath.length() - 1);
+					}
+				}
 				break;
 			case 'x':
 				vl++;
