@@ -684,7 +684,7 @@ void signal_cleanup(void) {
 	close(signalpipe[1]);
 }
 
-void changeugid(void) {
+void changeugid(RunMode runmode) {
 	char pwdgrpbuff[16384];
 	struct passwd pwd,*pw;
 	struct group grp,*gr;
@@ -741,13 +741,13 @@ void changeugid(void) {
 		if (setgid(wrk_gid)<0) {
 			lzfs_pretty_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
-		} else {
+		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
 			syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
 		}
 		if (setuid(wrk_uid)<0) {
 			lzfs_pretty_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
-		} else {
+		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
 			syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
 		}
 	}
@@ -1214,7 +1214,7 @@ int main(int argc,char **argv) {
 		setpriority(PRIO_PROCESS,getpid(),nicelevel);
 	}
 
-	changeugid();
+	changeugid(runmode);
 
 	wrkdir = cfg_getstr("DATA_PATH",DATA_PATH);
 
