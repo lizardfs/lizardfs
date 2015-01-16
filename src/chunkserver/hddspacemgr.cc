@@ -1812,6 +1812,13 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = read(c->fd,buffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
+		if (ret!=MFSBLOCKSIZE) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
+			hdd_report_damaged_chunk(chunkid);
+			hdd_chunk_release(c);
+			return ERROR_IO;
+		}
 		te = get_usectime();
 		hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
 #ifdef PRESERVE_BLOCK
@@ -1830,13 +1837,6 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			hdd_chunk_release(c);
 			return ERROR_CRC;
 		}
-		if (ret!=MFSBLOCKSIZE) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_IO;
-		}
 	} else {
 #ifdef PRESERVE_BLOCK
 		if (c->blockno != blocknum) {
@@ -1847,6 +1847,13 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 			ret = read(c->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
+			if (ret!=MFSBLOCKSIZE) {
+				hdd_error_occured(c);   // uses and preserves errno !!!
+				lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
+				hdd_report_damaged_chunk(chunkid);
+				hdd_chunk_release(c);
+				return ERROR_IO;
+			}
 			te = get_usectime();
 			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
 			c->blockno = blocknum;
@@ -1864,6 +1871,13 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
+		if (ret!=MFSBLOCKSIZE) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
+			hdd_report_damaged_chunk(chunkid);
+			hdd_chunk_release(c);
+			return ERROR_IO;
+		}
 		te = get_usectime();
 		hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
 //              crc = mycrc32(0,blockbuffer+offset,size);       // first calc crc for piece
@@ -1888,13 +1902,6 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
 			return ERROR_CRC;
-		}
-		if (ret!=MFSBLOCKSIZE) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_IO;
 		}
 #ifdef PRESERVE_BLOCK
 		memcpy(buffer,c->block+offset,size);
@@ -1964,19 +1971,6 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 		ret = write(c->fd,buffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
-		te = get_usectime();
-		hdd_stats_datawrite(c->owner,MFSBLOCKSIZE,te-ts);
-		if (crc!=mycrc32(0,buffer,MFSBLOCKSIZE)) {
-			errno = 0;
-			hdd_error_occured(c);
-			syslog(LOG_WARNING,"write_block_to_chunk: file:%s - crc error",c->filename);
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_CRC;
-		}
-		wcrcptr = (c->crc)+(4*blocknum);
-		put32bit(&wcrcptr,crc);
-		c->crcchanged = 1;
 		if (ret!=MFSBLOCKSIZE) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
@@ -1984,6 +1978,11 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			hdd_chunk_release(c);
 			return ERROR_IO;
 		}
+		te = get_usectime();
+		hdd_stats_datawrite(c->owner,MFSBLOCKSIZE,te-ts);
+		wcrcptr = (c->crc)+(4*blocknum);
+		put32bit(&wcrcptr,crc);
+		c->crcchanged = 1;
 #ifdef PRESERVE_BLOCK
 		memcpy(c->block,buffer,MFSBLOCKSIZE);
 		c->blockno = blocknum;
@@ -1999,6 +1998,13 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 				ret = read(c->fd,c->block,MFSBLOCKSIZE);
 #endif /* USE_PIO */
+				if (ret!=MFSBLOCKSIZE) {
+					hdd_error_occured(c);   // uses and preserves errno !!!
+					lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - read error",c->filename);
+					hdd_report_damaged_chunk(chunkid);
+					hdd_chunk_release(c);
+					return ERROR_IO;
+				}
 				te = get_usectime();
 				hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
 				c->blockno = blocknum;
@@ -2013,9 +2019,6 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS),SEEK_SET);
 			ret = read(c->fd,blockbuffer,MFSBLOCKSIZE);
 #endif /* USE_PIO */
-			te = get_usectime();
-			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
-#endif /* PRESERVE_BLOCK */
 			if (ret!=MFSBLOCKSIZE) {
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - read error",c->filename);
@@ -2023,6 +2026,9 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				hdd_chunk_release(c);
 				return ERROR_IO;
 			}
+			te = get_usectime();
+			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
+#endif /* PRESERVE_BLOCK */
 #ifdef PRESERVE_BLOCK
 			precrc = mycrc32(0,c->block,offset);
 			chcrc = mycrc32(0,c->block+offset,size);
@@ -2081,6 +2087,13 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
 		ret = write(c->fd,c->block+offset,size);
 #endif /* USE_PIO */
+		if (ret!=(int)size) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
+			hdd_report_damaged_chunk(chunkid);
+			hdd_chunk_release(c);
+			return ERROR_IO;
+		}
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,size,te-ts);
 		chcrc = mycrc32(0,c->block+offset,size);
@@ -2093,6 +2106,13 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 		lseek(c->fd,CHUNKHDRSIZE+(((uint32_t)blocknum)<<MFSBLOCKBITS)+offset,SEEK_SET);
 		ret = write(c->fd,blockbuffer+offset,size);
 #endif /* USE_PIO */
+		if (ret!=(int)size) {
+			hdd_error_occured(c);   // uses and preserves errno !!!
+			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
+			hdd_report_damaged_chunk(chunkid);
+			hdd_chunk_release(c);
+			return ERROR_IO;
+		}
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,size,te-ts);
 		chcrc = mycrc32(0,blockbuffer+offset,size);
@@ -2115,13 +2135,6 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
 			return ERROR_CRC;
-		}
-		if (ret!=(int)size) {
-			hdd_error_occured(c);   // uses and preserves errno !!!
-			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
-			hdd_report_damaged_chunk(chunkid);
-			hdd_chunk_release(c);
-			return ERROR_IO;
 		}
 	}
 	hdd_chunk_release(c);
