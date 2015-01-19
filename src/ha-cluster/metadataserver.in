@@ -70,7 +70,7 @@ lock_timeout=10  # seconds
 score_master=1000
 score_shadow_lastest=900
 score_shadow_connected=500
-score_shadow_no_metadata=-1
+score_shadow_no_metadata=0
 metadata_version_attribute_name="lizardfs-metadata-version"
 
 # Core LizardFS variables
@@ -87,7 +87,7 @@ exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @ETC_PATH@/m
 master_metadata=${data_dir}/metadata.mfs
 master_lock=${data_dir}/metadata.mfs.lock
 master_backup_logs=${data_dir}/changelog.mfs.*
-
+promote_mode="prevent"
 
 # About
 
@@ -243,15 +243,20 @@ lizardfs_master_promote() {
 				return $OCF_ERR_GENERIC
 			fi
 
-			if [[ "${cluster_metadata_version}" == 0 ]] ; then
-				ocf_log debug "running in shadow mode on fresh cluster, creating new metadata"
+			if [[ "${promote_mode}" == "restart" ]] ; then
+				ocf_log debug "running in shadow mode on cluster with no master, doing full restart"
 				if ! ( ocf_run lizardfs_master stop master && unlink "${master_lock}" && ocf_run lizardfs_master start master ) ; then
-					ocf_log error "Failed to initialize new file system in cluster"
+					ocf_log error "Failed to restart into master mode"
 					return $OCF_FAILED_MASTER
 				fi
-			elif ! ocf_run lizardfs_admin_promote ; then
-				ocf_log error "failed to reload master"
-				return $OCF_FAILED_MASTER
+			elif [[ "${promote_mode}" == "reload" ]] ; then
+				if ! ocf_run lizardfs_admin_promote ; then
+					ocf_log error "failed to reload master"
+					return $OCF_FAILED_MASTER
+				fi
+			else
+				ocf_log error "promotion to master was prevented by monitor"
+				return $OCF_SUCCESS
 			fi
 
 			# Check that we are now succesfully a master
@@ -363,9 +368,16 @@ get_metadata_version() {
 	${HA_SBIN_DIR}/crm_attribute --type=crm_config --name ${metadata_version_attribute_name} --default=0 --query --quiet
 }
 
+# Extract version from metadata file
+get_metadata_version_from_file() {
+	mfsmetadump "${master_metadata}" | awk 'NR==2 {print $6}END{if (NR < 2) print 0}'
+	return 0
+}
+
+# Check if the mfsmaster process is running on this machine, and if so
+# check if it is as a master or a shadow master.
+# Sets global variable "promote_mode".
 lizardfs_master_monitor() {
-	# Check if the mfsmaster process is running on this machine, and if so
-	# check if it is as a master or a shadow master.
 	ocf_run -info lizardfs_master isalive
 	ret=$?
 
@@ -380,6 +392,7 @@ lizardfs_master_monitor() {
 		local personality=$(echo "$probe_result" | cut -f1)
 		local connection=$(echo "$probe_result" | cut -f2)
 		local metadata_version=$(echo "$probe_result" | cut -f3)
+		promote_mode="prevent"
 		case "$personality/$connection" in
 			master/running)
 				ocf_log debug "running in master mode"
@@ -393,12 +406,24 @@ lizardfs_master_monitor() {
 					ocf_log error "Failed to obtain metadata version from cluster."
 					return $OCF_ERR_GENERIC
 				fi
-				if [ ${metadata_version} -ge ${cluster_metadata_version} ] ; then
-					ocf_log debug "running in shadow mode, have latest metadata: ${cluster_metadata_version}"
+				if [[ ${metadata_version} -gt 0 ]] ; then
+					local local_metadata_version="${metadata_version}"
+					local in_memory=1
+				else
+					local local_metadata_version=$(get_metadata_version_from_file)
+				fi
+				if [ ${local_metadata_version} -ge ${cluster_metadata_version} ] ; then
+					ocf_log debug "running in shadow mode, have latest metadata: ${local_metadata_version}"
 					update_master_score ${score_shadow_lastest}
-				elif [ $metadata_version -gt 0 ] ; then
-					ocf_log debug "running in shadow mode, latest metadata is not available: ${metadata_version} < ${cluster_metadata_version}"
+					if [[ $in_memory ]] ; then
+						promote_mode="reload"
+					else
+						promote_mode="restart"
+					fi
+				elif [[ ${local_metadata_version} -gt 0 && ${in_memory} ]] ; then
+					ocf_log debug "running in shadow mode, latest metadata is not available: ${local_metadata_version} < ${cluster_metadata_version}"
 					update_master_score ${score_shadow_connected}
+					promote_mode="reload"
 				else
 					ocf_log debug "running in shadow mode, no metadata"
 					# Do not promote shadow with no metadata!
