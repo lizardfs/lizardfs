@@ -201,6 +201,7 @@ create_mfsmaster_master_cfg_() {
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
+	echo "MATOTS_LISTEN_PORT = ${lizardfs_info_[matots]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
 	echo "ADMIN_PASSWORD = ${lizardfs_info_[admin_password]}"
 	create_magic_debug_log_entry_ "master_${masterserver_id}"
@@ -222,6 +223,7 @@ create_mfsmaster_shadow_cfg_() {
 	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
 	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
 	echo "MATOCL_LISTEN_PORT = $masterserver_matocl_port"
+	echo "MATOTS_LISTEN_PORT = $masterserver_matots_port"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
@@ -260,6 +262,7 @@ prepare_common_metadata_server_files_() {
 	get_next_port_number "lizardfs_info_[matoml]"
 	get_next_port_number "lizardfs_info_[matocl]"
 	get_next_port_number "lizardfs_info_[matocs]"
+	get_next_port_number "lizardfs_info_[matots]"
 }
 
 add_metadata_server_() {
@@ -269,6 +272,7 @@ add_metadata_server_() {
 	local masterserver_matoml_port
 	local masterserver_matocl_port
 	local masterserver_matocs_port
+	local masterserver_matots_port
 	local masterserver_data_path=$vardir/master${masterserver_id}
 	local masterserver_master_cfg=$etcdir/mfsmaster${masterserver_id}_master.cfg
 	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
@@ -277,6 +281,7 @@ add_metadata_server_() {
 	get_next_port_number masterserver_matoml_port
 	get_next_port_number masterserver_matocl_port
 	get_next_port_number masterserver_matocs_port
+	get_next_port_number masterserver_matots_port
 	mkdir "$masterserver_data_path"
 	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
 	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
@@ -297,6 +302,7 @@ add_metadata_server_() {
 	lizardfs_info_[master${masterserver_id}_matoml]=$masterserver_matoml_port
 	lizardfs_info_[master${masterserver_id}_matocl]=$masterserver_matocl_port
 	lizardfs_info_[master${masterserver_id}_matocs]=$masterserver_matocs_port
+	lizardfs_info_[master${masterserver_id}_matots]=$masterserver_matocs_port
 }
 
 create_mfsmetalogger_cfg_() {

@@ -105,6 +105,12 @@ IP address to listen on for client (mount) connections (*** means any)
 *MATOCL_LISTEN_PORT*::
 Port to listen on for client (mount) connections (default is 9421)
 
+*MATOTS_LISTEN_HOST*::
+IP address to listen on for tapeserver connections (*** means any)
+
+*MATOTS_LISTEN_PORT*::
+Port to listen on for tapeserver connections (default is 9424)
+
 *CHUNKS_LOOP_MIN_TIME*::
 Chunks loop shouldn't be done in less seconds than given number (default is 300)
 

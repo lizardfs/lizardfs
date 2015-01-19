@@ -88,6 +88,13 @@
 ## (Default: 9421).
 # MATOCL_LISTEN_PORT = 9421
 
+## IP address to listen on for tapeserver connections (* means any).
+# MATOTS_LISTEN_HOST = *
+
+## Port to listen on for tapeserver connections
+## (Default: 9424)
+# MATOTS_LISTEN_PORT = 9424
+
 ## Chunks loop shouldn't check more chunks per seconds than given number.
 ## (Default: 100000)
 # CHUNKS_LOOP_MAX_CPS = 100000

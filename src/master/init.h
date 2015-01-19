@@ -30,6 +30,7 @@
 #include "master/matoclserv.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
+#include "master/matotsserv.h"
 #include "master/personality.h"
 #include "master/topology.h"
 
@@ -56,6 +57,7 @@ run_tab RunTab[]={
 	{masterconn_init,"communication with master server"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
+	{matotsserv_init,"communication with taperserver"},
 	{matoclserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
 },LateRunTab[]={

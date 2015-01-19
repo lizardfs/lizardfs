@@ -220,7 +220,7 @@ class PacketDissectionVariant(object):
 # Parse input
 dissectinfo = {}
 dictionaries = { 'type':[] }
-packet_regexp = re.compile(r'(LIZ_)?(AN|CS|CL|MA|ML)TO(AN|CS|CL|MA|ML)_[A-Z0-9_]+$')
+packet_regexp = re.compile(r'(LIZ_)?(AN|CS|CL|MA|ML|TS)TO(AN|CS|CL|MA|ML|TS)_[A-Z0-9_]+$')
 field_types = { 'type':Types.int_dec, 'length':Types.int_dec, 'version':Types.int_dec }
 int_field_bits = { 'type':32, 'length':32, 'version':32 }
 command = None    # if set, we are building list of possible dissections for this message

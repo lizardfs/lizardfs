@@ -1485,3 +1485,14 @@ enum class SugidClearMode {
 // 0x00259
 #define CSTOCL_HDD_LIST_V2 (PROTO_BASE+601)
 // N*[ entrysize:16 path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 bytesread:64 usecread:64 usecreadmax:64 byteswriten:64 usecwrite:64 usecwritemax:64]
+
+// TAPESERVER <-> MASTER
+
+// 0x06A4
+#define LIZ_TSTOMA_REGISTER_TAPESERVER (1000U + 700U)
+/// vershex:32
+
+// 0x06A5
+#define LIZ_MATOTS_REGISTER_TAPESERVER (1000U + 701U)
+/// version==0 status:8
+/// version==1 vershex:32
