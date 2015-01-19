@@ -3809,6 +3809,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_METADATASERVER_STATUS:
 					matoclserv_metadataserver_status(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_HOSTNAME:
+					matoclserv_hostname(eptr, data, length);
+					break;
 				case LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE:
 					matoclserv_admin_register(eptr, data, length);
 					break;

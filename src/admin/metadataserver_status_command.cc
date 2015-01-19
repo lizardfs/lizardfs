@@ -46,7 +46,6 @@ MetadataserverStatus MetadataserverStatusCommand::getStatus(ServerConnection& co
 	uint32_t messageId;
 	uint8_t status;
 	uint64_t metadataVersion;
-	std::string hostname;
 	matocl::metadataserverStatus::deserialize(response, messageId, status, metadataVersion);
 
 	std::string personality, serverStatus;

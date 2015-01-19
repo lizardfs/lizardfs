@@ -79,7 +79,7 @@ void ListMetadataserversCommand::run(const Options& options) const {
 			s = MetadataserverStatusCommand::getStatus(shadowConnection);
 
 			auto request = cltoma::hostname::build();
-			auto response = connection.sendAndReceive(request, LIZ_MATOCL_HOSTNAME);
+			auto response = shadowConnection.sendAndReceive(request, LIZ_MATOCL_HOSTNAME);
 			matocl::hostname::deserialize(response, hostname);
 		} else {
 			hostname = "unknown";

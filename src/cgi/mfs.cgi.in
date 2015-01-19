@@ -41,9 +41,16 @@ LIZ_CLTOMA_LIST_GOALS = 1547
 LIZ_MATOCL_LIST_GOALS = 1548
 LIZ_CLTOMA_CSERV_LIST = 1549
 LIZ_MATOCL_CSERV_LIST = 1550
+LIZ_CLTOMA_METADATASERVERS_LIST = 1522
+LIZ_MATOCL_METADATASERVERS_LIST = 1523
+LIZ_CLTOMA_METADATASERVER_STATUS = 1545
+LIZ_MATOCL_METADATASERVER_STATUS = 1546
+LIZ_CLTOMA_HOSTNAME = 1551
+LIZ_MATOCL_HOSTNAME = 1552
 
 LIZARDFS_VERSION_WITH_QUOTAS = (2, 5, 0)
 LIZARDFS_VERSION_WITH_CUSTOM_GOALS = (2, 5, 3)
+LIZARDFS_VERSION_WITH_LIST_OF_SHADOWS = (2, 5, 5)
 
 cgitb.enable()
 
@@ -199,6 +206,52 @@ def cltoma_chunks_health(only_regular):
 		deletion.append((name,) + raw_deletion.setdefault(id, 11 * (0,)))
 	return (availability, replication, deletion)
 
+def cltoma_hostname(host, port):
+	request = make_liz_message(LIZ_CLTOMA_HOSTNAME, 0, "")
+	response = send_and_receive(host, port, request, LIZ_MATOCL_HOSTNAME, 0)
+	return deserialize(response, String)
+
+def cltoma_metadataserver_status(host, port):
+	LIZ_METADATASERVER_STATUS_MASTER = 1
+	LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED = 2
+	LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED = 3
+	request = make_liz_message(LIZ_CLTOMA_METADATASERVER_STATUS, 0, struct.pack(">L", 0))
+	response = send_and_receive(host, port, request, LIZ_MATOCL_METADATASERVER_STATUS, 0)
+	_, status, metadata_version = deserialize(response, Tuple("LBQ"))
+	if status == LIZ_METADATASERVER_STATUS_MASTER:
+		return ("master", "running", metadata_version)
+	elif status == LIZ_METADATASERVER_STATUS_SHADOW_CONNECTED:
+		return ("shadow", "connected", metadata_version)
+	elif status == LIZ_METADATASERVER_STATUS_SHADOW_DISCONNECTED:
+		return ("shadow", "disconnected", metadata_version)
+	else:
+		return ("(unknown)", "(unknown)", metadata_version)
+
+def cltoma_metadataservers_list():
+	request = make_liz_message(LIZ_CLTOMA_METADATASERVERS_LIST, 0, "")
+	response = send_and_receive(masterhost, masterport, request, LIZ_MATOCL_METADATASERVERS_LIST, 0)
+	_, shadows = deserialize(response, Primitive("L") + List(Tuple("LHHBB")))
+	servers = [(masterhost, masterport) + masterversion] + shadows
+	ret = []
+	for (addr, port, v1, v2, v3) in servers:
+		# for shadow masters, addr is int (4 bytes) -- convert it to string.
+		# for the active master we use "masterhost" to connect with it and we don't know the real IP
+		ip = addr_to_host(addr) if isinstance(addr, (int, long)) else "-"
+		version = "%u.%u.%u" % (v1, v2, v3)
+		if port == 0:
+			# shadow didn't register its port yet
+			personality = "shadow"
+			host, state, metadata = 3 * ("(unknown)",)
+		else:
+			# master or a fully registered shadow
+			try:
+				host = cltoma_hostname(addr, port)
+				personality, state, metadata = cltoma_metadataserver_status(addr, port)
+			except:
+				personality, host, state, metadata = 4 * ("(error)",)
+		ret.append((host, ip, port, version, personality, state, metadata))
+	return ret
+
 ###############
 # Other things
 
@@ -233,10 +286,20 @@ def myrecv(socket,leng):
 		msg = msg + chunk
 	return msg
 
+def addr_to_host(addr):
+	""" Convert IP addres ('xxx.xxx.xxx.xxx' or 'hostname' or a 4-byte integer) to string """
+	if isinstance(addr, (int, long)):
+		return socket.inet_ntoa(struct.pack(">L", addr))
+	elif isinstance(addr, str):
+		return addr
+	else:
+		raise RuntimeError, "unknown format of server address"
+
+
 def send_and_receive(host, port, request, response_type, response_version = None):
 	""" Sends a request, receives response and verifies its type and (if provided) version """
 	s = socket.socket()
-	s.connect((host, port))
+	s.connect((addr_to_host(host), port))
 	try:
 		mysend(s, request)
 		header = myrecv(s, 8)
@@ -1004,6 +1067,49 @@ if "CH" in sectionset:
 	print """<br/>"""
 
 if "CS" in sectionset:
+	if masterversion >= LIZARDFS_VERSION_WITH_LIST_OF_SHADOWS:
+		out = []
+		try:
+			SHorder = int(fields.getvalue("SHorder"))
+		except Exception:
+			SHorder = 1
+		try:
+			SHrev = bool(int(fields.getvalue("SHrev")))
+		except Exception:
+			SHrev = False
+
+		try:
+			out.append("""<table class="FR" cellspacing="0" summary="Metadata Servers">""")
+			out.append("""	<tr><th colspan="8">Metadata Servers</th></tr>""")
+			out.append("""	<tr>""")
+			out.append("""		<th>#</th>""")
+			out.append("""		<th><a href="%s">host</a></th>""" % (createorderlink("SH", 1)))
+			out.append("""		<th><a href="%s">IP</a></th>""" % (createorderlink("SH", 2)))
+			out.append("""		<th><a href="%s">client<br/>port</a></th>""" % (createorderlink("SH", 3)))
+			out.append("""		<th><a href="%s">version</a></th>""" % (createorderlink("SH", 4)))
+			out.append("""		<th><a href="%s">personality</a></th>""" % (createorderlink("SH", 5)))
+			out.append("""		<th><a href="%s">state</a></th>""" % (createorderlink("SH", 6)))
+			out.append("""		<th><a href="%s">metadata<br/>version</a></th>""" % (createorderlink("SH", 7)))
+			out.append("""	</tr>""")
+			if SHorder < 1 or SHorder > 7:
+				SHorder = 1
+
+			rows = cltoma_metadataservers_list()
+			rows = sorted(rows, reverse=SHrev, key=lambda x: x[SHorder - 1])
+			i = 1
+			for row in rows:
+				out.append(make_table_row('<td>', '</td>', (i,) + row))
+				i += 1
+			out.append("""</table>""")
+			print "\n".join(out)
+		except Exception:
+			print """<table class="FR" cellspacing="0" summary="Exception">"""
+			print """<tr><td align="left"><pre>"""
+			traceback.print_exc(file=sys.stdout)
+			print """</pre></td></tr>"""
+			print """</table>"""
+		print """<br/>"""
+
 	out = []
 
 	try:
@@ -1022,7 +1128,7 @@ if "CS" in sectionset:
 		out.append("""	<tr>""")
 		out.append("""		<th rowspan="2">#</th>""")
 		out.append("""		<th rowspan="2"><a href="%s">host</a></th>""" % (createorderlink("CS",1)))
-		out.append("""		<th rowspan="2"><a href="%s">ip</a></th>""" % (createorderlink("CS",2)))
+		out.append("""		<th rowspan="2"><a href="%s">IP</a></th>""" % (createorderlink("CS",2)))
 		out.append("""		<th rowspan="2"><a href="%s">port</a></th>""" % (createorderlink("CS",3)))
 		out.append("""		<th rowspan="2"><a href="%s">version</a></th>""" % (createorderlink("CS",4)))
 		if masterversion>=LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
@@ -1165,7 +1271,7 @@ if "CS" in sectionset:
 			out.append("""	<tr>""")
 			out.append("""		<th>#</th>""")
 			out.append("""		<th><a href="%s">host</a></th>""" % (createorderlink("MB",1)))
-			out.append("""		<th><a href="%s">ip</a></th>""" % (createorderlink("MB",2)))
+			out.append("""		<th><a href="%s">IP</a></th>""" % (createorderlink("MB",2)))
 			out.append("""		<th><a href="%s">version</a></th>""" % (createorderlink("MB",3)))
 			out.append("""	</tr>""")
 
