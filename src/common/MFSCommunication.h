@@ -1472,7 +1472,7 @@ enum class SugidClearMode {
 #define LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 565U)
 /// asynchronous:8
 
-// 0x621E
+// 0x061E
 #define LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 566U)
 /// status:8
 
