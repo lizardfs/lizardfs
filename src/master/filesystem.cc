@@ -30,6 +30,7 @@
 #include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -176,6 +177,27 @@ struct xattr_inode_entry {
 	struct xattr_inode_entry *next;
 };
 
+/// Information about a copy of a file on some tapeserver.
+struct TapeCopy {
+	enum class State : uint8_t {
+		kInvalid,
+		kCreating,
+		kOk,
+	};
+
+	/// Default constructor.
+	TapeCopy() : state(State::kInvalid), server(TapeserverIdPool::nullId()) {}
+
+	/// A constructor.
+	TapeCopy(State state, TapeserverId server) : state(state), server(server) {}
+
+	/// State of the copy.
+	State state;
+
+	/// ID of a tapeserver.
+	TapeserverId server;
+};
+
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
@@ -188,6 +210,7 @@ public:
 	uint32_t uid;
 	uint32_t gid;
 	uint32_t trashtime;
+	std::vector<TapeCopy> tapeCopies; // TODO(msulikowski) optimize! this takes 24 bytes of space!
 	union _data {
 		struct _ddata {                         // type==TYPE_DIRECTORY
 			fsedge *children;
@@ -5787,6 +5810,43 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 	return STATUS_OK;
 }
 #endif
+
+uint8_t fs_add_tape_copy(const TapeKey& tapeKey, TapeserverId tapeserver) {
+	fsnode *node = fsnodes_id_to_node(tapeKey.inode);
+	if (node == NULL) {
+		return ERROR_ENOENT;
+	}
+	if (node->type != TYPE_TRASH && node->type != TYPE_RESERVED && node->type != TYPE_FILE) {
+		return ERROR_EINVAL;
+	}
+	if (node->mtime != tapeKey.mtime || node->data.fdata.length != tapeKey.fileLength) {
+		return ERROR_MISMATCH;
+	}
+	// Try to reuse an existing copy from this tapeserver
+	for (auto& tapeCopy : node->tapeCopies) {
+		if (tapeCopy.server == tapeserver) {
+			tapeCopy.state = TapeCopy::State::kOk;
+			return STATUS_OK;
+		}
+	}
+	node->tapeCopies.emplace_back(TapeCopy::State::kOk, tapeserver);
+	return STATUS_OK;
+}
+
+uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver) {
+	// Remove all information about tape copies from this tapeserver
+	// TODO(msulikowski) don't block the whole server -- be more lazy
+	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
+		for (fsnode* f = gMetadata->nodehash[i]; f; f = f->next) {
+			auto it = std::remove_if(f->tapeCopies.begin(), f->tapeCopies.end(),
+					[tapeserver](const TapeCopy& tapeCopy) {
+						return tapeCopy.server == tapeserver;
+					});
+			f->tapeCopies.erase(it, f->tapeCopies.end());
+		}
+	}
+	return STATUS_OK;
+}
 
 void fs_add_files_to_chunks() {
 	uint32_t i,j;

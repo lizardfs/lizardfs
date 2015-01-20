@@ -21,26 +21,29 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "common/tstoma_communication.h"
+#include "master/filesystem.h"
 #include "master/personality.h"
 
 /// Maximum allowed length of a network packet
-static constexpr uint32_t gMaxPacketSize = 500000000;
+static constexpr uint32_t kMaxPacketSize = 500000000;
 
 /// Communication timeout
-static constexpr uint32_t gTapeserverTimeout_ms = 30000;
+static constexpr uint32_t kTapeserverTimeout_ms = 30000;
 
 namespace {
 
 struct matotsserventry {
 	enum class Mode { kKill, kConnected};
 
-	matotsserventry(int sock, NetworkAddress address)
+	matotsserventry(int sock, TapeserverId id, NetworkAddress address)
 			: mode(Mode::kConnected),
 			  sock(sock),
 			  pdescpos(-1),
-			  inputPacket(gMaxPacketSize),
+			  inputPacket(kMaxPacketSize),
+			  id(id),
 			  address(address),
-			  version(0) {
+			  version(0),
+			  filesRegistered(false) {
 	}
 
 	~matotsserventry() {
@@ -55,8 +58,11 @@ struct matotsserventry {
 	Timer lastRead, lastWrite;
 	InputPacket inputPacket;
 	std::list<OutputPacket> outputPackets;
-	NetworkAddress address;
-	uint32_t version;
+
+	TapeserverId id; // ID of the tapeserver
+	NetworkAddress address;  // IP of the tapeserver (port not present there)
+	uint32_t version;  // version of the tapeserver
+	bool filesRegistered;  // set to true during a registration after registering all the files
 };
 
 } // anonymous namespace
@@ -68,6 +74,9 @@ static std::string gListenPort;
 // socket which we listen on and its position in the global table of descriptors
 static int gListenSocket;
 static int32_t gListenSocketPosition;
+
+/// A pool od IDs for tapeservers
+static TapeserverIdPool gIdPool(200);
 
 /// All connected tapeservers.
 static std::list<std::unique_ptr<matotsserventry>> gTapeservers;
@@ -112,6 +121,24 @@ static void matotsserv_register_tapeserver(matotsserventry *eptr, const MessageB
 	}
 }
 
+/// Handler for tstoma::hasFiles.
+static void matotsserv_has_files(matotsserventry *eptr, const MessageBuffer& message) {
+	std::vector<TapeKey> tapeContents;
+	tstoma::hasFiles::deserialize(message, tapeContents);
+	for (auto& key : tapeContents) {
+		fs_add_tape_copy(key, eptr->id);
+	}
+}
+
+/// Handler for tstoma::endOfFiles
+static void matotsserv_end_of_files(matotsserventry *eptr, const MessageBuffer& message) {
+	tstoma::endOfFiles::deserialize(message);
+	lzfs_pretty_syslog(LOG_INFO,
+			"tapeserver %s has finished registration",
+			eptr->address.toString().c_str());
+	eptr->filesRegistered = true;
+}
+
 /// Dispatches a received message
 static void matotsserv_gotpacket(matotsserventry *eptr,
 		PacketHeader header,
@@ -122,6 +149,12 @@ static void matotsserv_gotpacket(matotsserventry *eptr,
 				break;
 			case LIZ_TSTOMA_REGISTER_TAPESERVER:
 				matotsserv_register_tapeserver(eptr, data);
+				break;
+			case LIZ_TSTOMA_HAS_FILES:
+				matotsserv_has_files(eptr, data);
+				break;
+			case LIZ_TSTOMA_END_OF_FILES:
+				matotsserv_end_of_files(eptr, data);
 				break;
 			default:
 				syslog(LOG_NOTICE,
@@ -230,11 +263,21 @@ static void matotsserv_serve(struct pollfd *pdesc) {
 		if (newSocket < 0) {
 			lzfs_silent_errlog(LOG_NOTICE, "master <-> tapeservers module: accept error");
 		} else if (metadataserver::isMaster()) {
-			uint32_t peerIp = 0;
+			uint32_t ip = 0;
 			tcpnonblock(newSocket);
 			tcpnodelay(newSocket);
-			tcpgetpeer(newSocket, &peerIp, NULL);
-			gTapeservers.emplace_back(new matotsserventry(newSocket, NetworkAddress(peerIp, 0)));
+			tcpgetpeer(newSocket, &ip, NULL);
+			NetworkAddress address(ip, 0);
+			try {
+				TapeserverId id = gIdPool.get();
+				gTapeservers.emplace_back(new matotsserventry(newSocket, id, address));
+			} catch (IdPoolException&) {
+				lzfs_pretty_syslog(LOG_WARNING,
+						"master <-> tapeservers module: too many tapeservers registered, "
+						"refusing a new connection from %s",
+						address.toString().c_str());
+				tcpclose(newSocket);
+			}
 		} else {
 			tcpclose(newSocket);
 		}
@@ -255,22 +298,30 @@ static void matotsserv_serve(struct pollfd *pdesc) {
 				matotsserv_write(eptr.get());
 			}
 		}
-		if (eptr->lastRead.elapsed_ms() > gTapeserverTimeout_ms) {
+		if (eptr->lastRead.elapsed_ms() > kTapeserverTimeout_ms) {
 			lzfs_pretty_syslog(LOG_INFO,
 					"master <-> tapeservers module: TS(%s) timed out",
 					eptr->address.toString().c_str());
 			matotsserv_kill(eptr.get());
 		}
-		if (eptr->lastWrite.elapsed_ms() > (gTapeserverTimeout_ms / 3)
+		if (eptr->lastWrite.elapsed_ms() > (kTapeserverTimeout_ms / 4)
 				&& eptr->outputPackets.empty()) {
 			matotsserv_createpacket(eptr.get(), buildMooseFsPacket(ANTOAN_NOP));
 		}
 	}
 
 	// Remove disconnected clients, close their sockets
-	gTapeservers.remove_if([](const std::unique_ptr<matotsserventry>& eptr) {
-		return eptr->mode == matotsserventry::Mode::kKill;
-	});
+	auto it = gTapeservers.begin();
+	while (it != gTapeservers.end()) {
+		auto& eptr = *it;
+		if (eptr->mode == matotsserventry::Mode::kKill) {
+			fs_tapeserver_disconnected(eptr->id);
+			gIdPool.put(eptr->id);
+			it = gTapeservers.erase(it);
+		} else {
+			++it;
+		}
+	}
 }
 
 /// Terminates the module.

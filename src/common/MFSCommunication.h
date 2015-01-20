@@ -1478,11 +1478,11 @@ enum class SugidClearMode {
 
 // CHUNKSERVER STATS
 
-// 0x00258
+// 0x0258
 #define CLTOCS_HDD_LIST_V2 (PROTO_BASE+600)
 /// -
 
-// 0x00259
+// 0x0259
 #define CSTOCL_HDD_LIST_V2 (PROTO_BASE+601)
 // N*[ entrysize:16 path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 bytesread:64 usecread:64 usecreadmax:64 byteswriten:64 usecwrite:64 usecwritemax:64]
 
@@ -1496,3 +1496,11 @@ enum class SugidClearMode {
 #define LIZ_MATOTS_REGISTER_TAPESERVER (1000U + 701U)
 /// version==0 status:8
 /// version==1 vershex:32
+
+// 0x06A6
+#define LIZ_TSTOMA_HAS_FILES (1000U + 702U)
+/// tapecontents:(vector<inode:32,mtime:32,length:64>)
+
+// 0x06A7
+#define LIZ_TSTOMA_END_OF_FILES (1000U + 703U)
+/// -

@@ -29,8 +29,10 @@
 #include "common/goal.h"
 #include "common/goal_map.h"
 #include "common/quota.h"
+#include "common/tape_key.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
+#include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
@@ -196,6 +198,14 @@ uint8_t fs_getdetachedattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,At
 
 // EXTRA
 uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *inodes,uint32_t *dirs,uint32_t *files,uint32_t *chunks,uint64_t *length,uint64_t *size,uint64_t *rsize);
+
+// TAPES
+
+/// Adds information that the given file has a copy on the given tapeserver.
+uint8_t fs_add_tape_copy(const TapeKey& takeKey, TapeserverId tapeserver);
+
+/// Called after a tapeserver disconnects.
+uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver);
 
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);
