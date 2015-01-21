@@ -460,7 +460,7 @@ if __name__=="__main__":
 		elif opt == '-P':
 			port = int(val)
 		elif opt == '-R':
-			rootpath = os.path.realpath(val)
+			rootpath = val
 		elif opt == '-v':
 			verbose = True
 		elif opt == '-p':
@@ -478,7 +478,7 @@ if __name__=="__main__":
 		HTTP.logging = True
 	else:
 		HTTP.logging = False
-	HTTP.root = rootpath
+	HTTP.root = os.path.realpath(rootpath)
 	if pidfile:
 		daemonize(pidfile, user)
 	loop(server, HTTP)
