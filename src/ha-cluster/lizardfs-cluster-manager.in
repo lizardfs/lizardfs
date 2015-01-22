@@ -184,7 +184,8 @@ where COMMAND is one of the following:
                        to existing cluster
   add-elector-node     Add this machine as node with elector role
                        to existing cluster
-  disable-this-node    Disable cluster infrastructure on node where this command is executed
+  disable-this-node    Disable cluster infrastructure on node
+                       where this command is executed
   remove-node          Remove node information from cluster
   status               Get status information about: nodes, IP, master, shadows
   reload-this-node     Reload metadata server configuration on this machine
@@ -192,9 +193,6 @@ where COMMAND is one of the following:
   start-node           Start metadata server on the given node
   migrate-master-server
                        Move master metadata server role to a different node
-  download-configuration
-                       Download configuration from given node
-  upload-configuration Upload confiuguration to all nodes in cluster
 
 where OPTIONS is any combination of the following:
   --help               Print help and exit
@@ -467,9 +465,9 @@ create_new_cluster() {
 	ok "Cluster configuration file ${out_file} created"
 }
 
-add_metadata_node() {
-	attempt "Adding metadata server node to the cluster"
-	in_file=$(fetch_arg add-metadata-node i in-file)
+enable_node() {
+	local mode=${1}
+	in_file=$(fetch_arg add-${mode}-node i in-file)
 	if [[ "${in_file}" == "" ]] ; then
 		bailout "You have to specify input file with \`--in-file=...' argument"
 	fi
@@ -480,11 +478,20 @@ add_metadata_node() {
 	invoke sed -i -e 's/^START=no$/START=yes/' /etc/default/corosync
 	ok "Configuration files prepared"
 	restart_ha_services
-	ok "Node added to the cluster"
+}
+
+add_metadata_node() {
+	attempt "Adding a metadata server node to the cluster"
+	enable_node "metadata"
+	ok "Added metadata server node to the cluster"
 }
 
 add_elector_node() {
 	attempt "Adding an elector node to the cluster"
+	enable_node "elector"
+	local name=$(uname -n)
+	invoke crm --wait configure location "lizardfs-elector-${name}" lizardfs-master rule -inf: \#uname eq "${name}"
+	ok "Added an elector node to the cluster"
 }
 
 disable_this_node() {
@@ -500,7 +507,8 @@ remove_node() {
 	if [[ "${node}" == "" ]] ; then
 		bailout "You have to specify which node to remove with \`--node=...' argument"
 	fi
-	if crm --wait node show ${node} | grep -q '\<offline\>' ; then
+	if crm --wait node show "${node}" | grep -q '\<offline\>' ; then
+		invoke_continue crm configure delete "lizardfs-elector-${node}"
 		invoke crm --wait node delete "${node}"
 	else
 		bailout "Node still active in the cluster"
@@ -636,8 +644,6 @@ case "${command}" in
 	stop-node)              stop_node ;;
 	start-node)             start_node ;;
 	migrate-master-server)  migrate_master_server ;;
-	download-configuration) download_configuration ;;
-	upload-configuration)   upload_configuration ;;
 	help)                   print_help ;;
 	*)                      bailout "Unknown command \`${command}'" ;;
 esac
