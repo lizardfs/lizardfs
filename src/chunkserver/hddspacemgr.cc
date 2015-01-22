@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <atomic>
 
 #include "common/cfg.h"
 #include "common/cwrap.h"
@@ -202,6 +203,9 @@ static uint64_t gLeaveFree;
 
 /// Default value for HDD_LEAVE_SPACE_DEFAULT
 static const char gLeaveSpaceDefaultDefaultStrValue[] = "4GiB";
+
+/// Value of HDD_ADVISE_NO_CACHE from config
+static std::atomic_bool gAdviseNoCache;
 
 /* folders data */
 static folder *folderhead = NULL;
@@ -1547,7 +1551,9 @@ void hdd_delayed_ops() {
 					c->opensteps--;
 				} else if (c->fd>=0) {  // close descriptor
 #ifdef LIZARDFS_HAVE_POSIX_FADVISE
-					posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+					if (gAdviseNoCache) {
+						posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+					}
 #endif /* LIZARDFS_HAVE_POSIX_FADVISE */
 					if (close(c->fd)<0) {
 						hdd_error_occured(c);   // uses and preserves errno !!!
@@ -2338,6 +2344,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 	}
 	lseek(c->fd,CHUNKHDRSIZE,SEEK_SET);
 	ptr = c->crc;
+	status = STATUS_OK; // will be overwritten in the loop below if the test fails
 	for (block=0 ; block<c->blocks ; block++) {
 #ifdef PRESERVE_BLOCK
 		retsize = read(c->fd,c->block,MFSBLOCKSIZE);
@@ -2347,9 +2354,8 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 		if (retsize!=MFSBLOCKSIZE) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,"test_chunk: file:%s - data read error",c->filename);
-			hdd_io_end(c);
-			hdd_chunk_release(c);
-			return ERROR_IO;
+			status = ERROR_IO;
+			break;
 		}
 		hdd_stats_read(MFSBLOCKSIZE);
 #ifdef PRESERVE_BLOCK
@@ -2364,10 +2370,20 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 			errno = 0;      // set anything to errno
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			syslog(LOG_WARNING,"test_chunk: file:%s - crc error",c->filename);
-			hdd_io_end(c);
-			hdd_chunk_release(c);
-			return ERROR_CRC;
+			status = ERROR_CRC;
+			break;
 		}
+	}
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+	// Always advise the OS that tested chunks should not be cached. Don't rely on
+	// hdd_delayed_ops to do it for us, because it may be disabled using a config file.
+	posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+#endif /* LIZARDFS_HAVE_POSIX_FADVISE */
+	if (status != STATUS_OK) {
+		// test failed -- chunk is damaged
+		hdd_io_end(c);
+		hdd_chunk_release(c);
+		return status;
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
@@ -4218,13 +4234,13 @@ static void hdd_folders_reinit(void) {
 }
 
 void hdd_reload(void) {
-	char *LeaveFreeStr;
+	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
 
 	zassert(pthread_mutex_lock(&testlock));
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
 
-	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
+	char *LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
 	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - left unchanged");
 	}
@@ -4305,6 +4321,7 @@ int hdd_init(void) {
 	lzfs_pretty_syslog(LOG_INFO, "hdd space manager: start background hdd scanning "
 				"(searching for available chunks)");
 
+	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 
 	main_reloadregister(hdd_reload);
