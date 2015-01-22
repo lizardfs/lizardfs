@@ -501,10 +501,7 @@ status() {
 	local matocl_port=$(read_cfg_var ${master_cfg} MATOCL_LISTEN_PORT = 9421)
 	invoke crm_mon -1 -Q -N
 	echo
-	echo "LizardFS:"
-	invoke lizardfs-admin metadataserver-status "${master_host}" "${matocl_port}"
-	echo
-	invoke lizardfs-admin info "${master_host}" "${matocl_port}"
+	invoke lizardfs-admin list-metadataservers "${master_host}" "${matocl_port}"
 }
 
 reload_this_node() {
