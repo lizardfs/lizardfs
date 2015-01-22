@@ -24,6 +24,7 @@ BACKUP_STAMP="$(date +'%F_%T')"
 
 verbose=
 dry_run=
+crm_wait=
 options=()
 
 bailout() {
@@ -183,7 +184,8 @@ where COMMAND is one of the following:
                        to existing cluster
   add-elector-node     Add this machine as node with elector role
                        to existing cluster
-  remove-this-node     Remove the node where this command is executed from the cluster
+  disable-this-node    Disable cluster infrastructure on node where this command is executed
+  remove-node          Remove node information from cluster
   status               Get status information about: nodes, IP, master, shadows
   reload-this-node     Reload metadata server configuration on this machine
   stop-node            Stop metadata server on the given node
@@ -442,21 +444,21 @@ create_new_cluster() {
 	restart_ha_services
 	ok "Cluster started"
 
-	invoke crm configure property stonith-enabled=false
+	invoke crm --wait configure property stonith-enabled=false
 	# TODO(msulikowski) Can cidr_netmask=24 be harcoded?
-	invoke crm configure primitive Failover-IP ocf:heartbeat:IPaddr2 \
+	invoke crm --wait configure primitive Failover-IP ocf:heartbeat:IPaddr2 \
 			params ip=${master_host} cidr_netmask=24 \
 			op monitor interval=1s
-	invoke crm configure primitive lizardfs-master ocf:lizardfs:metadataserver \
+	invoke crm --wait configure primitive lizardfs-master ocf:lizardfs:metadataserver \
 			params master_cfg="${master_cfg}" \
 			op monitor role="Master" interval="10s" \
 			op monitor role="Slave" interval="20s"
 	# TODO(amok) Check if adding `clone-max="N"' with proper N is necessary.
-	invoke crm configure ms lizardfs-ms lizardfs-master \
+	invoke crm --wait configure ms lizardfs-ms lizardfs-master \
 		meta master-max="1" master-node-max="1" clone-node-max="1" \
 		notify="true" target-role="Master"
-	invoke crm configure colocation ip-with-master inf: Failover-IP lizardfs-ms:Master
-	invoke crm configure order master-after-ip inf: Failover-IP:start lizardfs-ms:promote
+	invoke crm --wait configure colocation ip-with-master inf: Failover-IP lizardfs-ms:Master
+	invoke crm --wait configure order master-after-ip inf: Failover-IP:start lizardfs-ms:promote
 	ok "Cluster configured"
 
 	# TODO(amok) Do not forget to add other lizardfs-master config files
@@ -485,10 +487,25 @@ add_elector_node() {
 	attempt "Adding an elector node to the cluster"
 }
 
-remove_this_node() {
-	attempt "Removing this node from the cluster"
+disable_this_node() {
+	attempt "Disabling cluster infrastructure on this node"
 	stop_ha_services
 	invoke sed -i -e 's/^START=yes$/START=no/' /etc/default/corosync
+	ok "Cluster infrastructure disabled"
+}
+
+remove_node() {
+	attempt "Removing node information from cluster"
+	node=$(fetch_arg start-node N node)
+	if [[ "${node}" == "" ]] ; then
+		bailout "You have to specify which node to remove with \`--node=...' argument"
+	fi
+	if crm --wait node show ${node} | grep -q '\<offline\>' ; then
+		invoke crm --wait node delete "${node}"
+	else
+		bailout "Node still active in the cluster"
+	fi
+	ok "Node infomation removed from cluster"
 }
 
 status() {
@@ -522,7 +539,7 @@ stop_node() {
 	if [[ "${node}" == "" ]] ; then
 		bailout "You have to specify which node to start with \`--node=...' argument"
 	fi
-	invoke crm node standby "${node}"
+	invoke crm ${crm_wait} node standby "${node}"
 	ok "Node ${node} has been stopped"
 }
 
@@ -532,7 +549,7 @@ start_node() {
 	if [[ "${node}" == "" ]] ; then
 		bailout "You have to specify which node to start with \`--node=...' argument"
 	fi
-	invoke crm node online "${node}"
+	invoke crm ${crm_wait} node online "${node}"
 	ok "Node ${node} has been started"
 }
 
@@ -542,7 +559,7 @@ migrate_master_server() {
 	if [[ "${to_node}" == "" ]] ; then
 		bailout "You have to specify destination node with \`--to-node=...' argument"
 	fi
-	invoke crm resource migrate lizardfs-ms "${to_node}"
+	invoke crm ${crm_wait} resource migrate lizardfs-ms "${to_node}"
 	ok "LizardFS metadata master has been migrated to ${to_node} node"
 }
 
@@ -559,8 +576,8 @@ validate_installation
 
 # Proces command line options using getopt
 argv=("$@")
-temp=$(getopt -o hvno:i:N: \
-	--long help,verbose,dry-run,no-act,out-file:,in-file:,to-node:,node: \
+temp=$(getopt -o hvnWo:i:N: \
+	--long help,verbose,dry-run,no-act,wait,out-file:,in-file:,to-node:,node: \
 	-n ${NAME} -- "${argv[@]}")
 if [[ $? != 0 ]] ; then
 	bailout "wrong usage";
@@ -581,6 +598,10 @@ while true ; do
 			;;
 		-n|--dry-run|--no-act)
 			dry_run=1
+			shift
+			;;
+		-W|--wait)
+			crm_wait="--wait"
 			shift
 			;;
 		-i|-o|-N|--in-file|--out-file|--to-node|--node)
@@ -608,7 +629,8 @@ case "${command}" in
 	create-new-cluster)     create_new_cluster ;;
 	add-metadata-node)      add_metadata_node ;;
 	add-elector-node)       add_elector_node ;;
-	remove-this-node)       remove_this_node ;;
+	disable-this-node)      disable_this_node ;;
+	remove-node)            remove_node ;;
 	status)                 status ;;
 	reload-this-node)       reload_this_node ;;
 	stop-node)              stop_node ;;

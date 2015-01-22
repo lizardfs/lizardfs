@@ -370,7 +370,7 @@ get_metadata_version() {
 
 # Extract version from metadata file
 get_metadata_version_from_file() {
-	mfsmetadump "${master_metadata}" | awk 'NR==2 {print $6}END{if (NR < 2) print 0}'
+	mfsmetadump "${master_metadata}" | head -n 2 | awk 'BEGIN{v="0"}/^# maxnodeid/{v=$6}END{print v}'
 	return 0
 }
 
