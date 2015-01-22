@@ -29,9 +29,11 @@ struct NetworkAddress {
 	std::string toString() const {
 		std::stringstream ss;
 		for (int i = 24; i >= 0; i -= 8) {
-			ss << ((ip >> i) & 0xff) << (i > 0 ? '.' : ':');
+			ss << ((ip >> i) & 0xff) << (i > 0 ? "." : "");
 		}
-		ss << port;
+		if (port > 0) {
+			ss << ":" << port;
+		}
 		return ss.str();
 	}
 };
