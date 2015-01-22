@@ -954,7 +954,7 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 		const Goal& goal = goalMap[i];
 		std::stringstream ss;
 		bool first = true;
-		for (const Goal::Labels::value_type& labelCount : goal.labels()) {
+		for (const Goal::Labels::value_type& labelCount : goal.chunkLabels()) {
 			if (first) {
 				first = false;
 			} else {

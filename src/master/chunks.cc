@@ -265,7 +265,7 @@ public:
 
 		uint32_t allMissingCopiesOfLabels = 0;
 		uint32_t regularMissingCopiesOfLabels = 0;
-		const Goal::Labels& labels = fs_get_goal_definition(goal()).labels();
+		const Goal::Labels& labels = fs_get_goal_definition(goal()).chunkLabels();
 		for (const auto& labelAndCount : labels) {
 			const auto& label = labelAndCount.first;
 			if (label == kMediaLabelWildcard) {
@@ -1792,7 +1792,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
-	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).labels();
+	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).chunkLabels();
 	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {

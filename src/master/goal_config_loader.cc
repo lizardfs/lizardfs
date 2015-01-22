@@ -35,6 +35,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		//   1 some_name: _ _ ssd
 		//  10 10 : _ _ _ _ _ _ _ _ _ _
 		//  11    eleven : hdd hdd _ _ hdd
+		//  12 tape : _ _ _@ tape@
 
 		// Read ID of the goal
 		unsigned long long goalId;
@@ -75,23 +76,40 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		if (tokens.empty()) {
 			throw ParseException(currentPosition + ": missing labels");
 		}
-		if (tokens.size() > Goal::kMaxExpectedCopies) {
+		Goal::Labels chunkLabels, tapeLabels;
+		uint32_t chunkCopies = 0;
+		uint32_t tapeCopies = 0;
+		for (const auto& token : tokens) {
+			if (token.empty()) {
+				throw ParseException(currentPosition + ": empty label ");
+			} else {
+				if (token.back() == '@') { // tapeserver label
+					std::string label = token.substr(0, token.size() - 1);
+					if (!isMediaLabelValid(label)) {
+						throw ParseException(currentPosition + ": invalid label " + token);
+					}
+					++tapeLabels[label];
+					++tapeCopies;
+				} else { // chunkserver label
+					if (!isMediaLabelValid(token)) {
+						throw ParseException(currentPosition + ": invalid label " + token);
+					}
+					++chunkLabels[token];
+					++chunkCopies;
+				}
+			}
+		}
+		// Let's verify number of chunk and tape labels
+		if (chunkCopies > Goal::kMaxExpectedChunkCopies
+				|| tapeCopies > Goal::kMaxExpectedTapeCopies) {
 			throw ParseException(currentPosition + ": too many labels");
 		}
-		Goal::Labels labels;
-		for (const auto& token : tokens) {
-			if (!isMediaLabelValid(token)) {
-				throw ParseException(currentPosition + ": invalid label " + token);
-			}
-			++labels[token];
-		}
-
 		// Let's also verify name of the goal
 		if (!Goal::isNameValid(goalName)) {
 			throw ParseException(currentPosition + ": invalid name of goal " + goalName);
 		}
 
-		result[goalId] = Goal(goalName, std::move(labels));
+		result[goalId] = Goal(goalName, std::move(chunkLabels), std::move(tapeLabels));
 	}
 
 	if (stream.bad()) {
@@ -101,7 +119,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	// Fill all other valid goals with default values
 	for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
 		if (result[goal].name().empty()) {
-			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}});
+			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}}, {});
 		}
 	}
 	goals_ = std::move(result);

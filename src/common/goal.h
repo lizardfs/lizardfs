@@ -27,20 +27,30 @@ public:
 	typedef std::map<MediaLabel, int> Labels;
 
 	/// Maximum number of copies a goal can require.
-	static constexpr uint32_t kMaxExpectedCopies = 30;
+	static constexpr uint32_t kMaxExpectedChunkCopies = 30;
+	static constexpr uint32_t kMaxExpectedTapeCopies = 30;
 
 	/// A default constructor.
 	Goal() : size_(0) {}
 
 	/// Constructor.
-	Goal(std::string name, Labels labels)
+	Goal(std::string name, Labels chunkLabels, Labels tapeLabels)
 			: name_(std::move(name)),
-			  labels_(std::move(labels)),
-			  size_(std::accumulate(labels_.begin(), labels_.end(), 0,
+			  chunkLabels_(std::move(chunkLabels)),
+			  tapeLabels_(std::move(tapeLabels)),
+			  size_(std::accumulate(chunkLabels_.begin(), chunkLabels_.end(), 0,
 				      [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
 	}
 
-	/// Number of labels in this goal.
+	/// Constructor with no tape labels
+	Goal(std::string name, Labels chunkLabels)
+		: name_(std::move(name)),
+		  chunkLabels_(std::move(chunkLabels)),
+		  size_(std::accumulate(chunkLabels_.begin(), chunkLabels_.end(), 0,
+				  [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
+	}
+
+	/// Number of labels to be stored on chunkservers in this goal.
 	uint32_t getExpectedCopies() const {
 		return size_;
 	}
@@ -51,9 +61,14 @@ public:
 		return isMediaLabelValid(goalName);
 	}
 
-	/// Get labels of this goal object.
-	const Labels& labels() const {
-		return labels_;
+	/// Get labels regarding chunkservers of this goal object.
+	const Labels& chunkLabels() const {
+		return chunkLabels_;
+	}
+
+	/// Get labels regarding tapeservers of this goal object.
+	const Labels& tapeLabels() const {
+		return tapeLabels_;
 	}
 
 	/// Get name of this goal.
@@ -61,9 +76,10 @@ public:
 		return name_;
 	}
 
-	/// Oerator ==.
+	/// Operator ==.
 	bool operator==(const Goal& other) {
-		return (name_ == other.name_ && labels_ == other.labels_);
+		return (name_ == other.name_ && chunkLabels_ == other.chunkLabels_
+				&& tapeLabels_ == other.tapeLabels_);
 	}
 
 private:
@@ -71,6 +87,8 @@ private:
 	std::string name_;
 
 	/// For each desired copy, a label of media, where it should be stored.
-	Labels labels_;
+	Labels chunkLabels_;
+	Labels tapeLabels_;
+	// Number of copies to be stored on chunkservers
 	int size_;
 };

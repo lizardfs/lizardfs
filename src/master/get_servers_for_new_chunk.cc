@@ -50,7 +50,7 @@ std::vector<matocsserventry*> GetServersForNewChunk::chooseServersForGoal(
 
 	std::vector<matocsserventry*> result;
 	// Choose servers for non-wildcard labels
-	for (const auto& labelAndCount : goal.labels()) {
+	for (const auto& labelAndCount : goal.chunkLabels()) {
 		const MediaLabel& label = labelAndCount.first;
 		uint32_t copiesToBeCreated = labelAndCount.second;
 		if (label == kMediaLabelWildcard) {
