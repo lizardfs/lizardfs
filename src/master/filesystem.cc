@@ -52,6 +52,7 @@
 #include "master/chunks.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
+#include "master/matotsserv.h"
 #include "master/personality.h"
 #include "master/restore.h"
 #include "master/quota_database.h"
@@ -2719,6 +2720,14 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 	}
 }
 
+static inline bool fsnodes_needs_tape_copies(fsnode *node) {
+	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
+		return fs_get_goal_definition(node->goal).tapeLabels().size() > node->tapeCopies.size();
+	} else {
+		return false;
+	}
+}
+
 #endif
 
 static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes) {
@@ -2751,6 +2760,16 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 				if (node->type!=TYPE_DIRECTORY) {
 					fsnodes_changefilegoal(node,goal);
 					(*sinodes)++;
+# ifndef METARESTORE
+					TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
+					while (fsnodes_needs_tape_copies(node)) {
+						TapeserverId id = matotsserv_enqueue_node(tapeKey);
+						if (id.isNull()) {
+							break;
+						}
+						node->tapeCopies.emplace_back(TapeCopy::State::kCreating, id);
+					}
+# endif
 				} else {
 					node->goal=goal;
 					(*sinodes)++;

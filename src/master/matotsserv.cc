@@ -81,13 +81,16 @@ static TapeserverIdPool gIdPool(200);
 /// All connected tapeservers.
 static std::list<std::unique_ptr<matotsserventry>> gTapeservers;
 
+/// Queue of files intended to be sent to tapeserver.
+static std::vector<TapeKey> gFilesToBeSentToTapeserver;
+
 /// Add a packet to tapeserver's message queue.
-static void matotsserv_createpacket(matotsserventry *eptr, MessageBuffer message) {
+static void matotsserv_createpacket(matotsserventry* eptr, MessageBuffer message) {
 	eptr->outputPackets.emplace_back(std::move(message));
 }
 
 /// Disconnects a tapeserver.
-static void matotsserv_kill(matotsserventry *eptr) {
+static void matotsserv_kill(matotsserventry* eptr) {
 	lzfs_pretty_syslog(LOG_WARNING,
 			"disconnecting tapeserver %s due to an error",
 			eptr->address.toString().c_str());
@@ -95,7 +98,7 @@ static void matotsserv_kill(matotsserventry *eptr) {
 }
 
 /// Handler for tstoma::registerServer.
-static void matotsserv_register_tapeserver(matotsserventry *eptr, const MessageBuffer& message) {
+static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageBuffer& message) {
 	if (eptr->version > 0) {
 		lzfs_pretty_syslog(LOG_WARNING,
 				"got register message from a registered tapeserver");
@@ -122,7 +125,7 @@ static void matotsserv_register_tapeserver(matotsserventry *eptr, const MessageB
 }
 
 /// Handler for tstoma::hasFiles.
-static void matotsserv_has_files(matotsserventry *eptr, const MessageBuffer& message) {
+static void matotsserv_has_files(matotsserventry* eptr, const MessageBuffer& message) {
 	std::vector<TapeKey> tapeContents;
 	tstoma::hasFiles::deserialize(message, tapeContents);
 	for (auto& key : tapeContents) {
@@ -131,7 +134,7 @@ static void matotsserv_has_files(matotsserventry *eptr, const MessageBuffer& mes
 }
 
 /// Handler for tstoma::endOfFiles
-static void matotsserv_end_of_files(matotsserventry *eptr, const MessageBuffer& message) {
+static void matotsserv_end_of_files(matotsserventry* eptr, const MessageBuffer& message) {
 	tstoma::endOfFiles::deserialize(message);
 	lzfs_pretty_syslog(LOG_INFO,
 			"tapeserver %s has finished registration",
@@ -140,7 +143,7 @@ static void matotsserv_end_of_files(matotsserventry *eptr, const MessageBuffer& 
 }
 
 /// Dispatches a received message
-static void matotsserv_gotpacket(matotsserventry *eptr,
+static void matotsserv_gotpacket(matotsserventry* eptr,
 		PacketHeader header,
 		const MessageBuffer& data) {
 	try {
@@ -174,7 +177,7 @@ static void matotsserv_gotpacket(matotsserventry *eptr,
 }
 
 /// Read from the given tapeserver.
-static void matotsserv_read(matotsserventry *eptr) {
+static void matotsserv_read(matotsserventry* eptr) {
 	for (;;) {
 		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
 		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
@@ -213,7 +216,7 @@ static void matotsserv_read(matotsserventry *eptr) {
 }
 
 /// Write to the given tapeserver.
-static void matotsserv_write(matotsserventry *eptr) {
+static void matotsserv_write(matotsserventry* eptr) {
 	while (!eptr->outputPackets.empty()) {
 		OutputPacket& pack = eptr->outputPackets.front();
 		ssize_t ret = write(eptr->sock,
@@ -237,7 +240,7 @@ static void matotsserv_write(matotsserventry *eptr) {
 }
 
 /// For \p main_pollregister.
-static void matotsserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
+static void matotsserv_desc(struct pollfd* pdesc, uint32_t* ndesc) {
 	uint32_t pos = *ndesc;
 	pdesc[pos].fd = gListenSocket;
 	pdesc[pos].events = POLLIN;
@@ -257,7 +260,7 @@ static void matotsserv_desc(struct pollfd *pdesc, uint32_t *ndesc) {
 }
 
 /// For \p main_pollregister.
-static void matotsserv_serve(struct pollfd *pdesc) {
+static void matotsserv_serve(struct pollfd* pdesc) {
 	if (gListenSocketPosition >= 0 && (pdesc[gListenSocketPosition].revents & POLLIN)) {
 		int newSocket = tcpaccept(gListenSocket);
 		if (newSocket < 0) {
@@ -324,6 +327,17 @@ static void matotsserv_serve(struct pollfd *pdesc) {
 	}
 }
 
+/// Called periodically to flush queues to tapeservers.
+static void matotsserv_periodic_put_files() {
+	if (gTapeservers.empty() || gFilesToBeSentToTapeserver.empty()) {
+		return;
+	}
+	matotsserv_createpacket(
+			gTapeservers.front().get(),
+			matots::putFiles::build(gFilesToBeSentToTapeserver));
+	gFilesToBeSentToTapeserver.clear();
+}
+
 /// Terminates the module.
 static void matotsserv_term() {
 	syslog(LOG_INFO,
@@ -384,6 +398,11 @@ static void matotsserv_reload() {
 			listenHost.c_str(), listenPort.c_str());
 }
 
+/// Called when personality is changed from shadow to master.
+static void matotsserv_become_master() {
+	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, matotsserv_periodic_put_files);
+}
+
 int matotsserv_init() {
 	matotsserv_read_config_file();
 
@@ -413,6 +432,18 @@ int matotsserv_init() {
 
 	main_reloadregister(matotsserv_reload);
 	main_destructregister(matotsserv_term);
-	main_pollregister(matotsserv_desc,matotsserv_serve);
+	main_pollregister(matotsserv_desc, matotsserv_serve);
+	metadataserver::registerFunctionCalledOnPromotion(matotsserv_become_master);
+	if (metadataserver::isMaster()) {
+		matotsserv_become_master();
+	}
 	return 0;
+}
+
+TapeserverId matotsserv_enqueue_node(const TapeKey& key) {
+	if (gTapeservers.empty()) {
+		return TapeserverIdPool::nullId();
+	}
+	gFilesToBeSentToTapeserver.push_back(key);
+	return gTapeservers.front().get()->id;
 }

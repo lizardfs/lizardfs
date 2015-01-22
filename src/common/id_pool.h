@@ -33,6 +33,10 @@ public:
 			return value_;
 		}
 
+		bool isNull() const {
+			return value_ == 0;
+		}
+
 		bool operator<(const Id& other) const {
 			return value_ < other.value_;
 		}
@@ -46,6 +50,9 @@ public:
 		}
 
 	private:
+		/// Constructs a null ID.
+		Id() : value_(0) {}
+
 		Id(IdType value) : value_(value) {}
 
 		IdType value_;
@@ -98,7 +105,7 @@ public:
 
 	/// Returns a special ID which is never returned by \p get.
 	static const Id nullId() {
-		return Id(0);
+		return Id();
 	}
 
 private:

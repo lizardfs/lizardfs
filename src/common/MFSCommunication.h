@@ -1504,3 +1504,7 @@ enum class SugidClearMode {
 // 0x06A7
 #define LIZ_TSTOMA_END_OF_FILES (1000U + 703U)
 /// -
+
+// 0x06A8
+#define LIZ_MATOTS_PUT_FILES (1000U + 704U)
+/// tapecontents:(vector<inode:32,mtime:32,length:64>)

@@ -22,6 +22,14 @@ TEST(IdPoolTests, TestPut) {
 	}
 }
 
+TEST(IdPoolTests, TestIdIsNull) {
+	IdPool<uint32_t> pool(10);
+	ASSERT_TRUE(pool.nullId().isNull());
+	for (unsigned i = 0; i < pool.size(); ++i) {
+		ASSERT_FALSE(pool.get().isNull()) << "n=" << i;
+	}
+}
+
 TEST(IdPoolTests, TestPutNull) {
 	IdPool<uint32_t> pool(16);
 

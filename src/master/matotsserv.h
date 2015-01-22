@@ -3,6 +3,7 @@
 #include "common/platform.h"
 
 #include "common/id_pool.h"
+#include "common/tape_key.h"
 
 /// A pool of tapeserver IDs.
 /// We support only 8-bit IDs to save some memory.
@@ -14,3 +15,6 @@ typedef TapeserverIdPool::Id TapeserverId;
 
 /// Initialize the module.
 int matotsserv_init();
+
+/// Enqueues file for sending it to tapeserver.
+TapeserverId matotsserv_enqueue_node(const TapeKey& key);

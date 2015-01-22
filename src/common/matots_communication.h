@@ -16,3 +16,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matots, registerTapeserver, LIZ_MATOTS_REGISTER_TAPESERVER, kResponsePacketVersion,
 		uint32_t, version)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matots, putFiles, LIZ_MATOTS_PUT_FILES, 0,
+		std::vector<TapeKey>, tapeContents)
