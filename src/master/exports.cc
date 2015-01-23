@@ -953,7 +953,7 @@ void exports_loadexports(void) {
 		if (errno==ENOENT) {
 			throw InitializeException(
 					std::string("exports configuration file (") + ExportsFileName + ") not found"
-					" - please create one (you can copy " ETC_PATH "/mfs/mfsexports.cfg.dist"
+					" - please create one (you can copy " ETC_PATH "/mfsexports.cfg.dist"
 					" to get a base configuration)");
 		} else {
 			throw InitializeException(
@@ -1002,7 +1002,7 @@ void exports_load(void) {
 	if (ExportsFileName) {
 		free(ExportsFileName);
 	}
-	ExportsFileName = cfg_getstr("EXPORTS_FILENAME", ETC_PATH "/mfs/mfsexports.cfg");
+	ExportsFileName = cfg_getstr("EXPORTS_FILENAME", ETC_PATH "/mfsexports.cfg");
 	exports_loadexports();
 }
 

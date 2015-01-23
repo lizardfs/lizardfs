@@ -29,11 +29,17 @@
 ## (Default: -19)
 # NICE_LEVEL = -19
 
-# EXPORTS_FILENAME = @ETC_PATH@/mfs/mfsexports.cfg
+## Path to mfsexports.cfg file
+## (Default: @ETC_PATH@/mfsexports.cfg)
+# EXPORTS_FILENAME = @ETC_PATH@/mfsexports.cfg
 
-# TOPOLOGY_FILENAME = @ETC_PATH@/mfs/mfstopology.cfg
+## Path to mfstopology.cfg file
+## (Default: @ETC_PATH@/mfstopology.cfg)
+# TOPOLOGY_FILENAME = @ETC_PATH@/mfstopology.cfg
 
-# CUSTOM_GOALS_FILENAME = @ETC_PATH@/mfs/mfsgoals.cfg
+## Path to mfsgoals.cfg file
+## (Default: @ETC_PATH@/mfsgoals.cfg)
+# CUSTOM_GOALS_FILENAME = @ETC_PATH@/mfsgoals.cfg
 
 ## Location for metadata files.
 ## (Default: @DATA_PATH@)
@@ -162,7 +168,7 @@
 ## (Default is 0)
 # REJECT_OLD_CLIENTS = 0
 
-# GLOBALIOLIMITS_FILENAME = @ETC_PATH@/mfs/globaliolimits.cfg
+# GLOBALIOLIMITS_FILENAME = @ETC_PATH@/globaliolimits.cfg
 
 ## How often mountpoints will request bandwidth allocations under constant,
 ## predictable load.

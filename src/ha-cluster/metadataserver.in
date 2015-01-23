@@ -60,7 +60,7 @@ read_cfg_var() {
 
 # Parameters for this resource agent, with default values
 
-OCF_RESKEY_master_cfg_default=@ETC_PATH@/mfs/mfsmaster.cfg
+OCF_RESKEY_master_cfg_default=@ETC_PATH@/mfsmaster.cfg
 
 : ${OCF_RESKEY_master_cfg:=$OCF_RESKEY_master_cfg_default}
 
@@ -83,7 +83,7 @@ matocl_host=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_HOST = '*')
 matocl_port=$(read_cfg_var ${OCF_RESKEY_master_cfg} MATOCL_LISTEN_PORT = 9421)
 lizardfs_user=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_USER = @DEFAULT_USER@)
 lizardfs_group=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @DEFAULT_GROUP@)
-exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @ETC_PATH@/mfs/mfsexports.cfg)
+exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @ETC_PATH@/mfsexports.cfg)
 
 if [[ ${matocl_host} == "*" ]] ; then
 	matocl_host="localhost"

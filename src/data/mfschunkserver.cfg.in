@@ -19,6 +19,7 @@
 # NICE_LEVEL = -19
 
 ## Where to store data files and daemon lock file:
+## (Default: @DATA_PATH@)
 # DATA_PATH = @DATA_PATH@
 
 ## Delay in seconds before reconnection attempt to master after
@@ -48,8 +49,8 @@
 # CSSERV_LISTEN_PORT = 9422
 
 ## Name of volume configuration file.
-## (Default: /etc/mfs/mfshdd.cfg)
-# HDD_CONF_FILENAME = @ETC_PATH@/mfs/mfshdd.cfg
+## (Default: @ETC_PATH@/mfshdd.cfg)
+# HDD_CONF_FILENAME = @ETC_PATH@/mfshdd.cfg
 
 ## Free space threshold to set volume as 100% utilized when there is less than given amount of free
 ## space left. This number is always added to the used disk space reported by chunkserver.

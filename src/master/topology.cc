@@ -432,7 +432,7 @@ void topology_reload(void) {
 	if (TopologyFileName) {
 		free(TopologyFileName);
 	}
-	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
+	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfstopology.cfg");
 	topology_load();
 }
 

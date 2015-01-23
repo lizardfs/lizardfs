@@ -249,7 +249,7 @@ static void usage(const char *progname) {
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
-"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfs/mfsmount.cfg)\n"
+"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
@@ -911,7 +911,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (custom_cfg==0) {
-		mfs_opt_parse_cfg_file(ETC_PATH "/mfs/mfsmount.cfg",1,&defaultargs);
+		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
 	}
 
 	if (fuse_opt_parse(&defaultargs, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {

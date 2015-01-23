@@ -1103,7 +1103,7 @@ int main(int argc,char **argv) {
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
-	std::string default_cfgfile = ETC_PATH "/mfs/" STR(APPNAME) ".cfg";
+	std::string default_cfgfile = ETC_PATH "/" STR(APPNAME) ".cfg";
 	std::string cfgfile = default_cfgfile;
 
 	prepareEnvironment();

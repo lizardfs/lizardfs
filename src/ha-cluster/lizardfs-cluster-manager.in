@@ -5,7 +5,7 @@
 #       there may be more than one interface{} instance.
 
 NAME="lizardfs-cluster-manager"
-LIZARDFS_CONF_DIR="@ETC_PATH@/mfs"
+LIZARDFS_CONF_DIR="@ETC_PATH@"
 LIZARDFS_DATA_DIR="@DATA_PATH@"
 LIZARDFS_RUN_DIR="@RUN_PATH@"
 LIZARDFS_USER="@DEFAULT_USER@"

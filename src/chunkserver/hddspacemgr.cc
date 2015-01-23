@@ -4171,12 +4171,12 @@ static void hdd_folders_reinit(void) {
 	cstream_t fd;
 	std::string hddfname;
 
-	hddfname = cfg_get("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
+	hddfname = cfg_get("HDD_CONF_FILENAME", ETC_PATH "/mfshdd.cfg");
 	fd.reset(fopen(hddfname.c_str(),"r"));
 	if (!fd) {
 		throw InitializeException("can't open hdd config file " + hddfname +": " +
 				strerr(errno) + " - new file can be created using " +
-				ETC_PATH "/mfs/mfshdd.cfg.dist");
+				ETC_PATH "/mfshdd.cfg.dist");
 	}
 	lzfs_pretty_syslog(LOG_INFO, "hdd configuration file %s opened", hddfname.c_str());
 

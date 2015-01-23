@@ -9,7 +9,7 @@ USAGE: $0 <net-interface> [<etc-mfs-dir>]
 
 	<net-interface> - network interface to reconfigure
 	<etc-mfs-dir> - mfs configuration directory to use
-			default: @ETC_PATH@/mfs
+			default: @ETC_PATH@
 
 
 This scripts automates starting spare master server on a metalogger machine.
@@ -39,7 +39,7 @@ if [ $UID -ne 0 ]; then
 fi
 
 net_interface="$1"
-etc_directory="${2:-@ETC_PATH@/mfs}"
+etc_directory="${2:-@ETC_PATH@}"
 
 get_config_option() {
 	local file="$1"

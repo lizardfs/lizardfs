@@ -8323,7 +8323,7 @@ static void fs_read_goal_config_file() {
 			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
 	if (goalConfigFile.empty()) {
 		// file is not specified
-		const char *defaultGoalConfigFile = ETC_PATH "/mfs/mfsgoals.cfg";
+		const char *defaultGoalConfigFile = ETC_PATH "/mfsgoals.cfg";
 		if (access(defaultGoalConfigFile, F_OK) == 0) {
 			// the default file exists - use it
 			goalConfigFile = defaultGoalConfigFile;
