@@ -1096,7 +1096,6 @@ void usage(const char *appname) {
 
 int main(int argc,char **argv) {
 	char *wrkdir;
-	char *cfgfile=NULL;
 	char *appname;
 	int ch;
 	int logundefined;
@@ -1104,8 +1103,8 @@ int main(int argc,char **argv) {
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
-	std::string name_new(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
-	std::string name_old(ETC_PATH "/" STR(APPNAME) ".cfg");
+	std::string default_cfgfile = ETC_PATH "/mfs/" STR(APPNAME) ".cfg";
+	std::string cfgfile = default_cfgfile;
 
 	prepareEnvironment();
 	strerr_init();
@@ -1132,8 +1131,7 @@ int main(int argc,char **argv) {
 				gExtraArguments.emplace_back(optarg);
 				break;
 			case 'c':
-				cfgfile = strdup(optarg);
-				passert(cfgfile);
+				cfgfile = optarg;
 				break;
 			case 'u':
 				logundefined=1;
@@ -1172,20 +1170,6 @@ int main(int argc,char **argv) {
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
-	if (cfgfile == NULL) { /*try loading default config files*/
-		cfgfile = strdup(name_new.c_str());
-		try {
-			if (!fs::exists(name_new) && fs::exists(name_old)) {
-				free(cfgfile);
-				cfgfile = strdup(name_old.c_str());
-				lzfs_pretty_syslog(LOG_WARNING, "default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
-			}
-		} catch (const FilesystemException& ex) {
-			lzfs_pretty_syslog(LOG_WARNING, "can't access config file %s: %s",
-					name_new.c_str(), ex.what());
-		}
-	}
-
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		if (gRunAsDaemon) {
 			makedaemon();
@@ -1194,17 +1178,15 @@ int main(int argc,char **argv) {
 		}
 	}
 
-	if (cfg_load(cfgfile,logundefined)==0) {
+	if (cfg_load(cfgfile.c_str(), logundefined)==0) {
 		lzfs_pretty_syslog(LOG_WARNING, "configuration file %s not found - using defaults; "
 				"please create one to remove this warning "
 				"(you can copy %s.dist to get a base configuration)",
-				cfgfile, name_new.c_str());
+				cfgfile.c_str(), default_cfgfile.c_str());
 	} else if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-		lzfs_pretty_syslog(LOG_INFO,"configuration file %s loaded", cfgfile);
+		lzfs_pretty_syslog(LOG_INFO, "configuration file %s loaded", cfgfile.c_str());
 	}
-	free(cfgfile);
 	main_configure_debug_log();
-// const std::string& logappname = set_syslog_ident();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		rls.rlim_cur = MFSMAXFILES;

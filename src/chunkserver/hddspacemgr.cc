@@ -4171,23 +4171,8 @@ static void hdd_folders_reinit(void) {
 	cstream_t fd;
 	std::string hddfname;
 
-	if (!cfg_isdefined("HDD_CONF_FILENAME")) {
-		hddfname = ETC_PATH "/mfs/mfshdd.cfg";
-		fd.reset(fopen(hddfname.c_str(),"r"));
-		if (!fd) {
-			hddfname = ETC_PATH "/mfshdd.cfg";
-			fd.reset(fopen(hddfname.c_str(),"r"));
-			if (fd) {
-				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfshdd.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
-			} else {
-				hddfname = ETC_PATH "/mfs/mfshdd.cfg";
-			}
-		}
-	} else {
-		hddfname = cfg_get("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
-		fd.reset(fopen(hddfname.c_str(),"r"));
-	}
-
+	hddfname = cfg_get("HDD_CONF_FILENAME", ETC_PATH "/mfs/mfshdd.cfg");
+	fd.reset(fopen(hddfname.c_str(),"r"));
 	if (!fd) {
 		throw InitializeException("can't open hdd config file " + hddfname +": " +
 				strerr(errno) + " - new file can be created using " +
