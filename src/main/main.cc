@@ -358,7 +358,11 @@ void main_want_to_reload() {
 void destruct() {
 	deentry *deit;
 	for (deit = dehead ; deit!=NULL ; deit=deit->next) {
-		deit->fun();
+		try {
+			deit->fun();
+		} catch (Exception& ex) {
+			syslog(LOG_WARNING, "term error: %s", ex.what());
+		}
 	}
 }
 

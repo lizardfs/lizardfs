@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # TODO: Verify each command exit status.
-# TODO: Be careful while generating corosynf.conf,
+# TODO: Be careful while generating corosync.conf,
 #       there may be more than one interface{} instance.
 
 NAME="lizardfs-cluster-manager"
@@ -579,7 +579,8 @@ migrate_master_server() {
 	if [[ "${to_node}" == "" ]] ; then
 		bailout "You have to specify destination node with \`--to-node=...' argument"
 	fi
-	invoke crm ${crm_wait} resource migrate lizardfs-ms "${to_node}"
+	local duration_iso="P6S"  # 6 seconds, see: http://en.wikipedia.org/wiki/ISO_8601#Durations
+	invoke crm ${crm_wait} resource migrate lizardfs-ms "${to_node}" "${duration_iso}"
 	ok "LizardFS metadata master has been migrated to ${to_node} node"
 }
 

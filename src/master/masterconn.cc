@@ -600,6 +600,10 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 		syslog(LOG_NOTICE,"download start error");
 		return;
 	}
+#ifndef METALOGGER
+	// We are a shadow master and we are going to do some changes in the data dir right now
+	fs_erase_message_from_lockfile();
+#endif
 	eptr->filesize = get64bit(&data);
 	eptr->dloffset = 0;
 	eptr->downloadretrycnt = 0;

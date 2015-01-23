@@ -8,12 +8,18 @@ assert_failure lizardfs-admin stop-master-without-saving-metadata \
 		localhost "${info[matocl]}" <<< "${info[admin_password]}"
 lizardfs_master_n 1 start
 
+# Remember version of metadata before stopping the master server
+last_metadata_version=$(lizardfs_probe_master metadataserver-status | cut -f3)
+
 # Make sure admin stop will succeed with connected shadow server
 assert_success lizardfs-admin stop-master-without-saving-metadata \
 		localhost "${info[matocl]}" <<< "${info[admin_password]}"
-
-# Wait for master server to actually shut down
 assert_eventually "! mfsmaster -c ${info[master_cfg]} isalive"
+
+# Verify if a proper lock file was left by the master server
+lockfile="${info[master_data_path]}/metadata.mfs.lock"
+assert_file_exists "$lockfile"
+assert_equals "quick_stop: $last_metadata_version" "$(cat "$lockfile")"
 
 # Make sure that there is no possibility to start the master server normally
 assert_failure lizardfs_master_n 0 start

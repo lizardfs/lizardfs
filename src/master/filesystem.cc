@@ -8027,6 +8027,8 @@ uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
 		return ERROR_TEMP_NOTPOSSIBLE;
 	}
+
+	fs_erase_message_from_lockfile(); // We are going to do some changes in the data dir right now
 	changelog_rotate();
 	matomlserv_broadcast_logrotate();
 	// child == true says that we forked
@@ -8101,10 +8103,25 @@ void fs_term(void) {
 			sleep(10);
 		}
 	}
-	chunk_unload();
-	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
 	if (metadataStored) {
+		// Remove the lock to say that the server has gently stopped and saved its metadata.
 		fs_unlock();
+	} else if (gMetadata != nullptr && !gSaveMetadataAtExit) {
+		// We will leave the lockfile present to indicate, that our metadata.mfs file should not be
+		// loaded (it is not up to date -- some changelogs need to be applied). Write a message
+		// which tells that the lockfile is not left because of a crash, but because we have been
+		// asked to stop without saving metadata. Include information about version of metadata
+		// which can be recovered using our changelogs.
+		auto message = "quick_stop: " + std::to_string(gMetadata->metaversion) + "\n";
+		gMetadataLockfile->writeMessage(message);
+	} else {
+		// We will leave the lockfile present to indicate, that our metadata.mfs file should not be
+		// loaded (it is not up to date, because we didn't manage to download the most recent).
+		// Write a message which tells that the lockfile is not left because of a crash, but because
+		// we have been asked to stop before loading metadata. Don't overwrite 'quick_stop' though!
+		if (!gMetadataLockfile->hasMessage()) {
+			gMetadataLockfile->writeMessage("no_metadata: 0\n");
+		}
 	}
 }
 
@@ -8133,6 +8150,9 @@ void fs_storeall(const char *fname) {
 }
 
 void fs_term(const char *fname, bool noLock) {
+	if (!noLock) {
+		gMetadataLockfile->eraseMessage();
+	}
 	fs_storeall(fname);
 	if (!noLock) {
 		fs_unlock();
@@ -8219,6 +8239,12 @@ void fs_strinit(void) {
 /// Returns true iff we are allowed to swallow a stale lockfile and apply changelogs.
 static bool fs_can_do_auto_recovery() {
 	return gAutoRecovery || main_has_extra_argument("auto-recovery", CaseSensitivity::kIgnore);
+}
+
+void fs_erase_message_from_lockfile() {
+	if (gMetadataLockfile != nullptr) {
+		gMetadataLockfile->eraseMessage();
+	}
 }
 
 int fs_loadall(void) {

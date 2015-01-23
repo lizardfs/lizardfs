@@ -68,9 +68,10 @@ OCF_RESKEY_master_cfg_default=@ETC_PATH@/mfs/mfsmaster.cfg
 
 lock_timeout=10  # seconds
 score_master=1000
-score_shadow_lastest=900
-score_shadow_connected=500
-score_shadow_no_metadata=0
+score_shadow_lastest_metadata=900
+score_shadow_metadata_in_ram=500
+score_metadata_on_disk=100
+score_no_metadata=0
 metadata_version_attribute_name="lizardfs-metadata-version"
 
 # Core LizardFS variables
@@ -84,8 +85,11 @@ lizardfs_user=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_USER = @DEFAULT_US
 lizardfs_group=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @DEFAULT_GROUP@)
 exports_cfg=$(read_cfg_var ${OCF_RESKEY_master_cfg} WORKING_GROUP = @ETC_PATH@/mfs/mfsexports.cfg)
 
+if [[ ${matocl_host} == "*" ]] ; then
+	matocl_host="localhost"
+fi
 master_metadata=${data_dir}/metadata.mfs
-master_lock=${data_dir}/metadata.mfs.lock
+metadata_lock=${data_dir}/metadata.mfs.lock
 master_backup_logs=${data_dir}/changelog.mfs.*
 promote_mode="prevent"
 
@@ -162,13 +166,15 @@ EOF
 
 lizardfs_master() {
 	local command=$1
-	local personality=$2
-	mfsmaster -c "$OCF_RESKEY_master_cfg" -o ha-cluster-managed -o initial-personality="${personality}" "${command}"
+	shift
+	local personality=$1
+	shift
+	mfsmaster -c "$OCF_RESKEY_master_cfg" -o ha-cluster-managed -o initial-personality="${personality}" "${command}" "$@"
 }
 
 # Actions
 
-lizardfs_master_start_shadow() {
+lizardfs_master_start() {
 	lizardfs_master_monitor
 	case $? in
 		$OCF_RUNNING_MASTER)
@@ -182,17 +188,37 @@ lizardfs_master_start_shadow() {
 		*)  ocf_log debug "starting LizardFS metadata server as shadow master"
 	esac
 
-	if ! ensure_dirs ; then
-		return ${?}
+	if ! mkdir -p "$data_dir" ; then
+		return $OCF_ERR_PERM
+	fi
+	if ! chmod 0755 "$data_dir" ; then
+		return $OCF_ERR_PERM
+	fi
+	if ! chown -R $lizardfs_user:$lizardfs_group "$data_dir" ; then
+		return $OCF_ERR_PERM
+	fi
+	if [[ ! -e "$data_dir"/metadata.mfs ]] ; then
+		if [[ ! -e "$data_dir"/metadata.mfs.back ]] ; then
+			if ! echo "MFSM NEW" > "$data_dir"/metadata.mfs ; then
+				return $OCF_ERR_PERM
+			fi
+		fi
 	fi
 
 	# When the start action is called, we are supposed to start in the
 	# slave state, which means starting a shadow master.
-
 	ocf_run lizardfs_master start shadow
 }
 
+# Stops a metadata server
+# Usage: metadataserver_really_stop [--quick]
+# If --quick is present, tries to use quickstop feature
 metadataserver_really_stop() {
+	if [[ $1 == --quick ]] ; then
+		if ocf_run lizardfs_admin_quick_stop ; then
+			return $OCF_SUCCESS
+		fi
+	fi
 	if ocf_run lizardfs_master stop ; then
 		return $OCF_SUCCESS
 	else
@@ -210,7 +236,11 @@ lizardfs_master_stop() {
 	lizardfs_master_monitor
 	case $? in
 		$OCF_RUNNING_MASTER|$OCF_SUCCESS)
-			ocf_log debug "trying to gracefully shutdown LizardFS metadata server"
+			ocf_log debug "trying to gracefully shutdown LizardFS metadata server (master mode)"
+			metadataserver_really_stop --quick
+		;;
+		$OCF_SUCCESS)
+			ocf_log debug "trying to gracefully shutdown LizardFS metadata server (shadow mode)"
 			metadataserver_really_stop
 		;;
 		$OCF_NOT_RUNNING)
@@ -245,7 +275,7 @@ lizardfs_master_promote() {
 
 			if [[ "${promote_mode}" == "restart" ]] ; then
 				ocf_log debug "running in shadow mode on cluster with no master, doing full restart"
-				if ! ( ocf_run lizardfs_master stop master && unlink "${master_lock}" && ocf_run lizardfs_master start master ) ; then
+				if ! ( ocf_run lizardfs_master stop master && unlink "${metadata_lock}" && ocf_run lizardfs_master start master -o auto-recovery ) ; then
 					ocf_log error "Failed to restart into master mode"
 					return $OCF_FAILED_MASTER
 				fi
@@ -273,8 +303,7 @@ lizardfs_master_promote() {
 			esac
 		;;
 		*)
-			ocf_log error \
-				"LizardFS metadata server not running as shadow master, can't be promoted"
+			ocf_log error "LizardFS metadata server not running as shadow master, can't be promoted"
 			return $OCF_ERR_GENERIC
 		;;
 	esac
@@ -286,7 +315,7 @@ lizardfs_master_notify() {
 
 	ocf_log debug "Received $type_op notification"
 	lizardfs_master_monitor
-	if [ $? -eq $OCF_SUCCESS ] ; then
+	if [[ $? == $OCF_SUCCESS ]] ; then
 		# We're a shadow master node
 		ocf_log debug "We're a shadow master node"
 		case $type_op in
@@ -314,45 +343,38 @@ lizardfs_master_demote() {
 	case $? in
 		$OCF_RUNNING_MASTER)
 			ocf_log debug "LizardFS metadata server running as master, demoting"
+			ocf_run lizardfs_admin_quick_stop  # May fail, but we don't  care -- a restart follows
+			if ! ocf_run lizardfs_master restart shadow ; then
+				ocf_log error "Failed to start shadow master, demotion failed"
+				return $OCF_ERR_GENERIC
+			fi
+			return $OCF_SUCCESS
 		;;
 		$OCF_SUCCESS)
 			ocf_log info "LizardFS metadata server already a shadow master"
 			return $OCF_SUCCESS
 		;;
 		*)
-			ocf_log error \
-				"LizardFS metadata server not running, not a valid target for demotion"
+			ocf_log error "LizardFS metadata server not running, not a valid target for demotion"
 			return $OCF_ERR_GENERIC
 		;;
 	esac
-
-	if ! ocf_run lizardfs_master restart shadow ; then
-		ocf_log error "Failed to start shadow master, demotion failed"
-		return $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
 }
 
 lizardfs_admin_promote() {
-	local host
-	if [ "$matocl_host" = "*" ] ; then
-		host=localhost
-	else
-		host=$matocl_host
-	fi
-	echo -n "${admin_password}" | lizardfs-admin promote-shadow "${host}" ${matocl_port}
+	echo -n "${admin_password}" | \
+			lizardfs-admin promote-shadow "${matocl_host}" ${matocl_port}
 }
 
-lizardfs_probe() {
+lizardfs_admin_metadataserver_status() {
 	# Probe this server and return the metadataserver-status information
-	local host
-	if [ "$matocl_host" = "*" ] ; then
-		host=localhost
-	else
-		host=$matocl_host
-	fi
-	lizardfs-admin metadataserver-status --porcelain "${host}" "$matocl_port"
+	lizardfs-admin metadataserver-status --porcelain "${matocl_host}" "$matocl_port"
+}
+
+lizardfs_admin_quick_stop() {
+	# Stop metadata server without saving metadata to file
+	echo -n "${admin_password}" | \
+			lizardfs-admin stop-master-without-saving-metadata "${matocl_host}" "$matocl_port"
 }
 
 update_master_score() {
@@ -370,8 +392,12 @@ get_metadata_version() {
 
 # Extract version from metadata file
 get_metadata_version_from_file() {
-	mfsmetadump "${master_metadata}" | head -n 2 | awk 'BEGIN{v="0"}/^# maxnodeid/{v=$6}END{print v}'
-	return 0
+	local version=$(mfsmetarestore -g -d "${data_dir}")
+	if [[ $? == 0 && ${version} =~ ^[0-9]+$ ]]; then
+		echo "${version}"
+	else
+		echo 0
+	fi
 }
 
 # Check if the mfsmaster process is running on this machine, and if so
@@ -381,72 +407,83 @@ lizardfs_master_monitor() {
 	ocf_run -info lizardfs_master isalive
 	ret=$?
 
-	if [ $ret -eq 0 ] ; then
+	if [[ ${ret} == 0 ]] ; then
 		# mfsmaster is running, check to see if we're a shadow master or full
 		# master
-		probe_result=$(lizardfs_probe)
-		if [ $? -ne 0 ] ; then
+		local probe_result=$(lizardfs_admin_metadataserver_status)
+		if [[ $? != 0 ]] ; then
 			ocf_log err "failed to query LizardFS master status"
 			return $OCF_ERR_GENERIC
 		fi
 		local personality=$(echo "$probe_result" | cut -f1)
 		local connection=$(echo "$probe_result" | cut -f2)
-		local metadata_version=$(echo "$probe_result" | cut -f3)
-		promote_mode="prevent"
+		local metadata_version_in_ram=$(echo "$probe_result" | cut -f3)
+		promote_mode="prevent"  # A global variable!
 		case "$personality/$connection" in
 			master/running)
 				ocf_log debug "running in master mode"
-				update_master_score ${score_master}
-				set_metadata_version "${metadata_version}"
+				update_master_score "${score_master}"
+				set_metadata_version "${metadata_version_in_ram}"
 				return $OCF_RUNNING_MASTER
 			;;
 			shadow/connected|shadow/disconnected)
+				local metadata_version_on_disk=$(get_metadata_version_from_file)
 				local cluster_metadata_version=$(get_metadata_version)
 				if [[ ( $? != 0 ) || ( ${cluster_metadata_version} == "" ) ]] ; then
 					ocf_log error "Failed to obtain metadata version from cluster."
 					return $OCF_ERR_GENERIC
 				fi
-				if [[ ${metadata_version} -gt 0 ]] ; then
-					local local_metadata_version="${metadata_version}"
-					local in_memory=1
-				else
-					local local_metadata_version=$(get_metadata_version_from_file)
-				fi
-				if [ ${local_metadata_version} -ge ${cluster_metadata_version} ] ; then
+				if (( metadata_version_in_ram > 0 && metadata_version_in_ram >= cluster_metadata_version )) ; then
 					ocf_log debug "running in shadow mode, have latest metadata: ${local_metadata_version}"
-					update_master_score ${score_shadow_lastest}
-					if [[ $in_memory ]] ; then
-						promote_mode="reload"
-					else
-						promote_mode="restart"
-					fi
-				elif [[ ${local_metadata_version} -gt 0 && ${in_memory} ]] ; then
-					ocf_log debug "running in shadow mode, latest metadata is not available: ${local_metadata_version} < ${cluster_metadata_version}"
-					update_master_score ${score_shadow_connected}
+					update_master_score "${score_shadow_lastest_metadata}"
 					promote_mode="reload"
+				elif (( metadata_version_in_ram > 0 )) ; then
+					ocf_log debug "running in shadow mode, latest metadata is not available: ${metadata_version_in_ram} < ${cluster_metadata_version}"
+					update_master_score "${score_shadow_metadata_in_ram}"
+					promote_mode="reload"
+				elif (( metadata_version_on_disk >= cluster_metadata_version )) ; then
+					ocf_log debug "running in shadow mode, but metadata is on disk : ${metadata_version_on_disk}"
+					update_master_score "${score_metadata_on_disk}"
+					promote_mode="restart"
 				else
-					ocf_log debug "running in shadow mode, no metadata"
-					# Do not promote shadow with no metadata!
-					update_master_score ${score_shadow_no_metadata}
+					ocf_log debug "running in shadow mode, no metadata: ${metadata_version_on_disk} < ${cluster_metadata_version}"
+					update_master_score "${score_no_metadata}"
+					# Don't set promote mode to prevent promotion
 				fi
 				return $OCF_SUCCESS
 			;;
 			*)
-				ocf_log err \
-			    "unexpected output from lizardfs-admin: $probe_result"
+				ocf_log err "unexpected output from lizardfs-admin: $probe_result"
+				update_master_score "${score_no_metadata}"
 				return $OCF_ERR_GENERIC
 			;;
 		esac
-	elif [ $ret -eq 1 ] ; then
-		if [ ! -e "$master_lock" ] ; then
+	elif [[ $ret == 1 ]] ; then
+		local metadata_version_on_disk=$(get_metadata_version_from_file)
+		local cluster_metadata_version=$(get_metadata_version)
+		if [[ ( $? != 0 ) || ( ${cluster_metadata_version} == "" ) ]] ; then
+			ocf_log error "Failed to obtain metadata version from cluster."
+			update_master_score ${score_no_metadata}
+			promote_mode="prevent"
+		elif (( metadata_version_on_disk >= cluster_metadata_version )) ; then
+			ocf_log debug "metadata server not running, but latest metadata is on disk : ${metadata_version_on_disk}"
+			update_master_score "${score_metadata_on_disk}"
+			promote_mode="restart"
+		else
+			ocf_log debug "metadata server not running, no metadata is available"
+			update_master_score "${score_no_metadata}"
+			promote_mode="prevent"
+		fi
+		if [[ -e "$metadata_lock" && ! -s "$metadata_lock" ]] ; then
+			ocf_log warn "LizardFS metadata server has failed"
+			return $OCF_FAILED_MASTER
+		else
 			ocf_log debug "LizardFS metadata server not running (clean)."
 			return $OCF_NOT_RUNNING
-		else
-	    ocf_log warn "LizardFS metadata server has failed"
-			return $OCF_FAILED_MASTER
 		fi
 	else
 		ocf_log err "error checking if master is running"
+		update_master_score "${score_no_metadata}"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -470,26 +507,6 @@ lizardfs_master_reload() {
 			return $OCF_ERR_GENERIC
 		;;
 	esac
-}
-
-ensure_dirs() {
-	# ensure that the metadata dir exists
-	if ! mkdir -p "$data_dir" ; then
-		return $OCF_ERR_PERM
-	fi
-	if ! chmod 0755 "$data_dir" ; then
-		return $OCF_ERR_PERM
-	fi
-	if ! chown -R $lizardfs_user:$lizardfs_group "$data_dir" ; then
-		return $OCF_ERR_PERM
-	fi
-	if [ ! -e "$data_dir"/metadata.mfs ] ; then
-		if [ ! -e "$data_dir"/metadata.mfs.back ] ; then
-			if ! echo "MFSM NEW" > "$data_dir"/metadata.mfs ; then
-				return $OCF_ERR_PERM
-			fi
-		fi
-	fi
 }
 
 lizardfs_master_validate() {
@@ -543,7 +560,7 @@ esac
 lizardfs_master_validate
 
 case "$1" in
-	start)    lizardfs_master_start_shadow;;
+	start)    lizardfs_master_start;;
 	stop)     lizardfs_master_stop;;
 	monitor)  lizardfs_master_monitor;;
 	reload)   lizardfs_master_reload;;

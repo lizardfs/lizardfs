@@ -23,3 +23,10 @@ assert_eventually_matches "$shadow_expected_state" 'list_metadata_servers | grep
 
 lizardfs_master_n 1 stop
 assert_eventually_matches "$master_expected_state" 'list_metadata_servers'
+
+lizardfs_master_n 1 start
+assert_eventually "lizardfs_shadow_synchronized 1"
+shadow_version=$(list_metadata_servers | awk '/shadow/{print $6}')
+lizardfs_master_n 0 stop
+master_version=$(metadata_get_version "${info[master_data_path]}/metadata.mfs")
+assert_equals "$master_version" "$shadow_version"

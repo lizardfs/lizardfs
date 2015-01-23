@@ -225,6 +225,11 @@ const Goal& fs_get_goal_definition(uint8_t goalId);
 // Disable saving metadata on exit
 void fs_disable_metadata_dump_on_exit();
 
+/// Erases a message from metadata lockfile.
+/// This function should be called before the first operation which may change
+/// files in data dir (e.g., rotation of logs, creating new metadata file, ...)
+void fs_erase_message_from_lockfile();
+
 int fs_init(void);
 int fs_init(bool force);
 #endif

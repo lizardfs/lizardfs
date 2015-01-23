@@ -48,6 +48,26 @@ public:
 	 */
 	bool isLocked() const;
 
+	/*! \brief Tell if this lockfile has currently some message written.
+	 *
+	 * \return True iff this locked has currently some message written.
+	 * \throw FilesystemException
+	 */
+	bool hasMessage() const;
+
+	/*! \brief Erases any messages present in the lockfile.
+	 *
+	 * \throw FilesystemException
+	 */
+	void eraseMessage();
+
+	/*! \brief Write some message to the lockfile.
+	 *
+	 * \param message - message to be written to the lockfile.
+	 * \throw FilesystemException
+	 */
+	void writeMessage(const std::string& message);
+
 private:
 	std::string name_;
 	FileDescriptor fd_;
