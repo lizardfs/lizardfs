@@ -48,6 +48,7 @@
 #include "common/rotate_files.h"
 #include "common/setup.h"
 #include "common/slogger.h"
+#include "common/tape_copy_state.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/goal_config_loader.h"
@@ -67,6 +68,7 @@
 #  include "master/datacachemgr.h"
 #  include "master/matoclserv.h"
 #  include "master/matocsserv.h"
+#  include "master/matotsserv.h"
 #endif
 
 #define NODEHASHBITS (22)
@@ -180,20 +182,15 @@ struct xattr_inode_entry {
 
 /// Information about a copy of a file on some tapeserver.
 struct TapeCopy {
-	enum class State : uint8_t {
-		kInvalid,
-		kCreating,
-		kOk,
-	};
 
 	/// Default constructor.
-	TapeCopy() : state(State::kInvalid), server(TapeserverIdPool::nullId()) {}
+	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId()) {}
 
 	/// A constructor.
-	TapeCopy(State state, TapeserverId server) : state(state), server(server) {}
+	TapeCopy(TapeCopyState state, TapeserverId server) : state(state), server(server) {}
 
 	/// State of the copy.
-	State state;
+	TapeCopyState state;
 
 	/// ID of a tapeserver.
 	TapeserverId server;
@@ -2767,7 +2764,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 						if (id.isNull()) {
 							break;
 						}
-						node->tapeCopies.emplace_back(TapeCopy::State::kCreating, id);
+						node->tapeCopies.emplace_back(TapeCopyState::kCreating, id);
 					}
 # endif
 				} else {
@@ -5844,11 +5841,11 @@ uint8_t fs_add_tape_copy(const TapeKey& tapeKey, TapeserverId tapeserver) {
 	// Try to reuse an existing copy from this tapeserver
 	for (auto& tapeCopy : node->tapeCopies) {
 		if (tapeCopy.server == tapeserver) {
-			tapeCopy.state = TapeCopy::State::kOk;
+			tapeCopy.state = TapeCopyState::kOk;
 			return STATUS_OK;
 		}
 	}
-	node->tapeCopies.emplace_back(TapeCopy::State::kOk, tapeserver);
+	node->tapeCopies.emplace_back(TapeCopyState::kOk, tapeserver);
 	return STATUS_OK;
 }
 
@@ -5866,6 +5863,23 @@ uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver) {
 	}
 	return STATUS_OK;
 }
+
+#ifndef METARESTORE
+uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations) {
+	sassert(locations.empty());
+	fsnode *node = fsnodes_id_to_node(inode);
+	if (node == NULL) {
+		return ERROR_ENOENT;
+	}
+	for (auto& tapeCopy : node->tapeCopies) {
+		TapeserverInfo tapeserverInfo;
+		if (matotsserv_get_tapeserver_info(tapeCopy.server, tapeserverInfo) == STATUS_OK) {
+			locations.emplace_back(tapeserverInfo, tapeCopy.state);
+		}
+	}
+	return STATUS_OK;
+}
+#endif
 
 void fs_add_files_to_chunks() {
 	uint32_t i,j;

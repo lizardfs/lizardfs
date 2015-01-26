@@ -30,6 +30,7 @@
 #include "common/goal_map.h"
 #include "common/quota.h"
 #include "common/tape_key.h"
+#include "common/tape_copy_location_info.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
 #include "master/matotsserv.h"
@@ -206,6 +207,9 @@ uint8_t fs_add_tape_copy(const TapeKey& takeKey, TapeserverId tapeserver);
 
 /// Called after a tapeserver disconnects.
 uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver);
+
+/// Get list of tape copies created
+uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations);
 
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);

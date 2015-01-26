@@ -1476,6 +1476,15 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 566U)
 /// status:8
 
+// 0x061F
+#define LIZ_CLTOMA_TAPE_INFO (1000U + 567U)
+/// msgid:32 inode:32
+
+// 0x0620
+#define LIZ_MATOCL_TAPE_INFO (1000U + 568U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 copies:(vector<TapeWithAddressAndStatus>)
+
 // CHUNKSERVER STATS
 
 // 0x0258

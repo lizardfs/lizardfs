@@ -14,6 +14,7 @@
 #include "common/quota.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
+#include "common/tape_copy_location_info.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
@@ -245,3 +246,17 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, adminRecalculateMetadataChecksum, LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM, 0,
 		uint8_t, status)
+
+// LIZ_MATOCL_TAPE_INFO
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, tapeInfo, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, tapeInfo, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, tapeInfo, LIZ_MATOCL_TAPE_INFO, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, tapeInfo, LIZ_MATOCL_TAPE_INFO, kResponsePacketVersion,
+		uint32_t, messageId,
+		std::vector<TapeCopyLocationInfo>, chunks)

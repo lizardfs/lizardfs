@@ -1188,6 +1188,89 @@ int file_info(const char *fileName) {
 	}
 	chunkIndex = 0;
 	try {
+		buffer.clear();
+		cltoma::tapeInfo::serialize(buffer, 0, inode);
+		if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
+			printf("%s [tape info]: master: send error\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+
+		buffer.resize(PacketHeader::kSize);
+		if (tcpread(fd, buffer.data(), PacketHeader::kSize) != (int)PacketHeader::kSize) {
+			printf("%s [tape info]: master query: receive error\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+
+		PacketHeader header;
+		deserializePacketHeader(buffer, header);
+
+		if (header.type != LIZ_MATOCL_TAPE_INFO) {
+			printf("%s [tape info]: master query: wrong answer (type)\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+
+		buffer.resize(header.length);
+
+		if (tcpread(fd, buffer.data(), header.length) != (int)header.length) {
+			printf("%s [tape info]: master query: receive error\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+
+		PacketVersion version;
+		deserialize(buffer, version, messageId);
+
+		if (messageId != 0) {
+			printf("%s [tape info]: master query: wrong answer (queryid)\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+
+		uint8_t status = STATUS_OK;
+		if (version == matocl::tapeInfo::kStatusPacketVersion) {
+			matocl::tapeInfo::deserialize(buffer, messageId, status);
+		} else if (version != matocl::tapeInfo::kResponsePacketVersion) {
+			printf("%s [tape info]: master query: wrong answer (packet version)\n", fileName);
+			close_master_conn(1);
+			return -1;
+		}
+		if (status != STATUS_OK) {
+			printf("%s [tape info]: %s\n", fileName, mfsstrerr(status));
+			close_master_conn(1);
+			return -1;
+		}
+
+		std::vector<TapeCopyLocationInfo> tapeCopies;
+		matocl::tapeInfo::deserialize(buffer, messageId, tapeCopies);
+
+		printf("%s:\n", fileName);
+		if (tapeCopies.size() != 0) {
+			for (unsigned i = 0; i < tapeCopies.size(); i++) {
+				std::string copyStatus;
+				switch (tapeCopies[i].state) {
+					case TapeCopyState::kInvalid:
+						copyStatus = "invalid";
+						break;
+					case TapeCopyState::kCreating:
+						copyStatus = "creating";
+						break;
+					case TapeCopyState::kOk:
+						copyStatus = "OK";
+						break;
+				}
+				printf("\ttape replica %u: %s on %s (%s, %s)\n",
+						i + 1,
+						copyStatus.c_str(),
+						tapeCopies[i].tapeserver.server.c_str(),
+						tapeCopies[i].tapeserver.address.toString().c_str(),
+						tapeCopies[i].tapeserver.label.c_str());
+			}
+		}
+
+
 		do {
 			buffer.clear();
 			cltoma::chunkInfo::serialize(buffer, 0, inode, chunkIndex);
@@ -1249,10 +1332,6 @@ int file_info(const char *fileName) {
 
 			std::vector<ChunkWithAddressAndLabel> copies;
 			matocl::chunkInfo::deserialize(buffer, messageId, fileLength, chunkId, chunkVersion, copies);
-
-			if (chunkIndex == 0) {
-				printf("%s:\n", fileName);
-			}
 
 			if (fileLength > 0) {
 				if (chunkId == 0 && chunkVersion == 0) {

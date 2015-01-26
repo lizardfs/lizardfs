@@ -14,6 +14,7 @@
 #include "common/input_packet.h"
 #include "common/main.h"
 #include "common/matots_communication.h"
+#include "common/media_label.h"
 #include "common/network_address.h"
 #include "common/output_packet.h"
 #include "common/packet.h"
@@ -40,6 +41,8 @@ struct matotsserventry {
 			  sock(sock),
 			  pdescpos(-1),
 			  inputPacket(kMaxPacketSize),
+			  name("(unregistered)"),
+			  label(kMediaLabelWildcard),
 			  id(id),
 			  address(address),
 			  version(0),
@@ -59,6 +62,8 @@ struct matotsserventry {
 	InputPacket inputPacket;
 	std::list<OutputPacket> outputPackets;
 
+	std::string name;
+	MediaLabel label;
 	TapeserverId id; // ID of the tapeserver
 	NetworkAddress address;  // IP of the tapeserver (port not present there)
 	uint32_t version;  // version of the tapeserver
@@ -119,6 +124,10 @@ static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageB
 				"tapeserver %s registered",
 				eptr->address.toString().c_str());
 		eptr->version = version;
+		// TODO(msulikowski) registering by name
+		// TODO(msulikowski) registration of labels
+		eptr->name = "tapeserver" + std::to_string(eptr->id.value());
+		eptr->label = kMediaLabelWildcard;
 		uint32_t myVersion = LIZARDFS_VERSHEX;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(myVersion));
 	}
@@ -446,4 +455,16 @@ TapeserverId matotsserv_enqueue_node(const TapeKey& key) {
 	}
 	gFilesToBeSentToTapeserver.push_back(key);
 	return gTapeservers.front().get()->id;
+}
+
+uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverInfo& tapeserverInfo) {
+	for (auto& tapeserver : gTapeservers) {
+		if (tapeserver->id == id) {
+			tapeserverInfo.server = tapeserver->name;
+			tapeserverInfo.label = tapeserver->label;
+			tapeserverInfo.address = tapeserver->address;
+			return STATUS_OK;
+		}
+	}
+	return ERROR_ENOENT;
 }

@@ -2613,6 +2613,20 @@ void matoclserv_chunk_info(matoclserventry *eptr, const uint8_t *data, uint32_t 
 	}
 }
 
+void matoclserv_tape_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t messageId;
+	uint32_t inode;
+	cltoma::tapeInfo::deserialize(data, length, messageId, inode);
+
+	std::vector<TapeCopyLocationInfo> tapeLocations;
+	uint8_t status = fs_get_tape_copy_locations(inode, tapeLocations);
+	if (status != STATUS_OK) {
+		matoclserv_createpacket(eptr, matocl::tapeInfo::build(messageId, status));
+	} else {
+		matoclserv_createpacket(eptr, matocl::tapeInfo::build(messageId, tapeLocations));
+	}
+}
+
 void matoclserv_fuse_write_chunk(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint8_t *ptr;
 	uint8_t status;
@@ -3986,6 +4000,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_CHUNK_INFO:
 					matoclserv_chunk_info(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_TAPE_INFO:
+					matoclserv_tape_info(eptr, data, length);
 					break;
 				case CLTOMA_FUSE_WRITE_CHUNK:
 					matoclserv_fuse_write_chunk(eptr,data,length);
