@@ -116,12 +116,12 @@ mass_chmod_777() {
 # This removes all temporary files and unmounts filesystems
 test_cleanup() {
 	# Unmount all mfsmounts
-	retries=0
-	pkill -KILL mfsmount || true
-	pkill -KILL memcheck || true
-	# 'grep mfs' below is important. In tests we mount some filesystem by hand
-	# assuming that they will be found with this pattern and unmounted.
-	while list_of_mounts=$(cat /proc/mounts | grep mfs | grep fuse); do
+	local retries=0
+	pkill -u lizardfstest -KILL mfsmount || true
+	pkill -u lizardfstest -KILL memcheck || true
+	# Search for all fuse filesystems mounted by user lizardfstest and umount them
+	local uid=$(id -u lizardfstest)
+	while list_of_mounts=$(cat /proc/mounts | awk '$3 == "fuse"' | grep "user_id=$uid[^0-9]"); do
 		echo "$list_of_mounts" | awk '{print $2}' | \
 				xargs -r -d'\n' -n1 fusermount -u || sleep 1
 		if ((++retries == 30)); then
