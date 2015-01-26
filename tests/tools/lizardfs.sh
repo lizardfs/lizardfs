@@ -159,6 +159,14 @@ create_mfsexports_cfg_() {
 	done
 }
 
+create_mfsgoals_cfg_() {
+	echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n'
+}
+
+create_mfstopology_cfg_() {
+	echo '# empty topology...'
+}
+
 # Creates MAGIC_DEBUG_LOG which will cause test to fail is some error is logged by any daemon
 create_magic_debug_log_entry_() {
 	local servername=$1
@@ -194,9 +202,8 @@ create_mfsmaster_master_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
-	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
-		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
-	fi
+	echo "TOPOLOGY_FILENAME = ${lizardfs_info_[master_topology]}"
+	echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
@@ -216,9 +223,8 @@ create_mfsmaster_shadow_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
-	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
-		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
-	fi
+	echo "TOPOLOGY_FILENAME = ${lizardfs_info_[master_topology]}"
+	echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
 	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
@@ -254,11 +260,11 @@ lizardfs_current_master_id() {
 
 prepare_common_metadata_server_files_() {
 	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
+	create_mfstopology_cfg_ > "$etcdir/mfstopology.cfg"
+	create_mfsgoals_cfg_ > "$etcdir/mfsgoals.cfg"
 	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
-	if [[ ${MASTER_CUSTOM_GOALS:-} ]]; then
-		echo "$MASTER_CUSTOM_GOALS" | tr '|' '\n' > "$etcdir/goals.cfg"
-		lizardfs_info_[master_custom_goals]="$etcdir/goals.cfg"
-	fi
+	lizardfs_info_[master_topology]="$etcdir/mfstopology.cfg"
+	lizardfs_info_[master_custom_goals]="$etcdir/mfsgoals.cfg"
 	get_next_port_number "lizardfs_info_[matoml]"
 	get_next_port_number "lizardfs_info_[matocl]"
 	get_next_port_number "lizardfs_info_[matocs]"
