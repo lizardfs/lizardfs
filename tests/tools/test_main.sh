@@ -27,3 +27,4 @@ done
 . tools/quota.sh
 . tools/metadata.sh
 . tools/color.sh
+. tools/continuous_test.sh
