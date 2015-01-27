@@ -1946,6 +1946,9 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			// replication limit. In this case we won't try to use servers with non-matching
 			// labels as our destination -- we will wait for that server to be ready.
 			destinationCount = returnedMatching;
+		} else if (vc + skippedReplications >= c->expectedCopies()) {
+			// Don't create copies on non-matching servers if there already are enough replicas.
+			destinationCount = returnedMatching;
 		}
 
 		// Find a destination server for replication -- the first one without a copy of 'c'
