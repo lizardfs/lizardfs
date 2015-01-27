@@ -4,8 +4,8 @@
 
 #include "common/serialization_macros.h"
 #include "common/tape_copy_state.h"
-#include "common/tapeserver_info.h"
+#include "common/tapeserver_list_entry.h"
 
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(TapeCopyLocationInfo,
-		TapeserverInfo, tapeserver,
+		TapeserverListEntry, tapeserver,
 		TapeCopyState, state);

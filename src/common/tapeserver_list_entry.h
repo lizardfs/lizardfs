@@ -8,7 +8,8 @@
 #include "common/network_address.h"
 #include "common/serialization_macros.h"
 
-LIZARDFS_DEFINE_SERIALIZABLE_CLASS(TapeserverInfo,
+LIZARDFS_DEFINE_SERIALIZABLE_CLASS(TapeserverListEntry,
+		uint32_t, version,
 		std::string, server,
 		MediaLabel, label,
 		NetworkAddress, address);

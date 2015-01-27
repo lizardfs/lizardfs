@@ -5872,7 +5872,7 @@ uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationI
 		return ERROR_ENOENT;
 	}
 	for (auto& tapeCopy : node->tapeCopies) {
-		TapeserverInfo tapeserverInfo;
+		TapeserverListEntry tapeserverInfo;
 		if (matotsserv_get_tapeserver_info(tapeCopy.server, tapeserverInfo) == STATUS_OK) {
 			locations.emplace_back(tapeserverInfo, tapeCopy.state);
 		}

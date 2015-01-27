@@ -260,3 +260,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, tapeInfo, LIZ_MATOCL_TAPE_INFO, kResponsePacketVersion,
 		uint32_t, messageId,
 		std::vector<TapeCopyLocationInfo>, chunks)
+
+// LIZ_MATOCL_TAPESERVERS_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, listTapeservers, LIZ_MATOCL_LIST_TAPESERVERS, 0,
+		std::vector<TapeserverListEntry>, tapeservers)

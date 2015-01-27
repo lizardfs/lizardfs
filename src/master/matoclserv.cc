@@ -1231,6 +1231,11 @@ void matoclserv_metadataservers_list(matoclserventry* eptr, const uint8_t* data,
 			matomlserv_shadows()));
 }
 
+void matoclserv_list_tapeservers(matoclserventry* eptr, const uint8_t* data, uint32_t length) {
+	cltoma::listTapeservers::deserialize(data, length);
+	matoclserv_createpacket(eptr, matocl::listTapeservers::build(matotsserv_get_tapeservers()));
+}
+
 /* CACHENOTIFY
 void matoclserv_notify_attr(uint32_t dirinode,uint32_t inode,const Attributes& attr) {
 	uint32_t hash = (dirinode*0x5F2318BD)%DIRINODE_HASH_SIZE;
@@ -3925,6 +3930,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM:
 					matoclserv_admin_recalculate_metadata_checksum(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_LIST_TAPESERVERS:
+					matoclserv_list_tapeservers(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

@@ -457,9 +457,10 @@ TapeserverId matotsserv_enqueue_node(const TapeKey& key) {
 	return gTapeservers.front().get()->id;
 }
 
-uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverInfo& tapeserverInfo) {
+uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tapeserverInfo) {
 	for (auto& tapeserver : gTapeservers) {
 		if (tapeserver->id == id) {
+			tapeserverInfo.version = tapeserver->version;
 			tapeserverInfo.server = tapeserver->name;
 			tapeserverInfo.label = tapeserver->label;
 			tapeserverInfo.address = tapeserver->address;
@@ -467,4 +468,13 @@ uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverInfo& tapeserv
 		}
 	}
 	return ERROR_ENOENT;
+}
+
+std::vector<TapeserverListEntry> matotsserv_get_tapeservers() {
+	std::vector<TapeserverListEntry> tapeservers;
+	for (auto& tapeserver : gTapeservers) {
+		tapeservers.emplace_back(tapeserver->version, tapeserver->name, tapeserver->label,
+		        tapeserver->address);
+	}
+	return tapeservers;
 }

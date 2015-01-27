@@ -23,4 +23,7 @@ TapeserverId matotsserv_enqueue_node(const TapeKey& key);
 
 /// Get an address of the given tapeserver.
 /// \returns status
-uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverInfo& tapeserverInfo);
+uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tapeserverInfo);
+
+/// Get vector of connected tapeservers.
+std::vector<TapeserverListEntry> matotsserv_get_tapeservers();

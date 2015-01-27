@@ -1485,6 +1485,14 @@ enum class SugidClearMode {
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 copies:(vector<TapeWithAddressAndStatus>)
 
+// 0x621
+#define LIZ_CLTOMA_LIST_TAPESERVERS (1000U + 569U)
+/// -
+
+// 0x622
+#define LIZ_MATOCL_LIST_TAPESERVERS (1000U + 570U)
+/// tapeservers:(vector<TapeserverInfo>)
+
 // CHUNKSERVER STATS
 
 // 0x0258
