@@ -1,3 +1,9 @@
+lizardfs (2.5.4.3) stable; urgency=medium
+
+  * (master) Fixed bug which causes over-replication of chunks
+
+ -- Marcin Sulikowski <contact@lizardfs.org>  Tue, 27 Jan 2015 12:49:18 +0100
+
 lizardfs (2.5.4-2) stable; urgency=low
 
   * (all) Added new lizardfs-dbg package
