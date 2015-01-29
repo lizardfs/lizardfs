@@ -121,9 +121,8 @@ test_cleanup() {
 	pkill -KILL -u lizardfstest memcheck || true
 	# Search for all fuse filesystems mounted by user lizardfstest and umount them
 	local uid=$(id -u lizardfstest)
-	while list_of_mounts=$(cat /proc/mounts | awk '$3 == "fuse"' | grep "user_id=$uid[^0-9]"); do
-		echo "$list_of_mounts" | awk '{print $2}' | \
-				xargs -r -d'\n' -n1 fusermount -u || sleep 1
+	while list_of_mounts=$(cat /proc/mounts | awk '$3 ~ /^fuse/' | grep "user_id=$uid[^0-9]"); do
+		echo "$list_of_mounts" | awk '{print $2}' | xargs -r -d'\n' -n1 fusermount -u || sleep 1
 		if ((++retries == 30)); then
 			echo "Can't unmount: $list_of_mounts" >&2
 			break
