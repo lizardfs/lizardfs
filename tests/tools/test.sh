@@ -117,8 +117,8 @@ mass_chmod_777() {
 test_cleanup() {
 	# Unmount all mfsmounts
 	local retries=0
-	pkill -u lizardfstest -KILL mfsmount || true
-	pkill -u lizardfstest -KILL memcheck || true
+	pkill -KILL -u lizardfstest mfsmount || true
+	pkill -KILL -u lizardfstest memcheck || true
 	# Search for all fuse filesystems mounted by user lizardfstest and umount them
 	local uid=$(id -u lizardfstest)
 	while list_of_mounts=$(cat /proc/mounts | awk '$3 == "fuse"' | grep "user_id=$uid[^0-9]"); do
