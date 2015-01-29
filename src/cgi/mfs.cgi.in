@@ -1503,17 +1503,11 @@ if "HD" in sectionset:
 							elif HDorder==12:
 								sf = fsyncops
 							elif HDorder==20:
-								if flags&4:
-									sf = used
-								else:
-									sf = 0
+								sf = used
 							elif HDorder==21:
-								if flags&4:
-									sf = total
-								else:
-									sf = 0
+								sf = total
 							elif HDorder==22:
-								if flags&4 and total>0:
+								if total>0:
 									sf = (1.0*used)/total
 								else:
 									sf = 0
