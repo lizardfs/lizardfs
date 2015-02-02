@@ -1,8 +1,25 @@
-lizardfs (2.5.5) unstable; urgency=low
+lizardfs (2.6.0) stable; urgency=medium
 
-  * (none) None
+  * (all) Added comments in all config files
+  * (all) Improve messages printed by daemons when starting
+  * (cgi) A new chunkserver's chart: number of chunk tests
+  * (cgi) Fixed paths to static content
+  * (cgi) New implementation of the CGI server; mfscgiserv is now deprecated.
+  * (cgi) New table: 'Metadata Servers' in the 'Servers' tab
+  * (chunkserver) Allowed starts with damaged disks
+  * (chunkserver) A new option: HDD_ADVISE_NO_CACHE
+  * (chunkserver) Improved handling of disk read errors
+  * (chunkserver) Removed 'testing chunk: xxxxxx' log messages
+  * (deb) Make init scripts for lizardfs-master service safer
+  * (master) A new feature: disabling atime updates (globally)
+  * (master) Added possibility to set priority on handling endangered chunks
+  * (master) Fixed rotating changelogs and downloading files in shadow mode
+  * (master) Fixed handling replication delay on chunkserver disconnection
+  * (probe) New commands
+  * (probe) Renamed to lizardfs-admin
+  * (all) Minor bug fixes and improvements
 
- -- Alek Lewandowski <contact@lizardfs.org>  Sat, 08 Nov 2014 14:01:00 +0200
+ -- Marcin Sulikowski <contact@lizardfs.org>  Mon, 09 Feb 2015 12:00:00 +0200
 
 lizardfs (2.5.4) stable; urgency=medium
 

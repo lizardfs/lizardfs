@@ -1,5 +1,25 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (2.6.0) (2015-02-09)
+
+  - (all) Added comments in all config files
+  - (all) Improve messages printed by daemons when starting
+  - (cgi) A new chunkserver's chart: number of chunk tests
+  - (cgi) Fixed paths to static content
+  - (cgi) New implementation of the CGI server; mfscgiserv is now deprecated.
+  - (cgi) New table: 'Metadata Servers' in the 'Servers' tab
+  - (chunkserver) Allowed starts with damaged disks
+  - (chunkserver) A new option: HDD_ADVISE_NO_CACHE
+  - (chunkserver) Improved handling of disk read errors
+  - (chunkserver) Removed 'testing chunk: xxxxxx' log messages
+  - (master) A new feature: disabling atime updates (globally)
+  - (master) Added possibility to set priority on handling endangered chunks
+  - (master) Fixed rotating changelogs and downloading files in shadow mode
+  - (master) Fixed handling replication delay on chunkserver disconnection
+  - (probe) New commands
+  - (probe) Renamed to lizardfs-admin
+  - (all) Minor bug fixes and improvements
+
  * Lizardfs (2.5.4) (2014-11-07)
 
   - (all) Boost is no longer required to build the source code of LizardFS or use the binary version
