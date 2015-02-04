@@ -16,5 +16,6 @@ check_dirs() {
 }
 
 check_dirs
+#DEBHELPER#
 
 # vim: ft=sh
