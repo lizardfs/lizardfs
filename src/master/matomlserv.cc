@@ -386,9 +386,10 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->version = get32bit(&data);
 		eptr->timeout = get16bit(&data);
 		eptr->shadow = (rversion == 3 || rversion == 4);
-		if (eptr->version < LIZARDFS_VERSHEX) {
+		if (eptr->shadow) {
+		// supported shadow master servers register using LIZ_MLTOMA_REGISTER_SHADOW packet
 			syslog(LOG_NOTICE,
-					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old client (v%s) from %s",
+					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old shadow master (v%s) from %s",
 					rversion, lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
 			eptr->mode=KILL;
 			return;
