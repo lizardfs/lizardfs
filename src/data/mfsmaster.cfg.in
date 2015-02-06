@@ -147,6 +147,10 @@
 ## (Default: 0)
 # NO_ATIME = 0
 
+## Time in seconds for which client session data (e.g. list of open files) should be
+## sustained in the master server after connection with the client was lost.
+## Values between 60 and 604800 (one week) are accepted.
+## (Default: 86400)
 # SESSION_SUSTAIN_TIME = 86400
 
 ## Reject mfsmounts older than 1.6.0 (Boolean, 0 or 1).
@@ -167,8 +171,6 @@
 # GLOBALIOLIMITS_ACCUMULATE_MS = 250
 
 # MFSMETARESTORE_PATH = @SBIN_PATH@/mfsmetarestore
-
-# PREFER_BACKGROUND_DUMP = 0
 
 ## Delay in seconds before trying to reconnect to metadata server
 ## after disconnection.

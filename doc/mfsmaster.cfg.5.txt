@@ -178,6 +178,11 @@ when this option is set to 1 inode access time is not updated on every access, o
 minimal time in seconds between metadata dumps caused by requests from shadow masters
 (default is 1800)
 
+*SESSION_SUSTAIN_TIME*::
+Time in seconds for which client session data (e.g. list of open files) should be sustained
+in the master server after connection with the client was lost.
+Values between 60 and 604800 (one week) are accepted. (default is 86400)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::
