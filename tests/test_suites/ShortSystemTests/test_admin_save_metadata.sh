@@ -1,5 +1,5 @@
 master_cfg="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_cfg+="|PREFER_BACKGROUND_DUMP = 1"
+master_cfg+="|MAGIC_PREFER_BACKGROUND_DUMP = 1"
 master_cfg+="|BACK_META_KEEP_PREVIOUS = 50"
 master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
 
@@ -62,7 +62,7 @@ assert_failure lizardfs-admin save-metadata localhost "$port" <<< "pass"
 chmod +w "${info[master_data_path]}"  # Fix data dir
 
 # Verify if save-metadata properly reports status of the operation (using fork)
-sed -i -re "s/(PREFER_BACKGROUND_DUMP).*/\1 = 0/" "${info[master_cfg]}"
+sed -i -re "s/(MAGIC_PREFER_BACKGROUND_DUMP).*/\1 = 0/" "${info[master_cfg]}"
 lizardfs_admin_master reload-config
 assert_success lizardfs-admin save-metadata localhost "$port" <<< "pass"
 chmod -w "${info[master_data_path]}"  # Make it impossible to save metadata

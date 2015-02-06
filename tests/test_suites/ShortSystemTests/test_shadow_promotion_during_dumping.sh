@@ -1,5 +1,5 @@
 master_cfg="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_cfg+="|PREFER_BACKGROUND_DUMP = 1"
+master_cfg+="|MAGIC_PREFER_BACKGROUND_DUMP = 1"
 master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
 
 CHUNKSERVERS=1 \

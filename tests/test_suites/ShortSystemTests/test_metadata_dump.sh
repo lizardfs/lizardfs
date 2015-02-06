@@ -1,7 +1,7 @@
 timeout_set 90 seconds
 
 master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_extra_config+="|PREFER_BACKGROUND_DUMP = 1"
+master_extra_config+="|MAGIC_PREFER_BACKGROUND_DUMP = 1"
 master_extra_config+="|BACK_META_KEEP_PREVIOUS = 5"
 
 CHUNKSERVERS=3 \
@@ -197,7 +197,7 @@ cp -r dir0 dir1
 check master OK
 
 # 3. We don't want background dump
-sed -ie 's/PREFER_BACKGROUND_DUMP = 1/PREFER_BACKGROUND_DUMP = 0/' "${info[master_cfg]}"
+sed -ie 's/MAGIC_PREFER_BACKGROUND_DUMP = 1/MAGIC_PREFER_BACKGROUND_DUMP = 0/' "${info[master_cfg]}"
 lizardfs_admin_master reload-config
 
 cp $TEMP_DIR/metarestore_error_if_executed.sh $TEMP_DIR/metarestore.sh
