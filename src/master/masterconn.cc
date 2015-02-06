@@ -276,9 +276,8 @@ void masterconn_sendregister(masterconn *eptr) {
 	eptr->downloading=0;
 	eptr->metafd=-1;
 
-#if LIZARDFS_VERSHEX > LIZARDFS_VERSION(2, 5, 0)
 #ifndef METALOGGER
-	// To be activated in the next release
+	// shadow master registration
 	uint64_t metadataVersion = 0;
 	if (eptr->state == MasterConnectionState::kSynchronized) {
 		metadataVersion = fs_getversion();
@@ -286,7 +285,6 @@ void masterconn_sendregister(masterconn *eptr) {
 	auto request = mltoma::registerShadow::build(LIZARDFS_VERSHEX, Timeout * 1000, metadataVersion);
 	masterconn_createpacket(eptr, std::move(request));
 	return;
-#endif
 #endif
 
 	if (lastlogversion>0) {
