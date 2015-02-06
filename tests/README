@@ -89,8 +89,13 @@ where:
         Existing test suites:
          -  SanityChecks – basic tests of LizardFS functionality; these tests
                 should last a couple of minutes,
-         -  SystemTestingSuite – these tests last a couple of hours and perform
-                complex verification of LizardFS work;
+         -  ShortSystemTests – advanced tests of LizardFS functionality not requiring
+                dedicated storage; these tests last around half an hour,
+         -  LongSystemTests – advanced tests of LizardFS functionality requiring
+                dedicated storage; these tests last a few hours,
+         -  ContinuousTests – tests using LizardFS mountpoint to populate LizardFS
+                installation with data and validate them;
+                these tests are desigend to be run continuously,
     <TEST_NAME> is a name of your test.
 
 Tests which you write are run inside a kind of sandbox. They use UID
