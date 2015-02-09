@@ -347,12 +347,22 @@ create_new_cluster() {
 
 	# Choose a bind address for corosync
 	local bindnetaddr=$(read_cfg_var ${corosync_conf} bindnetaddr :)
+	local networks=($(ip r | egrep '^[0-9.]+/[0-9]+' | cut -f1 -d'/' | sort -u))
 	if [[ "${bindnetaddr}" =~ ^127[.] ]] ; then
-		bindnetaddr=$(echo ${master_host} | sed -e 's/\(.*[.].*[.].*\)[.].*/\1.0/')
+		if [[ ${#networks[@]} == 1 ]] ; then
+			bindnetaddr=${networks[0]}
+		else
+			# Guessing is not trivial here, it is better to let user decide
+			bindnetaddr=
+		fi
 	fi
 	reply=
 	while [[ ! "${reply}" =~ $IP_REGEX || "${reply}" == 127.* ]] ; do
-		echo "TODO(msulikowski) doc"
+		echo "Corosync service needs a network address for service binding. "
+		echo "It is advised to type in network address of a subnet that contains "
+		echo "master host address (${master_host})."
+		echo "Likely candidates are:"
+		echo "${networks[@]}" | xargs -n1 echo "*"
 		read -e -p "Which network address shall corosync service bind to? " -i "${bindnetaddr}" reply
 		echo
 	done
@@ -443,10 +453,8 @@ create_new_cluster() {
 	ok "Cluster started"
 
 	invoke crm --wait configure property stonith-enabled=false
-	# TODO(msulikowski) Can cidr_netmask=24 be harcoded?
 	invoke crm --wait configure primitive Failover-IP ocf:heartbeat:IPaddr2 \
-			params ip=${master_host} cidr_netmask=24 \
-			op monitor interval=1s
+			params ip=${master_host} op monitor interval=1s
 	invoke crm --wait configure primitive lizardfs-master ocf:lizardfs:metadataserver \
 			params master_cfg="${master_cfg}" \
 			op monitor role="Master" interval="10s" \
