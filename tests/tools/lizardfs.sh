@@ -100,24 +100,28 @@ setup_local_empty_lizardfs() {
 
 # lizardfs_chunkserver_daemon <id> start|stop|restart|kill|tests|isalive|...
 lizardfs_chunkserver_daemon() {
-	mfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$2" | cat
+	local id=$1
+	shift
+	mfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 lizardfs_master_daemon() {
-	mfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$1" | cat
+	mfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_master_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_master_n() {
-	mfsmaster -c "${lizardfs_info_[master${1}_cfg]}" "$2" | cat
+	local id=$1
+	shift
+	mfsmaster -c "${lizardfs_info_[master${id}_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_metalogger_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_metalogger_daemon() {
-	mfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$1" | cat
+	mfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 

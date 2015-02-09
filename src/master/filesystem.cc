@@ -8122,6 +8122,12 @@ void fs_strinit(void) {
 
 /* executed in master mode */
 #ifndef METARESTORE
+
+/// Returns true iff we are allowed to swallow a stale lockfile and apply changelogs.
+static bool fs_can_do_auto_recovery() {
+	return gAutoRecovery || main_has_extra_argument("auto-recovery", CaseSensitivity::kIgnore);
+}
+
 int fs_loadall(void) {
 	fs_strinit();
 	chunk_strinit();
@@ -8140,9 +8146,10 @@ int fs_loadall(void) {
 	}
 	fs_loadall(kMetadataFilename, 0);
 
-	if (gAutoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
+	bool autoRecovery = fs_can_do_auto_recovery();
+	if (autoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
 		lzfs_pretty_syslog_attempt(LOG_INFO, "%s - applying changelogs from %s",
-				(gAutoRecovery ? "AUTO_RECOVERY enabled" : "running in shadow mode"),
+				(autoRecovery ? "AUTO_RECOVERY enabled" : "running in shadow mode"),
 				fs::getCurrentWorkingDirectoryNoThrow().c_str());
 		fs_load_changelogs();
 		lzfs_pretty_syslog(LOG_INFO, "all needed changelogs applied successfully");
@@ -8374,7 +8381,7 @@ int fs_init(bool doLoad) {
 	}
 	if (!gMetadataLockfile->isLocked()) {
 		try {
-			gMetadataLockfile->lock((gAutoRecovery || !metadataserver::isMaster()) ?
+			gMetadataLockfile->lock((fs_can_do_auto_recovery() || !metadataserver::isMaster()) ?
 					Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
 		} catch (const LockfileException& e) {
 			if (e.reason() == LockfileException::Reason::kStaleLock) {
