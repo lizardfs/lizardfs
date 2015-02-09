@@ -1,7 +1,6 @@
 timeout_set 5 minutes
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
-master_cfg+="|AUTO_RECOVERY = 1"
 master_cfg+="|EMPTY_TRASH_PERIOD = 1"
 master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
 
@@ -40,7 +39,8 @@ for generator in $(metadata_get_all_generators); do
 	assert_equals "$metadata_version" "$(metadata_get_version "${info[master_data_path]}"/metadata.mfs)"
 
 	# Restore the filesystem from changelog by starting master server and check it
-	assert_success lizardfs_master_daemon start
+	assert_failure lizardfs_master_daemon start # Should fail without -o auto-recovery!
+	assert_success lizardfs_master_daemon start -o auto-recovery
 	lizardfs_wait_for_all_ready_chunkservers
 	assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"
 done
