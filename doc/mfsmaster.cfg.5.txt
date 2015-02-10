@@ -129,8 +129,16 @@ Maximum number of chunks to replicate to one chunkserver (default is 2)
 *CHUNKS_READ_REP_LIMIT*::
 Maximum number of chunks to replicate from one chunkserver (default is 10)
 
+*ENDANGERED_CHUNKS_PRIORITY*::
+Percentage of endangered chunks that should be replicated with high priority.
+Example: when set to 0.2, up to 20% of chunks served in one turn would be extracted
+from endangered priority queue.
+When set to 1 (max), no other chunks would be processed as long as there are
+any endangered chunks in the queue (not advised)
+(default is 0, i.e. there is no overhead for prioritizing endangered chunks).
+
 *ACCEPTABLE_DIFFERENCE*::
-A maxmim difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
+A maximum difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
 (default is 0.1, i.e. 10%).
 
 *CHUNKS_REBALANCING_BETWEEN_LABELS*::
