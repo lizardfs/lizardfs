@@ -112,7 +112,11 @@
 ## (Default: 10)
 # CHUNKS_READ_REP_LIMIT = 10
 
-## A maxmim difference between disk usage on chunkservers that doesn't trigger
+## Ratio of endangered chunks that should be treated with higher priority.
+## (Default: 0)
+# ENDANGERED_CHUNKS_PRIORITY = 0
+
+## A maximum difference between disk usage on chunkservers that doesn't trigger
 ## chunk rebalancing. Value is fraction of one (i.e. 0.1 is 10%).
 ## (Default: 0.1)
 # ACCEPTABLE_DIFFERENCE = 0.1
