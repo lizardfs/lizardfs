@@ -17,6 +17,9 @@ mfsmetarestore - replay LizardFS metadata change logs or dump LizardFS metadata 
 *mfsmetarestore* [*-z*] *-a* [*-d* 'DIRECTORY']
 
 [verse]
+*mfsmetarestore* *-g* *-d* 'DIRECTORY'
+
+[verse]
 *mfsmetarestore -v*
 
 [verse]
@@ -32,6 +35,9 @@ readable form.
 
 *mfsmetarestore* called with -a option automatically performs all operations needed to merge change
 log files. Master data directory can be specified using -d 'DIRECTORY' option.
+
+*mfsmetarestore* -g with path to metadata files, prints latest metadata version that can be restored from disk.
+Prints 0 if metadata files are corrupted.
 
 *-v*::
 print version information and exit
