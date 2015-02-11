@@ -102,7 +102,7 @@ setup_local_empty_lizardfs() {
 lizardfs_chunkserver_daemon() {
 	local id=$1
 	shift
-	mfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$@" | cat
+	mfschunkserver -c "${lizardfs_info_[chunkserver${id}_config]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
