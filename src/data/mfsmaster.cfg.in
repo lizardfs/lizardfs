@@ -47,6 +47,11 @@
 ## (Default: @DATA_PATH@)
 # DATA_PATH = @DATA_PATH@
 
+## If set, servers with the same IP address will be treated
+## as their topology distance is 0.
+## (Default: 1)
+# PREFER_LOCAL_CHUNKSERVER = 1
+
 ## When this option is set (equals 1) master will try to recover metadata
 ## from changelog when it is being started after a crash; otherwise it will
 ## refuse to start and 'mfsmetarestore' should be used to recover the metadata.

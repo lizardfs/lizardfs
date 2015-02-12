@@ -65,6 +65,16 @@ alternative name of *mfstopology.cfg* file
 *CUSTOM_GOALS_FILENAME*::
 alternative name of *mfsgoals.cfg* file
 
+*PREFER_LOCAL_CHUNKSERVER*::
+If a client mountpoint has a local chunkserver, and a given chunk happens to
+reside locally, then mfsmaster will list the local chunkserver first.
+However, when the local client mount is issuing many read(s)/write(s), to many
+local chunks, these requests can overload the local chunkserver and disk
+subsystem.  Setting this to 0(the default is 1) means that remote chunkservers
+will be considered as equivalent to the local chunkserver. +
+This is useful when the network is faster than the disk, and when there is
+high-IO load on the client mountpoints.
+
 *BACK_LOGS*::
 number of metadata change log files (default is 50)
 
