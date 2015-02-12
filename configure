@@ -5,15 +5,9 @@ mkdir -p build-pack
 cd build-pack
 rm -f CMakeCache.txt
 cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=NO -DCMAKE_INSTALL_PREFIX=/ -DENABLE_DEBIAN_PATHS=YES
-cat >../Makefile <<END
-all:
-	make --no-print-directory -C build-pack all
-
-clean:
-	make --no-print-directory -C build-pack clean
-
-install:
-	make --no-print-directory -C build-pack install
+cat >../Makefile <<'END'
+all clean install:
+	$(MAKE) --no-print-directory -C build-pack $@
 
 distclean:
 	rm -rf build-pack

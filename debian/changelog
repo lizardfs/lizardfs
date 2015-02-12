@@ -1,6 +1,7 @@
 lizardfs (2.5.4.4-1) stable; urgency=low
 
   * (all) Add in missing build-deps for doc building.
+  * (all) Enable parallel builds in the debian packaging.
 
  -- Adam Heath <doogie@brainfood.com>  UNRELEASED
 
