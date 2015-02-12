@@ -1,3 +1,11 @@
+lizardfs (2.5.4.4) stable; urgency=low
+
+  * Add option that makes it possible to turn off the feature of preferring a
+    local chunkserver in data read/write requests.  The default for this is 1,
+    which means local the local chunkserver is preferred.
+
+ -- Adam Heath <doogie@brainfood.com>  Thu, 12 Feb 11:41:56 -0600
+
 lizardfs (2.5.4.3) stable; urgency=medium
 
   * (master) Fixed bug which causes over-replication of chunks

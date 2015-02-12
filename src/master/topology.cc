@@ -36,6 +36,7 @@
 
 static void *racktree;
 static char *TopologyFileName;
+static int PreferLocalChunkserver;
 
 // hash is much faster than itree, but it is hard to define ip classes in hash tab
 
@@ -160,7 +161,7 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 
 uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
 	uint32_t rid1,rid2;
-	if (ip1==ip2) {
+	if (PreferLocalChunkserver && ip1==ip2) {
 		return 0;
 	}
 	rid1 = itree_find(racktree,ip1);
@@ -436,6 +437,8 @@ void topology_reload(void) {
 		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
 	}
 	topology_load();
+
+	PreferLocalChunkserver = cfg_getnum("PREFER_LOCAL_CHUNKSERVER",1);
 }
 
 void topology_term(void) {
