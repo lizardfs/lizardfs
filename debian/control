@@ -9,6 +9,9 @@ Build-Depends: asciidoc (>= 8.6.6),
                pkg-config,
                zlib1g-dev,
                python,
+               libxml2-utils,
+               docbook-xml,
+               xsltproc,
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 

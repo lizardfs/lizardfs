@@ -1,5 +1,7 @@
 lizardfs (2.5.4.4-1) stable; urgency=low
 
+  * (all) Add in missing build-deps for doc building.
+
  -- Adam Heath <doogie@brainfood.com>  UNRELEASED
 
 lizardfs (2.5.4.4) stable; urgency=low
