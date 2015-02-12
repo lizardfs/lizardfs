@@ -44,6 +44,7 @@ compile_commands.json
 /debian/lizardfs-chunkserver/
 /debian/lizardfs-client/
 /debian/lizardfs-common/
+/debian/lizardfs-dbg/
 /debian/lizardfs-master/
 /debian/lizardfs-metalogger/
 /debian/tmp/
