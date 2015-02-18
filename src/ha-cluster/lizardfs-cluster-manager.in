@@ -457,8 +457,12 @@ create_new_cluster() {
 			params ip=${master_host} op monitor interval=1s
 	invoke crm --wait configure primitive lizardfs-master ocf:lizardfs:metadataserver \
 			params master_cfg="${master_cfg}" \
-			op monitor role="Master" interval="10s" \
-			op monitor role="Slave" interval="20s"
+			op monitor role="Master" interval="1s" \
+			op monitor role="Slave" interval="2s" \
+			op start interval="0" timeout="240s" \
+			op stop interval="0" timeout="240s" \
+			op promote interval="0" timeout="5s" \
+			op demote interval="0" timeout="10s"
 	# TODO(amok) Check if adding `clone-max="N"' with proper N is necessary.
 	invoke crm --wait configure ms lizardfs-ms lizardfs-master \
 		meta master-max="1" master-node-max="1" clone-node-max="1" \
