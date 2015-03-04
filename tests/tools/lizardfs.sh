@@ -16,6 +16,8 @@ setup_local_empty_lizardfs() {
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
 	local mntdir=$TEMP_DIR/mnt
+	local master_start_param=${MASTER_START_PARAM:-}
+	local shadow_start_param=${SHADOW_START_PARAM:-}
 	declare -gA lizardfs_info_
 	lizardfs_info_[chunkserver_count]=$number_of_chunkservers
 	lizardfs_info_[admin_password]=${ADMIN_PASSWORD:-password}
@@ -41,7 +43,7 @@ setup_local_empty_lizardfs() {
 	lizardfs_info_[masterserver_count]=$number_of_masterservers
 
 	# Start one masterserver with personality master
-	lizardfs_master_daemon start
+	lizardfs_master_daemon start ${master_start_param}
 
 	# Prepare the metalogger, so that any test can start it
 	prepare_metalogger_
@@ -74,7 +76,7 @@ setup_local_empty_lizardfs() {
 	# Add shadow master if not present (and not disabled); wait for it to synchronize
 	if [[ $auto_shadow_master == YES && $number_of_masterservers == 1 ]]; then
 		add_metadata_server_ auto "shadow"
-		lizardfs_master_n auto start
+		lizardfs_master_n auto start ${shadow_start_param}
 		assert_eventually 'lizardfs_shadow_synchronized auto'
 	fi
 
