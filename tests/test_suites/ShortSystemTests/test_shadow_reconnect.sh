@@ -11,7 +11,9 @@ assert_eventually "lizardfs_shadow_synchronized 1"
 # Generate some changes and remember a list of files in shadow's working directory
 touch "${info[mount0]}"/file{1..10}
 assert_eventually "lizardfs_shadow_synchronized 1"
-files_before=$(ls "${info[master1_data_path]}" | sort)
+# stats.mfs is a file which appears periodically every hour, so it is ignored here
+# to avoid the situation that it is created after this check, but before the final one
+files_before=$(ls "${info[master1_data_path]}" | grep -v "stats.mfs" | sort)
 
 # Make shadow master lose connection with the master by making it sleep more than timeout
 shadow_pid=$(lizardfs_master_n 1 test 2>&1 | sed 's/.*: //')
@@ -24,4 +26,5 @@ sleep 13
 touch "${info[mount0]}"/file{1..20}
 kill -CONT "$shadow_pid"
 assert_eventually "lizardfs_shadow_synchronized 1"
-assert_equals "$files_before" "$(ls "${info[master1_data_path]}" | sort)"
+# Again, stats.mfs is ignored as its existence depends on a particular time of day
+assert_equals "$files_before" "$(ls "${info[master1_data_path]}" | grep -v "stats.mfs" | sort)"
