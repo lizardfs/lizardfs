@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <algorithm>
 
 #include "common/chunks_availability_state.h"
@@ -524,10 +525,57 @@ static double AcceptableDifference;
 static bool RebalancingBetweenLabels = false;
 
 static uint32_t jobshpos;
-static uint32_t jobsrebalancecount;
 static uint32_t jobsnorepbefore;
 
 static uint32_t starttime;
+
+class ReplicationDelayInfo {
+public:
+	ReplicationDelayInfo()
+		: disconnectedServers_(0),
+		  timestamp_() {}
+
+	void serverDisconnected() {
+		refresh();
+		++disconnectedServers_;
+		timestamp_ = main_time() + ReplicationsDelayDisconnect;
+	}
+
+	void serverConnected() {
+		refresh();
+		if (disconnectedServers_ > 0) {
+			--disconnectedServers_;
+		}
+	}
+
+	bool replicationAllowed(int missingCopies) {
+		refresh();
+		return missingCopies > disconnectedServers_;
+	}
+
+private:
+	uint16_t disconnectedServers_;
+	uint32_t timestamp_;
+
+	void refresh() {
+		if (main_time() > timestamp_) {
+			disconnectedServers_ = 0;
+		}
+	}
+
+};
+
+/*
+ * Information about recently disconnected and connected servers
+ * necessary for replication to unlabeled servers.
+ */
+static ReplicationDelayInfo replicationDelayInfoForAll;
+
+/*
+ * Information about recently disconnected and connected servers
+ * necessary for replication to servers with specified label.
+ */
+static std::unordered_map<MediaLabel, ReplicationDelayInfo> replicationDelayInfoForLabel;
 
 struct job_info {
 	uint32_t del_invalid;
@@ -1493,15 +1541,34 @@ void chunk_lost(matocsserventry *ptr,uint64_t chunkid) {
 	}
 }
 
-void chunk_server_disconnected(matocsserventry *ptr) {
+void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label) {
 	zombieServersToBeHandledInNextLoop.push_back(ptr);
 	if (zombieServersHandledInThisLoop.empty()) {
 		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
+	}
+	replicationDelayInfoForAll.serverDisconnected();
+	if (label != kMediaLabelWildcard) {
+		replicationDelayInfoForLabel[label].serverDisconnected();
 	}
 	main_make_next_poll_nonblocking();
 	fs_cs_disconnected();
 	gChunksMetadata->lastchunkid = 0;
 	gChunksMetadata->lastchunkptr = NULL;
+}
+
+void chunk_server_unlabelled_connected() {
+	replicationDelayInfoForAll.serverConnected();
+}
+
+void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabel &newLabel) {
+	/*
+	 * Only server with no label can be considered as newly connected
+	 * and it was added to replicationDelayInfoForAll earlier
+	 * in chunk_server_unlabelled_connected call.
+	 */
+	if (previousLabel == kMediaLabelWildcard) {
+		replicationDelayInfoForLabel[newLabel].serverConnected();
+	}
 }
 
 /*
@@ -1931,8 +1998,16 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		triedToReplicate = true;
 
 		// After setting triedToReplicate we can verify this condition
-		if (jobsnorepbefore >= main_time()) {
+		if (main_time() < jobsnorepbefore) {
 			break;
+		}
+		if (label == kMediaLabelWildcard) {
+			if (!replicationDelayInfoForAll.replicationAllowed(missingCopiesForLabel)) {
+				continue;
+			}
+		} else if (!replicationDelayInfoForLabel[label].replicationAllowed(missingCopiesForLabel)) {
+			skippedReplications += missingCopiesForLabel;
+			continue;
 		}
 
 		// Get a list of possible destination servers
@@ -2136,9 +2211,7 @@ static std::unique_ptr<ChunkWorker> gChunkWorker;
 
 void chunk_jobs_main(void) {
 	uint32_t i,l,lc,r;
-	uint16_t usableServerCount, totalServerCount;
-	static uint16_t lastTotalServerCount = 0;
-	static uint16_t maxTotalServerCount = 0;
+	uint16_t usableServerCount;
 	double minUsage, maxUsage;
 	chunk *c,**cp;
 
@@ -2146,19 +2219,7 @@ void chunk_jobs_main(void) {
 		return;
 	}
 
-	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, &totalServerCount);
-
-	if (totalServerCount < lastTotalServerCount) {          // servers disconnected
-		jobsnorepbefore = main_time() + ReplicationsDelayDisconnect;
-	} else if (totalServerCount > lastTotalServerCount) {   // servers connected
-		if (totalServerCount >= maxTotalServerCount) {
-			maxTotalServerCount = totalServerCount;
-			jobsnorepbefore = main_time();
-		}
-	} else if (totalServerCount < maxTotalServerCount && (uint32_t)main_time() > jobsnorepbefore) {
-		maxTotalServerCount = totalServerCount;
-	}
-	lastTotalServerCount = totalServerCount;
+	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, nullptr);
 
 	if (minUsage > maxUsage) {
 		return;
@@ -2530,7 +2591,6 @@ int chunk_strinit(void) {
 		AcceptableDifference = 10.0;
 	}
 	jobshpos = 0;
-	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
 	main_canexitregister(chunk_canexit);
