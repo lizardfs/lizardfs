@@ -7,6 +7,9 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstdlib>
 #include <cstring>
 
 #include "common/cwrap.h"
