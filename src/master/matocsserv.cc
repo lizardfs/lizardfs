@@ -1206,6 +1206,7 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
 				"changed its label from '%s' to '%s'",
 				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
+		chunk_server_label_changed(eptr->label, label);
 		eptr->label = std::move(label);
 	}
 }
@@ -1510,6 +1511,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
 			eptr->incsdb = 0;
+			chunk_server_unlabelled_connected();
 		} else {
 			tcpclose(ns);
 		}
@@ -1547,7 +1549,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 					" (%.2f GiB)", eptr->servstrip, eptr->servport, eptr->usedspace,
 					us, eptr->totalspace, ts);
 			matocsserv_replication_disconnected(eptr);
-			chunk_server_disconnected(eptr);
+			chunk_server_disconnected(eptr, eptr->label);
 			if (eptr->incsdb) {
 				matocsserv_csdb_lost_connection(eptr->servip,eptr->servport);
 			}

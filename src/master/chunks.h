@@ -69,7 +69,9 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version);
 void chunk_damaged(matocsserventry *ptr,uint64_t chunkid);
 void chunk_lost(matocsserventry *ptr,uint64_t chunkid);
-void chunk_server_disconnected(matocsserventry *ptr);
+void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label);
+void chunk_server_unlabelled_connected();
+void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabel &newLabel);
 
 void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
 void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status);
