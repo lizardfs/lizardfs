@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 set -ue
 
 # Parse command line options
 ha=YES
 doc=YES
-for arg in "$@"; do
+for arg in ${1+"$@"}; do
 	case "$arg" in
 		--with-ha) ha=YES;;
 		--without-ha) ha=NO;;
