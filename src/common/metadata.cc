@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <cstring>
