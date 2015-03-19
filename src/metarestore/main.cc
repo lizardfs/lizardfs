@@ -174,7 +174,7 @@ void meta_version_on_disk(std::string path) {
 		}
 	}
 
-	printf("%lu\n", metadata_version);
+	printf("%" PRIu64 "\n", metadata_version);
 }
 
 int main(int argc,char **argv) {
