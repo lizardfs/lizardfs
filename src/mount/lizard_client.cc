@@ -18,7 +18,7 @@
 
 #if defined(__APPLE__)
 # if ! defined(__DARWIN_64_BIT_INO_T) && ! defined(_DARWIN_USE_64_BIT_INODE)
-#  define __DARWIN_64_BIT_INO_T 0
+#  define __DARWIN_64_BIT_INO_T 1
 # endif
 #endif
 
