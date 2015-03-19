@@ -9,6 +9,18 @@
 #include "common/exception.h"
 #include "common/massert.h"
 
+#ifdef WORDS_BIGENDIAN
+# define IF_BIGENDIAN(F) F
+#else
+# define IF_BIGENDIAN(F)
+#endif
+#ifndef le32toh
+# define le32toh(X) (IF_BIGENDIAN(ntohl)(X))
+# define htole32(X) (IF_BIGENDIAN(htonl)(X))
+# define le16toh(X) (IF_BIGENDIAN(ntohs)(X))
+# define htole16(X) (IF_BIGENDIAN(htons)(X))
+#endif
+
 // These #defines and structs were extracted from kernel sources
 
 /* Extended attribute names */
