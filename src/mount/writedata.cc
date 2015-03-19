@@ -359,7 +359,7 @@ private:
 	uint32_t chunkVersion_;
 	cblock* currentBlock_;
 	bool sendingCurrentBlockData_;
-	int requestsWaitingForStatus_;
+	uint8_t requestsWaitingForStatus_;
 };
 
 InodeChunkWriter::InodeChunkWriter()
