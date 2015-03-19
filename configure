@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 set -ue
 
 # Parse command line options
 doc=YES
-for arg in "$@"; do
+for arg in ${1+"$@"}; do
 	case "$arg" in
 		--with-doc) doc=YES;;
 		--without-doc) doc=NO;;
@@ -24,13 +24,13 @@ cmake .. \
 
 cat >../Makefile <<END
 all:
-	make --no-print-directory -C build-pack all
+	make -C build-pack all
 
 clean:
-	make --no-print-directory -C build-pack clean
+	make -C build-pack clean
 
 install:
-	make --no-print-directory -C build-pack install
+	make -C build-pack install
 
 distclean:
 	rm -rf build-pack
