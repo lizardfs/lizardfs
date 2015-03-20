@@ -1550,7 +1550,7 @@ void hdd_delayed_ops() {
 				if (c->opensteps>0) {   // decrease counter
 					c->opensteps--;
 				} else if (c->fd>=0) {  // close descriptor
-#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+#if defined(LIZARDFS_HAVE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
 					if (gAdviseNoCache) {
 						posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
 					}
@@ -2374,7 +2374,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 			break;
 		}
 	}
-#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+#if defined(LIZARDFS_HAVE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
 	// Always advise the OS that tested chunks should not be cached. Don't rely on
 	// hdd_delayed_ops to do it for us, because it may be disabled using a config file.
 	posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
