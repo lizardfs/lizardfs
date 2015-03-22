@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # TODO: Verify each command exit status.
 # TODO: Be careful while generating corosync.conf,

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 # Source file is the first argument. Read it but cut off the #!/... line
 source="$(cat "$1" | grep -v '^#!')"
