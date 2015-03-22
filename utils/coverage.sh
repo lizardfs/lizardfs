@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 appname=$0
 command=$1
 builddir=$2

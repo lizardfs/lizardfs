@@ -1,12 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eux
 
 os_release="$(lsb_release -si)/$(lsb_release -sr)"
-if [[ "$os_release" == RedHat*/6* || "$os_release" == CentOS/6* ]]; then
-	distro=el6
-else
-	distro=el7
-fi
+case "$os_release" in
+  RedHat*/6*|CentOS/6*) distro=el6 ;;
+  *) distro=el7 ;;
+esac
 echo "Building packages for '$distro'"
 
 # Directories used by this script
