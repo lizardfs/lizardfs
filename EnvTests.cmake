@@ -27,7 +27,7 @@ set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h netinet/in
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
 if(BIG_ENDIAN)
-  set(WORDS_BIGENDIAN)
+  set(WORDS_BIGENDIAN 1)
 endif()
 
 set(TYPES_CHECKED int8_t uint8_t int16_t uint16_t int32_t uint32_t int64_t

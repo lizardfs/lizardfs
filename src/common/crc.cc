@@ -21,15 +21,15 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
-#include <generic_crc.h>
 
 #include "common/MFSCommunication.h"
 
 /*
  * CRC implementation from crcutil supports only little endian machines.
- * For big endian we provide lagacy implementation.
+ * For big endian we provide legacy implementation.
  */
-#ifndef WORDS_BIGENDIAN
+#ifdef HAVE_CRCUTIL
+#include <generic_crc.h>
 
 static crcutil::GenericCrc<uint64_t, uint64_t, uint64_t, 4> gCrc(CRC_POLY, 32, true);
 
@@ -45,7 +45,7 @@ void mycrc32_init(void) {
 	// This implementation does not need any initialization
 }
 
-#else // WORDS_BIGENDIAN; Use old code, which supports both big endian and little endian
+#else // Use old code, which supports both big endian and little endian
 
 #define BYTEREV(w) (((w)>>24)+(((w)>>8)&0xff00)+(((w)&0xff00)<<8)+(((w)&0xff)<<24))
 static uint32_t crc_table[4][256];
@@ -210,4 +210,4 @@ void mycrc32_init(void) {
 	crc_generate_combine_tables();
 }
 
-#endif // WORDS_BIGENDIAN
+#endif // HAVE_CRCUTIL
