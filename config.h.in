@@ -103,6 +103,7 @@
 #cmakedefine LIZARDFS_HAVE_POSIX_FADVISE
 
 /* [CMake] Other */
+#cmakedefine HAVE_CRCUTIL
 #cmakedefine WORDS_BIGENDIAN
 #cmakedefine ENABLE_EXIT_ON_USR1
 #cmakedefine LIZARDFS_ENABLE_DEBUG_LOG
