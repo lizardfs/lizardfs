@@ -780,6 +780,7 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	newchunk->version = chunkversion;
 	newchunk->lockedto = 0;
 #ifndef METARESTORE
+	newchunk->inEndangeredQueue = 0;
 	newchunk->needverincrease = 1;
 	newchunk->interrupted = 0;
 	newchunk->operation = NONE;
