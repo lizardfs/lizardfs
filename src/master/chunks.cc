@@ -1620,6 +1620,15 @@ void chunk_clean_zombie_servers_a_bit() {
 	main_make_next_poll_nonblocking();
 }
 
+void chunk_clean_zombie_servers() {
+	for (auto& server : zombieServersHandledInThisLoop) {
+		matocsserv_remove_server(server);
+	}
+	for (auto& server : zombieServersToBeHandledInNextLoop) {
+		matocsserv_remove_server(server);
+	}
+}
+
 int chunk_canexit(void) {
 	if (zombieServersHandledInThisLoop.size() + zombieServersToBeHandledInNextLoop.size() > 0) {
 		return 0;
@@ -2624,6 +2633,7 @@ int chunk_strinit(void) {
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	jobshpos = 0;
 	main_reloadregister(chunk_reload);
+	main_destructregister(chunk_clean_zombie_servers);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
 	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
