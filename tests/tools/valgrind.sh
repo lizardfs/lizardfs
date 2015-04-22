@@ -39,7 +39,7 @@ valgrind_enable() {
 		command_prefix="${valgrind_script_} ${command_prefix}"
 
 		echo " --- valgrind enabled in this test case ($(valgrind --version)) --- "
-		timeout_set_multiplier 10 # some tests need so big one
+		timeout_set_multiplier 15 # some tests need so big one
 	fi
 }
 
