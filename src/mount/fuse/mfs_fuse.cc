@@ -49,11 +49,17 @@ void checkTypesEqual(const A& a, const B& b) {
  */
 LizardClient::Context get_context(fuse_req_t& req) {
 	auto fuse_ctx = fuse_req_ctx(req);
-	auto ret = LizardClient::Context(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, fuse_ctx->umask);
+#if (FUSE_VERSION >= 28)
+	mode_t umask = fuse_ctx->umask;
+#else
+	mode_t umask = 0000;
+#endif
+	auto ret = LizardClient::Context(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, umask);
 	checkTypesEqual(ret.uid,   fuse_ctx->uid);
 	checkTypesEqual(ret.gid,   fuse_ctx->gid);
 	checkTypesEqual(ret.pid,   fuse_ctx->pid);
-	checkTypesEqual(ret.umask, fuse_ctx->umask);
+	checkTypesEqual(ret.umask, umask);
+
 	return ret;
 }
 
@@ -178,8 +184,10 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		static_assert(LIZARDFS_SET_ATTR_SIZE      == FUSE_SET_ATTR_SIZE,      "incompatible");
 		static_assert(LIZARDFS_SET_ATTR_ATIME     == FUSE_SET_ATTR_ATIME,     "incompatible");
 		static_assert(LIZARDFS_SET_ATTR_MTIME     == FUSE_SET_ATTR_MTIME,     "incompatible");
+#if (FUSE_VERSION >= 28)
 		static_assert(LIZARDFS_SET_ATTR_ATIME_NOW == FUSE_SET_ATTR_ATIME_NOW, "incompatible");
 		static_assert(LIZARDFS_SET_ATTR_MTIME_NOW == FUSE_SET_ATTR_MTIME_NOW, "incompatible");
+#endif
 
 		auto a = LizardClient::setattr(
 				get_context(req), ino, stbuf, to_set, fuse_file_info_wrapper(fi));

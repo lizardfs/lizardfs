@@ -31,7 +31,7 @@
 #include <unistd.h>
 #include <fstream>
 
-#include <fuse.h>
+#include <fuse/fuse.h>
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
 
@@ -450,8 +450,12 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 	}
 }
 
-static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
+static void mfs_fsinit (void *userdata, struct fuse_conn_info* conn) {
+#if (FUSE_VERSION >= 28)
 	conn->want |= FUSE_CAP_DONT_MASK;
+#else
+	(void)conn;
+#endif
 
 	int *piped = (int*)userdata;
 	if (piped[1]>=0) {
