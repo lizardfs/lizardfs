@@ -162,16 +162,20 @@ fi
 release="$(lsb_release -si)/$(lsb_release -sr)"
 case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
-		apt-get install asciidoc build-essential cmake debhelper devscripts git libfuse-dev pkg-config zlib1g-dev
-		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget libgoogle-perftools-dev
+		apt-get install asciidoc build-essential cmake debhelper devscripts git libfuse-dev
+		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
+		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
+		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		yum install acl attr nc rsync tidy wget
+		yum install acl attr nc rsync tidy wget boost-program-options boost-system
+		yum install libboost-filesystem libboost-iostreams
 		;;
 	CentOS/7)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
+		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
 		;;
 	*)
 		set +x
