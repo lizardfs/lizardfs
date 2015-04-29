@@ -3,10 +3,13 @@ set -ue
 
 # Parse command line options
 doc=YES
+uraft=YES
 for arg in ${1+"$@"}; do
 	case "$arg" in
 		--with-doc) doc=YES;;
 		--without-doc) doc=NO;;
+		--with-uraft) uraft=YES;;
+		--without-uraft) uraft=NO;;
 		*) echo "Unrecognized command line option '$arg'" >&2; exit 1;;
 	esac
 done
@@ -32,7 +35,8 @@ cmake .. \
 	-DENABLE_OFFICIAL_BUILD=$LIZARDFS_OFFICIAL_BUILD \
 	-DSET_RC_BUILD_NUMBER=$LIZARDFS_SET_RC_BUILD_NUMBER \
 	-DENABLE_CLIENT_LIB=YES \
-	-DENABLE_NFS_GANESHA=YES
+	-DENABLE_NFS_GANESHA=YES \
+	-DENABLE_URAFT=YES
 
 cat >../Makefile <<END
 all:

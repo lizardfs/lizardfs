@@ -1,0 +1,27 @@
+lizardfs-uraft(8)
+=================
+
+== NAME
+
+lizardfs-uraft - LizardFS high availability cluster management tool
+
+== SYNOPSIS
+
+[verse]
+*lizardfs-uraft* # TODO
+
+== DESCRIPTION
+
+*lizardfs-uraft* provides a ... # TODO
+
+== OPTIONS
+
+*-h*::
+print usage information and exit
+
+# TODO
+
+== COPYRIGHT
+
+Copyright 2015 Skytechnology sp. z o.o.
+

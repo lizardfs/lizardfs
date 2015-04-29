@@ -103,3 +103,4 @@ Replaces: mfs-cgiserv
 Provides: mfs-cgiserv
 Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
  Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
+
