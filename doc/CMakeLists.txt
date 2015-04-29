@@ -9,6 +9,7 @@ set(MANPAGES
     lizardfs-admin.8
     lizardfs-cgiserver.8
     lizardfs-probe.8    # not a source
+    lizardfs-uraft.8
     lizardfs-appendchunks.1
     lizardfs-checkfile.1
     lizardfs-dirinfo.1
