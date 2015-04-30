@@ -89,6 +89,7 @@ static int32_t jobfdpdescpos;
 static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
+static uint32_t BgJobThreads;
 static uint32_t Timeout_ms;
 static void* reconnect_hook;
 static std::string gLabel;
@@ -919,6 +920,7 @@ int masterconn_init(void) {
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
+	BgJobThreads = cfg_getuint32("CSSERV_MASTER_WORKERS", 10);
 	Timeout_ms = get_cfg_timeout();
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
@@ -937,7 +939,7 @@ int masterconn_init(void) {
 		return -1;
 	}
 
-	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
+	jpool = job_pool_new(BgJobThreads,BGJOBSCNT,&jobfd);
 	if (jpool==NULL) {
 		return -1;
 	}

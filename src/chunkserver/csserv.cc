@@ -136,6 +136,7 @@ static uint32_t stats_maxjobscnt=0;
 // from config
 static char *ListenHost;
 static char *ListenPort;
+static uint32_t BgJobThreads;
 
 void csserv_stats(uint64_t *bin,uint64_t *bout,uint32_t *hlopr,uint32_t *hlopw,uint32_t *maxjobscnt) {
 	*bin = stats_bytesin;
@@ -1653,6 +1654,7 @@ void csserv_reload(void) {
 int csserv_init(void) {
 	ListenHost = cfg_getstr("CSSERV_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("CSSERV_LISTEN_PORT","9422");
+	BgJobThreads = cfg_getuint32("CSSERV_CLIENT_WORKERS", 10);
 
 	lsock = tcpsocket();
 	if (lsock<0) {
@@ -1677,7 +1679,7 @@ int csserv_init(void) {
 	main_destructregister(csserv_term);
 	main_pollregister(csserv_desc,csserv_serve);
 
-	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
+	jpool = job_pool_new(BgJobThreads,BGJOBSCNT,&jobfd);
 
 	return 0;
 }
