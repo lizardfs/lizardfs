@@ -393,7 +393,7 @@ except Exception:
 	print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
-	print """<h1 align="center">Can't connect to MFS master (IP:%s ; PORT:%u)</h1>""" % (htmlentities(masterhost),masterport)
+	print """<h1 align="center">Can't connect to LizardFS master (IP:%s ; PORT:%u)</h1>""" % (htmlentities(masterhost),masterport)
 	print """</body>"""
 	print """</html>"""
 	exit()
@@ -410,7 +410,7 @@ if masterversion==(0,0,0):
 	print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
 	print """</head>"""
 	print """<body>"""
-	print """<h1 align="center">Can't detect MFS master version</h1>"""
+	print """<h1 align="center">Can't detect LizardFS master version</h1>"""
 	print """</body>"""
 	print """</html>"""
 	exit()
@@ -747,7 +747,7 @@ if "IN" in sectionset:
 			out.append("""</table>""")
 		else:
 			out.append("""<table class="FR" cellspacing="0">""")
-			out.append("""	<tr><td align="left">unrecognized answer from MFSmaster</td></tr>""")
+			out.append("""	<tr><td align="left">unrecognized answer from LizardFS master</td></tr>""")
 			out.append("""</table>""")
 		s.close()
 		print "\n".join(out)

@@ -548,7 +548,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 						return sd;
 					}
 				}
-				printf("%s: not MFS object\n",name);
+				printf("%s: not LizardFS object\n",name);
 				return -1;
 			} else {
 				printf("%s: path too long\n",name);
@@ -556,7 +556,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 			}
 		}
 		if (rpath[0]!='/' || rpath[1]=='\0') {
-			printf("%s: not MFS object\n",name);
+			printf("%s: not LizardFS object\n",name);
 			return -1;
 		}
 		dirname_inplace(rpath);

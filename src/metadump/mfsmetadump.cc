@@ -415,7 +415,7 @@ int fs_load_20(FILE *fd) {
 		}
 		if (memcmp(hdr,"[MFS EOF MARKER]",16)==0) {
 			printf("# -------------------------------------------------------------------\n");
-			printf("# MFS END OF FILE MARKER\n");
+			printf("# LizardFS END OF FILE MARKER\n");
 			printf("# -------------------------------------------------------------------\n");
 			return 0;
 		}

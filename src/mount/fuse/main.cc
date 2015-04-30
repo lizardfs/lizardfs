@@ -248,7 +248,7 @@ static void usage(const char *progname) {
 "    -B IP                       equivalent to '-o mfsbind=IP'\n"
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
-"    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
+"    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
 "    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfs/mfsmount.cfg or " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
@@ -300,7 +300,7 @@ static void usage(const char *progname) {
 "\n");
 	fprintf(stderr,
 "SMODE can be set to:\n"
-"    NEVER                       MFS will not change suid and sgid bit on chown\n"
+"    NEVER                       LizardFS will not change suid and sgid bit on chown\n"
 "    ALWAYS                      clear suid and sgid on every chown - safest operation\n"
 "    OSX                         standard behavior in OS X and Solaris (chown made by unprivileged user clear suid and sgid)\n"
 "    BSD                         standard behavior in *BSD systems (like in OSX, but only when something is really changed)\n"
@@ -423,7 +423,7 @@ static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse
 		mfsopts.nostdmountoptions = 1;
 		return 0;
 	case KEY_VERSION:
-		fprintf(stderr, "MFS version %s\n", LIZARDFS_PACKAGE_VERSION);
+		fprintf(stderr, "LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
 		{
 			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
 
