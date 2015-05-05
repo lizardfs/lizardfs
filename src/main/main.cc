@@ -1039,6 +1039,15 @@ void makedaemon() {
 	close(STDERR_FILENO);
 	sassert(dup(piped[1])==STDERR_FILENO);
 	close(piped[1]);
+
+	// close all inherited file descriptors
+	int open_max = sysconf(_SC_OPEN_MAX);
+	for (int i = 3; i < open_max; i++) {
+		if (i == signalpipe[0] || i == signalpipe[1]) {
+			continue;
+		}
+		close(i);
+	}
 }
 
 void close_msg_channel() {
