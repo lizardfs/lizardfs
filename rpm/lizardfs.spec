@@ -260,7 +260,7 @@ fi
 %setup
 
 %build
-./configure --with-doc --without-ha
+./configure --with-doc
 make %{?_smp_mflags}
 
 %install
