@@ -8,7 +8,8 @@
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		tstoma, registerTapeserver, LIZ_TSTOMA_REGISTER_TAPESERVER, 0,
-		uint32_t, version)
+		uint32_t, version,
+		std::string, name)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		tstoma, hasFiles, LIZ_TSTOMA_HAS_FILES, 0,

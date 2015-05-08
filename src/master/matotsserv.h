@@ -7,15 +7,14 @@
 #include "common/tape_copy_location_info.h"
 #include "common/network_address.h"
 
-/// A pool of tapeserver IDs.
-/// We support only 8-bit IDs to save some memory.
-typedef IdPool<uint8_t> TapeserverIdPool;
-
 /// Type of objects which identify tapeservers.
-typedef TapeserverIdPool::IdType TapeserverId;
+typedef uint32_t TapeserverId;
 
 /// Initialize the module.
 int matotsserv_init();
+
+/// Checks if a file can be enqueued to tapeserver
+bool matotsserv_can_enqueue_node();
 
 /// Enqueues file for sending it to tapeserver.
 TapeserverId matotsserv_enqueue_node(const TapeKey& key);

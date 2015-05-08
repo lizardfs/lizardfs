@@ -1507,7 +1507,7 @@ enum class SugidClearMode {
 
 // 0x06A4
 #define LIZ_TSTOMA_REGISTER_TAPESERVER (1000U + 700U)
-/// vershex:32
+/// vershex:32 name:STDSTRING
 
 // 0x06A5
 #define LIZ_MATOTS_REGISTER_TAPESERVER (1000U + 701U)
