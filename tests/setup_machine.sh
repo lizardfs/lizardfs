@@ -164,6 +164,12 @@ case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
 		apt-get install asciidoc build-essential cmake debhelper devscripts git libfuse-dev pkg-config zlib1g-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
+		if [[ "$release" != "Ubuntu/12.04" ]]; then
+			apt-get install libtcmalloc-minimal4
+		else
+			apt-get install libtcmalloc-minimal0
+			ln -s libtcmalloc_minimal.so.0 /usr/lib/libtcmalloc_minimal.so
+		fi
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
@@ -171,7 +177,7 @@ case "$release" in
 		;;
 	CentOS/7)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		yum install acl attr dbench nc pylint rsync socat tidy wget
+		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		;;
 	*)
 		set +x
