@@ -61,6 +61,7 @@ option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort" 
 option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                          OFF)
 option(ENABLE_HA_CLUSTER    "Enable installation of HA scripts"                       ON)
 option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                   OFF)
+option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  ON)
 # end of LizardFS options
 
 message(STATUS "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")

@@ -47,6 +47,11 @@ find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
 message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
+if(ENABLE_TCMALLOC)
+  find_library(TCMALLOC_LIBRARY NAMES tcmalloc_minimal libtcmalloc_minimal.so.4)
+  message(STATUS "TCMALLOC_LIBRARY: ${TCMALLOC_LIBRARY}")
+endif()
+
 
 # Find extra binaries
 find_program(A2X_BINARY a2x)
