@@ -65,7 +65,7 @@ void ListMetadataserversCommand::run(const Options& options) const {
 	uint32_t masterVersion;
 	matocl::metadataserversList::deserialize(response, masterVersion, shadowsList);
 
-	// A small hack: place the master at the beggining of the metadataservers list
+	// A small hack: place the master at the beginning of the metadataservers list
 	shadowsList.emplace_back(ip, port, masterVersion);
 	std::reverse(shadowsList.begin(), shadowsList.end());
 	int server = 1;

@@ -1141,7 +1141,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 			throw RequestException(status);
 		}
 	}
-	if (status!=0) {        // should never happend but better check than sorry
+	if (status!=0) {        // should never happen but better check than sorry
 		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
 				(unsigned long int)ino,
 				to_set,
@@ -2427,7 +2427,7 @@ std::vector<uint8_t> read(Context ctx,
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
 			if (debug_mode) {
-				fprintf(stderr,"IO error occured while writing inode %lu\n",
+				fprintf(stderr,"IO error occurred while writing inode %lu\n",
 						(unsigned long int)ino);
 			}
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2449,7 +2449,7 @@ std::vector<uint8_t> read(Context ctx,
 	err = read_data(fileinfo->data,off,&ssize,&buff);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while reading inode %lu\n",
+			fprintf(stderr,"IO error occurred while reading inode %lu\n",
 					(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2582,7 +2582,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while writing inode %lu\n",(unsigned long int)ino);
+			fprintf(stderr,"IO error occurred while writing inode %lu\n",(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,

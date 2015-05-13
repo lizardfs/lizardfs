@@ -43,7 +43,7 @@ characters: a-z, A-Z, 0-9, _.
 For each file using this goal and for each label, the system will try to
 maintain a copy of the file on some chunkserver with this label.
 One label may occur multiple times - in such case the system will create
-one copy per each occurence.
+one copy per each occurrence.
 The special label _ means "a copy on any chunkserver".
 
 Note that changing the definition of a goal in mfsgoals.cfg affects all
