@@ -525,7 +525,7 @@ remove_node() {
 	else
 		bailout "Node still active in the cluster"
 	fi
-	ok "Node infomation removed from cluster"
+	ok "Node information removed from cluster"
 }
 
 status() {
@@ -595,7 +595,7 @@ upload_configuration() {
 # First, validate installation
 validate_installation
 
-# Proces command line options using getopt
+# Process command line options using getopt
 argv=("$@")
 temp=$(getopt -o hvnWo:i:N: \
 	--long help,verbose,dry-run,no-act,wait,out-file:,in-file:,to-node:,node: \

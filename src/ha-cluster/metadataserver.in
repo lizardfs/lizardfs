@@ -289,7 +289,7 @@ lizardfs_master_promote() {
 				return $OCF_SUCCESS
 			fi
 
-			# Check that we are now succesfully a master
+			# Check that we are now successfully a master
 			lizardfs_master_monitor
 			ret=$?
 			case $ret in

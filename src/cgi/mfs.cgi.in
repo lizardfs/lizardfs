@@ -287,7 +287,7 @@ def myrecv(socket,leng):
 	return msg
 
 def addr_to_host(addr):
-	""" Convert IP addres ('xxx.xxx.xxx.xxx' or 'hostname' or a 4-byte integer) to string """
+	""" Convert IP address ('xxx.xxx.xxx.xxx' or 'hostname' or a 4-byte integer) to string """
 	if isinstance(addr, (int, long)):
 		return socket.inet_ntoa(struct.pack(">L", addr))
 	elif isinstance(addr, str):

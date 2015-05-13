@@ -324,7 +324,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 			id->trycnt=0;   // on good write reset try counter
 		}
 		write_delayed_enqueue(id,delay);
-	} else {        // no more work or error occured
+	} else {        // no more work or error occurred
 		// if this is an error then release all data blocks
 		cb = id->datachainhead;
 		while (cb) {

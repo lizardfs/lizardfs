@@ -23,7 +23,7 @@ public:
 
 	/**
 	 * Connects to the first chunkserver from a (non-empty) chain.
-	 * Returns socket decriptor or -1 in case of an error.
+	 * Returns socket descriptor or -1 in case of an error.
 	 */
 	int connect();
 

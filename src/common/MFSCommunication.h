@@ -18,7 +18,7 @@
 
 #pragma once
 
-// all data field transfered in network order.
+// all data field transferred in network order.
 // packet structure:
 // type:32 length:32 data:lengthB
 //
