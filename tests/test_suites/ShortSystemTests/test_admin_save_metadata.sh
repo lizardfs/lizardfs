@@ -12,7 +12,7 @@ port=${lizardfs_info_[matocl]}
 
 # Instead of real mfsmetarestore, provide a program which hangs forever to slow down metadata dumps
 cat > "$TEMP_DIR/metarestore.sh" << END
-#!/bin/bash
+#!/bin/sh
 touch "$TEMP_DIR/dump_started"
 sleep 4
 mfsmetarestore "\$@" || exit $?

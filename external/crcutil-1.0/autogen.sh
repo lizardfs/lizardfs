@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # See http://mij.oltrelinux.com/devel/autoconf-automake/
 

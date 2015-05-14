@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /usr/bin/env bash
 #
 #   Manages LizardFS metadata server in full and shadow master modes
 #

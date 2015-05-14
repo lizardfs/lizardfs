@@ -1,10 +1,12 @@
 #include "common/platform.h"
 #include "common/metadata.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <cstring>

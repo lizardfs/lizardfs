@@ -5,10 +5,18 @@
 #include <ratio>
 
 #ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
+#  include <sys/time.h>
 #  include <time.h>
 SteadyClock::time_point SteadyClock::now() {
 	struct timespec ts;
+#  ifdef CLOCK_MONOTONIC
 	clock_gettime(CLOCK_MONOTONIC, &ts);
+#  else
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = tv.tv_usec * 1000;
+#  endif
 	rep count = 0;
 	count += ts.tv_sec;
 	count *= 1000*1000*1000;

@@ -10,7 +10,7 @@ CHUNKSERVERS=1 \
 
 # Instead of real mfsmetarestore, provide a program which hangs forever to slow down metadata dumps
 cat > "$TEMP_DIR/metarestore.sh" << END
-#!/bin/bash
+#!/usr/bin/env bash
 touch "$TEMP_DIR/dump_started"
 sleep 30 # Long enough to do the test, short enough to be able to terminate memchek within 60 s
 touch "$TEMP_DIR/dump_finishing"

@@ -1079,7 +1079,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 	}
 	if (rversion<=4) {
 			if (eptr->timeout<1000) {
-					syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu16 " milliseconds - should be at least 1 second)",eptr->timeout);
+					syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu32 " milliseconds - should be at least 1 second)",eptr->timeout);
 					eptr->timeout = 1000;
 			return;
 		}

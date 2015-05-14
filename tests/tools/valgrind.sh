@@ -34,7 +34,7 @@ valgrind_enable() {
 		# Create a script which will run processes on valgrind. This to make it possible
 		# to modify this script to stop spawning new valgrind processes in valgrind_terminate.
 		valgrind_script_="$TEMP_DIR/$(unique_file)_valgrind.sh"
-		echo -e "#!/bin/bash\nexec $valgrind_command \"\$@\"" > "$valgrind_script_"
+		echo -e "#!/usr/bin/env bash\nexec $valgrind_command \"\$@\"" > "$valgrind_script_"
 		chmod +x "$valgrind_script_"
 		command_prefix="${valgrind_script_} ${command_prefix}"
 
@@ -47,7 +47,7 @@ valgrind_enable() {
 valgrind_terminate() {
 	# Disable starting new memcheck processes
 	local tmpfile="$TEMP_DIR/$(unique_file)_fake_valgrind.txt"
-	echo -e "#!/bin/bash\n\"\$@\"" > "$tmpfile"
+	echo -e "#!/usr/bin/env bash\n\"\$@\"" > "$tmpfile"
 	chmod +x "$tmpfile"
 	mv "$tmpfile" "$valgrind_script_"
 	# Wait a bit if there are any valgrind processes which have just started. This is
