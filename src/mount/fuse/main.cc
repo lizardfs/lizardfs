@@ -915,16 +915,6 @@ int main(int argc, char *argv[]) {
 		char *cfgfile;
 
 		cfgfile=strdup(ETC_PATH "/mfs/mfsmount.cfg");
-		if ((cfgfd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
-			free(cfgfile);
-			cfgfile=strdup(ETC_PATH "/mfsmount.cfg");
-			if ((cfgfd = open(cfgfile,O_RDONLY))>=0) {
-				fprintf(stderr,"default sysconf path has changed - please move mfsmount.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/\n");
-			}
-		}
-		if (cfgfd>=0) {
-			close(cfgfd);
-		}
 		mfs_opt_parse_cfg_file(cfgfile,1,&defaultargs);
 		free(cfgfile);
 	}

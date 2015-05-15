@@ -433,25 +433,7 @@ void topology_reload(void) {
 	if (TopologyFileName) {
 		free(TopologyFileName);
 	}
-	if (!cfg_isdefined("TOPOLOGY_FILENAME")) {
-		TopologyFileName = strdup(ETC_PATH "/mfs/mfstopology.cfg");
-		passert(TopologyFileName);
-		if ((fd = open(TopologyFileName,O_RDONLY))<0 && errno==ENOENT) {
-			free(TopologyFileName);
-			TopologyFileName = strdup(ETC_PATH "/mfstopology.cfg");
-			if ((fd = open(TopologyFileName,O_RDONLY))>=0) {
-				lzfs_pretty_syslog(LOG_WARNING,"default sysconf path has changed - please move mfstopology.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
-			} else {
-				free(TopologyFileName);
-				TopologyFileName = strdup(ETC_PATH "/mfs/mfstopology.cfg");
-			}
-		}
-		if (fd>=0) {
-			close(fd);
-		}
-	} else {
-		TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
-	}
+	TopologyFileName = cfg_getstr("TOPOLOGY_FILENAME", ETC_PATH "/mfs/mfstopology.cfg");
 	topology_load();
 }
 
