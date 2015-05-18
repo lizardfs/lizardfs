@@ -184,7 +184,7 @@ struct xattr_inode_entry {
 struct TapeCopy {
 
 	/// Default constructor.
-	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId()) {}
+	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId) {}
 
 	/// A constructor.
 	TapeCopy(TapeCopyState state, TapeserverId server) : state(state), server(server) {}
@@ -2761,7 +2761,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 					TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
 					while (fsnodes_needs_tape_copies(node)) {
 						TapeserverId id = matotsserv_enqueue_node(tapeKey);
-						if (id.isNull()) {
+						if (!id) {
 							break;
 						}
 						node->tapeCopies.emplace_back(TapeCopyState::kCreating, id);
