@@ -1,7 +1,7 @@
-etc/mfs/mfsexports.cfg.dist
-etc/mfs/mfstopology.cfg.dist
-etc/mfs/mfsgoals.cfg.dist
-etc/mfs/mfsmaster.cfg.dist
+etc/mfs/mfsexports.cfg
+etc/mfs/mfstopology.cfg
+etc/mfs/mfsgoals.cfg
+etc/mfs/mfsmaster.cfg
 usr/sbin/mfsmaster
 usr/sbin/mfsrestoremaster
 usr/sbin/mfsmetarestore
