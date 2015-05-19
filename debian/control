@@ -9,6 +9,9 @@ Build-Depends: asciidoc (>= 8.6.6),
                pkg-config,
                zlib1g-dev,
                python,
+               libxml2-utils,
+               docbook-xml,
+               xsltproc,
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
@@ -22,7 +25,7 @@ Description: Debugging symbols for LizardFS
 
 Package: lizardfs-common
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
+Depends: ${misc:Depends},
          adduser
 Conflicts: mfs-common
 Replaces: mfs-common
@@ -74,7 +77,7 @@ Description: LizardFS administration tools
 
 Package: lizardfs-cgi
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
+Depends: ${misc:Depends},
          python
 Conflicts: mfs-cgi
 Replaces: mfs-cgi
@@ -84,7 +87,7 @@ Description: LizardFS CGI Monitor
 
 Package: lizardfs-cgiserv
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-cgi,
+Depends: ${misc:Depends}, lizardfs-cgi,
          python
 Conflicts: mfs-cgiserv
 Replaces: mfs-cgiserv
