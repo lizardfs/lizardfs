@@ -1,0 +1,20 @@
+mfsmetadump(8)
+==============
+
+== NAME
+
+mfsmetadump - a networking, distributed, highly available file system
+
+== SYNOPSIS
+
+[verse]
+*mfsmetadump* 'metadata_file'...
+
+== DESCRIPTION
+
+*mfsmetadump*
+dumps file system metadata into specified file.
+
+== SEE ALSO
+
+mfstools(1)

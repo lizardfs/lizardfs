@@ -1,6 +1,13 @@
 #pragma once
 #include "config.h"
 
+/* Workaround for Debian/kFreeBSD which does not define ENODATA */
+#if defined(__FreeBSD_kernel__)
+#ifndef ENODATA
+#define ENODATA ENOATTR
+#endif
+#endif
+
 #ifndef LIZARDFS_HAVE_STD_TO_STRING
 
 #include <sstream>

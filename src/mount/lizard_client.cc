@@ -104,9 +104,18 @@ static const uint8_t oplogattr[35]={'f', 0x01,0x00, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0
 // 0x01A4 == 0b110100100 == 0644
 static const uint8_t tweaksfileattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
+// Interface for accessing files by inode
+#define FILE_BY_INODE_NAME ".lizardfs_file_by_inode"
+#define FILE_BY_INODE_INODE 0x7FFFFFF4
+// 0x01ED == 0b111101101 == 0755
+static const uint8_t filebyinodefileattr[35]={'d', 0x01,0xED, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
+
 #define MIN_SPECIAL_INODE 0x7FFFFFF0
 #define IS_SPECIAL_INODE(ino) ((ino)>=MIN_SPECIAL_INODE)
-#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 || strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 || strcmp(OPHISTORY_NAME,(name))==0 || strcmp(TWEAKS_FILE_NAME,(name))==0))
+#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 \
+		|| strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 \
+		|| strcmp(OPHISTORY_NAME,(name))==0 || strcmp(TWEAKS_FILE_NAME,(name))==0 \
+		|| strcmp(FILE_BY_INODE_NAME,(name))==0))
 
 typedef struct _sinfo {
 	char *buff;
@@ -733,8 +742,33 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
+		if (strcmp(name,FILE_BY_INODE_NAME)==0) {
+			e.ino = FILE_BY_INODE_INODE;
+			e.attr_timeout = 3600.0;
+			e.entry_timeout = 3600.0;
+			attr_to_stat(FILE_BY_INODE_INODE, filebyinodefileattr, &e.attr);
+			stats_inc(OP_LOOKUP_INTERNAL);
+			makeattrstr(attrstr,256,&e.attr);
+			oplog_printf(ctx, "lookup (%lu,%s) (internal node: FILE_BY_INODE_FILE): OK (%.1f,%lu,%.1f,%s)",
+					(unsigned long int)parent,
+					name,
+					e.entry_timeout,
+					(unsigned long int)e.ino,
+					e.attr_timeout,
+					attrstr);
+			return e;
+		}
 	}
-	if (usedircache && dcache_lookup(&ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
+	if (parent == FILE_BY_INODE_INODE) {
+		char *endptr = nullptr;
+		inode = strtol(name, &endptr, 10);
+		if (endptr == nullptr || *endptr != '\0') {
+			throw RequestException(EINVAL);
+		}
+		status = fs_getattr(inode, ctx.uid, ctx.gid, attr);
+		status = errorconv_dbg(status);
+		icacheflag = 0;
+	} else if (usedircache && dcache_lookup(&ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"lookup: sending data from dircache\n");
 		}
@@ -838,6 +872,22 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 		oplog_printf(ctx, "getattr (%lu) (internal node: %s): OK (3600,%s)",
 				(unsigned long int)ino,
 				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+				attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
+	if (ino==FILE_BY_INODE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,filebyinodefileattr,&o_stbuf);
+		if (fi != NULL) {
+			// fstat is called on an open descriptor -- provide the actual length
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			o_stbuf.st_size = file->value.size();
+		}
+		stats_inc(OP_GETATTR);
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx, "getattr (%lu) (internal node: FILE_BY_INODE_FILE): OK (3600,%s)",
+				(unsigned long int)ino,
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
@@ -978,6 +1028,29 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
+	if (ino==FILE_BY_INODE_INODE) {
+		memset(&o_stbuf, 0, sizeof(struct stat));
+		attr_to_stat(ino,filebyinodefileattr,&o_stbuf);
+		if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
+			MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
+			std::unique_lock<std::mutex> lock(file->mutex);
+			file->value.resize(stbuf->st_size);
+			o_stbuf.st_size = stbuf->st_size;
+		}
+		makeattrstr(attrstr,256,&o_stbuf);
+		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) (internal node: FILE_BY_INODE_FILE): OK (3600,%s)",
+				(unsigned long int)ino,
+				to_set,
+				modestr+1,
+				(unsigned int)(stbuf->st_mode & 07777),
+				(long int)stbuf->st_uid,
+				(long int)stbuf->st_gid,
+				(unsigned long int)(stbuf->st_atime),
+				(unsigned long int)(stbuf->st_mtime),
+				(uint64_t)(stbuf->st_size),
+				attrstr);
+		return AttrReply{o_stbuf, 3600.0};
+	}
 
 	status = EINVAL;
 	maxfleng = write_data_getmaxfleng(ino);
@@ -1111,7 +1184,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 			throw RequestException(status);
 		}
 	}
-	if (status!=0) {        // should never happend but better check than sorry
+	if (status!=0) {        // should never happen but better check than sorry
 		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
 				(unsigned long int)ino,
 				to_set,
@@ -2401,7 +2474,7 @@ std::vector<uint8_t> read(Context ctx,
 		err = write_data_flush(fileinfo->data);
 		if (err!=0) {
 			if (debug_mode) {
-				fprintf(stderr,"IO error occured while writting inode %lu\n",
+				fprintf(stderr,"IO error occurred while writing inode %lu\n",
 						(unsigned long int)ino);
 			}
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2432,7 +2505,7 @@ std::vector<uint8_t> read(Context ctx,
 	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while reading inode %lu\n",
+			fprintf(stderr,"IO error occurred while reading inode %lu\n",
 					(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2574,7 +2647,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	if (err!=0) {
 		if (debug_mode) {
-			fprintf(stderr,"IO error occured while writting inode %lu\n",(unsigned long int)ino);
+			fprintf(stderr,"IO error occurred while writing inode %lu\n",(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,

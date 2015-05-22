@@ -131,15 +131,8 @@ ssize_t SimpleOutputBuffer::copyIntoBuffer(int inputFileDescriptor, size_t len, 
 	eassert(len + bufferUnflushedDataOneAfterLastIndex_ <= internalBufferCapacity_);
 	off_t bytes_written = 0;
 	while (len > 0) {
-#if defined(LIZARDFS_HAVE_PREAD) // TODO(alek) syfne te ifdefy
 		ssize_t ret = pread(inputFileDescriptor, (void*)&buffer_[bufferUnflushedDataOneAfterLastIndex_], len,
 				(offset ? *offset : 0));
-#else /* !LIZARDFS_HAVE_PREAD */
-		if (offset) {
-			lseek(inputFileDescriptor_, *offset, SEEK_SET);
-		}
-		ssize_t ret = read(inputFileDescriptor, (void*)&buffer[bufferUnflushedDataOneAfterLastIndex_], len);
-#endif /* LIZARDFS_HAVE_PREAD */
 		if (ret <= 0) {
 			return bytes_written;
 		}

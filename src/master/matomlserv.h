@@ -22,8 +22,15 @@
 
 #include <inttypes.h>
 
+#include "common/metadataserver_list_entry.h"
+
 uint32_t matomlserv_mloglist_size(void);
 void matomlserv_mloglist_data(uint8_t *ptr);
+
+/**
+ * Returns list of shadow masters
+ */
+std::vector<MetadataserverListEntry> matomlserv_shadows();
 
 void matomlserv_broadcast_logstring(uint64_t version,uint8_t *logstr,uint32_t logstrsize);
 void matomlserv_broadcast_logrotate();
@@ -31,5 +38,13 @@ void matomlserv_broadcast_logrotate();
  *
  * \param status - status to broadcast.
  */
-void matomlserv_broadcast_filesystem(uint8_t status);
+void matomlserv_broadcast_metadata_saved(uint8_t status);
 int matomlserv_init(void);
+/*
+ * Returns 1 if all connections to metaloggers were closed, 0 otherwise
+ */
+int matomlserv_canexit(void);
+/*
+ * Returns number of connected shadow masters
+ */
+uint32_t matomlserv_shadows_count();

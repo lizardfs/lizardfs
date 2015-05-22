@@ -40,13 +40,14 @@
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
+#include "common/input_packet.h"
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
-#include "common/lizardfs_version.h"
+#include "common/output_packet.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
@@ -60,41 +61,11 @@
 #define MaxPacketSize 500000000
 
 // matocsserventry.mode
-enum{KILL,HEADER,DATA};
-
-struct OutputPacket {
-	std::vector<uint8_t> packet;
-	uint32_t bytesSent;
-	OutputPacket() : bytesSent(0U) {
-	}
-};
-
-struct InputPacket {
-	uint8_t header[PacketHeader::kSize];
-	std::vector<uint8_t> data;
-	uint32_t bytesRead;
-	InputPacket() : bytesRead(0U) {
-	}
-	uint32_t bytesToBeRead() const {
-		if (bytesRead < PacketHeader::kSize) {
-			return PacketHeader::kSize - bytesRead;
-		} else {
-			uint32_t dataBytesRead = bytesRead - PacketHeader::kSize;
-			return data.size() - dataBytesRead;
-		}
-	}
-	uint8_t* pointerToBeReadInto() {
-		if (bytesRead < PacketHeader::kSize) {
-			return &(header[bytesRead]);
-		} else {
-			size_t offset = bytesRead - PacketHeader::kSize;
-			sassert(offset <= data.size());
-			return data.data() + offset;
-		}
-	}
-};
+enum{KILL, CONNECTED};
 
 struct matocsserventry {
+	matocsserventry() : inputPacket(MaxPacketSize) {}
+
 	uint8_t mode;
 	int sock;
 	int32_t pdescpos;
@@ -642,13 +613,8 @@ char* matocsserv_makestrip(uint32_t ip) {
 }
 
 uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t size) {
-	eptr->outputPackets.push_back(OutputPacket());
-	OutputPacket& outpacket = eptr->outputPackets.back();
-	PacketHeader header(type, size);
-	outpacket.packet.reserve(PacketHeader::kSize + size); // optimization
-	serialize(outpacket.packet, header);
-	outpacket.packet.resize(PacketHeader::kSize + size);
-	return outpacket.packet.data() + PacketHeader::kSize;
+	eptr->outputPackets.emplace_back(PacketHeader(type, size));
+	return eptr->outputPackets.back().packet.data() + PacketHeader::kSize;
 }
 
 /* for future use */
@@ -1327,6 +1293,7 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
 				"changed its label from '%s' to '%s'",
 				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
+		chunk_server_label_changed(eptr->label, label);
 		eptr->label = std::move(label);
 	}
 }
@@ -1408,10 +1375,10 @@ void matocsserv_error_occurred(matocsserventry *eptr,const uint8_t *data,uint32_
 	eptr->errorcounter++;
 }
 
-void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vector<uint8_t>& data) {
+void matocsserv_gotpacket(matocsserventry *eptr, PacketHeader header, const MessageBuffer& data) {
 	uint32_t length = data.size();
 	try {
-		switch (type) {
+		switch (header.type) {
 			case ANTOAN_NOP:
 				break;
 			case ANTOAN_UNKNOWN_COMMAND: // for future use
@@ -1449,7 +1416,7 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				break;
 			case CSTOMA_REPLICATE:
 			case LIZ_CSTOMA_REPLICATE_CHUNK:
-				matocsserv_got_replicatechunk_status(eptr, data, type);
+				matocsserv_got_replicatechunk_status(eptr, data, header.type);
 				break;
 			case CSTOMA_DUPLICATE:
 			case LIZ_CSTOMA_DUPLICATE_CHUNK:
@@ -1486,14 +1453,14 @@ void matocsserv_gotpacket(matocsserventry *eptr, uint32_t type, const std::vecto
 				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message "
-						"(type:%" PRIu32 ")", type);
+						"(type:%" PRIu32 ")", header.type);
 				eptr->mode=KILL;
 				break;
 		}
 	} catch (IncorrectDeserializationException& e) {
 		syslog(LOG_NOTICE,
 				"master <-> chunkservers module: got inconsistent message "
-				"(type:%" PRIu32 ", length:%" PRIu32"), %s", type, length, e.what());
+				"(type:%" PRIu32 ", length:%" PRIu32"), %s", header.type, length, e.what());
 		eptr->mode = KILL;
 	}
 }
@@ -1519,55 +1486,38 @@ void matocsserv_term(void) {
 }
 
 void matocsserv_read(matocsserventry *eptr) {
-	int32_t i;
 	for (;;) {
-		i=read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(),
-				eptr->inputPacket.bytesToBeRead());
-		if (i==0) {
-			syslog(LOG_NOTICE,"connection with CS(%s) has been closed by peer",eptr->servstrip);
+		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
+		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
+		if (ret == 0) {
+			lzfs_pretty_syslog(LOG_NOTICE, "connection with CS(%s) has been closed by peer",
+					eptr->servstrip);
 			eptr->mode = KILL;
 			return;
-		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				lzfs_silent_errlog(LOG_NOTICE,"read from CS(%s) error",eptr->servstrip);
+		} else if (ret < 0) {
+			if (errno != EAGAIN) {
+				lzfs_silent_errlog(LOG_NOTICE, "read from CS(%s) error", eptr->servstrip);
 				eptr->mode = KILL;
 			}
 			return;
 		}
-		eptr->inputPacket.bytesRead += i;
 
-		if (eptr->inputPacket.bytesToBeRead() > 0) {
+		try {
+			eptr->inputPacket.increaseBytesRead(ret);
+		} catch (InputPacketTooLongException& ex) {
+			lzfs_pretty_syslog(LOG_WARNING, "reading from CS(%s): %s", eptr->servstrip, ex.what());
+			eptr->mode = KILL;
+			return;
+		}
+		if (ret == bytesToRead && !eptr->inputPacket.hasData()) {
+			// there might be more data to read in socket's buffer
+			continue;
+		} else if (!eptr->inputPacket.hasData()) {
 			return;
 		}
 
-		if (eptr->mode==HEADER) {
-			PacketHeader header;
-			deserializePacketHeader(eptr->inputPacket.header, sizeof(eptr->inputPacket.header),
-					header);
-			eptr->inputPacket.data.resize(header.length);
-			if (header.length>0) {
-				if (header.length>MaxPacketSize) {
-					syslog(LOG_WARNING, "CS(%s) packet too long (%" PRIu32 "/%u)",
-							eptr->servstrip, header.length, MaxPacketSize);
-					eptr->mode = KILL;
-					return;
-				}
-				eptr->mode = DATA;
-				continue;
-			}
-			eptr->mode = DATA;
-		}
-
-		if (eptr->mode==DATA) {
-			PacketHeader header;
-			deserializePacketHeader(eptr->inputPacket.header, sizeof(eptr->inputPacket.header),
-					header);
-			eptr->mode=HEADER;
-			matocsserv_gotpacket(eptr, header.type, eptr->inputPacket.data);
-			eptr->inputPacket = InputPacket();
-			break;
-		}
+		matocsserv_gotpacket(eptr, eptr->inputPacket.getHeader(), eptr->inputPacket.getData());
+		eptr->inputPacket.reset();
 	}
 }
 
@@ -1629,7 +1579,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			matocsservhead = eptr;
 			eptr->sock = ns;
 			eptr->pdescpos = -1;
-			eptr->mode = HEADER;
+			eptr->mode = CONNECTED;
 			eptr->lastread.reset();
 			eptr->lastwrite.reset();
 
@@ -1651,6 +1601,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
 			eptr->incsdb = 0;
+			chunk_server_unlabelled_connected();
 		} else {
 			tcpclose(ns);
 		}
@@ -1688,7 +1639,7 @@ void matocsserv_serve(struct pollfd *pdesc) {
 					" (%.2f GiB)", eptr->servstrip, eptr->servport, eptr->usedspace,
 					us, eptr->totalspace, ts);
 			matocsserv_replication_disconnected(eptr);
-			chunk_server_disconnected(eptr);
+			chunk_server_disconnected(eptr, eptr->label);
 			if (eptr->incsdb) {
 				matocsserv_csdb_lost_connection(eptr->servip,eptr->servport);
 			}

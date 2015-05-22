@@ -24,10 +24,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -45,13 +47,15 @@
 #include "common/rotate_files.h"
 #include "common/setup.h"
 #include "common/slogger.h"
+#include "common/tape_copy_state.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
+#include "master/matotsserv.h"
 #include "master/personality.h"
+#include "master/restore.h"
 #include "master/quota_database.h"
-#include "metarestore/restore.h"
 
 #ifdef LIZARDFS_HAVE_PWD_H
 #  include <pwd.h>
@@ -63,6 +67,7 @@
 #  include "master/datacachemgr.h"
 #  include "master/matoclserv.h"
 #  include "master/matocsserv.h"
+#  include "master/matotsserv.h"
 #endif
 
 #define NODEHASHBITS (22)
@@ -131,7 +136,7 @@ struct fsedge {
 };
 void free(fsedge*); // disable freeing using free at link time :)
 
-typedef struct _statsrecord {
+struct statsrecord {
 	uint32_t inodes;
 	uint32_t dirs;
 	uint32_t files;
@@ -139,7 +144,7 @@ typedef struct _statsrecord {
 	uint64_t length;
 	uint64_t size;
 	uint64_t realsize;
-} statsrecord;
+};
 
 #ifdef METARESTORE
 void changelog(int, char const*, ...) {
@@ -174,6 +179,22 @@ struct xattr_inode_entry {
 	struct xattr_inode_entry *next;
 };
 
+/// Information about a copy of a file on some tapeserver.
+struct TapeCopy {
+
+	/// Default constructor.
+	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId()) {}
+
+	/// A constructor.
+	TapeCopy(TapeCopyState state, TapeserverId server) : state(state), server(server) {}
+
+	/// State of the copy.
+	TapeCopyState state;
+
+	/// ID of a tapeserver.
+	TapeserverId server;
+};
+
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
@@ -186,6 +207,7 @@ public:
 	uint32_t uid;
 	uint32_t gid;
 	uint32_t trashtime;
+	std::vector<TapeCopy> tapeCopies; // TODO(msulikowski) optimize! this takes 24 bytes of space!
 	union _data {
 		struct _ddata {                         // type==TYPE_DIRECTORY
 			fsedge *children;
@@ -401,6 +423,7 @@ static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
 static bool gMagicAutoFileRepair = false;
+static bool gAtimeDisabled = false;
 static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #define MSGBUFFSIZE 1000000
@@ -485,12 +508,39 @@ uint32_t gStoredPreviousBackMetaCopies;
 static bool gDisableChecksumVerification = false;
 
 // Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
-// proper timestamp to changelog entry
-template <typename... Args>
-void fs_changelog(uint32_t ts, const char* format, Args&&... args) {
-	std::string tmp = "%" PRIu32 "|";
-	tmp += format;
-	changelog(gMetadata->metaversion++, tmp.c_str(), ts, args...);
+// proper timestamp to changelog entry and broadcasts it to metaloggers and shadow masters
+void fs_changelog(uint32_t ts, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+void fs_changelog(uint32_t ts, const char* format, ...) {
+#ifdef METARESTORE
+	(void)ts;
+	(void)format;
+#else
+	const uint32_t kMaxTimestampSize = 20;
+	const uint32_t kMaxEntrySize = kMaxLogLineSize - kMaxTimestampSize;
+	static char entry[kMaxLogLineSize];
+
+	// First, put "<timestamp>|" in the buffer
+	int tsLength = snprintf(entry, kMaxTimestampSize, "%" PRIu32 "|", ts);
+
+	// Then append the entry to the buffer
+	va_list ap;
+	uint32_t entryLength;
+	va_start(ap, format);
+	entryLength = vsnprintf(entry + tsLength, kMaxEntrySize, format, ap);
+	va_end(ap);
+
+	if (entryLength >= kMaxEntrySize) {
+		entry[tsLength + kMaxEntrySize - 1] = '\0';
+		entryLength = kMaxEntrySize;
+	} else {
+		entryLength++;
+	}
+
+	uint64_t version = gMetadata->metaversion++;
+	changelog(version, entry);
+	matomlserv_broadcast_logstring(version, (uint8_t*)entry, tsLength + entryLength);
+#endif
 }
 
 static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
@@ -544,6 +594,7 @@ public:
 
 	// start recalculating, true if succeeds
 	bool start() {
+		DEBUG_LOG("master.fs.checksum.updater_start");
 		if (step_ == ChecksumRecalculatingStep::kNone) {
 			++step_;
 			return true;
@@ -952,9 +1003,12 @@ uint64_t fs_checksum(ChecksumMode mode) {
 }
 
 #ifndef METARESTORE
-void fs_start_checksum_recalculation() {
+uint8_t fs_start_checksum_recalculation() {
 	if (gChecksumBackgroundUpdater.start()) {
 		main_make_next_poll_nonblocking();
+		return STATUS_OK;
+	} else {
+		return ERROR_TEMP_NOTPOSSIBLE;
 	}
 }
 #endif
@@ -2718,6 +2772,14 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 	}
 }
 
+static inline bool fsnodes_needs_tape_copies(fsnode *node) {
+	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
+		return fs_get_goal_definition(node->goal).tapeLabels().size() > node->tapeCopies.size();
+	} else {
+		return false;
+	}
+}
+
 #endif
 
 static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal,
@@ -2749,6 +2811,16 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 				if (node->type!=TYPE_DIRECTORY) {
 					fsnodes_changefilegoal(node,goal);
 					(*sinodes)++;
+# ifndef METARESTORE
+					TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
+					while (fsnodes_needs_tape_copies(node)) {
+						TapeserverId id = matotsserv_enqueue_node(tapeKey);
+						if (id.isNull()) {
+							break;
+						}
+						node->tapeCopies.emplace_back(TapeCopyState::kCreating, id);
+					}
+# endif
 				} else {
 					node->goal = goal;
 					(*sinodes)++;
@@ -3988,6 +4060,17 @@ uint8_t fs_apply_length(uint32_t ts,uint32_t inode,uint64_t length) {
 }
 
 #ifndef METARESTORE
+
+/// Update atime of the given node and generate a changelog entry.
+/// Doesn't do anything if NO_ATIME=1 is set in the config file.
+static inline void fs_update_atime(fsnode* p, uint32_t ts) {
+	if (!gAtimeDisabled && p->atime != ts) {
+		p->atime = ts;
+		fsnodes_update_checksum(p);
+		fs_changelog(ts, "ACCESS(%" PRIu32 ")", p->id);
+	}
+}
+
 uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *pleng,uint8_t **path) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
@@ -4024,11 +4107,7 @@ uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t 
 	}
 	*pleng = p->data.sdata.pleng;
 	*path = p->data.sdata.path;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
-	}
+	fs_update_atime(p, ts);
 	stats_readlink++;
 	return STATUS_OK;
 }
@@ -4647,14 +4726,8 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *p = (fsnode*)dnode;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",p->id);
-		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
-	} else {
-		fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
-	}
+	fs_update_atime(p, ts);
+	fsnodes_getdirdata(rootinode,uid,gid,auid,agid,sesflags,p,dbuff,flags&GETDIR_FLAG_WITHATTR);
 	stats_readdir++;
 }
 
@@ -4870,11 +4943,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 		*chunkid = p->data.fdata.chunktab[indx];
 	}
 	*length = p->data.fdata.length;
-	if (p->atime!=ts) {
-		p->atime = ts;
-		fsnodes_update_checksum(p);
-		fs_changelog(ts, "ACCESS(%" PRIu32 ")",inode);
-	}
+	fs_update_atime(p, ts);
 	stats_read++;
 	return STATUS_OK;
 }
@@ -4944,6 +5013,8 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 				quota_exceeded, opflag, &nchunkid);
 #else
 		(void)usedummylockid;
+		// This will NEVER happen (metarestore doesn't call this in master context)
+		mabort("bad code path: fs_writechunk");
 #endif
 	} else {
 		bool increaseVersion = (*opflag != 0);
@@ -5841,6 +5912,60 @@ uint8_t fs_get_chunkid(const FsContext& context,
 }
 #endif
 
+uint8_t fs_add_tape_copy(const TapeKey& tapeKey, TapeserverId tapeserver) {
+	fsnode *node = fsnodes_id_to_node(tapeKey.inode);
+	if (node == NULL) {
+		return ERROR_ENOENT;
+	}
+	if (node->type != TYPE_TRASH && node->type != TYPE_RESERVED && node->type != TYPE_FILE) {
+		return ERROR_EINVAL;
+	}
+	if (node->mtime != tapeKey.mtime || node->data.fdata.length != tapeKey.fileLength) {
+		return ERROR_MISMATCH;
+	}
+	// Try to reuse an existing copy from this tapeserver
+	for (auto& tapeCopy : node->tapeCopies) {
+		if (tapeCopy.server == tapeserver) {
+			tapeCopy.state = TapeCopyState::kOk;
+			return STATUS_OK;
+		}
+	}
+	node->tapeCopies.emplace_back(TapeCopyState::kOk, tapeserver);
+	return STATUS_OK;
+}
+
+uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver) {
+	// Remove all information about tape copies from this tapeserver
+	// TODO(msulikowski) don't block the whole server -- be more lazy
+	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
+		for (fsnode* f = gMetadata->nodehash[i]; f; f = f->next) {
+			auto it = std::remove_if(f->tapeCopies.begin(), f->tapeCopies.end(),
+					[tapeserver](const TapeCopy& tapeCopy) {
+						return tapeCopy.server == tapeserver;
+					});
+			f->tapeCopies.erase(it, f->tapeCopies.end());
+		}
+	}
+	return STATUS_OK;
+}
+
+#ifndef METARESTORE
+uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations) {
+	sassert(locations.empty());
+	fsnode *node = fsnodes_id_to_node(inode);
+	if (node == NULL) {
+		return ERROR_ENOENT;
+	}
+	for (auto& tapeCopy : node->tapeCopies) {
+		TapeserverListEntry tapeserverInfo;
+		if (matotsserv_get_tapeserver_info(tapeCopy.server, tapeserverInfo) == STATUS_OK) {
+			locations.emplace_back(tapeserverInfo, tapeCopy.state);
+		}
+	}
+	return STATUS_OK;
+}
+#endif
+
 void fs_add_files_to_chunks() {
 	uint32_t i,j;
 	uint64_t chunkid;
@@ -5990,6 +6115,7 @@ static void fs_background_checksum_recalculation_a_bit() {
 			break;
 		case ChecksumRecalculatingStep::kDone:
 			gChecksumBackgroundUpdater.end();
+			matoclserv_broadcast_metadata_checksum_recalculated(STATUS_OK);
 			return;
 	}
 	main_make_next_poll_nonblocking();
@@ -6738,7 +6864,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 
 	try {
 		// Read size of the entry
-		uint32_t size;
+		uint32_t size = 0;
 		buffer.resize(serializedSize(size));
 		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
 			throw Exception(std::string("read error: ") + strerr(errno), ERROR_IO);
@@ -7187,7 +7313,6 @@ int fs_loadnode(FILE *fd) {
 			passert(p->data.sdata.path);
 			if (fread(p->data.sdata.path,1,pleng,fd)!=pleng) {
 				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-				free(p->data.sdata.path);
 				delete p;
 				return -1;
 			}
@@ -7213,9 +7338,6 @@ int fs_loadnode(FILE *fd) {
 			chptr = ptr;
 			if (fread((uint8_t*)ptr,1,8*65536,fd)!=8*65536) {
 				lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-				if (p->data.fdata.chunktab) {
-					free(p->data.fdata.chunktab);
-				}
 				delete p;
 				return -1;
 			}
@@ -7227,9 +7349,6 @@ int fs_loadnode(FILE *fd) {
 		}
 		if (fread((uint8_t*)ptr,1,8*ch+4*sessionids,fd)!=8*ch+4*sessionids) {
 			lzfs_pretty_errlog(LOG_ERR,"loading node: read error");
-			if (p->data.fdata.chunktab) {
-				free(p->data.fdata.chunktab);
-			}
 			delete p;
 			return -1;
 		}
@@ -7952,6 +8071,13 @@ static bool fs_commit_metadata_dump() {
 	return false;
 }
 
+// Broadcasts information about status of the freshly finished
+// metadata save process to interested modules.
+static void fs_broadcast_metadata_saved(uint8_t status) {
+	matomlserv_broadcast_metadata_saved(status);
+	matoclserv_broadcast_metadata_saved(status);
+}
+
 static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
 	metadataDumper.pollDesc(pdesc, ndesc);
 }
@@ -7962,12 +8088,12 @@ static void metadataPollServe(struct pollfd* pdesc) {
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {
 		if (metadataDumper.dumpSucceeded()) {
 			if (fs_commit_metadata_dump()) {
-				matomlserv_broadcast_filesystem(STATUS_OK);
+				fs_broadcast_metadata_saved(STATUS_OK);
 			} else {
-				matomlserv_broadcast_filesystem(ERROR_IO);
+				fs_broadcast_metadata_saved(ERROR_IO);
 			}
 		} else {
-			matomlserv_broadcast_filesystem(ERROR_IO);
+			fs_broadcast_metadata_saved(ERROR_IO);
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
 				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
@@ -7979,21 +8105,24 @@ static void metadataPollServe(struct pollfd* pdesc) {
 }
 
 // returns false in case of an error
-bool fs_storeall(MetadataDumper::DumpType dumpType) {
+uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (gMetadata == nullptr) {
-		// Periodic dump in shadow master or a reload with DUMP_METADATA_ON_RELOAD
+		// Periodic dump in shadow master or a request from lizardfs-admin
 		syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
-		return false;
+		return ERROR_NOTPOSSIBLE;
 	}
 	if (metadataDumper.inProgress()) {
 		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
-		return false;
+		return ERROR_TEMP_NOTPOSSIBLE;
 	}
+
+	fs_erase_message_from_lockfile(); // We are going to do some changes in the data dir right now
 	changelog_rotate();
+	matomlserv_broadcast_logrotate();
 	// child == true says that we forked
 	// bg may be changed to dump in foreground in case of a fork error
 	bool child = metadataDumper.start(dumpType, fs_checksum(ChecksumMode::kGetCurrent));
-	bool succeeded = false;
+	uint8_t status = STATUS_OK;
 
 	if (dumpType == MetadataDumper::kForegroundDump) {
 		cstream_t fd(fopen(kMetadataTmpFilename, "w"));
@@ -8004,8 +8133,8 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			return false;
+			fs_broadcast_metadata_saved(ERROR_IO);
+			return ERROR_IO;
 		}
 
 		fs_store_fd(fd.get());
@@ -8019,8 +8148,8 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			if (child) {
 				exit(1);
 			}
-			matomlserv_broadcast_filesystem(ERROR_IO);
-			return false;
+			fs_broadcast_metadata_saved(ERROR_IO);
+			return ERROR_IO;
 		} else {
 			if (fflush(fd.get()) == EOF) {
 				lzfs_pretty_errlog(LOG_ERR, "metadata fflush failed");
@@ -8030,17 +8159,17 @@ bool fs_storeall(MetadataDumper::DumpType dumpType) {
 			fd.reset();
 			if (!child) {
 				// rename backups if no child was created, otherwise this is handled by pollServe
-				succeeded = fs_commit_metadata_dump();
+				status = fs_commit_metadata_dump() ? STATUS_OK : ERROR_IO;
 			}
 		}
 		if (child) {
 			printf("OK\n"); // give mfsmetarestore another chance
 			exit(0);
 		}
-		matomlserv_broadcast_filesystem(succeeded ? STATUS_OK : ERROR_IO);
+		fs_broadcast_metadata_saved(status);
 	}
 	sassert(!child);
-	return succeeded;
+	return status;
 }
 
 void fs_periodic_storeall() {
@@ -8051,19 +8180,41 @@ void fs_term(void) {
 	if (metadataDumper.inProgress()) {
 		metadataDumper.waitUntilFinished();
 	}
-	for (;;) {
-		if (gMetadata == nullptr || !gSaveMetadataAtExit ||
-				fs_storeall(MetadataDumper::kForegroundDump)) {
-			break;
+	bool metadataStored = false;
+	if (gMetadata != nullptr && gSaveMetadataAtExit) {
+		for (;;) {
+			metadataStored = (fs_storeall(MetadataDumper::kForegroundDump) == STATUS_OK);
+			if (metadataStored) {
+				break;
+			}
+			syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
+			sleep(10);
 		}
-		syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
-		sleep(10);
 	}
-	chunk_unload();
-	// delete gMetadata; // We may do this, but it would slow down restarts of the master server
-	if (gSaveMetadataAtExit) {
+	if (metadataStored) {
+		// Remove the lock to say that the server has gently stopped and saved its metadata.
 		fs_unlock();
+	} else if (gMetadata != nullptr && !gSaveMetadataAtExit) {
+		// We will leave the lockfile present to indicate, that our metadata.mfs file should not be
+		// loaded (it is not up to date -- some changelogs need to be applied). Write a message
+		// which tells that the lockfile is not left because of a crash, but because we have been
+		// asked to stop without saving metadata. Include information about version of metadata
+		// which can be recovered using our changelogs.
+		auto message = "quick_stop: " + std::to_string(gMetadata->metaversion) + "\n";
+		gMetadataLockfile->writeMessage(message);
+	} else {
+		// We will leave the lockfile present to indicate, that our metadata.mfs file should not be
+		// loaded (it is not up to date, because we didn't manage to download the most recent).
+		// Write a message which tells that the lockfile is not left because of a crash, but because
+		// we have been asked to stop before loading metadata. Don't overwrite 'quick_stop' though!
+		if (!gMetadataLockfile->hasMessage()) {
+			gMetadataLockfile->writeMessage("no_metadata: 0\n");
+		}
 	}
+}
+
+void fs_disable_metadata_dump_on_exit() {
+	gSaveMetadataAtExit = false;
 }
 
 #else
@@ -8087,6 +8238,9 @@ void fs_storeall(const char *fname) {
 }
 
 void fs_term(const char *fname, bool noLock) {
+	if (!noLock) {
+		gMetadataLockfile->eraseMessage();
+	}
 	fs_storeall(fname);
 	if (!noLock) {
 		fs_unlock();
@@ -8101,11 +8255,16 @@ char const MetadataStructureReadErrorMsg[] = "error reading metadata (structure)
 
 void fs_loadall(const std::string& fname,int ignoreflag) {
 	cstream_t fd(fopen(fname.c_str(), "r"));
+	std::string fnameWithPath;
+	if (fname.front() == '/') {
+		fnameWithPath = fname;
+	} else {
+		fnameWithPath = fs::getCurrentWorkingDirectoryNoThrow() + "/" + fname;
+	}
 	if (fd == nullptr) {
 		throw FilesystemException("can't open metadata file: " + errorString(errno));
 	}
-	lzfs_pretty_syslog(LOG_INFO,"opened metadata file %s/%s",
-				fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str());
+	lzfs_pretty_syslog(LOG_INFO,"opened metadata file %s", fnameWithPath.c_str());
 	uint8_t hdr[8];
 	if (fread(hdr,1,8,fd.get())!=8) {
 		throw MetadataConsistencyException("can't read metadata header");
@@ -8145,16 +8304,15 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 	fs_checksum(ChecksumMode::kForceRecalculate);
 #ifndef METARESTORE
 	lzfs_pretty_syslog(LOG_INFO,
-			"metadata file %s/%s read ("
+			"metadata file %s read ("
 			"%" PRIu32 " inodes including "
 			"%" PRIu32 " directory inodes and "
 			"%" PRIu32 " file inodes, "
 			"%" PRIu32 " chunks)",
-			fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str(),
+			fnameWithPath.c_str(),
 			gMetadata->nodes, gMetadata->dirnodes, gMetadata->filenodes, chunk_count());
 #else
-	lzfs_pretty_syslog(LOG_INFO, "metadata file %s/%s read",
-			fs::getCurrentWorkingDirectoryNoThrow().c_str(), fname.c_str());
+	lzfs_pretty_syslog(LOG_INFO, "metadata file %s read", fnameWithPath.c_str());
 #endif
 	return;
 }
@@ -8165,6 +8323,18 @@ void fs_strinit(void) {
 
 /* executed in master mode */
 #ifndef METARESTORE
+
+/// Returns true iff we are allowed to swallow a stale lockfile and apply changelogs.
+static bool fs_can_do_auto_recovery() {
+	return gAutoRecovery || main_has_extra_argument("auto-recovery", CaseSensitivity::kIgnore);
+}
+
+void fs_erase_message_from_lockfile() {
+	if (gMetadataLockfile != nullptr) {
+		gMetadataLockfile->eraseMessage();
+	}
+}
+
 int fs_loadall(void) {
 	fs_strinit();
 	chunk_strinit();
@@ -8183,9 +8353,10 @@ int fs_loadall(void) {
 	}
 	fs_loadall(kMetadataFilename, 0);
 
-	if (gAutoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
+	bool autoRecovery = fs_can_do_auto_recovery();
+	if (autoRecovery || (metadataserver::getPersonality() == metadataserver::Personality::kShadow)) {
 		lzfs_pretty_syslog_attempt(LOG_INFO, "%s - applying changelogs from %s",
-				(gAutoRecovery ? "AUTO_RECOVERY enabled" : "running in shadow mode"),
+				(autoRecovery ? "AUTO_RECOVERY enabled" : "running in shadow mode"),
 				fs::getCurrentWorkingDirectoryNoThrow().c_str());
 		fs_load_changelogs();
 		lzfs_pretty_syslog(LOG_INFO, "all needed changelogs applied successfully");
@@ -8209,6 +8380,10 @@ const Goal& fs_get_goal_definition(uint8_t goalId) {
  * Initialize subsystems required by Master personality of metadataserver.
  */
 void fs_become_master() {
+	if (!gMetadata) {
+		syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
+		exit(1);
+	}
 	dcm_clear();
 	test_start_time = main_time() + 900;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
@@ -8271,7 +8446,7 @@ static void fs_read_config_file() {
 	gAutoRecovery = cfg_getint32("AUTO_RECOVERY", 0) == 1;
 	gDisableChecksumVerification = cfg_getint32("DISABLE_METADATA_CHECKSUM_VERIFICATION", 0) != 0;
 	gMagicAutoFileRepair = cfg_getint32("MAGIC_AUTO_FILE_REPAIR", 0) == 1;
-	gSaveMetadataAtExit = cfg_getint32("SAVE_METADATA_AT_EXIT", 1) != 0;
+	gAtimeDisabled = cfg_getint32("NO_ATIME", 0) == 1;
 	gStoredPreviousBackMetaCopies = cfg_get_maxvalue(
 			"BACK_META_KEEP_PREVIOUS",
 			kDefaultStoredPreviousBackMetaCopies,
@@ -8282,7 +8457,7 @@ static void fs_read_config_file() {
 			cfg_getint32("METADATA_CHECKSUM_RECALCULATION_SPEED", 100));
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
-	metadataDumper.setUseMetarestore(cfg_getint32("PREFER_BACKGROUND_DUMP", 0));
+	metadataDumper.setUseMetarestore(cfg_getint32("MAGIC_PREFER_BACKGROUND_DUMP", 0));
 
 	fs_read_goal_config_file(); // may throw
 }
@@ -8293,19 +8468,7 @@ void fs_reload(void) {
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
 	}
-	if (cfg_getuint32("DUMP_METADATA_ON_RELOAD", 0) == 1) {
-		fs_storeall(MetadataDumper::kBackgroundDump);
-	}
-	if (cfg_getuint32("RECALCULATE_CHECKSUM_ON_RELOAD", 0) == 1) {
-		fs_start_checksum_recalculation();
-	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		if (!gMetadata) {
-			syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
-			exit(1);
-		}
-		fs_become_master();
-	} else if (metadataserver::isMaster()) {
+	if (metadataserver::isMaster()) {
 		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 		main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
@@ -8428,7 +8591,7 @@ int fs_init(bool doLoad) {
 	}
 	if (!gMetadataLockfile->isLocked()) {
 		try {
-			gMetadataLockfile->lock((gAutoRecovery || !metadataserver::isMaster()) ?
+			gMetadataLockfile->lock((fs_can_do_auto_recovery() || !metadataserver::isMaster()) ?
 					Lockfile::StaleLock::kSwallow : Lockfile::StaleLock::kReject);
 		} catch (const LockfileException& e) {
 			if (e.reason() == LockfileException::Reason::kStaleLock) {
@@ -8439,10 +8602,13 @@ int fs_init(bool doLoad) {
 			throw;
 		}
 	}
+	changelog_init(kChangelogFilename, 0, 50);
+
 	if (doLoad || (metadataserver::isMaster())) {
 		fs_loadall();
 	}
 	main_reloadregister(fs_reload);
+	metadataserver::registerFunctionCalledOnPromotion(fs_become_master);
 	if (!cfg_isdefined("MAGIC_DISABLE_METADATA_DUMPS")) {
 		// Secret option disabling periodic metadata dumps
 		main_timeregister(TIMEMODE_RUN_LATE,3600,0,fs_periodic_storeall);

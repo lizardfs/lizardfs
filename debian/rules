@@ -4,7 +4,11 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-.PHONY: override_dh_strip
+.PHONY: override_dh_strip override_dh_auto_configure
+
+override_dh_auto_configure:
+	./configure --with-doc --with-ha
+
 override_dh_strip:
 	dh_strip --dbg-package=lizardfs-dbg
 

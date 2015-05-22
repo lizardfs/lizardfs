@@ -30,8 +30,11 @@
 #include "common/goal.h"
 #include "common/goal_map.h"
 #include "common/quota.h"
+#include "common/tape_key.h"
+#include "common/tape_copy_location_info.h"
 #include "master/checksum.h"
 #include "master/fs_context.h"
+#include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
@@ -43,7 +46,8 @@ uint64_t fs_getversion();
 uint64_t fs_checksum(ChecksumMode mode);
 
 /// Starts recalculating metadata checksum in background.
-void fs_start_checksum_recalculation();
+/// \return STATUS_OK iff dump started successfully, otherwise cause of the failure.
+uint8_t fs_start_checksum_recalculation();
 
 /// Load and apply changelogs.
 void fs_load_changelogs();
@@ -54,9 +58,9 @@ int fs_loadall();
 /*! \brief Dump current state of file system metadata.
  *
  * \param dumpType - choose between foreground and background dumping.
- * \return True iff dump completed succefully.
+ * \return STATUS_OK iff dump started/completed successfully, otherwise cause of the failure.
  */
-bool fs_storeall(MetadataDumper::DumpType dumpType);
+uint8_t fs_storeall(MetadataDumper::DumpType dumpType);
 
 // Functions which create/apply (depending on the given context) changes to the metadata.
 // Common for metarestore and master server (both personalities)
@@ -202,6 +206,17 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 uint8_t fs_get_chunkid(const FsContext& context,
 		uint32_t inode, uint32_t index, uint64_t *chunkid);
 
+// TAPES
+
+/// Adds information that the given file has a copy on the given tapeserver.
+uint8_t fs_add_tape_copy(const TapeKey& takeKey, TapeserverId tapeserver);
+
+/// Called after a tapeserver disconnects.
+uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver);
+
+/// Get list of tape copies created
+uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations);
+
 // SPECIAL - LOG EMERGENCY INCREASE VERSION FROM CHUNKS-MODULE
 void fs_incversion(uint64_t chunkid);
 
@@ -212,6 +227,14 @@ const GoalMap<Goal>& fs_get_goal_definitions();
 
 /// Return the current definition of the given (by ID) goal.
 const Goal& fs_get_goal_definition(uint8_t goalId);
+
+// Disable saving metadata on exit
+void fs_disable_metadata_dump_on_exit();
+
+/// Erases a message from metadata lockfile.
+/// This function should be called before the first operation which may change
+/// files in data dir (e.g., rotation of logs, creating new metadata file, ...)
+void fs_erase_message_from_lockfile();
 
 int fs_init(void);
 int fs_init(bool force);

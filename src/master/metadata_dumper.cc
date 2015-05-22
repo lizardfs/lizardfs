@@ -116,7 +116,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 			return false;
 		case 0:
 			close(pipeFd[0]); // ignore close error
-			if (dup2(pipeFd[1], 1)  == -1) {
+			if (dup2(pipeFd[1], STDOUT_FILENO)  == -1) {
 				// can't give the response
 				lzfs_pretty_errlog(LOG_ERR, "dup2 failed, dump by master");
 				dumpingSucceeded_ = false;

@@ -3,6 +3,8 @@
 
 #include <unistd.h>
 #include <sys/file.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "common/cwrap.h"
 #include "common/massert.h"
@@ -23,7 +25,7 @@ void Lockfile::lock(StaleLock staleLock) {
 	}
 	fd_.reset(::open(name_.c_str(), O_CREAT | O_RDWR | (existed ? 0 : O_EXCL), 0644));
 	if (!fd_.isOpened()) {
-		FilesystemException("Cannot open " + name_ + ": " + strerr(errno));
+		throw FilesystemException("Cannot open " + name_ + ": " + strerr(errno));
 	}
 	int ret = flock(fd_.get(), LOCK_EX | LOCK_NB);
 	if (ret == 0) {
@@ -49,5 +51,29 @@ void Lockfile::unlock() {
 
 bool Lockfile::isLocked() const {
 	return fd_.isOpened();
+}
+
+bool Lockfile::hasMessage() const {
+	sassert(fd_.isOpened());
+	struct stat st;
+	if (::fstat(fd_.get(), &st) != 0) {
+		throw FilesystemException("fstat of lockfile " + name_ + " failed: " + strerr(errno));
+	}
+	return st.st_size > 0;
+}
+
+void Lockfile::eraseMessage() {
+	sassert(fd_.isOpened());
+	if (::ftruncate(fd_.get(), 0) != 0) {
+		throw FilesystemException("Truncation of lockfile " + name_ + " failed: " + strerr(errno));
+	}
+}
+
+void Lockfile::writeMessage(std::string const& message) {
+	sassert(fd_.isOpened());
+	eraseMessage();
+	if (::write(fd_.get(), message.data(), message.length()) != static_cast<ssize_t>(message.length())) {
+		throw FilesystemException("Writing to lockfile " + name_ + " failed: " + strerr(errno));
+	}
 }
 

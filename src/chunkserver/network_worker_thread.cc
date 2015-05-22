@@ -283,6 +283,8 @@ void worker_delayed_close(uint8_t status, void *e) {
 	csserventry *eptr = (csserventry*) e;
 	if (eptr->wjobid > 0 && eptr->wjobwriteid == 0 && status == STATUS_OK) { // this was job_open
 		eptr->chunkisopen = 1;
+	} else if (eptr->rjobid > 0 && status == STATUS_OK) { //this could be job_open
+		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
 		job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
@@ -293,7 +295,7 @@ void worker_delayed_close(uint8_t status, void *e) {
 
 // bg reading
 
-void worker_read_continue(csserventry *eptr, bool isFirst = false);
+void worker_read_continue(csserventry *eptr);
 
 void worker_read_finished(uint8_t status, void *e) {
 	TRACETHIS();
@@ -301,6 +303,7 @@ void worker_read_finished(uint8_t status, void *e) {
 	eptr->rjobid = 0;
 	if (status == STATUS_OK) {
 		eptr->todocnt--;
+		eptr->chunkisopen = 1;
 		if (eptr->todocnt == 0) {
 			worker_read_continue(eptr);
 		}
@@ -312,8 +315,10 @@ void worker_read_finished(uint8_t status, void *e) {
 		std::vector<uint8_t> buffer;
 		eptr->messageSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, status);
 		worker_create_attached_packet(eptr, buffer);
-		job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
-		eptr->chunkisopen = 0;
+		if (eptr->chunkisopen) {
+			job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
+			eptr->chunkisopen = 0;
+		}
 		eptr->state = IDLE; // after sending status even if there was an error it's possible to
 		// receive new requests on the same connection
 		LOG_AVG_STOP(eptr->readOperationTimer);
@@ -328,7 +333,7 @@ void worker_send_finished(csserventry *eptr) {
 	}
 }
 
-void worker_read_continue(csserventry *eptr, bool isFirst) {
+void worker_read_continue(csserventry *eptr) {
 	TRACETHIS2(eptr->offset, eptr->size);
 
 	if (eptr->rpacket) {
@@ -340,6 +345,7 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		std::vector<uint8_t> buffer;
 		eptr->messageSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, STATUS_OK);
 		worker_create_attached_packet(eptr, buffer);
+		sassert(eptr->chunkisopen);
 		job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE; // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
@@ -362,7 +368,7 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 		eptr->rpacket = (void*)packet;
 		uint32_t readAheadBlocks = 0;
 		uint32_t maxReadBehindBlocks = 0;
-		if (isFirst) {
+		if (!eptr->chunkisopen) {
 			if (gHDDReadAhead.blocksToBeReadAhead() > 0) {
 				readAheadBlocks = totalRequestBlocks + gHDDReadAhead.blocksToBeReadAhead();
 			}
@@ -374,7 +380,7 @@ void worker_read_continue(csserventry *eptr, bool isFirst) {
 				eptr->version, eptr->chunkType, eptr->offset, thisPartSize,
 				maxReadBehindBlocks,
 				readAheadBlocks,
-				packet->outputBuffer.get(), isFirst);
+				packet->outputBuffer.get(), !eptr->chunkisopen);
 		if (eptr->rjobid == 0) {
 			eptr->state = CLOSE;
 			return;
@@ -444,12 +450,11 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 	}
 	// Process the request
 	stats_hlopr++;
-	eptr->chunkisopen = 1;
 	eptr->state = READ;
 	eptr->todocnt = 0;
 	eptr->rjobid = 0;
 	LOG_AVG_START0(eptr->readOperationTimer, "csserv_read");
-	worker_read_continue(eptr, true);
+	worker_read_continue(eptr);
 }
 
 void worker_prefetch(csserventry *eptr, const uint8_t *data, PacketHeader::Type type, PacketHeader::Length length) {

@@ -1,3 +1,5 @@
+timeout_set 1 minute
+
 verify_file() {
 	local file="$1"
 	local grep='grep -Hn --color=auto'

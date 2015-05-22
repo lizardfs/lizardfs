@@ -319,6 +319,9 @@ int topology_parseline(char *line,uint32_t lineno,uint32_t *fip,uint32_t *tip,ui
 	while (*p==' ' || *p=='\t') {
 		p++;
 	}
+	if (*p==0 || *p=='\r' || *p=='\n') {
+		return -1;
+	}
 	net = p;
 	while (*p && *p!=' ' && *p!='\t') {
 		p++;

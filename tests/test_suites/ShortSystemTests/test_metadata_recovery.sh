@@ -4,8 +4,6 @@ master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 master_cfg+="|AUTO_RECOVERY = 1"
 master_cfg+="|EMPTY_TRASH_PERIOD = 1"
 master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
-master_cfg+="|RECALCULATE_CHECKSUM_ON_RELOAD = 1"
-master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum:$TEMP_DIR/log"
 
 CHUNKSERVERS=3 \
 	MOUNTS=2 \
@@ -33,8 +31,7 @@ metadata=$(metadata_print)
 
 # Check if the metadata checksum is fine.
 # Possible checksum mismatch will be reported at the end of the test.
-lizardfs_master_daemon reload
-assert_eventually 'egrep "master.fs.checksum.updater_end" "$TEMP_DIR/log"'
+assert_success lizardfs_admin_master magic-recalculate-metadata-checksum
 
 # simulate master server failure and recovery
 sleep 3

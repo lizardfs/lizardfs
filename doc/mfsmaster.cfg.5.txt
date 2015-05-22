@@ -22,9 +22,10 @@ Lines starting with *#* character are ignored.
 Configuration options:
 
 *PERSONALITY*::
-Current 'personality' of this instance of metadata server.
-Valid values are 'master' and 'shadow'. Only one metadata server in LizardFS shall have 'master'
-personality. +
+Current 'personality' of this instance of metadata server. Valid values are 'master', 'shadow'
+and 'ha-cluster-managed'. If installation is managed by an HA cluster the only valid value is
+'ha-cluster-managed', otherwise the only valid values are 'master' and 'shadow', in which case
+only one metadata server in LizardFS shall have 'master' personality. +
 PERSONALITY = 'master' +
 means that this instance of metadata server acts as main metadata server
 govering all file system metadata modifications. +
@@ -32,14 +33,12 @@ PERSONALITY = 'shadow' +
 means that this instance of metadata server acts as backup metadata server
 ready for immediate deployment as new 'master' in case of current 'master' failure. +
 Metadata server personality can be changed at any moment as long as one changes personality from
-'shadow' to 'master', changing personality the other way around is forbidden.
+'shadow' to 'master', changing personality the other way around is forbidden. +
+PERSONALITY = 'ha-cluster-managed' +
+means that this instance is managed by HA cluster, server runs in 'shadow' mode as long as its not remotly promoted to 'master'.
 
 *DATA_PATH*::
 where to store metadata files and lock file
-
-*LOCK_FILE*::
-(deprecated)
-daemon lock/pid file
 
 *WORKING_USER*::
 user to run daemon as
@@ -106,6 +105,12 @@ IP address to listen on for client (mount) connections (*** means any)
 *MATOCL_LISTEN_PORT*::
 port to listen on for client (mount) connections (default is 9421)
 
+*MATOTS_LISTEN_HOST*::
+IP address to listen on for tapeserver connections (*** means any)
+
+*MATOTS_LISTEN_PORT*::
+Port to listen on for tapeserver connections (default is 9424)
+
 *CHUNKS_LOOP_MIN_TIME*::
 Chunks loop shouldn't be done in less seconds than given number (default is 300)
 
@@ -123,6 +128,14 @@ Maximum number of chunks to replicate to one chunkserver (default is 2)
 
 *CHUNKS_READ_REP_LIMIT*::
 Maximum number of chunks to replicate from one chunkserver (default is 10)
+
+*ENDANGERED_CHUNKS_PRIORITY*::
+Percentage of endangered chunks that should be replicated with high priority.
+Example: when set to 0.2, up to 20% of chunks served in one turn would be extracted
+from endangered priority queue.
+When set to 1 (max), no other chunks would be processed as long as there are
+any endangered chunks in the queue (not advised)
+(default is 0, i.e. there is no overhead for prioritizing endangered chunks).
 
 *ACCEPTABLE_DIFFERENCE*::
 A maximum difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
@@ -165,8 +178,18 @@ how fast should metadata be recalculated in background (default : 100 objects pe
 *DISABLE_METADATA_CHECKSUM_VERIFICATION*::
 should checksum verification be disabled while applying changelog
 
-*SAVE_METADATA_AT_EXIT*::
-enable dumping metadata when performed a 'stop' or 'restart' action (default is 1)
+*NO_ATIME*::
+when this option is set to 1 inode access time is not updated on every access, otherwise
+(when set to 0) it is updated (default is 0)
+
+*METADATA_SAVE_REQUEST_MIN_PERIOD*::
+minimal time in seconds between metadata dumps caused by requests from shadow masters
+(default is 1800)
+
+*SESSION_SUSTAIN_TIME*::
+Time in seconds for which client session data (e.g. list of open files) should be sustained
+in the master server after connection with the client was lost.
+Values between 60 and 604800 (one week) are accepted. (default is 86400)
 
 Options below are mandatory for all Shadow instances:
 
@@ -178,7 +201,7 @@ port number where LizardFS metadata server currently running as 'master' listens
 from 'shadow's and metaloggers (default is 9420)
 
 *MASTER_RECONNECTION_DELAY*::
-delay in seconds before trying to reconnect to metadata server after disconnection (default is 30)
+delay in seconds before trying to reconnect to metadata server after disconnection (default is 1)
 
 *MASTER_TIMEOUT*::
 timeout (in seconds) for metadata server connections (default is 60)
@@ -197,7 +220,7 @@ hard limit.
 
 == COPYRIGHT
 
-Copyright 2008-2009 Gemius SA, 2013-2014 Skytechnology sp. z o.o.
+Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.
 
 LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, version 3.

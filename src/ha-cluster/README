@@ -1,0 +1,76 @@
+This directory contains an OCF resource agent, for managing failover between a
+live mfs-master instance and a shadow master.
+
+To use this, you will need a cluster resource manager like Pacemaker.  Follow
+the instructions for setting up a basic cluster found in Clusters from
+Scratch[1], which has several variants depending on your distro and exactly
+what set of versions and frontend packages your distro has, up though chapter
+5, Creating and Active/Passive cluster.  This will show you how to configure a
+basic cluster setup, and a mobile IP that will move to whichever node is the
+current master, so that clients don't have to be part of the cluster and
+receive notification when the master changes, but simply continue to contact
+the same IP.
+
+Ensure that you have mfsmaster, lizardfs-probe, and the resource agent installed
+on all machines that you want to run master or shadow master servers on.
+
+Once Corosync and Pacemaker are configured, and you have a working cluster
+with an IP resource that you can bounce around, you can add a LizardFS
+master/slave pair as follows.  This is using the configuration syntax of
+crmsh, which I've found works best on Ubuntu, though the syntax for pcs will
+be fairly similar:
+
+$ crm configure primitive lizardfs-master ocf:lizardfs:mfsmaster \
+    op monitor role="Master" interval="10s" \
+    op monitor role="Slave" interval="20s"
+
+where Failover-IP is IP address of bouncing master server that shall be used
+by all master's clients.
+
+$ crm configure ms lizardfs-ms lizardfs-master \
+    meta master-max="1" master-node-max="1" clone-max="N" clone-node-max="1" \
+    notify="true" target-role="Master"
+
+where N is number of nodes with lizardfs-master installed.
+Alternatively one can skip all node/master count options entirely, so command becomes:
+
+$ crm configure ms lizardfs-ms lizardfs-master \
+    meta notify="true" target-role="Master"
+
+Note that most of the config options don't need to be provided; we supply
+sensible defaults.  The "ms" (master-slave) options all do need to be provided,
+however.
+
+Now you should have two resources, and if you have at least two servers in
+your Pacemaker cluster, you should see one running on each of two servers.
+
+To make this truly useful, we want to have the cluster IP (which you should have
+set up earlier if you followed the Clusters from Scratch instructions) follow
+the master around.  We want it to always be on the server that the master is on,
+and come up after the master has come up.  We can achieve that with:
+
+$ crm configure colocation ip-with-master inf: ClusterIP lizardfs-ms:Master
+$ crm configure order ip-after-master inf: lizardfs-ms:promote ClusterIP:start
+
+You can now play around; bring them all down to slave states with the
+following:
+
+$ crm resource demote lizardfs-clone
+
+And back with:
+
+$ crm resource promote lizardfs-clone
+
+Or you can temporarily take one node offline, moving all resources from it:
+
+$ crm node standby machine-1
+
+And later:
+
+$ crm node online machine-1
+
+Now just configure your chunk servers, cgi server, and clients to point at
+the ClusterIP that you configured, and they should all fail over gracefully
+to the current master server, whichever that is.
+
+[1]: http://clusterlabs.org/doc/

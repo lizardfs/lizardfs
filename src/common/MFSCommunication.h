@@ -18,7 +18,7 @@
 
 #pragma once
 
-// all data field transfered in network order.
+// all data field transferred in network order.
 // packet structure:
 // type:32 length:32 data:lengthB
 //
@@ -136,7 +136,7 @@
 #define ERROR_NOTLOCKED               46    // No such lock
 #define ERROR_WRONGLOCKID             47    // Wrong lock id
 #define ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
-#define ERROR_RESERVED2               49
+#define ERROR_TEMP_NOTPOSSIBLE        49    // Operation temporarily not possible
 #define ERROR_RESERVED3               50
 #define ERROR_RESERVED4               51
 
@@ -192,7 +192,7 @@
 	"No such lock", \
 	"Wrong lock id", \
 	"Operation not possible", \
-	"Unknown MFS error", \
+	"Operation temporarily not possible", \
 	"Unknown MFS error", \
 	"Unknown MFS error", \
 	"Unknown MFS error"
@@ -417,6 +417,10 @@ enum class SugidClearMode {
 /// rver==0xFF:8 logversion:64 logdata:STRING
 /// rver==0x55:8 // LOG_ROTATE
 
+// 0x041C
+#define LIZ_MATOML_END_SESSION (1000U + 52)
+/// -
+
 // 0x003C
 #define MLTOMA_DOWNLOAD_START (PROTO_BASE+60)
 /// filenum:8
@@ -454,6 +458,10 @@ enum class SugidClearMode {
 // 0x42C
 #define LIZ_MATOML_CHANGELOG_APPLY_ERROR (1000U + 68)
 /// status:8
+
+// 0x42D
+#define LIZ_MLTOMA_CLTOMA_PORT (1000U + 69)
+/// port:16
 
 // CHUNKSERVER <-> MASTER
 
@@ -1468,6 +1476,14 @@ enum class SugidClearMode {
 #define MATOCL_MLOG_LIST (PROTO_BASE+523)
 // N * [ version:32 ip:32 ]
 
+// 0x05F2
+#define LIZ_CLTOMA_METADATASERVERS_LIST (1000U + 522U)
+/// -
+
+// 0x05F3
+#define LIZ_MATOCL_METADATASERVERS_LIST (1000U + 523U)
+// masterversion:32 data:(N * [ ip:32 hostname:STDSTRING version:32])
+
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
 /// ip:32 port:16
@@ -1570,32 +1586,136 @@ enum class SugidClearMode {
 #define LIZ_CLTOMA_METADATASERVER_STATUS (1000U + 545U)
 /// msgid:32
 
-// 0x060a
+// 0x060A
 #define LIZ_MATOCL_METADATASERVER_STATUS (1000U + 546U)
 /// msgid:32 serverstatus:8 metadataversion:64
 
-// 0x060b
+// 0x060D
 #define LIZ_CLTOMA_LIST_GOALS (1000U + 547U)
 /// dummy:8
 
-// 0x060c
+// 0x060C
 #define LIZ_MATOCL_LIST_GOALS (1000U + 548U)
 /// goals:(vector<uint16_t, STDSTRING, STDSTRING>)
 
-// 0x060d
+// 0x060D
 #define LIZ_CLTOMA_CSERV_LIST (1000U + 549U)
 /// dummy:8
 
-// 0x060e
+// 0x060E
 #define LIZ_MATOCL_CSERV_LIST (1000U + 550U)
 /// chunkservers:(vector<ChunkserverListEntry>)
 
+// 0x060F
+#define LIZ_CLTOMA_HOSTNAME (1000U + 551U)
+/// -
+
+// 0x0610
+#define LIZ_MATOCL_HOSTNAME (1000U + 552U)
+/// hostname:STDSTRING
+
+// 0x0611
+#define LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE (1000U + 553U)
+/// -
+
+// 0x0612
+#define LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE (1000U + 554U)
+/// challenge:BYTES[32]
+
+// 0x0613
+#define LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE (1000U + 555U)
+/// response:BYTES[16]
+
+// 0x0614
+#define LIZ_MATOCL_ADMIN_REGISTER_RESPONSE (1000U + 556U)
+/// status:8
+
+// 0x0615
+#define LIZ_CLTOMA_ADMIN_BECOME_MASTER (1000U + 557U)
+/// -
+
+// 0x0616
+#define LIZ_MATOCL_ADMIN_BECOME_MASTER (1000U + 558U)
+/// status:8
+
+// 0x0617
+#define LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP (1000U + 559U)
+/// -
+
+// 0x0618
+#define LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP (1000U + 560U)
+/// status:8
+
+// 0x0619
+#define LIZ_CLTOMA_ADMIN_RELOAD (1000U + 561U)
+/// -
+
+// 0x061A
+#define LIZ_MATOCL_ADMIN_RELOAD (1000U + 562U)
+/// status:8
+
+// 0x061B
+#define LIZ_CLTOMA_ADMIN_SAVE_METADATA (1000U + 563U)
+/// asynchronous:8
+
+// 0x061C
+#define LIZ_MATOCL_ADMIN_SAVE_METADATA (1000U + 564U)
+/// status:8
+
+// 0x061D
+#define LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 565U)
+/// asynchronous:8
+
+// 0x061E
+#define LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM (1000U + 566U)
+/// status:8
+
+// 0x061F
+#define LIZ_CLTOMA_TAPE_INFO (1000U + 567U)
+/// msgid:32 inode:32
+
+// 0x0620
+#define LIZ_MATOCL_TAPE_INFO (1000U + 568U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 copies:(vector<TapeWithAddressAndStatus>)
+
+// 0x621
+#define LIZ_CLTOMA_LIST_TAPESERVERS (1000U + 569U)
+/// -
+
+// 0x622
+#define LIZ_MATOCL_LIST_TAPESERVERS (1000U + 570U)
+/// tapeservers:(vector<TapeserverInfo>)
+
 // CHUNKSERVER STATS
 
-// 0x00258
+// 0x0258
 #define CLTOCS_HDD_LIST_V2 (PROTO_BASE+600)
 /// -
 
-// 0x00259
+// 0x0259
 #define CSTOCL_HDD_LIST_V2 (PROTO_BASE+601)
 // N*[ entrysize:16 path:NAME flags:8 errchunkid:64 errtime:32 used:64 total:64 chunkscount:32 bytesread:64 usecread:64 usecreadmax:64 byteswriten:64 usecwrite:64 usecwritemax:64]
+
+// TAPESERVER <-> MASTER
+
+// 0x06A4
+#define LIZ_TSTOMA_REGISTER_TAPESERVER (1000U + 700U)
+/// vershex:32
+
+// 0x06A5
+#define LIZ_MATOTS_REGISTER_TAPESERVER (1000U + 701U)
+/// version==0 status:8
+/// version==1 vershex:32
+
+// 0x06A6
+#define LIZ_TSTOMA_HAS_FILES (1000U + 702U)
+/// tapecontents:(vector<inode:32,mtime:32,length:64>)
+
+// 0x06A7
+#define LIZ_TSTOMA_END_OF_FILES (1000U + 703U)
+/// -
+
+// 0x06A8
+#define LIZ_MATOTS_PUT_FILES (1000U + 704U)
+/// tapecontents:(vector<inode:32,mtime:32,length:64>)

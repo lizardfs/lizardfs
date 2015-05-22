@@ -21,7 +21,6 @@
 #include <errno.h>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <fstream>
 

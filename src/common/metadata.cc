@@ -51,7 +51,10 @@ uint64_t metadataGetVersion(const std::string& file) {
 	if (fd<0) {
 		throw MetadataCheckException("Can't open the metadata file");
 	}
-	if (read(fd,chkbuff,20)!=20) {
+
+	int bytes = read(fd,chkbuff,20);
+
+	if (bytes < 8) {
 		close(fd);
 		throw MetadataCheckException("Can't read the metadata file");
 	}
@@ -59,6 +62,11 @@ uint64_t metadataGetVersion(const std::string& file) {
 		close(fd);
 		return 0;
 	}
+	if (bytes != 20) {
+		close(fd);
+		throw MetadataCheckException("Can't read the metadata file");
+	}
+
 	if (memcmp(chkbuff,MFSSIGNATURE "M 1.",7)==0 && chkbuff[7]>='5' && chkbuff[7]<='6') {
 		memset(eofmark,0,16);
 	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8)==0) {

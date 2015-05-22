@@ -9,6 +9,7 @@
 #include "common/chunks_availability_state.h"
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
+#include "common/metadataserver_list_entry.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
@@ -16,6 +17,7 @@
 #include "common/quota.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
+#include "common/tape_copy_location_info.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
@@ -125,6 +127,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		std::string, subsystem,
 		std::vector<IoGroupAndLimit>, groupsAndLimits)
 
+// LIZ_MATOCL_METADATASERVER_STATUS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, metadataserverStatus, LIZ_MATOCL_METADATASERVER_STATUS, 0,
 		uint32_t, messageId,
@@ -183,6 +186,12 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, cservList, LIZ_MATOCL_CSERV_LIST, 0,
 		std::vector<ChunkserverListEntry>, cservList)
 
+// LIZ_MATOCL_METADATASERVERS_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, metadataserversList, LIZ_MATOCL_METADATASERVERS_LIST, 0,
+		uint32_t, masterVersion,
+		std::vector<MetadataserverListEntry>, shadowList)
+
 // LIZ_MATOCL_CHUNK_INFO
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kResponsePacketVersion, 1)
@@ -199,6 +208,66 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint64_t, chunkId,
 		uint32_t, chunkVersion,
 		std::vector<ChunkWithAddressAndLabel>, chunks)
+
+// LIZ_MATOCL_HOSTNAME
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, hostname, LIZ_MATOCL_HOSTNAME, 0,
+		std::string, hostname)
+
+// LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE
+typedef std::array<uint8_t, 32> LizMatoclAdminRegisterChallengeData;
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminRegisterChallenge, LIZ_MATOCL_ADMIN_REGISTER_CHALLENGE, 0,
+		LizMatoclAdminRegisterChallengeData, data)
+
+// LIZ_MATOCL_ADMIN_REGISTER_RESPONSE
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminRegisterResponse, LIZ_MATOCL_ADMIN_REGISTER_RESPONSE, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_BECOME_MASTER
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminBecomeMaster, LIZ_MATOCL_ADMIN_BECOME_MASTER, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminStopWithoutMetadataDump, LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_RELOAD
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminReload, LIZ_MATOCL_ADMIN_RELOAD, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_SAVE_METADATA
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminSaveMetadata, LIZ_MATOCL_ADMIN_SAVE_METADATA, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, adminRecalculateMetadataChecksum, LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM, 0,
+		uint8_t, status)
+
+// LIZ_MATOCL_TAPE_INFO
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, tapeInfo, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, tapeInfo, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, tapeInfo, LIZ_MATOCL_TAPE_INFO, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, tapeInfo, LIZ_MATOCL_TAPE_INFO, kResponsePacketVersion,
+		uint32_t, messageId,
+		std::vector<TapeCopyLocationInfo>, chunks)
+
+// LIZ_MATOCL_TAPESERVERS_LIST
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, listTapeservers, LIZ_MATOCL_LIST_TAPESERVERS, 0,
+		std::vector<TapeserverListEntry>, tapeservers)
 
 // LIZ_MATOCL_FUSE_TRUNCATE
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kStatusPacketVersion, 0)

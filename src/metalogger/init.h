@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "metalogger/masterconn.h"
+#include "master/masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -36,5 +36,7 @@ run_tab RunTab[]={
 	{masterconn_init,"connection with master"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
+	{(runfn)0,"****"}
+},EarlyRunTab[]={
 	{(runfn)0,"****"}
 };

@@ -48,4 +48,6 @@ run_tab RunTab[]={
 	{hdd_late_init,"hdd space manager - threads"},
 	{mainNetworkThreadInitThreads,"main server module - threads"},
 	{(runfn)0,"****"}
+},EarlyRunTab[]={
+	{(runfn)0,"****"}
 };

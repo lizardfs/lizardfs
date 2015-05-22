@@ -18,10 +18,7 @@ lizardfs-polonaise-server \
 sleep 3
 mnt="$TEMP_DIR/mfspolon"
 mkdir -p "$mnt"
-
-# fsname below is important. When the test is ended framework unmounts all the filesystems
-# that match a given regex.
-polonaise-fuse-client "$mnt" -o big_writes,allow_other,fsname=mfspolon &
+polonaise-fuse-client "$mnt" -o big_writes,allow_other &
 assert_eventually 'mfsdirinfo "$mnt"'
 
 # Perform a compilation

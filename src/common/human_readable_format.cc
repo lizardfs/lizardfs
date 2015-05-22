@@ -18,8 +18,8 @@ static std::string convertToHumanReadableFormat(const uint64_t inputNumber, cons
 	if (inputNumber < base) {
 		ss << inputNumber;
 	} else {
-		uint16_t exp = static_cast<uint16_t>(log(inputNumber) / log(base));
-		double number = inputNumber / pow(base, exp);
+		uint16_t exp = static_cast<uint16_t>(std::log(inputNumber) / std::log(base));
+		double number = inputNumber / std::pow(base, exp);
 
 		if (number > base - 1) { // e.g. 1023.9MiB is almost like 1024MiB, so we convert it to 1.0GiB
 			number /= base;

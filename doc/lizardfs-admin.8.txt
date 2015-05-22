@@ -1,0 +1,104 @@
+lizardfs-admin(8)
+=================
+
+== NAME
+
+lizardfs-admin, lizardfs-probe - LizardFS monitoring and administration tool
+
+== SYNOPSIS
+
+**lizardfs-admin** __COMMAND__ [OPTIONS...] [ARGUMENTS...]
+
+== Available COMMANDs
+
+*chunks-health* __<master ip> <master port>__::
+  Returns chunks health reports in the installation.
+  By default (if no report is specified) all reports will be shown.
+  In replication and deletion states, the column means the number of chunks
+  with number of copies specified in the label to replicate/delete. +
+  Possible command-line options: +
+  --availability +
+    Print report about availability of chunks. +
+  --replication +
+    Print report about about number of chunks that need replication. +
+  --deletion +
+    Print report about about number of chunks that need deletion. +
+
+*info* __<master ip> <master port>__::
+  Prints statistics concerning the LizardFS installation.
+
+*iolimits-status* __<master ip> <master port>__::
+  Prints current configuration of global I/O limiting
+
+*list-chunkservers* __<master ip> <master port>__::
+  Prints information about all connected chunkservers.
+
+*list-disks* __<master ip> <master port>__::
+  Prints information about all connected chunkservers. +
+  Possible command-line options: +
+  --verbose +
+    Be a little more verbose and show operations statistics.
+
+*list-goals* __<master ip> <master port>__::
+  List goal definitions. +
+  Possible command-line options: +
+  --pretty +
+    Print nice table
+
+*list-mounts* __<master ip> <master port>__::
+  Prints information about all connected mounts. +
+  Possible command-line options +
+  --verbose +
+    Be a little more verbose and show goal and trash time limits.
+
+*metadataserver-status* __<master ip> <master port>__::
+  Prints status of a master or shadow master server
+
+*list-metadataservers* __<master ip> <master port>__::
+  Prints status of active metadata servers.
+
+*ready-chunkservers-count* __<master ip> <master port>__::
+  Prints number of chunkservers ready to be written to.
+
+*promote-shadow* __<shadow ip> <shadow port>__::
+  Promotes metadata server. Works only if personality 'ha-cluster-managed' is used.
+  Authentication with the admin password is required.
+
+*stop-master-without-saving-metadata* __<master ip> <master port>__::
+  Stop the master server without saving metadata in the metadata.mfs file.
+  Used to quickly migrate a metadata server (works for all personalities).
+  Authentication with the admin password is required.
+
+*reload-config* __<master ip> <master port>__::
+  Requests reloading configuration from the config file.
+  This is synchronous (waits for reload to finish).
+  Authentication with the admin password is required.
+
+*save-metadata* __<metadataserver ip> <metadataserver port>__::
+    Requests saving the current state of metadata into the metadata.mfs file.
+    With --async fail if the process cannot be started, e.g. because the process
+    is already in progress. Without --async, fails if either the process cannot be
+    started or if it finishes with an error (i.e., no metadata file is created).
+    Authentication with the admin password is required. +
+    Possible command-line options: +
+    --async +
+      Don't wait for the task to finish.
+
+== COMMON COMMAND OPTIONS
+
+*--porcelain*::
+  Make the output parsing-friendly.
+
+== COPYRIGHT
+
+2013-2015 Skytechnology sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along with LizardFS. If not, see
+<http://www.gnu.org/licenses/>.

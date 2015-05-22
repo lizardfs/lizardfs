@@ -26,12 +26,13 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
+#include "master/masterconn.h"
 #include "master/matoclserv.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
+#include "master/matotsserv.h"
 #include "master/personality.h"
 #include "master/topology.h"
-#include "metalogger/masterconn.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
@@ -46,7 +47,6 @@ struct run_tab {
 
 run_tab RunTab[]={
 	{metadataserver::personality_init, "personality"}, // has to be first
-	{changelog_init,"change log"},
 	{rnd_init,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matoclserv_networkinit'
 	{matoclserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'
@@ -57,8 +57,12 @@ run_tab RunTab[]={
 	{masterconn_init,"communication with master server"},
 	{matomlserv_init,"communication with metalogger"},
 	{matocsserv_init,"communication with chunkserver"},
+	{matotsserv_init,"communication with taperserver"},
 	{matoclserv_networkinit,"communication with clients"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
+	{(runfn)0,"****"}
+},EarlyRunTab[]={
+	{metadataserver::personality_validate, "validate personality"},
 	{(runfn)0,"****"}
 };

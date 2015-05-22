@@ -1,5 +1,5 @@
 USE_RAMDISK=YES \
-	MASTER_EXTRA_CONFIG="DUMP_METADATA_ON_RELOAD = 1|MAGIC_DISABLE_METADATA_DUMPS = 1" \
+	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1" \
 	setup_local_empty_lizardfs info
 lizardfs_metalogger_daemon start
 
@@ -18,9 +18,9 @@ cd "${info[mount0]}"
 for n in {1..10}; do
 	touch file_${n}.{1..10}
 	prev_version=$(metadata_get_version "$metadata_file")
-	lizardfs_master_daemon reload
-	assert_eventually '(( $(metadata_get_version "$metadata_file") > prev_version ))'
-	assert_eventually "test -f '${info[master_data_path]}/changelog.mfs.$n'"
+	assert_success lizardfs_admin_master save-metadata
+	assert_less_than "$prev_version" "$(metadata_get_version "$metadata_file")"
+	assert_file_exists "${info[master_data_path]}/changelog.mfs.$n"
 done
 
 cd ${info[master_data_path]}

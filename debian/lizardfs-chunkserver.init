@@ -17,7 +17,6 @@ DESC=lizardfs-chunkserver
 DEFAULT_WORKING_USER=mfs
 DEFAULT_WORKING_GROUP=mfs
 DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_RUN_PATH=/var/run/mfs
 DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
 COMPAT_CFG=/etc/mfschunkserver.cfg
 
@@ -63,14 +62,12 @@ get_config_value_from_CFGFILE()
 
 if [ -s "$CFGFILE" ]; then
        DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
-       RUN_PATH=$(get_config_value_from_CFGFILE "RUN_PATH")
        WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
        WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 
 fi
 
 : ${DATA_PATH:=$DEFAULT_DATA_PATH}
-: ${RUN_PATH:=$DEFAULT_RUN_PATH}
 : ${WORKING_USER:=$DEFAULT_WORKING_USER}
 : ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
 
@@ -82,12 +79,6 @@ check_dirs()
 	fi
 	chmod 0755 "$DATA_PATH"
 	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
-
-	if [ ! -d "$RUN_PATH" ]; then
-		mkdir -p "$RUN_PATH"
-	fi
-	chmod 0755 "$RUN_PATH"
-	chown -R $WORKING_USER:$WORKING_GROUP "$RUN_PATH"
 }
 
 case "$1" in

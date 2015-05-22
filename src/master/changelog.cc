@@ -26,15 +26,22 @@
 
 #include "common/cfg.h"
 #include "common/main.h"
-#include "master/matomlserv.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
 
-#define MAXLOGLINESIZE 200000U
-#define MAXLOGNUMBER 1000U
+/// Base name of a changelog file.
+/// Sometthing like "changelog.mfs" or "changelog_ml.mfs"
+static std::string gChangelogFilename;
+
+/// Minimal acceptable value of BACK_LOGS config entry.
+static uint32_t gMinBackLogsNumber = 0;
+
+/// Maximal acceptable value of BACK_LOGS config entry.
+static uint32_t gMaxBackLogsNumber = 50;
+
 static uint32_t BackLogsNumber;
-static FILE *fd;
+static FILE *fd = nullptr;
 static bool gFlush = true;
 
 void changelog_rotate() {
@@ -43,61 +50,58 @@ void changelog_rotate() {
 		fd=NULL;
 	}
 	if (BackLogsNumber>0) {
-		rotateFiles(kChangelogFilename, BackLogsNumber);
+		rotateFiles(gChangelogFilename, BackLogsNumber);
 	} else {
-		unlink(kChangelogFilename);
+		unlink(gChangelogFilename.c_str());
 	}
-	matomlserv_broadcast_logrotate();
 }
 
-void changelog(uint64_t version,const char *format,...) {
-	static char printbuff[MAXLOGLINESIZE];
-	va_list ap;
-	uint32_t leng;
-
-	va_start(ap,format);
-	leng = vsnprintf(printbuff,MAXLOGLINESIZE,format,ap);
-	va_end(ap);
-	if (leng>=MAXLOGLINESIZE) {
-		printbuff[MAXLOGLINESIZE-1]='\0';
-		leng=MAXLOGLINESIZE;
-	} else {
-		leng++;
-	}
-
+void changelog(uint64_t version, const char* entry) {
 	if (fd==NULL) {
-		fd = fopen(kChangelogFilename, "a");
+		fd = fopen(gChangelogFilename.c_str(), "a");
 		if (!fd) {
-			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,printbuff);
+			syslog(LOG_NOTICE, "lost metadata change %" PRIu64 ": %s", version, entry);
 		}
 	}
 
 	if (fd) {
-		fprintf(fd,"%" PRIu64 ": %s\n",version,printbuff);
+		fprintf(fd,"%" PRIu64 ": %s\n", version, entry);
 		if (gFlush) {
 			fflush(fd);
 		}
 	}
-	matomlserv_broadcast_logstring(version,(uint8_t*)printbuff,leng);
 }
 
-void changelog_reload(void) {
-	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
-	if (BackLogsNumber>MAXLOGNUMBER) {
-		syslog(LOG_WARNING,"BACK_LOGS value in config too big, maximum allowed is %d", MAXLOGNUMBER);
-		BackLogsNumber = MAXLOGLINESIZE;
-	}
+static void changelog_reload(void) {
+	BackLogsNumber = cfg_get_minmaxvalue<uint32_t>("BACK_LOGS", 50,
+			gMinBackLogsNumber, gMaxBackLogsNumber);
 }
 
-int changelog_init(void) {
-	BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
-	if (BackLogsNumber>MAXLOGNUMBER) {
+void changelog_init(std::string changelogFilename,
+		uint32_t minBackLogsNumber, uint32_t maxBackLogsNumber) {
+	gChangelogFilename = std::move(changelogFilename);
+	gMinBackLogsNumber = minBackLogsNumber;
+	gMaxBackLogsNumber = maxBackLogsNumber;
+	BackLogsNumber = cfg_getuint32("BACK_LOGS", 50);
+	if (BackLogsNumber > gMaxBackLogsNumber) {
 		throw InitializeException(cfg_filename() + ": BACK_LOGS value too big, "
-				"maximum allowed is " + std::to_string(MAXLOGNUMBER));
+				"maximum allowed is " + std::to_string(gMaxBackLogsNumber));
+	}
+	if (BackLogsNumber < gMinBackLogsNumber) {
+		throw InitializeException(cfg_filename() + ": BACK_LOGS value too low, "
+				"minimum allowed is " + std::to_string(gMinBackLogsNumber));
 	}
 	main_reloadregister(changelog_reload);
-	fd = NULL;
-	return 0;
+}
+
+uint32_t changelog_get_back_logs_config_value() {
+	return BackLogsNumber;
+}
+
+void changelog_flush(void) {
+	if (fd) {
+		fflush(fd);
+	}
 }
 
 void changelog_disable_flush(void) {
@@ -106,8 +110,6 @@ void changelog_disable_flush(void) {
 
 void changelog_enable_flush(void) {
 	gFlush = true;
-	if (fd) {
-		fflush(fd);
-	}
+	changelog_flush();
 }
 

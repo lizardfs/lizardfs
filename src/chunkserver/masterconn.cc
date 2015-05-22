@@ -42,11 +42,13 @@
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
 #include "common/goal.h"
+#include "common/input_packet.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_vector.h"
+#include "common/output_packet.h"
 #include "common/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
@@ -58,34 +60,22 @@
 
 // has to be less than MaxPacketSize on master side divided by 8
 #define LOSTCHUNKLIMIT 25000
+// has to be less than MaxPacketSize on master side divided by 12
+#define NEWCHUNKLIMIT 25000
 
 #define BGJOBSCNT 1000
 
 // mode
-enum {FREE,CONNECTING,HEADER,DATA,KILL};
-
-struct InputPacket {
-	uint8_t *startptr;
-	uint32_t bytesLeft;
-	std::vector<uint8_t> packet;
-	InputPacket() : startptr(NULL), bytesLeft(0) {}
-};
-
-struct OutputPacket {
-	std::vector<uint8_t> packet;
-	uint32_t bytesSent;
-
-	OutputPacket() : bytesSent(0) {
-	};
-};
+enum {FREE,CONNECTING,CONNECTED,KILL};
 
 struct masterconn {
+	masterconn() : inputPacket(MaxPacketSize) {}
+
 	int mode;
 	int sock;
 	int32_t pdescpos;
 	Timer lastread,lastwrite;
-	uint8_t hdrbuff[PacketHeader::kSize];
-	InputPacket inputpacket;
+	InputPacket inputPacket;
 	std::list<OutputPacket> outputPackets;
 	uint32_t bindip;
 	uint32_t masterip;
@@ -123,12 +113,7 @@ void masterconn_stats(uint64_t *bin,uint64_t *bout,uint32_t *maxjobscnt) {
 }
 
 void* masterconn_create_detached_packet(uint32_t type,uint32_t size) {
-	OutputPacket* outpacket = new OutputPacket();
-	outpacket->packet.resize(size + PacketHeader::kSize);
-	uint8_t *ptr = outpacket->packet.data();
-	put32bit(&ptr, type);
-	put32bit(&ptr, size);
-	return outpacket;
+	return new OutputPacket(PacketHeader(type, size));
 }
 
 uint8_t* masterconn_get_packet_data(void *packet) {
@@ -147,9 +132,8 @@ void masterconn_attach_packet(masterconn *eptr, void* packet) {
 	delete outputPacket;
 }
 
-void masterconn_create_attached_packet(masterconn *eptr, std::vector<uint8_t> serializedPacket) {
-	eptr->outputPackets.emplace_back();
-	eptr->outputPackets.back().packet = std::move(serializedPacket);
+void masterconn_create_attached_packet(masterconn *eptr, MessageBuffer serializedPacket) {
+	eptr->outputPackets.emplace_back(std::move(serializedPacket));
 }
 
 template<class... Data>
@@ -161,7 +145,7 @@ void masterconn_create_attached_moosefs_packet(masterconn *eptr,
 }
 
 void masterconn_sendregisterlabel(masterconn *eptr) {
-	if (eptr->mode == HEADER || eptr->mode == DATA) {
+	if (eptr->mode == CONNECTED) {
 		masterconn_create_attached_packet(eptr, cstoma::registerLabel::build(gLabel));
 	}
 }
@@ -195,7 +179,7 @@ void masterconn_sendregister(masterconn *eptr) {
 void masterconn_check_hdd_reports() {
 	masterconn *eptr = masterconnsingleton;
 	uint32_t errorcounter;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
+	if (eptr->mode == CONNECTED) {
 		if (hdd_spacechanged()) {
 			uint64_t usedspace,totalspace,tdusedspace,tdtotalspace;
 			uint32_t chunkcount,tdchunkcount;
@@ -246,7 +230,7 @@ void masterconn_check_hdd_reports() {
 void masterconn_jobfinished(uint8_t status, void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
+	if (eptr->mode == CONNECTED) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[8]=status;
 		masterconn_attach_packet(eptr,packet);
@@ -258,7 +242,7 @@ void masterconn_jobfinished(uint8_t status, void *packet) {
 void masterconn_lizjobfinished(uint8_t status, void *packet) {
 	OutputPacket* outputPacket = static_cast<OutputPacket*>(packet);
 	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode == DATA || eptr->mode == HEADER) {
+	if (eptr->mode == CONNECTED) {
 		cstoma::overwriteStatusField(outputPacket->packet, status);
 		masterconn_attach_packet(eptr, packet);
 	} else {
@@ -269,7 +253,7 @@ void masterconn_lizjobfinished(uint8_t status, void *packet) {
 void masterconn_chunkopfinished(uint8_t status,void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
+	if (eptr->mode == CONNECTED) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[32]=status;
 		masterconn_attach_packet(eptr,packet);
@@ -282,7 +266,7 @@ void masterconn_replicationfinished(uint8_t status,void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
 //      syslog(LOG_NOTICE,"job replication status: %" PRIu8,status);
-	if (eptr->mode==DATA || eptr->mode==HEADER) {
+	if (eptr->mode == CONNECTED) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[12]=status;
 		masterconn_attach_packet(eptr,packet);
@@ -521,59 +505,57 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 }
 */
 
-void masterconn_gotpacket(masterconn *eptr,uint32_t type, const std::vector<uint8_t>& data) {
-	try {
-		switch (type) {
-			case ANTOAN_NOP:
-				break;
-			case ANTOAN_UNKNOWN_COMMAND: // for future use
-				break;
-			case ANTOAN_BAD_COMMAND_SIZE: // for future use
-				break;
-			case LIZ_MATOCS_CREATE_CHUNK:
-				masterconn_create(eptr, data);
-				break;
-			case LIZ_MATOCS_DELETE_CHUNK:
-				masterconn_delete(eptr, data);
-				break;
-			case LIZ_MATOCS_SET_VERSION:
-				masterconn_setversion(eptr, data);
-				break;
-			case LIZ_MATOCS_DUPLICATE_CHUNK:
-				masterconn_duplicate(eptr, data);
-				break;
-			case MATOCS_REPLICATE:
-				masterconn_legacy_replicate(eptr, data.data(), data.size());
-				break;
-			case LIZ_MATOCS_REPLICATE_CHUNK:
-				masterconn_replicate(data);
-				break;
-			case MATOCS_CHUNKOP:
-				masterconn_chunkop(eptr, data.data(), data.size());
-				break;
-			case LIZ_MATOCS_TRUNCATE:
-				masterconn_truncate(eptr, data);
-				break;
-			case LIZ_MATOCS_DUPTRUNC_CHUNK:
-				masterconn_duptrunc(eptr,data);
-				break;
-	//              case MATOCS_STRUCTURE_LOG:
-	//                      masterconn_structure_log(eptr,data,length);
-	//                      break;
-	//              case MATOCS_STRUCTURE_LOG_ROTATE:
-	//                      masterconn_structure_log_rotate(eptr,data,length);
-	//                      break;
-			default:
-				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
-				eptr->mode = KILL;
-		}
-	} catch (IncorrectDeserializationException& e) {
-		syslog(LOG_NOTICE,
-				"chunkserver <-> master module: got inconsistent message "
-				"(type:%" PRIu32 ", length:%" PRIu32"), %s",
-				type, uint32_t(data.size()), e.what());
-		eptr->mode = KILL;
+void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBuffer& message) try {
+	switch (header.type) {
+		case ANTOAN_NOP:
+			break;
+		case ANTOAN_UNKNOWN_COMMAND: // for future use
+			break;
+		case ANTOAN_BAD_COMMAND_SIZE: // for future use
+			break;
+		case LIZ_MATOCS_CREATE_CHUNK:
+			masterconn_create(eptr, message);
+			break;
+		case LIZ_MATOCS_DELETE_CHUNK:
+			masterconn_delete(eptr, message);
+			break;
+		case LIZ_MATOCS_SET_VERSION:
+			masterconn_setversion(eptr, message);
+			break;
+		case LIZ_MATOCS_DUPLICATE_CHUNK:
+			masterconn_duplicate(eptr, message);
+			break;
+		case MATOCS_REPLICATE:
+			masterconn_legacy_replicate(eptr, message.data(), message.size());
+			break;
+		case LIZ_MATOCS_REPLICATE_CHUNK:
+			masterconn_replicate(message);
+			break;
+		case MATOCS_CHUNKOP:
+			masterconn_chunkop(eptr, message.data(), message.size());
+			break;
+		case LIZ_MATOCS_TRUNCATE:
+			masterconn_truncate(eptr, message);
+			break;
+		case LIZ_MATOCS_DUPTRUNC_CHUNK:
+			masterconn_duptrunc(eptr, message);
+			break;
+//              case MATOCS_STRUCTURE_LOG:
+//                      masterconn_structure_log(eptr, message.data(), message.size());
+//                      break;
+//              case MATOCS_STRUCTURE_LOG_ROTATE:
+//                      masterconn_structure_log_rotate(eptr, message.data(), message.size());
+//                      break;
+		default:
+			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")", header.type);
+			eptr->mode = KILL;
 	}
+} catch (IncorrectDeserializationException& e) {
+	syslog(LOG_NOTICE,
+			"chunkserver <-> master module: got inconsistent message "
+			"(type:%" PRIu32 ", length:%" PRIu32"), %s",
+			header.type, uint32_t(message.size()), e.what());
+	eptr->mode = KILL;
 }
 
 
@@ -585,7 +567,7 @@ void masterconn_term(void) {
 
 	if (eptr->mode!=FREE && eptr->mode!=CONNECTING) {
 		tcpclose(eptr->sock);
-		eptr->inputpacket.packet.clear();
+		eptr->inputPacket.reset();
 	}
 
 	delete eptr;
@@ -598,10 +580,8 @@ void masterconn_term(void) {
 
 void masterconn_connected(masterconn *eptr) {
 	tcpnodelay(eptr->sock);
-	eptr->mode=HEADER;
-	eptr->inputpacket.bytesLeft = PacketHeader::kSize;
-	eptr->inputpacket.startptr = eptr->hdrbuff;
-	eptr->inputpacket.packet.clear();
+	eptr->mode = CONNECTED;
+	eptr->inputPacket.reset();
 
 	masterconn_sendregister(eptr);
 	eptr->lastread.reset();
@@ -685,68 +665,48 @@ void masterconn_connecttest(masterconn *eptr) {
 }
 
 void masterconn_read(masterconn *eptr) {
-	int32_t i;
 	for (;;) {
-		if (job_pool_jobs_count(jpool)>=(BGJOBSCNT*9)/10) {
+		if (job_pool_jobs_count(jpool) >= (BGJOBSCNT * 9) / 10) {
 			return;
 		}
-		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesLeft);
-		if (i==0) {
-			syslog(LOG_NOTICE,"connection reset by Master");
+		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
+		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
+		if (ret == 0) {
+			lzfs_silent_syslog(LOG_NOTICE, "connection reset by Master");
 			eptr->mode = KILL;
 			return;
-		}
-		if (i<0) {
-			if (errno!=EAGAIN) {
-				lzfs_silent_errlog(LOG_NOTICE,"read from Master error");
+		} else if (ret < 0) {
+			if (errno != EAGAIN) {
+				lzfs_silent_errlog(LOG_NOTICE, "read from Master error");
 				eptr->mode = KILL;
 			}
 			return;
 		}
-		stats_bytesin+=i;
-		eptr->inputpacket.startptr+=i;
-		eptr->inputpacket.bytesLeft-=i;
 
-		if (eptr->inputpacket.bytesLeft>0) {
+		stats_bytesin += ret;
+		try {
+			eptr->inputPacket.increaseBytesRead(ret);
+		} catch (InputPacketTooLongException& ex) {
+			lzfs_silent_syslog(LOG_WARNING, "reading from master: %s", ex.what());
+			eptr->mode = KILL;
+			return;
+		}
+		if (ret == bytesToRead && !eptr->inputPacket.hasData()) {
+			// there might be more data to read in socket's buffer
+			continue;
+		} else if (!eptr->inputPacket.hasData()) {
 			return;
 		}
 
-		PacketHeader header;
-		deserializePacketHeader(eptr->hdrbuff, PacketHeader::kSize, header);
-		if (eptr->mode==HEADER) {
-			if (header.length > 0) {
-				if (header.length > MaxPacketSize) {
-					syslog(LOG_WARNING, "Master packet too long (%" PRIu32 "/%u)",
-							header.length, MaxPacketSize);
-					eptr->mode = KILL;
-					return;
-				}
-				eptr->inputpacket.packet.resize(header.length);
-				eptr->inputpacket.bytesLeft = header.length;
-				eptr->inputpacket.startptr = eptr->inputpacket.packet.data();
-				eptr->mode = DATA;
-				continue;
-			}
-			eptr->mode = DATA;
-		}
-
-		if (eptr->mode==DATA) {
-
-			eptr->mode=HEADER;
-			eptr->inputpacket.bytesLeft = PacketHeader::kSize;
-			eptr->inputpacket.startptr = eptr->hdrbuff;
-
-			masterconn_gotpacket(eptr, header.type, eptr->inputpacket.packet);
-
-			eptr->inputpacket.packet.clear();
-		}
+		masterconn_gotpacket(eptr, eptr->inputPacket.getHeader(), eptr->inputPacket.getData());
+		eptr->inputPacket.reset();
 	}
 }
 
 void masterconn_write(masterconn *eptr) {
 	int32_t i;
 	while (!eptr->outputPackets.empty()) {
-		auto& pack = eptr->outputPackets.front();
+		OutputPacket& pack = eptr->outputPackets.front();
 		i=write(eptr->sock, pack.packet.data() + pack.bytesSent,
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
@@ -777,7 +737,7 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 	if (eptr->mode==FREE || eptr->sock<0) {
 		return;
 	}
-	if (eptr->mode==HEADER || eptr->mode==DATA) {
+	if (eptr->mode == CONNECTED) {
 		pdesc[pos].fd = jobfd;
 		pdesc[pos].events = POLLIN;
 		jobfdpdescpos = pos;
@@ -789,7 +749,7 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 			pos++;
 		}
 	}
-	if (((eptr->mode==HEADER || eptr->mode==DATA) && !eptr->outputPackets.empty())
+	if (((eptr->mode == CONNECTED) && !eptr->outputPackets.empty())
 			|| eptr->mode==CONNECTING) {
 		if (eptr->pdescpos>=0) {
 			pdesc[eptr->pdescpos].events |= POLLOUT;
@@ -819,27 +779,27 @@ void masterconn_serve(struct pollfd *pdesc) {
 			masterconn_connecttest(eptr);
 		}
 	} else {
-		if ((eptr->mode==HEADER || eptr->mode==DATA) && jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
+		if ((eptr->mode == CONNECTED) && jobfdpdescpos>=0 && (pdesc[jobfdpdescpos].revents & POLLIN)) { // FD_ISSET(jobfd,rset)) {
 			job_pool_check_jobs(jpool);
 		}
 		if (eptr->pdescpos>=0) {
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
+			if ((eptr->mode == CONNECTED) && (pdesc[eptr->pdescpos].revents & POLLIN)) { // FD_ISSET(eptr->sock,rset)) {
 				eptr->lastread.reset();
 				masterconn_read(eptr);
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
+			if ((eptr->mode == CONNECTED) && (pdesc[eptr->pdescpos].revents & POLLOUT)) { // FD_ISSET(eptr->sock,wset)) {
 				eptr->lastwrite.reset();
 				masterconn_write(eptr);
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastread.elapsed_ms() > Timeout_ms) {
+			if ((eptr->mode == CONNECTED) && eptr->lastread.elapsed_ms() > Timeout_ms) {
 				eptr->mode = KILL;
 			}
-			if ((eptr->mode==HEADER || eptr->mode==DATA) && eptr->lastwrite.elapsed_ms() > (Timeout_ms/3) && eptr->outputPackets.empty()) {
+			if ((eptr->mode == CONNECTED) && eptr->lastwrite.elapsed_ms() > (Timeout_ms/3) && eptr->outputPackets.empty()) {
 				masterconn_create_attached_moosefs_packet(eptr, ANTOAN_NOP);
 			}
 		}
 	}
-	if (eptr->mode==HEADER || eptr->mode==DATA) {
+	if (eptr->mode == CONNECTED) {
 		uint32_t jobscnt = job_pool_jobs_count(jpool);
 		if (jobscnt>=stats_maxjobscnt) {
 			stats_maxjobscnt=jobscnt;
@@ -848,7 +808,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 	if (eptr->mode == KILL) {
 		job_pool_disable_and_change_callback_all(jpool,masterconn_unwantedjobfinished);
 		tcpclose(eptr->sock);
-		eptr->inputpacket.packet.clear();
+		eptr->inputPacket.reset();
 		eptr->outputPackets.clear();
 		eptr->mode = FREE;
 	}

@@ -22,8 +22,17 @@
 
 #include <inttypes.h>
 
+inline void queue_deleter_dummy(uint8_t *) {
+}
+
+template<typename T>
+void queue_deleter_delete(uint8_t *p) {
+	delete ((T*)p);
+}
+
+
 void* queue_new(uint32_t size);
-void queue_delete(void *que);
+void queue_delete(void *que, void(*deleter)(uint8_t *) = queue_deleter_dummy);
 int queue_isempty(void *que);
 uint32_t queue_elements(void *que);
 int queue_isfull(void *que);

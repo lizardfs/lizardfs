@@ -1,21 +1,50 @@
+
+## User to run daemon as.
 # WORKING_USER = @DEFAULT_USER@
+
+## Group to run daemon as (if empty then default user group will be used).
 # WORKING_GROUP = @DEFAULT_GROUP@
+
+## Name of process to place in syslog messages.
+## (Default: mfsmetalogger)
 # SYSLOG_IDENT = mfsmetalogger
+
+## Whether to perform "mlockall()" to avoid swapping out mfsmetalogger
+## process, boolean.
+## (Default: 0)
 # LOCK_MEMORY = 0
+
+## Nice level to run daemon with, when possible to set.
+## (Default: -19)
 # NICE_LEVEL = -19
 
+## Location where to store metadata files.
 # DATA_PATH = @DATA_PATH@
 
+## Number of metadata change log files.
+## (Default: 50)
 # BACK_LOGS = 50
+
+## Number of previous metadata files to be kept.
+## (Default: 3)
 # BACK_META_KEEP_PREVIOUS = 3
+
+## Metadata download frequency in hours, at most BACK_LOGS/2.
+## (Default: 24)
 # META_DOWNLOAD_FREQ = 24
 
+## Delay in seconds before trying to reconnect to master after disconnection.
+## (Default: 5)
 # MASTER_RECONNECTION_DELAY = 5
 
+## Address (or hostname) of LizardFS master host to connect with.
+## (Default: mfsmaster)
 # MASTER_HOST = mfsmaster
+
+## Port number of LizardFS master to connect with.
+## (Default: 9419)
 # MASTER_PORT = 9419
 
+## Timeout (in seconds) for master connections.
+## (Default: 60)
 # MASTER_TIMEOUT = 60
-
-# deprecated, to be removed in MooseFS 1.7
-# LOCK_FILE = @RUN_PATH@/mfsmetalogger.lock

@@ -77,7 +77,7 @@ struct XattrReply {
 };
 
 /**
- * An exception that is thrown when a request can't be executed succesfully
+ * An exception that is thrown when a request can't be executed successfully
  */
 struct RequestException : public std::exception {
 	RequestException(int errNo);

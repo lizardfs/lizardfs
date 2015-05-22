@@ -1,2 +1,3 @@
+usr/bin/lizardfs-admin
 usr/bin/lizardfs-probe
-usr/share/man/man8/lizardfs-probe.8
+usr/share/man/man8/lizardfs-admin.8

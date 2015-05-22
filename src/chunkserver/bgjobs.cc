@@ -244,6 +244,10 @@ void* job_worker(void *th_arg) {
 			case OP_READ:
 			{
 				auto rdargs = (chunk_read_args*)(jptr->args);
+				if (jstate==JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+					break;
+				}
 				LOG_AVG_TILL_END_OF_SCOPE0("job_read");
 				if (rdargs->performHddOpen) {
 					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
@@ -251,12 +255,19 @@ void* job_worker(void *th_arg) {
 						break;
 					}
 				}
-				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
-				} else {
-					status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
-							rdargs->offset, rdargs->size, rdargs->maxBlocksToBeReadBehind,
-							rdargs->blocksToBeReadAhead, rdargs->outputBuffer);
+
+				status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
+						rdargs->offset, rdargs->size, rdargs->maxBlocksToBeReadBehind,
+						rdargs->blocksToBeReadAhead, rdargs->outputBuffer);
+
+				if (rdargs->performHddOpen && status != STATUS_OK) {
+					int ret = hdd_close(rdargs->chunkid, rdargs->chunkType);
+					if (ret != STATUS_OK) {
+						lzfs_silent_syslog(LOG_ERR,
+								"read job: cannot close chunk after read error (%s): %s",
+								mfsstrerr(status),
+								mfsstrerr(ret));
+					}
 				}
 				break;
 			}

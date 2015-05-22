@@ -1,6 +1,5 @@
 master_cfg="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_cfg+="|DUMP_METADATA_ON_RELOAD = 1"
-master_cfg+="|PREFER_BACKGROUND_DUMP = 1"
+master_cfg+="|MAGIC_PREFER_BACKGROUND_DUMP = 1"
 master_cfg+="|MAGIC_DISABLE_METADATA_DUMPS = 1"
 
 CHUNKSERVERS=1 \
@@ -21,7 +20,7 @@ chmod +x "$TEMP_DIR/metarestore.sh"
 # Generate some files
 cd "${info[mount0]}"
 touch file{1..20}
-lizardfs_master_daemon reload                      # Start dumping metadata
+lizardfs_admin_master save-metadata --async        # Start dumping metadata
 assert_eventually 'test -e $TEMP_DIR/dump_started'
 touch file{30..40}
 lizardfs_master_n 1 start                          # Connect shadow master during the dump

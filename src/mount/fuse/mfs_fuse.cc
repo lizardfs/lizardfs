@@ -302,8 +302,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 			auto fsDirEntries = LizardClient::readdir(get_context(req),
 					ino, off, maxEntries, fuse_file_info_wrapper(fi));
 			if (fsDirEntries.empty()) {
-				end = true; // no more entries
-				break;
+				break; // no more entries (we don't need to set 'end = true' here to end the loop)
 			}
 			for (const auto& e : fsDirEntries) {
 				size_t entrySize = fuse_add_direntry(req,

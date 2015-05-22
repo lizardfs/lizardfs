@@ -29,7 +29,10 @@ struct NetworkAddress {
 
 	std::string toString() const {
 		std::stringstream ss;
-		ss << ipToString(ip) << ':' << port;
+		ss << ipToString(ip);
+		if (port) {
+			ss << ':' << port;
+		}
 		return ss.str();
 	}
 };

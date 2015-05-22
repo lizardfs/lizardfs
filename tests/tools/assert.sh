@@ -66,7 +66,7 @@ assert_template_equals_() {
 # (assert|assertlocal|expect)_matches <regex> <string>
 assert_template_matches_() {
 	if [[ ! "$2" =~ $1 ]]; then
-		$FAIL_FUNCTION "Expected: $2 to match regex $1"
+		$FAIL_FUNCTION "Expected: '$2' to match regex '$1'"
 	fi
 }
 
@@ -79,9 +79,16 @@ assert_template_near_() {
 
 # (assert|assertlocal|expect)_success <command> [<args>...]
 assert_template_success_() {
-	if ! "$@"; then
-		$FAIL_FUNCTION "Command '$*' failed"
+	local error_msg  # a local variable for errors printed by <command>
+	local fd         # a local variable to hold a file descriptor
+	exec {fd}>&1     # duplicate stdout to a descriptor and store its number in the 'fd' variable
+	# Now run "$@" (the command under a test) in the following way:
+	# - its stderr goes to the 'error_msg' variable
+	# - its stdout goes to the current stdout (duplicated to $fd to make it available in a subshell)
+	if ! error_msg=$("$@" 2>&1 1>&$fd); then
+		$FAIL_FUNCTION "Command '$*' failed. Standard error:"$'\n'"$error_msg"
 	fi
+	exec {fd}>&-     # close the descriptor stored in the 'fd' variable
 }
 
 # (assert|assertlocal|expect)_failure <command> [<args>...]
@@ -150,6 +157,17 @@ assert_template_eventually_prints_() {
 	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
 	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout. "`
+				`"It prints now: '$(eval "$command" || true)'"
+	fi
+}
+
+# (assert|assertlocal|expect)_eventually_matches <regex> <command> [<timeout>]
+assert_template_eventually_matches_() {
+	local regex="$1"
+	local command="$2"
+	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
+	if ! wait_for "[[ \$($command) =~ \$regex ]]" "$timeout"; then
+		$FAIL_FUNCTION "'$command' didn't print output matching '$regex' within $timeout. "`
 				`"It prints now: '$(eval "$command" || true)'"
 	fi
 }

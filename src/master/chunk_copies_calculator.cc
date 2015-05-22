@@ -83,7 +83,7 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::getState() const {
 std::pair<uint32_t, uint32_t> ChunkCopiesCalculator::ordinaryPartsToRecoverAndRemove() const {
 	uint32_t missingCopiesOfLabels = 0;
 	sassert(!goal_->isXor());
-	const Goal::Labels& labels = goal_->labels();
+	const Goal::Labels& labels = goal_->chunkLabels();
 	for (const auto& labelAndCount : labels) {
 		const auto& label = labelAndCount.first;
 		if (label == kMediaLabelWildcard) {

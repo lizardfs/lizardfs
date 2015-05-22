@@ -83,9 +83,10 @@ static void lzfs_vsyslog(bool silent, int priority, const char* format, va_list 
 		va_end(ap2);
 	}
 	{
+		std::string tag = "syslog." + syslogLevelToString(priority);
 		va_list ap2;
 		va_copy(ap2, ap);
-		DEBUG_LOGFV("syslog." + syslogLevelToString(priority), format, ap2);
+		DEBUG_LOGFV(tag, format, ap2);
 		va_end(ap2);
 	}
 }

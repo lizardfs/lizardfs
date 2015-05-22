@@ -28,7 +28,9 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <algorithm>
+#include <deque>
 
 #include "common/chunks_availability_state.h"
 #include "common/datapack.h"
@@ -53,7 +55,7 @@
 #  include "master/matoclserv.h"
 #  include "master/matocsserv.h"
 #  include "master/topology.h"
-#  endif
+#endif
 
 #define MINLOOPTIME 1
 #define MAXLOOPTIME 7200
@@ -67,6 +69,7 @@
 
 #ifndef METARESTORE
 
+static uint64_t gEndangeredChunksServingLimit;
 
 /* chunk.operation */
 enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
@@ -161,6 +164,25 @@ struct slist {
 #ifndef METARESTORE
 static std::vector<matocsserventry*> zombieServersHandledInThisLoop;
 static std::vector<matocsserventry*> zombieServersToBeHandledInNextLoop;
+
+static uint32_t ReplicationsDelayDisconnect=3600;
+static uint32_t ReplicationsDelayInit=300;
+
+static uint32_t MaxWriteRepl;
+static uint32_t MaxReadRepl;
+static uint32_t MaxDelSoftLimit;
+static uint32_t MaxDelHardLimit;
+static double TmpMaxDelFrac;
+static uint32_t TmpMaxDel;
+static uint32_t HashSteps;
+static uint32_t HashCPS;
+static double AcceptableDifference;
+static bool RebalancingBetweenLabels = false;
+
+static uint32_t jobshpos;
+static uint32_t jobsnorepbefore;
+
+static uint32_t starttime;
 #endif // METARESTORE
 
 #define SLIST_BUCKET_SIZE 5000
@@ -193,6 +215,7 @@ private: // public/private sections are mixed here to make the struct as small a
 #endif
 #ifndef METARESTORE
 public:
+	uint8_t inEndangeredQueue:1;
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
 	uint8_t operation:4;
@@ -212,6 +235,7 @@ public:
 	static uint64_t count;
 	static uint64_t allStandardChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 	static uint64_t regularStandardChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
+	static std::deque<chunk *> endangeredChunks;
 #endif
 
 	/// ID of the chunk's goal.
@@ -275,6 +299,7 @@ public:
 
 	// Updates statistics of all chunks
 	void updateStats() {
+		int oldAllMissingParts = allMissingParts_;
 		removeFromStats();
 		const Goal& g = fs_get_goal_definition(goal());
 		allStandardCopies_ = regularStandardCopies_ = 0;
@@ -294,13 +319,49 @@ public:
 				}
 			}
 		}
+
 		allAvailabilityState_ = all.getState();
 		allMissingParts_ = std::min(200U, all.countPartsToRecover());
 		allRedundantParts_ = std::min(200U, all.countPartsToRemove());
 		regularAvailabilityState_ = regular.getState();
 		regularMissingParts_ = std::min(200U, regular.countPartsToRecover());
 		regularRedundantParts_ = std::min(200U, regular.countPartsToRemove());
+
+		/* Enqueue a chunk as endangered only if:
+		 * 1. Endangered chunks prioritization is on (limit > 0)
+		 * 2. Chunk have more missing parts than it used to.
+		 * 3. Chunk is endangered.
+		 * 4. It is not already in queue
+		 * By checking conditions below we assert no repetitions in endangered queue. */
+		if (gEndangeredChunksServingLimit > 0
+				&& allMissingParts_ > oldAllMissingParts
+				&& allAvailabilityState_ == ChunksAvailabilityState::kEndangered
+				&& !inEndangeredQueue) {
+			inEndangeredQueue = 1;
+			endangeredChunks.push_back(this);
+		}
+
 		addToStats();
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies for non-wildcard labels return
+	 * overall number of missing copies
+	 */
+	uint32_t missingCopies(uint32_t validCopies, uint32_t missingCopiesOfLabels) {
+		uint32_t ret = std::max<uint32_t>(
+				expectedCopies() > validCopies ? expectedCopies() - validCopies : 0,
+				missingCopiesOfLabels);
+		return std::min<uint32_t>(200U, ret);
+	}
+
+	/**
+	 * Given number of valid copies and number of missing copies return number of redundant copies
+	 */
+	uint32_t redundantCopies(uint32_t validCopies, uint32_t missingCopies) {
+		uint32_t validAndMissing = validCopies + missingCopies;
+		uint32_t ret = expectedCopies() < validAndMissing ? validAndMissing - expectedCopies() : 0;
+		return std::min<uint32_t>(200U, ret);
 	}
 
 	bool isSafe() const {
@@ -428,6 +489,8 @@ private:
 };
 
 #ifndef METARESTORE
+
+std::deque<chunk *> chunk::endangeredChunks;
 ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
 ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
 uint64_t chunk::count;
@@ -503,26 +566,53 @@ static ChunksMetadata* gChunksMetadata;
 #define UNUSED_DELETE_TIMEOUT (86400*7)
 
 #ifndef METARESTORE
+class ReplicationDelayInfo {
+public:
+	ReplicationDelayInfo()
+		: disconnectedServers_(0),
+		  timestamp_() {}
 
-static uint32_t ReplicationsDelayDisconnect=3600;
-static uint32_t ReplicationsDelayInit=300;
+	void serverDisconnected() {
+		refresh();
+		++disconnectedServers_;
+		timestamp_ = main_time() + ReplicationsDelayDisconnect;
+	}
 
-static uint32_t MaxWriteRepl;
-static uint32_t MaxReadRepl;
-static uint32_t MaxDelSoftLimit;
-static uint32_t MaxDelHardLimit;
-static double TmpMaxDelFrac;
-static uint32_t TmpMaxDel;
-static uint32_t HashSteps;
-static uint32_t HashCPS;
-static double AcceptableDifference;
-static bool RebalancingBetweenLabels = false;
+	void serverConnected() {
+		refresh();
+		if (disconnectedServers_ > 0) {
+			--disconnectedServers_;
+		}
+	}
 
-static uint32_t jobshpos;
-static uint32_t jobsrebalancecount;
-static uint32_t jobsnorepbefore;
+	bool replicationAllowed(int missingCopies) {
+		refresh();
+		return missingCopies > disconnectedServers_;
+	}
 
-static uint32_t starttime;
+private:
+	uint16_t disconnectedServers_;
+	uint32_t timestamp_;
+
+	void refresh() {
+		if (main_time() > timestamp_) {
+			disconnectedServers_ = 0;
+		}
+	}
+
+};
+
+/*
+ * Information about recently disconnected and connected servers
+ * necessary for replication to unlabeled servers.
+ */
+static ReplicationDelayInfo replicationDelayInfoForAll;
+
+/*
+ * Information about recently disconnected and connected servers
+ * necessary for replication to servers with specified label.
+ */
+static std::unordered_map<MediaLabel, ReplicationDelayInfo> replicationDelayInfoForLabel;
 
 struct job_info {
 	uint32_t del_invalid;
@@ -707,6 +797,7 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	newchunk->lockid = 0;
 	newchunk->lockedto = 0;
 #ifndef METARESTORE
+	newchunk->inEndangeredQueue = 0;
 	newchunk->needverincrease = 1;
 	newchunk->interrupted = 0;
 	newchunk->operation = NONE;
@@ -1478,7 +1569,6 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 
 void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType) {
 	chunk *c;
-	slist *s;
 	const uint32_t new_version = version & 0x7FFFFFFF;
 	const bool todel = version & 0x80000000;
 	c = chunk_find(chunkid);
@@ -1492,7 +1582,7 @@ void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t ver
 		c->lockid = 0;
 		chunk_update_checksum(c);
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr == ptr && s->chunkType == chunkType) {
 			// This server already notified us about its copy.
 			// We normally don't get repeated notifications about the same copy, but
@@ -1539,7 +1629,6 @@ void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t ver
 
 void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 	chunk *c;
-	slist *s;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
@@ -1548,7 +1637,7 @@ void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 		}
 		c = chunk_new(chunkid, 0);
 	}
-	for (s=c->slisthead ; s ; s=s->next) {
+	for (slist *s=c->slisthead ; s ; s=s->next) {
 		if (s->ptr==ptr) {
 			c->invalidateCopy(s);
 			c->needverincrease=1;
@@ -1577,15 +1666,34 @@ void chunk_lost(matocsserventry *ptr,uint64_t chunkid) {
 	}
 }
 
-void chunk_server_disconnected(matocsserventry *ptr) {
+void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label) {
 	zombieServersToBeHandledInNextLoop.push_back(ptr);
 	if (zombieServersHandledInThisLoop.empty()) {
 		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
+	}
+	replicationDelayInfoForAll.serverDisconnected();
+	if (label != kMediaLabelWildcard) {
+		replicationDelayInfoForLabel[label].serverDisconnected();
 	}
 	main_make_next_poll_nonblocking();
 	fs_cs_disconnected();
 	gChunksMetadata->lastchunkid = 0;
 	gChunksMetadata->lastchunkptr = NULL;
+}
+
+void chunk_server_unlabelled_connected() {
+	replicationDelayInfoForAll.serverConnected();
+}
+
+void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabel &newLabel) {
+	/*
+	 * Only server with no label can be considered as newly connected
+	 * and it was added to replicationDelayInfoForAll earlier
+	 * in chunk_server_unlabelled_connected call.
+	 */
+	if (previousLabel == kMediaLabelWildcard) {
+		replicationDelayInfoForLabel[newLabel].serverConnected();
+	}
 }
 
 /*
@@ -1614,6 +1722,15 @@ void chunk_clean_zombie_servers_a_bit() {
 		}
 	}
 	main_make_next_poll_nonblocking();
+}
+
+void chunk_clean_zombie_servers() {
+	for (auto& server : zombieServersHandledInThisLoop) {
+		matocsserv_remove_server(server);
+	}
+	for (auto& server : zombieServersToBeHandledInNextLoop) {
+		matocsserv_remove_server(server);
+	}
 }
 
 int chunk_canexit(void) {
@@ -1649,13 +1766,12 @@ void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkType c
 
 void chunk_got_replicate_status(matocsserventry *ptr, uint64_t chunkId, uint32_t chunkVersion,
 		ChunkType chunkType, uint8_t status) {
-	slist *s;
 	chunk *c = chunk_find(chunkId);
 	if (c == NULL || status != 0) {
 		return;
 	}
 
-	for (s = c->slisthead; s; s = s->next) {
+	for (slist *s = c->slisthead; s; s = s->next) {
 		if (s->chunkType == chunkType && s->ptr == ptr) {
 			syslog(LOG_WARNING,
 					"got replication status from server which had had that chunk before (chunk:%016"
@@ -1948,7 +2064,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	uint32_t invalidParts = 0;
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
-	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).labels();
+	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).chunkLabels();
 	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
@@ -2059,7 +2175,10 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	if (goal::isXorGoal(c->goal())) {
 		if (c->needsReplication()) {
 			std::vector<ChunkType> toRecover = c->makeRegularCopiesCalculator().getPartsToRecover();
-			if (jobsnorepbefore >= main_time() || c->isLost() || toRecover.empty()) {
+			if (jobsnorepbefore >= main_time()
+					|| c->isLost()
+					|| toRecover.empty()
+					|| !replicationDelayInfoForAll.replicationAllowed(toRecover.size())) {
 				inforec_.notdone.copy_undergoal++;
 				return;
 			}
@@ -2117,9 +2236,17 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			}
 			triedToReplicate = true;
 
-			// After setting triedToReplicate we can verify this condition
+			// After setting triedToReplicate we can verify this conditions
 			if (jobsnorepbefore >= main_time()) {
 				break;
+			}
+			if (label == kMediaLabelWildcard) {
+				if (!replicationDelayInfoForAll.replicationAllowed(missingCopiesForLabel)) {
+					continue;
+				}
+			} else if (!replicationDelayInfoForLabel[label].replicationAllowed(missingCopiesForLabel)) {
+				skippedReplications += missingCopiesForLabel;
+				continue;
 			}
 
 			// Get a list of possible destination servers
@@ -2132,6 +2259,9 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 				// There is a server which matches the current label, but it has exceeded the
 				// replication limit. In this case we won't try to use servers with non-matching
 				// labels as our destination -- we will wait for that server to be ready.
+				destinationCount = returnedMatching;
+			} else if (vc + skippedReplications >= c->expectedCopies()) {
+				// Don't create copies on non-matching servers if there already are enough replicas.
 				destinationCount = returnedMatching;
 			}
 
@@ -2160,6 +2290,13 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		}
 		if (triedToReplicate) {
 			inforec_.notdone.copy_undergoal++;
+			// Enqueue chunk again only if it was taken directly from endangered chunks queue
+			// to avoid repetitions. If it was taken from chunk hashmap, inEndangeredQueue bit
+			// would be still up.
+			if (!c->inEndangeredQueue && vc == 1 && vc < c->expectedCopies()) {
+				c->inEndangeredQueue = 1;
+				chunk::endangeredChunks.push_back(c);
+			}
 			return; // Don't go to the next step (= don't delete any copies) for undergoal chunks
 		}
 	}
@@ -2353,9 +2490,7 @@ static std::unique_ptr<ChunkWorker> gChunkWorker;
 
 void chunk_jobs_main(void) {
 	uint32_t i,l,lc,r;
-	uint16_t usableServerCount, totalServerCount;
-	static uint16_t lastTotalServerCount = 0;
-	static uint16_t maxTotalServerCount = 0;
+	uint16_t usableServerCount;
 	double minUsage, maxUsage;
 	chunk *c,**cp;
 
@@ -2363,31 +2498,33 @@ void chunk_jobs_main(void) {
 		return;
 	}
 
-	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, &totalServerCount);
-
-	if (totalServerCount < lastTotalServerCount) {          // servers disconnected
-		jobsnorepbefore = main_time() + ReplicationsDelayDisconnect;
-	} else if (totalServerCount > lastTotalServerCount) {   // servers connected
-		if (totalServerCount >= maxTotalServerCount) {
-			maxTotalServerCount = totalServerCount;
-			jobsnorepbefore = main_time();
-		}
-	} else if (totalServerCount < maxTotalServerCount && (uint32_t)main_time() > jobsnorepbefore) {
-		maxTotalServerCount = totalServerCount;
-	}
-	lastTotalServerCount = totalServerCount;
+	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, nullptr);
 
 	if (minUsage > maxUsage) {
 		return;
 	}
 
 	gChunkWorker->doEverySecondTasks();
+
+	// Serve endangered chunks first if it is possible to replicate
+	size_t endangeredToServe = 0;
+	if (jobsnorepbefore < main_time()) {
+		endangeredToServe = std::min<uint64_t>(
+				gEndangeredChunksServingLimit,
+				chunk::endangeredChunks.size());
+		for (uint64_t served = 0; served < endangeredToServe; ++served) {
+			c = chunk::endangeredChunks.front();
+			chunk::endangeredChunks.pop_front();
+			c->inEndangeredQueue = 0;
+			gChunkWorker->doChunkJobs(c, usableServerCount);
+		}
+	}
 	lc = 0;
-	for (i=0 ; i<HashSteps && lc<HashCPS ; i++) {
+	for (i = 0 ; i < HashSteps - endangeredToServe && lc < HashCPS ; i++) {
 		if (jobshpos==0) {
 			gChunkWorker->doEveryLoopTasks();
 		}
-		// delete unused chunks from structures
+		// Delete unused chunks from structures
 		l=0;
 		cp = &(gChunksMetadata->chunkhash[jobshpos]);
 		while ((c=*cp)!=NULL) {
@@ -2404,7 +2541,7 @@ void chunk_jobs_main(void) {
 		if (l>0) {
 			r = rndu32_ranged(l);
 			l=0;
-		// do jobs on rest of them
+			// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
 				if (l>=r) {
 					gChunkWorker->doChunkJobs(c, usableServerCount);
@@ -2643,18 +2780,10 @@ void chunk_reload(void) {
 			HashCPS = MAXCPS;
 		}
 	}
-
-	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
+	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
+	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE",0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
-	if (AcceptableDifference<0.001) {
-		AcceptableDifference = 0.001;
-	}
-	if (AcceptableDifference>10.0) {
-		AcceptableDifference = 10.0;
-	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		chunk_become_master();
-	}
 }
 #endif
 
@@ -2757,17 +2886,14 @@ int chunk_strinit(void) {
 			HashCPS = MAXCPS;
 		}
 	}
-	AcceptableDifference = cfg_getdouble("ACCEPTABLE_DIFFERENCE",0.1);
+	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
+	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
+	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
-	if (AcceptableDifference<0.001) {
-		AcceptableDifference = 0.001;
-	}
-	if (AcceptableDifference>10.0) {
-		AcceptableDifference = 10.0;
-	}
 	jobshpos = 0;
-	jobsrebalancecount = 0;
 	main_reloadregister(chunk_reload);
+	main_destructregister(chunk_clean_zombie_servers);
+	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
 	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {

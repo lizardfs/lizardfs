@@ -28,7 +28,7 @@ set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h netinet/in
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
 if(BIG_ENDIAN)
-  set(WORDS_BIGENDIAN)
+  set(WORDS_BIGENDIAN 1)
 endif()
 
 set(TYPES_CHECKED int8_t uint8_t int16_t uint16_t int32_t uint32_t int64_t
@@ -57,7 +57,7 @@ set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
 set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer)
+  setitimer posix_fadvise)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")
@@ -65,4 +65,3 @@ set(OPTIONAL_FUNCTIONS2 dup2 mlockall getcwd)
 check_functions("${OPTIONAL_FUNCTIONS2}" false)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
-check_cxx_compiler_flag(-Wno-gnu   CXX_HAS_WNOGNU)

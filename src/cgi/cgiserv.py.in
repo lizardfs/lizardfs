@@ -19,6 +19,13 @@ import select
 """Http server based on recipes 511453,511454 from code.activestate.com by Pierre Quentel"""
 """Added support for indexes, access tests, proper handle of SystemExit exception, fixed couple of errors and vulnerbilities, getopt, lockfiles, daemonize etc. by Jakub Kruszona-Zawadzki"""
 
+ ######################## ! DEPRECATION WARNING ! #########################
+ #                                                                        #
+ # mfscgiserv service is deprecated, please use lizardfs-cgiserv instead. #
+ # See manual entry lizardfs-cgiserver(8) for details.                    #
+ #                                                                        #
+ ######################## ! DEPRECATION WARNING ! #########################
+
 # the dictionary holding one client handler for each connected client
 # key = client socket, value = instance of (a subclass of) ClientHandler
 client_handlers = {}
@@ -432,6 +439,15 @@ if __name__=="__main__":
 	port = 9425
 	rootpath="@CGI_PATH@"
 	datapath="@DATA_PATH@"
+
+	print
+	print " ######################## ! DEPRECATION WARNING ! #########################"
+	print " #                                                                        #"
+	print " # mfscgiserv service is deprecated, please use lizardfs-cgiserv instead. #"
+	print " # See manual entry lizardfs-cgiserver(8) for details.                    #"
+	print " #                                                                        #"
+	print " ######################## ! DEPRECATION WARNING ! #########################"
+	print
 
 	opts,args = getopt.getopt(sys.argv[1:],"hH:P:R:D:t:fv")
 	for opt,val in opts:

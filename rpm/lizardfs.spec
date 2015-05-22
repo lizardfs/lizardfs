@@ -260,7 +260,7 @@ fi
 %setup
 
 %build
-%configure
+./configure --with-doc --without-ha
 make %{?_smp_mflags}
 
 %install
@@ -301,7 +301,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man7/lizardfs.7*
 %{_mandir}/man8/mfsmaster.8*
+%{_mandir}/man8/mfsmetadump.8*
 %{_mandir}/man8/mfsmetarestore.8*
+%{_mandir}/man8/mfsrestoremaster.8*
 %{liz_confdir}/mfsexports.cfg.dist
 %{liz_confdir}/mfstopology.cfg.dist
 %{liz_confdir}/mfsgoals.cfg.dist
@@ -413,7 +415,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %files cgiserv
 %defattr(644,root,root,755)
+%attr(755,root,root) %{_sbindir}/lizardfs-cgiserver
 %attr(755,root,root) %{_sbindir}/mfscgiserv
+%{_mandir}/man8/lizardfs-cgiserver.8*
 %{_mandir}/man8/mfscgiserv.8*
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-cgiserv
@@ -425,7 +429,9 @@ rm -rf $RPM_BUILD_ROOT
 %files adm
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_bindir}/lizardfs-probe
+%attr(755,root,root) %{_bindir}/lizardfs-admin
+%{_mandir}/man8/lizardfs-admin.8*
+%{_bindir}/lizardfs-probe
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog

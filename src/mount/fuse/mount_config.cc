@@ -96,7 +96,7 @@ void usage(const char *progname) {
 "    -B IP                       equivalent to '-o mfsbind=IP'\n"
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
-"    -n   --nostdopts            do not add standard MFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
+"    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
 "    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfs/mfsmount.cfg or " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
@@ -144,7 +144,7 @@ void usage(const char *progname) {
 "    -o mfswritewindowsize=N     define write window size (in blocks) for each chunk (default: 15)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
-"    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - choosen automatically by OS)\n"
+"    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - chosen automatically by OS)\n"
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
@@ -159,7 +159,7 @@ void usage(const char *progname) {
 "\n");
 	fprintf(stderr,
 "SMODE can be set to:\n"
-"    NEVER                       MFS will not change suid and sgid bit on chown\n"
+"    NEVER                       LizardFS will not change suid and sgid bit on chown\n"
 "    ALWAYS                      clear suid and sgid on every chown - safest operation\n"
 "    OSX                         standard behavior in OS X and Solaris (chown made by unprivileged user clear suid and sgid)\n"
 "    BSD                         standard behavior in *BSD systems (like in OSX, but only when something is really changed)\n"
@@ -286,13 +286,13 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 		gMountOptions.nostdmountoptions = 1;
 		return 0;
 	case KEY_VERSION:
-		fprintf(stderr, "MFS version %s\n", LIZARDFS_PACKAGE_VERSION);
+		fprintf(stderr, "LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
 		{
 			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"--version");
 			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_mount(NULL,&helpargs);
+			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
 		}
 		exit(0);
 	case KEY_HELP:
@@ -302,7 +302,7 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
 			fuse_opt_add_arg(&helpargs,"-ho");
 			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_mount("",&helpargs);
+			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
 		}
 		exit(1);
 	default:

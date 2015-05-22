@@ -16,8 +16,11 @@ setup_local_empty_lizardfs() {
 	local etcdir=$TEMP_DIR/mfs/etc
 	local vardir=$TEMP_DIR/mfs/var
 	local mntdir=$TEMP_DIR/mnt
+	local master_start_param=${MASTER_START_PARAM:-}
+	local shadow_start_param=${SHADOW_START_PARAM:-}
 	declare -gA lizardfs_info_
 	lizardfs_info_[chunkserver_count]=$number_of_chunkservers
+	lizardfs_info_[admin_password]=${ADMIN_PASSWORD:-password}
 
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
@@ -40,7 +43,7 @@ setup_local_empty_lizardfs() {
 	lizardfs_info_[masterserver_count]=$number_of_masterservers
 
 	# Start one masterserver with personality master
-	lizardfs_master_daemon start
+	lizardfs_master_daemon start ${master_start_param}
 
 	# Prepare the metalogger, so that any test can start it
 	prepare_metalogger_
@@ -73,7 +76,7 @@ setup_local_empty_lizardfs() {
 	# Add shadow master if not present (and not disabled); wait for it to synchronize
 	if [[ $auto_shadow_master == YES && $number_of_masterservers == 1 ]]; then
 		add_metadata_server_ auto "shadow"
-		lizardfs_master_n auto start
+		lizardfs_master_n auto start ${shadow_start_param}
 		assert_eventually 'lizardfs_shadow_synchronized auto'
 	fi
 
@@ -99,24 +102,28 @@ setup_local_empty_lizardfs() {
 
 # lizardfs_chunkserver_daemon <id> start|stop|restart|kill|tests|isalive|...
 lizardfs_chunkserver_daemon() {
-	mfschunkserver -c "${lizardfs_info_[chunkserver${1}_config]}" "$2" | cat
+	local id=$1
+	shift
+	mfschunkserver -c "${lizardfs_info_[chunkserver${id}_config]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 lizardfs_master_daemon() {
-	mfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$1" | cat
+	mfsmaster -c "${lizardfs_info_[master${lizardfs_info_[current_master]}_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_master_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_master_n() {
-	mfsmaster -c "${lizardfs_info_[master${1}_cfg]}" "$2" | cat
+	local id=$1
+	shift
+	mfsmaster -c "${lizardfs_info_[master${id}_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
 # lizardfs_metalogger_daemon start|stop|restart|kill|tests|isalive|...
 lizardfs_metalogger_daemon() {
-	mfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$1" | cat
+	mfsmetalogger -c "${lizardfs_info_[metalogger_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
@@ -158,6 +165,14 @@ create_mfsexports_cfg_() {
 	done
 }
 
+create_mfsgoals_cfg_() {
+	echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n'
+}
+
+create_mfstopology_cfg_() {
+	echo '# empty topology...'
+}
+
 # Creates MAGIC_DEBUG_LOG which will cause test to fail is some error is logged by any daemon
 create_magic_debug_log_entry_() {
 	local servername=$1
@@ -193,14 +208,15 @@ create_mfsmaster_master_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
-	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
-		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
-	fi
+	echo "TOPOLOGY_FILENAME = ${lizardfs_info_[master_topology]}"
+	echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = ${lizardfs_info_[matoml]}"
 	echo "MATOCS_LISTEN_PORT = ${lizardfs_info_[matocs]}"
 	echo "MATOCL_LISTEN_PORT = ${lizardfs_info_[matocl]}"
+	echo "MATOTS_LISTEN_PORT = ${lizardfs_info_[matots]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
+	echo "ADMIN_PASSWORD = ${lizardfs_info_[admin_password]}"
 	create_magic_debug_log_entry_ "master_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
@@ -213,16 +229,17 @@ create_mfsmaster_shadow_cfg_() {
 	echo "WORKING_USER = $(id -nu)"
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "EXPORTS_FILENAME = ${lizardfs_info_[master_exports]}"
-	if [[ ${lizardfs_info_[master_custom_goals]:-} ]]; then
-		echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
-	fi
+	echo "TOPOLOGY_FILENAME = ${lizardfs_info_[master_topology]}"
+	echo "CUSTOM_GOALS_FILENAME = ${lizardfs_info_[master_custom_goals]}"
 	echo "DATA_PATH = $masterserver_data_path"
 	echo "MATOML_LISTEN_PORT = $masterserver_matoml_port"
 	echo "MATOCS_LISTEN_PORT = $masterserver_matocs_port"
 	echo "MATOCL_LISTEN_PORT = $masterserver_matocl_port"
+	echo "MATOTS_LISTEN_PORT = $masterserver_matots_port"
 	echo "MASTER_HOST = $(get_ip_addr)"
 	echo "MASTER_PORT = ${lizardfs_info_[matoml]}"
 	echo "METADATA_CHECKSUM_INTERVAL = 1"
+	echo "ADMIN_PASSWORD = ${lizardfs_info_[admin_password]}"
 	create_magic_debug_log_entry_ "shadow_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
@@ -249,14 +266,15 @@ lizardfs_current_master_id() {
 
 prepare_common_metadata_server_files_() {
 	create_mfsexports_cfg_ > "$etcdir/mfsexports.cfg"
+	create_mfstopology_cfg_ > "$etcdir/mfstopology.cfg"
+	create_mfsgoals_cfg_ > "$etcdir/mfsgoals.cfg"
 	lizardfs_info_[master_exports]="$etcdir/mfsexports.cfg"
-	if [[ ${MASTER_CUSTOM_GOALS:-} ]]; then
-		echo "$MASTER_CUSTOM_GOALS" | tr '|' '\n' > "$etcdir/goals.cfg"
-		lizardfs_info_[master_custom_goals]="$etcdir/goals.cfg"
-	fi
+	lizardfs_info_[master_topology]="$etcdir/mfstopology.cfg"
+	lizardfs_info_[master_custom_goals]="$etcdir/mfsgoals.cfg"
 	get_next_port_number "lizardfs_info_[matoml]"
 	get_next_port_number "lizardfs_info_[matocl]"
 	get_next_port_number "lizardfs_info_[matocs]"
+	get_next_port_number "lizardfs_info_[matots]"
 }
 
 add_metadata_server_() {
@@ -266,6 +284,7 @@ add_metadata_server_() {
 	local masterserver_matoml_port
 	local masterserver_matocl_port
 	local masterserver_matocs_port
+	local masterserver_matots_port
 	local masterserver_data_path=$vardir/master${masterserver_id}
 	local masterserver_master_cfg=$etcdir/mfsmaster${masterserver_id}_master.cfg
 	local masterserver_shadow_cfg=$etcdir/mfsmaster${masterserver_id}_shadow.cfg
@@ -274,6 +293,7 @@ add_metadata_server_() {
 	get_next_port_number masterserver_matoml_port
 	get_next_port_number masterserver_matocl_port
 	get_next_port_number masterserver_matocs_port
+	get_next_port_number masterserver_matots_port
 	mkdir "$masterserver_data_path"
 	create_mfsmaster_master_cfg_ > "$masterserver_master_cfg"
 	create_mfsmaster_shadow_cfg_ > "$masterserver_shadow_cfg"
@@ -294,6 +314,7 @@ add_metadata_server_() {
 	lizardfs_info_[master${masterserver_id}_matoml]=$masterserver_matoml_port
 	lizardfs_info_[master${masterserver_id}_matocl]=$masterserver_matocl_port
 	lizardfs_info_[master${masterserver_id}_matocs]=$masterserver_matocs_port
+	lizardfs_info_[master${masterserver_id}_matots]=$masterserver_matocs_port
 }
 
 create_mfsmetalogger_cfg_() {
@@ -315,8 +336,14 @@ create_mfshdd_cfg_() {
 	local n=$disks_per_chunkserver
 	if [[ $use_ramdisk ]]; then
 		local disk_number
-		for disk_number in $(seq 1 $n); do
-			local disk_dir=$RAMDISK_DIR/hdd_${chunkserver_id}_${disk_number}
+		for (( disk_number=0; disk_number<n; disk_number++ )); do
+			# Use path provided in env variable, if present generate some pathname otherwise.
+			local this_disk_variable="CHUNKSERVER_${chunkserver_id}_DISK_${disk_number}"
+			if [[ ${!this_disk_variable-} ]]; then
+				local disk_dir=${!this_disk_variable}
+			else
+				local disk_dir=$RAMDISK_DIR/hdd_${chunkserver_id}_${disk_number}
+			fi
 			mkdir -pm 777 $disk_dir
 			echo $disk_dir
 		done
@@ -342,6 +369,7 @@ create_mfschunkserver_cfg_() {
 	echo "WORKING_GROUP = $(id -ng)"
 	echo "DATA_PATH = $chunkserver_data_path"
 	echo "HDD_CONF_FILENAME = $hdd_cfg"
+	echo "HDD_LEAVE_SPACE_DEFAULT = 128MiB"
 	echo "MASTER_HOST = $ip_address"
 	echo "MASTER_PORT = ${lizardfs_info_[matocs]}"
 	echo "CSSERV_LISTEN_PORT = $csserv_port"
@@ -354,7 +382,7 @@ create_mfschunkserver_cfg_() {
 # Run every second chunkserver with each chunk format
 chunkserver_chunk_format_cfg_() {
 	local chunkserver_id=$1
-	if [[ "$(($chunkserver_id % 2))" == 0 ]]; then
+	if [[ "$(($RANDOM % 2))" == 0 ]]; then
 		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0"
 	else
 		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 1"
@@ -429,10 +457,10 @@ add_mount_() {
 
 add_cgi_server_() {
 	local cgi_server_port
-	local cgi_server_path=$vardir/cgi
-	mkdir $cgi_server_path
+	local pidfile="$vardir/lizardfs-cgiserver.pid"
 	get_next_port_number cgi_server_port
-	mfscgiserv -D "$cgi_server_path" -P "$cgi_server_port"
+	lizardfs-cgiserver -P "$cgi_server_port" -p "$pidfile"
+	lizardfs_info_[cgi_pidfile]=$pidfile
 	lizardfs_info_[cgi_port]=$cgi_server_port
 	lizardfs_info_[cgi_url]="http://localhost:$cgi_server_port/mfs.cgi?masterport=${lizardfs_info_[matocl]}"
 }
@@ -495,6 +523,35 @@ lizardfs_probe_master() {
 	lizardfs-probe "$command" localhost "${lizardfs_info_[matocl]}" --porcelain "$@"
 }
 
+# A useful shortcut for lizardfs-admin commands which require authentication
+# Usage: lizardfs_admin_master <command> [option...]
+# Calls lizardfs-admin with the given command and and automatically adds address
+# of the master server and authenticates
+lizardfs_admin_master() {
+	local command="$1"
+	shift
+	local port=${lizardfs_info_[matocl]}
+	lizardfs-admin "$command" localhost "$port" "$@" <<< "${lizardfs_info_[admin_password]}"
+}
+
+# A useful shortcut for lizardfs-admin commands which require authentication
+# Usage: lizardfs_admin_shadow <n> <command> [option...]
+# Calls lizardfs-admin with the given command and and automatically adds address
+# of the n'th shadow master server and authenticates
+lizardfs_admin_shadow() {
+	local id="$1"
+	local command="$2"
+	shift 2
+	local port=${lizardfs_info_[master${id}_matocl]}
+	lizardfs-admin "$command" localhost "$port" "$@" <<< "${lizardfs_info_[admin_password]}"
+}
+
+# Stops the active master server without dumping metadata
+lizardfs_stop_master_without_saving_metadata() {
+	lizardfs_admin_master stop-master-without-saving-metadata
+	assert_eventually "! mfsmaster -c ${lizardfs_info_[master_cfg]} isalive"
+}
+
 # print the number of fully operational chunkservers
 lizardfs_ready_chunkservers_count() {
 	lizardfs-probe ready-chunkservers-count localhost ${lizardfs_info_[matocl]}
@@ -529,9 +586,9 @@ lizardfs_shadow_synchronized() {
 }
 
 # Prints number of chunks on each chunkserver in the following form:
-# <ip1>:<port1> <chunks1>
-# <ip2>:<port2> <chunks2>
+# <ip1>:<port1>:<label> <chunks1>
+# <ip2>:<port2>:<label> <chunks2>
 # ...
 lizardfs_rebalancing_status() {
-	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1,$3}'
+	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1":"$10,$3}'
 }

@@ -1,4 +1,4 @@
-timeout_set 2 minutes
+timeout_set 4 minutes
 assert_program_installed wget tidy
 
 CHUNKSERVERS=3 \

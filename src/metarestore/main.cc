@@ -40,13 +40,14 @@
 #include "common/slogger.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
+#include "master/restore.h"
 #include "metarestore/merger.h"
-#include "metarestore/restore.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
 #define MAXIDHOLE 10000
+
 
 int changelog_checkname(const char *fname) {
 	const char *ptr = fname;
@@ -103,6 +104,8 @@ void usage(const char* appname) {
 			"\t%s [-i] -m <meta data file>\n"
 			"autorestore:\n"
 			"\t%s [-f] [-z] [-b] [-i] [-x [-x]] [-B n] -a [-d <data path>]\n"
+			"print version of metadata that can be read from disk by a master server in auto recovery mode:\n"
+			"\t%s -g -d <data path>\n"
 			"print version:\n"
 			"\t%s -v\n"
 			"\n"
@@ -114,13 +117,71 @@ void usage(const char* appname) {
 			"-xx  - even more verbose output\n"
 			"-b   - if there is any error in change logs then save the best possible metadata file\n"
 			"-i   - ignore some metadata structure errors (attach orphans to root, ignore names without inode, etc.)\n"
-			"-f   - force loading all changelogs\n", appname, appname, appname, appname);
+			"-f   - force loading all changelogs\n", appname, appname, appname, appname, appname);
+}
+
+/*! \brief Prints version of metadata that can be read from disk
+ * by a master server in auto recovery mode.
+ *
+ * \param path - path to directory containing metadata files.
+ */
+void meta_version_on_disk(std::string path) {
+	static const std::string changelogs[] {
+		std::string(kChangelogFilename) + ".2",
+		std::string(kChangelogFilename) + ".1",
+		kChangelogFilename
+	};
+	uint64_t metadata_version;
+
+	try {
+		metadata_version = metadataGetVersion(path + "/" + kMetadataFilename);
+		// check if it is a new installation
+		if (metadata_version == 0) {
+			printf("1\n");
+			return;
+		}
+	} catch (MetadataCheckException& ex) {
+		lzfs_pretty_syslog(LOG_WARNING, "malformed metadata file: %s", ex.what());
+		printf("0\n");
+		return;
+	}
+
+
+
+	bool oldExists = false;
+	for (const std::string& s : changelogs) {
+		std::string fullFileName = path + "/" + s;
+		try {
+			if (fs::exists(fullFileName)) {
+				oldExists = true;
+				uint64_t first = changelogGetFirstLogVersion(fullFileName);
+				uint64_t last = changelogGetLastLogVersion(fullFileName);
+				if (last >= first  && first <= metadata_version) {
+					if (last >= metadata_version) {
+						metadata_version = last + 1;
+					}
+				} else {
+					printf("0\n");
+					return;
+				}
+			} else if (oldExists && fullFileName != kChangelogFilename) {
+				lzfs_pretty_syslog(LOG_WARNING, "changelog `%s' missing", fullFileName.c_str());
+			}
+		} catch (FilesystemException& ex) {
+			lzfs_pretty_syslog(LOG_WARNING, "exception while fs:exists: %s", ex.what());
+			printf("0\n");
+			return;
+		}
+	}
+
+	printf("%lu\n", metadata_version);
 }
 
 int main(int argc,char **argv) {
 	int ch;
 	uint8_t vl=0;
 	bool autorestore = false;
+	bool versionRecovery = false;
 	int savebest = 0;
 	int ignoreflag = 0;
 	int forcealllogs = 0;
@@ -137,8 +198,11 @@ int main(int argc,char **argv) {
 	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
-	while ((ch = getopt(argc, argv, "fck:vm:o:d:abB:xih:z#?")) != -1) {
+	while ((ch = getopt(argc, argv, "gfck:vm:o:d:abB:xih:z#?")) != -1) {
 		switch (ch) {
+			case 'g':
+				versionRecovery = true;
+				break;
 			case 'v':
 				printf("version: %s\n", LIZARDFS_PACKAGE_VERSION);
 				return 0;
@@ -150,6 +214,11 @@ int main(int argc,char **argv) {
 				break;
 			case 'd':
 				datapath = optarg;
+				if (datapath.length() > 1) {
+					if (datapath.back() == '/') {
+						datapath.resize(datapath.length() - 1);
+					}
+				}
 				break;
 			case 'x':
 				vl++;
@@ -196,13 +265,30 @@ int main(int argc,char **argv) {
 	argc -= optind;
 	argv += optind;
 
-	if ((!autorestore && (metadata.empty() || !datapath.empty()))
-			|| (autorestore && (!metadata.empty() || !metaout.empty()))) {
+	// bad usage of -m
+	if (versionRecovery && datapath.empty()) {
+		usage(appname);
+		return 1;
+	}
+
+	// bad usage of -a
+	if (autorestore && (!metadata.empty() || !metaout.empty())) {
+		usage(appname);
+		return 1;
+	}
+
+	// only datapath passed (also bad)
+	if (!autorestore && !versionRecovery && (metadata.empty() || !datapath.empty())) {
 		usage(appname);
 		return 1;
 	}
 
 	restore_setverblevel(vl);
+
+	if (versionRecovery) {
+		meta_version_on_disk(datapath);
+		return 0;
+	}
 
 	if (autorestore) {
 		if (datapath.empty()) {
@@ -274,7 +360,12 @@ int main(int argc,char **argv) {
 			if (changelog_checkname(dp->d_name)) {
 				filenames.push_back(datapath + "/" + dp->d_name);
 				firstlv = changelogGetFirstLogVersion(filenames.back());
-				lastlv = changelogGetLastLogVersion(filenames.back());
+				try {
+					lastlv = changelogGetLastLogVersion(filenames.back());
+				} catch (const Exception& ex) {
+					lzfs_pretty_syslog(LOG_WARNING, "%s", ex.what());
+					lastlv = 0;
+				}
 				skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 				if (vl>0) {
 					std::ostringstream oss;
@@ -318,7 +409,12 @@ int main(int argc,char **argv) {
 
 		for (pos=0 ; (int32_t)pos<argc ; pos++) {
 			firstlv = changelogGetFirstLogVersion(argv[pos]);
-			lastlv = changelogGetLastLogVersion(argv[pos]);
+			try {
+				lastlv = changelogGetLastLogVersion(argv[pos]);
+			} catch (const Exception& ex) {
+				lzfs_pretty_syslog(LOG_WARNING, "%s", ex.what());
+				lastlv = 0;
+			}
 			skip = ((lastlv<fs_getversion() || firstlv==0) && forcealllogs==0)?1:0;
 			if (vl>0) {
 				std::ostringstream oss;

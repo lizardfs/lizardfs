@@ -24,6 +24,8 @@
 #include <syslog.h>
 #include <string>
 
+#include "common/slogger.h"
+
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,const type def)
 
 int cfg_load (const char *fname,int logundefined);
@@ -62,6 +64,23 @@ inline uint64_t cfg_get(const char* name, uint64_t defaultValue) {
 
 inline double cfg_get(const char* name, double defaultValue) {
 	return cfg_getdouble(name, defaultValue);
+}
+
+inline double cfg_ranged_get(const char *name, double defaultValue, double lower, double upper) {
+	double ret = cfg_getdouble(name, defaultValue);
+	if (ret < lower) {
+		lzfs_pretty_syslog(LOG_WARNING,
+				"Wrong value for %s: Setting min acceptable value %f instead of %f",
+				name, lower, ret);
+		ret = lower;
+	}
+	if (ret > upper){
+		lzfs_pretty_syslog(LOG_WARNING,
+				"Wrong value for %s: Setting max acceptable value %f instead of %f",
+				name, upper, ret);
+		ret = upper;
+	}
+	return ret;
 }
 
 inline std::string cfg_get(const char* name, const std::string defaultValue) {

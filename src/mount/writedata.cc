@@ -188,14 +188,13 @@ typedef std::unique_lock<std::mutex> Glock;
 static std::condition_variable fcbcond;
 static uint32_t fcbwaiting = 0;
 static int64_t freecacheblocks;
+static inodedata **idhash;
 
 static uint32_t gWriteWindowSize;
 static uint32_t gChunkserverTimeout_ms;
 
 // percentage of the free cache (1% - 100%) which can be used by one inode
 static uint32_t gCachePerInodePercentage;
-
-static inodedata** idhash;
 
 static pthread_t delayed_queue_worker_th;
 static std::vector<pthread_t> write_worker_th;
@@ -683,7 +682,7 @@ void write_data_term(void) {
 		pthread_join(write_worker_th[i], NULL);
 	}
 	pthread_join(delayed_queue_worker_th, NULL);
-	queue_delete(jqueue);
+	queue_delete(jqueue, queue_deleter_delete<inodedata>);
 	for (i = 0; i < IDHASHSIZE; i++) {
 		for (id = idhash[i]; id; id = idn) {
 			idn = id->next;

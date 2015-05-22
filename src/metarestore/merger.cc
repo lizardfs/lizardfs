@@ -9,7 +9,7 @@
 
 #include "common/MFSCommunication.h"
 #include "common/slogger.h"
-#include "metarestore/restore.h"
+#include "master/restore.h"
 
 #define BSIZE 200000
 

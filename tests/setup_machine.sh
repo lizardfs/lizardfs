@@ -162,7 +162,7 @@ fi
 release="$(lsb_release -si)/$(lsb_release -sr)"
 case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
-		apt-get install asciidoc build-essential cmake debhelper git libfuse-dev pkg-config zlib1g-dev
+		apt-get install asciidoc build-essential cmake debhelper devscripts git libfuse-dev pkg-config zlib1g-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
 		;;
 	CentOS/6)

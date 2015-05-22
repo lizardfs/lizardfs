@@ -1,3 +1,4 @@
+
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
 
@@ -75,6 +76,7 @@ typedef struct matomlserventry {
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
 	uint32_t servip;
+	uint16_t servport;
 	bool shadow;
 
 	int metafd,chain1fd,chain2fd;
@@ -86,6 +88,12 @@ static matomlserventry *matomlservhead=NULL;
 static int lsock;
 static int32_t lsockpdescpos;
 static bool gExiting = false;
+
+/// Miminal period (in seconds) between two metadata save processes requested by shadow masters
+static uint32_t gMinMetadataSaveRequestPeriod_s;
+
+/// Timestamp of the last metadata save request
+static uint32_t gLastMetadataSaveRequestTimestamp = 0;
 
 typedef struct old_changes_entry {
 	uint64_t version;
@@ -145,7 +153,7 @@ private:
  *
  * \param status - status to be forwarded.
  */
-void matomlserv_broadcast_filesystem(uint8_t status) {
+void matomlserv_broadcast_metadata_saved(uint8_t status) {
 	gShadowQueue.handleRequests(status);
 }
 
@@ -212,7 +220,7 @@ uint32_t matomlserv_mloglist_size(void) {
 	uint32_t i;
 	i=0;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->mode!=KILL) {
+		if (!eptr->shadow && eptr->mode!=KILL) {
 			i++;
 		}
 	}
@@ -222,11 +230,31 @@ uint32_t matomlserv_mloglist_size(void) {
 void matomlserv_mloglist_data(uint8_t *ptr) {
 	matomlserventry *eptr;
 	for (eptr = matomlservhead ; eptr ; eptr=eptr->next) {
-		if (eptr->mode!=KILL) {
+		if (!eptr->shadow && eptr->mode!=KILL) {
 			put32bit(&ptr,eptr->version);
 			put32bit(&ptr,eptr->servip);
 		}
 	}
+}
+
+std::vector<MetadataserverListEntry> matomlserv_shadows() {
+	std::vector<MetadataserverListEntry> ret;
+	for (matomlserventry* eptr = matomlservhead; eptr; eptr=eptr->next) {
+		if (eptr->shadow) {
+			ret.emplace_back(eptr->servip, eptr->servport, eptr->version);
+		}
+	}
+	return ret;
+}
+
+uint32_t matomlserv_shadows_count() {
+	uint32_t count = 0;
+	for (matomlserventry* eptr = matomlservhead; eptr; eptr=eptr->next) {
+		if (eptr->shadow) {
+			count++;
+		}
+	}
+	return count;
 }
 
 void matomlserv_status(void) {
@@ -358,9 +386,10 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->version = get32bit(&data);
 		eptr->timeout = get16bit(&data);
 		eptr->shadow = (rversion == 3 || rversion == 4);
-		if (eptr->version < LIZARDFS_VERSHEX) {
+		if (eptr->shadow) {
+		// supported shadow master servers register using LIZ_MLTOMA_REGISTER_SHADOW packet
 			syslog(LOG_NOTICE,
-					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old client (v%s) from %s",
+					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old shadow master (v%s) from %s",
 					rversion, lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
 			eptr->mode=KILL;
 			return;
@@ -418,10 +447,18 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 	matomlserv_send_old_changes(eptr, replyVersion - 1); // this function expects lastlogversion
 }
 
+void matomlserv_matoclport(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
+	mltoma::matoclport::deserialize(data, length, eptr->servport);
+}
+
 void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (length!=1) {
 		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%" PRIu32 "/1)",length);
 		eptr->mode=KILL;
+		return;
+	}
+	if (gExiting) {
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - ignoring in the exit phase");
 		return;
 	}
 	uint8_t filenum = get8bit(&data);
@@ -491,6 +528,10 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 		eptr->mode=KILL;
 		return;
 	}
+	if (gExiting) {
+		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - ignoring in the exit phase");
+		return;
+	}
 	if (eptr->metafd<0) {
 		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - file not opened");
 		eptr->mode=KILL;
@@ -501,12 +542,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_DATA,16+leng);
 	put64bit(&ptr,offset);
 	put32bit(&ptr,leng);
-#ifdef LIZARDFS_HAVE_PREAD
 	ret = pread(eptr->metafd,ptr+4,leng,offset);
-#else /* LIZARDFS_HAVE_PWRITE */
-	lseek(eptr->metafd,offset,SEEK_SET);
-	ret = read(eptr->metafd,ptr+4,leng);
-#endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		lzfs_silent_errlog(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;
@@ -532,13 +568,31 @@ void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t 
 void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint8_t recvStatus;
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
-	DEBUG_LOG("master.mltoma_changelog_apply_error") << "status: " << int(recvStatus);
-	syslog(LOG_INFO, "LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - dumping metadata",
-			mfsstrerr(recvStatus));
-	gShadowQueue.addRequest(eptr);
-	fs_storeall(MetadataDumper::kBackgroundDump);
-	if (recvStatus == ERROR_BADMETADATACHECKSUM) {
-		fs_start_checksum_recalculation();
+	if (gExiting) {
+		syslog(LOG_NOTICE,"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR - ignoring in the exit phase");
+		return;
+	}
+
+	int32_t secondsSinceLastRequest = main_time() - gLastMetadataSaveRequestTimestamp;
+	if (secondsSinceLastRequest >= int32_t(gMinMetadataSaveRequestPeriod_s)) {
+		gLastMetadataSaveRequestTimestamp = main_time();
+		DEBUG_LOG("master.mltoma_changelog_apply_error") << "do";
+		syslog(LOG_INFO,
+				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
+				mfsstrerr(recvStatus));
+		gShadowQueue.addRequest(eptr);
+		fs_storeall(MetadataDumper::kBackgroundDump);
+		if (recvStatus == ERROR_BADMETADATACHECKSUM) {
+			fs_start_checksum_recalculation();
+		}
+	} else {
+		DEBUG_LOG("master.mltoma_changelog_apply_error") << "delay";
+		syslog(LOG_INFO,
+				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - "
+				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "
+				"previous request and METADATA_SAVE_REQUEST_MIN_PERIOD=%" PRIu32,
+				mfsstrerr(recvStatus), secondsSinceLastRequest, gMinMetadataSaveRequestPeriod_s);
+		matomlserv_createpacket(eptr, matoml::changelogApplyError::build(ERROR_DELAYED));
 	}
 }
 
@@ -613,6 +667,9 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 			case LIZ_MLTOMA_CHANGELOG_APPLY_ERROR:
 				matomlserv_changelog_apply_error(eptr, data, length);
 				break;
+			case LIZ_MLTOMA_CLTOMA_PORT:
+				matomlserv_matoclport(eptr, data, length);
+				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
 				eptr->mode=KILL;
@@ -648,6 +705,7 @@ void matomlserv_term(void) {
 		}
 		eaptr = eptr;
 		eptr = eptr->next;
+		gShadowQueue.removeRequest(eaptr);
 		free(eaptr);
 	}
 	matomlservhead=NULL;
@@ -803,6 +861,8 @@ void matomlserv_serve(struct pollfd *pdesc) {
 			eptr->outputhead = NULL;
 			eptr->outputtail = &(eptr->outputhead);
 			eptr->timeout = 10;
+			eptr->servport = 0;// For shadow masters this will be changed to their MATOCL_SERV_PORT
+			eptr->shadow = false;
 
 			tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
 			eptr->servstrip = matomlserv_makestrip(eptr->servip);
@@ -831,7 +891,9 @@ void matomlserv_serve(struct pollfd *pdesc) {
 		if ((uint32_t)(eptr->lastread+eptr->timeout)<(uint32_t)now) {
 			eptr->mode = KILL;
 		}
-		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now && eptr->outputhead==NULL) {
+		if ((uint32_t)(eptr->lastwrite+(eptr->timeout/3))<(uint32_t)now
+				&& eptr->outputhead==NULL
+				&& !gExiting) {
 			matomlserv_createpacket(eptr,ANTOAN_NOP,0);
 		}
 	}
@@ -865,15 +927,16 @@ void matomlserv_serve(struct pollfd *pdesc) {
 
 void matomlserv_wantexit(void) {
 	gExiting = true;
+	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
+		matomlserv_createpacket(eptr, matoml::endSession::build());
+	}
+	// Now we won't create any new packets, but we will wait for all existing packets to be
+	// transmitted to shadow masters and metaloggers
 }
 
 int matomlserv_canexit(void) {
-	for (matomlserventry *eptr = matomlservhead; eptr != nullptr; eptr = eptr->next) {
-		if (eptr->outputhead != nullptr) {
-			return 0;
-		}
-	}
-	return 1;
+	// Exit when all connections are closed
+	return (matomlservhead == nullptr);
 }
 
 void matomlserv_become_master() {
@@ -881,9 +944,17 @@ void matomlserv_become_master() {
 	return;
 }
 
+/// Read values from the config file into global variables.
+/// Used on init and reload.
+void matomlserv_read_config_file() {
+	gMinMetadataSaveRequestPeriod_s = cfg_getuint32("METADATA_SAVE_REQUEST_MIN_PERIOD", 1800);
+}
+
 void matomlserv_reload(void) {
 	char *oldListenHost,*oldListenPort;
 	int newlsock;
+
+	matomlserv_read_config_file();
 
 	oldListenHost = ListenHost;
 	oldListenPort = ListenPort;
@@ -931,12 +1002,10 @@ void matomlserv_reload(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
-	if (metadataserver::isDuringPersonalityChange()) {
-		matomlserv_become_master();
-	}
 }
 
 int matomlserv_init(void) {
+	matomlserv_read_config_file();
 	ListenHost = cfg_getstr("MATOML_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOML_LISTEN_PORT","9419");
 
@@ -967,6 +1036,7 @@ int matomlserv_init(void) {
 	main_wantexitregister(matomlserv_wantexit);
 	main_canexitregister(matomlserv_canexit);
 	main_reloadregister(matomlserv_reload);
+	metadataserver::registerFunctionCalledOnPromotion(matomlserv_become_master);
 	main_destructregister(matomlserv_term);
 	main_pollregister(matomlserv_desc,matomlserv_serve);
 	if (metadataserver::isMaster()) {

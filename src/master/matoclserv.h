@@ -36,3 +36,9 @@ void matoclserv_remove_open_file(uint32_t sessionid,uint32_t inode);
 int matoclserv_sessionsinit(void);
 int matoclserv_networkinit(void);
 void matoclserv_session_unload(void);
+
+/// Notify interested clients about the status of metadata saving process.
+void matoclserv_broadcast_metadata_saved(uint8_t status);
+
+/// Notify interested clients about the status of metadata checksum recalculation process.
+void matoclserv_broadcast_metadata_checksum_recalculated(uint8_t status);

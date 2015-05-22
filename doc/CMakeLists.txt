@@ -6,7 +6,9 @@ endif()
 # These manpages should be generated
 set(MANPAGES
     lizardfs.7          # not a source
-    lizardfs-probe.8
+    lizardfs-admin.8
+    lizardfs-cgiserver.8
+    lizardfs-probe.8    # not a source
     mfsappendchunks.1
     mfscheckfile.1
     mfsdirinfo.1
@@ -37,6 +39,8 @@ set(MANPAGES
     mfsmaster.cfg.5
     mfsmetalogger.cfg.5
     mfstopology.cfg.5
+    mfsmetadump.8
+    mfsrestoremaster.8
     moosefs.7
     mfs.7               # not a source
     mfscgiserv.8
@@ -51,12 +55,17 @@ foreach(MANPAGE ${MANPAGES})
   get_filename_component(MANPAGE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${MANPAGE}.txt ABSOLUTE)
   string(REGEX MATCH "[0-9]$" SECTION_NUMBER ${MANPAGE})
   set(GENERATED_MANPAGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
+  if(ENABLE_VERBOSE_ASCIIDOC)
+    set(ASCIIDOC_VERBOSE --verbose --keep-artifacts)
+  else()
+    set(ASCIIDOC_VERBOSE)
+  endif()
   if(EXISTS ${MANPAGE_SRC})
     # Generate from the source...
     set(MANPAGE_SRC_SYMLINK ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE}.txt)
     add_custom_command(OUTPUT ${GENERATED_MANPAGE_PATH}
         COMMAND ln -s -f ${MANPAGE_SRC} ${MANPAGE_SRC_SYMLINK}
-        COMMAND a2x -f manpage ${MANPAGE_SRC_SYMLINK}
+        COMMAND a2x ${ASCIIDOC_VERBOSE} -f manpage ${MANPAGE_SRC_SYMLINK}
         DEPENDS ${MANPAGE_SRC})
     # Add this file to the main target's dependencies
     set(GENERATED_MANPAGES ${GENERATED_MANPAGES} ${GENERATED_MANPAGE_PATH})

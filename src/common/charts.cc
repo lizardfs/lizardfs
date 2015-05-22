@@ -1901,7 +1901,7 @@ uint32_t charts_make_csv(uint32_t number) {
 	for(int i = 0; i < LENG; i++) {
 		z = (i + pointer + 1) % LENG;
 
-		sprintf(buffer, "%" PRIu64 "", csv_time -(LENG-i-1) * timestamp_step);
+		sprintf(buffer, "%" PRIu64 "", uint64_t(csv_time -(LENG-i-1) * timestamp_step));
 		csv_data += buffer;
 		csv_data += ",";
 		if(c1dispdata[z] != CHARTS_NODATA){

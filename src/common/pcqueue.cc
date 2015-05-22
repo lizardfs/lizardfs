@@ -66,7 +66,7 @@ void* queue_new(uint32_t size) {
 	return q;
 }
 
-void queue_delete(void *que) {
+void queue_delete(void *que, void (*deleter)(uint8_t *)) {
 	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe,*qen;
@@ -75,7 +75,7 @@ void queue_delete(void *que) {
 	sassert(q->fullwaiting==0);
 	for (qe = q->head ; qe ; qe = qen) {
 		qen = qe->next;
-		free(qe->data);
+		deleter(qe->data);
 		free(qe);
 	}
 	zassert(pthread_mutex_unlock(&(q->lock)));

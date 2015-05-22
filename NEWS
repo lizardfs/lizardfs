@@ -104,7 +104,7 @@ This file lists noteworthy changes in LizardFS.
 
   - (mount) added resolving master hostname whenever connection has failed
   - (cs) removed getting attributes of every chunk during initialization - speeds up starting of chunkserver
-  - (cs) changed calculating of total/used space. Superuser space now is substracted from total space instead of adding it to used space
+  - (cs) changed calculating of total/used space. Superuser space now is subtracted from total space instead of adding it to used space
   - (master+mount) fixed directory cache.
   - (debian) rewritten init scripts to use mfscommon commands (start/stop/restart/reload) instead of start-stop-daemon (where stop caused killing all instances of daemon)
   - (debian) changed init scripts to bail out early if MFS*_ENABLE is not true (i.e. given daemon is not scripts-controlled)

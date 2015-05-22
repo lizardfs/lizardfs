@@ -1,8 +1,7 @@
 timeout_set 90 seconds
 
 master_extra_config="MFSMETARESTORE_PATH = $TEMP_DIR/metarestore.sh"
-master_extra_config+="|DUMP_METADATA_ON_RELOAD = 1"
-master_extra_config+="|PREFER_BACKGROUND_DUMP = 1"
+master_extra_config+="|MAGIC_PREFER_BACKGROUND_DUMP = 1"
 master_extra_config+="|BACK_META_KEEP_PREVIOUS = 5"
 
 CHUNKSERVERS=3 \
@@ -62,15 +61,10 @@ function check() {
 	rm -f "$TEMP_DIR/metaout"
 	assert_file_exists "changelog.mfs"
 	assert_file_exists "metadata.mfs"
-
-	prev_metadata_inode=$(stat --format=%i metadata.mfs)
-	lizardfs_master_daemon reload
 	if [[ $2 == OK ]]; then
-		# wait for dump to be finished
-		metadata_is_dumped='[[ $(stat --format=%i metadata.mfs.1) == $prev_metadata_inode ]]'
-		files_are_renamed='[[ -e metadata.mfs && ! -e metadata.mfs.tmp ]]'
-		assert_eventually "$metadata_is_dumped"
-		assert_eventually "$files_are_renamed"
+		assert_success lizardfs_admin_master save-metadata
+	else
+		assert_failure lizardfs_admin_master save-metadata
 	fi
 
 	# verify if metadata was or was not used
@@ -203,7 +197,8 @@ cp -r dir0 dir1
 check master OK
 
 # 3. We don't want background dump
-sed -ie 's/PREFER_BACKGROUND_DUMP = 1/PREFER_BACKGROUND_DUMP = 0/' "${info[master_cfg]}"
+sed -ie 's/MAGIC_PREFER_BACKGROUND_DUMP = 1/MAGIC_PREFER_BACKGROUND_DUMP = 0/' "${info[master_cfg]}"
+lizardfs_admin_master reload-config
 
 cp $TEMP_DIR/metarestore_error_if_executed.sh $TEMP_DIR/metarestore.sh
 mkdir dir{11..22}

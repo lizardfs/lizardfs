@@ -30,44 +30,44 @@ public:
 
 // serializedSize
 
-inline uint32_t serializedSize(const bool&) {
+inline uint32_t serializedSize(bool) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const uint8_t&) {
+inline uint32_t serializedSize(char) {
 	return 1;
 }
 
-inline uint32_t serializedSize(const uint16_t&) {
+inline uint32_t serializedSize(signed char) {
+	return 1;
+}
+
+inline uint32_t serializedSize(unsigned char) {
+	return 1;
+}
+
+inline uint32_t serializedSize(uint16_t) {
 	return 2;
 }
 
-inline uint32_t serializedSize(const uint32_t&) {
+inline uint32_t serializedSize(uint32_t) {
 	return 4;
 }
 
-inline uint32_t serializedSize(const uint64_t&) {
+inline uint32_t serializedSize(uint64_t) {
 	return 8;
 }
 
-inline uint32_t serializedSize(const int8_t&) {
-	return 1;
-}
-
-inline uint32_t serializedSize(const int16_t&) {
+inline uint32_t serializedSize(int16_t) {
 	return 2;
 }
 
-inline uint32_t serializedSize(const int32_t&) {
+inline uint32_t serializedSize(int32_t) {
 	return 4;
 }
 
-inline uint32_t serializedSize(const int64_t&) {
+inline uint32_t serializedSize(int64_t) {
 	return 8;
-}
-
-inline uint32_t serializedSize(const char& c) {
-	return serializedSize(reinterpret_cast<const uint8_t&>(c));
 }
 
 inline uint32_t serializedSize(const std::string& value) {
@@ -166,44 +166,44 @@ inline uint32_t serializedSize(const T& t, const Args& ... args) {
 // serialize for simple types
 
 // serialize bool
-inline void serialize(uint8_t** destination, const bool& value) {
+inline void serialize(uint8_t** destination, bool value) {
 	put8bit(destination, static_cast<uint8_t>(value ? 1 : 0));
 }
 
-inline void serialize(uint8_t** destination, const uint8_t& value) {
+inline void serialize(uint8_t** destination, char value) {
 	put8bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const uint16_t& value) {
-	put16bit(destination, value);
-}
-
-inline void serialize(uint8_t** destination, const uint32_t& value) {
-	put32bit(destination, value);
-}
-
-inline void serialize(uint8_t** destination, const uint64_t& value) {
-	put64bit(destination, value);
-}
-
-inline void serialize(uint8_t** destination, const int8_t& value) {
+inline void serialize(uint8_t** destination, signed char value) {
 	put8bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int16_t& value) {
+inline void serialize(uint8_t** destination, unsigned char value) {
+	put8bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, uint16_t value) {
 	put16bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int32_t& value) {
+inline void serialize(uint8_t** destination, uint32_t value) {
 	put32bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const int64_t& value) {
+inline void serialize(uint8_t** destination, uint64_t value) {
 	put64bit(destination, value);
 }
 
-inline void serialize(uint8_t** destination, const char& value) {
-	serialize(destination, reinterpret_cast<const uint8_t&>(value));
+inline void serialize(uint8_t** destination, int16_t value) {
+	put16bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, int32_t value) {
+	put32bit(destination, value);
+}
+
+inline void serialize(uint8_t** destination, int64_t value) {
+	put64bit(destination, value);
 }
 
 // serialize a string
@@ -322,11 +322,25 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, boo
 	value = static_cast<bool>(integerValue);
 }
 
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint8_t& value) {
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, char& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 1;
 	value = get8bit(source);
 }
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, signed char& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 1;
+	value = get8bit(source);
+}
+
+
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, unsigned char& value) {
+	verifySize(value, bytesLeftInBuffer);
+	bytesLeftInBuffer -= 1;
+	value = get8bit(source);
+}
+
 
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uint16_t& value) {
 	verifySize(value, bytesLeftInBuffer);
@@ -346,12 +360,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, uin
 	value = get64bit(source);
 }
 
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int8_t& value) {
-	verifySize(value, bytesLeftInBuffer);
-	bytesLeftInBuffer -= 1;
-	value = get8bit(source);
-}
-
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int16_t& value) {
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 2;
@@ -368,10 +376,6 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, int
 	verifySize(value, bytesLeftInBuffer);
 	bytesLeftInBuffer -= 8;
 	value = get64bit(source);
-}
-
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, char& value) {
-	deserialize(source, bytesLeftInBuffer, reinterpret_cast<uint8_t&>(value));
 }
 
 // deserialize a string

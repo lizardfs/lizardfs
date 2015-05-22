@@ -37,6 +37,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <atomic>
 #include <list>
 #include <string>
 #include <thread>
@@ -113,8 +114,18 @@ typedef struct dopchunk {
 } dopchunk;
 
 static uint32_t HDDTestFreq = 10;
+
+/// Number of bytes which should be addded to each disk's used space
+static uint64_t gLeaveFree;
+
+/// Default value for HDD_LEAVE_SPACE_DEFAULT
+static const char gLeaveSpaceDefaultDefaultStrValue[] = "4GiB";
+
+/// Value of HDD_ADVISE_NO_CACHE from config
+static std::atomic_bool gAdviseNoCache;
+
 static std::atomic<bool> MooseFSChunkFormat;
-static uint64_t LeaveFree;
+
 static std::atomic<bool> PerformFsync;
 
 /* folders data */
@@ -1258,7 +1269,7 @@ static inline int hdd_int_chunk_readcrc(MooseFSChunk *c) {
 
 	c->initEmptyCrc();
 #ifndef ENABLE_CRC /* if NOT defined */
-	uint8_t* crcArrayPtr = c->crc;
+	uint8_t* crcArrayPtr = c->crc->data();
 	for (int i = 0; i < MFSBLOCKSINCHUNK; ++i) {
 		put32bit(&crcArrayPtr, mycrc32_zeroblock(0, 0));
 	}
@@ -1342,6 +1353,11 @@ void hdd_delayed_ops() {
 				if (c->opensteps>0) {   // decrease counter
 					c->opensteps--;
 				} else if (c->fd>=0) {  // close descriptor
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+					if (gAdviseNoCache) {
+						posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+					}
+#endif /* LIZARDFS_HAVE_POSIX_FADVISE */
 					if (close(c->fd)<0) {
 						hdd_error_occured(c);   // uses and preserves errno !!!
 						lzfs_silent_errlog(LOG_WARNING,"hdd_delayed_ops: file:%s - close error", c->filename().c_str());
@@ -1356,7 +1372,7 @@ void hdd_delayed_ops() {
 					} else {
 						mc->clearCrc();
 					}
-					crcEmpty = mc->crc->empty();
+					crcEmpty = (mc->crc == nullptr);
 				}
 				if (c->fd < 0 && crcEmpty) {
 					*ccp = cc->next;
@@ -1452,7 +1468,6 @@ static int hdd_io_end(Chunk *c) {
 	uint64_t ts,te;
 
 	if (c->wasChanged) {
-		c->wasChanged = false;
 		IF_MOOSEFS_CHUNK(mc, c) {
 			int status = chunk_writecrc(mc);
 			PRINTTHIS(status);
@@ -1486,6 +1501,13 @@ static int hdd_io_end(Chunk *c) {
 			te = get_usectime();
 			hdd_stats_datafsync(c->owner,te-ts);
 		}
+		c->wasChanged = false;
+	}
+
+	if (c->refcount <= 0) {
+		lzfs_silent_syslog(LOG_WARNING, "hdd_io_end: refcount = 0 - This should never happen!");
+		errno = 0;
+		return STATUS_OK;
 	}
 	c->refcount--;
 	if (c->refcount==0) {
@@ -2146,11 +2168,12 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 		return status;
 	}
 	uint8_t crcBuff[sizeof(uint32_t)];
+	status = STATUS_OK; // will be overwritten in the loop below if the test fails
 	for (block=0 ; block<c->blocks ; block++) {
 		auto readBytes = hdd_int_read_block_and_crc(c, blockbuffer, crcBuff, block, "test_chunk");
 		if (readBytes < 0) {
-			hdd_chunk_release(c);
-			return ERROR_IO;
+			status = ERROR_IO;
+			break;
 		}
 		hdd_stats_read(readBytes);
 		const uint8_t* crcBuffPointer = crcBuff;
@@ -2158,10 +2181,20 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 			errno = 0;      // set anything to errno
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			syslog(LOG_WARNING, "test_chunk: file:%s - crc error", c->filename().c_str());
-			hdd_io_end(c);
-			hdd_chunk_release(c);
-			return ERROR_CRC;
+			status = ERROR_CRC;
+			break;
 		}
+	}
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
+	// Always advise the OS that tested chunks should not be cached. Don't rely on
+	// hdd_delayed_ops to do it for us, because it may be disabled using a config file.
+	posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
+#endif /* LIZARDFS_HAVE_POSIX_FADVISE */
+	if (status != STATUS_OK) {
+		// test failed -- chunk is damaged
+		hdd_io_end(c);
+		hdd_chunk_release(c);
+		return status;
 	}
 	status = hdd_io_end(c);
 	if (status!=STATUS_OK) {
@@ -2203,12 +2236,12 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		return ERROR_NOSPACE;
 	}
 	c = hdd_chunk_create(f, copyChunkId, chunkType, copyChunkVersion, oc->chunkFormat());
-	sassert(c->chunkFormat() == oc->chunkFormat());
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
 		return ERROR_CHUNKEXIST;
 	}
+	sassert(c->chunkFormat() == oc->chunkFormat());
 
 	if (chunkNewVersion != chunkVersion) {
 		if (c->renameChunkFile(c->generateFilenameForVersion(chunkNewVersion)) < 0) {
@@ -3001,7 +3034,9 @@ void* hdd_tester_thread(void* arg) {
 		zassert(pthread_mutex_unlock(&hashlock));
 		zassert(pthread_mutex_unlock(&folderlock));
 		if (!path.empty()) {
-			syslog(LOG_NOTICE, "testing chunk: %s", path.c_str());
+			zassert(pthread_mutex_lock(&statslock));
+			stats_test++;
+			zassert(pthread_mutex_unlock(&statslock));
 			if (hdd_int_test(chunkid, version, chunkType) != STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid);
 			}
@@ -3531,7 +3566,7 @@ int hdd_size_parse(const char *str,uint64_t *ret) {
 int hdd_parseline(char *hddcfgline) {
 	TRACETHIS();
 	uint32_t l,p;
-	int lfd,td;
+	int damaged,lfd,td;
 	char *pptr;
 	struct stat sb;
 	folder *f;
@@ -3539,6 +3574,7 @@ int hdd_parseline(char *hddcfgline) {
 	uint64_t limit;
 	uint8_t lmode;
 
+	damaged = 0;
 	if (hddcfgline[0]=='#') {
 		return 0;
 	}
@@ -3638,46 +3674,46 @@ int hdd_parseline(char *hddcfgline) {
 	lfd = open(lockfname.c_str(),O_RDWR|O_CREAT|O_TRUNC,0640);
 	if (lfd<0 && errno==EROFS && td) {
 		td = 2;
-	} else {
-		if (lfd<0) {
-			throw ParseException("can't create lock file " + lockfname + " : " +
-					errorString(errno));
+	} else if (lfd<0) {
+		lzfs_pretty_errlog(LOG_WARNING, "can't create lock file %s, marking hdd as damaged",
+				lockfname.c_str());
+		damaged = 1;
+	} else if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
+		int err = errno;
+		close(lfd);
+		if (err==EAGAIN) {
+			throw InitializeException(
+					"data folder " + dataDir + " already locked by another process");
+		} else {
+			lzfs_pretty_syslog(LOG_WARNING, "lockf(%s) failed, marking hdd as damaged: %s",
+					lockfname.c_str(), strerr(err));
+			damaged = 1;
 		}
-		if (lockneeded && lockf(lfd,F_TLOCK,0)<0) {
-			int err = errno;
-			close(lfd);
-			if (errno==EAGAIN) {
-				throw InitializeException(
-						"data folder " + dataDir + " already locked by another process");
-			} else {
-				throw InitializeException("lockf(" + lockfname + ") failed: " + errorString(err));
-			}
-		}
-		if (fstat(lfd,&sb)<0) {
-			int err = errno;
-			close(lfd);
-			throw InitializeException("fstat(" + lockfname + ") failed: " + errorString(err));
-		}
-		if (lockneeded) {
-			zassert(pthread_mutex_lock(&folderlock));
-			for (f=folderhead ; f ; f=f->next) {
-				if (f->devid==sb.st_dev) {
-					if (f->lockinode==sb.st_ino) {
-						std::string fPath = f->path;
-						zassert(pthread_mutex_unlock(&folderlock));
-						close(lfd);
-						throw InitializeException("data folders '" + dataDir + "' and "
-								"'" + fPath + "' have the same lockfile");
-					} else {
-						lzfs_pretty_syslog(LOG_WARNING,
-								"data folders '%s' and '%s' are on the same "
-								"physical device (could lead to unexpected behaviours)",
-								dataDir.c_str(), f->path);
-					}
+	} else if (fstat(lfd,&sb)<0) {
+		int err = errno;
+		close(lfd);
+		lzfs_pretty_syslog(LOG_WARNING, "fstat(%s) failed, marking hdd as damaged: %s",
+				lockfname.c_str(), strerr(err));
+		damaged = 1;
+	} else if (lockneeded) {
+		zassert(pthread_mutex_lock(&folderlock));
+		for (f=folderhead ; f ; f=f->next) {
+			if (f->lfd>=0 && f->devid==sb.st_dev) {
+				if (f->lockinode==sb.st_ino) {
+					std::string fPath = f->path;
+					zassert(pthread_mutex_unlock(&folderlock));
+					close(lfd);
+					throw InitializeException("data folders '" + dataDir + "' and "
+							"'" + fPath + "' have the same lockfile");
+				} else {
+					lzfs_pretty_syslog(LOG_WARNING,
+							"data folders '%s' and '%s' are on the same "
+							"physical device (could lead to unexpected behaviours)",
+							dataDir.c_str(), f->path);
 				}
 			}
-			zassert(pthread_mutex_unlock(&folderlock));
 		}
+		zassert(pthread_mutex_unlock(&folderlock));
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	for (f=folderhead ; f ; f=f->next) {
@@ -3686,13 +3722,13 @@ int hdd_parseline(char *hddcfgline) {
 			if (f->damaged) {
 				f->scanstate = SCST_SCANNEEDED;
 				f->scanprogress = 0;
-				f->damaged = 0;
+				f->damaged = damaged;
 				f->avail = 0ULL;
 				f->total = 0ULL;
 				if (lmode==1) {
 					f->leavefree = limit;
 				} else {
-					f->leavefree = LeaveFree;
+					f->leavefree = gLeaveFree;
 				}
 				if (lmode==2) {
 					f->sizelimit = limit;
@@ -3729,7 +3765,7 @@ int hdd_parseline(char *hddcfgline) {
 	f = (folder*)malloc(sizeof(folder));
 	passert(f);
 	f->todel = td;
-	f->damaged = 0;
+	f->damaged = damaged;
 	f->scanstate = SCST_SCANNEEDED;
 	f->scanprogress = 0;
 	f->path = strdup(pptr);
@@ -3738,7 +3774,7 @@ int hdd_parseline(char *hddcfgline) {
 	if (lmode==1) {
 		f->leavefree = limit;
 	} else {
-		f->leavefree = LeaveFree;
+		f->leavefree = gLeaveFree;
 	}
 	if (lmode==2) {
 		f->sizelimit = limit;
@@ -3760,9 +3796,13 @@ int hdd_parseline(char *hddcfgline) {
 	f->lasterrindx = 0;
 	f->lastrefresh = 0;
 	f->needrefresh = 1;
-	f->devid = sb.st_dev;
-	f->lockinode = sb.st_ino;
-	f->lfd = lfd;
+	if (damaged) {
+		f->lfd = -1;
+	} else {
+		f->lfd = lfd;
+		f->devid = sb.st_dev;
+		f->lockinode = sb.st_ino;
+	}
 	f->testhead = NULL;
 	f->testtail = &(f->testhead);
 	f->carry = (double)(random()&0x7FFFFFFF)/(double)(0x7FFFFFFF);
@@ -3864,7 +3904,7 @@ void hdd_int_set_chunk_format() {
 
 void hdd_reload(void) {
 	TRACETHIS();
-	char *LeaveFreeStr;
+	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
 
 	PerformFsync = cfg_getuint32("PERFORM_FSYNC", 1);
 
@@ -3873,14 +3913,12 @@ void hdd_reload(void) {
 	zassert(pthread_mutex_unlock(&testlock));
 
 	hdd_int_set_chunk_format();
-
-	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
-
-	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+	char *LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
+	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT parse error - left unchanged");
 	}
 	free(LeaveFreeStr);
-	if (LeaveFree<0x4000000) {
+	if (gLeaveFree<0x4000000) {
 		syslog(LOG_NOTICE,"hdd space manager: HDD_LEAVE_SPACE_DEFAULT < chunk size - leaving so small space on hdd is not recommended");
 	}
 
@@ -3936,15 +3974,18 @@ int hdd_init(void) {
 
 	PerformFsync = cfg_getuint32("PERFORM_FSYNC", 1);
 
-	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT","256MiB");
-	if (hdd_size_parse(LeaveFreeStr,&LeaveFree)<0) {
+	uint64_t leaveSpaceDefaultDefaultValue = 0;
+	sassert(hdd_size_parse(gLeaveSpaceDefaultDefaultStrValue, &leaveSpaceDefaultDefaultValue) >= 0);
+	sassert(leaveSpaceDefaultDefaultValue > 0);
+	LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
+	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
 		lzfs_pretty_syslog(LOG_WARNING,
-				"%s: HDD_LEAVE_SPACE_DEFAULT parse error - using default (256MiB)",
-				cfg_filename().c_str());
-		LeaveFree = 0x10000000;
+				"%s: HDD_LEAVE_SPACE_DEFAULT parse error - using default (%s)",
+				cfg_filename().c_str(), gLeaveSpaceDefaultDefaultStrValue);
+		gLeaveFree = leaveSpaceDefaultDefaultValue;
 	}
 	free(LeaveFreeStr);
-	if (LeaveFree<0x4000000) {
+	if (gLeaveFree<0x4000000) {
 		lzfs_pretty_syslog(LOG_WARNING,
 				"%s: HDD_LEAVE_SPACE_DEFAULT < chunk size - "
 				"leaving so small space on hdd is not recommended",
@@ -3966,6 +4007,7 @@ int hdd_init(void) {
 	lzfs_pretty_syslog(LOG_INFO, "hdd space manager: start background hdd scanning "
 				"(searching for available chunks)");
 
+	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 
 	MooseFSChunkFormat = true;

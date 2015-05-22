@@ -5,14 +5,14 @@ assert_program_installed cmake
 CHUNKSERVERS=2 \
 	MOUNTS=1 \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
-	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1 | SAVE_METADATA_AT_EXIT = 0"\
+	MASTER_EXTRA_CONFIG="AUTO_RECOVERY = 1"\
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
 
 master_kill_loop() {
 	while true; do
-		lizardfs_master_daemon stop
+		lizardfs_stop_master_without_saving_metadata
 		lizardfs_master_daemon start
 		lizardfs_wait_for_all_ready_chunkservers
 		sleep 5

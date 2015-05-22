@@ -3,7 +3,7 @@
 #define LIZARDFS_HAVE_STRERROR_R
 #define MASTERINFO_WITH_VERSION
 
-/* Definitions transfered to preprocessor */
+/* Definitions transferred to preprocessor */
 #define LIZARDFS_PACKAGE_VERSION_MAJOR @PACKAGE_VERSION_MAJOR@
 #define LIZARDFS_PACKAGE_VERSION_MINOR @PACKAGE_VERSION_MINOR@
 #define LIZARDFS_PACKAGE_VERSION_MICRO @PACKAGE_VERSION_MICRO@
@@ -16,7 +16,6 @@
 
 #define DATA_PATH "@DATA_PATH@"
 #define ETC_PATH "@ETC_PATH@"
-#define RUN_PATH "@RUN_PATH@"
 #define SBIN_PATH "@SBIN_PATH@"
 
 #define DEFAULT_USER "@DEFAULT_USER@"
@@ -102,8 +101,10 @@
 #cmakedefine LIZARDFS_HAVE_DUP2
 #cmakedefine LIZARDFS_HAVE_MLOCKALL
 #cmakedefine LIZARDFS_HAVE_GETCWD
+#cmakedefine LIZARDFS_HAVE_POSIX_FADVISE
 
 /* [CMake] Other */
+#cmakedefine HAVE_CRCUTIL
 #cmakedefine WORDS_BIGENDIAN
 #cmakedefine ENABLE_EXIT_ON_USR1
 #cmakedefine LIZARDFS_ENABLE_DEBUG_LOG
