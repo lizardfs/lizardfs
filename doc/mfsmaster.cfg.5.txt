@@ -158,9 +158,6 @@ Interval of removing files from trash in seconds (default is 300)
 *EMPTY_RESERVED_INODES_PERIOD*::
 Interval of removing reserved files in seconds (default is 60)
 
-*FREE_INODES_PERIOD*::
-Interval of freeing inodes being unused for longer than 24 hours in seconds (default is 60)
-
 *REJECT_OLD_CLIENTS*::
 Reject **mfsmount**s older than 1.6.0 (0 or 1, default is 0). Note that *mfsexports* access control
 is NOT used for those old clients.

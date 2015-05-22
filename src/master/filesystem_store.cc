@@ -803,7 +803,7 @@ int fs_loadnode(FILE *fd) {
 	nodepos = NODEHASHPOS(p->id);
 	p->next = gMetadata->nodehash[nodepos];
 	gMetadata->nodehash[nodepos] = p;
-	fsnodes_used_inode(p->id);
+	gMetadata->inode_pool.markAsAcquired(p->id);
 	gMetadata->nodes++;
 	if (type == TYPE_DIRECTORY) {
 		gMetadata->dirnodes++;
@@ -966,12 +966,9 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 
 void fs_storefree(FILE *fd) {
 	uint8_t wbuff[8 * 1024], *ptr;
-	freenode *n;
-	uint32_t l;
-	l = 0;
-	for (n = gMetadata->freelist; n; n = n->next) {
-		l++;
-	}
+
+	uint32_t l = gMetadata->inode_pool.detainedCount();
+
 	ptr = wbuff;
 	put32bit(&ptr, l);
 	if (fwrite(wbuff, 1, 4, fd) != (size_t)4) {
@@ -980,7 +977,8 @@ void fs_storefree(FILE *fd) {
 	}
 	l = 0;
 	ptr = wbuff;
-	for (n = gMetadata->freelist; n; n = n->next) {
+
+	for (const auto &n : gMetadata->inode_pool) {
 		if (l == 1024) {
 			if (fwrite(wbuff, 1, 8 * 1024, fd) != (size_t)(8 * 1024)) {
 				syslog(LOG_NOTICE, "fwrite error");
@@ -989,8 +987,8 @@ void fs_storefree(FILE *fd) {
 			l = 0;
 			ptr = wbuff;
 		}
-		put32bit(&ptr, n->id);
-		put32bit(&ptr, n->ftime);
+		put32bit(&ptr, n.id);
+		put32bit(&ptr, n.ts);
 		l++;
 	}
 	if (l > 0) {
@@ -1004,7 +1002,6 @@ void fs_storefree(FILE *fd) {
 int fs_loadfree(FILE *fd) {
 	uint8_t rbuff[8 * 1024];
 	const uint8_t *ptr;
-	freenode *n;
 	uint32_t l, t;
 
 	if (fread(rbuff, 1, 4, fd) != 4) {
@@ -1013,8 +1010,7 @@ int fs_loadfree(FILE *fd) {
 	}
 	ptr = rbuff;
 	t = get32bit(&ptr);
-	gMetadata->freelist = NULL;
-	gMetadata->freetail = &(gMetadata->freelist);
+
 	l = 0;
 	while (t > 0) {
 		if (l == 0) {
@@ -1035,13 +1031,12 @@ int fs_loadfree(FILE *fd) {
 			}
 			ptr = rbuff;
 		}
-		n = freenode_malloc();
-		n->id = get32bit(&ptr);
-		n->ftime = get32bit(&ptr);
-		n->next = NULL;
-		*gMetadata->freetail = n;
-		gMetadata->freetail = &(n->next);
-		fsnodes_used_inode(n->id);
+
+		uint32_t id = get32bit(&ptr);
+		uint32_t ts = get32bit(&ptr);
+
+		gMetadata->inode_pool.detain(id, ts, true);
+
 		l--;
 		t--;
 	}
@@ -1219,7 +1214,6 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 	gMetadata->maxnodeid = get32bit(&ptr);
 	gMetadata->metaversion = get64bit(&ptr);
 	gMetadata->nextsessionid = get32bit(&ptr);
-	fsnodes_init_freebitmask();
 
 	if (fver < kMetadataVersionWithSections) {
 		lzfs_pretty_syslog_attempt(
@@ -1410,9 +1404,6 @@ void fs_new(void) {
 	gMetadata->maxnodeid = MFS_ROOT_ID;
 	gMetadata->metaversion = 1;
 	gMetadata->nextsessionid = 1;
-	fsnodes_init_freebitmask();
-	gMetadata->freelist = NULL;
-	gMetadata->freetail = &(gMetadata->freelist);
 	gMetadata->root = new fsnode(TYPE_DIRECTORY);
 	gMetadata->root->id = MFS_ROOT_ID;
 	gMetadata->root->ctime = gMetadata->root->mtime = gMetadata->root->atime = main_time();
@@ -1432,7 +1423,7 @@ void fs_new(void) {
 	nodepos = NODEHASHPOS(gMetadata->root->id);
 	gMetadata->root->next = gMetadata->nodehash[nodepos];
 	gMetadata->nodehash[nodepos] = gMetadata->root;
-	fsnodes_used_inode(gMetadata->root->id);
+	gMetadata->inode_pool.markAsAcquired(gMetadata->root->id);
 	chunk_newfs();
 	gMetadata->nodes = 1;
 	gMetadata->dirnodes = 1;

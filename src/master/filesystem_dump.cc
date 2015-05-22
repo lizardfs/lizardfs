@@ -149,9 +149,8 @@ void fs_dumpedges(fsnode *f) {
 }
 
 void fs_dumpfree() {
-	freenode *n;
-	for (n = gMetadata->freelist; n; n = n->next) {
-		printf("I|i:%10" PRIu32 "|f:%10" PRIu32 "\n", n->id, n->ftime);
+	for (const auto &n : gMetadata->inode_pool) {
+		printf("I|i:%10" PRIu32 "|f:%10" PRIu32 "\n", n.id, n.ts);
 	}
 }
 

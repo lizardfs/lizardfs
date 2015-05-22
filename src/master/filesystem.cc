@@ -43,7 +43,6 @@ FilesystemMetadata* gMetadata = nullptr;
 
 static void* gEmptyTrashHook;
 static void* gEmptyReservedHook;
-static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
 bool gMagicAutoFileRepair = false;
 bool gAtimeDisabled = false;
@@ -251,9 +250,6 @@ void fs_become_master() {
 	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
 			0, fs_periodic_emptyreserved);
-	gFreeInodesHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1),
-			0, fs_periodic_freeinodes);
 	return;
 }
 
@@ -330,8 +326,6 @@ void fs_reload(void) {
 				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 		main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
-		main_timechange(gFreeInodesHook, TIMEMODE_RUN_LATE,
-				cfg_get_minvalue<uint32_t>("FREE_INODES_PERIOD", 60, 1), 0);
 	}
 }
 

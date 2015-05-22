@@ -578,7 +578,7 @@ void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, co
 
 fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uint8_t *name,
 			uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
-			uint8_t copysgid, AclInheritance inheritacl) {
+			uint8_t copysgid, AclInheritance inheritacl, uint32_t req_inode) {
 	fsnode *p;
 	statsrecord *sr;
 	uint32_t nodepos;
@@ -591,7 +591,8 @@ fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uin
 		gMetadata->filenodes++;
 	}
 	/* create node */
-	p->id = fsnodes_get_next_id();
+	p->id = fsnodes_get_next_id(ts, req_inode);
+
 	p->ctime = p->mtime = p->atime = ts;
 	if (type == TYPE_DIRECTORY || type == TYPE_FILE) {
 		p->goal = node->goal;
@@ -1138,7 +1139,7 @@ static inline void fsnodes_remove_node(uint32_t ts, fsnode *toremove) {
 			}
 		}
 	}
-	fsnodes_free_id(toremove->id, ts);
+	gMetadata->inode_pool.release(toremove->id, ts, true);
 	xattr_removeinode(toremove->id);
 	fsnodes_quota_unregister_inode(toremove);
 #ifndef METARESTORE

@@ -190,8 +190,8 @@ int fsnodes_nameisused(fsnode *node, uint16_t nleng, const uint8_t *name);
 bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid);
 
 fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uint8_t *name,
-	uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
-	uint8_t copysgid, AclInheritance inheritacl);
+			uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
+			uint8_t copysgid, AclInheritance inheritacl, uint32_t req_inode=0);
 
 void fsnodes_add_stats(fsnode *parent, statsrecord *sr);
 int fsnodes_sticky_access(fsnode *parent, fsnode *node, uint32_t uid);

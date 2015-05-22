@@ -25,12 +25,15 @@
 
 #include "common/tape_copies.h"
 #include "master/chunks.h"
+#include "master/id_pool_detainer.h"
 #include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_xattr.h"
 #include "master/metadata_dumper.h"
 #include "master/quota_database.h"
+
+#define MAX_REGULAR_INODE (0x7FFFFFF0ULL-1)
 
 /** Metadata of the filesystem.
  *  All the static variables managed by function in this file which form metadata of the filesystem.
@@ -40,17 +43,12 @@ public:
 	std::unordered_map<uint32_t, TapeCopies> tapeCopies;
 	xattr_inode_entry *xattr_inode_hash[XATTR_INODE_HASH_SIZE];
 	xattr_data_entry *xattr_data_hash[XATTR_DATA_HASH_SIZE];
-	uint32_t *freebitmask;
-	uint32_t bitmasksize;
-	uint32_t searchpos;
-	freenode *freelist, **freetail;
+	IdPoolDetainer<uint32_t, uint32_t> inode_pool;
 	fsedge *trash;
 	fsedge *reserved;
 	fsnode *root;
 	fsnode *nodehash[NODEHASHSIZE];
 	fsedge *edgehash[EDGEHASHSIZE];
-	freenode_bucket *fnbhead;
-	freenode *fnfreehead;
 	sessionidrec_bucket *crbhead;
 	sessionidrec *crfreehead;
 
@@ -75,18 +73,14 @@ public:
 	    : tapeCopies{},
 	      xattr_inode_hash{},
 	      xattr_data_hash{},
-	      freebitmask{},
-	      bitmasksize{},
-	      searchpos{},
-	      freelist{},
-	      freetail{},
+	      inode_pool{MFS_INODE_REUSE_DELAY, 12,
+	                 MAX_REGULAR_INODE, MAX_REGULAR_INODE,
+	                 32 * 8 * 1024, 8 * 1024, 10},
 	      trash{},
 	      reserved{},
 	      root{},
 	      nodehash{},
 	      edgehash{},
-	      fnbhead{},
-	      fnfreehead{},
 	      crbhead{},
 	      crfreehead{},
 	      maxnodeid{},
@@ -116,9 +110,6 @@ public:
 			deleteListConnectedUsingNext(xattr_data_hash[i]);
 		}
 
-		// Free memory allocated in freebitmask
-		free(freebitmask);
-
 		// Free memory allocated in trash list
 		while (trash != nullptr) {
 			fsedge *next = trash->nextchild;
@@ -143,8 +134,7 @@ public:
 			deleteListConnectedUsingNext(edgehash[i]);
 		}
 
-		// Free memory allocated in fnbhead, crbhead lists
-		freeListConnectedUsingNext(fnbhead);
+		// Free memory allocated in crbhead lists
 		freeListConnectedUsingNext(crbhead);
 	}
 

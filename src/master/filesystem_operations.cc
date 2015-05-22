@@ -1198,13 +1198,15 @@ uint8_t fs_apply_create(uint32_t ts, uint32_t parent, uint32_t nleng, const uint
 	if (fsnodes_nameisused(wd, nleng, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
+	// we pass requested inode number here
 	p = fsnodes_create_node(ts, wd, nleng, name, type, mode, 0, uid, gid, 0,
-	                        AclInheritance::kInheritAcl);
+	                        AclInheritance::kInheritAcl, inode);
 	if (type == TYPE_BLOCKDEV || type == TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
 		fsnodes_update_checksum(p);
 	}
 	if (inode != p->id) {
+		// if inode!=p->id then requested inode number was already acquired
 		return LIZARDFS_ERROR_MISMATCH;
 	}
 	gMetadata->metaversion++;

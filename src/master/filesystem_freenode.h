@@ -22,19 +22,6 @@
 #include "common/platform.h"
 #include "master/filesystem_node.h"
 
-typedef struct _freenode {
-	uint32_t id;
-	uint32_t ftime;
-	struct _freenode *next;
-} freenode;
-
-#define FREENODE_BUCKET_SIZE 5000
-typedef struct _freenode_bucket {
-	freenode bucket[FREENODE_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _freenode_bucket *next;
-} freenode_bucket;
-
 #define CUIDREC_BUCKET_SIZE 1000
 typedef struct _sessionidrec_bucket {
 	sessionidrec bucket[CUIDREC_BUCKET_SIZE];
@@ -42,12 +29,18 @@ typedef struct _sessionidrec_bucket {
 	struct _sessionidrec_bucket *next;
 } sessionidrec_bucket;
 
-void fsnodes_free_id(uint32_t id, uint32_t ts);
-void fsnodes_init_freebitmask(void);
-void fsnodes_used_inode(uint32_t id);
-void fs_periodic_freeinodes(void);
 void sessionidrec_free(sessionidrec *p);
 
-freenode *freenode_malloc();
 sessionidrec *sessionidrec_malloc();
-uint32_t fsnodes_get_next_id();
+
+/*! \brief Get next free inode number.
+ *
+ * \param ts        - current time stamp
+ * \param req_inode - request inode number
+ *                    >0 - we request specific inode number
+ *                     0 - get any free inode number
+ *
+ * \return 0  - no more free inodes
+ *         >0 - allocated inode number (may differ from requested if it was already taken)
+ */
+uint32_t fsnodes_get_next_id(uint32_t ts, uint32_t req_inode);
