@@ -4,10 +4,13 @@
 #include <chrono>
 #include <ratio>
 
-#ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
+#ifndef LIZARDFS_HAVE_STD_CHRONO_STEADY_CLOCK
 #  include <time.h>
 SteadyClock::time_point SteadyClock::now() {
 	struct timespec ts;
+#ifndef LIZARDFS_HAVE_CLOCK_GETTIME
+	#error C++ compiler conforming to section 20.11.7.2 of C++ standard is required (e.g. g++ >=4.7)
+#endif
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	rep count = 0;
 	count += ts.tv_sec;
@@ -26,6 +29,7 @@ static int64_t duration_int64_cast(Dur duration) {
 // Timer implementation
 
 Timer::Timer() : startTime_(now()) {
+	static_assert(SteadyClock::is_steady, "Monotonic clock is required");
 }
 
 SteadyTimePoint Timer::now() const {
