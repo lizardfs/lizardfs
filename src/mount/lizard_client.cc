@@ -16,12 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(__APPLE__)
-# if ! defined(__DARWIN_64_BIT_INO_T) && ! defined(_DARWIN_USE_64_BIT_INODE)
-#  define __DARWIN_64_BIT_INO_T 0
-# endif
-#endif
-
 #include "common/platform.h"
 #include "mount/lizard_client.h"
 
