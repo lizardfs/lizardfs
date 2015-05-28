@@ -27,3 +27,9 @@ expect_eventually_prints "$file_size"  'stat -c %s "${info[mount1]}/dir/f1"' '7 
 sleep 10
 expect_equals 0 "$(stat -c %s "${info[mount1]}/dir/f2")"
 expect_eventually_prints "xxxxx" 'head -c 5 "${info[mount0]}/dir/f2"'
+
+# Kill background processes before exit to avoid false negatives from valgrind
+if [[ ${USE_VALGRIND} ]]; then
+	jobs -p | xargs kill -KILL
+	assert_eventually_prints "" "jobs -p"
+fi

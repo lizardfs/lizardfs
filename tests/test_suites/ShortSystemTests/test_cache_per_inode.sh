@@ -29,3 +29,8 @@ testing_thread &
 assert_success wait_for 'test -a "$file_created_on_success"' '15 seconds'
 sleep 5 # let's let the second 'dd' run and (possibly) fail the test
 
+# Kill background processes before exit to avoid false negatives from valgrind
+if [[ ${USE_VALGRIND} ]]; then
+	jobs -p | xargs kill -KILL
+	assert_eventually_prints "" "jobs -p"
+fi
