@@ -163,13 +163,7 @@ release="$(lsb_release -si)/$(lsb_release -sr)"
 case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
 		apt-get install asciidoc build-essential cmake debhelper devscripts git libfuse-dev pkg-config zlib1g-dev
-		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
-		if [[ "$release" != "Ubuntu/12.04" ]]; then
-			apt-get install libtcmalloc-minimal4
-		else
-			apt-get install libtcmalloc-minimal0
-			ln -s libtcmalloc_minimal.so.0 /usr/lib/libtcmalloc_minimal.so
-		fi
+		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget libgoogle-perftools-dev
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
