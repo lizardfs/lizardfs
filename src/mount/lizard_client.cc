@@ -3197,7 +3197,7 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
-		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%d\n",
+		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
 				acl_cache_timeout_, acl_cache_size_);
 	}
 	statsptr_init();
