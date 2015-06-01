@@ -1354,17 +1354,13 @@ void csserv_write(csserventry *eptr) {
 	}
 }
 
-void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
+void csserv_desc(std::vector<pollfd> &pdesc) {
 	csserventry *eptr;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
-	pdesc[pos].fd = jobfd;
-	pdesc[pos].events = POLLIN;
-	jobfdpdescpos = pos;
-	pos++;
+
+	pdesc.push_back({lsock,POLLIN,0});
+	lsockpdescpos = pdesc.size() - 1;
+	pdesc.push_back({jobfd,POLLIN,0});
+	jobfdpdescpos = pdesc.size() - 1;
 
 	for (eptr=csservhead ; eptr ; eptr=eptr->next) {
 		eptr->pdescpos = -1;
@@ -1373,65 +1369,52 @@ void csserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 			case IDLE:
 			case READ:
 			case WRITELAST:
-				pdesc[pos].fd = eptr->sock;
-				pdesc[pos].events = 0;
-				eptr->pdescpos = pos;
+				pdesc.push_back({eptr->sock,0,0});
+				eptr->pdescpos = pdesc.size() - 1;
 				if (eptr->inputpacket.bytesleft>0) {
-					pdesc[pos].events |= POLLIN;
+					pdesc.back().events |= POLLIN;
 				}
 				if (eptr->outputhead!=NULL) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 				break;
 			case CONNECTING:
-				pdesc[pos].fd = eptr->fwdsock;
-				pdesc[pos].events = POLLOUT;
-				eptr->fwdpdescpos = pos;
-				pos++;
+				pdesc.push_back({eptr->fwdsock,POLLOUT,0});
+				eptr->fwdpdescpos = pdesc.size() - 1;
 				break;
 			case WRITEINIT:
 				if (eptr->fwdbytesleft>0) {
-					pdesc[pos].fd = eptr->fwdsock;
-					pdesc[pos].events = POLLOUT;
-					eptr->fwdpdescpos = pos;
-					pos++;
+					pdesc.push_back({eptr->fwdsock,POLLOUT,0});
+					eptr->fwdpdescpos = pdesc.size() - 1;
 				}
 				break;
 			case WRITEFWD:
-				pdesc[pos].fd = eptr->fwdsock;
-				pdesc[pos].events = POLLIN;
-				eptr->fwdpdescpos = pos;
+				pdesc.push_back({eptr->fwdsock,POLLIN,0});
+				eptr->fwdpdescpos = pdesc.size() - 1;
 				if (eptr->fwdbytesleft>0) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 
-				pdesc[pos].fd = eptr->sock;
-				pdesc[pos].events = 0;
-				eptr->pdescpos = pos;
+				pdesc.push_back({eptr->sock,0,0});
+				eptr->pdescpos = pdesc.size() - 1;
 				if (eptr->inputpacket.bytesleft>0) {
-					pdesc[pos].events |= POLLIN;
+					pdesc.back().events |= POLLIN;
 				}
 				if (eptr->outputhead!=NULL) {
-					pdesc[pos].events |= POLLOUT;
+					pdesc.back().events |= POLLOUT;
 				}
-				pos++;
 				break;
 			case WRITEFINISH:
 				if (eptr->outputhead!=NULL) {
-					pdesc[pos].fd = eptr->sock;
-					pdesc[pos].events = POLLOUT;
-					eptr->pdescpos = pos;
-					pos++;
+					pdesc.push_back({eptr->sock,POLLOUT,0});
+					eptr->pdescpos = pdesc.size() - 1;
 				}
 				break;
 		}
 	}
-	*ndesc = pos;
 }
 
-void csserv_serve(struct pollfd *pdesc) {
+void csserv_serve(const std::vector<pollfd> &pdesc) {
 	uint32_t now=main_time();
 	uint64_t usecnow=main_utime();
 	csserventry *eptr,**kptr;

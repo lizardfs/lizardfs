@@ -8003,11 +8003,11 @@ static void fs_broadcast_metadata_saved(uint8_t status) {
 	matoclserv_broadcast_metadata_saved(status);
 }
 
-static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
-	metadataDumper.pollDesc(pdesc, ndesc);
+static void metadataPollDesc(std::vector<pollfd> &pdesc) {
+	metadataDumper.pollDesc(pdesc);
 }
 
-static void metadataPollServe(struct pollfd* pdesc) {
+static void metadataPollServe(const std::vector<pollfd> &pdesc) {
 	bool metadataDumpInProgress = metadataDumper.inProgress();
 	metadataDumper.pollServe(pdesc);
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {

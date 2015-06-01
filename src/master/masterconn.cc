@@ -994,11 +994,10 @@ void masterconn_write(masterconn *eptr) {
 }
 
 
-void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+void masterconn_desc(std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
 		return;
 	}
-	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
 	eptr->pdescpos = -1;
@@ -1006,25 +1005,20 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		return;
 	}
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
-		pos++;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
 		if (eptr->pdescpos>=0) {
 			pdesc[eptr->pdescpos].events |= POLLOUT;
 		} else {
-			pdesc[pos].fd = eptr->sock;
-			pdesc[pos].events = POLLOUT;
-			eptr->pdescpos = pos;
-			pos++;
+			pdesc.push_back({eptr->sock,POLLOUT,0});
+			eptr->pdescpos = pdesc.size() - 1;
 		}
 	}
-	*ndesc = pos;
 }
 
-void masterconn_serve(struct pollfd *pdesc) {
+void masterconn_serve(const std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
 		return;
 	}

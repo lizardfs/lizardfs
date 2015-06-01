@@ -275,27 +275,21 @@ static void matotsserv_write(matotsserventry* eptr) {
 }
 
 /// For \p main_pollregister.
-static void matotsserv_desc(struct pollfd* pdesc, uint32_t* ndesc) {
-	uint32_t pos = *ndesc;
-	pdesc[pos].fd = gListenSocket;
-	pdesc[pos].events = POLLIN;
-	gListenSocketPosition = pos;
-	pos++;
+static void matotsserv_desc(std::vector<pollfd> &pdesc) {
+	pdesc.push_back({gListenSocket,POLLIN,0});
+	gListenSocketPosition = pdesc.size() - 1;
 
 	for (auto& eptr : gTapeservers) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 		if (!eptr->outputPackets.empty()) {
-			pdesc[pos].events |= POLLOUT;
+			pdesc.back().events |= POLLOUT;
 		}
-		pos++;
 	}
-	*ndesc = pos;
 }
 
 /// For \p main_pollregister.
-static void matotsserv_serve(struct pollfd* pdesc) {
+static void matotsserv_serve(const std::vector<pollfd> &pdesc) {
 	if (gListenSocketPosition >= 0 && (pdesc[gListenSocketPosition].revents & POLLIN)) {
 		int newSocket = tcpaccept(gListenSocket);
 		if (newSocket < 0) {

@@ -1404,26 +1404,20 @@ void matocsserv_write(matocsserventry *eptr) {
 	}
 }
 
-void matocsserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
+void matocsserv_desc(std::vector<pollfd> &pdesc) {
 	matocsserventry *eptr;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
+	pdesc.push_back({lsock,POLLIN,0});
+	lsockpdescpos = pdesc.size()-1;
 	for (eptr=matocsservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 		if (!eptr->outputPackets.empty()) {
-			pdesc[pos].events |= POLLOUT;
+			pdesc.back().events |= POLLOUT;
 		}
-		pos++;
 	}
-	*ndesc = pos;
 }
 
-void matocsserv_serve(struct pollfd *pdesc) {
+void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 	uint32_t peerip;
 	matocsserventry *eptr,**kptr;
 	int ns;
