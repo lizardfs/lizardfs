@@ -993,6 +993,15 @@ void masterconn_write(masterconn *eptr) {
 	}
 }
 
+void masterconn_wantexit(void) {
+	if (masterconnsingleton) {
+		masterconn_kill_session(masterconnsingleton);
+	}
+}
+
+int masterconn_canexit(void) {
+	return !masterconnsingleton || masterconnsingleton->mode == FREE;
+}
 
 void masterconn_desc(std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
@@ -1210,6 +1219,8 @@ int masterconn_init(void) {
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
+	main_wantexitregister(masterconn_wantexit);
+	main_canexitregister(masterconn_canexit);
 #ifndef METALOGGER
 	metadataserver::registerFunctionCalledOnPromotion(masterconn_become_master);
 #endif
