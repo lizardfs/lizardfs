@@ -23,9 +23,10 @@ include(CheckStructHasMember)
 include(CheckTypeSize)
 include(TestBigEndian)
 
-set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h
-    stdlib.h string.h sys/endian.h sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h
-    sys/time.h syslog.h unistd.h stdbool.h)
+set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h
+    netinet/in.h stddef.h stdlib.h string.h sys/endian.h sys/mman.h
+    sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
+    syslog.h unistd.h stdbool.h)
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
 if(BIG_ENDIAN)
