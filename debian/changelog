@@ -1,3 +1,9 @@
+lizardfs (2.6.1) unstable; urgency=low
+
+  * (none) None
+
+ -- Łukasz Pietrzak <contact@lizardfs.org> Wed, 03 Jun 2015 12:00:00 +0200
+
 lizardfs (2.6.0) stable; urgency=medium
 
   * (all) Added comments in all config files

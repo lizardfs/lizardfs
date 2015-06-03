@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        2.6.0
+Version:        2.6.1
 Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -435,6 +435,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Wed Jun 03 2015 Łukasz Pietrzak <contact@lizardfs.org> - 2.6.1
+- (none) None
+
 * Mon Feb 09 2015 Adam Ochmanski <contact@lizardfs.org> - 2.6.0
 - (all) Added comments in all config files
 - (all) Improve messages printed by daemons when starting
