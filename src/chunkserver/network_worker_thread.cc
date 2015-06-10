@@ -1441,7 +1441,9 @@ NetworkWorkerThread::NetworkWorkerThread(uint32_t nrOfBgjobsWorkers, uint32_t bg
 		: doTerminate(false) {
 	TRACETHIS();
 	eassert(pipe(notify_pipe) != -1);
+#ifdef F_SETPIPE_SZ
 	eassert(fcntl(notify_pipe[1], F_SETPIPE_SZ, 4096*32));
+#endif
 	bgJobPool_ = job_pool_new(nrOfBgjobsWorkers, bgjobsCount, &bgJobPoolWakeUpFd_);
 }
 

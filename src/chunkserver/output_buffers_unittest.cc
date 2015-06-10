@@ -18,7 +18,9 @@ TEST(OutputBufferTests, outputBuffersTest) {
 
 	int auxPipeFileDescriptors[2];
 	ASSERT_NE(pipe2(auxPipeFileDescriptors, O_NONBLOCK), -1);
+#ifdef F_SETPIPE_SZ
 	ASSERT_NE(fcntl(auxPipeFileDescriptors[1], F_SETPIPE_SZ, 512*1024), -1);
+#endif
 
 	for (unsigned bufferNumber = 0; bufferNumber < outputBuffers.size(); ++bufferNumber) {
 		OutputBuffer* outputBuffer = outputBuffers[bufferNumber].get();

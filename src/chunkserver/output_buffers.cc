@@ -19,6 +19,7 @@ AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCa
 	LOG_AVG_TILL_END_OF_SCOPE0("pipe2");
 	eassert(internalBufferCapacity_ > 0);
 	eassert(pipe2(internalPipeFileDescriptors_, O_NONBLOCK) != -1);
+#ifdef F_SETPIPE_SZ
 	if (fcntl(internalPipeFileDescriptors_[1], F_SETPIPE_SZ, internalBufferCapacity_) == -1) {
 		for (int i = 0; i <=1; ++i) {
 			eassert(close(internalPipeFileDescriptors_[i]) >= 0);
@@ -26,6 +27,7 @@ AvoidingCopyingOutputBuffer::AvoidingCopyingOutputBuffer(size_t internalBufferCa
 		massert(false,
 				"fcntl(internalPipeFileDescriptors[1], F_SETPIPE_SZ, internalBufferCapacity) >= 0");
 	}
+#endif
 }
 
 AvoidingCopyingOutputBuffer::~AvoidingCopyingOutputBuffer() {
