@@ -1533,6 +1533,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 		e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
 		attr_to_stat(inode,attr,&e.attr);
 		makeattrstr(attrstr,256,&e.attr);
+		symlink_cache_insert(inode, (const uint8_t *)path);
 		oplog_printf(ctx, "symlink (%s,%lu,%s): OK (%.1f,%lu,%.1f,%s)",
 				path,
 				(unsigned long int)parent,

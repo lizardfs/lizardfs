@@ -33,6 +33,8 @@
 #define HASH_BUCKET_SIZE 16
 #define HASH_BUCKETS 6257
 
+const uint32_t kCacheTimeInSeconds = 60;
+
 // entries in cache = HASH_FUNCTIONS*HASH_BUCKET_SIZE*HASH_BUCKETS
 // 4 * 16 * 6257 = 400448
 // Symlink cache capacity can be easly changed by altering HASH_BUCKETS value.
@@ -142,7 +144,7 @@ int symlink_cache_search(uint32_t inode,const uint8_t **path) {
 		hb = symlinkhash + ((inode*primes[h])%HASH_BUCKETS);
 		for (i=0 ; i<HASH_BUCKET_SIZE ; i++) {
 			if (hb->inode[i]==inode) {
-				if (hb->time[i]+MFS_INODE_REUSE_DELAY<now) {
+				if (hb->time[i] + kCacheTimeInSeconds < now) {
 					if (hb->path[i]) {
 						free(hb->path[i]);
 						hb->path[i]=NULL;
