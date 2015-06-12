@@ -5,6 +5,9 @@ collect_sources(MASTER)
 
 add_library(master ${MASTER_SOURCES})
 target_link_libraries(master mfscommon ${ADDITIONAL_LIBS})
+if(JUDY_LIBRARY)
+  target_link_libraries(master ${JUDY_LIBRARY})
+endif()
 add_tests(master ${MASTER_TESTS})
 
 add_executable(mfsmaster ${MAIN_SRC})

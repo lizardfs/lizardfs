@@ -56,6 +56,7 @@
 #cmakedefine LIZARDFS_HAVE_UNISTD_H
 #cmakedefine LIZARDFS_HAVE_STDBOOL_H
 #cmakedefine LIZARDFS_HAVE_ZLIB_H
+#cmakedefine LIZARDFS_HAVE_JUDY_H
 
 /* [CMake] Structures */
 #cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS

@@ -134,3 +134,8 @@ if(ENABLE_TESTS)
   set(GTEST_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${GTEST_NAME}/include)
   set(TEST_LIBRARIES "" CACHE INTERNAL "" FORCE)
 endif()
+
+# Find Judy
+find_library(JUDY_LIBRARY Judy)
+message(STATUS "JUDY_LIBRARY: ${JUDY_LIBRARY}")
+
