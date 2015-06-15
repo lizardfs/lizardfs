@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # See http://mij.oltrelinux.com/devel/autoconf-automake/
 

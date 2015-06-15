@@ -1,5 +1,5 @@
+#include "admin/escape_porcelain_string.h"
 #include "common/platform.h"
-#include "probe/escape_porcelain_string.h"
 
 #include <gtest/gtest.h>
 

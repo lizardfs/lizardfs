@@ -16,12 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(__APPLE__)
-# if ! defined(__DARWIN_64_BIT_INO_T) && ! defined(_DARWIN_USE_64_BIT_INODE)
-#  define __DARWIN_64_BIT_INO_T 0
-# endif
-#endif
-
 #include "common/platform.h"
 #include "mount/lizard_client.h"
 
@@ -3270,7 +3264,7 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
 		fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
-		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%d\n",
+		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
 				acl_cache_timeout_, acl_cache_size_);
 	}
 	statsptr_init();

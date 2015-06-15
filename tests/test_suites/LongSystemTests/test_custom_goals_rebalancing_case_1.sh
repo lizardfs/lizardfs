@@ -20,9 +20,9 @@ lizardfs_wait_for_ready_chunkservers 4
 
 # Create 200 chunks on our four chunkservers. Expect about 50 chunks to be located on each server.
 FILE_SIZE=1M file-generate "${info[mount0]}"/file{1..100}
-assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 47 || \$2 > 53'"
+assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 47 || \$2 > 53'" "1 minute"
 
 # Add one 'ssd' server and expect chunks to be rebalanced to about 40 on each server.
 lizardfs_chunkserver_daemon 0 start
-timeout=$(if valgrind_enabled; then echo "5 minutes"; else echo "1 minute"; fi)
+timeout=$(if valgrind_enabled; then echo "7 minutes"; else echo "90 seconds"; fi)
 assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 38 || \$2 > 42'" "$timeout"

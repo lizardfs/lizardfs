@@ -1,13 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 set -ue
 
 # Parse command line options
-ha=YES
 doc=YES
-for arg in "$@"; do
+for arg in ${1+"$@"}; do
 	case "$arg" in
-		--with-ha) ha=YES;;
-		--without-ha) ha=NO;;
 		--with-doc) doc=YES;;
 		--without-doc) doc=NO;;
 		*) echo "Unrecognized command line option '$arg'" >&2; exit 1;;
@@ -24,17 +21,16 @@ cmake .. \
 	-DCMAKE_INSTALL_PREFIX=/ \
 	-DENABLE_DEBIAN_PATHS=YES \
 	-DENABLE_DOCS=$doc \
-	-DENABLE_HA_CLUSTER=$ha
 
 cat >../Makefile <<END
 all:
-	make --no-print-directory -C build-pack all
+	make -C build-pack all
 
 clean:
-	make --no-print-directory -C build-pack clean
+	make -C build-pack clean
 
 install:
-	make --no-print-directory -C build-pack install
+	make -C build-pack install
 
 distclean:
 	rm -rf build-pack

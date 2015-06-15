@@ -11,7 +11,7 @@ mfsrestoremaster - a networking, distributed, highly available file system
 *mfsrestoremaster* '<net-interface>' '[<etc-mfs-dir>]'
 
 *<net-interface>* - network interface to reconfigure.
-*<etc-mfs-dir>* - mfs configuration directory to use (default: //etc/lizardfs).
+*<etc-mfs-dir>* - mfs configuration directory to use (default: /etc/mfs).
 
 == DESCRIPTION
 

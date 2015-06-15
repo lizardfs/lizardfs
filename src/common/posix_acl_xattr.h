@@ -8,6 +8,7 @@
 
 #include "common/exception.h"
 #include "common/massert.h"
+#include "common/portable_endian.h"
 
 // These #defines and structs were extracted from kernel sources
 

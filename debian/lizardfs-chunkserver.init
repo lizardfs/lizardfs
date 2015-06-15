@@ -18,7 +18,6 @@ DEFAULT_WORKING_USER=mfs
 DEFAULT_WORKING_GROUP=mfs
 DEFAULT_DATA_PATH=/var/lib/mfs
 DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
-COMPAT_CFG=/etc/mfschunkserver.cfg
 
 test -e $DAEMON || exit 0
 
@@ -48,10 +47,8 @@ set -e
 
 if [ -n "$LIZARDFSCHUNKSERVER_CONFIG_FILE" ]; then
 	CFGFILE="$LIZARDFSCHUNKSERVER_CONFIG_FILE"
-elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
-	CFGFILE="$DEFAULT_CFG"
 else
-	CFGFILE="$COMPAT_CFG"
+	CFGFILE="$DEFAULT_CFG"
 fi
 
 get_config_value_from_CFGFILE()

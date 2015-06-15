@@ -178,13 +178,13 @@ void MetadataDumper::pollServe(struct pollfd *pdesc) {
 	if (pdesc[dumpingProcessPollFdsPos_].revents & POLLIN) {
 		char buffer[1024];
 		int ret = read(dumpingProcessFd_, buffer, sizeof(buffer) - 1);
-		buffer[ret] = '\0';
 		if (ret == -1) {
 			lzfs_pretty_errlog(LOG_WARNING, "read from the process dumping metadata failed");
 			dumpingFinished();
 		} else if (ret == 0) {
 			dumpingFinished();
 		} else {
+			buffer[ret] = '\0';
 			dumpingProcessOutputEmpty_ = false;
 			dumpingSucceeded_ = std::string(buffer) == "OK\n";
 			if (!dumpingSucceeded_) {

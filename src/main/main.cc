@@ -772,18 +772,15 @@ public:
 			  thisProcessCreatedLockFile_(false) {
 		while ((lockstatus_ = wdlock(runmode, timeout)) == LockStatus::kAgain) {
 		}
-		if (lockstatus_ == LockStatus::kFail) {
-			throw FilesystemException("");
-		}
 	}
-	virtual ~FileLock() {
+	~FileLock() {
 		/*
 		 * Order of unlock/file deletion matters
 		 * for RunMode::kRestart mode.
 		 * We need to remove file first and then
 		 * unlock file.
 		 */
-		if (thisProcessCreatedLockFile_) {
+		if (lockstatus_ != LockStatus::kFail && thisProcessCreatedLockFile_) {
 			::unlink(name_.c_str());
 		}
 	}
@@ -798,7 +795,7 @@ public:
 private:
 	LockStatus wdlock(RunMode runmode, uint32_t timeout);
 	pid_t mylock();
-	void createLockFile();
+	bool createLockFile();
 
 	FileDescriptor fd_;
 	std::string name_;
@@ -833,24 +830,32 @@ pid_t FileLock::mylock() {
 	return pid;
 }
 
-void FileLock::createLockFile() {
+bool FileLock::createLockFile() {
 	bool notExisted((::access(name_.c_str(), F_OK) != 0) && (errno == ENOENT));
 	fd_.reset(open(name_.c_str(), O_WRONLY | O_CREAT, 0666));
 	if (!fd_.isOpened()) {
-		throw FilesystemException("can't create lockfile "
-				+ fs::getCurrentWorkingDirectoryNoThrow() + "/" + name_);
+		std::string err = "can't create lockfile " + fs::getCurrentWorkingDirectoryNoThrow()
+		                  + "/" + name();
+		lzfs_pretty_errlog(LOG_ERR, "%s", err.c_str());
+
+		return false;
 	}
 	thisProcessCreatedLockFile_ = notExisted;
+	return true;
 }
 
 FileLock::LockStatus FileLock::wdlock(RunMode runmode, uint32_t timeout) {
 	std::string lockPath = fs::getCurrentWorkingDirectoryNoThrow() + "/" + name_;
-	createLockFile();
+	if(!createLockFile()) {
+		return LockStatus::kFail;
+	}
+
 	pid_t ownerpid(mylock());
 	if (ownerpid<0) {
 		lzfs_pretty_errlog(LOG_ERR, "fcntl error while creating lockfile %s", lockPath.c_str());
 		return LockStatus::kFail;
 	}
+
 	if (ownerpid>0) {
 		if (runmode==RunMode::kIsAlive) {
 			return LockStatus::kAlive;
@@ -1095,7 +1100,6 @@ void usage(const char *appname) {
 
 int main(int argc,char **argv) {
 	char *wrkdir;
-	char *cfgfile=NULL;
 	char *appname;
 	int ch;
 	int logundefined;
@@ -1103,8 +1107,8 @@ int main(int argc,char **argv) {
 	int32_t nicelevel;
 	uint32_t locktimeout;
 	struct rlimit rls;
-	std::string name_new(ETC_PATH "/mfs/" STR(APPNAME) ".cfg");
-	std::string name_old(ETC_PATH "/" STR(APPNAME) ".cfg");
+	std::string default_cfgfile = ETC_PATH "/" STR(APPNAME) ".cfg";
+	std::string cfgfile = default_cfgfile;
 
 	prepareEnvironment();
 	strerr_init();
@@ -1131,8 +1135,7 @@ int main(int argc,char **argv) {
 				gExtraArguments.emplace_back(optarg);
 				break;
 			case 'c':
-				cfgfile = strdup(optarg);
-				passert(cfgfile);
+				cfgfile = optarg;
 				break;
 			case 'u':
 				logundefined=1;
@@ -1171,20 +1174,6 @@ int main(int argc,char **argv) {
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
-	if (cfgfile == NULL) { /*try loading default config files*/
-		cfgfile = strdup(name_new.c_str());
-		try {
-			if (!fs::exists(name_new) && fs::exists(name_old)) {
-				free(cfgfile);
-				cfgfile = strdup(name_old.c_str());
-				lzfs_pretty_syslog(LOG_WARNING, "default sysconf path has changed - please move " STR(APPNAME) ".cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/");
-			}
-		} catch (const FilesystemException& ex) {
-			lzfs_pretty_syslog(LOG_WARNING, "can't access config file %s: %s",
-					name_new.c_str(), ex.what());
-		}
-	}
-
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		if (gRunAsDaemon) {
 			makedaemon();
@@ -1193,17 +1182,15 @@ int main(int argc,char **argv) {
 		}
 	}
 
-	if (cfg_load(cfgfile,logundefined)==0) {
+	if (cfg_load(cfgfile.c_str(), logundefined)==0) {
 		lzfs_pretty_syslog(LOG_WARNING, "configuration file %s not found - using defaults; "
 				"please create one to remove this warning "
 				"(you can copy %s.dist to get a base configuration)",
-				cfgfile, name_new.c_str());
+				cfgfile.c_str(), default_cfgfile.c_str());
 	} else if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-		lzfs_pretty_syslog(LOG_INFO,"configuration file %s loaded", cfgfile);
+		lzfs_pretty_syslog(LOG_INFO, "configuration file %s loaded", cfgfile.c_str());
 	}
-	free(cfgfile);
 	main_configure_debug_log();
-// const std::string& logappname = set_syslog_ident();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		rls.rlim_cur = MFSMAXFILES;
@@ -1257,16 +1244,9 @@ int main(int argc,char **argv) {
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
-	std::unique_ptr<FileLock> fl;
-	try {
-		/*
-		 * Only kStart should check for lock file consistency.
-		 */
-		fl.reset(new FileLock(runmode, locktimeout));
-	} catch (const FilesystemException& e) {
-		if (e.what()[0]) {
-			lzfs_pretty_errlog(LOG_ERR, "%s", e.what());
-		}
+	// Only kStart should check for lock file consistency
+	FileLock fl(runmode, locktimeout);
+	if (fl.lockstatus() == FileLock::LockStatus::kFail) {
 		if (gRunAsDaemon) {
 			fputc(0,stderr);
 			close_msg_channel();
@@ -1282,7 +1262,7 @@ int main(int argc,char **argv) {
 		}
 		closelog();
 		if (runmode==RunMode::kIsAlive) {
-			FileLock::LockStatus lockstatus = fl->lockstatus();
+			FileLock::LockStatus lockstatus = fl.lockstatus();
 			sassert((lockstatus == FileLock::LockStatus::kSuccess)
 					|| (lockstatus == FileLock::LockStatus::kAlive));
 			return (lockstatus == FileLock::LockStatus::kAlive

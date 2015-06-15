@@ -43,10 +43,21 @@ endif()
 # Find standard libraries
 find_package(Socket)
 find_package(Threads REQUIRED)
-find_library(FUSE_LIBRARY fuse)
+if(APPLE)
+  find_package(FUSE REQUIRED)
+  find_path(FUSE_INCLUDE_DIRS "fuse/fuse.h" PATHS ${PC_FUSE_INCLUDE_DIRS} ${PC_FUSE_INCLUDE_DIRS}/..)
+  set(FUSE_LIBRARY ${PC_FUSE_LIBRARIES})
+else()
+  find_library(FUSE_LIBRARY fuse)
+endif()
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
 find_library(RT_LIBRARY rt)
 message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
+if(ENABLE_TCMALLOC)
+  find_library(TCMALLOC_LIBRARY NAMES tcmalloc_minimal)
+  message(STATUS "TCMALLOC_LIBRARY: ${TCMALLOC_LIBRARY}")
+endif()
+
 
 # Find extra binaries
 find_program(A2X_BINARY a2x)

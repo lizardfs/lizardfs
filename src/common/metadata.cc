@@ -7,6 +7,9 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstdlib>
 #include <cstring>
 
 #include "common/cwrap.h"
@@ -87,6 +90,7 @@ uint64_t metadataGetVersion(const std::string& file) {
 		close(fd);
 		throw MetadataCheckException("The metadata file is truncated");
 	}
+	close(fd);
 	return version;
 }
 

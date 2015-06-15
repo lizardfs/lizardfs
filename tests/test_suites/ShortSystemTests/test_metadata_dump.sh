@@ -13,7 +13,7 @@ CHUNKSERVERS=3 \
 
 # 'metaout_tmp' is used to ensure 'metaout' is complete when "created"
 cat > $TEMP_DIR/metarestore_ok.sh << END
-#!/bin/bash
+#!/usr/bin/env bash
 mfsmetarestore "\$@" | tee $TEMP_DIR/metaout_tmp
 ret="\${PIPESTATUS[0]}"
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
@@ -21,7 +21,7 @@ exit "\$ret"
 END
 
 cat > $TEMP_DIR/metarestore_wrong_checksum.sh << END
-#!/bin/bash
+#!/usr/bin/env bash
 mfsmetarestore "\$@" -k 0 | tee $TEMP_DIR/metaout_tmp
 ret="\${PIPESTATUS[0]}"
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
@@ -29,14 +29,14 @@ exit "\$ret"
 END
 
 cat > $TEMP_DIR/metarestore_no_response.sh << END
-#!/bin/bash
+#!/usr/bin/env bash
 echo 'no response' > $TEMP_DIR/metaout_tmp
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit 1
 END
 
 cat > $TEMP_DIR/metarestore_error_if_executed.sh << END
-#!/bin/bash
+#!/usr/bin/env bash
 echo 'THIS SHOULD NEVER BE SEEN' > $TEMP_DIR/metaout_tmp
 mv $TEMP_DIR/metaout_tmp $TEMP_DIR/metaout
 exit 1

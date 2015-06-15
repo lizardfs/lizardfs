@@ -19,9 +19,6 @@
 #include "common/platform.h"
 
 #include <errno.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <unistd.h>
 #include <fstream>
 
 #include "common/crc.h"
@@ -564,22 +561,7 @@ int main(int argc, char *argv[]) try {
 	}
 
 	if (gCustomCfg==0) {
-		int cfgfd;
-		char *cfgfile;
-
-		cfgfile=strdup(ETC_PATH "/mfs/mfsmount.cfg");
-		if ((cfgfd = open(cfgfile,O_RDONLY))<0 && errno==ENOENT) {
-			free(cfgfile);
-			cfgfile=strdup(ETC_PATH "/mfsmount.cfg");
-			if ((cfgfd = open(cfgfile,O_RDONLY))>=0) {
-				fprintf(stderr,"default sysconf path has changed - please move mfsmount.cfg from " ETC_PATH "/ to " ETC_PATH "/mfs/\n");
-			}
-		}
-		if (cfgfd>=0) {
-			close(cfgfd);
-		}
-		mfs_opt_parse_cfg_file(cfgfile,1,&defaultargs);
-		free(cfgfile);
+		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
 	}
 
 	if (fuse_opt_parse(&defaultargs, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {

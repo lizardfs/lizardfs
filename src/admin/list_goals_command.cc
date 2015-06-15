@@ -5,13 +5,13 @@
 #include <iostream>
 #include <vector>
 
+#include "admin/escape_porcelain_string.h"
 #include "common/cltoma_communication.h"
 #include "common/goal.h"
 #include "common/matocl_communication.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
 #include "common/server_connection.h"
-#include "probe/escape_porcelain_string.h"
 
 std::string ListGoalsCommand::name() const {
 	return "list-goals";

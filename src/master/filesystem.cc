@@ -183,7 +183,7 @@ struct xattr_inode_entry {
 struct TapeCopy {
 
 	/// Default constructor.
-	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId()) {}
+	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId) {}
 
 	/// A constructor.
 	TapeCopy(TapeCopyState state, TapeserverId server) : state(state), server(server) {}
@@ -2815,7 +2815,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 					TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
 					while (fsnodes_needs_tape_copies(node)) {
 						TapeserverId id = matotsserv_enqueue_node(tapeKey);
-						if (id.isNull()) {
+						if (!id) {
 							break;
 						}
 						node->tapeCopies.emplace_back(TapeCopyState::kCreating, id);
@@ -4011,7 +4011,7 @@ uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	} else if (setmask & SET_MTIME_FLAG) {
 		p->mtime = attrmtime;
 	}
-	fs_changelog(ts, "ATTR(%" PRIu32 ",%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);
+	fs_changelog(ts, "ATTR(%" PRIu32 ",%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",inode,p->mode & 07777,p->uid,p->gid,p->atime,p->mtime);
 	p->ctime = ts;
 	fsnodes_fill_attr(p,NULL,uid,gid,auid,agid,sesflags,attr);
 	fsnodes_update_checksum(p);
@@ -4246,7 +4246,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
 	fs_changelog(ts,
-			"CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
+			"CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
 			parent, fsnodes_escape_name(nleng, name), type, p->mode & 07777, uid, gid, rdev, p->id);
 	stats_mknod++;
 	fsnodes_update_checksum(p);
@@ -4307,7 +4307,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	*inode = p->id;
 	fsnodes_fill_attr(p,wd,uid,gid,auid,agid,sesflags,attr);
 	fs_changelog(ts,
-			"CREATE(%" PRIu32 ",%s,%c,%" PRIu16",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
+			"CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
 			parent, fsnodes_escape_name(nleng, name), TYPE_DIRECTORY, p->mode & 07777,
 			uid, gid, 0, p->id);
 	stats_mkdir++;
@@ -8414,7 +8414,7 @@ static void fs_read_goal_config_file() {
 			cfg_getstring("CUSTOM_GOALS_FILENAME", "");
 	if (goalConfigFile.empty()) {
 		// file is not specified
-		const char *defaultGoalConfigFile = ETC_PATH "/mfs/mfsgoals.cfg";
+		const char *defaultGoalConfigFile = ETC_PATH "/mfsgoals.cfg";
 		if (access(defaultGoalConfigFile, F_OK) == 0) {
 			// the default file exists - use it
 			goalConfigFile = defaultGoalConfigFile;

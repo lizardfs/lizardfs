@@ -2,6 +2,7 @@
 # CS 0 has a disk which will fail during the test.
 USE_RAMDISK=YES \
 	CHUNKSERVERS=3 \
+	MOUNTS=2 \
 	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
 	CHUNKSERVER_0_DISK_0="$RAMDISK_DIR/pread_EIO_hdd_0" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
@@ -27,7 +28,8 @@ lizardfs_wait_for_all_ready_chunkservers
 
 # Read 30% of our files, redefined pread is supposed to return EIO.
 # Do this many times to make it more probable that the damaged disk will be used.
-for i in {1..10}; do
+for i in {1..15}; do
+	cd ${info[mount$((i % 2))]}
 	assert_success file-validate test/*[012]
 done
 

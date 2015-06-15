@@ -12,18 +12,21 @@
 # AC_FUNC_STRERROR_R
 
 include(CheckCXXCompilerFlag)
+include(CheckCXXExpression.cmake)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CheckFunctions)
 include(CheckIncludes)
+include(CheckLibraryExists)
 include(CheckMembers)
 include(CheckStructHasMember)
 include(CheckTypeSize)
 include(TestBigEndian)
 
-set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h
-    stdlib.h string.h sys/endian.h sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h
-    sys/time.h syslog.h unistd.h stdbool.h)
+set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h
+    netinet/in.h stddef.h stdlib.h string.h sys/endian.h sys/mman.h
+    sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
+    syslog.h unistd.h stdbool.h)
 
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
@@ -60,8 +63,15 @@ set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
   setitimer posix_fadvise)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
+CHECK_LIBRARY_EXISTS(rt clock_gettime "time.h" LIZARDFS_HAVE_CLOCK_GETTIME)
+
 set(CMAKE_REQUIRED_INCLUDES "sys/mman.h")
 set(OPTIONAL_FUNCTIONS2 dup2 mlockall getcwd)
 check_functions("${OPTIONAL_FUNCTIONS2}" false)
+
+set(CMAKE_REQUIRED_FLAGS "-std=c++11")
+check_cxx_expression(::std::chrono::steady_clock::is_steady chrono LIZARDFS_HAVE_STD_CHRONO_STEADY_CLOCK)
+check_cxx_expression("sizeof(::std::allocator_traits<std::allocator<int*>>::pointer)" memory LIZARDFS_HAVE_STD_ALLOCATOR_TRAITS)
+unset(CMAKE_REQUIRED_FLAGS)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)

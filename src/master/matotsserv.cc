@@ -81,7 +81,7 @@ static int gListenSocket;
 static int32_t gListenSocketPosition;
 
 /// A pool od IDs for tapeservers
-static TapeserverIdPool gIdPool(200);
+static TapeserverIdPool gIdPool(200,128,50);
 
 /// All connected tapeservers.
 static std::list<std::unique_ptr<matotsserventry>> gTapeservers;
@@ -126,7 +126,7 @@ static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageB
 		eptr->version = version;
 		// TODO(msulikowski) registering by name
 		// TODO(msulikowski) registration of labels
-		eptr->name = "tapeserver" + std::to_string(eptr->id.value());
+		eptr->name = "tapeserver" + std::to_string(eptr->id);
 		eptr->label = kMediaLabelWildcard;
 		uint32_t myVersion = LIZARDFS_VERSHEX;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(myVersion));
@@ -280,15 +280,15 @@ static void matotsserv_serve(struct pollfd* pdesc) {
 			tcpnodelay(newSocket);
 			tcpgetpeer(newSocket, &ip, NULL);
 			NetworkAddress address(ip, 0);
-			try {
-				TapeserverId id = gIdPool.get();
-				gTapeservers.emplace_back(new matotsserventry(newSocket, id, address));
-			} catch (IdPoolException&) {
+			TapeserverId id = gIdPool.acquire();
+			if (!id) {
 				lzfs_pretty_syslog(LOG_WARNING,
-						"master <-> tapeservers module: too many tapeservers registered, "
-						"refusing a new connection from %s",
-						address.toString().c_str());
+				                   "master <-> tapeservers module: too many tapeservers registered, "
+				                   "refusing a new connection from %s",
+				                   address.toString().c_str());
 				tcpclose(newSocket);
+			} else {
+				gTapeservers.emplace_back(new matotsserventry(newSocket, id, address));
 			}
 		} else {
 			tcpclose(newSocket);
@@ -328,7 +328,7 @@ static void matotsserv_serve(struct pollfd* pdesc) {
 		auto& eptr = *it;
 		if (eptr->mode == matotsserventry::Mode::kKill) {
 			fs_tapeserver_disconnected(eptr->id);
-			gIdPool.put(eptr->id);
+			gIdPool.release(eptr->id);
 			it = gTapeservers.erase(it);
 		} else {
 			++it;
@@ -451,7 +451,7 @@ int matotsserv_init() {
 
 TapeserverId matotsserv_enqueue_node(const TapeKey& key) {
 	if (gTapeservers.empty()) {
-		return TapeserverIdPool::nullId();
+		return TapeserverIdPool::nullId;
 	}
 	gFilesToBeSentToTapeserver.push_back(key);
 	return gTapeservers.front().get()->id;

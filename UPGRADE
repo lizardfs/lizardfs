@@ -1,8 +1,21 @@
 This file contains some important notes on upgrade process.
 
-* Upgrading to LizardFS 2.9.0:
+* Upgrading to LizardFS 2.6.0:
 
-    It's very hard.
+    Direct upgrade is possible from:
+    - MooseFS  1.6.27 -- 1.6.27-5
+    - LizardFS 1.6.28 -- 2.5.4.3
+
+    When upgrading from LizardFS 2.5.4 or 2.5.4.*
+    - Upgrade shadow master servers before the master server; shadow master will always
+      refuse to connect to the master server in any newer version.
+    - Upgrade the master server before any chunkserver or client.
+
+    When upgrading from LizardFS 2.5.0 or 2.5.2
+    - Proceed the same as in case of upgrade to LizardFS 2.5.4.
+
+    When upgrading from other releases:
+    - Proceed the same as in case of upgrade to LizardFS 2.5.2.
 
 * Upgrading to LizardFS 2.5.4:
 

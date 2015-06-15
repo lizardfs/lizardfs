@@ -6,19 +6,10 @@
 #include <cstdint>
 #include <ratio>
 
-// Detect compilers that don't support std::chrono::steady_clock.
-
-#if defined(__GNUC__) && defined(__GNUC_MINOR__)
-#  if (__GNUC__ == 4 && __GNUC_MINOR__ <= 6)
-#    define LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
-#  endif
-#endif
-
-
 // SteadyClock is an alias for std::chrono::steady_clock or compatible class.
 // SteadyTimePoint is a matching time_point, SteadyDuration - matching duration.
 
-#ifdef LIZARDFS_TIME_UTILS_NO_STD_CHRONO_STEADY_CLOCK
+#ifndef LIZARDFS_HAVE_STD_CHRONO_STEADY_CLOCK
 
 // For platforms known to lack std::chrono::steady_clock support.
 class SteadyClock {

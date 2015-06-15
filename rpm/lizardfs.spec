@@ -260,7 +260,7 @@ fi
 %setup
 
 %build
-./configure --with-doc --without-ha
+./configure --with-doc
 make %{?_smp_mflags}
 
 %install
@@ -435,9 +435,29 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Fri Nov 28 2014 Alek Lewandowski <contact@lizardfs.org> - 2.9.0
+* Mon Jun 15 2014 Adam Nieżurawski <contact@lizardfs.org> - 2.9.0
 - (all) xor format
 - (all) performance improvements
+
+* Wed Jun 03 2015 Łukasz Pietrzak <contact@lizardfs.org> - 2.6.1
+- (none) None
+
+* Mon Feb 09 2015 Adam Ochmanski <contact@lizardfs.org> - 2.6.0
+- (all) Added comments in all config files
+- (all) Improve messages printed by daemons when starting
+- (cgi) A new chunkserver's chart: number of chunk tests
+- (cgi) Fixed paths to static content
+- (cgi) New implementation of the CGI server; mfscgiserv is now deprecated.
+- (cgi) New table: 'Metadata Servers' in the 'Servers' tab
+- (chunkserver) Allowed starts with damaged disks
+- (chunkserver) A new option: HDD_ADVISE_NO_CACHE
+- (chunkserver) Improved handling of disk read errors
+- (chunkserver) Removed 'testing chunk: xxxxxx' log messages
+- (master) A new feature: disabling atime updates (globally)
+- (master) Fixed rotating changelogs and downloading files in shadow mode
+- (probe) New commands
+- (probe) Renamed to lizardfs-admin
+- (all) Minor bug fixes and improvements
 
 * Fri Nov 07 2014 Alek Lewandowski <contact@lizardfs.org> - 2.5.4
 - (all) Boost is no longer required to build the source code of LizardFS

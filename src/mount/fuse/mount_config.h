@@ -5,16 +5,18 @@
 #include <stddef.h>
 #include <string.h>
 #include <fuse.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "common/MFSCommunication.h"
 
-#if defined(LIZARDFS_HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) \
-		&& defined(MCL_FUTURE)
-#  define MFS_USE_MEMLOCK
+#if defined(LIZARDFS_HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK)
+#  include <sys/mman.h>
 #endif
 
-#ifdef MFS_USE_MEMLOCK
-#  include <sys/mman.h>
+#if defined(MCL_CURRENT) && defined(MCL_FUTURE)
+#  define MFS_USE_MEMLOCK
 #endif
 
 #if defined(__APPLE__)

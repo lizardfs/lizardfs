@@ -5,7 +5,7 @@ CHUNKSERVERS=3 \
 	setup_local_empty_lizardfs info
 
 cat > $TEMP_DIR/restore.sh << END
-#!/bin/bash
+#!/usr/bin/env bash
 touch $TEMP_DIR/dump_started
 sleep 5
 mfsmetarestore "\$@"

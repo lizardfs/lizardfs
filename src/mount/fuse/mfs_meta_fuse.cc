@@ -16,12 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(__APPLE__)
-# ifndef __DARWIN_64_BIT_INO_T
-#  define __DARWIN_64_BIT_INO_T 0
-# endif
-#endif
-
 #include "common/platform.h"
 #include "mount/fuse/mfs_meta_fuse.h"
 
