@@ -686,6 +686,7 @@ static uint64_t chunk_checksum(const chunk* c) {
 	uint64_t checksum = 64517419147637ULL;
 	// Only highest id goal is taken into checksum for compatibility reasons
 	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->highestIdGoal(), c->fileCount());
+
 	return checksum;
 }
 

@@ -398,7 +398,7 @@ int fs_load(FILE *fd) {
 	return 0;
 }
 
-int fs_load_20(FILE *fd) {
+int fs_load_2x(FILE *fd, bool loadLockIds) {
 	uint32_t maxnodeid,nextsessionid;
 	uint64_t sleng;
 	off_t offbegin;
@@ -447,7 +447,7 @@ int fs_load_20(FILE *fd) {
 				return -1;
 			}
 		} else if (memcmp(hdr,"CHNK 1.0",8)==0) {
-			if (chunk_load(fd, true)<0) {
+			if (chunk_load(fd, loadLockIds) < 0) {
 				printf("error reading metadata (CHNK 1.0)\n");
 				return -1;
 			}
@@ -463,6 +463,14 @@ int fs_load_20(FILE *fd) {
 		}
 	}
 	return 0;
+}
+
+inline int fs_load_20(FILE *fd) {
+	return fs_load_2x(fd, false);
+}
+
+inline int fs_load_29(FILE *fd) {
+	return fs_load_2x(fd, true);
 }
 
 int fs_loadall(const char *fname) {
@@ -483,18 +491,24 @@ int fs_loadall(const char *fname) {
 	printf("# header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X)\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0 || memcmp(hdr,MFSSIGNATURE "M 1.6",8)==0) {
 		bool loadLockIds = (hdr[7] == '6');
-		if (fs_load(fd)<0) {
+		if (fs_load(fd) < 0) {
 			printf("error reading metadata (structure)\n");
 			fclose(fd);
 			return -1;
 		}
-		if (chunk_load(fd, loadLockIds)<0) {
+		if (chunk_load(fd, loadLockIds) < 0) {
 			printf("error reading metadata (chunks)\n");
 			fclose(fd);
 			return -1;
 		}
-	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
-		if (fs_load_20(fd)<0) {
+	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8) == 0) {
+		if (fs_load_20(fd) < 0) {
+			fclose(fd);
+			return -1;
+		}
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(hdr,LIZARDFSSIGNATURE "M 2.9",8) == 0) {
+		if (fs_load_29(fd) < 0) {
 			fclose(fd);
 			return -1;
 		}

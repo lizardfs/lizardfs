@@ -74,6 +74,9 @@ uint64_t metadataGetVersion(const std::string& file) {
 		memset(eofmark,0,16);
 	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8)==0) {
 		memcpy(eofmark,"[MFS EOF MARKER]",16);
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(chkbuff, LIZARDFSSIGNATURE "M 2.9", 8) == 0) {
+		memcpy(eofmark,"[MFS EOF MARKER]",16);
 	} else {
 		close(fd);
 		throw MetadataCheckException("Bad format of the metadata file");

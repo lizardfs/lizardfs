@@ -4,6 +4,7 @@
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
 	local use_moosefs=${USE_MOOSEFS:-}
+	local use_lizardfsXX=${LIZARDFSXX_TAG:-}
 	local use_ramdisk=${USE_RAMDISK:-}
 	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_masterservers=${MASTERSERVERS:-1}
@@ -29,6 +30,12 @@ setup_local_empty_lizardfs() {
 	if [[ $use_moosefs ]]; then
 		export PATH="$MOOSEFS_DIR/bin:$MOOSEFS_DIR/sbin:$PATH"
 		build_moosefs
+	fi
+
+	if [[ $use_lizardfsXX ]]; then
+		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/lizardfs-${LIZARDFSXX_TAG}
+		export PATH="${LIZARDFSXX_DIR}/bin:${LIZARDFSXX_DIR}/sbin:$PATH"
+		build_lizardfsXX
 	fi
 
 	# Prepare configuration for metadata servers

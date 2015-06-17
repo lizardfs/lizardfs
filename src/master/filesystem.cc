@@ -106,6 +106,7 @@ enum class AclInheritance {
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
+constexpr uint8_t kMetadataVersionWithLockIds = 0x29;
 
 #ifndef METARESTORE
 typedef struct _bstnode {
@@ -7751,7 +7752,11 @@ void fs_store(FILE *fd,uint8_t fver) {
 }
 
 static void fs_store_fd(FILE* fd) {
-#if LIZARDFS_VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+#if LIZARDFS_VERSHEX >= LIZARDFS_VERSION(2, 9, 0)
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	const char hdr[] = LIZARDFSSIGNATURE "M 2.9";
+	const uint8_t metadataVersion = kMetadataVersionWithLockIds;
+#elif LIZARDFS_VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 	const char hdr[] = MFSSIGNATURE "M 2.0";
 	const uint8_t metadataVersion = kMetadataVersionWithSections;
 #else
@@ -7822,13 +7827,11 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 		}
 		lzfs_pretty_syslog_attempt(LOG_INFO,"loading chunks data from the metadata file");
 		fflush(stderr);
-		bool loadLockIds = (fver == kMetadataVersionLizardFS);
-		if (chunk_load(fd, loadLockIds)<0) {
+		if (chunk_load(fd, false)<0) {
 			fprintf(stderr,"error\n");
 #ifndef METARESTORE
 			lzfs_pretty_syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
-			fclose(fd);
 			return -1;
 		}
 	} else { // metadata with sections
@@ -7905,11 +7908,11 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 			} else if (memcmp(hdr,"CHNK 1.0",8)==0) {
 				lzfs_pretty_syslog_attempt(LOG_INFO,"loading chunks data from the metadata file");
 				fflush(stderr);
-				if (chunk_load(fd, true)<0) {
+				bool loadLockIds = (fver == kMetadataVersionWithLockIds);
+				if (chunk_load(fd, loadLockIds)<0) {
 #ifndef METARESTORE
 					lzfs_pretty_syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
-					fclose(fd);
 					return -1;
 				}
 			} else {
@@ -8300,6 +8303,9 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 		metadataVersion = kMetadataVersionLizardFS;
 	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
 		metadataVersion = kMetadataVersionWithSections;
+		/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(hdr, LIZARDFSSIGNATURE "M 2.9", 8) == 0) {
+		metadataVersion = kMetadataVersionWithLockIds;
 	} else {
 		throw MetadataConsistencyException("wrong metadata header version");
 	}

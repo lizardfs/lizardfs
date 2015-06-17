@@ -1,3 +1,5 @@
+timeout_set 45 seconds
+
 USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
