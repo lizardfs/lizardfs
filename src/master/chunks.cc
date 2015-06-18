@@ -216,17 +216,17 @@ public:
 	static std::deque<chunk *> endangeredChunks;
 #endif
 
-	/// ID of the chunk's goal.
-	uint8_t goal() const {
-		return goalCounters_.combinedGoal();
+	// Highest id of the chunk's goal
+	uint8_t highestIdGoal() const {
+		return goalCounters_.highestIdGoal();
 	}
 
-	// number of files this chunk belongs to
+	// Number of files this chunk belongs to
 	uint32_t fileCount() const {
 		return goalCounters_.fileCount();
 	}
 
-	// called when this chunks becomes a part of a file with the given goal
+	// Called when this chunk becomes a part of a file with the given goal
 	void addFileWithGoal(uint8_t goal) {
 		goalCounters_.addFile(goal);
 #ifndef METARESTORE
@@ -234,7 +234,7 @@ public:
 #endif
 	}
 
-	// called when a file that this chunks belongs to is removed
+	// Called when a file that this chunk belongs to is removed
 	void removeFileWithGoal(uint8_t goal) {
 		goalCounters_.removeFile(goal);
 #ifndef METARESTORE
@@ -242,7 +242,7 @@ public:
 #endif
 	}
 
-	// called when a file that this chunks belongs to changes goal
+	// Called when a file that this chunk belongs to changes goal
 	void changeFileGoal(uint8_t prevGoal, uint8_t newGoal) {
 		goalCounters_.changeFileGoal(prevGoal, newGoal);
 #ifndef METARESTORE
@@ -252,8 +252,43 @@ public:
 
 #ifndef METARESTORE
 	/// The expected number of chunk's copies.
-	uint8_t expectedCopies() const {
-		return fs_get_goal_definition(goal()).getExpectedCopies();
+	Goal::Labels getLabels() const {
+		Goal::Labels mergedLabels;
+		size_t maxGoalCount = 0;
+
+		/* Create a GoalMap of all non-wildcard goals assigned to a chunk */
+		for (auto counter : goalCounters_) {
+			const Goal::Labels &labels = fs_get_goal_definition(counter.goal).chunkLabels();
+			size_t goalCount = 0;
+			for (auto &label : labels) {
+				goalCount += label.second;
+				if (label.first != kMediaLabelWildcard) {
+					auto &entry = mergedLabels[label.first];
+					entry = std::max(entry, label.second);
+				}
+			}
+			maxGoalCount = std::max(maxGoalCount, goalCount);
+		}
+
+		/* Count how many wildcards should be added to goal */
+		for (auto &label : mergedLabels) {
+			maxGoalCount -= label.second;
+		}
+
+		/* If any wildcards should be added, do so */
+		if (maxGoalCount > 0) {
+			mergedLabels[kMediaLabelWildcard] = maxGoalCount;
+		}
+
+		return mergedLabels;
+	}
+
+	uint32_t expectedCopies() const {
+		uint32_t ret = 0;
+		for (const auto &label : getLabels()) {
+			ret += label.second;
+		}
+		return ret;
 	}
 
 	// This method should be called on a new chunk
@@ -291,7 +326,7 @@ public:
 
 		uint32_t allMissingCopiesOfLabels = 0;
 		uint32_t regularMissingCopiesOfLabels = 0;
-		const Goal::Labels& labels = fs_get_goal_definition(goal()).chunkLabels();
+		const Goal::Labels& labels = getLabels();
 		for (const auto& labelAndCount : labels) {
 			const auto& label = labelAndCount.first;
 			if (label == kMediaLabelWildcard) {
@@ -454,7 +489,7 @@ private:
 
 	void addToStats() {
 		copiesInStats_ = expectedCopies();
-		goalInStats_ = goal();
+		goalInStats_ = highestIdGoal();
 		allChunksAvailability.addChunk(goalInStats_, allCopiesState());
 		allChunksReplicationState.addChunk(goalInStats_, allMissingCopies_, allRedundantCopies_);
 
@@ -632,7 +667,8 @@ static uint64_t chunk_checksum(const chunk* c) {
 		return 0;
 	}
 	uint64_t checksum = 64517419147637ULL;
-	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->goal(), c->fileCount());
+	// Only highest id goal is taken into checksum for compatibility reasons
+	hashCombine(checksum, c->chunkid, c->version, c->lockedto, c->highestIdGoal(), c->fileCount());
 	return checksum;
 }
 
@@ -1889,7 +1925,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	// step 1. calculate number of valid and invalid copies
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
-	const Goal::Labels& expectedCopies = fs_get_goal_definition(c->goal()).chunkLabels();
+	const Goal::Labels& expectedCopies = c->getLabels();
 	Goal::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
@@ -2330,7 +2366,7 @@ void chunk_dump(void) {
 
 	for (i=0 ; i<HASHSIZE ; i++) {
 		for (c=gChunksMetadata->chunkhash[i] ; c ; c=c->next) {
-			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->goal(),c->lockedto);
+			printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|g:%" PRIu8 "|t:%10" PRIu32 "\n",c->chunkid,c->version,c->highestIdGoal(),c->lockedto);
 		}
 	}
 }
