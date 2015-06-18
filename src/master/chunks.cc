@@ -222,7 +222,7 @@ public:
 	}
 
 	// number of files this chunk belongs to
-	uint8_t fileCount() const {
+	uint32_t fileCount() const {
 		return goalCounters_.fileCount();
 	}
 
