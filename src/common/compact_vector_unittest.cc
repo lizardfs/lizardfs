@@ -57,12 +57,12 @@ TEST(CompactVectorTest, InsertTest) {
 }
 
 TEST(CompactVectorTest, EraseTest) {
-	std::vector<int> range(200);
+	std::vector<int16_t> range(200);
 
 	std::iota(range.begin(), range.end(), 1);
 
-	compact_vector<int> vec_A;
-	std::vector<int> vec_B;
+	compact_vector<int16_t> vec_A;
+	std::vector<int16_t> vec_B;
 
 	vec_A.insert(vec_A.begin(), range.begin(), range.end());
 	vec_B.insert(vec_B.begin(), range.begin(), range.end());
@@ -114,4 +114,50 @@ TEST(CompactVectorTest, IteratorTest) {
 
 	EXPECT_EQ(it, cit);
 	EXPECT_EQ(*it, *cit);
+}
+
+TEST(CompactVectorTest, InternalStorage) {
+	if (sizeof(void *) != 8) {
+		return;
+	}
+
+	// uint16_t size type
+	compact_vector<uint8_t,uint16_t> vec;
+
+#if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
+	EXPECT_EQ(sizeof(vec), 2 * sizeof(void *));
+#else
+	EXPECT_EQ(sizeof(vec), sizeof(void *));
+#endif
+
+	EXPECT_EQ(vec.max_size(), ((unsigned)1 << 16) - 1);
+
+	vec.push_back(0);
+	EXPECT_EQ(vec.data(), (uint8_t *)&vec);
+
+	vec.assign(6, 1);
+	EXPECT_EQ(vec.data(), (uint8_t *)&vec);
+
+	vec.assign(7, 1);
+	EXPECT_NE(vec.data(), (uint8_t *)&vec);
+
+	// void size type (20 bits)
+	compact_vector<uint8_t> vec1;
+
+#if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
+	EXPECT_EQ(sizeof(vec1), 2 * sizeof(void *));
+#else
+	EXPECT_EQ(sizeof(vec1), sizeof(void *));
+#endif
+
+	EXPECT_EQ(vec1.max_size(), ((unsigned)1 << 20) - 1);
+
+	vec1.push_back(0);
+	EXPECT_EQ(vec1.data(), (uint8_t *)&vec1);
+
+	vec1.assign(5, 1);
+	EXPECT_EQ(vec1.data(), (uint8_t *)&vec1);
+
+	vec1.assign(6, 1);
+	EXPECT_NE(vec1.data(), (uint8_t *)&vec1);
 }
