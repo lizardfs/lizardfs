@@ -41,7 +41,7 @@ if(ENABLE_TESTS)
 endif()
 
 # Find standard libraries
-find_package(Socket)
+find_package(Socket REQUIRED)
 find_package(Threads REQUIRED)
 find_library(FUSE_LIBRARY fuse)
 message(STATUS "FUSE_LIBRARY: ${FUSE_LIBRARY}")
