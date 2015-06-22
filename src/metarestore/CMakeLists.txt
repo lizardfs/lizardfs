@@ -5,8 +5,13 @@ add_definitions(-DAPPNAME=mfsmetarestore)
 collect_sources(METARESTORE)
 
 file(GLOB METARESTORE_MASTER_SOURCES ../master/filesystem*.cc)
+file(GLOB METARESTORE_HSTRING_SOURCES ../master/hstring*.cc)
+file(GLOB METARESTORE_HSTRING_UNITTEST ../master/hstring*unittest.cc)
+list(REMOVE_ITEM METARESTORE_HSTRING_SOURCES ${METARESTORE_HSTRING_UNITTEST})
 
-add_library(metarestore ${METARESTORE_SOURCES} ${METARESTORE_MASTER_SOURCES} ../master/chunks.cc ../master/quota_database.cc ../master/chunk_goal_counters.cc ../master/restore.cc ../master/locks.cc)
+add_library(metarestore ${METARESTORE_SOURCES} ${METARESTORE_MASTER_SOURCES} ${METARESTORE_HSTRING_SOURCES}
+  ../master/chunks.cc ../master/quota_database.cc ../master/chunk_goal_counters.cc ../master/restore.cc ../master/locks.cc)
+
 target_link_libraries(metarestore mfscommon)
 if(JUDY_LIBRARY)
   target_link_libraries(metarestore ${JUDY_LIBRARY})
