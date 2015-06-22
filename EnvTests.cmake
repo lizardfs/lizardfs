@@ -24,7 +24,7 @@ include(CheckTypeSize)
 include(TestBigEndian)
 
 set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h
-    netinet/in.h stddef.h stdlib.h string.h sys/endian.h sys/mman.h
+    netinet/in.h stddef.h stdlib.h string.h sys/mman.h
     sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
     syslog.h unistd.h stdbool.h)
 
@@ -53,8 +53,8 @@ CHECK_FUNCTION_EXISTS(vfork    LIZARDFS_HAVE_WORKING_VFORK)
 CHECK_TEMPLATE_FUNCTION_EXISTS("string" "std::to_string(0)" LIZARDFS_HAVE_STD_TO_STRING)
 CHECK_TEMPLATE_FUNCTION_EXISTS("string" "std::stoull(\"0\")" LIZARDFS_HAVE_STD_STOULL)
 
-set(REQUIRED_FUNCTIONS atexit bzero ftruncate getaddrinfo getpass
-  gettimeofday memmove memset mkdir realpath poll socket strchr strdup strtol
+set(REQUIRED_FUNCTIONS atexit bzero ftruncate getpass
+  gettimeofday memmove memset mkdir realpath poll strchr strdup strtol
   strtoul ftello fseeko)
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 

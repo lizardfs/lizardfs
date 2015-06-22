@@ -41,7 +41,7 @@ if(ENABLE_TESTS)
 endif()
 
 # Find standard libraries
-find_package(Socket)
+find_package(Socket REQUIRED)
 find_package(Threads REQUIRED)
 if(APPLE)
   find_package(FUSE REQUIRED)
