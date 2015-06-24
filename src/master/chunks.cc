@@ -61,6 +61,10 @@
 #define MAXLOOPTIME 7200
 #define MAXCPS 10000000
 #define MINCPS 500
+#define MINCHUNKSLOOPPERIOD 40
+#define MAXCHUNKSLOOPPERIOD 10000
+#define MINCHUNKSLOOPCPU    10
+#define MAXCHUNKSLOOPCPU    90
 
 #define HASHSIZE 0x100000
 #define HASHPOS(chunkid) (((uint32_t)chunkid)&0xFFFFF)
@@ -164,6 +168,7 @@ struct slist {
 #ifndef METARESTORE
 static std::vector<matocsserventry*> zombieServersHandledInThisLoop;
 static std::vector<matocsserventry*> zombieServersToBeHandledInNextLoop;
+static void*                         gChunkLoopEventHandle = NULL;
 
 static uint32_t ReplicationsDelayDisconnect=3600;
 static uint32_t ReplicationsDelayInit=300;
@@ -172,12 +177,14 @@ static uint32_t MaxWriteRepl;
 static uint32_t MaxReadRepl;
 static uint32_t MaxDelSoftLimit;
 static uint32_t MaxDelHardLimit;
-static double TmpMaxDelFrac;
+static double   TmpMaxDelFrac;
 static uint32_t TmpMaxDel;
 static uint32_t HashSteps;
 static uint32_t HashCPS;
-static double AcceptableDifference;
-static bool RebalancingBetweenLabels = false;
+static uint32_t ChunksLoopPeriod;
+static uint32_t ChunksLoopTimeout;
+static double   AcceptableDifference;
+static bool     RebalancingBetweenLabels = false;
 
 static uint32_t jobshpos;
 static uint32_t jobsnorepbefore;
@@ -2543,6 +2550,7 @@ void chunk_jobs_main(void) {
 	uint16_t usableServerCount;
 	double minUsage, maxUsage;
 	chunk *c,**cp;
+	Timeout work_limit{std::chrono::milliseconds(ChunksLoopTimeout)};
 
 	if (starttime + ReplicationsDelayInit > main_time()) {
 		return;
@@ -2606,6 +2614,10 @@ void chunk_jobs_main(void) {
 		}
 		jobshpos+=123; // if HASHSIZE is any power of 2 then any odd number is good here
 		jobshpos%=HASHSIZE;
+
+		if(work_limit.expired()) {
+			break;
+		}
 	}
 }
 
@@ -2738,9 +2750,9 @@ void chunk_newfs(void) {
 #ifndef METARESTORE
 void chunk_become_master() {
 	starttime = main_time();
-	jobsnorepbefore = starttime+ReplicationsDelayInit;
+	jobsnorepbefore = starttime + ReplicationsDelayInit;
 	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
-	main_timeregister(TIMEMODE_RUN_LATE,1,0,chunk_jobs_main);
+	gChunkLoopEventHandle = main_timeregister_ms(ChunksLoopPeriod, chunk_jobs_main);
 	return;
 }
 
@@ -2786,49 +2798,35 @@ void chunk_reload(void) {
 		TmpMaxDel = MaxDelHardLimit;
 	}
 
-	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT",2);
-	if (repl>0) {
+	repl = cfg_getuint32("CHUNKS_WRITE_REP_LIMIT", 2);
+	if (repl > 0) {
 		MaxWriteRepl = repl;
 	}
 
-
-	repl = cfg_getuint32("CHUNKS_READ_REP_LIMIT",10);
-	if (repl>0) {
+	repl = cfg_getuint32("CHUNKS_READ_REP_LIMIT", 10);
+	if (repl > 0) {
 		MaxReadRepl = repl;
 	}
 
+	ChunksLoopPeriod = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_PERIOD", 1000, MINCHUNKSLOOPPERIOD, MAXCHUNKSLOOPPERIOD);
+	if (gChunkLoopEventHandle) {
+		main_timechange_ms(gChunkLoopEventHandle, ChunksLoopPeriod);
+	}
+
+	repl = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MAX_CPU", 60, MINCHUNKSLOOPCPU, MAXCHUNKSLOOPCPU);
+	ChunksLoopTimeout = repl * ChunksLoopPeriod / 100;
+
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
-		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-		if (looptime < MINLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u",looptime,MINLOOPTIME);
-			looptime = MINLOOPTIME;
-		}
-		if (looptime > MAXLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u",looptime,MAXLOOPTIME);
-			looptime = MAXLOOPTIME;
-		}
-		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = 0xFFFFFFFF;
+		looptime = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_TIME", 300, MINLOOPTIME, MAXLOOPTIME);
+		uint64_t scaled_looptime = std::max((uint64_t)1000 * looptime / ChunksLoopPeriod, (uint64_t)1);
+		HashSteps = 1 + ((HASHSIZE) / scaled_looptime);
+		HashCPS   = 0xFFFFFFFF;
 	} else {
-		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
-		if (looptime < MINLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u",looptime,MINLOOPTIME);
-			looptime = MINLOOPTIME;
-		}
-		if (looptime > MAXLOOPTIME) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u",looptime,MAXLOOPTIME);
-			looptime = MAXLOOPTIME;
-		}
-		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
-		if (HashCPS < MINCPS) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u",HashCPS,MINCPS);
-			HashCPS = MINCPS;
-		}
-		if (HashCPS > MAXCPS) {
-			syslog(LOG_NOTICE,"CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u",HashCPS,MAXCPS);
-			HashCPS = MAXCPS;
-		}
+		looptime = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MIN_TIME", 300, MINLOOPTIME, MAXLOOPTIME);
+		HashCPS = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MAX_CPS", 100000, MINCPS, MAXCPS);
+		uint64_t scaled_looptime = std::max((uint64_t)1000 * looptime / ChunksLoopPeriod, (uint64_t)1);
+		HashSteps = 1 + ((HASHSIZE) / scaled_looptime);
+		HashCPS   = (uint64_t)ChunksLoopPeriod * HashCPS / 1000;
 	}
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
@@ -2886,55 +2884,26 @@ int chunk_strinit(void) {
 		throw InitializeException(cfg_filename() + ": CHUNKS_WRITE_REP_LIMIT is zero");
 	}
 
+	ChunksLoopPeriod  = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_PERIOD", 1000, MINCHUNKSLOOPPERIOD, MAXCHUNKSLOOPPERIOD);
+	uint32_t repl = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MAX_CPU", 60, MINCHUNKSLOOPCPU, MAXCHUNKSLOOPCPU);
+	ChunksLoopTimeout = repl * ChunksLoopPeriod / 100;
+
 	uint32_t looptime;
 	if (cfg_isdefined("CHUNKS_LOOP_TIME")) {
 		lzfs_pretty_syslog(LOG_WARNING,
 				"%s: defining loop time by CHUNKS_LOOP_TIME option is "
 				"deprecated - use CHUNKS_LOOP_MAX_CPS and CHUNKS_LOOP_MIN_TIME",
 				cfg_filename().c_str());
-		looptime = cfg_getuint32("CHUNKS_LOOP_TIME",300);
-		if (looptime < MINLOOPTIME) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_TIME value too low (%" PRIu32 ") increased to %u",
-					cfg_filename().c_str(), looptime, MINLOOPTIME);
-			looptime = MINLOOPTIME;
-		}
-		if (looptime > MAXLOOPTIME) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_TIME value too high (%" PRIu32 ") decreased to %u",
-					cfg_filename().c_str(), looptime, MAXLOOPTIME);
-			looptime = MAXLOOPTIME;
-		}
-		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = 0xFFFFFFFF;
+		looptime = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_TIME", 300, MINLOOPTIME, MAXLOOPTIME);
+		uint64_t scaled_looptime = std::max((uint64_t)1000 * looptime / ChunksLoopPeriod, (uint64_t)1);
+		HashSteps = 1 + ((HASHSIZE) / scaled_looptime);
+		HashCPS   = 0xFFFFFFFF;
 	} else {
-		looptime = cfg_getuint32("CHUNKS_LOOP_MIN_TIME",300);
-		if (looptime < MINLOOPTIME) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_MIN_TIME value too low (%" PRIu32 ") increased to %u",
-					cfg_filename().c_str(), looptime, MINLOOPTIME);
-			looptime = MINLOOPTIME;
-		}
-		if (looptime > MAXLOOPTIME) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_MIN_TIME value too high (%" PRIu32 ") decreased to %u",
-					cfg_filename().c_str(), looptime, MAXLOOPTIME);
-			looptime = MAXLOOPTIME;
-		}
-		HashSteps = 1+((HASHSIZE)/looptime);
-		HashCPS = cfg_getuint32("CHUNKS_LOOP_MAX_CPS",100000);
-		if (HashCPS < MINCPS) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_MAX_CPS value too low (%" PRIu32 ") increased to %u",
-					cfg_filename().c_str(), HashCPS, MINCPS);
-			HashCPS = MINCPS;
-		}
-		if (HashCPS > MAXCPS) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"%s: CHUNKS_LOOP_MAX_CPS value too high (%" PRIu32 ") decreased to %u",
-					cfg_filename().c_str(), HashCPS, MAXCPS);
-			HashCPS = MAXCPS;
-		}
+		looptime = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MIN_TIME", 300, MINLOOPTIME, MAXLOOPTIME);
+		HashCPS = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MAX_CPS", 100000, MINCPS, MAXCPS);
+		uint64_t scaled_looptime = std::max((uint64_t)1000 * looptime / ChunksLoopPeriod, (uint64_t)1);
+		HashSteps = 1 + ((HASHSIZE) / scaled_looptime);
+		HashCPS   = (uint64_t)ChunksLoopPeriod * HashCPS / 1000;
 	}
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;

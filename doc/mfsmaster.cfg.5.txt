@@ -111,11 +111,18 @@ IP address to listen on for tapeserver connections (*** means any)
 *MATOTS_LISTEN_PORT*::
 Port to listen on for tapeserver connections (default is 9424)
 
-*CHUNKS_LOOP_MIN_TIME*::
-Chunks loop shouldn't be done in less seconds than given number (default is 300)
-
 *CHUNKS_LOOP_MAX_CPS*::
 Chunks loop shouldn't check more chunks per seconds than given number (default is 100000)
+
+*CHUNKS_LOOP_MIN_TIME*::
+Chunks loop will check all chunks in specified time (default is 300) unless *CHUNKS_LOOP_MAX_CPS*
+will force slower execution.
+
+*CHUNKS_LOOP_PERIOD*::
+Time in milliseconds between chunks loop execution (default is 1000).
+
+*CHUNKS_LOOP_MAX_CPU*::
+Hard limit on CPU usage by chunks loop (percentage value, default is 60).
 
 *CHUNKS_SOFT_DEL_LIMIT*::
 Soft maximum number of chunks to delete on one chunkserver (default is 10)

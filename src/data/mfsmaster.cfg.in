@@ -105,9 +105,18 @@
 ## (Default: 100000)
 # CHUNKS_LOOP_MAX_CPS = 100000
 
-## Chunks loop shouldn't be done in less seconds than given number.
+## Chunks loop will check all chunks in specified time (in seconds) unless CHUNKS_LOOP_MAX_CPS
+## will force slower execution.
 ## (Default: 300)
 # CHUNKS_LOOP_MIN_TIME = 300
+
+## Time in milliseconds between chunks loop execution.
+## (Default: 1000)
+# CHUNKS_LOOP_PERIOD = 1000
+
+## Hard limit on CPU usage by chunks loop (percentage).
+## (Default: 60)
+# CHUNKS_LOOP_MAX_CPU = 60
 
 ## Soft maximum number of chunks to delete on one chunkserver.
 ## (Default: 10)
