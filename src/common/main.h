@@ -48,7 +48,30 @@ void main_wantexitregister (void (*fun)(void));
 void main_reloadregister (void (*fun)(void));
 void main_pollregister (void (*desc)(std::vector<pollfd>&),void (*serve)(const std::vector<pollfd>&));
 void main_eachloopregister (void (*fun)(void));
-void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
+
+/*! \brief Register handler for recurring event.
+ *
+ * \param mode Event mode. Can be one of
+ *                TIMEMODE_SKIP_LATE - if the event engine is late then we skip to the next time
+ *                                     divisible by seconds.
+ *                TIMEMODE_RUN_LATE  - can be executed even if the event engine is late (so time
+ *                                     isn't divisible by seconds).
+ * \param seconds when event should be run (event is executed at time divisible by
+ *                value of seconds).
+ * \param offset  if greater than 0 then event is executed offset seconds after time divisible by
+ *                value of parameter seconds).
+ * \param fun address of function to execute.
+ * \return handle - handle to newly registered timed event.
+ */
+void *main_timeregister(int mode, uint64_t seconds, uint64_t offset, void (*fun)(void));
+
+/*! \brief Register handler for recurring event (millisecond precision).
+ *
+ * \param period  how often event should be run (in ms)
+ * \param fun address of function to execute.
+ * \return handle - handle to newly registered timed event.
+ */
+void *main_timeregister_ms(uint64_t period, void (*fun)(void));
 
 /*! \brief Make the next poll nonblocking
  */
@@ -59,7 +82,27 @@ void main_make_next_poll_nonblocking();
  * \param handle - handle to currently registered timed event.
  */
 void main_timeunregister (void* handle);
-int main_timechange(void *x,int mode,uint32_t seconds,uint32_t offset);
+
+/*! \brief Change previously registered timed event frequency and mode.
+ *
+ * \param handle  - handle to currently registered timed event.
+ * \param mode    - event mode
+ * \param seconds - event period
+ * \param offset  - event offset
+ * \return 0  - success
+ *         -1 - error occurred
+ */
+int main_timechange(void* handle, int mode, uint64_t seconds, uint64_t offset);
+
+/*! \brief Change previously registered timed event frequency and mode.
+ *
+ * \param handle  - handle to currently registered timed event.
+ * \param period - event period (in ms)
+ * \return 0  - success
+ *         -1 - error occurred
+ */
+int main_timechange_ms(void* x, uint64_t period);
+
 uint32_t main_time(void);
 uint64_t main_utime(void);
 

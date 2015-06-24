@@ -52,6 +52,7 @@
 #include "common/MFSCommunication.h"
 #include "common/setup.h"
 #include "common/slogger.h"
+#include "common/time_utils.h"
 
 #if defined(LIZARDFS_HAVE_MLOCKALL)
 #  if defined(LIZARDFS_HAVE_SYS_MMAN_H)
@@ -141,14 +142,15 @@ static eloopentry *eloophead=NULL;
 
 struct timeentry {
 	typedef void (*fun_t)(void);
-	timeentry(uint32_t ne, uint32_t sec, uint32_t off, int mod, fun_t f)
-		: nextevent(ne), seconds(sec), offset(off), mode(mod), fun(f) {
+	timeentry(uint64_t ne, uint64_t sec, uint64_t off, int mod, fun_t f, bool ms)
+		: nextevent(ne), period(sec), offset(off), mode(mod), fun(f), millisecond_precision(ms) {
 	}
-	uint32_t nextevent;
-	uint32_t seconds;
-	uint32_t offset;
-	int mode;
-	fun_t fun;
+	uint64_t nextevent;
+	uint64_t period;
+	uint64_t offset;
+	int      mode;
+	fun_t    fun;
+	bool     millisecond_precision;
 };
 
 typedef std::list<timeentry> TimeEntries;
@@ -236,15 +238,25 @@ void main_eachloopregister (void (*fun)(void)) {
 	eloophead = aux;
 }
 
-void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void)) {
-	if (seconds==0 || offset>=seconds) {
+void *main_timeregister(int mode, uint64_t seconds, uint64_t offset, void (*fun)(void)) {
+	if (seconds == 0 || offset >= seconds) {
 		return NULL;
 	}
-	uint32_t nextevent = ((now / seconds) * seconds) + offset;
-	while (nextevent<now) {
-		nextevent+=seconds;
+
+	uint64_t nextevent = ((now + seconds) / seconds) * seconds + offset;
+
+	gTimeEntries.push_front(timeentry(nextevent, seconds, offset, mode, fun, false));
+	return &gTimeEntries.front();
+}
+
+void *main_timeregister_ms(uint64_t period, void (*fun)(void)) {
+	if (period == 0) {
+		return NULL;
 	}
-	gTimeEntries.push_front(timeentry(nextevent, seconds, offset, mode, fun));
+
+	uint64_t nextevent = usecnow / 1000 + period;
+
+	gTimeEntries.push_front(timeentry(nextevent, period, 0, TIMEMODE_RUN_LATE, fun, true));
 	return &gTimeEntries.front();
 }
 
@@ -259,18 +271,25 @@ void main_timeunregister(void* handler) {
 	massert(it != gTimeEntries.end(), "unregistering unknown handle from time table");
 }
 
-int main_timechange(void* x,int mode,uint32_t seconds,uint32_t offset) {
-	timeentry *aux = (timeentry*)x;
-	if (seconds==0 || offset>=seconds) {
+int main_timechange(void* handle, int mode, uint64_t seconds, uint64_t offset) {
+	timeentry *aux = (timeentry*)handle;
+	if (seconds == 0 || offset >= seconds) {
 		return -1;
 	}
-	aux->nextevent = ((now / seconds) * seconds) + offset;
-	while (aux->nextevent<now) {
-		aux->nextevent+=seconds;
-	}
-	aux->seconds = seconds;
+	aux->nextevent = ((now + seconds) / seconds) * seconds + offset;
+	aux->period = seconds;
 	aux->offset = offset;
 	aux->mode = mode;
+	return 0;
+}
+
+int main_timechange_ms(void* handle, uint64_t period) {
+	timeentry *aux = (timeentry*)handle;
+	if (period == 0) {
+		return -1;
+	}
+	aux->nextevent = ((usecnow / 1000 + period) / period) * period;
+	aux->period = period;
 	return 0;
 }
 
@@ -358,7 +377,8 @@ void destruct() {
 }
 
 void mainloop() {
-	uint32_t prevtime = 0;
+	uint32_t prevtime  = 0;
+	uint64_t prevmtime = 0;
 	struct timeval tv;
 	eloopentry *eloopit;
 	ceentry *ceit;
@@ -411,46 +431,71 @@ void mainloop() {
 		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
 			eloopit->fun();
 		}
+
+		uint64_t msecnow = usecnow / 1000;
+
+		if (msecnow < prevmtime) {
+			// time went backward - recalculate next event time
+			for (timeentry& timeit : gTimeEntries) {
+				if (!timeit.millisecond_precision) {
+					continue;
+				}
+
+				uint64_t previous_time_to_run = timeit.nextevent - prevmtime;
+				previous_time_to_run = std::min(previous_time_to_run, timeit.period);
+				timeit.nextevent = msecnow + previous_time_to_run;
+			}
+		}
+
 		if (now<prevtime) {
 			// time went backward !!! - recalculate "nextevent" time
 			// adding previous_time_to_run prevents from running next event too soon.
 			for (timeentry& timeit : gTimeEntries) {
-				uint32_t previous_time_to_run = timeit.nextevent - prevtime;
-				if (previous_time_to_run > timeit.seconds) {
-					previous_time_to_run = timeit.seconds;
+				if (timeit.millisecond_precision) {
+					continue;
 				}
-				timeit.nextevent = ((now / timeit.seconds) * timeit.seconds) + timeit.offset;
-				while (timeit.nextevent <= now+previous_time_to_run) {
-					timeit.nextevent += timeit.seconds;
-				}
+
+				uint64_t previous_time_to_run = timeit.nextevent - prevtime;
+				previous_time_to_run = std::min(previous_time_to_run, timeit.period);
+				timeit.nextevent = ((now + previous_time_to_run + timeit.period)
+				                   / timeit.period) * timeit.period + timeit.offset;
 			}
 		} else if (now>prevtime+3600) {
 			// time went forward !!! - just recalculate "nextevent" time
 			for (timeentry& timeit : gTimeEntries) {
-				timeit.nextevent = ((now / timeit.seconds) * timeit.seconds) + timeit.offset;
-				while (now >= timeit.nextevent) {
-					timeit.nextevent += timeit.seconds;
+				if (timeit.millisecond_precision) {
+					timeit.nextevent = msecnow + timeit.period;
+					continue;
 				}
+
+				timeit.nextevent = ((now + timeit.period) / timeit.period)
+				                    * timeit.period + timeit.offset;
 			}
 		}
+
 		for (timeentry& timeit : gTimeEntries) {
+			if (timeit.millisecond_precision) {
+				if (msecnow >= timeit.nextevent) {
+					timeit.nextevent = msecnow + timeit.period;
+					timeit.fun();
+				}
+				continue;
+			}
+
 			if (now >= timeit.nextevent) {
 				if (timeit.mode == TIMEMODE_RUN_LATE) {
-					while (now >= timeit.nextevent) {
-						timeit.nextevent += timeit.seconds;
-					}
 					timeit.fun();
 				} else { /* timeit.mode == TIMEMODE_SKIP_LATE */
 					if (now == timeit.nextevent) {
 						timeit.fun();
 					}
-					while (now >= timeit.nextevent) {
-						timeit.nextevent += timeit.seconds;
-					}
 				}
+				timeit.nextevent += ((now - timeit.nextevent + timeit.period)
+				                    / timeit.period) * timeit.period;
 			}
 		}
-		prevtime = now;
+		prevtime  = now;
+		prevmtime = usecnow / 1000;
 		if (gExitingStatus == ExitingStatus::kRunning && gReloadRequested) {
 			cfg_reload();
 			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
