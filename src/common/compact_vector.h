@@ -202,6 +202,7 @@ public:
 	}
 
 	pointer ptr() const {
+		assert(debug_ptr_ == reinterpret_cast<pointer>((ptr_ & ptr_mask) << ptr_shift));
 		return reinterpret_cast<pointer>((ptr_ & ptr_mask) << ptr_shift);
 	}
 
@@ -240,11 +241,13 @@ public:
 	void set_size(size_type s) {
 		assert(s <= max_size());
 		ptr_ = (ptr_ & ptr_mask) | (static_cast<uint64_t>(s) << size_shift);
-		assert(debug_ptr_ == ptr());
 	}
 
 	void swap(compact_vector_storage &v) noexcept {
 		std::swap(ptr_, v.ptr_);
+#if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
+		std::swap(debug_ptr_, v.debug_ptr_);
+#endif
 	}
 
 	constexpr size_type internal_size() const {
@@ -876,6 +879,7 @@ public:
 	template <typename... Args>
 	void emplace_back(Args &&...args) {
 		size_type nsize = size() + 1;
+		pointer old_ptr = base::get_ptr();
 		pointer ptr     = base::allocate(nsize);
 		auto dr = std::make_pair(ptr, ptr);
 
@@ -885,17 +889,18 @@ public:
 #else
 			base::get_allocator().construct(ptr + size(), std::forward<Args>(args)...);
 #endif
-			if (ptr != base::get_ptr()) {
+			if (ptr != old_ptr) {
 				dr = std::make_pair(ptr + size(), ptr + size() + 1);
-				uninitialized_move_if_no_except(begin(), end(), ptr);
+				uninitialized_move_if_no_except(old_ptr, old_ptr + size(), ptr);
 			}
 		} catch (...) {
 			destroy(dr.first, dr.second);
 			base::deallocate(ptr, nsize);
+			base::set_ptr(old_ptr);
 			throw;
 		}
 
-		set_new_ptr(ptr, nsize);
+		set_new_ptr(old_ptr, ptr, nsize);
 	}
 
 	void pop_back() noexcept {
@@ -906,33 +911,37 @@ public:
 	template <typename... Args>
 	iterator emplace(const_iterator position, Args &&... args) {
 		size_type nsize = size() + 1;
+		pointer old_ptr = base::get_ptr();
 		pointer ptr = base::allocate(nsize);
 		auto dr = std::make_pair(ptr, ptr);
 		auto pos = position - cbegin();
 
-		if (ptr == base::get_ptr()) {
+		if (ptr == old_ptr) {
 			return inplace_emplace(drop_const(position), std::forward<Args>(args)...);
 		}
 
 		try {
 #ifdef LIZARDFS_HAVE_STD_ALLOCATOR_TRAITS
-			alloc_traits::construct(base::get_allocator(), ptr + pos, std::forward<Args>(args)...);
+			alloc_traits::construct(base::get_allocator(), ptr + pos,
+			                        std::forward<Args>(args)...);
 #else
 			base::get_allocator().construct(ptr + pos, std::forward<Args>(args)...);
 #endif
 			dr = std::make_pair(ptr + pos, ptr + pos + 1);
-			uninitialized_move_if_no_except(begin(), drop_const(position), ptr);
+			uninitialized_move_if_no_except(iterator(old_ptr), drop_const(position), ptr);
 			dr = std::make_pair(ptr, ptr + pos + 1);
-			uninitialized_move_if_no_except(drop_const(position), end(), ptr + pos + 1);
+			uninitialized_move_if_no_except(drop_const(position),
+			                                iterator(old_ptr) + size(), ptr + pos + 1);
 		} catch (...) {
 			destroy(dr.first, dr.second);
 			base::deallocate(ptr, nsize);
+			base::set_ptr(old_ptr);
 			throw;
 		}
 
 		pointer new_iter = ptr + pos;
 
-		set_new_ptr(ptr, nsize);
+		set_new_ptr(old_ptr, ptr, nsize);
 
 		return iterator(new_iter);
 	}
@@ -955,29 +964,33 @@ public:
 		}
 
 		size_type nsize = size() + n;
+		pointer old_ptr = base::get_ptr();
 		pointer ptr = base::allocate(nsize);
 		auto dr = std::make_pair(ptr, ptr);
 		auto pos = position - cbegin();
 
-		if (ptr == base::get_ptr()) {
+		if (ptr == old_ptr) {
 			return inplace_insert(drop_const(position), n, x);
 		}
 
 		try {
 			std::uninitialized_fill(ptr + pos, ptr + pos + n, x);
 			dr = std::make_pair(ptr + pos, ptr + pos + n);
-			uninitialized_move_if_no_except(begin(), drop_const(position), ptr);
+			uninitialized_move_if_no_except(iterator(old_ptr), drop_const(position),
+			                                ptr);
 			dr = std::make_pair(ptr, ptr + pos + n);
-			uninitialized_move_if_no_except(drop_const(position), end(), ptr + pos + n);
+			uninitialized_move_if_no_except(drop_const(position),
+			                                iterator(old_ptr) + size(), ptr + pos + n);
 		} catch (...) {
 			destroy(dr.first, dr.second);
 			base::deallocate(ptr, nsize);
+			base::set_ptr(old_ptr);
 			throw;
 		}
 
 		pointer new_iter = ptr + pos;
 
-		set_new_ptr(ptr, nsize);
+		set_new_ptr(old_ptr, ptr, nsize);
 
 		return iterator(new_iter);
 	}
@@ -994,30 +1007,34 @@ public:
 		}
 
 		size_type nsize = size() + gap_size;
+		pointer old_ptr = base::get_ptr();
 		pointer ptr = base::allocate(nsize);
 		auto dr = std::make_pair(ptr, ptr);
 		auto pos = position - cbegin();
 
-		if (ptr == base::get_ptr()) {
+		if (ptr == old_ptr) {
 			return inplace_insert(gap_size, drop_const(position), first, last);
 		}
 
 		try {
 			std::uninitialized_copy(first, last, ptr + pos);
 			dr = std::make_pair(ptr + pos, ptr + pos + gap_size);
-			uninitialized_move_if_no_except(begin(), drop_const(position), ptr);
+			uninitialized_move_if_no_except(iterator(old_ptr), drop_const(position),
+			                                ptr);
 			dr = std::make_pair(ptr, ptr + pos + gap_size);
-			uninitialized_move_if_no_except(drop_const(position), end(),
+			uninitialized_move_if_no_except(drop_const(position),
+			                                iterator(old_ptr) + size(),
 			                                ptr + pos + gap_size);
 		} catch (...) {
 			destroy(dr.first, dr.second);
 			base::deallocate(ptr, nsize);
+			base::set_ptr(old_ptr);
 			throw;
 		}
 
 		pointer new_iter = ptr + pos;
 
-		set_new_ptr(ptr, nsize);
+		set_new_ptr(old_ptr, ptr, nsize);
 
 		return iterator(new_iter);
 	}
@@ -1044,13 +1061,13 @@ public:
 		pointer  ptr_last = ptr;
 		iterator new_iter;
 
-		if (ptr != base::get_ptr()) {
+		if (ptr != old_ptr) {
 			try {
 				ptr_last = uninitialized_move_if_no_except(iterator(old_ptr),
 				                                           drop_const(first), ptr);
 				new_iter = iterator(ptr_last);
 				ptr_last = uninitialized_move_if_no_except(
-				        drop_const(last), iterator(old_ptr) + base::get_size(),
+				        drop_const(last), iterator(old_ptr) + size(),
 				        ptr_last);
 			} catch (...) {
 				destroy(ptr, ptr_last);
@@ -1063,7 +1080,7 @@ public:
 			std::move(drop_const(last), end(), new_iter);
 		}
 
-		set_new_ptr(ptr, nsize);
+		set_new_ptr(old_ptr, ptr, nsize);
 
 		return new_iter;
 	}
