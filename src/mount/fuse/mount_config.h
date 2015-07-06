@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 #include <string.h>
-#include <fuse.h>
+#include <fuse/fuse.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>

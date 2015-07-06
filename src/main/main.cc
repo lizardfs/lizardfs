@@ -122,15 +122,14 @@ typedef struct rlentry {
 
 static rlentry *rlhead=NULL;
 
-
 typedef struct pollentry {
-	void (*desc)(struct pollfd *,uint32_t *);
-	void (*serve)(struct pollfd *);
-	struct pollentry *next;
+	void (*desc)(std::vector<pollfd>&);
+	void (*serve)(const std::vector<pollfd>&);
 } pollentry;
 
-static pollentry *pollhead=NULL;
-
+namespace {
+std::list<pollentry> gPollEntries;
+}
 
 typedef struct eloopentry {
 	void (*fun)(void);
@@ -225,13 +224,8 @@ void main_reloadregister (void (*fun)(void)) {
 	rlhead = aux;
 }
 
-void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *)) {
-	pollentry *aux=(pollentry*)malloc(sizeof(pollentry));
-	passert(aux);
-	aux->desc = desc;
-	aux->serve = serve;
-	aux->next = pollhead;
-	pollhead = aux;
+void main_pollregister (void (*desc)(std::vector<pollfd>&),void (*serve)(const std::vector<pollfd>&)) {
+	gPollEntries.push_back({desc,serve});
 }
 
 void main_eachloopregister (void (*fun)(void)) {
@@ -287,7 +281,6 @@ void free_all_registered_entries(void) {
 	ceentry *ce,*cen;
 	weentry *we,*wen;
 	rlentry *re,*ren;
-	pollentry *pe,*pen;
 	eloopentry *ee,*een;
 
 	for (de = dehead ; de ; de = den) {
@@ -310,10 +303,7 @@ void free_all_registered_entries(void) {
 		free(re);
 	}
 
-	for (pe = pollhead ; pe ; pe = pen) {
-		pen = pe->next;
-		free(pe);
-	}
+	gPollEntries.clear();
 
 	for (ee = eloophead ; ee ; ee = een) {
 		een = ee->next;
@@ -370,24 +360,20 @@ void destruct() {
 void mainloop() {
 	uint32_t prevtime = 0;
 	struct timeval tv;
-	pollentry *pollit;
 	eloopentry *eloopit;
 	ceentry *ceit;
 	weentry *weit;
 	rlentry *rlit;
-	struct pollfd pdesc[MFSMAXFILES];
-	uint32_t ndesc;
+	std::vector<pollfd> pdesc;
 	int i;
 
 	while (gExitingStatus != ExitingStatus::kDoExit) {
-		ndesc=1;
-		pdesc[0].fd = signalpipe[0];
-		pdesc[0].events = POLLIN;
-		pdesc[0].revents = 0;
-		for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
-			pollit->desc(pdesc,&ndesc);
+		pdesc.clear();
+		pdesc.push_back({signalpipe[0],POLLIN,0});
+		for (auto &pollit: gPollEntries) {
+			pollit.desc(pdesc);
 		}
-		i = poll(pdesc,ndesc, nextPollNonblocking ? 0 : 50);
+		i = poll(pdesc.data(),pdesc.size(), nextPollNonblocking ? 0 : 50);
 		nextPollNonblocking = false;
 		gettimeofday(&tv,NULL);
 		usecnow = tv.tv_sec * uint64_t(1000000) + tv.tv_usec;
@@ -418,8 +404,8 @@ void mainloop() {
 					}
 				}
 			}
-			for (pollit = pollhead ; pollit != NULL ; pollit = pollit->next) {
-				pollit->serve(pdesc);
+			for (auto &pollit : gPollEntries) {
+				pollit.serve(pdesc);
 			}
 		}
 		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
@@ -1193,6 +1179,7 @@ int main(int argc,char **argv) {
 	main_configure_debug_log();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
+#ifdef MFSMAXFILES
 		rls.rlim_cur = MFSMAXFILES;
 		rls.rlim_max = MFSMAXFILES;
 		if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
@@ -1200,6 +1187,7 @@ int main(int argc,char **argv) {
 		} else {
 			lzfs_pretty_syslog(LOG_INFO,"open files limit limit changed to to %u",MFSMAXFILES);
 		}
+#endif
 
 		lockmemory = cfg_getnum("LOCK_MEMORY",0);
 #ifdef MFS_USE_MEMLOCK

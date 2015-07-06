@@ -2,53 +2,72 @@
 
 #include "common/platform.h"
 
+#include "common/compact_vector.h"
 #include "common/exception.h"
 #include "common/goal_map.h"
 
+/*! \brief Goal counting class for chunks
+ *
+ * This class is used to calculate superposition of goals
+ * for chunks belonging to multiple inodes (e.g. through snapshotting).
+ * Chunks referenced by 1 inode inherit their goal without any computations.
+ *
+ * Underlying data structure is a compact_vector, which is designed to occupy
+ * as little memory as needed.
+ *
+ * Superposition is counted as a set sum of existing goals.
+ * Example:
+ *  goal of file1: label1 label2
+ *  goal of file2: label2 label3
+ *  counted goal of chunk shared between file1 and file2: label1 label2 label3
+ *  counted goal of shared chunk after changing file1 goal to _: label2 label3
+ */
 class ChunkGoalCounters {
 public:
+
+	struct GoalCounter {
+		uint8_t goal;
+		uint8_t count;
+
+		bool operator==(const GoalCounter &other) const {
+			return goal == other.goal && count == other.count;
+		}
+	};
+
+	typedef compact_vector<GoalCounter> Counters;
+	typedef Counters::const_iterator const_iterator;
+
 	LIZARDFS_CREATE_EXCEPTION_CLASS(InvalidOperation, Exception);
 
-	// Default constructor
-	ChunkGoalCounters();
+	ChunkGoalCounters() {}
 
-	// Add file with a given goal to calculations
+	// Adds file with a given goal to calculations
 	void addFile(uint8_t goal);
 
-	// Remove file with a given goal from calculations
+	// Removes file with a given goal from calculations
 	void removeFile(uint8_t goal);
 
-	// Change goal of one of the added files
+	// Changes goal of one of the added files
 	void changeFileGoal(uint8_t prevGoal, uint8_t newGoal);
 
-	// Calculate a superposition of goals of the added files
-	uint8_t combinedGoal() const {
-		return goal_;
+	// Returns number of files referring to a chunk
+	uint32_t fileCount() const;
+
+	// For backward compatibility - returns highest goalId in counters
+	uint8_t highestIdGoal() const;
+
+	const_iterator begin() const {
+		return counters_.begin();
 	}
 
-	// Number of added files
-	uint32_t fileCount() const {
-		return fileCount_;
+	const_iterator end() const {
+		return counters_.end();
 	}
 
-	// true if this class has some additional memory allocated on the heap
-	// The class gives the following three guarantees:
-	// * it occupies no additional memory if only files with the same goal were added
-	// * it occupies no additional memory if there are no files or there is only one file added
-	// * it occupies additional memory if there are files with different goals added
-	bool hasAdditionalMemoryAllocated() const {
-		return fileCounters_ != nullptr;
+	Counters::size_type size() const {
+		return counters_.size();
 	}
 
 private:
-	std::unique_ptr<GoalMap<uint32_t>> fileCounters_;
-	uint32_t fileCount_;
-	uint8_t goal_;
-
-	uint8_t calculateGoal();
-
-	// Free fileCounter_ when it's unneeded
-	void tryDeleteFileCounters();
-
-	void removeFileInternal(uint8_t goal);
+	Counters counters_;
 };

@@ -5,8 +5,10 @@
 #include <unistd.h>
 #include <algorithm>
 #include <cerrno>
+#include <functional>
 #include <list>
 #include <memory>
+#include <set>
 
 #include "common/cfg.h"
 #include "common/cwrap.h"
@@ -35,15 +37,16 @@ namespace {
 
 struct matotsserventry {
 	enum class Mode { kKill, kConnected};
+	static std::set<TapeserverId> ids;
 
-	matotsserventry(int sock, TapeserverId id, NetworkAddress address)
+	matotsserventry(int sock, NetworkAddress address)
 			: mode(Mode::kConnected),
 			  sock(sock),
 			  pdescpos(-1),
 			  inputPacket(kMaxPacketSize),
 			  name("(unregistered)"),
 			  label(kMediaLabelWildcard),
-			  id(id),
+			  id(0),
 			  address(address),
 			  version(0),
 			  filesRegistered(false) {
@@ -53,6 +56,26 @@ struct matotsserventry {
 		if (sock >= 0) {
 			tcpclose(sock);
 		}
+	}
+
+	bool registerServer(const std::string &name, int version) {
+		bool registered;
+		this->id = std::hash<std::string>()(name);
+		this->name = name;
+		registered = ids.find(this->id) == ids.end();
+		if (registered) {
+			ids.insert(this->id);
+			this->version = version;
+		}
+		return registered;
+	}
+
+	void unregisterServer() {
+		ids.erase(id);
+	}
+
+	bool isRegistered() const {
+		return version > 0;
 	}
 
 	Mode mode;
@@ -70,6 +93,8 @@ struct matotsserventry {
 	bool filesRegistered;  // set to true during a registration after registering all the files
 };
 
+std::set<TapeserverId> matotsserventry::ids;
+
 } // anonymous namespace
 
 // from config
@@ -79,9 +104,6 @@ static std::string gListenPort;
 // socket which we listen on and its position in the global table of descriptors
 static int gListenSocket;
 static int32_t gListenSocketPosition;
-
-/// A pool od IDs for tapeservers
-static TapeserverIdPool gIdPool(200,128,50);
 
 /// All connected tapeservers.
 static std::list<std::unique_ptr<matotsserventry>> gTapeservers;
@@ -104,7 +126,7 @@ static void matotsserv_kill(matotsserventry* eptr) {
 
 /// Handler for tstoma::registerServer.
 static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageBuffer& message) {
-	if (eptr->version > 0) {
+	if (eptr->isRegistered()) {
 		lzfs_pretty_syslog(LOG_WARNING,
 				"got register message from a registered tapeserver");
 		matotsserv_kill(eptr);
@@ -112,21 +134,25 @@ static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageB
 	}
 
 	uint32_t version;
-	tstoma::registerTapeserver::deserialize(message, version);
+	std::string name;
+	tstoma::registerTapeserver::deserialize(message, version, name);
 	if (version == 0) {
 		lzfs_pretty_syslog(LOG_INFO,
-				"tapeserver %s failed to register",
-				eptr->address.toString().c_str());
+				"tapeserver  %s(%s) failed to register",
+				name.c_str(), eptr->address.toString().c_str());
 		uint8_t status = ERROR_EPERM;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(status));
 	} else {
 		lzfs_pretty_syslog(LOG_INFO,
-				"tapeserver %s registered",
-				eptr->address.toString().c_str());
-		eptr->version = version;
-		// TODO(msulikowski) registering by name
+				"tapeserver %s(%s) registered",
+				name.c_str(), eptr->address.toString().c_str());
+		if (!eptr->registerServer(name, version)) {
+			lzfs_pretty_syslog(LOG_WARNING,
+					"tapeserver with id %" PRIu32 "(%s) already exists.",
+					eptr->id, eptr->name.c_str());
+			matotsserv_kill(eptr);
+		}
 		// TODO(msulikowski) registration of labels
-		eptr->name = "tapeserver" + std::to_string(eptr->id);
 		eptr->label = kMediaLabelWildcard;
 		uint32_t myVersion = LIZARDFS_VERSHEX;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(myVersion));
@@ -249,27 +275,21 @@ static void matotsserv_write(matotsserventry* eptr) {
 }
 
 /// For \p main_pollregister.
-static void matotsserv_desc(struct pollfd* pdesc, uint32_t* ndesc) {
-	uint32_t pos = *ndesc;
-	pdesc[pos].fd = gListenSocket;
-	pdesc[pos].events = POLLIN;
-	gListenSocketPosition = pos;
-	pos++;
+static void matotsserv_desc(std::vector<pollfd> &pdesc) {
+	pdesc.push_back({gListenSocket,POLLIN,0});
+	gListenSocketPosition = pdesc.size() - 1;
 
 	for (auto& eptr : gTapeservers) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 		if (!eptr->outputPackets.empty()) {
-			pdesc[pos].events |= POLLOUT;
+			pdesc.back().events |= POLLOUT;
 		}
-		pos++;
 	}
-	*ndesc = pos;
 }
 
 /// For \p main_pollregister.
-static void matotsserv_serve(struct pollfd* pdesc) {
+static void matotsserv_serve(const std::vector<pollfd> &pdesc) {
 	if (gListenSocketPosition >= 0 && (pdesc[gListenSocketPosition].revents & POLLIN)) {
 		int newSocket = tcpaccept(gListenSocket);
 		if (newSocket < 0) {
@@ -280,16 +300,7 @@ static void matotsserv_serve(struct pollfd* pdesc) {
 			tcpnodelay(newSocket);
 			tcpgetpeer(newSocket, &ip, NULL);
 			NetworkAddress address(ip, 0);
-			TapeserverId id = gIdPool.acquire();
-			if (!id) {
-				lzfs_pretty_syslog(LOG_WARNING,
-				                   "master <-> tapeservers module: too many tapeservers registered, "
-				                   "refusing a new connection from %s",
-				                   address.toString().c_str());
-				tcpclose(newSocket);
-			} else {
-				gTapeservers.emplace_back(new matotsserventry(newSocket, id, address));
-			}
+			gTapeservers.emplace_back(new matotsserventry(newSocket, address));
 		} else {
 			tcpclose(newSocket);
 		}
@@ -327,8 +338,9 @@ static void matotsserv_serve(struct pollfd* pdesc) {
 	while (it != gTapeservers.end()) {
 		auto& eptr = *it;
 		if (eptr->mode == matotsserventry::Mode::kKill) {
-			fs_tapeserver_disconnected(eptr->id);
-			gIdPool.release(eptr->id);
+			if (eptr->isRegistered()) {
+				eptr->unregisterServer();
+			}
 			it = gTapeservers.erase(it);
 		} else {
 			++it;
@@ -449,12 +461,20 @@ int matotsserv_init() {
 	return 0;
 }
 
+bool matotsserv_can_enqueue_node() {
+	return !matotsserventry::ids.empty();
+}
+
 TapeserverId matotsserv_enqueue_node(const TapeKey& key) {
-	if (gTapeservers.empty()) {
-		return TapeserverIdPool::nullId;
-	}
+	auto ts = std::find_if(gTapeservers.begin(), gTapeservers.end(),
+						[](const std::unique_ptr<matotsserventry> &tapeserver) {
+							return tapeserver->isRegistered();
+						});
+
+	massert(ts != gTapeservers.end(), "No tapeservers are available.");
+
 	gFilesToBeSentToTapeserver.push_back(key);
-	return gTapeservers.front().get()->id;
+	return ts->get()->id;
 }
 
 uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tapeserverInfo) {
@@ -473,8 +493,10 @@ uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tap
 std::vector<TapeserverListEntry> matotsserv_get_tapeservers() {
 	std::vector<TapeserverListEntry> tapeservers;
 	for (auto& tapeserver : gTapeservers) {
-		tapeservers.emplace_back(tapeserver->version, tapeserver->name, tapeserver->label,
+		if (tapeserver->isRegistered()) {
+			tapeservers.emplace_back(tapeserver->version, tapeserver->name, tapeserver->label,
 		        tapeserver->address);
+		}
 	}
 	return tapeservers;
 }

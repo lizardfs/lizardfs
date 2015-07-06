@@ -1,5 +1,4 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_definitions(-DMFSMAXFILES=10000)
 add_definitions(-DAPPNAME=mfschunkserver)
 
 collect_sources(CHUNKSERVER)

@@ -1,6 +1,10 @@
 CHUNKSERVERS=3 \
 	USE_RAMDISK=YES \
+	CHUNKSERVERS=4 \
+	CHUNKSERVER_LABELS="0:l0|1:l1|2:l2" \
+	MASTER_CUSTOM_GOALS="10 l0l1: l0 l1|11 l1l2: l1 l2" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0:"\
 	setup_local_empty_lizardfs info
 
 # Create a directory with some files
@@ -56,3 +60,30 @@ expect_failure mfsmakesnapshot dir1  -o dir3/file2
 expect_failure mfsmakesnapshot dir1/ -o dir3/file2
 expect_files_equal dir1/file2 dir3/file2                 # Nothing should be changed in dir3/file2!
 expect_equals 5 $(find_all_chunks | wc -l)
+
+# Test multiple goals for chunks shared by snapshots
+assert_success mfssetgoal -r l0l1 dir3
+assert_eventually_prints '2' 'mfsfileinfo dir3/file2 | grep copy | wc -l'
+
+assert_success mfsmakesnapshot dir3 dir4
+assert_eventually_prints '2' 'mfsfileinfo dir4/file2 | grep copy | wc -l'
+
+assert_success mfssetgoal -r l1l2 dir4
+assert_eventually_prints '3' 'mfsfileinfo dir3/file2 | grep copy | wc -l'
+assert_eventually_prints '3' 'mfsfileinfo dir4/file2 | grep copy | wc -l'
+
+assert_success mfsmakesnapshot dir4 dir5
+assert_eventually_prints '3' 'mfsfileinfo dir3/file2 | grep copy | wc -l'
+assert_eventually_prints '3' 'mfsfileinfo dir4/file2 | grep copy | wc -l'
+assert_eventually_prints '3' 'mfsfileinfo dir5/file2 | grep copy | wc -l'
+
+assert_success mfssetgoal -r 3 dir5
+assert_eventually_prints '3' 'mfsfileinfo dir3/file2 | grep copy | wc -l'
+assert_eventually_prints '3' 'mfsfileinfo dir4/file2 | grep copy | wc -l'
+assert_eventually_prints '3' 'mfsfileinfo dir5/file2 | grep copy | wc -l'
+
+assert_success mfssetgoal -r 4 dir4
+assert_eventually_prints '4' 'mfsfileinfo dir3/file2 | grep copy | wc -l'
+assert_eventually_prints '4' 'mfsfileinfo dir4/file2 | grep copy | wc -l'
+assert_eventually_prints '4' 'mfsfileinfo dir5/file2 | grep copy | wc -l'
+

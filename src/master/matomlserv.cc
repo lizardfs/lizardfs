@@ -809,30 +809,24 @@ void matomlserv_write(matomlserventry *eptr) {
 	}
 }
 
-void matomlserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
+void matomlserv_desc(std::vector<pollfd> &pdesc) {
 	matomlserventry *eptr;
 	if (!gExiting) {
-		pdesc[pos].fd = lsock;
-		pdesc[pos].events = POLLIN;
-		lsockpdescpos = pos;
-		pos++;
+		pdesc.push_back({lsock,POLLIN,0});
+		lsockpdescpos = pdesc.size() - 1;
 	} else {
 		lsockpdescpos = -1;
 	}
 	for (eptr=matomlservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events |= POLLOUT;
+			pdesc.back().events |= POLLOUT;
 		}
-		pos++;
 	}
-	*ndesc = pos;
 }
 
-void matomlserv_serve(struct pollfd *pdesc) {
+void matomlserv_serve(const std::vector<pollfd> &pdesc) {
 	uint32_t now=main_time();
 	matomlserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;

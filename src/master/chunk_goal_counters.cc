@@ -3,108 +3,74 @@
 
 #include "common/goal.h"
 
-ChunkGoalCounters::ChunkGoalCounters() : fileCount_(0), goal_(0) {}
-
 void ChunkGoalCounters::addFile(uint8_t goal) {
 	if (!goal::isGoalValid(goal)) {
-		throw InvalidOperation("Invalid goal " + std::to_string(goal));
+		throw ChunkGoalCounters::InvalidOperation("Trying to add non-existent goal: " + std::to_string(goal));
 	}
-	if (fileCount_ == 0) {
-		goal_ = goal;
-		fileCount_ = 1;
-		return;
+
+	/*
+	 * For memory saving, max value of a single counter is 255.
+	 * If a counter is about to reach 256, a new counter for the same value
+	 * is created instead.
+	 *
+	 * Example:
+	 * Counters state: (0, 255), (1, 14), (2, 20)
+	 * After adding another 0 it becomes:
+	 *                 (0, 255), (0, 1), (1, 14), (2, 20)
+	 */
+	for (auto &counter : counters_) {
+		if (goal == counter.goal
+				&& counter.count < std::numeric_limits<uint8_t>::max()) {
+				counter.count++;
+				return;
+		}
 	}
-	if (!fileCounters_ && goal != goal_) {
-		fileCounters_.reset(new GoalMap<uint32_t>());
-		(*fileCounters_)[goal_] = fileCount_;
+	if (!counters_.full()) {
+		counters_.push_back({goal, 1});
+	} else {
+		throw ChunkGoalCounters::InvalidOperation("There is no more space for goals");
 	}
-	fileCount_++;
-	if (fileCounters_) {
-		(*fileCounters_)[goal]++;
-	}
-	goal_ = calculateGoal();
 }
 
 void ChunkGoalCounters::removeFile(uint8_t goal) {
-	removeFileInternal(goal);
-	goal_ = calculateGoal();
-	tryDeleteFileCounters();
+	for (auto it = counters_.begin(); it != counters_.end(); ++it) {
+		if (goal == it->goal) {
+			it->count--;
+			if (it->count == 0) {
+				counters_.erase(it);
+			}
+			return;
+		}
+	}
+	throw ChunkGoalCounters::InvalidOperation("Trying to remove non-existent goal: " + std::to_string(goal));
 }
 
 void ChunkGoalCounters::changeFileGoal(uint8_t prevGoal, uint8_t newGoal) {
-	removeFileInternal(prevGoal);
+	removeFile(prevGoal);
 	addFile(newGoal);
-	tryDeleteFileCounters();
 }
 
-/*
- * The algorithm here works as follows:
- * * if there is at least one file with goal > 2, than choose the safest of ordinary goals,
- *   ie. the biggest ordinary goal
- * * otherwise, if there are files with xor goals or goal 2 (these are all equally safe),
- *   choose the one which occupies least space (ie. the highest xor level, or goal 2 if no xors)
- * * otherwise choose goal 1
- */
-uint8_t ChunkGoalCounters::calculateGoal() {
-	if (fileCount_ == 0) {
-		sassert(!fileCounters_);
-		// No files - no goal
-		return 0;
-	} else if (fileCounters_) {
-		sassert(3 >= goal::kMinOrdinaryGoal);
-		for (int goal = goal::kMaxOrdinaryGoal; goal >= 3; --goal) {
-			if ((*fileCounters_)[goal] != 0) {
-				return goal;
-			}
-		}
-		for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
-			if ((*fileCounters_)[goal::xorLevelToGoal(level)] != 0) {
-				return goal::xorLevelToGoal(level);
-			}
-		}
-		sassert(2 <= goal::kMaxOrdinaryGoal);
-		for (int goal = 2; goal >= goal::kMinOrdinaryGoal; --goal) {
-			if ((*fileCounters_)[goal] != 0) {
-				return goal;
-			}
-		}
-	} else {
-		return goal_;
+uint32_t ChunkGoalCounters::fileCount() const {
+	uint32_t sum = 0;
+	for (auto counter : counters_) {
+		sum += counter.count;
 	}
-	throw InvalidOperation("This should never happen");
+	return sum;
 }
 
-void ChunkGoalCounters::tryDeleteFileCounters() {
-	if (!fileCounters_) {
-		return;
-	}
-
-	uint8_t goalsUsed = 0;
-	for (auto goal : goal::allGoals()) {
-		if ((*fileCounters_)[goal] > 0) {
-			++goalsUsed;
+uint8_t ChunkGoalCounters::highestIdGoal() const {
+	uint8_t highestOrdinaryGoal = 0;
+	ChunkType::XorLevel safestXorLevel = 0;
+	for (auto counter : counters_) {
+		if (goal::isOrdinaryGoal(counter.goal)) {
+			highestOrdinaryGoal = std::max(highestOrdinaryGoal, counter.goal);
+		} else {
+			assert(goal::isXorGoal(counter.goal));
+			safestXorLevel = std::max(safestXorLevel, goal::toXorLevel(counter.goal));
 		}
 	}
-	// Found only one goal used? Optimise!
-	if (goalsUsed == 1) {
-		fileCounters_.reset();
+	if (highestOrdinaryGoal >= 2 || safestXorLevel == 0) {
+		return highestOrdinaryGoal;
 	}
-}
-
-void ChunkGoalCounters::removeFileInternal(uint8_t goal) {
-	if (!goal::isGoalValid(goal)) {
-		throw InvalidOperation("Invalid goal " + std::to_string(goal));
-	}
-	if (fileCounters_) {
-		sassert(fileCount_ > 1);
-		if ((*fileCounters_)[goal] == 0) {
-			throw InvalidOperation("No file with goal " + std::to_string(goal) + " to remove");
-		}
-		(*fileCounters_)[goal]--;
-	} else {
-		if (goal_ != goal) {
-			throw InvalidOperation("No file with goal " + std::to_string(goal) + " to remove");
-		}
-	}
-	fileCount_--;
+	return goal::xorLevelToGoal(safestXorLevel);
 }

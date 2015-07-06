@@ -33,6 +33,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "common/cwrap.h"
@@ -47,6 +48,7 @@
 #include "common/rotate_files.h"
 #include "common/setup.h"
 #include "common/slogger.h"
+#include "common/tape_copies.h"
 #include "common/tape_copy_state.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
@@ -179,22 +181,6 @@ struct xattr_inode_entry {
 	struct xattr_inode_entry *next;
 };
 
-/// Information about a copy of a file on some tapeserver.
-struct TapeCopy {
-
-	/// Default constructor.
-	TapeCopy() : state(TapeCopyState::kInvalid), server(TapeserverIdPool::nullId) {}
-
-	/// A constructor.
-	TapeCopy(TapeCopyState state, TapeserverId server) : state(state), server(server) {}
-
-	/// State of the copy.
-	TapeCopyState state;
-
-	/// ID of a tapeserver.
-	TapeserverId server;
-};
-
 class fsnode {
 public:
 	std::unique_ptr<ExtendedAcl> extendedAcl;
@@ -207,7 +193,6 @@ public:
 	uint32_t uid;
 	uint32_t gid;
 	uint32_t trashtime;
-	std::vector<TapeCopy> tapeCopies; // TODO(msulikowski) optimize! this takes 24 bytes of space!
 	union _data {
 		struct _ddata {                         // type==TYPE_DIRECTORY
 			fsedge *children;
@@ -281,6 +266,7 @@ namespace {
  */
 struct FilesystemMetadata {
 public:
+	std::unordered_map<uint32_t, TapeCopies> tapeCopies;
 	xattr_inode_entry* xattr_inode_hash[XATTR_INODE_HASH_SIZE];
 	xattr_data_entry* xattr_data_hash[XATTR_DATA_HASH_SIZE];
 	uint32_t *freebitmask;
@@ -315,7 +301,8 @@ public:
 	uint64_t xattrChecksum;
 
 	FilesystemMetadata()
-			: xattr_inode_hash{},
+			: tapeCopies{},
+			  xattr_inode_hash{},
 			  xattr_data_hash{},
 			  freebitmask{},
 			  bitmasksize{},
@@ -2772,12 +2759,36 @@ static inline void fsnodes_geteattr_recursive(fsnode *node,uint8_t gmode,uint32_
 	}
 }
 
-static inline bool fsnodes_needs_tape_copies(fsnode *node) {
-	if (node->type==TYPE_FILE || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		return fs_get_goal_definition(node->goal).tapeLabels().size() > node->tapeCopies.size();
-	} else {
-		return false;
+static inline void fsnodes_enqueue_tape_copies(fsnode *node) {
+	if (node->type != TYPE_FILE && node->type != TYPE_TRASH && node->type != TYPE_RESERVED) {
+		return;
 	}
+
+	unsigned tapeGoalSize = fs_get_goal_definition(node->goal).tapeLabels().size();
+
+	if (tapeGoalSize == 0) {
+		return;
+	}
+
+	auto it = gMetadata->tapeCopies.find(node->id);
+	unsigned tapeCopyCount = (it == gMetadata->tapeCopies.end() ? 0 : it->second.size());
+
+	/* Create new TapeCopies instance if necessary */
+	if (tapeGoalSize > tapeCopyCount && it == gMetadata->tapeCopies.end()) {
+		it = gMetadata->tapeCopies.insert({node->id, TapeCopies()}).first;
+	}
+
+	/* Enqueue copies for tapeservers */
+	TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
+	while (tapeGoalSize > tapeCopyCount) {
+		TapeserverId id = matotsserv_enqueue_node(tapeKey);
+		it->second.emplace_back(TapeCopyState::kCreating, id);
+		tapeCopyCount++;
+	}
+}
+
+static inline bool fsnodes_has_tape_goal(fsnode *node) {
+	return fs_get_goal_definition(node->goal).tapeLabels().size() > 0;
 }
 
 #endif
@@ -2812,13 +2823,8 @@ static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t
 					fsnodes_changefilegoal(node,goal);
 					(*sinodes)++;
 # ifndef METARESTORE
-					TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
-					while (fsnodes_needs_tape_copies(node)) {
-						TapeserverId id = matotsserv_enqueue_node(tapeKey);
-						if (!id) {
-							break;
-						}
-						node->tapeCopies.emplace_back(TapeCopyState::kCreating, id);
+					if (matotsserv_can_enqueue_node()) {
+						fsnodes_enqueue_tape_copies(node);
 					}
 # endif
 				} else {
@@ -4796,6 +4802,12 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 	if (p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
+#ifndef METARESTORE
+	if (fsnodes_has_tape_goal(p) && (flags & WANT_WRITE)) {
+		lzfs_pretty_syslog(LOG_INFO, "Access denied: node %d has tape goal", inode);
+		return ERROR_EPERM;
+	}
+#endif
 	if ((flags&AFTER_CREATE)==0) {
 		uint8_t modemask=0;
 		if (flags&WANT_READ) {
@@ -5924,43 +5936,44 @@ uint8_t fs_add_tape_copy(const TapeKey& tapeKey, TapeserverId tapeserver) {
 		return ERROR_MISMATCH;
 	}
 	// Try to reuse an existing copy from this tapeserver
-	for (auto& tapeCopy : node->tapeCopies) {
+	auto &tapeCopies = gMetadata->tapeCopies[node->id];
+	for (auto& tapeCopy : tapeCopies) {
 		if (tapeCopy.server == tapeserver) {
 			tapeCopy.state = TapeCopyState::kOk;
 			return STATUS_OK;
 		}
 	}
-	node->tapeCopies.emplace_back(TapeCopyState::kOk, tapeserver);
-	return STATUS_OK;
-}
-
-uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver) {
-	// Remove all information about tape copies from this tapeserver
-	// TODO(msulikowski) don't block the whole server -- be more lazy
-	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-		for (fsnode* f = gMetadata->nodehash[i]; f; f = f->next) {
-			auto it = std::remove_if(f->tapeCopies.begin(), f->tapeCopies.end(),
-					[tapeserver](const TapeCopy& tapeCopy) {
-						return tapeCopy.server == tapeserver;
-					});
-			f->tapeCopies.erase(it, f->tapeCopies.end());
-		}
-	}
+	tapeCopies.emplace_back(TapeCopyState::kOk, tapeserver);
 	return STATUS_OK;
 }
 
 #ifndef METARESTORE
 uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations) {
 	sassert(locations.empty());
+	std::vector<TapeserverId> disconnectedTapeservers;
 	fsnode *node = fsnodes_id_to_node(inode);
 	if (node == NULL) {
 		return ERROR_ENOENT;
 	}
-	for (auto& tapeCopy : node->tapeCopies) {
+	auto it = gMetadata->tapeCopies.find(node->id);
+	if (it == gMetadata->tapeCopies.end()) {
+		return STATUS_OK;
+	}
+	for (auto &tapeCopy : it->second) {
 		TapeserverListEntry tapeserverInfo;
 		if (matotsserv_get_tapeserver_info(tapeCopy.server, tapeserverInfo) == STATUS_OK) {
 			locations.emplace_back(tapeserverInfo, tapeCopy.state);
+		} else {
+			disconnectedTapeservers.push_back(tapeCopy.server);
 		}
+	}
+	/* Lazy cleaning up of disconnected tapeservers */
+	for (auto &tapeserverId : disconnectedTapeservers) {
+		std::remove_if(it->second.begin(), it->second.end(),
+				[tapeserverId](const TapeCopy &copy) {
+					return copy.server == tapeserverId;
+				}
+		);
 	}
 	return STATUS_OK;
 }
@@ -8078,11 +8091,11 @@ static void fs_broadcast_metadata_saved(uint8_t status) {
 	matoclserv_broadcast_metadata_saved(status);
 }
 
-static void metadataPollDesc(struct pollfd* pdesc, uint32_t* ndesc) {
-	metadataDumper.pollDesc(pdesc, ndesc);
+static void metadataPollDesc(std::vector<pollfd> &pdesc) {
+	metadataDumper.pollDesc(pdesc);
 }
 
-static void metadataPollServe(struct pollfd* pdesc) {
+static void metadataPollServe(const std::vector<pollfd> &pdesc) {
 	bool metadataDumpInProgress = metadataDumper.inProgress();
 	metadataDumper.pollServe(pdesc);
 	if (metadataDumpInProgress && !metadataDumper.inProgress()) {

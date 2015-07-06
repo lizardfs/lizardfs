@@ -119,7 +119,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	// Fill all other valid goals with default values
 	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		if (result[goal].name().empty()) {
-			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}}, {});
+			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}}, std::map<MediaLabel, int>{});
 		}
 	}
 	goals_ = std::move(result);

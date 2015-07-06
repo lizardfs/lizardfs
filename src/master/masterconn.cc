@@ -993,12 +993,20 @@ void masterconn_write(masterconn *eptr) {
 	}
 }
 
+void masterconn_wantexit(void) {
+	if (masterconnsingleton) {
+		masterconn_kill_session(masterconnsingleton);
+	}
+}
 
-void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
+int masterconn_canexit(void) {
+	return !masterconnsingleton || masterconnsingleton->mode == FREE;
+}
+
+void masterconn_desc(std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
 		return;
 	}
-	uint32_t pos = *ndesc;
 	masterconn *eptr = masterconnsingleton;
 
 	eptr->pdescpos = -1;
@@ -1006,25 +1014,20 @@ void masterconn_desc(struct pollfd *pdesc,uint32_t *ndesc) {
 		return;
 	}
 	if (eptr->mode==HEADER || eptr->mode==DATA) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = POLLIN;
-		eptr->pdescpos = pos;
-		pos++;
+		pdesc.push_back({eptr->sock,POLLIN,0});
+		eptr->pdescpos = pdesc.size() - 1;
 	}
 	if (((eptr->mode==HEADER || eptr->mode==DATA) && eptr->outputhead!=NULL) || eptr->mode==CONNECTING) {
 		if (eptr->pdescpos>=0) {
 			pdesc[eptr->pdescpos].events |= POLLOUT;
 		} else {
-			pdesc[pos].fd = eptr->sock;
-			pdesc[pos].events = POLLOUT;
-			eptr->pdescpos = pos;
-			pos++;
+			pdesc.push_back({eptr->sock,POLLOUT,0});
+			eptr->pdescpos = pdesc.size() - 1;
 		}
 	}
-	*ndesc = pos;
 }
 
-void masterconn_serve(struct pollfd *pdesc) {
+void masterconn_serve(const std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
 		return;
 	}
@@ -1216,6 +1219,8 @@ int masterconn_init(void) {
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
+	main_wantexitregister(masterconn_wantexit);
+	main_canexitregister(masterconn_canexit);
 #ifndef METALOGGER
 	metadataserver::registerFunctionCalledOnPromotion(masterconn_become_master);
 #endif

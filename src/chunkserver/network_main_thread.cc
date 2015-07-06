@@ -140,14 +140,10 @@ void mainNetworkThreadReload(void) {
 	lsock = newlsock;
 }
 
-void mainNetworkThreadDesc(struct pollfd *pdesc, uint32_t *ndesc) {
+void mainNetworkThreadDesc(std::vector<pollfd> &pdesc) {
 	TRACETHIS();
-	uint32_t pos = *ndesc;
-	pdesc[pos].fd = lsock;
-	pdesc[pos].events = POLLIN;
-	lsockpdescpos = pos;
-	pos++;
-	*ndesc = pos;
+	pdesc.push_back({lsock, POLLIN, 0});
+	lsockpdescpos = pdesc.size() - 1;
 }
 
 void mainNetworkThreadTerm(void) {
@@ -166,7 +162,7 @@ void mainNetworkThreadTerm(void) {
 	}
 }
 
-void mainNetworkThreadServe(struct pollfd *pdesc) {
+void mainNetworkThreadServe(const std::vector<pollfd> &pdesc) {
 	TRACETHIS();
 	int newSocketFD;
 

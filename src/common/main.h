@@ -46,7 +46,7 @@ void main_destructregister (void (*fun)(void));
 void main_canexitregister (int (*fun)(void));
 void main_wantexitregister (void (*fun)(void));
 void main_reloadregister (void (*fun)(void));
-void main_pollregister (void (*desc)(struct pollfd *,uint32_t *),void (*serve)(struct pollfd *));
+void main_pollregister (void (*desc)(std::vector<pollfd>&),void (*serve)(const std::vector<pollfd>&));
 void main_eachloopregister (void (*fun)(void));
 void* main_timeregister (int mode,uint32_t seconds,uint32_t offset,void (*fun)(void));
 

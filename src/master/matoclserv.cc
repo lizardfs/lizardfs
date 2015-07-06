@@ -4722,35 +4722,29 @@ int matoclserv_canexit(void) {
 	return 1;
 }
 
-void matoclserv_desc(struct pollfd *pdesc,uint32_t *ndesc) {
-	uint32_t pos = *ndesc;
+void matoclserv_desc(std::vector<pollfd> &pdesc) {
 	matoclserventry *eptr;
 
 	if (exiting==0) {
-		pdesc[pos].fd = lsock;
-		pdesc[pos].events = POLLIN;
-		lsockpdescpos = pos;
-		pos++;
+		pdesc.push_back({lsock,POLLIN,0});
+		lsockpdescpos = pdesc.size() - 1;
 	} else {
 		lsockpdescpos = -1;
 	}
 	for (eptr=matoclservhead ; eptr ; eptr=eptr->next) {
-		pdesc[pos].fd = eptr->sock;
-		pdesc[pos].events = 0;
-		eptr->pdescpos = pos;
+		pdesc.push_back({eptr->sock,0,0});
+		eptr->pdescpos = pdesc.size() - 1;
 		if (exiting==0) {
-			pdesc[pos].events |= POLLIN;
+			pdesc.back().events |= POLLIN;
 		}
 		if (eptr->outputhead!=NULL) {
-			pdesc[pos].events |= POLLOUT;
+			pdesc.back().events |= POLLOUT;
 		}
-		pos++;
 	}
-	*ndesc = pos;
 }
 
 
-void matoclserv_serve(struct pollfd *pdesc) {
+void matoclserv_serve(const std::vector<pollfd> &pdesc) {
 	uint32_t now=main_time();
 	matoclserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;

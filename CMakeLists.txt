@@ -249,6 +249,7 @@ if(ZLIB_FOUND)
   include_directories(${ZLIB_INCLUDE_DIRS})
 endif()
 include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
+link_directories( ${LINK_DIRECTORIES} ${PC_FUSE_LIBRARY_DIRS} )
 add_subdirectory(external)
 add_subdirectory(src/admin)
 add_subdirectory(src/common)

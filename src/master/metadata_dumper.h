@@ -7,6 +7,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <string>
+#include <vector>
 
 #include "common/slogger.h"
 #include "common/time_utils.h"
@@ -33,8 +34,8 @@ public:
 	bool start(DumpType& dumpType, uint64_t checksum);
 
 	// for poll
-	void pollDesc(struct pollfd *pdesc, uint32_t *ndesc);
-	void pollServe(struct pollfd *pdesc);
+	void pollDesc(std::vector<pollfd> &pdesc);
+	void pollServe(const std::vector<pollfd> &pdesc);
 
 	/// waits until the metadumper finishes
 	void waitUntilFinished();

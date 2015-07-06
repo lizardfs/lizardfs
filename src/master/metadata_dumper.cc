@@ -160,18 +160,16 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 }
 
 // for poll
-void MetadataDumper::pollDesc(struct pollfd *pdesc, uint32_t *ndesc) {
+void MetadataDumper::pollDesc(std::vector<pollfd> &pdesc) {
 	if (dumpingProcessFd_ != -1) {
-		uint32_t& pos = *ndesc;
-		pdesc[pos].fd = dumpingProcessFd_;
-		pdesc[pos].events = POLLIN;
-		dumpingProcessPollFdsPos_ = pos++;
+		pdesc.push_back({dumpingProcessFd_,POLLIN,0});
+		dumpingProcessPollFdsPos_ = pdesc.size() - 1;
 	} else {
 		dumpingProcessPollFdsPos_ = -1;
 	}
 }
 
-void MetadataDumper::pollServe(struct pollfd *pdesc) {
+void MetadataDumper::pollServe(const std::vector<pollfd> &pdesc) {
 	if (dumpingProcessPollFdsPos_ == -1) {
 		return;
 	}
@@ -213,15 +211,14 @@ void MetadataDumper::dumpingFinished() {
 
 void MetadataDumper::waitUntilFinished(SteadyDuration timeout) {
 	// pollDesc uses at most one pollfd
-	struct pollfd pfd[2];
-	uint32_t n;
+	std::vector<pollfd> pfd;
 	Timeout stopwatch(timeout);
 	while (inProgress() && !stopwatch.expired()) {
-		n = 0;
-		pollDesc(pfd, &n);
-		sassert(n <= 1);
+		pfd.clear();
+		pollDesc(pfd);
+		sassert(pfd.size() <= 1);
 		// on 0 `poll' returns immediately and that's fine
-		if (poll(pfd, n, stopwatch.remaining_ms()) == -1) {
+		if (poll(pfd.data(), pfd.size(), stopwatch.remaining_ms()) == -1) {
 			lzfs_pretty_errlog(LOG_ERR, "poll error during waiting for dumping to finish");
 			break;
 		}

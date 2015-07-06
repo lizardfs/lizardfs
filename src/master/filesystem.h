@@ -211,9 +211,6 @@ uint8_t fs_get_chunkid(const FsContext& context,
 /// Adds information that the given file has a copy on the given tapeserver.
 uint8_t fs_add_tape_copy(const TapeKey& takeKey, TapeserverId tapeserver);
 
-/// Called after a tapeserver disconnects.
-uint8_t fs_tapeserver_disconnected(TapeserverId tapeserver);
-
 /// Get list of tape copies created
 uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationInfo>& locations);
 
