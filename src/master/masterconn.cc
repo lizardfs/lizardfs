@@ -324,7 +324,9 @@ namespace {
 }
 
 void masterconn_kill_session(masterconn* eptr) {
-	eptr->mode = KILL;
+	if (eptr->mode != FREE) {
+		eptr->mode = KILL;
+	}
 }
 
 void masterconn_force_metadata_download(masterconn* eptr) {
@@ -1069,8 +1071,10 @@ void masterconn_serve(struct pollfd *pdesc) {
 	if (eptr->mode == KILL) {
 		masterconn_beforeclose(eptr);
 		tcpclose(eptr->sock);
+		eptr->sock = -1;
 		if (eptr->inputpacket.packet) {
 			free(eptr->inputpacket.packet);
+			eptr->inputpacket.packet = NULL;
 		}
 		pptr = eptr->outputhead;
 		while (pptr) {
@@ -1081,6 +1085,7 @@ void masterconn_serve(struct pollfd *pdesc) {
 			pptr = pptr->next;
 			free(paptr);
 		}
+		eptr->outputhead = NULL;
 		eptr->mode = FREE;
 		eptr->version = 0;
 	}
@@ -1206,6 +1211,7 @@ int masterconn_init(void) {
 	eptr->pdescpos = -1;
 	eptr->metafd = -1;
 	eptr->version = 0;
+	eptr->sock  = -1;
 	eptr->state = MasterConnectionState::kNone;
 #ifdef METALOGGER
 	changelogsMigrateFrom_1_6_29("changelog_ml");
