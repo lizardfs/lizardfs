@@ -63,7 +63,7 @@ void MemStorage::bind(Handle &handle, const HString &str) {
 
 MemStorage::ValueType MemStorage::encode(const char *ptr, HashType hash) {
 	return static_cast<ValueType>(reinterpret_cast<uintptr_t>(ptr))
-			|  (static_cast<ValueType>(hash) << kShift);
+			| (static_cast<ValueType>(hash) << kShift);
 }
 
 void MemStorage::unbind(Handle &handle) {

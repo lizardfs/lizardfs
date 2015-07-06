@@ -154,3 +154,6 @@ find_package(PAM)
 if(PAM_FOUND)
   set(LIZARDFS_HAVE_PAM YES)
 endif()
+
+# Find BerkeleyDB
+find_package(DB 11.2.5.2)
