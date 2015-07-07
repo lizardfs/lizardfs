@@ -1,4 +1,4 @@
-lizardfs (2.9.0) unstable; urgency=low
+lizardfs (3.9.1) unstable; urgency=low
 
   * (all) xor format
   * (all) performance improvements

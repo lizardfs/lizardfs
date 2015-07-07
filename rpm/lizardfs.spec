@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        2.9.0
+Version:        3.9.1
 Release:        1%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -435,12 +435,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Mon Jun 15 2014 Adam Nieżurawski <contact@lizardfs.org> - 2.9.0
+* Mon Jun 15 2014 Adam Nieżurawski <contact@lizardfs.org> - 3.9.1
 - (all) xor format
 - (all) performance improvements
-
-* Wed Jun 03 2015 Łukasz Pietrzak <contact@lizardfs.org> - 2.6.1
-- (none) None
 
 * Mon Feb 09 2015 Adam Ochmanski <contact@lizardfs.org> - 2.6.0
 - (all) Added comments in all config files
