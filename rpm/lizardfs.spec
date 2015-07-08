@@ -435,7 +435,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Mon Jun 15 2014 Adam Nieżurawski <contact@lizardfs.org> - 3.9.1
+* Mon Jun 15 2015 Adam Nieżurawski <contact@lizardfs.org> - 3.9.1
 - (all) xor format
 - (all) performance improvements
 
