@@ -21,8 +21,17 @@ mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
 
 == DESCRIPTION
 
-*mfsgetgoal* and *mfssetgoal* operate on object's replication 'goals', see
-mfsgoals.cfg(5). These tools can be used on any file, directory or deleted ('trash') file.
+*mfsgetgoal* and *mfssetgoal* operate on object's 'goal' value. There are two types of goals:
+ordinary goals described in mfsgoals.cfg(5) and xor goals (xor2..xor10).
+
+For xor goals the number represents the 'xor level'. A file with the 'xor level' of 'N' has
+all the chunks divided into 'N' parts (kept in one copy) and additionally there is a parity
+part. It means that the disk space needed to store such a file if roughly equal to '(N+1)/N'
+of the file's size and the file should survive failure of one of the chunkservers. Xor level
+must be set between 2 and 10.
+
+*mfsgetgoal* prints current 'goal' value of given object(s). These tools can be used on any file,
+directory or deleted ('trash') file.
 
 == OPTIONS
 

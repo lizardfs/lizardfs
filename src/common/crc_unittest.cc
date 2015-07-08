@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 #include "common/crc.h"
 
@@ -22,13 +40,9 @@ TEST(CrcTests, MyCrc32) {
 	}
 }
 
-TEST(CrcTests, MfsCrcEmpty) {
-	std::vector<uint8_t>data(MFSBLOCKSIZE);
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32(0, data.data(), MFSBLOCKSIZE));
-}
-
 TEST(CrcTests, MfsCrc32Zeroblock) {
-	EXPECT_EQ(MFSCRCEMPTY, mycrc32_zeroblock(0, MFSBLOCKSIZE));
+	std::vector<uint8_t>data(MFSBLOCKSIZE);
+	EXPECT_EQ(mycrc32(0, data.data(), MFSBLOCKSIZE), mycrc32_zeroblock(0, MFSBLOCKSIZE));
 }
 
 TEST(CrcTests, MyCrc32Combine) {

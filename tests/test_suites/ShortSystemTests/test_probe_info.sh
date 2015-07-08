@@ -5,7 +5,7 @@ CHUNKSERVERS=4 \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
-goals="2 3 4"
+goals="2 3 xor2 xor3"
 for goal in $goals; do
 	mkdir dir_$goal
 	mfssetgoal $goal dir_$goal
@@ -13,5 +13,6 @@ for goal in $goals; do
 done
 
 rm dir_3/file
-expect_equals "$LIZARDFS_VERSION 1 0 0 7 4 3 3 9 9" \
+rm dir_xor2/file
+expect_equals "$LIZARDFS_VERSION 2 0 0 9 5 4 4 5 5" \
 	"$(lizardfs-probe info --porcelain localhost "${info[matocl]}" | cut -d' ' -f 1,6-)"

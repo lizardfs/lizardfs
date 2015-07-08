@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 #include "master/chunk_goal_counters.h"
 
@@ -59,9 +77,18 @@ uint32_t ChunkGoalCounters::fileCount() const {
 }
 
 uint8_t ChunkGoalCounters::highestIdGoal() const {
-	uint8_t highest = 0;
+	uint8_t highestOrdinaryGoal = 0;
+	ChunkType::XorLevel safestXorLevel = 0;
 	for (auto counter : counters_) {
-		highest = std::max(highest, counter.goal);
+		if (goal::isOrdinaryGoal(counter.goal)) {
+			highestOrdinaryGoal = std::max(highestOrdinaryGoal, counter.goal);
+		} else {
+			assert(goal::isXorGoal(counter.goal));
+			safestXorLevel = std::max(safestXorLevel, goal::toXorLevel(counter.goal));
+		}
 	}
-	return highest;
+	if (highestOrdinaryGoal >= 2 || safestXorLevel == 0) {
+		return highestOrdinaryGoal;
+	}
+	return goal::xorLevelToGoal(safestXorLevel);
 }

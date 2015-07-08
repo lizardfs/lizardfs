@@ -1,3 +1,5 @@
+timeout_set 45 seconds
+
 USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
@@ -55,9 +57,9 @@ verify_quota "Group $gid -- $one_kb_file_size $soft $hard 1 0 0" lizardfstest
 # check if snapshots are properly handled:
 mfsmakesnapshot file_2 snapshot_1
 verify_quota "Group $gid -- $soft $soft $hard 2 0 0" lizardfstest
-mfssetquota -g $gid $((soft-1)) $hard 0 0 .
 
-# BTW, check if '+' for soft limit is properly printed ..
+# BTW, check if '+' for soft limit is properly printed..
+mfssetquota -g $gid $((soft-1)) $hard 0 0 .
 verify_quota "Group $gid +- $soft $((soft-1)) $hard 2 0 0" lizardfstest
 mfssetquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
 
@@ -65,6 +67,9 @@ mfssetquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
 mfsmakesnapshot file_2 snapshot_2
 verify_quota "Group $gid +- $hard $soft $hard 3 0 0" lizardfstest
 expect_failure mfsmakesnapshot file_2 snapshot_3
+
+# verify that we can't create new chunks by 'splitting' a chunk shared by multiple files
+expect_failure sudo -nu lizardfstest_1 dd if=/dev/zero of=snapshot_2 bs=1k count=1 conv=notrunc
 
 # hard links don't occupy any new space, therefore are always permitted
 sudo -nu lizardfstest_1 ln file_2 hard_link

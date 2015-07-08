@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -27,31 +27,52 @@
 #  include "common/platform.h"
 #endif
 
-#define MFSBLOCKSINCHUNK 0x400
-#if LIGHT_MFS == 1
-#  define MFSSIGNATURE "LFS"
-#  define MFSCHUNKSIZE 0x00400000
-#  define MFSCHUNKMASK 0x003FFFFF
-#  define MFSCHUNKBITS 22
-#  define MFSCHUNKBLOCKMASK 0x003FF000
-#  define MFSBLOCKSIZE 0x1000
-#  define MFSBLOCKMASK 0x0FFF
-#  define MFSBLOCKNEGMASK 0x7FFFF000
-#  define MFSBLOCKBITS 12
-#  define MFSCRCEMPTY 0xC71C0011U
-#  define MFSHDRSIZE 0x1080
-#else
-#  define MFSSIGNATURE "MFS"
-#  define MFSCHUNKSIZE 0x04000000
-#  define MFSCHUNKMASK 0x03FFFFFF
-#  define MFSCHUNKBITS 26
-#  define MFSCHUNKBLOCKMASK 0x03FF0000
-#  define MFSBLOCKSIZE 0x10000
-#  define MFSBLOCKMASK 0x0FFFF
-#  define MFSBLOCKNEGMASK 0x7FFF0000
-#  define MFSBLOCKBITS 16
-#  define MFSCRCEMPTY 0xD7978EEBU
-#  define MFSHDRSIZE 0x1400
+#define MSB_1 0
+#define MSB_2 1
+#define MSB_4 2
+#define MSB_8 3
+#define MSB_16 4
+#define MSB_32 5
+#define MSB_64 6
+#define MSB_128 7
+#define MSB_256 8
+#define MSB_512 9
+#define MSB_1024 10
+#define MSB_2048 11
+#define MSB_4096 12
+#define MSB_8192 13
+#define MSB_16384 14
+#define MSB_32768 15
+#define MSB_65536 16
+#define MSB_131072 17
+#define MSB_262144 18
+#define MSB_524288 19
+#define MSB_1048576 20
+#define MSB_2097152 21
+#define MSB_4194304 22
+#define MSB_8388608 23
+#define MSB_16777216 24
+#define MSB_33554432 25
+#define MSB_67108864 26
+#define MSB_AUX(x) MSB_##x
+#define MSB(x) MSB_AUX(x)
+
+#define MFSBLOCKSINCHUNKBITS MSB(MFSBLOCKSINCHUNK)
+#define MFSSIGNATURE "MFS"
+#define LIZARDFSSIGNATURE "LIZ"
+#define MFSBLOCKBITS MSB(MFSBLOCKSIZE)
+#define MFSBLOCKMASK (MFSBLOCKSIZE - 1)
+#define MFSCHUNKSIZE (MFSBLOCKSIZE * MFSBLOCKSINCHUNK)
+#define MFSCHUNKBITS (MFSBLOCKSINCHUNKBITS + MFSBLOCKBITS)
+#define MFSCHUNKMASK (MFSCHUNKSIZE - 1)
+#define MFSCHUNKBLOCKMASK (MFSCHUNKMASK ^ MFSBLOCKMASK)
+#define MFSHDRSIZE (4 * MFSBLOCKSINCHUNK + 1024)
+
+#if ((1 << MFSBLOCKSINCHUNKBITS) != MFSBLOCKSINCHUNK)
+#  error "Wrong value of MFSBLOCKSINCHUNK: only powers of two (max 67108864) are supported"
+#endif
+#if ((1 << MFSBLOCKBITS) != MFSBLOCKSIZE)
+#  error "Wrong value of MFSBLOCKSIZE: only powers of two (max 67108864) are supported"
 #endif
 
 //UNIVERSAL
@@ -377,6 +398,12 @@ enum class SugidClearMode {
 /// cmdno:32 size:32 vershex:32
 /// msgid:32 cmdno:32 size:32 vershex:32 // only in communication from master to client
 
+#define ANTOAN_PING 3
+/// size:32
+
+#define ANTOAN_PING_REPLY 4
+/// data:BYTES
+
 // METALOGGER <-> MASTER
 
 // 0x0032
@@ -459,7 +486,8 @@ enum class SugidClearMode {
 
 // 0x044D
 #define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
-/// chunks:(N * [chunkid:64 chunkversion:32])
+/// version==0 chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+/// version==1 chunks:(N * [chunkid:64 chunkversion:32])
 
 // 0x044E
 #define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
@@ -468,6 +496,10 @@ enum class SugidClearMode {
 // 0x044F
 #define LIZ_CSTOMA_REGISTER_LABEL (1000U + 103U)
 /// label:STDSTRING
+
+// 0x0453
+#define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
+/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
 
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
@@ -504,41 +536,81 @@ enum class SugidClearMode {
 #define MATOCS_CREATE (PROTO_BASE+110)
 /// chunkid:64 chunkversion:32
 
+// 0x0456
+#define LIZ_MATOCS_CREATE_CHUNK (1000U + 110U)
+/// chunkid:64 chunktype:8 chunkversion:32
+
 // 0x006F
 #define CSTOMA_CREATE (PROTO_BASE+111)
 /// chunkid:64 status:8
+
+// 0x0457
+#define LIZ_CSTOMA_CREATE_CHUNK (1000U + 111U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0078
 #define MATOCS_DELETE (PROTO_BASE+120)
 /// chunkid:64 chunkversion:32
 
+// 0x0460
+#define LIZ_MATOCS_DELETE_CHUNK (1000U + 120U)
+/// chunkid:64 chunkversion:32 chunktype:8
+
 // 0x0079
 #define CSTOMA_DELETE (PROTO_BASE+121)
 /// chunkid:64 status:8
+
+// 0x0461
+#define LIZ_CSTOMA_DELETE_CHUNK (1000U + 121U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0082
 #define MATOCS_DUPLICATE (PROTO_BASE+130)
 /// chunkid:64 chunkversion:32 oldchunkid:64 oldchunkversion:32
 
+// 0x046A
+#define LIZ_MATOCS_DUPLICATE_CHUNK (1000U + 130U)
+/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32
+
 // 0x0083
 #define CSTOMA_DUPLICATE (PROTO_BASE+131)
 /// chunkid:64 status:8
+
+// 0x046B
+#define LIZ_CSTOMA_DUPLICATE_CHUNK (1000U + 131U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x008C
 #define MATOCS_SET_VERSION (PROTO_BASE + 140)
 /// chunkid:64 chunkversion:32 oldchunkversion:32
 
+// 0x0474
+#define LIZ_MATOCS_SET_VERSION (1000U + 140U)
+/// chunkid:64 chunkversion:32 chunktype:8 newchunkversion:32
+
 // 0x008D
 #define CSTOMA_SET_VERSION (PROTO_BASE + 141)
 /// chunkid:64 status:8
+
+// 0x0475
+#define LIZ_CSTOMA_SET_VERSION (1000U + 141U)
+/// chunkid:64 chunktype:8 status:8
 
 // 0x0096
 #define MATOCS_REPLICATE (PROTO_BASE+150)
 /// chunkid:64 chunkversion:32 ip:32 port:16
 
+// 0x047e
+#define LIZ_MATOCS_REPLICATE_CHUNK (1000U + 150U)
+/// chunkid:64 chunkversion:32 chunktype:8 sources:(N * [ip:32 port:16 chunktype:8])
+
 // 0x0097
 #define CSTOMA_REPLICATE (PROTO_BASE+151)
 /// chunkid:64 chunkversion:32 status:8
+
+// 0x047f
+#define LIZ_CSTOMA_REPLICATE_CHUNK (1000U + 151U)
+/// chunkid:64 chunktype:8 status:8 chunkversion:32
 
 // 0x0098
 #define MATOCS_CHUNKOP (PROTO_BASE+152)
@@ -564,13 +636,29 @@ enum class SugidClearMode {
 #define CSTOMA_TRUNCATE (PROTO_BASE+161)
 /// chunkid:64 status:8
 
+// 0x0488
+#define LIZ_MATOCS_TRUNCATE (PROTO_BASE + 1000U + 160U)
+/// chunkid:64 chunktype:8 chunklength:32 newchunkversion:32 chunkversion:32
+
+// 0x0489
+#define LIZ_CSTOMA_TRUNCATE (PROTO_BASE + 1000U + 161U)
+/// chunkid:64 chunktype:8 status:8
+
 // 0x00AA
 #define MATOCS_DUPTRUNC (PROTO_BASE+170)
 /// chunkid:64 chunkversion:32 oldchunkid:64 oldchunkversion:32 chunklength:32
 
+// 0x0492
+#define LIZ_MATOCS_DUPTRUNC_CHUNK (1000U + 170U)
+/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32 chunklength:32
+
 // 0x00AB
 #define CSTOMA_DUPTRUNC (PROTO_BASE+171)
 /// chunkid:64 status:8
+
+// 0x0493
+#define LIZ_CSTOMA_DUPTRUNC_CHUNK (1000U + 171U)
+/// chunkid:64 chunktype:8 status:8
 
 // CHUNKSERVER <-> CLIENT/CHUNKSERVER
 
@@ -586,21 +674,57 @@ enum class SugidClearMode {
 #define CSTOCL_READ_DATA (PROTO_BASE+202)
 /// chunkid:64 offset:32 size:32 crc:32 data:BYTES[size]
 
+// 0x04B0
+#define LIZ_CLTOCS_READ (1000U + 200U)
+/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+
+// 0x04B1
+#define LIZ_CSTOCL_READ_STATUS (1000U + 201U)
+/// chunkid:64 status:8
+
+// 0x04B2
+#define LIZ_CSTOCL_READ_DATA (1000U + 202U)
+/// chunkid:64 offset:32 size:32 crc:32 data:BYTES[size]
+
+// 0x04B3
+#define LIZ_CLTOCS_PREFETCH (1000U + 203U)
+/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
 /// chunkid:64 chunkversion:32 chain:(N * [ip:32 port:16])
 
+// 0x04BA
+#define LIZ_CLTOCS_WRITE_INIT (1000U + 210U)
+/// chunkid:64 chunkversion:32 chunktype:8 chain:(N * [ip:32 port:16])
+
 // 0x00D3
 #define CSTOCL_WRITE_STATUS (PROTO_BASE+211)
+/// chunkid:64 writeid:32 status:8
+
+// 0x04BB
+#define LIZ_CSTOCL_WRITE_STATUS (1000U + 211U)
 /// chunkid:64 writeid:32 status:8
 
 // 0x00D4
 #define CLTOCS_WRITE_DATA (PROTO_BASE+212)
 /// chunkid:64 writeid:32 blocknum:16 offset:16 size:32 crc:32 data:BYTES[size]
 
+// 0x04BC
+#define LIZ_CLTOCS_WRITE_DATA (1000U + 212U)
+/// chunkid:64 writeid:32 blocknum:16 offset:32 size:32 crc:32 data:BYTES[size]
+
 // 0x00D5
 #define CLTOCS_WRITE_FINISH (PROTO_BASE+213)
 /// chunkid:64 chunkversion:32
+
+// 0x04BD
+#define LIZ_CLTOCS_WRITE_END (1000U + 213U)
+/// chunkid:64
+
+// 0x04BE
+#define LIZ_CLTOCS_TEST_CHUNK (1000U + 214U)
+/// chunkid:64 chunkversion:32 chunktype:8
 
 //CHUNKSERVER <-> CHUNKSERVER
 
@@ -611,6 +735,14 @@ enum class SugidClearMode {
 // 0x00FB
 #define CSTOCS_GET_CHUNK_BLOCKS_STATUS (PROTO_BASE+251)
 /// chunkid:64 chunkversion:32 blocks:16 status:8
+
+// 0x04E2
+#define LIZ_CSTOCS_GET_CHUNK_BLOCKS (1000U + 250U)
+/// chunkid:64 chunkversion:32 chunktype:8
+
+// 0x04E3
+#define LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS (1000U + 251U)
+/// chunkid:64 chunkversion:32 chunktype:8 blocks:16 status:8
 
 //ANY <-> CHUNKSERVER
 
@@ -630,7 +762,7 @@ enum class SugidClearMode {
 // 0x012F
 #define CSTOAN_CHUNK_CHECKSUM_TAB (PROTO_BASE+303)
 /// length==13 chunkid:64 chunkversion:32 status:8
-/// length==12+MFSBLOCKSINCHUNK*4 chunkid:64 chunkversion:32 checksums:(1024 * [checksum:32])
+/// length==12+MFSBLOCKSINCHUNK*4 chunkid:64 chunkversion:32 checksums:(MFSBLOCKSINCHUNK * [checksum:32])
 
 // CLIENT <-> MASTER
 
@@ -912,6 +1044,15 @@ enum class SugidClearMode {
 /// msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16])
 // msgid:32 length:64 srcs:8 srcs*[chunkid:64 version:32 ip:32 port:16] - not implemented
 
+//0x0598
+#define LIZ_CLTOMA_FUSE_READ_CHUNK (1000U + 432U)
+/// msgid:32 inode:32 chunkindex:32
+
+//0x0599
+#define LIZ_MATOCL_FUSE_READ_CHUNK (1000U + 433U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:8])
+
 // 0x01B2
 #define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
 /// msgid:32 inode:32 chunkindex:32
@@ -921,12 +1062,29 @@ enum class SugidClearMode {
 /// msgid:32 status:8
 /// msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16])
 
+// 0x059A
+#define LIZ_CLTOMA_FUSE_WRITE_CHUNK (1000U + 434U)
+/// version==0 msgid:32 inode:32 chunkindex:32 lockid:32
+
+// 0x059B
+#define LIZ_MATOCL_FUSE_WRITE_CHUNK (1000U + 435U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 lockid:32 locations:(N * [ip:32 port:16 chunktype:8])
+
 // 0x01B4
 #define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
 /// msgid:32 chunkid:64 inode:32 filelength:64
 
+// 0x059C
+#define LIZ_CLTOMA_FUSE_WRITE_CHUNK_END (1000U + 436U)
+/// msgid:32 chunkid:64 lockid:32 inode:32 filelength:64
+
 // 0x01B5
 #define MATOCL_FUSE_WRITE_CHUNK_END (PROTO_BASE+437)
+/// msgid:32 status:8
+
+// 0x059D
+#define LIZ_MATOCL_FUSE_WRITE_CHUNK_END (1000U + 437U)
 /// msgid:32 status:8
 
 // 0x01B6
@@ -1067,12 +1225,23 @@ enum class SugidClearMode {
 
 // 0x01D0
 #define CLTOMA_FUSE_TRUNCATE (PROTO_BASE+464)
-// msgid:32 inode:32 [opened:8] uid:32 gid:32 opened:8 length:64
+/// msgid:32 inode:32 uid:32 gid:32 filelength:64
+/// msgid:32 inode:32 opened:8 uid:32 gid:32 filelength:64
+
+// 0x05B8
+#define LIZ_CLTOMA_FUSE_TRUNCATE (1000U + 464U)
+/// msgid:32 inode:32 opened:8 uid:32 gid:32 filelength:64
 
 // 0x01D1
 #define MATOCL_FUSE_TRUNCATE (PROTO_BASE+465)
 /// msgid:32 status:8
 /// msgid:32 attr:35B
+
+// 0x05B9
+#define LIZ_MATOCL_FUSE_TRUNCATE (1000U + 465U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 attr:35B
+/// version==2 msgid:32 oldfilelength:64 lockid:32
 
 // 0x01D2
 #define CLTOMA_FUSE_REPAIR (PROTO_BASE+466)
@@ -1152,7 +1321,7 @@ enum class SugidClearMode {
 //0x01E3
 #define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
 /// version==0 msgid:32 status:8
-/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel reserved:8])
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel chunktype:8])
 
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
@@ -1189,6 +1358,15 @@ enum class SugidClearMode {
 // 0x01F0
 // #define MATOCL_FUSE_NOTIFY_END (PROTO_BASE+496)
 // msgid:32
+
+// 0x5D9
+#define LIZ_CLTOMA_FUSE_TRUNCATE_END (1000U + 497U)
+/// msgid:32 inode:32 uid:32 gid:32 filelength:64 lockid:32
+
+// 0x5DA
+#define LIZ_MATOCL_FUSE_TRUNCATE_END (1000U + 498U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 attr:35B
 
 // special - reserved (opened) inodes - keep opened files.
 // 0x01F3
@@ -1233,11 +1411,18 @@ enum class SugidClearMode {
 
 // 0x001FC
 #define CLTOMA_SESSION_LIST (PROTO_BASE+508)
-/// -
+// -
+// vmode:8
 
 // 0x001FD
 #define MATOCL_SESSION_LIST (PROTO_BASE+509)
-/// data:(N * [ip:32 vershex:32])
+/// sessionstatslen:16 data:(N * SESSION_DESCRIPTION)
+//  Where SESSION_DESCRIPTION is:
+//    sessionid:32 peerid:32 version:32 info:STDSTRING path:STDSTRING
+//    sesflags:8 rootuid:32 rootgid:32 mapalluid:32 mapallgid:32
+//    vmode:(isOn * [mingoal:8 maxgoal:8 mintrashtime:32 maxtrashtime:32])
+//    currentopstats:(sessionstatslen * [count:32])
+//    lasthouropstats:(sessionstatslen * [count:32])
 
 // 0x001FE
 #define CLTOMA_INFO (PROTO_BASE+510)
@@ -1247,7 +1432,7 @@ enum class SugidClearMode {
 #define MATOCL_INFO (PROTO_BASE+511)
 //      totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 tdchunks:32
 // since version 1.5.13:
-//      version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 tdcopies:32
+//      version:32 totalspace:64 availspace:64 trashspace:64 trashnodes:32 reservedspace:64 reservednodes:32 allnodes:32 dirnodes:32 filenodes:32 chunks:32 chunkcopies:32 regularcopies:32
 
 // 0x00200
 #define CLTOMA_FSTEST_INFO (PROTO_BASE+512)
@@ -1315,6 +1500,16 @@ enum class SugidClearMode {
 // 0x05F7
 #define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
 /// regularonly:8 data:(ChunksAvailabilityState ChunksReplicationState)
+
+// 0x05F6
+#define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
+/// regularonly:8
+
+// 0x05F7
+#define LIZ_MATOCL_CHUNKS_HEALTH (1000U + 527U)
+// G - All goals count. Goal 1-9 + xor2-10 + goal 0 = 19
+// C - All columns count. Chunks with 0-11+ missing/redundant parts = 12
+/// regularonly:8 tables:(availability:[G * safe:64, G * endangered:64, G * lost:64], replication:G * [C * chunks:64], G * [C * chunks:64])
 
 // 0x05F8
 #define LIZ_MATOCL_IOLIMITS_CONFIG (1000U + 528U)

@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -23,8 +23,11 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include "common/chunk_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
+#include "common/cltoma_communication.h"
 #include "master/checksum.h"
 
 struct matocsserventry;
@@ -35,7 +38,7 @@ int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);
 int chunk_delete_file(uint64_t chunkid,uint8_t goal);
 int chunk_add_file(uint64_t chunkid,uint8_t goal);
 int chunk_unlock(uint64_t chunkid);
-uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint8_t goal,
+uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lockid, uint8_t goal,
 		bool doIncreaseVersion, uint64_t *newChunkId);
 
 // Tries to set next chunk id to a passed value, returns status
@@ -44,10 +47,10 @@ uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet);
 #ifdef METARESTORE
 void chunk_dump(void);
 #else
-uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
-		uint8_t *opflag, uint64_t *nchunkid);
-uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, bool quota_exceeded,
-		uint64_t *nchunkid);
+uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
+		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid);
+uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length,
+		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded, uint64_t *nchunkid);
 void chunk_stats(uint32_t *del,uint32_t *repl);
 void chunk_store_info(uint8_t *buff);
 uint32_t chunk_get_missing_count(void);
@@ -63,30 +66,34 @@ bool chunk_has_only_invalid_copies(uint64_t chunkid);
 int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
-int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[256*6]);
+int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList);
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
 		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList);
-void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version);
+void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkType chunkType);
 void chunk_damaged(matocsserventry *ptr,uint64_t chunkid);
 void chunk_lost(matocsserventry *ptr,uint64_t chunkid);
 void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label);
 void chunk_server_unlabelled_connected();
 void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabel &newLabel);
 
-void chunk_got_delete_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_replicate_status(matocsserventry *ptr,uint64_t chunkid,uint32_t version,uint8_t status);
+void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_replicate_status(matocsserventry *ptr, uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType, uint8_t status);
 
 void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
 
-void chunk_got_create_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_duplicate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_setversion_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_truncate_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-void chunk_got_duptrunc_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
+void chunk_got_create_status(matocsserventry *ptr, uint64_t chunkid, ChunkType chunkType, uint8_t status);
+void chunk_got_duplicate_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_setversion_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_truncate_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+void chunk_got_duptrunc_status(matocsserventry *ptr, uint64_t chunkId, ChunkType chunkType, uint8_t status);
+
+int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 
 #endif
 
-int chunk_load(FILE *fd);
+int chunk_load(FILE *fd, bool loadLockIds);
 void chunk_store(FILE *fd);
 void chunk_unload(void);
 void chunk_newfs(void);

@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -22,10 +22,17 @@
 
 #include <inttypes.h>
 
+#include "mount/chunk_locator.h"
+
 void read_inode_ops(uint32_t inode);
 void* read_data_new(uint32_t inode);
 void read_data_end(void *rr);
 int read_data(void *rr,uint64_t offset,uint32_t *size,uint8_t **buff);
 void read_data_freebuff(void *rr);
-void read_data_init(uint32_t retries);
+void read_data_init(uint32_t retries,
+		uint32_t chunkserverRoundTripTime_ms,
+		uint32_t chunkserverConnectTimeout_ms,
+		uint32_t chunkServerBasicReadTimeout_ms,
+		uint32_t chunkserverTotalReadTimeout_ms,
+		bool prefetchXorStripes);
 void read_data_term(void);

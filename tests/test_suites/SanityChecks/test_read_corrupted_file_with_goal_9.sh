@@ -15,7 +15,7 @@ for i in 0 $(seq 2 $((goal-1))); do
 	hdds+=("$(cat "${info[chunkserver${i}_hdd]}")")
 done
 
-find "${hdds[@]}" -name 'chunk_*.mfs' | xargs -d'\n' -P10 -IXX \
+find "${hdds[@]}" -name 'chunk_*.???' | xargs -d'\n' -P10 -IXX \
 		dd if=/dev/zero of=XX bs=1 count=4 seek=6k conv=notrunc
 
 for i in $(seq 20); do

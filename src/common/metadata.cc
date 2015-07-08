@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 #include "common/metadata.h"
 
@@ -70,9 +88,12 @@ uint64_t metadataGetVersion(const std::string& file) {
 		throw MetadataCheckException("Can't read the metadata file");
 	}
 
-	if (memcmp(chkbuff,MFSSIGNATURE "M 1.5",8)==0 || memcmp(chkbuff,MFSSIGNATURE "M 1.6",8)==0) {
+	if (memcmp(chkbuff,MFSSIGNATURE "M 1.",7)==0 && chkbuff[7]>='5' && chkbuff[7]<='6') {
 		memset(eofmark,0,16);
 	} else if (memcmp(chkbuff,MFSSIGNATURE "M 2.0",8)==0) {
+		memcpy(eofmark,"[MFS EOF MARKER]",16);
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(chkbuff, LIZARDFSSIGNATURE "M 2.9", 8) == 0) {
 		memcpy(eofmark,"[MFS EOF MARKER]",16);
 	} else {
 		close(fd);

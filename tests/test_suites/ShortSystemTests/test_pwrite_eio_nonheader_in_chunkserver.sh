@@ -22,12 +22,14 @@ cd "${info[mount0]}"
 mkdir test
 mfssetgoal 2 test
 FILE_SIZE=1234 assert_success file-generate test/small_{1..20}
+sleep 1
 assert_awk_finds_no '$4 != "no"' "$(lizardfs_probe_master list-disks)"
 
 # Write a couple of bigger files. This should trigger a failure on CS0.
 FILE_SIZE=1M assert_success file-generate test/big_{1..10}
 
 # Assert that exactly disks marked "pwrite_far_EIO" are marked as damaged
+sleep 1
 list=$(lizardfs_probe_master list-disks)
 assert_equals 3 "$(wc -l <<< "$list")"
 assert_awk_finds_no '(/EIO/ && $4 != "yes") || (!/EIO/ && $4 != "no")' "$list"

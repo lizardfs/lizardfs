@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -627,21 +627,28 @@ int do_nextchunkid(const char* filename, uint64_t lv, uint32_t ts, const char* p
 
 
 int do_trunc(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
-	uint32_t inode,indx;
+	uint32_t inode,indx,lockid;
 	uint64_t chunkid;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(indx,ptr);
+	if (*ptr==',') {
+		EAT(ptr,filename,lv,',');
+		GETU32(lockid,ptr);
+	} else {
+		lockid = 0;
+	}
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_apply_trunc(ts,inode,indx,chunkid);
+	return fs_apply_trunc(ts,inode,indx,chunkid,lockid);
 }
 
 int do_write(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	uint32_t inode,indx;
 	uint64_t chunkid;
+	uint32_t lockid;
 	uint8_t opflag;
 	EAT(ptr,filename,lv,'(');
 	GETU32(inode,ptr);
@@ -653,12 +660,17 @@ int do_write(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	} else {
 		opflag=1;
 	}
+	if (*ptr==',') {
+		EAT(ptr,filename,lv,',');
+		GETU32(lockid,ptr);
+	} else {
+		lockid=1;
+	}
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU64(chunkid,ptr);
-	return fs_writechunk(FsContext::getForRestore(ts), inode, indx, &chunkid, &opflag, nullptr);
+	return fs_writechunk(FsContext::getForRestore(ts), inode, indx, false, &lockid, &chunkid, &opflag, nullptr);
 }
-
 
 int restore_line(const char* filename, uint64_t lv, const char* line) {
 	uint32_t ts;

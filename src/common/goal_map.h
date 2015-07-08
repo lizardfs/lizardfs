@@ -1,11 +1,28 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "common/platform.h"
 
-#include <array>
 #include <cstdint>
-#include <map>
 
+#include "common/chunk_type.h"
 #include "common/exception.h"
 #include "common/goal.h"
 #include "common/serialization_macros.h"
@@ -15,11 +32,14 @@ LIZARDFS_CREATE_EXCEPTION_CLASS(GoalMapInvalidGoalException, Exception);
 template <class T>
 class GoalMap {
 public:
-	GoalMap() : zero_(), goals_() {}
+	GoalMap() : zero_(), ordinary_(), xor_() {}
 
 	T& operator[](uint8_t goal) {
-		if (goal::isGoalValid(goal)) {
-			return goals_[goal - goal::kMinGoal];
+		if (goal::isOrdinaryGoal(goal)) {
+			return ordinary_[goal - goal::kMinOrdinaryGoal];
+		}
+		if (goal::isXorGoal(goal)) {
+			return xor_[goal - goal::kMinXorGoal];
 		}
 		if (goal == 0) {
 			return zero_;
@@ -32,7 +52,8 @@ public:
 	}
 
 	friend bool operator==(const GoalMap<T>& eins, const GoalMap<T>& zwei) {
-		return eins.zero_ == zwei.zero_ && eins.goals_ == zwei.goals_;
+		return eins.zero_ == zwei.zero_ && eins.ordinary_ == zwei.ordinary_
+				&& eins.xor_ == zwei.xor_;
 	}
 
 	uint32_t serializedSize() const {
@@ -45,7 +66,7 @@ public:
 		// verify if the map is empty
 		T defaultValue = T();
 		sassert(this->operator[](0) == defaultValue);
-		for (unsigned goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
+		for (auto goal : goal::allGoals()) {
 			sassert(this->operator[](goal) == defaultValue);
 		}
 
@@ -59,14 +80,15 @@ public:
 			}
 		}
 	}
+
 private:
 	std::map<uint8_t, T> goalsAsMap() const {
 		std::map<uint8_t, T> trueMap;
 		T defaultValue = T();
 
-		for (unsigned i = goal::kMinGoal; i <= goal::kMaxGoal; ++i) {
-			if (this->operator[](i) != defaultValue) { // Packet size optimization!
-				trueMap[i] = this->operator[](i);
+		for (auto goal : goal::allGoals()) {
+			if (this->operator[](goal) != defaultValue) { // Packet size optimization!
+				trueMap[goal] = this->operator[](goal);
 			}
 		}
 		if (zero_ != defaultValue) {
@@ -76,5 +98,6 @@ private:
 	}
 
 	T zero_;
-	std::array<T, goal::kNumberOfGoals> goals_;
+	std::array<T, goal::kNumberOfOrdinaryGoals> ordinary_;
+	std::array<T, goal::kNumberOfXorGoals> xor_;
 };

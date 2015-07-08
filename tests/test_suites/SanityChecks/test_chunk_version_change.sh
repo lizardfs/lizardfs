@@ -12,13 +12,12 @@ FILE_SIZE=123456 file-generate file
 
 # Restarft the chunkserver and overwrite the file
 mfschunkserver -c "${info[chunkserver0_config]}" restart
-sleep 1
+lizardfs_wait_for_all_ready_chunkservers
 FILE_SIZE=234567 file-generate "$TEMP_DIR/newfile"
 dd if="$TEMP_DIR/newfile" of=file conv=notrunc
 
 # Check if there are chunks with version different than 1
-hdd=$(cat "${info[chunkserver0_hdd]}")
-number_of_chunks=$(find "$hdd" -name 'chunk*.mfs' | grep -v '_00000001[.]mfs' | wc -l)
+number_of_chunks=$(find_chunkserver_chunks 0 | grep -v '_00000001[.]' | wc -l)
 if (( number_of_chunks != 1 )); then
 	test_fail "Chunk didn't change version after modifying"
 fi

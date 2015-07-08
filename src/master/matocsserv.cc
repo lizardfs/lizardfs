@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -44,6 +44,7 @@
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/output_packet.h"
@@ -201,18 +202,19 @@ void matocsserv_csdb_init(void) {
 #define REPHASHSIZE 256
 #define REPHASHFN(chid,ver) (((chid)^(ver)^((chid)>>8))%(REPHASHSIZE))
 
-typedef struct _repsrc {
+struct repsrc {
 	matocsserventry *src;
-	struct _repsrc *next;
-} repsrc;
+	repsrc *next;
+};
 
-typedef struct _repdst {
-	uint64_t chunkid;
-	uint32_t version;
-	matocsserventry *dst;
-	repsrc *srchead;
-	struct _repdst *next;
-} repdst;
+struct repdst {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
+	matocsserventry *destinationCs;
+	repsrc *repsrcHead;
+	repdst *next;
+};
 
 static repdst* rephash[REPHASHSIZE];
 static repsrc *repsrcfreehead=NULL;
@@ -261,76 +263,86 @@ void matocsserv_replication_init(void) {
 	repdstfreehead=NULL;
 }
 
-int matocsserv_replication_find(uint64_t chunkid,uint32_t version,matocsserventry *dst) {
-	uint32_t hash = REPHASHFN(chunkid,version);
-	repdst *r;
-	for (r=rephash[hash] ; r ; r=r->next) {
-		if (r->chunkid==chunkid && r->version==version && r->dst==dst) {
+int matocsserv_replication_find(uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType, matocsserventry *dst) {
+	uint32_t hash = REPHASHFN(chunkId, chunkVersion);
+	for (repdst *replica = rephash[hash]; replica; replica = replica->next) {
+		if (replica->chunkId == chunkId
+				&& replica->chunkVersion == chunkVersion
+				&& replica->chunkType == chunkType
+				&& replica->destinationCs == dst) {
 			return 1;
 		}
 	}
 	return 0;
 }
 
-void matocsserv_replication_begin(uint64_t chunkid,uint32_t version,matocsserventry *dst,uint8_t srccnt,matocsserventry **src) {
-	uint32_t hash = REPHASHFN(chunkid,version);
-	uint8_t i;
-	repdst *r;
-	repsrc *rs;
-
-	if (srccnt>0) {
-		r = matocsserv_repdst_malloc();
-		r->chunkid = chunkid;
-		r->version = version;
-		r->dst = dst;
-		r->srchead = NULL;
-		r->next = rephash[hash];
-		rephash[hash] = r;
-		for (i=0 ; i<srccnt ; i++) {
-			rs = matocsserv_repsrc_malloc();
-			rs->src = src[i];
-			rs->next = r->srchead;
-			r->srchead = rs;
-			(src[i])->rrepcounter++;
-		}
-		dst->wrepcounter++;
+void matocsserv_replication_begin(uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType, matocsserventry *dst, uint8_t srccnt, matocsserventry* const *src) {
+	if (srccnt == 0) {
+		return;
 	}
+
+	uint32_t hash = REPHASHFN(chunkId, chunkVersion);
+	repdst *replica;
+	repsrc *replicaSource;
+
+	replica = matocsserv_repdst_malloc();
+	replica->chunkId = chunkId;
+	replica->chunkVersion = chunkVersion;
+	replica->chunkType = chunkType;
+	replica->destinationCs = dst;
+	replica->repsrcHead = NULL;
+	replica->next = rephash[hash];
+	rephash[hash] = replica;
+	for (uint8_t i = 0 ; i < srccnt ; i++) {
+		replicaSource = matocsserv_repsrc_malloc();
+		replicaSource->src = src[i];
+		replicaSource->next = replica->repsrcHead;
+		replica->repsrcHead = replicaSource;
+		static_cast<matocsserventry *>(src[i])->rrepcounter++;
+	}
+	static_cast<matocsserventry *>(dst)->wrepcounter++;
 }
 
-void matocsserv_replication_end(uint64_t chunkid,uint32_t version,matocsserventry *dst) {
-	uint32_t hash = REPHASHFN(chunkid,version);
-	repdst *r,**rp;
-	repsrc *rs,*rsdel;
+void matocsserv_replication_end(uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType, matocsserventry *destination) {
+	uint32_t hash = REPHASHFN(chunkId, chunkVersion);
+	repdst *replica, **replicaPointer;
+	repsrc *replicaSource, *replicaSourceToDelete;
 
-	rp = &(rephash[hash]);
-	while ((r=*rp)!=NULL) {
-		if (r->chunkid==chunkid && r->version==version && r->dst==dst) {
-			rs = r->srchead;
-			while (rs) {
-				rsdel = rs;
-				rs = rs->next;
-				rsdel->src->rrepcounter--;
-				matocsserv_repsrc_free(rsdel);
+	replicaPointer = &(rephash[hash]);
+	while ((replica = *replicaPointer) != NULL) {
+		if (replica->chunkId == chunkId
+				&& replica->chunkVersion == chunkVersion
+				&& replica->chunkType == chunkType
+				&& replica->destinationCs == destination) {
+			replicaSource = replica->repsrcHead;
+			while (replicaSource) {
+				replicaSourceToDelete = replicaSource;
+				replicaSource = replicaSource->next;
+				static_cast<matocsserventry *>(replicaSourceToDelete->src)->rrepcounter--;
+				matocsserv_repsrc_free(replicaSourceToDelete);
 			}
-			dst->wrepcounter--;
-			*rp = r->next;
-			matocsserv_repdst_free(r);
+			static_cast<matocsserventry *>(destination)->wrepcounter--;
+			*replicaPointer = replica->next;
+			matocsserv_repdst_free(replica);
 		} else {
-			rp = &(r->next);
+			replicaPointer = &(replica->next);
 		}
 	}
 }
 
 void matocsserv_replication_disconnected(matocsserventry *srv) {
 	uint32_t hash;
-	repdst *r,**rp;
-	repsrc *rs,*rsdel,**rsp;
+	repdst *r, **rp;
+	repsrc *rs, *rsdel, **rsp;
 
-	for (hash=0 ; hash<REPHASHSIZE ; hash++) {
+	for (hash = 0; hash < REPHASHSIZE; hash++) {
 		rp = &(rephash[hash]);
-		while ((r=*rp)!=NULL) {
-			if (r->dst==srv) {
-				rs = r->srchead;
+		while ((r = *rp) != NULL) {
+			if (r->destinationCs == srv) {
+				rs = r->repsrcHead;
 				while (rs) {
 					rsdel = rs;
 					rs = rs->next;
@@ -341,9 +353,9 @@ void matocsserv_replication_disconnected(matocsserventry *srv) {
 				*rp = r->next;
 				matocsserv_repdst_free(r);
 			} else {
-				rsp = &(r->srchead);
-				while ((rs=*rsp)!=NULL) {
-					if (rs->src==srv) {
+				rsp = &(r->repsrcHead);
+				while ((rs = *rsp) != NULL) {
+					if (rs->src == srv) {
 						srv->rrepcounter--;
 						*rsp = rs->next;
 						matocsserv_repsrc_free(rs);
@@ -436,18 +448,49 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 	return result;
 }
 
-std::vector<matocsserventry*> matocsserv_getservers_for_new_chunk(uint8_t goalId) {
+std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_new_chunk(
+			uint8_t goalId) {
 	static GoalMap<ChunkCreationHistory> history;
 	GetServersForNewChunk getter;
+	bool isXorGoal = goal::isXorGoal(goalId);
 	// Add servers with weights which are proportional to total space on each server.
 	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
+		if (isXorGoal && eptr->version < kFirstXorVersion) {
+			// can't store XOR chunks on chunkservers that don't support them
+			continue;
+		}
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
 			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
 			getter.addServer(eptr, &eptr->label, weight);
 		}
 	}
-	return getter.chooseServersForGoal(fs_get_goal_definition(goalId), history[goalId]);
+	std::vector<std::pair<matocsserventry*, ChunkType>> ret;
+	std::vector<ChunkType> chunkTypes;
+	auto servers = getter.chooseServersForGoal(
+			fs_get_goal_definition(goalId), history[goalId]);
+
+	if (isXorGoal) {
+		ChunkType::XorLevel level = goal::toXorLevel(goalId);
+		if (servers.size() < level) {
+			return ret; // do not create any parts if servers are missing
+		}
+		chunkTypes.reserve(level + 1);
+		chunkTypes.push_back(ChunkType::getXorParityChunkType(level));
+		for (int part = 1; part <= level; ++part) {
+			chunkTypes.push_back(ChunkType::getXorChunkType(level, part));
+		}
+		std::random_shuffle(chunkTypes.begin(), chunkTypes.end());
+		if (servers.size() == level) {
+			chunkTypes.pop_back();
+		}
+	} else {
+		chunkTypes.assign(servers.size(), ChunkType::getStandardChunkType());
+	}
+	for (uint32_t i = 0; i < servers.size(); ++i) {
+		ret.emplace_back(servers[i], chunkTypes[i]);
+	}
+	return ret;
 }
 
 uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
@@ -608,205 +651,249 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	(void)version;
 }
 
-int matocsserv_send_createchunk(matocsserventry *eptr,uint64_t chunkid,uint32_t version) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_CREATE,8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
+int matocsserv_send_createchunk(matocsserventry *eptr, uint64_t chunkId, ChunkType chunkType,
+		uint32_t chunkVersion) {
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < kFirstXorVersion) {
+			// send old packet when chunkserver doesn't support xor chunks
+			sassert(chunkType.isStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_CREATE, chunkId,
+					chunkVersion);
+		} else {
+			matocs::createChunk::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
+					chunkVersion);
+		}
 	}
 	return 0;
 }
 
-void matocsserv_got_createchunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_createchunk_status(matocsserventry *eptr, const std::vector<uint8_t> &data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_CREATE - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+	if (eptr->version < kFirstXorVersion) {
+		// get old packet when chunkserver doesn't support xor chunks
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_create_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+	else {
+		cstoma::createChunk::deserialize(data, chunkId, chunkType, status);
+	}
+	chunk_got_create_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
-int matocsserv_send_deletechunk(matocsserventry *eptr,uint64_t chunkid,uint32_t version) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_DELETE,8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
+int matocsserv_send_deletechunk(matocsserventry *eptr, uint64_t chunkId, uint32_t chunkVersion,
+		ChunkType chunkType) {
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < kFirstXorVersion) {
+			// send old packet when chunkserver doesn't support xor chunks
+			sassert(chunkType == ChunkType::getStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_DELETE,
+					chunkId, chunkVersion);
+		}
+		else {
+			matocs::deleteChunk::serialize(eptr->outputPackets.back().packet,
+					chunkId, chunkType, chunkVersion);
+		}
 		eptr->delcounter++;
 	}
 	return 0;
 }
 
-void matocsserv_got_deletechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_deletechunk_status(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DELETE - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+
+	if (eptr->version < kFirstXorVersion) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::deleteChunk::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
+
+	chunk_got_delete_status(eptr, chunkId, chunkType, status);
 	eptr->delcounter--;
-	chunk_got_delete_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+	if (status != 0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
-int matocsserv_send_replicatechunk(matocsserventry *eptr,uint64_t chunkid,uint32_t version,matocsserventry *srceptr) {
+int matocsserv_send_replicatechunk(matocsserventry *eptr, uint64_t chunkid, uint32_t version, matocsserventry *srceptr) {
 	uint8_t *data;
 
-	if (matocsserv_replication_find(chunkid,version,eptr)) {
+	if (matocsserv_replication_find(chunkid, version, ChunkType::getStandardChunkType(), eptr)) {
 		return -1;
 	}
-	if (eptr->mode!=KILL && srceptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+4+2);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put32bit(&data,srceptr->servip);
-		put16bit(&data,srceptr->servport);
-		matocsserv_replication_begin(chunkid,version,eptr,1,&srceptr);
+	if (eptr->mode != KILL && srceptr->mode != KILL) {
+		data = matocsserv_createpacket(eptr, MATOCS_REPLICATE, 8+4+4+2);
+		put64bit(&data, chunkid);
+		put32bit(&data, version);
+		put32bit(&data, srceptr->servip);
+		put16bit(&data, srceptr->servport);
+		matocsserv_replication_begin(chunkid, version, ChunkType::getStandardChunkType(), eptr, 1,
+				&srceptr);
 	}
 	return 0;
 }
 
-int matocsserv_send_replicatechunk_xor(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint8_t cnt,matocsserventry **src,uint64_t *srcchunkid,uint32_t *srcversion) {
-	matocsserventry *srceptr;
-	uint8_t i;
-	uint8_t *data;
-
-	if (matocsserv_replication_find(chunkid,version,eptr)) {
+int matocsserv_send_liz_replicatechunk(matocsserventry *eptr, uint64_t chunkid, uint32_t version, ChunkType type,
+		const std::vector<matocsserventry*> &sourcePointers, const std::vector<ChunkType> &sourceTypes) {
+	if (matocsserv_replication_find(chunkid, version, type, eptr)) {
 		return -1;
 	}
-	if (eptr->mode!=KILL) {
-		for (i=0 ; i<cnt ; i++) {
-			srceptr = src[i];
-			if (srceptr->mode==KILL) {
-				return 0;
-			}
+	if (sourcePointers.size() != sourceTypes.size()) {
+		syslog(LOG_ERR, "Inconsistent arguments for liz_replicatechunk (%u != %u)",
+				static_cast<unsigned>(sourcePointers.size()),
+				static_cast<unsigned>(sourceTypes.size()));
+		return -1;
+	}
+	if (eptr->mode == KILL) {
+		return 0;
+	}
+	for (auto source : sourcePointers) {
+		if (source->mode == KILL) {
+			return 0;
 		}
-		data = matocsserv_createpacket(eptr,MATOCS_REPLICATE,8+4+cnt*(8+4+4+2));
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		for (i=0 ; i<cnt ; i++) {
-			srceptr = src[i];
-			put64bit(&data,srcchunkid[i]);
-			put32bit(&data,srcversion[i]);
-			put32bit(&data,srceptr->servip);
-			put16bit(&data,srceptr->servport);
+	}
+	std::vector<ChunkTypeWithAddress> sources;
+	for (size_t i = 0; i < sourcePointers.size(); ++i) {
+		matocsserventry *src = sourcePointers[i];
+		sources.push_back(ChunkTypeWithAddress(
+				NetworkAddress(src->servip, src->servport), sourceTypes[i]));
+	}
+	eptr->outputPackets.push_back(OutputPacket());
+	matocs::replicateChunk::serialize(eptr->outputPackets.back().packet,
+			chunkid, version, type, sources);
+	matocsserv_replication_begin(chunkid, version, type,
+			eptr, sourcePointers.size(), sourcePointers.data());
+	return 0;
+}
+
+void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vector<uint8_t> &data,
+		 uint32_t packetType) {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint8_t status;
+
+	if (packetType == LIZ_CSTOMA_REPLICATE_CHUNK) {
+		cstoma::replicateChunk::deserialize(data, chunkId, chunkType, status, chunkVersion);
+	} else {
+		sassert(packetType == CSTOMA_REPLICATE);
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, chunkVersion, status);
+	}
+
+	matocsserv_replication_end(chunkId, chunkVersion, chunkType, eptr);
+	chunk_got_replicate_status(eptr, chunkId, chunkVersion, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
+	}
+}
+
+int matocsserv_send_setchunkversion(matocsserventry *eptr, uint64_t chunkId, uint32_t newVersion,
+		uint32_t chunkVersion, ChunkType chunkType) {
+	if (eptr->mode != KILL) {
+		eptr->outputPackets.push_back(OutputPacket());
+		if (eptr->version < kFirstXorVersion) {
+			// send old packet when chunkserver doesn't support xor chunks
+			sassert(chunkType == ChunkType::getStandardChunkType());
+			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_SET_VERSION,
+					chunkId, newVersion, chunkVersion);
 		}
-		matocsserv_replication_begin(chunkid,version,eptr,cnt,src);
+		else {
+			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
+					chunkVersion, newVersion);
+		}
 	}
 	return 0;
 }
 
-void matocsserv_got_replicatechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
+void matocsserv_got_setchunkversion_status(matocsserventry *eptr,
+		const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+4+1) {
-		syslog(LOG_NOTICE,"CSTOMA_REPLICATE - wrong size (%" PRIu32 "/13)",length);
-		eptr->mode=KILL;
-		return;
+
+	if (eptr->version < kFirstXorVersion) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::setVersion::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	matocsserv_replication_end(chunkid,version,eptr);
-	status = get8bit(&data);
-	chunk_got_replicate_status(eptr,chunkid,version,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+
+	chunk_got_setversion_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",
+				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}
 }
 
-int matocsserv_send_setchunkversion(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint32_t oldversion) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_SET_VERSION,8+4+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put32bit(&data,oldversion);
+int matocsserv_send_duplicatechunk(matocsserventry* eptr, uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion) {
+	if (eptr->mode == KILL) {
+		return 0;
 	}
+
+	OutputPacket outPacket;
+	if (chunkType.isStandardChunkType() && eptr->version < kFirstXorVersion) {
+		// Legacy support
+		serializeMooseFsPacket(outPacket.packet, MATOCS_DUPLICATE, newChunkId, newChunkVersion,
+				chunkId, chunkVersion);
+	} else {
+		matocs::duplicateChunk::serialize(outPacket.packet, newChunkId, newChunkVersion,
+				chunkType, chunkId, chunkVersion);
+	}
+	eptr->outputPackets.push_back(std::move(outPacket));
 	return 0;
 }
 
-void matocsserv_got_setchunkversion_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_duplicatechunk_status(matocsserventry* eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_SET_VERSION - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+	if (eptr->version < kFirstXorVersion) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::duplicateChunk::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_setversion_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+
+	chunk_got_duplicate_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %" PRIu8
+				" duplication status: %s", eptr->servstrip, eptr->servport,
+				chunkId, chunkType.chunkTypeId(), mfsstrerr(status));
 	}
 }
 
-
-int matocsserv_send_duplicatechunk(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion) {
+void matocsserv_send_truncatechunk(matocsserventry* eptr, uint64_t chunkid, ChunkType chunkType, uint32_t length,
+		uint32_t newVersion,uint32_t oldVersion) {
 	uint8_t *data;
 
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_DUPLICATE,8+4+8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put64bit(&data,oldchunkid);
-		put32bit(&data,oldversion);
-	}
-	return 0;
-}
-
-void matocsserv_got_duplicatechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DUPLICATE - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
+	if (eptr->mode == KILL) {
 		return;
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_duplicate_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
-	}
-}
-
-int matocsserv_send_truncatechunk(matocsserventry *eptr,uint64_t chunkid,uint32_t length,uint32_t version,uint32_t oldversion) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
+	if (chunkType.isStandardChunkType() && eptr->version < kFirstXorVersion) {
+		// For MooseFS 1.6.27
 		data = matocsserv_createpacket(eptr,MATOCS_TRUNCATE,8+4+4+4);
 		put64bit(&data,chunkid);
 		put32bit(&data,length);
-		put32bit(&data,version);
-		put32bit(&data,oldversion);
+		put32bit(&data,newVersion);
+		put32bit(&data,oldVersion);
+	} else {
+		eptr->outputPackets.push_back(OutputPacket());
+		matocs::truncateChunk::serialize(eptr->outputPackets.back().packet,
+				chunkid, chunkType, length, newVersion, oldVersion);
 	}
-	return 0;
 }
 
-void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
+void matocsserv_got_truncatechunk_status(matocsserventry *eptr, const uint8_t *data,
+		uint32_t length) {
 	uint64_t chunkid;
 	uint8_t status;
 	if (length!=8+1) {
@@ -817,40 +904,61 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr,const uint8_t *da
 	passert(data);
 	chunkid = get64bit(&data);
 	status = get8bit(&data);
-	chunk_got_truncate_status(eptr,chunkid,status);
+	chunk_got_truncate_status(eptr, chunkid, ChunkType::getStandardChunkType(), status);
 	if (status!=0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
 	}
 }
 
-int matocsserv_send_duptruncchunk(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint64_t oldchunkid,uint32_t oldversion,uint32_t length) {
-	uint8_t *data;
+void matocsserv_got_liz_truncatechunk_status(matocsserventry *eptr,
+		const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint8_t status;
+	cstoma::truncate::deserialize(data, chunkId, chunkType, status);
 
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_DUPTRUNC,8+4+8+4+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put64bit(&data,oldchunkid);
-		put32bit(&data,oldversion);
-		put32bit(&data,length);
+	chunk_got_truncate_status(eptr, chunkId, chunkType, status);
+	if (status!=0) {
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %08" PRIX32
+				" truncate status: %s", eptr->servstrip, eptr->servport, chunkId,
+				chunkType.chunkTypeId(), mfsstrerr(status));
 	}
+}
+
+int matocsserv_send_duptruncchunk(matocsserventry* eptr, uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t newChunkLength) {
+	if (eptr->mode == KILL) {
+		return 0;
+	}
+
+	OutputPacket outPacket;
+	if (chunkType.isStandardChunkType() && eptr->version < kFirstXorVersion) {
+		// Legacy support
+		serializeMooseFsPacket(outPacket.packet, MATOCS_DUPTRUNC, newChunkId, newChunkVersion,
+				chunkId, chunkVersion, newChunkLength);
+	} else {
+		matocs::duptruncChunk::serialize(outPacket.packet, newChunkId,
+				newChunkVersion, chunkType, chunkId, chunkVersion, newChunkLength);
+	}
+	eptr->outputPackets.push_back(std::move(outPacket));
 	return 0;
 }
 
-void matocsserv_got_duptruncchunk_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void matocsserv_got_duptruncchunk_status(matocsserventry* eptr, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint8_t status;
-	if (length!=8+1) {
-		syslog(LOG_NOTICE,"CSTOMA_DUPTRUNC - wrong size (%" PRIu32 "/9)",length);
-		eptr->mode=KILL;
-		return;
+	if (eptr->version < kFirstXorVersion) {
+		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
+	} else {
+		cstoma::duptruncChunk::deserialize(data, chunkId, chunkType, status);
 	}
-	passert(data);
-	chunkid = get64bit(&data);
-	status = get8bit(&data);
-	chunk_got_duptrunc_status(eptr,chunkid,status);
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " duplication with truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+
+	chunk_got_duptrunc_status(eptr, chunkId, chunkType, status);
+	if (status != 0) {
+		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %" PRIu8
+				" duplication with truncate status: %s", eptr->servstrip, eptr->servport,
+				chunkId, chunkType.chunkTypeId(), mfsstrerr(status));
 	}
 }
 
@@ -1055,7 +1163,8 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			for (i=0 ; i<chunkcount ; i++) {
 				chunkid = get64bit(&data);
 				chunkversion = get32bit(&data);
-				chunk_server_has_chunk(eptr,chunkid,chunkversion);
+				chunk_server_has_chunk(eptr, chunkid, chunkversion,
+						ChunkType::getStandardChunkType());
 			}
 			return;
 		} else if (rversion==52) {
@@ -1078,11 +1187,11 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		}
 	}
 	if (rversion<=4) {
-			if (eptr->timeout<1000) {
-					syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu32
-							" milliseconds - should be at least 1 second)",eptr->timeout);
-					eptr->timeout = 1000;
-			return;
+		if (eptr->timeout<1000) {
+				syslog(LOG_NOTICE,"CSTOMA_REGISTER communication timeout too small (%" PRIu32
+						" milliseconds - should be at least 1 second)",eptr->timeout);
+				eptr->timeout = 1000;
+				return;
 		}
 		if (eptr->servip==0) {
 			tcpgetpeer(eptr->sock,&(eptr->servip),NULL);
@@ -1109,7 +1218,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		for (i=0 ; i<chunkcount ; i++) {
 			chunkid = get64bit(&data);
 			chunkversion = get32bit(&data);
-			chunk_server_has_chunk(eptr,chunkid,chunkversion);
+			chunk_server_has_chunk(eptr, chunkid, chunkversion, ChunkType::getStandardChunkType());
 		}
 	}
 }
@@ -1147,10 +1256,20 @@ void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8
 
 void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uint8_t>& data)
 		throw (IncorrectDeserializationException) {
-	std::vector<ChunkWithVersion> chunks;
-	cstoma::registerChunks::deserialize(data, chunks);
-	for (auto& chunk : chunks) {
-		chunk_server_has_chunk(eptr, chunk.id, chunk.version);
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::registerChunks::kStandardAndXorChunks) {
+		std::vector<ChunkWithVersionAndType> chunks;
+		cstoma::registerChunks::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+		}
+	} else {
+		std::vector<ChunkWithVersion> chunks;
+		cstoma::registerChunks::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, ChunkType::getStandardChunkType());
+		}
 	}
 }
 
@@ -1235,7 +1354,15 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 		chunkid = get64bit(&data);
 		chunkversion = get32bit(&data);
 //              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
-		chunk_server_has_chunk(eptr,chunkid,chunkversion);
+		chunk_server_has_chunk(eptr, chunkid, chunkversion, ChunkType::getStandardChunkType());
+	}
+}
+
+void matocsserv_liz_chunk_new(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	std::vector<ChunkWithVersionAndType> chunks;
+	cstoma::chunkNew::deserialize(data, chunks);
+	for (auto& chunk : chunks) {
+		chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
 	}
 }
 
@@ -1281,25 +1408,37 @@ void matocsserv_gotpacket(matocsserventry *eptr, PacketHeader header, const Mess
 				matocsserv_got_chunk_checksum(eptr, data.data(), length);
 				break;
 			case CSTOMA_CREATE:
-				matocsserv_got_createchunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_CREATE_CHUNK:
+				matocsserv_got_createchunk_status(eptr, data);
 				break;
 			case CSTOMA_DELETE:
-				matocsserv_got_deletechunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_DELETE_CHUNK:
+				matocsserv_got_deletechunk_status(eptr, data);
 				break;
 			case CSTOMA_REPLICATE:
-				matocsserv_got_replicatechunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_REPLICATE_CHUNK:
+				matocsserv_got_replicatechunk_status(eptr, data, header.type);
 				break;
 			case CSTOMA_DUPLICATE:
-				matocsserv_got_duplicatechunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_DUPLICATE_CHUNK:
+				matocsserv_got_duplicatechunk_status(eptr, data);
 				break;
 			case CSTOMA_SET_VERSION:
-				matocsserv_got_setchunkversion_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_SET_VERSION:
+				matocsserv_got_setchunkversion_status(eptr, data);
 				break;
 			case CSTOMA_TRUNCATE:
 				matocsserv_got_truncatechunk_status(eptr, data.data(), length);
 				break;
+			case LIZ_CSTOMA_TRUNCATE:
+				matocsserv_got_liz_truncatechunk_status(eptr, data);
+				break;
 			case CSTOMA_DUPTRUNC:
-				matocsserv_got_duptruncchunk_status(eptr, data.data(), length);
+			case LIZ_CSTOMA_DUPTRUNC_CHUNK:
+				matocsserv_got_duptruncchunk_status(eptr, data);
+				break;
+			case LIZ_CSTOMA_CHUNK_NEW:
+				matocsserv_liz_chunk_new(eptr, data);
 				break;
 			case LIZ_CSTOMA_REGISTER_HOST:
 				matocsserv_liz_register_host(eptr, data);
@@ -1559,6 +1698,10 @@ void matocsserv_reload(void) {
 	free(oldListenPort);
 	tcpclose(lsock);
 	lsock = newlsock;
+}
+
+uint32_t matocsserv_get_version(matocsserventry *e) {
+	return e->version;
 }
 
 int matocsserv_init(void) {

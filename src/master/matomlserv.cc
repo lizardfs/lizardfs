@@ -1,6 +1,6 @@
 
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -542,12 +542,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ptr = matomlserv_createpacket(eptr,MATOML_DOWNLOAD_DATA,16+leng);
 	put64bit(&ptr,offset);
 	put32bit(&ptr,leng);
-#ifdef LIZARDFS_HAVE_PREAD
 	ret = pread(eptr->metafd,ptr+4,leng,offset);
-#else /* LIZARDFS_HAVE_PWRITE */
-	lseek(eptr->metafd,offset,SEEK_SET);
-	ret = read(eptr->metafd,ptr+4,leng);
-#endif /* LIZARDFS_HAVE_PWRITE */
 	if (ret!=(ssize_t)leng) {
 		lzfs_silent_errlog(LOG_NOTICE,"error reading metafile");
 		eptr->mode=KILL;
@@ -779,6 +774,7 @@ void matomlserv_read(matomlserventry *eptr) {
 				free(eptr->inputpacket.packet);
 			}
 			eptr->inputpacket.packet=NULL;
+			break;
 		}
 	}
 }

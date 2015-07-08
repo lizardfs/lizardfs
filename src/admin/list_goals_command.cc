@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 #include "admin/list_goals_command.h"
 
@@ -5,6 +23,7 @@
 #include <iostream>
 #include <vector>
 
+#include "admin/escape_porcelain_string.h"
 #include "common/cltoma_communication.h"
 #include "common/goal.h"
 #include "common/matocl_communication.h"
@@ -39,9 +58,15 @@ void ListGoalsCommand::run(const Options& options) const {
 	auto response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
 	matocl::listGoals::deserialize(response, serializedGoals);
 
+	auto goalIdToString = [](uint8_t goalId) {
+		return goal::isOrdinaryGoal(goalId) ? std::to_string(goalId) : std::string("-");
+	};
+
 	if (options.isSet(kPorcelainMode)) {
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << goal.id << " " << goal.name << " " << goal.definition << std::endl;
+			std::cout << goalIdToString(goal.id) << " "
+					<< goal.name << " "
+					<< escapePorcelainString(goal.definition) << std::endl;
 		}
 	} else if (options.isSet("--pretty")) {
 		std::cout << "Goal definitions:" << std::endl;
@@ -72,14 +97,17 @@ void ListGoalsCommand::run(const Options& options) const {
 			<< std::left << "Name" << " | Definition" << std::endl;
 		std::cout << frame << std::endl;
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << std::setw(3) << std::right << goal.id << " | " << std::setw(maxNameLength)
-				<< std::left << goal.name << " | " << goal.definition << std::endl;
+			std::cout << std::setw(3) << std::right << goalIdToString(goal.id) << " | "
+					<< std::setw(maxNameLength) << std::left << goal.name << " | "
+					<< goal.definition << std::endl;
 		}
 		std::cout << frame << std::endl;
 	} else {
 		std::cout << "Goal definitions:\nId\tName\tDefinition" << std::endl;
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << goal.id << "\t" << goal.name << "\t" << goal.definition << std::endl;
+			std::cout << goalIdToString(goal.id) << "\t"
+					<< goal.name << "\t"
+					<< goal.definition << std::endl;
 		}
 	}
 }

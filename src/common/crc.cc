@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -23,6 +23,23 @@
 #include <stdlib.h>
 
 #include "common/MFSCommunication.h"
+
+#ifndef ENABLE_CRC
+
+static uint32_t FAKE_CRC = 0xFEDCBA98;
+
+uint32_t mycrc32(uint32_t, const uint8_t*, uint32_t) {
+	return FAKE_CRC;
+}
+
+uint32_t mycrc32_combine(uint32_t, uint32_t, uint32_t) {
+	return FAKE_CRC;
+}
+
+void mycrc32_init(void) {
+}
+
+#else // ENABLE_CRC
 
 /*
  * CRC implementation from crcutil supports only little endian machines.
@@ -211,3 +228,15 @@ void mycrc32_init(void) {
 }
 
 #endif // HAVE_CRCUTIL
+
+#endif // ENABLE_CRC
+
+void recompute_crc_if_block_empty(uint8_t* block, uint32_t& crc) {
+	// If both block and crcBuffer consist only of zeros recompute the crc
+	if (crc == 0) {
+		if (block[0] == 0 && !memcmp(block, block + 1, MFSBLOCKSIZE - 1)) {
+			static uint32_t emptyBlockCrc = mycrc32_zeroblock(0, MFSBLOCKSIZE);
+			crc = emptyBlockCrc;
+		}
+	}
+}

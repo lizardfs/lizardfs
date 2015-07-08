@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -21,9 +21,9 @@
 #include <stdio.h>
 
 #include "chunkserver/chartsdata.h"
-#include "chunkserver/csserv.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/masterconn.h"
+#include "chunkserver/network_main_thread.h"
 #include "common/random.h"
 
 #define STR_AUX(x) #x
@@ -39,12 +39,14 @@ struct run_tab {
 run_tab RunTab[]={
 	{rnd_init,"random generator"},
 	{hdd_init,"hdd space manager"},
-	{csserv_init,"main server module"},     /* it has to be before "masterconn" */
+	{mainNetworkThreadInit,"main server module"},   /* it has to be before "masterconn" */
 	{masterconn_init,"master connection module"},
 	{chartsdata_init,"charts module"},
 	{(runfn)0,"****"}
 },LateRunTab[]={
+	{masterconn_init_threads,"master connection module - threads"},
 	{hdd_late_init,"hdd space manager - threads"},
+	{mainNetworkThreadInitThreads,"main server module - threads"},
 	{(runfn)0,"****"}
 },EarlyRunTab[]={
 	{(runfn)0,"****"}

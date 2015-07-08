@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -43,7 +43,9 @@
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/time_utils.h"
+#include "devtools/request_log.h"
 #include "mount/acl_cache.h"
+#include "mount/chunk_locator.h"
 #include "mount/dirattrcache.h"
 #include "mount/g_io_limiters.h"
 #include "mount/io_limit_group.h"
@@ -142,6 +144,7 @@ typedef struct _finfo {
 	uint8_t mode;
 	void *data;
 	pthread_mutex_t lock;
+	pthread_mutex_t flushlock;
 } finfo;
 
 static int debug_mode = 0;
@@ -153,6 +156,7 @@ static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
+bool use_rwlock = 0;
 static std::atomic<bool> gDirectIo(false);
 
 static std::unique_ptr<AclCache> acl_cache;
@@ -193,6 +197,42 @@ struct PthreadMutexWrapper {
 
 private:
 	pthread_mutex_t& mutex_;
+	bool locked_;
+};
+
+/**
+ * A wrapper around pthread_rwlock, acquiring a lock during construction and releasing it during
+ * destruction in case if the lock wasn't released beforehand.
+ */
+struct PthreadRwLockWrapper {
+	PthreadRwLockWrapper(pthread_rwlock_t& mutex, bool write = true)
+		: rwlock_(mutex), locked_(false) {
+		lock(write);
+	}
+
+	~PthreadRwLockWrapper() {
+		if (locked_) {
+			unlock();
+		}
+	}
+
+	void lock(bool write = true) {
+		sassert(!locked_);
+		if (write) {
+			pthread_rwlock_wrlock(&rwlock_);
+		} else {
+			pthread_rwlock_rdlock(&rwlock_);
+		}
+		locked_ = true;
+	}
+	void unlock() {
+		sassert(locked_);
+		locked_ = false;
+		pthread_rwlock_unlock(&rwlock_);
+	}
+
+private:
+	pthread_rwlock_t& rwlock_;
 	bool locked_;
 };
 
@@ -1115,10 +1155,13 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					strerr(EFBIG));
 			throw RequestException(EFBIG);
 		}
-		write_data_flush_inode(ino);
-		maxfleng = 0; // after the flush master server has valid length, don't use our length cache
-		status = fs_truncate(ino,(fi!=NULL)?1:0,ctx.uid,ctx.gid,stbuf->st_size,attr);
-		status = errorconv_dbg(status);
+		try {
+			bool opened = (fi != NULL);
+			status = write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr);
+			maxfleng = 0; // after the flush master server has valid length, don't use our length cache
+		} catch (Exception& ex) {
+			status = errorconv_dbg(ex.status());
+		}
 		read_inode_ops(ino);
 		if (status!=0) {
 			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
@@ -1903,6 +1946,7 @@ void releasedir(Context ctx, Inode ino, FileInfo* fi) {
 static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 	finfo *fileinfo;
 	fileinfo = (finfo*) malloc(sizeof(finfo));
+	pthread_mutex_init(&(fileinfo->flushlock),NULL);
 	pthread_mutex_init(&(fileinfo->lock),NULL);
 	PthreadMutexWrapper lock((fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
@@ -1929,7 +1973,7 @@ static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 
 void remove_file_info(FileInfo *f) {
 	finfo* fileinfo = (finfo*)(f->fh);
-	PthreadMutexWrapper lock((fileinfo->lock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode == IO_READONLY || fileinfo->mode == IO_READ) {
 		read_data_end(fileinfo->data);
 	} else if (fileinfo->mode == IO_WRITEONLY || fileinfo->mode == IO_WRITE) {
@@ -1937,6 +1981,7 @@ void remove_file_info(FileInfo *f) {
 	}
 	lock.unlock(); // This unlock is needed, since we want to destroy the mutex
 	pthread_mutex_destroy(&(fileinfo->lock));
+	pthread_mutex_destroy(&(fileinfo->flushlock));
 	free(fileinfo);
 }
 
@@ -2264,9 +2309,9 @@ std::vector<uint8_t> read(Context ctx,
 			size_t size,
 			off_t off,
 			FileInfo* fi) {
+	LOG_AVG_TILL_END_OF_SCOPE0("read");
 	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
 	uint8_t *buff;
-	uint32_t ssize;
 	int err;
 	std::vector<uint8_t> ret;
 
@@ -2369,6 +2414,7 @@ std::vector<uint8_t> read(Context ctx,
 		}
 	}
 	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+		uint32_t ssize;
 		oplog_getdata(fi->fh,&buff,&ssize,size);
 		oplog_releasedata(fi->fh);
 		return std::vector<uint8_t>(buff, buff + ssize);
@@ -2408,7 +2454,8 @@ std::vector<uint8_t> read(Context ctx,
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
-	PthreadMutexWrapper lock((fileinfo->lock));
+	PthreadMutexWrapper lock(fileinfo->lock);
+	PthreadMutexWrapper flushlock(fileinfo->flushlock);
 	if (fileinfo->mode==IO_WRITEONLY) {
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
@@ -2437,10 +2484,19 @@ std::vector<uint8_t> read(Context ctx,
 		fileinfo->mode = IO_READ;
 		fileinfo->data = read_data_new(ino);
 	}
+	// end of reader critical section
+	flushlock.unlock();
+
 	write_data_flush_inode(ino);
-	ssize = size;
+
+	uint64_t firstBlockToRead = off / MFSBLOCKSIZE;
+	uint64_t firstBlockNotToRead = (off + size + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
+	uint64_t alignedOffset = firstBlockToRead * MFSBLOCKSIZE;
+	uint64_t alignedSize = (firstBlockNotToRead - firstBlockToRead) * MFSBLOCKSIZE;
+
+	uint32_t ssize = alignedSize;
 	buff = NULL;    // use internal 'readdata' buffer
-	err = read_data(fileinfo->data,off,&ssize,&buff);
+	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
 	if (err!=0) {
 		if (debug_mode) {
 			fprintf(stderr,"IO error occurred while reading inode %lu\n",
@@ -2451,9 +2507,18 @@ std::vector<uint8_t> read(Context ctx,
 				(uint64_t)size,
 				(uint64_t)off,
 				strerr(err));
-		read_data_freebuff(fileinfo->data);
 		throw RequestException(err);
 	} else {
+		uint32_t replyOffset = off - alignedOffset;
+		buff += replyOffset;
+		if (ssize > replyOffset) {
+			ssize -= replyOffset;
+			if (ssize > size) {
+				ssize = size;
+			}
+		} else {
+			ssize = 0;
+		}
 		if (debug_mode) {
 			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",
 					ssize,
@@ -2466,7 +2531,6 @@ std::vector<uint8_t> read(Context ctx,
 				(unsigned long int)ssize);
 		ret = std::vector<uint8_t>(buff, buff + ssize);
 	}
-	read_data_freebuff(fileinfo->data);
 	return ret;
 }
 
@@ -2557,7 +2621,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
-	PthreadMutexWrapper lock((fileinfo->lock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_READONLY) {
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
@@ -2568,6 +2632,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	}
 	if (fileinfo->mode==IO_READ) {
 		read_data_end(fileinfo->data);
+		fileinfo->data = NULL;
 	}
 	if (fileinfo->mode==IO_READ || fileinfo->mode==IO_NONE) {
 		fileinfo->mode = IO_WRITE;
@@ -2622,7 +2687,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	}
 //      syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
-	PthreadMutexWrapper lock((fileinfo->lock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
@@ -2662,7 +2727,7 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 		throw RequestException(EBADF);
 	}
 	err = 0;
-	PthreadMutexWrapper lock((fileinfo->lock));
+	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
@@ -3182,8 +3247,8 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
-		unsigned acl_cache_size_) {
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,
+		double acl_cache_timeout_, unsigned acl_cache_size_) {
 	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
@@ -3193,10 +3258,12 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 	mkdir_copy_sgid = mkdir_copy_sgid_;
 	sugid_clear_mode = static_cast<decltype (sugid_clear_mode)>(sugid_clear_mode_);
 	acl_enabled = acl_enabled_;
+	use_rwlock = use_rwlock_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
 		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
+		fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
 		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
 				acl_cache_timeout_, acl_cache_size_);
 	}

@@ -1,4 +1,23 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
+
 #include "common/platform.h"
 
 #include <algorithm>
@@ -7,17 +26,26 @@
 #include <numeric>
 #include <string>
 
+#include "common/chunk_type.h"
 #include "common/media_label.h"
 
 namespace goal {
 
-constexpr uint8_t kMinGoal = 1;
-constexpr uint8_t kMaxGoal = 20;
-constexpr uint8_t kNumberOfGoals = kMaxGoal - kMinGoal + 1;
+constexpr uint8_t kMinOrdinaryGoal = 1;
+constexpr uint8_t kMaxOrdinaryGoal = 20;
+constexpr uint8_t kMinXorGoal = 247;
+constexpr uint8_t kMaxXorGoal = 255;
+constexpr uint8_t kMinXorLevel = 2;
+constexpr uint8_t kMaxXorLevel = 10;
+constexpr uint8_t kNumberOfOrdinaryGoals = kMaxOrdinaryGoal - kMinOrdinaryGoal + 1;
+constexpr uint8_t kNumberOfXorGoals = kMaxXorGoal - kMinXorGoal + 1;
 
-inline bool isGoalValid(uint8_t goal) {
-	return goal >= kMinGoal && goal <= kMaxGoal;
-}
+ChunkType::XorLevel toXorLevel(uint8_t goal);
+bool isGoalValid(uint8_t goal);
+bool isOrdinaryGoal(uint8_t goal);
+bool isXorGoal(uint8_t goal);
+uint8_t xorLevelToGoal(ChunkType::XorLevel xorLevel);
+const std::vector<uint8_t>& allGoals();
 
 } // namespace goal
 
@@ -31,11 +59,13 @@ public:
 	static constexpr uint32_t kMaxExpectedTapeCopies = 30;
 
 	/// A default constructor.
-	Goal() : size_(0) {}
+	Goal() : isXor_(false), xorLevel_(0), size_(0) {}
 
 	/// Constructor.
 	Goal(std::string name, Labels chunkLabels, Labels tapeLabels)
-			: name_(std::move(name)),
+			: isXor_(false),
+			  xorLevel_(0),
+			  name_(std::move(name)),
 			  chunkLabels_(std::move(chunkLabels)),
 			  tapeLabels_(std::move(tapeLabels)),
 			  size_(std::accumulate(chunkLabels_.begin(), chunkLabels_.end(), 0,
@@ -44,10 +74,39 @@ public:
 
 	/// Constructor with no tape labels
 	Goal(std::string name, Labels chunkLabels)
-		: name_(std::move(name)),
+		: isXor_(false),
+		  xorLevel_(0),
+		  name_(std::move(name)),
 		  chunkLabels_(std::move(chunkLabels)),
 		  size_(std::accumulate(chunkLabels_.begin(), chunkLabels_.end(), 0,
 				  [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
+	}
+
+	static Goal getXorGoal(ChunkType::XorLevel level) {
+		Goal g;
+		g.isXor_ = true;
+		g.xorLevel_ = level;
+		g.size_ = level + 1;
+		g.name_ = "xor" + std::to_string(uint16_t(level));
+		return g;
+	}
+
+	static Goal getDefaultGoal(uint8_t goalId) {
+		if (goal::isXorGoal(goalId)) {
+			return Goal::getXorGoal(goal::toXorLevel(goalId));
+		} else {
+			sassert(goalId == 0 || goal::isOrdinaryGoal(goalId));
+			return Goal(std::to_string(goalId), {{kMediaLabelWildcard, goalId}});
+		}
+	}
+
+	bool isXor() const {
+		return isXor_;
+	}
+
+	ChunkType::XorLevel xorLevel() const {
+		sassert(isXor_);
+		return xorLevel_;
 	}
 
 	/// Number of labels to be stored on chunkservers in this goal.
@@ -78,11 +137,17 @@ public:
 
 	/// Operator ==.
 	bool operator==(const Goal& other) {
-		return (name_ == other.name_ && chunkLabels_ == other.chunkLabels_
-				&& tapeLabels_ == other.tapeLabels_);
+		return isXor_ == other.isXor_
+				&& xorLevel_ == other.xorLevel_
+				&& name_ == other.name_
+				&& chunkLabels_ == other.chunkLabels_
+				&& tapeLabels_ == other.tapeLabels_;
 	}
 
 private:
+	bool isXor_;
+	ChunkType::XorLevel xorLevel_;
+
 	/// Name of the goal.
 	std::string name_;
 

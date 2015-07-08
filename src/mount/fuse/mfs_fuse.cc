@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS
 
@@ -471,8 +471,8 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
-		unsigned acl_cache_size_) {
+		unsigned acl_cache_size_, bool use_rwlock_) {
 	LizardClient::init(debug_mode_, keep_cache_, direntry_cache_timeout_, entry_cache_timeout_,
-			attr_cache_timeout_, mkdir_copy_sgid_, sugid_clear_mode_, acl_enabled_,
+			attr_cache_timeout_, mkdir_copy_sgid_, sugid_clear_mode_, acl_enabled_, use_rwlock_,
 			acl_cache_timeout_, acl_cache_size_);
 }

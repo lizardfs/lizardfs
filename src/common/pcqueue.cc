@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include "common/massert.h"
+#include "devtools/TracePrinter.h"
 
 typedef struct _qentry {
 	uint32_t id;
@@ -46,6 +47,7 @@ typedef struct _queue {
 } queue;
 
 void* queue_new(uint32_t size) {
+	TRACETHIS();
 	queue *q;
 	q = (queue*)malloc(sizeof(queue));
 	passert(q);
@@ -64,7 +66,8 @@ void* queue_new(uint32_t size) {
 	return q;
 }
 
-void queue_delete(void *que) {
+void queue_delete(void *que, void (*deleter)(uint8_t *)) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe,*qen;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -72,7 +75,7 @@ void queue_delete(void *que) {
 	sassert(q->fullwaiting==0);
 	for (qe = q->head ; qe ; qe = qen) {
 		qen = qe->next;
-		free(qe->data);
+		deleter(qe->data);
 		free(qe);
 	}
 	zassert(pthread_mutex_unlock(&(q->lock)));
@@ -85,6 +88,7 @@ void queue_delete(void *que) {
 }
 
 int queue_isempty(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	int r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -94,6 +98,7 @@ int queue_isempty(void *que) {
 }
 
 uint32_t queue_elements(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	uint32_t r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -103,6 +108,7 @@ uint32_t queue_elements(void *que) {
 }
 
 int queue_isfull(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	int r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -112,6 +118,7 @@ int queue_isfull(void *que) {
 }
 
 uint32_t queue_sizeleft(void *que) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	uint32_t r;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -125,6 +132,7 @@ uint32_t queue_sizeleft(void *que) {
 }
 
 int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	qe = (qentry*) malloc(sizeof(qentry));
@@ -160,6 +168,7 @@ int queue_put(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
 }
 
 int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -195,6 +204,7 @@ int queue_tryput(void *que,uint32_t id,uint32_t op,uint8_t *data,uint32_t leng) 
 }
 
 int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));
@@ -231,6 +241,7 @@ int queue_get(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng)
 }
 
 int queue_tryget(void *que,uint32_t *id,uint32_t *op,uint8_t **data,uint32_t *leng) {
+	TRACETHIS();
 	queue *q = (queue*)que;
 	qentry *qe;
 	zassert(pthread_mutex_lock(&(q->lock)));

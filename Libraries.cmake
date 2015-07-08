@@ -77,7 +77,7 @@ endif()
 
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
-find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS program_options)
+find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem iostreams program_options system)
 
 # Find Thrift
 find_package(Thrift COMPONENTS library)

@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -29,3 +29,8 @@ uint32_t mycrc32_combine(uint32_t crc1, uint32_t crc2, uint32_t leng2);
 #define mycrc32_xorblocks(crc,crcblock1,crcblock2,leng) ((crcblock1)^(crcblock2)^mycrc32_zeroblock(crc,leng))
 
 void mycrc32_init(void);
+/**
+ * In the special case when the block consists only of zeros and passed crc is equal to 0 update
+ * crc to be equal to mycrc32_zeroblock(0, MFSBLOCKSIZE)
+ */
+void recompute_crc_if_block_empty(uint8_t* block, uint32_t& crc);

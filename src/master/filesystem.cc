@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -27,7 +27,6 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <algorithm>
@@ -107,6 +106,7 @@ enum class AclInheritance {
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
+constexpr uint8_t kMetadataVersionWithLockIds = 0x29;
 
 #ifndef METARESTORE
 typedef struct _bstnode {
@@ -1521,17 +1521,89 @@ static void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
 
 // stats
 
-static inline uint64_t fsnodes_get_realsize_from_size(uint64_t size, uint8_t goal) {
+// does the last chunk exist and contain non-zero data?
+static bool last_chunk_nonempty(fsnode *node) {
+	const uint32_t chunks = node->data.fdata.chunks;
+	if (chunks == 0) {
+		// no non-zero chunks, return now
+		return false;
+	}
+	// file has non-zero length and contains at least one chunk
+	const uint64_t last_byte = node->data.fdata.length - 1;
+	const uint32_t last_chunk = last_byte / MFSCHUNKSIZE;
+	if (last_chunk < chunks) {
+		// last chunk exists, check if it isn't the zero chunk
+		return (node->data.fdata.chunktab[last_chunk] != 0);
+	} else {
+		// last chunk hasn't been allocated yet
+		return false;
+	}
+}
+
+// number of blocks in the last chunk before EOF
+static uint32_t last_chunk_blocks(fsnode *node) {
+	const uint64_t last_byte = node->data.fdata.length - 1;
+	const uint32_t last_byte_offset = last_byte % MFSCHUNKSIZE;
+	const uint32_t last_block = last_byte_offset / MFSBLOCKSIZE;
+	const uint32_t block_count = last_block + 1;
+	return block_count;
+}
+
+// count chunks in a file, disregard sparse file holes
+static uint32_t file_chunks(fsnode *node) {
+	uint32_t count = 0;
+	for (uint64_t i = 0; i < node->data.fdata.chunks; i++) {
+		if (node->data.fdata.chunktab[i] != 0) {
+			count++;
+		}
+	}
+	return count;
+}
+
+// compute the "size" statistic for a file node
+static uint64_t file_size(fsnode *node, uint32_t nonzero_chunks) {
+	uint64_t size = (uint64_t)nonzero_chunks * (MFSCHUNKSIZE + MFSHDRSIZE);
+	if (last_chunk_nonempty(node)) {
+		size -= MFSCHUNKSIZE;
+		size += last_chunk_blocks(node) * MFSBLOCKSIZE;
+	}
+	return size;
+}
+
+// compute the disk space cost of all parts of a xor chunk of given size
+static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
+	const uint32_t stripes = (blocks + level - 1) / level;
+	uint32_t size = blocks * MFSBLOCKSIZE;  // file data
+	size += stripes * MFSBLOCKSIZE;         // parity data
+	size += 4096 * (level + 1);             // headers of data and parity parts
+	return size;
+}
+
+// compute the "realsize" statistic for a file node
+static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t file_size) {
+	const uint8_t goal = node->goal;
+	if (goal::isOrdinaryGoal(goal)) {
 #ifdef METARESTORE
-	(void)goal;
-	return size; // Doesn't really matter. Metarestore doesn't need this value anyway.
+		return file_size; // Doesn't really matter. Metarestore doesn't need this value anyway.
 #else
-	return size * gGoalDefinitions[goal].getExpectedCopies();
+		return file_size * gGoalDefinitions[goal].getExpectedCopies();
 #endif
+	}
+	if (goal::isXorGoal(goal)) {
+		const ChunkType::XorLevel level = goal::toXorLevel(goal);
+		const uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
+		uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
+		if (last_chunk_nonempty(node)) {
+			size -= full_chunk_realsize;
+			size += xor_chunk_realsize(last_chunk_blocks(node), level);
+		}
+		return size;
+	}
+	syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id, node->goal);
+	return 0;
 }
 
 static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
-	uint32_t i,lastchunk,lastchunksize;
 	switch (node->type) {
 	case TYPE_DIRECTORY:
 		*sr = *(node->data.ddata.stats);
@@ -1544,27 +1616,10 @@ static inline void fsnodes_get_stats(fsnode *node,statsrecord *sr) {
 		sr->inodes = 1;
 		sr->dirs = 0;
 		sr->files = 1;
-		sr->chunks = 0;
+		sr->chunks = file_chunks(node);
 		sr->length = node->data.fdata.length;
-		sr->size = 0;
-		if (node->data.fdata.length>0) {
-			lastchunk = (node->data.fdata.length-1)>>MFSCHUNKBITS;
-			lastchunksize = ((((node->data.fdata.length-1)&MFSCHUNKMASK)+MFSBLOCKSIZE)&MFSBLOCKNEGMASK)+MFSHDRSIZE;
-		} else {
-			lastchunk = 0;
-			lastchunksize = MFSHDRSIZE;
-		}
-		for (i=0 ; i<node->data.fdata.chunks ; i++) {
-			if (node->data.fdata.chunktab[i]>0) {
-				if (i<lastchunk) {
-					sr->size+=MFSCHUNKSIZE+MFSHDRSIZE;
-				} else if (i==lastchunk) {
-					sr->size+=lastchunksize;
-				}
-				sr->chunks++;
-			}
-		}
-		sr->realsize = fsnodes_get_realsize_from_size(sr->size, node->goal);
+		sr->size = file_size(node, sr->chunks);
+		sr->realsize = file_realsize(node, sr->chunks, sr->size);
 		break;
 	case TYPE_SYMLINK:
 		sr->inodes = 1;
@@ -2264,21 +2319,22 @@ static inline uint8_t fsnodes_appendchunks(uint32_t ts,fsnode *dstobj,fsnode *sr
 
 static inline void fsnodes_changefilegoal(fsnode *obj,uint8_t goal) {
 	uint32_t i;
+	uint8_t old_goal = obj->goal;
 	statsrecord psr,nsr;
 	fsedge *e;
 
 	fsnodes_get_stats(obj,&psr);
+	obj->goal = goal;
 	nsr = psr;
-	nsr.realsize = fsnodes_get_realsize_from_size(nsr.size, goal);
+	nsr.realsize = file_realsize(obj, nsr.chunks, nsr.size);
 	for (e=obj->parents ; e ; e=e->nextparent) {
 		fsnodes_add_sub_stats(e->parent,&nsr,&psr);
 	}
 	for (i=0 ; i<obj->data.fdata.chunks ; i++) {
 		if (obj->data.fdata.chunktab[i]>0) {
-			chunk_change_file(obj->data.fdata.chunktab[i],obj->goal,goal);
+			chunk_change_file(obj->data.fdata.chunktab[i],old_goal,goal);
 		}
 	}
-	obj->goal = goal;
 	fsnodes_update_checksum(obj);
 }
 
@@ -2738,30 +2794,29 @@ static inline bool fsnodes_has_tape_goal(fsnode *node) {
 
 #endif
 
-static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t uid,uint8_t goal,uint8_t smode,uint32_t *sinodes,uint32_t *ncinodes,uint32_t *nsinodes) {
+static inline void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal,
+		uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	fsedge *e;
-	uint8_t set;
 
-	if (node->type==TYPE_FILE || node->type==TYPE_DIRECTORY || node->type==TYPE_TRASH || node->type==TYPE_RESERVED) {
-		if ((node->mode&(EATTR_NOOWNER<<12))==0 && uid!=0 && node->uid!=uid) {
+	if (node->type==TYPE_FILE
+			|| node->type==TYPE_DIRECTORY
+			|| node->type==TYPE_TRASH
+			|| node->type==TYPE_RESERVED) {
+		if ((node->mode & (EATTR_NOOWNER << 12)) == 0 && uid != 0 && node->uid != uid) {
 			(*nsinodes)++;
 		} else {
-			set=0;
-			switch (smode&SMODE_TMASK) {
+			bool set = false;
+			switch (smode & SMODE_TMASK) {
 			case SMODE_SET:
-				if (node->goal!=goal) {
-					set=1;
-				}
+				set = (node->goal != goal);
 				break;
 			case SMODE_INCREASE:
-				if (node->goal<goal) {
-					set=1;
-				}
+				sassert(goal::isOrdinaryGoal(goal));
+				set = (goal::isOrdinaryGoal(node->goal) && node->goal < goal);
 				break;
 			case SMODE_DECREASE:
-				if (node->goal>goal) {
-					set=1;
-				}
+				sassert(goal::isOrdinaryGoal(goal));
+				set = (goal::isOrdinaryGoal(node->goal) && node->goal > goal);
 				break;
 			}
 			if (set) {
@@ -2774,7 +2829,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 					}
 # endif
 				} else {
-					node->goal=goal;
+					node->goal = goal;
 					(*sinodes)++;
 				}
 				node->ctime = ts;
@@ -2783,7 +2838,7 @@ static inline void fsnodes_setgoal_recursive(fsnode *node,uint32_t ts,uint32_t u
 				(*ncinodes)++;
 			}
 		}
-		if (node->type==TYPE_DIRECTORY && (smode&SMODE_RMASK)) {
+		if (node->type == TYPE_DIRECTORY && (smode & SMODE_RMASK)) {
 			for (e = node->data.ddata.children ; e ; e=e->nextchild) {
 				fsnodes_setgoal_recursive(e->child,ts,uid,goal,smode,sinodes,ncinodes,nsinodes);
 			}
@@ -3660,7 +3715,9 @@ uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t u
 	return STATUS_OK;
 }
 
-uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint64_t length,Attributes& attr,uint64_t *chunkid) {
+uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t opened,
+		uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid, uint64_t length,
+		bool denyTruncatingParity, uint32_t lockId, Attributes& attr, uint64_t *chunkid) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *p,*rn;
@@ -3706,16 +3763,18 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 			if (ochunkid>0) {
 				uint8_t status;
 				uint64_t nchunkid;
-				status = chunk_multi_truncate(ochunkid, (length & MFSCHUNKMASK),
-						p->goal, fsnodes_size_quota_exceeded(p->uid, p->gid), &nchunkid);
+				// We deny truncating parity only if truncating down
+				denyTruncatingParity = denyTruncatingParity && (length < p->data.fdata.length);
+				status = chunk_multi_truncate(ochunkid, lockId, (length & MFSCHUNKMASK),
+						p->goal, denyTruncatingParity, fsnodes_size_quota_exceeded(p->uid, p->gid), &nchunkid);
 				if (status!=STATUS_OK) {
 					return status;
 				}
 				p->data.fdata.chunktab[indx] = nchunkid;
 				*chunkid = nchunkid;
 				fs_changelog(ts,
-						"TRUNC(%" PRIu32 ",%" PRIu32 "):%" PRIu64,
-						inode, indx, nchunkid);
+						"TRUNC(%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu64,
+						inode, indx, lockId, nchunkid);
 				fsnodes_update_checksum(p);
 				return ERROR_DELAYED;
 			}
@@ -3727,7 +3786,7 @@ uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 }
 #endif
 
-uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid) {
+uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid,uint32_t lockid) {
 	uint64_t ochunkid,nchunkid;
 	uint8_t status;
 	fsnode *p;
@@ -3748,7 +3807,7 @@ uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid
 	if (ochunkid == 0) {
 		return ERROR_NOCHUNK;
 	}
-	status = chunk_apply_modification(ts, ochunkid, p->goal, true, &nchunkid);
+	status = chunk_apply_modification(ts, ochunkid, lockid, p->goal, true, &nchunkid);
 	if (status!=STATUS_OK) {
 		return status;
 	}
@@ -4904,6 +4963,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *le
 #endif
 
 uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
+		bool usedummylockid, /* inout */ uint32_t *lockid,
 		uint64_t *chunkid, uint8_t *opflag, uint64_t *length) {
 	ChecksumUpdater cu(context.ts());
 	uint32_t i;
@@ -4962,14 +5022,16 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	ochunkid = p->data.fdata.chunktab[indx];
 	if (context.isPersonalityMaster()) {
 #ifndef METARESTORE
-		status = chunk_multi_modify(ochunkid, p->goal, quota_exceeded, opflag, &nchunkid);
+		status = chunk_multi_modify(ochunkid, lockid, p->goal, usedummylockid,
+				quota_exceeded, opflag, &nchunkid);
 #else
+		(void)usedummylockid;
 		// This will NEVER happen (metarestore doesn't call this in master context)
 		mabort("bad code path: fs_writechunk");
 #endif
 	} else {
 		bool increaseVersion = (*opflag != 0);
-		status = chunk_apply_modification(context.ts(), ochunkid, p->goal, increaseVersion,
+		status = chunk_apply_modification(context.ts(), ochunkid, *lockid, p->goal, increaseVersion,
 				&nchunkid);
 	}
 	if (status != STATUS_OK) {
@@ -4993,8 +5055,8 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 	}
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(),
-				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 "):%" PRIu64,
-				inode, indx, *opflag, nchunkid);
+				"WRITE(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu32 "):%" PRIu64,
+				inode, indx, *opflag, *lockid, nchunkid);
 	} else {
 		gMetadata->metaversion++;
 	}
@@ -5009,9 +5071,13 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 }
 
 #ifndef METARESTORE
-uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid) {
+uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
+	uint8_t status = chunk_can_unlock(chunkid, lockid);
+	if (status != STATUS_OK) {
+		return status;
+	}
 	if (length>0) {
 		fsnode *p;
 		p = fsnodes_id_to_node(inode);
@@ -5190,7 +5256,7 @@ uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gm
 	if (p->type!=TYPE_DIRECTORY && p->type!=TYPE_FILE && p->type!=TYPE_TRASH && p->type!=TYPE_RESERVED) {
 		return ERROR_EPERM;
 	}
-	fsnodes_getgoal_recursive(p,gmode,fgtab,dgtab);
+	fsnodes_getgoal_recursive(p, gmode, fgtab, dgtab);
 	return STATUS_OK;
 }
 
@@ -5296,7 +5362,8 @@ uint8_t fs_setgoal(const FsContext& context,
 		uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
-	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal)) {
+	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal) ||
+			(smode & (SMODE_INCREASE | SMODE_DECREASE) && goal::isXorGoal(goal))) {
 		return ERROR_EINVAL;
 	}
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
@@ -5837,6 +5904,25 @@ uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint
 //      syslog(LOG_NOTICE,"using fast stats");
 	return STATUS_OK;
 }
+
+uint8_t fs_get_chunkid(const FsContext& context,
+		uint32_t inode, uint32_t index, uint64_t *chunkid) {
+	fsnode *p;
+	uint8_t status = fsnodes_get_node_for_operation(context,
+			ExpectedNodeType::kFile, MODE_MASK_EMPTY, inode, &p);
+	if (status != STATUS_OK) {
+		return status;
+	}
+	if (index > MAX_INDEX) {
+		return ERROR_INDEXTOOBIG;
+	}
+	if (index < p->data.fdata.chunks) {
+		*chunkid = p->data.fdata.chunktab[index];
+	} else {
+		*chunkid = 0;
+	}
+	return STATUS_OK;
+}
 #endif
 
 uint8_t fs_add_tape_copy(const TapeKey& tapeKey, TapeserverId tapeserver) {
@@ -6188,7 +6274,8 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if (vc < gGoalDefinitions[f->goal].getExpectedCopies()) {
+						} else if ((goal::isXorGoal(f->goal) && vc == 1)
+								|| (goal::isOrdinaryGoal(f->goal) && vc < gGoalDefinitions[f->goal].getExpectedCopies())) {
 							ugflag = 1;
 							ugchunks++;
 						}
@@ -7665,7 +7752,11 @@ void fs_store(FILE *fd,uint8_t fver) {
 }
 
 static void fs_store_fd(FILE* fd) {
-#if LIZARDFS_VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
+#if LIZARDFS_VERSHEX >= LIZARDFS_VERSION(2, 9, 0)
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	const char hdr[] = LIZARDFSSIGNATURE "M 2.9";
+	const uint8_t metadataVersion = kMetadataVersionWithLockIds;
+#elif LIZARDFS_VERSHEX >= LIZARDFS_VERSION(1, 6, 29)
 	const char hdr[] = MFSSIGNATURE "M 2.0";
 	const uint8_t metadataVersion = kMetadataVersionWithSections;
 #else
@@ -7736,11 +7827,11 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 		}
 		lzfs_pretty_syslog_attempt(LOG_INFO,"loading chunks data from the metadata file");
 		fflush(stderr);
-		if (chunk_load(fd)<0) {
+		if (chunk_load(fd, false)<0) {
+			fprintf(stderr,"error\n");
 #ifndef METARESTORE
 			lzfs_pretty_syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
-			fclose(fd);
 			return -1;
 		}
 	} else { // metadata with sections
@@ -7817,11 +7908,11 @@ int fs_load(FILE *fd,int ignoreflag,uint8_t fver) {
 			} else if (memcmp(hdr,"CHNK 1.0",8)==0) {
 				lzfs_pretty_syslog_attempt(LOG_INFO,"loading chunks data from the metadata file");
 				fflush(stderr);
-				if (chunk_load(fd)<0) {
+				bool loadLockIds = (fver == kMetadataVersionWithLockIds);
+				if (chunk_load(fd, loadLockIds)<0) {
 #ifndef METARESTORE
 					lzfs_pretty_syslog(LOG_ERR,"error reading metadata (chunks)");
 #endif
-					fclose(fd);
 					return -1;
 				}
 			} else {
@@ -8212,6 +8303,9 @@ void fs_loadall(const std::string& fname,int ignoreflag) {
 		metadataVersion = kMetadataVersionLizardFS;
 	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
 		metadataVersion = kMetadataVersionWithSections;
+		/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(hdr, LIZARDFSSIGNATURE "M 2.9", 8) == 0) {
+		metadataVersion = kMetadataVersionWithLockIds;
 	} else {
 		throw MetadataConsistencyException("wrong metadata header version");
 	}
@@ -8329,6 +8423,9 @@ static void fs_read_goals_from_stream(std::istream&& stream) {
 	GoalConfigLoader loader;
 	loader.load(std::move(stream));
 	gGoalDefinitions = loader.goals();
+	for (unsigned i = goal::kMinXorLevel; i <= goal::kMaxXorLevel; ++i) {
+		gGoalDefinitions[goal::xorLevelToGoal(i)] = Goal::getXorGoal(i);
+	}
 }
 
 static void fs_read_goal_config_file() {

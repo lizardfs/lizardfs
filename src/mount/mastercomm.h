@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -26,6 +26,7 @@
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/attributes.h"
+#include "common/chunk_type_with_address.h"
 #include "common/packet.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
@@ -38,7 +39,10 @@ uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask);
 uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]);
 uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]);
 uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t sugidclearmode,uint8_t attr[35]);
-uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint64_t attrlength,uint8_t attr[35]);
+uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uint64_t length,
+		bool& clientPerforms, Attributes& attr, uint64_t& oldLength, uint32_t& lockId);
+uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t length, uint32_t lockId,
+		Attributes& attr);
 uint8_t fs_readlink(uint32_t inode,const uint8_t **path);
 uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8_t *path,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]);
 uint8_t fs_mknod(uint32_t parent,uint8_t nleng,const uint8_t *name,uint8_t type,uint16_t mode,uint16_t umask,uint32_t uid,uint32_t gid,uint32_t rdev,uint32_t &inode,Attributes& attr);
@@ -54,7 +58,13 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 void fs_release(uint32_t inode);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
+uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t &chunkId,
+		uint32_t &chunkVersion, uint64_t &fileLength, uint32_t inode, uint32_t index);
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);
+uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
+		uint64_t &fileLength, uint64_t &chunkId, uint32_t &chunkVersion,
+		std::vector<ChunkTypeWithAddress> &chunkservers);
+uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64_t length);
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length);
 
 uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t nleng,const uint8_t *name,uint8_t mode,const uint8_t **vbuff,uint32_t *vleng);
@@ -73,6 +83,7 @@ uint8_t fs_gettrashpath(uint32_t inode,const uint8_t **path);
 uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path);
 uint8_t fs_undel(uint32_t inode);
 uint8_t fs_purge(uint32_t inode);
+
 
 uint8_t fs_custom(MessageBuffer& buffer);
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);

@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 #include "master/goal_config_loader.h"
 
@@ -44,7 +62,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		} catch (std::exception&) {
 			throw ParseException(currentPosition + ": malformed goal ID");
 		}
-		if (goalId < goal::kMinGoal || goalId > goal::kMaxGoal) {
+		if (goalId < goal::kMinOrdinaryGoal || goalId > goal::kMaxOrdinaryGoal) {
 			throw ParseException(currentPosition + ": goal ID out of range");
 		}
 		if (!result[goalId].name().empty()) {
@@ -117,7 +135,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	}
 
 	// Fill all other valid goals with default values
-	for (uint8_t goal = goal::kMinGoal; goal <= goal::kMaxGoal; ++goal) {
+	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		if (result[goal].name().empty()) {
 			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}}, std::map<MediaLabel, int>{});
 		}

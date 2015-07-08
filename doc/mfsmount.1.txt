@@ -80,6 +80,15 @@ connection with master is done in background - with this option mount can be run
 *-o mfsacl*::
 enable ACL support (disabled by default)
 
+*-o mfsaclcacheto=*'SEC'::
+set ACL cache timeout in seconds (default: 1.0)
+
+*-o mfsaclcachesize=*'N'::
+define ACL cache size in number of entries (0: no cache; default: 1000)
+
+*-o mfsrwlock=*'0|1'::
+when set to 1, parallel reads from the same descriptor are performed (default: 1)
+
 *-o mfsmkdircopysgid=*'N'::
 sgid bit should be copied during mkdir operation (on linux default: 1, otherwise: 0)
 
@@ -107,12 +116,44 @@ set directory entry cache timeout in seconds (default: 1.0)
 *-o mfswritecachesize=*'N'::
 specify write cache size in MiB (in range: 16..2048 - default: 128)
 
+*-o mfscacheperinodepercentage=*'N'::
+specify what part of the write cache non occupied by other inodes can a single inode occupy
+(measured in %).
+E.g. When N=75 and the inode X uses 10 MiB, and all other inodes use 20 MiB out of 100 MiB cache,
+X can use 50 MiB more (since 75% of 80 MiB is 60 MiB).
+Default: 25.
+
+*-o mfschunkserverreadto=*'MSEC'::
+set timeout for whole communication with a chunkserver during read operation in milliseconds (default: 2000)
+
+*-o mfschunkserverwriteto=*'MSEC'::
+set chunkserver response timeout during write operation in milliseconds (default: 5000)
+
+*-o mfschunkserverrtt=*'MSEC'::
+set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver
+(default: 200)
+
+*-o mfschunkserverconnectreadto=*'MSEC'::
+set timeout for connecting with chunkservers during read operation in milliseconds (default: 2000)
+
+*-o mfschunkserverbasicreadto=*'MSEC'::
+set timeout for executing the basic variant of a read operation in milliseconds (default: 2000)
+
+*-o mfschunkservertotalreadto=*'MSEC'::
+set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: 2000)
+
 *-o mfsrlimitnofile=*'N'::
 try to change limit of simultaneously opened file descriptors on startup
 (default: 100000)
 
 *-o mfsnice=*'LEVEL'::
 try to change nice level to specified value on startup (default: -19)
+
+*-o mfswriteworkers=*'N'::
+define number of write workers (default: 10)
+
+*-o mfswritewindowsize=*'N'::
+define write window size (in blocks) for each chunk (default: 15)
 
 *-o mfsmemlock*::
 try to lock memory (must be enabled at build time)

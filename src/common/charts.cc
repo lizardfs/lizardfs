@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -31,10 +31,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <string>
 
 #include "common/crc.h"
 #include "common/cwrap.h"
@@ -1765,7 +1765,7 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 	while (ptr+4<=eptr) {
 		chleng = get32bit((const uint8_t **)&ptr);
 		if (ptr+8+chleng<=eptr) {
-			crc = mycrc32(0,ptr,chleng+4);
+			crc = mycrc32(0, ptr, chleng+4);
 			ptr += chleng+4;
 			if (memcmp(ptr,"CRC#",4)==0) {
 				put32bit(&ptr,crc);

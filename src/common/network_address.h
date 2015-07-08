@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "common/platform.h"
@@ -6,6 +24,7 @@
 #include <functional>
 #include <sstream>
 
+#include "common/human_readable_format.h"
 #include "common/serialization.h"
 
 struct NetworkAddress {
@@ -28,11 +47,9 @@ struct NetworkAddress {
 
 	std::string toString() const {
 		std::stringstream ss;
-		for (int i = 24; i >= 0; i -= 8) {
-			ss << ((ip >> i) & 0xff) << (i > 0 ? "." : "");
-		}
-		if (port > 0) {
-			ss << ":" << port;
+		ss << ipToString(ip);
+		if (port) {
+			ss << ':' << port;
 		}
 		return ss.str();
 	}
@@ -60,3 +77,17 @@ struct hash<NetworkAddress> {
 	}
 };
 }
+
+class ChunkserverConnectionException : public Exception {
+public:
+	ChunkserverConnectionException(const std::string& message, const NetworkAddress& server)
+			: Exception(message + " (server " + server.toString() + ")"),
+			  server_(server) {
+	}
+
+	~ChunkserverConnectionException() throw() {}
+	const NetworkAddress& server() const throw() { return server_; }
+
+private:
+	NetworkAddress server_;
+};

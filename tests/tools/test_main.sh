@@ -16,6 +16,7 @@ done
 . tools/assert.sh
 . tools/moosefs.sh
 . tools/lizardfs.sh
+. tools/lizardfsXX.sh
 . tools/network.sh
 . tools/random.sh
 . tools/system.sh

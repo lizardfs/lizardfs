@@ -6,7 +6,7 @@ CHUNKSERVERS=4 \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
-goals="3 4"
+goals="3 xor3"
 for goal in $goals; do
 	mkdir dir_$goal
 	mfssetgoal $goal dir_$goal

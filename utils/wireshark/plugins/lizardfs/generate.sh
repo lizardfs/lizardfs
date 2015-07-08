@@ -12,6 +12,8 @@ cd "$(dirname "$0")"
 # Generate the includes.h file which properly includes all the definitions of LizardFS constants
 {
 	echo "#define PROTO_BASE 0"
+	echo "#define MFSBLOCKSINCHUNK 1024"
+	echo "#define MFSBLOCKSIZE 65536"
 	echo "#define LIZARDFS_WIRESHARK_PLUGIN 1"
 	echo "#include \"$input_file\"" # MFSCommunication.h
 } > includes.h

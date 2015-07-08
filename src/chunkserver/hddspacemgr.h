@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -23,7 +23,10 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "common/chunk_with_version.h"
+#include "chunkserver/chunk_file_creator.h"
+#include "chunkserver/output_buffers.h"
+#include "common/chunk_type.h"
+#include "common/chunk_with_version_and_type.h"
 #include "common/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
@@ -32,7 +35,7 @@ uint32_t hdd_errorcounter(void);
 
 void hdd_get_damaged_chunks(std::vector<uint64_t>& chunks);
 void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit);
-void hdd_get_new_chunks(std::vector<ChunkWithVersion>& chunks,uint32_t limit);
+void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks);
 
 /* lock/unlock pair */
 uint32_t hdd_diskinfo_v1_size();
@@ -43,47 +46,90 @@ void hdd_diskinfo_v2_data(uint8_t *buff);
 void hdd_get_chunks_begin();
 void hdd_get_chunks_end();
 
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersion>& chunks);
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks);
 
 int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
 
 /* I/O operations */
-int hdd_open(uint64_t chunkid);
-int hdd_close(uint64_t chunkid);
-int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff);
-int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff);
+int hdd_open(uint64_t chunkid, ChunkType chunkType);
+int hdd_close(uint64_t chunkid, ChunkType chunkType);
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlock,
+		uint16_t nrOfBlocks);
+int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
+		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer);
+int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
-int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks);
-int hdd_get_checksum(uint64_t chunkid, uint32_t version, uint32_t *checksum);
-int hdd_get_checksum_tab(uint64_t chunkid, uint32_t version, uint8_t *checksum_tab);
+int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks);
 
 /* chunk operations */
 
 /* all chunk operations in one call */
-// newversion>0 && length==0xFFFFFFFF && copychunkid==0    -> change version
-// newversion>0 && length==0xFFFFFFFF && copycnunkid>0     -> duplicate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid==0     -> truncate
-// newversion>0 && length<=MFSCHUNKSIZE && copychunkid>0      -> duplicate and truncate
-// newversion==0 && length==0                              -> delete
-// newversion==0 && length==1                              -> create
-// newversion==0 && length==2                              -> test
-int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length);
+// chunkNewVersion>0 && length==0xFFFFFFFF && chunkIdCopy==0    -> change version
+// chunkNewVersion>0 && length==0xFFFFFFFF && chunkIdCopy>0     -> duplicate
+// chunkNewVersion>0 && length<=MFSCHUNKSIZE && chunkIdCopy==0     -> truncate
+// chunkNewVersion>0 && length<=MFSCHUNKSIZE && chunkIdCopy>0      -> duplicate and truncate
+// chunkNewVersion==0 && length==0                              -> delete
+// chunkNewVersion==0 && length==1                              -> create
+// chunkNewVersion==0 && length==2                              -> test
+int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
+		uint32_t chunkNewVersion, uint64_t chunkIdCopy, uint32_t chunkVersionCopy, uint32_t length);
 
-#define hdd_delete(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,0)
-#define hdd_create(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,1)
-#define hdd_test(_chunkid,_version) hdd_chunkop(_chunkid,_version,0,0,0,2)
-#define hdd_version(_chunkid,_version,_newversion) (((_newversion)>0)?hdd_chunkop(_chunkid,_version,_newversion,0,0,0xFFFFFFFF):ERROR_EINVAL)
-#define hdd_truncate(_chunkid,_version,_newversion,_length) (((_newversion)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,0,0,_length):ERROR_EINVAL)
-#define hdd_duplicate(_chunkid,_version,_newversion,_copychunkid,_copyversion) (((_newversion>0)&&(_copychunkid)>0)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,0xFFFFFFFF):ERROR_EINVAL)
-#define hdd_duptrunc(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length) (((_newversion>0)&&(_copychunkid)>0&&(_length)!=0xFFFFFFFF)?hdd_chunkop(_chunkid,_version,_newversion,_copychunkid,_copyversion,_length):ERROR_EINVAL)
+#define hdd_delete(chunkId, chunkVersion, chunkType) \
+	hdd_chunkop(chunkId, chunkVersion, chunkType, 0, 0, 0, 0)
+
+#define hdd_create(chunkId, chunkVersion, chunkType) \
+	hdd_chunkop(chunkId, chunkVersion, chunkType, 0, 0, 0, 1)
+
+#define hdd_test(chunkId, chunkVersion) \
+	hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), 0, 0, 0, 2)
+
+#define hdd_version(chunkId, chunkVersion, chunkType, chunkNewVersion) \
+	(((chunkNewVersion) > 0) \
+	? hdd_chunkop(chunkId, chunkVersion, chunkType, chunkNewVersion, 0, 0, \
+			0xFFFFFFFF) \
+	: ERROR_EINVAL)
+
+#define hdd_truncate(chunkId, chunkVersion, chunkNewVersion, length) \
+	(((chunkNewVersion) > 0 && (length) != 0xFFFFFFFF) \
+	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, 0, 0, \
+			length, ChunkType::getStandardChunkType()) \
+	: ERROR_EINVAL)
+
+#define hdd_duplicate(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy) \
+	(((chunkNewVersion > 0) && (chunkIdCopy) > 0) \
+	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, \
+			chunkIdCopy, chunkVersionCopy, 0xFFFFFFFF) \
+	: ERROR_EINVAL)
+
+#define hdd_duptrunc(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy, \
+		length) \
+	(((chunkNewVersion > 0) && (chunkIdCopy) > 0 && (length) != 0xFFFFFFFF) \
+	? hdd_chunkop(chunkId, chunkVersion, , ChunkType::getStandardChunkType(), chunkNewVersion, \
+			chunkIdCopy, chunkVersionCopy, length) \
+	: ERROR_EINVAL)
+
+/* chunk testing */
+void hdd_test_chunk(ChunkWithVersionAndType chunk);
 
 /* initialization */
 int hdd_late_init(void);
 int hdd_init(void);
 
-/* debug only */
-void hdd_test_show_chunks(void);
-void hdd_test_show_openedchunks(void);
+class HddspacemgrChunkFileCreator : public ChunkFileCreator {
+public:
+	HddspacemgrChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+	~HddspacemgrChunkFileCreator();
+	virtual void create();
+	virtual void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
+	virtual void commit();
+
+private:
+	bool isCreated_;
+	bool isOpen_;
+	bool isCommited_;
+};

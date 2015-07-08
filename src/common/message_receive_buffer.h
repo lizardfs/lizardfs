@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "common/platform.h"
@@ -17,7 +35,7 @@ public:
 	/*
 	 * @param size - maximum size of a message to read
 	 */
-	MessageReceiveBuffer(size_t size) : buffer_(size), bytesReveived_(0) {
+	MessageReceiveBuffer(size_t size) : buffer_(size), bytesReceived_(0) {
 	}
 
 	/*
@@ -34,7 +52,7 @@ public:
 	 * If this is true, one can access this->getMessageHeader()
 	 */
 	bool hasMessageHeader() const {
-		return bytesReveived_ >= PacketHeader::kSize;
+		return bytesReceived_ >= PacketHeader::kSize;
 	}
 
 	/*
@@ -44,7 +62,7 @@ public:
 		if (!hasMessageHeader()) {
 			return false;
 		}
-		return bytesReveived_ >= PacketHeader::kSize + getMessageHeader().length;
+		return bytesReceived_ >= PacketHeader::kSize + getMessageHeader().length;
 	}
 
 	/*
@@ -71,5 +89,5 @@ public:
 
 private:
 	std::vector<uint8_t> buffer_;
-	size_t bytesReveived_;
+	size_t bytesReceived_;
 };

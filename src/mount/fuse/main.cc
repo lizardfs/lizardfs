@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -19,29 +19,17 @@
 #include "common/platform.h"
 
 #include <errno.h>
-#include <fcntl.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <syslog.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <unistd.h>
 #include <fstream>
-
-#include <fuse/fuse.h>
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
 
 #include "common/crc.h"
 #include "common/md5.h"
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
-#include "mount/csdb.h"
+#include "common/sockets.h"
+#include "common/wrong_crc_notifier.h"
 #include "mount/fuse/mfs_fuse.h"
 #include "mount/fuse/mfs_meta_fuse.h"
+#include "mount/fuse/mount_config.h"
 #include "mount/g_io_limiters.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
@@ -50,22 +38,8 @@
 #include "mount/symlinkcache.h"
 #include "mount/writedata.h"
 
-#if defined(LIZARDFS_HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK)
-#  include <sys/mman.h>
-#endif
-
-#if defined(MCL_CURRENT) && defined(MCL_FUTURE)
-#  define MFS_USE_MEMLOCK
-#endif
-
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-
-#if defined(__APPLE__)
-#define DEFAULT_OPTIONS "allow_other,default_permissions,daemon_timeout=600,iosize=65536"
-#else
-#define DEFAULT_OPTIONS "allow_other,default_permissions"
-#endif
 
 static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn);
 
@@ -119,342 +93,11 @@ static void init_fuse_lowlevel_ops() {
    mfs_oper.removexattr    = mfs_removexattr;
 }
 
-struct mfsopts {
-	char *masterhost;
-	char *masterport;
-	char *bindhost;
-	char *subfolder;
-	char *password;
-	char *md5pass;
-	unsigned nofile;
-	signed nice;
-#ifdef MFS_USE_MEMLOCK
-	int memlock;
-#endif
-	int nostdmountoptions;
-	int meta;
-	int debug;
-	int delayedinit;
-	int acl;
-	int mkdircopysgid;
-	char *sugidclearmodestr;
-	SugidClearMode sugidclearmode;
-	char *cachemode;
-	int cachefiles;
-	int keepcache;
-	int passwordask;
-	int donotrememberpassword;
-	unsigned writecachesize;
-	unsigned ioretries;
-	unsigned aclcachesize;
-	double attrcacheto;
-	double entrycacheto;
-	double direntrycacheto;
-	double aclcacheto;
-	unsigned reportreservedperiod;
-	char *iolimits;
-};
-
-static struct mfsopts mfsopts;
-static char *defaultmountpoint = NULL;
-
-static int custom_cfg;
-
-enum {
-	KEY_CFGFILE,
-	KEY_META,
-	KEY_HOST,
-	KEY_PORT,
-	KEY_BIND,
-	KEY_PATH,
-	KEY_PASSWORDASK,
-	KEY_NOSTDMOUNTOPTIONS,
-	KEY_HELP,
-	KEY_VERSION
-};
-
-#define MFS_OPT(t, p, v) { t, offsetof(struct mfsopts, p), v }
-
-static struct fuse_opt mfs_opts_stage1[] = {
-	FUSE_OPT_KEY("mfscfgfile=",    KEY_CFGFILE),
-	FUSE_OPT_KEY("-c ",            KEY_CFGFILE),
-	FUSE_OPT_END
-};
-
-static struct fuse_opt mfs_opts_stage2[] = {
-	MFS_OPT("mfsmaster=%s", masterhost, 0),
-	MFS_OPT("mfsport=%s", masterport, 0),
-	MFS_OPT("mfsbind=%s", bindhost, 0),
-	MFS_OPT("mfssubfolder=%s", subfolder, 0),
-	MFS_OPT("mfspassword=%s", password, 0),
-	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
-	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
-	MFS_OPT("mfsnice=%d", nice, 0),
-#ifdef MFS_USE_MEMLOCK
-	MFS_OPT("mfsmemlock", memlock, 1),
-#endif
-	MFS_OPT("mfswritecachesize=%u", writecachesize, 0),
-	MFS_OPT("mfsaclcachesize=%u", aclcachesize, 0),
-	MFS_OPT("mfsioretries=%u", ioretries, 0),
-	MFS_OPT("mfsdebug", debug, 1),
-	MFS_OPT("mfsmeta", meta, 1),
-	MFS_OPT("mfsdelayedinit", delayedinit, 1),
-	MFS_OPT("mfsacl", acl, 1),
-	MFS_OPT("mfsdonotrememberpassword", donotrememberpassword, 1),
-	MFS_OPT("mfscachefiles", cachefiles, 1),
-	MFS_OPT("mfscachemode=%s", cachemode, 0),
-	MFS_OPT("mfsmkdircopysgid=%u", mkdircopysgid, 0),
-	MFS_OPT("mfssugidclearmode=%s", sugidclearmodestr, 0),
-	MFS_OPT("mfsattrcacheto=%lf", attrcacheto, 0),
-	MFS_OPT("mfsentrycacheto=%lf", entrycacheto, 0),
-	MFS_OPT("mfsdirentrycacheto=%lf", direntrycacheto, 0),
-	MFS_OPT("mfsaclcacheto=%lf", aclcacheto, 0),
-	MFS_OPT("mfsreportreservedperiod=%u", reportreservedperiod, 0),
-	MFS_OPT("mfsiolimits=%s", iolimits, 0),
-
-	FUSE_OPT_KEY("-m",             KEY_META),
-	FUSE_OPT_KEY("--meta",         KEY_META),
-	FUSE_OPT_KEY("-H ",            KEY_HOST),
-	FUSE_OPT_KEY("-P ",            KEY_PORT),
-	FUSE_OPT_KEY("-B ",            KEY_BIND),
-	FUSE_OPT_KEY("-S ",            KEY_PATH),
-	FUSE_OPT_KEY("-p",             KEY_PASSWORDASK),
-	FUSE_OPT_KEY("--password",     KEY_PASSWORDASK),
-	FUSE_OPT_KEY("-n",             KEY_NOSTDMOUNTOPTIONS),
-	FUSE_OPT_KEY("--nostdopts",    KEY_NOSTDMOUNTOPTIONS),
-	FUSE_OPT_KEY("-V",             KEY_VERSION),
-	FUSE_OPT_KEY("--version",      KEY_VERSION),
-	FUSE_OPT_KEY("-h",             KEY_HELP),
-	FUSE_OPT_KEY("--help",         KEY_HELP),
-	FUSE_OPT_END
-};
-
-static void usage(const char *progname) {
-	fprintf(stderr,
-"usage: %s mountpoint [options]\n"
-"\n", progname);
-	fprintf(stderr,
-"general options:\n"
-"    -o opt,[opt...]         mount options\n"
-"    -h   --help             print help\n"
-"    -V   --version          print version\n"
-"\n");
-	fprintf(stderr,
-"MFS options:\n"
-"    -c CFGFILE                  equivalent to '-o mfscfgfile=CFGFILE'\n"
-"    -m   --meta                 equivalent to '-o mfsmeta'\n"
-"    -H HOST                     equivalent to '-o mfsmaster=HOST'\n"
-"    -P PORT                     equivalent to '-o mfsport=PORT'\n"
-"    -B IP                       equivalent to '-o mfsbind=IP'\n"
-"    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
-"    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
-"    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
-"    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
-"    -o mfsdebug                 print some debugging information\n"
-"    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
-"    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
-"    -o mfsacl                   enable ACL support (disabled by default)\n"
-#ifdef __linux__
-"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
-#else
-"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 0)\n"
-#endif
-#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: EXT)\n"
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: BSD)\n"
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: OSX)\n"
-#else
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: NEVER)\n"
-#endif
-"    -o mfscachemode=CMODE       set cache mode (see below ; default: AUTO)\n"
-"    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
-"    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
-"    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
-"    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
-"    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
-"    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
-"    -o mfsrlimitnofile=N        on startup mfsmount tries to change number of descriptors it can simultaneously open (default: 100000)\n"
-"    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
-#ifdef MFS_USE_MEMLOCK
-"    -o mfsmemlock               try to lock memory\n"
-#endif
-"    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
-"    -o mfsaclcachesize=N        define ACL cache size in number of entries (0: no cache; default: 1000)\n"
-"    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
-"    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
-"    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
-"    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - chosen automatically by OS)\n"
-"    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
-"    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
-"    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
-"    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
-"    -o mfsiolimits=FILE         define I/O limits configuration file\n"
-"\n");
-	fprintf(stderr,
-"CMODE can be set to:\n"
-"    NO,NONE or NEVER            never allow files data to be kept in cache (safest but can reduce efficiency)\n"
-"    YES or ALWAYS               always allow files data to be kept in cache (dangerous)\n"
-"    AUTO                        file cache is managed by mfsmaster automatically (should be very safe and efficient)\n"
-"\n");
-	fprintf(stderr,
-"SMODE can be set to:\n"
-"    NEVER                       LizardFS will not change suid and sgid bit on chown\n"
-"    ALWAYS                      clear suid and sgid on every chown - safest operation\n"
-"    OSX                         standard behavior in OS X and Solaris (chown made by unprivileged user clear suid and sgid)\n"
-"    BSD                         standard behavior in *BSD systems (like in OSX, but only when something is really changed)\n"
-"    EXT                         standard behavior in most file systems on Linux (directories not changed, others: suid cleared always, sgid only when group exec bit is set)\n"
-"    XFS                         standard behavior in XFS on Linux (like EXT but directories are changed by unprivileged users)\n"
-"SMODE extra info:\n"
-"    btrfs,ext2,ext3,ext4,hfs[+],jfs,ntfs and reiserfs on Linux work as 'EXT'.\n"
-"    Only xfs on Linux works a little different. Beware that there is a strange\n"
-"    operation - chown(-1,-1) which is usually converted by a kernel into something\n"
-"    like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'\n"
-"\n");
-}
-
-static void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
-	FILE *fd;
-	char lbuff[1000],*p;
-
-	fd = fopen(filename,"r");
-	if (fd==NULL) {
-		if (optional==0) {
-			fprintf(stderr,"can't open cfg file: %s\n",filename);
-			abort();
-		}
-		return;
-	}
-	custom_cfg = 1;
-	while (fgets(lbuff,999,fd)) {
-		if (lbuff[0]!='#' && lbuff[0]!=';') {
-			lbuff[999]=0;
-			for (p = lbuff ; *p ; p++) {
-				if (*p=='\r' || *p=='\n') {
-					*p=0;
-					break;
-				}
-			}
-			p--;
-			while (p>=lbuff && (*p==' ' || *p=='\t')) {
-				*p=0;
-				p--;
-			}
-			p = lbuff;
-			while (*p==' ' || *p=='\t') {
-				p++;
-			}
-			if (*p) {
-				if (*p=='-') {
-					fuse_opt_add_arg(outargs,p);
-				} else if (*p=='/') {
-					if (defaultmountpoint) {
-						free(defaultmountpoint);
-					}
-					defaultmountpoint = strdup(p);
-				} else {
-					fuse_opt_add_arg(outargs,"-o");
-					fuse_opt_add_arg(outargs,p);
-				}
-			}
-		}
-	}
-	fclose(fd);
-}
-
-static int mfs_opt_proc_stage1(void *data, const char *arg, int key, struct fuse_args *outargs) {
-	struct fuse_args *defargs = (struct fuse_args*)data;
-	(void)outargs;
-
-	if (key==KEY_CFGFILE) {
-		if (memcmp(arg,"mfscfgfile=",11)==0) {
-			mfs_opt_parse_cfg_file(arg+11,0,defargs);
-		} else if (arg[0]=='-' && arg[1]=='c') {
-			mfs_opt_parse_cfg_file(arg+2,0,defargs);
-		}
-		return 0;
-	}
-	return 1;
-}
-
-// return value:
-//   0 - discard this arg
-//   1 - keep this arg for future processing
-static int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *outargs) {
-	(void)data;
-
-	switch (key) {
-	case FUSE_OPT_KEY_OPT:
-		return 1;
-	case FUSE_OPT_KEY_NONOPT:
-		return 1;
-	case KEY_HOST:
-		if (mfsopts.masterhost!=NULL) {
-			free(mfsopts.masterhost);
-		}
-		mfsopts.masterhost = strdup(arg+2);
-		return 0;
-	case KEY_PORT:
-		if (mfsopts.masterport!=NULL) {
-			free(mfsopts.masterport);
-		}
-		mfsopts.masterport = strdup(arg+2);
-		return 0;
-	case KEY_BIND:
-		if (mfsopts.bindhost!=NULL) {
-			free(mfsopts.bindhost);
-		}
-		mfsopts.bindhost = strdup(arg+2);
-		return 0;
-	case KEY_PATH:
-		if (mfsopts.subfolder!=NULL) {
-			free(mfsopts.subfolder);
-		}
-		mfsopts.subfolder = strdup(arg+2);
-		return 0;
-	case KEY_PASSWORDASK:
-		mfsopts.passwordask = 1;
-		return 0;
-	case KEY_META:
-		mfsopts.meta = 1;
-		return 0;
-	case KEY_NOSTDMOUNTOPTIONS:
-		mfsopts.nostdmountoptions = 1;
-		return 0;
-	case KEY_VERSION:
-		fprintf(stderr, "LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
-		{
-			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
-
-			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
-			fuse_opt_add_arg(&helpargs,"--version");
-			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
-		}
-		exit(0);
-	case KEY_HELP:
-		usage(outargs->argv[0]);
-		{
-			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
-
-			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
-			fuse_opt_add_arg(&helpargs,"-ho");
-			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
-			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
-		}
-		exit(1);
-	default:
-		fprintf(stderr, "internal error\n");
-		abort();
-	}
-}
-
-static void mfs_fsinit (void *userdata, struct fuse_conn_info* conn) {
+static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
 #if (FUSE_VERSION >= 28)
 	conn->want |= FUSE_CAP_DONT_MASK;
 #else
-	(void)conn;
+		(void)conn;
 #endif
 
 	int *piped = (int*)userdata;
@@ -478,16 +121,18 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	md5ctx ctx;
 	uint8_t md5pass[16];
 
-	if (mfsopts.passwordask && mfsopts.password==NULL && mfsopts.md5pass==NULL) {
-		mfsopts.password = getpass("MFS Password:");
+	if (gMountOptions.passwordask && gMountOptions.password==NULL
+			&& gMountOptions.md5pass==NULL) {
+		gMountOptions.password = getpass("MFS Password:");
 	}
-	if (mfsopts.password) {
+	if (gMountOptions.password) {
 		md5_init(&ctx);
-		md5_update(&ctx,(uint8_t*)(mfsopts.password),strlen(mfsopts.password));
+		md5_update(&ctx,(uint8_t*)(gMountOptions.password),
+				strlen(gMountOptions.password));
 		md5_final(md5pass,&ctx);
-		memset(mfsopts.password,0,strlen(mfsopts.password));
-	} else if (mfsopts.md5pass) {
-		uint8_t *p = (uint8_t*)(mfsopts.md5pass);
+		memset(gMountOptions.password,0,strlen(gMountOptions.password));
+	} else if (gMountOptions.md5pass) {
+		uint8_t *p = (uint8_t*)(gMountOptions.md5pass);
 		for (i=0 ; i<16 ; i++) {
 			if (*p>='0' && *p<='9') {
 				md5pass[i]=(*p-'0')<<4;
@@ -516,20 +161,35 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			fprintf(stderr,"bad md5 definition (md5 should be given as 32 hex digits)\n");
 			return 1;
 		}
-		memset(mfsopts.md5pass,0,strlen(mfsopts.md5pass));
+		memset(gMountOptions.md5pass,0,strlen(gMountOptions.md5pass));
 	}
 
-	if (mfsopts.delayedinit) {
-		fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
-				mfsopts.meta, mp, mfsopts.subfolder,
-				(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
-				mfsopts.donotrememberpassword, 1, mfsopts.ioretries, mfsopts.reportreservedperiod);
+	if (gMountOptions.delayedinit) {
+		fs_init_master_connection(
+				gMountOptions.bindhost,
+				gMountOptions.masterhost,
+				gMountOptions.masterport,
+				gMountOptions.meta,
+				mp,
+				gMountOptions.subfolder,
+				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
+				gMountOptions.donotrememberpassword,
+				1,
+				gMountOptions.ioretries,
+				gMountOptions.reportreservedperiod);
 	} else {
-		if (fs_init_master_connection(mfsopts.bindhost, mfsopts.masterhost, mfsopts.masterport,
-					mfsopts.meta, mp, mfsopts.subfolder,
-					(mfsopts.password || mfsopts.md5pass) ? md5pass : NULL,
-					mfsopts.donotrememberpassword, 0, mfsopts.ioretries,
-					mfsopts.reportreservedperiod) < 0) {
+		if (fs_init_master_connection(
+				gMountOptions.bindhost,
+				gMountOptions.masterhost,
+				gMountOptions.masterport,
+				gMountOptions.meta,
+				mp,
+				gMountOptions.subfolder,
+				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
+				gMountOptions.donotrememberpassword,
+				0,
+				gMountOptions.ioretries,
+				gMountOptions.reportreservedperiod) < 0) {
 			return 1;
 		}
 	}
@@ -545,17 +205,17 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 #endif
 	}
 
-	rls.rlim_cur = mfsopts.nofile;
-	rls.rlim_max = mfsopts.nofile;
+	rls.rlim_cur = gMountOptions.nofile;
+	rls.rlim_max = gMountOptions.nofile;
 	setrlimit(RLIMIT_NOFILE,&rls);
 
-	setpriority(PRIO_PROCESS,getpid(),mfsopts.nice);
+	setpriority(PRIO_PROCESS,getpid(),gMountOptions.nice);
 #ifdef MFS_USE_MEMLOCK
-	if (mfsopts.memlock) {
+	if (gMountOptions.memlock) {
 		rls.rlim_cur = RLIM_INFINITY;
 		rls.rlim_max = RLIM_INFINITY;
 		if (setrlimit(RLIMIT_MEMLOCK,&rls)<0) {
-			mfsopts.memlock=0;
+			gMountOptions.memlock=0;
 		}
 	}
 #endif
@@ -584,7 +244,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 
 
 #ifdef MFS_USE_MEMLOCK
-	if (mfsopts.memlock) {
+	if (gMountOptions.memlock) {
 		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
 			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
 		}
@@ -592,18 +252,29 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 #endif
 
 	symlink_cache_init();
-	if (mfsopts.meta == 0) {
+	if (gMountOptions.meta == 0) {
 		// initialize the global IO limiter before starting mastercomm threads
 		gGlobalIoLimiter();
 	}
-	fs_init_threads(mfsopts.ioretries);
+	fs_init_threads(gMountOptions.ioretries);
 	masterproxy_init();
 
-	if (mfsopts.meta==0) {
+	uint32_t bindIp;
+	if (tcpresolve(gMountOptions.bindhost, NULL, &bindIp, NULL, 1) < 0) {
+		bindIp = 0;
+	}
+	try {
+		gWrongCrcNotifier.init(bindIp);
+	} catch (std::system_error &e) {
+		syslog(LOG_ERR, "Failed to create wrong CRC notifier thread: %s", e.what());
+		abort();
+	}
+
+	if (gMountOptions.meta==0) {
 		try {
 			IoLimitsConfigLoader loader;
-			if (mfsopts.iolimits) {
-				loader.load(std::ifstream(mfsopts.iolimits));
+			if (gMountOptions.iolimits) {
+				loader.load(std::ifstream(gMountOptions.iolimits));
 			}
 			// initialize the local limiter before loading configuration
 			gLocalIoLimiter();
@@ -615,9 +286,18 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			symlink_cache_term();
 			return 1;
 		}
-		csdb_init();
-		read_data_init(mfsopts.ioretries);
-		write_data_init(mfsopts.writecachesize*1024*1024,mfsopts.ioretries);
+		read_data_init(gMountOptions.ioretries,
+				gMountOptions.chunkserverrtt,
+				gMountOptions.chunkserverconnectreadto,
+				gMountOptions.chunkserverbasicreadto,
+				gMountOptions.chunkservertotalreadto,
+				gMountOptions.prefetchxorstripes);
+		write_data_init(gMountOptions.writecachesize,
+				gMountOptions.ioretries,
+				gMountOptions.writeworkers,
+				gMountOptions.writewindowsize,
+				gMountOptions.chunkserverwriteto,
+				gMountOptions.cachePerInodePercentage);
 	}
 
 	ch = fuse_mount(mp, args);
@@ -629,10 +309,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
-		if (mfsopts.meta==0) {
+		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -640,13 +319,24 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		return 1;
 	}
 
-	if (mfsopts.meta) {
-		mfs_meta_init(mfsopts.debug,mfsopts.entrycacheto,mfsopts.attrcacheto);
+	if (gMountOptions.meta) {
+		mfs_meta_init(gMountOptions.debug,
+				gMountOptions.entrycacheto,
+				gMountOptions.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(mfsopts.debug, mfsopts.keepcache, mfsopts.direntrycacheto, mfsopts.entrycacheto,
-				mfsopts.attrcacheto, mfsopts.mkdircopysgid, mfsopts.sugidclearmode, mfsopts.acl,
-				mfsopts.aclcacheto, mfsopts.aclcachesize);
+		mfs_init(
+				gMountOptions.debug,
+				gMountOptions.keepcache,
+				gMountOptions.direntrycacheto,
+				gMountOptions.entrycacheto,
+				gMountOptions.attrcacheto,
+				gMountOptions.mkdircopysgid,
+				gMountOptions.sugidclearmode,
+				gMountOptions.acl,
+				gMountOptions.aclcacheto,
+				gMountOptions.aclcachesize,
+				gMountOptions.rwlock);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
 	if (se==NULL) {
@@ -659,10 +349,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
-		if (mfsopts.meta==0) {
+		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -683,10 +372,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
-		if (mfsopts.meta==0) {
+		if (gMountOptions.meta==0) {
 			write_data_term();
 			read_data_term();
-			csdb_term();
 		}
 		masterproxy_term();
 		fs_term();
@@ -694,7 +382,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		return 1;
 	}
 
-	if (mfsopts.debug==0 && fg==0) {
+	if (gMountOptions.debug==0 && fg==0) {
 		setsid();
 		setpgid(0,getpid());
 		if ((i = open("/dev/null", O_RDWR, 0)) != -1) {
@@ -722,10 +410,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	fuse_session_remove_chan(ch);
 	fuse_session_destroy(se);
 	fuse_unmount(mp,ch);
-	if (mfsopts.meta==0) {
+	if (gMountOptions.meta==0) {
 		write_data_term();
 		read_data_term();
-		csdb_term();
 	}
 	masterproxy_term();
 	fs_term();
@@ -794,38 +481,38 @@ void make_fsname(struct fuse_args *args) {
 	int libver;
 	libver = fuse_version();
 	if (libver >= 27) {
-		l = snprintf(fsnamearg,256,"-osubtype=mfs%s,fsname=",(mfsopts.meta)?"meta":"");
+		l = snprintf(fsnamearg,256,"-osubtype=mfs%s,fsname=",(gMountOptions.meta)?"meta":"");
 		if (libver >= 28) {
-			l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterhost);
+			l += strncpy_escape_commas(fsnamearg+l,256-l,gMountOptions.masterhost);
 			if (l<255) {
 				fsnamearg[l++]=':';
 			}
-			l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.masterport);
-			if (mfsopts.subfolder[0]!='/') {
+			l += strncpy_escape_commas(fsnamearg+l,256-l,gMountOptions.masterport);
+			if (gMountOptions.subfolder[0]!='/') {
 				if (l<255) {
 					fsnamearg[l++]='/';
 				}
 			}
-			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
-				l += strncpy_escape_commas(fsnamearg+l,256-l,mfsopts.subfolder);
+			if (gMountOptions.subfolder[0]!='/' && gMountOptions.subfolder[1]!=0) {
+				l += strncpy_escape_commas(fsnamearg+l,256-l,gMountOptions.subfolder);
 			}
 			if (l>255) {
 				l=255;
 			}
 			fsnamearg[l]=0;
 		} else {
-			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
+			l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.masterhost);
 			if (l<255) {
 				fsnamearg[l++]=':';
 			}
-			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterport);
-			if (mfsopts.subfolder[0]!='/') {
+			l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.masterport);
+			if (gMountOptions.subfolder[0]!='/') {
 				if (l<255) {
 					fsnamearg[l++]='/';
 				}
 			}
-			if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
-				l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
+			if (gMountOptions.subfolder[0]!='/' && gMountOptions.subfolder[1]!=0) {
+				l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.subfolder);
 			}
 			if (l>255) {
 				l=255;
@@ -834,19 +521,19 @@ void make_fsname(struct fuse_args *args) {
 		}
 	} else {
 #else
-		l = snprintf(fsnamearg,256,"-ofsname=mfs%s#",(mfsopts.meta)?"meta":"");
-		l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterhost);
+		l = snprintf(fsnamearg,256,"-ofsname=mfs%s#",(gMountOptions.meta)?"meta":"");
+		l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.masterhost);
 		if (l<255) {
 			fsnamearg[l++]=':';
 		}
-		l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.masterport);
-		if (mfsopts.subfolder[0]!='/') {
+		l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.masterport);
+		if (gMountOptions.subfolder[0]!='/') {
 			if (l<255) {
 				fsnamearg[l++]='/';
 			}
 		}
-		if (mfsopts.subfolder[0]!='/' && mfsopts.subfolder[1]!=0) {
-			l += strncpy_remove_commas(fsnamearg+l,256-l,mfsopts.subfolder);
+		if (gMountOptions.subfolder[0]!='/' && gMountOptions.subfolder[1]!=0) {
+			l += strncpy_remove_commas(fsnamearg+l,256-l,gMountOptions.subfolder);
 		}
 		if (l>255) {
 			l=255;
@@ -859,7 +546,7 @@ void make_fsname(struct fuse_args *args) {
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) try {
 	int res;
 	int mt,fg;
 	char *mountpoint;
@@ -869,138 +556,122 @@ int main(int argc, char *argv[]) {
 	strerr_init();
 	mycrc32_init();
 
-   init_fuse_lowlevel_ops();
-
-	mfsopts.masterhost = NULL;
-	mfsopts.masterport = NULL;
-	mfsopts.bindhost = NULL;
-	mfsopts.subfolder = NULL;
-	mfsopts.password = NULL;
-	mfsopts.md5pass = NULL;
-	mfsopts.nofile = 0;
-	mfsopts.nice = -19;
-#ifdef MFS_USE_MEMLOCK
-	mfsopts.memlock = 0;
-#endif
-	mfsopts.nostdmountoptions = 0;
-	mfsopts.meta = 0;
-	mfsopts.debug = 0;
-	mfsopts.delayedinit = 0;
-	mfsopts.acl = 0;
-#ifdef __linux__
-	mfsopts.mkdircopysgid = 1;
-#else
-	mfsopts.mkdircopysgid = 0;
-#endif
-	mfsopts.sugidclearmodestr = NULL;
-	mfsopts.donotrememberpassword = 0;
-	mfsopts.cachefiles = 0;
-	mfsopts.cachemode = NULL;
-	mfsopts.writecachesize = 0;
-	mfsopts.aclcachesize = 1000;
-	mfsopts.ioretries = 30;
-	mfsopts.passwordask = 0;
-	mfsopts.attrcacheto = 1.0;
-	mfsopts.entrycacheto = 0.0;
-	mfsopts.direntrycacheto = 1.0;
-	mfsopts.aclcacheto = 1.0;
-	mfsopts.reportreservedperiod = 60;
-
-	custom_cfg = 0;
+	init_fuse_lowlevel_ops();
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 
-	if (fuse_opt_parse(&args, &defaultargs, mfs_opts_stage1, mfs_opt_proc_stage1)<0) {
+	if (fuse_opt_parse(&args, &defaultargs, gMfsOptsStage1, mfs_opt_proc_stage1)<0) {
 		exit(1);
 	}
 
-	if (custom_cfg==0) {
+	if (gCustomCfg==0) {
 		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
 	}
 
-	if (fuse_opt_parse(&defaultargs, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
+	if (fuse_opt_parse(&defaultargs, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
 
-	if (fuse_opt_parse(&args, &mfsopts, mfs_opts_stage2, mfs_opt_proc_stage2)<0) {
+	if (fuse_opt_parse(&args, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
 
-	if (mfsopts.cachemode!=NULL && mfsopts.cachefiles) {
+	if (gMountOptions.cachemode!=NULL && gMountOptions.cachefiles) {
 		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);
 		return 1;
 	}
 
-	if (mfsopts.cachemode==NULL) {
-		mfsopts.keepcache=(mfsopts.cachefiles)?1:0;
-	} else if (strcasecmp(mfsopts.cachemode,"AUTO")==0) {
-		mfsopts.keepcache=0;
-	} else if (strcasecmp(mfsopts.cachemode,"YES")==0 || strcasecmp(mfsopts.cachemode,"ALWAYS")==0) {
-		mfsopts.keepcache=1;
-	} else if (strcasecmp(mfsopts.cachemode,"NO")==0 || strcasecmp(mfsopts.cachemode,"NONE")==0 || strcasecmp(mfsopts.cachemode,"NEVER")==0) {
-		mfsopts.keepcache=2;
+	if (gMountOptions.cachemode==NULL) {
+		gMountOptions.keepcache=(gMountOptions.cachefiles)?1:0;
+	} else if (strcasecmp(gMountOptions.cachemode,"AUTO")==0) {
+		gMountOptions.keepcache=0;
+	} else if (strcasecmp(gMountOptions.cachemode,"YES")==0 || strcasecmp(gMountOptions.cachemode,"ALWAYS")==0) {
+		gMountOptions.keepcache=1;
+	} else if (strcasecmp(gMountOptions.cachemode,"NO")==0
+			|| strcasecmp(gMountOptions.cachemode,"NONE")==0
+			|| strcasecmp(gMountOptions.cachemode,"NEVER")==0) {
+		gMountOptions.keepcache=2;
 	} else {
 		fprintf(stderr,"unrecognized cachemode option\nsee: %s -h for help\n",argv[0]);
 		return 1;
 	}
-	if (mfsopts.sugidclearmodestr==NULL) {
+	if (gMountOptions.sugidclearmodestr==NULL) {
 #if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-		mfsopts.sugidclearmode = SugidClearMode::kExt;
+		gMountOptions.sugidclearmode = SugidClearMode::kExt;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-		mfsopts.sugidclearmode = SugidClearMode::kBsd;
+		gMountOptions.sugidclearmode = SugidClearMode::kBsd;
 #elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-		mfsopts.sugidclearmode = SugidClearMode::kOsx;
+		gMountOptions.sugidclearmode = SugidClearMode::kOsx;
 #else
-		mfsopts.sugidclearmode = SugidClearMode::kNever;
+		gMountOptions.sugidclearmode = SugidClearMode::kNever;
 #endif
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"NEVER")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kNever;
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"ALWAYS")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kAlways;
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"OSX")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kOsx;
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"BSD")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kBsd;
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"EXT")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kExt;
-	} else if (strcasecmp(mfsopts.sugidclearmodestr,"XFS")==0) {
-		mfsopts.sugidclearmode = SugidClearMode::kXfs;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"NEVER")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kNever;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"ALWAYS")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kAlways;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"OSX")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kOsx;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"BSD")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kBsd;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"EXT")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kExt;
+	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"XFS")==0) {
+		gMountOptions.sugidclearmode = SugidClearMode::kXfs;
 	} else {
 		fprintf(stderr,"unrecognized sugidclearmode option\nsee: %s -h for help\n",argv[0]);
 		return 1;
 	}
-	if (mfsopts.masterhost==NULL) {
-		mfsopts.masterhost = strdup("mfsmaster");
+	if (gMountOptions.masterhost==NULL) {
+		gMountOptions.masterhost = strdup("mfsmaster");
 	}
-	if (mfsopts.masterport==NULL) {
-		mfsopts.masterport = strdup("9421");
+	if (gMountOptions.masterport==NULL) {
+		gMountOptions.masterport = strdup("9421");
 	}
-	if (mfsopts.subfolder==NULL) {
-		mfsopts.subfolder = strdup("/");
+	if (gMountOptions.subfolder==NULL) {
+		gMountOptions.subfolder = strdup("/");
 	}
-	if (mfsopts.nofile==0) {
-		mfsopts.nofile=100000;
+	if (gMountOptions.nofile==0) {
+		gMountOptions.nofile=100000;
 	}
-	if (mfsopts.writecachesize==0) {
-		mfsopts.writecachesize=128;
+	if (gMountOptions.writecachesize==0) {
+		gMountOptions.writecachesize=128;
 	}
-	if (mfsopts.writecachesize<16) {
-		fprintf(stderr,"write cache size too low (%u MiB) - increased to 16 MiB\n",mfsopts.writecachesize);
-		mfsopts.writecachesize=16;
+	if (gMountOptions.cachePerInodePercentage < 1) {
+		fprintf(stderr, "cache per inode percentage too low (%u %%) - increased to 1%%\n",
+				gMountOptions.cachePerInodePercentage);
+		gMountOptions.cachePerInodePercentage = 1;
 	}
-	if (mfsopts.writecachesize>2048) {
-		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 2048 MiB\n",mfsopts.writecachesize);
-		mfsopts.writecachesize=2048;
+	if (gMountOptions.cachePerInodePercentage > 100) {
+		fprintf(stderr, "cache per inode percentage too big (%u %%) - decreased to 100%%\n",
+				gMountOptions.cachePerInodePercentage);
+		gMountOptions.cachePerInodePercentage = 100;
 	}
-	if (mfsopts.aclcachesize > 1000 * 1000) {
-		fprintf(stderr,"acl cache size too big (%u) - decreased to 1000000\n",mfsopts.aclcachesize);
-		mfsopts.aclcachesize=1000 * 1000;
+	if (gMountOptions.writecachesize<16) {
+		fprintf(stderr,"write cache size too low (%u MiB) - increased to 16 MiB\n",
+				gMountOptions.writecachesize);
+		gMountOptions.writecachesize=16;
 	}
-
-	if (mfsopts.nostdmountoptions==0) {
+	if (gMountOptions.writecachesize>1024*1024) {
+		fprintf(stderr,"write cache size too big (%u MiB) - decreased to 1 TiB\n",
+				gMountOptions.writecachesize);
+		gMountOptions.writecachesize=1024*1024;
+	}
+	if (gMountOptions.writeworkers<1) {
+		fprintf(stderr,"no write workers - increasing number of workers to 1\n");
+		gMountOptions.writeworkers=1;
+	}
+	if (gMountOptions.writewindowsize < 1) {
+		fprintf(stderr,"write window size is 0 - increasing to 1\n");
+		gMountOptions.writewindowsize = 1;
+	}
+	if (gMountOptions.nostdmountoptions==0) {
 		fuse_opt_add_arg(&args, "-o" DEFAULT_OPTIONS);
 	}
-
+	if (gMountOptions.aclcachesize > 1000 * 1000) {
+		fprintf(stderr,"acl cache size too big (%u) - decreased to 1000000\n",
+				gMountOptions.aclcachesize);
+		gMountOptions.aclcachesize = 1000 * 1000;
+	}
 
 	make_fsname(&args);
 
@@ -1010,8 +681,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!mountpoint) {
-		if (defaultmountpoint) {
-			mountpoint = defaultmountpoint;
+		if (gDefaultMountpoint) {
+			mountpoint = gDefaultMountpoint;
 		} else {
 			fprintf(stderr,"no mount point\nsee: %s -h for help\n",argv[0]);
 			return 1;
@@ -1021,20 +692,22 @@ int main(int argc, char *argv[]) {
 	res = mainloop(&args,mountpoint,mt,fg);
 	fuse_opt_free_args(&args);
 	fuse_opt_free_args(&defaultargs);
-	free(mfsopts.masterhost);
-	free(mfsopts.masterport);
-	if (mfsopts.bindhost) {
-		free(mfsopts.bindhost);
+	free(gMountOptions.masterhost);
+	free(gMountOptions.masterport);
+	if (gMountOptions.bindhost) {
+		free(gMountOptions.bindhost);
 	}
-	free(mfsopts.subfolder);
-	if (defaultmountpoint && defaultmountpoint != mountpoint) {
-		free(defaultmountpoint);
+	free(gMountOptions.subfolder);
+	if (gDefaultMountpoint && gDefaultMountpoint != mountpoint) {
+		free(gDefaultMountpoint);
 	}
-	if (mfsopts.iolimits) {
-		free(mfsopts.iolimits);
+	if (gMountOptions.iolimits) {
+		free(gMountOptions.iolimits);
 	}
 	free(mountpoint);
 	stats_term();
 	strerr_term();
 	return res;
+} catch (std::bad_alloc ex) {
+	mabort("run out of memory");
 }

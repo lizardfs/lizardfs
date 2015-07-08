@@ -18,7 +18,7 @@ typedef int (*fsync_t)(int);
 #define COMMAND_BUFSIZE FILENAME_BUFSIZE
 
 // only files with this substring in their name ale influenced by this library
-#define FILENAME_TRIGGER "/chunk_000"
+#define FILENAME_TRIGGER "/chunk_"
 
 // offset in a file used in some scenarios
 #define FAR_OFFSET_THRESHOLD 102400

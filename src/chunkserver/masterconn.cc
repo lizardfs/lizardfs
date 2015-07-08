@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -25,17 +25,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <algorithm>
+#include <list>
 
 #include <list>
 
 #include "chunkserver/bgjobs.h"
-#include "chunkserver/csserv.h"
 #include "chunkserver/hddspacemgr.h"
+#include "chunkserver/network_main_thread.h"
 #include "common/cfg.h"
 #include "common/cstoma_communication.h"
 #include "common/datapack.h"
@@ -43,6 +45,7 @@
 #include "common/input_packet.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/matocs_communication.h"
 #include "common/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/output_packet.h"
@@ -51,6 +54,7 @@
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
+#include "devtools/request_log.h"
 
 #define MaxPacketSize 10000
 
@@ -89,7 +93,6 @@ static int32_t jobfdpdescpos;
 static char *MasterHost;
 static char *MasterPort;
 static char *BindHost;
-static uint32_t BgJobThreads;
 static uint32_t Timeout_ms;
 static void* reconnect_hook;
 static std::string gLabel;
@@ -154,11 +157,11 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint64_t tdusedspace,tdtotalspace;
 	uint32_t chunkcount,tdchunkcount;
 
-	myip = csserv_getlistenip();
-	myport = csserv_getlistenport();
+	myip = mainNetworkThreadGetListenIp();
+	myport = mainNetworkThreadGetListenPort();
 	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
 	hdd_get_chunks_begin();
-	std::vector<ChunkWithVersion> chunks;
+	std::vector<ChunkWithVersionAndType> chunks;
 	hdd_get_chunks_next_list_data(chunks);
 	while (!chunks.empty()) {
 		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
@@ -199,26 +202,49 @@ void masterconn_check_hdd_reports() {
 		}
 
 		chunks.clear();
+		// FIXME use chunkIdWithType instead of chunkId for reporting lost chunks
 		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
 		if (!chunks.empty()) {
 			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
 		}
+		std::vector<ChunkWithVersionAndType> chunksWithVersionAndType;
+		hdd_get_new_chunks(chunksWithVersionAndType);
+		size_t firstIndexToBeSent = 0;
+		size_t kNewChunkLimit = 1000;
+		while (firstIndexToBeSent < chunksWithVersionAndType.size()) {
+			size_t firstIndexNotToBeSent = std::min(
+					firstIndexToBeSent + kNewChunkLimit,
+					chunksWithVersionAndType.size());
+			std::vector<ChunkWithVersionAndType> toBeSent(
+					chunksWithVersionAndType.begin() + firstIndexToBeSent,
+					chunksWithVersionAndType.begin() + firstIndexNotToBeSent);
 
-		MooseFSVector<ChunkWithVersion> chunksWithVersions;
-		hdd_get_new_chunks(chunksWithVersions, NEWCHUNKLIMIT);
-		if (!chunksWithVersions.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_NEW,
-					chunksWithVersions);
+			std::vector<uint8_t> buffer;
+			cstoma::chunkNew::serialize(buffer, toBeSent);
+			masterconn_create_attached_packet(eptr, buffer);
+			firstIndexToBeSent = firstIndexNotToBeSent;
 		}
 	}
 }
-void masterconn_jobfinished(uint8_t status,void *packet) {
+
+void masterconn_jobfinished(uint8_t status, void *packet) {
 	uint8_t *ptr;
 	masterconn *eptr = masterconnsingleton;
 	if (eptr->mode == CONNECTED) {
 		ptr = masterconn_get_packet_data(packet);
 		ptr[8]=status;
 		masterconn_attach_packet(eptr,packet);
+	} else {
+		masterconn_delete_packet(packet);
+	}
+}
+
+void masterconn_lizjobfinished(uint8_t status, void *packet) {
+	OutputPacket* outputPacket = static_cast<OutputPacket*>(packet);
+	masterconn *eptr = masterconnsingleton;
+	if (eptr->mode == CONNECTED) {
+		cstoma::overwriteStatusField(outputPacket->packet, status);
+		masterconn_attach_packet(eptr, packet);
 	} else {
 		masterconn_delete_packet(packet);
 	}
@@ -255,134 +281,80 @@ void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
 }
 
 
-void masterconn_create(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t chunkVersion;
 
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_CREATE - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_CREATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_create(jpool,masterconn_jobfinished,packet,chunkid,version);
+	matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
+	OutputPacket *outputPacket = new OutputPacket;
+	cstoma::createChunk::serialize(outputPacket->packet, chunkId, chunkType, STATUS_OK);
+	job_create(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, chunkVersion);
 }
 
-void masterconn_delete(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_delete(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DELETE - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_DELETE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_delete(jpool,masterconn_jobfinished,packet,chunkid,version);
+	matocs::deleteChunk::deserialize(data, chunkId, chunkType, chunkVersion);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::deleteChunk::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_delete(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType);
 }
 
-void masterconn_setversion(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t newversion;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_setversion(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	uint32_t newVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_SET_VERSION - wrong size (%" PRIu32 "/16)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	newversion = get32bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_SET_VERSION,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_version(jpool,masterconn_jobfinished,packet,chunkid,version,newversion);
+	matocs::setVersion::deserialize(data, chunkId, chunkType, chunkVersion, newVersion);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::setVersion::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_version(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkVersion, chunkType,
+			newVersion);
 }
 
-void masterconn_duplicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint64_t copychunkid;
-	uint32_t copyversion;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_duplicate(masterconn* /*eptr*/,const std::vector<uint8_t>& data) {
+	uint64_t newChunkId, oldChunkId;
+	uint32_t newChunkVersion, oldChunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 
-	if (length!=8+4+8+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPLICATE - wrong size (%" PRIu32 "/24)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	copychunkid = get64bit(&data);
-	copyversion = get32bit(&data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_DUPLICATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,copychunkid);
-	job_duplicate(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion);
+	matocs::duplicateChunk::deserialize(data, newChunkId, newChunkVersion, chunkType,
+			oldChunkId, oldChunkVersion);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::duplicateChunk::serialize(outputPacket->packet, newChunkId, chunkType, 0);
+	job_duplicate(jpool, masterconn_lizjobfinished, outputPacket, oldChunkId,
+			oldChunkVersion, oldChunkVersion, chunkType, newChunkId, newChunkVersion);
 }
 
-void masterconn_truncate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
+void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
 	uint32_t version;
-	uint32_t leng;
-	uint32_t newversion;
-	uint8_t *ptr;
-	void *packet;
+	uint32_t chunkLength;
+	uint32_t newVersion;
 
-	if (length!=8+4+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_TRUNCATE - wrong size (%" PRIu32 "/20)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	leng = get32bit(&data);
-	newversion = get32bit(&data);
-	version = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_TRUNCATE,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,chunkid);
-	job_truncate(jpool,masterconn_jobfinished,packet,chunkid,version,newversion,leng);
+	matocs::truncateChunk::deserialize(data, chunkId, chunkType, chunkLength, newVersion, version);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::truncate::serialize(outputPacket->packet, chunkId, chunkType, 0);
+	job_truncate(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, version,
+			newVersion, chunkLength);
 }
 
-void masterconn_duptrunc(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint64_t copychunkid;
-	uint32_t copyversion;
-	uint32_t leng;
-	uint8_t *ptr;
-	void *packet;
+void masterconn_duptrunc(masterconn* /*eptr*/, const std::vector<uint8_t>& data) {
+	uint64_t chunkId, copyChunkId;
+	uint32_t chunkVersion, copyChunkVersion;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t newLength;
 
-	if (length!=8+4+8+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_DUPTRUNC - wrong size (%" PRIu32 "/28)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	copychunkid = get64bit(&data);
-	copyversion = get32bit(&data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	leng = get32bit(&data);
-	packet = masterconn_create_detached_packet(CSTOMA_DUPTRUNC,8+1);
-	ptr = masterconn_get_packet_data(packet);
-	put64bit(&ptr,copychunkid);
-	job_duptrunc(jpool,masterconn_jobfinished,packet,chunkid,version,version,copychunkid,copyversion,leng);
+	matocs::duptruncChunk::deserialize(data, copyChunkId, copyChunkVersion,
+			chunkType, chunkId, chunkVersion, newLength);
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::duptruncChunk::serialize(outputPacket->packet, copyChunkId, chunkType, 0);
+	job_duptrunc(jpool, masterconn_lizjobfinished, outputPacket, chunkId,
+			chunkVersion, chunkVersion, chunkType, copyChunkId, copyChunkVersion, newLength);
 }
 
 void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -413,10 +385,29 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	put64bit(&ptr,copychunkid);
 	put32bit(&ptr,copyversion);
 	put32bit(&ptr,leng);
-	job_chunkop(jpool,masterconn_chunkopfinished,packet,chunkid,version,newversion,copychunkid,copyversion,leng);
+	job_chunkop(jpool, masterconn_chunkopfinished, packet, chunkid, version,
+			ChunkType::getStandardChunkType(), newversion, copychunkid, copyversion, leng);
 }
 
-void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
+void masterconn_replicate(const std::vector<uint8_t>& data) {
+	uint64_t chunkId;
+	ChunkType chunkType = ChunkType::getStandardChunkType();
+	uint32_t chunkVersion;
+	uint32_t sourcesBufferSize;
+	const uint8_t* sourcesBuffer;
+
+	matocs::replicateChunk::deserializePartial(data,
+			chunkId, chunkVersion, chunkType, sourcesBuffer);
+	sourcesBufferSize = data.size() - (sourcesBuffer - data.data());
+	OutputPacket* outputPacket = new OutputPacket;
+	cstoma::replicateChunk::serialize(outputPacket->packet,
+			chunkId, chunkType, STATUS_OK, chunkVersion);
+	DEBUG_LOG("cs.matocs.replicate") << chunkId;
+	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
+			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
+}
+
+void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t version;
 	uint32_t ip;
@@ -440,9 +431,9 @@ void masterconn_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) 
 		ip = get32bit(&data);
 		port = get16bit(&data);
 //              syslog(LOG_NOTICE,"start job replication (%08" PRIX64 ":%04" PRIX32 ":%04" PRIX32 ":%02" PRIX16 ")",chunkid,version,ip,port);
-		job_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
+		job_legacy_replicate_simple(jpool,masterconn_replicationfinished,packet,chunkid,version,ip,port);
 	} else {
-		job_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
+		job_legacy_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
 	}
 }
 
@@ -514,32 +505,7 @@ void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32
 }
 */
 
-void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid;
-	uint32_t version;
-	uint8_t status;
-	uint32_t checksum;
-
-	if (length!=8+4) {
-		syslog(LOG_NOTICE,"ANTOCS_CHUNK_CHECKSUM - wrong size (%" PRIu32 "/12)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	status = hdd_get_checksum(chunkid,version,&checksum);
-	if (status!=STATUS_OK) {
-		masterconn_create_attached_moosefs_packet(
-				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, status);
-	} else {
-		masterconn_create_attached_moosefs_packet(
-				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, checksum);
-	}
-}
-
-void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBuffer& message) {
-	uint32_t length = header.length;
-	const uint8_t* data = message.data();
+void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBuffer& message) try {
 	switch (header.type) {
 		case ANTOAN_NOP:
 			break;
@@ -547,43 +513,49 @@ void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBu
 			break;
 		case ANTOAN_BAD_COMMAND_SIZE: // for future use
 			break;
-		case MATOCS_CREATE:
-			masterconn_create(eptr,data,length);
+		case LIZ_MATOCS_CREATE_CHUNK:
+			masterconn_create(eptr, message);
 			break;
-		case MATOCS_DELETE:
-			masterconn_delete(eptr,data,length);
+		case LIZ_MATOCS_DELETE_CHUNK:
+			masterconn_delete(eptr, message);
 			break;
-		case MATOCS_SET_VERSION:
-			masterconn_setversion(eptr,data,length);
+		case LIZ_MATOCS_SET_VERSION:
+			masterconn_setversion(eptr, message);
 			break;
-		case MATOCS_DUPLICATE:
-			masterconn_duplicate(eptr,data,length);
+		case LIZ_MATOCS_DUPLICATE_CHUNK:
+			masterconn_duplicate(eptr, message);
 			break;
 		case MATOCS_REPLICATE:
-			masterconn_replicate(eptr,data,length);
+			masterconn_legacy_replicate(eptr, message.data(), message.size());
+			break;
+		case LIZ_MATOCS_REPLICATE_CHUNK:
+			masterconn_replicate(message);
 			break;
 		case MATOCS_CHUNKOP:
-			masterconn_chunkop(eptr,data,length);
+			masterconn_chunkop(eptr, message.data(), message.size());
 			break;
-		case MATOCS_TRUNCATE:
-			masterconn_truncate(eptr,data,length);
+		case LIZ_MATOCS_TRUNCATE:
+			masterconn_truncate(eptr, message);
 			break;
-		case MATOCS_DUPTRUNC:
-			masterconn_duptrunc(eptr,data,length);
+		case LIZ_MATOCS_DUPTRUNC_CHUNK:
+			masterconn_duptrunc(eptr, message);
 			break;
 //              case MATOCS_STRUCTURE_LOG:
-//                      masterconn_structure_log(eptr,data,length);
+//                      masterconn_structure_log(eptr, message.data(), message.size());
 //                      break;
 //              case MATOCS_STRUCTURE_LOG_ROTATE:
-//                      masterconn_structure_log_rotate(eptr,data,length);
+//                      masterconn_structure_log_rotate(eptr, message.data(), message.size());
 //                      break;
-		case ANTOCS_CHUNK_CHECKSUM:
-			masterconn_chunk_checksum(eptr,data,length);
-			break;
 		default:
 			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")", header.type);
 			eptr->mode = KILL;
 	}
+} catch (IncorrectDeserializationException& e) {
+	syslog(LOG_NOTICE,
+			"chunkserver <-> master module: got inconsistent message "
+			"(type:%" PRIu32 ", length:%" PRIu32"), %s",
+			header.type, uint32_t(message.size()), e.what());
+	eptr->mode = KILL;
 }
 
 
@@ -755,6 +727,7 @@ void masterconn_write(masterconn *eptr) {
 
 
 void masterconn_desc(std::vector<pollfd> &pdesc) {
+	LOG_AVG_TILL_END_OF_SCOPE0("master_desc");
 	masterconn *eptr = masterconnsingleton;
 
 	eptr->pdescpos = -1;
@@ -783,6 +756,7 @@ void masterconn_desc(std::vector<pollfd> &pdesc) {
 }
 
 void masterconn_serve(const std::vector<pollfd> &pdesc) {
+	LOG_AVG_TILL_END_OF_SCOPE0("master_serve");
 	masterconn *eptr = masterconnsingleton;
 
 	if (eptr->pdescpos>=0 && (pdesc[eptr->pdescpos].revents & (POLLHUP | POLLERR))) {
@@ -912,7 +886,6 @@ int masterconn_init(void) {
 	MasterHost = cfg_getstr("MASTER_HOST","mfsmaster");
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
-	BgJobThreads = cfg_getuint32("CSSERV_MASTER_WORKERS", 10);
 	Timeout_ms = get_cfg_timeout();
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 
@@ -931,15 +904,18 @@ int masterconn_init(void) {
 		return -1;
 	}
 
-	jpool = job_pool_new(BgJobThreads,BGJOBSCNT,&jobfd);
-	if (jpool==NULL) {
-		return -1;
-	}
-
 	main_eachloopregister(masterconn_check_hdd_reports);
 	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rndu32_ranged(ReconnectionDelay),masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
+	return 0;
+}
+
+int masterconn_init_threads(void) {
+	jpool = job_pool_new(10,BGJOBSCNT,&jobfd);
+	if (jpool==NULL) {
+		return -1;
+	}
 	return 0;
 }

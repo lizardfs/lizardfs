@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -748,7 +748,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			}
 		}
 		if (mingoal>0 && maxgoal>0) {
-			if (mingoal>goal::kMinGoal || maxgoal<goal::kMaxGoal) {
+			if (mingoal>goal::kMinOrdinaryGoal || maxgoal<goal::kMaxOrdinaryGoal) {
 				fprintf(stderr," ; setgoal limited to (%u:%u)",mingoal,maxgoal);
 			}
 			if (mintrashtime>0 || maxtrashtime<UINT32_C(0xFFFFFFFF)) {
@@ -1424,51 +1424,98 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	return ret;
 }
 
-uint8_t fs_truncate(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint64_t attrlength,uint8_t attr[35]) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint8_t ret = ERROR_IO;
-	unsigned retries = 0;
-	int retrySleepTime_ms = 200;
+uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uint64_t length,
+		bool& clientPerforms, Attributes& attr, uint64_t& oldLength, uint32_t& lockId) {
+	threc *rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseTruncate::serialize(message, rec->packetId, inode, opened, uid, gid, length);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
 
-	while (retries < gIoRetries) {
-		threc *rec = fs_get_my_threc();
-		wptr = fs_createpacket(rec, CLTOMA_FUSE_TRUNCATE, 21);
-		if (wptr==NULL) {
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE, message)) {
 			return ERROR_IO;
 		}
-		put32bit(&wptr, inode);
-		put8bit(&wptr, opened);
-		put32bit(&wptr, uid);
-		put32bit(&wptr, gid);
-		put64bit(&wptr, attrlength);
-		rptr = fs_sendandreceive(rec, MATOCL_FUSE_TRUNCATE, &i);
-		if (rptr == NULL) {
-			ret = ERROR_IO;
-		} else if (i == 1) {
-			ret = rptr[0];
-		} else if (i != 35) {
-			setDisconnect(true);
-			ret = ERROR_IO;
+
+		clientPerforms = false;
+		uint32_t messageId;
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseTruncate::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseTruncate::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE with version"
+						" %d" PRIu32, matocl::fuseTruncate::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseTruncate::kFinishedPacketVersion) {
+			matocl::fuseTruncate::deserialize(message, messageId, attr);
+		} else if (packetVersion == matocl::fuseTruncate::kInProgressPacketVersion) {
+			clientPerforms = true;
+			matocl::fuseTruncate::deserialize(message, messageId, oldLength, lockId);
 		} else {
-			memcpy(attr, rptr, 35);
-			ret = STATUS_OK;
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE - wrong packet version");
 		}
-		// Waiting for unlocked inode is unlimited
-		if (ret == ERROR_LOCKED) {
-			sleep(1);
-			continue;
-		}
-		if (ret != ERROR_NOTDONE && ret != ERROR_CHUNKLOST) {
-			break;
-		}
-		++retries;
-		usleep(retrySleepTime_ms * 1000);
-		retrySleepTime_ms = std::min(2 * retrySleepTime_ms, 60 * 1000); // max sleep is 60 seconds
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
 	}
-	return ret;
+
+	return STATUS_OK;
 }
+
+uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t length, uint32_t lockId,
+		Attributes& attr) {
+	threc *rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseTruncateEnd::serialize(message, rec->packetId, inode, uid, gid, length, lockId);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE_END, message)) {
+			return ERROR_IO;
+		}
+
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		uint32_t messageId;
+		if (packetVersion == matocl::fuseTruncateEnd::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseTruncateEnd::deserialize(message, messageId, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE_END with version"
+						" %d" PRIu32, matocl::fuseTruncateEnd::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseTruncateEnd::kResponsePacketVersion) {
+			matocl::fuseTruncateEnd::deserialize(message, messageId, attr);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE_END - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE_END message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
+	}
+
+	return STATUS_OK;
+}
+
 
 uint8_t fs_readlink(uint32_t inode,const uint8_t **path) {
 	uint8_t *wptr;
@@ -1897,6 +1944,40 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 	return ret;
 }
 
+uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t &chunkId,
+		uint32_t &chunkVersion, uint64_t &fileLength, uint32_t inode, uint32_t chunkIndex) {
+	threc *rec = fs_get_my_threc();
+
+	std::vector<uint8_t> message;
+	cltoma::fuseReadChunk::serialize(message, rec->packetId, inode, chunkIndex);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_READ_CHUNK, message)) {
+			return ERROR_IO;
+		}
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+
+		if (packetVersion == matocl::fuseReadChunk::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseReadChunk::deserialize(message, status);
+			return status;
+		} else if (packetVersion == matocl::fuseReadChunk::kResponsePacketVersion) {
+			matocl::fuseReadChunk::deserialize(message, fileLength,
+					chunkId, chunkVersion, serverList);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException&) {
+		setDisconnect(true);
+		return ERROR_IO;
+	}
+	return STATUS_OK;
+}
+
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
@@ -1935,6 +2016,75 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 		ret = STATUS_OK;
 	}
 	return ret;
+}
+
+uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
+		uint64_t &fileLength, uint64_t &chunkId, uint32_t &chunkVersion,
+		std::vector<ChunkTypeWithAddress> &chunkservers) {
+	threc *rec = fs_get_my_threc();
+
+	std::vector<uint8_t> message;
+	cltoma::fuseWriteChunk::serialize(message, rec->packetId, inode, chunkIndex, lockId);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+
+	try {
+		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK, message)) {
+			return ERROR_IO;
+		}
+
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == matocl::fuseWriteChunk::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::fuseWriteChunk::deserialize(message, status);
+			if (status == STATUS_OK) {
+				syslog (LOG_NOTICE,
+						"Received STATUS_OK in message LIZ_MATOCL_FUSE_WRITE_CHUNK with version"
+						" %d" PRIu32, matocl::fuseWriteChunk::kStatusPacketVersion);
+				setDisconnect(true);
+				return ERROR_IO;
+			}
+			return status;
+		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
+			matocl::fuseWriteChunk::deserialize(message,
+					fileLength, chunkId, chunkVersion, lockId, chunkservers);
+		} else {
+			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
+		}
+	} catch (IncorrectDeserializationException& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
+	}
+
+	return STATUS_OK;
+}
+
+uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64_t length) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::fuseWriteChunkEnd::serialize(message, rec->packetId, chunkId, lockId, inode, length);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK_END, message)) {
+		return ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		matocl::fuseWriteChunkEnd::deserialize(message, status);
+		return status;
+	} catch (Exception& ex) {
+		syslog(LOG_NOTICE,
+				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK_END message from master "
+				"(length:%" PRIu64"), %s", message.size(), ex.what());
+		setDisconnect(true);
+		return ERROR_IO;
+	}
 }
 
 uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length) {

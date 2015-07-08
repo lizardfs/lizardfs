@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -30,10 +30,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "chunkserver/csserv.h"
+#include "chunkserver/chunk_replicator.h"
 #include "chunkserver/hddspacemgr.h"
+#include "chunkserver/legacy_replicator.h"
 #include "chunkserver/masterconn.h"
-#include "chunkserver/replicator.h"
+#include "chunkserver/network_stats.h"
 #include "common/charts.h"
 #include "common/main.h"
 
@@ -178,7 +179,7 @@ void chartsdata_refresh(void) {
 	data[CHARTS_CHUNKOPJOBS]=masterjobs;
 	data[CHARTS_CSCONNIN]=0;
 	data[CHARTS_CSCONNOUT]=0;
-	csserv_stats(&bin,&bout,&opr,&opw,&csservjobs);
+	networkStats(&bin,&bout,&opr,&opw,&csservjobs);
 	data[CHARTS_CSSERVIN]=bin;
 	data[CHARTS_CSSERVOUT]=bout;
 	data[CHARTS_CHUNKIOJOBS]=csservjobs;
@@ -194,7 +195,7 @@ void chartsdata_refresh(void) {
 	data[CHARTS_DATALLOPR]=dopr;
 	data[CHARTS_DATALLOPW]=dopw;
 	replicator_stats(&repl);
-	data[CHARTS_REPL]=repl;
+	data[CHARTS_REPL] = repl + gReplicator.getStats();
 	hdd_op_stats(&op_cr,&op_de,&op_ve,&op_du,&op_tr,&op_dt,&op_te);
 	data[CHARTS_CREATE]=op_cr;
 	data[CHARTS_DELETE]=op_de;

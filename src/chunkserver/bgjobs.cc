@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -27,12 +27,19 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <cassert>
+#include <cstdint>
 
+#include "chunkserver/chunk_replicator.h"
 #include "chunkserver/hddspacemgr.h"
-#include "chunkserver/replicator.h"
+#include "chunkserver/legacy_replicator.h"
+#include "common/chunk_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/datapack.h"
 #include "common/massert.h"
 #include "common/pcqueue.h"
+#include "devtools/request_log.h"
+#include "devtools/TracePrinter.h"
 
 #define JHASHSIZE 0x400
 #define JHASHPOS(id) ((id)&0x3FF)
@@ -50,58 +57,91 @@ enum {
 	OP_OPEN,
 	OP_CLOSE,
 	OP_READ,
+	OP_PREFETCH,
 	OP_WRITE,
-	OP_REPLICATE
+	OP_LEGACY_REPLICATE,
+	OP_REPLICATE,
+	OP_GET_BLOCKS
 };
 
 // for OP_CHUNKOP
-typedef struct _chunk_op_args {
+struct chunk_chunkop_args {
 	uint64_t chunkid,copychunkid;
 	uint32_t version,newversion,copyversion;
 	uint32_t length;
-} chunk_op_args;
+	ChunkType chunkType;
+};
 
 // for OP_OPEN and OP_CLOSE
-typedef struct _chunk_oc_args {
+struct chunk_open_and_close_args {
 	uint64_t chunkid;
-} chunk_oc_args;
+	ChunkType chunkType;
+};
 
 // for OP_READ
-typedef struct _chunk_rd_args {
+struct chunk_read_args {
 	uint64_t chunkid;
 	uint32_t version;
+	ChunkType chunkType;
 	uint32_t offset,size;
-	uint16_t blocknum;
-	uint8_t *buffer;
 	uint8_t *crcbuff;
-} chunk_rd_args;
+	uint32_t maxBlocksToBeReadBehind;
+	uint32_t blocksToBeReadAhead;
+	OutputBuffer* outputBuffer;
+	bool performHddOpen;
+};
+
+// for OP_PREFETCH
+struct chunk_prefetch_args {
+	uint64_t chunkid;
+	uint32_t version;
+	ChunkType chunkType;
+	uint32_t firstBlock;
+	uint32_t nrOfBlocks;
+};
 
 // for OP_WRITE
-typedef struct _chunk_wr_args {
-	uint64_t chunkid;
-	uint32_t version;
-	uint32_t offset,size;
+ struct chunk_write_args {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
 	uint16_t blocknum;
+	uint32_t offset, size;
+	uint32_t crc;
 	const uint8_t *buffer;
-	const uint8_t *crcbuff;
-} chunk_wr_args;
+};
 
-typedef struct _chunk_rp_args {
+struct chunk_get_blocks_args {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
+	uint16_t* blocks;
+};
+
+struct chunk_legacy_replication_args {
 	uint64_t chunkid;
 	uint32_t version;
 	uint8_t srccnt;
-} chunk_rp_args;
+};
 
-typedef struct _job {
+struct chunk_replication_args {
+	uint64_t chunkId;
+	uint32_t chunkVersion;
+	ChunkType chunkType;
+	uint32_t sourcesBufferSize;
+	uint8_t* sourcesBuffer;
+};
+
+struct job {
 	uint32_t jobid;
 	void (*callback)(uint8_t status,void *extra);
 	void *extra;
 	void *args;
 	uint8_t jstate;
-	struct _job *next;
-} job;
+	job *next;
+};
 
-typedef struct _jobpool {
+struct jobpool {
 	int rpipe,wpipe;
 	uint8_t workers;
 	pthread_t *workerthreads;
@@ -111,9 +151,10 @@ typedef struct _jobpool {
 	void *statusqueue;
 	job* jobhash[JHASHSIZE];
 	uint32_t nextjobid;
-} jobpool;
+};
 
-static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
+static inline void job_send_status(jobpool *jp, uint32_t jobid, uint8_t status) {
+	TRACETHIS2(jobid, (int)status);
 	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	if (queue_isempty(jp->statusqueue)) {   // first status
 		eassert(write(jp->wpipe,&status,1)==1); // write anything to wake up select
@@ -124,10 +165,13 @@ static inline void job_send_status(jobpool *jp,uint32_t jobid,uint8_t status) {
 }
 
 static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status) {
+	TRACETHIS();
 	uint32_t qstatus;
 	zassert(pthread_mutex_lock(&(jp->pipelock)));
 	queue_get(jp->statusqueue,jobid,&qstatus,NULL,NULL);
 	*status = qstatus;
+	PRINTTHIS(*jobid);
+	PRINTTHIS((int)*status);
 	if (queue_isempty(jp->statusqueue)) {
 		eassert(read(jp->rpipe,&qstatus,1)==1); // make pipe empty
 		zassert(pthread_mutex_unlock(&(jp->pipelock)));
@@ -137,16 +181,12 @@ static inline int job_receive_status(jobpool *jp,uint32_t *jobid,uint8_t *status
 	return 1;       // not last
 }
 
-#define opargs ((chunk_op_args*)(jptr->args))
-#define ocargs ((chunk_oc_args*)(jptr->args))
-#define rdargs ((chunk_rd_args*)(jptr->args))
-#define wrargs ((chunk_wr_args*)(jptr->args))
-#define rpargs ((chunk_rp_args*)(jptr->args))
 void* job_worker(void *th_arg) {
+	TRACETHIS();
 	jobpool *jp = (jobpool*)th_arg;
 	job *jptr;
 	uint8_t *jptrarg;
-	uint8_t status,jstate;
+	uint8_t status, jstate;
 	uint32_t jobid;
 	uint32_t op;
 
@@ -154,6 +194,7 @@ void* job_worker(void *th_arg) {
 	for (;;) {
 		queue_get(jp->jobqueue,&jobid,&op,&jptrarg,NULL);
 		jptr = (job*)jptrarg;
+		PRINTTHIS(op);
 		zassert(pthread_mutex_lock(&(jp->jobslock)));
 		if (jptr!=NULL) {
 			jstate=jptr->jstate;
@@ -169,47 +210,128 @@ void* job_worker(void *th_arg) {
 				status = ERROR_EINVAL;
 				break;
 			case OP_CHUNKOP:
+			{
+				auto opargs = (chunk_chunkop_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_chunkop(opargs->chunkid,opargs->version,opargs->newversion,opargs->copychunkid,opargs->copyversion,opargs->length);
+					status = hdd_chunkop(opargs->chunkid, opargs->version, opargs->chunkType,
+							opargs->newversion, opargs->copychunkid, opargs->copyversion,
+							opargs->length);
 				}
 				break;
+			}
 			case OP_OPEN:
+			{
+				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_open(ocargs->chunkid);
+					status = hdd_open(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
+			}
 			case OP_CLOSE:
+			{
+				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_close(ocargs->chunkid);
+					status = hdd_close(ocargs->chunkid, ocargs->chunkType);
 				}
 				break;
+			}
 			case OP_READ:
+			{
+				auto rdargs = (chunk_read_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
-				} else {
-					status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->blocknum,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
+					break;
+				}
+				LOG_AVG_TILL_END_OF_SCOPE0("job_read");
+				if (rdargs->performHddOpen) {
+					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
+					if (status != STATUS_OK) {
+						break;
+					}
+				}
+
+				status = hdd_read(rdargs->chunkid, rdargs->version, rdargs->chunkType,
+						rdargs->offset, rdargs->size, rdargs->maxBlocksToBeReadBehind,
+						rdargs->blocksToBeReadAhead, rdargs->outputBuffer);
+
+				if (rdargs->performHddOpen && status != STATUS_OK) {
+					int ret = hdd_close(rdargs->chunkid, rdargs->chunkType);
+					if (ret != STATUS_OK) {
+						lzfs_silent_syslog(LOG_ERR,
+								"read job: cannot close chunk after read error (%s): %s",
+								mfsstrerr(status),
+								mfsstrerr(ret));
+					}
 				}
 				break;
+			}
+			case OP_PREFETCH:
+			{
+				auto prefetchArgs = (chunk_prefetch_args*)(jptr->args);
+				status = hdd_prefetch_blocks(prefetchArgs->chunkid, prefetchArgs->chunkType,
+						prefetchArgs->firstBlock, prefetchArgs->nrOfBlocks);
+				break;
+			}
 			case OP_WRITE:
+			{
+				auto wrargs = (chunk_write_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = hdd_write(wrargs->chunkid,wrargs->version,wrargs->blocknum,wrargs->buffer,wrargs->offset,wrargs->size,wrargs->crcbuff);
+					status = hdd_write(wrargs->chunkId, wrargs->chunkVersion, wrargs->chunkType,
+							wrargs->blocknum, wrargs->offset, wrargs->size, wrargs->crc,
+							wrargs->buffer);
 				}
 				break;
+			}
+			case OP_GET_BLOCKS:
+			{
+				auto gbargs = (chunk_get_blocks_args*)(jptr->args);
+				if (jstate == JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+				} else {
+					status = hdd_get_blocks(gbargs->chunkId, gbargs->chunkType,
+							gbargs->chunkVersion, gbargs->blocks);
+				}
+				break;
+			}
+			case OP_LEGACY_REPLICATE:
+			{
+				auto lrpargs = (chunk_legacy_replication_args*)(jptr->args);
+				if (jstate==JSTATE_DISABLED) {
+					status = ERROR_NOTDONE;
+				} else {
+					status = legacy_replicate(lrpargs->chunkid, lrpargs->version, lrpargs->srccnt,
+							((uint8_t*)(jptr->args)) + sizeof(chunk_legacy_replication_args));
+				}
+				break;
+			}
 			case OP_REPLICATE:
+			{
+				auto rpargs = (chunk_replication_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
 					status = ERROR_NOTDONE;
 				} else {
-					status = replicate(rpargs->chunkid,rpargs->version,rpargs->srccnt,((uint8_t*)(jptr->args))+sizeof(chunk_rp_args));
+					try {
+						std::vector<ChunkTypeWithAddress> sources;
+						deserialize(rpargs->sourcesBuffer, rpargs->sourcesBufferSize, sources);
+						HddspacemgrChunkFileCreator creator(
+								rpargs->chunkId, rpargs->chunkVersion, rpargs->chunkType);
+						gReplicator.replicate(creator, sources);
+						status = STATUS_OK;
+					} catch (Exception& ex) {
+						syslog(LOG_WARNING, "replication error: %s", ex.what());
+						status = ex.status();
+					}
 				}
 				break;
+			}
 			default: // OP_EXIT
 //                              syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
 				return NULL;
@@ -219,6 +341,7 @@ void* job_worker(void *th_arg) {
 }
 
 static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	uint32_t jobid = jp->nextjobid;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -242,6 +365,7 @@ static inline uint32_t job_new(jobpool *jp,uint32_t op,void *args,void (*callbac
 /* interface */
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
+	TRACETHIS();
 	int fd[2];
 	uint32_t i;
 	pthread_attr_t thattr;
@@ -250,7 +374,7 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 	if (pipe(fd)<0) {
 		return NULL;
 	}
-	jp= (jobpool*) malloc(sizeof(jobpool));
+	jp = (jobpool*) malloc(sizeof(jobpool));
 	passert(jp);
 //      syslog(LOG_WARNING,"new pool of workers (%p:%" PRIu8 ")",(void*)jp,workers);
 	*wakeupdesc = fd[0];
@@ -279,11 +403,13 @@ void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc) {
 }
 
 uint32_t job_pool_jobs_count(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	return queue_elements(jp->jobqueue);
 }
 
 void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8_t status,void *extra)) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos;
 	job *jptr;
@@ -301,6 +427,7 @@ void job_pool_disable_and_change_callback_all(void *jpool,void (*callback)(uint8
 }
 
 void job_pool_disable_job(void *jpool,uint32_t jobid) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -316,6 +443,7 @@ void job_pool_disable_job(void *jpool,uint32_t jobid) {
 }
 
 void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jhpos = JHASHPOS(jobid);
 	job *jptr;
@@ -328,6 +456,7 @@ void job_pool_change_callback(void *jpool,uint32_t jobid,void (*callback)(uint8_
 }
 
 void job_pool_check_jobs(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t jobid,jhpos;
 	uint8_t status;
@@ -356,6 +485,7 @@ void job_pool_check_jobs(void *jpool) {
 }
 
 void job_pool_delete(void *jpool) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	uint32_t i;
 //      syslog(LOG_WARNING,"deleting pool of workers (%p:%" PRIu8 ")",(void*)jp,jp->workers);
@@ -381,14 +511,18 @@ void job_pool_delete(void *jpool) {
 }
 
 uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	return job_new(jp,OP_INVAL,NULL,callback,extra);
 }
 
-uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t length) {
+uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t newversion,
+		uint64_t copychunkid, uint32_t copyversion, uint32_t length) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_op_args *args;
-	args = (chunk_op_args*) malloc(sizeof(chunk_op_args));
+	chunk_chunkop_args *args;
+	args = (chunk_chunkop_args*) malloc(sizeof(chunk_chunkop_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
@@ -396,80 +530,151 @@ uint32_t job_chunkop(void *jpool,void (*callback)(uint8_t status,void *extra),vo
 	args->copychunkid = copychunkid;
 	args->copyversion = copyversion;
 	args->length = length;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_CHUNKOP,args,callback,extra);
 }
 
-uint32_t job_open(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_open(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_oc_args *args;
-	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
+	chunk_open_and_close_args *args;
+	args = (chunk_open_and_close_args*) malloc(sizeof(chunk_open_and_close_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_OPEN,args,callback,extra);
 }
 
-uint32_t job_close(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid) {
+uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
+		uint64_t chunkid, ChunkType chunkType) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_oc_args *args;
-	args = (chunk_oc_args*) malloc(sizeof(chunk_oc_args));
+	chunk_open_and_close_args *args;
+	args = (chunk_open_and_close_args*) malloc(sizeof(chunk_open_and_close_args));
 	passert(args);
 	args->chunkid = chunkid;
+	args->chunkType = chunkType;
 	return job_new(jp,OP_CLOSE,args,callback,extra);
 }
 
-uint32_t job_read(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer,uint32_t offset,uint32_t size,uint8_t *crcbuff) {
+uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		uint32_t maxBlocksToBeReadBehind, uint32_t blocksToBeReadAhead,
+		OutputBuffer* outputBuffer, bool performHddOpen) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_rd_args *args;
-	args = (chunk_rd_args*) malloc(sizeof(chunk_rd_args));
+	chunk_read_args *args;
+	args = (chunk_read_args*) malloc(sizeof(chunk_read_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
-	args->blocknum = blocknum;
-	args->buffer = buffer;
+	args->chunkType = chunkType;
 	args->offset = offset;
 	args->size = size;
-	args->crcbuff = crcbuff;
+	args->maxBlocksToBeReadBehind = maxBlocksToBeReadBehind;
+	args->blocksToBeReadAhead = blocksToBeReadAhead;
+	args->outputBuffer = outputBuffer;
+	args->performHddOpen = performHddOpen;
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 
-uint32_t job_write(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
+uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkType chunkType,
+		uint32_t firstBlockToBePrefetched, uint32_t nrOfBlocksToBePrefetched) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_wr_args *args;
-	args = (chunk_wr_args*) malloc(sizeof(chunk_wr_args));
+	chunk_prefetch_args* args;
+	args = (chunk_prefetch_args*) malloc(sizeof(chunk_prefetch_args));
 	passert(args);
 	args->chunkid = chunkid;
 	args->version = version;
-	args->blocknum = blocknum;
-	args->buffer = buffer;
-	args->offset = offset;
-	args->size = size;
-	args->crcbuff = crcbuff;
-	return job_new(jp,OP_WRITE,args,callback,extra);
+	args->chunkType = chunkType;
+	args->firstBlock = firstBlockToBePrefetched;
+	args->nrOfBlocks = nrOfBlocksToBePrefetched;
+	return job_new(jp,OP_PREFETCH, args, nullptr, nullptr);
 }
 
-uint32_t job_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+
+uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_rp_args *args;
+	chunk_write_args *args;
+	args = (chunk_write_args*) malloc(sizeof(chunk_write_args));
+	passert(args);
+	args->chunkId = chunkId;
+	args->chunkVersion = chunkVersion;
+	args->chunkType = chunkType,
+	args->blocknum = blocknum;
+	args->offset = offset;
+	args->size = size;
+	args->crc = crc;
+	args->buffer = buffer;
+	return job_new(jp, OP_WRITE, args, callback, extra);
+}
+
+uint32_t job_get_blocks(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t version, ChunkType chunkType, uint16_t* blocks) {
+	TRACETHIS();
+	jobpool* jp = (jobpool*)jpool;
+	chunk_get_blocks_args *args;
+	args = (chunk_get_blocks_args*) malloc(sizeof(chunk_get_blocks_args));
+	passert(args);
+	args->chunkId = chunkId;
+	args->chunkVersion = version;
+	args->chunkType = chunkType;
+	args->blocks = blocks;
+	return job_new(jp, OP_GET_BLOCKS, args, callback, extra);
+}
+
+uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer) {
+	TRACETHIS();
+	jobpool* jp = (jobpool*)jpool;
+	chunk_replication_args *args;
+	// It's an ugly hack to allocate the memory for the structure and for the "sources" in a single
+	// call, but as long as the whole 'args' are allocated with malloc I can't do much about it
+	args = (chunk_replication_args*) malloc(sizeof(chunk_replication_args) + sourcesBufferSize);
+	passert(args);
+	args->chunkId = chunkId;
+	args->chunkVersion = chunkVersion;
+	args->chunkType = chunkType;
+	args->sourcesBufferSize = sourcesBufferSize;
+
+	// Ugly.
+	args->sourcesBuffer = (uint8_t*)args + sizeof(chunk_replication_args);
+	memcpy((void*)args->sourcesBuffer, (void*)sourcesBuffer, sourcesBufferSize);
+
+	return job_new(jp, OP_REPLICATE, args, callback, extra);
+}
+
+uint32_t job_legacy_replicate(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint8_t srccnt,const uint8_t *srcs) {
+	TRACETHIS();
+	jobpool* jp = (jobpool*)jpool;
+	chunk_legacy_replication_args *args;
 	uint8_t *ptr;
-	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+srccnt*18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_legacy_replication_args) + srccnt*18);
 	passert(ptr);
-	args = (chunk_rp_args*)ptr;
-	ptr += sizeof(chunk_rp_args);
+	args = (chunk_legacy_replication_args*)ptr;
+	ptr += sizeof(chunk_legacy_replication_args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->srccnt = srccnt;
 	memcpy(ptr,srcs,srccnt*18);
-	return job_new(jp,OP_REPLICATE,args,callback,extra);
+	return job_new(jp,OP_LEGACY_REPLICATE,args,callback,extra);
 }
 
-uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
+uint32_t job_legacy_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra,uint64_t chunkid,uint32_t version,uint32_t ip,uint16_t port) {
+	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
-	chunk_rp_args *args;
+	chunk_legacy_replication_args *args;
 	uint8_t *ptr;
-	ptr = (uint8_t*) malloc(sizeof(chunk_rp_args)+18);
+	ptr = (uint8_t*) malloc(sizeof(chunk_legacy_replication_args)+18);
 	passert(ptr);
-	args = (chunk_rp_args*)ptr;
-	ptr += sizeof(chunk_rp_args);
+	args = (chunk_legacy_replication_args*)ptr;
+	ptr += sizeof(chunk_legacy_replication_args);
 	args->chunkid = chunkid;
 	args->version = version;
 	args->srccnt = 1;
@@ -477,5 +682,5 @@ uint32_t job_replicate_simple(void *jpool,void (*callback)(uint8_t status,void *
 	put32bit(&ptr,version);
 	put32bit(&ptr,ip);
 	put16bit(&ptr,port);
-	return job_new(jp,OP_REPLICATE,args,callback,extra);
+	return job_new(jp,OP_LEGACY_REPLICATE,args,callback,extra);
 }

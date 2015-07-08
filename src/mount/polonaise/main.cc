@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "common/platform.h"
 
 #include <fcntl.h>
@@ -12,7 +30,6 @@
 #include <thrift/transport/TBufferTransports.h>
 
 #include "common/crc.h"
-#include "mount/csdb.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
@@ -875,6 +892,16 @@ void termhandle(int) {
 }
 
 int main (int argc, char **argv) {
+	bool userwlock = true;
+	auto writeworkers = 30;
+	auto writewindowsize = 15;
+	auto chunkserverrtt = 200;
+	auto chunkserverconnectreadto = 2000;
+	auto chunkserverbasicreadto = 2000;
+	auto chunkservertotalreadto = 2000;
+	bool prefetchFullXorStripes = true;
+	auto chunkserverwriteto = 5000;
+	auto cacheperinodepercentage = 25;
 	parse_command_line(argc, argv, gSetup);
 
 	struct sigaction sa;
@@ -904,12 +931,17 @@ int main (int argc, char **argv) {
 	gLocalIoLimiter();
 	IoLimitsConfigLoader loader;
 	gMountLimiter().loadConfiguration(loader);
-	csdb_init();
-	read_data_init(gSetup.io_retries);
-	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries);
+	read_data_init(gSetup.io_retries,
+			chunkserverrtt,
+			chunkserverconnectreadto,
+			chunkserverbasicreadto,
+			chunkservertotalreadto,
+			prefetchFullXorStripes);
+	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries, writeworkers,
+			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
 			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
-			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, 0, 0);
+			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, false, userwlock, 0, 0);
 
 	// Thrift server start
 	using namespace ::apache::thrift;
@@ -928,7 +960,6 @@ int main (int argc, char **argv) {
 
 	write_data_term();
 	read_data_term();
-	csdb_term();
 	masterproxy_term();
 	fs_term();
 	symlink_cache_term();

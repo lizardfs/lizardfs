@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -849,8 +849,8 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	arec->meta = 0;
 	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
-	arec->mingoal = goal::kMinGoal;
-	arec->maxgoal = goal::kMaxGoal;
+	arec->mingoal = goal::kMinOrdinaryGoal;
+	arec->maxgoal = goal::kMaxOrdinaryGoal;
 	arec->mintrashtime = 0;
 	arec->maxtrashtime = UINT32_C(0xFFFFFFFF);
 	arec->rootuid = 999;

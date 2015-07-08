@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -23,8 +23,10 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "common/media_label.h"
+#include "common/chunk_type.h"
 #include "common/chunkserver_list_entry.h"
+#include "common/goal.h"
+#include "common/media_label.h"
 
 /// A struct representing a chunkserver.
 struct matocsserventry;
@@ -81,11 +83,12 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted();
  */
 std::vector<ChunkserverListEntry> matocsserv_cservlist();
 
+uint32_t matocsserv_get_version(matocsserventry* e);
 int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
 void matocsserv_remove_server(matocsserventry* ptr);
 void matocsserv_usagedifference(double* minusage, double* maxusage,
 		uint16_t* usablescount, uint16_t* totalscount);
-Chunkservers matocsserv_getservers_for_new_chunk(uint8_t desiredGoal);
+std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_new_chunk(uint8_t goalId);
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
 int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport,
@@ -95,21 +98,26 @@ uint16_t matocsserv_replication_write_counter(matocsserventry* e);
 uint16_t matocsserv_deletion_counter(matocsserventry* e);
 int matocsserv_send_replicatechunk(matocsserventry* e,
 		uint64_t chunkid, uint32_t version, matocsserventry* src);
-int matocsserv_send_replicatechunk_xor(matocsserventry* e,
-		uint64_t chunkid, uint32_t version, uint8_t cnt,
-		void* *src, uint64_t* srcchunkid, uint32_t* srcversion);
+int matocsserv_send_liz_replicatechunk(matocsserventry* e,
+		uint64_t chunkid, uint32_t version, ChunkType type,
+		const std::vector<matocsserventry*> &sourcePointers,
+		const std::vector<ChunkType> &sourceTypes);
 int matocsserv_send_chunkop(matocsserventry* e,
 		uint64_t chunkid, uint32_t version, uint32_t newversion,
 		uint64_t copychunkid, uint32_t copyversion, uint32_t leng);
-int matocsserv_send_deletechunk(matocsserventry* e, uint64_t chunkid, uint32_t version);
-int matocsserv_send_createchunk(matocsserventry* e, uint64_t chunkid, uint32_t version);
+int matocsserv_send_deletechunk(matocsserventry* e,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+int matocsserv_send_createchunk(matocsserventry* e,
+		uint64_t chunkid, ChunkType chunkType, uint32_t version);
 int matocsserv_send_setchunkversion(matocsserventry* e,
-		uint64_t chunkid, uint32_t version, uint32_t oldversion);
+		uint64_t chunkId, uint32_t newVersion, uint32_t chunkVersion, ChunkType chunkType);
 int matocsserv_send_duplicatechunk(matocsserventry* e,
-		uint64_t chunkid, uint32_t version, uint64_t oldchunkid, uint32_t oldversion);
-int matocsserv_send_truncatechunk(matocsserventry* e,
-		uint64_t chunkid, uint32_t length, uint32_t version, uint32_t oldversion);
+		uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion);
+void matocsserv_send_truncatechunk(matocsserventry* e,
+		uint64_t chunkid, ChunkType chunkType, uint32_t length,
+		uint32_t version, uint32_t oldversion);
 int matocsserv_send_duptruncchunk(matocsserventry* e,
-		uint64_t chunkid, uint32_t version,
-		uint64_t oldchunkid, uint32_t oldversion, uint32_t length);
+		uint64_t newChunkId, uint32_t newChunkVersion,
+		ChunkType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t length);
 int matocsserv_init(void);

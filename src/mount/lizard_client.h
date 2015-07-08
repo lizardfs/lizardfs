@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 #include "common/platform.h"
 
@@ -156,8 +174,8 @@ EntryParam create(Context ctx, Inode parent, const char *name,
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
-		unsigned acl_cache_size_);
+		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rw_lock_,
+		double acl_cache_timeout_, unsigned acl_cache_size_);
 
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);

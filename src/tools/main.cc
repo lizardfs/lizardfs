@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -31,12 +31,15 @@
 #include <sys/statvfs.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <algorithm>
 #include <limits>
+#include <sstream>
 #include <vector>
 
 #include "common/chunk_with_address_and_label.h"
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
+#include "common/goal.h"
 #include "common/human_readable_format.h"
 #include "common/matocl_communication.h"
 #include "common/MFSCommunication.h"
@@ -1177,6 +1180,19 @@ int ip_port_cmp(const void*a,const void*b) {
 	return memcmp(a,b,6);
 }
 
+std::string chunkTypeToString(ChunkType type) {
+	if (type.isXorChunkType()) {
+		std::stringstream ss;
+		if (type.isXorParity()) {
+			ss << " parity " << (int)type.getXorLevel();
+		} else {
+			ss << " part " << (int)type.getXorPart() << "/" << (int)type.getXorLevel();
+		}
+		return ss.str();
+	}
+	return "";
+}
+
 int file_info(const char *fileName) {
 	std::vector<uint8_t> buffer;
 	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
@@ -1343,9 +1359,10 @@ int file_info(const char *fileName) {
 					if (copies.size() > 0) {
 						std::sort(copies.begin(), copies.end());
 						for (size_t i = 0; i < copies.size(); i++) {
-							printf("\t\tcopy %lu: %s:%s\n", i + 1,
+							printf("\t\tcopy %lu: %s:%s%s\n", i + 1,
 									copies[i].address.toString().c_str(),
-									copies[i].label.c_str());
+									copies[i].label.c_str(),
+									chunkTypeToString(copies[i].chunkType).c_str());
 						}
 					} else {
 						printf("\t\tno valid copies !!!\n");
@@ -1874,12 +1891,15 @@ void usage(int f) {
 			print_recursive_option();
 			break;
 		case MFSSETGOAL:
-			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal [-nhHr] GOAL[-|+] name [name ...]\n");
+			fprintf(stderr,"set objects goal (desired number of copies)\n\nusage: mfssetgoal <operation> name [name ...]\n");
 			print_numberformat_options();
 			print_recursive_option();
+			fprintf(stderr, "<operation> is one of:\n");
 			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
 			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
 			fprintf(stderr," GOAL - just set goal to given goal name\n");
+			fprintf(stderr, " xorN - just set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
+					goal::kMinXorLevel, goal::kMaxXorLevel);
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");

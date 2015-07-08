@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -21,6 +21,7 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
+#include <string.h>
 
 #include "common/access_control_list.h"
 #include "common/attributes.h"
@@ -95,6 +96,7 @@ uint8_t fs_symlink(const FsContext& context,
 		uint32_t *inode, Attributes* attr);
 uint8_t fs_undel(const FsContext& context, uint32_t inode);
 uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
+		bool usedummylockid, /* inout */ uint32_t *lockid,
 		uint64_t *chunkid, uint8_t *opflag, uint64_t *length);
 uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
@@ -115,7 +117,7 @@ uint8_t fs_apply_setacl(uint32_t ts, uint32_t inode, char aclType, const char *a
 uint8_t fs_apply_setquota(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit);
 uint8_t fs_apply_unlink(uint32_t ts,uint32_t parent,uint32_t nleng,const uint8_t *name,uint32_t inode);
 uint8_t fs_apply_unlock(uint64_t chunkid);
-uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid);
+uint8_t fs_apply_trunc(uint32_t ts,uint32_t inode,uint32_t indx,uint64_t chunkid,uint32_t lockid);
 
 /// Unloads metadata.
 /// This should be called in the shadow master each time it needs to download
@@ -153,7 +155,9 @@ uint8_t fs_access(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t ui
 uint8_t fs_lookup(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint32_t *inode,Attributes& attr);
 uint8_t fs_getattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,Attributes& attr);
 uint8_t fs_setattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,SugidClearMode sugidclearmode,Attributes& attr);
-uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint64_t length,Attributes& attr,uint64_t *chunkid);
+uint8_t fs_try_setlength(uint32_t rootinode,uint8_t sesflags,
+		uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,
+		uint64_t length,bool denyTruncatingParity,uint32_t lockid,Attributes& attr,uint64_t *chunkid);
 uint8_t fs_end_setlength(uint64_t chunkid);
 uint8_t fs_do_setlength(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint64_t length,Attributes& attr);
 uint8_t fs_readlink(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *pleng,uint8_t **path);
@@ -166,7 +170,7 @@ void fs_readdir_data(uint32_t rootinode,uint8_t sesflags,uint32_t uid,uint32_t g
 uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,Attributes& attr);
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
-uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid);
+uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid);
 uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab);
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
 void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
@@ -199,6 +203,8 @@ uint8_t fs_getdetachedattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,At
 
 // EXTRA
 uint8_t fs_get_dir_stats(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t *inodes,uint32_t *dirs,uint32_t *files,uint32_t *chunks,uint64_t *length,uint64_t *size,uint64_t *rsize);
+uint8_t fs_get_chunkid(const FsContext& context,
+		uint32_t inode, uint32_t index, uint64_t *chunkid);
 
 // TAPES
 

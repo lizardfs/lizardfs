@@ -4,7 +4,7 @@ add_definitions(-DAPPNAME=mfsmaster)
 collect_sources(MASTER)
 
 add_library(master ${MASTER_SOURCES})
-target_link_libraries(master mfscommon)
+target_link_libraries(master mfscommon ${ADDITIONAL_LIBS})
 add_tests(master ${MASTER_TESTS})
 
 add_executable(mfsmaster ${MAIN_SRC})

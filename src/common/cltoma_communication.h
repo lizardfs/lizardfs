@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "common/platform.h"
@@ -6,6 +24,7 @@
 
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
+#include "common/MFSCommunication.h"
 #include "common/moosefs_string.h"
 #include "common/packet.h"
 #include "common/quota.h"
@@ -193,3 +212,76 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 // LIZ_CLTOMA_LIST_TAPESERVERS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, listTapeservers, LIZ_CLTOMA_LIST_TAPESERVERS, 0)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseTruncate, LIZ_CLTOMA_FUSE_TRUNCATE, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		bool, isOpened,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint64_t, length)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseTruncateEnd, LIZ_CLTOMA_FUSE_TRUNCATE_END, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint64_t, length,
+		uint32_t, lockid)
+
+namespace cltoma {
+
+namespace fuseReadChunk {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint32_t inode, uint32_t chunkIndex) {
+	serializePacket(destination, LIZ_CLTOMA_FUSE_READ_CHUNK, 0, messageId, inode,
+			chunkIndex);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, messageId, inode, chunkIndex);
+}
+
+} // namespace fuseReadChunk
+
+namespace fuseWriteChunk {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint32_t inode, uint32_t chunkIndex, uint32_t lockId) {
+	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK, 0,
+			messageId, inode, chunkIndex, lockId);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint32_t& messageId, uint32_t& inode, uint32_t& chunkIndex, uint32_t& lockId) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, messageId, inode, chunkIndex, lockId);
+}
+
+} // namespace fuseWriteChunk
+
+namespace fuseWriteChunkEnd {
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t chunkId, uint32_t lockId,
+		uint32_t inode, uint64_t fileLength) {
+	serializePacket(destination, LIZ_CLTOMA_FUSE_WRITE_CHUNK_END, 0,
+			messageId, chunkId, lockId, inode, fileLength);
+}
+
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint32_t& messageId, uint64_t& chunkId, uint32_t& lockId,
+		uint32_t& inode, uint64_t& fileLength) {
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, messageId, chunkId, lockId, inode, fileLength);
+}
+
+} // namespace fuseWriteChunkEnd
+
+} // namespace cltoma

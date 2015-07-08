@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -77,7 +77,7 @@ static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 
 void oplog_printf(const struct LizardClient::Context &ctx,const char *format,...) {
 	va_list ap;
-	static char buff[LINELENG];
+	char buff[LINELENG];
 	uint32_t leng;
 	struct timeval tv;
 	struct tm ltime;

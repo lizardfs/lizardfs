@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <vector>
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
@@ -36,13 +37,12 @@ static inline char dispchar(uint8_t c) {
 	return (c>=32 && c<=126)?c:'.';
 }
 
-int chunk_load(FILE *fd) {
+int chunk_load(FILE *fd, bool loadLockIds) {
 	uint8_t hdr[8];
-	uint8_t loadbuff[16];
 	const uint8_t *ptr;
 	int32_t r;
 	uint64_t chunkid,nextchunkid;
-	uint32_t version,lockedto;
+	uint32_t version,lockedto,lockid;
 
 	if (fread(hdr,1,8,fd)!=8) {
 		return -1;
@@ -50,17 +50,24 @@ int chunk_load(FILE *fd) {
 	ptr = hdr;
 	nextchunkid = get64bit(&ptr);
 	printf("# nextchunkid: %016" PRIX64 "\n",nextchunkid);
+	uint32_t serializedChunkSize = (loadLockIds ? 20 : 16);
+	std::vector<uint8_t> loadbuff(serializedChunkSize);
 	for (;;) {
-		r = fread(loadbuff,1,16,fd);
+		r = fread(loadbuff.data(), 1, serializedChunkSize, fd);
 		(void)r;
-		ptr = loadbuff;
+		ptr = loadbuff.data();
 		chunkid = get64bit(&ptr);
 		version = get32bit(&ptr);
 		lockedto = get32bit(&ptr);
+		if (loadLockIds) {
+			lockid = get32bit(&ptr);
+		} else {
+			lockid = 1;
+		}
 		if (chunkid==0 && version==0 && lockedto==0) {
 			return 0;
 		}
-		printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|t:%10" PRIu32 "\n",chunkid,version,lockedto);
+		printf("*|i:%016" PRIX64 "|v:%08" PRIX32 "|t:%10" PRIu32 "|l:%10" PRIu32 "\n",chunkid,version,lockedto,lockid);
 	}
 	return -1;
 }
@@ -391,7 +398,7 @@ int fs_load(FILE *fd) {
 	return 0;
 }
 
-int fs_load_20(FILE *fd) {
+int fs_load_2x(FILE *fd, bool loadLockIds) {
 	uint32_t maxnodeid,nextsessionid;
 	uint64_t sleng;
 	off_t offbegin;
@@ -440,7 +447,7 @@ int fs_load_20(FILE *fd) {
 				return -1;
 			}
 		} else if (memcmp(hdr,"CHNK 1.0",8)==0) {
-			if (chunk_load(fd)<0) {
+			if (chunk_load(fd, loadLockIds) < 0) {
 				printf("error reading metadata (CHNK 1.0)\n");
 				return -1;
 			}
@@ -456,6 +463,14 @@ int fs_load_20(FILE *fd) {
 		}
 	}
 	return 0;
+}
+
+inline int fs_load_20(FILE *fd) {
+	return fs_load_2x(fd, false);
+}
+
+inline int fs_load_29(FILE *fd) {
+	return fs_load_2x(fd, true);
 }
 
 int fs_loadall(const char *fname) {
@@ -475,18 +490,25 @@ int fs_loadall(const char *fname) {
 	}
 	printf("# header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X)\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);
 	if (memcmp(hdr,MFSSIGNATURE "M 1.5",8)==0 || memcmp(hdr,MFSSIGNATURE "M 1.6",8)==0) {
-		if (fs_load(fd)<0) {
+		bool loadLockIds = (hdr[7] == '6');
+		if (fs_load(fd) < 0) {
 			printf("error reading metadata (structure)\n");
 			fclose(fd);
 			return -1;
 		}
-		if (chunk_load(fd)<0) {
+		if (chunk_load(fd, loadLockIds) < 0) {
 			printf("error reading metadata (chunks)\n");
 			fclose(fd);
 			return -1;
 		}
-	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8)==0) {
-		if (fs_load_20(fd)<0) {
+	} else if (memcmp(hdr,MFSSIGNATURE "M 2.0",8) == 0) {
+		if (fs_load_20(fd) < 0) {
+			fclose(fd);
+			return -1;
+		}
+	/* Note LIZARDFSSIGNATURE instead of MFSSIGNATURE! */
+	} else if (memcmp(hdr,LIZARDFSSIGNATURE "M 2.9",8) == 0) {
+		if (fs_load_29(fd) < 0) {
 			fclose(fd);
 			return -1;
 		}

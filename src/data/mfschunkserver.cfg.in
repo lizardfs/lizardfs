@@ -48,6 +48,14 @@
 ## (Default: 9422)
 # CSSERV_LISTEN_PORT = 9422
 
+# NR_OF_NETWORK_WORKERS = 1
+# NR_OF_HDD_WORKERS_PER_NETWORK_WORKER = 20
+# BGJOBSCNT_PER_NETWORK_WORKER = 1000
+
+# READ_AHEAD_KB = 0
+# MAX_READ_BEHIND_KB = 0
+# USE_SPLICE = 1
+
 ## Name of volume configuration file.
 ## (Default: @ETC_PATH@/mfshdd.cfg)
 # HDD_CONF_FILENAME = @ETC_PATH@/mfshdd.cfg
@@ -66,11 +74,8 @@
 ## (Default: 0)
 # HDD_ADVISE_NO_CACHE = 0
 
-## Number of threads performing background operations ordered by client/master.
-## (Default: 10)
-# CSSERV_CLIENT_WORKERS = 10
-# CSSERV_MASTER_WORKERS = 10
-
 ## deprecated, to be removed.
 # BACK_LOGS = 50
 # CSSERV_TIMEOUT = 5
+
+# REPLICATION_BANDWIDTH_LIMIT_KBPS = 102400

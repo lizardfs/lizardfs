@@ -1,14 +1,35 @@
+/*
+   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "common/platform.h"
 
 #include "common/access_control_list.h"
 #include "common/attributes.h"
+#include "common/chunk_type_with_address.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
 #include "common/metadataserver_list_entry.h"
+#include "common/MFSCommunication.h"
+#include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
 #include "common/packet.h"
 #include "common/quota.h"
@@ -265,3 +286,125 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, listTapeservers, LIZ_MATOCL_LIST_TAPESERVERS, 0,
 		std::vector<TapeserverListEntry>, tapeservers)
+
+// LIZ_MATOCL_FUSE_TRUNCATE
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kFinishedPacketVersion, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncate, kInProgressPacketVersion, 2)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kFinishedPacketVersion,
+		uint32_t, messageId,
+		Attributes, attributes)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncate, LIZ_MATOCL_FUSE_TRUNCATE, kInProgressPacketVersion,
+		uint32_t, messageId,
+		uint64_t, oldLength,
+		uint32_t, lockId)
+
+// LIZ_MATOCL_FUSE_TRUNCATE_END
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncateEnd, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseTruncateEnd, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncateEnd, LIZ_MATOCL_FUSE_TRUNCATE_END, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseTruncateEnd, LIZ_MATOCL_FUSE_TRUNCATE_END, kResponsePacketVersion,
+		uint32_t, messageId,
+		Attributes, attributes)
+
+namespace matocl {
+
+namespace fuseReadChunk {
+
+const PacketVersion kStatusPacketVersion = 0;
+const PacketVersion kResponsePacketVersion = 1;
+
+inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kStatusPacketVersion,
+			messageId, status);
+}
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+		const std::vector<ChunkTypeWithAddress>& serversList) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kResponsePacketVersion,
+			messageId, fileLength, chunkId, chunkVersion, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion,
+		std::vector<ChunkTypeWithAddress>& serversList) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId,
+			fileLength, chunkId, chunkVersion, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kStatusPacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
+}
+
+} // namespace fuseReadChunk
+
+namespace fuseWriteChunk {
+
+const PacketVersion kStatusPacketVersion = 0;
+const PacketVersion kResponsePacketVersion = 1;
+
+inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kStatusPacketVersion,
+			messageId, status);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kStatusPacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
+}
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength,
+		uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
+		const std::vector<ChunkTypeWithAddress>& serversList) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kResponsePacketVersion,
+			messageId, fileLength, chunkId, chunkVersion, lockId, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion, uint32_t& lockId,
+		std::vector<ChunkTypeWithAddress>& serversList) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId,
+			fileLength, chunkId, chunkVersion, lockId, serversList);
+}
+
+} //namespace fuseWriteChunk
+
+namespace fuseWriteChunkEnd {
+
+inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK_END, 0, messageId, status);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, 0);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
+}
+
+} //namespace fuseWriteChunkEnd
+
+} // namespace matocl

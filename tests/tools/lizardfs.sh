@@ -4,6 +4,7 @@
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
 	local use_moosefs=${USE_MOOSEFS:-}
+	local use_lizardfsXX=${LIZARDFSXX_TAG:-}
 	local use_ramdisk=${USE_RAMDISK:-}
 	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_masterservers=${MASTERSERVERS:-1}
@@ -29,6 +30,12 @@ setup_local_empty_lizardfs() {
 	if [[ $use_moosefs ]]; then
 		export PATH="$MOOSEFS_DIR/bin:$MOOSEFS_DIR/sbin:$PATH"
 		build_moosefs
+	fi
+
+	if [[ $use_lizardfsXX ]]; then
+		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/lizardfs-${LIZARDFSXX_TAG}
+		export PATH="${LIZARDFSXX_DIR}/bin:${LIZARDFSXX_DIR}/sbin:$PATH"
+		build_lizardfsXX
 	fi
 
 	# Prepare configuration for metadata servers
@@ -86,7 +93,7 @@ setup_local_empty_lizardfs() {
 
 	# Wait for chunkservers (use lizardfs-probe only for LizardFS -- MooseFS doesn't support it)
 	if [[ ! $use_moosefs ]]; then
-		lizardfs_wait_for_ready_chunkservers $number_of_chunkservers
+		lizardfs_wait_for_all_ready_chunkservers
 	else
 		sleep 3 # A reasonable fallback
 	fi
@@ -379,6 +386,16 @@ create_mfschunkserver_cfg_() {
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
 }
 
+# Run every second chunkserver with each chunk format
+chunkserver_chunk_format_cfg_() {
+	local chunkserver_id=$1
+	if [[ "$(($RANDOM % 2))" == 0 ]]; then
+		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0"
+	else
+		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 1"
+	fi
+}
+
 add_chunkserver_() {
 	local chunkserver_id=$1
 	local csserv_port
@@ -389,6 +406,9 @@ add_chunkserver_() {
 	get_next_port_number csserv_port
 	create_mfshdd_cfg_ > "$hdd_cfg"
 	create_mfschunkserver_cfg_ > "$chunkserver_cfg"
+	# If the chunk format wasn't yet chosen set it:
+	grep CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT "$chunkserver_cfg" || \
+		chunkserver_chunk_format_cfg_ $chunkserver_id >> "$chunkserver_cfg"
 	mkdir -p "$chunkserver_data_path"
 	mfschunkserver -c "$chunkserver_cfg" start
 
@@ -437,7 +457,7 @@ add_mount_() {
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	local call="${command_prefix} mfsmount -o big_writes -c ${mount_cfg} ${mount_dir} ${fuse_options}"
 	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
 }
@@ -470,7 +490,7 @@ find_first_chunkserver_with_chunks_matching() {
 	local chunkserver
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
 		local hdds=$(cat "${lizardfs_info_[chunkserver${chunkserver}_hdd]}")
-		if [[ $(find $hdds -name "$pattern") ]]; then
+		if [[ $(find $hdds -type f -name "$pattern") ]]; then
 			echo $chunkserver
 			return 0
 		fi
@@ -482,12 +502,12 @@ find_first_chunkserver_with_chunks_matching() {
 find_chunkserver_chunks() {
 	local chunkserver_number=$1
 	shift
-	local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' \
+	local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
 			"${lizardfs_info_[chunkserver${chunkserver_number}_hdd]}")
 	if (( $# > 0 )); then
-		find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
+		find $hdds "(" -name 'chunk*.liz' -o -name 'chunk*.mfs' ")" -a "(" "$@" ")"
 	else
-		find $hdds -name "chunk*.mfs"
+		find $hdds "(" -name 'chunk*.liz' -o -name 'chunk*.mfs' ")"
 	fi
 }
 
@@ -496,12 +516,7 @@ find_all_chunks() {
 	local count=${lizardfs_info_[chunkserver_count]}
 	local chunkserver
 	for (( chunkserver=0 ; chunkserver < count ; ++chunkserver )); do
-		local hdds=$(sed -e 's|$|/[A-F0-9][A-F0-9]/|' "${lizardfs_info_[chunkserver${chunkserver}_hdd]}")
-		if (( $# > 0 )); then
-			find $hdds -name "chunk*.mfs" -a "(" "$@" ")"
-		else
-			find $hdds -name "chunk*.mfs"
-		fi
+		find_chunkserver_chunks $chunkserver "$@"
 	done
 }
 
@@ -544,6 +559,11 @@ lizardfs_stop_master_without_saving_metadata() {
 	assert_eventually "! mfsmaster -c ${lizardfs_info_[master_cfg]} isalive"
 }
 
+# print the number of fully operational chunkservers
+lizardfs_ready_chunkservers_count() {
+	lizardfs-probe ready-chunkservers-count localhost ${lizardfs_info_[matocl]}
+}
+
 # lizardfs_wait_for_ready_chunkservers <num> -- waits until <num> chunkservers are fully operational
 lizardfs_wait_for_ready_chunkservers() {
 	local chunkservers=$1
@@ -579,6 +599,3 @@ lizardfs_shadow_synchronized() {
 lizardfs_rebalancing_status() {
 	lizardfs_probe_master list-chunkservers | sort | awk '$2 == "'$LIZARDFS_VERSION'" {print $1":"$10,$3}'
 }
-
-LIZARDFS_BLOCK_SIZE=$((64 * 1024))
-LIZARDFS_CHUNK_SIZE=$((1024 * LIZARDFS_BLOCK_SIZE))

@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -28,15 +28,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <syslog.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <algorithm>
+#include <atomic>
 #include <list>
 #include <memory>
 
@@ -62,6 +63,10 @@
 #  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
 #    define MFS_USE_MEMLOCK 1
 #  endif
+#endif
+
+#ifndef MFSMAXFILES
+#  define MFSMAXFILES 5000
 #endif
 
 #define STR_AUX(x) #x
@@ -151,8 +156,8 @@ namespace {
 TimeEntries gTimeEntries;
 }
 
-static uint32_t now;
-static uint64_t usecnow;
+static std::atomic<uint32_t> now;
+static std::atomic<uint64_t> usecnow;
 static bool gRunAsDaemon = true;
 static std::vector<std::string> gExtraArguments;
 static ExitingStatus gExitingStatus = ExitingStatus::kRunning;
@@ -371,9 +376,7 @@ void mainloop() {
 		i = poll(pdesc.data(),pdesc.size(), nextPollNonblocking ? 0 : 50);
 		nextPollNonblocking = false;
 		gettimeofday(&tv,NULL);
-		usecnow = tv.tv_sec;
-		usecnow *= 1000000;
-		usecnow += tv.tv_usec;
+		usecnow = tv.tv_sec * uint64_t(1000000) + tv.tv_usec;
 		now = tv.tv_sec;
 		if (i<0) {
 			if (errno==EAGAIN) {

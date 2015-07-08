@@ -1,3 +1,21 @@
+/*
+   Copyright 2013-2015 Skytechnology sp. z o.o.
+
+   This file is part of LizardFS.
+
+   LizardFS is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, version 3.
+
+   LizardFS is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 #include "config.h"
 
@@ -69,7 +87,7 @@ public:
 					" file too short (" + std::to_string(actualSize) + " bytes)");
 		}
 		expectedSize = be64toh(expectedSize);
-		if (expectedSize != (size_t)fileInformation.st_size) {
+		if (expectedSize != (uint64_t)fileInformation.st_size) {
 			error = "(inode " + std::to_string(fileInformation.st_ino) + ")"
 					" file should be " + std::to_string(expectedSize) +
 					" bytes long, but is " + std::to_string(actualSize) + " bytes long\n";
@@ -77,11 +95,11 @@ public:
 
 		/* Check the data */
 		off_t currentOffset = sizeof(actualSize);
-		size_t size = actualSize - sizeof(actualSize);
-		std::vector<char> actualBuffer(Configuration::blockSize());
-		std::vector<char> properBuffer(Configuration::blockSize());
+		uint64_t size = actualSize - sizeof(actualSize);
+		std::vector<char> actualBuffer(UtilsConfiguration::blockSize());
+		std::vector<char> properBuffer(UtilsConfiguration::blockSize());
 		while (size > 0) {
-			size_t bytesToRead = size;
+			uint64_t bytesToRead = size;
 			if (bytesToRead > properBuffer.size()) {
 				bytesToRead = properBuffer.size();
 			}
@@ -121,6 +139,7 @@ public:
 			throw std::length_error(error + "The rest of the file is OK");
 		}
 	}
+
 
 protected:
 	static void fillBufferWithProperData(std::vector<char>& buffer, off_t offset) {
@@ -168,7 +187,7 @@ protected:
 		/* Write the data */
 		size -= sizeof(serializedSize);
 		off_t currentOffset = sizeof(serializedSize);
-		std::vector<char> buffer(Configuration::blockSize());
+		std::vector<char> buffer(UtilsConfiguration::blockSize());
 		while (size > 0) {
 			size_t bytesToWrite = size;
 			if (bytesToWrite > buffer.size()) {

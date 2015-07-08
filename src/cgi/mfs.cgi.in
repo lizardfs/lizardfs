@@ -188,7 +188,7 @@ def cltoma_list_goals():
 		goals = deserialize(response, List(Primitive("H") + 2 * String))
 		if response:
 			raise RuntimeError, "malformed LIZ_MATOCL_LIST_GOALS response (too long by {0} bytes)".format(len(response))
-		return sorted(goals)
+		return goals
 
 def cltoma_chunks_health(only_regular):
 	goals = cltoma_list_goals()
@@ -786,7 +786,7 @@ if "IN" in sectionset:
 					out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
 				out.append("""	<tr>""")
 				out.append("""		<th rowspan="2" class="PERC4">needed<br/>copies</th>""")
-				out.append("""		<th colspan="12" class="PERC96">valid copies</th>""")
+				out.append("""		<th colspan="12" class="PERC96">valid copies (non-XOR chunks only)</th>""")
 				out.append("""	</tr>""")
 				out.append("""	<tr>""")
 				out.append("""		<th class="PERC8">0</th>""")
@@ -1841,9 +1841,13 @@ if "EX" in sectionset:
 		for (id, name, definition) in goals:
 			row_class = 1 + i % 2
 			i += 1
-			# Convert ugly 1*_,2*label1,3*label2 to something more readable
-			definition = re.sub(r'([0-9]+)\*([A-Za-z0-9_]+)(,?)', r'\1 &times; <b>\2</b>\3 ', definition)
-			out.append("""	<tr class="C%u"><td>%d</td><td class="LEFT">%s</td><td class="LEFT">%s</td>""" % (row_class, id, name, definition))
+			if id >= 247:
+				# a xor goal
+				id = "-"
+			else:
+				# Convert ugly 1*_,2*label1,3*label2 to something more readable
+				definition = re.sub(r'([0-9]+)\*([A-Za-z0-9_]+)(,?)', r'\1 &times; <b>\2</b>\3 ', definition)
+			out.append("""	<tr class="C%u"><td>%s</td><td class="LEFT">%s</td><td class="LEFT">%s</td>""" % (row_class, id, name, definition))
 		out.append("""</table>""")
 		print "\n".join(out)
 	except Exception:
