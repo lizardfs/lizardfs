@@ -97,6 +97,7 @@
 #cmakedefine LIZARDFS_HAVE_SETITIMER
 #cmakedefine LIZARDFS_HAVE_STD_TO_STRING
 #cmakedefine LIZARDFS_HAVE_STD_STOULL
+#cmakedefine LIZARDFS_HAVE_SPLICE
 
 /* [CMake] Optional functions #2 */
 #cmakedefine LIZARDFS_HAVE_DUP2

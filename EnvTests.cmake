@@ -60,7 +60,7 @@ set(REQUIRED_FUNCTIONS atexit bzero ftruncate getpass
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
 set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer posix_fadvise)
+  setitimer posix_fadvise splice)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 CHECK_LIBRARY_EXISTS(rt clock_gettime "time.h" LIZARDFS_HAVE_CLOCK_GETTIME)

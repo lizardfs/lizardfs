@@ -25,8 +25,6 @@
 #include <cstring>
 #include <vector>
 
-#define LIZARDFS_HAVE_SPLICE 1 // TODO(alek) zmienna do konfiga
-
 class OutputBuffer {
 public:
 	enum WriteStatus {
