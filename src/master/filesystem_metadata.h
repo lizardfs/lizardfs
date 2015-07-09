@@ -25,6 +25,7 @@
 #include <unordered_map>
 
 #include "common/tape_copies.h"
+#include "common/special_inode_defs.h"
 #include "master/chunks.h"
 #include "master/id_pool_detainer.h"
 #include "master/filesystem_checksum_background_updater.h"
@@ -34,9 +35,6 @@
 #include "master/filesystem_xattr.h"
 #include "master/metadata_dumper.h"
 #include "master/quota_database.h"
-
-
-#define MAX_REGULAR_INODE (0x7FFFFFF0ULL-1)
 
 /** Metadata of the filesystem.
  *  All the static variables managed by function in this file which form metadata of the filesystem.

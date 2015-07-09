@@ -424,7 +424,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 			                   parent_id, fsnodes_escape_name(e->nleng, e->name),
 			                   child_id);
 			if (ignoreflag) {
-				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
+				e->parent = fsnodes_id_to_node(SPECIAL_INODE_ROOT);
 				if (e->parent == NULL || e->parent->type != TYPE_DIRECTORY) {
 					lzfs_pretty_syslog(
 					        LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
@@ -439,7 +439,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 				                   parent_id,
 				                   fsnodes_escape_name(e->nleng, e->name),
 				                   child_id);
-				parent_id = MFS_ROOT_ID;
+				parent_id = SPECIAL_INODE_ROOT;
 			} else {
 				lzfs_pretty_syslog(LOG_ERR,
 				                   "use mfsmetarestore (option -i) to attach this "
@@ -454,7 +454,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 			                   parent_id, fsnodes_escape_name(e->nleng, e->name),
 			                   child_id, e->parent->type);
 			if (ignoreflag) {
-				e->parent = fsnodes_id_to_node(MFS_ROOT_ID);
+				e->parent = fsnodes_id_to_node(SPECIAL_INODE_ROOT);
 				if (e->parent == NULL || e->parent->type != TYPE_DIRECTORY) {
 					lzfs_pretty_syslog(
 					        LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
@@ -469,7 +469,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 				                   parent_id,
 				                   fsnodes_escape_name(e->nleng, e->name),
 				                   child_id);
-				parent_id = MFS_ROOT_ID;
+				parent_id = SPECIAL_INODE_ROOT;
 			} else {
 				lzfs_pretty_syslog(LOG_ERR,
 				                   "use mfsmetarestore (option -i) to attach this "
@@ -478,7 +478,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 				return -1;
 			}
 		}
-		if (parent_id == MFS_ROOT_ID) {  // special case - because of 'ignoreflag' and
+		if (parent_id == SPECIAL_INODE_ROOT) {  // special case - because of 'ignoreflag' and
 			                         // possibility of attaching orphans into root node
 			if (root_tail == NULL) {
 				root_tail = &(e->parent->data.ddata.children);
@@ -503,7 +503,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 			current_parent_id = parent_id;
 		}
 		e->nextchild = NULL;
-		if (parent_id == MFS_ROOT_ID) {
+		if (parent_id == SPECIAL_INODE_ROOT) {
 			*(root_tail) = e;
 			e->prevchild = root_tail;
 			root_tail = &(e->nextchild);
@@ -1386,7 +1386,7 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 	lzfs_pretty_syslog_attempt(LOG_INFO,
 	                           "checking filesystem consistency of the metadata file");
 	fflush(stderr);
-	gMetadata->root = fsnodes_id_to_node(MFS_ROOT_ID);
+	gMetadata->root = fsnodes_id_to_node(SPECIAL_INODE_ROOT);
 	if (gMetadata->root == NULL) {
 		lzfs_pretty_syslog(LOG_ERR, "error reading metadata (root node not found)");
 		return -1;
@@ -1401,11 +1401,11 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 void fs_new(void) {
 	uint32_t nodepos;
 	statsrecord *sr;
-	gMetadata->maxnodeid = MFS_ROOT_ID;
+	gMetadata->maxnodeid = SPECIAL_INODE_ROOT;
 	gMetadata->metaversion = 1;
 	gMetadata->nextsessionid = 1;
 	gMetadata->root = new fsnode(TYPE_DIRECTORY);
-	gMetadata->root->id = MFS_ROOT_ID;
+	gMetadata->root->id = SPECIAL_INODE_ROOT;
 	gMetadata->root->ctime = gMetadata->root->mtime = gMetadata->root->atime = main_time();
 	gMetadata->root->goal = DEFAULT_GOAL;
 	gMetadata->root->trashtime = DEFAULT_TRASHTIME;

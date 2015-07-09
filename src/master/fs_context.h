@@ -21,6 +21,7 @@
 
 #include <cstdint>
 
+#include "common/special_inode_defs.h"
 #include "protocol/MFSCommunication.h"
 #include "master/personality.h"
 
@@ -239,7 +240,7 @@ private:
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(false),
-			  rootinode_(MFS_ROOT_ID),
+			  rootinode_(SPECIAL_INODE_ROOT),
 			  sesflags_(0),
 			  hasUidGidData_(false),
 			  uid_(0),
@@ -256,7 +257,7 @@ private:
 			: ts_(ts),
 			  personality_(personality),
 			  hasSessionData_(false),
-			  rootinode_(MFS_ROOT_ID),
+			  rootinode_(SPECIAL_INODE_ROOT),
 			  sesflags_(0),
 			  hasUidGidData_(true),
 			  uid_(uid),

@@ -359,7 +359,7 @@ void fs_statfs(uint32_t rootinode, uint8_t sesflags, uint64_t *totalspace, uint6
 	fsnode *rn;
 	statsrecord sr;
 	(void)sesflags;
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		*trspace = gMetadata->trashspace;
 		*respace = gMetadata->reservedspace;
 		rn = gMetadata->root;
@@ -415,7 +415,7 @@ uint8_t fs_access(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 	if ((sesflags & SESFLAG_READONLY) && (modemask & MODE_MASK_W)) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -425,7 +425,7 @@ uint8_t fs_access(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -448,7 +448,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 
 	*inode = 0;
 	memset(attr, 0, 35);
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		rn = gMetadata->root;
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
@@ -459,7 +459,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (parent == MFS_ROOT_ID) {
+		if (parent == SPECIAL_INODE_ROOT) {
 			parent = rootinode;
 			wd = rn;
 		} else {
@@ -481,7 +481,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 	if (name[0] == '.') {
 		if (nleng == 1) {  // self
 			if (parent == rootinode) {
-				*inode = MFS_ROOT_ID;
+				*inode = SPECIAL_INODE_ROOT;
 			} else {
 				*inode = wd->id;
 			}
@@ -491,19 +491,19 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 		}
 		if (nleng == 2 && name[1] == '.') {  // parent
 			if (parent == rootinode) {
-				*inode = MFS_ROOT_ID;
+				*inode = SPECIAL_INODE_ROOT;
 				fsnodes_fill_attr(wd, wd, uid, gid, auid, agid, sesflags, attr);
 			} else {
 				if (wd->parents) {
 					if (wd->parents->parent->id == rootinode) {
-						*inode = MFS_ROOT_ID;
+						*inode = SPECIAL_INODE_ROOT;
 					} else {
 						*inode = wd->parents->parent->id;
 					}
 					fsnodes_fill_attr(wd->parents->parent, wd, uid, gid, auid,
 					                  agid, sesflags, attr);
 				} else {
-					*inode = MFS_ROOT_ID;  // rn->id;
+					*inode = SPECIAL_INODE_ROOT;  // rn->id;
 					fsnodes_fill_attr(rn, wd, uid, gid, auid, agid, sesflags,
 					                  attr);
 				}
@@ -531,7 +531,7 @@ uint8_t fs_getattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 
 	(void)sesflags;
 	memset(attr, 0, 35);
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -541,7 +541,7 @@ uint8_t fs_getattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -569,7 +569,7 @@ uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -579,7 +579,7 @@ uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -704,7 +704,7 @@ uint8_t fs_do_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 	fsnode *p = NULL;
 
 	memset(attr, 0, 35);
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -717,7 +717,7 @@ uint8_t fs_do_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -751,7 +751,7 @@ uint8_t fs_setattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -761,7 +761,7 @@ uint8_t fs_setattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -947,7 +947,7 @@ uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32
 	(void)sesflags;
 	*pleng = 0;
 	*path = NULL;
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -957,7 +957,7 @@ uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -1064,7 +1064,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	    type != TYPE_BLOCKDEV && type != TYPE_CHARDEV) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1074,7 +1074,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (parent == MFS_ROOT_ID) {
+		if (parent == SPECIAL_INODE_ROOT) {
 			parent = rootinode;
 			wd = rn;
 		} else {
@@ -1130,7 +1130,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1140,7 +1140,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (parent == MFS_ROOT_ID) {
+		if (parent == SPECIAL_INODE_ROOT) {
 			parent = rootinode;
 			wd = rn;
 		} else {
@@ -1224,7 +1224,7 @@ uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1234,7 +1234,7 @@ uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (parent == MFS_ROOT_ID) {
+		if (parent == SPECIAL_INODE_ROOT) {
 			parent = rootinode;
 			wd = rn;
 		} else {
@@ -1282,7 +1282,7 @@ uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		wd = fsnodes_id_to_node(parent);
 		if (!wd) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1292,7 +1292,7 @@ uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (parent == MFS_ROOT_ID) {
+		if (parent == SPECIAL_INODE_ROOT) {
 			parent = rootinode;
 			wd = rn;
 		} else {
@@ -1523,7 +1523,7 @@ uint8_t fs_readdir_size(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 	fsnode *p, *rn;
 	*dnode = NULL;
 	*dbuffsize = 0;
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1533,7 +1533,7 @@ uint8_t fs_readdir_size(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -1571,7 +1571,7 @@ uint8_t fs_checkfile(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	fsnode *p, *rn;
 	(void)sesflags;
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1584,7 +1584,7 @@ uint8_t fs_checkfile(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -1609,7 +1609,7 @@ uint8_t fs_opencheck(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint3
 	if ((sesflags & SESFLAG_READONLY) && (flags & WANT_WRITE)) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1619,7 +1619,7 @@ uint8_t fs_opencheck(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint3
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -1754,7 +1754,7 @@ uint8_t fs_auto_repair_if_needed(fsnode *p, uint32_t chunkIndex) {
 	        (chunkIndex < p->data.fdata.chunks ? p->data.fdata.chunktab[chunkIndex] : 0);
 	if (chunkId != 0 && chunk_has_only_invalid_copies(chunkId)) {
 		uint32_t notchanged, erased, repaired;
-		fs_repair(MFS_ROOT_ID, 0, p->id, 0, 0, &notchanged, &erased, &repaired);
+		fs_repair(SPECIAL_INODE_ROOT, 0, p->id, 0, 0, &notchanged, &erased, &repaired);
 		syslog(LOG_NOTICE,
 		       "auto repair inode %" PRIu32 ", chunk %016" PRIX64
 		       ": "
@@ -1960,7 +1960,7 @@ uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1973,7 +1973,7 @@ uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -2065,7 +2065,7 @@ uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t
 	if (!GMODE_ISVALID(gmode)) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2078,7 +2078,7 @@ uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -2107,7 +2107,7 @@ uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t i
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2120,7 +2120,7 @@ uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t i
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -2162,7 +2162,7 @@ uint8_t fs_geteattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 	if (!GMODE_ISVALID(gmode)) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2175,7 +2175,7 @@ uint8_t fs_geteattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);
@@ -2332,7 +2332,7 @@ uint8_t fs_listxattr_leng(uint32_t rootinode, uint8_t sesflags, uint32_t inode, 
 	fsnode *p, *rn;
 
 	*xasize = 0;
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2342,7 +2342,7 @@ uint8_t fs_listxattr_leng(uint32_t rootinode, uint8_t sesflags, uint32_t inode, 
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -2378,7 +2378,7 @@ uint8_t fs_setxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 	if (sesflags & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2388,7 +2388,7 @@ uint8_t fs_setxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -2429,7 +2429,7 @@ uint8_t fs_getxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 		uint32_t *avleng, uint8_t **attrvalue) {
 	fsnode *p, *rn;
 
-	if (rootinode == MFS_ROOT_ID) {
+	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2439,7 +2439,7 @@ uint8_t fs_getxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			inode = rootinode;
 			p = rn;
 		} else {
@@ -2706,7 +2706,7 @@ uint8_t fs_get_dir_stats(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 	fsnode *p, *rn;
 	statsrecord sr;
 	(void)sesflags;
-	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
+	if (rootinode == SPECIAL_INODE_ROOT || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -2719,7 +2719,7 @@ uint8_t fs_get_dir_stats(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);

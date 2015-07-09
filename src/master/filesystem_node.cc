@@ -844,7 +844,7 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 	if (p->id != rootinode) {
 		put32bit(&dbuff, p->id);
 	} else {
-		put32bit(&dbuff, MFS_ROOT_ID);
+		put32bit(&dbuff, SPECIAL_INODE_ROOT);
 	}
 	Attributes attr;
 	if (withattr) {
@@ -860,7 +860,7 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 	dbuff[2] = '.';
 	dbuff += 3;
 	if (p->id == rootinode) {  // root node should returns self as its parent
-		put32bit(&dbuff, MFS_ROOT_ID);
+		put32bit(&dbuff, SPECIAL_INODE_ROOT);
 		if (withattr) {
 			fsnodes_fill_attr(p, p, uid, gid, auid, agid, sesflags, attr);
 			::memcpy(dbuff, attr, sizeof(attr));
@@ -872,7 +872,7 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 		if (p->parents && p->parents->parent->id != rootinode) {
 			put32bit(&dbuff, p->parents->parent->id);
 		} else {
-			put32bit(&dbuff, MFS_ROOT_ID);
+			put32bit(&dbuff, SPECIAL_INODE_ROOT);
 		}
 		if (withattr) {
 			if (p->parents) {
@@ -880,7 +880,7 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 				                  sesflags, attr);
 				::memcpy(dbuff, attr, sizeof(attr));
 			} else {
-				if (rootinode == MFS_ROOT_ID) {
+				if (rootinode == SPECIAL_INODE_ROOT) {
 					fsnodes_fill_attr(gMetadata->root, p, uid, gid, auid, agid,
 					                  sesflags, attr);
 					::memcpy(dbuff, attr, sizeof(attr));
@@ -1739,7 +1739,7 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-	} else if (context.rootinode() == MFS_ROOT_ID || (context.rootinode() == 0)) {
+	} else if (context.rootinode() == SPECIAL_INODE_ROOT || (context.rootinode() == 0)) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1752,7 +1752,7 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 		if (!rn || rn->type != TYPE_DIRECTORY) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
-		if (inode == MFS_ROOT_ID) {
+		if (inode == SPECIAL_INODE_ROOT) {
 			p = rn;
 		} else {
 			p = fsnodes_id_to_node(inode);

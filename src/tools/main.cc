@@ -46,18 +46,13 @@
 #include "common/mfserr.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"
+#include "common/special_inode_defs.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
-
-#define INODE_VALUE_MASK 0x1FFFFFFF
-#define INODE_TYPE_MASK 0x60000000
-#define INODE_TYPE_TRASH 0x20000000
-#define INODE_TYPE_RESERVED 0x40000000
-#define INODE_TYPE_SPECIAL 0x00000000
 
 static const char* eattrtab[EATTR_BITS]={EATTR_STRINGS};
 static const char* eattrdesc[EATTR_BITS]={EATTR_DESCRIPTIONS};
@@ -467,26 +462,19 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 		if (stb.st_ino==1) {    // found fuse root
 			// first try to locate ".masterinfo"
 			if (strlen(rpath)+12<PATH_MAX) {
-				strcat(rpath,"/.masterinfo");
+				strcat(rpath,"/" SPECIAL_FILE_NAME_MASTERINFO);
 				if (lstat(rpath,&stb)==0) {
-					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
-						if (stb.st_ino==0x7FFFFFFE) {   // meta master
-							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
-								return -1;
-							}
-							(*inode)&=INODE_VALUE_MASK;
-						}
+					if (stb.st_ino==SPECIAL_INODE_MASTERINFO && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0 && (stb.st_size==10 || stb.st_size==14)) {
 						sd = open(rpath,O_RDONLY);
 						if (stb.st_size==10) {
 							if (read(sd,masterinfo,10)!=10) {
-								printf("%s: can't read '.masterinfo'\n",name);
+								printf("%s: can't read '" SPECIAL_FILE_NAME_MASTERINFO "'\n",name);
 								close(sd);
 								return -1;
 							}
 						} else if (stb.st_size==14) {
 							if (read(sd,masterinfo,14)!=14) {
-								printf("%s: can't read '.masterinfo'\n",name);
+								printf("%s: can't read '" SPECIAL_FILE_NAME_MASTERINFO "'\n",name);
 								close(sd);
 								return -1;
 							}
@@ -502,7 +490,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 							masterversion = 0;
 						}
 						if (masterip==0 || masterport==0 || mastercuid==0) {
-							printf("%s: incorrect '.masterinfo'\n",name);
+							printf("%s: incorrect '" SPECIAL_FILE_NAME_MASTERINFO "'\n",name);
 							return -1;
 						}
 						cnt=0;
@@ -515,7 +503,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 							if (tcpnumtoconnect(sd,masterip,masterport,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
 								cnt++;
 								if (cnt==10) {
-									printf("%s: can't connect to master (.masterinfo): %s\n",name,strerr(errno));
+									printf("%s: can't connect to master (" SPECIAL_FILE_NAME_MASTERINFO "): %s\n",name,strerr(errno));
 									return -1;
 								}
 								tcpclose(sd);
@@ -524,7 +512,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 							}
 						}
 						if (master_register(sd,mastercuid)<0) {
-							printf("%s: can't register to master (.masterinfo)\n",name);
+							printf("%s: can't register to master (" SPECIAL_FILE_NAME_MASTERINFO ")\n",name);
 							return -1;
 						}
 						current_master = sd;
@@ -533,14 +521,7 @@ int open_master_conn(const char *name,uint32_t *inode,mode_t *mode,uint8_t needs
 				}
 				rpath[strlen(rpath)-4]=0;       // cut '.masterinfo' to '.master' and try to fallback to older communication method
 				if (lstat(rpath,&stb)==0) {
-					if ((stb.st_ino==0x7FFFFFFF || stb.st_ino==0x7FFFFFFE) && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
-						if (stb.st_ino==0x7FFFFFFE) {   // meta master
-							if (((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_TRASH && ((*inode)&INODE_TYPE_MASK)!=INODE_TYPE_RESERVED) {
-								printf("%s: only files in 'trash' and 'reserved' are usable in mfsmeta\n",name);
-								return -1;
-							}
-							(*inode)&=INODE_VALUE_MASK;
-						}
+					if (stb.st_ino==SPECIAL_INODE_MASTERINFO && stb.st_nlink==1 && stb.st_uid==0 && stb.st_gid==0) {
 						fprintf(stderr,"old version of mfsmount detected - using old and deprecated version of protocol - please upgrade your mfsmount\n");
 						sd = open(rpath,O_RDWR);
 						if (master_register_old(sd)<0) {

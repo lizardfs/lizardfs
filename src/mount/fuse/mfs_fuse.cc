@@ -25,12 +25,13 @@
 #include <vector>
 
 #include "common/massert.h"
-#include "protocol/MFSCommunication.h"
+#include "common/special_inode_defs.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
+#include "protocol/MFSCommunication.h"
 
-#if MFS_ROOT_ID != FUSE_ROOT_ID
-#error FUSE_ROOT_ID is not equal to MFS_ROOT_ID
+#if SPECIAL_INODE_ROOT != FUSE_ROOT_ID
+#error FUSE_ROOT_ID is not equal to SPECIAL_INODE_ROOT
 #endif
 
 #define READDIR_BUFFSIZE 50000

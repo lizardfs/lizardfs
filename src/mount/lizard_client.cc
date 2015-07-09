@@ -43,6 +43,7 @@
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/slogger.h"
+#include "common/special_inode_defs.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
 #include "mount/acl_cache.h"
@@ -76,8 +77,6 @@ namespace LizardClient {
 // 0x01b6 == 0666
 // static uint8_t masterattr[35]={'f', 0x01,0xB6, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
-#define MASTERINFO_NAME ".masterinfo"
-#define MASTERINFO_INODE 0x7FFFFFFF
 // 0x0124 == 0b100100100 == 0444
 #ifdef MASTERINFO_WITH_VERSION
 static const uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,14};
@@ -85,35 +84,24 @@ static const uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0
 static const uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10};
 #endif
 
-#define STATS_NAME ".stats"
-#define STATS_INODE 0x7FFFFFF0
 // 0x01A4 == 0b110100100 == 0644
 static const uint8_t statsattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
-#define OPLOG_NAME ".oplog"
-#define OPLOG_INODE 0x7FFFFFF1
-#define OPHISTORY_NAME ".ophistory"
-#define OPHISTORY_INODE 0x7FFFFFF2
 // 0x0100 == 0b100000000 == 0400
 static const uint8_t oplogattr[35]={'f', 0x01,0x00, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
-#define TWEAKS_FILE_NAME ".lizardfs_tweaks"
-#define TWEAKS_FILE_INODE 0x7FFFFFF3
 // 0x01A4 == 0b110100100 == 0644
 static const uint8_t tweaksfileattr[35]={'f', 0x01,0xA4, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
 // Interface for accessing files by inode
-#define FILE_BY_INODE_NAME ".lizardfs_file_by_inode"
-#define FILE_BY_INODE_INODE 0x7FFFFFF4
 // 0x01ED == 0b111101101 == 0755
 static const uint8_t filebyinodefileattr[35]={'d', 0x01,0xED, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,0};
 
-#define MIN_SPECIAL_INODE 0x7FFFFFF0
-#define IS_SPECIAL_INODE(ino) ((ino)>=MIN_SPECIAL_INODE)
-#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(STATS_NAME,(name))==0 \
-		|| strcmp(MASTERINFO_NAME,(name))==0 || strcmp(OPLOG_NAME,(name))==0 \
-		|| strcmp(OPHISTORY_NAME,(name))==0 || strcmp(TWEAKS_FILE_NAME,(name))==0 \
-		|| strcmp(FILE_BY_INODE_NAME,(name))==0))
+#define IS_SPECIAL_INODE(ino) ((ino)>=SPECIAL_INODE_BASE)
+#define IS_SPECIAL_NAME(name) ((name)[0]=='.' && (strcmp(SPECIAL_FILE_NAME_STATS,(name))==0 \
+		|| strcmp(SPECIAL_FILE_NAME_MASTERINFO,(name))==0 || strcmp(SPECIAL_FILE_NAME_OPLOG,(name))==0 \
+		|| strcmp(SPECIAL_FILE_NAME_OPHISTORY,(name))==0 || strcmp(SPECIAL_FILE_NAME_TWEAKS,(name))==0 \
+		|| strcmp(SPECIAL_FILE_NAME_FILE_BY_INODE,(name))==0))
 
 typedef struct _sinfo {
 	char *buff;
@@ -580,9 +568,9 @@ struct statvfs statfs(Context ctx, Inode ino) {
 	stfsbuf.f_bfree = availspace/bsize;
 	stfsbuf.f_bavail = availspace/bsize;
 #endif
-	stfsbuf.f_files = 1000000000+PKGVERSION+inodes;
-	stfsbuf.f_ffree = 1000000000+PKGVERSION;
-	stfsbuf.f_favail = 1000000000+PKGVERSION;
+	stfsbuf.f_files = inodes;
+	stfsbuf.f_ffree = MAX_REGULAR_INODE - inodes;
+	stfsbuf.f_favail = MAX_REGULAR_INODE - inodes;
 	//stfsbuf.f_flag = ST_RDONLY;
 	oplog_printf(ctx, "statfs (%lu): OK (%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ")",
 			(unsigned long int)ino,
@@ -656,15 +644,15 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 				strerr(ENAMETOOLONG));
 		throw RequestException(ENAMETOOLONG);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (nleng==2 && name[0]=='.' && name[1]=='.') {
 			nleng=1;
 		}
-		if (strcmp(name,MASTERINFO_NAME)==0) {
-			e.ino = MASTERINFO_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_MASTERINFO)==0) {
+			e.ino = SPECIAL_INODE_MASTERINFO;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(MASTERINFO_INODE,masterinfoattr,&e.attr);
+			attr_to_stat(SPECIAL_INODE_MASTERINFO,masterinfoattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: MASTERINFO): OK (%.1f,%lu,%.1f,%s)",
@@ -676,11 +664,11 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
-		if (strcmp(name,STATS_NAME)==0) {
-			e.ino = STATS_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_STATS)==0) {
+			e.ino = SPECIAL_INODE_STATS;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(STATS_INODE,statsattr,&e.attr);
+			attr_to_stat(SPECIAL_INODE_STATS,statsattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: STATS): OK (%.1f,%lu,%.1f,%s)",
@@ -692,11 +680,11 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
-		if (strcmp(name,TWEAKS_FILE_NAME)==0) {
-			e.ino = TWEAKS_FILE_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_TWEAKS)==0) {
+			e.ino = SPECIAL_INODE_TWEAKS;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(TWEAKS_FILE_INODE, tweaksfileattr, &e.attr);
+			attr_to_stat(SPECIAL_INODE_TWEAKS, tweaksfileattr, &e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: TWEAKS_FILE): OK (%.1f,%lu,%.1f,%s)",
@@ -708,11 +696,11 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
-		if (strcmp(name,OPLOG_NAME)==0) {
-			e.ino = OPLOG_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_OPLOG)==0) {
+			e.ino = SPECIAL_INODE_OPLOG;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(OPLOG_INODE,oplogattr,&e.attr);
+			attr_to_stat(SPECIAL_INODE_OPLOG,oplogattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: OPLOG): OK (%.1f,%lu,%.1f,%s)",
@@ -724,11 +712,11 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
-		if (strcmp(name,OPHISTORY_NAME)==0) {
-			e.ino = OPHISTORY_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_OPHISTORY)==0) {
+			e.ino = SPECIAL_INODE_OPHISTORY;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(OPHISTORY_INODE,oplogattr,&e.attr);
+			attr_to_stat(SPECIAL_INODE_OPHISTORY,oplogattr,&e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: OPHISTORY): OK (%.1f,%lu,%.1f,%s)",
@@ -740,11 +728,11 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 					attrstr);
 			return e;
 		}
-		if (strcmp(name,FILE_BY_INODE_NAME)==0) {
-			e.ino = FILE_BY_INODE_INODE;
+		if (strcmp(name,SPECIAL_FILE_NAME_FILE_BY_INODE)==0) {
+			e.ino = SPECIAL_INODE_FILE_BY_INODE;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			attr_to_stat(FILE_BY_INODE_INODE, filebyinodefileattr, &e.attr);
+			attr_to_stat(SPECIAL_INODE_FILE_BY_INODE, filebyinodefileattr, &e.attr);
 			stats_inc(OP_LOOKUP_INTERNAL);
 			makeattrstr(attrstr,256,&e.attr);
 			oplog_printf(ctx, "lookup (%lu,%s) (internal node: FILE_BY_INODE_FILE): OK (%.1f,%lu,%.1f,%s)",
@@ -757,7 +745,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 			return e;
 		}
 	}
-	if (parent == FILE_BY_INODE_INODE) {
+	if (parent == SPECIAL_INODE_FILE_BY_INODE) {
 		char *endptr = nullptr;
 		inode = strtol(name, &endptr, 10);
 		if (endptr == nullptr || *endptr != '\0') {
@@ -826,7 +814,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 				(unsigned long int)ino);
 		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
 	}
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,masterinfoattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
@@ -836,7 +824,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,statsattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
@@ -846,7 +834,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
 		if (fi != NULL) {
@@ -862,18 +850,18 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi) {
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,oplogattr,&o_stbuf);
 		stats_inc(OP_GETATTR);
 		makeattrstr(attrstr,256,&o_stbuf);
 		oplog_printf(ctx, "getattr (%lu) (internal node: %s): OK (3600,%s)",
 				(unsigned long int)ino,
-				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+				(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY",
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==FILE_BY_INODE_INODE) {
+	if (ino==SPECIAL_INODE_FILE_BY_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,filebyinodefileattr,&o_stbuf);
 		if (fi != NULL) {
@@ -955,7 +943,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				(unsigned long int)(stbuf->st_mtime),
 				(uint64_t)(stbuf->st_size));
 	}
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
 				(unsigned long int)ino,
 				to_set,
@@ -969,7 +957,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				strerr(EPERM));
 		throw RequestException(EPERM);
 	}
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,statsattr,&o_stbuf);
 		makeattrstr(attrstr,256,&o_stbuf);
@@ -986,7 +974,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,tweaksfileattr,&o_stbuf);
 		if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
@@ -1009,7 +997,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,oplogattr,&o_stbuf);
 		makeattrstr(attrstr,256,&o_stbuf);
@@ -1022,11 +1010,11 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				(unsigned long int)(stbuf->st_atime),
 				(unsigned long int)(stbuf->st_mtime),
 				(uint64_t)(stbuf->st_size),
-				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+				(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY",
 				attrstr);
 		return AttrReply{o_stbuf, 3600.0};
 	}
-	if (ino==FILE_BY_INODE_INODE) {
+	if (ino==SPECIAL_INODE_FILE_BY_INODE) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		attr_to_stat(ino,filebyinodefileattr,&o_stbuf);
 		if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
@@ -1277,7 +1265,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 		throw RequestException(EPERM);
 	}
 
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
 					(unsigned long int)parent,
@@ -1333,7 +1321,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 				name);
 		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "unlink (%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1393,7 +1381,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 				modestr+1,
 				(unsigned int)mode);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
 					(unsigned long int)parent,
@@ -1456,7 +1444,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 				name);
 		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "rmdir (%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1509,7 +1497,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 				name);
 		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
 					path,
@@ -1610,7 +1598,7 @@ void rename(Context ctx, Inode parent, const char *name,
 				(unsigned long int)newparent,
 				newname);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1621,7 +1609,7 @@ void rename(Context ctx, Inode parent, const char *name,
 			throw RequestException(EACCES);
 		}
 	}
-	if (newparent==MFS_ROOT_ID) {
+	if (newparent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(newname)) {
 			oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 					(unsigned long int)parent,
@@ -1704,7 +1692,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
-	if (newparent==MFS_ROOT_ID) {
+	if (newparent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(newname)) {
 			oplog_printf(ctx, "link (%lu,%lu,%s): %s",
 					(unsigned long int)ino,
@@ -2025,7 +2013,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,modestr+1,
 				(unsigned int)mode);
 	}
-	if (parent==MFS_ROOT_ID) {
+	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
 			oplog_printf(ctx, "create (%lu,%s,-%s:0%04o): %s",
 					(unsigned long int)parent,
@@ -2135,7 +2123,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
 	}
 
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 			oplog_printf(ctx, "open (%lu) (internal node: MASTERINFO): %s",
 					(unsigned long int)ino,
@@ -2150,7 +2138,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		return;
 	}
 
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		sinfo *statsinfo;
 		statsinfo = (sinfo*) malloc(sizeof(sinfo));
 		if (statsinfo==NULL) {
@@ -2171,7 +2159,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		return;
 	}
 
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		MagicFile* file = new MagicFile;
 		fi->fh = reinterpret_cast<uintptr_t>(file);
 		fi->direct_io = 1;
@@ -2181,20 +2169,20 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		return;
 	}
 
-	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 			oplog_printf(ctx, "open (%lu) (internal node: %s): %s",
 					(unsigned long int)ino,
-					(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY",
+					(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY",
 					strerr(EACCES));
 			throw RequestException(EACCES);
 		}
-		fi->fh = oplog_newhandle((ino==OPHISTORY_INODE)?1:0);
+		fi->fh = oplog_newhandle((ino==SPECIAL_INODE_OPHISTORY)?1:0);
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
 		oplog_printf(ctx, "open (%lu) (internal node: %s): OK (1,0)",
 				(unsigned long int)ino,
-				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
+				(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY");
 		return;
 	}
 
@@ -2249,12 +2237,12 @@ void release(Context ctx,
 		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
 	}
 
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		oplog_printf(ctx, "release (%lu) (internal node: MASTERINFO): OK",
 				(unsigned long int)ino);
 		return;
 	}
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
@@ -2272,7 +2260,7 @@ void release(Context ctx,
 				(unsigned long int)ino);
 		return;
 	}
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
 		if (file->wasWritten) {
 			auto separatorPos = file->value.find('=');
@@ -2293,11 +2281,11 @@ void release(Context ctx,
 				(unsigned long int)ino);
 		return;
 	}
-	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		oplog_releasehandle(fi->fh);
 		oplog_printf(ctx, "release (%lu) (internal node: %s): OK",
 				(unsigned long int)ino,
-				(ino==OPLOG_INODE)?"OPLOG":"OPHISTORY");
+				(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY");
 		return;
 	}
 	if (fileinfo!=NULL) {
@@ -2321,7 +2309,7 @@ std::vector<uint8_t> read(Context ctx,
 
 	stats_inc(OP_READ);
 	if (debug_mode) {
-		if (ino!=OPLOG_INODE && ino!=OPHISTORY_INODE) {
+		if (ino!=SPECIAL_INODE_OPLOG && ino!=SPECIAL_INODE_OPHISTORY) {
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 ") ...",
 					(unsigned long int)ino,
 					(uint64_t)size,
@@ -2332,7 +2320,7 @@ std::vector<uint8_t> read(Context ctx,
 				(uint64_t)size,
 				(uint64_t)off);
 	}
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
 		masterproxy_getlocation(masterinfo);
@@ -2358,7 +2346,7 @@ std::vector<uint8_t> read(Context ctx,
 		}
 		return ret;
 	}
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
@@ -2390,7 +2378,7 @@ std::vector<uint8_t> read(Context ctx,
 		}
 		return ret;
 	}
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
 		std::unique_lock<std::mutex> lock(file->mutex);
 		if (!file->wasRead) {
@@ -2417,7 +2405,7 @@ std::vector<uint8_t> read(Context ctx,
 			return std::vector<uint8_t>(data, data + availableBytes);
 		}
 	}
-	if (ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		uint32_t ssize;
 		oplog_getdata(fi->fh,&buff,&ssize,size);
 		oplog_releasedata(fi->fh);
@@ -2554,7 +2542,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(uint64_t)size,
 				(uint64_t)off);
 	}
-	if (ino==MASTERINFO_INODE || ino==OPLOG_INODE || ino==OPHISTORY_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO || ino==SPECIAL_INODE_OPLOG || ino==SPECIAL_INODE_OPHISTORY) {
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
@@ -2562,7 +2550,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				strerr(EACCES));
 		throw RequestException(EACCES);
 	}
-	if (ino==STATS_INODE) {
+	if (ino==SPECIAL_INODE_STATS) {
 		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
@@ -2575,7 +2563,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(unsigned long int)size);
 		return size;
 	}
-	if (ino==TWEAKS_FILE_INODE) {
+	if (ino==SPECIAL_INODE_TWEAKS) {
 		MagicFile* file = reinterpret_cast<MagicFile*>(fi->fh);
 		std::unique_lock<std::mutex> lock(file->mutex);
 		if (off + size > file->value.size()) {

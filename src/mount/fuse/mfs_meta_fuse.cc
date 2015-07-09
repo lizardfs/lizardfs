@@ -30,11 +30,12 @@
 #include "common/datapack.h"
 #include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
+#include "common/special_inode_defs.h"
 #include "mount/exports.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
 
-#define READDIR_BUFFSIZE 50000
+static_assert(FUSE_ROOT_ID == SPECIAL_INODE_ROOT, "invalid value of FUSE_ROOT_ID");
 
 typedef struct _dirbuf {
 	int wasread;
@@ -50,30 +51,13 @@ typedef struct _pathbuf {
 	pthread_mutex_t lock;
 } pathbuf;
 
+#define READDIR_BUFFSIZE 50000
+
 #define NAME_MAX 255
 #define PATH_SIZE_LIMIT 1024
 
-#define META_ROOT_INODE FUSE_ROOT_ID
 #define META_ROOT_MODE 0555
 
-#define META_TRASH_INODE (FUSE_ROOT_ID+1)
-#define META_TRASH_NAME "trash"
-#define META_UNDEL_INODE (FUSE_ROOT_ID+2)
-#define META_UNDEL_NAME "undel"
-#define META_RESERVED_INODE (FUSE_ROOT_ID+3)
-#define META_RESERVED_NAME "reserved"
-
-#define META_INODE_MIN META_ROOT_INODE
-#define META_INODE_MAX META_RESERVED_INODE
-
-#define INODE_VALUE_MASK 0x1FFFFFFF
-#define INODE_TYPE_MASK 0x60000000
-#define INODE_TYPE_TRASH 0x20000000
-#define INODE_TYPE_RESERVED 0x40000000
-#define INODE_TYPE_SPECIAL 0x00000000
-
-#define MASTERINFO_NAME ".masterinfo"
-#define MASTERINFO_INODE 0x7FFFFFFE
 // 0x0124 = 0444
 #ifdef MASTERINFO_WITH_VERSION
 static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,14};
@@ -85,6 +69,8 @@ static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,
 		((LIZARDFS_PACKAGE_VERSION_MAJOR)*1000000 + \
 		(LIZARDFS_PACKAGE_VERSION_MINOR)*1000 + \
 		(LIZARDFS_PACKAGE_VERSION_MICRO))
+
+#define IS_SPECIAL_INODE(inode) ((inode)>=SPECIAL_INODE_BASE || (inode)==SPECIAL_INODE_ROOT)
 
 static int debug_mode = 0;
 static double entry_cache_timeout = 0.0;
@@ -137,19 +123,19 @@ static void mfs_meta_stat(uint32_t inode, struct stat *stbuf) {
 	stbuf->st_size = 0;
 	stbuf->st_blocks = 0;
 	switch (inode) {
-	case META_ROOT_INODE:
+	case SPECIAL_INODE_ROOT:
 		stbuf->st_nlink = 4;
 		stbuf->st_mode = S_IFDIR | META_ROOT_MODE ;
 		break;
-	case META_TRASH_INODE:
+	case SPECIAL_INODE_META_TRASH:
 		stbuf->st_nlink = 3;
 		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0777 : 0700) ;
 		break;
-	case META_UNDEL_INODE:
+	case SPECIAL_INODE_META_UNDEL:
 		stbuf->st_nlink = 2;
 		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0777 : 0200) ;
 		break;
-	case META_RESERVED_INODE:
+	case SPECIAL_INODE_META_RESERVED:
 		stbuf->st_nlink = 2;
 		stbuf->st_mode = S_IFDIR | (nonRootAllowedToUseMeta() ? 0555 : 0500) ;
 		break;
@@ -228,30 +214,30 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	memset(&e, 0, sizeof(e));
 	inode = 0;
 	switch (parent) {
-	case META_ROOT_INODE:
+	case SPECIAL_INODE_ROOT:
 		if (strcmp(name,".")==0 || strcmp(name,"..")==0) {
-			inode = META_ROOT_INODE;
-		} else if (strcmp(name,META_TRASH_NAME)==0) {
-			inode = META_TRASH_INODE;
-		} else if (strcmp(name,META_RESERVED_NAME)==0) {
-			inode = META_RESERVED_INODE;
-		} else if (strcmp(name,MASTERINFO_NAME)==0) {
+			inode = SPECIAL_INODE_ROOT;
+		} else if (strcmp(name,SPECIAL_FILE_NAME_META_TRASH)==0) {
+			inode = SPECIAL_INODE_META_TRASH;
+		} else if (strcmp(name,SPECIAL_FILE_NAME_META_RESERVED)==0) {
+			inode = SPECIAL_INODE_META_RESERVED;
+		} else if (strcmp(name,SPECIAL_FILE_NAME_MASTERINFO)==0) {
 			memset(&e, 0, sizeof(e));
-			e.ino = MASTERINFO_INODE;
+			e.ino = SPECIAL_INODE_MASTERINFO;
 			e.attr_timeout = 3600.0;
 			e.entry_timeout = 3600.0;
-			mfs_attr_to_stat(MASTERINFO_INODE,masterinfoattr,&e.attr);
+			mfs_attr_to_stat(SPECIAL_INODE_MASTERINFO,masterinfoattr,&e.attr);
 			fuse_reply_entry(req, &e);
 			return ;
 		}
 		break;
-	case META_TRASH_INODE:
+	case SPECIAL_INODE_META_TRASH:
 		if (strcmp(name,".")==0) {
-			inode = META_TRASH_INODE;
+			inode = SPECIAL_INODE_META_TRASH;
 		} else if (strcmp(name,"..")==0) {
-			inode = META_ROOT_INODE;
-		} else if (strcmp(name,META_UNDEL_NAME)==0) {
-			inode = META_UNDEL_INODE;
+			inode = SPECIAL_INODE_ROOT;
+		} else if (strcmp(name,SPECIAL_FILE_NAME_META_UNDEL)==0) {
+			inode = SPECIAL_INODE_META_UNDEL;
 		} else {
 			inode = mfs_meta_name_to_inode(name);
 			if (inode>0) {
@@ -262,28 +248,28 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 				if (status!=0) {
 					fuse_reply_err(req, status);
 				} else {
-					e.ino = inode | INODE_TYPE_TRASH;
+					e.ino = inode;
 					e.attr_timeout = attr_cache_timeout;
 					e.entry_timeout = entry_cache_timeout;
-					mfs_attr_to_stat(inode  | INODE_TYPE_TRASH,attr,&e.attr);
+					mfs_attr_to_stat(inode ,attr,&e.attr);
 					fuse_reply_entry(req,&e);
 				}
 				return;
 			}
 		}
 		break;
-	case META_UNDEL_INODE:
+	case SPECIAL_INODE_META_UNDEL:
 		if (strcmp(name,".")==0) {
-			inode = META_UNDEL_INODE;
+			inode = SPECIAL_INODE_META_UNDEL;
 		} else if (strcmp(name,"..")==0) {
-			inode = META_TRASH_INODE;
+			inode = SPECIAL_INODE_META_TRASH;
 		}
 		break;
-	case META_RESERVED_INODE:
+	case SPECIAL_INODE_META_RESERVED:
 		if (strcmp(name,".")==0) {
-			inode = META_RESERVED_INODE;
+			inode = SPECIAL_INODE_META_RESERVED;
 		} else if (strcmp(name,"..")==0) {
-			inode = META_ROOT_INODE;
+			inode = SPECIAL_INODE_ROOT;
 		} else {
 			inode = mfs_meta_name_to_inode(name);
 			if (inode>0) {
@@ -294,10 +280,10 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 				if (status!=0) {
 					fuse_reply_err(req, status);
 				} else {
-					e.ino = inode | INODE_TYPE_RESERVED;
+					e.ino = inode;
 					e.attr_timeout = attr_cache_timeout;
 					e.entry_timeout = entry_cache_timeout;
-					mfs_attr_to_stat(inode  | INODE_TYPE_RESERVED,attr,&e.attr);
+					mfs_attr_to_stat(inode ,attr,&e.attr);
 					fuse_reply_entry(req,&e);
 				}
 				return;
@@ -319,40 +305,26 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	struct stat o_stbuf;
 	(void)fi;
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_attr_to_stat(ino,masterinfoattr,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, 3600.0);
-	} else if (ino>=META_INODE_MIN && ino<=META_INODE_MAX) {
+	} else if (IS_SPECIAL_INODE(ino)) {
 		memset(&o_stbuf, 0, sizeof(struct stat));
 		mfs_meta_stat(ino,&o_stbuf);
 		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
-	} else if ((ino & INODE_TYPE_MASK) == INODE_TYPE_TRASH) {
-		int status;
-		uint8_t attr[35];
-		status = fs_getdetachedattr(ino & INODE_VALUE_MASK,attr);
-		status = mfs_errorconv(status);
-		if (status!=0) {
-			fuse_reply_err(req, status);
-		} else {
-			memset(&o_stbuf, 0, sizeof(struct stat));
-			mfs_attr_to_stat(ino,attr,&o_stbuf);
-			fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
-		}
-	} else if ((ino & INODE_TYPE_MASK) == INODE_TYPE_RESERVED) {
-		int status;
-		uint8_t attr[35];
-		status = fs_getdetachedattr(ino & INODE_VALUE_MASK,attr);
-		status = mfs_errorconv(status);
-		if (status!=0) {
-			fuse_reply_err(req, status);
-		} else {
-			memset(&o_stbuf, 0, sizeof(struct stat));
-			mfs_attr_to_stat(ino,attr,&o_stbuf);
-			fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
-		}
 	} else {
-		fuse_reply_err(req, ENOENT);
+		int status;
+		uint8_t attr[35];
+		status = fs_getdetachedattr(ino, attr);
+		status = mfs_errorconv(status);
+		if (status!=0) {
+			fuse_reply_err(req, status);
+		} else {
+			memset(&o_stbuf, 0, sizeof(struct stat));
+			mfs_attr_to_stat(ino,attr,&o_stbuf);
+			fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
+		}
 	}
 }
 
@@ -365,7 +337,7 @@ void mfs_meta_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to
 void mfs_meta_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	int status;
 	uint32_t inode;
-	if (parent!=META_TRASH_INODE) {
+	if (parent!=SPECIAL_INODE_META_TRASH) {
 		fuse_reply_err(req,EACCES);
 		return;
 	}
@@ -383,7 +355,7 @@ void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_i
 	int status;
 	uint32_t inode;
 	(void)newname;
-	if (parent!=META_TRASH_INODE && newparent!=META_UNDEL_INODE) {
+	if (parent!=SPECIAL_INODE_META_TRASH && newparent!=SPECIAL_INODE_META_UNDEL) {
 		fuse_reply_err(req,EACCES);
 		return;
 	}
@@ -399,13 +371,13 @@ void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_i
 
 static uint32_t dir_metaentries_size(uint32_t ino) {
 	switch (ino) {
-	case META_ROOT_INODE:
-		return 4*6+1+2+strlen(META_TRASH_NAME)+strlen(META_RESERVED_NAME);
-	case META_TRASH_INODE:
-		return 3*6+1+2+strlen(META_UNDEL_NAME);
-	case META_UNDEL_INODE:
+	case SPECIAL_INODE_ROOT:
+		return 4*6+1+2+strlen(SPECIAL_FILE_NAME_META_TRASH)+strlen(SPECIAL_FILE_NAME_META_RESERVED);
+	case SPECIAL_INODE_META_TRASH:
+		return 3*6+1+2+strlen(SPECIAL_FILE_NAME_META_UNDEL);
+	case SPECIAL_INODE_META_UNDEL:
 		return 2*6+1+2;
-	case META_RESERVED_INODE:
+	case SPECIAL_INODE_META_RESERVED:
 		return 2*6+1+2;
 	}
 	return 0;
@@ -414,77 +386,77 @@ static uint32_t dir_metaentries_size(uint32_t ino) {
 static void dir_metaentries_fill(uint8_t *buff,uint32_t ino) {
 	uint8_t l;
 	switch (ino) {
-	case META_ROOT_INODE:
+	case SPECIAL_INODE_ROOT:
 		// .
 		put8bit(&buff,1);
 		put8bit(&buff,'.');
-		put32bit(&buff,META_ROOT_INODE);
+		put32bit(&buff,SPECIAL_INODE_ROOT);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// ..
 		put8bit(&buff,2);
 		put8bit(&buff,'.');
 		put8bit(&buff,'.');
-		put32bit(&buff,META_ROOT_INODE);
+		put32bit(&buff,SPECIAL_INODE_ROOT);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// trash
-		l = strlen(META_TRASH_NAME);
+		l = strlen(SPECIAL_FILE_NAME_META_TRASH);
 		put8bit(&buff,l);
-		memcpy(buff,META_TRASH_NAME,l);
+		memcpy(buff,SPECIAL_FILE_NAME_META_TRASH,l);
 		buff+=l;
-		put32bit(&buff,META_TRASH_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_TRASH);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// reserved
-		l = strlen(META_RESERVED_NAME);
+		l = strlen(SPECIAL_FILE_NAME_META_RESERVED);
 		put8bit(&buff,l);
-		memcpy(buff,META_RESERVED_NAME,l);
+		memcpy(buff,SPECIAL_FILE_NAME_META_RESERVED,l);
 		buff+=l;
-		put32bit(&buff,META_RESERVED_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_RESERVED);
 		put8bit(&buff,TYPE_DIRECTORY);
 		return;
-	case META_TRASH_INODE:
+	case SPECIAL_INODE_META_TRASH:
 		// .
 		put8bit(&buff,1);
 		put8bit(&buff,'.');
-		put32bit(&buff,META_TRASH_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_TRASH);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// ..
 		put8bit(&buff,2);
 		put8bit(&buff,'.');
 		put8bit(&buff,'.');
-		put32bit(&buff,META_ROOT_INODE);
+		put32bit(&buff,SPECIAL_INODE_ROOT);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// undel
-		l = strlen(META_UNDEL_NAME);
+		l = strlen(SPECIAL_FILE_NAME_META_UNDEL);
 		put8bit(&buff,l);
-		memcpy(buff,META_UNDEL_NAME,l);
+		memcpy(buff,SPECIAL_FILE_NAME_META_UNDEL,l);
 		buff+=l;
-		put32bit(&buff,META_UNDEL_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_UNDEL);
 		put8bit(&buff,TYPE_DIRECTORY);
 		return;
-	case META_UNDEL_INODE:
+	case SPECIAL_INODE_META_UNDEL:
 		// .
 		put8bit(&buff,1);
 		put8bit(&buff,'.');
-		put32bit(&buff,META_UNDEL_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_UNDEL);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// ..
 		put8bit(&buff,2);
 		put8bit(&buff,'.');
 		put8bit(&buff,'.');
-		put32bit(&buff,META_TRASH_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_TRASH);
 		put8bit(&buff,TYPE_DIRECTORY);
 		return;
-	case META_RESERVED_INODE:
+	case SPECIAL_INODE_META_RESERVED:
 		// .
 		put8bit(&buff,1);
 		put8bit(&buff,'.');
-		put32bit(&buff,META_RESERVED_INODE);
+		put32bit(&buff,SPECIAL_INODE_META_RESERVED);
 		put8bit(&buff,TYPE_DIRECTORY);
 		// ..
 		put8bit(&buff,2);
 		put8bit(&buff,'.');
 		put8bit(&buff,'.');
-		put32bit(&buff,META_ROOT_INODE);
+		put32bit(&buff,SPECIAL_INODE_ROOT);
 		put8bit(&buff,TYPE_DIRECTORY);
 		return;
 	}
@@ -511,7 +483,7 @@ static uint32_t dir_dataentries_size(const uint8_t *dbuff,uint32_t dsize) {
 	return eleng;
 }
 
-static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t dsize,uint32_t inodemask) {
+static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t dsize) {
 	const char *name;
 	uint32_t inode;
 	uint8_t nleng;
@@ -539,7 +511,6 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 				memcpy(buff+9,name,nleng);
 				buff+=9+nleng;
 			}
-			inode|=inodemask;
 			put32bit(&buff,inode);
 			put8bit(&buff,TYPE_FILE);
 		} else {
@@ -552,30 +523,27 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 
 static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	int status;
-	uint32_t msize,dcsize,imask;
+	uint32_t msize,dcsize;
 	const uint8_t *dbuff;
 	uint32_t dsize;
 
 	b->p = NULL;
 	b->size = 0;
 	msize = dir_metaentries_size(ino);
-	if (ino==META_TRASH_INODE) {
+	if (ino==SPECIAL_INODE_META_TRASH) {
 		status = fs_gettrash(&dbuff,&dsize);
 		if (status!=LIZARDFS_STATUS_OK) {
 			return;
 		}
 		dcsize = dir_dataentries_size(dbuff,dsize);
-		imask = INODE_TYPE_TRASH;
-	} else if (ino==META_RESERVED_INODE) {
+	} else if (ino==SPECIAL_INODE_META_RESERVED) {
 		status = fs_getreserved(&dbuff,&dsize);
 		if (status!=LIZARDFS_STATUS_OK) {
 			return;
 		}
 		dcsize = dir_dataentries_size(dbuff,dsize);
-		imask = INODE_TYPE_RESERVED;
 	} else {
 		dcsize = 0;
-		imask = 0;
 	}
 	if (msize+dcsize==0) {
 		return;
@@ -589,14 +557,14 @@ static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 		dir_metaentries_fill(b->p,ino);
 	}
 	if (dcsize>0) {
-		dir_dataentries_convert(b->p+msize,dbuff,dsize,imask);
+		dir_dataentries_convert(b->p+msize,dbuff,dsize);
 	}
 	b->size = msize+dcsize;
 }
 
 void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	dirbuf *dirinfo;
-	if (ino==META_ROOT_INODE || ino==META_TRASH_INODE || ino==META_UNDEL_INODE || ino==META_RESERVED_INODE) {
+	if (ino==SPECIAL_INODE_ROOT || ino==SPECIAL_INODE_META_TRASH || ino==SPECIAL_INODE_META_UNDEL || ino==SPECIAL_INODE_META_RESERVED) {
 		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
 		pthread_mutex_init(&(dirinfo->lock),NULL);
 		dirinfo->p = NULL;
@@ -693,42 +661,43 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	pathbuf *pathinfo;
 	const uint8_t *path;
 	int status;
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		fi->fh = 0;
 		fi->direct_io = 0;
 		fi->keep_cache = 1;
 		fuse_reply_open(req, fi);
 		return;
 	}
-	if ((ino & INODE_TYPE_MASK) == INODE_TYPE_TRASH) {
-		status = fs_gettrashpath((ino&INODE_VALUE_MASK),&path);
-		status = mfs_errorconv(status);
-		if (status!=0) {
-			fuse_reply_err(req, status);
-		} else {
-			pathinfo = (pathbuf*) malloc(sizeof(pathbuf));
-			pthread_mutex_init(&(pathinfo->lock),NULL);
-			pathinfo->changed = 0;
-			pathinfo->size = strlen((char*)path)+1;
-			pathinfo->p = (char*) malloc(pathinfo->size);
-			memcpy(pathinfo->p,path,pathinfo->size-1);
-			pathinfo->p[pathinfo->size-1]='\n';
-			fi->direct_io = 1;
-			fi->fh = (unsigned long)pathinfo;
-			if (fuse_reply_open(req,fi) == -ENOENT) {
-				fi->fh = 0;
-				pthread_mutex_destroy(&(pathinfo->lock));
-				free(pathinfo->p);
-				free(pathinfo);
-			}
-		}
-	} else {
+	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req, EACCES);
+		return;
+	}
+
+	status = fs_gettrashpath(ino,&path);
+	status = mfs_errorconv(status);
+	if (status!=0) {
+		fuse_reply_err(req, status);
+	} else {
+		pathinfo = (pathbuf*) malloc(sizeof(pathbuf));
+		pthread_mutex_init(&(pathinfo->lock),NULL);
+		pathinfo->changed = 0;
+		pathinfo->size = strlen((char*)path)+1;
+		pathinfo->p = (char*) malloc(pathinfo->size);
+		memcpy(pathinfo->p,path,pathinfo->size-1);
+		pathinfo->p[pathinfo->size-1]='\n';
+		fi->direct_io = 1;
+		fi->fh = (unsigned long)pathinfo;
+		if (fuse_reply_open(req,fi) == -ENOENT) {
+			fi->fh = 0;
+			pthread_mutex_destroy(&(pathinfo->lock));
+			free(pathinfo->p);
+			free(pathinfo);
+		}
 	}
 }
 
 void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		fuse_reply_err(req,0);
 		return;
 	}
@@ -741,7 +710,7 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 			pathinfo->p = (char*) realloc(pathinfo->p,pathinfo->size+1);
 			pathinfo->p[pathinfo->size]=0;
 		}
-		fs_settrashpath((ino&INODE_VALUE_MASK),(uint8_t*)pathinfo->p);
+		fs_settrashpath(ino,(uint8_t*)pathinfo->p);
 	}
 	pthread_mutex_unlock(&(pathinfo->lock));
 	pthread_mutex_destroy(&(pathinfo->lock));
@@ -753,7 +722,7 @@ void mfs_meta_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 
 void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	pathbuf *pathinfo = (pathbuf *)((unsigned long)(fi->fh));
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		uint8_t masterinfo[14];
 		fs_getmasterlocation(masterinfo);
 		masterproxy_getlocation(masterinfo);
@@ -795,7 +764,7 @@ void mfs_meta_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struc
 
 void mfs_meta_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi) {
 	pathbuf *pathinfo = (pathbuf *)((unsigned long)(fi->fh));
-	if (ino==MASTERINFO_INODE) {
+	if (ino==SPECIAL_INODE_MASTERINFO) {
 		fuse_reply_err(req,EACCES);
 		return;
 	}

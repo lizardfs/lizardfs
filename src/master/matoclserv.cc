@@ -591,7 +591,7 @@ session* matoclserv_new_session(uint8_t newsession,uint8_t nonewid) {
 	asesdata->mapalluid = 0;
 	asesdata->mapallgid = 0;
 	asesdata->newsession = newsession;
-	asesdata->rootinode = MFS_ROOT_ID;
+	asesdata->rootinode = SPECIAL_INODE_ROOT;
 	asesdata->openedfiles = NULL;
 	asesdata->disconnected = 0;
 	asesdata->nsocks = 1;
@@ -910,7 +910,7 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 		asesdata->mapalluid = 0;
 		asesdata->mapallgid = 0;
 		asesdata->newsession = 0;
-		asesdata->rootinode = MFS_ROOT_ID;
+		asesdata->rootinode = SPECIAL_INODE_ROOT;
 		asesdata->openedfiles = NULL;
 		asesdata->disconnected = main_time();
 		asesdata->nsocks = 0;
@@ -1548,7 +1548,7 @@ void matoclserv_notify_link(uint32_t dirinode,uint8_t nleng,const uint8_t *name,
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,SPECIAL_INODE_ROOT);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1583,7 +1583,7 @@ void matoclserv_notify_unlink(uint32_t dirinode,uint8_t nleng,const uint8_t *nam
 			put32bit(&ptr,0);
 			put32bit(&ptr,ts);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,SPECIAL_INODE_ROOT);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1609,7 +1609,7 @@ void matoclserv_notify_remove(uint32_t dirinode) {
 			stats_notify++;
 			put32bit(&ptr,0);
 			if (dirinode==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,SPECIAL_INODE_ROOT);
 			} else {
 				put32bit(&ptr,dirinode);
 			}
@@ -1634,7 +1634,7 @@ void matoclserv_notify_parent(uint32_t dirinode,uint32_t parent) {
 			put32bit(&ptr,0);
 			put32bit(&ptr,dirinode);
 			if (parent==dc->eptr->sesdata->rootinode) {
-				put32bit(&ptr,MFS_ROOT_ID);
+				put32bit(&ptr,SPECIAL_INODE_ROOT);
 			} else {
 				put32bit(&ptr,parent);
 			}
@@ -1731,7 +1731,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->sesdata->rootinode = MFS_ROOT_ID;
+				eptr->sesdata->rootinode = SPECIAL_INODE_ROOT;
 				eptr->sesdata->sesflags = 0;
 				eptr->sesdata->peerip = eptr->peerip;
 		} else { // reconnect or tools
@@ -1743,7 +1743,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 					eptr->mode = KILL;
 					return;
 				}
-				eptr->sesdata->rootinode = MFS_ROOT_ID;
+				eptr->sesdata->rootinode = SPECIAL_INODE_ROOT;
 				eptr->sesdata->sesflags = 0;
 				eptr->sesdata->peerip = eptr->peerip;
 				status = LIZARDFS_STATUS_OK;
@@ -2776,7 +2776,7 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		fs_readdir_data(eptr->sesdata->rootinode,eptr->sesdata->sesflags,uid,gid,auid,agid,flags,custom,ptr);
 /* CACHENOTIFY
 		if (flags&GETDIR_FLAG_ADDTOCACHE) {
-			if (inode==MFS_ROOT_ID) {
+			if (inode==SPECIAL_INODE_ROOT) {
 				matoclserv_notify_add_dir(eptr,eptr->sesdata->rootinode);
 			} else {
 				matoclserv_notify_add_dir(eptr,inode);
@@ -2806,7 +2806,7 @@ void matoclserv_fuse_dir_removed(matoclserventry *eptr,const uint8_t *data,uint3
 	while (length) {
 		inode = get32bit(&data);
 		length-=4;
-		if (inode==MFS_ROOT_ID) {
+		if (inode==SPECIAL_INODE_ROOT) {
 			matoclserv_notify_remove_dir(eptr,eptr->sesdata->rootinode);
 		} else {
 			matoclserv_notify_remove_dir(eptr,inode);
