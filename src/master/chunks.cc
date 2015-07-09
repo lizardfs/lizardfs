@@ -336,7 +336,16 @@ public:
 	void updateStats() {
 		int oldAllMissingParts = allMissingParts_;
 		removeFromStats();
-		const Goal& g = fs_get_goal_definition(goalInStats_);
+
+		/*
+		 * TODO(sarna): This code is valid as long as it is illegal to
+		 * mix XOR goals with georeplication. It needs to be rewritten
+		 * after this kind of mixing is allowed.
+		 */
+		const Goal &g = goal::isXorGoal(highestIdGoal()) ?
+				fs_get_goal_definition(highestIdGoal()) : Goal(getLabels());
+
+
 		allStandardCopies_ = regularStandardCopies_ = 0;
 		ChunkCopiesCalculator all(&g), regular(&g);
 		for (slist* s = slisthead; s != nullptr; s = s->next) {

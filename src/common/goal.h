@@ -82,6 +82,16 @@ public:
 				  [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
 	}
 
+	/// Constructor of anonymous goal
+	Goal(Labels chunkLabels)
+		: isXor_(false),
+		  xorLevel_(0),
+		  name_(),
+		  chunkLabels_(std::move(chunkLabels)),
+		  size_(std::accumulate(chunkLabels_.begin(), chunkLabels_.end(), 0,
+				  [](int sum, const Labels::value_type& elem){ return sum + elem.second; })) {
+	}
+
 	static Goal getXorGoal(ChunkType::XorLevel level) {
 		Goal g;
 		g.isXor_ = true;
