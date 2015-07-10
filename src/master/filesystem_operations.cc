@@ -1481,45 +1481,6 @@ uint8_t fs_link(const FsContext &context, uint32_t inode_src, uint32_t parent_ds
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		uint16_t nleng_dst, const uint8_t *name_dst, uint8_t canoverwrite) {
-	ChecksumUpdater cu(context.ts());
-	fsnode *sp = NULL;
-	fsnode *dwd = NULL;
-	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
-	if (status != LIZARDFS_STATUS_OK) {
-		return status;
-	}
-	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kDirectory, MODE_MASK_W,
-	                                        parent_dst, &dwd);
-	if (status != LIZARDFS_STATUS_OK) {
-		return status;
-	}
-	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, MODE_MASK_R,
-	                                        inode_src, &sp);
-	if (status != LIZARDFS_STATUS_OK) {
-		return status;
-	}
-	if (sp->type == TYPE_DIRECTORY) {
-		if (sp == dwd || fsnodes_isancestor(sp, dwd)) {
-			return LIZARDFS_ERROR_EINVAL;
-		}
-	}
-	status = fsnodes_snapshot_test(sp, sp, dwd, nleng_dst, name_dst, canoverwrite);
-	if (status != LIZARDFS_STATUS_OK) {
-		return status;
-	}
-	fsnodes_snapshot(context.ts(), sp, dwd, nleng_dst, name_dst);
-	if (context.isPersonalityMaster()) {
-		fs_changelog(context.ts(), "SNAPSHOT(%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
-		             sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst),
-		             canoverwrite);
-	} else {
-		gMetadata->metaversion++;
-	}
-	return LIZARDFS_STATUS_OK;
-}
-
 uint8_t fs_append(const FsContext &context, uint32_t inode, uint32_t inode_src) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *p, *sp;

@@ -138,7 +138,7 @@
 #define LIZARDFS_ERROR_WRONGLOCKID             47    // Wrong lock id
 #define LIZARDFS_ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
 #define LIZARDFS_ERROR_TEMP_NOTPOSSIBLE        49    // Operation temporarily not possible
-#define LIZARDFS_ERROR_RESERVED3               50
+#define LIZARDFS_ERROR_WAITING                 50    // Waiting for operation completion
 #define LIZARDFS_ERROR_RESERVED4               51
 
 #define LIZARDFS_ERROR_MAX                     52

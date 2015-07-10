@@ -29,9 +29,11 @@
 #include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
+#include "master/filesystem_snapshot_manager.h"
 #include "master/filesystem_xattr.h"
 #include "master/metadata_dumper.h"
 #include "master/quota_database.h"
+
 
 #define MAX_REGULAR_INODE (0x7FFFFFF0ULL-1)
 
@@ -51,6 +53,7 @@ public:
 	fsedge *edgehash[EDGEHASHSIZE];
 	sessionidrec_bucket *crbhead;
 	sessionidrec *crfreehead;
+	SnapshotManager snapshot_manager;
 
 	uint32_t maxnodeid;
 	uint32_t nextsessionid;

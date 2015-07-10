@@ -89,9 +89,6 @@ uint8_t fs_settrashpath(const FsContext& context,
 uint8_t fs_settrashtime(const FsContext& context,
 		uint32_t inode, uint32_t trashtime, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
-uint8_t fs_snapshot(const FsContext& context,
-		uint32_t inode_src, uint32_t parent_dst, uint16_t nleng_dst, const uint8_t *name_dst,
-		uint8_t canoverwrite);
 uint8_t fs_symlink(const FsContext& context,
 		uint32_t parent, uint16_t nleng, const uint8_t *name, uint32_t pleng, const uint8_t *path,
 		uint32_t *inode, Attributes* attr);

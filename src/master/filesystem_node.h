@@ -200,11 +200,6 @@ bool fsnodes_isancestor(fsnode *f, fsnode *p);
 void fsnodes_remove_edge(uint32_t ts, fsedge *e);
 void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, const uint8_t *name);
 
-uint8_t fsnodes_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, fsnode *parentnode,
-	uint32_t nleng, const uint8_t *name, uint8_t canoverwrite);
-void fsnodes_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnode, uint32_t nleng,
-	const uint8_t *name);
-
 uint8_t fsnodes_appendchunks(uint32_t ts, fsnode *dstobj, fsnode *srcobj);
 uint32_t fsnodes_getdirsize(fsnode *p, uint8_t withattr);
 void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,

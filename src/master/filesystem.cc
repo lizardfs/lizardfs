@@ -31,6 +31,7 @@
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_operations.h"
 #include "master/filesystem_periodic.h"
+#include "master/filesystem_snapshot.h"
 #include "master/filesystem_store.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
@@ -244,6 +245,7 @@ void fs_become_master() {
 	test_start_time = main_time() + 900;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
 	main_eachloopregister(fs_background_checksum_recalculation_a_bit);
+	main_eachloopregister(fs_background_snapshot_work);
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
 			0, fs_periodic_emptytrash);

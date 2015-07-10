@@ -67,6 +67,7 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
+#include "master/filesystem_snapshot.h"
 #include "master/masterconn.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
@@ -561,6 +562,16 @@ static inline void matoclserv_show_notification_dirs(void) {
 	}
 }
 */
+
+matoclserventry *matoclserv_find_connection(uint32_t id) {
+	matoclserventry *eptr;
+	for (eptr = matoclservhead; eptr; eptr = eptr->next) {
+		if (eptr->sesdata && eptr->sesdata->sessionid == id) {
+			return eptr;
+		}
+	}
+	return NULL;
+}
 
 /* new registration procedure */
 session* matoclserv_new_session(uint8_t newsession,uint8_t nonewid) {
@@ -3538,17 +3549,28 @@ void matoclserv_fuse_append(matoclserventry *eptr, const uint8_t *data, uint32_t
 	put8bit(&ptr,status);
 }
 
-void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,inode_dst;
+void matoclserv_fuse_snapshot_wake_up(uint32_t session_id, uint32_t msgid, int status) {
+	matoclserventry *eptr = matoclserv_find_connection(session_id);
+	if (!eptr) {
+		return;
+	}
+
+	uint8_t *ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_SNAPSHOT, 5);
+	put32bit(&ptr, msgid);
+	put8bit(&ptr, status);
+}
+
+void matoclserv_fuse_snapshot(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t inode, inode_dst;
 	uint8_t nleng_dst;
 	const uint8_t *name_dst;
-	uint32_t uid,gid;
+	uint32_t uid, gid;
 	uint8_t canoverwrite;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
-	if (length<22) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ")",length);
+	if (length < 22) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ")", length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3556,8 +3578,10 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t
 	inode = get32bit(&data);
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
-	if (length!=22U+nleng_dst) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ":nleng_dst=%" PRIu8 ")",length,nleng_dst);
+	if (length != 22U + nleng_dst) {
+		syslog(LOG_NOTICE,
+		       "CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ":nleng_dst=%" PRIu8 ")",
+		       length, nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3566,11 +3590,15 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	canoverwrite = get8bit(&data);
-	status = fs_snapshot(matoclserv_get_context(eptr, uid, gid),
-			inode, inode_dst, nleng_dst, name_dst, canoverwrite);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SNAPSHOT,5);
-	put32bit(&ptr,msgid);
-	put8bit(&ptr,status);
+	status = fs_snapshot(matoclserv_get_context(eptr, uid, gid), inode, inode_dst, nleng_dst,
+	                     name_dst, canoverwrite,
+	                     std::bind(matoclserv_fuse_snapshot_wake_up, eptr->sesdata->sessionid,
+	                               msgid, std::placeholders::_1));
+	if (status != LIZARDFS_ERROR_WAITING) {
+		ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_SNAPSHOT, 5);
+		put32bit(&ptr, msgid);
+		put8bit(&ptr, status);
+	}
 }
 
 void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,uint32_t length) {

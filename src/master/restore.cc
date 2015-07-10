@@ -27,6 +27,7 @@
 #include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 #include "master/filesystem.h"
+#include "master/filesystem_snapshot.h"
 
 #ifndef METARESTORE
 # include "common/debug_log.h"
@@ -561,8 +562,26 @@ int do_snapshot(const char* filename, uint64_t lv, uint32_t ts, const char* ptr)
 	EAT(ptr,filename,lv,',');
 	GETU32(canoverwrite,ptr);
 	EAT(ptr,filename,lv,')');
-	return fs_snapshot(FsContext::getForRestore(ts),
+	return fs_deprecated_snapshot(FsContext::getForRestore(ts),
 			inode, parent, strlen((char*)name), name, canoverwrite);
+}
+
+int do_clone_node(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
+	uint32_t src_inode, dst_parent, dst_inode, can_overwrite;
+	uint8_t name[256];
+	EAT(ptr,filename,lv,'(');
+	GETU32(src_inode,ptr);
+	EAT(ptr,filename,lv,',');
+	GETU32(dst_parent,ptr);
+	EAT(ptr,filename,lv,',');
+	GETU32(dst_inode,ptr);
+	EAT(ptr,filename,lv,',');
+	GETNAME(name,ptr,filename,lv,',');
+	EAT(ptr,filename,lv,',');
+	GETU32(can_overwrite,ptr);
+	EAT(ptr,filename,lv,')');
+	return fs_clone_node(FsContext::getForRestore(ts), src_inode, dst_parent, dst_inode,
+				strlen((char*)name), name, can_overwrite);
 }
 
 int do_symlink(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -701,6 +720,8 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 		case 'C':
 			if (strncmp(ptr,"CHECKSUM",8)==0) {
 				status = do_checksum(filename,lv,ts,ptr+8);
+			} else if (strncmp(ptr,"CLONE",5)==0) {
+				status = do_clone_node(filename,lv,ts,ptr+5);
 			} else if (strncmp(ptr,"CREATE",6)==0) {
 				status = do_create(filename,lv,ts,ptr+6);
 			} else if (strncmp(ptr,"CUSTOMER",8)==0) {      // deprecated
@@ -775,7 +796,7 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 				status = do_settrashtime(filename,lv,ts,ptr+12);
 			} else if (strncmp(ptr,"SETXATTR",8)==0) {
 				status = do_setxattr(filename,lv,ts,ptr+8);
-			} else if (strncmp(ptr,"SNAPSHOT",8)==0) {
+			} else if (strncmp(ptr,"SNAPSHOT",8)==0) {    // deprecated
 				status = do_snapshot(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SYMLINK",7)==0) {
 				status = do_symlink(filename,lv,ts,ptr+7);
