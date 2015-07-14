@@ -53,6 +53,7 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/filesystem_bst.h"
+#include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
@@ -126,27 +127,6 @@ struct xattr_inode_entry {
 	struct xattr_data_entry *data_head;
 	struct xattr_inode_entry *next;
 };
-
-
-typedef struct _freenode {
-	uint32_t id;
-	uint32_t ftime;
-	struct _freenode *next;
-} freenode;
-
-#define FREENODE_BUCKET_SIZE 5000
-typedef struct _freenode_bucket {
-	freenode bucket[FREENODE_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _freenode_bucket *next;
-} freenode_bucket;
-
-#define CUIDREC_BUCKET_SIZE 1000
-typedef struct _sessionidrec_bucket {
-	sessionidrec bucket[CUIDREC_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _sessionidrec_bucket *next;
-} sessionidrec_bucket;
 
 namespace {
 /** Metadata of the filesystem.
@@ -879,7 +859,7 @@ uint8_t fs_start_checksum_recalculation() {
 }
 #endif
 
-static inline freenode* freenode_malloc() {
+freenode* freenode_malloc() {
 	freenode_bucket *fnb;
 	freenode *ret;
 	if (gMetadata->fnfreehead) {
@@ -904,7 +884,7 @@ static inline void freenode_free(freenode *p) {
 	gMetadata->fnfreehead = p;
 }
 
-static inline sessionidrec* sessionidrec_malloc() {
+sessionidrec* sessionidrec_malloc() {
 	sessionidrec_bucket *crb;
 	sessionidrec *ret;
 	if (gMetadata->crfreehead) {
@@ -924,7 +904,7 @@ static inline sessionidrec* sessionidrec_malloc() {
 	return ret;
 }
 
-static inline void sessionidrec_free(sessionidrec *p) {
+void sessionidrec_free(sessionidrec *p) {
 	p->next = gMetadata->crfreehead;
 	gMetadata->crfreehead = p;
 }
@@ -1006,7 +986,7 @@ uint8_t fs_apply_freeinodes(uint32_t ts, uint32_t freeinodes) {
 }
 
 #ifndef METARESTORE
-static void fs_periodic_freeinodes(void) {
+void fs_periodic_freeinodes(void) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	uint32_t fi = fs_do_freeinodes(ts);
