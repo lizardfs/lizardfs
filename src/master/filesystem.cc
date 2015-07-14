@@ -57,6 +57,7 @@
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
+#include "master/filesystem_operations.h"
 #include "master/filesystem_xattr.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
@@ -79,9 +80,6 @@
 #endif
 
 #define LOOKUPNOHASHLIMIT 10
-
-#define DEFAULT_GOAL 1
-#define DEFAULT_TRASHTIME 86400
 
 #define MAXFNAMELENG 255
 
@@ -6028,7 +6026,7 @@ uint8_t fs_apply_emptytrash(uint32_t ts, uint32_t freeinodes, uint32_t reservedi
 	return LIZARDFS_STATUS_OK;
 }
 
-static uint32_t fs_do_emptyreserved(uint32_t ts) {
+uint32_t fs_do_emptyreserved(uint32_t ts) {
 	fsedge *e;
 	fsnode *p;
 	uint32_t fi = 0;
@@ -7654,7 +7652,7 @@ static bool fs_commit_metadata_dump() {
 
 // Broadcasts information about status of the freshly finished
 // metadata save process to interested modules.
-static void fs_broadcast_metadata_saved(uint8_t status) {
+void fs_broadcast_metadata_saved(uint8_t status) {
 	matomlserv_broadcast_metadata_saved(status);
 	matoclserv_broadcast_metadata_saved(status);
 }
