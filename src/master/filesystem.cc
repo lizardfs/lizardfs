@@ -53,6 +53,7 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/filesystem_bst.h"
+#include "master/filesystem_node.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/matotsserv.h"
@@ -73,15 +74,6 @@
 #  include "master/matotsserv.h"
 #endif
 
-#define NODEHASHBITS (22)
-#define NODEHASHSIZE (1<<NODEHASHBITS)
-#define NODEHASHPOS(nodeid) ((nodeid)&(NODEHASHSIZE-1))
-#define NODECHECKSUMSEED 12345
-
-#define EDGEHASHBITS (22)
-#define EDGEHASHSIZE (1<<EDGEHASHBITS)
-#define EDGEHASHPOS(hash) ((hash)&(EDGEHASHSIZE-1))
-#define EDGECHECKSUMSEED 1231241261
 #define LOOKUPNOHASHLIMIT 10
 
 #define XATTR_INODE_HASH_SIZE 65536
@@ -93,55 +85,14 @@
 
 #define MAXFNAMELENG 255
 
-#define MAX_INDEX 0x7FFFFFFF
-
 #define CHIDS_NO 0
 #define CHIDS_YES 1
 #define CHIDS_AUTO 2
-
-enum class AclInheritance {
-	kInheritAcl,
-	kDontInheritAcl
-};
 
 constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
 constexpr uint8_t kMetadataVersionWithLockIds = 0x29;
-
-typedef struct _sessionidrec {
-	uint32_t sessionid;
-	struct _sessionidrec *next;
-} sessionidrec;
-
-class fsnode;
-
-struct fsedge {
-	fsnode *child,*parent;
-	struct fsedge *nextchild,*nextparent;
-	struct fsedge **prevchild,**prevparent;
-	struct fsedge *next,**prev;
-	uint64_t checksum;
-	uint16_t nleng;
-	uint8_t *name;
-
-	fsedge() : name(nullptr) {}
-
-	~fsedge() {
-		free(name);
-	}
-};
-void free(fsedge*); // disable freeing using free at link time :)
-
-struct statsrecord {
-	uint32_t inodes;
-	uint32_t dirs;
-	uint32_t files;
-	uint32_t chunks;
-	uint64_t length;
-	uint64_t size;
-	uint64_t realsize;
-};
 
 #ifdef METARESTORE
 void changelog(int, char const*, ...) {
@@ -176,64 +127,6 @@ struct xattr_inode_entry {
 	struct xattr_inode_entry *next;
 };
 
-class fsnode {
-public:
-	std::unique_ptr<ExtendedAcl> extendedAcl;
-	std::unique_ptr<AccessControlList> defaultAcl;
-	uint32_t id;
-	uint32_t ctime,mtime,atime;
-	uint8_t type;
-	uint8_t goal;
-	uint16_t mode;  // only 12 lowest bits are used for mode, in unix standard upper 4 are used for object type, but since there is field "type" this bits can be used as extra flags
-	uint32_t uid;
-	uint32_t gid;
-	uint32_t trashtime;
-	union _data {
-		struct _ddata {                         // type==TYPE_DIRECTORY
-			fsedge *children;
-			uint32_t nlink;
-			uint32_t elements;
-			statsrecord *stats;
-		} ddata;
-		struct _sdata {                         // type==TYPE_SYMLINK
-			uint32_t pleng;
-			uint8_t *path;
-		} sdata;
-		struct _devdata {
-			uint32_t rdev;                          // type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
-		} devdata;
-		struct _fdata {                         // type==TYPE_FILE ; type==TYPE_TRASH ; type==TYPE_RESERVED
-			uint64_t length;
-			uint64_t *chunktab;
-			uint32_t chunks;
-			sessionidrec *sessionids;
-		} fdata;
-	} data;
-	fsedge *parents;
-	fsnode *next;
-	uint64_t checksum;
-
-	fsnode(uint8_t type) : type(type) {
-		if (type == TYPE_DIRECTORY) {
-			data.ddata.stats = nullptr;
-		} else if (type == TYPE_SYMLINK) {
-			data.sdata.path = nullptr;
-		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
-			data.fdata.chunktab = nullptr;
-		}
-	}
-
-	~fsnode() {
-		if (type == TYPE_DIRECTORY) {
-			free(data.ddata.stats);
-		} else if (type == TYPE_SYMLINK) {
-			free(data.sdata.path);
-		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
-			free(data.fdata.chunktab);
-		}
-	}
-};
-void free(fsnode*); // disable freeing using free at link time :)
 
 typedef struct _freenode {
 	uint32_t id;
@@ -523,15 +416,6 @@ void fs_changelog(uint32_t ts, const char* format, ...) {
 	changelog(version, entry);
 	matomlserv_broadcast_logstring(version, (uint8_t*)entry, tsLength + entryLength);
 #endif
-}
-
-static inline uint32_t fsnodes_hash(uint32_t parentid,uint16_t nleng,const uint8_t *name) {
-	uint32_t hash,i;
-	hash = ((parentid * 0x5F2318BD) + nleng);
-	for (i=0 ; i<nleng ; i++) {
-		hash = hash*33+name[i];
-	}
-	return hash;
 }
 
 static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const uint8_t *attrname) {
@@ -3145,13 +3029,6 @@ static inline int fsnodes_sticky_access(fsnode *parent,fsnode *node,uint32_t uid
 		return 1;
 	}
 	return 0;
-}
-
-// Arguments for verify_session
-namespace {
-	enum class SessionType { kNotMeta, kOnlyMeta, kAny };
-	enum class OperationMode { kReadWrite, kReadOnly };
-	enum class ExpectedNodeType { kFile, kDirectory, kNotDirectory, kAny };
 }
 
 static uint8_t verify_session(const FsContext& context,
