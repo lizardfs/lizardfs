@@ -55,6 +55,7 @@
 #include "master/filesystem_bst.h"
 #include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
+#include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_xattr.h"
 #include "master/goal_config_loader.h"
@@ -99,148 +100,7 @@ void changelog(int, char const*, ...) {
 }
 #endif
 
-namespace {
-/** Metadata of the filesystem.
- *  All the static variables managed by function in this file which form metadata of the filesystem.
- */
-struct FilesystemMetadata {
-public:
-	std::unordered_map<uint32_t, TapeCopies> tapeCopies;
-	xattr_inode_entry* xattr_inode_hash[XATTR_INODE_HASH_SIZE];
-	xattr_data_entry* xattr_data_hash[XATTR_DATA_HASH_SIZE];
-	uint32_t *freebitmask;
-	uint32_t bitmasksize;
-	uint32_t searchpos;
-	freenode *freelist,**freetail;
-	fsedge *trash;
-	fsedge *reserved;
-	fsnode *root;
-	fsnode* nodehash[NODEHASHSIZE];
-	fsedge* edgehash[EDGEHASHSIZE];
-	freenode_bucket *fnbhead;
-	freenode *fnfreehead;
-	sessionidrec_bucket *crbhead;
-	sessionidrec *crfreehead;
-
-	uint32_t maxnodeid;
-	uint32_t nextsessionid;
-	uint32_t nodes;
-	uint64_t metaversion;
-	uint64_t trashspace;
-	uint64_t reservedspace;
-	uint32_t trashnodes;
-	uint32_t reservednodes;
-	uint32_t filenodes;
-	uint32_t dirnodes;
-
-	QuotaDatabase gQuotaDatabase;
-
-	uint64_t fsNodesChecksum;
-	uint64_t fsEdgesChecksum;
-	uint64_t xattrChecksum;
-
-	FilesystemMetadata()
-			: tapeCopies{},
-			  xattr_inode_hash{},
-			  xattr_data_hash{},
-			  freebitmask{},
-			  bitmasksize{},
-			  searchpos{},
-			  freelist{},
-			  freetail{},
-			  trash{},
-			  reserved{},
-			  root{},
-			  nodehash{},
-			  edgehash{},
-			  fnbhead{},
-			  fnfreehead{},
-			  crbhead{},
-			  crfreehead{},
-			  maxnodeid{},
-			  nextsessionid{},
-			  nodes{},
-			  metaversion{},
-			  trashspace{},
-			  reservedspace{},
-			  trashnodes{},
-			  reservednodes{},
-			  filenodes{},
-			  dirnodes{},
-			  gQuotaDatabase{},
-			  fsNodesChecksum{},
-			  fsEdgesChecksum{},
-			  xattrChecksum{} {
-	}
-
-	~FilesystemMetadata() {
-		// Free memory allocated in xattr_inode_hash hashmap
-		for (uint32_t i = 0; i < XATTR_INODE_HASH_SIZE; ++i) {
-			freeListConnectedUsingNext(xattr_inode_hash[i]);
-		}
-
-		// Free memory allocated in xattr_data_hash hashmap
-		for (uint32_t i = 0; i < XATTR_DATA_HASH_SIZE; ++i) {
-			deleteListConnectedUsingNext(xattr_data_hash[i]);
-		}
-
-		// Free memory allocated in freebitmask
-		free(freebitmask);
-
-		// Free memory allocated in trash list
-		while (trash != nullptr) {
-			fsedge* next = trash->nextchild;
-			delete trash;
-			trash = next;
-		}
-
-		// Free memory allocated in reserved list
-		while (reserved != nullptr) {
-			fsedge* next = reserved->nextchild;
-			delete reserved;
-			reserved = next;
-		}
-
-		// Free memory allocated in nodehash hashmap
-		for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-			deleteListConnectedUsingNext(nodehash[i]);
-		}
-
-		// Free memory allocated in edgehash hashmap
-		for (uint32_t i = 0; i < EDGEHASHSIZE; ++i) {
-			deleteListConnectedUsingNext(edgehash[i]);
-		}
-
-		// Free memory allocated in fnbhead, crbhead lists
-		freeListConnectedUsingNext(fnbhead);
-		freeListConnectedUsingNext(crbhead);
-	}
-
-
-private:
-	// Frees a C-style list with elements connected using e->next pointer and allocated using malloc
-	template <typename T>
-	void freeListConnectedUsingNext(T* &list) {
-		while (list != nullptr) {
-			T* next = list->next;
-			free(list);
-			list = next;
-		}
-	}
-
-	// Frees a C-style list with elements connected using e->next pointer and allocated using new
-	template <typename T>
-	void deleteListConnectedUsingNext(T* &list) {
-		while (list != nullptr) {
-			T* next = list->next;
-			delete list;
-			list = next;
-		}
-	}
-};
-} // anonymous namespace
-
-static FilesystemMetadata* gMetadata = nullptr;
+FilesystemMetadata* gMetadata = nullptr;
 
 #ifndef METARESTORE
 
@@ -248,9 +108,9 @@ static void* gEmptyTrashHook;
 static void* gEmptyReservedHook;
 static void* gFreeInodesHook;
 static bool gAutoRecovery = false;
-static bool gMagicAutoFileRepair = false;
-static bool gAtimeDisabled = false;
-static MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
+bool gMagicAutoFileRepair = false;
+bool gAtimeDisabled = false;
+MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
@@ -266,7 +126,7 @@ static uint32_t fsinfo_msgbuffleng=0;
 static uint32_t fsinfo_loopstart=0;
 static uint32_t fsinfo_loopend=0;
 
-static uint32_t test_start_time;
+uint32_t test_start_time;
 
 static uint32_t stats_statfs=0;
 static uint32_t stats_getattr=0;
@@ -323,7 +183,7 @@ void fs_stats(uint32_t stats[16]) {
 static bool gSaveMetadataAtExit = true;
 
 // Configuration of goals
-static GoalMap<Goal> gGoalDefinitions;
+GoalMap<Goal> gGoalDefinitions;
 
 #endif // ifndef METARESTORE
 
@@ -331,7 +191,7 @@ static GoalMap<Goal> gGoalDefinitions;
 uint32_t gStoredPreviousBackMetaCopies;
 
 // Checksum validation
-static bool gDisableChecksumVerification = false;
+bool gDisableChecksumVerification = false;
 
 // Adds an entry to a changelog, updates filesystem.cc internal structures, prepends a
 // proper timestamp to changelog entry and broadcasts it to metaloggers and shadow masters
@@ -507,7 +367,7 @@ void ChecksumBackgroundUpdater::reset() {
 	xattrChecksum = XATTRCHECKSUMSEED;
 }
 
-static ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
+ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
 
 /*! \brief Periodically adds CHECKSUM changelog entry.
  *  Entry is added during destruction, so that it will be generated after end of function
