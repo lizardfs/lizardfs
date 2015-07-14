@@ -55,6 +55,7 @@
 #include "master/filesystem_bst.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
+#include "master/filesystem_xattr.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/matotsserv.h"
@@ -77,10 +78,6 @@
 
 #define LOOKUPNOHASHLIMIT 10
 
-#define XATTR_INODE_HASH_SIZE 65536
-#define XATTR_DATA_HASH_SIZE 524288
-#define XATTRCHECKSUMSEED 29857986791741783ULL
-
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
 
@@ -100,33 +97,6 @@ void changelog(int, char const*, ...) {
 	mabort("Bad code path - changelog() shall not be executed in metarestore context.");
 }
 #endif
-
-struct xattr_data_entry {
-	uint32_t inode;
-	uint8_t anleng;
-	uint32_t avleng;
-	uint8_t *attrname;
-	uint8_t *attrvalue;
-	uint64_t checksum;
-	struct xattr_data_entry **previnode,*nextinode;
-	struct xattr_data_entry **prev,*next;
-
-	xattr_data_entry() : attrname(nullptr), attrvalue(nullptr) {}
-
-	~xattr_data_entry() {
-		free(attrname);
-		free(attrvalue);
-	}
-};
-void free(xattr_data_entry*); // disable freeing using free at link time :)
-
-struct xattr_inode_entry {
-	uint32_t inode;
-	uint32_t anleng;
-	uint32_t avleng;
-	struct xattr_data_entry *data_head;
-	struct xattr_inode_entry *next;
-};
 
 namespace {
 /** Metadata of the filesystem.
@@ -396,16 +366,6 @@ void fs_changelog(uint32_t ts, const char* format, ...) {
 	changelog(version, entry);
 	matomlserv_broadcast_logstring(version, (uint8_t*)entry, tsLength + entryLength);
 #endif
-}
-
-static inline uint32_t xattr_data_hash_fn(uint32_t inode,uint8_t anleng,const uint8_t *attrname) {
-	uint32_t hash = inode*5381U;
-	while (anleng) {
-		hash = (hash * 33U) + (*attrname);
-		attrname++;
-		anleng--;
-	}
-	return (hash&(XATTR_DATA_HASH_SIZE-1));
 }
 
 /*!
@@ -1014,22 +974,6 @@ void fsnodes_used_inode (uint32_t id) {
 
 
 /* xattr */
-
-static inline uint32_t xattr_inode_hash_fn(uint32_t inode) {
-	return ((inode*0x72B5F387U)&(XATTR_INODE_HASH_SIZE-1));
-}
-
-#ifndef METARESTORE
-static inline int xattr_namecheck(uint8_t anleng,const uint8_t *attrname) {
-	uint32_t i;
-	for (i=0 ; i<anleng ; i++) {
-		if (attrname[i]=='\0') {
-			return -1;
-		}
-	}
-	return 0;
-}
-#endif /* METARESTORE */
 
 static inline void xattr_removeentry(xattr_data_entry *xa) {
 	*(xa->previnode) = xa->nextinode;
