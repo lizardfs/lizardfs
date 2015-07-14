@@ -54,6 +54,7 @@
 #include "master/chunks.h"
 #include "master/filesystem_bst.h"
 #include "master/filesystem_checksum_background_updater.h"
+#include "master/filesystem_checksum.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
@@ -460,7 +461,7 @@ void fsnodes_checksum_add_to_background(fsnode* node) {
 	addToChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, node->checksum);
 }
 
-static void fsnodes_update_checksum(fsnode* node) {
+void fsnodes_update_checksum(fsnode* node) {
 	if (!node) {
 		return;
 	}
@@ -528,7 +529,7 @@ void fsedges_checksum_add_to_background(fsedge* edge) {
 	addToChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
 }
 
-static void fsedges_update_checksum(fsedge* edge) {
+void fsedges_update_checksum(fsedge* edge) {
 	if (!edge) {
 		return;
 	}
