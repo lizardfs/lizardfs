@@ -52,6 +52,7 @@
 #include "common/tape_copy_state.h"
 #include "master/checksum.h"
 #include "master/chunks.h"
+#include "master/filesystem_bst.h"
 #include "master/goal_config_loader.h"
 #include "master/matomlserv.h"
 #include "master/matotsserv.h"
@@ -107,13 +108,6 @@ constexpr uint8_t kMetadataVersionMooseFS  = 0x15;
 constexpr uint8_t kMetadataVersionLizardFS = 0x16;
 constexpr uint8_t kMetadataVersionWithSections = 0x20;
 constexpr uint8_t kMetadataVersionWithLockIds = 0x29;
-
-#ifndef METARESTORE
-typedef struct _bstnode {
-	uint32_t val,count;
-	struct _bstnode *left,*right;
-} bstnode;
-#endif
 
 typedef struct _sessionidrec {
 	uint32_t sessionid;
@@ -2683,50 +2677,6 @@ static inline void fsnodes_getgoal_recursive(fsnode *node,uint8_t gmode,GoalMap<
 				fsnodes_getgoal_recursive(e->child,gmode,fgtab,dgtab);
 			}
 		}
-	}
-}
-
-static inline void fsnodes_bst_add(bstnode **n,uint32_t val) {
-	while (*n) {
-		if (val<(*n)->val) {
-			n = &((*n)->left);
-		} else if (val>(*n)->val) {
-			n = &((*n)->right);
-		} else {
-			(*n)->count++;
-			return;
-		}
-	}
-	(*n)= (bstnode*) malloc(sizeof(bstnode));
-	passert(*n);
-	(*n)->val = val;
-	(*n)->count = 1;
-	(*n)->left = NULL;
-	(*n)->right = NULL;
-}
-
-static inline uint32_t fsnodes_bst_nodes(bstnode *n) {
-	if (n) {
-		return 1+fsnodes_bst_nodes(n->left)+fsnodes_bst_nodes(n->right);
-	} else {
-		return 0;
-	}
-}
-
-static inline void fsnodes_bst_storedata(bstnode *n,uint8_t **ptr) {
-	if (n) {
-		fsnodes_bst_storedata(n->left,ptr);
-		put32bit(&*ptr,n->val);
-		put32bit(&*ptr,n->count);
-		fsnodes_bst_storedata(n->right,ptr);
-	}
-}
-
-static inline void fsnodes_bst_free(bstnode *n) {
-	if (n) {
-		fsnodes_bst_free(n->left);
-		fsnodes_bst_free(n->right);
-		free(n);
 	}
 }
 

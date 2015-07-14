@@ -24,6 +24,7 @@
 
 #include "common/compact_vector.h"
 #include "common/serialization_macros.h"
+#include "master/matotsserv.h"
 
 /// Information about a copy of a file on a tapeserver
 struct TapeCopy {
