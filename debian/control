@@ -33,36 +33,36 @@ Description: LizardFS common files
 Package: lizardfs-master
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-master
-Replaces: mfs-master
-Provides: mfs-master
+Conflicts: mfs-master, moosefs-master
+Replaces: mfs-master, moosefs-master
+Provides: mfs-master, moosefs-master
 Description: LizardFS master server
  LizardFS master (metadata) server.
 
 Package: lizardfs-metalogger
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-metalogger
-Replaces: mfs-metalogger
-Provides: mfs-metalogger
+Conflicts: mfs-metalogger, moosefs-metalogger
+Replaces: mfs-metalogger, moosefs-metalogger
+Provides: mfs-metalogger, moosefs-metalogger
 Description: LizardFS metalogger server
  LizardFS metalogger (metadata replication) server.
 
 Package: lizardfs-chunkserver
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-common
-Conflicts: mfs-chunkserver
-Replaces: mfs-chunkserver
-Provides: mfs-chunkserver
+Conflicts: mfs-chunkserver, moosefs-chunkserver
+Replaces: mfs-chunkserver, moosefs-chunkserver
+Provides: mfs-chunkserver, moosefs-chunkserver
 Description: LizardFS data server
  LizardFS data server.
 
 Package: lizardfs-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Conflicts: mfs-client
-Replaces: mfs-client
-Provides: mfs-client
+Conflicts: mfs-client, moosefs-client
+Replaces: mfs-client, moosefs-client
+Provides: mfs-client, moosefs-client
 Description: LizardFS client
  LizardFS clients: mfsmount and mfstools.
 
@@ -76,9 +76,9 @@ Package: lizardfs-cgi
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          python
-Conflicts: mfs-cgi
-Replaces: mfs-cgi
-Provides: mfs-cgi
+Conflicts: mfs-cgi, moosefs-cgi
+Replaces: mfs-cgi, moosefs-cgi
+Provides: mfs-cgi, moosefs-cgi
 Description: LizardFS CGI Monitor
  LizardFS CGI Monitor.
 
@@ -86,8 +86,8 @@ Package: lizardfs-cgiserv
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-cgi,
          python
-Conflicts: mfs-cgiserv
-Replaces: mfs-cgiserv
-Provides: mfs-cgiserv
+Conflicts: mfs-cgiserv, moosefs-cgiserv
+Replaces: mfs-cgiserv, moosefs-cgiserv
+Provides: mfs-cgiserv, moosefs-cgiserv
 Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
  Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
