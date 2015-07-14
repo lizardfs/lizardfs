@@ -53,6 +53,7 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/filesystem_bst.h"
+#include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_xattr.h"
@@ -368,190 +369,143 @@ void fs_changelog(uint32_t ts, const char* format, ...) {
 #endif
 }
 
-/*!
- * \brief Steps during recalculating checksum in the background
- * It is essential that kNone is at the beginning, and kDone at the end.
- */
-enum class ChecksumRecalculatingStep {
-	kNone, kTrash, kReserved, kNodes, kEdges, kXattrs, kChunks, kDone};
-
-// Special behavior for ++ChecksumRecalculatingStep
-ChecksumRecalculatingStep& operator++ (ChecksumRecalculatingStep &c) {
-	sassert(c != ChecksumRecalculatingStep::kDone);
-	c = static_cast<ChecksumRecalculatingStep>(static_cast<int>(c) + 1);
-	return c;
+ChecksumBackgroundUpdater::ChecksumBackgroundUpdater()
+	: speedLimit_(0) {  // Not important, redefined in fs_read_config_file()
+	reset();
 }
 
-/*!
- * \brief Updates checksums in the background, recalculating them from the beginning.
- *
- * Recalculation is done in steps as described in ChecksumRecalculatingStep.
- * This class holds information about the recalculation progress,
- * actual recalculating is done in function fs_background_checksum_recalculation_a_bit().
- * Controls recalculation of fsNodesChecksum, fsEdgesChecksum and xattrChecksum.
- * ChunksChecksum is recalculated externally using chunks_update_checksum_a_bit().
- */
-class ChecksumBackgroundUpdater {
-public:
-	ChecksumBackgroundUpdater()
-		: speedLimit_(0) {// Not important, redefined in fs_read_config_file()
-		reset();
-	}
-
-	// start recalculating, true if succeeds
-	bool start() {
-		DEBUG_LOG("master.fs.checksum.updater_start");
-		if (step_ == ChecksumRecalculatingStep::kNone) {
-			++step_;
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	// end recalculating and update checksums if mismatch found
-	void end(){
-		updateChecksum();
-		reset();
-		DEBUG_LOG("master.fs.checksum.updater_end");
-	}
-
-	// is recalculating in progress?
-	bool inProgress() {
-		return step_ != ChecksumRecalculatingStep::kNone;
-	}
-
-	ChecksumRecalculatingStep getStep() {
-		return step_;
-	}
-
-	// go to next step of recalculating, resets position
-	void incStep() {
+bool ChecksumBackgroundUpdater::start() {
+	DEBUG_LOG("master.fs.checksum.updater_start");
+	if (step_ == ChecksumRecalculatingStep::kNone) {
 		++step_;
-		position_ = 0;
+		return true;
+	} else {
+		return false;
 	}
+}
 
-	int32_t getPosition() {
-		return position_;
+void ChecksumBackgroundUpdater::end() {
+	updateChecksum();
+	reset();
+	DEBUG_LOG("master.fs.checksum.updater_end");
+}
+
+bool ChecksumBackgroundUpdater::inProgress() {
+	return step_ != ChecksumRecalculatingStep::kNone;
+}
+
+ChecksumRecalculatingStep ChecksumBackgroundUpdater::getStep() {
+	return step_;
+}
+
+void ChecksumBackgroundUpdater::incStep() {
+	++step_;
+	position_ = 0;
+}
+
+int32_t ChecksumBackgroundUpdater::getPosition() {
+	return position_;
+}
+
+void ChecksumBackgroundUpdater::incPosition() {
+	++position_;
+}
+
+bool ChecksumBackgroundUpdater::isNodeIncluded(fsnode *node) {
+	auto ret = false;
+	if (step_ > ChecksumRecalculatingStep::kNodes) {
+		ret = true;
 	}
-
-	void incPosition() {
-		++position_;
+	if (step_ == ChecksumRecalculatingStep::kNodes && NODEHASHPOS(node->id) < position_) {
+		ret = true;
 	}
+	if (ret) {
+		DEBUG_LOG("master.fs.checksum.changing_recalculated_node");
+	} else {
+		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_node");
+	}
+	return ret;
+}
 
-	// is node already included in the background checksum?
-	bool isNodeIncluded(fsnode* node) {
-		auto ret = false;
-		if (step_ > ChecksumRecalculatingStep::kNodes) {
+bool ChecksumBackgroundUpdater::isEdgeIncluded(fsedge *edge) {
+	auto ret = false;
+	if (edge->child->type == TYPE_TRASH) {
+		if (step_ > ChecksumRecalculatingStep::kTrash) {
 			ret = true;
-		}
-		if (step_ == ChecksumRecalculatingStep::kNodes && NODEHASHPOS(node->id) < position_) {
-			ret = true;
-		}
-		if (ret) {
-			DEBUG_LOG("master.fs.checksum.changing_recalculated_node");
 		} else {
-			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_node");
+			ret = false;
 		}
-		return ret;
-	}
-
-	// is edge already included in the background checksum?
-	bool isEdgeIncluded(fsedge* edge) {
-		auto ret = false;
-		if (edge->child->type == TYPE_TRASH) {
-			if (step_ > ChecksumRecalculatingStep::kTrash) {
-				ret = true;
-			} else {
-				ret = false;
-			}
-		} else if (edge->child->type == TYPE_RESERVED) {
-			if (step_ > ChecksumRecalculatingStep::kReserved) {
-				ret = true;
-			} else {
-				ret = false;
-			}
-		} else if (step_ > ChecksumRecalculatingStep::kEdges) {
+	} else if (edge->child->type == TYPE_RESERVED) {
+		if (step_ > ChecksumRecalculatingStep::kReserved) {
 			ret = true;
-		} else if (step_ == ChecksumRecalculatingStep::kEdges
-				&& EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->nleng, edge->name)) < position_) {
-			ret = true;
-		}
-		if (ret) {
-			DEBUG_LOG("master.fs.checksum.changing_recalculated_edge");
 		} else {
-			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_edge");
+			ret = false;
 		}
-		return ret;
+	} else if (step_ > ChecksumRecalculatingStep::kEdges) {
+		ret = true;
+	} else if (step_ == ChecksumRecalculatingStep::kEdges &&
+	           EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->nleng, edge->name)) <
+	                   position_) {
+		ret = true;
 	}
-
-	// is xattr already included in the background checksum?
-	bool isXattrIncluded(xattr_data_entry* xde) {
-		auto ret = false;
-		if (step_ > ChecksumRecalculatingStep::kXattrs) {
-			ret = true;
-		}
-		if (step_ == ChecksumRecalculatingStep::kXattrs
-				&& xattr_data_hash_fn(xde->inode, xde->anleng, xde->attrname) < position_) {
-			ret = true;
-		}
-		if (ret) {
-			DEBUG_LOG("master.fs.checksum.changing_recalculated_xattr");
-		} else {
-			DEBUG_LOG("master.fs.checksum.changing_not_recalculated_xattr");
-		}
-		return ret;
+	if (ret) {
+		DEBUG_LOG("master.fs.checksum.changing_recalculated_edge");
+	} else {
+		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_edge");
 	}
+	return ret;
+}
 
-	void setSpeedLimit(uint32_t value) {
-		speedLimit_ = value;
+bool ChecksumBackgroundUpdater::isXattrIncluded(xattr_data_entry *xde) {
+	auto ret = false;
+	if (step_ > ChecksumRecalculatingStep::kXattrs) {
+		ret = true;
 	}
-
-	uint32_t getSpeedLimit() {
-		return speedLimit_;
+	if (step_ == ChecksumRecalculatingStep::kXattrs &&
+	    xattr_data_hash_fn(xde->inode, xde->anleng, xde->attrname) < position_) {
+		ret = true;
 	}
-
-	// Checksum values
-	uint64_t fsNodesChecksum;
-	uint64_t fsEdgesChecksum;
-	uint64_t xattrChecksum;
-private:
-	// current step
-	ChecksumRecalculatingStep step_;
-
-	// How many objects should be processed per one fs_background_checksum_recalculation_a_bit() ?
-	uint32_t speedLimit_;
-
-	// current position in hashtable
-	uint32_t position_;
-
-	void updateChecksum() {
-		if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
-			syslog(LOG_WARNING,"FsNodes checksum mismatch found, replacing with a new value.");
-			gMetadata->fsNodesChecksum = fsNodesChecksum;
-			DEBUG_LOG("master.fs.checksum.mismatch");
-		}
-		if (fsEdgesChecksum != gMetadata->fsEdgesChecksum) {
-			syslog(LOG_WARNING,"FsEdges checksum mismatch found, replacing with a new value.");
-			gMetadata->fsEdgesChecksum = fsEdgesChecksum;
-			DEBUG_LOG("master.fs.checksum.mismatch");
-		}
-		if (xattrChecksum != gMetadata->xattrChecksum) {
-			syslog(LOG_WARNING,"Xattr checksum mismatch found, replacing with a new value.");
-			gMetadata->xattrChecksum = xattrChecksum;
-			DEBUG_LOG("master.fs.checksum.mismatch");
-		}
+	if (ret) {
+		DEBUG_LOG("master.fs.checksum.changing_recalculated_xattr");
+	} else {
+		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_xattr");
 	}
+	return ret;
+}
 
-	// prepare for next checksum recalculation
-	void reset() {
-		position_ = 0;
-		step_ = ChecksumRecalculatingStep::kNone;
-		fsNodesChecksum = NODECHECKSUMSEED;
-		fsEdgesChecksum = EDGECHECKSUMSEED;
-		xattrChecksum = XATTRCHECKSUMSEED;
+void ChecksumBackgroundUpdater::setSpeedLimit(uint32_t value) {
+	speedLimit_ = value;
+}
+
+uint32_t ChecksumBackgroundUpdater::getSpeedLimit() {
+	return speedLimit_;
+}
+
+void ChecksumBackgroundUpdater::updateChecksum() {
+	if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
+		syslog(LOG_WARNING, "FsNodes checksum mismatch found, replacing with a new value.");
+		gMetadata->fsNodesChecksum = fsNodesChecksum;
+		DEBUG_LOG("master.fs.checksum.mismatch");
 	}
-};
+	if (fsEdgesChecksum != gMetadata->fsEdgesChecksum) {
+		syslog(LOG_WARNING, "FsEdges checksum mismatch found, replacing with a new value.");
+		gMetadata->fsEdgesChecksum = fsEdgesChecksum;
+		DEBUG_LOG("master.fs.checksum.mismatch");
+	}
+	if (xattrChecksum != gMetadata->xattrChecksum) {
+		syslog(LOG_WARNING, "Xattr checksum mismatch found, replacing with a new value.");
+		gMetadata->xattrChecksum = xattrChecksum;
+		DEBUG_LOG("master.fs.checksum.mismatch");
+	}
+}
+
+void ChecksumBackgroundUpdater::reset() {
+	position_ = 0;
+	step_ = ChecksumRecalculatingStep::kNone;
+	fsNodesChecksum = NODECHECKSUMSEED;
+	fsEdgesChecksum = EDGECHECKSUMSEED;
+	xattrChecksum = XATTRCHECKSUMSEED;
+}
 
 static ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
 
