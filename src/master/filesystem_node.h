@@ -157,3 +157,86 @@ inline uint32_t fsnodes_hash(uint32_t parentid, uint16_t nleng, const uint8_t *n
 	return hash;
 }
 
+char *fsnodes_escape_name(uint32_t nleng, const uint8_t *name);
+int fsnodes_purge(uint32_t ts, fsnode *p);
+uint32_t fsnodes_getdetachedsize(fsedge *start);
+void fsnodes_getdetacheddata(fsedge *start, uint8_t *dbuff);
+void fsnodes_getpath(fsedge *e, uint16_t *pleng, uint8_t **path);
+fsnode *fsnodes_id_to_node(uint32_t id);
+void fsnodes_fill_attr(fsnode *node, fsnode *parent, uint32_t uid, uint32_t gid, uint32_t auid,
+	uint32_t agid, uint8_t sesflags, Attributes &attr);
+void fsnodes_fill_attr(const FsContext &context, fsnode *node, fsnode *parent, Attributes &attr);
+
+uint8_t verify_session(const FsContext &context, OperationMode operationMode,
+	SessionType sessionType);
+
+uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeType expectedNodeType,
+	uint8_t modemask, uint32_t inode, fsnode **ret);
+uint8_t fsnodes_undel(uint32_t ts, fsnode *node);
+
+int fsnodes_namecheck(uint32_t nleng, const uint8_t *name);
+fsedge *fsnodes_lookup(fsnode *node, uint16_t nleng, const uint8_t *name);
+void fsnodes_get_stats(fsnode *node, statsrecord *sr);
+bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f, fsnode *p);
+int fsnodes_access(fsnode *node, uint32_t uid, uint32_t gid, uint8_t modemask, uint8_t sesflags);
+
+bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid);
+
+void fsnodes_setlength(fsnode *obj, uint64_t length);
+void fsnodes_change_uid_gid(fsnode *p, uint32_t uid, uint32_t gid);
+int fsnodes_nameisused(fsnode *node, uint16_t nleng, const uint8_t *name);
+bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid);
+
+fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uint8_t *name,
+	uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
+	uint8_t copysgid, AclInheritance inheritacl);
+
+void fsnodes_add_stats(fsnode *parent, statsrecord *sr);
+int fsnodes_sticky_access(fsnode *parent, fsnode *node, uint32_t uid);
+void fsnodes_unlink(uint32_t ts, fsedge *e);
+bool fsnodes_isancestor(fsnode *f, fsnode *p);
+void fsnodes_remove_edge(uint32_t ts, fsedge *e);
+void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, const uint8_t *name);
+
+uint8_t fsnodes_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, fsnode *parentnode,
+	uint32_t nleng, const uint8_t *name, uint8_t canoverwrite);
+void fsnodes_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnode, uint32_t nleng,
+	const uint8_t *name);
+
+uint8_t fsnodes_appendchunks(uint32_t ts, fsnode *dstobj, fsnode *srcobj);
+uint32_t fsnodes_getdirsize(fsnode *p, uint8_t withattr);
+void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
+	uint32_t agid, uint8_t sesflags, fsnode *p, uint8_t *dbuff,
+	uint8_t withattr);
+void fsnodes_checkfile(fsnode *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
+
+bool fsnodes_has_tape_goal(fsnode *node);
+void fsnodes_add_sub_stats(fsnode *parent, statsrecord *newsr, statsrecord *prevsr);
+
+void fsnodes_quota_update_size(fsnode *node, int64_t delta);
+void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &fgtab,
+	GoalMap<uint32_t> &dgtab);
+
+void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode, bstnode **bstrootfiles,
+	bstnode **bstrootdirs);
+void fsnodes_geteattr_recursive(fsnode *node, uint8_t gmode, uint32_t feattrtab[16],
+	uint32_t deattrtab[16]);
+void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal, uint8_t smode,
+	uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
+void fsnodes_settrashtime_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint32_t trashtime,
+	uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes,
+	uint32_t *nsinodes);
+void fsnodes_seteattr_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t eattr,
+	uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes,
+	uint32_t *nsinodes);
+uint8_t fsnodes_deleteacl(fsnode *p, AclType type, uint32_t ts);
+
+uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, uint32_t ts);
+uint8_t fsnodes_getacl(fsnode *p, AclType type, AccessControlList &acl);
+
+uint32_t fsnodes_getpath_size(fsedge *e);
+void fsnodes_getpath_data(fsedge *e, uint8_t *path, uint32_t size);
+
+int64_t fsnodes_get_size(fsnode *node);
+
+void fsnodes_quota_register_inode(fsnode *node);
