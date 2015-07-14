@@ -53,8 +53,9 @@
 #include "master/checksum.h"
 #include "master/chunks.h"
 #include "master/filesystem_bst.h"
-#include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_checksum.h"
+#include "master/filesystem_checksum_background_updater.h"
+#include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
@@ -225,48 +226,6 @@ void fs_changelog(uint32_t ts, const char* format, ...) {
 }
 
 ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
-
-/*! \brief Periodically adds CHECKSUM changelog entry.
- *  Entry is added during destruction, so that it will be generated after end of function
- *  where ChecksumUpdater is created.
- */
-#ifndef METARESTORE
-class ChecksumUpdater {
-public:
-	ChecksumUpdater(uint32_t ts)
-			: ts_(ts) {
-	}
-	virtual ~ChecksumUpdater() {
-		if (gMetadata->metaversion > lastEntry_ + period_) {
-			writeToChangelog(ts_);
-		}
-	}
-	static void setPeriod(uint32_t period) {
-		period_ = period;
-	}
-	static void writeToChangelog(uint32_t ts) {
-		lastEntry_ = gMetadata->metaversion;
-		if (metadataserver::isMaster() && !gChecksumBackgroundUpdater.inProgress()) {
-			std::string versionString = lizardfsVersionToString(LIZARDFS_VERSHEX);
-			uint64_t checksum = fs_checksum(ChecksumMode::kGetCurrent);
-			fs_changelog(ts, "CHECKSUM(%s):%" PRIu64, versionString.c_str(), checksum);
-		}
-	}
-private:
-	uint32_t ts_;
-	static uint32_t period_;
-	static uint32_t lastEntry_;
-};
-
-uint32_t ChecksumUpdater::period_;
-uint32_t ChecksumUpdater::lastEntry_ = 0;
-
-#else /* #ifndef METARESTORE */
-class ChecksumUpdater {
-public:
-	ChecksumUpdater(uint32_t) {}
-};
-#endif /* #ifndef METARESTORE */
 
 static uint64_t fsnodes_checksum(const fsnode* node) {
 	if (!node) {
