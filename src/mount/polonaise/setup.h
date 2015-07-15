@@ -40,6 +40,7 @@ struct Setup {
 	double attr_cache_timeout;
 	bool no_mkdir_copy_sgid;
 	SugidClearMode sugid_clear_mode;
+	bool make_daemon;
 };
 
 extern Setup gSetup;

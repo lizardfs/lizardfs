@@ -127,6 +127,9 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 			("sugid-clear-mode",
 				po::value<SugidClearMode>(&setup.sugid_clear_mode)->default_value(SugidClearMode::kNever),
 				"set sugid clear mode")
+			("daemonize",
+				po::bool_switch(&setup.make_daemon)->default_value(false),
+				"work in daemon mode")
 			;
 		po::variables_map vm;
 		po::store(po::parse_command_line(argc, argv, desc), vm);

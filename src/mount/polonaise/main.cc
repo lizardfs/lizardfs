@@ -20,6 +20,7 @@
 
 #include <fcntl.h>
 #include <signal.h>
+#include <syslog.h>
 #include <iostream>
 #include <boost/make_shared.hpp>
 #include <polonaise/polonaise_constants.h>
@@ -403,6 +404,7 @@ static EntryReply toEntryReply(const LizardClient::EntryParam& in) throw(Failure
 			throw makeStatus(toStatusCode(ex.errNo));\
 		} catch (Failure& ex) {\
 			std::cerr << __FUNCTION__ << " failure: " << ex.message << std::endl;\
+			syslog(LOG_ERR, "%s Failure: %s", __FUNCTION__, ex.message.c_str());\
 			throw makeFailure(std::string(__FUNCTION__) + ": " + ex.message);\
 		}
 
@@ -891,6 +893,59 @@ void termhandle(int) {
 	}
 }
 
+bool daemonize() {
+	pid_t pid;
+
+	pid = fork();
+	if (pid) {
+		if (pid > 0) {
+			exit(0);
+		}
+
+		syslog(LOG_ERR, "First fork failed: %s", strerror(errno));
+		return false ;
+	}
+
+	/* setsid() return value is ignored, because behaviour is the same regardless of
+	 * its result.
+	 */
+	setsid();
+	int r = chdir("/");
+	if (r < 0) {
+		syslog(LOG_ERR, "Change directory failed: %s", strerror(errno));
+	}
+	umask(0);
+
+	pid = fork();
+	if (pid) {
+		if (pid > 0) {
+			exit(0);
+		}
+
+		syslog(LOG_ERR, "Second fork failed: %s", strerror(errno));
+		return false;
+	}
+
+	close(0);
+	close(1);
+	close(2);
+
+	if (open("/dev/null", O_RDONLY) < 0) {
+		syslog(LOG_ERR, "Unable to open /dev/null: %s", strerror(errno));
+		return false;
+	}
+	if (open("/dev/null", O_WRONLY) < 0) {
+		syslog(LOG_ERR, "Unable to open /dev/null: %s", strerror(errno));
+		return false;
+	}
+	if (dup(1) < 0) {
+		syslog(LOG_ERR, "Unable to duplicate stdout descriptor: %s", strerror(errno));
+		return false;
+	}
+
+	return true;
+}
+
 int main (int argc, char **argv) {
 	bool userwlock = true;
 	auto writeworkers = 30;
@@ -914,6 +969,14 @@ int main (int argc, char **argv) {
 	sigaction(SIGUSR1, &sa, nullptr);
 #endif
 
+	openlog("lizardfs-polonaise-server", 0, LOG_DAEMON);
+
+	// Daemonize if needed
+	if (gSetup.make_daemon && !daemonize()) {
+		syslog(LOG_ERR, "Unable to daemonize lizardfs-polonaise-server");
+		return EXIT_FAILURE;
+	}
+
 	// Initialize LizardFS client
 	strerr_init();
 	mycrc32_init();
@@ -922,6 +985,7 @@ int main (int argc, char **argv) {
 				0, gSetup.mountpoint.c_str(), gSetup.subfolder.c_str(), nullptr,
 				gSetup.forget_password, 0, gSetup.io_retries, gSetup.report_reserved_period) < 0) {
 		std::cerr << "Can't initialize connection with master server" << std::endl;
+		syslog(LOG_ERR, "Can't initialize connection with master server");
 		return 2;
 	}
 	symlink_cache_init();
