@@ -19,73 +19,23 @@
 #include "common/platform.h"
 #include "master/filesystem.h"
 
-#include <errno.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <syslog.h>
-#include <unistd.h>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
-#include "common/cwrap.h"
-#include "common/datapack.h"
-#include "common/debug_log.h"
-#include "common/exceptions.h"
-#include "common/hashfn.h"
-#include "common/lizardfs_version.h"
-#include "common/massert.h"
+#include "common/cfg.h"
+#include "common/lockfile.h"
+#include "common/main.h"
 #include "common/metadata.h"
-#include "common/MFSCommunication.h"
-#include "common/rotate_files.h"
-#include "common/setup.h"
-#include "common/slogger.h"
-#include "common/tape_copies.h"
-#include "common/tape_copy_state.h"
-#include "master/checksum.h"
+#include "master/changelog.h"
 #include "master/chunks.h"
-#include "master/filesystem_bst.h"
-#include "master/filesystem_checksum.h"
-#include "master/filesystem_checksum_background_updater.h"
+#include "master/datacachemgr.h"
+#include "master/goal_config_loader.h"
 #include "master/filesystem_checksum_updater.h"
-#include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
-#include "master/filesystem_node.h"
 #include "master/filesystem_operations.h"
 #include "master/filesystem_periodic.h"
 #include "master/filesystem_store.h"
-#include "master/filesystem_xattr.h"
-#include "master/goal_config_loader.h"
+#include "master/matoclserv.h"
 #include "master/matomlserv.h"
-#include "master/matotsserv.h"
-#include "master/personality.h"
+#include "master/metadata_dumper.h"
 #include "master/restore.h"
-#include "master/quota_database.h"
-
-#ifdef LIZARDFS_HAVE_PWD_H
-#  include <pwd.h>
-#endif
-#ifndef METARESTORE
-#  include "common/cfg.h"
-#  include "common/main.h"
-#  include "master/changelog.h"
-#  include "master/datacachemgr.h"
-#  include "master/matoclserv.h"
-#  include "master/matocsserv.h"
-#  include "master/matotsserv.h"
-#endif
-
-#define CHIDS_NO 0
-#define CHIDS_YES 1
-#define CHIDS_AUTO 2
 
 FilesystemMetadata* gMetadata = nullptr;
 
@@ -98,7 +48,6 @@ static bool gAutoRecovery = false;
 bool gMagicAutoFileRepair = false;
 bool gAtimeDisabled = false;
 MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
-
 
 uint32_t test_start_time;
 
@@ -115,10 +64,7 @@ uint32_t gStoredPreviousBackMetaCopies;
 // Checksum validation
 bool gDisableChecksumVerification = false;
 
-
 ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
-
-enum {FLAG_TREE,FLAG_TRASH,FLAG_RESERVED};
 
 #ifdef METARESTORE
 
