@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -14,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 #pragma once
 
@@ -46,6 +47,7 @@ void fsnodes_init_freebitmask(void);
 void fsnodes_used_inode(uint32_t id);
 void fs_periodic_freeinodes(void);
 void sessionidrec_free(sessionidrec *p);
+
 freenode *freenode_malloc();
 sessionidrec *sessionidrec_malloc();
 uint32_t fsnodes_get_next_id();
