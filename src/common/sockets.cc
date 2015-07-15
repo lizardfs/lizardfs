@@ -107,7 +107,7 @@ int tcpsetacceptfilter(int sock) {
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg afa;
 
-	bzero(&afa, sizeof(afa));
+	memset(&ata, 0, sizeof(afa));
 	strcpy(afa.af_name, "dataready");
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #elif TCP_DEFER_ACCEPT
@@ -147,7 +147,7 @@ int tcpaccfhttp(int sock) {
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg afa;
 
-	bzero(&afa, sizeof(afa));
+	memset(&afa, 0, sizeof(afa));
 	strcpy(afa.af_name, "httpready");
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #else
@@ -161,7 +161,7 @@ int tcpaccfdata(int sock) {
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg afa;
 
-	bzero(&afa, sizeof(afa));
+	memset(&afa, 0, sizeof(afa));
 	strcpy(afa.af_name, "dataready");
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #else

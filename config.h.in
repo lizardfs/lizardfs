@@ -66,7 +66,6 @@
 
 /* [CMake] Required functions */
 #cmakedefine LIZARDFS_HAVE_ATEXIT
-#cmakedefine LIZARDFS_HAVE_BZERO
 #cmakedefine LIZARDFS_HAVE_FTRUNCATE
 #cmakedefine LIZARDFS_HAVE_GETADDRINFO
 #cmakedefine LIZARDFS_HAVE_GETPASS
