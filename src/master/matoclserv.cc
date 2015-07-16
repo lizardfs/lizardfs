@@ -1818,7 +1818,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 			wptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REGISTER,32);
 			for (i=0 ; i<32 ; i++) {
-				eptr->passwordrnd[i]=rndu8();
+				eptr->passwordrnd[i]=rnd<uint8_t>();
 			}
 			memcpy(wptr,eptr->passwordrnd,32);
 			return;
@@ -3914,7 +3914,7 @@ void matoclserv_admin_register(matoclserventry* eptr, const uint8_t* data, uint3
 		eptr->adminChallenge.reset(new LizMatoclAdminRegisterChallengeData());
 		auto& array = *eptr->adminChallenge;
 		for (uint32_t i = 0; i < array.size(); ++i) {
-			array[i] = rndu8();
+			array[i] = rnd<uint8_t>();
 		}
 		matoclserv_createpacket(eptr, matocl::adminRegisterChallenge::build(array));
 	} else {
