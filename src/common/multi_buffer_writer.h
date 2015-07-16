@@ -20,7 +20,15 @@
 
 #include "common/platform.h"
 
+#ifndef _WIN32
 #include <sys/uio.h>
+#else // if defined(_WIN32)
+#include <unistd.h>
+	struct iovec {
+		void *iov_base;
+		size_t iov_len;
+	};
+#endif
 #include <vector>
 
 /*

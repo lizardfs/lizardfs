@@ -1,6 +1,7 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 collect_sources(COMMON)
+
 add_library(mfscommon ${COMMON_SOURCES})
 if (HAVE_CRCUTIL)
   # Use crcutil Library
