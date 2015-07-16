@@ -5,6 +5,7 @@ include_directories(${CRCUTIL_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CRCUTIL_CXX_FLAGS}")
 
 collect_sources(COMMON)
+
 add_library(mfscommon ${COMMON_SOURCES})
 target_link_libraries(mfscommon crcutil)
 if (ZLIB_FOUND)
