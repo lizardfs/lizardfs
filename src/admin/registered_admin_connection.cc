@@ -5,6 +5,10 @@
 #include <cstdio>
 #include <iostream>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "common/exceptions.h"
 #include "common/matocl_communication.h"
 #include "common/md5.h"
@@ -14,11 +18,24 @@ namespace {
 
 std::string getPassword() {
 	std::string password;
+#ifdef _WIN32
+	// disable stdin echo
+	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+	DWORD mode = 0;
+	GetConsoleMode(hStdin, &mode);
+	SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT));
+
+	std::cin >> password;
+
+	// enable stdin echo
+	SetConsoleMode(hStdin, mode);
+#else
 	if (isatty(fileno(stdin))) {
 		password = getpass("Admin password: ");
 	} else {
 		std::cin >> password;
 	}
+#endif
 	return password;
 }
 
